@@ -29,10 +29,14 @@ Graph-level (post-projection) checks:
                           conditioning set is incompatible with the
                           declared causal structure from silently
                           feeding Theta and corrupting identification.
+- ``query_atoms_in_V``:    every atom referenced by a cause / assoc /
+                          identify / effect query is a node in G(M).
+                          Probability queries are intentionally exempt
+                          — they are pure distributional lookups and
+                          may reference atoms that live only in Theta.
 
 Reserved for later slices:
 
-- ``query_atoms_in_V``:    query atoms belong to the instantiated V
 - ``formula_wellformed``:  no free value variables, sum.over ground
   (already callable as ``validate_formula``)
 
@@ -299,7 +303,9 @@ _CHECK_FUNCS = {
 # graph-level checks (run post-instantiation)
 # ---------------------------------------------------------------------------
 
-GRAPH_LEVEL_CHECKS: frozenset[str] = frozenset({"probability_parents"})
+GRAPH_LEVEL_CHECKS: frozenset[str] = frozenset(
+    {"probability_parents", "query_atoms_in_V"}
+)
 
 
 def _check_probability_parents(ground_statements, graph) -> None:
@@ -333,8 +339,56 @@ def _check_probability_parents(ground_statements, graph) -> None:
             )
 
 
+def _query_structural_atoms(q) -> tuple[Atom, ...]:
+    """Return the atoms a structural query references.
+
+    Probability queries are intentionally excluded: they are
+    distributional lookups that may reference atoms living only in
+    Theta, not in the causal DAG.
+    """
+    if isinstance(q, CauseQuery):
+        return (q.from_atom, q.to_atom)
+    if isinstance(q, AssocQuery):
+        return (q.left, q.right, *q.given)
+    if isinstance(q, IdentifyQuery):
+        return (q.target, q.intervention.atom, *q.given)
+    if isinstance(q, EffectQuery):
+        return (
+            q.target.atom,
+            q.intervention.atom,
+            *(g.atom for g in q.given),
+        )
+    return ()
+
+
+def _check_query_atoms_in_V(ground_statements, graph) -> None:
+    """Every atom referenced by a cause / assoc / identify / effect
+    query must be a node in the instantiated working graph G(M).
+
+    Silent False for undeclared query atoms is the same class of bug
+    as patterned-query-answered-False caught by ``ground_queries`` in
+    slice 2; catching it at validation time keeps the four-state
+    contract honest.
+    """
+    for idx, stmt in enumerate(ground_statements):
+        if not isinstance(stmt, QueryStatement):
+            continue
+        atoms = _query_structural_atoms(stmt.query)
+        if not atoms:
+            continue
+        missing = [a for a in atoms if a not in graph]
+        if missing:
+            names = sorted({a.predicate for a in missing})
+            raise SemanticError(
+                f"ground_statements[{idx}] ({stmt.id}): query references "
+                f"atom(s) {names} that are not in the instantiated "
+                f"variable set V (no cause edge introduces them)"
+            )
+
+
 _GRAPH_CHECK_FUNCS = {
     "probability_parents": _check_probability_parents,
+    "query_atoms_in_V": _check_query_atoms_in_V,
 }
 
 
