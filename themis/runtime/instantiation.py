@@ -22,6 +22,7 @@ from ..types import (
     QueryStatement,
     Statement,
     Term,
+    ValuedAtom,
     VarTerm,
 )
 
@@ -39,8 +40,15 @@ def _subst_atom(atom: Atom, subst: dict[str, str]) -> Atom:
     )
 
 
-def _subst_atoms(atoms: Iterable[Atom], subst: dict[str, str]) -> tuple[Atom, ...]:
-    return tuple(_subst_atom(a, subst) for a in atoms)
+def _subst_valued(va: ValuedAtom, subst: dict[str, str]) -> ValuedAtom:
+    """Instantiate only the atom part; preserve the concrete value."""
+    return ValuedAtom(atom=_subst_atom(va.atom, subst), value=va.value)
+
+
+def _subst_valued_tuple(
+    items: Iterable[ValuedAtom], subst: dict[str, str]
+) -> tuple[ValuedAtom, ...]:
+    return tuple(_subst_valued(v, subst) for v in items)
 
 
 def _instantiate_one(stmt, subst: dict[str, str]):
@@ -52,8 +60,8 @@ def _instantiate_one(stmt, subst: dict[str, str]):
         )
     if isinstance(stmt, ProbabilityStatement):
         return ProbabilityStatement(
-            target=_subst_atom(stmt.target, subst),
-            given=_subst_atoms(stmt.given, subst),
+            target=_subst_valued(stmt.target, subst),
+            given=_subst_valued_tuple(stmt.given, subst),
             value=stmt.value,
             forall=(),
             annotations=stmt.annotations,

@@ -53,15 +53,6 @@ class CauseStatement:
     forall: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True)
-class ProbabilityStatement:
-    target: Atom
-    given: tuple[Atom, ...]
-    value: float
-    forall: tuple[str, ...] = ()
-    annotations: Annotation | None = None
-
-
 AtomValue = Union[bool, int, float, str]
 
 
@@ -76,6 +67,17 @@ class ObservationStatement:
 class Intervention:
     atom: Atom
     value: AtomValue
+
+
+@dataclass(frozen=True)
+class ProbabilityStatement:
+    # target and given atoms carry concrete literal values — the CPT
+    # entry they describe is fully specified at program time.
+    target: "ValuedAtom"
+    given: tuple["ValuedAtom", ...]
+    value: float
+    forall: tuple[str, ...] = ()
+    annotations: Annotation | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -97,13 +99,18 @@ class AssocQuery:
 
 @dataclass(frozen=True)
 class EffectQuery:
-    target: Atom
+    # target carries the concrete value whose probability under
+    # intervention is being queried; given conditions the effect on a
+    # specific subpopulation defined by concrete atom values.
+    target: "ValuedAtom"
     intervention: Intervention
-    given: tuple[Atom, ...]
+    given: tuple["ValuedAtom", ...]
 
 
 @dataclass(frozen=True)
 class IdentifyQuery:
+    # identify is a structural question; target / given have no values
+    # attached because identifiability depends on atoms, not values.
     target: Atom
     intervention: Intervention
     given: tuple[Atom, ...]
@@ -111,8 +118,8 @@ class IdentifyQuery:
 
 @dataclass(frozen=True)
 class ProbabilityQuery:
-    target: Atom
-    given: tuple[Atom, ...]
+    target: "ValuedAtom"
+    given: tuple["ValuedAtom", ...]
 
 
 Query = Union[

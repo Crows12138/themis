@@ -40,6 +40,7 @@ from ..types import (
     Program,
     QueryStatement,
     Term,
+    ValuedAtom,
     VarTerm,
 )
 
@@ -82,6 +83,14 @@ def _to_intervention(d: dict) -> Intervention:
     return Intervention(atom=_to_atom(d["atom"]), value=d["value"])
 
 
+def _to_grounded(d: dict) -> ValuedAtom:
+    """Parse a groundedAtom ({atom, value}) from the schema into a
+    ValuedAtom. The schema guarantees ``value`` is a concrete literal
+    here (no VarRef, no None); ValuedAtom's broader type accommodates
+    this without extra runtime checks."""
+    return ValuedAtom(atom=_to_atom(d["atom"]), value=d["value"])
+
+
 def _to_query(d: dict):
     k = d["kind"]
     if k == "cause":
@@ -94,9 +103,9 @@ def _to_query(d: dict):
         )
     if k == "effect":
         return EffectQuery(
-            target=_to_atom(d["target"]),
+            target=_to_grounded(d["target"]),
             intervention=_to_intervention(d["intervention"]),
-            given=tuple(_to_atom(a) for a in d["given"]),
+            given=tuple(_to_grounded(a) for a in d["given"]),
         )
     if k == "identify":
         return IdentifyQuery(
@@ -106,8 +115,8 @@ def _to_query(d: dict):
         )
     if k == "probability":
         return ProbabilityQuery(
-            target=_to_atom(d["target"]),
-            given=tuple(_to_atom(a) for a in d["given"]),
+            target=_to_grounded(d["target"]),
+            given=tuple(_to_grounded(a) for a in d["given"]),
         )
     raise SemanticError(f"unknown query kind: {k}")
 
@@ -122,8 +131,8 @@ def _to_statement(d: dict):
         )
     if k == "probability":
         return ProbabilityStatement(
-            target=_to_atom(d["target"]),
-            given=tuple(_to_atom(a) for a in d["given"]),
+            target=_to_grounded(d["target"]),
+            given=tuple(_to_grounded(a) for a in d["given"]),
             value=d["value"],
             forall=tuple(d.get("forall", ())),
             annotations=_to_annotation(d.get("annotations")),
@@ -143,11 +152,16 @@ def _to_statement(d: dict):
 # semantic checks
 # ---------------------------------------------------------------------------
 
+def _as_atom(x) -> Atom:
+    """Return the bare Atom from either an Atom or a ValuedAtom."""
+    return x.atom if isinstance(x, ValuedAtom) else x
+
+
 def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
     if isinstance(stmt, CauseStatement):
         return (stmt.from_atom, stmt.to_atom)
     if isinstance(stmt, ProbabilityStatement):
-        return (stmt.target, *stmt.given)
+        return (_as_atom(stmt.target), *(_as_atom(g) for g in stmt.given))
     if isinstance(stmt, ObservationStatement):
         return (stmt.atom,)
     if isinstance(stmt, QueryStatement):
@@ -157,11 +171,15 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
         if isinstance(q, AssocQuery):
             return (q.left, q.right, *q.given)
         if isinstance(q, EffectQuery):
-            return (q.target, q.intervention.atom, *q.given)
+            return (
+                _as_atom(q.target),
+                q.intervention.atom,
+                *(_as_atom(g) for g in q.given),
+            )
         if isinstance(q, IdentifyQuery):
             return (q.target, q.intervention.atom, *q.given)
         if isinstance(q, ProbabilityQuery):
-            return (q.target, *q.given)
+            return (_as_atom(q.target), *(_as_atom(g) for g in q.given))
     return ()
 
 

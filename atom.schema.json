@@ -72,6 +72,31 @@
           }
         }
       }
+    },
+    "literalValue": {
+      "description": "Concrete value of an atom: literal only (no VarRef).",
+      "oneOf": [
+        {"type": "boolean"},
+        {"type": "number"},
+        {"type": "string"}
+      ]
+    },
+    "groundedAtom": {
+      "description": "Atom paired with a concrete literal value. Used in kernel_ast statements where the value must be known at program time (probabilityStatement, probabilityQuery, effectQuery target/given). For formula ASTs (query_result.schema.json) use the broader valuedAtom that additionally admits VarRef.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atom",
+        "value"
+      ],
+      "properties": {
+        "atom": {
+          "$ref": "#/$defs/atom"
+        },
+        "value": {
+          "$ref": "#/$defs/literalValue"
+        }
+      }
     }
   }
 }

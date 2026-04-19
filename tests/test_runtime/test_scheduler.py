@@ -39,37 +39,42 @@ def test_dispatch_all_returns_one_result_per_query() -> None:
 
 
 def test_all_query_kinds_surface_results() -> None:
-    """Every in-language query produces a result (never silently dropped)."""
+    """Every in-language query produces a result (never silently dropped).
+
+    After slice 6 the numeric dispatch paths consult a real Theta built
+    from the program's probability statements. For minimal_example:
+
+    - q_prob_1 asks P(cancer=true | tar=true), which is exactly the
+      declared CPT entry → NUMERICALLY_SOLVED with value 0.2.
+    - q_effect_1 needs P(cancer=true | smokes=false); Theta has no
+      such entry → NEEDS_INVESTIGATION with a precise missing parameter.
+    - cause / identify stay structural as before.
+    """
     ast = parse_json(EXAMPLE.read_text(encoding="utf-8"))
     program = validate_program(validate_ast(ast))
     graph = project(instantiate(program))
 
     by_id = {r.query_id: r for r in dispatch_all(program, graph)}
 
-    # cause and identify resolve structurally.
     assert by_id["q_cause_1"].status is ResultStatus.STRUCTURALLY_SOLVED
     assert by_id["q_cause_1"].query_kind is QueryKind.CAUSE
     assert by_id["q_identify_1"].status is ResultStatus.STRUCTURALLY_SOLVED
     assert by_id["q_identify_1"].query_kind is QueryKind.IDENTIFY
 
-    # effect and probability now run through the numeric dispatch paths
-    # but land on needs_investigation because Theta is empty in v0.1.
-    # Missing info must point at the specific conditional probability
-    # the evaluator could not resolve.
-    for qid, expected_kind in [
-        ("q_prob_1", QueryKind.PROBABILITY),
-        ("q_effect_1", QueryKind.EFFECT),
-    ]:
-        r = by_id[qid]
-        assert r.status is ResultStatus.NEEDS_INVESTIGATION, (
-            f"{qid} should be needs_investigation, got {r.status}"
-        )
-        assert r.query_kind is expected_kind
-        assert r.missing_information, f"{qid} missing_information must be non-empty"
-        assert any(
-            m.name.startswith("parameter:") or m.name.startswith("numeric:")
-            for m in r.missing_information
-        ), [m.name for m in r.missing_information]
+    r_prob = by_id["q_prob_1"]
+    assert r_prob.status is ResultStatus.NUMERICALLY_SOLVED
+    assert r_prob.query_kind is QueryKind.PROBABILITY
+    assert r_prob.numeric_result is not None
+    assert r_prob.numeric_result.value == 0.2
+
+    r_effect = by_id["q_effect_1"]
+    assert r_effect.status is ResultStatus.NEEDS_INVESTIGATION
+    assert r_effect.query_kind is QueryKind.EFFECT
+    assert r_effect.missing_information
+    assert any(
+        m.name.startswith("parameter:") or m.name.startswith("numeric:")
+        for m in r_effect.missing_information
+    ), [m.name for m in r_effect.missing_information]
 
 
 def test_needs_investigation_auto_populates_investigation_requests() -> None:

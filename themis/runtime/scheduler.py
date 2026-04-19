@@ -46,6 +46,7 @@ from . import (
     investigation_pusher,
     numeric_estimator,
     structural_solver,
+    theta_builder,
 )
 from .numeric_estimator import InsufficientTheta, ProbabilityKey, Theta
 
@@ -222,11 +223,17 @@ def _try_numeric(
     )
 
 
-def _dispatch_effect(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
+def _dispatch_effect(
+    stmt: QueryStatement, graph: nx.DiGraph, theta: Theta
+) -> QueryResult:
     q: EffectQuery = stmt.query  # type: ignore[assignment]
-    x, y = q.intervention.atom, q.target
+    x = q.intervention.atom
+    y_atom = q.target.atom
+    observed_atoms = tuple(g.atom for g in q.given)
 
-    missing_atoms = [a for a in (x, y, *q.given) if a not in graph]
+    missing_atoms = [
+        a for a in (x, y_atom, *observed_atoms) if a not in graph
+    ]
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -244,7 +251,7 @@ def _dispatch_effect(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
         )
 
     adjustment_sets = structural_solver.minimal_adjustment_sets(
-        graph, x, y, given=q.given
+        graph, x, y_atom, given=observed_atoms
     )
     if not adjustment_sets:
         return QueryResult(
@@ -264,20 +271,27 @@ def _dispatch_effect(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
 
     chosen = min(adjustment_sets, key=len)
     topo = [n for n in nx.topological_sort(graph) if n in chosen]
+    # q.target and q.given already carry concrete literal values,
+    # so the formula is numerically resolvable once Theta has the
+    # referenced conditionals.
     formula = formula_builder.backdoor_formula(
-        target=ValuedAtom(atom=y, value=None),
+        target=q.target,
         intervention=ValuedAtom(atom=x, value=q.intervention.value),
         adjustment_set=tuple(topo),
-        observed=tuple(ValuedAtom(atom=g, value=None) for g in q.given),
+        observed=q.given,
     )
     validate_formula(formula)
-    return _try_numeric(stmt, formula, numeric_estimator.empty_theta(), QueryKind.EFFECT)
+    return _try_numeric(stmt, formula, theta, QueryKind.EFFECT)
 
 
-def _dispatch_probability(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
+def _dispatch_probability(
+    stmt: QueryStatement, graph: nx.DiGraph, theta: Theta
+) -> QueryResult:
     q: ProbabilityQuery = stmt.query  # type: ignore[assignment]
+    target_atom = q.target.atom
+    given_atoms = tuple(g.atom for g in q.given)
 
-    missing_atoms = [a for a in (q.target, *q.given) if a not in graph]
+    missing_atoms = [a for a in (target_atom, *given_atoms) if a not in graph]
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -294,12 +308,12 @@ def _dispatch_probability(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResul
             ),
         )
 
-    # A plain probability query is a single conditional reference.
+    # Query target/given already carry concrete literal values.
     formula = formula_builder._conditional(  # type: ignore[attr-defined]
-        ValuedAtom(atom=q.target, value=None),
-        tuple(ValuedAtom(atom=g, value=None) for g in q.given),
+        q.target,
+        q.given,
     )
-    return _try_numeric(stmt, formula, numeric_estimator.empty_theta(), QueryKind.PROBABILITY)
+    return _try_numeric(stmt, formula, theta, QueryKind.PROBABILITY)
 
 
 def _attach_investigation(result: QueryResult) -> QueryResult:
@@ -354,8 +368,21 @@ def _attach_confidence(
     return replace(result, confidence=computed)
 
 
-def dispatch(program: Program, stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
-    """Route a query to its solver(s) and assemble a QueryResult."""
+def dispatch(
+    program: Program,
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta | None = None,
+) -> QueryResult:
+    """Route a query to its solver(s) and assemble a QueryResult.
+
+    If ``theta`` is omitted, it is built on demand from the program's
+    probability statements. For batch dispatch prefer ``dispatch_all``
+    which builds Theta once and reuses it.
+    """
+    if theta is None:
+        theta = theta_builder.build_theta_from_program(program)
+
     q = stmt.query
     if isinstance(q, CauseQuery):
         result = _dispatch_cause(stmt, graph)
@@ -364,9 +391,9 @@ def dispatch(program: Program, stmt: QueryStatement, graph: nx.DiGraph) -> Query
     elif isinstance(q, IdentifyQuery):
         result = _dispatch_identify(stmt, graph)
     elif isinstance(q, EffectQuery):
-        result = _dispatch_effect(stmt, graph)
+        result = _dispatch_effect(stmt, graph, theta)
     elif isinstance(q, ProbabilityQuery):
-        result = _dispatch_probability(stmt, graph)
+        result = _dispatch_probability(stmt, graph, theta)
     else:
         # Truly unknown type: fail loudly. The schema layer should
         # have already rejected it; reaching here is a programmer bug.
@@ -380,11 +407,14 @@ def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]
     """Run every QueryStatement in the program against a single shared
     graph projection.
 
-    Unlike a silent-drop approach, every query surfaces a result —
-    unimplemented kinds return ``needs_investigation``.
+    Theta is compiled once from the program's probability statements
+    and shared across all dispatched queries.
+
+    Unlike a silent-drop approach, every query surfaces a result.
     """
+    theta = theta_builder.build_theta_from_program(program)
     return tuple(
-        dispatch(program, stmt, graph)
+        dispatch(program, stmt, graph, theta)
         for stmt in program.statements
         if isinstance(stmt, QueryStatement)
     )

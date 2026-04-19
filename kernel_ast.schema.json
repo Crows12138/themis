@@ -116,13 +116,14 @@
           }
         },
         "target": {
-          "$ref": "atom.schema.json#/$defs/atom"
+          "$ref": "atom.schema.json#/$defs/groundedAtom",
+          "description": "Target atom with the specific value this conditional refers to, e.g. {atom: cancer(X), value: true}."
         },
         "given": {
           "type": "array",
-          "description": "Model conditioning set for the target. In v0.1 this should align with the target's structural parent set, or a subset of it.",
+          "description": "Model conditioning set for the target, each entry a groundedAtom at a specific value. In v0.1 this should align with the target's structural parent set, or a subset of it.",
           "items": {
-            "$ref": "atom.schema.json#/$defs/atom"
+            "$ref": "atom.schema.json#/$defs/groundedAtom"
           }
         },
         "value": {
@@ -245,16 +246,17 @@
           "const": "effect"
         },
         "target": {
-          "$ref": "atom.schema.json#/$defs/atom"
+          "$ref": "atom.schema.json#/$defs/groundedAtom",
+          "description": "Target atom with the specific value whose probability under intervention is being queried, e.g. {atom: cancer(alice), value: true}."
         },
         "intervention": {
           "$ref": "#/$defs/intervention"
         },
         "given": {
           "type": "array",
-          "description": "Observed condition set applied together with the intervention.",
+          "description": "Observed condition set applied together with the intervention, each at a specific value.",
           "items": {
-            "$ref": "atom.schema.json#/$defs/atom"
+            "$ref": "atom.schema.json#/$defs/groundedAtom"
           }
         }
       }
@@ -300,12 +302,13 @@
           "const": "probability"
         },
         "target": {
-          "$ref": "atom.schema.json#/$defs/atom"
+          "$ref": "atom.schema.json#/$defs/groundedAtom",
+          "description": "Target atom with the specific value whose conditional probability is being queried."
         },
         "given": {
           "type": "array",
           "items": {
-            "$ref": "atom.schema.json#/$defs/atom"
+            "$ref": "atom.schema.json#/$defs/groundedAtom"
           }
         }
       }
