@@ -3,17 +3,36 @@
 Takes a validated query, runs the appropriate solvers, and classifies
 the outcome into one of:
 
-- structurally_solved
-- numerically_solved
-- needs_investigation
-- outside_language
+- structurally_solved   — cause / assoc / identify verdict reached
+- numerically_solved    — effect / probability evaluated against Theta
+- needs_investigation   — solvable in principle but data / solver gap
+- outside_language      — query type not in v0.1 language
 
 See 理论框架_v0_1.md §12 for the formal definitions of these states.
 
-Slice 1 only implements cause-query dispatch. Other in-language query
-kinds (assoc / effect / identify / probability) surface as
-``needs_investigation`` with a missing_information entry noting the
-solver gap — never as a silent drop or a fabricated False answer.
+Dispatch routing (v0.1, after slice 6 + slice 7):
+
+- ``cause``       -> ``_dispatch_cause``     : directed-path existence.
+- ``assoc``       -> ``_dispatch_assoc``     : d-separation + open-path
+                                                 enumeration under the
+                                                 conditioning set.
+- ``identify``    -> ``_dispatch_identify``  : back-door adjustment
+                                                 search, returns a
+                                                 formula AST; handles
+                                                 cardinality >= 2 via
+                                                 chain-rule factoring.
+- ``effect``      -> ``_dispatch_effect``    : back-door identify, then
+                                                 numeric evaluation via
+                                                 Theta.
+- ``probability`` -> ``_dispatch_probability``: direct distributional
+                                                 lookup in Theta; not
+                                                 gated on DAG membership.
+
+``dispatch_all`` also runs graph-level semantic checks
+(``probability_parents``, ``query_atoms_in_V``) up-front and builds
+Theta once via ``theta_builder``, sharing the ground statement tuple.
+
+Every in-language query surfaces a result; no silent drops.
 """
 from __future__ import annotations
 

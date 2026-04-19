@@ -1,35 +1,36 @@
 """Numeric estimation of probabilities and formulas.
 
-v0.1 status: the recursive evaluator is implemented, but Theta (the
-parameter store) is built empty because the current kernel_ast
-``probabilityStatement`` does not attach target/given values. That
-schema gap is tracked for a later slice. As a result, every numeric
-query surfaces a ``needs_investigation`` verdict with a precise
-``missing_information`` entry naming the probability term the
-evaluator needed but could not find.
+Wiring (v0.1, after slice 6):
 
-What IS implemented:
-
-- A ``Theta`` parameter store (dict + per-atom value domains).
-- ``estimate_formula`` recursively evaluates constant / product /
-  sum / probability_ref nodes, substituting VarRefs bound by
-  enclosing sums.
+- ``Theta`` is a real parameter store: dict keyed by ``ProbabilityKey``
+  plus per-atom value domains. The domains are populated by
+  ``theta_builder`` from every literal value observed in the program's
+  ``ValuedAtom`` positions (probability target / given, observation
+  value); atoms that never appear in such positions fall back to the
+  boolean default.
+- ``estimate_formula`` recursively evaluates ``constant`` /
+  ``probability_ref`` / ``product`` / ``sum`` nodes, substituting
+  ``VarRef`` names bound by enclosing sums.
 - ``InsufficientTheta`` is raised with the precise lookup key that
-  failed, so the scheduler can build a ``MissingItem`` that points
-  to the exact conditional the caller needs to provide.
+  failed, so the scheduler can build a ``MissingItem`` that points to
+  the exact conditional the caller must still provide.
 
-What is NOT implemented in v0.1:
+Behaviour in context:
 
-- Populating Theta from a program's probability statements (the
-  schema lacks target/given values).
-- Resolving query-bound target values (e.g. for ``P(Y|do(X))`` the
-  target Y has no concrete value attached). Until a target value is
-  supplied, evaluation raises ``InsufficientTheta`` rather than
-  assuming a default.
+- ``scheduler._dispatch_effect`` and ``_dispatch_probability`` run the
+  evaluator against the Theta built from the program's probability
+  statements. When every referenced conditional is present, the query
+  resolves to ``NUMERICALLY_SOLVED``; otherwise it surfaces as
+  ``NEEDS_INVESTIGATION`` with structured missing-parameter details.
+- Query-bound target values (e.g. the ``Y`` in ``P(Y|do(X))``) are
+  handled by the effect/probability query shapes: the query supplies a
+  concrete ``target.value`` and the builder propagates it into the
+  formula. A formula reaching the evaluator with a query-bound ``None``
+  still raises ``InsufficientTheta`` — that path is defensive, not the
+  documented usage.
 
-The evaluator therefore supports numeric estimation in principle and
-exposes a clean error channel when preconditions are missing; wiring
-full evaluation end-to-end is a later slice.
+See ``v0_1_scope.md`` for the full list of what the numeric layer
+does and does not cover in v0.1.
 """
 from __future__ import annotations
 

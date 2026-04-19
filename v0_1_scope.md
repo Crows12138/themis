@@ -131,6 +131,10 @@ v0.1 → v0.2 的跃迁必须显式声明并走版本号，不能隐式漂移。
 - **LLM 接入 / 自然语言翻译**
 - **IDE / language server**
 
+### 持久化 / 往返
+
+- **`result_orchestrator.from_dict`**：v0.1 只实现序列化方向。已落盘的 query_result 可以过 `syntactic_validator.validate_result` 做 schema 合规性检查，但不能反序列化回 `QueryResult` 对象
+
 ---
 
 ## 一致性承诺（v0.1.x 补丁版本内不会变）

@@ -7,8 +7,12 @@ Responsibilities:
 - omit None-valued optional fields and empty collections
 - emit structured formula AST (never stringify it)
 
-This is the reverse side of syntactic_validator.validate_result:
-together they form a round-trip contract.
+v0.1 only implements the serialize direction (``to_dict``). The
+deserialize direction (``from_dict``) is reserved for a later slice
+and currently raises ``NotImplementedError``. ``syntactic_validator.
+validate_result`` can still be used to confirm that a serialized
+payload conforms to ``query_result.schema.json``, but reloading it
+back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 """
 from __future__ import annotations
 
@@ -143,8 +147,12 @@ def to_dict(result: QueryResult) -> dict:
 
 
 def from_dict(payload: dict) -> QueryResult:
-    """Inverse of to_dict. Used for loading stored results in tests.
+    """Inverse of ``to_dict``.
 
-    Slice 1 only covers cause-query results. Later slices extend.
+    Not implemented in v0.1. Serialized results can be schema-validated
+    via ``syntactic_validator.validate_result`` but cannot yet be
+    reconstructed into a typed ``QueryResult``. Listed in
+    ``v0_1_scope.md`` under out-of-scope; a later slice will add it
+    together with the fixtures that need round-trip.
     """
-    raise NotImplementedError
+    raise NotImplementedError("from_dict is not part of the v0.1 surface")

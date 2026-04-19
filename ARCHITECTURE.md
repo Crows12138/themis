@@ -376,5 +376,6 @@ schema 是跨语言资产，留在项目根的 JSON 文件里，Python 包通过
 ```text
 input 做校验，runtime 做推理，oracle 做对照，output 做整理；
 runtime 不依赖 oracle，oracle 不进入生产路径；
-v0.1 的数值估计和 composite confidence 是 stub，正式语义延后到 v0.2。
+v0.1 的数值估计已接入（effect / probability 可落到 NUMERICALLY_SOLVED），
+composite confidence 仍是 min 占位，正式语义延后到 v0.2。
 ```
