@@ -129,6 +129,55 @@ def test_two_var_differential_now_agrees():
     assert report.status == "agree", report
 
 
+# ------------------------------------------------------ slice 8.1: explainer
+
+def test_two_var_explanation_mentions_every_adjustment_atom():
+    """Slice 8.1 fix: the identify explainer must surface EVERY atom
+    bound by an enclosing SumExpr, not just the outermost one.
+
+    Before this slice, the explainer only read formula.over and
+    silently downgraded a 2-var adjustment to a 1-var story. The
+    three-case usage review flagged this as the most user-visible
+    fidelity gap in v0.1."""
+    from themis.output.explainer import explain
+
+    _, _, results, _ = _load("identify_two_var.json")
+    r = results["identify_needs_two_adjustments"]
+    text = explain(r)
+    # Both atoms must appear.
+    assert "genetics(alice)" in text
+    assert "social(alice)" in text
+    # And the size note should reflect the multi-var case.
+    assert "2" in text
+
+
+def test_explanation_is_faithful_to_formula_adjustment_atoms():
+    """Cross-check invariant: every atom named by the explainer as
+    part of the adjustment set must actually appear as a SumExpr.over
+    in the formula. Guards against the explainer drifting away from
+    the formula it is supposed to describe."""
+    from themis.output.explainer import explain, _atom_label
+    from themis.runtime.formula_builder import adjustment_atoms
+
+    # Cover both the single-var and multi-var paths.
+    for fixture, qid in [
+        ("identify_backdoor.json", "identify_confounded"),
+        ("identify_two_var.json", "identify_needs_two_adjustments"),
+        ("identify_conditional.json", "identify_given_is_adjustment"),
+    ]:
+        _, _, results, _ = _load(fixture)
+        r = results[qid]
+        if r.formula is None:
+            continue
+        text = explain(r)
+        for atom in adjustment_atoms(r.formula):
+            label = _atom_label(atom)
+            assert label in text, (
+                f"{qid}: adjustment atom {label!r} missing from "
+                f"explanation:\n{text}"
+            )
+
+
 # ------------------------------------------------------------------ unit
 
 def test_minimal_adjustment_sets_respects_given():

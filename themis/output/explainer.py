@@ -12,6 +12,7 @@ headers, just short declarative sentences.
 """
 from __future__ import annotations
 
+from ..runtime import formula_builder
 from ..types import (
     ProbabilityRefExpr,
     QueryKind,
@@ -58,6 +59,12 @@ def _atom_label(atom) -> str:
     return f"{atom.predicate}({args})"
 
 
+def _format_atom_set(atoms) -> str:
+    """Render a sequence of atoms as ``{a(x), b(x), ...}``."""
+    labels = [_atom_label(a) for a in atoms]
+    return "{" + ", ".join(labels) + "}"
+
+
 def _explain_identify_zh(result: QueryResult) -> str:
     sr = result.structural_result
     if sr is None:
@@ -67,12 +74,20 @@ def _explain_identify_zh(result: QueryResult) -> str:
     if sr.value is True:
         if result.formula is None:
             return "该干预量可识别，但本轮未返回具体公式。"
-        if isinstance(result.formula, SumExpr):
-            over_label = _atom_label(result.formula.over)
+
+        # Walk the formula to pick up every SumExpr.over, not just
+        # the outermost. Multi-var adjustment used to degrade here.
+        adj = formula_builder.adjustment_atoms(result.formula)
+        if adj:
+            size_note = f"（共 {len(adj)} 个调整变量）" if len(adj) > 1 else ""
             return (
                 f"该干预量可通过后门调整识别，"
-                f"调整集 {{{over_label}}} 足以堵住所有后门路径。"
+                f"调整集 {_format_atom_set(adj)} 足以堵住所有后门路径"
+                f"{size_note}。"
             )
+
+        # No SumExpr in the formula ⇒ empty adjustment; the observation
+        # distribution itself identifies the quantity.
         if isinstance(result.formula, ProbabilityRefExpr):
             return "该干预量无需后门调整即可识别，观察分布本身给出答案。"
         return "该干预量可识别。"

@@ -113,3 +113,39 @@ def backdoor_formula(
         body = SumExpr(bind=bind, over=z_atom, body=body)
 
     return body
+
+
+# ---------------------------------------------------------------------------
+# Read-only walkers — used by explainer / differential, never by builders.
+# ---------------------------------------------------------------------------
+
+
+def adjustment_atoms(formula: FormulaExpr) -> tuple[Atom, ...]:
+    """Return every atom that a ``SumExpr.over`` node iterates in the
+    formula, in outer-to-inner order.
+
+    For a back-door adjustment produced by ``backdoor_formula``:
+
+    - empty adjustment set → the formula is a flat ``ProbabilityRefExpr``
+      and this function returns ``()``.
+    - single adjustment atom → one-element tuple.
+    - nested chain-rule sums over ``(z1, ..., zk)`` → ``(z1, ..., zk)``
+      in the same order ``backdoor_formula`` nested them.
+
+    Used by the explainer to render the full adjustment set (not only
+    the outermost binder) and by the oracle comparator to verify that
+    the chosen adjustment is valid per pgmpy.
+    """
+    collected: list[Atom] = []
+    _walk_for_adjustments(formula, collected)
+    return tuple(collected)
+
+
+def _walk_for_adjustments(node: FormulaExpr, collected: list[Atom]) -> None:
+    if isinstance(node, SumExpr):
+        collected.append(node.over)
+        _walk_for_adjustments(node.body, collected)
+    elif isinstance(node, ProductExpr):
+        for t in node.terms:
+            _walk_for_adjustments(t, collected)
+    # ConstantExpr / ProbabilityRefExpr: no adjustment atoms.
