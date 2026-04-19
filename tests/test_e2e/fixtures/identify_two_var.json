@@ -1,0 +1,35 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [{"kind": "object", "name": "alice"}]
+  },
+  "statements": [
+
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "genetics", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "smoking",  "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "genetics", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "cancer",   "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "social",  "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "smoking", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "social",  "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "cancer",  "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "smoking", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "cancer",  "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "query", "id": "identify_needs_two_adjustments",
+     "query": {"kind": "identify",
+       "target": {"predicate": "cancer", "args": [{"type": "const", "name": "alice"}]},
+       "intervention": {
+         "atom": {"predicate": "smoking", "args": [{"type": "const", "name": "alice"}]},
+         "value": false
+       },
+       "given": []}}
+  ]
+}

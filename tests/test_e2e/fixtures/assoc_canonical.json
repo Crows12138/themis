@@ -1,0 +1,62 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [{"kind": "object", "name": "alice"}]
+  },
+  "statements": [
+
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "smokes", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "tar",    "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "tar",    "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "cancer", "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "hot_weather", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "ice_cream",   "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "hot_weather", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "drowning",    "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "flu",   "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "fever", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "covid", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "fever", "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "query", "id": "chain_open",
+     "query": {"kind": "assoc",
+       "left":  {"predicate": "smokes", "args": [{"type": "const", "name": "alice"}]},
+       "right": {"predicate": "cancer", "args": [{"type": "const", "name": "alice"}]},
+       "given": []}},
+    {"kind": "query", "id": "chain_blocked",
+     "query": {"kind": "assoc",
+       "left":  {"predicate": "smokes", "args": [{"type": "const", "name": "alice"}]},
+       "right": {"predicate": "cancer", "args": [{"type": "const", "name": "alice"}]},
+       "given": [{"predicate": "tar", "args": [{"type": "const", "name": "alice"}]}]}},
+
+    {"kind": "query", "id": "fork_open",
+     "query": {"kind": "assoc",
+       "left":  {"predicate": "ice_cream", "args": [{"type": "const", "name": "alice"}]},
+       "right": {"predicate": "drowning",  "args": [{"type": "const", "name": "alice"}]},
+       "given": []}},
+    {"kind": "query", "id": "fork_blocked",
+     "query": {"kind": "assoc",
+       "left":  {"predicate": "ice_cream", "args": [{"type": "const", "name": "alice"}]},
+       "right": {"predicate": "drowning",  "args": [{"type": "const", "name": "alice"}]},
+       "given": [{"predicate": "hot_weather", "args": [{"type": "const", "name": "alice"}]}]}},
+
+    {"kind": "query", "id": "collider_closed",
+     "query": {"kind": "assoc",
+       "left":  {"predicate": "flu",   "args": [{"type": "const", "name": "alice"}]},
+       "right": {"predicate": "covid", "args": [{"type": "const", "name": "alice"}]},
+       "given": []}},
+    {"kind": "query", "id": "collider_opened",
+     "query": {"kind": "assoc",
+       "left":  {"predicate": "flu",   "args": [{"type": "const", "name": "alice"}]},
+       "right": {"predicate": "covid", "args": [{"type": "const", "name": "alice"}]},
+       "given": [{"predicate": "fever", "args": [{"type": "const", "name": "alice"}]}]}}
+  ]
+}

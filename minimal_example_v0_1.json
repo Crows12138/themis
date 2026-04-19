@@ -1,0 +1,219 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [
+      {
+        "kind": "object",
+        "name": "alice"
+      }
+    ]
+  },
+  "statements": [
+    {
+      "kind": "observation",
+      "atom": {
+        "predicate": "smokes",
+        "args": [
+          {
+            "type": "const",
+            "name": "alice"
+          }
+        ]
+      },
+      "value": true,
+      "annotations": {
+        "confidence": 1,
+        "source": "clinical_record"
+      }
+    },
+    {
+      "kind": "cause",
+      "forall": [
+        "X"
+      ],
+      "from": {
+        "predicate": "smokes",
+        "args": [
+          {
+            "type": "var",
+            "name": "X"
+          }
+        ]
+      },
+      "to": {
+        "predicate": "tar",
+        "args": [
+          {
+            "type": "var",
+            "name": "X"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "cause",
+      "forall": [
+        "X"
+      ],
+      "from": {
+        "predicate": "tar",
+        "args": [
+          {
+            "type": "var",
+            "name": "X"
+          }
+        ]
+      },
+      "to": {
+        "predicate": "cancer",
+        "args": [
+          {
+            "type": "var",
+            "name": "X"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "probability",
+      "forall": [
+        "X"
+      ],
+      "target": {
+        "predicate": "cancer",
+        "args": [
+          {
+            "type": "var",
+            "name": "X"
+          }
+        ]
+      },
+      "given": [
+        {
+          "predicate": "tar",
+          "args": [
+            {
+              "type": "var",
+              "name": "X"
+            }
+          ]
+        }
+      ],
+      "value": 0.2,
+      "annotations": {
+        "confidence": 0.82,
+        "source": "study_01"
+      }
+    },
+    {
+      "kind": "query",
+      "id": "q_cause_1",
+      "query": {
+        "kind": "cause",
+        "from": {
+          "predicate": "smokes",
+          "args": [
+            {
+              "type": "const",
+              "name": "alice"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "cancer",
+          "args": [
+            {
+              "type": "const",
+              "name": "alice"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "query",
+      "id": "q_prob_1",
+      "query": {
+        "kind": "probability",
+        "target": {
+          "predicate": "cancer",
+          "args": [
+            {
+              "type": "const",
+              "name": "alice"
+            }
+          ]
+        },
+        "given": [
+          {
+            "predicate": "tar",
+            "args": [
+              {
+                "type": "const",
+                "name": "alice"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "query",
+      "id": "q_effect_1",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "predicate": "cancer",
+          "args": [
+            {
+              "type": "const",
+              "name": "alice"
+            }
+          ]
+        },
+        "intervention": {
+          "atom": {
+            "predicate": "smokes",
+            "args": [
+              {
+                "type": "const",
+                "name": "alice"
+              }
+            ]
+          },
+          "value": false
+        },
+        "given": []
+      }
+    },
+    {
+      "kind": "query",
+      "id": "q_identify_1",
+      "query": {
+        "kind": "identify",
+        "target": {
+          "predicate": "cancer",
+          "args": [
+            {
+              "type": "const",
+              "name": "alice"
+            }
+          ]
+        },
+        "intervention": {
+          "atom": {
+            "predicate": "smokes",
+            "args": [
+              {
+                "type": "const",
+                "name": "alice"
+              }
+            ]
+          },
+          "value": false
+        },
+        "given": []
+      }
+    }
+  ]
+}

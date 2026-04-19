@@ -1,0 +1,369 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/kernel_ast.schema.json",
+  "title": "Causal Kernel Program AST v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "domain",
+    "statements"
+  ],
+  "properties": {
+    "version": {
+      "const": "0.1"
+    },
+    "extensions": {
+      "type": "object"
+    },
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objects"
+      ],
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/objectDecl"
+          }
+        }
+      }
+    },
+    "statements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/statement"
+      }
+    }
+  },
+  "$defs": {
+    "annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Composite confidence score for the whole input item; not a statistical interval."
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "objectDecl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name"
+      ],
+      "properties": {
+        "kind": {
+          "const": "object"
+        },
+        "name": {
+          "$ref": "atom.schema.json#/$defs/identifier"
+        }
+      }
+    },
+    "causeStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "from",
+        "to"
+      ],
+      "properties": {
+        "kind": {
+          "const": "cause"
+        },
+        "forall": {
+          "type": "array",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/variableName"
+          }
+        },
+        "from": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "to": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        }
+      }
+    },
+    "probabilityStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "target",
+        "given",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "probability"
+        },
+        "forall": {
+          "type": "array",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/variableName"
+          }
+        },
+        "target": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "given": {
+          "type": "array",
+          "description": "Model conditioning set for the target. In v0.1 this should align with the target's structural parent set, or a subset of it.",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          }
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Model-world conditional probability value, not an empirical sample frequency."
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotation"
+        }
+      }
+    },
+    "observationStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "atom",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "observation"
+        },
+        "atom": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "value": {
+          "type": [
+            "boolean",
+            "number",
+            "string"
+          ]
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotation"
+        }
+      }
+    },
+    "intervention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atom",
+        "value"
+      ],
+      "properties": {
+        "atom": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "value": {
+          "type": [
+            "boolean",
+            "number",
+            "string"
+          ]
+        }
+      }
+    },
+    "causeQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "from",
+        "to"
+      ],
+      "properties": {
+        "kind": {
+          "const": "cause"
+        },
+        "from": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "to": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        }
+      }
+    },
+    "assocQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "left",
+        "right",
+        "given"
+      ],
+      "properties": {
+        "kind": {
+          "const": "assoc"
+        },
+        "left": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "right": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "given": {
+          "type": "array",
+          "description": "Condition set for the structural association query.",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          }
+        }
+      }
+    },
+    "effectQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "target",
+        "intervention",
+        "given"
+      ],
+      "properties": {
+        "kind": {
+          "const": "effect"
+        },
+        "target": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "intervention": {
+          "$ref": "#/$defs/intervention"
+        },
+        "given": {
+          "type": "array",
+          "description": "Observed condition set applied together with the intervention.",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          }
+        }
+      }
+    },
+    "identifyQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "target",
+        "intervention",
+        "given"
+      ],
+      "properties": {
+        "kind": {
+          "const": "identify"
+        },
+        "target": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "intervention": {
+          "$ref": "#/$defs/intervention"
+        },
+        "given": {
+          "type": "array",
+          "description": "Observed condition set for the interventional quantity to be identified.",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          }
+        }
+      }
+    },
+    "probabilityQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "target",
+        "given"
+      ],
+      "properties": {
+        "kind": {
+          "const": "probability"
+        },
+        "target": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "given": {
+          "type": "array",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          }
+        }
+      }
+    },
+    "query": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/causeQuery"
+        },
+        {
+          "$ref": "#/$defs/assocQuery"
+        },
+        {
+          "$ref": "#/$defs/effectQuery"
+        },
+        {
+          "$ref": "#/$defs/identifyQuery"
+        },
+        {
+          "$ref": "#/$defs/probabilityQuery"
+        }
+      ]
+    },
+    "queryStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "query"
+      ],
+      "properties": {
+        "kind": {
+          "const": "query"
+        },
+        "id": {
+          "$ref": "atom.schema.json#/$defs/identifier"
+        },
+        "query": {
+          "$ref": "#/$defs/query"
+        }
+      }
+    },
+    "statement": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/causeStatement"
+        },
+        {
+          "$ref": "#/$defs/probabilityStatement"
+        },
+        {
+          "$ref": "#/$defs/observationStatement"
+        },
+        {
+          "$ref": "#/$defs/queryStatement"
+        }
+      ]
+    }
+  }
+}

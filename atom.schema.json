@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/atom.schema.json",
+  "title": "Causal Kernel Atom v0.1",
+  "description": "Shared atom / term definitions used by kernel_ast and query_result schemas.",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "variableName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9_]*$"
+    },
+    "constTerm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "const"
+        },
+        "name": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "varTerm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "var"
+        },
+        "name": {
+          "$ref": "#/$defs/variableName"
+        }
+      }
+    },
+    "term": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/constTerm"
+        },
+        {
+          "$ref": "#/$defs/varTerm"
+        }
+      ]
+    },
+    "atom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "predicate",
+        "args"
+      ],
+      "properties": {
+        "predicate": {
+          "$ref": "#/$defs/identifier"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/term"
+          }
+        }
+      }
+    }
+  }
+}

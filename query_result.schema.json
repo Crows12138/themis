@@ -1,0 +1,367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/query_result.schema.json",
+  "title": "Causal Kernel Query Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "query_kind"
+  ],
+  "properties": {
+    "extensions": {
+      "type": "object"
+    },
+    "status": {
+      "enum": [
+        "structurally_solved",
+        "numerically_solved",
+        "needs_investigation",
+        "outside_language"
+      ]
+    },
+    "query_id": {
+      "type": "string"
+    },
+    "query_kind": {
+      "enum": [
+        "cause",
+        "assoc",
+        "effect",
+        "identify",
+        "probability"
+      ]
+    },
+    "structural_result": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": [
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "supporting_paths": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "numeric_result": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "interval": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "low",
+            "high"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Composite confidence score for the whole result; not a statistical confidence interval."
+    },
+    "formula": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/formulaExpression"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "missing_information": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/missingItem"
+      }
+    },
+    "investigation_requests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/investigationRequest"
+      }
+    },
+    "explanation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "varRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name"
+      ],
+      "properties": {
+        "kind": {
+          "const": "var_ref"
+        },
+        "name": {
+          "type": "string",
+          "description": "Must match the name of an enclosing sum's bind.name."
+        }
+      }
+    },
+    "valueExpr": {
+      "description": "A concrete literal value or a reference to a bound value variable introduced by an enclosing sum.",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/varRef"
+        }
+      ]
+    },
+    "valuedAtom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atom"
+      ],
+      "properties": {
+        "atom": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "value": {
+          "$ref": "#/$defs/valueExpr",
+          "description": "Concrete literal, varRef bound by enclosing sum, or absent (the value is bound externally by the enclosing query's context — e.g., identify query's target or given atoms)."
+        }
+      }
+    },
+    "constantExpr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "constant"
+        },
+        "value": {
+          "type": "number"
+        }
+      }
+    },
+    "probabilityRefExpr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "target",
+        "given"
+      ],
+      "properties": {
+        "kind": {
+          "const": "probability_ref"
+        },
+        "target": {
+          "$ref": "#/$defs/valuedAtom"
+        },
+        "given": {
+          "type": "array",
+          "description": "Valued atoms conditioned on. May be empty. Refers to any model-distribution conditional, not only literal Theta entries.",
+          "items": {
+            "$ref": "#/$defs/valuedAtom"
+          }
+        }
+      }
+    },
+    "productExpr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "terms"
+      ],
+      "properties": {
+        "kind": {
+          "const": "product"
+        },
+        "terms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/formulaExpression"
+          }
+        }
+      }
+    },
+    "bindDecl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Fresh value-variable name introduced by the enclosing sum. Referenced by varRef in the body."
+        }
+      }
+    },
+    "sumExpr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "bind",
+        "over",
+        "body"
+      ],
+      "properties": {
+        "kind": {
+          "const": "sum"
+        },
+        "bind": {
+          "$ref": "#/$defs/bindDecl"
+        },
+        "over": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "Atom whose value domain is iterated. Validator MUST enforce that this atom is ground (contains no var terms)."
+        },
+        "body": {
+          "$ref": "#/$defs/formulaExpression"
+        }
+      }
+    },
+    "formulaExpression": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/constantExpr"
+        },
+        {
+          "$ref": "#/$defs/probabilityRefExpr"
+        },
+        {
+          "$ref": "#/$defs/productExpr"
+        },
+        {
+          "$ref": "#/$defs/sumExpr"
+        }
+      ]
+    },
+    "missingItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "priority"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "parameter",
+            "observation",
+            "sample",
+            "structure"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "investigationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "target",
+        "priority"
+      ],
+      "properties": {
+        "action": {
+          "enum": [
+            "collect_observation",
+            "run_experiment",
+            "increase_sample",
+            "validate_parameter"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
