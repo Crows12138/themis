@@ -39,12 +39,13 @@ runtime 旁边并列一个**对照位**：
 ├─────────────────────────────────────────────────────────┤
 │  runtime 层（自己写）          │  oracle 层（对照）     │
 │    实例化                       │    pgmpy 适配器       │
-│    图投影                       │    ananke 适配器(v0.2)│
+│    图投影 + DAG 不变量          │    ananke 适配器(v0.2)│
 │    结构求解(d-sep / 后门)       │    差分比对器         │
 │    公式 AST 构造                │                       │
-│    数值估计 ★stub v0.1          │                       │
-│    composite confidence ★stub   │                       │
-│    四态调度                     │                       │
+│    theta 编译                   │                       │
+│    数值估计（递归求值）          │                       │
+│    composite confidence ★占位   │                       │
+│    四态调度 + 图级校验          │                       │
 │    调查推进                     │                       │
 ├─────────────────────────────────────────────────────────┤
 │  output 层                                              │
@@ -65,10 +66,22 @@ text / json
 parse → AST
    │
    ▼
-syntactic validate
+syntactic validate          (schema)
    │
    ▼
-semantic validate
+semantic validate [pre]     (dict-level rules)
+   │
+   ▼
+instantiate → ground
+   │
+   ▼
+project → G(M)
+   │
+   ▼
+semantic validate [post]    (graph-level rules; e.g. probability_parents)
+   │
+   ▼
+build theta
    │
    ├─────────────────────┐
    ▼                     ▼
@@ -161,45 +174,48 @@ runtime             oracle (可选)
 
 ## 5. 模块清单
 
-下面每个模块对应一个 Python 文件。v0.1 阶段只要求接口签名，实现可以是 `raise NotImplementedError`。
-
 ### 5.1 input 层
 
 | 模块 | 职责 | 输入 | 输出 |
 |---|---|---|---|
 | `parser` | 把 DSL 文本或 JSON 转成 AST dict | str / bytes | dict |
 | `syntactic_validator` | 用 JSON Schema 校验 AST 语法 | dict | dict（不变）或抛错 |
-| `semantic_validator` | 校验语义规则 | dict | Program 对象 |
+| `semantic_validator` | 校验语义规则（两阶段） | dict / (ground, graph) | Program 对象 / 无返回（仅断言） |
 
-**语义规则清单（semantic_validator 的职责）**：
+**语义校验分两阶段**：
 
-- `probability.given` 是 `target` 结构父集或其子集
-- 公式 AST 里无自由值变量
-- `sum.over` 是 ground atom
-- 原子中的对象常量必须在 `D` 中声明
-- `forall` 变量在原子里必须被引用
-- 查询引用的原子必须在实例化后出现在 `V` 中
+- **pre-graph**（`validate_program(ast, checks=...)`，作用在 dict AST 上）：
+  - `objects`：原子中的对象常量必须在 `D` 中声明
+  - `forall_usage`：`forall` 变量必须在原子里被引用
+  - `bound_variables`：cause / probability 语句里每个 VarTerm 必须在 forall 中声明
+  - `ground_observations`：观察原子不含 VarTerm
+  - `ground_queries`：查询原子不含 VarTerm（v0.1 只答 ground 查询）
+- **post-graph**（`validate_against_graph(ground, graph, checks=...)`，作用在实例化 + 投影之后）：
+  - `probability_parents`：probability.given ⊆ parents(target) in G(M)
+- **utility**：
+  - `validate_formula(formula)`：公式 AST 里无自由值变量、`sum.over` ground（运行时出公式时自动调用）
 
 ### 5.2 runtime 层
 
-| 模块 | 职责 | v0.1 状态 |
+| 模块 | 职责 | 状态 |
 |---|---|---|
-| `instantiation` | 对 forall 声明在 D 上实例化 | 必须实现 |
-| `graph_projection` | 把实例化后的 cause 集合编译成 DAG | 必须实现 |
-| `structural_solver` | d-sep、后门、调整集判定 | 必须实现 |
-| `formula_builder` | 构造合法的公式 AST | 必须实现 |
-| `numeric_estimator` | 基于 Theta 估算数值 | ★ v0.1 stub |
-| `confidence_calc` | 计算 composite confidence | ★ v0.1 stub |
-| `scheduler` | 四态调度（结构/数值/调查/语言外） | 必须实现 |
-| `investigation_pusher` | 缺失信息转调查请求 | 必须实现 |
+| `instantiation` | 对 forall 声明在 D 上实例化，保留 ValuedAtom 上的具体 value | 已实现 |
+| `graph_projection` | 把实例化后的 cause 集合编译成 DAG；强制 DAG 不变量 | 已实现 |
+| `structural_solver` | 有向路径 / d-sep / 开放路径 / 后门 / 最小调整集 | 已实现 |
+| `formula_builder` | 构造合法的公式 AST（任意 cardinality 的后门调整，链式法则展开） | 已实现 |
+| `theta_builder` | 从 ground probability 语句编译 Theta；冲突键报错；按出现值推断 atom 域 | 已实现 |
+| `numeric_estimator` | 递归公式求值（constant / probability_ref / product / sum）；缺条目抛 `InsufficientTheta` 携带精确 key | 已实现 |
+| `confidence_calc` | 计算 composite confidence | ★ v0.1 占位（min 规则，正式语义待 v0.2） |
+| `scheduler` | 四态调度 + 图级校验 + 建 Theta + 调 confidence + 调 investigation | 已实现 |
+| `investigation_pusher` | 缺失信息转调查请求（按 MissingKind 映射 action） | 已实现 |
 
 ### 5.3 oracle 层
 
-| 模块 | 职责 | v0.1 状态 |
+| 模块 | 职责 | 状态 |
 |---|---|---|
-| `pgmpy_adapter` | 把 Program 转成 pgmpy 模型并跑 d-sep / 后门 | 实现 |
+| `pgmpy_adapter` | 把 Program 转成 pgmpy 模型并跑 d-sep / 后门；显式补齐 pgmpy 1.1.0 空调整集怪癖 | 已实现 |
 | `ananke_adapter` | 用 ananke 跑 ID 算法 | v0.2 引入 |
-| `differential` | 对比 runtime 与 oracle 的结果 | 实现 |
+| `differential` | 对比 runtime 与 oracle 的结果，三态（agree / disagree / not_applicable） | 已实现 |
 
 ### 5.4 output 层
 
@@ -216,25 +232,26 @@ runtime             oracle (可选)
 
 ---
 
-## 6. v0.1 的 stub
+## 6. v0.1 的占位
 
-以下模块在 v0.1 只写签名 + 占位：
+下面两项目前是**显式占位**——调用点与接口都已立起来，正式语义留给 v0.2。
 
-### 6.1 numeric_estimator
-
-- 当任何查询需要数值时，直接返回 `needs_investigation` 状态，缺失信息标为"数值估计器未实现"
-- 这让 v0.1 能自然跑通"结构可解 + 调查可推进"的闭环，推迟数值能力到 v0.2
-
-### 6.2 confidence_calc
+### 6.1 confidence_calc
 
 - 输入：若干参与方的 confidence 列表（observation 的、probability 的）
-- v0.1 占位实现：取最小值
-- 规范注释里必须写"这是占位，composite confidence 的正式语义待 v0.2 定义"
+- 当前占位规则：`composite(*inputs) = min(非 None)`；无输入时返回 None
+- `scheduler` 对**每一条**结果都显式调 `composite(*_gather_input_confidences(...))`；v0.1 阶段 `_gather_input_confidences` 永远返回 `()`，所以 `confidence` 字段现实中仍是 None——但调用链是活的，下一轮只需把输入收集填上
+- 模块 docstring 明文"v0.1 占位，正式规则待 v0.2"
 
-### 6.3 ananke_adapter
+### 6.2 ananke_adapter
 
-- v0.1 不实现
-- 目录下留一个 `# TODO v0.2: wire ananke for ID algorithm` 的空文件或注释
+- v0.1 不实现；只留入口
+- 目录下保留 `# TODO v0.2: wire ananke for ID algorithm` 注释，供将来接 Shpitser-Pearl ID 算法用
+
+### 6.3 已**离开**占位的模块（历史参考）
+
+- `numeric_estimator`：slice 6 后已是真实的递归公式求值器 + Theta 查表，`effect` / `probability` 查询可返回 `NUMERICALLY_SOLVED`
+- `investigation_pusher`：slice 5 后是真实的 `MissingKind → InvestigationAction` 映射
 
 ---
 
@@ -297,8 +314,9 @@ schema 是跨语言资产，留在项目根的 JSON 文件里，Python 包通过
       graph_projection.py
       structural_solver.py
       formula_builder.py
-      numeric_estimator.py    # stub v0.1
-      confidence_calc.py      # stub v0.1
+      theta_builder.py
+      numeric_estimator.py
+      confidence_calc.py      # v0.1 placeholder (min rule)
       scheduler.py
       investigation_pusher.py
 
@@ -333,10 +351,10 @@ schema 是跨语言资产，留在项目根的 JSON 文件里，Python 包通过
 
 - 反事实语义（`counterfactual` 查询类型）
 - ID 算法（ananke_adapter 上线）
-- 数值估计（numeric_estimator 实现）
-- composite confidence 正式定义
-- 原子类型 / 值域系统（atom.schema.json 扩展）
+- composite confidence 正式定义（v0.1 是 min 占位）
+- 原子类型 / 值域系统（atom.schema.json 扩展，目前值域靠 theta_builder 从语句里推断）
 - 经验统计语句（`empirical_prob`）
+- 布尔原子的互补自动补齐（写 `P(y=true|..)=0.2` 不用再手写 `P(y=false|..)=0.8`）
 
 ### 9.2 破坏性 vs 非破坏性
 
