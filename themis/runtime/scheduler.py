@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import networkx as nx
 
-from ..input.semantic_validator import validate_formula
+from ..input.semantic_validator import validate_against_graph, validate_formula
 from ..types import (
     AssocQuery,
     Atom,
@@ -397,12 +397,18 @@ def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]
     """Run every QueryStatement in the program against a single shared
     graph projection.
 
-    Theta is compiled once from the program's probability statements
-    and shared across all dispatched queries.
+    Graph-level semantic checks (currently: probability_parents) run
+    once here before Theta is built. Theta is then compiled from the
+    same ground statement tuple, avoiding a second instantiation pass.
 
     Unlike a silent-drop approach, every query surfaces a result.
     """
-    theta = theta_builder.build_theta_from_program(program)
+    from .instantiation import instantiate
+
+    ground = instantiate(program)
+    validate_against_graph(ground, graph)
+    theta = theta_builder.build_theta(ground)
+
     return tuple(
         dispatch(program, stmt, graph, theta)
         for stmt in program.statements

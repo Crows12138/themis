@@ -1,8 +1,16 @@
 """Semantic validation of a syntactically-valid AST.
 
 This layer enforces rules that cannot be expressed in the JSON Schema.
+Two entry points exist, distinguished by what they need:
 
-Checks are pluggable per slice. Slice 1 (cause vertical) enables:
+``validate_program(ast, checks=...)`` — dict-level checks that do not
+require the compiled working graph. These run before instantiation.
+
+``validate_against_graph(ground_statements, graph, checks=...)`` —
+post-instantiation checks that reference ``G(M)``. These run after
+``instantiation.instantiate`` + ``graph_projection.project``.
+
+Program-level (pre-graph) checks:
 
 - ``objects``:            every constant in an atom is declared in D.
 - ``forall_usage``:       every forall variable is actually used in
@@ -14,13 +22,22 @@ Checks are pluggable per slice. Slice 1 (cause vertical) enables:
                           answers ground queries; patterned queries
                           are out-of-language for now).
 
-Later slices enable more checks:
+Graph-level (post-projection) checks:
 
-- ``probability_parents``: probability.given ⊆ parents(target)
+- ``probability_parents``: probability.given ⊆ parents(target) in
+                          G(M). Prevents probability statements whose
+                          conditioning set is incompatible with the
+                          declared causal structure from silently
+                          feeding Theta and corrupting identification.
+
+Reserved for later slices:
+
 - ``query_atoms_in_V``:    query atoms belong to the instantiated V
 - ``formula_wellformed``:  no free value variables, sum.over ground
+  (already callable as ``validate_formula``)
 
-On success ``validate_program`` returns a typed ``Program`` object.
+On success ``validate_program`` returns a typed ``Program`` object;
+``validate_against_graph`` returns nothing.
 """
 from __future__ import annotations
 
@@ -276,6 +293,68 @@ _CHECK_FUNCS = {
     "ground_observations": _check_ground_observations,
     "ground_queries": _check_ground_queries,
 }
+
+
+# ---------------------------------------------------------------------------
+# graph-level checks (run post-instantiation)
+# ---------------------------------------------------------------------------
+
+GRAPH_LEVEL_CHECKS: frozenset[str] = frozenset({"probability_parents"})
+
+
+def _check_probability_parents(ground_statements, graph) -> None:
+    """Every ground probability statement's ``given`` set must be a
+    subset of the target atom's structural parents in ``G(M)``.
+
+    A model parameter is a conditional on the target's parent set (or
+    a marginal over a subset of them). Allowing arbitrary conditionals
+    into Theta silently admits statements that are not CPT entries and
+    whose values cannot be consumed by identification formulas without
+    contradiction.
+    """
+    for idx, stmt in enumerate(ground_statements):
+        if not isinstance(stmt, ProbabilityStatement):
+            continue
+        target_atom = stmt.target.atom
+        if target_atom in graph:
+            parents = set(graph.predecessors(target_atom))
+        else:
+            parents = set()
+        given_atoms = {va.atom for va in stmt.given}
+        extra = given_atoms - parents
+        if extra:
+            extra_names = sorted(a.predicate for a in extra)
+            parent_names = sorted(a.predicate for a in parents)
+            raise SemanticError(
+                f"ground_statements[{idx}]: probability.given includes "
+                f"{extra_names} which are not structural parents of "
+                f"{target_atom.predicate} (parents={parent_names}). "
+                f"given must be a subset of parents(target)"
+            )
+
+
+_GRAPH_CHECK_FUNCS = {
+    "probability_parents": _check_probability_parents,
+}
+
+
+def validate_against_graph(
+    ground_statements,
+    graph,
+    checks: frozenset[str] | None = None,
+) -> None:
+    """Run post-instantiation semantic checks that need the working graph.
+
+    Call this after ``instantiation.instantiate`` +
+    ``graph_projection.project``. ``checks`` defaults to
+    ``GRAPH_LEVEL_CHECKS``. Raises SemanticError on violation.
+    """
+    checks = checks if checks is not None else GRAPH_LEVEL_CHECKS
+    for name in checks:
+        func = _GRAPH_CHECK_FUNCS.get(name)
+        if func is None:
+            raise SemanticError(f"unknown graph-level check: {name}")
+        func(ground_statements, graph)
 
 
 # ---------------------------------------------------------------------------
