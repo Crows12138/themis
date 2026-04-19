@@ -12,15 +12,23 @@ v0.1 semantics:
   ``P(y=False|x=True) = 0.8``). Users supply the entries they need.
   A future slice may add principled complement materialization for
   declared-boolean atoms.
-- Atom value domains are left at the Theta default (booleans) unless
-  a future schema extension adds domain declarations.
+- Value domains ARE inferred from the statements: every value seen in
+  a ``ValuedAtom`` (probability target / given, observation value)
+  contributes to that atom's observed domain. Atoms never seen in any
+  such position fall back to ``Theta``'s boolean default.
 
 Duplicate keys are an error (two probability statements about the
 same (target_value, given) tuple is ambiguous under model semantics).
 """
 from __future__ import annotations
 
-from ..types import ProbabilityStatement, Statement
+from ..types import (
+    Atom,
+    AtomValue,
+    ObservationStatement,
+    ProbabilityStatement,
+    Statement,
+)
 from .instantiation import instantiate
 from .numeric_estimator import ProbabilityKey, Theta
 
@@ -38,6 +46,15 @@ def _key_of(stmt: ProbabilityStatement) -> ProbabilityKey:
     )
 
 
+def _sort_values(values: set) -> tuple:
+    """Return a deterministic ordering of observed values.
+
+    Sorting is done by string repr to tolerate mixed-type sets (we do
+    not police type uniformity per atom here; user pathology will
+    surface through evaluation or key-lookup failure)."""
+    return tuple(sorted(values, key=lambda v: (type(v).__name__, str(v))))
+
+
 def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
     """Build a Theta from a fully-ground statement tuple.
 
@@ -45,18 +62,31 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
     so no statement carries a non-empty ``forall``.
     """
     entries: dict[ProbabilityKey, float] = {}
+    domains: dict[Atom, set[AtomValue]] = {}
+
+    def note(atom: Atom, value: AtomValue) -> None:
+        domains.setdefault(atom, set()).add(value)
+
     for stmt in ground_statements:
-        if not isinstance(stmt, ProbabilityStatement):
-            continue
-        key = _key_of(stmt)
-        if key in entries and entries[key] != stmt.value:
-            raise ConflictingThetaEntry(
-                f"two probability statements specify the same key "
-                f"{key!r} with different values "
-                f"({entries[key]} vs {stmt.value})"
-            )
-        entries[key] = float(stmt.value)
-    return Theta(entries=entries)
+        if isinstance(stmt, ProbabilityStatement):
+            key = _key_of(stmt)
+            if key in entries and entries[key] != stmt.value:
+                raise ConflictingThetaEntry(
+                    f"two probability statements specify the same key "
+                    f"{key!r} with different values "
+                    f"({entries[key]} vs {stmt.value})"
+                )
+            entries[key] = float(stmt.value)
+            note(stmt.target.atom, stmt.target.value)
+            for va in stmt.given:
+                note(va.atom, va.value)
+        elif isinstance(stmt, ObservationStatement):
+            note(stmt.atom, stmt.value)
+
+    final_domains: dict[Atom, tuple] = {
+        atom: _sort_values(values) for atom, values in domains.items()
+    }
+    return Theta(entries=entries, domains=final_domains)
 
 
 def build_theta_from_program(program) -> Theta:

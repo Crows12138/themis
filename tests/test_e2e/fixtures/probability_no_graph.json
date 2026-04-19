@@ -1,0 +1,23 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [{"kind": "object", "name": "a"}]
+  },
+  "statements": [
+    {"kind": "probability",
+     "target": {"atom": {"predicate": "coin", "args": [{"type": "const", "name": "a"}]}, "value": true},
+     "given": [],
+     "value": 0.7},
+    {"kind": "probability",
+     "target": {"atom": {"predicate": "coin", "args": [{"type": "const", "name": "a"}]}, "value": false},
+     "given": [],
+     "value": 0.3},
+
+    {"kind": "query", "id": "prob_coin_true",
+     "query": {
+       "kind": "probability",
+       "target": {"atom": {"predicate": "coin", "args": [{"type": "const", "name": "a"}]}, "value": true},
+       "given": []
+     }}
+  ]
+}

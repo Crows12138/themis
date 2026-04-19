@@ -287,28 +287,18 @@ def _dispatch_effect(
 def _dispatch_probability(
     stmt: QueryStatement, graph: nx.DiGraph, theta: Theta
 ) -> QueryResult:
+    """Probability queries are purely distributional lookups.
+
+    Unlike cause / assoc / identify / effect, a probability query does
+    NOT require its target / given atoms to appear in the causal DAG.
+    A program consisting only of probability statements (no cause
+    edges) should still answer ``probability(atom=value)`` — Theta is
+    the authority. If the exact conditional is missing from Theta, the
+    evaluator surfaces a structured missing-parameter report, and the
+    caller can supply the entry without first declaring a spurious
+    cause edge.
+    """
     q: ProbabilityQuery = stmt.query  # type: ignore[assignment]
-    target_atom = q.target.atom
-    given_atoms = tuple(g.atom for g in q.given)
-
-    missing_atoms = [a for a in (target_atom, *given_atoms) if a not in graph]
-    if missing_atoms:
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.PROBABILITY,
-            query_id=stmt.id,
-            missing_information=tuple(
-                MissingItem(
-                    kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(a)}",
-                    priority=Priority.HIGH,
-                    reason="query atom is not in the instantiated variable set V",
-                )
-                for a in missing_atoms
-            ),
-        )
-
-    # Query target/given already carry concrete literal values.
     formula = formula_builder._conditional(  # type: ignore[attr-defined]
         q.target,
         q.given,
