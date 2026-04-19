@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from causal_kernel.runtime.graph_projection import CyclicGraphError, project
-from causal_kernel.types import Atom, CauseStatement, ConstTerm
+from themis.runtime.graph_projection import CyclicGraphError, project
+from themis.types import Atom, CauseStatement, ConstTerm
 
 
 def _ground_atom(predicate: str, obj: str) -> Atom:

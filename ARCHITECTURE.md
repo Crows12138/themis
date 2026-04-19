@@ -281,7 +281,7 @@ schema 是跨语言资产，留在项目根的 JSON 文件里，Python 包通过
   ARCHITECTURE.md
 
   # Python 包
-  causal_kernel/
+  themis/
     __init__.py
     types.py                  # 共享 dataclass
 

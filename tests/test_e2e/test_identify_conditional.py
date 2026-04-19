@@ -28,15 +28,15 @@ from pathlib import Path
 
 import pytest
 
-from causal_kernel.input.parser import parse_json
-from causal_kernel.input.semantic_validator import validate_formula, validate_program
-from causal_kernel.input.syntactic_validator import validate_ast
-from causal_kernel.oracle.differential import compare
-from causal_kernel.oracle.pgmpy_adapter import build_network
-from causal_kernel.runtime.graph_projection import project
-from causal_kernel.runtime.instantiation import instantiate
-from causal_kernel.runtime.scheduler import dispatch_all
-from causal_kernel.types import (
+from themis.input.parser import parse_json
+from themis.input.semantic_validator import validate_formula, validate_program
+from themis.input.syntactic_validator import validate_ast
+from themis.oracle.differential import compare
+from themis.oracle.pgmpy_adapter import build_network
+from themis.runtime.graph_projection import project
+from themis.runtime.instantiation import instantiate
+from themis.runtime.scheduler import dispatch_all
+from themis.types import (
     ProbabilityRefExpr,
     QueryKind,
     QueryStatement,
@@ -133,8 +133,8 @@ def test_two_var_differential_now_agrees():
 
 def test_minimal_adjustment_sets_respects_given():
     """Unit-level: feeding stress via `given` changes the chosen sum."""
-    from causal_kernel.runtime.structural_solver import minimal_adjustment_sets
-    from causal_kernel.types import Atom, ConstTerm
+    from themis.runtime.structural_solver import minimal_adjustment_sets
+    from themis.types import Atom, ConstTerm
     import networkx as nx
 
     stress = Atom(predicate="stress", args=(ConstTerm(name="alice"),))
@@ -158,8 +158,8 @@ def test_minimal_adjustment_sets_respects_given():
 def test_minimal_adjustment_sets_rejects_given_descendant_of_x():
     """A given containing a descendant of X violates the back-door
     precondition; function must return ()."""
-    from causal_kernel.runtime.structural_solver import minimal_adjustment_sets
-    from causal_kernel.types import Atom, ConstTerm
+    from themis.runtime.structural_solver import minimal_adjustment_sets
+    from themis.types import Atom, ConstTerm
     import networkx as nx
 
     x = Atom(predicate="x", args=(ConstTerm(name="a"),))

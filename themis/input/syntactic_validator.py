@@ -22,7 +22,7 @@ class SyntacticError(Exception):
 
 
 def _default_schema_dir() -> Path:
-    # project_root/causal_kernel/input/syntactic_validator.py -> project_root
+    # project_root/themis/input/syntactic_validator.py -> project_root
     return Path(__file__).resolve().parents[2]
 
 

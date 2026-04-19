@@ -20,15 +20,15 @@ from pathlib import Path
 
 import pytest
 
-from causal_kernel.input.parser import parse_json
-from causal_kernel.input.semantic_validator import validate_program
-from causal_kernel.input.syntactic_validator import validate_ast, validate_result
-from causal_kernel.output.explainer import explain
-from causal_kernel.output.result_orchestrator import to_dict
-from causal_kernel.runtime.graph_projection import project
-from causal_kernel.runtime.instantiation import instantiate
-from causal_kernel.runtime.scheduler import dispatch_all
-from causal_kernel.types import QueryKind, ResultStatus
+from themis.input.parser import parse_json
+from themis.input.semantic_validator import validate_program
+from themis.input.syntactic_validator import validate_ast, validate_result
+from themis.output.explainer import explain
+from themis.output.result_orchestrator import to_dict
+from themis.runtime.graph_projection import project
+from themis.runtime.instantiation import instantiate
+from themis.runtime.scheduler import dispatch_all
+from themis.types import QueryKind, ResultStatus
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "assoc_canonical.json"
 

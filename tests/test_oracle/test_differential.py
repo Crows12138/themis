@@ -14,15 +14,15 @@ from pathlib import Path
 
 import pytest
 
-from causal_kernel.input.parser import parse_json
-from causal_kernel.input.semantic_validator import validate_program
-from causal_kernel.input.syntactic_validator import validate_ast
-from causal_kernel.oracle.differential import compare
-from causal_kernel.oracle.pgmpy_adapter import build_network
-from causal_kernel.runtime.graph_projection import project
-from causal_kernel.runtime.instantiation import instantiate
-from causal_kernel.runtime.scheduler import dispatch_all
-from causal_kernel.types import QueryStatement
+from themis.input.parser import parse_json
+from themis.input.semantic_validator import validate_program
+from themis.input.syntactic_validator import validate_ast
+from themis.oracle.differential import compare
+from themis.oracle.pgmpy_adapter import build_network
+from themis.runtime.graph_projection import project
+from themis.runtime.instantiation import instantiate
+from themis.runtime.scheduler import dispatch_all
+from themis.types import QueryStatement
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from causal_kernel.input.parser import parse_json
-from causal_kernel.input.semantic_validator import validate_program
-from causal_kernel.input.syntactic_validator import validate_ast
-from causal_kernel.runtime.graph_projection import project
-from causal_kernel.runtime.instantiation import instantiate
-from causal_kernel.runtime.scheduler import dispatch_all
-from causal_kernel.types import QueryKind, QueryStatement, ResultStatus
+from themis.input.parser import parse_json
+from themis.input.semantic_validator import validate_program
+from themis.input.syntactic_validator import validate_ast
+from themis.runtime.graph_projection import project
+from themis.runtime.instantiation import instantiate
+from themis.runtime.scheduler import dispatch_all
+from themis.types import QueryKind, QueryStatement, ResultStatus
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = PROJECT_ROOT / "minimal_example_v0_1.json"
@@ -93,9 +93,9 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
     (Atom, value) -> (predicate, value) before sorting and then tried
     to call .predicate on the projected string, crashing with
     AttributeError on any conditional lookup."""
-    from causal_kernel.runtime.scheduler import _missing_parameter_from_key
-    from causal_kernel.runtime.numeric_estimator import ProbabilityKey
-    from causal_kernel.types import Atom, ConstTerm, MissingKind
+    from themis.runtime.scheduler import _missing_parameter_from_key
+    from themis.runtime.numeric_estimator import ProbabilityKey
+    from themis.types import Atom, ConstTerm, MissingKind
 
     y = Atom(predicate="y", args=(ConstTerm(name="a"),))
     x1 = Atom(predicate="x1", args=(ConstTerm(name="a"),))
@@ -124,9 +124,9 @@ def test_confidence_is_routed_through_composite_even_when_none() -> None:
     graph = project(instantiate(program))
 
     with patch(
-        "causal_kernel.runtime.scheduler.confidence_calc.composite",
+        "themis.runtime.scheduler.confidence_calc.composite",
         wraps=__import__(
-            "causal_kernel.runtime.confidence_calc",
+            "themis.runtime.confidence_calc",
             fromlist=["composite"],
         ).composite,
     ) as spy:

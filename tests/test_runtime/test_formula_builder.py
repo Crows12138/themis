@@ -2,9 +2,9 @@
 focus on multi-variable joint adjustment via chain-rule factoring."""
 from __future__ import annotations
 
-from causal_kernel.input.semantic_validator import validate_formula
-from causal_kernel.runtime.formula_builder import backdoor_formula
-from causal_kernel.types import (
+from themis.input.semantic_validator import validate_formula
+from themis.runtime.formula_builder import backdoor_formula
+from themis.types import (
     Atom,
     ConstTerm,
     ProbabilityRefExpr,

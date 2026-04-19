@@ -1,7 +1,7 @@
 """Unit tests for the v0.1 placeholder composite confidence."""
 from __future__ import annotations
 
-from causal_kernel.runtime.confidence_calc import composite
+from themis.runtime.confidence_calc import composite
 
 
 def test_min_of_inputs():

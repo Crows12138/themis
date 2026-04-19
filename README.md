@@ -18,7 +18,7 @@
 
 ## 代码
 
-`causal_kernel/` 下分四层 + 一个旁路：
+`themis/` 下分四层 + 一个旁路：
 
 ```
 input/     parser + syntactic validator + semantic validator

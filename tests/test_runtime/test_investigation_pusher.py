@@ -1,8 +1,8 @@
 """Unit tests for MissingItem -> InvestigationRequest mapping."""
 from __future__ import annotations
 
-from causal_kernel.runtime.investigation_pusher import push
-from causal_kernel.types import (
+from themis.runtime.investigation_pusher import push
+from themis.types import (
     InvestigationAction,
     MissingItem,
     MissingKind,

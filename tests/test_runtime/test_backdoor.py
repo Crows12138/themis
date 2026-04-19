@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import networkx as nx
 
-from causal_kernel.runtime.structural_solver import (
+from themis.runtime.structural_solver import (
     backdoor_paths,
     minimal_adjustment_sets,
 )
-from causal_kernel.types import Atom, ConstTerm
+from themis.types import Atom, ConstTerm
 
 
 def a(name: str) -> Atom:

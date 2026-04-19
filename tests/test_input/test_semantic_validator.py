@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from causal_kernel.input.parser import parse_json
-from causal_kernel.input.semantic_validator import (
+from themis.input.parser import parse_json
+from themis.input.semantic_validator import (
     SemanticError,
     validate_program,
 )
-from causal_kernel.input.syntactic_validator import validate_ast
+from themis.input.syntactic_validator import validate_ast
 
 
 def _base_program() -> dict:

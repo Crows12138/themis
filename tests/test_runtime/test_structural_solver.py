@@ -8,11 +8,11 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
-from causal_kernel.runtime.structural_solver import (
+from themis.runtime.structural_solver import (
     is_d_connected,
     open_paths,
 )
-from causal_kernel.types import Atom, ConstTerm
+from themis.types import Atom, ConstTerm
 
 
 def a(name: str) -> Atom:

@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import pytest
 
-from causal_kernel.runtime.numeric_estimator import (
+from themis.runtime.numeric_estimator import (
     InsufficientTheta,
     ProbabilityKey,
     Theta,
     estimate_formula,
     estimate_probability,
 )
-from causal_kernel.types import (
+from themis.types import (
     Atom,
     BindDecl,
     ConstantExpr,
