@@ -22,6 +22,7 @@ from themis.types import (
     ProbabilityRefExpr,
     ProductExpr,
     StepRef,
+    StructuralResult,
     SumExpr,
     ValuedAtom,
     VarRef,
@@ -159,8 +160,8 @@ def test_r6_rejects_missing_key():
 
 
 def test_r6_rejects_varref_value():
-    """A VarRef in target.value means the lookup isn't concrete. The
-    rule must refuse instead of silently producing something."""
+    """A probability derivation with a non-concrete lookup target must
+    be rejected before it can masquerade as the active query."""
     coin = _atom("coin", "a")
     theta = Theta(entries={})
     query = ProbabilityQuery(
@@ -183,8 +184,42 @@ def test_r6_rejects_varref_value():
             step_id="s_final",
         ),
     )
-    with pytest.raises(RuleCheckFailed, match="non-concrete"):
+    with pytest.raises(VerificationError, match="probability query"):
         verify_numeric(deriv, _ctx(theta, query), NumericResult(value=0.5))
+
+
+def test_r6_rejects_lookup_for_different_probability_query():
+    """A pure R6 -> R8 derivation must still prove the active
+    probability query, not some other conditional in the same Theta."""
+    coin = _atom("coin", "a")
+    other = _atom("other", "a")
+    theta = Theta(entries={
+        ProbabilityKey(
+            target_atom=coin, target_value=True, given=frozenset()
+        ): 0.1,
+        ProbabilityKey(
+            target_atom=other, target_value=True, given=frozenset()
+        ): 0.7,
+    })
+    query = ProbabilityQuery(
+        target=ValuedAtom(atom=coin, value=True), given=(),
+    )
+    deriv = (
+        DerivationStep(
+            rule="probability_ref_lookup",
+            inputs={"target": ValuedAtom(atom=other, value=True), "given": ()},
+            output=0.7,
+            step_id="s_eval",
+        ),
+        DerivationStep(
+            rule="numeric_result",
+            inputs={"evaluation": StepRef("s_eval")},
+            output=NumericResult(value=0.7),
+            step_id="s_final",
+        ),
+    )
+    with pytest.raises(VerificationError, match="probability query"):
+        verify_numeric(deriv, _ctx(theta, query), NumericResult(value=0.7))
 
 
 # =================================================================== R7
@@ -239,10 +274,10 @@ def test_r7_accepts_backdoor_sum_formula():
     }
     theta = Theta(entries=entries, domains={z: (True, False)})
 
-    bind = BindDecl(name="z_z")
+    bind = BindDecl(name="z_z_me")
     target_va = ValuedAtom(atom=y, value=True)
     intervention_va = ValuedAtom(atom=x, value=True)
-    z_va = ValuedAtom(atom=z, value=VarRef("z_z"))
+    z_va = ValuedAtom(atom=z, value=VarRef("z_z_me"))
     cond = ProbabilityRefExpr(target=target_va, given=(intervention_va, z_va))
     prior = ProbabilityRefExpr(target=z_va, given=())
     body = ProductExpr(terms=(cond, prior))
@@ -253,9 +288,47 @@ def test_r7_accepts_backdoor_sum_formula():
         intervention=Intervention(atom=x, value=True),
         given=(),
     )
+    ctx = _ctx(theta, query)
+    ctx.graph.add_edges_from(((z, x), (z, y), (x, y)))
     deriv = (
-        # No structural prefix here — we're not testing R3/R4 binding,
-        # just R7's ability to evaluate the sum correctly against theta.
+        DerivationStep(
+            rule="graph_is_dag",
+            inputs={"graph": ctx.graph},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="backdoor_criterion",
+            inputs={
+                "graph": ctx.graph,
+                "x": x,
+                "y": y,
+                "z": frozenset({z}),
+                "given": frozenset(),
+            },
+            output=True,
+            step_id="s2",
+        ),
+        DerivationStep(
+            rule="backdoor_adjustment_formula",
+            inputs={
+                "target": target_va,
+                "intervention": intervention_va,
+                "z": (z,),
+                "given": (),
+            },
+            output=formula,
+            step_id="s3",
+        ),
+        DerivationStep(
+            rule="identify_via_backdoor",
+            inputs={
+                "criterion": StepRef("s2"),
+                "formula": StepRef("s3"),
+            },
+            output=StructuralResult(value=True),
+            step_id="s4",
+        ),
         DerivationStep(
             rule="formula_evaluation",
             inputs={"formula": formula},
@@ -269,11 +342,7 @@ def test_r7_accepts_backdoor_sum_formula():
             step_id="s_final",
         ),
     )
-    # Skip effect binding (no R3/R4 present) by using a ProbabilityQuery
-    # wrapper shape — but the formula is effect-shaped. To keep the test
-    # focused, use effect query and rely on the fact that our binding
-    # asserter only fires when R3/R4/R7 are present with known shapes.
-    verify_numeric(deriv, _ctx(theta, query), NumericResult(value=0.38))
+    verify_numeric(deriv, ctx, NumericResult(value=0.38))
 
 
 def test_r7_rejects_wrong_claimed_value():

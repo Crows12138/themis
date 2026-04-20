@@ -83,6 +83,32 @@ def test_cause_via_directed_path_accepts_multiple_witnesses():
     verify_cause(deriv, ctx, result)
 
 
+def test_cause_via_directed_path_rejects_underreported_directed_path_set():
+    """Positive cause proofs must justify the exact supporting path set,
+    not merely one witness when two directed paths exist."""
+    a, b, c = _atom("a"), _atom("b"), _atom("c")
+    d = _atom("d")
+    g = nx.DiGraph()
+    g.add_edges_from([(a, b), (b, c), (a, d), (d, c)])
+    query = CauseQuery(from_atom=a, to_atom=c)
+    partial = ((a, b, c),)
+    result = StructuralResult(
+        value=True,
+        supporting_paths=((_label(a), _label(b), _label(c)),),
+    )
+    deriv = (
+        DerivationStep(
+            rule="cause_via_directed_path",
+            inputs={"graph": g, "src": a, "dst": c, "paths": partial},
+            output=result,
+            step_id="s1",
+        ),
+    )
+    ctx = VerificationContext(graph=g, query=query)
+    with pytest.raises(RuleCheckFailed, match="full directed-path set"):
+        verify_cause(deriv, ctx, result)
+
+
 def test_cause_via_directed_path_rejects_missing_edge():
     """Witness path claims (a, b, c) but edge (b, c) isn't in graph."""
     a, b, c = _atom("a"), _atom("b"), _atom("c")
@@ -383,3 +409,33 @@ def test_verify_assoc_rejects_positive_witness_for_wrong_pair():
     ctx = VerificationContext(graph=g, query=query)
     with pytest.raises(VerificationError, match="d_connected_via_open_path.y"):
         verify_assoc(deriv, ctx, result_for_ac)
+
+
+def test_d_connected_rejects_underreported_open_path_set():
+    """V4 positive assoc proofs must justify the exact supporting path
+    set, not merely one witness. If two open paths exist, listing only
+    one is an under-report and must be rejected."""
+    a, b, c, d = _atom("a"), _atom("b"), _atom("c"), _atom("d")
+    g = nx.DiGraph()
+    g.add_edges_from([(a, b), (b, c), (a, d), (d, c)])
+    query = AssocQuery(left=a, right=c, given=())
+    partial = ((a, b, c),)
+    result = StructuralResult(
+        value=True,
+        supporting_paths=((_label(a), _label(b), _label(c)),),
+    )
+    deriv = (
+        DerivationStep(
+            rule="d_connected_via_open_path",
+            inputs={
+                "graph": g, "x": a, "y": c,
+                "conditioning": frozenset(),
+                "paths": partial,
+            },
+            output=result,
+            step_id="s1",
+        ),
+    )
+    ctx = VerificationContext(graph=g, query=query)
+    with pytest.raises(RuleCheckFailed, match="full open-path set"):
+        verify_assoc(deriv, ctx, result)

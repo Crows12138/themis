@@ -47,11 +47,11 @@
     "valued_atom": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "atom"],
+      "required": ["kind", "atom", "value"],
       "properties": {
         "kind": { "const": "valued_atom" },
         "atom": { "$ref": "#/$defs/atom" },
-        "value": { }
+        "value": { "$ref": "#/$defs/atom_value" }
       }
     },
     "graph": {

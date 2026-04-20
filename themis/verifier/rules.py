@@ -895,8 +895,8 @@ def _rule_cause_via_directed_path(
         ``StructuralResult(value=True, supporting_paths=<string form>)``
 
     Rejects if any path does not start at src, does not end at dst, has
-    a missing directed edge, or if the claimed supporting_paths do not
-    match the string-rendered witness paths.
+    a missing directed edge, if the witness set is not the full directed
+    path set, or if the claimed supporting_paths do not match that full set.
     """
     graph = _require(inputs, "graph", step_index, "cause_via_directed_path")
     _assert_same_graph(graph, ctx.graph, step_index, "cause_via_directed_path")
@@ -939,8 +939,17 @@ def _rule_cause_via_directed_path(
                 step_index=step_index, rule="cause_via_directed_path",
             )
 
+    expected_paths = tuple(
+        tuple(path) for path in nx.all_simple_paths(graph, src, dst)
+    )
+    if tuple(paths) != expected_paths:
+        raise RuleCheckFailed(
+            "cause_via_directed_path.paths does not equal the full directed-path set",
+            step_index=step_index, rule="cause_via_directed_path",
+        )
+
     expected_supporting = tuple(
-        tuple(_atom_label_verifier(a) for a in path) for path in paths
+        tuple(_atom_label_verifier(a) for a in path) for path in expected_paths
     )
     expected = StructuralResult(
         value=True, supporting_paths=expected_supporting,
@@ -976,6 +985,29 @@ def _path_is_open_for_verifier(
     return True
 
 
+def _all_open_paths_for_verifier(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    conditioning: frozenset,
+) -> tuple[tuple[Atom, ...], ...]:
+    """Enumerate the full open-path set for (x, y | conditioning).
+
+    V4's positive assoc derivation is meant to justify the exact
+    ``supporting_paths`` emitted by the runtime, not merely the
+    existence of some open witness. The verifier therefore re-enumerates
+    all simple undirected paths between x and y and keeps only those
+    that remain open under the conditioning set.
+    """
+    if x not in graph or y not in graph or x == y:
+        return ()
+    return tuple(
+        tuple(path)
+        for path in nx.all_simple_paths(graph.to_undirected(as_view=True), x, y)
+        if _path_is_open_for_verifier(graph, tuple(path), conditioning)
+    )
+
+
 def _rule_d_connected_via_open_path(
     ctx: VerificationContext,
     inputs: dict,
@@ -992,7 +1024,8 @@ def _rule_d_connected_via_open_path(
 
     Rejects if any witness path fails to be a simple undirected path
     between x and y in the graph, if it is blocked under conditioning,
-    or if the claimed supporting_paths disagree with the witness paths.
+    if the witness set is not the full open-path set, or if the claimed
+    supporting_paths disagree with that full set.
     """
     graph = _require(inputs, "graph", step_index, "d_connected_via_open_path")
     _assert_same_graph(graph, ctx.graph, step_index, "d_connected_via_open_path")
@@ -1047,8 +1080,15 @@ def _rule_d_connected_via_open_path(
                 step_index=step_index, rule="d_connected_via_open_path",
             )
 
+    expected_paths = _all_open_paths_for_verifier(graph, x, y, conditioning)
+    if tuple(paths) != expected_paths:
+        raise RuleCheckFailed(
+            "d_connected_via_open_path.paths does not equal the full open-path set",
+            step_index=step_index, rule="d_connected_via_open_path",
+        )
+
     expected_supporting = tuple(
-        tuple(_atom_label_verifier(a) for a in path) for path in paths
+        tuple(_atom_label_verifier(a) for a in path) for path in expected_paths
     )
     expected = StructuralResult(
         value=True, supporting_paths=expected_supporting,

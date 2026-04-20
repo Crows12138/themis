@@ -90,6 +90,22 @@ def test_derivation_schema_is_valid_jsonschema():
     assert schema["properties"]["kind"]["const"] == "derivation"
 
 
+def test_schema_rejects_incomplete_tagged_payloads():
+    payload = {
+        "version": "0.1",
+        "kind": "derivation",
+        "steps": [
+            {
+                "rule": "x",
+                "inputs": {},
+                "output": {"kind": "probability_ref"},
+            }
+        ],
+    }
+    with pytest.raises(Exception):
+        _validate_schema(payload)
+
+
 # =================================================================== identify
 
 def test_identify_derivation_round_trips_and_verifies():
@@ -260,4 +276,60 @@ def test_missing_output_is_rejected():
         ],
     }
     with pytest.raises(DerivationSerializationError, match="output"):
+        derivation_from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (
+            {
+                "version": "0.1",
+                "kind": "derivation",
+                "steps": [
+                    {
+                        "rule": "x",
+                        "inputs": {},
+                        "output": {"kind": "sum"},
+                        }
+                    ],
+                },
+                "sum.bind",
+            ),
+        (
+            {
+                "version": "0.1",
+                "kind": "derivation",
+                "steps": [
+                    {
+                        "rule": "x",
+                        "inputs": {},
+                        "output": {"kind": "numeric_result", "interval": {}},
+                    }
+                ],
+            },
+            "numeric_result.interval",
+        ),
+        (
+            {
+                "version": "0.1",
+                "kind": "derivation",
+                "steps": [
+                    {
+                        "rule": "x",
+                        "inputs": {},
+                        "output": {
+                            "kind": "structural_result",
+                            "value": True,
+                            "supporting_paths": ["abc"],
+                        },
+                    }
+                ],
+            },
+            "supporting_paths",
+        ),
+    ],
+)
+def test_malformed_tagged_payloads_raise_derivation_serialization_error(payload, message):
+    with pytest.raises(DerivationSerializationError, match=message):
         derivation_from_dict(payload)

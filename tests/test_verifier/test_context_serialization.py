@@ -385,6 +385,119 @@ def test_unknown_query_kind_is_rejected_on_decode():
         context_from_dict(payload)
 
 
+def test_missing_cause_query_field_raises_serialization_error():
+    payload = {
+        "version": "0.1",
+        "kind": "verification_context",
+        "graph": {"kind": "graph", "nodes": [], "edges": []},
+        "query": {
+            "kind": "cause_query",
+            "from_atom": {"kind": "atom", "predicate": "a", "args": []},
+        },
+        "theta": None,
+    }
+    with pytest.raises(DerivationSerializationError, match="to_atom"):
+        context_from_dict(payload)
+
+
+def test_missing_effect_query_target_raises_serialization_error():
+    payload = {
+        "version": "0.1",
+        "kind": "verification_context",
+        "graph": {"kind": "graph", "nodes": [], "edges": []},
+        "query": {
+            "kind": "effect_query",
+            "intervention": {
+                "kind": "intervention",
+                "atom": {"kind": "atom", "predicate": "a", "args": []},
+                "value": True,
+            },
+        },
+        "theta": None,
+    }
+    with pytest.raises(DerivationSerializationError, match="target"):
+        context_from_dict(payload)
+
+
+def test_missing_theta_entry_value_raises_serialization_error():
+    payload = {
+        "version": "0.1",
+        "kind": "verification_context",
+        "graph": {"kind": "graph", "nodes": [], "edges": []},
+        "query": {
+            "kind": "probability_query",
+            "target": {
+                "kind": "valued_atom",
+                "atom": {"kind": "atom", "predicate": "coin", "args": []},
+                "value": True,
+            },
+        },
+        "theta": {
+            "kind": "theta",
+            "entries": [
+                {
+                    "key": {
+                        "kind": "probability_key",
+                        "target_atom": {
+                            "kind": "atom",
+                            "predicate": "coin",
+                            "args": [],
+                        },
+                        "target_value": True,
+                        "given": [],
+                    },
+                }
+            ],
+            "domains": [],
+        },
+    }
+    with pytest.raises(DerivationSerializationError, match="value"):
+        context_from_dict(payload)
+
+
+def test_context_schema_rejects_non_literal_probability_query_value():
+    payload = {
+        "version": "0.1",
+        "kind": "verification_context",
+        "graph": {"kind": "graph", "nodes": [], "edges": []},
+        "query": {
+            "kind": "probability_query",
+            "target": {
+                "kind": "valued_atom",
+                "atom": {"kind": "atom", "predicate": "coin", "args": []},
+                "value": {"kind": "step_ref", "step_id": "s1"},
+            },
+        },
+        "theta": None,
+    }
+    with pytest.raises(Exception):
+        _validate_context_schema(payload)
+
+
+def test_context_decode_rejects_non_literal_effect_query_value():
+    payload = {
+        "version": "0.1",
+        "kind": "verification_context",
+        "graph": {"kind": "graph", "nodes": [], "edges": []},
+        "query": {
+            "kind": "effect_query",
+            "target": {
+                "kind": "valued_atom",
+                "atom": {"kind": "atom", "predicate": "coin", "args": []},
+                "value": {"kind": "step_ref", "step_id": "s1"},
+            },
+            "intervention": {
+                "kind": "intervention",
+                "atom": {"kind": "atom", "predicate": "coin", "args": []},
+                "value": False,
+            },
+        },
+        "theta": None,
+    }
+    with pytest.raises(DerivationSerializationError, match="literal atom value"):
+        context_from_dict(payload)
+
+
 def test_wrong_context_kind_is_rejected():
     with pytest.raises(DerivationSerializationError, match="kind"):
         context_from_dict(

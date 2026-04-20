@@ -363,6 +363,28 @@ def _decode_valued_atom(d: dict) -> ValuedAtom:
     return ValuedAtom(atom=atom, value=value)
 
 
+def _decode_literal_atom_value(value, what: str):
+    if isinstance(value, (bool, int, float, str)):
+        return value
+    raise DerivationSerializationError(
+        f"{what} must be a literal atom value (bool/number/string)"
+    )
+
+
+def _decode_literal_valued_atom(d: dict, what: str) -> ValuedAtom:
+    if not isinstance(d, dict):
+        raise DerivationSerializationError(f"{what} must be a dict")
+    atom_raw = d.get("atom")
+    if not isinstance(atom_raw, dict):
+        raise DerivationSerializationError(f"{what}.atom must be a dict")
+    if "value" not in d:
+        raise DerivationSerializationError(f"{what}.value is required")
+    return ValuedAtom(
+        atom=_decode_atom(atom_raw),
+        value=_decode_literal_atom_value(d["value"], f"{what}.value"),
+    )
+
+
 def _decode_var_ref(d: dict) -> VarRef:
     name = d.get("name")
     if not isinstance(name, str):
@@ -715,6 +737,8 @@ def _decode_intervention(d: dict) -> Intervention:
     atom_raw = d.get("atom")
     if not isinstance(atom_raw, dict):
         raise DerivationSerializationError("intervention.atom must be a dict")
+    if "value" not in d:
+        raise DerivationSerializationError("intervention.value is required")
     return Intervention(atom=_decode_atom(atom_raw), value=d.get("value"))
 
 
@@ -723,32 +747,78 @@ def _decode_query(d: dict):
         raise DerivationSerializationError("query must be a dict")
     kind = d.get("kind")
     if kind == "cause_query":
+        if "from_atom" not in d:
+            raise DerivationSerializationError("cause_query.from_atom is required")
+        if "to_atom" not in d:
+            raise DerivationSerializationError("cause_query.to_atom is required")
         return CauseQuery(
             from_atom=_decode_atom(d["from_atom"]),
             to_atom=_decode_atom(d["to_atom"]),
         )
     if kind == "assoc_query":
+        if "left" not in d:
+            raise DerivationSerializationError("assoc_query.left is required")
+        if "right" not in d:
+            raise DerivationSerializationError("assoc_query.right is required")
+        given_raw = d.get("given", [])
+        if not isinstance(given_raw, list):
+            raise DerivationSerializationError("assoc_query.given must be a list")
         return AssocQuery(
             left=_decode_atom(d["left"]),
             right=_decode_atom(d["right"]),
-            given=tuple(_decode_atom(a) for a in d.get("given", [])),
+            given=tuple(_decode_atom(a) for a in given_raw),
         )
     if kind == "identify_query":
+        if "target" not in d:
+            raise DerivationSerializationError("identify_query.target is required")
+        if "intervention" not in d:
+            raise DerivationSerializationError(
+                "identify_query.intervention is required"
+            )
+        given_raw = d.get("given", [])
+        if not isinstance(given_raw, list):
+            raise DerivationSerializationError("identify_query.given must be a list")
         return IdentifyQuery(
             target=_decode_atom(d["target"]),
             intervention=_decode_intervention(d["intervention"]),
-            given=tuple(_decode_atom(a) for a in d.get("given", [])),
+            given=tuple(_decode_atom(a) for a in given_raw),
         )
     if kind == "effect_query":
+        if "target" not in d:
+            raise DerivationSerializationError("effect_query.target is required")
+        if "intervention" not in d:
+            raise DerivationSerializationError(
+                "effect_query.intervention is required"
+            )
+        given_raw = d.get("given", [])
+        if not isinstance(given_raw, list):
+            raise DerivationSerializationError("effect_query.given must be a list")
         return EffectQuery(
-            target=_decode_valued_atom(d["target"]),
+            target=_decode_literal_valued_atom(d["target"], "effect_query.target"),
             intervention=_decode_intervention(d["intervention"]),
-            given=tuple(_decode_valued_atom(a) for a in d.get("given", [])),
+            given=tuple(
+                _decode_literal_valued_atom(a, f"effect_query.given[{i}]")
+                for i, a in enumerate(given_raw)
+            ),
         )
     if kind == "probability_query":
+        if "target" not in d:
+            raise DerivationSerializationError(
+                "probability_query.target is required"
+            )
+        given_raw = d.get("given", [])
+        if not isinstance(given_raw, list):
+            raise DerivationSerializationError(
+                "probability_query.given must be a list"
+            )
         return ProbabilityQuery(
-            target=_decode_valued_atom(d["target"]),
-            given=tuple(_decode_valued_atom(a) for a in d.get("given", [])),
+            target=_decode_literal_valued_atom(
+                d["target"], "probability_query.target"
+            ),
+            given=tuple(
+                _decode_literal_valued_atom(a, f"probability_query.given[{i}]")
+                for i, a in enumerate(given_raw)
+            ),
         )
     raise DerivationSerializationError(f"unknown query kind: {kind!r}")
 
@@ -760,12 +830,31 @@ def _decode_probability_key(d: dict) -> ProbabilityKey:
         raise DerivationSerializationError(
             "probability_key must have kind='probability_key'"
         )
+    if "target_atom" not in d:
+        raise DerivationSerializationError("probability_key.target_atom is required")
+    if "target_value" not in d:
+        raise DerivationSerializationError(
+            "probability_key.target_value is required"
+        )
     given_raw = d.get("given", [])
     if not isinstance(given_raw, list):
         raise DerivationSerializationError("probability_key.given must be a list")
-    given_pairs = frozenset(
-        (_decode_atom(pair["atom"]), pair["value"]) for pair in given_raw
-    )
+    given_pairs_list = []
+    for i, pair in enumerate(given_raw):
+        if not isinstance(pair, dict):
+            raise DerivationSerializationError(
+                f"probability_key.given[{i}] must be a dict"
+            )
+        if "atom" not in pair:
+            raise DerivationSerializationError(
+                f"probability_key.given[{i}].atom is required"
+            )
+        if "value" not in pair:
+            raise DerivationSerializationError(
+                f"probability_key.given[{i}].value is required"
+            )
+        given_pairs_list.append((_decode_atom(pair["atom"]), pair["value"]))
+    given_pairs = frozenset(given_pairs_list)
     return ProbabilityKey(
         target_atom=_decode_atom(d["target_atom"]),
         target_value=d["target_value"],
@@ -783,14 +872,26 @@ def _decode_theta(d: dict) -> Theta:
             "theta.entries and theta.domains must be lists"
         )
     entries: dict = {}
-    for e in entries_raw:
+    for i, e in enumerate(entries_raw):
         if not isinstance(e, dict):
             raise DerivationSerializationError("theta entry must be a dict")
+        if "key" not in e:
+            raise DerivationSerializationError(
+                f"theta.entries[{i}].key is required"
+            )
+        if "value" not in e:
+            raise DerivationSerializationError(
+                f"theta.entries[{i}].value is required"
+            )
         entries[_decode_probability_key(e["key"])] = float(e["value"])
     domains: dict = {}
-    for row in domains_raw:
+    for i, row in enumerate(domains_raw):
         if not isinstance(row, dict):
             raise DerivationSerializationError("theta domain must be a dict")
+        if "atom" not in row:
+            raise DerivationSerializationError(
+                f"theta.domains[{i}].atom is required"
+            )
         atom = _decode_atom(row["atom"])
         values = row.get("values", [])
         if not isinstance(values, list):

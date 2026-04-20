@@ -18,10 +18,14 @@ from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
 from themis.types import (
+    Atom,
+    ConstTerm,
     NumericResult,
+    ProbabilityRefExpr,
     QueryKind,
     QueryStatement,
     ResultStatus,
+    ValuedAtom,
 )
 from themis.verifier import (
     VerificationContext,
@@ -128,3 +132,36 @@ def test_needs_investigation_has_no_derivation():
     for r in results:
         if r.status is ResultStatus.NEEDS_INVESTIGATION:
             assert r.derivation == ()
+
+
+def test_tampering_effect_formula_to_unrelated_expression_is_rejected():
+    """An effect derivation must numerically evaluate the identified
+    backdoor formula witness, not an unrelated formula that happens to
+    have a value in Theta."""
+    fixture = FIXTURE_DIR / "numeric_backdoor.json"
+    _, graph, theta, results, stmt_by_id = _run(fixture)
+    r = next(
+        result
+        for result in _numeric_results(results)
+        if result.query_kind is QueryKind.EFFECT
+    )
+    ctx = VerificationContext(
+        graph=graph,
+        query=stmt_by_id[r.query_id].query,
+        theta=theta,
+    )
+
+    unrelated_atom = Atom(predicate="stress", args=(ConstTerm(name="alice"),))
+    unrelated_formula = ProbabilityRefExpr(
+        target=ValuedAtom(atom=unrelated_atom, value=True),
+        given=(),
+    )
+    bad = list(r.derivation)
+    for i, step in enumerate(bad):
+        if step.rule == "formula_evaluation":
+            bad[i] = replace(step, inputs={"formula": unrelated_formula}, output=0.4)
+        elif step.rule == "numeric_result":
+            bad[i] = replace(step, output=NumericResult(value=0.4))
+
+    with pytest.raises(VerificationError, match="backdoor_adjustment_formula witness"):
+        verify_numeric(tuple(bad), ctx, NumericResult(value=0.4))

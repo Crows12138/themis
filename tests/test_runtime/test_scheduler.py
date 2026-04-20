@@ -16,7 +16,18 @@ from themis.input.syntactic_validator import validate_ast
 from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
-from themis.types import QueryKind, QueryStatement, ResultStatus
+from themis.types import (
+    Atom,
+    CauseStatement,
+    ConstTerm,
+    IdentifyQuery,
+    Intervention,
+    MissingKind,
+    Program,
+    QueryKind,
+    QueryStatement,
+    ResultStatus,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = PROJECT_ROOT / "minimal_example_v0_1.json"
@@ -163,3 +174,43 @@ def test_confidence_is_routed_through_composite_for_every_query() -> None:
     # formula references P(cancer=true | smokes=false) which has no
     # source statement in the fixture -> no slot -> None.
     assert by_id["q_effect_1"].confidence is None
+
+
+def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() -> None:
+    """Regression for V3: a `given` that violates backdoor
+    preconditions (descendant of X) must not surface as a
+    structurally-solved negative identify proof, because the verifier
+    correctly rejects `unidentifiable_via_backdoor` on that context."""
+
+    def atom(pred: str) -> Atom:
+        return Atom(predicate=pred, args=(ConstTerm(name="me"),))
+
+    x = atom("x")
+    z = atom("z")
+    y = atom("y")
+    program = Program(
+        version="0.1",
+        objects=("me",),
+        statements=(
+            CauseStatement(from_atom=x, to_atom=z),
+            CauseStatement(from_atom=z, to_atom=y),
+            QueryStatement(
+                id="q_invalid_given",
+                query=IdentifyQuery(
+                    target=y,
+                    intervention=Intervention(atom=x, value=True),
+                    given=(z,),
+                ),
+            ),
+        ),
+    )
+    graph = project(instantiate(program))
+    result = dispatch_all(program, graph)[0]
+
+    assert result.status is ResultStatus.NEEDS_INVESTIGATION
+    assert result.query_kind is QueryKind.IDENTIFY
+    assert result.derivation == ()
+    assert result.structural_result is None
+    assert result.missing_information
+    assert result.missing_information[0].kind is MissingKind.STRUCTURE
+    assert "violates backdoor pre-conditions" in result.missing_information[0].reason
