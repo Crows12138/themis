@@ -328,11 +328,24 @@ def _try_numeric(
     formula,
     theta: Theta,
     kind: QueryKind,
+    *,
+    structural_prefix: tuple[DerivationStep, ...] = (),
+    evaluation_step_id: str = "s_eval",
 ) -> QueryResult:
     """Evaluate a formula with the current Theta; on InsufficientTheta
     surface a structured needs_investigation naming the missing
     parameter AND attach a paste-ready skeleton for that parameter via
     ``investigation_pusher``.
+
+    When the evaluation succeeds, build a V1 derivation:
+
+        structural_prefix   (caller-supplied, empty for probability)
+        ++ formula_evaluation(formula, theta) -> value
+        ++ numeric_result(evaluation=StepRef(eval_step)) -> NumericResult
+
+    ``structural_prefix`` is empty for probability queries (no backdoor
+    identification needed) and is the full R1..R5 chain for effect
+    queries (proving the formula is what identification demands).
     """
     try:
         value = numeric_estimator.estimate_formula(formula, theta)
@@ -352,12 +365,29 @@ def _try_numeric(
             missing_information=(missing,),
             investigation_requests=requests,
         )
+
+    numeric_result = NumericResult(value=value)
+    derivation = structural_prefix + (
+        DerivationStep(
+            rule="formula_evaluation",
+            inputs={"formula": formula},
+            output=value,
+            step_id=evaluation_step_id,
+        ),
+        DerivationStep(
+            rule="numeric_result",
+            inputs={"evaluation": StepRef(step_id=evaluation_step_id)},
+            output=numeric_result,
+            step_id="s_final",
+        ),
+    )
     return QueryResult(
         status=ResultStatus.NUMERICALLY_SOLVED,
         query_kind=kind,
         query_id=stmt.id,
         formula=formula,
-        numeric_result=NumericResult(value=value),
+        numeric_result=numeric_result,
+        derivation=derivation,
     )
 
 
@@ -412,14 +442,88 @@ def _dispatch_effect(
     # q.target and q.given already carry concrete literal values,
     # so the formula is numerically resolvable once Theta has the
     # referenced conditionals.
+    intervention_va = ValuedAtom(atom=x, value=q.intervention.value)
     formula = formula_builder.backdoor_formula(
         target=q.target,
-        intervention=ValuedAtom(atom=x, value=q.intervention.value),
+        intervention=intervention_va,
         adjustment_set=tuple(topo),
         observed=q.given,
     )
     validate_formula(formula)
-    return _try_numeric(stmt, formula, theta, QueryKind.EFFECT)
+    structural_prefix = _build_effect_structural_prefix(
+        graph=graph,
+        x=x, y=y_atom, z=tuple(topo),
+        observed_atoms=observed_atoms,
+        target_va=q.target,
+        intervention_va=intervention_va,
+        observed_vas=q.given,
+        formula=formula,
+    )
+    return _try_numeric(
+        stmt, formula, theta, QueryKind.EFFECT,
+        structural_prefix=structural_prefix,
+    )
+
+
+def _build_effect_structural_prefix(
+    *,
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    z: tuple[Atom, ...],
+    observed_atoms: tuple[Atom, ...],
+    target_va: ValuedAtom,
+    intervention_va: ValuedAtom,
+    observed_vas: tuple[ValuedAtom, ...],
+    formula,
+) -> tuple[DerivationStep, ...]:
+    """Build R1..R5 as the structural prefix of an effect derivation.
+
+    Parallels ``_build_identify_derivation`` but uses effect-query
+    atoms (y has a concrete target value inside ValuedAtom) and the
+    observed context W comes from ``q.given``.
+    """
+    given_set = frozenset(observed_atoms)
+    return (
+        DerivationStep(
+            rule="graph_is_dag",
+            inputs={"graph": graph},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="backdoor_criterion",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+                "z": frozenset(z),
+                "given": given_set,
+            },
+            output=True,
+            step_id="s2",
+        ),
+        DerivationStep(
+            rule="backdoor_adjustment_formula",
+            inputs={
+                "target": target_va,
+                "intervention": intervention_va,
+                "z": z,
+                "given": observed_vas,
+            },
+            output=formula,
+            step_id="s3",
+        ),
+        DerivationStep(
+            rule="identify_via_backdoor",
+            inputs={
+                "criterion": StepRef(step_id="s2"),
+                "formula": StepRef(step_id="s3"),
+            },
+            output=StructuralResult(value=True),
+            step_id="s4",
+        ),
+    )
 
 
 def _dispatch_probability(

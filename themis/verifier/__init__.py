@@ -15,7 +15,7 @@ from .errors import (
     VerificationError,
 )
 from .context import VerificationContext
-from .verify import verify_identify
+from .verify import verify_identify, verify_numeric
 
 __all__ = [
     "RuleNotFoundError",
@@ -24,4 +24,5 @@ __all__ = [
     "VerificationContext",
     "VerificationError",
     "verify_identify",
+    "verify_numeric",
 ]

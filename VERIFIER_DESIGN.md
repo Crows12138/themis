@@ -89,6 +89,13 @@ class DerivationStep:
 - 最后一步的 output 必须等于 QueryResult 声明的 structural / numeric 结果
 - 禁止引用 elaborator 的内部中间状态（例如 scheduler 的局部变量）
 
+另外，derivation 不仅要“内部自洽”，还必须**绑定到当前 query**：
+
+- 证明中的 `X / Y / given / intervention value`
+  必须与 VerificationContext 里的 query 一致
+- verifier 不能接受“同一张图上别的 identify 查询”的正确证明
+- 否则它验证的就只是“这张图上存在某个 backdoor 证明”，而不是“当前 query 被证明了”
+
 ### 可序列化
 
 derivation 要能序列化到 JSON 并再被 verifier 读回。所以：
@@ -168,6 +175,11 @@ Verifier **不**依赖：
 - **检查**：存在调整集 Z 使得：
   - `backdoor_criterion(X, Y, Z) = True`（引用 R3 步骤的 output）
   - formula 等于 `backdoor_adjustment_formula(X, Y, Z)` 的输出（引用 R4）
+  - `criterion` 必须引用一条真正的 `backdoor_criterion` 步骤
+  - `formula` 必须引用一条真正的 `backdoor_adjustment_formula` 步骤
+  - 被引用的 `formula` 步骤输出必须是 `FormulaExpr`
+
+也就是说，R5 不接受“随便找一个早期步骤来充当公式见证”。
 
 一条成功的 identify derivation 的典型形状：
 
@@ -302,7 +314,7 @@ Slice V0 完成时：
 
 - 所有 identify 查询的 QueryResult 都附带非空 derivation
 - `verify(derivation, context)` 对所有现有 e2e 测试里的 identify 结果返回 accept
-- 故意破坏 derivation（改 Z、改 formula、删一步）→ verify 返回 reject 并说明失败规则
+- 故意破坏 derivation（改 Z、改 formula、删一步、换成别的 query、把公式引用指到非公式步骤）→ verify 返回 reject 并说明失败规则
 - 现有 234 个测试全绿，新增 V0 规则的单元测试也全绿
 
 ---

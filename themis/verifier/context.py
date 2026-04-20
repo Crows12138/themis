@@ -5,19 +5,26 @@ given. The verifier trusts the context (it doesn't check whether the
 graph reflects reality); it only checks that the derivation legitimately
 moves from context + prior steps to each claimed output.
 
-Slice V0 only needs ``graph`` and ``query``. Later slices will add
-``theta`` for numeric rules and ``declarations`` for framing tie-ins.
+V0 used ``graph`` + ``query``. V1 adds ``theta`` for the numeric rules
+(R6 ``probability_ref_lookup``, R7 ``formula_evaluation``). Theta stays
+optional — identify-only derivations still pass ``theta=None``.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Union
 
 import networkx as nx
 
-from ..types import IdentifyQuery
+from ..runtime.numeric_estimator import Theta
+from ..types import EffectQuery, IdentifyQuery, ProbabilityQuery
+
+
+VerifiableQuery = Union[IdentifyQuery, EffectQuery, ProbabilityQuery]
 
 
 @dataclass(frozen=True)
 class VerificationContext:
     graph: nx.DiGraph
-    query: IdentifyQuery
+    query: VerifiableQuery
+    theta: Theta | None = None

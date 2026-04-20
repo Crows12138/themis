@@ -367,6 +367,21 @@ def test_r5_rejects_step_ref_to_missing_id():
         verify_identify(bad, _ctx(g, smokes, cancer), result)
 
 
+def test_r5_rejects_formula_ref_to_non_formula_rule():
+    """R5 must point at a real backdoor_adjustment_formula witness,
+    not just any earlier step."""
+    g, smokes, cancer, deriv, result = _full_confounded_derivation()
+    bad_s4 = DerivationStep(
+        rule="identify_via_backdoor",
+        inputs={"criterion": StepRef("s2"), "formula": StepRef("s1")},
+        output=result,
+        step_id="s4",
+    )
+    bad = (deriv[0], deriv[1], deriv[2], bad_s4)
+    with pytest.raises(RuleCheckFailed, match="formula must reference a backdoor_adjustment_formula step"):
+        verify_identify(bad, _ctx(g, smokes, cancer), result)
+
+
 # =============================================================== verifier-level
 
 def test_unknown_rule_is_rejected():

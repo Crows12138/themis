@@ -20,6 +20,8 @@ from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
 from themis.types import (
+    IdentifyQuery,
+    Intervention,
     ProbabilityRefExpr,
     QueryKind,
     QueryStatement,
@@ -138,6 +140,39 @@ def test_tampering_formula_is_rejected(fixture):
             verify_identify(tuple(bad), ctx, r.structural_result)
 
 
+@pytest.mark.parametrize("fixture", IDENTIFY_FIXTURES, ids=lambda p: p.name)
+def test_verifier_rejects_derivation_for_different_query_on_same_graph(fixture):
+    """A derivation must prove the active identify query, not merely
+    some other query on the same graph."""
+    _, graph, results, stmt_by_id = _run_and_verify(fixture)
+    for r in results:
+        if (
+            r.query_kind is not QueryKind.IDENTIFY
+            or r.structural_result is None
+            or r.structural_result.value is not True
+        ):
+            continue
+
+        stmt = stmt_by_id[r.query_id]
+        original = stmt.query
+        alt_target = next(
+            atom for atom in graph.nodes
+            if atom != original.target and atom != original.intervention.atom
+        )
+        wrong_query = IdentifyQuery(
+            target=alt_target,
+            intervention=Intervention(
+                atom=original.intervention.atom,
+                value=original.intervention.value,
+            ),
+            given=original.given,
+        )
+        ctx = VerificationContext(graph=graph, query=wrong_query)
+
+        with pytest.raises(VerificationError, match="does not match verification context query"):
+            verify_identify(r.derivation, ctx, r.structural_result)
+
+
 def test_negative_identify_has_no_derivation_yet():
     """Slice V0 scope: only positive identify emits a derivation.
     Negative results (unidentifiable) will be covered in V3. This
@@ -154,14 +189,17 @@ def test_negative_identify_has_no_derivation_yet():
         assert r.derivation == ()
 
 
-def test_non_identify_queries_stay_without_derivation():
-    """Slice V0 doesn't emit derivations for cause / assoc / effect /
-    probability. They must remain derivation=() until later slices."""
+def test_cause_and_assoc_stay_without_derivation():
+    """V1 adds derivations for NUMERICALLY_SOLVED effect / probability,
+    but cause and assoc (purely structural, non-identify) remain
+    derivation=(). Future slices will handle them as needed."""
+    from themis.types import QueryKind as _QK
+
     path = FIXTURE_DIR / "numeric_backdoor.json"
     _, _, results, _ = _run_and_verify(path)
     for r in results:
-        if r.query_kind is not QueryKind.IDENTIFY:
+        if r.query_kind in (_QK.CAUSE, _QK.ASSOC):
             assert r.derivation == (), (
                 f"{r.query_id} ({r.query_kind.value}) unexpectedly has "
-                f"a derivation in V0"
+                f"a derivation in V1"
             )

@@ -21,11 +21,14 @@ from typing import Any, Callable
 
 import networkx as nx
 
+from ..runtime.numeric_estimator import ProbabilityKey, Theta
 from ..types import (
     Atom,
     BindDecl,
+    ConstantExpr,
     FormulaExpr,
     IdentifyQuery,
+    NumericResult,
     ProbabilityRefExpr,
     ProductExpr,
     StepRef,
@@ -39,6 +42,12 @@ from .errors import (
     RuleCheckFailed,
     UnknownRuleInputError,
 )
+
+# Numeric tolerance for R7/R8 equality checks. Formula evaluation in
+# floating point can drift slightly even when the algebra is identical
+# (associativity of addition, etc.). 1e-9 is generous for boolean
+# probability problems while still catching real mismatches.
+_NUMERIC_TOL = 1e-9
 
 
 # ========================================================== R1
@@ -316,6 +325,7 @@ def _rule_identify_via_backdoor(
     inputs: dict,
     claimed_output: Any,
     step_index: int,
+    step_by_id: dict[str, Any],
     step_output_by_id: dict[str, Any],
 ) -> None:
     """R5: combine R3 (backdoor_criterion True) and R4 (the corresponding
@@ -337,16 +347,39 @@ def _rule_identify_via_backdoor(
 
     criterion_out = step_output_by_id.get(criterion_ref.step_id)
     formula_out = step_output_by_id.get(formula_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    formula_step = step_by_id.get(formula_ref.step_id)
     if criterion_out is None or formula_out is None:
         raise RuleCheckFailed(
             f"identify_via_backdoor: referenced step output missing "
             f"(criterion={criterion_ref.step_id}, formula={formula_ref.step_id})",
             step_index=step_index, rule="identify_via_backdoor",
         )
+    if criterion_step is None or formula_step is None:
+        raise RuleCheckFailed(
+            f"identify_via_backdoor: referenced step metadata missing "
+            f"(criterion={criterion_ref.step_id}, formula={formula_ref.step_id})",
+            step_index=step_index, rule="identify_via_backdoor",
+        )
+    if criterion_step.rule != "backdoor_criterion":
+        raise RuleCheckFailed(
+            "identify_via_backdoor: criterion must reference a backdoor_criterion step",
+            step_index=step_index, rule="identify_via_backdoor",
+        )
+    if formula_step.rule != "backdoor_adjustment_formula":
+        raise RuleCheckFailed(
+            "identify_via_backdoor: formula must reference a backdoor_adjustment_formula step",
+            step_index=step_index, rule="identify_via_backdoor",
+        )
     if criterion_out is not True:
         raise RuleCheckFailed(
             f"identify_via_backdoor: criterion step did not prove True "
             f"(got {criterion_out!r})",
+            step_index=step_index, rule="identify_via_backdoor",
+        )
+    if not isinstance(formula_out, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+        raise RuleCheckFailed(
+            "identify_via_backdoor: formula step did not produce a FormulaExpr",
             step_index=step_index, rule="identify_via_backdoor",
         )
 
@@ -363,23 +396,279 @@ def _rule_identify_via_backdoor(
         )
 
 
+# ========================================================== R6
+
+def _rule_probability_ref_lookup(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """R6: ``probability_ref_lookup(theta, target, given) -> float``.
+
+    inputs:
+        target — ValuedAtom with a concrete literal value (no VarRef)
+        given — tuple of ValuedAtoms with concrete literal values
+    output:
+        the float stored in ``ctx.theta`` under the corresponding
+        ``ProbabilityKey``.
+
+    Rejects if: theta is absent, any value is a VarRef / None, the
+    key is not in theta, or the recovered value disagrees with the
+    claimed output.
+    """
+    if ctx.theta is None:
+        raise RuleCheckFailed(
+            "probability_ref_lookup: verification context has no theta",
+            step_index=step_index, rule="probability_ref_lookup",
+        )
+    target = _require(inputs, "target", step_index, "probability_ref_lookup")
+    given = _require(inputs, "given", step_index, "probability_ref_lookup")
+    if not isinstance(target, ValuedAtom):
+        raise UnknownRuleInputError(
+            "probability_ref_lookup.target must be a ValuedAtom",
+            step_index=step_index, rule="probability_ref_lookup",
+        )
+    if not isinstance(given, tuple):
+        raise UnknownRuleInputError(
+            "probability_ref_lookup.given must be a tuple of ValuedAtom",
+            step_index=step_index, rule="probability_ref_lookup",
+        )
+
+    try:
+        key = _concrete_probability_key(target, given)
+    except _NonConcreteValue as e:
+        raise RuleCheckFailed(
+            f"probability_ref_lookup: non-concrete value in lookup ({e})",
+            step_index=step_index, rule="probability_ref_lookup",
+        )
+
+    recovered = ctx.theta.entries.get(key)
+    if recovered is None:
+        raise RuleCheckFailed(
+            f"probability_ref_lookup: theta has no entry for the requested key",
+            step_index=step_index, rule="probability_ref_lookup",
+        )
+    if not isinstance(claimed_output, (int, float)):
+        raise RuleCheckFailed(
+            f"probability_ref_lookup: claimed output must be a number",
+            step_index=step_index, rule="probability_ref_lookup",
+        )
+    if abs(float(recovered) - float(claimed_output)) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"probability_ref_lookup: claimed {claimed_output}, "
+            f"theta holds {recovered}",
+            step_index=step_index, rule="probability_ref_lookup",
+        )
+
+
+class _NonConcreteValue(Exception):
+    """Internal: raised by the key-builder when a ValuedAtom still
+    carries a VarRef / None. Callers translate to RuleCheckFailed."""
+
+
+def _concrete_value(v):
+    if isinstance(v, VarRef):
+        raise _NonConcreteValue(f"VarRef({v.name!r})")
+    if v is None:
+        raise _NonConcreteValue("None")
+    return v
+
+
+def _concrete_probability_key(
+    target: ValuedAtom,
+    given: tuple[ValuedAtom, ...],
+) -> ProbabilityKey:
+    tv = _concrete_value(target.value)
+    pairs = frozenset((g.atom, _concrete_value(g.value)) for g in given)
+    return ProbabilityKey(target_atom=target.atom, target_value=tv, given=pairs)
+
+
+# ========================================================== R7
+
+def _evaluate_formula(
+    expr: FormulaExpr,
+    theta: Theta,
+    subs: dict,
+) -> float:
+    """Verifier's independent recursive evaluator for FormulaExpr.
+
+    Does NOT call ``themis.runtime.numeric_estimator.estimate_formula``.
+    The two evaluators must agree on every concrete value — that
+    agreement is what makes R7 meaningful.
+    """
+    if isinstance(expr, ConstantExpr):
+        return float(expr.value)
+    if isinstance(expr, ProbabilityRefExpr):
+        target_value = _resolve(expr.target.value, subs)
+        given_pairs = frozenset(
+            (g.atom, _resolve(g.value, subs)) for g in expr.given
+        )
+        key = ProbabilityKey(
+            target_atom=expr.target.atom,
+            target_value=target_value,
+            given=given_pairs,
+        )
+        value = theta.entries.get(key)
+        if value is None:
+            raise _NonConcreteValue(
+                f"theta has no entry for P({expr.target.atom.predicate}="
+                f"{target_value})"
+            )
+        return float(value)
+    if isinstance(expr, ProductExpr):
+        result = 1.0
+        for t in expr.terms:
+            result *= _evaluate_formula(t, theta, subs)
+        return result
+    if isinstance(expr, SumExpr):
+        total = 0.0
+        for v in theta.domain_of(expr.over):
+            new_subs = dict(subs)
+            new_subs[expr.bind.name] = v
+            total += _evaluate_formula(expr.body, theta, new_subs)
+        return total
+    raise _NonConcreteValue(f"unknown formula node: {type(expr).__name__}")
+
+
+def _resolve(value, subs: dict):
+    if value is None:
+        raise _NonConcreteValue("query-bound None reached R7 evaluator")
+    if isinstance(value, VarRef):
+        if value.name not in subs:
+            raise _NonConcreteValue(f"unbound VarRef {value.name!r}")
+        return subs[value.name]
+    return value
+
+
+def _rule_formula_evaluation(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """R7: ``formula_evaluation(formula, theta) -> float``.
+
+    Recursively evaluates ``formula`` under ``ctx.theta`` and compares
+    with ``claimed_output`` in floating-point tolerance. The formula
+    may be any FormulaExpr (constant / probability_ref / product / sum).
+    """
+    if ctx.theta is None:
+        raise RuleCheckFailed(
+            "formula_evaluation: verification context has no theta",
+            step_index=step_index, rule="formula_evaluation",
+        )
+    formula = _require(inputs, "formula", step_index, "formula_evaluation")
+    if not isinstance(formula, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+        raise UnknownRuleInputError(
+            f"formula_evaluation.formula must be a FormulaExpr, "
+            f"got {type(formula).__name__}",
+            step_index=step_index, rule="formula_evaluation",
+        )
+
+    try:
+        recomputed = _evaluate_formula(formula, ctx.theta, {})
+    except _NonConcreteValue as e:
+        raise RuleCheckFailed(
+            f"formula_evaluation: cannot evaluate ({e})",
+            step_index=step_index, rule="formula_evaluation",
+        )
+
+    if not isinstance(claimed_output, (int, float)):
+        raise RuleCheckFailed(
+            "formula_evaluation: claimed output must be a number",
+            step_index=step_index, rule="formula_evaluation",
+        )
+    if abs(recomputed - float(claimed_output)) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"formula_evaluation: claimed {claimed_output}, "
+            f"recomputed {recomputed}",
+            step_index=step_index, rule="formula_evaluation",
+        )
+
+
+# ========================================================== R8
+
+def _rule_numeric_result(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """R8: close a numeric derivation by tying a prior evaluation step
+    to a ``NumericResult``.
+
+    inputs:
+        evaluation — StepRef pointing at an R6 or R7 step whose output
+                     is a float.
+    output:
+        ``NumericResult(value=<that float>)``.
+    """
+    evaluation_ref = _require(inputs, "evaluation", step_index, "numeric_result")
+    if not isinstance(evaluation_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_result.evaluation must be a StepRef",
+            step_index=step_index, rule="numeric_result",
+        )
+    eval_step = step_by_id.get(evaluation_ref.step_id)
+    eval_out = step_output_by_id.get(evaluation_ref.step_id)
+    if eval_step is None or eval_out is None:
+        raise RuleCheckFailed(
+            f"numeric_result: referenced step {evaluation_ref.step_id!r} missing",
+            step_index=step_index, rule="numeric_result",
+        )
+    if eval_step.rule not in ("formula_evaluation", "probability_ref_lookup"):
+        raise RuleCheckFailed(
+            f"numeric_result: evaluation must reference a formula_evaluation "
+            f"or probability_ref_lookup step, got {eval_step.rule!r}",
+            step_index=step_index, rule="numeric_result",
+        )
+    if not isinstance(eval_out, (int, float)):
+        raise RuleCheckFailed(
+            "numeric_result: referenced evaluation output must be a number",
+            step_index=step_index, rule="numeric_result",
+        )
+
+    if not isinstance(claimed_output, NumericResult):
+        raise RuleCheckFailed(
+            "numeric_result: claimed output must be a NumericResult",
+            step_index=step_index, rule="numeric_result",
+        )
+    if claimed_output.value is None:
+        raise RuleCheckFailed(
+            "numeric_result: claimed NumericResult.value must not be None",
+            step_index=step_index, rule="numeric_result",
+        )
+    if abs(float(eval_out) - float(claimed_output.value)) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"numeric_result: claimed value {claimed_output.value}, "
+            f"evaluation produced {eval_out}",
+            step_index=step_index, rule="numeric_result",
+        )
+
+
 # ========================================================== registry
 
 # rule name -> handler. Each handler has the signature
 #   (ctx, inputs, claimed_output, step_index, **maybe step_output_by_id) -> None
 # Handlers raise VerificationError subclasses to reject.
 #
-# R5 is special because it needs the step-output map.
+# R5 and R8 are special because they need the step maps.
 _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "graph_is_dag": _rule_graph_is_dag,
     "d_separation_check": _rule_d_separation_check,
     "backdoor_criterion": _rule_backdoor_criterion,
     "backdoor_adjustment_formula": _rule_backdoor_adjustment_formula,
+    "probability_ref_lookup": _rule_probability_ref_lookup,
+    "formula_evaluation": _rule_formula_evaluation,
 }
+_STEP_REF_RULES = {"identify_via_backdoor", "numeric_result"}
 
 
 def known_rule(name: str) -> bool:
-    return name in _SIMPLE_RULES or name == "identify_via_backdoor"
+    return name in _SIMPLE_RULES or name in _STEP_REF_RULES
 
 
 def dispatch_rule(
@@ -388,11 +677,17 @@ def dispatch_rule(
     inputs: dict,
     claimed_output: Any,
     step_index: int,
+    step_by_id: dict[str, Any],
     step_output_by_id: dict[str, Any],
 ) -> None:
     if rule_name == "identify_via_backdoor":
         _rule_identify_via_backdoor(
-            ctx, inputs, claimed_output, step_index, step_output_by_id,
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_result":
+        _rule_numeric_result(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return
     handler = _SIMPLE_RULES[rule_name]  # known_rule guards this
