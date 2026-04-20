@@ -23,10 +23,16 @@ from themis.runtime.instantiation import instantiate
 from themis.runtime.scheduler import dispatch_all
 from themis.types import (
     Atom,
+    CauseStatement,
     ConstTerm,
     EffectQuery,
     FramingNote,
     Intervention,
+    InvestigationAction,
+    InvestigationItem,
+    InvestigationRequest,
+    Priority,
+    ProbabilityQuery,
     Program,
     QueryKind,
     QueryResult,
@@ -43,6 +49,7 @@ from themis.workflow.variable_framing import (
     UnknownPredicateError,
     VariablePatchConflictError,
     diff_framing_runs,
+    extract_definition_skeleton,
     extract_framing_skeleton,
     merge_variable_declaration,
 )
@@ -449,3 +456,230 @@ def test_end_to_end_partial_fill_shrinks_without_value_drift():
         row["predicate"] == "waist_reduced" for row in d["framing"]["shrunk"]
     )
     assert d["value_drift"] == []
+
+
+# ============================================================== F1
+
+def _define_variable_requests(r: QueryResult):
+    return tuple(
+        req for req in r.investigation_requests
+        if req.action is InvestigationAction.DEFINE_VARIABLE
+    )
+
+
+def test_scheduler_surfaces_define_variable_request_when_framing_gap_exists():
+    """F1: a query that runs cleanly but references a predicate with
+    unset framing metadata must carry both the advisory framing_note
+    and a DEFINE_VARIABLE investigation_request so the same gap shows
+    up as an actionable task, not only as a note."""
+    ast = parse_json(FIXTURE.read_text(encoding="utf-8"))
+    program = validate_program(validate_ast(ast))
+    results = _run_program(program)
+
+    effect_result = next(
+        r for r in results if r.query_kind is QueryKind.EFFECT
+    )
+    assert effect_result.status is ResultStatus.NUMERICALLY_SOLVED
+    assert effect_result.framing_notes  # A0 still attaches advisory note
+    requests = _define_variable_requests(effect_result)
+    assert len(requests) == 1
+    req = requests[0]
+    assert req.group == "framing"
+    assert len(req.items) == 1
+    item = req.items[0]
+    assert item.target == "waist_reduced"
+    assert item.skeleton is not None
+    assert item.skeleton["kind"] == PATCH_KIND
+    assert item.skeleton["predicate"] == "waist_reduced"
+    assert item.skeleton["existing"] == {"domain": [True, False]}
+    assert set(item.skeleton["fields"].keys()) == {
+        "time_window", "measurement", "threshold", "observability",
+    }
+    assert all(v is None for v in item.skeleton["fields"].values())
+
+
+def test_scheduler_emits_no_define_variable_request_when_predicate_undeclared():
+    """Framing is opt-in per predicate: a query referencing an
+    undeclared predicate emits neither a framing_note nor a
+    DEFINE_VARIABLE request."""
+    program = Program(
+        version="0.1",
+        objects=("me",),
+        statements=(
+            CauseStatement(from_atom=_atom("x"), to_atom=_atom("y")),
+            _effect_query("y", "x"),
+        ),
+    )
+    results = _run_program(program)
+    for r in results:
+        assert r.framing_notes == ()
+        assert _define_variable_requests(r) == ()
+
+
+def test_scheduler_emits_no_define_variable_request_when_fully_declared():
+    """Declared + all framing fields set → no advisory, no task."""
+    x = _atom("x")
+    y = _atom("y")
+    program = Program(
+        version="0.1",
+        objects=("me",),
+        statements=(
+            VariableDeclaration(
+                predicate="x",
+                domain=(True, False),
+                time_window="12w",
+                measurement="cm",
+                threshold=">=3",
+                observability="observed",
+            ),
+            VariableDeclaration(
+                predicate="y",
+                domain=(True, False),
+                time_window="12w",
+                measurement="cm",
+                threshold=">=3",
+                observability="observed",
+            ),
+            QueryStatement(
+                id="q",
+                query=ProbabilityQuery(
+                    target=ValuedAtom(atom=y, value=True), given=(),
+                ),
+            ),
+        ),
+    )
+    results = _run_program(program)
+    for r in results:
+        assert r.framing_notes == ()
+        assert _define_variable_requests(r) == ()
+
+
+def test_scheduler_preserves_parameter_investigation_when_adding_define_variable():
+    """A probability query can be both param-missing *and*
+    framing-underspecified. Both investigation channels must show up
+    on the same result — DEFINE_VARIABLE augments, it does not
+    replace."""
+    y = _atom("y")
+    program = Program(
+        version="0.1",
+        objects=("me",),
+        statements=(
+            VariableDeclaration(predicate="y", domain=(True, False)),
+            QueryStatement(
+                id="q",
+                query=ProbabilityQuery(
+                    target=ValuedAtom(atom=y, value=True), given=(),
+                ),
+            ),
+        ),
+    )
+    results = _run_program(program)
+    r = results[0]
+    assert r.status is ResultStatus.NEEDS_INVESTIGATION
+    # Two request groups: the parameter/observation one pushed from
+    # missing_information, plus the framing one from F1.
+    groups = {req.group for req in r.investigation_requests}
+    assert "framing" in groups
+    assert groups & {"parameter", "observation"}  # whichever kind it flagged
+
+
+def test_extract_definition_skeleton_matches_framing_skeleton_shape():
+    """F1's extract, starting from investigation_requests, produces a
+    bundle identical (up to patch ordering) to A1's extract starting
+    from framing_notes — same predicate set, same existing, same
+    gap fields."""
+    ast = parse_json(FIXTURE.read_text(encoding="utf-8"))
+    program = validate_program(validate_ast(ast))
+    results = _run_program(program)
+
+    a1 = extract_framing_skeleton(program, results)
+    f1 = extract_definition_skeleton(results)
+
+    assert f1["version"] == a1["version"] == BUNDLE_VERSION
+    assert f1["kind"] == a1["kind"] == BUNDLE_KIND
+    # Both bundles contain the same patch set.
+    a1_by_pred = {p["predicate"]: p for p in a1["patches"]}
+    f1_by_pred = {p["predicate"]: p for p in f1["patches"]}
+    assert set(a1_by_pred) == set(f1_by_pred)
+    for predicate in a1_by_pred:
+        a_patch = a1_by_pred[predicate]
+        f_patch = f1_by_pred[predicate]
+        assert f_patch["kind"] == a_patch["kind"] == PATCH_KIND
+        assert f_patch["existing"] == a_patch["existing"]
+        assert set(f_patch["fields"].keys()) == set(a_patch["fields"].keys())
+
+
+def test_extract_definition_skeleton_dedupes_across_results():
+    """Two QueryResults both carrying a DEFINE_VARIABLE request for the
+    same predicate → one patch in the bundle, not two."""
+    def _synth_define_result(predicate: str) -> QueryResult:
+        skeleton = {
+            "kind": PATCH_KIND,
+            "predicate": predicate,
+            "existing": {},
+            "fields": {"time_window": None},
+        }
+        request = InvestigationRequest(
+            action=InvestigationAction.DEFINE_VARIABLE,
+            target=predicate,
+            priority=Priority.MEDIUM,
+            group="framing",
+            items=(InvestigationItem(
+                target=predicate, reason="gap", skeleton=skeleton,
+            ),),
+        )
+        return QueryResult(
+            status=ResultStatus.NUMERICALLY_SOLVED,
+            query_kind=QueryKind.EFFECT,
+            investigation_requests=(request,),
+        )
+
+    bundle = extract_definition_skeleton(
+        [_synth_define_result("y"), _synth_define_result("y")],
+    )
+    assert len(bundle["patches"]) == 1
+    assert bundle["patches"][0]["predicate"] == "y"
+
+
+def test_extract_definition_skeleton_returns_empty_bundle_when_no_gaps():
+    program = Program(version="0.1", objects=(), statements=())
+    results = _run_program(program)
+    bundle = extract_definition_skeleton(results)
+    assert bundle["kind"] == BUNDLE_KIND
+    assert bundle["version"] == BUNDLE_VERSION
+    assert bundle["patches"] == []
+
+
+def test_end_to_end_define_variable_loop_via_investigation_channel():
+    """F1 closed loop, entered from investigation_requests rather than
+    framing_notes. After merge, both the notes and the DEFINE_VARIABLE
+    request must vanish, with no numeric drift."""
+    ast = parse_json(FIXTURE.read_text(encoding="utf-8"))
+    program = validate_program(validate_ast(ast))
+    before_results = _run_program(program)
+
+    bundle = extract_definition_skeleton(before_results)
+    assert len(bundle["patches"]) == 1
+    patch = bundle["patches"][0]
+    assert patch["predicate"] == "waist_reduced"
+    patch["fields"] = {
+        "time_window": "12w",
+        "measurement": "waist circumference cm",
+        "threshold": ">=3cm",
+        "observability": "self-reported",
+    }
+
+    merged = merge_variable_declaration(program, bundle)
+    after_results = _run_program(merged)
+
+    # Notes and DEFINE_VARIABLE requests both gone.
+    for r in after_results:
+        assert r.framing_notes == ()
+        assert _define_variable_requests(r) == ()
+
+    # Advisory contract: numeric path unchanged.
+    d = diff_framing_runs(before_results, after_results)
+    assert d["value_drift"] == []
+    assert any(
+        row["predicate"] == "waist_reduced" for row in d["framing"]["resolved"]
+    )

@@ -55,6 +55,7 @@ from typing import Iterable
 
 from ..types import (
     FramingNote,
+    InvestigationAction,
     Program,
     QueryResult,
     VariableDeclaration,
@@ -187,6 +188,44 @@ def extract_framing_skeleton(
         "version": BUNDLE_VERSION,
         "kind": BUNDLE_KIND,
         "patches": patches,
+    }
+
+
+# ----------------------------------------------------------- extract (F1)
+
+def extract_definition_skeleton(
+    results: Iterable[QueryResult],
+) -> dict:
+    """Slice F1: build a framing_skeleton_bundle from
+    ``DEFINE_VARIABLE`` investigation_requests on ``results``.
+
+    Counterpart to ``extract_framing_skeleton`` that takes only results
+    (no program). Each DEFINE_VARIABLE item's ``skeleton`` is already a
+    complete variable_patch dict (built by the scheduler with access
+    to the program at dispatch time), so this function is essentially
+    a dedupe-by-predicate collector.
+
+    The emitted bundle is shape-identical to
+    ``extract_framing_skeleton``'s output, so the same
+    ``merge_variable_declaration`` consumes either one unchanged.
+    """
+    seen: dict[str, dict] = {}
+    for r in results:
+        for request in r.investigation_requests:
+            if request.action is not InvestigationAction.DEFINE_VARIABLE:
+                continue
+            for item in request.items:
+                if item.skeleton is None:
+                    continue
+                predicate = item.skeleton.get("predicate")
+                if not isinstance(predicate, str) or predicate in seen:
+                    continue
+                seen[predicate] = item.skeleton
+
+    return {
+        "version": BUNDLE_VERSION,
+        "kind": BUNDLE_KIND,
+        "patches": list(seen.values()),
     }
 
 

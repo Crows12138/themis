@@ -46,6 +46,9 @@ from ..types import (
     DerivationStep,
     EffectQuery,
     IdentifyQuery,
+    InvestigationAction,
+    InvestigationItem,
+    InvestigationRequest,
     MissingItem,
     MissingKind,
     NumericResult,
@@ -656,8 +659,12 @@ def _attach_framing(
     stmt: QueryStatement,
     result: QueryResult,
 ) -> QueryResult:
-    """Slice A0: attach advisory framing_notes for predicates the query
-    references. No status or numeric change — framing is additive."""
+    """Slice A0 + F1: attach advisory framing_notes for predicates the
+    query references, and slice F1 also surfaces each gap as a
+    DEFINE_VARIABLE investigation_request carrying a ready-to-fill
+    variable_patch skeleton. Status / numeric value / confidence are
+    unchanged — framing stays advisory, the investigation is just the
+    actionable projection of the same gap."""
     from dataclasses import replace
 
     from . import framing_check
@@ -665,7 +672,37 @@ def _attach_framing(
     notes = framing_check.check_framing(program, stmt)
     if not notes:
         return result
-    return replace(result, framing_notes=notes)
+
+    items = tuple(
+        InvestigationItem(
+            target=note.predicate,
+            reason=(
+                f"variable '{note.predicate}' is declared but missing "
+                f"{len(note.missing)} framing field"
+                f"{'s' if len(note.missing) != 1 else ''}: "
+                f"{', '.join(note.missing)}"
+            ),
+            skeleton=framing_check.build_define_variable_skeleton(
+                program, note.predicate, note.missing,
+            ),
+        )
+        for note in notes
+    )
+    target = (
+        items[0].target if len(items) == 1 else f"define_variable:{len(items)}_items"
+    )
+    framing_request = InvestigationRequest(
+        action=InvestigationAction.DEFINE_VARIABLE,
+        target=target,
+        priority=Priority.MEDIUM,
+        note=None,
+        group="framing",
+        items=items,
+    )
+    merged_requests = result.investigation_requests + (framing_request,)
+    return replace(
+        result, framing_notes=notes, investigation_requests=merged_requests,
+    )
 
 
 def _attach_investigation(result: QueryResult) -> QueryResult:

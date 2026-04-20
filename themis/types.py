@@ -288,6 +288,11 @@ class InvestigationAction(str, Enum):
     RUN_EXPERIMENT = "run_experiment"
     INCREASE_SAMPLE = "increase_sample"
     VALIDATE_PARAMETER = "validate_parameter"
+    # Slice F1: surface framing gaps as an actionable task, not just an
+    # advisory note. One item per underframed predicate, each carrying a
+    # variable_patch skeleton that feeds directly into the A1 fill-back
+    # loop via ``extract_definition_skeleton``.
+    DEFINE_VARIABLE = "define_variable"
 
 
 @dataclass(frozen=True)

@@ -48,6 +48,22 @@ _REPORTABLE_FIELDS: tuple[str, ...] = (
 )
 
 
+# Slice F1: shape of the variable_patch dict emitted as
+# InvestigationItem.skeleton for DEFINE_VARIABLE items. Must stay in
+# sync with ``themis.workflow.variable_framing.PATCH_KIND`` /
+# ``_PATCHABLE_FIELDS`` — any shape change needs coordinated edits in
+# both modules and in the existing extract / merge tests.
+_PATCH_KIND = "variable_patch"
+_PATCH_DISPLAY_FIELDS: tuple[str, ...] = (
+    "domain",
+    "time_window",
+    "measurement",
+    "threshold",
+    "observability",
+    "unit",
+)
+
+
 def _as_atom(x) -> Atom:
     return x.atom if isinstance(x, ValuedAtom) else x
 
@@ -123,3 +139,41 @@ def check_framing(
         if gaps:
             notes.append(FramingNote(predicate=pred, missing=gaps))
     return tuple(notes)
+
+
+def build_define_variable_skeleton(
+    program: Program,
+    predicate: str,
+    gap_fields: tuple[str, ...],
+) -> dict:
+    """Slice F1: build a variable_patch dict that can be dropped
+    straight into a ``framing_skeleton_bundle`` and fed through
+    ``merge_variable_declaration``.
+
+    ``existing`` surfaces the predicate's already-set metadata as
+    read-only context; ``fields`` carries each gap field as ``None``
+    for the author to fill.
+
+    Only callable for a predicate that has a VariableDeclaration;
+    undeclared predicates produce no framing note and therefore no
+    skeleton. Raises KeyError otherwise.
+    """
+    decls = _declarations_by_predicate(program)
+    decl = decls[predicate]
+
+    existing: dict = {}
+    for field in _PATCH_DISPLAY_FIELDS:
+        value = getattr(decl, field)
+        if value is None:
+            continue
+        if field == "domain":
+            existing[field] = list(value)
+        else:
+            existing[field] = value
+
+    return {
+        "kind": _PATCH_KIND,
+        "predicate": predicate,
+        "existing": existing,
+        "fields": {field: None for field in gap_fields},
+    }

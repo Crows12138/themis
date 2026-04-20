@@ -399,7 +399,8 @@
             "collect_observation",
             "run_experiment",
             "increase_sample",
-            "validate_parameter"
+            "validate_parameter",
+            "define_variable"
           ]
         },
         "target": {
@@ -418,7 +419,7 @@
         },
         "group": {
           "type": "string",
-          "description": "MissingKind.value — items in the same request share a kind."
+          "description": "MissingKind.value for parameter/observation/sample/structure groups, or 'framing' for DEFINE_VARIABLE (slice F1) — items in the same request share a channel."
         },
         "items": {
           "type": "array",
