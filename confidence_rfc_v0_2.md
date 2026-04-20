@@ -44,12 +44,70 @@ v0.1 现在返回 `()`。v0.2 需要实打实地收集。按查询类型划分�
 | `cause` | DAG 结构，无 annotation → 空 |
 | `assoc` | DAG 结构 + 条件集，无 annotation → 空 |
 | `identify` | DAG 结构 → 空（识别本身是纯结构问题） |
-| `effect` | 公式中引用的每一个 `ProbabilityStatement` 的 confidence；以及每一个 `given` 原子对应 `ObservationStatement` 的 confidence（如果 observations 参与 conditioning） |
+| `effect` | 公式引用的**唯一** probability slot 的来源 confidence + 查询实际用到的 observation 的 confidence（见 §3.1 / §3.2） |
 | `probability` | 同 effect，但公式更简单（通常就是单条 probability_ref） |
 
-**采集算法**：`walk(formula) + walk(observations_used)`，按 `ProbabilityKey` 对齐到 Theta 源，找到当初编译进 Theta 的那条 `ProbabilityStatement`，取它的 annotation.confidence。
+以下两节把 §1 那条"不是模糊的'相关 observation'，而是可审计规则"钉死。
 
-**edge case**：Theta 条目如果来自多条等价的 probability 语句（`theta_builder` 允许同值去重），取其中任一 confidence 即可——不是多值合成问题。
+### 3.1 重复来源：按"唯一来源项"合成
+
+**问题**：
+
+1. 公式里同一个 `ProbabilityRefExpr` 可能被多个节点引用（比如后门 + 识别出的同一条件概率被公式里多处使用），不应按节点次数重复计入
+2. Theta 里的一个条目可能由**多条**相同 ground 化 `ProbabilityStatement` 语句产生（`theta_builder` 对"同键同值"语句是 idempotent 的），这些语句可以携带**不同的** `annotations.confidence`
+
+**规则**：
+
+对公式里出现过的**每个不同的** `ProbabilityKey` `K`，定义：
+
+```
+slot_conf(K) = min(
+    stmt.annotations.confidence
+    for stmt in ground_probability_statements
+    if _key_of(stmt) == K
+       and stmt.annotations is not None
+       and stmt.annotations.confidence is not None
+)
+```
+
+- 一个公式节点里**每个 `ProbabilityKey` 只贡献一个 slot**，不按引用次数重复
+- 如果同一个 K 对应多条来源语句，**取它们 confidence 的 min**；这保证结果是确定的、可审计的，不给实现留"任取其一"的口子
+- 如果 `K` 的所有来源语句都没有 annotation.confidence，则 `K` **不贡献**（不是 0、不是 1、不是 None 占位），换言之"没有意见"就不在合成里发声
+
+### 3.2 Observation 参与条件
+
+**问题**：并非程序里出现的每一条 observation 都和当前查询的答案有关。把无关 observation 也拉进 confidence 合成，等于把"随便写的一条观测"变相加权进用户没问的查询上。
+
+**规则**：只有**同时满足**下面全部条件的 observation 才参与：
+
+1. 该查询的类型属于 `effect` 或 `probability`（结构查询 §3 表格已说不收）
+2. 查询的 `given` 列表里存在一项 `ValuedAtom(a, v)`
+3. 程序里存在 ground `ObservationStatement(atom=a, value=v)` **且 atom 和 value 都相等**
+
+额外约束：
+
+- 查询的 `intervention` 原子**永远不参与** observation 合成——`do(·)` 切断入边的语义意味着该变量的外部观测值在反事实条件下无意义
+- 同一 `(atom, value)` 组合有多条 `ObservationStatement` 时，`slot_conf = min(其 annotations.confidence)`，规则同 §3.1
+- 没有匹配任何给定 `(atom, value)` 的 observation 不参与，无论它在程序里是不是存在
+
+### 3.3 最终输入构造
+
+```
+inputs = []
+for K in distinct ProbabilityKey referenced in formula:
+    c = slot_conf(K)  # §3.1
+    if c is not None:
+        inputs.append(c)
+
+for (atom, value) in q.given:            # only for effect / probability
+    c = observation_slot_conf(atom, value)  # §3.2
+    if c is not None:
+        inputs.append(c)
+
+composite_confidence = composite(*inputs)  # min rule from §7
+```
+
+`composite(*())` → None，和 §4 S4 一致。
 
 ---
 
@@ -203,11 +261,19 @@ composite = Σ wi·ci  /  Σ wi
 ### 8.1 代码侧
 
 - `confidence_calc.composite` 正式化：docstring 从"v0.1 placeholder"改成"v0.2 rule: minimum of non-None inputs, None if empty"
-- `_gather_input_confidences(program, stmt, result)` 真实实现：
-  - 对 `effect` / `probability` 查询：walk `result.formula`，对每个 `ProbabilityRefExpr` 定位对应的 `ProbabilityStatement`，收集其 annotation.confidence
-  - 对 `given` 里的原子，如果有对应的 `ObservationStatement`，收集其 confidence
-  - 对 `cause` / `assoc` / `identify`：返回 `()`（结构查询不绑证据）
-- 新增 scheduler helper `_probability_source_index(program)`：给定 `ProbabilityKey` 快速定位 `ProbabilityStatement`，避免每个公式节点都 walk 整个 program
+- 新增 `_probability_source_index(program) -> dict[ProbabilityKey, tuple[ProbabilityStatement, ...]]`：
+  - 遍历 ground statements 一次，把每个 `ProbabilityKey` 映射到**所有**产生它的 source 语句元组（不是任一条）
+  - 放在 `runtime/theta_builder.py` 或新 helper 模块；scheduler 按 program 构建一次，传给 explainer 不可见（它只消费最终 confidence）
+- 新增 `_observation_source_index(program) -> dict[(Atom, AtomValue), tuple[ObservationStatement, ...]]`：
+  - 同样一次遍历，按 `(atom, value)` 组合索引所有 ground 化后的 `ObservationStatement`
+- `_gather_input_confidences(program, stmt, result, prob_idx, obs_idx)` 按 §3.3 算法返回 `tuple[float, ...]`：
+  - cause / assoc / identify → 返回 `()`
+  - effect / probability：
+    1. walk `result.formula` 收集**去重后**的 `ProbabilityKey` 集合
+    2. 对每个 K，在 `prob_idx` 里找所有来源，取 `min(非 None confidence)`；全 None 则跳过该 slot
+    3. 对 `stmt.query.given` 里每个 `ValuedAtom(a, v)`，在 `obs_idx[(a, v)]` 中取 `min(非 None confidence)`；无匹配或全 None 则跳过
+    4. 不把 `stmt.query.intervention` 纳入 observation 合成
+  - scheduler 在 `dispatch_all` 里构建两个 index 一次，然后逐查询传进来
 
 ### 8.2 Schema 侧
 
@@ -221,10 +287,23 @@ composite = Σ wi·ci  /  Σ wi
 ### 8.4 测试侧
 
 必须加的回归：
-- `composite` 九条标准对应的单元测试（有些已经在 `test_confidence_calc.py`，补齐）
-- 端到端：`numeric_backdoor.json` fixture 加 `annotations.confidence=0.9` 到每个 probability 语句，期望 `QueryResult.confidence == 0.9`
-- 混合 confidence：一条 0.9、一条 0.3，期望 0.3
-- 缺 annotation 的输入不参与合成（`_gather_input_confidences` 跳过 None）
+
+**单元层（`test_confidence_calc.py`）**：
+- `composite` 在九条标准上逐一断言（S1–S9 每条一个测试）
+
+**采集层（新 `test_gather_input_confidences.py`）**：
+- cause / assoc / identify 查询永远返回 `()`
+- effect 查询：公式里同一 ProbabilityRefExpr 在多节点出现时，只贡献一个 slot（不按引用次数重复）
+- §3.1 重复来源：同一 `(target, value, given)` 由两条同键同值语句产生且 confidence 分别为 0.9 和 0.3 时，`slot_conf` 取 0.3
+- §3.1 全无 annotation：该 slot 不出现在 inputs 里，而不是作为 None / 0 / 1 占位
+- §3.2 observation 匹配：`given=[Z=true]` + `ObservationStatement(Z, value=true, confidence=0.8)` → 参与；`ObservationStatement(Z, value=false, confidence=0.8)` → 不参与
+- §3.2 observation 的 atom 不在 given 里 → 不参与，即使程序里有这条 observation
+- §3.2 intervention 原子永不参与：`do(X=x)` + `ObservationStatement(X, x, confidence=0.8)` → 不参与
+
+**端到端**：
+- `numeric_backdoor.json` 的所有 probability 语句加 `annotations.confidence=0.9`，期望 `QueryResult.confidence == 0.9`
+- 改成一条 0.9、一条 0.3，期望 `0.3`
+- 去掉所有 annotation，期望 `confidence is None`（兼容 v0.1.0）
 
 ### 8.5 破坏性评估
 
@@ -247,3 +326,8 @@ v0.2 composite confidence = min(收集到的非 None 输入 confidence)，空则
 - **提出日期**：2026-04-20
 - **状态**：draft，等 slice 9 开工前由用户 sign-off
 - **备选轨道**：如果未来 v0.3 引入"独立证据"声明，noisy-OR 可以作为用户**opt-in** 的合成规则加入；不会替代 min 作为默认
+
+### 修订记录
+
+- 2026-04-20 首版 draft
+- 2026-04-20 §3 拆分为 §3.1 / §3.2 / §3.3，把"重复来源 → slot min"和"observation 参与条件"的规则钉死；§8.1 / §8.4 同步收紧
