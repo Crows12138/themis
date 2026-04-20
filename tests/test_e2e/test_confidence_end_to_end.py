@@ -176,6 +176,71 @@ def test_no_annotation_preserves_none_confidence():
     assert r.confidence is None
 
 
+# ---------------------------------------- slice 9.x-D: explainer surface
+
+def test_confidence_surfaces_in_explanation_text_when_set():
+    """Slice 9.x-D: when a numerical result carries a composite
+    confidence, the explanation text must name that number so users
+    reading only the text aren't blind to the evidence level."""
+    from themis.output.explainer import explain
+    from themis.types import QueryStatement
+
+    r = _run({
+        "cancer_given_stress_true":  0.9,
+        "cancer_given_stress_false": 0.3,
+        "stress_true":               0.9,
+        "stress_false":              0.9,
+    })
+    assert r.confidence == pytest.approx(0.3)
+
+    program = _build_program({
+        "cancer_given_stress_true":  0.9,
+        "cancer_given_stress_false": 0.3,
+        "stress_true":               0.9,
+        "stress_false":              0.9,
+    })
+    stmt = next(
+        s for s in program.statements
+        if isinstance(s, QueryStatement) and s.id == "q"
+    )
+    text = explain(r, stmt=stmt)
+
+    assert "0.3" in text
+    assert "综合可信度" in text
+    # The weakest-link framing is part of the min rule's public
+    # contract; keep it callable out of the text so it's visible
+    # what the number means.
+    assert "最弱证据水平" in text
+
+
+def test_explanation_has_no_confidence_clause_when_none():
+    """Symmetric guard: if confidence is None the explanation must
+    not mention a fabricated value."""
+    from themis.output.explainer import explain
+    from themis.types import QueryStatement
+
+    r = _run({
+        "cancer_given_stress_true":  None,
+        "cancer_given_stress_false": None,
+        "stress_true":               None,
+        "stress_false":              None,
+    })
+    assert r.confidence is None
+
+    program = _build_program({
+        "cancer_given_stress_true":  None,
+        "cancer_given_stress_false": None,
+        "stress_true":               None,
+        "stress_false":              None,
+    })
+    stmt = next(
+        s for s in program.statements
+        if isinstance(s, QueryStatement) and s.id == "q"
+    )
+    text = explain(r, stmt=stmt)
+    assert "综合可信度" not in text
+
+
 # --------------------- partial: one annotated slot, rest unannotated
 
 def test_partial_annotation_only_contributes_annotated_slots():

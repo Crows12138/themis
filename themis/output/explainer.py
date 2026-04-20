@@ -247,6 +247,22 @@ def _explain_probability_zh(result: QueryResult, stmt) -> str:
     return f"{quantity}：结果未分类。"
 
 
+def _with_confidence_suffix(text: str, result: QueryResult) -> str:
+    """Append a confidence clause when the result carries one.
+
+    Surfaces the v0.2 composite min rule: the single number is the
+    weakest evidence level among the inputs the collection rules
+    reached. Structural queries currently carry None so this suffix
+    only shows up on numerically-solved effect / probability today,
+    but the helper is kind-agnostic to stay correct if future slices
+    start attaching confidence to other paths.
+    """
+    if result.confidence is None:
+        return text
+    rendered = _format_number(result.confidence)
+    return f"{text}综合可信度 {rendered}（最弱证据水平，按 min 规则聚合）。"
+
+
 def explain(
     result: QueryResult,
     lang: str = "zh",
@@ -261,19 +277,26 @@ def explain(
     can quote the exact target value / intervention / conditioning
     the user asked about. The explainer still MUST NOT re-run any
     reasoning — ``stmt`` is used for display only.
+
+    Slice 9.x-D: if ``result.confidence`` is non-None the text
+    gains a trailing clause naming the composite value, so users
+    reading the explanation don't miss what is otherwise only in
+    the structured payload.
     """
     if lang != "zh":
         raise NotImplementedError(f"language '{lang}' not supported in v0.1")
     if result.query_kind == QueryKind.CAUSE:
-        return _explain_cause_zh(result)
-    if result.query_kind == QueryKind.ASSOC:
-        return _explain_assoc_zh(result)
-    if result.query_kind == QueryKind.IDENTIFY:
-        return _explain_identify_zh(result)
-    if result.query_kind == QueryKind.EFFECT:
-        return _explain_effect_zh(result, stmt)
-    if result.query_kind == QueryKind.PROBABILITY:
-        return _explain_probability_zh(result, stmt)
-    raise NotImplementedError(
-        f"explainer for {result.query_kind.value} not implemented yet"
-    )
+        text = _explain_cause_zh(result)
+    elif result.query_kind == QueryKind.ASSOC:
+        text = _explain_assoc_zh(result)
+    elif result.query_kind == QueryKind.IDENTIFY:
+        text = _explain_identify_zh(result)
+    elif result.query_kind == QueryKind.EFFECT:
+        text = _explain_effect_zh(result, stmt)
+    elif result.query_kind == QueryKind.PROBABILITY:
+        text = _explain_probability_zh(result, stmt)
+    else:
+        raise NotImplementedError(
+            f"explainer for {result.query_kind.value} not implemented yet"
+        )
+    return _with_confidence_suffix(text, result)

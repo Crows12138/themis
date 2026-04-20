@@ -179,7 +179,23 @@ def test_cause_false_verdict_surfaces_in_text(stmt, result):
     assert "不存在" in text or "不因果影响" in text
 
 
-# ------------------- invariant 8: NEEDS_INVESTIGATION has complete envelope
+# ---------------------- invariant 8: confidence surfaces when non-None
+
+@pytest.mark.parametrize("stmt, result", CASES)
+def test_confidence_in_explanation_when_non_none(stmt, result):
+    """Slice 9.x-D invariant: if the structured result has a composite
+    confidence, the rendered number must appear in the explanation so
+    text-only readers aren't blind to the evidence level."""
+    if result.confidence is None:
+        pytest.skip("no confidence attached")
+    text = explain(result, stmt=stmt)
+    rendered = _explainer._format_number(result.confidence)
+    assert rendered in text, (
+        f"confidence {rendered!r} missing from:\n{text}"
+    )
+
+
+# ------------------- invariant 9: NEEDS_INVESTIGATION has complete envelope
 
 @pytest.mark.parametrize("stmt, result", CASES)
 def test_needs_investigation_three_part_envelope(stmt, result):
