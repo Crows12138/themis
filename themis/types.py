@@ -318,6 +318,34 @@ class InvestigationRequest:
 
 
 @dataclass(frozen=True)
+class StepRef:
+    """Reference to a prior DerivationStep's output by step_id."""
+    step_id: str
+
+
+@dataclass(frozen=True)
+class DerivationStep:
+    """One step in a QueryResult's derivation (slice V0 of the verifier).
+
+    Each step cites a named rule. ``inputs`` is a mapping from parameter
+    name to value; a value may be a concrete object (Atom, frozenset of
+    Atoms, graph, FormulaExpr, ValuedAtom, ...) or a ``StepRef`` pointing
+    at a prior step's output. ``output`` is the rule's result.
+
+    The ``rule`` string must match one of the named rules that the
+    verifier implements. If the verifier can't recognise the rule name
+    it rejects the derivation.
+
+    ``inputs`` uses a ``dict`` for ergonomics — the dataclass itself is
+    frozen, but callers should treat the dict as read-only.
+    """
+    rule: str
+    inputs: dict
+    output: object
+    step_id: str | None = None
+
+
+@dataclass(frozen=True)
 class FramingNote:
     """Slice A0 advisory: one predicate's unset framing-metadata fields.
 
@@ -341,5 +369,6 @@ class QueryResult:
     missing_information: tuple[MissingItem, ...] = ()
     investigation_requests: tuple[InvestigationRequest, ...] = ()
     framing_notes: tuple[FramingNote, ...] = ()
+    derivation: tuple[DerivationStep, ...] = ()
     explanation: str | None = None
     extensions: dict | None = None

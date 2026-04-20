@@ -43,6 +43,7 @@ from ..types import (
     AssocQuery,
     Atom,
     CauseQuery,
+    DerivationStep,
     EffectQuery,
     IdentifyQuery,
     MissingItem,
@@ -56,6 +57,7 @@ from ..types import (
     QueryResult,
     QueryStatement,
     ResultStatus,
+    StepRef,
     StructuralResult,
     ValuedAtom,
 )
@@ -173,12 +175,86 @@ def _dispatch_identify(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     # Defensive sanity check: every formula we emit must be well-formed.
     validate_formula(formula)
 
+    structural_result = StructuralResult(value=True)
+    derivation = _build_identify_derivation(
+        graph=graph,
+        x=x,
+        y=y,
+        z=tuple(topo),
+        given=q.given,
+        target_va=target_va,
+        intervention_va=intervention_va,
+        observed_vas=observed_vas,
+        formula=formula,
+        structural_result=structural_result,
+    )
+
     return QueryResult(
         status=ResultStatus.STRUCTURALLY_SOLVED,
         query_kind=QueryKind.IDENTIFY,
         query_id=stmt.id,
-        structural_result=StructuralResult(value=True),
+        structural_result=structural_result,
         formula=formula,
+        derivation=derivation,
+    )
+
+
+def _build_identify_derivation(
+    *,
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    z: tuple[Atom, ...],
+    given: tuple[Atom, ...],
+    target_va: ValuedAtom,
+    intervention_va: ValuedAtom,
+    observed_vas: tuple[ValuedAtom, ...],
+    formula,
+    structural_result: StructuralResult,
+) -> tuple[DerivationStep, ...]:
+    """Produce the derivation that witnesses a successful backdoor
+    identification. The verifier re-runs each cited rule independently.
+    """
+    given_set = frozenset(given)
+    return (
+        DerivationStep(
+            rule="graph_is_dag",
+            inputs={"graph": graph},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="backdoor_criterion",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+                "z": frozenset(z),
+                "given": given_set,
+            },
+            output=True,
+            step_id="s2",
+        ),
+        DerivationStep(
+            rule="backdoor_adjustment_formula",
+            inputs={
+                "target": target_va,
+                "intervention": intervention_va,
+                "z": z,
+                "given": observed_vas,
+            },
+            output=formula,
+            step_id="s3",
+        ),
+        DerivationStep(
+            rule="identify_via_backdoor",
+            inputs={
+                "criterion": StepRef(step_id="s2"),
+                "formula": StepRef(step_id="s3"),
+            },
+            output=structural_result,
+            step_id="s4",
+        ),
     )
 
 
