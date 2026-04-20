@@ -74,6 +74,8 @@
 
 **要先做的 RFC**：在 slice 9 代码动手前，先写 `confidence_rfc_v0_2.md` 对比候选规则，最终选一个。避免实现完才发现规则不适合。
 
+→ **状态**：`confidence_rfc_v0_2.md` 已起草（draft），推荐保留 min 规则作为 v0.2 正式语义，同时正式化 `_gather_input_confidences` 的采集语义。等 sign-off 后进入 slice 9 实施。
+
 ---
 
 ## Slice 10：ID / ananke
