@@ -15,6 +15,8 @@ from __future__ import annotations
 from ..runtime import formula_builder
 from ..types import (
     EffectQuery,
+    InvestigationAction,
+    Priority,
     ProbabilityQuery,
     ProbabilityRefExpr,
     QueryKind,
@@ -95,6 +97,56 @@ def _describe_adjustment(formula) -> str:
     return ""
 
 
+_ACTION_PHRASE: dict[InvestigationAction, str] = {
+    InvestigationAction.VALIDATE_PARAMETER:   "提供该参数",
+    InvestigationAction.COLLECT_OBSERVATION:  "补采观测",
+    InvestigationAction.INCREASE_SAMPLE:      "扩大样本",
+    InvestigationAction.RUN_EXPERIMENT:       "运行实验",
+}
+
+_PRIORITY_PHRASE: dict[Priority, str] = {
+    Priority.HIGH:   "高",
+    Priority.MEDIUM: "中",
+    Priority.LOW:    "低",
+}
+
+
+def _describe_needs_investigation(result: QueryResult) -> str:
+    """Render the '缺什么 / 为什么缺 / 下一步做什么' envelope.
+
+    Pulls reasons out of ``missing_information`` and aligns each item
+    with the matching ``InvestigationRequest`` (by target = missing
+    item name, which is how ``investigation_pusher`` builds them).
+
+    Returns empty string when there are no missing items so callers
+    can concatenate unconditionally.
+    """
+    if not result.missing_information:
+        return ""
+
+    reqs_by_target: dict[str, "InvestigationAction"] = {}
+    reqs_priority: dict[str, "Priority"] = {}
+    for req in result.investigation_requests:
+        reqs_by_target[req.target] = req.action
+        reqs_priority[req.target] = req.priority
+
+    sentences: list[str] = []
+    for m in result.missing_information:
+        parts = [f"缺：{m.name}"]
+        if m.reason:
+            parts.append(f"（原因：{m.reason}）")
+        action = reqs_by_target.get(m.name)
+        if action is not None:
+            action_label = _ACTION_PHRASE.get(action, action.value)
+            prio = reqs_priority.get(m.name)
+            prio_label = _PRIORITY_PHRASE.get(prio, prio.value if prio else "")
+            parts.append(
+                f"；下一步 {action_label}（优先级 {prio_label}）"
+            )
+        sentences.append("".join(parts) + "。")
+    return " ".join(sentences)
+
+
 def _explain_identify_zh(result: QueryResult) -> str:
     sr = result.structural_result
     if sr is None:
@@ -162,9 +214,9 @@ def _explain_effect_zh(result: QueryResult, stmt) -> str:
         adj = _describe_adjustment(result.formula)
         if adj:
             pieces.append(adj)
-        if result.missing_information:
-            names = ", ".join(m.name for m in result.missing_information)
-            pieces.append(f"当前还缺参数：{names}。")
+        gap = _describe_needs_investigation(result)
+        if gap:
+            pieces.append(gap)
         return "".join(pieces)
 
     return f"{quantity}：结果未分类。"
@@ -187,9 +239,9 @@ def _explain_probability_zh(result: QueryResult, stmt) -> str:
         return f"{quantity} = {_format_number(result.numeric_result.value)}。"
 
     if result.status is ResultStatus.NEEDS_INVESTIGATION:
-        if result.missing_information:
-            names = ", ".join(m.name for m in result.missing_information)
-            return f"{quantity} 暂无法计算，缺参数：{names}。"
+        gap = _describe_needs_investigation(result)
+        if gap:
+            return f"{quantity} 暂无法计算。{gap}"
         return f"{quantity} 暂无法计算。"
 
     return f"{quantity}：结果未分类。"

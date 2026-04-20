@@ -115,7 +115,10 @@ def test_probability_success_explanation_quotes_target_and_value():
 
 def test_probability_missing_parameter_explanation_lists_gap():
     """When a probability query's Theta entry is absent, the explainer
-    must say so and name the missing parameter."""
+    must answer the three-part contract: 缺什么 / 为什么缺 / 下一步.
+
+    Slice 8.2 established the pattern; slice 8.3 upgraded it with
+    reason + investigation-action context."""
     from themis.output.explainer import explain
     from themis.types import (
         Atom,
@@ -150,7 +153,16 @@ def test_probability_missing_parameter_explanation_lists_gap():
     assert r.status is ResultStatus.NEEDS_INVESTIGATION
     stmt = program.statements[0]
     text = explain(r, stmt=stmt)
+
+    # Header: P(coin(a)=True) 暂无法计算
     assert "coin(a)" in text
-    assert "无法计算" in text or "缺参数" in text
-    # The structured missing-parameter name should appear verbatim.
-    assert any(m.name in text for m in r.missing_information)
+    assert "无法计算" in text
+
+    # Slice 8.3 three-part contract:
+    # 1. 缺什么 — structured name verbatim
+    assert any(f"缺：{m.name}" in text for m in r.missing_information)
+    # 2. 为什么缺 — reason is present (InsufficientTheta mentions Theta)
+    assert "原因" in text
+    # 3. 下一步 — action phrase for parameter gap
+    assert "下一步" in text
+    assert "提供该参数" in text

@@ -173,3 +173,46 @@ def test_missing_parameter_explanation_names_the_gap(result):
     assert "stress(alice)" in text
     # (3) exact missing parameter is surfaced, not abbreviated
     assert "parameter:P(cancer=True|smokes=False,stress=False)" in text
+
+
+def test_missing_parameter_explanation_answers_what_why_next(result):
+    """Slice 8.3: the needs_investigation explanation must cover the
+    three-part contract from v0_2_priorities.md §Slice 8:
+
+      1. 缺什么 — the missing item's structured name
+      2. 为什么缺 — the reason string from MissingInformation
+      3. 下一步做什么 — translated from InvestigationRequest's action
+         and priority
+
+    This guards against degrading back to a bare "缺 X" list without
+    reason / next-step context, which was the case before slice 8.3."""
+    from pathlib import Path
+    from themis.input.parser import parse_json
+    from themis.input.semantic_validator import validate_program
+    from themis.input.syntactic_validator import validate_ast
+    from themis.output.explainer import explain
+    from themis.types import QueryStatement
+
+    ast = parse_json(FIXTURE.read_text(encoding="utf-8"))
+    program = validate_program(validate_ast(ast))
+    stmt = next(
+        s for s in program.statements
+        if isinstance(s, QueryStatement)
+        and s.id == "effect_cancer_missing_theta"
+    )
+    text = explain(result, stmt=stmt)
+
+    # 1. 缺什么 — structured name appears
+    assert "缺：parameter:P(cancer=True|smokes=False,stress=False)" in text
+
+    # 2. 为什么缺 — reason is pulled in from MissingInformation
+    assert "原因" in text
+    # InsufficientTheta reason specifically mentions Theta
+    assert "Theta" in text
+
+    # 3. 下一步做什么 — action phrase + priority
+    assert "下一步" in text
+    # Missing parameter -> validate_parameter -> "提供该参数"
+    assert "提供该参数" in text
+    # MissingItem priority is HIGH -> "高"
+    assert "优先级 高" in text
