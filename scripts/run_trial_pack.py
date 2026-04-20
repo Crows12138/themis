@@ -23,6 +23,8 @@ DEFAULT_FIXTURES = [
     ROOT / "tests" / "test_e2e" / "fixtures" / "probability_no_graph.json",
     ROOT / "tests" / "test_e2e" / "fixtures" / "identify_two_var.json",
     ROOT / "tests" / "test_e2e" / "fixtures" / "numeric_backdoor_confidence_mixed.json",
+    ROOT / "tests" / "test_e2e" / "fixtures" / "tutoring_exam_complete.json",
+    ROOT / "tests" / "test_e2e" / "fixtures" / "sleep_focus_complete.json",
 ]
 
 

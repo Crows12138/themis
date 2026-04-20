@@ -1,0 +1,69 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [{"kind": "object", "name": "student"}]
+  },
+  "statements": [
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "baseline_ability", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "tutoring", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "baseline_ability", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "pass_exam", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "tutoring", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "pass_exam", "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "pass_exam", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [
+       {"atom": {"predicate": "tutoring", "args": [{"type": "var", "name": "X"}]}, "value": true},
+       {"atom": {"predicate": "baseline_ability", "args": [{"type": "var", "name": "X"}]}, "value": true}
+     ],
+     "value": 0.9},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "pass_exam", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [
+       {"atom": {"predicate": "tutoring", "args": [{"type": "var", "name": "X"}]}, "value": true},
+       {"atom": {"predicate": "baseline_ability", "args": [{"type": "var", "name": "X"}]}, "value": false}
+     ],
+     "value": 0.5},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "baseline_ability", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [],
+     "value": 0.4},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "baseline_ability", "args": [{"type": "var", "name": "X"}]},
+       "value": false
+     },
+     "given": [],
+     "value": 0.6},
+
+    {"kind": "query", "id": "effect_pass_exam_if_tutoring",
+     "query": {
+       "kind": "effect",
+       "target": {
+         "atom": {"predicate": "pass_exam", "args": [{"type": "const", "name": "student"}]},
+         "value": true
+       },
+       "intervention": {
+         "atom": {"predicate": "tutoring", "args": [{"type": "const", "name": "student"}]},
+         "value": true
+       },
+       "given": []
+     }}
+  ]
+}

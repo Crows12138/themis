@@ -1,0 +1,69 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [{"kind": "object", "name": "me"}]
+  },
+  "statements": [
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "screen_control", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "sleep_early", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "screen_control", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "focus_better", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "sleep_early", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "focus_better", "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "focus_better", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [
+       {"atom": {"predicate": "sleep_early", "args": [{"type": "var", "name": "X"}]}, "value": true},
+       {"atom": {"predicate": "screen_control", "args": [{"type": "var", "name": "X"}]}, "value": true}
+     ],
+     "value": 0.8},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "focus_better", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [
+       {"atom": {"predicate": "sleep_early", "args": [{"type": "var", "name": "X"}]}, "value": true},
+       {"atom": {"predicate": "screen_control", "args": [{"type": "var", "name": "X"}]}, "value": false}
+     ],
+     "value": 0.4},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "screen_control", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [],
+     "value": 0.35},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "screen_control", "args": [{"type": "var", "name": "X"}]},
+       "value": false
+     },
+     "given": [],
+     "value": 0.65},
+
+    {"kind": "query", "id": "effect_focus_if_sleep_early",
+     "query": {
+       "kind": "effect",
+       "target": {
+         "atom": {"predicate": "focus_better", "args": [{"type": "const", "name": "me"}]},
+         "value": true
+       },
+       "intervention": {
+         "atom": {"predicate": "sleep_early", "args": [{"type": "const", "name": "me"}]},
+         "value": true
+       },
+       "given": []
+     }}
+  ]
+}
