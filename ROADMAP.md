@@ -12,6 +12,11 @@
 它是对 [VISION.md](C:\Users\12916\Desktop\项目\因果性ai\VISION.md) 的工程化展开。  
 其中与“上游模型从哪里来”有关的详细设计，单独放在 [WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)。
 
+**核心冻结状态**：自 2026-04-21 起，Themis 核心（语言 / 运行时 / 数值 / verifier
+V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的改动见
+[CORE_STATUS.md](C:\Users\12916\Desktop\项目\因果性ai\CORE_STATUS.md) 中
+“核心冻结 v1.0”一节。路线图后续阶段在核心之外推进。
+
 ---
 
 ## 当前阶段

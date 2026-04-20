@@ -13,6 +13,44 @@
 
 ---
 
+## 核心冻结 v1.0
+
+> 冻结日期：2026-04-21
+
+从这一版起，**Themis 核心（语言 + 运行时 + 数值层 + verifier）视为已收口**。
+后续工作往外长，不再往核心里塞。
+
+**收口面**：
+
+- 语言：`cause / probability / observation / query / variableDeclaration` +
+  `forall` + 有限对象域
+- 运行时：DAG 投影、`cause / assoc / identify / effect / probability`
+  调度、backdoor 调整集、conditional identify、supporting paths
+- 数值层：`Theta`、probability / effect 数值求值、缺参数精确报缺
+- 工作流：`needs_investigation`、parameter skeleton、bundle 提取与回填、重跑 diff
+- 解释与 framing：explanation、`framing_notes`、A0 advisory 检查
+- confidence：`min(non-None)` 规则、解释文本中呈现
+- 严格推导层：V0 identify / V1 numeric / V2 derivation JSON /
+  V3 负结构见证 / V4 正结构见证 / V5 context JSON
+
+**冻结期允许的改动**：
+
+- bug 修复（语义不变）
+- verifier 规则内部加强（同一 rule family 内的紧化，比如 V4 那种 witness 完整性）
+- 文档 / 测试 / 真实案例 fixture
+- 上层 workflow（比如 Variable Framer）—— 在核心之外，不算破冻
+
+**冻结期禁止的改动**：
+
+- 新 query 类型（前门 / 完备 ID / 反事实 等）
+- 新语义维度（时序索引、潜变量、双向边、ADMG）
+- 新 rule family、新 AST 语句类型
+- 已有 framing_notes / confidence / derivation 语义的改写
+
+要改这些，先解冻，并在此文档里留记录。
+
+---
+
 ## 一句话结论
 
 **Themis 作为“已知模型下的静态因果推理内核”，已经基本成型。**
