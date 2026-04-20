@@ -9,7 +9,8 @@
 3. 从当前“推理层”走到未来“语料建模 + 推理”整体系统，中间要跨哪些台阶
 
 它不是 release note，也不是 backlog 清单。  
-它是对 [VISION.md](C:\Users\12916\Desktop\项目\因果性ai\VISION.md) 的工程化展开。
+它是对 [VISION.md](C:\Users\12916\Desktop\项目\因果性ai\VISION.md) 的工程化展开。  
+其中与“上游模型从哪里来”有关的详细设计，单独放在 [WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)。
 
 ---
 
@@ -183,6 +184,10 @@
 
 都应先通过这道“问题是否被充分框定”的检查，再进入 Themis 的正式推理流程。
 
+这意味着 Phase 3 虽然暂时还在 Themis 周边实现，但在概念上已经属于
+[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
+定义的上游建模职责的一部分。
+
 ### 背景
 
 当前系统会把：
@@ -217,6 +222,9 @@
 
 不再要求用户手工把所有变量和关系写好，而是让系统从事实语料中构建候选世界模型。
 
+这一阶段的详细设计基线见：
+[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
+
 ### 典型输入
 
 - 文本记录
@@ -245,6 +253,10 @@ Themis 不负责“发明世界”，而负责：
 也就是说：
 
 **世界建模层在 Themis 之前，Themis 是它的推理后端。**
+
+因此，Phase 4 不是“继续往 Themis 里塞功能”，而是把
+[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
+里定义的变量构建、事实抽取、候选关系生成、模型收敛，正式落成独立上游层。
 
 ---
 
