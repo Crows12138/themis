@@ -33,6 +33,9 @@ htmlcov/
 *.swo
 *~
 
+# MCP / language-server tooling
+.serena/
+
 # OS
 .DS_Store
 Thumbs.db
