@@ -1,43 +1,53 @@
-"""Composite confidence scoring.
+"""Composite confidence scoring (v0.2 formal rule).
 
-★ v0.1 PLACEHOLDER — formal semantics deferred to v0.2 ★
+Confidence is a per-input reliability scalar in [0, 1]. It is NOT
+a statistical confidence interval, NOT a Bayesian posterior, and
+NOT calibrated against any frequentist guarantee. See
+``confidence_rfc_v0_2.md`` for the rule's motivation and the
+candidates that were evaluated.
 
-Confidence in this project is a composite reliability score, NOT a
-statistical confidence interval and NOT a Bayesian posterior.
-
-The v0.1 combination rule is the **minimum** of non-None inputs:
+**Rule (v0.2)**: minimum of non-None inputs; None if every input
+is missing:
 
     composite(c1, c2, ..., cn) = min(c for c in inputs if c is not None)
 
-Rationale for the placeholder:
+Properties (RFC §4 / §7):
 
-- Order-independent (no dependence on argument permutation).
-- Monotone: adding a weaker input can only weaken the composite.
-- Conservative: the composite is never stronger than the weakest link.
-- Trivially computable without additional model assumptions.
+- S1 Order-independent: ``composite(a, b) == composite(b, a)``.
+- S2 Monotone: adding a weaker input cannot raise the composite.
+- S3 Identity: ``composite(c) == c`` for non-None c.
+- S4 Empty → None.
+- S5 No independence assumption required.
+- S6 Interpretable: "the weakest link decides".
+- S7 Simple to compute.
+- S8 Pipeline-friendly: min of mins is still a min.
+- S9 Backward compatible with v0.1.0 (placeholder was min too).
 
-What it is NOT:
+Explicitly NOT:
 
-- Not a probabilistic aggregation (no independence assumption is
-  implied; Dempster-Shafer or noisy-or rules are v0.2 territory).
-- Not a calibrated uncertainty — no meaning as a confidence interval.
-- Not symmetric in the sense of rewarding multiple confirming inputs;
-  two strong inputs give the same composite as one strong input.
+- Not a probabilistic aggregation. Dempster-Shafer and noisy-OR
+  were rejected per RFC §6 (noisy-OR violates monotonicity; DS is
+  over-engineered for a scalar confidence channel).
+- Not rewarding accumulated evidence: two weak inputs still
+  compose to the weaker one. Evidence accumulation needs an
+  independent-evidence declaration (v0.3+), opt-in only.
 
-The formula rewrite in v0.2 should be localised to this single
-function. No other module should hard-code the min rule.
+Inputs are collected by ``scheduler._gather_input_confidences`` per
+RFC §3.3: probability slots (one per distinct ``ProbabilityKey``
+referenced by the formula, slot_conf = min over source statements)
+plus observation slots (matched to entries in ``q.given`` by atom
+AND value; intervention atoms excluded).
 """
 from __future__ import annotations
 
 
 def composite(*inputs: float | None) -> float | None:
-    """Combine confidences of inputs into a single composite score.
+    """Combine confidences into a single composite score per the
+    v0.2 min rule.
 
-    - None values are dropped.
+    - None values are dropped before reduction.
     - If no non-None values remain, returns None.
     - Otherwise returns ``min(non_none_values)``.
-
-    v0.1 PLACEHOLDER — do not treat as final semantics.
     """
     non_none = [c for c in inputs if c is not None]
     if not non_none:

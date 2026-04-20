@@ -44,7 +44,7 @@ runtime 旁边并列一个**对照位**：
 │    公式 AST 构造                │                       │
 │    theta 编译                   │                       │
 │    数值估计（递归求值）          │                       │
-│    composite confidence ★占位   │                       │
+│    composite confidence (min)   │                       │
 │    四态调度 + 图级校验          │                       │
 │    调查推进                     │                       │
 ├─────────────────────────────────────────────────────────┤
@@ -205,7 +205,7 @@ runtime             oracle (可选)
 | `formula_builder` | 构造合法的公式 AST（任意 cardinality 的后门调整，链式法则展开） | 已实现 |
 | `theta_builder` | 从 ground probability 语句编译 Theta；冲突键报错；按出现值推断 atom 域 | 已实现 |
 | `numeric_estimator` | 递归公式求值（constant / probability_ref / product / sum）；缺条目抛 `InsufficientTheta` 携带精确 key | 已实现 |
-| `confidence_calc` | 计算 composite confidence | ★ v0.1 占位（min 规则，正式语义待 v0.2） |
+| `confidence_calc` | 计算 composite confidence（min 规则） | 已实现（v0.2 正式规则，见 confidence_rfc_v0_2.md） |
 | `scheduler` | 四态调度 + 图级校验 + 建 Theta + 调 confidence + 调 investigation | 已实现 |
 | `investigation_pusher` | 缺失信息转调查请求（按 MissingKind 映射 action） | 已实现 |
 
@@ -232,26 +232,18 @@ runtime             oracle (可选)
 
 ---
 
-## 6. v0.1 的占位
+## 6. 占位状态
 
-下面两项目前是**显式占位**——调用点与接口都已立起来，正式语义留给 v0.2。
-
-### 6.1 confidence_calc
-
-- 输入：若干参与方的 confidence 列表（observation 的、probability 的）
-- 当前占位规则：`composite(*inputs) = min(非 None)`；无输入时返回 None
-- `scheduler` 对**每一条**结果都显式调 `composite(*_gather_input_confidences(...))`；v0.1 阶段 `_gather_input_confidences` 永远返回 `()`，所以 `confidence` 字段现实中仍是 None——但调用链是活的，下一轮只需把输入收集填上
-- 模块 docstring 明文"v0.1 占位，正式规则待 v0.2"
-
-### 6.2 ananke_adapter
+### 6.1 ananke_adapter
 
 - v0.1 不实现；只留入口
 - 目录下保留 `# TODO v0.2: wire ananke for ID algorithm` 注释，供将来接 Shpitser-Pearl ID 算法用
 
-### 6.3 已**离开**占位的模块（历史参考）
+### 6.2 已**离开**占位的模块（历史参考）
 
 - `numeric_estimator`：slice 6 后已是真实的递归公式求值器 + Theta 查表，`effect` / `probability` 查询可返回 `NUMERICALLY_SOLVED`
 - `investigation_pusher`：slice 5 后是真实的 `MissingKind → InvestigationAction` 映射
+- `confidence_calc`：slice 9 后正式化为 v0.2 min 规则；`_gather_input_confidences` 接入来源索引（`build_probability_source_index` / `build_observation_source_index`），按 `confidence_rfc_v0_2.md` §3 采集 probability slot + observation slot。空输入仍返回 None（保 v0.1.0 兼容）
 
 ---
 
@@ -376,6 +368,5 @@ schema 是跨语言资产，留在项目根的 JSON 文件里，Python 包通过
 ```text
 input 做校验，runtime 做推理，oracle 做对照，output 做整理；
 runtime 不依赖 oracle，oracle 不进入生产路径；
-v0.1 的数值估计已接入（effect / probability 可落到 NUMERICALLY_SOLVED），
-composite confidence 仍是 min 占位，正式语义延后到 v0.2。
+数值估计 + composite confidence 均已接入（slice 6 / slice 9）。
 ```

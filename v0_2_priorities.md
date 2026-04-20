@@ -74,7 +74,12 @@
 
 **要先做的 RFC**：在 slice 9 代码动手前，先写 `confidence_rfc_v0_2.md` 对比候选规则，最终选一个。避免实现完才发现规则不适合。
 
-→ **状态**：`confidence_rfc_v0_2.md` 已起草（draft），推荐保留 min 规则作为 v0.2 正式语义，同时正式化 `_gather_input_confidences` 的采集语义。等 sign-off 后进入 slice 9 实施。
+→ **状态（2026-04-20）**：Slice 9 代码实施已完成。`confidence_calc.composite` 正式化为 v0.2 min 规则；`_gather_input_confidences` 按 RFC §3 采集 probability slot + observation slot；两张来源索引 `build_probability_source_index` / `build_observation_source_index` 在 `dispatch_all` 里一次构建复用。端到端验证 + 单元 + 采集层测试共 9 条新增（总 169 passed）。
+
+剩余（slice 9 外）：
+- `annotations.source` 的可引用结构（DOI / 样本 ID / URI 等）
+- `investigation_pusher` 的分组聚合 + 结构化优先级理由 + 自动生成 probability 骨架
+- 这些不改变语义，属于工具性升级，可单独作为 slice 9.x 或延后到 slice 10 之后
 
 ---
 

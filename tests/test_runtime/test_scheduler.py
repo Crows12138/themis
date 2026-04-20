@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from themis.input.parser import parse_json
 from themis.input.semantic_validator import validate_program
 from themis.input.syntactic_validator import validate_ast
@@ -118,10 +120,11 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
     assert item.name.startswith("parameter:P(y=True|")
 
 
-def test_confidence_is_routed_through_composite_even_when_none() -> None:
-    """confidence_calc.composite must be on the dispatch path. The
-    spy below verifies it was called for every query; v0.1 yields
-    None (no inputs), but the wiring is live."""
+def test_confidence_is_routed_through_composite_for_every_query() -> None:
+    """confidence_calc.composite must be on the dispatch path for
+    every query. Structural queries contribute no inputs so their
+    composite is None; numeric queries that match an annotated source
+    inherit the slot confidence per RFC §3.3."""
     from unittest.mock import patch
 
     ast = parse_json(EXAMPLE.read_text(encoding="utf-8"))
@@ -143,5 +146,20 @@ def test_confidence_is_routed_through_composite_even_when_none() -> None:
         if s.__class__.__name__ == "QueryStatement"
     )
     assert spy.call_count == num_queries
-    # In v0.1 every result still serializes with confidence=None.
-    assert all(r.confidence is None for r in results)
+
+    by_id = {r.query_id: r for r in results}
+
+    # Structural queries always contribute nothing -> None composite.
+    assert by_id["q_cause_1"].confidence is None
+    assert by_id["q_identify_1"].confidence is None
+
+    # minimal_example_v0_1.json's probability statement carries
+    # annotations.confidence = 0.82 on P(cancer=true | tar=true).
+    # q_prob_1 asks exactly that conditional, so slice-9 collection
+    # feeds 0.82 into composite -> 0.82.
+    assert by_id["q_prob_1"].confidence == pytest.approx(0.82)
+
+    # q_effect_1 asks P(cancer=true | do(smokes=false)); the back-door
+    # formula references P(cancer=true | smokes=false) which has no
+    # source statement in the fixture -> no slot -> None.
+    assert by_id["q_effect_1"].confidence is None

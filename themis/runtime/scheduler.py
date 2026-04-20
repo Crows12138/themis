@@ -68,6 +68,10 @@ from . import (
     theta_builder,
 )
 from .numeric_estimator import InsufficientTheta, ProbabilityKey, Theta
+from .theta_builder import (
+    build_observation_source_index,
+    build_probability_source_index,
+)
 
 
 _QUERY_KIND_OF: dict[type, QueryKind] = {
@@ -343,34 +347,96 @@ def _attach_investigation(result: QueryResult) -> QueryResult:
     )
 
 
-def _gather_input_confidences(
-    program: Program, stmt: QueryStatement, result: QueryResult
-) -> tuple[float | None, ...]:
-    """Collect confidences from the model inputs that contributed to
-    this query's answer.
+def _slot_confidence(sources) -> float | None:
+    """RFC §3.1 / §3.2: min of non-None confidences across a slot's
+    source statements; None if all sources lack annotation."""
+    confs = [
+        s.annotations.confidence
+        for s in sources
+        if s.annotations is not None and s.annotations.confidence is not None
+    ]
+    if not confs:
+        return None
+    return min(confs)
 
-    v0.1 returns an empty tuple: structural queries depend on the
-    causal DAG (which carries no confidence annotation in the current
-    schema) and numeric queries never reach a numeric answer yet. The
-    function exists as a single, named extension point — when Theta is
-    populated in a later slice, collect probability / observation
-    confidences here.
+
+def _gather_input_confidences(
+    program: Program,
+    stmt: QueryStatement,
+    result: QueryResult,
+    *,
+    theta: Theta | None = None,
+    prob_index: dict | None = None,
+    obs_index: dict | None = None,
+) -> tuple[float, ...]:
+    """Collect confidences per RFC §3.3.
+
+    - Structural queries (cause / assoc / identify) contribute nothing.
+    - Effect / probability queries enumerate every distinct
+      ProbabilityKey looked up by the formula, pick its slot_conf via
+      the prob_index, then fold in observation slots from q.given per
+      the obs_index.
+    - Intervention atoms never contribute (do() cuts incoming edges).
+    - Missing Theta / indices -> return () rather than raising; this
+      keeps the slice independent of scheduler call-order invariants.
     """
-    return ()
+    if result.query_kind not in (QueryKind.EFFECT, QueryKind.PROBABILITY):
+        return ()
+    if result.formula is None:
+        return ()
+    if theta is None or prob_index is None or obs_index is None:
+        return ()
+
+    inputs: list[float] = []
+
+    # §3.1 probability slots: dedupe by key, slot-min across sources.
+    seen_keys: set = set()
+    for key in numeric_estimator.enumerate_keys(result.formula, theta):
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        c = _slot_confidence(prob_index.get(key, ()))
+        if c is not None:
+            inputs.append(c)
+
+    # §3.2 observation slots: only for (atom, value) pairs matching an
+    # entry in q.given. Intervention atoms intentionally skipped.
+    q = stmt.query
+    given = getattr(q, "given", ())
+    for va in given:
+        atom = getattr(va, "atom", None)
+        value = getattr(va, "value", None)
+        if atom is None or value is None:
+            continue
+        c = _slot_confidence(obs_index.get((atom, value), ()))
+        if c is not None:
+            inputs.append(c)
+
+    return tuple(inputs)
 
 
 def _attach_confidence(
-    program: Program, stmt: QueryStatement, result: QueryResult
+    program: Program,
+    stmt: QueryStatement,
+    result: QueryResult,
+    *,
+    theta: Theta | None = None,
+    prob_index: dict | None = None,
+    obs_index: dict | None = None,
 ) -> QueryResult:
-    """Route every result through ``confidence_calc.composite`` so the
-    field is explicitly populated (rather than silently left at the
-    dataclass default). v0.1 always yields None because no inputs are
-    collected; the wiring is in place so downstream consumers can
-    reason about confidence uniformly and a future slice only needs
-    to enrich ``_gather_input_confidences``."""
+    """Route every result through ``confidence_calc.composite``.
+
+    v0.2 composite semantics: min of non-None slot confidences,
+    None if no slots contribute. Collection rules are defined in
+    ``confidence_rfc_v0_2.md`` §3 and implemented by
+    ``_gather_input_confidences``.
+    """
     from dataclasses import replace
 
-    inputs = _gather_input_confidences(program, stmt, result)
+    inputs = _gather_input_confidences(
+        program, stmt, result,
+        theta=theta, prob_index=prob_index, obs_index=obs_index,
+    )
     computed = confidence_calc.composite(*inputs)
     if computed is None and result.confidence is None:
         return result  # avoid pointless dataclass churn
@@ -382,15 +448,26 @@ def dispatch(
     stmt: QueryStatement,
     graph: nx.DiGraph,
     theta: Theta | None = None,
+    *,
+    prob_index: dict | None = None,
+    obs_index: dict | None = None,
 ) -> QueryResult:
     """Route a query to its solver(s) and assemble a QueryResult.
 
-    If ``theta`` is omitted, it is built on demand from the program's
-    probability statements. For batch dispatch prefer ``dispatch_all``
-    which builds Theta once and reuses it.
+    If any of ``theta`` / ``prob_index`` / ``obs_index`` is omitted,
+    the missing ones are built on demand from the program. For batch
+    dispatch prefer ``dispatch_all`` which builds everything once and
+    reuses it.
     """
-    if theta is None:
-        theta = theta_builder.build_theta_from_program(program)
+    if theta is None or prob_index is None or obs_index is None:
+        from .instantiation import instantiate as _inst
+        ground = _inst(program)
+        if theta is None:
+            theta = theta_builder.build_theta(ground)
+        if prob_index is None:
+            prob_index = build_probability_source_index(ground)
+        if obs_index is None:
+            obs_index = build_observation_source_index(ground)
 
     q = stmt.query
     if isinstance(q, CauseQuery):
@@ -408,7 +485,10 @@ def dispatch(
         # have already rejected it; reaching here is a programmer bug.
         raise AssertionError(f"unknown query type {type(q).__name__}")
     result = _attach_investigation(result)
-    result = _attach_confidence(program, stmt, result)
+    result = _attach_confidence(
+        program, stmt, result,
+        theta=theta, prob_index=prob_index, obs_index=obs_index,
+    )
     return result
 
 
@@ -416,20 +496,24 @@ def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]
     """Run every QueryStatement in the program against a single shared
     graph projection.
 
-    Graph-level semantic checks (currently: probability_parents) run
-    once here before Theta is built. Theta is then compiled from the
-    same ground statement tuple, avoiding a second instantiation pass.
-
-    Unlike a silent-drop approach, every query surfaces a result.
+    Graph-level semantic checks run once here. Theta and the two
+    source indices for confidence collection are built from the same
+    ground statement tuple (one instantiation pass), then shared
+    across every dispatched query.
     """
     from .instantiation import instantiate
 
     ground = instantiate(program)
     validate_against_graph(ground, graph)
     theta = theta_builder.build_theta(ground)
+    prob_index = build_probability_source_index(ground)
+    obs_index = build_observation_source_index(ground)
 
     return tuple(
-        dispatch(program, stmt, graph, theta)
+        dispatch(
+            program, stmt, graph, theta,
+            prob_index=prob_index, obs_index=obs_index,
+        )
         for stmt in program.statements
         if isinstance(stmt, QueryStatement)
     )

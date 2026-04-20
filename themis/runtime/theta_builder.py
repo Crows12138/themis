@@ -92,3 +92,45 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
 def build_theta_from_program(program) -> Theta:
     """Convenience: instantiate then build."""
     return build_theta(instantiate(program))
+
+
+# ---------------------------------------------------------------------------
+# Source indices for confidence collection (RFC §3.1 / §3.2)
+# ---------------------------------------------------------------------------
+
+def build_probability_source_index(
+    ground_statements: tuple[Statement, ...],
+) -> dict[ProbabilityKey, tuple[ProbabilityStatement, ...]]:
+    """Map each ``ProbabilityKey`` to every ground
+    ``ProbabilityStatement`` that produces it.
+
+    Used by the confidence collector to apply the RFC §3.1 slot-min
+    rule without re-walking the program. A key may appear multiple
+    times in the source list when ``theta_builder.build_theta``'s
+    idempotency allowed multiple equivalent statements.
+    """
+    index: dict[ProbabilityKey, list[ProbabilityStatement]] = {}
+    for stmt in ground_statements:
+        if isinstance(stmt, ProbabilityStatement):
+            index.setdefault(_key_of(stmt), []).append(stmt)
+    return {k: tuple(v) for k, v in index.items()}
+
+
+def build_observation_source_index(
+    ground_statements: tuple[Statement, ...],
+):
+    """Map each ``(atom, value)`` pair to every ground
+    ``ObservationStatement`` matching exactly.
+
+    Used by the confidence collector to apply the RFC §3.2
+    participation rule: an observation counts only when its atom
+    AND value both match a ``ValuedAtom`` entry in the query's
+    ``given``.
+    """
+    from ..types import ObservationStatement
+
+    index: dict = {}
+    for stmt in ground_statements:
+        if isinstance(stmt, ObservationStatement):
+            index.setdefault((stmt.atom, stmt.value), []).append(stmt)
+    return {k: tuple(v) for k, v in index.items()}

@@ -193,6 +193,63 @@ def estimate_probability(
     return estimate_formula(expr, theta)
 
 
+# ------------------------------------------------------------- key enumeration
+
+def enumerate_keys(
+    formula: FormulaExpr,
+    theta: Theta,
+) -> tuple[ProbabilityKey, ...]:
+    """Enumerate every ``ProbabilityKey`` that ``estimate_formula`` would
+    look up for this formula under the given Theta's value domains.
+
+    Read-only twin of ``estimate_formula``: walks the same AST shape,
+    expands ``SumExpr`` over ``theta.domain_of(over)`` identically, but
+    collects keys instead of multiplying / summing values. Used by the
+    confidence collector (RFC §3.1) to enumerate slots without trying
+    to actually evaluate.
+
+    Keys may repeat across sum branches; callers dedupe as needed.
+
+    Raises ``InsufficientTheta`` only for VarRef resolution failures
+    (formula malformed). For query-bound ``None`` values the enclosing
+    iteration skips that branch silently — enumerate_keys is meant to
+    survive partial formulas.
+    """
+    keys: list[ProbabilityKey] = []
+    _collect_keys(formula, theta, {}, keys)
+    return tuple(keys)
+
+
+def _collect_keys(
+    expr: FormulaExpr,
+    theta: Theta,
+    subs: Mapping[str, AtomValue],
+    keys: list,
+) -> None:
+    if isinstance(expr, ConstantExpr):
+        return
+    if isinstance(expr, ProbabilityRefExpr):
+        try:
+            key = _probability_ref_key(expr, subs)
+        except InsufficientTheta:
+            # Query-bound None that was not supplied externally —
+            # this is not a key we can enumerate. Skip silently.
+            return
+        keys.append(key)
+        return
+    if isinstance(expr, ProductExpr):
+        for t in expr.terms:
+            _collect_keys(t, theta, subs, keys)
+        return
+    if isinstance(expr, SumExpr):
+        for v in theta.domain_of(expr.over):
+            new_subs = dict(subs)
+            new_subs[expr.bind.name] = v
+            _collect_keys(expr.body, theta, new_subs, keys)
+        return
+    raise TypeError(f"unknown formula node: {type(expr).__name__}")
+
+
 # --------------------------------------------------------------------- theta
 
 def empty_theta() -> Theta:
