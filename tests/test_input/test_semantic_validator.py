@@ -78,3 +78,35 @@ def test_undeclared_var_in_cause_is_rejected() -> None:
     validate_ast(ast)
     with pytest.raises(SemanticError, match=r"\['Y'\].*not declared in forall"):
         validate_program(ast)
+
+
+def test_duplicate_variable_declaration_is_rejected() -> None:
+    """Slice A0 follow-up: a predicate may have at most one
+    variableDeclaration. Two declarations used to silently overwrite
+    each other in framing_check, making the surfaced gaps depend on
+    statement order."""
+    ast = _base_program()
+    ast["statements"].append(
+        {"kind": "variable", "predicate": "smokes", "domain": [True, False]}
+    )
+    ast["statements"].append(
+        {"kind": "variable", "predicate": "smokes", "time_window": "lifetime"}
+    )
+    validate_ast(ast)  # schema itself allows both entries
+    with pytest.raises(SemanticError, match="'smokes' already declared"):
+        validate_program(ast)
+
+
+def test_single_variable_declaration_per_predicate_passes() -> None:
+    """Sanity twin: one declaration per predicate is fine even when
+    the declarations are partial (framing_check will surface the gaps
+    instead of erroring)."""
+    ast = _base_program()
+    ast["statements"].append(
+        {"kind": "variable", "predicate": "smokes", "domain": [True, False]}
+    )
+    ast["statements"].append(
+        {"kind": "variable", "predicate": "cancer", "time_window": "lifetime"}
+    )
+    validate_ast(ast)
+    validate_program(ast)  # must not raise

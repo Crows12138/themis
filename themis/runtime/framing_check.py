@@ -81,10 +81,12 @@ def _predicates_in_query(stmt: QueryStatement) -> tuple[str, ...]:
 def _declarations_by_predicate(
     program: Program,
 ) -> dict[str, VariableDeclaration]:
-    """Index declarations by predicate; last write wins when duplicated.
+    """Index declarations by predicate.
 
-    Duplicate declarations are not rejected here — that's a schema /
-    validator concern, not framing's. Framing just reads the latest.
+    The ``unique_variable_declarations`` semantic check already rejects
+    duplicates, so the input program has at most one declaration per
+    predicate by the time it reaches here. Framing is a read-only
+    consumer of that invariant.
     """
     idx: dict[str, VariableDeclaration] = {}
     for stmt in program.statements:

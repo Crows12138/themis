@@ -73,6 +73,7 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "bound_variables",
         "ground_observations",
         "ground_queries",
+        "unique_variable_declarations",
     }
 )
 
@@ -302,12 +303,37 @@ def _check_ground_queries(program: Program) -> None:
                 )
 
 
+def _check_unique_variable_declarations(program: Program) -> None:
+    """Slice A0 follow-up: a predicate may have at most one
+    ``variableDeclaration``. Duplicate declarations used to silently
+    overwrite each other in ``framing_check._declarations_by_predicate``,
+    so framing would depend on statement order rather than on a stable
+    predicate definition.
+
+    Authors who want to change a predicate's metadata should edit the
+    one declaration, not stack a second one on top.
+    """
+    seen: dict[str, int] = {}
+    for idx, stmt in enumerate(program.statements):
+        if not isinstance(stmt, VariableDeclaration):
+            continue
+        if stmt.predicate in seen:
+            first = seen[stmt.predicate]
+            raise SemanticError(
+                f"statements[{idx}]: predicate '{stmt.predicate}' "
+                f"already declared at statements[{first}]; a predicate "
+                f"may have at most one variableDeclaration"
+            )
+        seen[stmt.predicate] = idx
+
+
 _CHECK_FUNCS = {
     "objects": _check_objects,
     "forall_usage": _check_forall_usage,
     "bound_variables": _check_bound_variables,
     "ground_observations": _check_ground_observations,
     "ground_queries": _check_ground_queries,
+    "unique_variable_declarations": _check_unique_variable_declarations,
 }
 
 
