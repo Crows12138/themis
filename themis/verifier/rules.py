@@ -827,6 +827,240 @@ def _rule_no_directed_path(
         )
 
 
+# ========================================================== V4: positive structural witnesses
+
+def _atom_label_verifier(atom: Atom) -> str:
+    """Independent copy of the scheduler's ``_atom_to_str``. Keeping the
+    string format aligned means the verifier can rebuild the supporting_paths
+    tuple from Atom-form witnesses and compare to the elaborator's output."""
+    args = ",".join(a.name for a in atom.args)
+    return f"{atom.predicate}({args})"
+
+
+def _validate_path_as_tuple_of_atoms(
+    path,
+    step_index: int,
+    rule: str,
+    what: str,
+) -> tuple[Atom, ...]:
+    if not isinstance(path, tuple):
+        raise UnknownRuleInputError(
+            f"{rule}.{what} must be a tuple of Atom",
+            step_index=step_index, rule=rule,
+        )
+    for a in path:
+        if not isinstance(a, Atom):
+            raise UnknownRuleInputError(
+                f"{rule}.{what} must contain only Atom",
+                step_index=step_index, rule=rule,
+            )
+    return path
+
+
+def _require_atom_paths(
+    inputs: dict,
+    key: str,
+    step_index: int,
+    rule: str,
+) -> tuple[tuple[Atom, ...], ...]:
+    v = _require(inputs, key, step_index, rule)
+    if not isinstance(v, tuple):
+        raise UnknownRuleInputError(
+            f"{rule}.{key} must be a tuple of paths",
+            step_index=step_index, rule=rule,
+        )
+    return tuple(
+        _validate_path_as_tuple_of_atoms(p, step_index, rule, f"{key}[i]")
+        for p in v
+    )
+
+
+def _rule_cause_via_directed_path(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """V4: prove ``StructuralResult(value=True)`` for a cause query by
+    exhibiting at least one concrete directed path from src to dst.
+
+    inputs:
+        graph — the DAG (must equal ctx.graph)
+        src — source atom
+        dst — destination atom
+        paths — non-empty tuple of paths; each path is a tuple of atoms
+                starting at src and ending at dst, with a directed edge
+                between every consecutive pair
+    output:
+        ``StructuralResult(value=True, supporting_paths=<string form>)``
+
+    Rejects if any path does not start at src, does not end at dst, has
+    a missing directed edge, or if the claimed supporting_paths do not
+    match the string-rendered witness paths.
+    """
+    graph = _require(inputs, "graph", step_index, "cause_via_directed_path")
+    _assert_same_graph(graph, ctx.graph, step_index, "cause_via_directed_path")
+    src = _require_atom(inputs, "src", step_index, "cause_via_directed_path")
+    dst = _require_atom(inputs, "dst", step_index, "cause_via_directed_path")
+    paths = _require_atom_paths(inputs, "paths", step_index, "cause_via_directed_path")
+
+    if not paths:
+        raise RuleCheckFailed(
+            "cause_via_directed_path: at least one witness path is required",
+            step_index=step_index, rule="cause_via_directed_path",
+        )
+    if src == dst:
+        raise RuleCheckFailed(
+            "cause_via_directed_path: src and dst must differ",
+            step_index=step_index, rule="cause_via_directed_path",
+        )
+
+    for idx, path in enumerate(paths):
+        if len(path) < 2:
+            raise RuleCheckFailed(
+                f"cause_via_directed_path.paths[{idx}] has length < 2",
+                step_index=step_index, rule="cause_via_directed_path",
+            )
+        if path[0] != src or path[-1] != dst:
+            raise RuleCheckFailed(
+                f"cause_via_directed_path.paths[{idx}] must start at src and end at dst",
+                step_index=step_index, rule="cause_via_directed_path",
+            )
+        for i in range(len(path) - 1):
+            if not graph.has_edge(path[i], path[i + 1]):
+                raise RuleCheckFailed(
+                    f"cause_via_directed_path.paths[{idx}] is missing a "
+                    f"directed edge between positions {i} and {i + 1}",
+                    step_index=step_index, rule="cause_via_directed_path",
+                )
+        if len(set(path)) != len(path):
+            raise RuleCheckFailed(
+                f"cause_via_directed_path.paths[{idx}] repeats a node (must be simple)",
+                step_index=step_index, rule="cause_via_directed_path",
+            )
+
+    expected_supporting = tuple(
+        tuple(_atom_label_verifier(a) for a in path) for path in paths
+    )
+    expected = StructuralResult(
+        value=True, supporting_paths=expected_supporting,
+    )
+    if claimed_output != expected:
+        raise RuleCheckFailed(
+            "cause_via_directed_path: claimed output does not match the "
+            "StructuralResult implied by the witness paths",
+            step_index=step_index, rule="cause_via_directed_path",
+        )
+
+
+def _path_is_open_for_verifier(
+    graph: nx.DiGraph,
+    path: tuple[Atom, ...],
+    conditioning: frozenset,
+) -> bool:
+    """Whether an undirected simple path is *open* under conditioning.
+
+    Non-colliders blocked iff the intermediate node is in conditioning.
+    Colliders blocked iff neither the collider nor any descendant is in
+    conditioning. A path is open iff no intermediate node blocks it.
+    """
+    for i in range(1, len(path) - 1):
+        prev, mid, nxt = path[i - 1], path[i], path[i + 1]
+        if _is_collider(graph, prev, mid, nxt):
+            activated = {mid} | nx.descendants(graph, mid)
+            if activated.isdisjoint(conditioning):
+                return False
+        else:
+            if mid in conditioning:
+                return False
+    return True
+
+
+def _rule_d_connected_via_open_path(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """V4: prove ``StructuralResult(value=True)`` for an assoc query by
+    exhibiting one or more open undirected simple paths between x and y.
+
+    inputs:
+        graph, x, y, conditioning, paths
+    output:
+        ``StructuralResult(value=True, supporting_paths=<string form>)``
+
+    Rejects if any witness path fails to be a simple undirected path
+    between x and y in the graph, if it is blocked under conditioning,
+    or if the claimed supporting_paths disagree with the witness paths.
+    """
+    graph = _require(inputs, "graph", step_index, "d_connected_via_open_path")
+    _assert_same_graph(graph, ctx.graph, step_index, "d_connected_via_open_path")
+    x = _require_atom(inputs, "x", step_index, "d_connected_via_open_path")
+    y = _require_atom(inputs, "y", step_index, "d_connected_via_open_path")
+    conditioning = _require_atom_set(
+        inputs, "conditioning", step_index, "d_connected_via_open_path",
+        allow_missing=True,
+    )
+    paths = _require_atom_paths(
+        inputs, "paths", step_index, "d_connected_via_open_path",
+    )
+
+    if not paths:
+        raise RuleCheckFailed(
+            "d_connected_via_open_path: at least one witness path is required",
+            step_index=step_index, rule="d_connected_via_open_path",
+        )
+    if x == y:
+        raise RuleCheckFailed(
+            "d_connected_via_open_path: x and y must differ",
+            step_index=step_index, rule="d_connected_via_open_path",
+        )
+
+    for idx, path in enumerate(paths):
+        if len(path) < 2:
+            raise RuleCheckFailed(
+                f"d_connected_via_open_path.paths[{idx}] has length < 2",
+                step_index=step_index, rule="d_connected_via_open_path",
+            )
+        if path[0] != x or path[-1] != y:
+            raise RuleCheckFailed(
+                f"d_connected_via_open_path.paths[{idx}] must start at x and end at y",
+                step_index=step_index, rule="d_connected_via_open_path",
+            )
+        if len(set(path)) != len(path):
+            raise RuleCheckFailed(
+                f"d_connected_via_open_path.paths[{idx}] repeats a node (must be simple)",
+                step_index=step_index, rule="d_connected_via_open_path",
+            )
+        for i in range(len(path) - 1):
+            u, v = path[i], path[i + 1]
+            if not (graph.has_edge(u, v) or graph.has_edge(v, u)):
+                raise RuleCheckFailed(
+                    f"d_connected_via_open_path.paths[{idx}] is missing an "
+                    f"edge (either direction) between positions {i} and {i + 1}",
+                    step_index=step_index, rule="d_connected_via_open_path",
+                )
+        if not _path_is_open_for_verifier(graph, path, conditioning):
+            raise RuleCheckFailed(
+                f"d_connected_via_open_path.paths[{idx}] is blocked under conditioning",
+                step_index=step_index, rule="d_connected_via_open_path",
+            )
+
+    expected_supporting = tuple(
+        tuple(_atom_label_verifier(a) for a in path) for path in paths
+    )
+    expected = StructuralResult(
+        value=True, supporting_paths=expected_supporting,
+    )
+    if claimed_output != expected:
+        raise RuleCheckFailed(
+            "d_connected_via_open_path: claimed output does not match the "
+            "StructuralResult implied by the witness paths",
+            step_index=step_index, rule="d_connected_via_open_path",
+        )
+
+
 # ========================================================== registry
 
 # rule name -> handler. Each handler has the signature
@@ -844,6 +1078,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "unidentifiable_via_backdoor": _rule_unidentifiable_via_backdoor,
     "d_separated": _rule_d_separated,
     "no_directed_path": _rule_no_directed_path,
+    "cause_via_directed_path": _rule_cause_via_directed_path,
+    "d_connected_via_open_path": _rule_d_connected_via_open_path,
 }
 _STEP_REF_RULES = {"identify_via_backdoor", "numeric_result"}
 

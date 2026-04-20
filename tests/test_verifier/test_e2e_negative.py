@@ -107,10 +107,10 @@ def test_tampering_d_separated_swaps_x_and_y_is_rejected_by_binding():
             verify_assoc(tuple(bad), ctx, r.structural_result)
 
 
-def test_positive_assoc_still_has_no_derivation():
-    """V3 only emits negative derivations for assoc; positive assoc
-    (open-path witness) stays at derivation=() until a follow-on
-    slice adds the witness rule."""
+def test_positive_assoc_now_carries_witness_derivation():
+    """V4 added d_connected_via_open_path, so every positive assoc
+    result now carries a one-step derivation whose output matches
+    the QueryResult's structural_result."""
     path = FIXTURE_DIR / "assoc_canonical.json"
     _graph, results, _stmt_by_id = _run(path)
     positives = [
@@ -119,5 +119,7 @@ def test_positive_assoc_still_has_no_derivation():
         and r.structural_result is not None
         and r.structural_result.value is True
     ]
+    assert positives, "fixture has no positive assoc query to cover"
     for r in positives:
-        assert r.derivation == ()
+        assert r.derivation
+        assert r.derivation[-1].rule == "d_connected_via_open_path"

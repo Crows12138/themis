@@ -173,13 +173,10 @@ def test_verifier_rejects_derivation_for_different_query_on_same_graph(fixture):
             verify_identify(r.derivation, ctx, r.structural_result)
 
 
-def test_positive_cause_and_assoc_stay_without_derivation():
-    """V3 adds derivations for *negative* cause / assoc (no directed
-    path, d-separated). Positive cause / assoc (open-path witness)
-    still carry derivation=() — those would require a separate
-    ``cause_via_directed_path`` / ``d_connected_via_open_path`` rule
-    that isn't in the V3 scope. This test pins the boundary so a
-    follow-on slice updates it intentionally."""
+def test_positive_cause_and_assoc_now_carry_witness_derivations():
+    """V4 added cause_via_directed_path / d_connected_via_open_path.
+    Every positive cause and positive assoc that references graph-
+    resident atoms now carries a single-step witness derivation."""
     from themis.types import QueryKind as _QK
 
     path = FIXTURE_DIR / "numeric_backdoor.json"
@@ -189,7 +186,13 @@ def test_positive_cause_and_assoc_stay_without_derivation():
             continue
         if r.structural_result is None or r.structural_result.value is not True:
             continue
-        assert r.derivation == (), (
-            f"positive {r.query_id} ({r.query_kind.value}) unexpectedly "
-            f"has a derivation before the positive-path rules are added"
+        assert r.derivation, (
+            f"positive {r.query_id} ({r.query_kind.value}) should carry "
+            f"a witness derivation under V4"
         )
+        expected_rule = (
+            "cause_via_directed_path"
+            if r.query_kind is _QK.CAUSE
+            else "d_connected_via_open_path"
+        )
+        assert r.derivation[-1].rule == expected_rule

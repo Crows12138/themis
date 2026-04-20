@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.local/causal-kernel/derivation.schema.json",
   "title": "Verifier Derivation Payload v0.1",
-  "description": "Serialized form of a QueryResult.derivation for slice V2. The JSON only constrains outer structure and tagged-value shapes; per-rule input/output types are enforced by the verifier itself when it re-hydrates and walks the derivation.",
+  "description": "Serialized form of a QueryResult.derivation for slice V2. The JSON constrains both the outer structure and the tagged-value shapes; per-rule input/output compatibility is still enforced by the verifier itself when it re-hydrates and walks the derivation.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "kind", "steps"],
@@ -15,6 +15,255 @@
     }
   },
   "$defs": {
+    "primitive": {
+      "type": ["boolean", "number", "string", "null"]
+    },
+    "term": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name"],
+      "properties": {
+        "type": { "type": "string", "enum": ["const", "var"] },
+        "name": { "type": "string" }
+      }
+    },
+    "atom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "predicate", "args"],
+      "properties": {
+        "kind": { "const": "atom" },
+        "predicate": { "type": "string" },
+        "args": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/term" }
+        }
+      }
+    },
+    "valued_atom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "atom", "value"],
+      "properties": {
+        "kind": { "const": "valued_atom" },
+        "atom": { "$ref": "#/$defs/atom" },
+        "value": { "$ref": "#/$defs/value" }
+      }
+    },
+    "var_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": { "const": "var_ref" },
+        "name": { "type": "string" }
+      }
+    },
+    "step_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "step_id"],
+      "properties": {
+        "kind": { "const": "step_ref" },
+        "step_id": { "type": "string" }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "nodes", "edges"],
+      "properties": {
+        "kind": { "const": "graph" },
+        "nodes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/atom" }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "structural_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "const": "structural_result" },
+        "value": { "type": ["boolean", "string", "null"] },
+        "supporting_paths": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "numeric_interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["low", "high"],
+      "properties": {
+        "low": { "type": "number" },
+        "high": { "type": "number" }
+      }
+    },
+    "numeric_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "const": "numeric_result" },
+        "value": { "type": ["number", "null"] },
+        "interval": { "$ref": "#/$defs/numeric_interval" },
+        "unit": { "type": "string" }
+      }
+    },
+    "constant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "const": "constant" },
+        "value": { "type": "number" }
+      }
+    },
+    "probability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "target", "given"],
+      "properties": {
+        "kind": { "const": "probability_ref" },
+        "target": { "$ref": "#/$defs/valued_atom" },
+        "given": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/valued_atom" }
+        }
+      }
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "terms"],
+      "properties": {
+        "kind": { "const": "product" },
+        "terms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/formula" }
+        }
+      }
+    },
+    "sum_bind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" }
+      }
+    },
+    "sum": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "bind", "over", "body"],
+      "properties": {
+        "kind": { "const": "sum" },
+        "bind": { "$ref": "#/$defs/sum_bind" },
+        "over": { "$ref": "#/$defs/atom" },
+        "body": { "$ref": "#/$defs/formula" }
+      }
+    },
+    "atom_set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "atom_set" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/atom" }
+        }
+      }
+    },
+    "atom_tuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "atom_tuple" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/atom" }
+        }
+      }
+    },
+    "valued_atom_tuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "valued_atom_tuple" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/valued_atom" }
+        }
+      }
+    },
+    "atom_paths": {
+      "type": "object",
+      "description": "V4: a tuple of witness paths; each path is an ordered array of atoms. Used by cause_via_directed_path and d_connected_via_open_path to carry the concrete paths whose edges the verifier rechecks.",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "atom_paths" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/atom" }
+          }
+        }
+      }
+    },
+    "formula": {
+      "oneOf": [
+        { "$ref": "#/$defs/constant" },
+        { "$ref": "#/$defs/probability_ref" },
+        { "$ref": "#/$defs/product" },
+        { "$ref": "#/$defs/sum" }
+      ]
+    },
+    "tagged": {
+      "oneOf": [
+        { "$ref": "#/$defs/atom" },
+        { "$ref": "#/$defs/valued_atom" },
+        { "$ref": "#/$defs/var_ref" },
+        { "$ref": "#/$defs/step_ref" },
+        { "$ref": "#/$defs/graph" },
+        { "$ref": "#/$defs/structural_result" },
+        { "$ref": "#/$defs/numeric_result" },
+        { "$ref": "#/$defs/constant" },
+        { "$ref": "#/$defs/probability_ref" },
+        { "$ref": "#/$defs/product" },
+        { "$ref": "#/$defs/sum" },
+        { "$ref": "#/$defs/atom_set" },
+        { "$ref": "#/$defs/atom_tuple" },
+        { "$ref": "#/$defs/valued_atom_tuple" },
+        { "$ref": "#/$defs/atom_paths" }
+      ]
+    },
+    "value": {
+      "description": "A derivation value: primitive, or a tagged object with a fully specified shape.",
+      "oneOf": [
+        { "$ref": "#/$defs/primitive" },
+        { "$ref": "#/$defs/tagged" }
+      ]
+    },
     "step": {
       "type": "object",
       "additionalProperties": false,
@@ -28,39 +277,6 @@
         },
         "output": { "$ref": "#/$defs/value" }
       }
-    },
-    "value": {
-      "description": "A derivation value: primitive, or a tagged object discriminated by 'kind'. Leaf primitives (bool / number / string / null) carry themselves.",
-      "oneOf": [
-        { "type": ["boolean", "number", "string", "null"] },
-        { "$ref": "#/$defs/tagged" }
-      ]
-    },
-    "tagged": {
-      "type": "object",
-      "required": ["kind"],
-      "properties": {
-        "kind": {
-          "type": "string",
-          "enum": [
-            "atom",
-            "valued_atom",
-            "var_ref",
-            "step_ref",
-            "graph",
-            "structural_result",
-            "numeric_result",
-            "constant",
-            "probability_ref",
-            "product",
-            "sum",
-            "atom_set",
-            "atom_tuple",
-            "valued_atom_tuple"
-          ]
-        }
-      },
-      "additionalProperties": true
     }
   }
 }

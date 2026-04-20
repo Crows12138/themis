@@ -163,15 +163,15 @@ def _assert_cause_query_binding(
     step_output_by_id: dict[str, object],
 ) -> None:
     q: CauseQuery = context.query
-    if step.rule == "no_directed_path":
+    if step.rule in ("no_directed_path", "cause_via_directed_path"):
         if step.inputs.get("src") != q.from_atom:
             raise VerificationError(
-                "no_directed_path.src does not match cause query from_atom",
+                f"{step.rule}.src does not match cause query from_atom",
                 step_index=step_index, rule=step.rule,
             )
         if step.inputs.get("dst") != q.to_atom:
             raise VerificationError(
-                "no_directed_path.dst does not match cause query to_atom",
+                f"{step.rule}.dst does not match cause query to_atom",
                 step_index=step_index, rule=step.rule,
             )
 
@@ -184,21 +184,21 @@ def _assert_assoc_query_binding(
     step_output_by_id: dict[str, object],
 ) -> None:
     q: AssocQuery = context.query
-    if step.rule == "d_separated":
+    if step.rule in ("d_separated", "d_connected_via_open_path"):
         if step.inputs.get("x") != q.left:
             raise VerificationError(
-                "d_separated.x does not match assoc query left atom",
+                f"{step.rule}.x does not match assoc query left atom",
                 step_index=step_index, rule=step.rule,
             )
         if step.inputs.get("y") != q.right:
             raise VerificationError(
-                "d_separated.y does not match assoc query right atom",
+                f"{step.rule}.y does not match assoc query right atom",
                 step_index=step_index, rule=step.rule,
             )
         step_cond = step.inputs.get("conditioning", frozenset())
         if frozenset(step_cond) != frozenset(q.given):
             raise VerificationError(
-                "d_separated.conditioning does not match assoc query given",
+                f"{step.rule}.conditioning does not match assoc query given",
                 step_index=step_index, rule=step.rule,
             )
 
@@ -432,6 +432,16 @@ def verify_identify(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
+    expected_final_rule = (
+        "identify_via_backdoor"
+        if claimed_result.value is True
+        else "unidentifiable_via_backdoor"
+    )
+    if derivation[-1].rule != expected_final_rule:
+        raise VerificationError(
+            f"identify derivation must end in {expected_final_rule}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
 
 
 def verify_numeric(
@@ -493,12 +503,11 @@ def verify_cause(
     context: VerificationContext,
     claimed_result: StructuralResult,
 ) -> None:
-    """V3: verify a cause-query derivation.
+    """Verify a cause-query derivation.
 
-    Currently supports only the negative case ``StructuralResult(False)``
-    witnessed by a single ``no_directed_path`` step. Positive derivations
-    (a specific directed path as witness) are not yet produced by the
-    elaborator and will land in a follow-on slice.
+    - V3: negative case, witnessed by a single ``no_directed_path`` step.
+    - V4: positive case, witnessed by a single ``cause_via_directed_path``
+      step whose ``paths`` input carries the concrete directed paths.
     """
     if not isinstance(context.query, CauseQuery):
         raise VerificationError(
@@ -513,6 +522,17 @@ def verify_cause(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
+    expected_rule = (
+        "cause_via_directed_path"
+        if claimed_result.value is True
+        else "no_directed_path"
+    )
+    if derivation[-1].rule != expected_rule:
+        raise VerificationError(
+            f"cause derivation with value={claimed_result.value!r} must end in "
+            f"{expected_rule!r}, got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
 
 
 def verify_assoc(
@@ -520,10 +540,11 @@ def verify_assoc(
     context: VerificationContext,
     claimed_result: StructuralResult,
 ) -> None:
-    """V3: verify an assoc-query derivation.
+    """Verify an assoc-query derivation.
 
-    Currently supports only the negative case ``StructuralResult(False)``
-    witnessed by a single ``d_separated`` step.
+    - V3: negative case, witnessed by a single ``d_separated`` step.
+    - V4: positive case, witnessed by a single ``d_connected_via_open_path``
+      step whose ``paths`` input carries the open paths.
     """
     if not isinstance(context.query, AssocQuery):
         raise VerificationError(
@@ -536,5 +557,16 @@ def verify_assoc(
     if final != claimed_result:
         raise VerificationError(
             "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    expected_rule = (
+        "d_connected_via_open_path"
+        if claimed_result.value is True
+        else "d_separated"
+    )
+    if derivation[-1].rule != expected_rule:
+        raise VerificationError(
+            f"assoc derivation with value={claimed_result.value!r} must end in "
+            f"{expected_rule!r}, got {derivation[-1].rule!r}",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )

@@ -310,3 +310,68 @@ def test_verify_cause_rejects_derivation_for_different_pair():
     ctx = VerificationContext(graph=g, query=query)
     with pytest.raises(VerificationError, match="no_directed_path.dst"):
         verify_cause(deriv, ctx, StructuralResult(value=False))
+
+
+def test_verify_identify_rejects_wrong_negative_theorem_family():
+    """A cause-style negative witness must not verify an identify
+    theorem just because it also concludes StructuralResult(False)."""
+    x, y = _atom("x"), _atom("y")
+    g = nx.DiGraph()
+    g.add_nodes_from([x, y])
+    query = IdentifyQuery(
+        target=y,
+        intervention=Intervention(atom=x, value=True),
+        given=(),
+    )
+    deriv = (
+        DerivationStep(
+            rule="no_directed_path",
+            inputs={"graph": g, "src": x, "dst": y},
+            output=StructuralResult(value=False),
+            step_id="s1",
+        ),
+    )
+    ctx = VerificationContext(graph=g, query=query)
+    with pytest.raises(VerificationError, match="identify derivation must end in unidentifiable_via_backdoor"):
+        verify_identify(deriv, ctx, StructuralResult(value=False))
+
+
+def test_verify_assoc_rejects_cause_style_negative_witness():
+    a, b = _atom("a"), _atom("b")
+    g = nx.DiGraph()
+    g.add_nodes_from([a, b])
+    query = AssocQuery(left=a, right=b, given=())
+    deriv = (
+        DerivationStep(
+            rule="no_directed_path",
+            inputs={"graph": g, "src": a, "dst": b},
+            output=StructuralResult(value=False),
+            step_id="s1",
+        ),
+    )
+    ctx = VerificationContext(graph=g, query=query)
+    with pytest.raises(VerificationError, match="d_separated"):
+        verify_assoc(deriv, ctx, StructuralResult(value=False))
+
+
+def test_verify_cause_rejects_assoc_style_negative_witness():
+    a, b = _atom("a"), _atom("b")
+    g = nx.DiGraph()
+    g.add_nodes_from([a, b])
+    query = CauseQuery(from_atom=a, to_atom=b)
+    deriv = (
+        DerivationStep(
+            rule="d_separated",
+            inputs={
+                "graph": g,
+                "x": a,
+                "y": b,
+                "conditioning": frozenset(),
+            },
+            output=StructuralResult(value=False),
+            step_id="s1",
+        ),
+    )
+    ctx = VerificationContext(graph=g, query=query)
+    with pytest.raises(VerificationError, match="no_directed_path"):
+        verify_cause(deriv, ctx, StructuralResult(value=False))

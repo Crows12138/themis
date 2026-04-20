@@ -151,6 +151,19 @@ def _tuple_to_dict(tpl: tuple) -> dict:
             "kind": "valued_atom_tuple",
             "items": [_valued_atom_to_dict(a) for a in tpl],
         }
+    # V4: tuple of paths (each path = tuple of Atoms). Used by
+    # cause_via_directed_path and d_connected_via_open_path to carry
+    # the witnesses.
+    if all(
+        isinstance(p, tuple) and all(isinstance(a, Atom) for a in p)
+        for p in tpl
+    ):
+        return {
+            "kind": "atom_paths",
+            "items": [
+                [_atom_to_dict(a) for a in path] for path in tpl
+            ],
+        }
     raise DerivationSerializationError(
         f"tuple with mixed / unsupported element types: "
         f"{[type(x).__name__ for x in tpl]}"
@@ -306,7 +319,14 @@ def _value_from_json(v: Any) -> Any:
         raise DerivationSerializationError(
             f"unknown value kind: {kind!r}"
         )
-    return handler(v)
+    try:
+        return handler(v)
+    except DerivationSerializationError:
+        raise
+    except (KeyError, TypeError, ValueError) as e:
+        raise DerivationSerializationError(
+            f"malformed {kind!r} payload: {e}"
+        ) from e
 
 
 def _decode_atom(d: dict) -> Atom:
@@ -389,10 +409,25 @@ def _decode_graph(d: dict) -> nx.DiGraph:
 def _decode_structural_result(d: dict) -> StructuralResult:
     value = d.get("value")
     paths_raw = d.get("supporting_paths", ())
-    if isinstance(paths_raw, list):
-        paths = tuple(tuple(p) for p in paths_raw)
-    else:
+    if paths_raw in (None, ()):
         paths = ()
+    elif isinstance(paths_raw, list):
+        decoded_paths = []
+        for i, path in enumerate(paths_raw):
+            if not isinstance(path, list):
+                raise DerivationSerializationError(
+                    f"structural_result.supporting_paths[{i}] must be a list of strings"
+                )
+            if not all(isinstance(node, str) for node in path):
+                raise DerivationSerializationError(
+                    f"structural_result.supporting_paths[{i}] must contain only strings"
+                )
+            decoded_paths.append(tuple(path))
+        paths = tuple(decoded_paths)
+    else:
+        raise DerivationSerializationError(
+            "structural_result.supporting_paths must be a list of string paths"
+        )
     return StructuralResult(value=value, supporting_paths=paths)
 
 
@@ -400,34 +435,68 @@ def _decode_numeric_result(d: dict) -> NumericResult:
     value = d.get("value")
     interval_raw = d.get("interval")
     interval = None
-    if isinstance(interval_raw, dict):
+    if interval_raw is None:
+        interval = None
+    elif isinstance(interval_raw, dict):
+        if "low" not in interval_raw or "high" not in interval_raw:
+            raise DerivationSerializationError(
+                "numeric_result.interval requires both low and high"
+            )
         interval = NumericInterval(
             low=float(interval_raw["low"]),
             high=float(interval_raw["high"]),
+        )
+    else:
+        raise DerivationSerializationError(
+            "numeric_result.interval must be an object when present"
         )
     unit = d.get("unit")
     return NumericResult(value=value, interval=interval, unit=unit)
 
 
 def _decode_constant_expr(d: dict) -> ConstantExpr:
+    if "value" not in d:
+        raise DerivationSerializationError("constant.value is required")
     return ConstantExpr(value=float(d["value"]))
 
 
 def _decode_probability_ref(d: dict) -> ProbabilityRefExpr:
+    if "target" not in d:
+        raise DerivationSerializationError("probability_ref.target is required")
     target = _decode_valued_atom(d["target"])
-    given = tuple(_decode_valued_atom(g) for g in d.get("given", []))
+    given_raw = d.get("given", [])
+    if not isinstance(given_raw, list):
+        raise DerivationSerializationError("probability_ref.given must be a list")
+    given = tuple(_decode_valued_atom(g) for g in given_raw)
     return ProbabilityRefExpr(target=target, given=given)
 
 
 def _decode_product(d: dict) -> ProductExpr:
-    terms = tuple(_value_from_json(t) for t in d.get("terms", []))
+    terms_raw = d.get("terms", [])
+    if not isinstance(terms_raw, list):
+        raise DerivationSerializationError("product.terms must be a list")
+    terms = tuple(_value_from_json(t) for t in terms_raw)
+    if not all(isinstance(term, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)) for term in terms):
+        raise DerivationSerializationError("product.terms must contain only FormulaExpr values")
     return ProductExpr(terms=terms)
 
 
 def _decode_sum(d: dict) -> SumExpr:
-    bind = BindDecl(name=d["bind"]["name"])
+    bind_raw = d.get("bind")
+    if not isinstance(bind_raw, dict):
+        raise DerivationSerializationError("sum.bind must be an object")
+    name = bind_raw.get("name")
+    if not isinstance(name, str):
+        raise DerivationSerializationError("sum.bind.name must be a string")
+    bind = BindDecl(name=name)
+    if "over" not in d:
+        raise DerivationSerializationError("sum.over is required")
     over = _decode_atom(d["over"])
+    if "body" not in d:
+        raise DerivationSerializationError("sum.body is required")
     body = _value_from_json(d["body"])
+    if not isinstance(body, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+        raise DerivationSerializationError("sum.body must be a FormulaExpr")
     return SumExpr(bind=bind, over=over, body=body)
 
 
@@ -442,6 +511,15 @@ def _decode_atom_tuple(d: dict) -> tuple:
 
 def _decode_valued_atom_tuple(d: dict) -> tuple:
     return tuple(_decode_valued_atom(i) for i in d.get("items", []))
+
+
+def _decode_atom_paths(d: dict) -> tuple:
+    items = d.get("items", [])
+    if not isinstance(items, list):
+        raise DerivationSerializationError("atom_paths.items must be a list")
+    return tuple(
+        tuple(_decode_atom(a) for a in path) for path in items
+    )
 
 
 _DECODE_BY_KIND = {
@@ -459,4 +537,5 @@ _DECODE_BY_KIND = {
     "atom_set":           _decode_atom_set,
     "atom_tuple":         _decode_atom_tuple,
     "valued_atom_tuple":  _decode_valued_atom_tuple,
+    "atom_paths":         _decode_atom_paths,
 }

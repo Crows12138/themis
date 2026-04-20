@@ -112,23 +112,37 @@ def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     result = StructuralResult(value=exists, supporting_paths=supporting)
     derivation: tuple[DerivationStep, ...] = ()
     if (
-        not exists
-        and q.from_atom in graph
+        q.from_atom in graph
         and q.to_atom in graph
         and q.from_atom != q.to_atom
     ):
-        derivation = (
-            DerivationStep(
-                rule="no_directed_path",
-                inputs={
-                    "graph": graph,
-                    "src": q.from_atom,
-                    "dst": q.to_atom,
-                },
-                output=result,
-                step_id="s1",
-            ),
-        )
+        if exists:
+            derivation = (
+                DerivationStep(
+                    rule="cause_via_directed_path",
+                    inputs={
+                        "graph": graph,
+                        "src": q.from_atom,
+                        "dst": q.to_atom,
+                        "paths": paths,
+                    },
+                    output=result,
+                    step_id="s1",
+                ),
+            )
+        else:
+            derivation = (
+                DerivationStep(
+                    rule="no_directed_path",
+                    inputs={
+                        "graph": graph,
+                        "src": q.from_atom,
+                        "dst": q.to_atom,
+                    },
+                    output=result,
+                    step_id="s1",
+                ),
+            )
     return QueryResult(
         status=ResultStatus.STRUCTURALLY_SOLVED,
         query_kind=QueryKind.CAUSE,
@@ -159,6 +173,27 @@ def _dispatch_identify(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
                     reason="query atom is not in the instantiated variable set V",
                 )
                 for atom in missing_atoms
+            ),
+        )
+
+    forbidden_given = frozenset(nx.descendants(graph, x)) | {x, y}
+    invalid_given = tuple(atom for atom in q.given if atom in forbidden_given)
+    if invalid_given:
+        labels = ", ".join(_atom_to_str(atom) for atom in invalid_given)
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.IDENTIFY,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:identify_given",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "identify.given violates backdoor pre-conditions "
+                        f"(contains X, Y, or a descendant of X): {labels}"
+                    ),
+                ),
             ),
         )
 
@@ -302,25 +337,36 @@ def _dispatch_assoc(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     supporting = tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
     result = StructuralResult(value=connected, supporting_paths=supporting)
     derivation: tuple[DerivationStep, ...] = ()
-    if (
-        not connected
-        and q.left in graph
-        and q.right in graph
-        and q.left != q.right
-    ):
-        derivation = (
-            DerivationStep(
-                rule="d_separated",
-                inputs={
-                    "graph": graph,
-                    "x": q.left,
-                    "y": q.right,
-                    "conditioning": frozenset(q.given),
-                },
-                output=result,
-                step_id="s1",
-            ),
-        )
+    if q.left in graph and q.right in graph and q.left != q.right:
+        if connected:
+            derivation = (
+                DerivationStep(
+                    rule="d_connected_via_open_path",
+                    inputs={
+                        "graph": graph,
+                        "x": q.left,
+                        "y": q.right,
+                        "conditioning": frozenset(q.given),
+                        "paths": paths,
+                    },
+                    output=result,
+                    step_id="s1",
+                ),
+            )
+        else:
+            derivation = (
+                DerivationStep(
+                    rule="d_separated",
+                    inputs={
+                        "graph": graph,
+                        "x": q.left,
+                        "y": q.right,
+                        "conditioning": frozenset(q.given),
+                    },
+                    output=result,
+                    step_id="s1",
+                ),
+            )
     return QueryResult(
         status=ResultStatus.STRUCTURALLY_SOLVED,
         query_kind=QueryKind.ASSOC,
