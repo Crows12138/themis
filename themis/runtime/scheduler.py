@@ -67,7 +67,12 @@ from . import (
     structural_solver,
     theta_builder,
 )
-from .numeric_estimator import InsufficientTheta, ProbabilityKey, Theta
+from .numeric_estimator import (
+    InsufficientTheta,
+    ProbabilityKey,
+    Theta,
+    format_probability_key,
+)
 from .theta_builder import (
     build_observation_source_index,
     build_probability_source_index,
@@ -198,19 +203,7 @@ def _missing_parameter_from_key(key: ProbabilityKey | None, reason: str) -> Miss
     if key is None:
         name = "numeric:unresolved_query_bound"
     else:
-        # Sort by a derived key but keep the original Atom around so
-        # we can still read predicate/value on the output side.
-        given_pairs = sorted(
-            key.given,
-            key=lambda pair: (pair[0].predicate, str(pair[1])),
-        )
-        given_repr = ",".join(
-            f"{a.predicate}={v}" for a, v in given_pairs
-        )
-        name = (
-            f"parameter:P({key.target_atom.predicate}={key.target_value}"
-            f"|{given_repr})"
-        )
+        name = f"parameter:{format_probability_key(key)}"
     return MissingItem(
         kind=MissingKind.PARAMETER,
         name=name,

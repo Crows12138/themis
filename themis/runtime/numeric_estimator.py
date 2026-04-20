@@ -87,6 +87,26 @@ class Theta:
         return self.domains.get(atom, (True, False))
 
 
+def format_probability_key(key: ProbabilityKey) -> str:
+    """Render a ``ProbabilityKey`` as ``P(pred=value|pred1=v1,pred2=v2)``.
+
+    Single canonical form shared by the user-facing surfaces that quote
+    the key: ``InsufficientTheta.reason`` and the ``parameter:...`` name
+    built by ``scheduler._missing_parameter_from_key``. Kept here because
+    ``ProbabilityKey`` lives here; importing it from the scheduler would
+    reverse the dependency.
+    """
+    given_pairs = sorted(
+        key.given,
+        key=lambda pair: (pair[0].predicate, str(pair[1])),
+    )
+    given_repr = ",".join(f"{a.predicate}={v}" for a, v in given_pairs)
+    body = f"{key.target_atom.predicate}={key.target_value}"
+    if given_repr:
+        body = f"{body}|{given_repr}"
+    return f"P({body})"
+
+
 class InsufficientTheta(Exception):
     """Raised when the formula evaluator needs a probability lookup
     that is not in Theta.
@@ -150,8 +170,7 @@ def _evaluate(
         if value is None:
             raise InsufficientTheta(
                 key,
-                f"Theta missing entry for P({key.target_atom.predicate}="
-                f"{key.target_value} | {sorted((a.predicate, v) for a, v in key.given)})",
+                f"Theta 中缺条目 {format_probability_key(key)}",
             )
         return value
 

@@ -13,6 +13,7 @@ from themis.runtime.numeric_estimator import (
     Theta,
     estimate_formula,
     estimate_probability,
+    format_probability_key,
 )
 from themis.types import (
     Atom,
@@ -74,6 +75,67 @@ def test_query_bound_target_raises_insufficient():
     )
     with pytest.raises(InsufficientTheta):
         estimate_formula(expr, Theta())
+
+
+# ----------------------------------- slice 9.x-E: reason-string hygiene
+
+def test_insufficient_theta_reason_uses_canonical_key_format():
+    """Slice 9.x-E: the reason string must quote the missing key in the
+    same ``P(pred=value|pred1=v1,pred2=v2)`` shape that the scheduler
+    uses when building the ``parameter:...`` MissingItem name.
+
+    Before 9.x-E the reason f-string interpolated ``sorted(...)`` of a
+    generator, which leaked Python list/tuple repr
+    (``[('smokes', False), ('stress', True)]``) into user-facing text.
+    """
+    y = atom("y")
+    x1 = atom("x1")
+    x2 = atom("x2")
+    expr = ProbabilityRefExpr(
+        target=ValuedAtom(atom=y, value=True),
+        given=(
+            ValuedAtom(atom=x1, value=False),
+            ValuedAtom(atom=x2, value=True),
+        ),
+    )
+    with pytest.raises(InsufficientTheta) as exc:
+        estimate_formula(expr, Theta())
+    reason = exc.value.reason
+
+    assert "P(y=True|x1=False,x2=True)" in reason
+    # Regression guard: no Python repr of list/tuple anywhere in reason.
+    assert "[(" not in reason
+    assert "', " not in reason
+    assert "Theta" in reason
+
+
+def test_format_probability_key_matches_scheduler_name():
+    """Slice 9.x-E: the shared helper ``format_probability_key`` is the
+    single source of truth. Concatenating ``"parameter:" + helper(key)``
+    must reproduce the scheduler's MissingItem name format — that's the
+    whole point of pulling the helper out."""
+    from themis.runtime.scheduler import _missing_parameter_from_key
+
+    y = atom("y")
+    x1 = atom("x1")
+    x2 = atom("x2")
+    key = ProbabilityKey(
+        target_atom=y,
+        target_value=True,
+        given=frozenset({(x1, False), (x2, True)}),
+    )
+    item = _missing_parameter_from_key(key, "whatever")
+    assert item.name == f"parameter:{format_probability_key(key)}"
+    assert format_probability_key(key) == "P(y=True|x1=False,x2=True)"
+
+
+def test_format_probability_key_no_given_omits_bar():
+    """No trailing ``|`` when there are no given atoms."""
+    y = atom("y")
+    key = ProbabilityKey(
+        target_atom=y, target_value=True, given=frozenset()
+    )
+    assert format_probability_key(key) == "P(y=True)"
 
 
 # ----------------------------------------------------------------- product
