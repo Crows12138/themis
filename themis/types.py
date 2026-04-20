@@ -271,11 +271,30 @@ class InvestigationAction(str, Enum):
 
 
 @dataclass(frozen=True)
+class InvestigationItem:
+    """One concrete entry inside an InvestigationRequest.
+
+    A request groups items by MissingKind; this dataclass holds the
+    per-item specifics that would be lost if we rendered the group as
+    a single flat string.
+    """
+    target: str
+    reason: str | None = None
+    # For MissingKind.PARAMETER, a dict that the caller can drop into a
+    # program's "statements" list after filling in ``value``. None for
+    # other kinds (or when scheduler did not supply structured info).
+    skeleton: dict | None = None
+
+
+@dataclass(frozen=True)
 class InvestigationRequest:
     action: InvestigationAction
-    target: str
+    target: str                           # summary / first-item target
     priority: Priority
     note: str | None = None
+    # v0.2 slice 9.x-B additions:
+    group: str | None = None              # MissingKind.value — "parameter"...
+    items: tuple[InvestigationItem, ...] = ()
 
 
 @dataclass(frozen=True)

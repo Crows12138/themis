@@ -219,6 +219,41 @@ def _missing_parameter_from_key(key: ProbabilityKey | None, reason: str) -> Miss
     )
 
 
+def _atom_to_json(atom: Atom) -> dict:
+    """Render an Atom as the same JSON shape the kernel_ast schema uses
+    for ``atom`` — so a skeleton is paste-ready."""
+    return {
+        "predicate": atom.predicate,
+        "args": [
+            {"type": "const", "name": t.name}
+            for t in atom.args
+        ],
+    }
+
+
+def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
+    """Build a paste-ready probabilityStatement dict for a missing
+    CPT entry. Caller fills ``value`` and optional annotations."""
+    # Sort given by predicate name so the skeleton is deterministic
+    # regardless of frozenset iteration order.
+    given_sorted = sorted(
+        key.given, key=lambda pair: (pair[0].predicate, str(pair[1]))
+    )
+    return {
+        "kind": "probability",
+        "target": {
+            "atom": _atom_to_json(key.target_atom),
+            "value": key.target_value,
+        },
+        "given": [
+            {"atom": _atom_to_json(a), "value": v}
+            for a, v in given_sorted
+        ],
+        "value": None,
+        "annotations": {"source": "TODO"},
+    }
+
+
 def _try_numeric(
     stmt: QueryStatement,
     formula,
@@ -226,16 +261,27 @@ def _try_numeric(
     kind: QueryKind,
 ) -> QueryResult:
     """Evaluate a formula with the current Theta; on InsufficientTheta
-    surface a structured needs_investigation naming the missing parameter."""
+    surface a structured needs_investigation naming the missing
+    parameter AND attach a paste-ready skeleton for that parameter via
+    ``investigation_pusher``.
+    """
     try:
         value = numeric_estimator.estimate_formula(formula, theta)
     except InsufficientTheta as exc:
+        missing = _missing_parameter_from_key(exc.missing_key, exc.reason)
+        skeletons: dict = {}
+        if exc.missing_key is not None:
+            skeletons[missing.name] = _skeleton_for_parameter(exc.missing_key)
+        requests = investigation_pusher.push(
+            (missing,), skeletons=skeletons
+        )
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=kind,
             query_id=stmt.id,
             formula=formula,
-            missing_information=(_missing_parameter_from_key(exc.missing_key, exc.reason),),
+            missing_information=(missing,),
+            investigation_requests=requests,
         )
     return QueryResult(
         status=ResultStatus.NUMERICALLY_SOLVED,

@@ -175,6 +175,41 @@ def test_missing_parameter_explanation_names_the_gap(result):
     assert "parameter:P(cancer=True|smokes=False,stress=False)" in text
 
 
+# ---------------------------------------------------- slice 9.x-B skeleton
+
+def test_missing_parameter_request_carries_paste_ready_skeleton(result):
+    """Slice 9.x-B: the InvestigationRequest for a PARAMETER gap must
+    include a dict that, after filling in ``value``, is a legal
+    ``probabilityStatement`` matching kernel_ast.schema.json."""
+    from themis.input.syntactic_validator import validate_ast
+
+    assert len(result.investigation_requests) == 1
+    req = result.investigation_requests[0]
+    assert req.group == "parameter"
+    assert len(req.items) == 1
+    skeleton = req.items[0].skeleton
+    assert skeleton is not None
+    # The skeleton must name the exact missing CPT entry.
+    assert skeleton["kind"] == "probability"
+    assert skeleton["target"]["atom"]["predicate"] == "cancer"
+    assert skeleton["target"]["value"] is True
+    given_predicates = {g["atom"]["predicate"] for g in skeleton["given"]}
+    assert given_predicates == {"smokes", "stress"}
+    # Users fill `value`; skeleton leaves it null.
+    assert skeleton["value"] is None
+
+    # Paste into a fresh program and confirm it schema-validates
+    # (with a real value filled in).
+    filled = dict(skeleton)
+    filled["value"] = 0.0
+    draft = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "alice"}]},
+        "statements": [filled],
+    }
+    validate_ast(draft)
+
+
 def test_missing_parameter_explanation_answers_what_why_next(result):
     """Slice 8.3: the needs_investigation explanation must cover the
     three-part contract from v0_2_priorities.md §Slice 8:

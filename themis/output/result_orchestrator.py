@@ -130,15 +130,28 @@ def to_dict(result: QueryResult) -> dict:
             for m in result.missing_information
         ]
     if result.investigation_requests:
-        d["investigation_requests"] = [
-            {
+        out_requests = []
+        for r in result.investigation_requests:
+            row: dict = {
                 "action": r.action.value,
                 "target": r.target,
                 "priority": r.priority.value,
-                **({"note": r.note} if r.note is not None else {}),
             }
-            for r in result.investigation_requests
-        ]
+            if r.note is not None:
+                row["note"] = r.note
+            if r.group is not None:
+                row["group"] = r.group
+            if r.items:
+                row["items"] = [
+                    {
+                        "target": it.target,
+                        **({"reason": it.reason} if it.reason is not None else {}),
+                        **({"skeleton": it.skeleton} if it.skeleton is not None else {}),
+                    }
+                    for it in r.items
+                ]
+            out_requests.append(row)
+        d["investigation_requests"] = out_requests
     if result.explanation is not None:
         d["explanation"] = result.explanation
     if result.extensions is not None:

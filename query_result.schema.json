@@ -331,6 +331,26 @@
         }
       }
     },
+    "investigationItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target"
+      ],
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Structured identifier matching the originating MissingItem.name."
+        },
+        "reason": {
+          "type": "string"
+        },
+        "skeleton": {
+          "type": "object",
+          "description": "Optional paste-ready statement stub (e.g. a probabilityStatement when kind is parameter). Callers fill in 'value' and annotations."
+        }
+      }
+    },
     "investigationRequest": {
       "type": "object",
       "additionalProperties": false,
@@ -349,7 +369,8 @@
           ]
         },
         "target": {
-          "type": "string"
+          "type": "string",
+          "description": "For a single-item request this is the MissingItem.name. For a grouped request, a short summary ('N items')."
         },
         "priority": {
           "enum": [
@@ -360,6 +381,17 @@
         },
         "note": {
           "type": "string"
+        },
+        "group": {
+          "type": "string",
+          "description": "MissingKind.value — items in the same request share a kind."
+        },
+        "items": {
+          "type": "array",
+          "description": "Per-item details within this grouped request. Always populated in v0.2 (length >= 1).",
+          "items": {
+            "$ref": "#/$defs/investigationItem"
+          }
         }
       }
     }

@@ -83,21 +83,40 @@
 
 ---
 
-## Slice 10：ID / ananke
+## Slice 10 — **不再存在于 v0.2**
 
-**目标**：把"后门不够"的场景真正扩出去。
+**决策（2026-04-20）**：调研发现在纯 DAG（v0.1/v0.2 语义层）里，后门准则始终够用（parents(X) 是合法调整集）。前门 / 完备 ID 的独立价值几乎全部建立在**潜变量 / 双向边 / ADMG** 之上，而 v0.1 scope 已经显式把它们排除。
 
-具体任务：
+所以原 slice 10 的目标拆到两个不同时间层：
 
-- `oracle/ananke_adapter.py` 实装：把 Program 转成 ananke 的图模型，调用 ID 算法
-- `runtime` 侧决定 ID 算法的 runtime 实现边界：
-  - 方案 A：runtime 自己实现（保持 oracle 独立性原则，但要重写一遍复杂算法）
-  - 方案 B：只在 runtime 用简化版（前门 / 后门 / 工具变量），完备 ID 留给 oracle 做对照；runtime 识别失败时返回 `outside_language` 或 `needs_investigation`
-  - **需要在 slice 10 开头定**
-- 识别失败语义重新定义：
-  - 目前"无后门调整集"= `structurally_solved: false`
-  - 前门 / ID 引入后，"不可识别"的定义要扩展，结果状态也要重新想
-- 扩展 `identify` 公式 AST：ID 算法可能输出 division / joint target 等算子（v0.1 未实现）；如果需要，此时再加
+### 短期（v0.2）——由 9.x 系列完成
+
+用户在实际使用中真正的痛点，其实不是识别能力不够，而是：
+
+- 参数补录体验（slice 9.x-B）
+- 调查推进工具化（slice 9.x-B）
+- 结果解释继续完善（slice 8 系列已覆盖，必要时迭代）
+
+这些都是**人机接口层**的工作，不需要扩语言。
+
+### 长期（v0.3 候选）——等真正需要潜变量时再打开
+
+- `latent_confounding`：schema 层引入不可观测变量概念
+- `bidirected_edges`：ADMG（Acyclic Directed Mixed Graph）表示
+- `ID 算法 / front-door / ananke`：建立在上面两条之上，此时完备 ID 才真正有独立价值
+- 同步扩展 formula AST（可能需要 division）
+
+**这组变更会构成 v0.3 的主跃迁，不应拆成 v0.2 内部 slice**。
+
+### 旁注：纯 DAG 里前门仍可能有用
+
+理论上在纯 DAG 里前门也不是完全无价值——当用户手工提供 Theta 时，某条替代公式可能更符合已有参数的 shape，能省得用户补额外条件概率。但这属于**"参数友好的公式选择"**，不是识别能力升级。如果未来要做，应按选择优化定位，不要包装成"完备识别"。
+
+---
+
+## 当前进行中
+
+- **9.x-B**（下一条）：investigation 分组聚合 + probability 语句骨架自动生成
 
 ---
 

@@ -60,3 +60,92 @@ def test_multiple_items_preserve_order():
     )
     reqs = push(items)
     assert [r.target for r in reqs] == ["a", "b", "c"]
+
+
+# ------------------------------------------------- slice 9.x-B: grouping
+
+def test_same_kind_items_merge_into_single_group():
+    """Three PARAMETER items become one request with items=(3 items).
+    The request's target degenerates to a kind-and-count summary."""
+    items = (
+        _mk(MissingKind.PARAMETER, "P(a|b)"),
+        _mk(MissingKind.PARAMETER, "P(c|d)"),
+        _mk(MissingKind.PARAMETER, "P(e|f)"),
+    )
+    reqs = push(items)
+    assert len(reqs) == 1
+    r = reqs[0]
+    assert r.action is InvestigationAction.VALIDATE_PARAMETER
+    assert r.group == "parameter"
+    assert r.target == "parameter:3_items"
+    assert len(r.items) == 3
+    assert [it.target for it in r.items] == ["P(a|b)", "P(c|d)", "P(e|f)"]
+
+
+def test_mixed_kinds_yield_separate_groups_in_first_seen_order():
+    items = (
+        _mk(MissingKind.PARAMETER, "p1"),
+        _mk(MissingKind.OBSERVATION, "o1"),
+        _mk(MissingKind.PARAMETER, "p2"),
+    )
+    reqs = push(items)
+    # Two groups: parameter (2 items), observation (1 item), in first-seen order.
+    assert len(reqs) == 2
+    assert reqs[0].group == "parameter"
+    assert [it.target for it in reqs[0].items] == ["p1", "p2"]
+    assert reqs[1].group == "observation"
+    assert [it.target for it in reqs[1].items] == ["o1"]
+
+
+def test_group_priority_is_max_across_items():
+    items = (
+        MissingItem(kind=MissingKind.PARAMETER, name="a", priority=Priority.LOW),
+        MissingItem(kind=MissingKind.PARAMETER, name="b", priority=Priority.HIGH),
+        MissingItem(kind=MissingKind.PARAMETER, name="c", priority=Priority.MEDIUM),
+    )
+    reqs = push(items)
+    assert reqs[0].priority is Priority.HIGH
+
+
+def test_single_item_group_still_looks_like_before():
+    """One-item groups preserve the pre-9.x-B target/note surface so
+    existing callers don't have to care about groups."""
+    reqs = push((_mk(MissingKind.PARAMETER, "p", reason="explain"),))
+    r = reqs[0]
+    assert r.target == "p"
+    assert r.note == "explain"
+    # Items are still populated though, just with one entry.
+    assert len(r.items) == 1
+    assert r.items[0].target == "p"
+    assert r.items[0].reason == "explain"
+
+
+# ---------------------------------------- slice 9.x-B: skeleton attachment
+
+def test_parameter_item_gets_skeleton_when_supplied():
+    skeleton = {"kind": "probability", "target": {"atom": {}, "value": True}}
+    reqs = push(
+        (_mk(MissingKind.PARAMETER, "p1"),),
+        skeletons={"p1": skeleton},
+    )
+    assert reqs[0].items[0].skeleton == skeleton
+
+
+def test_skeleton_only_attached_to_parameter_kind():
+    """An OBSERVATION item with a matching-name skeleton must NOT
+    receive it — skeletons are probability-statement stubs and do not
+    apply to other MissingKinds."""
+    skeleton = {"kind": "probability"}
+    reqs = push(
+        (_mk(MissingKind.OBSERVATION, "o1"),),
+        skeletons={"o1": skeleton},
+    )
+    assert reqs[0].items[0].skeleton is None
+
+
+def test_parameter_without_matching_skeleton_has_none():
+    reqs = push(
+        (_mk(MissingKind.PARAMETER, "p1"),),
+        skeletons={"other": {"kind": "probability"}},
+    )
+    assert reqs[0].items[0].skeleton is None
