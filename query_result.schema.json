@@ -128,6 +128,13 @@
         "$ref": "#/$defs/investigationRequest"
       }
     },
+    "framing_notes": {
+      "type": "array",
+      "description": "Slice A0 advisory channel: per-predicate gaps in variableDeclaration metadata for predicates referenced by the query. Advisory only — does not influence status.",
+      "items": {
+        "$ref": "#/$defs/framingNote"
+      }
+    },
     "explanation": {
       "type": [
         "string",
@@ -136,6 +143,33 @@
     }
   },
   "$defs": {
+    "framingNote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "predicate",
+        "missing"
+      ],
+      "properties": {
+        "predicate": {
+          "type": "string"
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "domain",
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "unit"
+            ]
+          }
+        }
+      }
+    },
     "varRef": {
       "type": "object",
       "additionalProperties": false,

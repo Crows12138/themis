@@ -368,6 +368,23 @@ def _dispatch_probability(
     return _try_numeric(stmt, formula, theta, QueryKind.PROBABILITY)
 
 
+def _attach_framing(
+    program: Program,
+    stmt: QueryStatement,
+    result: QueryResult,
+) -> QueryResult:
+    """Slice A0: attach advisory framing_notes for predicates the query
+    references. No status or numeric change — framing is additive."""
+    from dataclasses import replace
+
+    from . import framing_check
+
+    notes = framing_check.check_framing(program, stmt)
+    if not notes:
+        return result
+    return replace(result, framing_notes=notes)
+
+
 def _attach_investigation(result: QueryResult) -> QueryResult:
     """For needs_investigation results with missing_information but no
     investigation_requests yet, populate the requests from the missing
@@ -528,6 +545,7 @@ def dispatch(
         program, stmt, result,
         theta=theta, prob_index=prob_index, obs_index=obs_index,
     )
+    result = _attach_framing(program, stmt, result)
     return result
 
 

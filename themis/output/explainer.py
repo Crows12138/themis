@@ -263,6 +263,20 @@ def _with_confidence_suffix(text: str, result: QueryResult) -> str:
     return f"{text}综合可信度 {rendered}（最弱证据水平，按 min 规则聚合）。"
 
 
+def _with_framing_suffix(text: str, result: QueryResult) -> str:
+    """Slice A0: append advisory 问题定义 clause for underspecified
+    predicates. Advisory only — the numeric/structural verdict is
+    already stated in ``text``; this just tells the reader which
+    variables lack metadata that would make the question operational.
+    """
+    if not result.framing_notes:
+        return text
+    parts: list[str] = []
+    for note in result.framing_notes:
+        parts.append(f"{note.predicate} 缺 {', '.join(note.missing)}")
+    return f"{text}问题定义：{'；'.join(parts)}。"
+
+
 def explain(
     result: QueryResult,
     lang: str = "zh",
@@ -299,4 +313,6 @@ def explain(
         raise NotImplementedError(
             f"explainer for {result.query_kind.value} not implemented yet"
         )
-    return _with_confidence_suffix(text, result)
+    text = _with_confidence_suffix(text, result)
+    text = _with_framing_suffix(text, result)
+    return text

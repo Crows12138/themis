@@ -352,6 +352,49 @@
         }
       }
     },
+    "variableDeclaration": {
+      "type": "object",
+      "description": "Advisory per-predicate framing metadata (slice A0). Declaring a variable opts it into framing_notes: any unset field becomes a gap reported on queries that reference this predicate. Omitting a declaration silences framing for that predicate; nothing here gates reasoning.",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "predicate"
+      ],
+      "properties": {
+        "kind": {
+          "const": "variable"
+        },
+        "predicate": {
+          "$ref": "atom.schema.json#/$defs/identifier"
+        },
+        "domain": {
+          "type": "array",
+          "description": "Enumerated value domain, e.g. [true, false] or [\"low\",\"mid\",\"high\"]. Used only for framing; the runtime still reads actual domains from observed values.",
+          "items": {
+            "type": ["boolean", "integer", "number", "string"]
+          }
+        },
+        "time_window": {
+          "type": "string",
+          "description": "Natural-language time window the variable refers to, e.g. \"12w\" or \"single exam\"."
+        },
+        "measurement": {
+          "type": "string",
+          "description": "How the variable is measured, e.g. \"waist circumference cm\" or \"self-reported daily minutes\"."
+        },
+        "threshold": {
+          "type": "string",
+          "description": "Cutoff that turns a continuous measurement into this predicate's value, e.g. \">=3cm\"."
+        },
+        "observability": {
+          "type": "string",
+          "description": "Whether the variable is observable / self-reported / latent in this setting."
+        },
+        "unit": {
+          "type": "string"
+        }
+      }
+    },
     "statement": {
       "oneOf": [
         {
@@ -365,6 +408,9 @@
         },
         {
           "$ref": "#/$defs/queryStatement"
+        },
+        {
+          "$ref": "#/$defs/variableDeclaration"
         }
       ]
     }

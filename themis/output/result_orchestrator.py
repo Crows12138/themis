@@ -152,6 +152,11 @@ def to_dict(result: QueryResult) -> dict:
                 ]
             out_requests.append(row)
         d["investigation_requests"] = out_requests
+    if result.framing_notes:
+        d["framing_notes"] = [
+            {"predicate": n.predicate, "missing": list(n.missing)}
+            for n in result.framing_notes
+        ]
     if result.explanation is not None:
         d["explanation"] = result.explanation
     if result.extensions is not None:

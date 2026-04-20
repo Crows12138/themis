@@ -137,11 +137,31 @@ class QueryStatement:
     query: Query
 
 
+@dataclass(frozen=True)
+class VariableDeclaration:
+    """Slice A0 advisory framing metadata, attached to a predicate.
+
+    All fields except ``predicate`` are optional; unset fields become
+    framing gaps on any query that references this predicate. Omitting
+    the declaration entirely silences framing for that predicate.
+    Nothing here gates reasoning — presence of a declaration cannot
+    change status or numeric output.
+    """
+    predicate: str
+    domain: tuple[AtomValue, ...] | None = None
+    time_window: str | None = None
+    measurement: str | None = None
+    threshold: str | None = None
+    observability: str | None = None
+    unit: str | None = None
+
+
 Statement = Union[
     CauseStatement,
     ProbabilityStatement,
     ObservationStatement,
     QueryStatement,
+    VariableDeclaration,
 ]
 
 
@@ -298,6 +318,18 @@ class InvestigationRequest:
 
 
 @dataclass(frozen=True)
+class FramingNote:
+    """Slice A0 advisory: one predicate's unset framing-metadata fields.
+
+    Emitted only for predicates that *have* a VariableDeclaration but
+    leave some metadata unset. Fully-undeclared predicates produce no
+    note — framing is opt-in per predicate.
+    """
+    predicate: str
+    missing: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class QueryResult:
     status: ResultStatus
     query_kind: QueryKind
@@ -308,5 +340,6 @@ class QueryResult:
     formula: FormulaExpr | None = None
     missing_information: tuple[MissingItem, ...] = ()
     investigation_requests: tuple[InvestigationRequest, ...] = ()
+    framing_notes: tuple[FramingNote, ...] = ()
     explanation: str | None = None
     extensions: dict | None = None

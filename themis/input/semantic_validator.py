@@ -62,6 +62,7 @@ from ..types import (
     QueryStatement,
     Term,
     ValuedAtom,
+    VariableDeclaration,
     VarTerm,
 )
 
@@ -166,6 +167,17 @@ def _to_statement(d: dict):
         )
     if k == "query":
         return QueryStatement(id=d["id"], query=_to_query(d["query"]))
+    if k == "variable":
+        domain = d.get("domain")
+        return VariableDeclaration(
+            predicate=d["predicate"],
+            domain=tuple(domain) if domain is not None else None,
+            time_window=d.get("time_window"),
+            measurement=d.get("measurement"),
+            threshold=d.get("threshold"),
+            observability=d.get("observability"),
+            unit=d.get("unit"),
+        )
     raise SemanticError(f"unknown statement kind: {k}")
 
 
