@@ -20,7 +20,7 @@ from .serialization import (
     derivation_from_dict,
     derivation_to_dict,
 )
-from .verify import verify_identify, verify_numeric
+from .verify import verify_assoc, verify_cause, verify_identify, verify_numeric
 
 __all__ = [
     "DerivationSerializationError",
@@ -31,6 +31,8 @@ __all__ = [
     "VerificationError",
     "derivation_from_dict",
     "derivation_to_dict",
+    "verify_assoc",
+    "verify_cause",
     "verify_identify",
     "verify_numeric",
 ]

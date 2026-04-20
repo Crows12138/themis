@@ -109,11 +109,32 @@ def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     if exists:
         paths = structural_solver.directed_paths(graph, q.from_atom, q.to_atom)
     supporting = tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
+    result = StructuralResult(value=exists, supporting_paths=supporting)
+    derivation: tuple[DerivationStep, ...] = ()
+    if (
+        not exists
+        and q.from_atom in graph
+        and q.to_atom in graph
+        and q.from_atom != q.to_atom
+    ):
+        derivation = (
+            DerivationStep(
+                rule="no_directed_path",
+                inputs={
+                    "graph": graph,
+                    "src": q.from_atom,
+                    "dst": q.to_atom,
+                },
+                output=result,
+                step_id="s1",
+            ),
+        )
     return QueryResult(
         status=ResultStatus.STRUCTURALLY_SOLVED,
         query_kind=QueryKind.CAUSE,
         query_id=stmt.id,
-        structural_result=StructuralResult(value=exists, supporting_paths=supporting),
+        structural_result=result,
+        derivation=derivation,
     )
 
 
@@ -148,11 +169,25 @@ def _dispatch_identify(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     if not adjustment_sets:
         # No valid back-door adjustment exists under v0.1's simple
         # DAG model. Report an unidentifiable verdict.
+        result = StructuralResult(value=False)
         return QueryResult(
             status=ResultStatus.STRUCTURALLY_SOLVED,
             query_kind=QueryKind.IDENTIFY,
             query_id=stmt.id,
-            structural_result=StructuralResult(value=False),
+            structural_result=result,
+            derivation=(
+                DerivationStep(
+                    rule="unidentifiable_via_backdoor",
+                    inputs={
+                        "graph": graph,
+                        "x": x,
+                        "y": y,
+                        "given": frozenset(q.given),
+                    },
+                    output=result,
+                    step_id="s1",
+                ),
+            ),
         )
 
     chosen = min(adjustment_sets, key=len)
@@ -265,11 +300,33 @@ def _dispatch_assoc(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     if connected:
         paths = structural_solver.open_paths(graph, q.left, q.right, q.given)
     supporting = tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
+    result = StructuralResult(value=connected, supporting_paths=supporting)
+    derivation: tuple[DerivationStep, ...] = ()
+    if (
+        not connected
+        and q.left in graph
+        and q.right in graph
+        and q.left != q.right
+    ):
+        derivation = (
+            DerivationStep(
+                rule="d_separated",
+                inputs={
+                    "graph": graph,
+                    "x": q.left,
+                    "y": q.right,
+                    "conditioning": frozenset(q.given),
+                },
+                output=result,
+                step_id="s1",
+            ),
+        )
     return QueryResult(
         status=ResultStatus.STRUCTURALLY_SOLVED,
         query_kind=QueryKind.ASSOC,
         query_id=stmt.id,
-        structural_result=StructuralResult(value=connected, supporting_paths=supporting),
+        structural_result=result,
+        derivation=derivation,
     )
 
 

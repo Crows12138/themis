@@ -649,6 +649,184 @@ def _rule_numeric_result(
         )
 
 
+# ========================================================== V3: negative structural rules
+
+def _rule_unidentifiable_via_backdoor(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """V3: prove ``StructuralResult(value=False)`` for an identify
+    query by exhausting the candidate adjustment sets.
+
+    inputs:
+        graph — the DAG
+        x — intervention atom
+        y — target atom
+        given — frozenset of pre-conditioned atoms W (may be empty)
+    output:
+        ``StructuralResult(value=False)``
+
+    The verifier independently enumerates every Z ⊆ V \\ (descendants(X)
+    ∪ {X, Y} ∪ W) and confirms no Z satisfies the backdoor criterion
+    (given ∪ Z blocks all back-door paths after removing X's outgoing
+    edges). This is the symmetric counterpart of R5 — same theorem,
+    negative branch.
+    """
+    graph = _require(inputs, "graph", step_index, "unidentifiable_via_backdoor")
+    _assert_same_graph(graph, ctx.graph, step_index, "unidentifiable_via_backdoor")
+    x = _require_atom(inputs, "x", step_index, "unidentifiable_via_backdoor")
+    y = _require_atom(inputs, "y", step_index, "unidentifiable_via_backdoor")
+    given = _require_atom_set(
+        inputs, "given", step_index, "unidentifiable_via_backdoor",
+        allow_missing=True,
+    )
+
+    if x not in graph or y not in graph:
+        raise RuleCheckFailed(
+            "unidentifiable_via_backdoor: x or y not in graph",
+            step_index=step_index, rule="unidentifiable_via_backdoor",
+        )
+
+    # given must itself respect the backdoor pre-conditions; if it
+    # already violates them, the claim "unidentifiable" is trivially
+    # true but under a degenerate premise. Pin to non-degenerate case.
+    forbidden = nx.descendants(graph, x) | {x, y}
+    if not given.isdisjoint(forbidden):
+        raise RuleCheckFailed(
+            "unidentifiable_via_backdoor: given violates backdoor pre-conditions",
+            step_index=step_index, rule="unidentifiable_via_backdoor",
+        )
+
+    mutated = _graph_minus_x_outgoing(graph, x)
+    candidates = [
+        n for n in graph.nodes
+        if n not in forbidden and n not in given
+    ]
+
+    # Exhaustion: for every subset Z, check that (Z ∪ given) fails to
+    # d-separate x from y in mutated. As soon as one Z succeeds, the
+    # claim is false.
+    from itertools import combinations
+    for size in range(len(candidates) + 1):
+        for combo in combinations(candidates, size):
+            z_total = frozenset(combo) | given
+            if _check_d_separation(mutated, x, y, z_total):
+                raise RuleCheckFailed(
+                    f"unidentifiable_via_backdoor: found a valid "
+                    f"adjustment set of size {size} — claim is false",
+                    step_index=step_index, rule="unidentifiable_via_backdoor",
+                )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "unidentifiable_via_backdoor: output must be a StructuralResult",
+            step_index=step_index, rule="unidentifiable_via_backdoor",
+        )
+    if claimed_output.value is not False:
+        raise RuleCheckFailed(
+            "unidentifiable_via_backdoor: output.value must be False",
+            step_index=step_index, rule="unidentifiable_via_backdoor",
+        )
+
+
+def _rule_d_separated(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """V3: prove ``StructuralResult(value=False)`` for an assoc query
+    by confirming X and Y are d-separated under the conditioning set.
+
+    inputs:
+        graph, x, y, conditioning (frozenset of Atom)
+    output:
+        ``StructuralResult(value=False)`` — assoc is False when there
+        is NO open path, i.e. when x and y are d-separated.
+    """
+    graph = _require(inputs, "graph", step_index, "d_separated")
+    _assert_same_graph(graph, ctx.graph, step_index, "d_separated")
+    x = _require_atom(inputs, "x", step_index, "d_separated")
+    y = _require_atom(inputs, "y", step_index, "d_separated")
+    conditioning = _require_atom_set(
+        inputs, "conditioning", step_index, "d_separated",
+        allow_missing=True,
+    )
+
+    if x == y:
+        raise RuleCheckFailed(
+            "d_separated: x and y are the same node",
+            step_index=step_index, rule="d_separated",
+        )
+    if x not in graph or y not in graph:
+        raise RuleCheckFailed(
+            "d_separated: x or y not in graph",
+            step_index=step_index, rule="d_separated",
+        )
+
+    separated = _check_d_separation(graph, x, y, conditioning)
+    if not separated:
+        raise RuleCheckFailed(
+            "d_separated: there exists an open path between x and y",
+            step_index=step_index, rule="d_separated",
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "d_separated: output must be a StructuralResult",
+            step_index=step_index, rule="d_separated",
+        )
+    if claimed_output.value is not False:
+        raise RuleCheckFailed(
+            "d_separated: output.value must be False",
+            step_index=step_index, rule="d_separated",
+        )
+
+
+def _rule_no_directed_path(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """V3: prove ``StructuralResult(value=False)`` for a cause query by
+    confirming no directed path exists from src to dst.
+
+    inputs:
+        graph, src, dst
+    output:
+        ``StructuralResult(value=False)``
+    """
+    graph = _require(inputs, "graph", step_index, "no_directed_path")
+    _assert_same_graph(graph, ctx.graph, step_index, "no_directed_path")
+    src = _require_atom(inputs, "src", step_index, "no_directed_path")
+    dst = _require_atom(inputs, "dst", step_index, "no_directed_path")
+
+    if src not in graph or dst not in graph:
+        raise RuleCheckFailed(
+            "no_directed_path: src or dst not in graph",
+            step_index=step_index, rule="no_directed_path",
+        )
+    if src == dst or nx.has_path(graph, src, dst):
+        raise RuleCheckFailed(
+            "no_directed_path: a directed path exists from src to dst",
+            step_index=step_index, rule="no_directed_path",
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "no_directed_path: output must be a StructuralResult",
+            step_index=step_index, rule="no_directed_path",
+        )
+    if claimed_output.value is not False:
+        raise RuleCheckFailed(
+            "no_directed_path: output.value must be False",
+            step_index=step_index, rule="no_directed_path",
+        )
+
+
 # ========================================================== registry
 
 # rule name -> handler. Each handler has the signature
@@ -663,6 +841,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "backdoor_adjustment_formula": _rule_backdoor_adjustment_formula,
     "probability_ref_lookup": _rule_probability_ref_lookup,
     "formula_evaluation": _rule_formula_evaluation,
+    "unidentifiable_via_backdoor": _rule_unidentifiable_via_backdoor,
+    "d_separated": _rule_d_separated,
+    "no_directed_path": _rule_no_directed_path,
 }
 _STEP_REF_RULES = {"identify_via_backdoor", "numeric_result"}
 

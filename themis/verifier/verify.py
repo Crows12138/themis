@@ -20,11 +20,17 @@ from __future__ import annotations
 from typing import Callable
 
 from ..types import (
+    AssocQuery,
+    CauseQuery,
+    ConstantExpr,
     DerivationStep,
     EffectQuery,
     IdentifyQuery,
     NumericResult,
+    ProbabilityRefExpr,
     ProbabilityQuery,
+    ProductExpr,
+    SumExpr,
     StepRef,
     StructuralResult,
     ValuedAtom,
@@ -60,6 +66,8 @@ def _assert_query_binding(
     step: DerivationStep,
     context: VerificationContext,
     step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
 ) -> None:
     """Reject derivations that prove *some other* identify query on the
     same graph.
@@ -126,13 +134,111 @@ def _assert_query_binding(
                 "backdoor_adjustment_formula.given does not match verification context query",
                 step_index=step_index,
                 rule=step.rule,
+                )
+
+    if step.rule == "unidentifiable_via_backdoor":
+        if step.inputs.get("x") != q.intervention.atom:
+            raise VerificationError(
+                "unidentifiable_via_backdoor.x does not match identify query intervention atom",
+                step_index=step_index, rule=step.rule,
             )
+        if step.inputs.get("y") != q.target:
+            raise VerificationError(
+                "unidentifiable_via_backdoor.y does not match identify query target",
+                step_index=step_index, rule=step.rule,
+            )
+        step_given = step.inputs.get("given", frozenset())
+        if frozenset(step_given) != frozenset(q.given):
+            raise VerificationError(
+                "unidentifiable_via_backdoor.given does not match identify query given",
+                step_index=step_index, rule=step.rule,
+            )
+
+
+def _assert_cause_query_binding(
+    step: DerivationStep,
+    context: VerificationContext,
+    step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+) -> None:
+    q: CauseQuery = context.query
+    if step.rule == "no_directed_path":
+        if step.inputs.get("src") != q.from_atom:
+            raise VerificationError(
+                "no_directed_path.src does not match cause query from_atom",
+                step_index=step_index, rule=step.rule,
+            )
+        if step.inputs.get("dst") != q.to_atom:
+            raise VerificationError(
+                "no_directed_path.dst does not match cause query to_atom",
+                step_index=step_index, rule=step.rule,
+            )
+
+
+def _assert_assoc_query_binding(
+    step: DerivationStep,
+    context: VerificationContext,
+    step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+) -> None:
+    q: AssocQuery = context.query
+    if step.rule == "d_separated":
+        if step.inputs.get("x") != q.left:
+            raise VerificationError(
+                "d_separated.x does not match assoc query left atom",
+                step_index=step_index, rule=step.rule,
+            )
+        if step.inputs.get("y") != q.right:
+            raise VerificationError(
+                "d_separated.y does not match assoc query right atom",
+                step_index=step_index, rule=step.rule,
+            )
+        step_cond = step.inputs.get("conditioning", frozenset())
+        if frozenset(step_cond) != frozenset(q.given):
+            raise VerificationError(
+                "d_separated.conditioning does not match assoc query given",
+                step_index=step_index, rule=step.rule,
+            )
+
+
+def _is_formula_expr(value: object) -> bool:
+    return isinstance(value, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr))
+
+
+def _resolve_formula_input(
+    raw_formula: object,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+    step_index: int,
+    rule: str,
+) -> object:
+    """Resolve a formula input that may be a direct FormulaExpr or a
+    StepRef to an earlier formula-producing step."""
+    if isinstance(raw_formula, StepRef):
+        source_step = step_by_id.get(raw_formula.step_id)
+        source_out = step_output_by_id.get(raw_formula.step_id)
+        if source_step is None or source_out is None:
+            raise VerificationError(
+                f"{rule}.formula references unknown step {raw_formula.step_id!r}",
+                step_index=step_index, rule=rule,
+            )
+        if not _is_formula_expr(source_out):
+            raise VerificationError(
+                f"{rule}.formula StepRef({raw_formula.step_id!r}) does not point to a FormulaExpr",
+                step_index=step_index, rule=rule,
+            )
+        return source_out
+    return raw_formula
 
 
 def _assert_numeric_query_binding(
     step: DerivationStep,
     context: VerificationContext,
     step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
 ) -> None:
     """Numeric counterpart of ``_assert_query_binding``.
 
@@ -186,35 +292,62 @@ def _assert_numeric_query_binding(
                     step_index=step_index, rule=step.rule,
                 )
 
-    if isinstance(q, ProbabilityQuery):
         if step.rule == "formula_evaluation":
-            formula = step.inputs.get("formula")
-            # The formula input may come from a StepRef or be the direct
-            # ProbabilityRefExpr; binding only makes sense in the direct
-            # case (probability queries don't route through R4).
-            if (
-                formula is not None
-                and not isinstance(formula, StepRef)
-            ):
-                from ..types import ProbabilityRefExpr
-                if isinstance(formula, ProbabilityRefExpr):
-                    if formula.target != q.target:
-                        raise VerificationError(
-                            "formula_evaluation.formula.target does not match probability query",
-                            step_index=step_index, rule=step.rule,
-                        )
-                    if tuple(formula.given) != tuple(q.given):
-                        raise VerificationError(
-                            "formula_evaluation.formula.given does not match probability query",
-                            step_index=step_index, rule=step.rule,
-                        )
+            formula = _resolve_formula_input(
+                step.inputs.get("formula"),
+                step_by_id,
+                step_output_by_id,
+                step_index,
+                step.rule,
+            )
+            matching_witness = any(
+                prev_step.rule == "backdoor_adjustment_formula"
+                and step_output_by_id.get(step_id) == formula
+                for step_id, prev_step in step_by_id.items()
+            )
+            if not matching_witness:
+                raise VerificationError(
+                    "formula_evaluation.formula does not match any prior backdoor_adjustment_formula witness for this effect query",
+                    step_index=step_index, rule=step.rule,
+                )
+
+    if isinstance(q, ProbabilityQuery):
+        if step.rule == "probability_ref_lookup":
+            if step.inputs.get("target") != q.target:
+                raise VerificationError(
+                    "probability_ref_lookup.target does not match probability query",
+                    step_index=step_index, rule=step.rule,
+                )
+            if tuple(step.inputs.get("given", ())) != tuple(q.given):
+                raise VerificationError(
+                    "probability_ref_lookup.given does not match probability query",
+                    step_index=step_index, rule=step.rule,
+                )
+
+        if step.rule == "formula_evaluation":
+            formula = _resolve_formula_input(
+                step.inputs.get("formula"),
+                step_by_id,
+                step_output_by_id,
+                step_index,
+                step.rule,
+            )
+            expected = ProbabilityRefExpr(target=q.target, given=q.given)
+            if formula != expected:
+                raise VerificationError(
+                    "formula_evaluation.formula does not match probability query",
+                    step_index=step_index, rule=step.rule,
+                )
 
 
 def _walk(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,
-    binding_asserter: Callable[[DerivationStep, VerificationContext, int], None],
-) -> None:
+    binding_asserter: Callable[
+        [DerivationStep, VerificationContext, int, dict[str, DerivationStep], dict[str, object]],
+        None,
+    ],
+) -> tuple[dict[str, DerivationStep], dict[str, object]]:
     """Shared walk used by both ``verify_identify`` and ``verify_numeric``.
 
     Per-step:
@@ -244,8 +377,6 @@ def _walk(
                 step_index=i, rule=step.rule,
             )
 
-        binding_asserter(step, context, i)
-
         for key, value in step.inputs.items():
             if isinstance(value, StepRef):
                 if value.step_id not in step_output_by_id:
@@ -254,6 +385,8 @@ def _walk(
                         f"no earlier step has that id",
                         step_index=i, rule=step.rule,
                     )
+
+        binding_asserter(step, context, i, step_by_id, step_output_by_id)
 
         dispatch_rule(
             rule_name=step.rule,
@@ -273,6 +406,8 @@ def _walk(
                 )
             step_by_id[step.step_id] = step
             step_output_by_id[step.step_id] = step.output
+
+    return step_by_id, step_output_by_id
 
 
 def verify_identify(
@@ -320,13 +455,83 @@ def verify_numeric(
             step_index=None, rule=None,
         )
 
-    _walk(derivation, context, _assert_numeric_query_binding)
+    step_by_id, _ = _walk(derivation, context, _assert_numeric_query_binding)
 
     if derivation[-1].rule != "numeric_result":
         raise VerificationError(
             "verify_numeric: last step must be a numeric_result rule",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if isinstance(context.query, EffectQuery):
+        evaluation_ref = derivation[-1].inputs.get("evaluation")
+        if not isinstance(evaluation_ref, StepRef):
+            raise VerificationError(
+                "effect derivation final numeric_result must reference an evaluation step",
+                step_index=len(derivation) - 1, rule=derivation[-1].rule,
+            )
+        evaluation_step = step_by_id.get(evaluation_ref.step_id)
+        if evaluation_step is None or evaluation_step.rule != "formula_evaluation":
+            raise VerificationError(
+                "effect derivation must end in formula_evaluation -> numeric_result",
+                step_index=len(derivation) - 1, rule=derivation[-1].rule,
+            )
+        if not any(step.rule == "identify_via_backdoor" for step in derivation):
+            raise VerificationError(
+                "effect derivation is missing an identify_via_backdoor witness",
+                step_index=len(derivation) - 1, rule=derivation[-1].rule,
+            )
+
+
+def verify_cause(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """V3: verify a cause-query derivation.
+
+    Currently supports only the negative case ``StructuralResult(False)``
+    witnessed by a single ``no_directed_path`` step. Positive derivations
+    (a specific directed path as witness) are not yet produced by the
+    elaborator and will land in a follow-on slice.
+    """
+    if not isinstance(context.query, CauseQuery):
+        raise VerificationError(
+            "verify_cause requires a CauseQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_cause_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
+def verify_assoc(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """V3: verify an assoc-query derivation.
+
+    Currently supports only the negative case ``StructuralResult(False)``
+    witnessed by a single ``d_separated`` step.
+    """
+    if not isinstance(context.query, AssocQuery):
+        raise VerificationError(
+            "verify_assoc requires an AssocQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_assoc_query_binding)
+
     final = derivation[-1].output
     if final != claimed_result:
         raise VerificationError(

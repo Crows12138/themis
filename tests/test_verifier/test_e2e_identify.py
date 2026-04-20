@@ -173,33 +173,23 @@ def test_verifier_rejects_derivation_for_different_query_on_same_graph(fixture):
             verify_identify(r.derivation, ctx, r.structural_result)
 
 
-def test_negative_identify_has_no_derivation_yet():
-    """Slice V0 scope: only positive identify emits a derivation.
-    Negative results (unidentifiable) will be covered in V3. This
-    test pins the current contract so V3 can update it intentionally."""
-    path = FIXTURE_DIR / "identify_backdoor.json"
-    _, _, results, _ = _run_and_verify(path)
-    negative = [
-        r for r in results
-        if r.query_kind is QueryKind.IDENTIFY
-        and r.structural_result is not None
-        and r.structural_result.value is False
-    ]
-    for r in negative:
-        assert r.derivation == ()
-
-
-def test_cause_and_assoc_stay_without_derivation():
-    """V1 adds derivations for NUMERICALLY_SOLVED effect / probability,
-    but cause and assoc (purely structural, non-identify) remain
-    derivation=(). Future slices will handle them as needed."""
+def test_positive_cause_and_assoc_stay_without_derivation():
+    """V3 adds derivations for *negative* cause / assoc (no directed
+    path, d-separated). Positive cause / assoc (open-path witness)
+    still carry derivation=() — those would require a separate
+    ``cause_via_directed_path`` / ``d_connected_via_open_path`` rule
+    that isn't in the V3 scope. This test pins the boundary so a
+    follow-on slice updates it intentionally."""
     from themis.types import QueryKind as _QK
 
     path = FIXTURE_DIR / "numeric_backdoor.json"
     _, _, results, _ = _run_and_verify(path)
     for r in results:
-        if r.query_kind in (_QK.CAUSE, _QK.ASSOC):
-            assert r.derivation == (), (
-                f"{r.query_id} ({r.query_kind.value}) unexpectedly has "
-                f"a derivation in V1"
-            )
+        if r.query_kind not in (_QK.CAUSE, _QK.ASSOC):
+            continue
+        if r.structural_result is None or r.structural_result.value is not True:
+            continue
+        assert r.derivation == (), (
+            f"positive {r.query_id} ({r.query_kind.value}) unexpectedly "
+            f"has a derivation before the positive-path rules are added"
+        )

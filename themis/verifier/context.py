@@ -17,10 +17,18 @@ from typing import Union
 import networkx as nx
 
 from ..runtime.numeric_estimator import Theta
-from ..types import EffectQuery, IdentifyQuery, ProbabilityQuery
+from ..types import (
+    AssocQuery,
+    CauseQuery,
+    EffectQuery,
+    IdentifyQuery,
+    ProbabilityQuery,
+)
 
 
-VerifiableQuery = Union[IdentifyQuery, EffectQuery, ProbabilityQuery]
+VerifiableQuery = Union[
+    CauseQuery, AssocQuery, IdentifyQuery, EffectQuery, ProbabilityQuery,
+]
 
 
 @dataclass(frozen=True)
