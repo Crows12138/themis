@@ -539,3 +539,299 @@ _DECODE_BY_KIND = {
     "valued_atom_tuple":  _decode_valued_atom_tuple,
     "atom_paths":         _decode_atom_paths,
 }
+
+
+# =========================================================================
+# V5: VerificationContext serialization
+# =========================================================================
+#
+# A VerificationContext is graph + query (+ optional theta). Encoding it
+# together with a derivation lets external tools re-run verify_* end to
+# end without any in-memory Python objects.
+#
+# Payload shape:
+#
+#   {
+#     "version": "0.1",
+#     "kind": "verification_context",
+#     "graph": {"kind": "graph", ...},
+#     "query": {"kind": "cause_query" | "assoc_query" | ...},
+#     "theta": null | {"kind": "theta", "entries": [...], "domains": [...]}
+#   }
+
+from ..runtime.numeric_estimator import ProbabilityKey, Theta  # noqa: E402
+from ..types import (  # noqa: E402
+    AssocQuery,
+    CauseQuery,
+    EffectQuery,
+    IdentifyQuery,
+    Intervention,
+    ProbabilityQuery,
+)
+from .context import VerificationContext  # noqa: E402
+
+
+CONTEXT_VERSION = "0.1"
+CONTEXT_KIND = "verification_context"
+
+
+# ------------------------------------------------------------ query encode
+
+def _intervention_to_dict(iv: Intervention) -> dict:
+    return {
+        "kind": "intervention",
+        "atom": _atom_to_dict(iv.atom),
+        "value": iv.value,
+    }
+
+
+def _query_to_dict(q) -> dict:
+    if isinstance(q, CauseQuery):
+        return {
+            "kind": "cause_query",
+            "from_atom": _atom_to_dict(q.from_atom),
+            "to_atom": _atom_to_dict(q.to_atom),
+        }
+    if isinstance(q, AssocQuery):
+        return {
+            "kind": "assoc_query",
+            "left": _atom_to_dict(q.left),
+            "right": _atom_to_dict(q.right),
+            "given": [_atom_to_dict(a) for a in q.given],
+        }
+    if isinstance(q, IdentifyQuery):
+        return {
+            "kind": "identify_query",
+            "target": _atom_to_dict(q.target),
+            "intervention": _intervention_to_dict(q.intervention),
+            "given": [_atom_to_dict(a) for a in q.given],
+        }
+    if isinstance(q, EffectQuery):
+        return {
+            "kind": "effect_query",
+            "target": _valued_atom_to_dict(q.target),
+            "intervention": _intervention_to_dict(q.intervention),
+            "given": [_valued_atom_to_dict(a) for a in q.given],
+        }
+    if isinstance(q, ProbabilityQuery):
+        return {
+            "kind": "probability_query",
+            "target": _valued_atom_to_dict(q.target),
+            "given": [_valued_atom_to_dict(a) for a in q.given],
+        }
+    raise DerivationSerializationError(
+        f"don't know how to serialize query type {type(q).__name__}"
+    )
+
+
+# ------------------------------------------------------------ theta encode
+
+def _probability_key_to_dict(key: ProbabilityKey) -> dict:
+    # Canonical ordering of given pairs keeps the JSON stable.
+    ordered = sorted(
+        key.given,
+        key=lambda pair: (
+            pair[0].predicate,
+            tuple(t.name for t in pair[0].args),
+            str(pair[1]),
+        ),
+    )
+    return {
+        "kind": "probability_key",
+        "target_atom": _atom_to_dict(key.target_atom),
+        "target_value": key.target_value,
+        "given": [
+            {"atom": _atom_to_dict(a), "value": v}
+            for (a, v) in ordered
+        ],
+    }
+
+
+def _theta_to_dict(theta: Theta) -> dict:
+    # Stable serialisation: sort entries by predicate / args / value
+    # and domains by atom identity.
+    entry_list = []
+    for key in sorted(
+        theta.entries.keys(),
+        key=lambda k: (
+            k.target_atom.predicate,
+            tuple(t.name for t in k.target_atom.args),
+            str(k.target_value),
+            tuple(
+                (a.predicate, tuple(t.name for t in a.args), str(v))
+                for (a, v) in sorted(
+                    k.given,
+                    key=lambda pair: (
+                        pair[0].predicate,
+                        tuple(t.name for t in pair[0].args),
+                        str(pair[1]),
+                    ),
+                )
+            ),
+        ),
+    ):
+        entry_list.append({
+            "key": _probability_key_to_dict(key),
+            "value": theta.entries[key],
+        })
+
+    domain_list = []
+    for atom in _canonical_atom_order(theta.domains.keys()):
+        domain_list.append({
+            "atom": _atom_to_dict(atom),
+            "values": list(theta.domains[atom]),
+        })
+
+    return {
+        "kind": "theta",
+        "entries": entry_list,
+        "domains": domain_list,
+    }
+
+
+# ------------------------------------------------------------ entry point
+
+def context_to_dict(ctx: VerificationContext) -> dict:
+    """Serialize a VerificationContext to a JSON-ready dict.
+
+    The result validates against ``verification_context.schema.json``
+    and can be fed back to ``context_from_dict`` to reconstruct the
+    same context.
+    """
+    return {
+        "version": CONTEXT_VERSION,
+        "kind": CONTEXT_KIND,
+        "graph": _graph_to_dict(ctx.graph),
+        "query": _query_to_dict(ctx.query),
+        "theta": _theta_to_dict(ctx.theta) if ctx.theta is not None else None,
+    }
+
+
+# ------------------------------------------------------------ query decode
+
+def _decode_intervention(d: dict) -> Intervention:
+    if not isinstance(d, dict):
+        raise DerivationSerializationError("intervention must be a dict")
+    atom_raw = d.get("atom")
+    if not isinstance(atom_raw, dict):
+        raise DerivationSerializationError("intervention.atom must be a dict")
+    return Intervention(atom=_decode_atom(atom_raw), value=d.get("value"))
+
+
+def _decode_query(d: dict):
+    if not isinstance(d, dict):
+        raise DerivationSerializationError("query must be a dict")
+    kind = d.get("kind")
+    if kind == "cause_query":
+        return CauseQuery(
+            from_atom=_decode_atom(d["from_atom"]),
+            to_atom=_decode_atom(d["to_atom"]),
+        )
+    if kind == "assoc_query":
+        return AssocQuery(
+            left=_decode_atom(d["left"]),
+            right=_decode_atom(d["right"]),
+            given=tuple(_decode_atom(a) for a in d.get("given", [])),
+        )
+    if kind == "identify_query":
+        return IdentifyQuery(
+            target=_decode_atom(d["target"]),
+            intervention=_decode_intervention(d["intervention"]),
+            given=tuple(_decode_atom(a) for a in d.get("given", [])),
+        )
+    if kind == "effect_query":
+        return EffectQuery(
+            target=_decode_valued_atom(d["target"]),
+            intervention=_decode_intervention(d["intervention"]),
+            given=tuple(_decode_valued_atom(a) for a in d.get("given", [])),
+        )
+    if kind == "probability_query":
+        return ProbabilityQuery(
+            target=_decode_valued_atom(d["target"]),
+            given=tuple(_decode_valued_atom(a) for a in d.get("given", [])),
+        )
+    raise DerivationSerializationError(f"unknown query kind: {kind!r}")
+
+
+# ------------------------------------------------------------ theta decode
+
+def _decode_probability_key(d: dict) -> ProbabilityKey:
+    if d.get("kind") != "probability_key":
+        raise DerivationSerializationError(
+            "probability_key must have kind='probability_key'"
+        )
+    given_raw = d.get("given", [])
+    if not isinstance(given_raw, list):
+        raise DerivationSerializationError("probability_key.given must be a list")
+    given_pairs = frozenset(
+        (_decode_atom(pair["atom"]), pair["value"]) for pair in given_raw
+    )
+    return ProbabilityKey(
+        target_atom=_decode_atom(d["target_atom"]),
+        target_value=d["target_value"],
+        given=given_pairs,
+    )
+
+
+def _decode_theta(d: dict) -> Theta:
+    if d.get("kind") != "theta":
+        raise DerivationSerializationError("theta must have kind='theta'")
+    entries_raw = d.get("entries", [])
+    domains_raw = d.get("domains", [])
+    if not isinstance(entries_raw, list) or not isinstance(domains_raw, list):
+        raise DerivationSerializationError(
+            "theta.entries and theta.domains must be lists"
+        )
+    entries: dict = {}
+    for e in entries_raw:
+        if not isinstance(e, dict):
+            raise DerivationSerializationError("theta entry must be a dict")
+        entries[_decode_probability_key(e["key"])] = float(e["value"])
+    domains: dict = {}
+    for row in domains_raw:
+        if not isinstance(row, dict):
+            raise DerivationSerializationError("theta domain must be a dict")
+        atom = _decode_atom(row["atom"])
+        values = row.get("values", [])
+        if not isinstance(values, list):
+            raise DerivationSerializationError("theta domain.values must be a list")
+        domains[atom] = tuple(values)
+    return Theta(entries=entries, domains=domains)
+
+
+def context_from_dict(payload: dict) -> VerificationContext:
+    """Inverse of ``context_to_dict``. Rebuilds a VerificationContext
+    usable by ``verify_*`` with no Python-object inputs outside the
+    JSON payload."""
+    if not isinstance(payload, dict):
+        raise DerivationSerializationError("context payload must be a dict")
+    if payload.get("kind") != CONTEXT_KIND:
+        raise DerivationSerializationError(
+            f"context.kind must be {CONTEXT_KIND!r}, got {payload.get('kind')!r}"
+        )
+    if payload.get("version") != CONTEXT_VERSION:
+        raise DerivationSerializationError(
+            f"context.version must be {CONTEXT_VERSION!r}, "
+            f"got {payload.get('version')!r}"
+        )
+
+    graph_raw = payload.get("graph")
+    if not isinstance(graph_raw, dict):
+        raise DerivationSerializationError("context.graph must be a tagged dict")
+    graph = _decode_graph(graph_raw)
+
+    query_raw = payload.get("query")
+    if not isinstance(query_raw, dict):
+        raise DerivationSerializationError("context.query must be a tagged dict")
+    query = _decode_query(query_raw)
+
+    theta_raw = payload.get("theta")
+    theta = None
+    if theta_raw is not None:
+        if not isinstance(theta_raw, dict):
+            raise DerivationSerializationError(
+                "context.theta must be a tagged dict or null"
+            )
+        theta = _decode_theta(theta_raw)
+
+    return VerificationContext(graph=graph, query=query, theta=theta)

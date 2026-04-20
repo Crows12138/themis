@@ -17,6 +17,8 @@ from .errors import (
 from .context import VerificationContext
 from .serialization import (
     DerivationSerializationError,
+    context_from_dict,
+    context_to_dict,
     derivation_from_dict,
     derivation_to_dict,
 )
@@ -29,6 +31,8 @@ __all__ = [
     "UnknownRuleInputError",
     "VerificationContext",
     "VerificationError",
+    "context_from_dict",
+    "context_to_dict",
     "derivation_from_dict",
     "derivation_to_dict",
     "verify_assoc",
