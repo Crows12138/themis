@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/causal-kernel/derivation.schema.json",
+  "title": "Verifier Derivation Payload v0.1",
+  "description": "Serialized form of a QueryResult.derivation for slice V2. The JSON only constrains outer structure and tagged-value shapes; per-rule input/output types are enforced by the verifier itself when it re-hydrates and walks the derivation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "kind", "steps"],
+  "properties": {
+    "version": { "const": "0.1" },
+    "kind": { "const": "derivation" },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "inputs", "output"],
+      "properties": {
+        "rule": { "type": "string" },
+        "step_id": { "type": ["string", "null"] },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        },
+        "output": { "$ref": "#/$defs/value" }
+      }
+    },
+    "value": {
+      "description": "A derivation value: primitive, or a tagged object discriminated by 'kind'. Leaf primitives (bool / number / string / null) carry themselves.",
+      "oneOf": [
+        { "type": ["boolean", "number", "string", "null"] },
+        { "$ref": "#/$defs/tagged" }
+      ]
+    },
+    "tagged": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "atom",
+            "valued_atom",
+            "var_ref",
+            "step_ref",
+            "graph",
+            "structural_result",
+            "numeric_result",
+            "constant",
+            "probability_ref",
+            "product",
+            "sum",
+            "atom_set",
+            "atom_tuple",
+            "valued_atom_tuple"
+          ]
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

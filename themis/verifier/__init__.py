@@ -15,14 +15,22 @@ from .errors import (
     VerificationError,
 )
 from .context import VerificationContext
+from .serialization import (
+    DerivationSerializationError,
+    derivation_from_dict,
+    derivation_to_dict,
+)
 from .verify import verify_identify, verify_numeric
 
 __all__ = [
+    "DerivationSerializationError",
     "RuleNotFoundError",
     "StepRefError",
     "UnknownRuleInputError",
     "VerificationContext",
     "VerificationError",
+    "derivation_from_dict",
+    "derivation_to_dict",
     "verify_identify",
     "verify_numeric",
 ]
