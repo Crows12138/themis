@@ -224,7 +224,15 @@ runtime             oracle (可选)
 | `result_orchestrator` | 把 runtime 的内部状态拼成 query_result schema 的对象 |
 | `explainer` | 生成自然语言解释（路径、缺失项、调查建议） |
 
-### 5.5 底层
+### 5.5 workflow 层（v0.2+）
+
+跨多次运行、多步流程的工具化能力；组合既有 input / runtime / output，从不越层操作 runtime 内部。
+
+| 模块 | 职责 |
+|---|---|
+| `parameter_fill` | 参数回填三步闭环：`extract_skeleton_bundle` / `merge_skeleton_bundle` / `diff_runs`（slice 9.x-C） |
+
+### 5.6 底层
 
 - `networkx`：DAG 表示
 - `jsonschema`：syntactic_validator 底座

@@ -116,7 +116,9 @@
 
 ## 当前进行中
 
-- **9.x-B**（下一条）：investigation 分组聚合 + probability 语句骨架自动生成
+- ✅ **9.x-B**：investigation 分组聚合 + probability 语句骨架自动生成（commit fa2414b）
+- ✅ **9.x-C**：参数回填工作流——extract / merge / diff 三步闭环
+- ⏳ **9.x-A**：`annotations.source` 结构化——待真实使用中出现"来源追踪 / 出处审计"的具体卡点再启动
 
 ---
 

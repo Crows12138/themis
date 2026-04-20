@@ -1,0 +1,58 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [{"kind": "object", "name": "alice"}]
+  },
+  "statements": [
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "stress", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "smokes", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "stress", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "cancer", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "smokes", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "cancer", "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {"atom": {"predicate": "cancer", "args": [{"type": "var", "name": "X"}]}, "value": true},
+     "given":  [
+       {"atom": {"predicate": "smokes", "args": [{"type": "var", "name": "X"}]}, "value": false},
+       {"atom": {"predicate": "stress", "args": [{"type": "var", "name": "X"}]}, "value": true}
+     ],
+     "value": 0.3,
+     "annotations": {"confidence": 0.9, "source": "study_high_confidence_a"}},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {"atom": {"predicate": "cancer", "args": [{"type": "var", "name": "X"}]}, "value": true},
+     "given":  [
+       {"atom": {"predicate": "smokes", "args": [{"type": "var", "name": "X"}]}, "value": false},
+       {"atom": {"predicate": "stress", "args": [{"type": "var", "name": "X"}]}, "value": false}
+     ],
+     "value": 0.1,
+     "annotations": {"confidence": 0.3, "source": "study_low_confidence_b"}},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {"atom": {"predicate": "stress", "args": [{"type": "var", "name": "X"}]}, "value": true},
+     "given":  [],
+     "value": 0.4,
+     "annotations": {"confidence": 0.9, "source": "survey_high_confidence_c"}},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {"atom": {"predicate": "stress", "args": [{"type": "var", "name": "X"}]}, "value": false},
+     "given":  [],
+     "value": 0.6,
+     "annotations": {"confidence": 0.9, "source": "survey_high_confidence_d"}},
+
+    {"kind": "query", "id": "effect_cancer_confidence_mixed",
+     "query": {
+       "kind": "effect",
+       "target": {"atom": {"predicate": "cancer", "args": [{"type": "const", "name": "alice"}]}, "value": true},
+       "intervention": {
+         "atom": {"predicate": "smokes", "args": [{"type": "const", "name": "alice"}]},
+         "value": false
+       },
+       "given": []
+     }}
+  ]
+}
