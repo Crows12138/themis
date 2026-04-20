@@ -14,10 +14,14 @@ from __future__ import annotations
 
 from ..runtime import formula_builder
 from ..types import (
+    EffectQuery,
+    ProbabilityQuery,
     ProbabilityRefExpr,
     QueryKind,
     QueryResult,
+    ResultStatus,
     SumExpr,
+    ValuedAtom,
 )
 
 
@@ -65,6 +69,32 @@ def _format_atom_set(atoms) -> str:
     return "{" + ", ".join(labels) + "}"
 
 
+def _labeled_value(va: ValuedAtom) -> str:
+    """Render a ValuedAtom as ``predicate(args)=value`` for display."""
+    return f"{_atom_label(va.atom)}={va.value}"
+
+
+def _format_number(x: float) -> str:
+    """Compact numeric formatting: avoid trailing zeros from ``.3f``."""
+    return f"{x:.4g}"
+
+
+def _describe_adjustment(formula) -> str:
+    """Short sentence describing how the formula identifies its target."""
+    if formula is None:
+        return ""
+    adj = formula_builder.adjustment_atoms(formula)
+    if adj:
+        size_note = f"（共 {len(adj)} 个调整变量）" if len(adj) > 1 else ""
+        return (
+            f"识别通过后门调整集 {_format_atom_set(adj)}"
+            f"{size_note}。"
+        )
+    if isinstance(formula, ProbabilityRefExpr):
+        return "无需后门调整（观察分布直接给出答案）。"
+    return ""
+
+
 def _explain_identify_zh(result: QueryResult) -> str:
     sr = result.structural_result
     if sr is None:
@@ -94,8 +124,92 @@ def _explain_identify_zh(result: QueryResult) -> str:
     return "识别结果未分类。"
 
 
-def explain(result: QueryResult, lang: str = "zh") -> str:
-    """Render a QueryResult as a plain-text explanation."""
+def _explain_effect_zh(result: QueryResult, stmt) -> str:
+    """Render an effect query result.
+
+    Needs the originating stmt to quote the target value, intervention
+    and conditioning context the user actually asked about — those are
+    not recoverable from result.formula alone (e.g. the intervention
+    value is embedded inside a ValuedAtom nested under probability_ref,
+    but extracting it from the structured query is cleaner).
+    """
+    if stmt is not None and isinstance(stmt.query, EffectQuery):
+        q = stmt.query
+        target_desc = _labeled_value(q.target)
+        intervention_desc = (
+            f"do({_atom_label(q.intervention.atom)}={q.intervention.value})"
+        )
+        given_desc = (
+            "，条件 " + ", ".join(_labeled_value(g) for g in q.given)
+            if q.given else ""
+        )
+        quantity = f"P({target_desc} | {intervention_desc}{given_desc})"
+    else:
+        quantity = "该干预量"
+
+    if result.status is ResultStatus.NUMERICALLY_SOLVED and result.numeric_result is not None:
+        return (
+            f"{quantity} = {_format_number(result.numeric_result.value)}。"
+            f"{_describe_adjustment(result.formula)}"
+        )
+
+    sr = result.structural_result
+    if sr is not None and sr.value is False:
+        return f"{quantity} 在当前结构下不可识别（无有效后门调整集）。"
+
+    if result.status is ResultStatus.NEEDS_INVESTIGATION:
+        pieces = [f"{quantity} 可识别。"]
+        adj = _describe_adjustment(result.formula)
+        if adj:
+            pieces.append(adj)
+        if result.missing_information:
+            names = ", ".join(m.name for m in result.missing_information)
+            pieces.append(f"当前还缺参数：{names}。")
+        return "".join(pieces)
+
+    return f"{quantity}：结果未分类。"
+
+
+def _explain_probability_zh(result: QueryResult, stmt) -> str:
+    """Render a plain probability query result."""
+    if stmt is not None and isinstance(stmt.query, ProbabilityQuery):
+        q = stmt.query
+        target_desc = _labeled_value(q.target)
+        given_desc = (
+            " | " + ", ".join(_labeled_value(g) for g in q.given)
+            if q.given else ""
+        )
+        quantity = f"P({target_desc}{given_desc})"
+    else:
+        quantity = "该条件概率"
+
+    if result.status is ResultStatus.NUMERICALLY_SOLVED and result.numeric_result is not None:
+        return f"{quantity} = {_format_number(result.numeric_result.value)}。"
+
+    if result.status is ResultStatus.NEEDS_INVESTIGATION:
+        if result.missing_information:
+            names = ", ".join(m.name for m in result.missing_information)
+            return f"{quantity} 暂无法计算，缺参数：{names}。"
+        return f"{quantity} 暂无法计算。"
+
+    return f"{quantity}：结果未分类。"
+
+
+def explain(
+    result: QueryResult,
+    lang: str = "zh",
+    *,
+    stmt=None,
+) -> str:
+    """Render a QueryResult as a plain-text explanation.
+
+    Positional args are stable for backward compatibility. The
+    keyword-only ``stmt`` lets callers hand in the originating
+    ``QueryStatement`` so ``effect`` / ``probability`` explanations
+    can quote the exact target value / intervention / conditioning
+    the user asked about. The explainer still MUST NOT re-run any
+    reasoning — ``stmt`` is used for display only.
+    """
     if lang != "zh":
         raise NotImplementedError(f"language '{lang}' not supported in v0.1")
     if result.query_kind == QueryKind.CAUSE:
@@ -104,7 +218,10 @@ def explain(result: QueryResult, lang: str = "zh") -> str:
         return _explain_assoc_zh(result)
     if result.query_kind == QueryKind.IDENTIFY:
         return _explain_identify_zh(result)
-    # Slice 5+: effect, probability.
+    if result.query_kind == QueryKind.EFFECT:
+        return _explain_effect_zh(result, stmt)
+    if result.query_kind == QueryKind.PROBABILITY:
+        return _explain_probability_zh(result, stmt)
     raise NotImplementedError(
         f"explainer for {result.query_kind.value} not implemented yet"
     )

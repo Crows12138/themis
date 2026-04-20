@@ -79,3 +79,45 @@ def test_effect_result_round_trips_through_schema(run):
     # Formula is still emitted even though numeric layer closed it.
     assert "formula" in payload
     assert payload["formula"]["kind"] == "sum"
+
+
+# ------------------------------------------------------ slice 8.2 explainer
+
+def test_effect_success_explanation_states_adjustment_and_value(run):
+    """Slice 8.2: the effect explainer must quote the target, the
+    intervention, and the numeric answer when the query succeeds,
+    plus name the adjustment set that identified it."""
+    from themis.output.explainer import explain
+    from themis.types import QueryStatement
+
+    program = run[0]
+    results = run[2]
+    stmt = next(
+        s for s in program.statements
+        if isinstance(s, QueryStatement) and s.id == "effect_cancer_given_no_smoke"
+    )
+    text = explain(results["effect_cancer_given_no_smoke"], stmt=stmt)
+
+    # Query surface pieces.
+    assert "cancer(alice)" in text
+    assert "smokes(alice)" in text
+    assert "do(" in text
+    # Numeric answer (rendered via :.4g).
+    assert "0.18" in text
+    # Identification method.
+    assert "stress(alice)" in text
+    assert "后门" in text
+
+
+def test_effect_explanation_without_stmt_falls_back_to_generic(run):
+    """Back-compat: callers that don't pass stmt still get a coherent
+    explanation, just without the specific target / intervention
+    quotation."""
+    from themis.output.explainer import explain
+
+    _, _, results, _ = run
+    text = explain(results["effect_cancer_given_no_smoke"])
+    # No per-query atoms, but still mentions the numeric value and
+    # adjustment set.
+    assert "0.18" in text
+    assert "stress(alice)" in text

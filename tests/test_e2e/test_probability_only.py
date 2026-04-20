@@ -86,3 +86,71 @@ def test_categorical_backdoor_numeric_matches_hand_compute():
         f"unexpected needs_investigation with missing={r.missing_information}"
     )
     assert r.numeric_result.value == pytest.approx(0.175)
+
+
+# ----------------------------------------------------- slice 8.2 explainer
+
+def test_probability_success_explanation_quotes_target_and_value():
+    """Slice 8.2: probability explainer must render
+    P(target=val | given=val, ...) and the numeric answer."""
+    from themis.output.explainer import explain
+    from themis.types import QueryStatement
+
+    path = FIXTURES / "probability_no_graph.json"
+    ast = parse_json(path.read_text(encoding="utf-8"))
+    program = validate_program(validate_ast(ast))
+    graph = project(instantiate(program))
+    results = {r.query_id: r for r in dispatch_all(program, graph)}
+    stmt = next(
+        s for s in program.statements
+        if isinstance(s, QueryStatement) and s.id == "prob_coin_true"
+    )
+    text = explain(results["prob_coin_true"], stmt=stmt)
+
+    assert "coin(a)" in text
+    assert "0.7" in text
+    # P(...) surface: probability queries render as P(target=value[|given])
+    assert text.startswith("P(")
+
+
+def test_probability_missing_parameter_explanation_lists_gap():
+    """When a probability query's Theta entry is absent, the explainer
+    must say so and name the missing parameter."""
+    from themis.output.explainer import explain
+    from themis.types import (
+        Atom,
+        ConstTerm,
+        ProbabilityQuery,
+        Program,
+        QueryStatement,
+        ValuedAtom,
+    )
+    from themis.runtime.graph_projection import project as _project
+    from themis.runtime.instantiation import instantiate as _inst
+
+    # Tiny synthetic program: empty Theta, one probability query.
+    coin = Atom(predicate="coin", args=(ConstTerm(name="a"),))
+    program = Program(
+        version="0.1",
+        objects=("a",),
+        statements=(
+            QueryStatement(
+                id="q",
+                query=ProbabilityQuery(
+                    target=ValuedAtom(atom=coin, value=True),
+                    given=(),
+                ),
+            ),
+        ),
+    )
+    graph = _project(_inst(program))
+    results = {r.query_id: r for r in dispatch_all(program, graph)}
+    r = results["q"]
+
+    assert r.status is ResultStatus.NEEDS_INVESTIGATION
+    stmt = program.statements[0]
+    text = explain(r, stmt=stmt)
+    assert "coin(a)" in text
+    assert "无法计算" in text or "缺参数" in text
+    # The structured missing-parameter name should appear verbatim.
+    assert any(m.name in text for m in r.missing_information)

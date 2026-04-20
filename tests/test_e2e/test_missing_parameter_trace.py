@@ -139,3 +139,37 @@ def test_result_round_trips_through_query_result_schema(result):
     # Missing info and investigation are both serialized.
     assert len(payload["missing_information"]) == 1
     assert len(payload["investigation_requests"]) == 1
+
+
+# ------------------------------------------------------ slice 8.2 explainer
+
+def test_missing_parameter_explanation_names_the_gap(result):
+    """The effect explainer must:
+    1. acknowledge that the query is identifiable (formula exists),
+    2. name the adjustment set that identifies it, and
+    3. list the exact missing parameter by its structured name.
+
+    Before slice 8.2 the explainer raised NotImplementedError on
+    effect results, so this path had no user-facing surface at all."""
+    from pathlib import Path
+    from themis.input.parser import parse_json
+    from themis.input.semantic_validator import validate_program
+    from themis.input.syntactic_validator import validate_ast
+    from themis.output.explainer import explain
+    from themis.types import QueryStatement
+
+    ast = parse_json(FIXTURE.read_text(encoding="utf-8"))
+    validate_ast(ast)
+    program = validate_program(ast)
+    stmt = next(
+        s for s in program.statements
+        if isinstance(s, QueryStatement)
+        and s.id == "effect_cancer_missing_theta"
+    )
+    text = explain(result, stmt=stmt)
+
+    # (1) identifiable acknowledgment + (2) adjustment set
+    assert "可识别" in text
+    assert "stress(alice)" in text
+    # (3) exact missing parameter is surfaced, not abbreviated
+    assert "parameter:P(cancer=True|smokes=False,stress=False)" in text
