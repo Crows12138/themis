@@ -1,0 +1,58 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [{"kind": "object", "name": "me"}]
+  },
+  "statements": [
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "diet_control", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "exercise_regular", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "diet_control", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "waist_reduced", "args": [{"type": "var", "name": "X"}]}},
+    {"kind": "cause", "forall": ["X"],
+     "from": {"predicate": "exercise_regular", "args": [{"type": "var", "name": "X"}]},
+     "to":   {"predicate": "waist_reduced", "args": [{"type": "var", "name": "X"}]}},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "waist_reduced", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [
+       {"atom": {"predicate": "exercise_regular", "args": [{"type": "var", "name": "X"}]}, "value": true},
+       {"atom": {"predicate": "diet_control", "args": [{"type": "var", "name": "X"}]}, "value": true}
+     ],
+     "value": 0.7},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "diet_control", "args": [{"type": "var", "name": "X"}]},
+       "value": true
+     },
+     "given": [],
+     "value": 0.4},
+
+    {"kind": "probability", "forall": ["X"],
+     "target": {
+       "atom": {"predicate": "diet_control", "args": [{"type": "var", "name": "X"}]},
+       "value": false
+     },
+     "given": [],
+     "value": 0.6},
+
+    {"kind": "query", "id": "effect_waist_reduced_missing_parameter",
+     "query": {
+       "kind": "effect",
+       "target": {
+         "atom": {"predicate": "waist_reduced", "args": [{"type": "const", "name": "me"}]},
+         "value": true
+       },
+       "intervention": {
+         "atom": {"predicate": "exercise_regular", "args": [{"type": "const", "name": "me"}]},
+         "value": true
+       },
+       "given": []
+     }}
+  ]
+}
