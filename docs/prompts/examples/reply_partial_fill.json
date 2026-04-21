@@ -7,15 +7,19 @@
     "unfilled": [
       {"predicate": "running", "field": "measurement",
        "reason": "user explicitly said '还没想好' for the rest — leave null"},
-      {"predicate": "running", "field": "threshold",
-       "reason": "still unspecified"},
-      {"predicate": "running", "field": "observability",
-       "reason": "still unspecified"},
+      {"predicate": "running", "field": "threshold", "reason": "still unspecified"},
+      {"predicate": "running", "field": "observability", "reason": "still unspecified"},
+      {"predicate": "running", "field": "direction", "reason": "slice #41 field not stated"},
+      {"predicate": "running", "field": "baseline", "reason": "slice #41 field not stated"},
+      {"predicate": "running", "field": "state_vs_event", "reason": "slice #41 field not stated"},
       {"predicate": "belly_fat_loss", "field": "measurement", "reason": "not mentioned"},
       {"predicate": "belly_fat_loss", "field": "threshold", "reason": "not mentioned"},
-      {"predicate": "belly_fat_loss", "field": "observability", "reason": "not mentioned"}
+      {"predicate": "belly_fat_loss", "field": "observability", "reason": "not mentioned"},
+      {"predicate": "belly_fat_loss", "field": "direction", "reason": "slice #41 field not stated"},
+      {"predicate": "belly_fat_loss", "field": "baseline", "reason": "slice #41 field not stated"},
+      {"predicate": "belly_fat_loss", "field": "state_vs_event", "reason": "slice #41 field not stated"}
     ],
-    "policy": "A0/F1 will re-surface the remaining six gaps on the next turn; partial fill is a legitimate workflow state"
+    "policy": "A0/F1 will re-surface the remaining twelve gaps on the next turn; partial fill is a legitimate workflow state"
   },
   "input_bundle": {
     "version": "0.1",
@@ -29,7 +33,10 @@
           "time_window": null,
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       },
       {
@@ -40,7 +47,10 @@
           "time_window": null,
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       }
     ]
@@ -57,7 +67,10 @@
           "time_window": "12w",
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       },
       {
@@ -68,7 +81,10 @@
           "time_window": "12w",
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       }
     ]

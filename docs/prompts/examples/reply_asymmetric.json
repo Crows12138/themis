@@ -8,10 +8,13 @@
     "unfilled": [
       {"predicate": "running", "field": "time_window",
        "reason": "user gave cadence but no total duration — leave null"},
+      {"predicate": "running", "field": "direction", "reason": "slice #41 field not stated"},
+      {"predicate": "running", "field": "baseline", "reason": "slice #41 field not stated"},
+      {"predicate": "running", "field": "state_vs_event", "reason": "slice #41 field not stated"},
       {"predicate": "belly_fat_loss", "field": "*",
-       "reason": "user explicitly said '不确定怎么量' — all four fields stay null"}
+       "reason": "user explicitly said '不确定怎么量' — all seven fields stay null"}
     ],
-    "policy": "asymmetric fills are legitimate; F1 will re-surface belly_fat_loss's four gaps next turn"
+    "policy": "asymmetric fills are legitimate; F1 will re-surface belly_fat_loss's seven gaps next turn"
   },
   "input_bundle": {
     "version": "0.1",
@@ -25,7 +28,10 @@
           "time_window": null,
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       },
       {
@@ -36,7 +42,10 @@
           "time_window": null,
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       }
     ]
@@ -53,7 +62,10 @@
           "time_window": null,
           "measurement": "fitness tracker log",
           "threshold": ">=3 sessions/week, 30 min each",
-          "observability": "wearable"
+          "observability": "wearable",
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       },
       {
@@ -64,7 +76,10 @@
           "time_window": null,
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       }
     ]

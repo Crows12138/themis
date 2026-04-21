@@ -6,13 +6,15 @@
         "predicate": "running",
         "basis": "narrative explicitly states a running habit with clear cadence",
         "filled_fields": ["time_window", "threshold", "measurement", "observability"],
-        "skipped_fields": []
+        "skipped_fields": ["direction", "baseline", "state_vs_event"],
+        "skip_reason": "slice #41 framing dimensions: narrative implies them but doesn't state them as framing metadata; left for A0 to surface"
       },
       {
         "predicate": "waist_reduced",
         "basis": "narrative states baseline (85 cm) and follow-up (82 cm) with a 3 cm decrease — the boolean 'waist reduced' is operationally defined by that decrease",
         "filled_fields": ["time_window", "threshold", "measurement", "observability"],
-        "skipped_fields": []
+        "skipped_fields": ["direction", "baseline", "state_vs_event"],
+        "skip_reason": "slice #41 framing dimensions: narrative implies them but doesn't state them as framing metadata; left for A0 to surface"
       }
     ],
     "notes": "Both variables came out nearly fully framed because the narrative is unusually concrete. A0/F1 will still have almost nothing to ask the user about once this narrative is in the program."

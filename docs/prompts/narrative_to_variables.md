@@ -70,7 +70,7 @@ Skip:
 
 ### 3. Fill framing fields from the narrative
 
-`VariableDeclaration` supports five optional framing fields:
+`VariableDeclaration` supports eight optional framing fields:
 
 | Field | What to extract from narrative |
 |---|---|
@@ -79,6 +79,9 @@ Skip:
 | `threshold` | The boundary that makes the bool true: "≥3 times/week", "systolic ≥130 mmHg", "waist decreased ≥3 cm" |
 | `observability` | Who / what records it: `self-report`, `wearable`, `clinic-measured`, `third-party` |
 | `unit` | Physical unit if the raw quantity is numeric (mmHg, cm, kg, minutes) — optional; omit if the variable is clearly categorical |
+| `direction` | **Slice #41.** Polarity the bool encodes: `"up"` / `"down"` / `"mixed"`. Fills when the narrative says "血糖升高 / 下降 / 波动" — resolves the "影响 X" ambiguity |
+| `baseline` | **Slice #41.** Reference level the change is measured from: `"pre-intervention waist"`, `"school mid-term baseline"`, `"one month prior"` |
+| `state_vs_event` | **Slice #41.** Whether the predicate describes a persistent state (`"state"`) or a discrete event (`"event"`). Helps disambiguate e.g. "闹矛盾" as one-off vs ongoing |
 
 **Rules**:
 

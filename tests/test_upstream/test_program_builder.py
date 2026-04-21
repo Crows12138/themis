@@ -90,13 +90,14 @@ def test_effect_program_dispatches_and_surfaces_define_variable_request():
     assert len(define_requests) == 1
     targets = {item.target for item in define_requests[0].items}
     assert targets == {"running", "belly_fat_loss"}
-    # Every flagged predicate is missing exactly the four framing
-    # fields — time_window is the one the driving use case cares
-    # about, and it is present.
+    # Every flagged predicate is missing exactly the seven framing
+    # fields (post-#41): the four original + direction / baseline /
+    # state_vs_event.
     for item in define_requests[0].items:
         fields = set(item.skeleton["fields"].keys())
         assert fields == {
             "time_window", "measurement", "threshold", "observability",
+            "direction", "baseline", "state_vs_event",
         }
 
 

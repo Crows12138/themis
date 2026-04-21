@@ -186,7 +186,8 @@ def _statement_to_dict(s) -> dict:
         if s.domain is not None:
             d["domain"] = list(s.domain)
         for field in ("time_window", "measurement", "threshold",
-                      "observability", "unit"):
+                      "observability", "unit",
+                      "direction", "baseline", "state_vs_event"):
             v = getattr(s, field)
             if v is not None:
                 d[field] = v

@@ -142,7 +142,10 @@ def test_reply_example_closes_expected_gaps(example_path):
         for note in r.get("framing_notes", [])
     }
 
-    reportable = {"time_window", "measurement", "threshold", "observability"}
+    reportable = {
+        "time_window", "measurement", "threshold", "observability",
+        "direction", "baseline", "state_vs_event",
+    }
     for patch in payload["filled_bundle"]["patches"]:
         pred = patch["predicate"]
         filled_here = {

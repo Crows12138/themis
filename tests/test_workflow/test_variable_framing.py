@@ -399,12 +399,15 @@ def test_end_to_end_loop_on_exercise_waist_underframed():
     patch = bundle["patches"][0]
     assert patch["predicate"] == "waist_reduced"
 
-    # Author fills every gap.
+    # Author fills every gap. Post-#41 that means 7 fields, not 4.
     patch["fields"] = {
         "time_window": "12w",
         "measurement": "waist circumference cm",
         "threshold": ">=3cm",
         "observability": "self-reported",
+        "direction": "down",
+        "baseline": "prior week",
+        "state_vs_event": "state",
     }
 
     merged = merge_variable_declaration(program, bundle)
@@ -494,6 +497,7 @@ def test_scheduler_surfaces_define_variable_request_when_framing_gap_exists():
     assert item.skeleton["existing"] == {"domain": [True, False]}
     assert set(item.skeleton["fields"].keys()) == {
         "time_window", "measurement", "threshold", "observability",
+        "direction", "baseline", "state_vs_event",
     }
     assert all(v is None for v in item.skeleton["fields"].values())
 
@@ -531,6 +535,9 @@ def test_scheduler_emits_no_define_variable_request_when_fully_declared():
                 measurement="cm",
                 threshold=">=3",
                 observability="observed",
+                direction="up",
+                baseline="prior",
+                state_vs_event="state",
             ),
             VariableDeclaration(
                 predicate="y",
@@ -539,6 +546,9 @@ def test_scheduler_emits_no_define_variable_request_when_fully_declared():
                 measurement="cm",
                 threshold=">=3",
                 observability="observed",
+                direction="up",
+                baseline="prior",
+                state_vs_event="state",
             ),
             QueryStatement(
                 id="q",
@@ -698,6 +708,9 @@ def test_end_to_end_define_variable_loop_via_investigation_channel():
         "measurement": "waist circumference cm",
         "threshold": ">=3cm",
         "observability": "self-reported",
+        "direction": "down",
+        "baseline": "prior week",
+        "state_vs_event": "state",
     }
 
     merged = merge_variable_declaration(program, bundle)

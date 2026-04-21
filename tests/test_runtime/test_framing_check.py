@@ -49,7 +49,7 @@ def test_no_declarations_emits_no_notes():
 
 def test_partial_declaration_reports_unset_fields():
     """A predicate declared with only domain emits a note listing the
-    other four reportable fields."""
+    other reportable fields (post-#41: 7 of them)."""
     stmt = _effect_query("waist_reduced", "exercise_regular")
     program = _program(
         VariableDeclaration(
@@ -62,12 +62,14 @@ def test_partial_declaration_reports_unset_fields():
     assert notes[0].predicate == "waist_reduced"
     assert set(notes[0].missing) == {
         "time_window", "measurement", "threshold", "observability",
+        "direction", "baseline", "state_vs_event",
     }
 
 
 def test_fully_declared_predicate_emits_no_note():
     """If every reportable field is set the predicate is silent even
-    though a declaration exists."""
+    though a declaration exists. Post-#41 that means 7 framing
+    fields + domain."""
     stmt = _effect_query("waist_reduced", "exercise_regular")
     program = _program(
         VariableDeclaration(
@@ -77,6 +79,9 @@ def test_fully_declared_predicate_emits_no_note():
             measurement="waist cm",
             threshold=">=3cm",
             observability="observable",
+            direction="down",
+            baseline="pre-intervention waist",
+            state_vs_event="state",
         ),
         stmt,
     )
@@ -95,6 +100,9 @@ def test_undeclared_predicate_stays_silent_even_when_others_are_declared():
             measurement="waist cm",
             threshold=">=3cm",
             observability="observable",
+            direction="down",
+            baseline="pre-intervention waist",
+            state_vs_event="state",
         ),
         stmt,
     )

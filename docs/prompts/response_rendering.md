@@ -69,6 +69,14 @@ understands what they need to supply:
 - `measurement`: e.g. "腰围（cm）", "手环记录的里程", "自报告"
 - `threshold`: e.g. "≥3 sessions/week", "下降 ≥3 cm"
 - `observability`: e.g. "自报告", "医院测量", "可穿戴设备记录"
+- `direction` (slice #41): e.g. `"up"`, `"down"`, `"mixed"` — ask when
+  the user's "影响 X" could be raise / lower / fluctuate
+- `baseline` (slice #41): e.g. "pre-intervention clinic BP", "prior
+  school-term score" — ask when the user talks about 提高 / 下降 but
+  didn't name a reference level
+- `state_vs_event` (slice #41): `"state"` / `"event"` — ask when a
+  predicate could plausibly describe either a persistent habit or a
+  discrete occurrence
 
 Examples should match the predicate's real-world meaning — do not list
 generic placeholders.

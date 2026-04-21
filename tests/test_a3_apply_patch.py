@@ -61,12 +61,16 @@ def _underframed_effect_program() -> dict:
 
 def _framing_filled_bundle() -> dict:
     """A framing_skeleton_bundle with every gap field filled, ready
-    to patch the underframed program."""
+    to patch the underframed program. Post-#41 the reportable set
+    is 7 fields."""
     filled = {
         "time_window": "12w",
         "measurement": "waist cm",
         "threshold": ">=3cm",
         "observability": "self-report",
+        "direction": "down",
+        "baseline": "prior week",
+        "state_vs_event": "state",
     }
     return {
         "version": "0.1",

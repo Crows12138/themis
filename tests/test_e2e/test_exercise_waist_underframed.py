@@ -60,14 +60,15 @@ def test_numeric_verdict_unchanged_by_framing():
 
 def test_framing_notes_flag_underspecified_outcome():
     """waist_reduced is declared with only domain → note lists the
-    remaining four reportable fields. exercise_regular / diet_control
-    are fully declared → no notes for them."""
+    remaining reportable fields (post-#41: 7 of them).
+    exercise_regular / diet_control are fully declared → no notes."""
     _, results, _ = _run()
     r = results[0]
     notes = {n.predicate: set(n.missing) for n in r.framing_notes}
     assert "waist_reduced" in notes
     assert notes["waist_reduced"] == {
         "time_window", "measurement", "threshold", "observability",
+        "direction", "baseline", "state_vs_event",
     }
     assert "exercise_regular" not in notes
     assert "diet_control" not in notes
@@ -100,6 +101,7 @@ def test_result_round_trips_through_schema():
     assert notes[0]["predicate"] == "waist_reduced"
     assert set(notes[0]["missing"]) == {
         "time_window", "measurement", "threshold", "observability",
+        "direction", "baseline", "state_vs_event",
     }
 
 

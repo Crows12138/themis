@@ -396,6 +396,18 @@
         },
         "unit": {
           "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "description": "Slice #41. Effect polarity the predicate commits to: e.g. \"up\" (the predicate fires when the underlying quantity increases), \"down\", \"mixed\". Surfaces questions where '影响 X' is ambiguous between raise / lower / fluctuate."
+        },
+        "baseline": {
+          "type": "string",
+          "description": "Slice #41. The reference level a change is measured from, e.g. \"pre-intervention clinic BP\", \"school-reported mid-term score\". Surfaces questions like '提高数学成绩' where improvement relative to what baseline is not stated."
+        },
+        "state_vs_event": {
+          "type": "string",
+          "description": "Slice #41. Whether the predicate describes a habitual / persistent state or a discrete event: \"state\" vs \"event\". Surfaces ambiguity between e.g. '跟同事闹矛盾' as a one-off episode versus an ongoing relational state."
         }
       }
     },

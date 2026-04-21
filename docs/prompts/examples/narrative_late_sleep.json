@@ -6,15 +6,15 @@
         "predicate": "staying_up_late",
         "basis": "narrative gives a concrete bedtime threshold (after 1 AM) and a cadence (weekdays, habitual)",
         "filled_fields": ["time_window", "threshold", "observability"],
-        "skipped_fields": ["measurement"],
-        "skip_reason": "'threshold: bedtime after 01:00' doubles as the measurement; no separate sensor / survey"
+        "skipped_fields": ["measurement", "direction", "baseline", "state_vs_event"],
+        "skip_reason": "'threshold: bedtime after 01:00' doubles as the measurement. Slice #41 fields (direction / baseline / state_vs_event) aren't stated as metadata in the narrative — left for A0"
       },
       {
         "predicate": "cognitive_slowness",
         "basis": "narrative describes a subjective outcome ('犯困', '反应变慢') but offers no concrete measurement or threshold",
         "filled_fields": ["observability"],
-        "skipped_fields": ["time_window", "measurement", "threshold"],
-        "skip_reason": "A0/F1 should surface these gaps — the user hasn't said how long it's been going on, hasn't named a test (e.g. PVT reaction time), and hasn't set a cutoff"
+        "skipped_fields": ["time_window", "measurement", "threshold", "direction", "baseline", "state_vs_event"],
+        "skip_reason": "A0/F1 should surface these gaps — the user hasn't said how long it's been going on, hasn't named a test (e.g. PVT reaction time), hasn't set a cutoff, and hasn't framed direction / baseline / state_vs_event"
       }
     ],
     "notes": "Deliberate asymmetry: the cause side is framed, the outcome side is not. This is exactly the kind of underspecified downstream variable the framing channel is designed to flag."

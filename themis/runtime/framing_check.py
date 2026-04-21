@@ -45,6 +45,13 @@ _REPORTABLE_FIELDS: tuple[str, ...] = (
     "measurement",
     "threshold",
     "observability",
+    # Slice #41 additions — direction / baseline / state_vs_event
+    # join the gap list so A0 surfaces them the same way it does the
+    # original four. ``unit`` stays out (optional, not all predicates
+    # have a physical unit).
+    "direction",
+    "baseline",
+    "state_vs_event",
 )
 
 
@@ -61,6 +68,10 @@ _PATCH_DISPLAY_FIELDS: tuple[str, ...] = (
     "threshold",
     "observability",
     "unit",
+    # Slice #41
+    "direction",
+    "baseline",
+    "state_vs_event",
 )
 
 

@@ -179,6 +179,9 @@ def _to_statement(d: dict):
             threshold=d.get("threshold"),
             observability=d.get("observability"),
             unit=d.get("unit"),
+            direction=d.get("direction"),
+            baseline=d.get("baseline"),
+            state_vs_event=d.get("state_vs_event"),
         )
     raise SemanticError(f"unknown statement kind: {k}")
 

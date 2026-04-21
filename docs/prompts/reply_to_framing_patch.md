@@ -78,6 +78,9 @@ Extract concrete, operationalized facts the user supplied:
 | `measurement` | "腰围 cm", "手环记录里程", "自报告饮食日记" |
 | `threshold` | "≥3 次/周, 30 min/次", "下降 ≥3 cm", "BMI 上升 ≥1" |
 | `observability` | "self-report", "clinic-measured", "wearable" |
+| `direction` | slice #41 — `"up"` / `"down"` / `"mixed"`. Fill when user clarifies "影响 X" into升 / 降 / 波动 |
+| `baseline` | slice #41 — reference level the change is measured from, e.g. `"prior week"`, `"mid-term baseline"` |
+| `state_vs_event` | slice #41 — `"state"` for persistent habits, `"event"` for one-off occurrences |
 
 Per predicate:
 

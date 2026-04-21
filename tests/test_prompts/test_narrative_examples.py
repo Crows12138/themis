@@ -148,7 +148,10 @@ def test_narrative_example_surfaces_blank_fields_as_framing_gaps(example_path):
         for note in r.get("framing_notes", [])
     }
 
-    reportable = {"time_window", "measurement", "threshold", "observability"}
+    reportable = {
+        "time_window", "measurement", "threshold", "observability",
+        "direction", "baseline", "state_vs_event",
+    }
     for item in reasoning.get("identified_variables", []):
         pred = item["predicate"]
         skipped = set(item.get("skipped_fields", []))

@@ -76,6 +76,10 @@ _PATCHABLE_FIELDS: tuple[str, ...] = (
     "threshold",
     "observability",
     "unit",
+    # Slice #41 — three extra framing dimensions
+    "direction",
+    "baseline",
+    "state_vs_event",
 )
 
 

@@ -6,15 +6,15 @@
         "predicate": "daily_coffee",
         "basis": "narrative explicitly states daily cadence and 2 cups",
         "filled_fields": ["time_window", "threshold", "observability"],
-        "skipped_fields": ["measurement"],
-        "skip_reason": "threshold + daily = enough; no separate measurement channel mentioned"
+        "skipped_fields": ["measurement", "direction", "baseline", "state_vs_event"],
+        "skip_reason": "threshold + daily = enough for measurement. Slice #41 direction / baseline / state_vs_event not stated as metadata in narrative — left for A0"
       },
       {
         "predicate": "short_sleep",
         "basis": "6 hour sleep duration is measurable and the narrative provides it; the boolean 'short sleep' is clearly defined around that duration",
         "filled_fields": ["measurement", "threshold", "unit"],
-        "skipped_fields": ["time_window", "observability"],
-        "skip_reason": "narrative says 'most recently' (最近) but no concrete window; and doesn't say whether it's self-tracked vs watch-tracked"
+        "skipped_fields": ["time_window", "observability", "direction", "baseline", "state_vs_event"],
+        "skip_reason": "narrative says 'most recently' (最近) but no concrete window, doesn't say whether self-tracked vs watch-tracked, and slice #41 direction / baseline / state_vs_event are likewise absent"
       }
     ],
     "notes": "Asymmetric again — daily_coffee is tight, short_sleep has three blanks the framing channel will surface."

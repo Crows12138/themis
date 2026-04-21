@@ -42,10 +42,12 @@ are interventional.
 - Single subject — use object name `"me"` if the user refers to themselves
   (`我`, `你`), or if no subject is specified.
 - Every predicate is bool — `domain: [true, false]`.
-- **Leave framing fields unset** (`time_window`, `measurement`, `threshold`,
-  `observability`). Themis will flag them as gaps via the `DEFINE_VARIABLE`
-  investigation channel, which is the intended feedback loop — the user's
-  next turn fills these in.
+- **Leave framing fields unset**. The framing set has seven slots:
+  `time_window`, `measurement`, `threshold`, `observability`,
+  `direction`, `baseline`, `state_vs_event`. Themis flags each unset
+  slot as a gap via the `DEFINE_VARIABLE` channel. Do not fill any
+  of them at NL-parsing time unless the user stated the value
+  explicitly in the question itself.
 
 ### 3. Propose causal edges
 

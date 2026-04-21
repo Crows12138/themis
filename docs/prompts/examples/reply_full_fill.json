@@ -10,7 +10,13 @@
     ],
     "unfilled": [
       {"predicate": "running", "field": "measurement",
-       "reason": "reply says what running IS (daily 30 min) but not how it's recorded — intentionally inferred as self-report below since '全部自己量' covers it; measurement channel ('fitness tracker'? 'self-tally'?) still ambiguous — stays null"}
+       "reason": "reply says what running IS (daily 30 min) but not how it's recorded — intentionally inferred as self-report below since '全部自己量' covers it; measurement channel ('fitness tracker'? 'self-tally'?) still ambiguous — stays null"},
+      {"predicate": "running", "field": "direction", "reason": "slice #41 field not stated"},
+      {"predicate": "running", "field": "baseline", "reason": "slice #41 field not stated"},
+      {"predicate": "running", "field": "state_vs_event", "reason": "slice #41 field not stated"},
+      {"predicate": "belly_fat_loss", "field": "direction", "reason": "slice #41 field not stated"},
+      {"predicate": "belly_fat_loss", "field": "baseline", "reason": "slice #41 field not stated"},
+      {"predicate": "belly_fat_loss", "field": "state_vs_event", "reason": "slice #41 field not stated"}
     ],
     "policy": "when in doubt, null"
   },
@@ -26,7 +32,10 @@
           "time_window": null,
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       },
       {
@@ -37,7 +46,10 @@
           "time_window": null,
           "measurement": null,
           "threshold": null,
-          "observability": null
+          "observability": null,
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       }
     ]
@@ -54,7 +66,10 @@
           "time_window": "12w",
           "measurement": null,
           "threshold": ">=30 min/day",
-          "observability": "self-report"
+          "observability": "self-report",
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       },
       {
@@ -65,7 +80,10 @@
           "time_window": "12w",
           "measurement": "waist circumference cm",
           "threshold": ">=3 cm reduction",
-          "observability": "self-measured"
+          "observability": "self-measured",
+          "direction": null,
+          "baseline": null,
+          "state_vs_event": null
         }
       }
     ]

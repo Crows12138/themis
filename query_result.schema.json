@@ -168,7 +168,10 @@
               "measurement",
               "threshold",
               "observability",
-              "unit"
+              "unit",
+              "direction",
+              "baseline",
+              "state_vs_event"
             ]
           }
         }

@@ -152,6 +152,14 @@ class VariableDeclaration:
     the declaration entirely silences framing for that predicate.
     Nothing here gates reasoning — presence of a declaration cannot
     change status or numeric output.
+
+    Slice #41 adds three more framing dimensions surfaced by the
+    #33 stress test: ``direction`` (up / down / mixed effect polarity),
+    ``baseline`` (the reference level a change is measured from), and
+    ``state_vs_event`` (a habitual state or a discrete occurrence).
+    These join the original four fields symmetrically — they are
+    optional metadata; A0 reports them as gaps when unset on a
+    declared predicate.
     """
     predicate: str
     domain: tuple[AtomValue, ...] | None = None
@@ -160,6 +168,9 @@ class VariableDeclaration:
     threshold: str | None = None
     observability: str | None = None
     unit: str | None = None
+    direction: str | None = None
+    baseline: str | None = None
+    state_vs_event: str | None = None
 
 
 Statement = Union[
