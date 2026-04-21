@@ -32,11 +32,15 @@ def _load_registry(schema_dir_str: str) -> Registry:
     atom = json.loads((schema_dir / "atom.schema.json").read_text(encoding="utf-8"))
     kernel = json.loads((schema_dir / "kernel_ast.schema.json").read_text(encoding="utf-8"))
     result = json.loads((schema_dir / "query_result.schema.json").read_text(encoding="utf-8"))
+    derivation = json.loads(
+        (schema_dir / "derivation.schema.json").read_text(encoding="utf-8")
+    )
     return Registry().with_resources(
         [
             (atom["$id"], Resource.from_contents(atom)),
             (kernel["$id"], Resource.from_contents(kernel)),
             (result["$id"], Resource.from_contents(result)),
+            (derivation["$id"], Resource.from_contents(derivation)),
         ]
     )
 

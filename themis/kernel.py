@@ -4,7 +4,10 @@
 parse → validate → instantiate → project → dispatch → serialize.
 ``apply_patch_and_run`` (slice A3) threads user-supplied fill-in
 bundles through the same pipeline so multi-turn follow-up rounds
-stay on the JSON boundary.
+stay on the JSON boundary. ``verify`` closes the auditing loop:
+given the input program JSON and any one result JSON, it
+independently re-runs the verifier without the caller holding
+any typed kernel objects.
 
 The kernel does not call an LLM, does not touch disk, and does not
 emit natural language. Any explanation or translation layer lives
@@ -14,7 +17,8 @@ return.
 Contracts:
 
 - Input conforms to ``kernel_ast.schema.json``.
-- Output's ``results`` entries conform to ``query_result.schema.json``.
+- Output's ``results`` entries conform to ``query_result.schema.json``
+  (which now $refs ``derivation.schema.json`` for the derivation field).
 - Patch bundles (A3) conform to the shapes emitted by
   ``themis.workflow.parameter_fill.extract_skeleton_bundle`` and
   ``themis.workflow.variable_framing.extract_framing_skeleton``.
@@ -25,11 +29,26 @@ import json
 
 from .input.parser import parse_json
 from .input.semantic_validator import validate_program
-from .input.syntactic_validator import validate_ast
+from .input.syntactic_validator import validate_ast, validate_result
 from .output.result_orchestrator import to_dict
 from .runtime.graph_projection import project
 from .runtime.instantiation import instantiate
 from .runtime.scheduler import dispatch_all
+from .runtime.theta_builder import build_theta
+from .types import (
+    NumericResult,
+    QueryStatement,
+    StructuralResult,
+)
+from .verifier import (
+    VerificationContext,
+    VerificationError,
+    derivation_from_dict,
+    verify_assoc,
+    verify_cause,
+    verify_identify,
+    verify_numeric,
+)
 from .workflow.parameter_fill import (
     BUNDLE_KIND as PARAMETER_BUNDLE_KIND,
     merge_skeleton_bundle,
@@ -139,3 +158,116 @@ def apply_patch_and_run(
             )
 
     return _run_typed(prog)
+
+
+# ============================================================ verify
+
+def _decode_structural_result_json(d: dict) -> StructuralResult:
+    """Decode the untagged structural_result shape emitted by
+    result_orchestrator.to_dict into a StructuralResult dataclass."""
+    return StructuralResult(
+        value=d["value"],
+        supporting_paths=tuple(
+            tuple(p) for p in d.get("supporting_paths", ())
+        ),
+    )
+
+
+def _decode_numeric_result_json(d: dict) -> NumericResult:
+    """Decode the untagged numeric_result shape emitted by
+    result_orchestrator.to_dict into a NumericResult dataclass."""
+    from .types import NumericInterval
+    interval = None
+    if "interval" in d:
+        interval = NumericInterval(
+            low=d["interval"]["low"], high=d["interval"]["high"],
+        )
+    return NumericResult(
+        value=d["value"], interval=interval, unit=d.get("unit"),
+    )
+
+
+def verify(program: dict | str | bytes, result: dict) -> None:
+    """Independently re-verify one result against its source program.
+
+    Takes the JSON contract at face value — no typed kernel objects
+    leave this function's scope. The caller supplies:
+
+    - ``program``: the original kernel_ast payload (same shape ``run``
+      accepts), as a dict or JSON string / bytes.
+    - ``result``: a single entry from ``run(...)["results"]``. Must
+      carry a ``derivation`` field — this function rejects
+      verification-by-omission.
+
+    The query is located by matching ``result["query_id"]`` against a
+    QueryStatement in the program. The verification context is
+    reconstructed from the program's graph + theta + that query.
+    The derivation is decoded through the verifier's canonical
+    deserializer, and the appropriate ``verify_*`` function runs.
+
+    Raises ``VerificationError`` on any mismatch (rule failure, step
+    rejection, query-binding violation). Raises ``ValueError`` if the
+    result references a missing or unsupported query, or lacks a
+    derivation. Returns ``None`` on accept.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+
+    # Shape-check the result payload so we fail early on malformed
+    # derivations rather than deep inside the verifier.
+    validate_result(result)
+
+    derivation_json = result.get("derivation")
+    if derivation_json is None:
+        raise ValueError(
+            "verify() requires a result with a derivation; this result "
+            "has none (external agents cannot audit an answer without "
+            "its reasoning chain)"
+        )
+
+    ast = _to_ast(program)
+    ast = validate_ast(ast)
+    prog = validate_program(ast)
+    graph = project(instantiate(prog))
+    theta = build_theta(instantiate(prog))
+
+    target_id = result.get("query_id")
+    if target_id is None:
+        raise ValueError(
+            "verify() requires result.query_id to locate the matching "
+            "query in the program"
+        )
+    query_stmt = None
+    for s in prog.statements:
+        if isinstance(s, QueryStatement) and s.id == target_id:
+            query_stmt = s
+            break
+    if query_stmt is None:
+        raise ValueError(
+            f"verify(): no query with id={target_id!r} in the program"
+        )
+
+    derivation = derivation_from_dict(derivation_json)
+    ctx = VerificationContext(graph=graph, query=query_stmt.query, theta=theta)
+
+    kind = result.get("query_kind")
+    if kind == "cause":
+        claimed = _decode_structural_result_json(result["structural_result"])
+        verify_cause(derivation, ctx, claimed)
+    elif kind == "assoc":
+        claimed = _decode_structural_result_json(result["structural_result"])
+        verify_assoc(derivation, ctx, claimed)
+    elif kind == "identify":
+        claimed = _decode_structural_result_json(result["structural_result"])
+        verify_identify(derivation, ctx, claimed)
+    elif kind in ("effect", "probability"):
+        if "numeric_result" not in result:
+            raise ValueError(
+                f"verify(): {kind} result must carry a numeric_result"
+            )
+        claimed = _decode_numeric_result_json(result["numeric_result"])
+        verify_numeric(derivation, ctx, claimed)
+    else:
+        raise ValueError(
+            f"verify(): unsupported query_kind {kind!r}"
+        )
