@@ -266,17 +266,22 @@ verifier 接受 / 拒绝三类篡改（mediator / 公式目标 / conditioned que
 
 ## 基本完成但还不算“更大系统完成”的部分
 
-### 1. Framing 只到 advisory
+### 1. Framing 分三层，当前只闭了第 1 层
 
-当前有：
+更准确地说：
 
-- `variableDeclaration`
-- `framing_notes`
-
-当前没有：
-
-- 变量定义补录 workflow
-- “问题没框清就拒绝 effect/probability”的强 gate
+- **变量框定闭环（kernel / JSON 层）**——**已完成**
+  `variableDeclaration` + `framing_notes` + F1 `DEFINE_VARIABLE`
+  investigation + `extract_definition_skeleton` +
+  `merge_variable_declaration` + `apply_patch_and_run` 二轮重跑。
+  `test_a3_apply_patch` 已 pin：第二轮后 `framing_notes` 和
+  `DEFINE_VARIABLE` 都清空。
+- **变量框定闭环（NL / agent 层）**——**未完成**
+  缺 "用户用自然语言答复 → LLM 把答复结构化成
+  `framing_skeleton_bundle`" 的第三条 prompt。A1 只做了 NL↔JSON
+  的 question / response 两侧，这一条对称 prompt 被跳过了。
+- **变量框定强 gate（问题没框清就拒绝出数）**——**未完成**
+  当前 framing 只 advisory，数值路径不因 framing 缺失被阻断。
 
 ### 2. 真实案例已经能跑，但还没有变成系统上游
 
