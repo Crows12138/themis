@@ -87,6 +87,22 @@ def test_narrative_example_runs_through_kernel(example_path):
 
 
 @pytest.mark.parametrize("example_path", _load_narrative_examples())
+def test_narrative_examples_use_bool_domain_contract(example_path):
+    """A5 prompt contract: every emitted variable must be explicitly
+    bool-typed via domain == [true, false]. The wrapped cause query
+    does not consume domains, so this must be pinned directly here."""
+    payload = json.loads(example_path.read_text(encoding="utf-8"))
+    for variable in payload["variables"]:
+        assert "domain" in variable, (
+            f"{example_path.name}: {variable['predicate']} missing required bool domain"
+        )
+        assert variable["domain"] == [True, False], (
+            f"{example_path.name}: {variable['predicate']} has non-bool domain "
+            f"{variable['domain']!r}"
+        )
+
+
+@pytest.mark.parametrize("example_path", _load_narrative_examples())
 def test_narrative_reasoning_matches_filled_framing_fields(example_path):
     """If the reasoning block says a predicate's time_window is filled,
     the actual VariableDeclaration must have a non-null time_window —
@@ -141,11 +157,14 @@ def test_narrative_example_surfaces_blank_fields_as_framing_gaps(example_path):
             # Fully framed — predicate should not appear (or appear
             # only with an empty gap list, but A0 doesn't emit empty
             # notes).
+            assert pred not in gaps_by_pred, (
+                f"{example_path.name}: {pred} is marked fully framed in reasoning "
+                f"but A0 surfaced unexpected gaps {sorted(gaps_by_pred.get(pred, set()))}"
+            )
             continue
         actual = gaps_by_pred.get(pred, set())
-        missing_from_gap_list = expected_gaps - actual
-        assert not missing_from_gap_list, (
+        assert actual == expected_gaps, (
             f"{example_path.name}: {pred} reasoning claims "
-            f"{sorted(expected_gaps)} are blank but gap list surfaces "
+            f"{sorted(expected_gaps)} are blank but gap list surfaces exactly "
             f"{sorted(actual)}"
         )

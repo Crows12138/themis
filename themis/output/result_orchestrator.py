@@ -159,6 +159,11 @@ def to_dict(result: QueryResult) -> dict:
         ]
     if result.explanation is not None:
         d["explanation"] = result.explanation
+    if result.derivation:
+        # Lazy import to keep this module's top-level deps narrow; the
+        # verifier already owns the canonical derivation encoder.
+        from ..verifier.serialization import derivation_to_dict
+        d["derivation"] = derivation_to_dict(result.derivation)
     if result.extensions is not None:
         d["extensions"] = result.extensions
     return d

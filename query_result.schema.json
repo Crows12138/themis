@@ -140,6 +140,11 @@
         "string",
         "null"
       ]
+    },
+    "derivation": {
+      "type": "object",
+      "description": "Machine-verifiable reasoning chain. Only present when the runtime attached one (identify / effect / probability / cause / assoc under positive or negative witness). Shape matches derivation.schema.json — a JSON-consuming agent can re-run the verifier against it.",
+      "additionalProperties": true
     }
   },
   "$defs": {
