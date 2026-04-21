@@ -1,0 +1,40 @@
+{
+  "narrative_input": "我每天喝两杯咖啡。最近睡眠质量一般，平均睡 6 小时左右。",
+  "reasoning": {
+    "identified_variables": [
+      {
+        "predicate": "daily_coffee",
+        "basis": "narrative explicitly states daily cadence and 2 cups",
+        "filled_fields": ["time_window", "threshold", "observability"],
+        "skipped_fields": ["measurement"],
+        "skip_reason": "threshold + daily = enough; no separate measurement channel mentioned"
+      },
+      {
+        "predicate": "short_sleep",
+        "basis": "6 hour sleep duration is measurable and the narrative provides it; the boolean 'short sleep' is clearly defined around that duration",
+        "filled_fields": ["measurement", "threshold", "unit"],
+        "skipped_fields": ["time_window", "observability"],
+        "skip_reason": "narrative says 'most recently' (最近) but no concrete window; and doesn't say whether it's self-tracked vs watch-tracked"
+      }
+    ],
+    "notes": "Asymmetric again — daily_coffee is tight, short_sleep has three blanks the framing channel will surface."
+  },
+  "variables": [
+    {
+      "kind": "variable",
+      "predicate": "daily_coffee",
+      "domain": [true, false],
+      "time_window": "daily",
+      "threshold": ">=2 cups/day",
+      "observability": "self-report"
+    },
+    {
+      "kind": "variable",
+      "predicate": "short_sleep",
+      "domain": [true, false],
+      "measurement": "average nightly sleep duration",
+      "threshold": "<=6 hours/night",
+      "unit": "hours"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "narrative_input": "我平时晚睡，工作日一般凌晨一点之后才睡。最近上班容易犯困，感觉反应变慢。",
+  "reasoning": {
+    "identified_variables": [
+      {
+        "predicate": "staying_up_late",
+        "basis": "narrative gives a concrete bedtime threshold (after 1 AM) and a cadence (weekdays, habitual)",
+        "filled_fields": ["time_window", "threshold", "observability"],
+        "skipped_fields": ["measurement"],
+        "skip_reason": "'threshold: bedtime after 01:00' doubles as the measurement; no separate sensor / survey"
+      },
+      {
+        "predicate": "cognitive_slowness",
+        "basis": "narrative describes a subjective outcome ('犯困', '反应变慢') but offers no concrete measurement or threshold",
+        "filled_fields": ["observability"],
+        "skipped_fields": ["time_window", "measurement", "threshold"],
+        "skip_reason": "A0/F1 should surface these gaps — the user hasn't said how long it's been going on, hasn't named a test (e.g. PVT reaction time), and hasn't set a cutoff"
+      }
+    ],
+    "notes": "Deliberate asymmetry: the cause side is framed, the outcome side is not. This is exactly the kind of underspecified downstream variable the framing channel is designed to flag."
+  },
+  "variables": [
+    {
+      "kind": "variable",
+      "predicate": "staying_up_late",
+      "domain": [true, false],
+      "time_window": "weekday habitual",
+      "threshold": "bedtime after 01:00",
+      "observability": "self-report"
+    },
+    {
+      "kind": "variable",
+      "predicate": "cognitive_slowness",
+      "domain": [true, false],
+      "observability": "self-report"
+    }
+  ]
+}

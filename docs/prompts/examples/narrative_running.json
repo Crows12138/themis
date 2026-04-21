@@ -1,0 +1,40 @@
+{
+  "narrative_input": "我最近三个月每周跑步 4 次，每次 30 分钟。上个月体检腰围 85 cm，这个月自己量是 82 cm。",
+  "reasoning": {
+    "identified_variables": [
+      {
+        "predicate": "running",
+        "basis": "narrative explicitly states a running habit with clear cadence",
+        "filled_fields": ["time_window", "threshold", "measurement", "observability"],
+        "skipped_fields": []
+      },
+      {
+        "predicate": "waist_reduced",
+        "basis": "narrative states baseline (85 cm) and follow-up (82 cm) with a 3 cm decrease — the boolean 'waist reduced' is operationally defined by that decrease",
+        "filled_fields": ["time_window", "threshold", "measurement", "observability"],
+        "skipped_fields": []
+      }
+    ],
+    "notes": "Both variables came out nearly fully framed because the narrative is unusually concrete. A0/F1 will still have almost nothing to ask the user about once this narrative is in the program."
+  },
+  "variables": [
+    {
+      "kind": "variable",
+      "predicate": "running",
+      "domain": [true, false],
+      "time_window": "past 3 months",
+      "measurement": "self-report of sessions",
+      "threshold": ">=4 sessions/week, 30 min each",
+      "observability": "self-report"
+    },
+    {
+      "kind": "variable",
+      "predicate": "waist_reduced",
+      "domain": [true, false],
+      "time_window": "past 1 month",
+      "measurement": "waist circumference cm",
+      "threshold": ">=3 cm reduction",
+      "observability": "mixed: clinic baseline + self-measured follow-up"
+    }
+  ]
+}

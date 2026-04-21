@@ -34,11 +34,19 @@ EXAMPLES_DIR = (
 
 
 def _load_examples():
-    files = sorted(EXAMPLES_DIR.glob("*.json"))
-    assert files, f"no examples found under {EXAMPLES_DIR}"
-    return [
-        pytest.param(path, id=path.stem) for path in files
+    """Load question-side examples only.
+
+    A1 examples carry a ``kernel_ast`` field (full program ready for
+    themis.run). A5 narrative examples live alongside them but expose
+    only a ``variables`` list and are validated separately in
+    ``test_narrative_examples.py``. Filter to the A1-shaped files.
+    """
+    files = [
+        p for p in sorted(EXAMPLES_DIR.glob("*.json"))
+        if not p.stem.startswith("narrative_")
     ]
+    assert files, f"no question examples found under {EXAMPLES_DIR}"
+    return [pytest.param(path, id=path.stem) for path in files]
 
 
 @pytest.mark.parametrize("example_path", _load_examples())
