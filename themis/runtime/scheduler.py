@@ -156,7 +156,11 @@ def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     )
 
 
-def _dispatch_identify(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
+def _dispatch_identify(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
     q: IdentifyQuery = stmt.query  # type: ignore[assignment]
     x = q.intervention.atom
     y = q.target
@@ -196,6 +200,36 @@ def _dispatch_identify(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
                     reason=(
                         "identify.given violates backdoor pre-conditions "
                         f"(contains X, Y, or a descendant of X): {labels}"
+                    ),
+                ),
+            ),
+        )
+
+    # Phase 2.latent S3.a: on ADMG programs skip backdoor (the existing
+    # minimal_adjustment_sets reads the directed skeleton only and can
+    # silently miss bidirected back-doors). Go straight to ADMG-aware
+    # front-door when possible.
+    if bidirected:
+        if not q.given:
+            front = structural_solver.front_door_sets(
+                graph, x, y, bidirected=bidirected
+            )
+            if front:
+                return _build_identify_via_frontdoor(stmt, graph, q, front)
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.IDENTIFY,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:identify_admg",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "Phase 2.latent S3.a: this ADMG identify query "
+                        "is not reachable by the ADMG-aware front-door "
+                        "path. General c-factor identification lands in "
+                        "S3.b; see PHASE_2_LATENT_CHARTER.md §7."
                     ),
                 ),
             ),
@@ -630,7 +664,10 @@ def _try_numeric(
 
 
 def _dispatch_effect(
-    stmt: QueryStatement, graph: nx.DiGraph, theta: Theta
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
 ) -> QueryResult:
     q: EffectQuery = stmt.query  # type: ignore[assignment]
     x = q.intervention.atom
@@ -653,6 +690,55 @@ def _dispatch_effect(
                     reason="query atom is not in the instantiated variable set V",
                 )
                 for a in missing_atoms
+            ),
+        )
+
+    # Phase 2.latent S3.a: ADMG programs skip the directed-only
+    # backdoor and go straight to ADMG-aware front-door.
+    if bidirected:
+        if not observed_atoms:
+            front = structural_solver.front_door_sets(
+                graph, x, y_atom, bidirected=bidirected
+            )
+            if front:
+                chosen = min(front, key=len)
+                topo = [n for n in nx.topological_sort(graph) if n in chosen]
+                intervention_va = ValuedAtom(
+                    atom=x, value=q.intervention.value
+                )
+                formula = formula_builder.front_door_formula(
+                    target=q.target,
+                    intervention=intervention_va,
+                    mediators=tuple(topo),
+                )
+                validate_formula(formula)
+                structural_prefix = _build_effect_frontdoor_structural_prefix(
+                    graph=graph,
+                    x=x, y=y_atom, z=tuple(topo),
+                    target_va=q.target,
+                    intervention_va=intervention_va,
+                    formula=formula,
+                )
+                return _try_numeric(
+                    stmt, formula, theta, QueryKind.EFFECT,
+                    structural_prefix=structural_prefix,
+                )
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:effect_admg",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "Phase 2.latent S3.a: this ADMG effect query is "
+                        "not reachable by the ADMG-aware front-door "
+                        "path. General c-factor identification lands in "
+                        "S3.b; see PHASE_2_LATENT_CHARTER.md §7."
+                    ),
+                ),
             ),
         )
 
@@ -1105,15 +1191,21 @@ def dispatch(
     *,
     prob_index: dict | None = None,
     obs_index: dict | None = None,
+    bidirected: "frozenset[frozenset[Atom]] | None" = None,
 ) -> QueryResult:
     """Route a query to its solver(s) and assemble a QueryResult.
 
-    If any of ``theta`` / ``prob_index`` / ``obs_index`` is omitted,
-    the missing ones are built on demand from the program. For batch
-    dispatch prefer ``dispatch_all`` which builds everything once and
-    reuses it.
+    If any of ``theta`` / ``prob_index`` / ``obs_index`` / ``bidirected``
+    is omitted, the missing ones are built on demand from the program.
+    For batch dispatch prefer ``dispatch_all`` which builds everything
+    once and reuses it.
+
+    ``bidirected`` is the ADMG bidirected-edge set extracted from the
+    ground program (Phase 2.latent S3.a). Identify / effect dispatch
+    routes through the ADMG-aware front-door when this set is non-empty;
+    the directed-only backdoor path is skipped for ADMG programs.
     """
-    if theta is None or prob_index is None or obs_index is None:
+    if theta is None or prob_index is None or obs_index is None or bidirected is None:
         from .instantiation import instantiate as _inst
         ground = _inst(program)
         if theta is None:
@@ -1122,6 +1214,8 @@ def dispatch(
             prob_index = build_probability_source_index(ground)
         if obs_index is None:
             obs_index = build_observation_source_index(ground)
+        if bidirected is None:
+            bidirected = structural_solver.bidirected_from_ground(ground)
 
     q = stmt.query
     if isinstance(q, CauseQuery):
@@ -1129,7 +1223,7 @@ def dispatch(
     elif isinstance(q, AssocQuery):
         result = _dispatch_assoc(stmt, graph)
     elif isinstance(q, IdentifyQuery):
-        result = _dispatch_identify(stmt, graph)
+        result = _dispatch_identify(stmt, graph, bidirected=bidirected)
     elif isinstance(q, EffectQuery):
         strict_items = _check_strict_framing(program, stmt)
         if strict_items:
@@ -1140,7 +1234,7 @@ def dispatch(
                 missing_information=strict_items,
             )
         else:
-            result = _dispatch_effect(stmt, graph, theta)
+            result = _dispatch_effect(stmt, graph, theta, bidirected=bidirected)
     elif isinstance(q, ProbabilityQuery):
         strict_items = _check_strict_framing(program, stmt)
         if strict_items:
@@ -1181,11 +1275,13 @@ def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]
     theta = theta_builder.build_theta(ground)
     prob_index = build_probability_source_index(ground)
     obs_index = build_observation_source_index(ground)
+    bidirected = structural_solver.bidirected_from_ground(ground)
 
     return tuple(
         dispatch(
             program, stmt, graph, theta,
             prob_index=prob_index, obs_index=obs_index,
+            bidirected=bidirected,
         )
         for stmt in program.statements
         if isinstance(stmt, QueryStatement)

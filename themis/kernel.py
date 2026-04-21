@@ -67,6 +67,26 @@ from .verifier import (
     verify_identify,
     verify_numeric,
 )
+
+
+class AdmgVerificationPending(ValueError):
+    """Phase 2.latent S3.a verifier compatibility patch.
+
+    Raised by ``themis.verify`` when asked to audit a result whose
+    source program contains ``BidirectedStatement`` edges. The runtime
+    can already dispatch such programs (S3.a ADMG-aware front-door;
+    S3.b Tian c-factor), but the independent verifier's ADMG rule
+    family (`m_separation_witness` / `identify_via_c_factor` /
+    `unidentifiable_via_c_forest`) lands in S4.
+
+    This exception is deliberately a distinct class — callers must be
+    able to tell "ADMG result cannot be verified yet" apart from both a
+    silent accept (dangerous) and a generic VerificationError (wrong
+    contract). Once S4 ships the verifier rules, this path is removed
+    and bidirected programs flow through the standard verify_identify
+    / verify_numeric entries.
+    """
+
 from .workflow.parameter_fill import (
     BUNDLE_KIND as PARAMETER_BUNDLE_KIND,
     merge_skeleton_bundle,
@@ -414,6 +434,20 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     ast = _to_ast(program)
     ast = validate_ast(ast)
     prog = validate_program(ast)
+
+    # Phase 2.latent S3.a verifier compatibility patch: the verifier's
+    # ADMG rule family lands in S4. Until then, refuse to audit results
+    # whose source program contains bidirected edges — silent accept
+    # would be worse than an explicit pending error.
+    if any(isinstance(s, BidirectedStatement) for s in prog.statements):
+        raise AdmgVerificationPending(
+            "verify() does not yet support programs containing "
+            "bidirected edges (ADMG). The runtime dispatches these via "
+            "the Phase 2.latent S3.a front-door path, but the "
+            "independent verifier's ADMG rule family lands in S4. See "
+            "PHASE_2_LATENT_CHARTER.md §7."
+        )
+
     graph = project(instantiate(prog))
     theta = build_theta(instantiate(prog))
 

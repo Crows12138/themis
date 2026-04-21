@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import networkx as nx
 
-from ..types import Atom
+from ..types import Atom, BidirectedStatement
 
 
 def has_directed_path(graph: nx.DiGraph, src: Atom, dst: Atom) -> bool:
@@ -153,6 +153,7 @@ def front_door_sets(
     graph: nx.DiGraph,
     x: Atom,
     y: Atom,
+    bidirected: "BidirectedEdgeSet | None" = None,
 ) -> tuple[frozenset[Atom], ...]:
     """Find subset-minimal mediator sets Z satisfying Pearl's front-door
     criterion relative to (X, Y):
@@ -172,6 +173,15 @@ def front_door_sets(
     the first attempt, and this function covers the residual cases in
     Pearl's textbook where back-door is unavailable but a mediator set
     still identifies the effect.
+
+    Phase 2.latent S3.a: when ``bidirected`` is provided and non-empty,
+    FD2 and FD3 use ADMG m-separation (via ``is_m_connected``) instead
+    of plain d-separation. This respects any extra back-door paths the
+    bidirected edges create. When ``bidirected`` is empty or ``None``
+    the logic reduces exactly to the original directed-only front-door
+    check (regression guaranteed by the S3.a pin tests). FD1 still uses
+    the directed skeleton — mediators must block every *directed* path
+    X → ... → Y, which is unaffected by bidirected edges.
     """
     from itertools import combinations
 
@@ -190,8 +200,7 @@ def front_door_sets(
     if not directed_all:
         return ()
 
-    x_cond = frozenset({x})
-    empty_cond: frozenset[Atom] = frozenset()
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
 
     def blocks_all_directed(z: frozenset[Atom]) -> bool:
         for path in directed_all:
@@ -200,16 +209,26 @@ def front_door_sets(
         return True
 
     def no_open_backdoor_from_x(zi: Atom) -> bool:
-        for path in backdoor_paths(graph, x, zi):
-            if _path_is_open(graph, path, empty_cond):
-                return False
-        return True
+        # A back-door path from X to zi is one that leaves X via an
+        # arrowhead at X (incoming directed edge OR a bidirected edge),
+        # hence d/m-connected from X to zi under empty conditioning AND
+        # not via an edge leaving X (X → ...).
+        # In practice: when bidir is empty this reduces to the original
+        # directed-only check; when bidir is non-empty we must also
+        # account for X ↔ ... paths. We compute this by asking: is X
+        # connected to zi via a path whose first edge is not X → *?
+        #
+        # For correctness with bidir present, we inline the per-path
+        # check rather than reusing ``backdoor_paths`` (which only
+        # enumerates directed-skeleton paths).
+        return not _is_admg_backdoor_connected(
+            graph, bidir_eff, x, zi, frozenset()
+        )
 
     def all_backdoors_to_y_blocked_by_x(zi: Atom) -> bool:
-        for path in backdoor_paths(graph, zi, y):
-            if _path_is_open(graph, path, x_cond):
-                return False
-        return True
+        return not _is_admg_backdoor_connected(
+            graph, bidir_eff, zi, y, frozenset({x})
+        )
 
     def satisfies(z: frozenset[Atom]) -> bool:
         if not blocks_all_directed(z):
@@ -230,6 +249,62 @@ def front_door_sets(
             if satisfies(z):
                 minimal.append(z)
     return tuple(minimal)
+
+
+def _is_admg_backdoor_connected(
+    graph: nx.DiGraph,
+    bidirected: "BidirectedEdgeSet",
+    src: Atom,
+    dst: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """Is there an open m-path from ``src`` to ``dst`` whose first edge
+    leaves ``src`` with an arrowhead at ``src`` (i.e. a back-door path
+    in the ADMG sense)?
+
+    An edge has an arrowhead at ``src`` iff it is a bidirected edge
+    incident to ``src`` or a directed edge ``pred → src``. Enumerate
+    simple m-paths and filter by the first-edge condition.
+    """
+    if src == dst:
+        return False
+
+    mg = _build_admg_path_graph(graph, bidirected)
+    if src not in mg or dst not in mg:
+        return False
+
+    for edge_path in nx.all_simple_edge_paths(mg, src, dst):
+        first_u, first_w, first_k = edge_path[0]
+        data = mg.edges[first_u, first_w, first_k]
+        if data["kind"] == "bidirected":
+            first_arrowhead_at_src = True
+        else:
+            first_arrowhead_at_src = (data["dst"] == src)
+        if not first_arrowhead_at_src:
+            continue
+
+        nodes: list[Atom] = [src]
+        for u, w, _k in edge_path:
+            nodes.append(w if nodes[-1] == u else u)
+
+        open_path = True
+        for i in range(1, len(nodes) - 1):
+            v = nodes[i]
+            ahead_prev = _has_arrowhead_at(mg, edge_path[i - 1], v)
+            ahead_next = _has_arrowhead_at(mg, edge_path[i], v)
+            is_collider = ahead_prev and ahead_next
+            if is_collider:
+                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
+                if activated.isdisjoint(conditioning):
+                    open_path = False
+                    break
+            else:
+                if v in conditioning:
+                    open_path = False
+                    break
+        if open_path:
+            return True
+    return False
 
 
 def minimal_adjustment_sets(
@@ -303,6 +378,24 @@ def minimal_adjustment_sets(
 # =====================================================================
 
 BidirectedEdgeSet = frozenset[frozenset[Atom]]
+
+
+def bidirected_from_ground(ground_statements) -> BidirectedEdgeSet:
+    """Extract the set of bidirected edges from a list of ground
+    statements (post-instantiation). Returns an empty frozenset when
+    the program declares no bidirected edges — keeps pre-ADMG dispatch
+    paths unaffected.
+
+    Each returned element is a 2-element frozenset — the pair is
+    unordered, matching the undirected semantics of bidirectedness.
+    Parallel duplicate declarations on the same pair collapse into
+    one entry (per charter §4.2 first-pass simplification).
+    """
+    pairs: list[frozenset[Atom]] = []
+    for stmt in ground_statements:
+        if isinstance(stmt, BidirectedStatement):
+            pairs.append(frozenset({stmt.left, stmt.right}))
+    return frozenset(pairs)
 
 
 def _has_arrowhead_at(

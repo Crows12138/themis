@@ -14,6 +14,7 @@ from typing import Iterable
 
 from ..types import (
     Atom,
+    BidirectedStatement,
     CauseStatement,
     ConstTerm,
     ObservationStatement,
@@ -56,6 +57,13 @@ def _instantiate_one(stmt, subst: dict[str, str]):
         return CauseStatement(
             from_atom=_subst_atom(stmt.from_atom, subst),
             to_atom=_subst_atom(stmt.to_atom, subst),
+            forall=(),
+            annotations=stmt.annotations,
+        )
+    if isinstance(stmt, BidirectedStatement):
+        return BidirectedStatement(
+            left=_subst_atom(stmt.left, subst),
+            right=_subst_atom(stmt.right, subst),
             forall=(),
             annotations=stmt.annotations,
         )

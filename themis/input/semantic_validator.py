@@ -343,30 +343,44 @@ def _check_unique_variable_declarations(program: Program) -> None:
 
 
 def _check_bidirected_runtime_gate(program: Program) -> None:
-    """Phase 2.latent S1 guard.
+    """Phase 2.latent S3.a guard (narrowed from S1).
 
-    BidirectedStatement parses successfully and round-trips through
-    the serializer, but the runtime cannot yet dispatch a program
-    containing one (m-separation + c-component support lands in
-    slices S2+). Programs with bidirected statements are rejected
-    here with a clear message so the failure cannot be mistaken for
-    a silent drop — graph_projection would otherwise skip the
-    statement and produce a DAG that omits a confounder the user
-    declared.
+    When a program contains any ``BidirectedStatement``, the only
+    query kinds the runtime can dispatch safely are ``identify`` and
+    ``effect`` (handled by S3.a's ADMG-aware front-door). ``cause``,
+    ``assoc``, and ``probability`` queries on an ADMG program still
+    land in silent-drop territory because their dispatch paths
+    (directed-skeleton ``has_directed_path`` / ``is_d_connected`` /
+    CPT lookup) are not yet ADMG-aware. This check rejects programs
+    that mix bidirected edges with those query kinds so the failure
+    cannot be mistaken for a silent drop.
 
-    When S2 lands this check is removed (or narrowed to only gate
-    the still-unimplemented sub-cases).
+    S4 lifts this gate entirely once every dispatch path reads the
+    bidirected edge set.
     """
+    has_bidirected = any(
+        isinstance(s, BidirectedStatement) for s in program.statements
+    )
+    if not has_bidirected:
+        return
+
     for idx, stmt in enumerate(program.statements):
-        if isinstance(stmt, BidirectedStatement):
+        if not isinstance(stmt, QueryStatement):
+            continue
+        q = stmt.query
+        if isinstance(q, (CauseQuery, AssocQuery, ProbabilityQuery)):
+            kind_name = {
+                CauseQuery: "cause",
+                AssocQuery: "assoc",
+                ProbabilityQuery: "probability",
+            }[type(q)]
             raise SemanticError(
-                f"statements[{idx}]: bidirected edge "
-                f"({stmt.left.predicate} <-> {stmt.right.predicate}) "
-                f"requires Phase 2.latent runtime support (not yet "
-                f"implemented). See PHASE_2_LATENT_CHARTER.md for scope "
-                f"and delivery plan. Current slice is S1 (AST + schema "
-                f"only); m-separation and c-component analysis land in "
-                f"S2+."
+                f"statements[{idx}] ({stmt.id}): {kind_name} query on "
+                f"a program containing bidirected edges is not yet "
+                f"supported. Phase 2.latent S3.a supports identify / "
+                f"effect queries via ADMG-aware front-door; the other "
+                f"dispatch paths become ADMG-aware in S4. See "
+                f"PHASE_2_LATENT_CHARTER.md §7."
             )
 
 

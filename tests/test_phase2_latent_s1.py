@@ -178,30 +178,50 @@ def test_serializer_round_trip_preserves_forall():
 
 # ================================================ runtime guard (S1)
 
-def test_runtime_gate_rejects_bidirected_program():
-    """themis.run on a program containing a bidirected statement must
-    raise a SemanticError with a message pointing at the charter —
-    not silently drop the edge into a DAG."""
-    ast = _program_with_bidirected()
+def test_runtime_gate_rejects_unsupported_query_on_admg():
+    """After S3.a the gate is narrowed: bidirected edges are allowed
+    in the program as long as queries are identify/effect. A cause /
+    assoc / probability query on an ADMG program must still raise
+    SemanticError pointing at the charter — not silently drop the edge."""
+    ast = _program_with_bidirected([
+        {"kind": "query", "id": "q",
+         "query": {"kind": "cause",
+                   "from": _atom("smoking"),
+                   "to":   _atom("lung_cancer")}},
+    ])
     with pytest.raises(SemanticError) as exc:
         themis.run(ast)
     msg = str(exc.value)
     assert "bidirected" in msg.lower()
-    assert "Phase 2.latent" in msg or "S2" in msg
+    assert "Phase 2.latent" in msg
 
 
-def test_runtime_gate_message_names_the_predicates():
-    """The error message should let the user locate the offending edge
-    in a multi-edge program — name the predicate pair."""
-    ast = _program_with_bidirected()
+def test_runtime_gate_message_names_the_query_id():
+    """The error message should let the user locate the offending
+    query — name the query id."""
+    ast = _program_with_bidirected([
+        {"kind": "query", "id": "my_query_id",
+         "query": {"kind": "cause",
+                   "from": _atom("smoking"),
+                   "to":   _atom("lung_cancer")}},
+    ])
     with pytest.raises(SemanticError) as exc:
         themis.run(ast)
-    msg = str(exc.value)
-    assert "smoking" in msg
-    assert "lung_cancer" in msg
+    assert "my_query_id" in str(exc.value)
 
 
-def test_runtime_gate_fires_even_with_cause_edges_mixed_in():
+def test_bidirected_without_queries_now_passes_validation():
+    """Post-S3.a: a program with bidirected but zero queries has no
+    silent-drop risk (nothing to dispatch) — validation succeeds and
+    run returns empty results. Regression pin for the narrowed gate."""
+    ast = _program_with_bidirected()  # no query
+    out = themis.run(ast)
+    assert out["results"] == []
+
+
+def test_runtime_gate_fires_on_mixed_directed_and_bidirected_with_cause_query():
+    """Cause query + bidirected edges still rejected: the directed-skeleton
+    cause check ignores bidirected, which would be a silent drop."""
     ast = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
