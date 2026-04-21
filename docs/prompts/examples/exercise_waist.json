@@ -1,0 +1,44 @@
+{
+  "nl_input": "我每天跑步，肚子上的肉会瘦下来吗",
+  "reasoning": {
+    "intent": "effect",
+    "intent_reason": "'每天' is an intervention marker; the user is asking about the effect of habitually running, not whether a causal pathway exists in principle",
+    "predicates": [
+      {"name": "running", "role": "intervention", "translation": "跑步"},
+      {"name": "belly_fat_loss", "role": "target", "translation": "肚子上的肉变瘦"}
+    ],
+    "edges": [
+      {"from": "running", "to": "belly_fat_loss", "source": "common_knowledge"}
+    ],
+    "framing_left_blank": "All four framing fields (time_window, measurement, threshold, observability) are deliberately unset for both predicates — the user did not specify a time window, what 'thinner' means operationally, or how it is measured. Themis will surface these gaps in the DEFINE_VARIABLE investigation request."
+  },
+  "kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "statements": [
+      {"kind": "variable", "predicate": "running", "domain": [true, false]},
+      {"kind": "variable", "predicate": "belly_fat_loss", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  }
+}

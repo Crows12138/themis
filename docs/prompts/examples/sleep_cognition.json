@@ -1,0 +1,44 @@
+{
+  "nl_input": "经常熬夜会变笨吗",
+  "reasoning": {
+    "intent": "effect",
+    "intent_reason": "'经常' is a habitual-intervention marker similar to '每天'; user is asking the effect of sustained staying-up-late, not the abstract causal pathway",
+    "predicates": [
+      {"name": "staying_up_late", "role": "intervention", "translation": "熬夜"},
+      {"name": "cognitive_decline", "role": "target", "translation": "变笨 / 认知下降"}
+    ],
+    "edges": [
+      {"from": "staying_up_late", "to": "cognitive_decline", "source": "common_knowledge"}
+    ],
+    "framing_left_blank": "The user gave no time scale ('occasionally' vs 'every night for a year'?), no definition of 'cognitive decline' (working memory? reaction time? self-report?), and no measurement method. All four framing fields stay unset so A0/F1 flags them."
+  },
+  "kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "statements": [
+      {"kind": "variable", "predicate": "staying_up_late", "domain": [true, false]},
+      {"kind": "variable", "predicate": "cognitive_decline", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  }
+}

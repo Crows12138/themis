@@ -1,0 +1,44 @@
+{
+  "nl_input": "多吃青菜能降血压吗",
+  "reasoning": {
+    "intent": "effect",
+    "intent_reason": "'多吃' signals an intervention; the user is asking about the effect of increased vegetable intake on blood pressure",
+    "predicates": [
+      {"name": "eating_more_vegetables", "role": "intervention", "translation": "多吃青菜"},
+      {"name": "blood_pressure_lowered", "role": "target", "translation": "血压降下来"}
+    ],
+    "edges": [
+      {"from": "eating_more_vegetables", "to": "blood_pressure_lowered", "source": "common_knowledge"}
+    ],
+    "framing_left_blank": "No time window ('after a week? after a year?'), no intake threshold (what counts as 'more'?), no BP measurement standard (systolic vs diastolic? which cutoff?). A0/F1 will flag all four framing fields for both predicates."
+  },
+  "kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "statements": [
+      {"kind": "variable", "predicate": "eating_more_vegetables", "domain": [true, false]},
+      {"kind": "variable", "predicate": "blood_pressure_lowered", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  }
+}
