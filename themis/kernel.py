@@ -39,6 +39,7 @@ from .types import (
     Annotation,
     AssocQuery,
     Atom,
+    BidirectedStatement,
     CauseQuery,
     CauseStatement,
     ConstTerm,
@@ -174,6 +175,18 @@ def _statement_to_dict(s) -> dict:
             "kind": "cause",
             "from": _atom_to_dict(s.from_atom),
             "to": _atom_to_dict(s.to_atom),
+        }
+        if s.forall:
+            d["forall"] = list(s.forall)
+        ann = _annotation_to_dict(s.annotations)
+        if ann is not None:
+            d["annotations"] = ann
+        return d
+    if isinstance(s, BidirectedStatement):
+        d: dict = {
+            "kind": "bidirected",
+            "left": _atom_to_dict(s.left),
+            "right": _atom_to_dict(s.right),
         }
         if s.forall:
             d["forall"] = list(s.forall)

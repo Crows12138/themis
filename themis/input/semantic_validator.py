@@ -49,6 +49,7 @@ from ..types import (
     Annotation,
     AssocQuery,
     Atom,
+    BidirectedStatement,
     CauseQuery,
     CauseStatement,
     ConstTerm,
@@ -74,6 +75,7 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "ground_observations",
         "ground_queries",
         "unique_variable_declarations",
+        "bidirected_runtime_gate",
     }
 )
 
@@ -153,6 +155,13 @@ def _to_statement(d: dict):
             forall=tuple(d.get("forall", ())),
             annotations=_to_annotation(d.get("annotations")),
         )
+    if k == "bidirected":
+        return BidirectedStatement(
+            left=_to_atom(d["left"]),
+            right=_to_atom(d["right"]),
+            forall=tuple(d.get("forall", ())),
+            annotations=_to_annotation(d.get("annotations")),
+        )
     if k == "probability":
         return ProbabilityStatement(
             target=_to_grounded(d["target"]),
@@ -198,6 +207,8 @@ def _as_atom(x) -> Atom:
 def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
     if isinstance(stmt, CauseStatement):
         return (stmt.from_atom, stmt.to_atom)
+    if isinstance(stmt, BidirectedStatement):
+        return (stmt.left, stmt.right)
     if isinstance(stmt, ProbabilityStatement):
         return (_as_atom(stmt.target), *(_as_atom(g) for g in stmt.given))
     if isinstance(stmt, ObservationStatement):
@@ -263,7 +274,7 @@ def _check_bound_variables(program: Program) -> None:
     through and becomes a permanent ghost node in the working graph.
     """
     for idx, stmt in enumerate(program.statements):
-        if not isinstance(stmt, (CauseStatement, ProbabilityStatement)):
+        if not isinstance(stmt, (CauseStatement, BidirectedStatement, ProbabilityStatement)):
             continue
         declared = set(stmt.forall)
         for atom in _atoms_in_statement(stmt):
@@ -331,6 +342,34 @@ def _check_unique_variable_declarations(program: Program) -> None:
         seen[stmt.predicate] = idx
 
 
+def _check_bidirected_runtime_gate(program: Program) -> None:
+    """Phase 2.latent S1 guard.
+
+    BidirectedStatement parses successfully and round-trips through
+    the serializer, but the runtime cannot yet dispatch a program
+    containing one (m-separation + c-component support lands in
+    slices S2+). Programs with bidirected statements are rejected
+    here with a clear message so the failure cannot be mistaken for
+    a silent drop — graph_projection would otherwise skip the
+    statement and produce a DAG that omits a confounder the user
+    declared.
+
+    When S2 lands this check is removed (or narrowed to only gate
+    the still-unimplemented sub-cases).
+    """
+    for idx, stmt in enumerate(program.statements):
+        if isinstance(stmt, BidirectedStatement):
+            raise SemanticError(
+                f"statements[{idx}]: bidirected edge "
+                f"({stmt.left.predicate} <-> {stmt.right.predicate}) "
+                f"requires Phase 2.latent runtime support (not yet "
+                f"implemented). See PHASE_2_LATENT_CHARTER.md for scope "
+                f"and delivery plan. Current slice is S1 (AST + schema "
+                f"only); m-separation and c-component analysis land in "
+                f"S2+."
+            )
+
+
 _CHECK_FUNCS = {
     "objects": _check_objects,
     "forall_usage": _check_forall_usage,
@@ -338,6 +377,7 @@ _CHECK_FUNCS = {
     "ground_observations": _check_ground_observations,
     "ground_queries": _check_ground_queries,
     "unique_variable_declarations": _check_unique_variable_declarations,
+    "bidirected_runtime_gate": _check_bidirected_runtime_gate,
 }
 
 

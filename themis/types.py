@@ -59,6 +59,26 @@ class CauseStatement:
     annotations: Annotation | None = None
 
 
+@dataclass(frozen=True)
+class BidirectedStatement:
+    """Phase 2.latent S1: a bidirected edge between two observed atoms.
+
+    Semantically represents the presence of at least one unobserved
+    common cause U of ``left`` and ``right``, without modeling U as an
+    explicit predicate (semi-Markov representation). The statement is
+    undirected — ``left`` and ``right`` are purely syntactic slots.
+
+    S1 only lands the AST / schema surface; runtime dispatch refuses
+    to execute a program containing bidirected statements until
+    Phase 2.latent S2+ implements m-separation and c-component
+    analysis. See PHASE_2_LATENT_CHARTER.md §6.3 / §7.
+    """
+    left: Atom
+    right: Atom
+    forall: tuple[str, ...] = ()
+    annotations: Annotation | None = None
+
+
 AtomValue = Union[bool, int, float, str]
 
 
@@ -175,6 +195,7 @@ class VariableDeclaration:
 
 Statement = Union[
     CauseStatement,
+    BidirectedStatement,
     ProbabilityStatement,
     ObservationStatement,
     QueryStatement,

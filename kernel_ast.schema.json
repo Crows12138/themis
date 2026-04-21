@@ -111,6 +111,37 @@
         }
       }
     },
+    "bidirectedStatement": {
+      "type": "object",
+      "description": "Phase 2.latent S1. An undirected 'bidirected' edge between two observed atoms, semantically declaring the existence of at least one unobserved common cause (semi-Markov representation). The kind is accepted by the schema but cannot yet be dispatched by the runtime — programs containing bidirectedStatement raise SemanticError until Phase 2.latent S2+ lands m-separation + c-component support. See PHASE_2_LATENT_CHARTER.md.",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "left",
+        "right"
+      ],
+      "properties": {
+        "kind": {
+          "const": "bidirected"
+        },
+        "forall": {
+          "type": "array",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/variableName"
+          }
+        },
+        "left": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "right": {
+          "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotation",
+          "description": "Provenance / confidence metadata for the bidirected edge. Not consumed by reasoning rules in S1."
+        }
+      }
+    },
     "probabilityStatement": {
       "type": "object",
       "additionalProperties": false,
@@ -426,6 +457,9 @@
       "oneOf": [
         {
           "$ref": "#/$defs/causeStatement"
+        },
+        {
+          "$ref": "#/$defs/bidirectedStatement"
         },
         {
           "$ref": "#/$defs/probabilityStatement"
