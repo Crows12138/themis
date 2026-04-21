@@ -312,6 +312,7 @@ def minimal_adjustment_sets(
     x: Atom,
     y: Atom,
     given: tuple[Atom, ...] = (),
+    bidirected: "BidirectedEdgeSet | None" = None,
 ) -> tuple[frozenset[Atom], ...]:
     """Find all subset-minimal **additional** back-door adjustment sets,
     disjoint from ``given``.
@@ -332,6 +333,17 @@ def minimal_adjustment_sets(
 
     Returns ``(frozenset(),)`` when ``given`` alone already blocks
     all back-door paths.
+
+    Phase 2.latent S3.b.1: when ``bidirected`` is provided and non-empty,
+    back-door path enumeration + blocking switch to the ADMG:
+    ``_is_admg_backdoor_connected`` replaces ``backdoor_paths`` +
+    ``_path_is_open``. The empty / None case is bit-identical to the
+    original directed-only implementation (regression guaranteed).
+
+    Descendant analysis for the pre-condition / candidate exclusion
+    stays directed-only: descendants via bidirected edges are not
+    defined in the ADMG, so bidirected-connected nodes are still
+    admissible candidates (only directed descendants are forbidden).
     """
     from itertools import combinations
 
@@ -345,16 +357,29 @@ def minimal_adjustment_sets(
     if given_set & (descendants_x | {x, y}):
         return ()
 
-    bdoors = backdoor_paths(graph, x, y)
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
+
+    if bidir_eff:
+        # ADMG-aware path: blocking check runs over m-paths that leave
+        # X via an arrowhead at X (directed incoming OR bidirected).
+        def blocks_all(z: frozenset[Atom]) -> bool:
+            combined = z | given_set
+            return not _is_admg_backdoor_connected(
+                graph, bidir_eff, x, y, combined
+            )
+    else:
+        # Directed-only path — unchanged from v1.0.
+        bdoors = backdoor_paths(graph, x, y)
+
+        def blocks_all(z: frozenset[Atom]) -> bool:
+            combined = z | given_set
+            for path in bdoors:
+                if _path_is_open(graph, path, combined):
+                    return False
+            return True
+
     forbidden = descendants_x | {x, y} | given_set
     candidates: list[Atom] = [n for n in graph.nodes if n not in forbidden]
-
-    def blocks_all(z: frozenset[Atom]) -> bool:
-        combined = z | given_set
-        for path in bdoors:
-            if _path_is_open(graph, path, combined):
-                return False
-        return True
 
     minimal: list[frozenset[Atom]] = []
     for size in range(len(candidates) + 1):

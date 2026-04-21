@@ -205,39 +205,49 @@ def _dispatch_identify(
             ),
         )
 
-    # Phase 2.latent S3.a: on ADMG programs skip backdoor (the existing
-    # minimal_adjustment_sets reads the directed skeleton only and can
-    # silently miss bidirected back-doors). Go straight to ADMG-aware
-    # front-door when possible.
+    # Phase 2.latent S3.b.1: ADMG programs first try the ADMG-aware
+    # backdoor (minimal_adjustment_sets with bidirected); if that
+    # returns nothing, S3.a's ADMG-aware front-door is the next
+    # fallback. Out-of-reach ADMG cases become needs_investigation
+    # pointing at S3.b.2 (c-factor) for follow-up.
     if bidirected:
-        if not q.given:
-            front = structural_solver.front_door_sets(
-                graph, x, y, bidirected=bidirected
-            )
-            if front:
-                return _build_identify_via_frontdoor(stmt, graph, q, front)
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.IDENTIFY,
-            query_id=stmt.id,
-            missing_information=(
-                MissingItem(
-                    kind=MissingKind.STRUCTURE,
-                    name="query:identify_admg",
-                    priority=Priority.HIGH,
-                    reason=(
-                        "Phase 2.latent S3.a: this ADMG identify query "
-                        "is not reachable by the ADMG-aware front-door "
-                        "path. General c-factor identification lands in "
-                        "S3.b; see PHASE_2_LATENT_CHARTER.md §7."
+        admg_adjustment_sets = structural_solver.minimal_adjustment_sets(
+            graph, x, y, given=q.given, bidirected=bidirected
+        )
+        if admg_adjustment_sets:
+            # Adjustment set exists in ADMG — reuse the backdoor
+            # derivation builder below (same formula shape).
+            adjustment_sets = admg_adjustment_sets
+        else:
+            if not q.given:
+                front = structural_solver.front_door_sets(
+                    graph, x, y, bidirected=bidirected
+                )
+                if front:
+                    return _build_identify_via_frontdoor(stmt, graph, q, front)
+            return QueryResult(
+                status=ResultStatus.NEEDS_INVESTIGATION,
+                query_kind=QueryKind.IDENTIFY,
+                query_id=stmt.id,
+                missing_information=(
+                    MissingItem(
+                        kind=MissingKind.STRUCTURE,
+                        name="query:identify_admg",
+                        priority=Priority.HIGH,
+                        reason=(
+                            "Phase 2.latent S3.b.1: this ADMG identify "
+                            "query is reachable neither by ADMG-aware "
+                            "backdoor nor front-door. Tian c-factor "
+                            "lands in S3.b.2; see "
+                            "PHASE_2_LATENT_CHARTER.md §7."
+                        ),
                     ),
                 ),
-            ),
+            )
+    else:
+        adjustment_sets = structural_solver.minimal_adjustment_sets(
+            graph, x, y, given=q.given
         )
-
-    adjustment_sets = structural_solver.minimal_adjustment_sets(
-        graph, x, y, given=q.given
-    )
 
     if not adjustment_sets:
         # Back-door unavailable — try the front-door criterion
@@ -693,58 +703,66 @@ def _dispatch_effect(
             ),
         )
 
-    # Phase 2.latent S3.a: ADMG programs skip the directed-only
-    # backdoor and go straight to ADMG-aware front-door.
+    # Phase 2.latent S3.b.1: ADMG-aware backdoor first, front-door
+    # second, c-factor pending S3.b.2.
     if bidirected:
-        if not observed_atoms:
-            front = structural_solver.front_door_sets(
-                graph, x, y_atom, bidirected=bidirected
-            )
-            if front:
-                chosen = min(front, key=len)
-                topo = [n for n in nx.topological_sort(graph) if n in chosen]
-                intervention_va = ValuedAtom(
-                    atom=x, value=q.intervention.value
+        admg_adjustment_sets = structural_solver.minimal_adjustment_sets(
+            graph, x, y_atom, given=observed_atoms, bidirected=bidirected
+        )
+        if admg_adjustment_sets:
+            adjustment_sets = admg_adjustment_sets
+            # Fall through to the shared backdoor-formula tail below.
+        else:
+            if not observed_atoms:
+                front = structural_solver.front_door_sets(
+                    graph, x, y_atom, bidirected=bidirected
                 )
-                formula = formula_builder.front_door_formula(
-                    target=q.target,
-                    intervention=intervention_va,
-                    mediators=tuple(topo),
-                )
-                validate_formula(formula)
-                structural_prefix = _build_effect_frontdoor_structural_prefix(
-                    graph=graph,
-                    x=x, y=y_atom, z=tuple(topo),
-                    target_va=q.target,
-                    intervention_va=intervention_va,
-                    formula=formula,
-                )
-                return _try_numeric(
-                    stmt, formula, theta, QueryKind.EFFECT,
-                    structural_prefix=structural_prefix,
-                )
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.EFFECT,
-            query_id=stmt.id,
-            missing_information=(
-                MissingItem(
-                    kind=MissingKind.STRUCTURE,
-                    name="query:effect_admg",
-                    priority=Priority.HIGH,
-                    reason=(
-                        "Phase 2.latent S3.a: this ADMG effect query is "
-                        "not reachable by the ADMG-aware front-door "
-                        "path. General c-factor identification lands in "
-                        "S3.b; see PHASE_2_LATENT_CHARTER.md §7."
+                if front:
+                    chosen = min(front, key=len)
+                    topo = [n for n in nx.topological_sort(graph) if n in chosen]
+                    intervention_va = ValuedAtom(
+                        atom=x, value=q.intervention.value
+                    )
+                    formula = formula_builder.front_door_formula(
+                        target=q.target,
+                        intervention=intervention_va,
+                        mediators=tuple(topo),
+                    )
+                    validate_formula(formula)
+                    structural_prefix = _build_effect_frontdoor_structural_prefix(
+                        graph=graph,
+                        x=x, y=y_atom, z=tuple(topo),
+                        target_va=q.target,
+                        intervention_va=intervention_va,
+                        formula=formula,
+                    )
+                    return _try_numeric(
+                        stmt, formula, theta, QueryKind.EFFECT,
+                        structural_prefix=structural_prefix,
+                    )
+            return QueryResult(
+                status=ResultStatus.NEEDS_INVESTIGATION,
+                query_kind=QueryKind.EFFECT,
+                query_id=stmt.id,
+                missing_information=(
+                    MissingItem(
+                        kind=MissingKind.STRUCTURE,
+                        name="query:effect_admg",
+                        priority=Priority.HIGH,
+                        reason=(
+                            "Phase 2.latent S3.b.1: this ADMG effect "
+                            "query is reachable neither by ADMG-aware "
+                            "backdoor nor front-door. Tian c-factor "
+                            "lands in S3.b.2; see "
+                            "PHASE_2_LATENT_CHARTER.md §7."
+                        ),
                     ),
                 ),
-            ),
+            )
+    else:
+        adjustment_sets = structural_solver.minimal_adjustment_sets(
+            graph, x, y_atom, given=observed_atoms
         )
-
-    adjustment_sets = structural_solver.minimal_adjustment_sets(
-        graph, x, y_atom, given=observed_atoms
-    )
     if not adjustment_sets:
         # A6 fragment: try front-door when back-door is unavailable.
         # Only fires when observed (given) is empty — multi-mediator
