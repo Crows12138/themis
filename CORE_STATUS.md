@@ -266,22 +266,24 @@ verifier 接受 / 拒绝三类篡改（mediator / 公式目标 / conditioned que
 
 ## 基本完成但还不算“更大系统完成”的部分
 
-### 1. Framing 分三层，当前只闭了第 1 层
-
-更准确地说：
+### 1. Framing 三层状态（post slice #36 / #40 / #41）
 
 - **变量框定闭环（kernel / JSON 层）**——**已完成**
-  `variableDeclaration` + `framing_notes` + F1 `DEFINE_VARIABLE`
-  investigation + `extract_definition_skeleton` +
+  `variableDeclaration`（含 slice #41 的 direction / baseline /
+  state_vs_event 共 7 个可选 framing 字段）+ `framing_notes` + F1
+  `DEFINE_VARIABLE` investigation + `extract_definition_skeleton` +
   `merge_variable_declaration` + `apply_patch_and_run` 二轮重跑。
-  `test_a3_apply_patch` 已 pin：第二轮后 `framing_notes` 和
-  `DEFINE_VARIABLE` 都清空。
-- **变量框定闭环（NL / agent 层）**——**未完成**
-  缺 "用户用自然语言答复 → LLM 把答复结构化成
-  `framing_skeleton_bundle`" 的第三条 prompt。A1 只做了 NL↔JSON
-  的 question / response 两侧，这一条对称 prompt 被跳过了。
-- **变量框定强 gate（问题没框清就拒绝出数）**——**未完成**
-  当前 framing 只 advisory，数值路径不因 framing 缺失被阻断。
+  `test_a3_apply_patch` + `test_framing_fields_v2` 已 pin。
+- **变量框定闭环（NL / agent 层）**——**已完成（slice #40）**
+  第三条 prompt `reply_to_framing_patch.md` 把用户 NL 答复结构化成
+  `framing_skeleton_bundle`。A1 的 question / response 两侧加上这条
+  答复侧，NL↔JSON 三方对称。
+- **变量框定强 gate（问题没框清就拒绝出数）**——**已完成（slice #36）**
+  opt-in 的 `program.options.strict_framing: true`。启用时
+  `effect` / `probability` 查询在 A0 报出任何 framing gap 时直接
+  flip 到 `needs_investigation` 且不出数，F1 DEFINE_VARIABLE
+  仍然正常产出填写 skeleton。默认 `false` 保持 advisory 行为。
+  15 个 pin 测试覆盖矩阵（见 `test_strict_framing_gate.py`）。
 
 ### 2. 真实案例已经能跑，但还没有变成系统上游
 

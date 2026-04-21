@@ -80,6 +80,7 @@ Full schema: `kernel_ast.schema.json`. Key structure:
 {
   "version": "0.1",
   "domain": {"objects": [{"kind": "object", "name": "me"}]},
+  "options": {"strict_framing": false},
   "statements": [
     {"kind": "variable", "predicate": "<name>", "domain": [true, false]},
     {
@@ -90,6 +91,13 @@ Full schema: `kernel_ast.schema.json`. Key structure:
   ]
 }
 ```
+
+**`options.strict_framing`** (slice #36) is optional. Leave it absent
+or `false` for the default advisory behavior. Set it to `true` if the
+caller wants Themis to refuse to emit a numeric answer while any
+referenced predicate still has a framing gap — the F1
+`DEFINE_VARIABLE` channel still fires, so the fill-back loop works
+the same; only the numeric path is gated.
 
 `<query>` per intent:
 

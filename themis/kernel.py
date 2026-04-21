@@ -234,6 +234,8 @@ def _program_to_ast_dict(prog: Program) -> dict:
     }
     if prog.extensions is not None:
         ast["extensions"] = prog.extensions
+    if prog.options is not None:
+        ast["options"] = prog.options
     return ast
 
 

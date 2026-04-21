@@ -472,6 +472,7 @@ def validate_program(ast: dict, checks: frozenset[str] | None = None) -> Program
         objects=tuple(o["name"] for o in ast["domain"]["objects"]),
         statements=tuple(_to_statement(s) for s in ast["statements"]),
         extensions=ast.get("extensions"),
+        options=ast.get("options"),
     )
 
     for name in checks:

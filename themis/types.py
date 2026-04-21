@@ -188,6 +188,12 @@ class Program:
     objects: tuple[str, ...]
     statements: tuple[Statement, ...]
     extensions: dict | None = None
+    # Slice #36: per-run options. Currently supports ``strict_framing``
+    # (bool) — when True, effect / probability queries whose predicates
+    # have A0 framing gaps flip to needs_investigation before numeric
+    # evaluation, instead of passing through. Additive; default None
+    # preserves advisory-only behavior.
+    options: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +290,11 @@ class MissingKind(str, Enum):
     OBSERVATION = "observation"
     SAMPLE = "sample"
     STRUCTURE = "structure"
+    # Slice #36: strict_framing blocked the numeric path because a
+    # predicate the query references has framing gaps. Declarative
+    # only — the actionable follow-up lives in the F1 DEFINE_VARIABLE
+    # investigation channel; investigation_pusher skips this kind.
+    FRAMING = "framing"
 
 
 class Priority(str, Enum):

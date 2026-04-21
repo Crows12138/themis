@@ -16,6 +16,17 @@
     "extensions": {
       "type": "object"
     },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Slice #36. Opt-in per-run toggles that shape how the kernel treats partially-specified programs. Absent is default (backward-compatible with all pre-#36 fixtures).",
+      "properties": {
+        "strict_framing": {
+          "type": "boolean",
+          "description": "When true, effect / probability queries whose referenced predicates still have A0 framing gaps flip to needs_investigation before numeric evaluation. The F1 DEFINE_VARIABLE channel still fires with the same skeletons so the fill-back loop is unchanged — only the numeric path is gated."
+        }
+      }
+    },
     "domain": {
       "type": "object",
       "additionalProperties": false,

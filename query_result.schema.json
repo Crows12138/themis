@@ -354,7 +354,8 @@
             "parameter",
             "observation",
             "sample",
-            "structure"
+            "structure",
+            "framing"
           ]
         },
         "name": {

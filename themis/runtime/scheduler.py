@@ -868,18 +868,61 @@ def _attach_framing(
 def _attach_investigation(result: QueryResult) -> QueryResult:
     """For needs_investigation results with missing_information but no
     investigation_requests yet, populate the requests from the missing
-    items."""
+    items.
+
+    Slice #36: MissingKind.FRAMING items are declarative — the
+    actionable surface for framing gaps is the F1 DEFINE_VARIABLE
+    channel attached by ``_attach_framing``. Skip them here so
+    investigation_pusher doesn't emit a duplicate empty-skeleton
+    request."""
     if result.status != ResultStatus.NEEDS_INVESTIGATION:
         return result
     if result.investigation_requests:
         return result
-    if not result.missing_information:
+    actionable = tuple(
+        m for m in result.missing_information
+        if m.kind is not MissingKind.FRAMING
+    )
+    if not actionable:
         return result
     from dataclasses import replace
 
     return replace(
         result,
-        investigation_requests=investigation_pusher.push(result.missing_information),
+        investigation_requests=investigation_pusher.push(actionable),
+    )
+
+
+def _check_strict_framing(
+    program: Program,
+    stmt: QueryStatement,
+) -> tuple[MissingItem, ...]:
+    """Slice #36: strict framing gate.
+
+    If ``program.options.strict_framing`` is True, return one
+    MissingItem per predicate the query references that still has
+    A0 framing gaps. Empty tuple means the gate is either disabled
+    or the query is fully framed (numeric evaluation proceeds as
+    normal in either case)."""
+    if not program.options or not program.options.get("strict_framing"):
+        return ()
+    from . import framing_check
+    notes = framing_check.check_framing(program, stmt)
+    if not notes:
+        return ()
+    return tuple(
+        MissingItem(
+            kind=MissingKind.FRAMING,
+            name=f"framing:{note.predicate}",
+            priority=Priority.HIGH,
+            reason=(
+                f"strict_framing: predicate '{note.predicate}' has "
+                f"{len(note.missing)} unfilled framing field"
+                f"{'s' if len(note.missing) != 1 else ''}: "
+                f"{', '.join(note.missing)}"
+            ),
+        )
+        for note in notes
     )
 
 
@@ -1013,9 +1056,27 @@ def dispatch(
     elif isinstance(q, IdentifyQuery):
         result = _dispatch_identify(stmt, graph)
     elif isinstance(q, EffectQuery):
-        result = _dispatch_effect(stmt, graph, theta)
+        strict_items = _check_strict_framing(program, stmt)
+        if strict_items:
+            result = QueryResult(
+                status=ResultStatus.NEEDS_INVESTIGATION,
+                query_kind=QueryKind.EFFECT,
+                query_id=stmt.id,
+                missing_information=strict_items,
+            )
+        else:
+            result = _dispatch_effect(stmt, graph, theta)
     elif isinstance(q, ProbabilityQuery):
-        result = _dispatch_probability(stmt, graph, theta)
+        strict_items = _check_strict_framing(program, stmt)
+        if strict_items:
+            result = QueryResult(
+                status=ResultStatus.NEEDS_INVESTIGATION,
+                query_kind=QueryKind.PROBABILITY,
+                query_id=stmt.id,
+                missing_information=strict_items,
+            )
+        else:
+            result = _dispatch_probability(stmt, graph, theta)
     else:
         # Truly unknown type: fail loudly. The schema layer should
         # have already rejected it; reaching here is a programmer bug.
