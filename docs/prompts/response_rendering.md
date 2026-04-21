@@ -33,6 +33,7 @@ Fields to look at, in order:
 | `investigation_requests[]` | Actionable tasks — **this is usually the main content of your reply** |
 | `framing_notes[]` | Advisory (same info is projected into `investigation_requests` with action `define_variable`); use the structured request instead for consistency |
 | `derivation` | The machine-verifiable reasoning chain — mention it only if the user asks "why" |
+| `confidence_sources` | Slice #34 — one entry per slot that fed the min aggregation, each with `source`, `confidence`, and `is_weakest`. When citing confidence, name the entries with `is_weakest: true` so the user sees which source is the binding constraint |
 
 ## Grouping investigation requests
 

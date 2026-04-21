@@ -391,6 +391,22 @@ class FramingNote:
 
 
 @dataclass(frozen=True)
+class ConfidenceSource:
+    """Slice #34: one slot's contribution to the composite confidence.
+
+    The composite is ``min`` across non-None slot confidences (RFC
+    §3). Each slot's contribution is the confidence of the source
+    statement(s) with the minimum annotation.confidence in that slot.
+    Recording this lets downstream consumers cite the weakest-link
+    source explicitly instead of only seeing the aggregated number.
+    """
+    slot_label: str              # e.g. "parameter:P(Y=T|X=T)" or "observation:X=true"
+    source: str | None           # annotations.source verbatim; None if unset
+    confidence: float
+    is_weakest: bool             # True iff confidence == the composite min
+
+
+@dataclass(frozen=True)
 class QueryResult:
     status: ResultStatus
     query_kind: QueryKind
@@ -398,6 +414,7 @@ class QueryResult:
     structural_result: StructuralResult | None = None
     numeric_result: NumericResult | None = None
     confidence: float | None = None
+    confidence_sources: tuple[ConfidenceSource, ...] = ()
     formula: FormulaExpr | None = None
     missing_information: tuple[MissingItem, ...] = ()
     investigation_requests: tuple[InvestigationRequest, ...] = ()

@@ -135,6 +135,13 @@
         "$ref": "#/$defs/framingNote"
       }
     },
+    "confidence_sources": {
+      "type": "array",
+      "description": "Slice #34. One entry per slot that participated in the confidence min aggregation, carrying the source annotation, the slot's minimum confidence, and an is_weakest flag marking sources tied with the composite minimum. Absent when no slot contributed or the query is structural.",
+      "items": {
+        "$ref": "#/$defs/confidenceSource"
+      }
+    },
     "explanation": {
       "type": [
         "string",
@@ -370,6 +377,30 @@
         },
         "reason": {
           "type": "string"
+        }
+      }
+    },
+    "confidenceSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot_label", "confidence", "is_weakest"],
+      "properties": {
+        "slot_label": {
+          "type": "string",
+          "description": "Identifies which slot this source contributed to. Shapes: 'parameter:P(Y=y|X=x, ...)' for conditional lookups, 'observation:X=value' for observed atoms."
+        },
+        "source": {
+          "type": "string",
+          "description": "Verbatim annotations.source of the statement that pinned this slot (e.g. 'PubMed:12345', 'user_report'). Absent when the contributing statement had no source field set."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "is_weakest": {
+          "type": "boolean",
+          "description": "True when this source's confidence equals the composite min — i.e. this source is (one of) the binding constraints on the overall result confidence."
         }
       }
     },

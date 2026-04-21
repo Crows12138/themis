@@ -117,6 +117,16 @@ def to_dict(result: QueryResult) -> dict:
         d["numeric_result"] = _numeric_to_dict(result.numeric_result)
     if result.confidence is not None:
         d["confidence"] = result.confidence
+    if result.confidence_sources:
+        d["confidence_sources"] = [
+            {
+                "slot_label": s.slot_label,
+                **({"source": s.source} if s.source is not None else {}),
+                "confidence": s.confidence,
+                "is_weakest": s.is_weakest,
+            }
+            for s in result.confidence_sources
+        ]
     if result.formula is not None:
         d["formula"] = _formula_to_dict(result.formula)
     if result.missing_information:

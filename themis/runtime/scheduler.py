@@ -43,6 +43,7 @@ from ..types import (
     AssocQuery,
     Atom,
     CauseQuery,
+    ConfidenceSource,
     DerivationStep,
     EffectQuery,
     IdentifyQuery,
@@ -926,17 +927,109 @@ def _check_strict_framing(
     )
 
 
-def _slot_confidence(sources) -> float | None:
-    """RFC §3.1 / §3.2: min of non-None confidences across a slot's
-    source statements; None if all sources lack annotation."""
-    confs = [
-        s.annotations.confidence
-        for s in sources
+def _slot_contributors(sources):
+    """All source statements with a non-None annotations.confidence."""
+    return [
+        s for s in sources
         if s.annotations is not None and s.annotations.confidence is not None
     ]
-    if not confs:
+
+
+def _slot_min_source(sources):
+    """Return (source_statement, confidence) for the slot's weakest
+    contributing source, or None if nothing contributes. Ties broken
+    by input order — deterministic, matches _slot_confidence's implicit
+    ordering."""
+    contribs = _slot_contributors(sources)
+    if not contribs:
         return None
-    return min(confs)
+    # min by confidence, stable on ties (first seen wins)
+    best = contribs[0]
+    best_c = best.annotations.confidence
+    for s in contribs[1:]:
+        c = s.annotations.confidence
+        if c < best_c:
+            best, best_c = s, c
+    return best, best_c
+
+
+def _gather_input_sources(
+    program: Program,
+    stmt: QueryStatement,
+    result: QueryResult,
+    *,
+    theta: Theta | None = None,
+    prob_index: dict | None = None,
+    obs_index: dict | None = None,
+) -> tuple[ConfidenceSource, ...]:
+    """Collect one ConfidenceSource per slot that contributed per
+    RFC §3. Each record carries the slot label, the source
+    annotation string, the confidence value, and a placeholder
+    is_weakest=False that ``_attach_confidence`` stamps to True on
+    the sources matching the composite min.
+
+    - Structural queries contribute nothing.
+    - Effect / probability queries enumerate distinct ProbabilityKeys
+      from the formula (dedupe) and observation slots from q.given.
+    - Intervention atoms never contribute (do-cut).
+    - Missing theta / indices return () — same defensive behavior as
+      the original _gather_input_confidences.
+    """
+    if result.query_kind not in (QueryKind.EFFECT, QueryKind.PROBABILITY):
+        return ()
+    if result.formula is None:
+        return ()
+    if theta is None or prob_index is None or obs_index is None:
+        return ()
+
+    collected: list[ConfidenceSource] = []
+    seen_keys: set = set()
+
+    # §3.1 probability slots
+    for key in numeric_estimator.enumerate_keys(result.formula, theta):
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        picked = _slot_min_source(prob_index.get(key, ()))
+        if picked is None:
+            continue
+        stmt_src, conf = picked
+        source_str = (
+            stmt_src.annotations.source
+            if stmt_src.annotations is not None else None
+        )
+        collected.append(ConfidenceSource(
+            slot_label=f"parameter:{format_probability_key(key)}",
+            source=source_str,
+            confidence=conf,
+            is_weakest=False,
+        ))
+
+    # §3.2 observation slots
+    q = stmt.query
+    given = getattr(q, "given", ())
+    for va in given:
+        atom = getattr(va, "atom", None)
+        value = getattr(va, "value", None)
+        if atom is None or value is None:
+            continue
+        picked = _slot_min_source(obs_index.get((atom, value), ()))
+        if picked is None:
+            continue
+        stmt_src, conf = picked
+        source_str = (
+            stmt_src.annotations.source
+            if stmt_src.annotations is not None else None
+        )
+        atom_label = _atom_to_str(atom)
+        collected.append(ConfidenceSource(
+            slot_label=f"observation:{atom_label}={value}",
+            source=source_str,
+            confidence=conf,
+            is_weakest=False,
+        ))
+
+    return tuple(collected)
 
 
 def _gather_input_confidences(
@@ -948,50 +1041,14 @@ def _gather_input_confidences(
     prob_index: dict | None = None,
     obs_index: dict | None = None,
 ) -> tuple[float, ...]:
-    """Collect confidences per RFC §3.3.
-
-    - Structural queries (cause / assoc / identify) contribute nothing.
-    - Effect / probability queries enumerate every distinct
-      ProbabilityKey looked up by the formula, pick its slot_conf via
-      the prob_index, then fold in observation slots from q.given per
-      the obs_index.
-    - Intervention atoms never contribute (do() cuts incoming edges).
-    - Missing Theta / indices -> return () rather than raising; this
-      keeps the slice independent of scheduler call-order invariants.
-    """
-    if result.query_kind not in (QueryKind.EFFECT, QueryKind.PROBABILITY):
-        return ()
-    if result.formula is None:
-        return ()
-    if theta is None or prob_index is None or obs_index is None:
-        return ()
-
-    inputs: list[float] = []
-
-    # §3.1 probability slots: dedupe by key, slot-min across sources.
-    seen_keys: set = set()
-    for key in numeric_estimator.enumerate_keys(result.formula, theta):
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
-        c = _slot_confidence(prob_index.get(key, ()))
-        if c is not None:
-            inputs.append(c)
-
-    # §3.2 observation slots: only for (atom, value) pairs matching an
-    # entry in q.given. Intervention atoms intentionally skipped.
-    q = stmt.query
-    given = getattr(q, "given", ())
-    for va in given:
-        atom = getattr(va, "atom", None)
-        value = getattr(va, "value", None)
-        if atom is None or value is None:
-            continue
-        c = _slot_confidence(obs_index.get((atom, value), ()))
-        if c is not None:
-            inputs.append(c)
-
-    return tuple(inputs)
+    """Back-compat shim for the old float-only contract. Delegates to
+    ``_gather_input_sources`` and strips the source metadata."""
+    return tuple(
+        s.confidence for s in _gather_input_sources(
+            program, stmt, result,
+            theta=theta, prob_index=prob_index, obs_index=obs_index,
+        )
+    )
 
 
 def _attach_confidence(
@@ -1008,18 +1065,36 @@ def _attach_confidence(
     v0.2 composite semantics: min of non-None slot confidences,
     None if no slots contribute. Collection rules are defined in
     ``confidence_rfc_v0_2.md`` §3 and implemented by
-    ``_gather_input_confidences``.
+    ``_gather_input_sources``.
+
+    Slice #34 additionally populates ``confidence_sources`` — one
+    entry per contributing slot with the source annotation, the
+    confidence value, and an ``is_weakest`` flag for sources whose
+    confidence equals the composite min. Consumers get a direct
+    "why is it this low" audit trail without re-computing it.
     """
     from dataclasses import replace
 
-    inputs = _gather_input_confidences(
+    sources = _gather_input_sources(
         program, stmt, result,
         theta=theta, prob_index=prob_index, obs_index=obs_index,
     )
-    computed = confidence_calc.composite(*inputs)
-    if computed is None and result.confidence is None:
+    computed = confidence_calc.composite(*(s.confidence for s in sources))
+    if computed is None and result.confidence is None and not sources:
         return result  # avoid pointless dataclass churn
-    return replace(result, confidence=computed)
+
+    if computed is not None:
+        sources = tuple(
+            ConfidenceSource(
+                slot_label=s.slot_label,
+                source=s.source,
+                confidence=s.confidence,
+                is_weakest=(s.confidence == computed),
+            )
+            for s in sources
+        )
+
+    return replace(result, confidence=computed, confidence_sources=sources)
 
 
 def dispatch(
