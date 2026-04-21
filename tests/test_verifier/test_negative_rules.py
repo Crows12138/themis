@@ -332,7 +332,7 @@ def test_verify_identify_rejects_wrong_negative_theorem_family():
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
-    with pytest.raises(VerificationError, match="identify derivation must end in unidentifiable_via_backdoor"):
+    with pytest.raises(VerificationError, match="identify derivation must end in"):
         verify_identify(deriv, ctx, StructuralResult(value=False))
 
 

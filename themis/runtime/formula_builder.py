@@ -115,6 +115,65 @@ def backdoor_formula(
     return body
 
 
+def front_door_formula(
+    target: ValuedAtom,
+    intervention: ValuedAtom,
+    mediators: tuple[Atom, ...],
+    observed: tuple[ValuedAtom, ...] = (),
+) -> FormulaExpr:
+    """Build Pearl's front-door adjustment formula.
+
+    For a single mediator Z (``mediators == (Z,)``):
+
+        ∑_z  P(Z=z | X=x, observed)
+             · ∑_{x'}  P(Y=y | X=x', Z=z, observed) · P(X=x' | observed)
+
+    The outer sum runs over Z's domain; the inner sum re-marginalises
+    X against the mediator conditional. ``observed`` threads into every
+    probability_ref the same way ``backdoor_formula`` handles it.
+
+    Multi-mediator front-door (``mediators`` of length >= 2) would
+    require a chain-rule expansion of P(Z1,...,Zk | X) and a
+    generalised inner loop; until a real case asks for it, this
+    function raises ``FormulaSupportError`` in that case. Single-
+    mediator front-door is the textbook form and covers the
+    identification gap most likely to show up in practice.
+    """
+    if len(mediators) == 0:
+        raise FormulaSupportError(
+            "front_door_formula requires at least one mediator"
+        )
+    if len(mediators) > 1:
+        raise FormulaSupportError(
+            "front_door_formula currently supports a single mediator; "
+            f"got {len(mediators)}. Multi-mediator front-door will land "
+            f"in a later slice if a real case needs it."
+        )
+
+    z_atom = mediators[0]
+    x_atom = intervention.atom
+
+    z_bind = fresh_bind_name(z_atom, frozenset())
+    x_bind = fresh_bind_name(x_atom, frozenset({z_bind.name}))
+
+    z_va = ValuedAtom(atom=z_atom, value=VarRef(name=z_bind.name))
+    x_prime_va = ValuedAtom(atom=x_atom, value=VarRef(name=x_bind.name))
+
+    # Inner sum: ∑_{x'} P(Y=y | X=x', Z=z, observed) · P(X=x' | observed)
+    inner_conditional = _conditional(
+        target, (x_prime_va, z_va) + observed
+    )
+    x_prior = _conditional(x_prime_va, observed)
+    inner_body = ProductExpr(terms=(inner_conditional, x_prior))
+    inner_sum = SumExpr(bind=x_bind, over=x_atom, body=inner_body)
+
+    # Outer body: P(Z=z | X=x, observed) · inner_sum
+    z_given_x = _conditional(z_va, (intervention,) + observed)
+    outer_body = ProductExpr(terms=(z_given_x, inner_sum))
+
+    return SumExpr(bind=z_bind, over=z_atom, body=outer_body)
+
+
 # ---------------------------------------------------------------------------
 # Read-only walkers — used by explainer / differential, never by builders.
 # ---------------------------------------------------------------------------

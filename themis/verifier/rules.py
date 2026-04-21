@@ -396,6 +396,279 @@ def _rule_identify_via_backdoor(
         )
 
 
+# ========================================================== A6 front-door
+
+def _path_is_open_for_front_door(
+    graph: nx.DiGraph,
+    path: tuple[Atom, ...],
+    conditioning: frozenset,
+) -> bool:
+    """Duplicate of the structural-solver d-separation check. The
+    verifier keeps its own copy so the two layers cannot drift without
+    a visible diff.
+    """
+    for i in range(1, len(path) - 1):
+        u, v, w = path[i - 1], path[i], path[i + 1]
+        if graph.has_edge(u, v) and graph.has_edge(w, v):  # collider
+            activated = {v} | nx.descendants(graph, v)
+            blocked = activated.isdisjoint(conditioning)
+        else:
+            blocked = v in conditioning
+        if blocked:
+            return False
+    return True
+
+
+def _backdoor_paths_for_front_door(
+    graph: nx.DiGraph, a: Atom, b: Atom,
+) -> tuple[tuple[Atom, ...], ...]:
+    """Undirected simple paths from a to b whose first edge points
+    INTO a. Independent reimplementation of structural_solver's
+    ``backdoor_paths`` so the verifier does not silently depend on the
+    runtime's helper drifting."""
+    if a not in graph or b not in graph or a == b:
+        return ()
+    result: list[tuple[Atom, ...]] = []
+    for p in nx.all_simple_paths(graph.to_undirected(as_view=True), a, b):
+        path = tuple(p)
+        if len(path) >= 2 and graph.has_edge(path[1], a):
+            result.append(path)
+    return tuple(result)
+
+
+def _rule_front_door_criterion(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify that the mediator set Z satisfies Pearl's front-door
+    criterion for (X, Y):
+
+    (FD1) every directed path from X to Y passes through some z ∈ Z
+    (FD2) no back-door path from X to any z ∈ Z is open under empty
+          conditioning
+    (FD3) every back-door path from z ∈ Z to Y is blocked by {X}
+
+    inputs: graph, x, y, z (frozenset of atoms)
+    output: bool
+    """
+    graph = _require(inputs, "graph", step_index, "front_door_criterion")
+    _assert_same_graph(graph, ctx.graph, step_index, "front_door_criterion")
+    x = _require_atom(inputs, "x", step_index, "front_door_criterion")
+    y = _require_atom(inputs, "y", step_index, "front_door_criterion")
+    z = _require_atom_set(inputs, "z", step_index, "front_door_criterion")
+
+    if x not in graph or y not in graph or x == y:
+        raise RuleCheckFailed(
+            "front_door_criterion: x or y missing / identical",
+            step_index=step_index, rule="front_door_criterion",
+        )
+    if not z:
+        raise RuleCheckFailed(
+            "front_door_criterion: mediator set must be non-empty",
+            step_index=step_index, rule="front_door_criterion",
+        )
+    if (z & {x, y}):
+        raise RuleCheckFailed(
+            "front_door_criterion: mediator set must not contain x or y",
+            step_index=step_index, rule="front_door_criterion",
+        )
+
+    # FD1
+    fd1 = True
+    for path in nx.all_simple_paths(graph, x, y):
+        if not (set(path[1:-1]) & z):
+            fd1 = False
+            break
+
+    # FD2
+    fd2 = True
+    if fd1:
+        for zi in z:
+            for path in _backdoor_paths_for_front_door(graph, x, zi):
+                if _path_is_open_for_front_door(graph, path, frozenset()):
+                    fd2 = False
+                    break
+            if not fd2:
+                break
+
+    # FD3
+    fd3 = True
+    if fd1 and fd2:
+        x_cond = frozenset({x})
+        for zi in z:
+            for path in _backdoor_paths_for_front_door(graph, zi, y):
+                if _path_is_open_for_front_door(graph, path, x_cond):
+                    fd3 = False
+                    break
+            if not fd3:
+                break
+
+    recomputed = fd1 and fd2 and fd3
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"front_door_criterion claimed {claimed_output!r}, "
+            f"recomputed {recomputed!r} (FD1={fd1}, FD2={fd2}, FD3={fd3})",
+            step_index=step_index, rule="front_door_criterion",
+        )
+
+
+def _build_expected_front_door_formula(
+    target: ValuedAtom,
+    intervention: ValuedAtom,
+    mediators: tuple[Atom, ...],
+) -> FormulaExpr:
+    """Independent restatement of the single-mediator front-door formula
+    (Pearl Eq. 3.29). Deliberately does not import from formula_builder
+    — the verifier is meant to catch regressions in the builder.
+    """
+    if len(mediators) != 1:
+        raise RuleCheckFailed(
+            "front_door_adjustment_formula: single-mediator only in this slice",
+            step_index=0, rule="front_door_adjustment_formula",
+        )
+    z_atom = mediators[0]
+    x_atom = intervention.atom
+
+    def _bind_for(atom: Atom, taken: set) -> BindDecl:
+        args = "_".join(a.name for a in atom.args)
+        base = f"z_{atom.predicate}_{args}" if args else f"z_{atom.predicate}"
+        if base not in taken:
+            return BindDecl(name=base)
+        i = 2
+        while f"{base}_{i}" in taken:
+            i += 1
+        return BindDecl(name=f"{base}_{i}")
+
+    taken: set[str] = set()
+    z_bind = _bind_for(z_atom, taken); taken.add(z_bind.name)
+    x_bind = _bind_for(x_atom, taken)
+
+    z_va = ValuedAtom(atom=z_atom, value=VarRef(name=z_bind.name))
+    x_prime_va = ValuedAtom(atom=x_atom, value=VarRef(name=x_bind.name))
+
+    inner_conditional = ProbabilityRefExpr(
+        target=target, given=(x_prime_va, z_va),
+    )
+    x_prior = ProbabilityRefExpr(target=x_prime_va, given=())
+    inner_body = ProductExpr(terms=(inner_conditional, x_prior))
+    inner_sum = SumExpr(bind=x_bind, over=x_atom, body=inner_body)
+
+    z_given_x = ProbabilityRefExpr(target=z_va, given=(intervention,))
+    outer_body = ProductExpr(terms=(z_given_x, inner_sum))
+    return SumExpr(bind=z_bind, over=z_atom, body=outer_body)
+
+
+def _rule_front_door_adjustment_formula(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify that the claimed formula matches the canonical front-door
+    template for the given target / intervention / mediator set.
+
+    inputs: target (ValuedAtom), intervention (ValuedAtom), z (tuple of Atom)
+    output: FormulaExpr
+    """
+    target = _require(inputs, "target", step_index, "front_door_adjustment_formula")
+    intervention = _require(
+        inputs, "intervention", step_index, "front_door_adjustment_formula",
+    )
+    z_tuple = _require(inputs, "z", step_index, "front_door_adjustment_formula")
+    if not isinstance(z_tuple, tuple) or not all(isinstance(a, Atom) for a in z_tuple):
+        raise UnknownRuleInputError(
+            "front_door_adjustment_formula.z must be a tuple of Atom",
+            step_index=step_index, rule="front_door_adjustment_formula",
+        )
+    if len(z_tuple) != 1:
+        raise RuleCheckFailed(
+            "front_door_adjustment_formula: single-mediator only in this slice",
+            step_index=step_index, rule="front_door_adjustment_formula",
+        )
+
+    expected = _build_expected_front_door_formula(target, intervention, z_tuple)
+    if expected != claimed_output:
+        raise RuleCheckFailed(
+            "front_door_adjustment_formula output does not match the "
+            "canonical front-door template",
+            step_index=step_index, rule="front_door_adjustment_formula",
+        )
+
+
+def _rule_identify_via_front_door(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Combine ``front_door_criterion`` (True) with
+    ``front_door_adjustment_formula`` (the matching formula) into a
+    StructuralResult(value=True). Same shape as identify_via_backdoor.
+    """
+    criterion_ref = _require(inputs, "criterion", step_index, "identify_via_front_door")
+    formula_ref = _require(inputs, "formula", step_index, "identify_via_front_door")
+    if not isinstance(criterion_ref, StepRef) or not isinstance(formula_ref, StepRef):
+        raise UnknownRuleInputError(
+            "identify_via_front_door inputs must be StepRef",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+
+    criterion_out = step_output_by_id.get(criterion_ref.step_id)
+    formula_out = step_output_by_id.get(formula_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    formula_step = step_by_id.get(formula_ref.step_id)
+    if criterion_out is None or formula_out is None:
+        raise RuleCheckFailed(
+            f"identify_via_front_door: referenced step output missing "
+            f"(criterion={criterion_ref.step_id}, formula={formula_ref.step_id})",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+    if criterion_step is None or formula_step is None:
+        raise RuleCheckFailed(
+            f"identify_via_front_door: referenced step metadata missing",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+    if criterion_step.rule != "front_door_criterion":
+        raise RuleCheckFailed(
+            "identify_via_front_door: criterion must reference a "
+            "front_door_criterion step",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+    if formula_step.rule != "front_door_adjustment_formula":
+        raise RuleCheckFailed(
+            "identify_via_front_door: formula must reference a "
+            "front_door_adjustment_formula step",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+    if criterion_out is not True:
+        raise RuleCheckFailed(
+            f"identify_via_front_door: criterion step did not prove True "
+            f"(got {criterion_out!r})",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+    if not isinstance(formula_out, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+        raise RuleCheckFailed(
+            "identify_via_front_door: formula step did not produce a FormulaExpr",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "identify_via_front_door output must be a StructuralResult",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"identify_via_front_door output must have value=True, "
+            f"got {claimed_output.value!r}",
+            step_index=step_index, rule="identify_via_front_door",
+        )
+
+
 # ========================================================== R6
 
 def _rule_probability_ref_lookup(
@@ -1113,6 +1386,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "d_separation_check": _rule_d_separation_check,
     "backdoor_criterion": _rule_backdoor_criterion,
     "backdoor_adjustment_formula": _rule_backdoor_adjustment_formula,
+    "front_door_criterion": _rule_front_door_criterion,
+    "front_door_adjustment_formula": _rule_front_door_adjustment_formula,
     "probability_ref_lookup": _rule_probability_ref_lookup,
     "formula_evaluation": _rule_formula_evaluation,
     "unidentifiable_via_backdoor": _rule_unidentifiable_via_backdoor,
@@ -1121,7 +1396,11 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "cause_via_directed_path": _rule_cause_via_directed_path,
     "d_connected_via_open_path": _rule_d_connected_via_open_path,
 }
-_STEP_REF_RULES = {"identify_via_backdoor", "numeric_result"}
+_STEP_REF_RULES = {
+    "identify_via_backdoor",
+    "identify_via_front_door",
+    "numeric_result",
+}
 
 
 def known_rule(name: str) -> bool:
@@ -1139,6 +1418,11 @@ def dispatch_rule(
 ) -> None:
     if rule_name == "identify_via_backdoor":
         _rule_identify_via_backdoor(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_front_door":
+        _rule_identify_via_front_door(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

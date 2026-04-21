@@ -16,6 +16,7 @@
 ## 核心冻结 v1.0
 
 > 冻结日期：2026-04-21
+> 已立项的延伸 fragment：A6.front-door（见下方"冻结后显式立项的 fragment"段）
 
 从这一版起，**Themis 核心（语言 + 运行时 + 数值层 + verifier）视为已收口**。
 后续工作往外长，不再往核心里塞。
@@ -48,6 +49,40 @@
 - 已有 framing_notes / confidence / derivation 语义的改写
 
 要改这些，先解冻，并在此文档里留记录。
+
+---
+
+## 冻结后显式立项的 fragment
+
+### A6.front-door（立项 2026-04-21，落地同日）
+
+**理由**：按 ROADMAP 原则 "如果某个跃迁已经被清楚定义为一个新的理论 fragment,
+边界/对象语言/规则集和完成标志都能说清, 也可以 theory-first 地启动"。
+前门准则是对 V0–V5 识别骨架的 scope 内对称扩展——不引入潜变量 / 双向边 /
+新 AST 节点，只在已有 DAG 语义内补另一条识别路径。
+
+**交付**：
+
+- `structural_solver.front_door_sets(graph, x, y)` — 返回满足 Pearl 前门
+  准则 (FD1/FD2/FD3) 的最小 mediator 集合
+- `formula_builder.front_door_formula(target, intervention, mediators)` —
+  单 mediator 前门公式构造，多 mediator 暂 raise `FormulaSupportError`
+- `scheduler._dispatch_identify` / `_dispatch_effect`：backdoor 搜索失败
+  且 query.given 为空时，回退到 front-door
+- verifier rules：`front_door_criterion` / `front_door_adjustment_formula` /
+  `identify_via_front_door`，独立重实现 FD1/FD2/FD3 和公式模板
+- `verify_identify` / `verify_numeric` 接受 `identify_via_front_door`
+  作为候补的识别见证 rule
+
+**未包含**：
+
+- 多 mediator 前门（需要链式 P(Z1..Zk|X) 分解）
+- 条件化前门（`given` 非空时）
+- 潜变量 / 双向边 / ADMG — 这是后续独立 fragment 的地盘
+
+**Done 标志**：14 个测试覆盖结构搜索、公式形状、scheduler 回退、
+verifier 接受 / 拒绝三类篡改（mediator / 公式目标 / conditioned query）。
+451 passed 全绿。
 
 ---
 

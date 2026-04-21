@@ -149,6 +149,89 @@ def backdoor_paths(
     return tuple(result)
 
 
+def front_door_sets(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+) -> tuple[frozenset[Atom], ...]:
+    """Find subset-minimal mediator sets Z satisfying Pearl's front-door
+    criterion relative to (X, Y):
+
+    (FD1) every directed path from X to Y passes through some z ∈ Z
+    (FD2) no back-door path from X to any z ∈ Z is open under empty
+          conditioning
+    (FD3) every back-door path from any z ∈ Z to Y is blocked by {X}
+
+    The candidate space is restricted to nodes that lie on some
+    directed path X → ... → Y (i.e. descendants of X that are
+    ancestors of Y, excluding X and Y themselves). Returns () if X / Y
+    lie outside the graph, if X == Y, or if no admissible Z exists.
+
+    The front-door criterion is consulted only after back-door search
+    has failed — ``minimal_adjustment_sets(graph, x, y, given=())`` is
+    the first attempt, and this function covers the residual cases in
+    Pearl's textbook where back-door is unavailable but a mediator set
+    still identifies the effect.
+    """
+    from itertools import combinations
+
+    if x not in graph or y not in graph or x == y:
+        return ()
+
+    descendants_x = nx.descendants(graph, x)
+    ancestors_y = nx.ancestors(graph, y)
+    candidates = [c for c in ((descendants_x & ancestors_y) - {x, y})]
+    if not candidates:
+        return ()
+
+    directed_all = tuple(
+        tuple(p) for p in nx.all_simple_paths(graph, x, y)
+    )
+    if not directed_all:
+        return ()
+
+    x_cond = frozenset({x})
+    empty_cond: frozenset[Atom] = frozenset()
+
+    def blocks_all_directed(z: frozenset[Atom]) -> bool:
+        for path in directed_all:
+            if not (set(path[1:-1]) & z):
+                return False
+        return True
+
+    def no_open_backdoor_from_x(zi: Atom) -> bool:
+        for path in backdoor_paths(graph, x, zi):
+            if _path_is_open(graph, path, empty_cond):
+                return False
+        return True
+
+    def all_backdoors_to_y_blocked_by_x(zi: Atom) -> bool:
+        for path in backdoor_paths(graph, zi, y):
+            if _path_is_open(graph, path, x_cond):
+                return False
+        return True
+
+    def satisfies(z: frozenset[Atom]) -> bool:
+        if not blocks_all_directed(z):
+            return False
+        for zi in z:
+            if not no_open_backdoor_from_x(zi):
+                return False
+            if not all_backdoors_to_y_blocked_by_x(zi):
+                return False
+        return True
+
+    minimal: list[frozenset[Atom]] = []
+    for size in range(1, len(candidates) + 1):
+        for combo in combinations(candidates, size):
+            z = frozenset(combo)
+            if any(existing < z for existing in minimal):
+                continue
+            if satisfies(z):
+                minimal.append(z)
+    return tuple(minimal)
+
+
 def minimal_adjustment_sets(
     graph: nx.DiGraph,
     x: Atom,

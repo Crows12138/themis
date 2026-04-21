@@ -154,6 +154,50 @@ def _assert_query_binding(
                 step_index=step_index, rule=step.rule,
             )
 
+    # A6 front-door: same binding shape as backdoor's, but since the
+    # front-door formula builder currently does not accept an
+    # ``observed`` conditioning set, we require the active query to
+    # have ``given == ()``. That keeps the verifier from accepting a
+    # front-door proof for a conditioned query it cannot construct.
+    if step.rule == "front_door_criterion":
+        if step.inputs.get("x") != q.intervention.atom:
+            raise VerificationError(
+                "front_door_criterion.x does not match identify query intervention atom",
+                step_index=step_index, rule=step.rule,
+            )
+        if step.inputs.get("y") != q.target:
+            raise VerificationError(
+                "front_door_criterion.y does not match identify query target",
+                step_index=step_index, rule=step.rule,
+            )
+        if q.given:
+            raise VerificationError(
+                "front_door_criterion requires identify query given to be empty",
+                step_index=step_index, rule=step.rule,
+            )
+
+    if step.rule == "front_door_adjustment_formula":
+        expected_target = ValuedAtom(atom=q.target, value=None)
+        expected_intervention = ValuedAtom(
+            atom=q.intervention.atom,
+            value=q.intervention.value,
+        )
+        if step.inputs.get("target") != expected_target:
+            raise VerificationError(
+                "front_door_adjustment_formula.target does not match query",
+                step_index=step_index, rule=step.rule,
+            )
+        if step.inputs.get("intervention") != expected_intervention:
+            raise VerificationError(
+                "front_door_adjustment_formula.intervention does not match query",
+                step_index=step_index, rule=step.rule,
+            )
+        if q.given:
+            raise VerificationError(
+                "front_door_adjustment_formula requires identify query given to be empty",
+                step_index=step_index, rule=step.rule,
+            )
+
 
 def _assert_cause_query_binding(
     step: DerivationStep,
@@ -432,14 +476,14 @@ def verify_identify(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
-    expected_final_rule = (
-        "identify_via_backdoor"
-        if claimed_result.value is True
-        else "unidentifiable_via_backdoor"
-    )
-    if derivation[-1].rule != expected_final_rule:
+    if claimed_result.value is True:
+        expected_finals = ("identify_via_backdoor", "identify_via_front_door")
+    else:
+        expected_finals = ("unidentifiable_via_backdoor",)
+    if derivation[-1].rule not in expected_finals:
         raise VerificationError(
-            f"identify derivation must end in {expected_final_rule}",
+            f"identify derivation must end in one of {expected_finals}; "
+            f"got {derivation[-1].rule!r}",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
 
@@ -491,9 +535,13 @@ def verify_numeric(
                 "effect derivation must end in formula_evaluation -> numeric_result",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
-        if not any(step.rule == "identify_via_backdoor" for step in derivation):
+        if not any(
+            step.rule in ("identify_via_backdoor", "identify_via_front_door")
+            for step in derivation
+        ):
             raise VerificationError(
-                "effect derivation is missing an identify_via_backdoor witness",
+                "effect derivation is missing an identify_via_backdoor or "
+                "identify_via_front_door witness",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
 
