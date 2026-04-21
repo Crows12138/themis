@@ -272,21 +272,31 @@ complete ID —— 见 §4。
 |---|---|---|
 | **S1** | AST + schema：`BidirectedStatement` 类型、schema 扩展、serializer、syntactic validator | — |
 | **S2** | **solver-only**：`structural_solver.m_separated` + `structural_solver.c_components`。纯算法原语，不挂 scheduler，不影响任何现有 query dispatch | S1 |
-| **S3** | `formula_builder.c_factor_formula` + runtime `_dispatch_identify` / `_dispatch_effect` 的 c-factor 回退路径（backdoor / front-door 均失败时）。runtime 已能算出 ADMG 识别公式，但还不打新 theorem family 标签 | S2 |
-| **S4** | verifier rules：`m_separation_witness` / `c_component_decomposition` / `identify_via_c_factor` / `unidentifiable_via_c_forest`；`verify_identify` / `verify_numeric` 扩展；scheduler 对外暴露新的 ADMG theorem family —— S3 的 runtime 结果在这一刻开始带 `identify_via_c_factor` derivation 标签，并接受独立 verifier 复核 | S3 |
-| **S5** | e2e 案例：至少 1 个可识别（经典 front-door-with-hidden-U）+ 1 个不可识别（经典 bow arc）；旧 DAG 案例回归；CORE_STATUS.md 解冻段补全 | S4 |
+| **S3.a** | **front-door made ADMG-aware**：`instantiation` 处理 `BidirectedStatement`；`structural_solver.bidirected_from_ground` 抽取辅助；`front_door_sets` 新增 `bidirected` 形参，FD2 / FD3 检查改用 m-separation；scheduler 把 bidirected 边穿进 front-door；gate 放宽给 identify / effect 查询；**verifier 兼容补丁**：`themis.verify` 在检测到 program 含 bidirected 时抛 `AdmgVerificationPending` 专属错误（不静默通过、不假装验证），消息指向 S4 待办。cause / assoc / probability 查询上的 bidirected 仍被 gate 拒绝 | S2 |
+| **S3.b** | `formula_builder.c_factor_formula`：Tian 算法落地，覆盖 front-door 打不到的可识别单 intervention / 单 target / 空 given 场景；scheduler c-factor 回退路径（backdoor + ADMG-aware front-door 都失败时）；仍不打 `identify_via_c_factor` 标签；verify() 仍对这类结果抛 `AdmgVerificationPending` | S3.a |
+| **S4** | verifier rules：`m_separation_witness` / `c_component_decomposition` / `identify_via_c_factor` / `unidentifiable_via_c_forest`；`verify_identify` / `verify_numeric` 扩展；scheduler 对外暴露新的 ADMG theorem family —— S3.a / S3.b 的 runtime 结果在这一刻开始带 `identify_via_c_factor` derivation 标签，并接受独立 verifier 复核；`verify` 移除 `AdmgVerificationPending` 路径 | S3.b |
+| **S5** | e2e 案例：至少 1 个可识别（经典 front-door-with-hidden-U，由 S3.a 识别）+ 1 个可识别但 front-door 覆盖不到（由 S3.b 识别）+ 1 个不可识别（经典 bow arc）；旧 DAG 案例回归；CORE_STATUS.md 解冻段补全 | S4 |
 
 每个 slice 约束：
 
-- 不跨 slice borrow 代码 —— S4 的 verifier 独立重实现不依赖 S2 / S3
-  的 runtime 函数（`m_separated` / `c_components` / `c_factor_formula`
-  在 verifier 内都要有独立实现）
+- 不跨 slice borrow 代码 —— S4 的 verifier 独立重实现不依赖 S2 / S3.a /
+  S3.b 的 runtime 函数（`m_separated` / `c_components` /
+  `c_factor_formula` 在 verifier 内都要有独立实现）
 - 每个 slice 本身有独立的测试集合和 pin
 - S2 合格门槛：`m_separated` 在 B=∅ 时和现有 `d_separated` 结果一致
   （回归保证）；`c_components` 覆盖孤立节点 / 全连通 / 多分量三种
-- S3 合格门槛：至少一个 ADMG 可识别案例返回带 formula 的
-  `structurally_solved`，但此时 derivation 的 theorem family 还是旧
-  集合（不含新 rule）；verifier 暂时 skip 这类结果的复核
+- **S3.a 合格门槛**：
+  - 至少一个 ADMG 可识别案例（front-door-with-hidden-U）通过 `themis.run`
+    返回带 formula 的 `structurally_solved`
+  - 至少一个"directed skeleton 假装 front-door 成立、ADMG 实际不成立"的
+    反例被正确拒绝（证明 front-door FD2/FD3 确实换成了 m-sep）
+  - `themis.verify` 对 ADMG 结果抛 `AdmgVerificationPending`（不静默
+    accept、不 False-accept）
+  - gate 仍然拒绝 cause / assoc / probability 查询带 bidirected 的程序
+  - v1.0 旧案例（exercise_waist 等）走 backdoor 路径回归不变
+- **S3.b 合格门槛**：至少一个 front-door 覆盖不到但 c-factor 可识别的
+  ADMG 案例返回 `structurally_solved`；`front_door_sets` ADMG-aware 的
+  回归保持
 
 ---
 
@@ -294,16 +304,21 @@ complete ID —— 见 §4。
 
 本 fragment 视为完成当且仅当：
 
-1. **两个经典 ADMG 案例**跑通：
-   - 可识别正例（如经典 kidney stones 或 smoking-tar-cancer-with-hidden-U）：
-     返回 `identify_via_c_factor` derivation + formula，verifier 接受
-   - 不可识别负例（如 bow-arc：X ← U → Y, X → Y）：
-     返回 `unidentifiable_via_c_forest`，verifier 接受
+1. **三个经典 ADMG 案例**跑通（覆盖 S3.a / S3.b / 负例）：
+   - front-door-with-hidden-U（X → M → Y, X ↔ Y）：由 S3.a 的 ADMG-aware
+     front-door 返回 `structurally_solved` + front-door 形状 formula
+   - c-factor 覆盖的可识别正例（front-door 打不到但 Tian 可识别）：
+     由 S3.b 返回 `structurally_solved` + c-factor formula；S4 之后
+     带 `identify_via_c_factor` derivation，verifier 接受
+   - 不可识别负例（如 bow-arc：X → Y + X ↔ Y）：
+     S4 之后返回 `unidentifiable_via_c_forest`，verifier 接受
 2. **至少 1 个旧 DAG 案例回归不变**（exercise_waist 照旧走 backdoor）
-3. **S1–S5 所有 pin 测试绿**，且 pytest 全套绿
+3. **S1–S5 所有 pin 测试绿**（S3 分两拨：S3.a / S3.b），且 pytest 全套绿
 4. **verifier 与 runtime 独立**：把 runtime `c_components` 换成故意错误
-   的实现，verifier 仍能检测出（对偶覆盖率测试）
-5. CORE_STATUS.md 解冻段已写入
+   的实现，verifier 仍能检测出（对偶覆盖率测试）。S3.a / S3.b 期间
+   verifier 对 ADMG 结果抛 `AdmgVerificationPending` 而非 False-accept
+5. CORE_STATUS.md 解冻段已写入（S5 完成时一次性写入，S3.a / S3.b
+   只在 charter 本文更新 Done 标志进度）
 
 ---
 
