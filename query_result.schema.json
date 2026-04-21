@@ -369,6 +369,52 @@
         }
       }
     },
+    "parameterSkeleton": {
+      "type": "object",
+      "description": "Paste-ready stub for a missing probability CPT entry. Emitted by the investigation_pusher as investigationItem.skeleton when the MissingKind is 'parameter'. Round-trippable into a kernel_ast probabilityStatement once the user fills the numeric value.",
+      "additionalProperties": false,
+      "required": ["kind", "target", "given", "value"],
+      "properties": {
+        "kind": { "const": "probability" },
+        "target": { "$ref": "atom.schema.json#/$defs/groundedAtom" },
+        "given": {
+          "type": "array",
+          "items": { "$ref": "atom.schema.json#/$defs/groundedAtom" }
+        },
+        "value": {
+          "type": ["number", "null"],
+          "description": "Null in the freshly-emitted skeleton; the user fills it in before merging back via apply_patch_and_run. Once set, must fall in [0, 1] (enforced by merge)."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Free-form metadata carried through merge (e.g. {\"source\": \"TODO\"} on emission, {\"source\": \"user_report\"} after fill)."
+        }
+      }
+    },
+    "variablePatch": {
+      "type": "object",
+      "description": "Paste-ready stub for framing a declared variable. Emitted by slice F1 (DEFINE_VARIABLE investigation) as investigationItem.skeleton. The user fills nulls in the 'fields' map; 'existing' is read-only context.",
+      "additionalProperties": false,
+      "required": ["kind", "predicate", "fields"],
+      "properties": {
+        "kind": { "const": "variable_patch" },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "existing": {
+          "type": "object",
+          "description": "Read-only snapshot of framing fields already set on the VariableDeclaration. Merge never writes back into this map."
+        },
+        "fields": {
+          "type": "object",
+          "description": "Per-field fill surface. Each legal key maps to the kind that A0/F1 reports as a gap. Value null means the user has not filled it yet; any non-null value is interpreted by merge per field semantics.",
+          "additionalProperties": {
+            "type": ["string", "array", "null"]
+          }
+        }
+      }
+    },
     "investigationItem": {
       "type": "object",
       "additionalProperties": false,
@@ -384,8 +430,11 @@
           "type": "string"
         },
         "skeleton": {
-          "type": "object",
-          "description": "Optional paste-ready statement stub (e.g. a probabilityStatement when kind is parameter). Callers fill in 'value' and annotations."
+          "description": "Paste-ready statement stub. Exactly one of two shapes — a parameter skeleton (the user fills in 'value') or a variable_patch (the user fills the fields dict). No third shape is accepted; new skeleton kinds land as explicit additions here.",
+          "oneOf": [
+            { "$ref": "#/$defs/parameterSkeleton" },
+            { "$ref": "#/$defs/variablePatch" }
+          ]
         }
       }
     },
