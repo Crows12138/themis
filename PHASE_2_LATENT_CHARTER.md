@@ -273,9 +273,10 @@ complete ID —— 见 §4。
 | **S1** | AST + schema：`BidirectedStatement` 类型、schema 扩展、serializer、syntactic validator | — |
 | **S2** | **solver-only**：`structural_solver.m_separated` + `structural_solver.c_components`。纯算法原语，不挂 scheduler，不影响任何现有 query dispatch | S1 |
 | **S3.a** | **front-door made ADMG-aware**：`instantiation` 处理 `BidirectedStatement`；`structural_solver.bidirected_from_ground` 抽取辅助；`front_door_sets` 新增 `bidirected` 形参，FD2 / FD3 检查改用 m-separation；scheduler 把 bidirected 边穿进 front-door；gate 放宽给 identify / effect 查询；**verifier 兼容补丁**：`themis.verify` 在检测到 program 含 bidirected 时抛 `AdmgVerificationPending` 专属错误（不静默通过、不假装验证），消息指向 S4 待办。cause / assoc / probability 查询上的 bidirected 仍被 gate 拒绝 | S2 |
-| **S3.b** | `formula_builder.c_factor_formula`：Tian 算法落地，覆盖 front-door 打不到的可识别单 intervention / 单 target / 空 given 场景；scheduler c-factor 回退路径（backdoor + ADMG-aware front-door 都失败时）；仍不打 `identify_via_c_factor` 标签；verify() 仍对这类结果抛 `AdmgVerificationPending` | S3.a |
-| **S4** | verifier rules：`m_separation_witness` / `c_component_decomposition` / `identify_via_c_factor` / `unidentifiable_via_c_forest`；`verify_identify` / `verify_numeric` 扩展；scheduler 对外暴露新的 ADMG theorem family —— S3.a / S3.b 的 runtime 结果在这一刻开始带 `identify_via_c_factor` derivation 标签，并接受独立 verifier 复核；`verify` 移除 `AdmgVerificationPending` 路径 | S3.b |
-| **S5** | e2e 案例：至少 1 个可识别（经典 front-door-with-hidden-U，由 S3.a 识别）+ 1 个可识别但 front-door 覆盖不到（由 S3.b 识别）+ 1 个不可识别（经典 bow arc）；旧 DAG 案例回归；CORE_STATUS.md 解冻段补全 | S4 |
+| **S3.b.1** | **backdoor made ADMG-aware**：`minimal_adjustment_sets` 新增 `bidirected` 形参，路径阻塞检查改用 m-separation；scheduler 在 ADMG 程序里先试 ADMG-aware backdoor，失败再回退到 S3.a 的 ADMG-aware front-door。formula 仍走现有 `backdoor_formula`（可复用），因为 adjustment-set 存在时 c-factor 退化为调整。verify() 仍抛 `AdmgVerificationPending` | S3.a |
+| **S3.b.2** | `formula_builder.c_factor_formula`：Tian 算法真正落地，覆盖 adjustment 形式打不到但 c-factor 仍可识别的单 intervention / 单 target / 空 given 场景；scheduler 在 backdoor + front-door（都 ADMG-aware）都失败后回退到 c-factor；仍不打 `identify_via_c_factor` 标签；verify() 仍抛 `AdmgVerificationPending` | S3.b.1 |
+| **S4** | verifier rules：`m_separation_witness` / `c_component_decomposition` / `identify_via_c_factor` / `unidentifiable_via_c_forest`；`verify_identify` / `verify_numeric` 扩展；scheduler 对外暴露新的 ADMG theorem family —— S3.a / S3.b.1 / S3.b.2 的 runtime 结果在这一刻开始带 `identify_via_c_factor` derivation 标签，并接受独立 verifier 复核；`verify` 移除 `AdmgVerificationPending` 路径 | S3.b.2 |
+| **S5** | e2e 案例：至少 1 个可识别（经典 front-door-with-hidden-U，由 S3.a 识别）+ 1 个 ADMG-aware backdoor 可识别（由 S3.b.1 识别）+ 1 个 adjustment 外但 c-factor 可识别（由 S3.b.2 识别）+ 1 个不可识别（经典 bow arc）；旧 DAG 案例回归；CORE_STATUS.md 解冻段补全 | S4 |
 
 每个 slice 约束：
 
@@ -294,9 +295,17 @@ complete ID —— 见 §4。
     accept、不 False-accept）
   - gate 仍然拒绝 cause / assoc / probability 查询带 bidirected 的程序
   - v1.0 旧案例（exercise_waist 等）走 backdoor 路径回归不变
-- **S3.b 合格门槛**：至少一个 front-door 覆盖不到但 c-factor 可识别的
-  ADMG 案例返回 `structurally_solved`；`front_door_sets` ADMG-aware 的
-  回归保持
+- **S3.b.1 合格门槛**：
+  - 至少一个 ADMG 案例（例如 Z→X→Y, W↔Z, W→Y）在 S3.a 下返回
+    `needs_investigation`、在 S3.b.1 下返回 `structurally_solved` +
+    backdoor 公式；证明 m-separation 验证的 adjustment set 确实被采用
+  - 一个 directed skeleton 误判为可调整但 ADMG 实际不可调整的反例被
+    正确拒绝（说明 m-sep 真的拦下了幽灵 adjustment）
+  - S3.a 的 front-door 路径在 backdoor 失败时仍能触发（回退顺序对）
+  - 旧 DAG 案例仍走原 backdoor
+- **S3.b.2 合格门槛**：至少一个 adjustment 形式打不到但 c-factor
+  可识别的 ADMG 案例返回 `structurally_solved`；S3.a / S3.b.1 的回归
+  保持
 
 ---
 
@@ -304,12 +313,14 @@ complete ID —— 见 §4。
 
 本 fragment 视为完成当且仅当：
 
-1. **三个经典 ADMG 案例**跑通（覆盖 S3.a / S3.b / 负例）：
+1. **四个经典 ADMG 案例**跑通（覆盖 S3.a / S3.b.1 / S3.b.2 / 负例）：
    - front-door-with-hidden-U（X → M → Y, X ↔ Y）：由 S3.a 的 ADMG-aware
      front-door 返回 `structurally_solved` + front-door 形状 formula
-   - c-factor 覆盖的可识别正例（front-door 打不到但 Tian 可识别）：
-     由 S3.b 返回 `structurally_solved` + c-factor formula；S4 之后
-     带 `identify_via_c_factor` derivation，verifier 接受
+   - ADMG-aware adjustment 可识别正例（如 Z→X→Y, W↔Z, W→Y）：由 S3.b.1
+     的 ADMG-aware backdoor 返回 `structurally_solved` + backdoor 公式
+   - c-factor 专属正例（adjustment 覆盖不到但 Tian 可识别）：由 S3.b.2
+     返回 `structurally_solved` + c-factor formula；S4 之后带
+     `identify_via_c_factor` derivation，verifier 接受
    - 不可识别负例（如 bow-arc：X → Y + X ↔ Y）：
      S4 之后返回 `unidentifiable_via_c_forest`，verifier 接受
 2. **至少 1 个旧 DAG 案例回归不变**（exercise_waist 照旧走 backdoor）
