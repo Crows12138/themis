@@ -36,9 +36,26 @@ from .runtime.instantiation import instantiate
 from .runtime.scheduler import dispatch_all
 from .runtime.theta_builder import build_theta
 from .types import (
+    Annotation,
+    AssocQuery,
+    Atom,
+    CauseQuery,
+    CauseStatement,
+    ConstTerm,
+    EffectQuery,
+    IdentifyQuery,
+    Intervention,
     NumericResult,
+    ObservationStatement,
+    ProbabilityQuery,
+    ProbabilityStatement,
+    Program,
     QueryStatement,
     StructuralResult,
+    Term,
+    ValuedAtom,
+    VarTerm,
+    VariableDeclaration,
 )
 from .verifier import (
     VerificationContext,
@@ -78,6 +95,147 @@ def _run_typed(prog) -> dict:
     return {"results": [to_dict(r) for r in results]}
 
 
+# ---------------------------------------------------------- Program -> AST
+
+def _term_to_dict(t: Term) -> dict:
+    if isinstance(t, ConstTerm):
+        return {"type": "const", "name": t.name}
+    if isinstance(t, VarTerm):
+        return {"type": "var", "name": t.name}
+    raise TypeError(f"unknown term: {type(t).__name__}")
+
+
+def _atom_to_dict(a: Atom) -> dict:
+    return {
+        "predicate": a.predicate,
+        "args": [_term_to_dict(t) for t in a.args],
+    }
+
+
+def _valued_atom_to_dict(va: ValuedAtom) -> dict:
+    return {"atom": _atom_to_dict(va.atom), "value": va.value}
+
+
+def _intervention_to_dict(iv: Intervention) -> dict:
+    return {"atom": _atom_to_dict(iv.atom), "value": iv.value}
+
+
+def _annotation_to_dict(ann: Annotation | None) -> dict | None:
+    if ann is None:
+        return None
+    d: dict = {}
+    if ann.confidence is not None:
+        d["confidence"] = ann.confidence
+    if ann.source is not None:
+        d["source"] = ann.source
+    return d
+
+
+def _query_to_dict(q) -> dict:
+    if isinstance(q, CauseQuery):
+        return {
+            "kind": "cause",
+            "from": _atom_to_dict(q.from_atom),
+            "to": _atom_to_dict(q.to_atom),
+        }
+    if isinstance(q, AssocQuery):
+        return {
+            "kind": "assoc",
+            "left": _atom_to_dict(q.left),
+            "right": _atom_to_dict(q.right),
+            "given": [_atom_to_dict(a) for a in q.given],
+        }
+    if isinstance(q, EffectQuery):
+        return {
+            "kind": "effect",
+            "target": _valued_atom_to_dict(q.target),
+            "intervention": _intervention_to_dict(q.intervention),
+            "given": [_valued_atom_to_dict(va) for va in q.given],
+        }
+    if isinstance(q, IdentifyQuery):
+        return {
+            "kind": "identify",
+            "target": _atom_to_dict(q.target),
+            "intervention": _intervention_to_dict(q.intervention),
+            "given": [_atom_to_dict(a) for a in q.given],
+        }
+    if isinstance(q, ProbabilityQuery):
+        return {
+            "kind": "probability",
+            "target": _valued_atom_to_dict(q.target),
+            "given": [_valued_atom_to_dict(va) for va in q.given],
+        }
+    raise TypeError(f"unknown query: {type(q).__name__}")
+
+
+def _statement_to_dict(s) -> dict:
+    if isinstance(s, CauseStatement):
+        d: dict = {
+            "kind": "cause",
+            "from": _atom_to_dict(s.from_atom),
+            "to": _atom_to_dict(s.to_atom),
+        }
+        if s.forall:
+            d["forall"] = list(s.forall)
+        ann = _annotation_to_dict(s.annotations)
+        if ann is not None:
+            d["annotations"] = ann
+        return d
+    if isinstance(s, VariableDeclaration):
+        d = {"kind": "variable", "predicate": s.predicate}
+        if s.domain is not None:
+            d["domain"] = list(s.domain)
+        for field in ("time_window", "measurement", "threshold",
+                      "observability", "unit"):
+            v = getattr(s, field)
+            if v is not None:
+                d[field] = v
+        return d
+    if isinstance(s, ObservationStatement):
+        d = {
+            "kind": "observation",
+            "atom": _atom_to_dict(s.atom),
+            "value": s.value,
+        }
+        ann = _annotation_to_dict(s.annotations)
+        if ann is not None:
+            d["annotations"] = ann
+        return d
+    if isinstance(s, ProbabilityStatement):
+        d = {
+            "kind": "probability",
+            "target": _valued_atom_to_dict(s.target),
+            "given": [_valued_atom_to_dict(va) for va in s.given],
+            "value": s.value,
+        }
+        if s.forall:
+            d["forall"] = list(s.forall)
+        ann = _annotation_to_dict(s.annotations)
+        if ann is not None:
+            d["annotations"] = ann
+        return d
+    if isinstance(s, QueryStatement):
+        return {"kind": "query", "id": s.id, "query": _query_to_dict(s.query)}
+    raise TypeError(f"unknown statement: {type(s).__name__}")
+
+
+def _program_to_ast_dict(prog: Program) -> dict:
+    """Serialize a typed Program back to the kernel_ast.schema.json
+    JSON shape. Used by ``apply_patch_and_run`` so the caller can
+    independently verify the result via ``themis.verify`` against the
+    exact program the kernel computed on — not the pre-patch input."""
+    ast: dict = {
+        "version": prog.version,
+        "domain": {
+            "objects": [{"kind": "object", "name": o} for o in prog.objects]
+        },
+        "statements": [_statement_to_dict(s) for s in prog.statements],
+    }
+    if prog.extensions is not None:
+        ast["extensions"] = prog.extensions
+    return ast
+
+
 def run(program: dict | str | bytes) -> dict:
     """Run the kernel end to end.
 
@@ -107,8 +265,18 @@ def apply_patch_and_run(
     Turn 1 produces ``investigation_requests`` carrying per-item
     skeletons. The agent / user assembles those into one or more
     filled patch bundles; this function merges them into the original
-    program and re-runs the full pipeline, returning the same
-    ``{"results": [...]}`` envelope as ``run``.
+    program and re-runs the full pipeline, returning an envelope with
+    both the computed results and the **merged program** the kernel
+    actually ran on — so an external auditor can call
+    ``themis.verify(out["merged_program"], out["results"][i])``
+    without having to re-apply the patches themselves.
+
+    Return shape::
+
+        {
+            "results": [<query_result_dict>, ...],
+            "merged_program": <kernel_ast.schema.json dict>
+        }
 
     Supported bundle kinds (dispatched by ``bundle["kind"]``):
 
@@ -157,7 +325,9 @@ def apply_patch_and_run(
                 f"{[FRAMING_BUNDLE_KIND, PARAMETER_BUNDLE_KIND]}"
             )
 
-    return _run_typed(prog)
+    out = _run_typed(prog)
+    out["merged_program"] = _program_to_ast_dict(prog)
+    return out
 
 
 # ============================================================ verify

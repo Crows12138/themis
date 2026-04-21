@@ -179,13 +179,15 @@ def test_single_patch_dict_is_accepted():
     assert out["results"][0]["status"] == "numerically_solved"
 
 
-def test_empty_patch_list_is_identical_to_plain_run():
-    """Zero patches must produce the same structured output as
-    ``run(program)`` — an identity invariant for the JSON boundary."""
+def test_empty_patch_list_is_results_equivalent_to_plain_run():
+    """Zero patches must produce the same result set as
+    ``run(program)``. ``apply_patch_and_run`` additionally returns
+    the ``merged_program`` (so callers can verify); the results
+    themselves are untouched by a no-op merge."""
     program = _underframed_effect_program()
     plain = themis.run(program)
     zero_patch = themis.apply_patch_and_run(program, [])
-    assert plain == zero_patch
+    assert plain["results"] == zero_patch["results"]
 
 
 # ============================================================ errors
