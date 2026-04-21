@@ -21,7 +21,8 @@
       {
         "kind": "cause",
         "from": {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]}
+        "to":   {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
       },
       {
         "kind": "query",

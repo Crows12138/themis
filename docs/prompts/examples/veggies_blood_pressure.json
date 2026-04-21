@@ -21,7 +21,8 @@
       {
         "kind": "cause",
         "from": {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]}
+        "to":   {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
       },
       {
         "kind": "query",

@@ -51,6 +51,12 @@ class CauseStatement:
     from_atom: Atom
     to_atom: Atom
     forall: tuple[str, ...] = ()
+    # Slice A2: symmetry with ObservationStatement / ProbabilityStatement
+    # — carries provenance metadata (``source``) and composite
+    # confidence for downstream consumers. Reasoning rules never
+    # inspect this field; it's pure metadata so the LLM / auditor can
+    # distinguish evidence-backed edges from llm-proposed hypotheses.
+    annotations: Annotation | None = None
 
 
 AtomValue = Union[bool, int, float, str]

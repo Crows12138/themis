@@ -114,6 +114,23 @@ A good Chinese reply looks like:
 >
 > 把 ① 补清楚我可以再给一次结构化回答，补上 ② 才能给具体数值。
 
+## Edge-provenance disclosure (slice A2)
+
+If you (the orchestrating agent) also have access to the original kernel_ast
+that was sent to `themis.run`, inspect each `cause` statement's
+`annotations.source`:
+
+- `"llm_proposal"` — you (the upstream LLM) proposed this edge from
+  common knowledge, without a citation. **Disclose this in the reply**:
+  e.g. "我基于常识提了一条假设边 `running → belly_fat_loss`, 这条
+  关系本身还未经证据支持. 如果你有相关研究或数据, 请补充来源."
+- A concrete citation (e.g. `"PubMed:12345"`) — the edge is
+  evidence-backed; no special disclosure needed beyond the normal reply.
+
+This keeps the reasoning chain honest: the user should know when the
+graph they're reasoning on is your hypothesis rather than established
+knowledge.
+
 ## What NOT to do
 
 - Do not invent missing fields not listed in the JSON (if the JSON says
@@ -126,3 +143,6 @@ A good Chinese reply looks like:
 - Do not explain the verifier / `derivation` unless the user specifically
   asks "why" or "how do you know"
 - Do not embed the full JSON in your reply — summarize
+- Do not claim your LLM-proposed edges are evidence-backed — if the
+  input kernel_ast has `annotations.source: "llm_proposal"` on a cause
+  statement, the reply must reflect that

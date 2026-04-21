@@ -54,7 +54,11 @@ in the question. Rules:
 
 - Only direct edges you can justify as plausible from general knowledge
 - Do **not** invent intermediate variables the user did not mention
-- Edges are provisional; future Themis slices will tag them as `llm_proposal`
+- Tag every LLM-proposed edge with `"annotations": {"source": "llm_proposal"}`
+  so downstream consumers can distinguish your hypotheses from
+  evidence-backed edges
+- If you have a concrete citation (e.g. a PubMed ID, a textbook reference),
+  put it in `source` instead of `llm_proposal`
 
 ### 4. Emit the query statement
 
@@ -76,7 +80,10 @@ Full schema: `kernel_ast.schema.json`. Key structure:
   "domain": {"objects": [{"kind": "object", "name": "me"}]},
   "statements": [
     {"kind": "variable", "predicate": "<name>", "domain": [true, false]},
-    {"kind": "cause", "from": <atom>, "to": <atom>},
+    {
+      "kind": "cause", "from": <atom>, "to": <atom>,
+      "annotations": {"source": "llm_proposal"}
+    },
     {"kind": "query", "id": "q", "query": <query>}
   ]
 }

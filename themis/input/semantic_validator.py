@@ -151,6 +151,7 @@ def _to_statement(d: dict):
             from_atom=_to_atom(d["from"]),
             to_atom=_to_atom(d["to"]),
             forall=tuple(d.get("forall", ())),
+            annotations=_to_annotation(d.get("annotations")),
         )
     if k == "probability":
         return ProbabilityStatement(

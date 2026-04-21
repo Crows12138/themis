@@ -93,6 +93,10 @@
         },
         "to": {
           "$ref": "atom.schema.json#/$defs/atom"
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotation",
+          "description": "Slice A2: provenance / confidence metadata for this edge, e.g. {\"source\": \"llm_proposal\"} for a hypothesis edge, {\"source\": \"PubMed:...\"} for an evidence-backed edge. Reasoning rules do not read this."
         }
       }
     },

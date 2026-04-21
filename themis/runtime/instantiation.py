@@ -57,6 +57,7 @@ def _instantiate_one(stmt, subst: dict[str, str]):
             from_atom=_subst_atom(stmt.from_atom, subst),
             to_atom=_subst_atom(stmt.to_atom, subst),
             forall=(),
+            annotations=stmt.annotations,
         )
     if isinstance(stmt, ProbabilityStatement):
         return ProbabilityStatement(

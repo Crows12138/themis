@@ -21,7 +21,8 @@
       {
         "kind": "cause",
         "from": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]}
+        "to":   {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
       },
       {
         "kind": "query",
