@@ -290,3 +290,188 @@ def minimal_adjustment_sets(
             if blocks_all(z):
                 minimal.append(z)
     return tuple(minimal)
+
+
+# =====================================================================
+# Phase 2.latent S2 — ADMG primitives (solver-only, no scheduler hookup)
+#
+# m-separation and c-component decomposition on a mixed graph. Charter:
+# PHASE_2_LATENT_CHARTER.md §3, §7 (S2). These primitives are deliberately
+# independent — scheduler / graph_projection / verifier do NOT call them
+# in S2. S3 wires the runtime, S4 wires the verifier with an independent
+# reimplementation.
+# =====================================================================
+
+BidirectedEdgeSet = frozenset[frozenset[Atom]]
+
+
+def _has_arrowhead_at(
+    mg: "nx.MultiGraph",
+    edge_key: tuple,
+    v: Atom,
+) -> bool:
+    """Does the edge identified by ``edge_key`` (a (u, w, k) triple in
+    the path-multi-graph) have an arrowhead at node ``v``?
+
+    - Directed edge src → dst: arrowhead at dst, arrowtail at src.
+    - Bidirected edge A ↔ B: arrowhead at both endpoints.
+
+    The multi-graph annotates each edge with ``kind`` plus (for directed
+    edges) the original ``src`` / ``dst`` so orientation can be recovered
+    from the undirected path view.
+    """
+    u, w, k = edge_key
+    data = mg.edges[u, w, k]
+    if data["kind"] == "bidirected":
+        return True
+    # directed: arrowhead at the original dst
+    return data["dst"] == v
+
+
+def _build_admg_path_graph(
+    directed: "nx.DiGraph",
+    bidirected: BidirectedEdgeSet,
+) -> "nx.MultiGraph":
+    """Collapse an ADMG into a MultiGraph suitable for simple-path
+    enumeration. Each directed edge becomes one undirected edge tagged
+    ``kind='directed'`` with ``src``/``dst``; each bidirected edge
+    becomes one undirected edge tagged ``kind='bidirected'``.
+
+    Nodes from both edge sets are included so a bidirected endpoint that
+    is absent from the directed graph still participates in paths.
+    """
+    mg = nx.MultiGraph()
+    mg.add_nodes_from(directed.nodes())
+    for pair in bidirected:
+        mg.add_nodes_from(pair)
+    for src, dst in directed.edges():
+        mg.add_edge(src, dst, kind="directed", src=src, dst=dst)
+    for pair in bidirected:
+        a, b = tuple(pair)
+        mg.add_edge(a, b, kind="bidirected")
+    return mg
+
+
+def is_m_connected(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    left: Atom,
+    right: Atom,
+    conditioning: tuple[Atom, ...],
+) -> bool:
+    """True iff at least one open m-path connects ``left`` and ``right``
+    in the ADMG (directed edges from ``graph`` plus ``bidirected`` pairs)
+    under ``conditioning``.
+
+    A path is open iff every intermediate node is unblocked. A node V is
+    a collider on the path iff both incident edge ends have arrowheads
+    at V (directed-incoming or bidirected). Blocking rule:
+
+    - non-collider: blocked iff V ∈ conditioning
+    - collider: blocked iff V and all its directed-descendants are
+      disjoint from conditioning
+
+    Directed descendants use only the directed edges of the ADMG
+    (bidirected edges do not contribute to ancestry).
+
+    When ``bidirected`` is empty, the answer must agree with
+    ``is_d_connected`` — verified in the S2 regression tests.
+    """
+    if left == right:
+        return False
+
+    mg = _build_admg_path_graph(graph, bidirected)
+    if left not in mg or right not in mg:
+        return False
+
+    c_set = frozenset(conditioning)
+
+    for edge_path in nx.all_simple_edge_paths(mg, left, right):
+        nodes: list[Atom] = [left]
+        for u, w, _k in edge_path:
+            nodes.append(w if nodes[-1] == u else u)
+
+        open_path = True
+        for i in range(1, len(nodes) - 1):
+            v = nodes[i]
+            ahead_from_prev = _has_arrowhead_at(mg, edge_path[i - 1], v)
+            ahead_from_next = _has_arrowhead_at(mg, edge_path[i], v)
+            is_collider = ahead_from_prev and ahead_from_next
+            if is_collider:
+                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
+                if activated.isdisjoint(c_set):
+                    open_path = False
+                    break
+            else:
+                if v in c_set:
+                    open_path = False
+                    break
+
+        if open_path:
+            return True
+
+    return False
+
+
+def m_separated(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    left: Atom,
+    right: Atom,
+    conditioning: tuple[Atom, ...],
+) -> bool:
+    """Convenience: ``not is_m_connected(...)``.
+
+    Two distinct nodes are m-separated iff no open m-path connects them.
+    ``left == right`` returns True (a node is trivially separated from
+    itself — there is no non-trivial path).
+    """
+    if left == right:
+        return True
+    return not is_m_connected(graph, bidirected, left, right, conditioning)
+
+
+def c_components(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+) -> tuple[frozenset[Atom], ...]:
+    """Partition the ADMG node set into c-components.
+
+    A c-component is an equivalence class of nodes connected by paths
+    of **bidirected** edges only. Directed edges do not merge
+    components. Nodes untouched by any bidirected edge form singleton
+    components.
+
+    Returns a tuple of frozensets covering exactly the union of
+    directed-graph nodes and bidirected-edge endpoints. Order is not
+    semantically meaningful — callers should not depend on it.
+
+    When ``bidirected`` is empty, every node is its own c-component.
+    """
+    nodes: set[Atom] = set(graph.nodes())
+    for pair in bidirected:
+        nodes |= set(pair)
+
+    parent: dict[Atom, Atom] = {n: n for n in nodes}
+
+    def find(x: Atom) -> Atom:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x: Atom, y: Atom) -> None:
+        rx, ry = find(x), find(y)
+        if rx != ry:
+            parent[rx] = ry
+
+    for pair in bidirected:
+        a, b = tuple(pair)
+        union(a, b)
+
+    groups: dict[Atom, set[Atom]] = {}
+    for n in nodes:
+        r = find(n)
+        groups.setdefault(r, set()).add(n)
+
+    return tuple(frozenset(g) for g in groups.values())
