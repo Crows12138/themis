@@ -50,6 +50,7 @@ next run).
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 from typing import Iterable
 
@@ -220,7 +221,9 @@ def extract_definition_skeleton(
                 predicate = item.skeleton.get("predicate")
                 if not isinstance(predicate, str) or predicate in seen:
                     continue
-                seen[predicate] = item.skeleton
+                # Return an editable workflow artifact, not a live alias
+                # into the original QueryResult tree.
+                seen[predicate] = deepcopy(item.skeleton)
 
     return {
         "version": BUNDLE_VERSION,

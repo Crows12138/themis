@@ -641,6 +641,37 @@ def test_extract_definition_skeleton_dedupes_across_results():
     assert bundle["patches"][0]["predicate"] == "y"
 
 
+def test_extract_definition_skeleton_returns_detached_patch_copy():
+    """Editing the extracted bundle must not mutate the source
+    QueryResult's investigation skeleton in place."""
+    skeleton = {
+        "kind": PATCH_KIND,
+        "predicate": "y",
+        "existing": {"domain": [True, False]},
+        "fields": {"time_window": None},
+    }
+    request = InvestigationRequest(
+        action=InvestigationAction.DEFINE_VARIABLE,
+        target="y",
+        priority=Priority.MEDIUM,
+        group="framing",
+        items=(InvestigationItem(target="y", skeleton=skeleton),),
+    )
+    result = QueryResult(
+        status=ResultStatus.NUMERICALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        investigation_requests=(request,),
+    )
+
+    bundle = extract_definition_skeleton([result])
+    bundle["patches"][0]["fields"]["time_window"] = "12w"
+    bundle["patches"][0]["existing"]["domain"][0] = "changed"
+
+    original = result.investigation_requests[0].items[0].skeleton
+    assert original["fields"]["time_window"] is None
+    assert original["existing"]["domain"] == [True, False]
+
+
 def test_extract_definition_skeleton_returns_empty_bundle_when_no_gaps():
     program = Program(version="0.1", objects=(), statements=())
     results = _run_program(program)
