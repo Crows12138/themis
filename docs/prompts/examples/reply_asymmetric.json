@@ -1,0 +1,72 @@
+{
+  "nl_reply": "跑步这边我可以讲清楚：每周 3 次、每次 30 分钟，用手环记录。瘦身那个我还不确定怎么量。",
+  "reasoning": {
+    "extracted_facts": [
+      {"phrase": "每周 3 次、每次 30 分钟", "applies_to": "running", "field": "threshold"},
+      {"phrase": "用手环记录", "applies_to": "running", "field": "measurement_and_observability"}
+    ],
+    "unfilled": [
+      {"predicate": "running", "field": "time_window",
+       "reason": "user gave cadence but no total duration — leave null"},
+      {"predicate": "belly_fat_loss", "field": "*",
+       "reason": "user explicitly said '不确定怎么量' — all four fields stay null"}
+    ],
+    "policy": "asymmetric fills are legitimate; F1 will re-surface belly_fat_loss's four gaps next turn"
+  },
+  "input_bundle": {
+    "version": "0.1",
+    "kind": "framing_skeleton_bundle",
+    "patches": [
+      {
+        "kind": "variable_patch",
+        "predicate": "running",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      },
+      {
+        "kind": "variable_patch",
+        "predicate": "belly_fat_loss",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      }
+    ]
+  },
+  "filled_bundle": {
+    "version": "0.1",
+    "kind": "framing_skeleton_bundle",
+    "patches": [
+      {
+        "kind": "variable_patch",
+        "predicate": "running",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": "fitness tracker log",
+          "threshold": ">=3 sessions/week, 30 min each",
+          "observability": "wearable"
+        }
+      },
+      {
+        "kind": "variable_patch",
+        "predicate": "belly_fat_loss",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      }
+    ]
+  }
+}

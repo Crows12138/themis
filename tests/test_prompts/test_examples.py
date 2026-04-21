@@ -37,13 +37,15 @@ def _load_examples():
     """Load question-side examples only.
 
     A1 examples carry a ``kernel_ast`` field (full program ready for
-    themis.run). A5 narrative examples live alongside them but expose
-    only a ``variables`` list and are validated separately in
-    ``test_narrative_examples.py``. Filter to the A1-shaped files.
+    themis.run). Sibling prompt families (A5 narrative,
+    slice #40 reply) live in the same folder but expose other
+    shapes and are validated separately in their own test modules.
+    Filter by filename prefix.
     """
+    skip_prefixes = ("narrative_", "reply_")
     files = [
         p for p in sorted(EXAMPLES_DIR.glob("*.json"))
-        if not p.stem.startswith("narrative_")
+        if not any(p.stem.startswith(pfx) for pfx in skip_prefixes)
     ]
     assert files, f"no question examples found under {EXAMPLES_DIR}"
     return [pytest.param(path, id=path.stem) for path in files]

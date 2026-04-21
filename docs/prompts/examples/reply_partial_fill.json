@@ -1,0 +1,76 @@
+{
+  "nl_reply": "按 12 周看吧，其他的我还没想好。",
+  "reasoning": {
+    "extracted_facts": [
+      {"phrase": "12 周", "applies_to": ["running", "belly_fat_loss"], "field": "time_window"}
+    ],
+    "unfilled": [
+      {"predicate": "running", "field": "measurement",
+       "reason": "user explicitly said '还没想好' for the rest — leave null"},
+      {"predicate": "running", "field": "threshold",
+       "reason": "still unspecified"},
+      {"predicate": "running", "field": "observability",
+       "reason": "still unspecified"},
+      {"predicate": "belly_fat_loss", "field": "measurement", "reason": "not mentioned"},
+      {"predicate": "belly_fat_loss", "field": "threshold", "reason": "not mentioned"},
+      {"predicate": "belly_fat_loss", "field": "observability", "reason": "not mentioned"}
+    ],
+    "policy": "A0/F1 will re-surface the remaining six gaps on the next turn; partial fill is a legitimate workflow state"
+  },
+  "input_bundle": {
+    "version": "0.1",
+    "kind": "framing_skeleton_bundle",
+    "patches": [
+      {
+        "kind": "variable_patch",
+        "predicate": "running",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      },
+      {
+        "kind": "variable_patch",
+        "predicate": "belly_fat_loss",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      }
+    ]
+  },
+  "filled_bundle": {
+    "version": "0.1",
+    "kind": "framing_skeleton_bundle",
+    "patches": [
+      {
+        "kind": "variable_patch",
+        "predicate": "running",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": "12w",
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      },
+      {
+        "kind": "variable_patch",
+        "predicate": "belly_fat_loss",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": "12w",
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      }
+    ]
+  }
+}

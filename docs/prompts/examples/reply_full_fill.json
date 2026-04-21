@@ -1,0 +1,73 @@
+{
+  "nl_reply": "我每天跑 30 分钟，要坚持 12 周。用腰围判断，比之前少了至少 3 cm 算瘦下来。全部自己量。",
+  "reasoning": {
+    "extracted_facts": [
+      {"phrase": "每天跑 30 分钟", "applies_to": "running", "field": "threshold"},
+      {"phrase": "坚持 12 周", "applies_to": ["running", "belly_fat_loss"], "field": "time_window"},
+      {"phrase": "用腰围判断", "applies_to": "belly_fat_loss", "field": "measurement"},
+      {"phrase": "至少 3 cm", "applies_to": "belly_fat_loss", "field": "threshold"},
+      {"phrase": "全部自己量", "applies_to": ["running", "belly_fat_loss"], "field": "observability"}
+    ],
+    "unfilled": [
+      {"predicate": "running", "field": "measurement",
+       "reason": "reply says what running IS (daily 30 min) but not how it's recorded — intentionally inferred as self-report below since '全部自己量' covers it; measurement channel ('fitness tracker'? 'self-tally'?) still ambiguous — stays null"}
+    ],
+    "policy": "when in doubt, null"
+  },
+  "input_bundle": {
+    "version": "0.1",
+    "kind": "framing_skeleton_bundle",
+    "patches": [
+      {
+        "kind": "variable_patch",
+        "predicate": "running",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      },
+      {
+        "kind": "variable_patch",
+        "predicate": "belly_fat_loss",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": null,
+          "measurement": null,
+          "threshold": null,
+          "observability": null
+        }
+      }
+    ]
+  },
+  "filled_bundle": {
+    "version": "0.1",
+    "kind": "framing_skeleton_bundle",
+    "patches": [
+      {
+        "kind": "variable_patch",
+        "predicate": "running",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": "12w",
+          "measurement": null,
+          "threshold": ">=30 min/day",
+          "observability": "self-report"
+        }
+      },
+      {
+        "kind": "variable_patch",
+        "predicate": "belly_fat_loss",
+        "existing": {"domain": [true, false]},
+        "fields": {
+          "time_window": "12w",
+          "measurement": "waist circumference cm",
+          "threshold": ">=3 cm reduction",
+          "observability": "self-measured"
+        }
+      }
+    ]
+  }
+}
