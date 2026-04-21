@@ -17,8 +17,18 @@ from .program_builder import (
     ExtractionError,
     build_program_from_extraction,
 )
+from .narrative_merge import (
+    ExtractionShapeError,
+    MergeConflictError,
+    merge_into_program,
+    merge_variable_extractions,
+)
 
 __all__ = [
     "ExtractionError",
+    "ExtractionShapeError",
+    "MergeConflictError",
     "build_program_from_extraction",
+    "merge_into_program",
+    "merge_variable_extractions",
 ]
