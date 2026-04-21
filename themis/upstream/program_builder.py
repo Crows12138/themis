@@ -1,5 +1,13 @@
 """Slice W1: turn an extraction dict into a Themis ``Program``.
 
+This module is an **LLM-side convenience**, not part of the kernel
+contract. The kernel's authoritative entry point is ``themis.run``,
+consuming the canonical ``kernel_ast.schema.json`` JSON shape. An
+extraction dict is a simpler, LLM-friendlier intermediate that
+trades expressivity for ease of reliable structured LLM output —
+callers that can emit canonical kernel_ast JSON directly should skip
+this module.
+
 An extraction dict is produced by whatever front-end parsed the user's
 natural-language question (Claude Code, an LLM with structured output,
 or a test fixture). This module converts it into an internal
