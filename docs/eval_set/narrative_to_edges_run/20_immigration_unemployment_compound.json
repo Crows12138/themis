@@ -1,0 +1,36 @@
+{
+  "case_id": "20_immigration_unemployment_compound",
+  "narrative_input": "最近十年某地区的移民数量增加了，同时本地失业率也在上升。",
+  "reasoning": "Pass A found no causal claim — '同时' marks temporal co-occurrence, not causation; no causal verb or directional sequencing is present. Pass B found no named latent trait. Pass C fired: the narrative describes two trends that co-occurred over the same decade without naming a mechanism ('夏天 X 多了，Y 也多了' pattern from §3c). A plausible common cause — economic conditions or policy shifts — could drive both immigration and unemployment. The direct edge high_immigration → high_local_unemployment is refused. An intent ambiguity is also declared because the user's question '所以…会导致…吗' could mean 'does any causal link exist' vs 'quantify the magnitude of the effect'; the conservative pick is the cause-existence reading.",
+  "narrative_to_edges_output": {
+    "edges": [],
+    "refusals": [
+      {
+        "kind": "refuse_direct_edge",
+        "from": "high_immigration",
+        "to": "high_local_unemployment",
+        "reason": "叙述仅报告两个趋势在近十年内同步上升（'同时'），未提供任何机制描述。时间上的共同变化不足以确立因果方向。经济周期、产业结构调整、政策变化等共同原因都可能同时推高移民流入与失业率，属于 Pass C §3c 的'temporal co-occurrence without mechanism'模式。",
+        "suggested_confounder": "economic_conditions"
+      }
+    ],
+    "narrative_ambiguities": [
+      {
+        "kind": "confounder_refusal",
+        "description": "叙述描述的是十年趋势的同向变动，没有命名任何因果机制。潜在共同原因（经济周期、政策、产业结构）可以同时驱动移民增加和失业率上升，使得两者之间的相关性不可解读为直接因果效应。",
+        "chosen": "拒绝 high_immigration → high_local_unemployment 有向边；在 extensions.ambiguities 中记录混淆拒绝，并建议将 economic_conditions 作为潜在共同原因（U → high_immigration, U → high_local_unemployment）。",
+        "alternatives": [
+          "如果叙述中明确描述了劳动力替代机制，则可在问题侧声明中介变量并在该条件下发出有向边",
+          "如果用户提供面板数据或工具变量，则可重新评估因果效应估计"
+        ]
+      },
+      {
+        "kind": "intent",
+        "description": "问句'所以移民多了会导致本地人失业吗'中'会导致'既可读作因果存在性（是否存在直接因果路径），也可读作效应量化（增加多少失业率）。",
+        "chosen": "保守解读为因果存在性问题（cause query），不假设用户需要效应量估计。",
+        "alternatives": [
+          "如果用户补充'增加多少'等量化语言，则切换为 effect_size 查询类型"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "narrative_input": "喝咖啡的人普遍反应更快，但这可能是那些天生警觉性高的人更喜欢喝咖啡。",
+  "reasoning": {
+    "pass_a_stated_claims": [],
+    "pass_b_admg": [
+      {
+        "edge": "drinks_coffee ↔ alertness",
+        "evidence_span": "天生警觉性高的人更喜欢喝咖啡",
+        "why": "Narrative explicitly names a latent unmeasured trait ('天生警觉性高') that causes both sides of the pair. Classic F5 ADMG pattern — the unobserved genetic/temperamental alertness propensity drives both the coffee habit AND the observed reaction speed. Direct edge drinks_coffee → alertness would miss the confounding."
+      }
+    ],
+    "pass_c_refusals": [
+      {
+        "refused_edge": "drinks_coffee → alertness",
+        "reason": "narrative explicitly flags an unobserved common cause (天生警觉性)",
+        "suggested_confounder": "(implicit — encoded as bidirected)"
+      }
+    ],
+    "narrative_ambiguity_notes": "ADMG structure is the point here, not an ambiguity to surface — the narrative itself is unambiguous about the latent trait. No ambiguity entry needed."
+  },
+  "edges": [
+    {
+      "kind": "bidirected",
+      "left":  {"predicate": "drinks_coffee"},
+      "right": {"predicate": "alertness"},
+      "annotations": {
+        "source": "narrative_proposal",
+        "evidence": "天生警觉性高的人更喜欢喝咖啡"
+      }
+    }
+  ],
+  "refusals": [
+    {
+      "kind": "refuse_direct_edge",
+      "from": "drinks_coffee",
+      "to": "alertness",
+      "reason": "narrative names an unobserved latent trait that is the true driver",
+      "suggested_confounder": null
+    }
+  ],
+  "narrative_ambiguities": [
+    {
+      "kind": "admg_unobserved_common_cause",
+      "description": "narrative flags 天生警觉性 as the unobserved trait driving both",
+      "chosen": "bidirected drinks_coffee ↔ alertness",
+      "alternatives": ["directed drinks_coffee → alertness (naive reading)"]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "case_id": "14_late_night_tired_temporal",
+  "narrative_input": "最近连续一周熬夜到凌晨两点，第二天上午总是没精神。",
+  "reasoning": "Pass A fired: the narrative contains implicit-but-clear temporal sequencing — '熬夜到凌晨两点' on night t followed by '第二天上午总是没精神' on morning t+1. No explicit causal verb is needed; the 'X →第二天 Y' structure is sufficient evidence for a cause edge. Pass B found no named latent trait. Pass C found no co-occurrence or selection pattern. One temporal ambiguity is declared because the natural-language lag (per-night → next morning) will be flattened to an atemporal DAG edge by the orchestrator.",
+  "narrative_to_edges_output": {
+    "edges": [
+      {
+        "kind": "cause",
+        "from": {"predicate": "stays_up_late"},
+        "to": {"predicate": "feels_tired_next_morning"},
+        "annotations": {
+          "source": "narrative_proposal",
+          "evidence": "最近连续一周熬夜到凌晨两点，第二天上午总是没精神"
+        }
+      }
+    ],
+    "refusals": [],
+    "narrative_ambiguities": [
+      {
+        "kind": "temporal",
+        "description": "叙述中明确包含 t → t+1 的时间滞后（熬夜当晚 → 次日上午），但 DAG 语义是无时间索引的。将该边压缩为 stays_up_late → feels_tired_next_morning 丢失了跨天滞后信息。",
+        "chosen": "保留有向边（stays_up_late → feels_tired_next_morning），并在 extensions.ambiguities 中记录时间滞后被压缩的决定。",
+        "alternatives": [
+          "引入时间索引变量（stays_up_late_t → feels_tired_t_plus_1），但会超出当前内核表示能力",
+          "拒绝建模并要求用户澄清时间窗口"
+        ]
+      }
+    ]
+  }
+}

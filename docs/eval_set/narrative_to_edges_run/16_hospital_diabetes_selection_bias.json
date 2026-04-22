@@ -1,0 +1,27 @@
+{
+  "case_id": "16_hospital_diabetes_selection_bias",
+  "narrative_input": "在住院病人中，糖尿病患者的比例明显高于一般人群。",
+  "reasoning": "Pass A found no causal claim — the narrative only reports a proportion within a subpopulation; no causal verb or temporal sequencing is present. Pass B found no latent trait. Pass C fired: the phrase '在住院病人中' conditions the entire observation on a selected subpopulation (住院 is a collider — sicker people, including diabetics, are more likely to be hospitalized). Emitting a direct edge is_hospitalized → has_diabetes would be the classic collider-conditioning / selection-bias error. A refusal is issued; underlying_illness_severity is proposed as the common cause that drives both hospitalization and diabetes prevalence.",
+  "narrative_to_edges_output": {
+    "edges": [],
+    "refusals": [
+      {
+        "kind": "refuse_direct_edge",
+        "from": "is_hospitalized",
+        "to": "has_diabetes",
+        "reason": "叙述在'住院病人'这一被选中的子群体中观察到糖尿病比例偏高。住院本身是一个碰撞节点（collider）：潜在的疾病严重程度既增加住院概率，也与糖尿病共现。对碰撞节点取条件会人为放大两者的关联，无法推断住院导致糖尿病的直接因果效应。这是 Pass C §3c 中'observation within a selected subpopulation'模式。",
+        "suggested_confounder": "underlying_illness_severity"
+      }
+    ],
+    "narrative_ambiguities": [
+      {
+        "kind": "selection_bias",
+        "description": "叙述以'在住院病人中'开头，整个统计量都被条件化于住院这一选择变量。住院是碰撞节点而非原因变量；在碰撞节点上取条件会产生虚假关联，不能解读为住院对糖尿病的因果效应。",
+        "chosen": "拒绝 is_hospitalized → has_diabetes 的有向边；在 extensions.ambiguities 中记录选择偏差并建议引入 underlying_illness_severity 作为共同原因。",
+        "alternatives": [
+          "如果叙述描述的是因果机制（如'住院后医生才发现糖尿病'），则可在问题侧声明一个测量/检测节点，而非直接的病因边"
+        ]
+      }
+    ]
+  }
+}

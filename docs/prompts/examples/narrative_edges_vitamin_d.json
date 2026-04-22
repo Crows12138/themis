@@ -1,0 +1,28 @@
+{
+  "narrative_input": "我上个月开始每天服用维生素 D，最近两个月感冒次数明显少了。",
+  "reasoning": {
+    "pass_a_stated_claims": [
+      {
+        "edge": "vitamin_d_supplement → cold_frequency_reduced",
+        "evidence_span": "我上个月开始每天服用维生素 D，最近两个月感冒次数明显少了",
+        "why": "Temporal sequencing (上个月 X → 最近 Y) in first-person narrative strongly implies the user attributes the change to the intervention. Not explicit '导致' language, but contextually this is a causal claim from the user's perspective."
+      }
+    ],
+    "pass_b_admg": [],
+    "pass_c_refusals": [],
+    "narrative_ambiguity_notes": "Temporal ordering is the causal signal; the lag from 'start supplement' to 'colds reduced' is ~1 month. Could flag as temporal but the narrative's two-month span is long enough to treat as standard rather than same-day lag."
+  },
+  "edges": [
+    {
+      "kind": "cause",
+      "from": {"predicate": "vitamin_d_supplement"},
+      "to":   {"predicate": "cold_frequency_reduced"},
+      "annotations": {
+        "source": "narrative_proposal",
+        "evidence": "我上个月开始每天服用维生素 D，最近两个月感冒次数明显少了"
+      }
+    }
+  ],
+  "refusals": [],
+  "narrative_ambiguities": []
+}

@@ -1,0 +1,38 @@
+{
+  "narrative_input": "夏天冰激凌卖得好的月份溺水事件也多。",
+  "reasoning": {
+    "pass_a_stated_claims": [],
+    "pass_b_admg": [
+      {
+        "edge": "(no bidirected emitted — the confounder is explicit and measurable)",
+        "why": "Hot weather / summer temperature is the well-known common cause, but it's an observable variable (not a latent trait). Better to propose it as a refusal + confounder than to emit a bidirected that loses the adjustability."
+      }
+    ],
+    "pass_c_refusals": [
+      {
+        "refused_edge": "eating_ice_cream → drowning",
+        "reason": "夏天 is named as the co-occurrence window — temperature/season is the common cause of both increased ice cream consumption and more swimming (hence more drowning). The narrative describes co-occurrence, not a mechanism.",
+        "suggested_confounder": "hot_weather"
+      }
+    ],
+    "narrative_ambiguity_notes": "The refusal + confounder_refusal ambiguity are the right surface. No temporal ambiguity — the 夏天 scope is the confounder, not a lag."
+  },
+  "edges": [],
+  "refusals": [
+    {
+      "kind": "refuse_direct_edge",
+      "from": "eating_ice_cream",
+      "to": "drowning",
+      "reason": "narrative describes seasonal co-occurrence, not mechanism — hot weather is the common cause",
+      "suggested_confounder": "hot_weather"
+    }
+  ],
+  "narrative_ambiguities": [
+    {
+      "kind": "confounder_refusal",
+      "description": "narrative describes classic ice-cream-vs-drowning seasonal pattern; refused direct edge and propose hot_weather as confounder",
+      "chosen": "no direct edge; hot_weather → eating_ice_cream, hot_weather → drowning",
+      "alternatives": ["eating_ice_cream → drowning (the naive reading the narrative invites)"]
+    }
+  ]
+}
