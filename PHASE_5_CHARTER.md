@@ -84,13 +84,19 @@ Phase 5 下有两个独立 fragment，各自承担一类语义扩展：
 
 `time_index.kind` 可选值：
 - `"relative"`: `value` 是整数（`-3, -2, -1, 0, 1, 2, ...`），表示
-  相对时间步。`0` 是"查询时刻"，负数是过去。
+  **相对程序全局时间锚点** 的时间步。`0` 是"程序参考时刻"，负数是过去，
+  正数是未来。同一个 program 里的所有 atom / cause / query 共用这一
+  条相对时间轴；**query 不会重新解释 `0` 的含义**。
 - `"absolute"`: `value` 是字符串形式的日期或时刻（`"2026-04-22"`，
   `"session_t0"`）。本 fragment 首版**不实现 absolute**——留给未来
   扩展。
 
 **不带 `time_index` 的 atom 仍然合法**——当成 "无时间约束" 处理，
 和现在的 DAG 行为完全一致。老 program 不被破坏。
+
+这意味着：首版 temporal fragment 只有**程序级相对时间语义**，没有
+per-query 的时间锚点。如果将来需要 "以每个查询自己的现在为 0" 这种
+视角语义，应另立 fragment，而不是复用这里的 `time_index`。
 
 #### 2.2.2 `cause` 的时间约束
 
@@ -122,8 +128,9 @@ Graph projection 在原 DAG / ADMG 上做**时间展开**：
 #### 2.3.2 查询语义保持
 
 `effect(Y | do(X))` 的查询不变；当 X 和 Y 带时间索引时，干预施加在
-指定时刻的节点上，目标也在指定时刻读取。Backdoor adjustment、
-front-door 等识别规则在展开后的 DAG 上直接复用——不需要新规则。
+程序级相对时间轴上的指定节点，目标也在对应节点读取。Backdoor
+adjustment、front-door 等识别规则在展开后的 DAG 上直接复用——不需要
+新规则。
 
 #### 2.3.3 Markov 假设（首版）
 
@@ -195,6 +202,9 @@ front-door 等识别规则在展开后的 DAG 上直接复用——不需要新�
       "atom": {"predicate": "higher_current_income", "args": [...]},
       "value": true
     },
+    "assumptions": {
+      "monotonicity": "non_decreasing"
+    },
     "factual_target_known": null
   }
 }
@@ -206,6 +216,15 @@ true 的概率是多少？"
 `factual_target_known` 可选：如果用户也告诉我们实际的 target 值，
 那是 Abduction-Action-Prediction 三步里第一步的约束。
 
+`assumptions.monotonicity` 在 §C 首版里是**显式字段**，不是隐含默认。
+可选值首版只支持：
+
+- `"non_decreasing"`
+- `"non_increasing"`
+
+缺失时 query 仍可 parse，但 runtime 直接返回 `needs_assumption`，不会
+尝试 counterfactual bounds。
+
 #### 3.2.2 不引入的
 
 - **不引入** atom 级 counterfactual labels / twin-world subscripting
@@ -213,7 +232,8 @@ true 的概率是多少？"
   表面语法保持单世界形式。
 - **不引入** continuous counterfactual；首版只做二值 SCM。
 - **不引入** 无限制反事实 ID 算法（ID* / IDC*）。首版只做 **二值 SCM
-  + monotonicity 假设下的 bounds**（Balke-Pearl bounds, 1994）。
+  + 显式 monotonicity 假设下的 Balke-Pearl bounds**（Balke & Pearl,
+  1994）。
 - **不引入** 反事实下的多 query 联合分布。首版一次只回答一个 cf
   target。
 
@@ -232,13 +252,17 @@ true 的概率是多少？"
 #### 3.3.2 Monotonicity 假设
 
 首版**强制要求** monotonicity：intervention 对 target 的影响方向
-单调。这收窄识别空间但让 bounds 可计算。不满足时
-query 返回 `needs_assumption` + 解释为什么。
+单调，且该假设必须通过 `query.assumptions.monotonicity` 显式给出。
+这收窄识别空间但让 bounds 可计算。缺失时 query 返回
+`needs_assumption` + 解释为什么；首版不做“默认按无 monotonicity
+也先算一遍 bounds”的宽语义。
 
 #### 3.3.3 可识别性
 
-首版识别只做 Balke-Pearl 点识别 + bounds。非 monotonic SCM
-返回 bounds 而非点值。
+首版识别只做 **显式 monotonicity 假设下** 的 Balke-Pearl bounds。
+如果上下界收缩为同一点，可返回 `counterfactual_solved`；否则返回
+`counterfactual_bounded`。没有 monotonicity 假设时不进入 solver，
+而是直接返回 `needs_assumption`。
 
 ### 3.4 verifier rule family
 
@@ -250,6 +274,8 @@ query 返回 `needs_assumption` + 解释为什么。
 ### 3.5 schema 变更
 
 - `kernel_ast.schema.json` 加 `counterfactual` query kind
+- `kernel_ast.schema.json` 为 `counterfactual` query 加
+  `assumptions.monotonicity`（`non_decreasing` / `non_increasing`）
 - `query_result.schema.json` 加新 status: `counterfactual_solved`
   / `counterfactual_bounded` / `needs_assumption`
 - `derivation.schema.json` 加 `cf_*` rule family
@@ -266,8 +292,9 @@ query 返回 `needs_assumption` + 解释为什么。
 
 ### 3.7 §C 完成标志
 
-- Case 17 跑通，返回 Layer 3 bounds（或 `needs_assumption` 如用户没
-  给 monotonicity 信息）
+- Case 17 跑通：若 query 显式给了 monotonicity，则返回 Layer 3 bounds
+  （或 bounds 收缩后的 `counterfactual_solved`）；若没给，则返回
+  `needs_assumption`
 - S.C.1-S.C.6 测试过
 - `CORE_STATUS.md` 列出 counterfactual 语义解冻段
 
@@ -327,7 +354,8 @@ response_rendering v2.2 / v2.3 同步更新，去掉相应 kind 模板（或保�
 
 - **Monotonicity 门槛高**：大部分真实 NL 用户不会声明 monotonicity。
   大量 query 会卡在 `needs_assumption`。应对：NL 层对常见"正向"模式
-  （吃药→降 BP，学习→考试高分）默认 monotonic；不常见的显式问。
+  （吃药→降 BP，学习→考试高分）可填入显式
+  `assumptions.monotonicity`；不常见的场景则显式追问。
 - **Layer 3 认知门槛**：用户可能搞不清 bounds 的含义。应对：
   response_rendering 把 bounds 翻译成"根据现有假设，结果在 P=0.3
   和 P=0.7 之间——再给我 X 信息可以收窄"。
