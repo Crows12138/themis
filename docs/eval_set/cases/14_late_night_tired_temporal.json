@@ -1,0 +1,47 @@
+{
+  "id": "14_late_night_tired_temporal",
+  "failure_modes": ["F11"],
+  "narrative": "最近连续一周熬夜到凌晨两点，第二天上午总是没精神。",
+  "question": "熬夜真的会让第二天没精神吗？",
+  "gold_variables": [
+    {
+      "predicate": "stays_up_late",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "per-night (lag: next morning)",
+        "threshold": "null — after midnight?",
+        "measurement": "null"
+      }
+    },
+    {
+      "predicate": "feels_tired_next_morning",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "next-day morning (explicit lag)",
+        "measurement": "null — self-report?"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "stays_up_late",
+      "to": "feels_tired_next_morning",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "最近连续一周熬夜到凌晨两点，第二天上午总是没精神"
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "temporal",
+      "description": "NL explicitly encodes a t → t+1 lag (熬夜 tonight → 没精神 next morning). DAG semantics are atemporal; flattening to stays_up_late → feels_tired silently drops the lag. The correct behavior is flatten for runnability AND declare the compression so the user knows time semantics was lost.",
+      "expected_behavior": "emit atemporal edge AND extensions.ambiguities[kind=temporal] noting the per-night lag was compressed out"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "cause"
+}

@@ -1,0 +1,54 @@
+{
+  "id": "15_bp_exercise_categorical",
+  "failure_modes": ["F12"],
+  "narrative": null,
+  "question": "如果我的血压现在是高（分低/中/高三档），把每周运动量从「少」增加到「多」（分少/中/多三档），血压能从高变到中或低吗？",
+  "gold_variables": [
+    {
+      "predicate": "exercise_amount",
+      "domain_hint": "categorical:[少,中,多]",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "weekly",
+        "measurement": "minutes of moderate-to-vigorous activity per week",
+        "threshold": "null — user-defined 少/中/多 cut-points"
+      }
+    },
+    {
+      "predicate": "blood_pressure_level",
+      "domain_hint": "categorical:[低,中,高]",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "after some sustained period",
+        "measurement": "systolic mmHg or clinical category",
+        "threshold": "null — user-defined 低/中/高 cut-points"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "exercise_amount",
+      "to": "blood_pressure_level",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "variable",
+      "predicate": "exercises_more",
+      "reason": "Collapsing categorical exercise_amount to a bool 'exercises_more=True' drops the user's explicit three-level framing and makes the 少→多 contrast inexpressible as a single intervention value."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "intervention_level_pair",
+      "description": "Question names two specific category values for the intervention (from=少, to=多) and asks about the target transition (from=高 to 中/低). Naive extraction may record only the predicate and drop the level-pair framing.",
+      "expected_behavior": "preserve the 少→多 intervention contrast and the 高→{中,低} target contrast either in the query or in extensions; don't silently bool-ify"
+    }
+  ],
+  "gold_answerability": "needs_data",
+  "gold_query_kind": "effect"
+}

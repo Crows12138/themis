@@ -1,7 +1,7 @@
 # NL-layer failure-mode taxonomy
 
-> Status: seed v1 (2026-04-22). Expanded when a real case exposes a
-> mode the current set doesn't cover.
+> Status: v2 (2026-04-22). 18 codes. Expanded when a real case
+> exposes a mode the current set doesn't cover.
 
 Each code describes one way the A1 → A5 → merge → themis.run
 pipeline can produce a result the user would consider wrong or
@@ -246,11 +246,100 @@ separate investigation.
 **Slice most relevant**: A1 prompt rule for bidirectional NL +
 possibly Phase 5 cyclic / feedback-loop extension in the kernel.
 
+## F15 — Selection bias (conditioning on collider)
+
+**Pattern**: Narrative describes an observation made within a
+selected subpopulation (住院病人中 / 某些用户里 / 入学的学生中);
+the user reads the conditional association as evidence of
+causation between two causes of the selection variable.
+
+**Typical trigger**: "住院病人中糖尿病患者比例更高，所以住院会
+导致糖尿病吗" — is_hospitalized is a collider caused by both
+underlying illness and by diabetes; conditioning on it induces a
+spurious association.
+
+**Expected correct behavior**: refuse the direct edge; declare
+`extensions.ambiguities[kind=selection_bias]` naming the
+conditioning and, where possible, the collider structure. The
+observed association is conditional-on-S, not P(Y|do(X)).
+
+**Slice most relevant**: A1 prompt §3a extension (selection-
+bias-aware confounder refusal) OR narrative_to_edges when the
+selection cue sits in narrative. Orthogonal to ordinary
+confounder refusal: here the structure is different (collider
+being conditioned on, not unobserved common cause).
+
+## F16 — Counterfactual (Layer 3) vs interventional (Layer 2)
+
+**Pattern**: NL uses counterfactual phrasing ("如果当初我...",
+"要是没...", "假如我当时...") asking about a specific individual's
+alternative outcome. Kernel only supports Pearl Layer 2
+(interventional effect P(Y|do(X))); Layer 3 counterfactuals
+(twin networks, individual-level Y_i(1) − Y_i(0)) are out of
+scope.
+
+**Typical trigger**: "如果当初我选的是计算机专业，现在收入会
+更高吗" — counterfactual for THIS individual, conditional on
+actually observed choice=history.
+
+**Expected correct behavior**: answer with the interventional
+proxy (population P(income=high | do(major=cs))) AND declare
+`extensions.ambiguities[kind=counterfactual_query]` making the
+Layer-2-vs-Layer-3 gap explicit.
+
+**Slice most relevant**: long-term Phase 5 counterfactuals
+fragment; until then, NL-layer must flag the semantic gap.
+
+## F17 — Mechanism-vs-existence
+
+**Pattern**: NL uses "为什么" / "怎么" / "通过什么机制" asking for
+the biological / physical mechanism (mediator chain) rather than
+whether a causal path exists. The kernel's cause query answers
+existence of a path, not the structural story of the mediators.
+
+**Typical trigger**: "吸烟为什么会导致肺癌" — the "是否会导致"
+is presupposed; the user wants the 焦油→DNA损伤→突变→癌变
+chain.
+
+**Expected correct behavior**: declare
+`extensions.ambiguities[kind=mechanism_vs_existence]`; either
+answer existence as a proxy with that flag OR ask clarifying
+"do you want mechanism or existence?". Mechanism answering
+requires full mediator enumeration not available in current
+kernel.
+
+**Slice most relevant**: A1 prompt extension (detect 为什么/
+怎么 pattern) + response rendering disclosure.
+
+## F18 — Individual-vs-population estimand
+
+**Pattern**: Narrative supplies a POPULATION-average effect
+(临床试验平均降压 10 mmHg / 研究发现 X% 的人...); question asks
+about an INDIVIDUAL (对我有效吗 / 我会不会...). These are
+different estimands (E[Y(1)−Y(0)] vs Y_i(1)−Y_i(0) | covariates).
+
+**Typical trigger**: "这药在试验里平均降压 10 mmHg。对我有效吗"
+
+**Expected correct behavior**: answer with the population
+effect as the available proxy AND declare
+`extensions.ambiguities[kind=individual_vs_population]` marking
+the estimand gap. Optionally request moderators (age, baseline
+BP) if an individual prediction is genuinely wanted.
+
+**Slice most relevant**: A1 prompt extension (detect 对我 / 我
+会 patterns against population-level narrative) + response
+rendering disclosure.
+
 ## Growth rule
 
 Add a new code only when a real case exposes a failure that
 doesn't fit existing codes. Don't pre-invent codes for
 hypothetical problems — schema only extends under real pressure,
 per charter principle. F10–F14 were added when the eval set grew
-from 10 to 13 and each probed a genuinely new dimension (not
-covered by F1–F9 even in combination).
+from 10 to 13 and each probed a genuinely new dimension.
+F15–F18 were added at 13 → 20 growth: F15 selection / collider
+conditioning (distinct from F8's unobserved confounder), F16
+counterfactual vs interventional estimand gap, F17 mechanism-vs-
+existence question-kind mismatch, F18 individual-vs-population
+estimand gap. Each exposes a failure not reducible to the
+F1–F14 set.

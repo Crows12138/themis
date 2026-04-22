@@ -1,0 +1,43 @@
+{
+  "id": "19_drug_individual_vs_population",
+  "failure_modes": ["F18"],
+  "narrative": "这种降压药在临床试验里平均降压 10 mmHg。",
+  "question": "这药对我有效吗？",
+  "gold_variables": [
+    {
+      "predicate": "takes_drug",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "blood_pressure_drops",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "measurement": "by at least some user-meaningful amount",
+        "threshold": "null"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "takes_drug",
+      "to": "blood_pressure_drops",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "这种降压药在临床试验里平均降压 10 mmHg"
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "individual_vs_population",
+      "description": "Narrative supplies a POPULATION-average effect (临床试验里平均降压 10 mmHg). Question asks about an INDIVIDUAL-level effect (对我有效吗). These are different estimands: E[Y(1)-Y(0)] vs Y_i(1)-Y_i(0) for this specific user. The individual effect depends on heterogeneity the narrative doesn't supply.",
+      "expected_behavior": "answer with the population effect as the best available proxy AND declare extensions.ambiguities[kind=individual_vs_population] making clear the answer is population-average, not a personal prediction. Optionally request moderators (age, comorbidity) if individual prediction is actually wanted"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "effect"
+}

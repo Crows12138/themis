@@ -1,0 +1,45 @@
+{
+  "id": "17_career_choice_counterfactual",
+  "failure_modes": ["F16"],
+  "narrative": "我大学选了历史专业，现在做图书管理员，月薪八千。",
+  "question": "如果当初我选的是计算机专业，现在收入会更高吗？",
+  "gold_variables": [
+    {
+      "predicate": "chose_cs_major",
+      "domain_hint": "bool",
+      "role": "counterfactual_intervention",
+      "operationalization_hints": {
+        "measurement": "user's actual value is False; counterfactual asks value=True"
+      }
+    },
+    {
+      "predicate": "higher_current_income",
+      "domain_hint": "bool",
+      "role": "counterfactual_target",
+      "operationalization_hints": {
+        "measurement": "relative to actual 8000/month",
+        "time_window": "now"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "chose_cs_major",
+      "to": "higher_current_income",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "counterfactual_query",
+      "description": "This is a unit-level counterfactual (如果当初我...), not a population-average effect question. Pearl's Layer 3 (counterfactuals / twin network) is out of scope for the current kernel — only Layer 2 (interventional effect, P(Y|do(X))) is supported. Silently answering with an interventional effect confuses 'had the population done CS' with 'had I personally done CS'.",
+      "expected_behavior": "declare extensions.ambiguities[kind=counterfactual_query] stating the kernel returns at best an interventional-effect proxy; the true counterfactual for THIS individual is out of scope. Query kind may still be effect, but the semantic gap must be named"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "effect"
+}

@@ -1,0 +1,38 @@
+{
+  "id": "16_hospital_diabetes_selection_bias",
+  "failure_modes": ["F15"],
+  "narrative": "在住院病人中，糖尿病患者的比例明显高于一般人群。",
+  "question": "所以住院会增加得糖尿病的风险吗？",
+  "gold_variables": [
+    {
+      "predicate": "is_hospitalized",
+      "domain_hint": "bool",
+      "role": "selection_filter",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "has_diabetes",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "is_hospitalized",
+      "to": "has_diabetes",
+      "reason": "The observed correlation is a selection effect: sicker people (including diabetics) are more likely to be hospitalized. is_hospitalized is a COLLIDER being conditioned on, not a cause. Silently emitting hospitalize → diabetes edge is the classic selection-bias failure."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "selection_bias",
+      "description": "Narrative conditions on a selection variable (在住院病人中) and the user's question reads the resulting correlation causally. The agent must recognize this as selection on a collider rather than evidence of causation.",
+      "expected_behavior": "refuse the direct edge; surface extensions.ambiguities[kind=selection_bias] explaining that the observed association is conditional-on-hospitalization, not a causal effect. Optionally propose a confounder (underlying_illness_severity) that causes both"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "cause"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "20_immigration_unemployment_compound",
+  "failure_modes": ["F3", "F8", "F15"],
+  "narrative": "最近十年某地区的移民数量增加了，同时本地失业率也在上升。",
+  "question": "所以移民多了会导致本地人失业吗？",
+  "gold_variables": [
+    {
+      "predicate": "high_immigration",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "last decade",
+        "threshold": "null"
+      }
+    },
+    {
+      "predicate": "high_local_unemployment",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "last decade",
+        "threshold": "null"
+      }
+    }
+  ],
+  "gold_edges": [],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "high_immigration",
+      "to": "high_local_unemployment",
+      "reason": "Temporal co-occurrence over the last decade is not evidence of causation — plausible common causes include economic cycle, policy changes, industry composition shifts. A naive extractor should refuse the direct edge."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "confounder_refusal",
+      "description": "The NL describes two time-correlated trends and invites a causal reading. Standard §3a pattern — likely common causes (economic cycle, policy) make direct cause edge unsafe.",
+      "expected_behavior": "refuse direct edge; emit confounder structure (e.g., economic_conditions as U → both)"
+    },
+    {
+      "kind": "intent",
+      "description": "'所以...会导致...吗' could read as cause (is there a causal link) or effect (quantify the impact). Conservative pick: cause.",
+      "expected_behavior": "declare intent ambiguity per §5; pick cause as default"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "cause"
+}

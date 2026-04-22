@@ -1,7 +1,7 @@
 # Themis NL evaluation set
 
-> Status: v2 seed (2026-04-22). 13 cases across 14 failure modes
-> (F1–F14). Growth target: 20+.
+> Status: v2 (2026-04-22). 20 cases across 18 failure modes
+> (F1–F18). Weekly growth target met.
 
 This directory holds evaluation cases for the NL layer (A1 prompt,
 A5 narrative prompt, and the A1→themis.run→response_rendering

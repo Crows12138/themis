@@ -1,0 +1,40 @@
+{
+  "id": "18_smoking_mechanism_vs_existence",
+  "failure_modes": ["F17"],
+  "narrative": null,
+  "question": "吸烟为什么会导致肺癌？",
+  "gold_variables": [
+    {
+      "predicate": "smokes",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "has_lung_cancer",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "smokes",
+      "to": "has_lung_cancer",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "mechanism_vs_existence",
+      "description": "The NL uses '为什么' (why) which asks for the MECHANISM / mediator chain (smoking → tar → DNA damage → mutation → cancer), not whether smoking causes cancer (that is already presupposed). The kernel's cause-query answers existence/presence of a causal path, not the biological mechanism. Silently answering 'yes, smoking causes lung cancer' technically answers a different question than '为什么'.",
+      "expected_behavior": "declare extensions.ambiguities[kind=mechanism_vs_existence]. Preferred: flag that a full mechanism answer requires mediator chain enumeration which is out of scope; offer to answer existence-of-path as a proxy. OR ask a clarifying disambiguation"
+    }
+  ],
+  "gold_answerability": "needs_framing",
+  "gold_query_kind": "cause"
+}
