@@ -1,0 +1,421 @@
+{
+  "case_id": "04_stress_chain_diabetes",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "chronic_stress",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "overeating",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "obesity",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "diabetes",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "chronic_stress",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "overeating",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "overeating",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "obesity",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "obesity",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "diabetes",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {
+            "predicate": "chronic_stress",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "to": {
+            "predicate": "diabetes",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "structurally_solved",
+    "query_kind": "cause",
+    "query_id": "q",
+    "structural_result": {
+      "value": true,
+      "supporting_paths": [
+        [
+          "chronic_stress(me)",
+          "overeating(me)",
+          "obesity(me)",
+          "diabetes(me)"
+        ]
+      ]
+    },
+    "investigation_requests": [
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "chronic_stress",
+            "reason": "variable 'chronic_stress' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "chronic_stress",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "diabetes",
+            "reason": "variable 'diabetes' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "diabetes",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "chronic_stress",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "diabetes",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ],
+    "derivation": {
+      "version": "0.1",
+      "kind": "derivation",
+      "steps": [
+        {
+          "rule": "cause_via_directed_path",
+          "inputs": {
+            "graph": {
+              "kind": "graph",
+              "nodes": [
+                {
+                  "kind": "atom",
+                  "predicate": "chronic_stress",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                {
+                  "kind": "atom",
+                  "predicate": "diabetes",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                {
+                  "kind": "atom",
+                  "predicate": "obesity",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                {
+                  "kind": "atom",
+                  "predicate": "overeating",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                }
+              ],
+              "edges": [
+                [
+                  0,
+                  3
+                ],
+                [
+                  2,
+                  1
+                ],
+                [
+                  3,
+                  2
+                ]
+              ]
+            },
+            "src": {
+              "kind": "atom",
+              "predicate": "chronic_stress",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "dst": {
+              "kind": "atom",
+              "predicate": "diabetes",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "paths": {
+              "kind": "atom_paths",
+              "items": [
+                [
+                  {
+                    "kind": "atom",
+                    "predicate": "chronic_stress",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "atom",
+                    "predicate": "overeating",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "atom",
+                    "predicate": "obesity",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "atom",
+                    "predicate": "diabetes",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "output": {
+            "kind": "structural_result",
+            "value": true,
+            "supporting_paths": [
+              [
+                "chronic_stress(me)",
+                "overeating(me)",
+                "obesity(me)",
+                "diabetes(me)"
+              ]
+            ]
+          },
+          "step_id": "s1"
+        }
+      ]
+    }
+  },
+  "themis_error": null,
+  "agent_observations": "Chain '压力 -> 暴饮暴食 -> 肥胖 -> 糖尿病'. Used cause intent ('导致'). Emitted the three chain edges as llm_proposal; did NOT add a direct chronic_stress->diabetes shortcut since the question specified the route via mediators.",
+  "extracted_for_scoring": {
+    "variables": [
+      "chronic_stress",
+      "overeating",
+      "obesity",
+      "diabetes"
+    ],
+    "directed_edges": [
+      [
+        "chronic_stress",
+        "overeating"
+      ],
+      [
+        "overeating",
+        "obesity"
+      ],
+      [
+        "obesity",
+        "diabetes"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}

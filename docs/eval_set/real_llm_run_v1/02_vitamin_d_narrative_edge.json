@@ -1,0 +1,276 @@
+{
+  "case_id": "02_vitamin_d_narrative_edge",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "vitamin_d_supplement",
+        "domain": [
+          true,
+          false
+        ],
+        "time_window": "past 1 month",
+        "threshold": "daily",
+        "measurement": "self-report of supplementation",
+        "observability": "self-report"
+      },
+      {
+        "kind": "variable",
+        "predicate": "cold_frequency_reduced",
+        "domain": [
+          true,
+          false
+        ],
+        "time_window": "past 2 months",
+        "measurement": "self-report count of cold episodes",
+        "observability": "self-report"
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "vitamin_d_supplement",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "cold_frequency_reduced",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "cold_frequency_reduced",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "vitamin_d_supplement",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "needs_investigation",
+    "query_kind": "effect",
+    "query_id": "q",
+    "formula": {
+      "kind": "probability_ref",
+      "target": {
+        "atom": {
+          "predicate": "cold_frequency_reduced",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "value": true
+      },
+      "given": [
+        {
+          "atom": {
+            "predicate": "vitamin_d_supplement",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "value": true
+        }
+      ]
+    },
+    "missing_information": [
+      {
+        "kind": "parameter",
+        "name": "parameter:P(cold_frequency_reduced=True|vitamin_d_supplement=True)",
+        "priority": "high",
+        "reason": "Theta 中缺条目 P(cold_frequency_reduced=True|vitamin_d_supplement=True)"
+      }
+    ],
+    "investigation_requests": [
+      {
+        "action": "validate_parameter",
+        "target": "parameter:P(cold_frequency_reduced=True|vitamin_d_supplement=True)",
+        "priority": "high",
+        "note": "Theta 中缺条目 P(cold_frequency_reduced=True|vitamin_d_supplement=True)",
+        "group": "parameter",
+        "items": [
+          {
+            "target": "parameter:P(cold_frequency_reduced=True|vitamin_d_supplement=True)",
+            "reason": "Theta 中缺条目 P(cold_frequency_reduced=True|vitamin_d_supplement=True)",
+            "skeleton": {
+              "kind": "probability",
+              "target": {
+                "atom": {
+                  "predicate": "cold_frequency_reduced",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "value": true
+              },
+              "given": [
+                {
+                  "atom": {
+                    "predicate": "vitamin_d_supplement",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  "value": true
+                }
+              ],
+              "value": null,
+              "annotations": {
+                "source": "TODO"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "cold_frequency_reduced",
+            "reason": "variable 'cold_frequency_reduced' is declared but missing 4 framing fields: threshold, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "cold_frequency_reduced",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ],
+                "time_window": "past 2 months",
+                "measurement": "self-report count of cold episodes",
+                "observability": "self-report"
+              },
+              "fields": {
+                "threshold": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "vitamin_d_supplement",
+            "reason": "variable 'vitamin_d_supplement' is declared but missing 3 framing fields: direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "vitamin_d_supplement",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ],
+                "time_window": "past 1 month",
+                "measurement": "self-report of supplementation",
+                "threshold": "daily",
+                "observability": "self-report"
+              },
+              "fields": {
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "cold_frequency_reduced",
+        "missing": [
+          "threshold",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "vitamin_d_supplement",
+        "missing": [
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "A5 extracted two narrative variables with explicit time windows and self-report observability. Picked effect (question asks whether the intervention reduces colds). Did not merge narrative+question predicates — they already shared names.",
+  "extracted_for_scoring": {
+    "variables": [
+      "vitamin_d_supplement",
+      "cold_frequency_reduced"
+    ],
+    "directed_edges": [
+      [
+        "vitamin_d_supplement",
+        "cold_frequency_reduced"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}

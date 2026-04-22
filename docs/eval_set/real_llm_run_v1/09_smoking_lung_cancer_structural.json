@@ -1,0 +1,295 @@
+{
+  "case_id": "09_smoking_lung_cancer_structural",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "smoking",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "lung_cancer",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "smoking",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "lung_cancer",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {
+            "predicate": "smoking",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "to": {
+            "predicate": "lung_cancer",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "structurally_solved",
+    "query_kind": "cause",
+    "query_id": "q",
+    "structural_result": {
+      "value": true,
+      "supporting_paths": [
+        [
+          "smoking(me)",
+          "lung_cancer(me)"
+        ]
+      ]
+    },
+    "investigation_requests": [
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "smoking",
+            "reason": "variable 'smoking' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "smoking",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "lung_cancer",
+            "reason": "variable 'lung_cancer' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "lung_cancer",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "smoking",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "lung_cancer",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ],
+    "derivation": {
+      "version": "0.1",
+      "kind": "derivation",
+      "steps": [
+        {
+          "rule": "cause_via_directed_path",
+          "inputs": {
+            "graph": {
+              "kind": "graph",
+              "nodes": [
+                {
+                  "kind": "atom",
+                  "predicate": "lung_cancer",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                {
+                  "kind": "atom",
+                  "predicate": "smoking",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                }
+              ],
+              "edges": [
+                [
+                  1,
+                  0
+                ]
+              ]
+            },
+            "src": {
+              "kind": "atom",
+              "predicate": "smoking",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "dst": {
+              "kind": "atom",
+              "predicate": "lung_cancer",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "paths": {
+              "kind": "atom_paths",
+              "items": [
+                [
+                  {
+                    "kind": "atom",
+                    "predicate": "smoking",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "atom",
+                    "predicate": "lung_cancer",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "output": {
+            "kind": "structural_result",
+            "value": true,
+            "supporting_paths": [
+              [
+                "smoking(me)",
+                "lung_cancer(me)"
+              ]
+            ]
+          },
+          "step_id": "s1"
+        }
+      ]
+    }
+  },
+  "themis_error": null,
+  "agent_observations": "'导致' -> cause intent. Emitted smoking -> lung_cancer as llm_proposal. No framing because the question gave none.",
+  "extracted_for_scoring": {
+    "variables": [
+      "smoking",
+      "lung_cancer"
+    ],
+    "directed_edges": [
+      [
+        "smoking",
+        "lung_cancer"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}

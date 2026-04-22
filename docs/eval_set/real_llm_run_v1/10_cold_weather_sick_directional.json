@@ -1,0 +1,276 @@
+{
+  "case_id": "10_cold_weather_sick_directional",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "cold_weather",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "gets_sick",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "cold_weather",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "gets_sick",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "gets_sick",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "cold_weather",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "needs_investigation",
+    "query_kind": "effect",
+    "query_id": "q",
+    "formula": {
+      "kind": "probability_ref",
+      "target": {
+        "atom": {
+          "predicate": "gets_sick",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "value": true
+      },
+      "given": [
+        {
+          "atom": {
+            "predicate": "cold_weather",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "value": true
+        }
+      ]
+    },
+    "missing_information": [
+      {
+        "kind": "parameter",
+        "name": "parameter:P(gets_sick=True|cold_weather=True)",
+        "priority": "high",
+        "reason": "Theta 中缺条目 P(gets_sick=True|cold_weather=True)"
+      }
+    ],
+    "investigation_requests": [
+      {
+        "action": "validate_parameter",
+        "target": "parameter:P(gets_sick=True|cold_weather=True)",
+        "priority": "high",
+        "note": "Theta 中缺条目 P(gets_sick=True|cold_weather=True)",
+        "group": "parameter",
+        "items": [
+          {
+            "target": "parameter:P(gets_sick=True|cold_weather=True)",
+            "reason": "Theta 中缺条目 P(gets_sick=True|cold_weather=True)",
+            "skeleton": {
+              "kind": "probability",
+              "target": {
+                "atom": {
+                  "predicate": "gets_sick",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "value": true
+              },
+              "given": [
+                {
+                  "atom": {
+                    "predicate": "cold_weather",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  "value": true
+                }
+              ],
+              "value": null,
+              "annotations": {
+                "source": "TODO"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "gets_sick",
+            "reason": "variable 'gets_sick' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "gets_sick",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "cold_weather",
+            "reason": "variable 'cold_weather' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "cold_weather",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "gets_sick",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "cold_weather",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "A5 returned empty (narrative describes an observed office-wide pattern, not the user's own state). A1 picked effect per default tiebreak ('会让人 Y 吗'). Did not capture population-scope mismatch — strict A1 prompt has no such mechanism.",
+  "extracted_for_scoring": {
+    "variables": [
+      "cold_weather",
+      "gets_sick"
+    ],
+    "directed_edges": [
+      [
+        "cold_weather",
+        "gets_sick"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}

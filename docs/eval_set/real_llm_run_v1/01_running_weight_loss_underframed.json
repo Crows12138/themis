@@ -1,0 +1,276 @@
+{
+  "case_id": "01_running_weight_loss_underframed",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "running",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "weight_loss",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "weight_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "weight_loss",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "running",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "needs_investigation",
+    "query_kind": "effect",
+    "query_id": "q",
+    "formula": {
+      "kind": "probability_ref",
+      "target": {
+        "atom": {
+          "predicate": "weight_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "value": true
+      },
+      "given": [
+        {
+          "atom": {
+            "predicate": "running",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "value": true
+        }
+      ]
+    },
+    "missing_information": [
+      {
+        "kind": "parameter",
+        "name": "parameter:P(weight_loss=True|running=True)",
+        "priority": "high",
+        "reason": "Theta 中缺条目 P(weight_loss=True|running=True)"
+      }
+    ],
+    "investigation_requests": [
+      {
+        "action": "validate_parameter",
+        "target": "parameter:P(weight_loss=True|running=True)",
+        "priority": "high",
+        "note": "Theta 中缺条目 P(weight_loss=True|running=True)",
+        "group": "parameter",
+        "items": [
+          {
+            "target": "parameter:P(weight_loss=True|running=True)",
+            "reason": "Theta 中缺条目 P(weight_loss=True|running=True)",
+            "skeleton": {
+              "kind": "probability",
+              "target": {
+                "atom": {
+                  "predicate": "weight_loss",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "value": true
+              },
+              "given": [
+                {
+                  "atom": {
+                    "predicate": "running",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  "value": true
+                }
+              ],
+              "value": null,
+              "annotations": {
+                "source": "TODO"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "weight_loss",
+            "reason": "variable 'weight_loss' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "weight_loss",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "running",
+            "reason": "variable 'running' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "running",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "weight_loss",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "running",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "No explicit intervention marker in the question; applied A1 default tiebreaker (prefer effect for 'will doing X lead to Y' phrasing). All framing fields left blank since the question gave none.",
+  "extracted_for_scoring": {
+    "variables": [
+      "running",
+      "weight_loss"
+    ],
+    "directed_edges": [
+      [
+        "running",
+        "weight_loss"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}

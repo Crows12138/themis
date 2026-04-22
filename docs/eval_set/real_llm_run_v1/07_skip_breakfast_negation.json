@@ -1,0 +1,276 @@
+{
+  "case_id": "07_skip_breakfast_negation",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "skipping_breakfast",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "study_efficiency",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "skipping_breakfast",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "study_efficiency",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "study_efficiency",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "skipping_breakfast",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "needs_investigation",
+    "query_kind": "effect",
+    "query_id": "q",
+    "formula": {
+      "kind": "probability_ref",
+      "target": {
+        "atom": {
+          "predicate": "study_efficiency",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "value": true
+      },
+      "given": [
+        {
+          "atom": {
+            "predicate": "skipping_breakfast",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "value": true
+        }
+      ]
+    },
+    "missing_information": [
+      {
+        "kind": "parameter",
+        "name": "parameter:P(study_efficiency=True|skipping_breakfast=True)",
+        "priority": "high",
+        "reason": "Theta 中缺条目 P(study_efficiency=True|skipping_breakfast=True)"
+      }
+    ],
+    "investigation_requests": [
+      {
+        "action": "validate_parameter",
+        "target": "parameter:P(study_efficiency=True|skipping_breakfast=True)",
+        "priority": "high",
+        "note": "Theta 中缺条目 P(study_efficiency=True|skipping_breakfast=True)",
+        "group": "parameter",
+        "items": [
+          {
+            "target": "parameter:P(study_efficiency=True|skipping_breakfast=True)",
+            "reason": "Theta 中缺条目 P(study_efficiency=True|skipping_breakfast=True)",
+            "skeleton": {
+              "kind": "probability",
+              "target": {
+                "atom": {
+                  "predicate": "study_efficiency",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "value": true
+              },
+              "given": [
+                {
+                  "atom": {
+                    "predicate": "skipping_breakfast",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  "value": true
+                }
+              ],
+              "value": null,
+              "annotations": {
+                "source": "TODO"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "study_efficiency",
+            "reason": "variable 'study_efficiency' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "study_efficiency",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "skipping_breakfast",
+            "reason": "variable 'skipping_breakfast' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "skipping_breakfast",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "study_efficiency",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "skipping_breakfast",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Extracted 'skipping_breakfast' as-is from '不吃早餐' (naive LLM would not collapse negation into eats_breakfast=False without explicit prompt guidance). Picked effect.",
+  "extracted_for_scoring": {
+    "variables": [
+      "skipping_breakfast",
+      "study_efficiency"
+    ],
+    "directed_edges": [
+      [
+        "skipping_breakfast",
+        "study_efficiency"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}

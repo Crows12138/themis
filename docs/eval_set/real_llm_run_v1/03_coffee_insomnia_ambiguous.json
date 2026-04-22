@@ -1,0 +1,300 @@
+{
+  "case_id": "03_coffee_insomnia_ambiguous",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "drinking_coffee",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "insomnia",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "drinking_coffee",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "insomnia",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "assoc",
+          "left": {
+            "predicate": "drinking_coffee",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "right": {
+            "predicate": "insomnia",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "structurally_solved",
+    "query_kind": "assoc",
+    "query_id": "q",
+    "structural_result": {
+      "value": true,
+      "supporting_paths": [
+        [
+          "drinking_coffee(me)",
+          "insomnia(me)"
+        ]
+      ]
+    },
+    "investigation_requests": [
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "drinking_coffee",
+            "reason": "variable 'drinking_coffee' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "drinking_coffee",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "insomnia",
+            "reason": "variable 'insomnia' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "insomnia",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "drinking_coffee",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "insomnia",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ],
+    "derivation": {
+      "version": "0.1",
+      "kind": "derivation",
+      "steps": [
+        {
+          "rule": "d_connected_via_open_path",
+          "inputs": {
+            "graph": {
+              "kind": "graph",
+              "nodes": [
+                {
+                  "kind": "atom",
+                  "predicate": "drinking_coffee",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                {
+                  "kind": "atom",
+                  "predicate": "insomnia",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                }
+              ],
+              "edges": [
+                [
+                  0,
+                  1
+                ]
+              ]
+            },
+            "x": {
+              "kind": "atom",
+              "predicate": "drinking_coffee",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "y": {
+              "kind": "atom",
+              "predicate": "insomnia",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "conditioning": {
+              "kind": "atom_set",
+              "items": []
+            },
+            "paths": {
+              "kind": "atom_paths",
+              "items": [
+                [
+                  {
+                    "kind": "atom",
+                    "predicate": "drinking_coffee",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "atom",
+                    "predicate": "insomnia",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "output": {
+            "kind": "structural_result",
+            "value": true,
+            "supporting_paths": [
+              [
+                "drinking_coffee(me)",
+                "insomnia(me)"
+              ]
+            ]
+          },
+          "step_id": "s1"
+        }
+      ]
+    }
+  },
+  "themis_error": null,
+  "agent_observations": "'有关系吗' is the correlation-phrasing cue per A1 table -> assoc. Still emitted a plausible cause edge (coffee -> insomnia) as llm_proposal. Framing left blank.",
+  "extracted_for_scoring": {
+    "variables": [
+      "drinking_coffee",
+      "insomnia"
+    ],
+    "directed_edges": [
+      [
+        "drinking_coffee",
+        "insomnia"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}

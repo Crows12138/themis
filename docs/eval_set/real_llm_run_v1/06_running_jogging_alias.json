@@ -1,0 +1,289 @@
+{
+  "case_id": "06_running_jogging_alias",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "jogging",
+        "domain": [
+          true,
+          false
+        ],
+        "time_window": "past 3 months",
+        "threshold": ">=4 sessions/week, 30 min each",
+        "measurement": "self-report of sessions",
+        "observability": "self-report"
+      },
+      {
+        "kind": "variable",
+        "predicate": "running",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "is_healthier",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "is_healthier",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "is_healthier",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "running",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "status": "needs_investigation",
+    "query_kind": "effect",
+    "query_id": "q",
+    "formula": {
+      "kind": "probability_ref",
+      "target": {
+        "atom": {
+          "predicate": "is_healthier",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "value": true
+      },
+      "given": [
+        {
+          "atom": {
+            "predicate": "running",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "value": true
+        }
+      ]
+    },
+    "missing_information": [
+      {
+        "kind": "parameter",
+        "name": "parameter:P(is_healthier=True|running=True)",
+        "priority": "high",
+        "reason": "Theta 中缺条目 P(is_healthier=True|running=True)"
+      }
+    ],
+    "investigation_requests": [
+      {
+        "action": "validate_parameter",
+        "target": "parameter:P(is_healthier=True|running=True)",
+        "priority": "high",
+        "note": "Theta 中缺条目 P(is_healthier=True|running=True)",
+        "group": "parameter",
+        "items": [
+          {
+            "target": "parameter:P(is_healthier=True|running=True)",
+            "reason": "Theta 中缺条目 P(is_healthier=True|running=True)",
+            "skeleton": {
+              "kind": "probability",
+              "target": {
+                "atom": {
+                  "predicate": "is_healthier",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "value": true
+              },
+              "given": [
+                {
+                  "atom": {
+                    "predicate": "running",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  "value": true
+                }
+              ],
+              "value": null,
+              "annotations": {
+                "source": "TODO"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "is_healthier",
+            "reason": "variable 'is_healthier' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "is_healthier",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "running",
+            "reason": "variable 'running' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "running",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "is_healthier",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "running",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Narrative predicate 'jogging' (慢跑) kept distinct from question predicate 'running' (跑步) because A5/A1 prompts don't describe alias merging. jogging retains framing from narrative; running/is_healthier have no framing (question gave none). Picked effect per default tiebreak.",
+  "extracted_for_scoring": {
+    "variables": [
+      "jogging",
+      "running",
+      "is_healthier"
+    ],
+    "directed_edges": [
+      [
+        "running",
+        "is_healthier"
+      ]
+    ],
+    "bidirected_edges": []
+  }
+}
