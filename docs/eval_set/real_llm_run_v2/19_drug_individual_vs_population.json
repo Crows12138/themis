@@ -1,0 +1,296 @@
+{
+  "case_id": "19_drug_individual_vs_population",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "takes_drug",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "blood_pressure_drops",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "takes_drug",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_drops",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "narrative"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "blood_pressure_drops",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "takes_drug",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "individual_vs_population",
+          "chosen": "population_average_effect_proxy",
+          "alternatives": [
+            "individual_level_effect"
+          ],
+          "reason": "叙述提供了人群平均效应（临床试验平均降压 10 mmHg），但问题问的是个体层面效应（'对我有效吗'）。E[Y(1)-Y(0)]（人群平均）≠ Y_i(1)-Y_i(0)（个体）。个体效应还依赖年龄、合并症、基因等在叙述中未提供的调节变量。已用人群效应作为代理答案，但此处声明这一语义差距。",
+          "disambiguation_ask": "临床试验结果是人群平均效应（平均降压 10 mmHg），不能直接等同于'这药一定对你有效'。你的具体情况（年龄、合并症、用药史等）会影响个体疗效。你是想了解人群平均效应，还是想评估你个人的情况？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "probability_ref",
+          "target": {
+            "atom": {
+              "predicate": "blood_pressure_drops",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": [
+            {
+              "atom": {
+                "predicate": "takes_drug",
+                "args": [
+                  {
+                    "type": "const",
+                    "name": "me"
+                  }
+                ]
+              },
+              "value": true
+            }
+          ]
+        },
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(blood_pressure_drops=True|takes_drug=True)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(blood_pressure_drops=True|takes_drug=True)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(blood_pressure_drops=True|takes_drug=True)",
+            "priority": "high",
+            "note": "Theta 中缺条目 P(blood_pressure_drops=True|takes_drug=True)",
+            "group": "parameter",
+            "items": [
+              {
+                "target": "parameter:P(blood_pressure_drops=True|takes_drug=True)",
+                "reason": "Theta 中缺条目 P(blood_pressure_drops=True|takes_drug=True)",
+                "skeleton": {
+                  "kind": "probability",
+                  "target": {
+                    "atom": {
+                      "predicate": "blood_pressure_drops",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    "value": true
+                  },
+                  "given": [
+                    {
+                      "atom": {
+                        "predicate": "takes_drug",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      },
+                      "value": true
+                    }
+                  ],
+                  "value": null,
+                  "annotations": {
+                    "source": "TODO"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "blood_pressure_drops",
+                "reason": "variable 'blood_pressure_drops' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "blood_pressure_drops",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "takes_drug",
+                "reason": "variable 'takes_drug' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "takes_drug",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "blood_pressure_drops",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "takes_drug",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F18 individual vs population: narrative supplies population-average effect (临床试验平均降压 10 mmHg); question asks individual-level efficacy (对我有效吗). Edge source set to 'narrative' since the narrative explicitly states a causal effect. Effect query emitted (intervention cue '这药'). Declared kind=individual_vs_population: kernel returns population-average proxy; individual-level prediction requires moderator variables not supplied. Prompt gap: no explicit A1 v2 rule for individual vs population — improvised by analogy with scope ambiguity (§5).",
+  "extracted_for_scoring": {
+    "variables": [
+      "takes_drug",
+      "blood_pressure_drops"
+    ],
+    "directed_edges": [
+      [
+        "takes_drug",
+        "blood_pressure_drops"
+      ]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "individual_vs_population"
+    ]
+  }
+}

@@ -1,0 +1,259 @@
+{
+  "case_id": "18_smoking_mechanism_vs_existence",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "smokes",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "has_lung_cancer",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "smokes",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "has_lung_cancer",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {
+            "predicate": "smokes",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "to": {
+            "predicate": "has_lung_cancer",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "mechanism_vs_existence",
+          "chosen": "existence_of_causal_path",
+          "alternatives": [
+            "mechanism_mediator_chain"
+          ],
+          "reason": "'为什么' 问的是机制（中介链：吸烟→焦油→DNA 损伤→基因突变→肺癌），不是因果路径是否存在（后者已被预设为真）。当前 kernel 的 cause 查询只回答因果路径是否存在（第一层/第二层），无法枚举生物机制中介链。已用存在性查询作为代理。",
+          "disambiguation_ask": "你问的是'为什么'，是想了解吸烟导致肺癌的生物机制（如焦油、DNA 损伤等中间步骤），还是确认这条因果关系存在？如果是前者，我需要在图里显式加入中介变量，但这超出当前分析范围。"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {
+          "value": true,
+          "supporting_paths": [
+            [
+              "smokes(me)",
+              "has_lung_cancer(me)"
+            ]
+          ]
+        },
+        "framing_notes": [
+          {
+            "predicate": "smokes",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "has_lung_cancer",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "cause_via_directed_path",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "has_lung_cancer",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "smokes",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "src": {
+                  "kind": "atom",
+                  "predicate": "smokes",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "dst": {
+                  "kind": "atom",
+                  "predicate": "has_lung_cancer",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "paths": {
+                  "kind": "atom_paths",
+                  "items": [
+                    [
+                      {
+                        "kind": "atom",
+                        "predicate": "smokes",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "atom",
+                        "predicate": "has_lung_cancer",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": true,
+                "supporting_paths": [
+                  [
+                    "smokes(me)",
+                    "has_lung_cancer(me)"
+                  ]
+                ]
+              },
+              "step_id": "s1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F17 mechanism vs existence: '为什么会导致' presupposes the causal link and asks for the mechanism. A1 v2 prompt §3a explicitly cites smoking→lung cancer as the canonical confident-direct-edge example, so direct edge emitted without confounder refusal. Query kind=cause (conservative default: existence-of-path as proxy for mechanism). Declared kind=mechanism_vs_existence: kernel answers existence, not mediator-chain enumeration. Prompt gap: no explicit §5 signal word for '为什么'; improvised by treating it as a structural out-of-scope query.",
+  "extracted_for_scoring": {
+    "variables": [
+      "smokes",
+      "has_lung_cancer"
+    ],
+    "directed_edges": [
+      [
+        "smokes",
+        "has_lung_cancer"
+      ]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "mechanism_vs_existence"
+    ]
+  }
+}

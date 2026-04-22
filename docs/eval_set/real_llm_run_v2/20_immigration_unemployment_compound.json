@@ -1,0 +1,281 @@
+{
+  "case_id": "20_immigration_unemployment_compound",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "high_immigration",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "high_local_unemployment",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "adverse_economic_conditions",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "adverse_economic_conditions",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "high_immigration",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "adverse_economic_conditions",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "high_local_unemployment",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {
+            "predicate": "high_immigration",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "to": {
+            "predicate": "high_local_unemployment",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "confounder_refusal",
+          "chosen": "adverse_economic_conditions_as_confounder",
+          "alternatives": [
+            "high_immigration_directly_causes_high_local_unemployment"
+          ],
+          "reason": "§3a 触发：叙述描述了十年间两个时间趋势的共同变动，这是典型的'时间滞后而无机制'模式（时序共现）。经济周期、政策变化、产业结构变化等共同原因可以同时解释移民增加和失业率上升，无需直接因果边。已拒绝直接边 high_immigration→high_local_unemployment，改为提出 adverse_economic_conditions 作为共同原因。",
+          "disambiguation_ask": "我没有直接画移民→失业的边，因为这两个趋势很可能都被经济环境（如经济下行、政策变化）驱动，而不是移民直接导致失业。你同意这个判断吗？还是你有证据表明存在直接因果关系？"
+        },
+        {
+          "kind": "intent",
+          "chosen": "cause",
+          "alternatives": [
+            "effect"
+          ],
+          "reason": "'会导致…吗' 既可读为因果存在性查询（cause）——移民是否是失业的原因，也可读为干预效应查询（effect）——移民增加会使失业率上升多少。保守默认选 cause。",
+          "disambiguation_ask": "你是想问移民是否会'导致'失业（因果存在性），还是想问移民增加'会使'失业率上升多少（干预效应量）？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {
+          "value": false
+        },
+        "framing_notes": [
+          {
+            "predicate": "high_immigration",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "high_local_unemployment",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "no_directed_path",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "adverse_economic_conditions",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "high_immigration",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "high_local_unemployment",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      0,
+                      2
+                    ]
+                  ]
+                },
+                "src": {
+                  "kind": "atom",
+                  "predicate": "high_immigration",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "dst": {
+                  "kind": "atom",
+                  "predicate": "high_local_unemployment",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": false
+              },
+              "step_id": "s1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F3+F8+F15 compound: §3a group-level/temporal-co-occurrence pattern fires (十年间两个趋势同时上升 → typical confounded correlation). Refused direct high_immigration→high_local_unemployment edge; emitted confounder structure adverse_economic_conditions → both. §5 intent ambiguity: '会导致…吗' admits cause (existence) vs effect (quantity) readings; picked cause as conservative default. Both confounder_refusal and intent ambiguities declared. Note: query still asks cause(high_immigration, high_local_unemployment) so themis can run; both atoms enter V via the confounder edges. subject is region-level not person-level, but kernel requires 'me' object — kept as-is since the prompt doesn't provide a region-scope object kind.",
+  "extracted_for_scoring": {
+    "variables": [
+      "high_immigration",
+      "high_local_unemployment",
+      "adverse_economic_conditions"
+    ],
+    "directed_edges": [
+      [
+        "adverse_economic_conditions",
+        "high_immigration"
+      ],
+      [
+        "adverse_economic_conditions",
+        "high_local_unemployment"
+      ]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "confounder_refusal",
+      "intent"
+    ]
+  }
+}

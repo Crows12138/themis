@@ -1,0 +1,281 @@
+{
+  "case_id": "16_hospital_diabetes_selection_bias",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "is_hospitalized",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "has_diabetes",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "underlying_illness_severity",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "underlying_illness_severity",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "is_hospitalized",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "underlying_illness_severity",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "has_diabetes",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {
+            "predicate": "is_hospitalized",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "to": {
+            "predicate": "has_diabetes",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "selection_bias",
+          "chosen": "confounder_structure_underlying_illness",
+          "alternatives": [
+            "direct_edge_hospitalized_to_diabetes"
+          ],
+          "reason": "叙述在住院病人中观察到糖尿病比例高，但住院本身是一个碰撞节点（collider）：潜在疾病严重程度同时导致住院和糖尿病。在住院病人中观察（即条件化于 is_hospitalized=True）会打开collider 路径，制造虚假的统计相关——这是经典的选择偏差，不是因果效应。已拒绝直接边 is_hospitalized→has_diabetes，改为提出共同原因结构：underlying_illness_severity→两者。",
+          "disambiguation_ask": "住院病人里糖尿病比例高，很可能是因为病情较重的人同时更容易住院也更容易有糖尿病（选择偏差），而不是住院本身导致糖尿病。你是想探讨这个混淆结构，还是仍然坚持询问住院是否'直接'导致糖尿病？"
+        },
+        {
+          "kind": "confounder_refusal",
+          "chosen": "underlying_illness_severity_as_confounder",
+          "alternatives": [
+            "is_hospitalized_directly_causes_has_diabetes"
+          ],
+          "reason": "§3a: clinical/ICU setting pattern — sicker patients are selected into hospital, making is_hospitalized a collider not a cause. Direct edge refused.",
+          "disambiguation_ask": "我没有画 is_hospitalized→has_diabetes 的直接边，因为住院是一个选择变量。你同意这个判断吗？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {
+          "value": false
+        },
+        "framing_notes": [
+          {
+            "predicate": "is_hospitalized",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "has_diabetes",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "no_directed_path",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "has_diabetes",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "is_hospitalized",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "underlying_illness_severity",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      2,
+                      0
+                    ],
+                    [
+                      2,
+                      1
+                    ]
+                  ]
+                },
+                "src": {
+                  "kind": "atom",
+                  "predicate": "is_hospitalized",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "dst": {
+                  "kind": "atom",
+                  "predicate": "has_diabetes",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": false
+              },
+              "step_id": "s1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F15 selection bias: narrative conditions on hospitalization (在住院病人中), then question asks if hospitalization causes diabetes. §3a clinical-setting pattern fires: is_hospitalized is a collider (underlying_illness_severity causes both). Refused direct is_hospitalized→has_diabetes edge. Proposed confounder structure: underlying_illness_severity → is_hospitalized and underlying_illness_severity → has_diabetes. Query still asks cause(is_hospitalized, has_diabetes) so themis can run (both atoms enter V via the confounder edges). Declared both selection_bias and confounder_refusal in extensions.ambiguities. Prompt gap: §3a lists 'selection effect' as a trigger but doesn't name selection_bias as an explicit ambiguity kind — improvised by analogy with confounder_refusal.",
+  "extracted_for_scoring": {
+    "variables": [
+      "is_hospitalized",
+      "has_diabetes",
+      "underlying_illness_severity"
+    ],
+    "directed_edges": [
+      [
+        "underlying_illness_severity",
+        "is_hospitalized"
+      ],
+      [
+        "underlying_illness_severity",
+        "has_diabetes"
+      ]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "selection_bias",
+      "confounder_refusal"
+    ]
+  }
+}

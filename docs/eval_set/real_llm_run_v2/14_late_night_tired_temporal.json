@@ -1,0 +1,259 @@
+{
+  "case_id": "14_late_night_tired_temporal",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "stays_up_late",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "feels_tired_next_morning",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "stays_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "feels_tired_next_morning",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {
+            "predicate": "stays_up_late",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "to": {
+            "predicate": "feels_tired_next_morning",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "temporal",
+          "chosen": "atemporal_dag_flattening",
+          "alternatives": [
+            "time_series_model"
+          ],
+          "reason": "NL 显式编码了一个 t→t+1 的时间滞后（今晚熬夜 → 第二天上午没精神）。DAG 语义是无时序的，把它压缩为 stays_up_late→feels_tired_next_morning 丢失了'次日'这个滞后含义。已将 per-night lag 压缩进单条边以保持可运行性，但此处声明该压缩。",
+          "disambiguation_ask": "我把'第二天没精神'这个时间滞后压缩进了 DAG 的单条边里。如果你关心具体几小时后的效应，需要换时序模型——你需要这样吗？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {
+          "value": true,
+          "supporting_paths": [
+            [
+              "stays_up_late(me)",
+              "feels_tired_next_morning(me)"
+            ]
+          ]
+        },
+        "framing_notes": [
+          {
+            "predicate": "stays_up_late",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "feels_tired_next_morning",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "cause_via_directed_path",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "feels_tired_next_morning",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "stays_up_late",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "src": {
+                  "kind": "atom",
+                  "predicate": "stays_up_late",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "dst": {
+                  "kind": "atom",
+                  "predicate": "feels_tired_next_morning",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "paths": {
+                  "kind": "atom_paths",
+                  "items": [
+                    [
+                      {
+                        "kind": "atom",
+                        "predicate": "stays_up_late",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "atom",
+                        "predicate": "feels_tired_next_morning",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": true,
+                "supporting_paths": [
+                  [
+                    "stays_up_late(me)",
+                    "feels_tired_next_morning(me)"
+                  ]
+                ]
+              },
+              "step_id": "s1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F11 temporal compression: NL contains an explicit next-morning lag (熬夜→第二天). §3a check passed — sleep-deprivation→fatigue is a direct mechanistic link with no obvious unmeasured common cause, so direct edge emitted. Query intent 'cause' chosen (pure causal phrasing '会让', no do-style intervention cue). §5 temporal ambiguity declared: atemporal DAG flattens the t→t+1 lag; downstream user should know the per-night timing was compressed out.",
+  "extracted_for_scoring": {
+    "variables": [
+      "stays_up_late",
+      "feels_tired_next_morning"
+    ],
+    "directed_edges": [
+      [
+        "stays_up_late",
+        "feels_tired_next_morning"
+      ]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "temporal"
+    ]
+  }
+}

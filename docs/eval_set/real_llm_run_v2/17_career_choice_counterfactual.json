@@ -1,0 +1,296 @@
+{
+  "case_id": "17_career_choice_counterfactual",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "chose_cs_major",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "higher_current_income",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "chose_cs_major",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "higher_current_income",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "higher_current_income",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "chose_cs_major",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "counterfactual_query",
+          "chosen": "interventional_effect_proxy",
+          "alternatives": [
+            "unit_level_counterfactual"
+          ],
+          "reason": "'如果当初我选的是…' 是 Pearl 第三层（反事实/孪生网络）问题：在已知我实际选了历史专业的情况下，假设我当时选了计算机，现在的收入会如何？这是个体层面的反事实，不等于总体层面的干预效应 P(higher_income|do(cs_major=True))。当前 kernel 只支持第二层（干预效应），已用干预查询作为代理。",
+          "disambiguation_ask": "你的问题是'如果当初我选了 CS，我现在会怎样'——这是一个个体反事实问题，而我能给出的最好答案是：'在一般人群中，选 CS 专业的人收入更高的概率是多少'（总体干预效应）。这个代理答案对你够用吗？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "probability_ref",
+          "target": {
+            "atom": {
+              "predicate": "higher_current_income",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": [
+            {
+              "atom": {
+                "predicate": "chose_cs_major",
+                "args": [
+                  {
+                    "type": "const",
+                    "name": "me"
+                  }
+                ]
+              },
+              "value": true
+            }
+          ]
+        },
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(higher_current_income=True|chose_cs_major=True)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(higher_current_income=True|chose_cs_major=True)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(higher_current_income=True|chose_cs_major=True)",
+            "priority": "high",
+            "note": "Theta 中缺条目 P(higher_current_income=True|chose_cs_major=True)",
+            "group": "parameter",
+            "items": [
+              {
+                "target": "parameter:P(higher_current_income=True|chose_cs_major=True)",
+                "reason": "Theta 中缺条目 P(higher_current_income=True|chose_cs_major=True)",
+                "skeleton": {
+                  "kind": "probability",
+                  "target": {
+                    "atom": {
+                      "predicate": "higher_current_income",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    "value": true
+                  },
+                  "given": [
+                    {
+                      "atom": {
+                        "predicate": "chose_cs_major",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      },
+                      "value": true
+                    }
+                  ],
+                  "value": null,
+                  "annotations": {
+                    "source": "TODO"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "higher_current_income",
+                "reason": "variable 'higher_current_income' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "higher_current_income",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "chose_cs_major",
+                "reason": "variable 'chose_cs_major' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "chose_cs_major",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "higher_current_income",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "chose_cs_major",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F16 counterfactual: '如果当初我选的是计算机专业' is a unit-level counterfactual (Pearl Layer 3), not a population interventional effect (Layer 2). A1 v2 prompt has no explicit rule for this pattern. Improvised: emit effect query as the closest supported proxy (do(chose_cs_major=True) interventional effect), and declare kind=counterfactual_query explaining the semantic gap. Direct edge chose_cs_major→higher_current_income emitted (common knowledge, plausible). No confounder refusal needed — no §3a pattern triggered.",
+  "extracted_for_scoring": {
+    "variables": [
+      "chose_cs_major",
+      "higher_current_income"
+    ],
+    "directed_edges": [
+      [
+        "chose_cs_major",
+        "higher_current_income"
+      ]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "counterfactual_query"
+    ]
+  }
+}

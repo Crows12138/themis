@@ -1,0 +1,296 @@
+{
+  "case_id": "15_bp_exercise_categorical",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "exercises_regularly",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "blood_pressure_controlled",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "exercises_regularly",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_controlled",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {
+              "predicate": "blood_pressure_controlled",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "intervention": {
+            "atom": {
+              "predicate": "exercises_regularly",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "categorical_domain",
+          "chosen": "bool_collapse",
+          "alternatives": [
+            "three_level_categorical"
+          ],
+          "reason": "用户明确指定了三档分类域（运动量：少/中/多；血压：低/中/高），并提出从「少→多」的干预，目标是血压从「高→中或低」。当前 kernel 只支持 bool 域，无法表达三档对比。已将运动量折叠为 exercises_regularly=True（对应「多」档），血压折叠为 blood_pressure_controlled=True（对应「中或低」档），丢失了中间档的区分。",
+          "disambiguation_ask": "你的问题涉及三档分类变量（少/中/多，低/中/高），但我目前只能用 是/否 两档来近似。这个近似对你够用吗？还是你需要精确的三档对比？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "probability_ref",
+          "target": {
+            "atom": {
+              "predicate": "blood_pressure_controlled",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": [
+            {
+              "atom": {
+                "predicate": "exercises_regularly",
+                "args": [
+                  {
+                    "type": "const",
+                    "name": "me"
+                  }
+                ]
+              },
+              "value": true
+            }
+          ]
+        },
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(blood_pressure_controlled=True|exercises_regularly=True)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(blood_pressure_controlled=True|exercises_regularly=True)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(blood_pressure_controlled=True|exercises_regularly=True)",
+            "priority": "high",
+            "note": "Theta 中缺条目 P(blood_pressure_controlled=True|exercises_regularly=True)",
+            "group": "parameter",
+            "items": [
+              {
+                "target": "parameter:P(blood_pressure_controlled=True|exercises_regularly=True)",
+                "reason": "Theta 中缺条目 P(blood_pressure_controlled=True|exercises_regularly=True)",
+                "skeleton": {
+                  "kind": "probability",
+                  "target": {
+                    "atom": {
+                      "predicate": "blood_pressure_controlled",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    "value": true
+                  },
+                  "given": [
+                    {
+                      "atom": {
+                        "predicate": "exercises_regularly",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      },
+                      "value": true
+                    }
+                  ],
+                  "value": null,
+                  "annotations": {
+                    "source": "TODO"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "blood_pressure_controlled",
+                "reason": "variable 'blood_pressure_controlled' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "blood_pressure_controlled",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "exercises_regularly",
+                "reason": "variable 'exercises_regularly' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "exercises_regularly",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "blood_pressure_controlled",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "exercises_regularly",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F12 categorical-numeric: user specifies three-level domains for both exercise_amount (少/中/多) and blood_pressure_level (低/中/高). The kernel only supports bool domain. Per A1 v2 rules, predicates must be bool; collapsed exercise_amount→exercises_regularly and blood_pressure_level→blood_pressure_controlled. This drops the explicit level-pair framing (少→多, 高→{中,低}). Declared ambiguity kind=categorical_domain in extensions. Prompt gap noted: no explicit §2 or §5 rule for categorical domains — improvised a 'categorical_domain' kind analogous to the existing structural ambiguity kinds.",
+  "extracted_for_scoring": {
+    "variables": [
+      "exercises_regularly",
+      "blood_pressure_controlled"
+    ],
+    "directed_edges": [
+      [
+        "exercises_regularly",
+        "blood_pressure_controlled"
+      ]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "categorical_domain"
+    ]
+  }
+}
