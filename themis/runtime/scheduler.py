@@ -929,7 +929,17 @@ def _attach_framing(
     DEFINE_VARIABLE investigation_request carrying a ready-to-fill
     variable_patch skeleton. Status / numeric value / confidence are
     unchanged — framing stays advisory, the investigation is just the
-    actionable projection of the same gap."""
+    actionable projection of the same gap.
+
+    F9 scope (eval v1 / G1 finding): structural-only queries — cause,
+    assoc, identify — are answered at the graph level and do not need
+    numeric operationalization to produce a correct answer. Attach
+    framing_notes as before (the advisory channel is still useful —
+    response_rendering.md can mention them as soft context), but do
+    NOT emit a DEFINE_VARIABLE investigation_request. The actionable
+    channel is reserved for effect / probability queries whose
+    dispatch paths actually block on framing.
+    """
     from dataclasses import replace
 
     from . import framing_check
@@ -937,6 +947,11 @@ def _attach_framing(
     notes = framing_check.check_framing(program, stmt)
     if not notes:
         return result
+
+    # F9: structural query kinds — framing gaps do not block the answer,
+    # so keep the advisory notes but skip the actionable investigation.
+    if isinstance(stmt.query, (CauseQuery, AssocQuery, IdentifyQuery)):
+        return replace(result, framing_notes=notes)
 
     items = tuple(
         InvestigationItem(
