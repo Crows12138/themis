@@ -435,21 +435,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     ast = validate_ast(ast)
     prog = validate_program(ast)
 
-    # Phase 2.latent S3.a verifier compatibility patch: the verifier's
-    # ADMG rule family lands in S4. Until then, refuse to audit results
-    # whose source program contains bidirected edges — silent accept
-    # would be worse than an explicit pending error.
-    if any(isinstance(s, BidirectedStatement) for s in prog.statements):
-        raise AdmgVerificationPending(
-            "verify() does not yet support programs containing "
-            "bidirected edges (ADMG). The runtime dispatches these via "
-            "the Phase 2.latent S3.a front-door path, but the "
-            "independent verifier's ADMG rule family lands in S4. See "
-            "PHASE_2_LATENT_CHARTER.md §7."
-        )
-
-    graph = project(instantiate(prog))
-    theta = build_theta(instantiate(prog))
+    ground = instantiate(prog)
+    graph = project(ground)
+    theta = build_theta(ground)
+    # Phase 2.latent S4: thread bidirected edge set into verification
+    # context so backdoor_criterion / front_door_criterion /
+    # m_separation_witness rules can independently re-check ADMG
+    # semantics. Empty frozenset on pure-DAG programs preserves all
+    # pre-S4 verifier paths bit-identically.
+    from .runtime.structural_solver import bidirected_from_ground
+    bidirected = bidirected_from_ground(ground)
 
     target_id = result.get("query_id")
     if target_id is None:
@@ -468,7 +463,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         )
 
     derivation = derivation_from_dict(derivation_json)
-    ctx = VerificationContext(graph=graph, query=query_stmt.query, theta=theta)
+    ctx = VerificationContext(
+        graph=graph,
+        query=query_stmt.query,
+        theta=theta,
+        bidirected=bidirected,
+    )
 
     kind = result.get("query_kind")
     if kind == "cause":

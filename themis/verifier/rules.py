@@ -198,18 +198,29 @@ def _rule_backdoor_criterion(
     forbidden = nx.descendants(graph, x) | {x, y}
     leg_i = conditioning.isdisjoint(forbidden)
 
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
     if leg_i:
-        leg_ii = _check_d_separation(
-            _graph_minus_x_outgoing(graph, x), x, y, conditioning
-        )
-        recomputed = leg_ii
+        if bidir:
+            # Phase 2.latent S4: on ADMG contexts the leg-ii check is
+            # "no m-back-door from X to Y is open under conditioning".
+            # Independent verifier implementation — does not call
+            # structural_solver.
+            connected = _verifier_is_admg_backdoor_connected(
+                graph, bidir, x, y, conditioning,
+            )
+            recomputed = not connected
+        else:
+            leg_ii = _check_d_separation(
+                _graph_minus_x_outgoing(graph, x), x, y, conditioning
+            )
+            recomputed = leg_ii
     else:
         recomputed = False
 
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
             f"backdoor_criterion claimed {claimed_output!r}, recomputed "
-            f"{recomputed!r} (leg_i={leg_i})",
+            f"{recomputed!r} (leg_i={leg_i}, admg={bool(bidir)})",
             step_index=step_index, rule="backdoor_criterion",
         )
 
@@ -482,34 +493,57 @@ def _rule_front_door_criterion(
             fd1 = False
             break
 
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+
     # FD2
     fd2 = True
     if fd1:
-        for zi in z:
-            for path in _backdoor_paths_for_front_door(graph, x, zi):
-                if _path_is_open_for_front_door(graph, path, frozenset()):
+        if bidir:
+            # ADMG-aware: no open back-door m-path from X to any zi
+            # under empty conditioning. Independent implementation.
+            for zi in z:
+                if _verifier_is_admg_backdoor_connected(
+                    graph, bidir, x, zi, frozenset(),
+                ):
                     fd2 = False
                     break
-            if not fd2:
-                break
+        else:
+            for zi in z:
+                for path in _backdoor_paths_for_front_door(graph, x, zi):
+                    if _path_is_open_for_front_door(graph, path, frozenset()):
+                        fd2 = False
+                        break
+                if not fd2:
+                    break
 
     # FD3
     fd3 = True
     if fd1 and fd2:
         x_cond = frozenset({x})
-        for zi in z:
-            for path in _backdoor_paths_for_front_door(graph, zi, y):
-                if _path_is_open_for_front_door(graph, path, x_cond):
+        if bidir:
+            # ADMG-aware: every back-door m-path from zi to Y must be
+            # m-blocked by {x}.
+            for zi in z:
+                if _verifier_is_admg_backdoor_connected(
+                    graph, bidir, zi, y, x_cond,
+                ):
                     fd3 = False
                     break
-            if not fd3:
-                break
+        else:
+            for zi in z:
+                for path in _backdoor_paths_for_front_door(graph, zi, y):
+                    if _path_is_open_for_front_door(graph, path, x_cond):
+                        fd3 = False
+                        break
+                if not fd3:
+                    break
 
     recomputed = fd1 and fd2 and fd3
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
             f"front_door_criterion claimed {claimed_output!r}, "
-            f"recomputed {recomputed!r} (FD1={fd1}, FD2={fd2}, FD3={fd3})",
+            f"recomputed {recomputed!r} (FD1={fd1}, FD2={fd2}, FD3={fd3}, "
+            f"admg={bool(bidir)})",
             step_index=step_index, rule="front_door_criterion",
         )
 
@@ -1374,6 +1408,203 @@ def _rule_d_connected_via_open_path(
         )
 
 
+# ========================================================== Phase 2.latent S4
+# Independent m-separation reimplementation for verifier. Does NOT call
+# structural_solver.is_m_connected / _is_admg_backdoor_connected — the
+# point of these rules is that a shared bug in the runtime m-sep cannot
+# slip past the verifier.
+
+
+def _verifier_build_admg_multigraph(
+    directed: nx.DiGraph,
+    bidirected: frozenset[frozenset[Atom]],
+) -> nx.MultiGraph:
+    """Independent copy of the runtime's _build_admg_path_graph."""
+    mg = nx.MultiGraph()
+    mg.add_nodes_from(directed.nodes())
+    for pair in bidirected:
+        mg.add_nodes_from(pair)
+    for src, dst in directed.edges():
+        mg.add_edge(src, dst, kind="directed", src=src, dst=dst)
+    for pair in bidirected:
+        a, b = tuple(pair)
+        mg.add_edge(a, b, kind="bidirected")
+    return mg
+
+
+def _verifier_has_arrowhead_at(
+    mg: nx.MultiGraph, edge_key: tuple, v: Atom
+) -> bool:
+    u, w, k = edge_key
+    data = mg.edges[u, w, k]
+    if data["kind"] == "bidirected":
+        return True
+    return data["dst"] == v
+
+
+def _verifier_is_m_connected(
+    graph: nx.DiGraph,
+    bidirected: frozenset[frozenset[Atom]],
+    left: Atom,
+    right: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """True iff an open m-path connects left and right in the ADMG.
+
+    Independently reimplemented — mirror of structural_solver.is_m_connected
+    but verifier-local (never imports from runtime).
+    """
+    if left == right:
+        return False
+    mg = _verifier_build_admg_multigraph(graph, bidirected)
+    if left not in mg or right not in mg:
+        return False
+    for edge_path in nx.all_simple_edge_paths(mg, left, right):
+        nodes: list[Atom] = [left]
+        for u, w, _k in edge_path:
+            nodes.append(w if nodes[-1] == u else u)
+        open_path = True
+        for i in range(1, len(nodes) - 1):
+            v = nodes[i]
+            ahead_prev = _verifier_has_arrowhead_at(mg, edge_path[i - 1], v)
+            ahead_next = _verifier_has_arrowhead_at(mg, edge_path[i], v)
+            is_collider = ahead_prev and ahead_next
+            if is_collider:
+                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
+                if activated.isdisjoint(conditioning):
+                    open_path = False
+                    break
+            else:
+                if v in conditioning:
+                    open_path = False
+                    break
+        if open_path:
+            return True
+    return False
+
+
+def _verifier_is_admg_backdoor_connected(
+    graph: nx.DiGraph,
+    bidirected: frozenset[frozenset[Atom]],
+    src: Atom,
+    dst: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """True iff an open m-path goes from src to dst with arrowhead at src."""
+    if src == dst:
+        return False
+    mg = _verifier_build_admg_multigraph(graph, bidirected)
+    if src not in mg or dst not in mg:
+        return False
+    for edge_path in nx.all_simple_edge_paths(mg, src, dst):
+        first = edge_path[0]
+        fu, fw, fk = first
+        data = mg.edges[fu, fw, fk]
+        if data["kind"] == "bidirected":
+            first_arrowhead_at_src = True
+        else:
+            first_arrowhead_at_src = (data["dst"] == src)
+        if not first_arrowhead_at_src:
+            continue
+        nodes: list[Atom] = [src]
+        for u, w, _k in edge_path:
+            nodes.append(w if nodes[-1] == u else u)
+        open_path = True
+        for i in range(1, len(nodes) - 1):
+            v = nodes[i]
+            ahead_prev = _verifier_has_arrowhead_at(mg, edge_path[i - 1], v)
+            ahead_next = _verifier_has_arrowhead_at(mg, edge_path[i], v)
+            is_collider = ahead_prev and ahead_next
+            if is_collider:
+                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
+                if activated.isdisjoint(conditioning):
+                    open_path = False
+                    break
+            else:
+                if v in conditioning:
+                    open_path = False
+                    break
+        if open_path:
+            return True
+    return False
+
+
+def _rule_m_separation_witness(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Phase 2.latent S4 structural positive witness.
+
+    inputs:
+        graph        — directed part of the ADMG (must equal ctx.graph)
+        bidirected   — bidirected edge set (must equal ctx.bidirected)
+        x, y, z      — atoms / atom set claimed to satisfy X ⊥_m Y | Z
+    output:
+        True iff X and Y are m-separated by Z in the ADMG.
+
+    The rule independently recomputes m-separation. If the claim
+    disagrees with the independent recomputation, reject.
+    """
+    graph = _require(inputs, "graph", step_index, "m_separation_witness")
+    _assert_same_graph(graph, ctx.graph, step_index, "m_separation_witness")
+    bidir = inputs.get("bidirected", frozenset())
+    if bidir != ctx.bidirected:
+        raise RuleCheckFailed(
+            "m_separation_witness: bidirected input does not match context",
+            step_index=step_index, rule="m_separation_witness",
+        )
+    x = _require_atom(inputs, "x", step_index, "m_separation_witness")
+    y = _require_atom(inputs, "y", step_index, "m_separation_witness")
+    z = _require_atom_set(inputs, "z", step_index, "m_separation_witness")
+
+    connected = _verifier_is_m_connected(graph, bidir, x, y, z)
+    recomputed = not connected
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"m_separation_witness claimed {claimed_output!r}, recomputed "
+            f"{recomputed!r} for x={x.predicate}, y={y.predicate}, "
+            f"|z|={len(z)}, |bidir|={len(bidir)}",
+            step_index=step_index, rule="m_separation_witness",
+        )
+
+
+def _rule_m_connection_witness(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Phase 2.latent S4 structural positive witness for m-connection.
+
+    inputs:
+        graph, bidirected, x, y, z  — as in m_separation_witness
+    output:
+        True iff an open m-path connects X and Y under Z in the ADMG.
+    """
+    graph = _require(inputs, "graph", step_index, "m_connection_witness")
+    _assert_same_graph(graph, ctx.graph, step_index, "m_connection_witness")
+    bidir = inputs.get("bidirected", frozenset())
+    if bidir != ctx.bidirected:
+        raise RuleCheckFailed(
+            "m_connection_witness: bidirected input does not match context",
+            step_index=step_index, rule="m_connection_witness",
+        )
+    x = _require_atom(inputs, "x", step_index, "m_connection_witness")
+    y = _require_atom(inputs, "y", step_index, "m_connection_witness")
+    z = _require_atom_set(inputs, "z", step_index, "m_connection_witness")
+
+    recomputed = _verifier_is_m_connected(graph, bidir, x, y, z)
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"m_connection_witness claimed {claimed_output!r}, recomputed "
+            f"{recomputed!r} for x={x.predicate}, y={y.predicate}, "
+            f"|z|={len(z)}",
+            step_index=step_index, rule="m_connection_witness",
+        )
+
+
 # ========================================================== registry
 
 # rule name -> handler. Each handler has the signature
@@ -1395,6 +1626,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "no_directed_path": _rule_no_directed_path,
     "cause_via_directed_path": _rule_cause_via_directed_path,
     "d_connected_via_open_path": _rule_d_connected_via_open_path,
+    # Phase 2.latent S4
+    "m_separation_witness": _rule_m_separation_witness,
+    "m_connection_witness": _rule_m_connection_witness,
 }
 _STEP_REF_RULES = {
     "identify_via_backdoor",

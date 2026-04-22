@@ -11,13 +11,14 @@ optional — identify-only derivations still pass ``theta=None``.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Union
 
 import networkx as nx
 
 from ..runtime.numeric_estimator import Theta
 from ..types import (
+    Atom,
     AssocQuery,
     CauseQuery,
     EffectQuery,
@@ -36,3 +37,10 @@ class VerificationContext:
     graph: nx.DiGraph
     query: VerifiableQuery
     theta: Theta | None = None
+    # Phase 2.latent S4: bidirected edge set for ADMG programs. Empty
+    # frozenset (the default) preserves all pre-ADMG verification paths
+    # bit-identically. When non-empty, backdoor_criterion and
+    # front_door_criterion rules consult m-separation (via independent
+    # verifier reimplementation, not structural_solver) instead of
+    # directed-only d-separation.
+    bidirected: frozenset[frozenset[Atom]] = field(default_factory=frozenset)

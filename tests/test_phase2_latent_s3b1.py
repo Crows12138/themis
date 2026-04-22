@@ -249,10 +249,11 @@ def test_s3a_front_door_still_triggered_when_backdoor_fails():
 
 # ===================================== verifier compat patch still holds
 
-def test_verify_still_raises_on_s3b1_results():
-    """S3.b.1 does not lift the verifier-pending exception — callers
-    must still see AdmgVerificationPending on ADMG programs. S4 is
-    still the lift point."""
+def test_verify_accepts_s3b1_backdoor_result_after_s4():
+    """Phase 2.latent S4 makes backdoor_criterion ADMG-aware. themis.verify
+    on an S3.b.1 result (Z→X→Y, W↔Z, W→Y with backdoor adjustment {W})
+    must now accept — the rule independently recomputes the ADMG
+    m-block validity."""
     ast = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -270,8 +271,7 @@ def test_verify_still_raises_on_s3b1_results():
         ],
     }
     out = themis.run(ast)
-    with pytest.raises(AdmgVerificationPending):
-        themis.verify(ast, out["results"][0])
+    assert themis.verify(ast, out["results"][0]) is None
 
 
 # ============================================ regression: DAG unchanged

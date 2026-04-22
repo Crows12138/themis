@@ -192,25 +192,23 @@ def test_gate_allows_identify_and_effect_in_same_program():
 
 # ============================================== verifier compat patch
 
-def test_verify_raises_pending_on_admg_program():
-    """themis.verify on an ADMG program must raise AdmgVerificationPending —
-    not False-accept, not generic VerificationError."""
+def test_verify_accepts_hidden_u_after_s4():
+    """Phase 2.latent S4 lifts the AdmgVerificationPending path —
+    themis.verify on the classic hidden-U ADMG must now accept the
+    S3.a front-door result (returns None). The criterion rule
+    consults ctx.bidirected and the verifier independently recomputes
+    m-separation to verify FD2/FD3."""
     ast = _hidden_u_program([_identify_query()])
     out = themis.run(ast)
-    with pytest.raises(AdmgVerificationPending) as exc:
-        themis.verify(ast, out["results"][0])
-    msg = str(exc.value)
-    assert "S4" in msg or "Phase 2.latent" in msg
+    assert themis.verify(ast, out["results"][0]) is None
 
 
-def test_admg_verification_pending_is_distinct_exception_class():
-    """AdmgVerificationPending must be its own class so callers can
-    cleanly distinguish 'verification not yet implemented' from both a
-    silent accept and a real VerificationError."""
+def test_admg_verification_pending_class_still_exported_for_compat():
+    """AdmgVerificationPending is no longer raised by verify() (S4
+    removed that code path) but the class symbol stays for any caller
+    that still imports it. Acts as a documented historical exception."""
     from themis.verifier import VerificationError
-    # Distinct class (different subtype)
     assert AdmgVerificationPending is not VerificationError
-    # Still a ValueError so existing except ValueError catch blocks work
     assert issubclass(AdmgVerificationPending, ValueError)
 
 
