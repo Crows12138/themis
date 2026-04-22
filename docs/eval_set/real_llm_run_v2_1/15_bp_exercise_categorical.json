@@ -1,0 +1,262 @@
+{
+  "case_id": "15_bp_exercise_categorical",
+  "prompt_version": "A1 v2.1",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "exercise_amount",
+        "domain": ["少", "中", "多"]
+      },
+      {
+        "kind": "variable",
+        "predicate": "blood_pressure_level",
+        "domain": ["低", "中", "高"]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "exercise_amount",
+          "args": [{"type": "const", "name": "me"}]
+        },
+        "to": {
+          "predicate": "blood_pressure_level",
+          "args": [{"type": "const", "name": "me"}]
+        },
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "observation",
+        "atom": {
+          "predicate": "blood_pressure_level",
+          "args": [{"type": "const", "name": "me"}]
+        },
+        "value": "高"
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "intervention": {
+            "atom": {
+              "predicate": "exercise_amount",
+              "args": [{"type": "const", "name": "me"}]
+            },
+            "value": "多"
+          },
+          "target": {
+            "atom": {
+              "predicate": "blood_pressure_level",
+              "args": [{"type": "const", "name": "me"}]
+            },
+            "value": "中"
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "categorical_compression",
+          "description": "No compression applied — user explicitly named three-level domains (§2b). exercise_amount: 少/中/多 retained verbatim; blood_pressure_level: 低/中/高 retained verbatim. No bool collapse.",
+          "original_levels": {
+            "exercise_amount": ["少", "中", "多"],
+            "blood_pressure_level": ["低", "中", "高"]
+          },
+          "compression_applied": false
+        },
+        {
+          "kind": "intent",
+          "chosen": "effect",
+          "alternatives": [],
+          "reason": "「把每周运动量从「少」增加到「多」」是明确干预动作 + 具名干预值（少→多），目标是血压从高变中/低，意图为 effect，无歧义。",
+          "disambiguation_ask": null
+        },
+        {
+          "kind": "target_contrast",
+          "description": "用户询问血压能否从「高」变到「中或低」（两个目标值）。kernel query 只支持单一 target.value；此处选择 target.value=「中」作为主代表，「低」为替代目标，未单独建模。用户当前血压=高 以 observation 语句记录（不放入 effect query 的 given，避免把目标变量自身放入条件集）。",
+          "chosen_target": "中",
+          "alternative_target": "低",
+          "disambiguation_ask": "你最想验证的是血压降到「中」还是「低」？还是两者都需要分开估计？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "probability_ref",
+          "target": {
+            "atom": {
+              "predicate": "blood_pressure_level",
+              "args": [{"type": "const", "name": "me"}]
+            },
+            "value": "中"
+          },
+          "given": [
+            {
+              "atom": {
+                "predicate": "exercise_amount",
+                "args": [{"type": "const", "name": "me"}]
+              },
+              "value": "多"
+            }
+          ]
+        },
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(blood_pressure_level=中|exercise_amount=多)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(blood_pressure_level=中|exercise_amount=多)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(blood_pressure_level=中|exercise_amount=多)",
+            "priority": "high",
+            "note": "Theta 中缺条目 P(blood_pressure_level=中|exercise_amount=多)",
+            "group": "parameter",
+            "items": [
+              {
+                "target": "parameter:P(blood_pressure_level=中|exercise_amount=多)",
+                "reason": "Theta 中缺条目 P(blood_pressure_level=中|exercise_amount=多)",
+                "skeleton": {
+                  "kind": "probability",
+                  "target": {
+                    "atom": {
+                      "predicate": "blood_pressure_level",
+                      "args": [{"type": "const", "name": "me"}]
+                    },
+                    "value": "中"
+                  },
+                  "given": [
+                    {
+                      "atom": {
+                        "predicate": "exercise_amount",
+                        "args": [{"type": "const", "name": "me"}]
+                      },
+                      "value": "多"
+                    }
+                  ],
+                  "value": null,
+                  "annotations": {"source": "TODO"}
+                }
+              }
+            ]
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "blood_pressure_level",
+                "reason": "variable 'blood_pressure_level' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "blood_pressure_level",
+                  "existing": {"domain": ["低", "中", "高"]},
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "exercise_amount",
+                "reason": "variable 'exercise_amount' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "exercise_amount",
+                  "existing": {"domain": ["少", "中", "多"]},
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "blood_pressure_level",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "exercise_amount",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "F12 categorical domain — v2.1 fix applied. Per §2b, both exercise_amount (少/中/多) and blood_pressure_level (低/中/高) are retained as 3-level categorical domains verbatim; no bool collapse. Level-pair encoding: intervention.value='多' (the named target level from「少→多」), target.value='中' (primary of the two named outcome levels 中/低). The baseline「血压现在是高」is encoded as an observation statement rather than a given in the effect query, to avoid placing the target variable in its own conditioning set. themis.run succeeded: the kernel handled string-valued domains and string intervention/target values without error, producing formula P(blood_pressure_level=中 | exercise_amount=多) with status needs_investigation (missing Theta parameter). The framing_check correctly echoes the categorical domain ['低','中','高'] and ['少','中','多'] in the variable_patch skeletons — proving categorical metadata is preserved end-to-end through the kernel. No F12b kernel-side error raised.",
+  "extracted_for_scoring": {
+    "variables": [
+      "exercise_amount",
+      "blood_pressure_level"
+    ],
+    "directed_edges": [
+      ["exercise_amount", "blood_pressure_level"]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      "categorical_compression",
+      "intent",
+      "target_contrast"
+    ],
+    "categorical_domains_retained": true,
+    "intervention_level_pair": {"from": "少", "to": "多"},
+    "target_level_pair": {"from": "高", "to": "中"},
+    "bool_collapse": false
+  }
+}

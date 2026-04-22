@@ -97,6 +97,38 @@ as "being silent" is a natural categorical state, not a negation
 of `speaks`) — keep the user's phrasing as a positive predicate.
 Default to canonicalization when uncertain.
 
+### 2b. Categorical domains (v2.1 / F12a fix)
+
+Default every predicate to bool as in §2. **Exception**: if the
+user explicitly names three or more discrete levels for a concept
+("低/中/高", "少/中/多", "初中/高中/本科/研究生"), retain the
+categorical domain as-is. Rules:
+
+- Variable declaration uses the user's listed levels verbatim as
+  the `domain` list (e.g., `domain: ["低", "中", "高"]`).
+- If the question names a specific level-pair contrast
+  ("从高变到低", "从少增加到多", "低→高"), encode the pair on the
+  query: intervention.value and target.value carry the named
+  levels, not just booleans.
+- If you must compress a multi-level variable to bool for
+  runnability (kernel path support varies), you **must** declare
+  the compression in `extensions.ambiguities` with `kind:
+  "categorical_compression"`, recording the original levels and
+  the bool cut-point you chose.
+
+Signal:
+
+| NL cue | Action |
+|---|---|
+| "X 有低/中/高三档" | retain `domain: ["低","中","高"]` |
+| "把 X 从 a 增加到 b" (a, b named) | level-pair intervention |
+| "X 能从 c 变到 d 吗" (c, d named) | level-pair target contrast |
+| No level mention | default bool per §2 |
+
+**Why**: silently bool-collapsing a user-named 3-level domain
+drops their operationalization. The "少→多" contrast is
+inexpressible as a single bool intervention.
+
 ### 3. Propose causal edges
 
 Based on common-sense / domain knowledge, emit direct edges for the predicates
@@ -217,6 +249,8 @@ Signal words for intent ambiguity:
 | "影响" without `每天` / `经常` | cause vs effect |
 | "会 Y 吗" without intervention cue | cause vs effect |
 | "X 和 Y 的关系是" | open — declare and pick assoc |
+| "如果当初 X 会不会 Y" / "要是没 X" | Layer-3 counterfactual (see below) |
+| "为什么 X 会 Y" / "X 怎么导致 Y" / "通过什么机制" | mechanism vs existence (see below) |
 
 Also declare ambiguity in these structural cases:
 
@@ -236,6 +270,30 @@ Also declare ambiguity in these structural cases:
   constraint.
 - **Alias** (narrative uses 慢跑, question uses 跑步 for what's
   probably the same concept): `kind: "alias"`.
+- **Selection bias** (narrative conditions on a subpopulation —
+  住院病人中 / 入学的学生里 / 只看幸存的 — and question reads the
+  conditional association causally; §3a refused the direct edge):
+  `kind: "selection_bias"`. Distinct from `confounder_refusal` in
+  that the structure being refused is a collider conditioning,
+  not an unobserved common cause. You may emit BOTH if both apply.
+- **Counterfactual query** (NL uses "如果当初我 X 就 Y 了", "要是
+  当时没 X", "假如我当时" — asking about a specific individual's
+  alternative outcome): `kind: "counterfactual_query"`. This is
+  Pearl Layer-3 (twin network), which the kernel cannot evaluate.
+  Emit the interventional (Layer-2) program as the best proxy and
+  declare the estimand gap.
+- **Mechanism vs existence** (NL uses "为什么 X 会 Y", "X 怎么
+  导致 Y", "通过什么机制" — asking for the mediator chain, not
+  whether a causal path exists): `kind: "mechanism_vs_existence"`.
+  The existence question is presupposed; the user wants the
+  biological / physical mechanism. Emit a cause-query as a proxy
+  for existence-of-path and declare the mechanism gap.
+- **Individual vs population estimand** (narrative supplies a
+  population-average effect — "临床试验平均降压 10 mmHg" — and
+  question asks about an individual — "对我有效吗 / 我会不会"):
+  `kind: "individual_vs_population"`. The ATE vs ITE gap. Emit
+  the population effect as the best available proxy and declare
+  the estimand gap.
 
 The kernel ignores `extensions` — these entries exist so the
 response-side prompt can surface the ambiguity to the user. Never
