@@ -155,9 +155,102 @@ advisory but don't attach skeleton.
 **Slice most relevant**: `framing_check` / `investigation_pusher`
 scoping (local change).
 
+## F10 — Multi-subject / multi-object
+
+**Pattern**: The causal claim spans more than one subject (parent
+vs child, doctor vs patient, company vs employee). The current
+kernel pins `domain.objects` and every atom's args to a single
+`"me"` const term.
+
+**Typical trigger**: "父母受过高等教育会让孩子成绩更好吗" — two
+subjects (`parent`, `child`) with per-subject predicates.
+
+**Expected correct behavior**: the A1 prompt has no multi-subject
+guidance today; the agent either flattens to `"me"` (loses the
+relational structure) or invents compound predicates
+(`parent_educated` / `child_high_grades`). Either workaround is a
+semantic compression. The right answer structurally is multi-object
+domain with a forall-quantified cause edge.
+
+**Slice most relevant**: A1 prompt extension for multi-subject
+patterns, or a new NL-layer decision to flatten + flag the
+compression via `extensions.ambiguities.kind: "subject_scope"`.
+
+## F11 — Temporal / time-lagged causation
+
+**Pattern**: NL describes effects with time lag ("上个月 X, 这个月
+Y") that the current DAG-only semantics can't express; no time
+indexing in the AST.
+
+**Typical trigger**: "最近连续熬夜，第二天总是没精神" — temporal
+ordering IS the causal signal; flattening to `stays_up_late →
+feels_tired` drops the implied same-day lag.
+
+**Expected correct behavior**: A1 compresses to atemporal
+`stays_up_late → feels_tired` edge AND declares temporal
+compression in `extensions.ambiguities.kind: "temporal"` so user
+knows time semantics was lost.
+
+**Slice most relevant**: long-term Phase 5 temporal semantics, but
+NL-layer should flag the compression today.
+
+## F12 — Categorical-domain numeric query
+
+**Pattern**: User's domain is naturally categorical (low / mid /
+high), not bool, AND wants a numeric answer. The kernel supports
+categorical domains structurally (see eval case 02) but theta +
+response_rendering may not have been stressed on categorical
+distributions.
+
+**Typical trigger**: "血压水平（低/中/高）和运动量（少/中/多）的
+关系里，多运动能让血压从高变低吗" — asks for a specific
+categorical-to-categorical effect.
+
+**Slice most relevant**: unknown until exercised — this case's
+role is to surface whichever layer cracks first.
+
+## F13 — Long chain (5+ nodes)
+
+**Pattern**: Like F4 but 5+ nodes deep. Stresses the chain
+compression to a single CPT lookup, plus front-door / backdoor
+candidate enumeration as the chain grows.
+
+**Typical trigger**: "课外阅读量 → 词汇量 → 阅读理解 → 写作能力
+→ 考试成绩 — 这条链真的吗" — 5-node chain, user explicitly names
+the path.
+
+**Expected correct behavior**: preserve all 5 variables and 4
+edges; the answer may still collapse to a single CPT (if no
+confounding), but the chain should be visible in the structural
+result.
+
+**Slice most relevant**: same as F4 (output shape change), plus
+stress test on whether scheduler's adjustment-set enumeration
+stays cheap at larger N.
+
+## F14 — Reciprocal / bidirectional causation
+
+**Pattern**: User's NL suggests both directions are plausible
+("锻炼和心情是不是互相影响") — DAG assumes acyclicity, so the
+extractor has to pick one direction or refuse.
+
+**Typical trigger**: "长期锻炼能改善心情吗？反过来，心情好会让
+人更愿意锻炼吗" — explicit both-directions framing.
+
+**Expected correct behavior**: the most honest thing is to refuse
+to pick one direction and flag it as
+`extensions.ambiguities.kind: "reciprocal_causation"`; or pick
+one direction for the query and acknowledge the other as a
+separate investigation.
+
+**Slice most relevant**: A1 prompt rule for bidirectional NL +
+possibly Phase 5 cyclic / feedback-loop extension in the kernel.
+
 ## Growth rule
 
 Add a new code only when a real case exposes a failure that
-doesn't fit F1–F9. Don't pre-invent codes for hypothetical
-problems — schema only extends under real pressure, per charter
-principle.
+doesn't fit existing codes. Don't pre-invent codes for
+hypothetical problems — schema only extends under real pressure,
+per charter principle. F10–F14 were added when the eval set grew
+from 10 to 13 and each probed a genuinely new dimension (not
+covered by F1–F9 even in combination).

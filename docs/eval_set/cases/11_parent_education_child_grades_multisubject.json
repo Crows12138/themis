@@ -1,0 +1,53 @@
+{
+  "id": "11_parent_education_child_grades_multisubject",
+  "failure_modes": ["F10"],
+  "narrative": null,
+  "question": "父母受过高等教育会让孩子成绩更好吗",
+  "gold_variables": [
+    {
+      "predicate": "parent_higher_education",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "applies_to": "parent subject",
+      "operationalization_hints": {
+        "measurement": "null — bachelor's degree or higher?",
+        "threshold": "null — which parent, or either?"
+      }
+    },
+    {
+      "predicate": "child_high_grades",
+      "domain_hint": "bool",
+      "role": "target",
+      "applies_to": "child subject",
+      "operationalization_hints": {
+        "measurement": "null — overall GPA? specific subject?",
+        "threshold": "null — above class median?"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "parent_higher_education",
+      "to": "child_high_grades",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "subject_scope",
+      "description": "The claim spans two subjects (parent, child). Kernel currently only supports single 'me' subject. Agent must either flatten to 'me' (losing the relational scope — is the child the one 'me' refers to?) or compress to compound predicates with the multi-subject constraint built into the name. Either compression loses information.",
+      "expected_behavior": "flatten + declare extensions.ambiguities[kind=subject_scope] flagging the compression, OR emit multi-object domain if A1 extension supports it"
+    },
+    {
+      "kind": "confounding_risk",
+      "description": "Household income, genetics, time-at-home, peer group — many confounders between parent education and child grades. Pure direct cause edge is an oversimplification.",
+      "expected_behavior": "§3a confounder_refusal decision or explicit acknowledgment"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "effect"
+}

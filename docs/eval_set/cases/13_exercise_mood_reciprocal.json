@@ -1,0 +1,44 @@
+{
+  "id": "13_exercise_mood_reciprocal",
+  "failure_modes": ["F14"],
+  "narrative": null,
+  "question": "长期锻炼能改善心情吗？反过来，心情好是不是也会让人更愿意锻炼？",
+  "gold_variables": [
+    {
+      "predicate": "regular_exercise",
+      "domain_hint": "bool",
+      "role": "intervention_and_target",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "good_mood",
+      "domain_hint": "bool",
+      "role": "intervention_and_target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "regular_exercise",
+      "to": "good_mood",
+      "reason": "User asked about BOTH directions; silently committing to exercise→mood direction ignores the explicit both-directions framing"
+    },
+    {
+      "kind": "edge",
+      "from": "good_mood",
+      "to": "regular_exercise",
+      "reason": "Symmetric — silently committing to mood→exercise ignores the explicit both-directions framing"
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "reciprocal_causation",
+      "description": "User explicitly named both directions. DAG semantics require acyclicity so the agent must pick ONE direction for the query or refuse. The honest answer is to declare the reciprocal-causation problem, not pick one direction silently.",
+      "expected_behavior": "emit extensions.ambiguities[kind=reciprocal_causation] with both alternatives documented. Either: (a) pick one direction + document alternative, (b) emit two separate queries with ids q_forward / q_backward and flag them, (c) return needs_investigation with an explicit 'which direction?' ask"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "cause_or_effect_with_direction_ambiguity"
+}

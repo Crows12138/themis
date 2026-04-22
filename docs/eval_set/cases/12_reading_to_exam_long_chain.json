@@ -1,0 +1,95 @@
+{
+  "id": "12_reading_to_exam_long_chain",
+  "failure_modes": ["F13", "F4"],
+  "narrative": null,
+  "question": "课外阅读量会通过词汇量、阅读理解和写作能力最终提高考试成绩，这条链可信吗？",
+  "gold_variables": [
+    {
+      "predicate": "extracurricular_reading",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "vocabulary_size",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "reading_comprehension",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "writing_ability",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "exam_score_high",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "extracurricular_reading",
+      "to": "vocabulary_size",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "课外阅读量会通过词汇量"
+    },
+    {
+      "from": "vocabulary_size",
+      "to": "reading_comprehension",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "词汇量、阅读理解"
+    },
+    {
+      "from": "reading_comprehension",
+      "to": "writing_ability",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "阅读理解和写作能力"
+    },
+    {
+      "from": "writing_ability",
+      "to": "exam_score_high",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "写作能力最终提高考试成绩"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "extracurricular_reading",
+      "to": "exam_score_high",
+      "reason": "User explicitly described a 4-step chain. A direct reading→exam shortcut would hide the intermediate mediators the user asked about."
+    },
+    {
+      "kind": "edge",
+      "from": "vocabulary_size",
+      "to": "exam_score_high",
+      "reason": "Not in user's chain; vocabulary affects exam only through reading comprehension and writing"
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "chain_structure",
+      "description": "5-node chain. Output should preserve the structure rather than collapsing to a single CPT ask (see G2 finding).",
+      "expected_behavior": "structural result should reference the full chain; supporting_paths or advisory note if the numeric path is a single CPT"
+    }
+  ],
+  "gold_answerability": "needs_data",
+  "gold_query_kind": "effect_with_chain_reasoning"
+}
