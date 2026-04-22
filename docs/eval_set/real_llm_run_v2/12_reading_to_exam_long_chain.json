@@ -1,0 +1,80 @@
+{
+  "case_id": "12_reading_to_exam_long_chain",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "extracurricular_reading", "domain": [true, false]},
+      {"kind": "variable", "predicate": "vocabulary_size", "domain": [true, false]},
+      {"kind": "variable", "predicate": "reading_comprehension", "domain": [true, false]},
+      {"kind": "variable", "predicate": "writing_ability", "domain": [true, false]},
+      {"kind": "variable", "predicate": "exam_score_high", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "extracurricular_reading", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "vocabulary_size", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "vocabulary_size", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "reading_comprehension", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "reading_comprehension", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "writing_ability", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "writing_ability", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "exam_score_high", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {"predicate": "extracurricular_reading", "args": [{"type": "const", "name": "me"}]},
+          "to":   {"predicate": "exam_score_high", "args": [{"type": "const", "name": "me"}]}
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "intent",
+          "chosen": "cause",
+          "alternatives": ["effect"],
+          "reason": "用户用'这条链可信吗'询问因果路径的可信度，属于对因果结构的求证（cause），而非对自身干预后果的查询（effect）。'会通过…最终提高'暗含干预感但关键问句是'可信吗'，保守默认为 cause。",
+          "disambiguation_ask": "你是想验证这条因果链是否成立（因果结构问题），还是想知道如果你增加课外阅读量，考试成绩会提高多少（干预效果问题）？"
+        },
+        {
+          "kind": "chain_structure",
+          "chosen": "preserve_full_4_step_chain",
+          "alternatives": ["collapse_to_direct_reading_to_exam_edge"],
+          "reason": "用户明确列出了四步中介链（课外阅读→词汇量→阅读理解→写作能力→考试成绩）。直接添加 extracurricular_reading → exam_score_high 的捷径边会隐藏用户明确描述的中介步骤，违反 must_not_infer 约束。保留完整链结构。",
+          "disambiguation_ask": null
+        }
+      ]
+    }
+  },
+  "themis_run_output": {"results": [{"status": "structurally_solved", "query_kind": "cause", "query_id": "q", "structural_result": {"value": true, "supporting_paths": [["extracurricular_reading(me)", "vocabulary_size(me)", "reading_comprehension(me)", "writing_ability(me)", "exam_score_high(me)"]]}, "framing_notes": [{"predicate": "extracurricular_reading", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}, {"predicate": "exam_score_high", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}], "derivation": {"version": "0.1", "kind": "derivation", "steps": [{"rule": "cause_via_directed_path", "inputs": {"graph": {"kind": "graph", "nodes": ["exam_score_high(me)", "extracurricular_reading(me)", "reading_comprehension(me)", "vocabulary_size(me)", "writing_ability(me)"], "edges": [[1,3],[2,4],[3,2],[4,0]]}, "src": {"predicate": "extracurricular_reading"}, "dst": {"predicate": "exam_score_high"}, "paths": {"kind": "atom_paths", "items": [["extracurricular_reading(me)", "vocabulary_size(me)", "reading_comprehension(me)", "writing_ability(me)", "exam_score_high(me)"]]}}, "output": {"kind": "structural_result", "value": true, "supporting_paths": [["extracurricular_reading(me)", "vocabulary_size(me)", "reading_comprehension(me)", "writing_ability(me)", "exam_score_high(me)"]]}, "step_id": "s1"}]}}]},
+  "themis_error": null,
+  "agent_observations": "Preserved the full 5-node / 4-edge chain as explicitly stated by the user; did NOT add a shortcut extracurricular_reading → exam_score_high edge. §2a: not applicable. §3a confounder_refusal: not triggered — the chain mediators are explicit user-stated mechanisms, not an unexplained correlation. §5: declared intent ambiguity (cause vs effect: '可信吗' favors cause; '会…提高' has intervention feel); also declared chain_structure ambiguity noting the shortcut was intentionally avoided.",
+  "extracted_for_scoring": {
+    "variables": ["extracurricular_reading", "vocabulary_size", "reading_comprehension", "writing_ability", "exam_score_high"],
+    "directed_edges": [
+      ["extracurricular_reading", "vocabulary_size"],
+      ["vocabulary_size", "reading_comprehension"],
+      ["reading_comprehension", "writing_ability"],
+      ["writing_ability", "exam_score_high"]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": ["intent", "chain_structure"]
+  }
+}

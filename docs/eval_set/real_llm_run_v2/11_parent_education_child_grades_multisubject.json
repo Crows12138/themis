@@ -1,0 +1,71 @@
+{
+  "case_id": "11_parent_education_child_grades_multisubject",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "parent_higher_education", "domain": [true, false]},
+      {"kind": "variable", "predicate": "child_high_grades", "domain": [true, false]},
+      {"kind": "variable", "predicate": "household_socioeconomic_status", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "household_socioeconomic_status", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "parent_higher_education", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "household_socioeconomic_status", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "child_high_grades", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "child_high_grades", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "parent_higher_education", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "subject_scope",
+          "chosen": "flatten_to_me_with_compound_predicates",
+          "alternatives": ["multi_object_domain_with_parent_and_child_subjects"],
+          "reason": "问题涉及两个主体（父母、孩子），但 kernel 当前仅支持单一 'me' 对象。将跨主体谓词压缩为复合谓词 parent_higher_education 和 child_high_grades，两者均挂在 'me' 下，丢失了主体间关系的粒度。",
+          "disambiguation_ask": "你是在问'父母的教育水平'对'自己孩子'的因果影响，还是在问一般人群层面的相关性？这里的'孩子'是否就是你自己，还是你自己是'父母'？"
+        },
+        {
+          "kind": "confounder_refusal",
+          "chosen": "propose_confounder_structure",
+          "alternatives": ["direct_edge_parent_education_to_child_grades"],
+          "reason": "父母受教育程度与孩子成绩之间存在多个未测量的共同原因（家庭社会经济地位、基因遗传、在家时间与监督质量、同伴群体等）。§3a 要求拒绝直接因果边，改用混淆变量结构：household_socioeconomic_status → parent_higher_education 和 household_socioeconomic_status → child_high_grades。未能纳入基因和其他混淆项，进一步限制了模型覆盖范围。",
+          "disambiguation_ask": "你是想问在控制了家庭收入和社会经济背景后，父母教育程度是否仍然独立影响孩子成绩？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {"results": [{"status": "needs_investigation", "query_kind": "effect", "query_id": "q", "formula": {"kind": "sum", "bind": {"name": "z_household_socioeconomic_status_me"}, "over": {"predicate": "household_socioeconomic_status", "args": [{"type": "const", "name": "me"}]}, "body": {"kind": "product", "terms": [{"kind": "probability_ref", "target": {"atom": {"predicate": "child_high_grades", "args": [{"type": "const", "name": "me"}]}, "value": true}, "given": [{"atom": {"predicate": "parent_higher_education", "args": [{"type": "const", "name": "me"}]}, "value": true}, {"atom": {"predicate": "household_socioeconomic_status", "args": [{"type": "const", "name": "me"}]}, "value": {"kind": "var_ref", "name": "z_household_socioeconomic_status_me"}}]}, {"kind": "probability_ref", "target": {"atom": {"predicate": "household_socioeconomic_status", "args": [{"type": "const", "name": "me"}]}, "value": {"kind": "var_ref", "name": "z_household_socioeconomic_status_me"}}, "given": []}]}}, "missing_information": [{"kind": "parameter", "name": "parameter:P(child_high_grades=True|household_socioeconomic_status=True,parent_higher_education=True)", "priority": "high", "reason": "Theta 中缺条目 P(child_high_grades=True|household_socioeconomic_status=True,parent_higher_education=True)"}], "investigation_requests": [{"action": "validate_parameter", "target": "parameter:P(child_high_grades=True|household_socioeconomic_status=True,parent_higher_education=True)", "priority": "high", "note": "Theta 中缺条目", "group": "parameter"}, {"action": "define_variable", "target": "define_variable:2_items", "priority": "medium", "group": "framing", "items": [{"target": "child_high_grades"}, {"target": "parent_higher_education"}]}], "framing_notes": [{"predicate": "child_high_grades", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}, {"predicate": "parent_higher_education", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}]}]},
+  "themis_error": null,
+  "agent_observations": "§3a confounder_refusal fired: the educational/income correlation pattern triggered refusal of a direct parent_higher_education → child_high_grades edge; instead introduced household_socioeconomic_status as unmeasured confounder with two edges U→X and U→Y. §5 ambiguity declaration fired twice: (1) subject_scope — two-subject question flattened to compound predicates under 'me', losing relational scope; (2) confounder_refusal recorded in extensions.ambiguities so response layer can surface the structural uncertainty. §2a negation canonicalization: not applicable (no negated predicates). Intent classified as 'effect' due to '会让' intervention cue despite the confounding structure.",
+  "extracted_for_scoring": {
+    "variables": ["parent_higher_education", "child_high_grades", "household_socioeconomic_status"],
+    "directed_edges": [
+      ["household_socioeconomic_status", "parent_higher_education"],
+      ["household_socioeconomic_status", "child_high_grades"]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": ["subject_scope", "confounder_refusal"]
+  }
+}
