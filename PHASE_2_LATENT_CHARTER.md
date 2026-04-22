@@ -1,9 +1,39 @@
 # Phase 2.latent Charter — ADMG / 潜变量 / 双向边
 
 > 立项日期：2026-04-21
-> 状态：**charter 起草中，未进入实现**
+> 最近重定 scope：2026-04-21（A 方案）
+> 状态：**窄 scope 进行中** —— S1 / S2 / S3.a / S3.b.1 已落地；
+> S4（窄 verifier）和 S5（e2e + CORE_STATUS）未开工
 > 对应 ROADMAP：Phase 2 "更强识别能力"中的潜变量 / ADMG / 前门分支
 > 对应 TaskList：#38
+
+## 0. Scope 说明（2026-04-21 重定）
+
+实现到 S3.b.1 时做过一次 scope 检查：
+
+- S3.a（ADMG-aware front-door）+ S3.b.1（ADMG-aware backdoor）事实上
+  已经覆盖了我们能枚举出的**所有简单 ADMG 可识别情形**（包括经典
+  front-door-with-hidden-U、带 bidirected 的 backdoor adjustment、
+  Verma / napkin 等文献典型图）
+- **真正 c-factor-only** 的案例（adjustment 和 front-door 都打不到、
+  但 Tian c-factor 仍可识别）在我们当前的单 intervention / 单 target
+  / 空 given scope 下**构造不出自然示例**—— 多是多 intervention、
+  多 target、或需要 hedge 检测的情形，全部在本 charter 的 out-of-scope
+  名单里
+- 与 ROADMAP "等真实痛点逼出需求"原则一致：没有真实案例逼，就不抢写
+
+所以把本 fragment 的 scope **窄化**到：
+
+1. ADMG 图语义（bidirected statement + m-separation + c-components
+   作为 partition 原语，已 done）
+2. ADMG-aware backdoor / front-door（已 done）
+3. 对应的 verifier rule family 收敛（S4）
+4. e2e 案例 + CORE_STATUS 解冻段（S5）
+
+**generic c-factor 形式 formula + Pearl ID 算法子集 + c-forest 不可识别
+witness 全部移出本 charter**，等将来遇到真实 ADMG 案例 scope 自然
+扩大，或多 intervention / 多 target / conditional ID 有独立立项需求时
+再单开 charter。
 
 这是对 Themis v1.0 核心冻结面的一次**显式解冻申请**。按
 [CORE_STATUS.md](CORE_STATUS.md) "核心冻结 v1.0" 规定，新 AST
@@ -136,23 +166,32 @@ d-separation 在 ADMG 上的推广。一条路径可以包含：
 **交付**：`structural_solver.m_separated(g, X, Y, Z)` 独立实现，不调用
 d-separated。m-separation 包含 d-separation 作为子情形（B = ∅ 时一致）。
 
-### 3.3 c-component 分解
+### 3.3 c-component 分解（原语，仅做分区）
 
-把节点集按 bidirected 边的连通分量划分。每个 c-component C_i 对应一个
-联合条件分布：
+把节点集按 bidirected 边的连通分量划分。c-component 分解在本 charter
+里只作为 **结构原语**：
 
-    Q[C_i] = P(C_i | do(V \ C_i))
+- `structural_solver.c_components(g)` 返回节点集的 c-partition
+- 用于 m-separation 的 collider 语义检查（双向边两端 collider-like）
+- **不**构造 `Q[C_i] = P(C_i | do(V \ C_i))` 形式的 c-factor 公式
+- **不**用 Tian ID 算法做可识别性决定
 
-**Tian 2002 的核心引理**：在 semi-Markov 模型下，Q[C_i] 总可以用观测
-分布表示（c-factor 公式）。
+c-factor 公式 + Tian ID 算法是本 charter 明确移出去的那部分（见 §0 /
+§4.2）。c_components 原语保留下来，将来扩 scope 时直接复用。
 
-**交付**：`structural_solver.c_components(g)` 返回节点集的 c-partition。
+### 3.4 可识别性（本 charter 的定义）
 
-### 3.4 可识别性
+effect query P(Y | do(X)) 在本 charter 下**可识别**当且仅当满足以下
+之一：
 
-effect query P(Y | do(X)) 在 ADMG 下**可识别**当且仅当 Pearl's
-ID algorithm 能为它产出一个只用观测分布的表达式。本 charter 不实现
-complete ID —— 见 §4。
+- ADMG-aware backdoor 存在有效 adjustment set（`minimal_adjustment_sets`
+  在 m-separation 验证下返回非空解）
+- ADMG-aware front-door 存在有效 mediator set（`front_door_sets` 在
+  m-separation 验证 FD2 / FD3 下返回非空解）
+
+以上都不满足时，runtime 返回 `needs_investigation` + `query:identify_admg`
+/ `query:effect_admg` 标记（**不**声称 unidentifiable —— 因为 c-factor
+可能覆盖，但我们不判）。
 
 ---
 
@@ -160,35 +199,41 @@ complete ID —— 见 §4。
 
 ### 4.1 in-scope
 
-- **m-separation** 的结构查询支持（`cause` / `assoc` query 在 ADMG 上
-  的直接答复）
-- **c-component 分解** + 每个 c-component 的 c-factor 公式构造
-- **identify / effect** 查询：
+- **m-separation 原语**（`is_m_connected` / `m_separated`，S2）—
+  ADMG-aware 的路径阻塞判定，验证时 verifier 独立重实现
+- **c-components 分区原语**（`c_components`，S2）— 双向边连通分量；
+  用于 m-separation collider 语义 + 未来扩 scope 时的入口
+- **identify / effect 查询** 在 ADMG 下的识别，范围：
   - 单 intervention（`|intervention| = 1`）
   - 单 target（`|target| = 1`）
   - 空 `given`
-  - 目标 ∈ intervention 的有向后代（否则直接 P(Y)）
-- **Pearl ID 算法的 c-component sub-case**：
-  - 如果 X 和 Y 在同一个 c-component 且存在混淆路径 → unidentifiable
-    with c-forest witness
-  - 否则用 c-factor 分解 + Tian's identification 公式
-- **前门的 ADMG 兼容检查**：A6 前门规则在遇到 bidirected 边时要能
-  正确判定 FD3（intervention 到 mediator 的 backdoor-free path 允许
-  包含双向边，但不能穿过 Y 的双向后代）
+  - 路径仅限 **ADMG-aware backdoor**（S3.b.1） 或 **ADMG-aware
+    front-door**（S3.a）
+- **ADMG-aware 判定的复核规则** —— S4 在 verifier 侧独立重实现
+  m-separation + 验证 runtime 产出的 backdoor / front-door derivation
+  是否真的在 ADMG 下成立
 
-### 4.2 out-of-scope（本期明确不做）
+### 4.2 out-of-scope（本期明确不做，移出由 §0 记录）
 
+- **generic c-factor 公式构造**（Tian's identification 公式）
+- **Pearl ID 算法的 c-component sub-case 及其递归**
+- **c-forest / hedge 作为 unidentifiable witness**
 - **complete ID algorithm**（IDC / IDC\* / 多 intervention / 多 target）
 - **conditional ID**（非空 `given` 的 identify 查询在 ADMG 下）
-- **hedge minimality** 作为 unidentifiable witness 的完整正确性证明
-  （本期只要一个 hedge，不要求 minimal）
+- **ADMG 下的 `cause` / `assoc` / `probability` 查询** —— 这些 query
+  kind 的 dispatch 路径仍被 S3.a 的 gate 拒绝；要做需要独立立项
 - **数值求值**：即使结构识别成功，不扩展 Theta 层的数值计算。effect
   结果在 ADMG 可识别路径下停在 `structurally_solved` + formula，不
   往 `numerically_solved` 推
 - **双向边置信度聚合**：`annotations.confidence` 先只解析、不参与
-  min 聚合路径（confidence RFC 的扩展留作后续 slice）
+  min 聚合路径
 - **多边平行**：同一对 (A, B) 上多条 bidirected 语句直接视为一条；
   不做加权合并
+
+**从 out-of-scope 晋升到 in-scope 的触发条件**：出现至少一个真实 ADMG
+案例，在 S3.a + S3.b.1 下都打不到但 c-factor 可识别。出现时单开
+charter（例如 `PHASE_2_LATENT_EXT_CFACTOR_CHARTER.md`）立项，不走
+在本文档里。
 
 ### 4.3 不触碰的地方
 
@@ -203,40 +248,56 @@ complete ID —— 见 §4。
 
 ---
 
-## 5. Verifier 扩展
+## 5. Verifier 扩展（窄 scope）
 
-### 5.1 新增 rule family
+### 5.1 新增 rule family（本 charter 收口）
 
 | Rule | 类型 | 作用 |
 |---|---|---|
-| `m_separation_witness` | 结构正见证 | 列出 Z 使 X ⊥_m Y in ADMG |
-| `m_connection_witness` | 结构正见证 | 列出开放 m-path |
-| `c_component_decomposition` | 结构中间步 | 声明 c-partition 正确 |
-| `identify_via_c_factor` | 识别终态 | 单 c-component 内部 ID |
-| `unidentifiable_via_c_forest` | 识别终态（负） | hedge 存在见证不可识别 |
+| `m_separation_witness` | 结构正见证 | 列出 Z 使 X ⊥_m Y in ADMG（验证 backdoor 的 m-block 正确性） |
+| `m_connection_witness` | 结构正见证 | 列出开放 m-path（证明一条 path 是打开的） |
 
-### 5.2 独立重实现原则
+以上两条是本 charter 唯一新增的 verifier rule family。它们服务于 S4
+对 S3.a / S3.b.1 结果的独立复核：runtime 在 ADMG 下声称某 Z 阻塞了
+X 到 Y 的所有 backdoor m-path，verifier 独立重跑 m-separation 看这个
+断言是否成立。
 
-和 V0–V5 保持一致：verifier 不调用 runtime。`identify_via_c_factor`
-规则内独立重实现：
+### 5.2 不新增 rule family（移出 scope）
 
-- c-partition 的计算
-- c-factor 公式模板
-- ID 算法的子集递归
+以下规则**不**在本 charter 实现，随 generic c-factor 一起延后：
 
-这一点 charter 强调：ID 算法的 runtime 实现和 verifier 实现必须
-**独立两份代码**，以免共同 bug 绕过复核。
+- `c_component_decomposition`（只有 verifier 用 c-factor 时才需要）
+- `identify_via_c_factor`（c-factor 识别终态）
+- `unidentifiable_via_c_forest`（c-forest 负向见证）
 
-### 5.3 绑定规则
+### 5.3 独立重实现原则
 
-`verify_identify` 接受以下终态 rule family 之一：
+和 V0–V5 保持一致：verifier 不调用 runtime。S4 在
+`m_separation_witness` / `m_connection_witness` 规则内独立重实现
+m-separation 判定算法，不借用 `structural_solver.is_m_connected`。
+这样"runtime m-sep 的 bug"和"verifier m-sep 的 bug"需要同时发生才能
+绕过复核。
 
-- `identify_via_backdoor`（原）
-- `identify_via_front_door`（A6）
-- `identify_via_c_factor`（本期）
+### 5.4 绑定规则（复用已有 identify rule family）
 
-负向：`verify_identify` 可以以 `unidentifiable_via_backdoor` /
-`unidentifiable_via_c_forest` 任一结尾，表示负结果。
+`verify_identify` 继续接受：
+
+- `identify_via_backdoor`（已有）—— 在 ADMG 程序里要求推导链里多一条
+  `m_separation_witness` 验证 adjustment set 的 m-block 正确
+- `identify_via_front_door`（A6 已有）—— 同上，`m_separation_witness`
+  验证 FD2 / FD3
+- `unidentifiable_via_backdoor`（已有）—— ADMG 程序里不使用（ADMG
+  下不可识别 runtime 返回 `needs_investigation`，不给结构负见证）
+
+**不再引入**新的 identify 终态 rule family —— 本 charter 的 runtime
+结果全部可以用现有的 `identify_via_backdoor` / `identify_via_front_door`
+derivation 形状 + 新增的 `m_separation_witness` 中间步复核。
+
+### 5.5 verify() AdmgVerificationPending 的移除条件
+
+S3.a 引入的 `AdmgVerificationPending` 在 S4 完成时移除。移除前提：
+`verify_identify` 对 ADMG 程序的 backdoor / front-door derivation
+能走通，且 `m_separation_witness` 能正确 accept / reject。
 
 ---
 
@@ -248,7 +309,8 @@ complete ID —— 见 §4。
 
 1. **新 AST 语句类型**：`bidirected` → 触发 "禁止的改动" §3
 2. **新语义维度**：潜变量 / 双向边 / ADMG → 触发 §2
-3. **新 rule family**：c-component / c-factor / c-forest → 触发 §3
+3. **新 rule family**：`m_separation_witness` / `m_connection_witness`
+   （窄 scope 重定后从 c-factor / c-forest 改为这两条）→ 触发 §3
 
 ### 6.2 解冻记录
 
@@ -268,44 +330,43 @@ complete ID —— 见 §4。
 
 按交付顺序拆成独立 slice，每个 slice 都要求 pytest 全绿才进入下一个：
 
-| Slice | 内容 | 依赖 |
-|---|---|---|
-| **S1** | AST + schema：`BidirectedStatement` 类型、schema 扩展、serializer、syntactic validator | — |
-| **S2** | **solver-only**：`structural_solver.m_separated` + `structural_solver.c_components`。纯算法原语，不挂 scheduler，不影响任何现有 query dispatch | S1 |
-| **S3.a** | **front-door made ADMG-aware**：`instantiation` 处理 `BidirectedStatement`；`structural_solver.bidirected_from_ground` 抽取辅助；`front_door_sets` 新增 `bidirected` 形参，FD2 / FD3 检查改用 m-separation；scheduler 把 bidirected 边穿进 front-door；gate 放宽给 identify / effect 查询；**verifier 兼容补丁**：`themis.verify` 在检测到 program 含 bidirected 时抛 `AdmgVerificationPending` 专属错误（不静默通过、不假装验证），消息指向 S4 待办。cause / assoc / probability 查询上的 bidirected 仍被 gate 拒绝 | S2 |
-| **S3.b.1** | **backdoor made ADMG-aware**：`minimal_adjustment_sets` 新增 `bidirected` 形参，路径阻塞检查改用 m-separation；scheduler 在 ADMG 程序里先试 ADMG-aware backdoor，失败再回退到 S3.a 的 ADMG-aware front-door。formula 仍走现有 `backdoor_formula`（可复用），因为 adjustment-set 存在时 c-factor 退化为调整。verify() 仍抛 `AdmgVerificationPending` | S3.a |
-| **S3.b.2** | `formula_builder.c_factor_formula`：Tian 算法真正落地，覆盖 adjustment 形式打不到但 c-factor 仍可识别的单 intervention / 单 target / 空 given 场景；scheduler 在 backdoor + front-door（都 ADMG-aware）都失败后回退到 c-factor；仍不打 `identify_via_c_factor` 标签；verify() 仍抛 `AdmgVerificationPending` | S3.b.1 |
-| **S4** | verifier rules：`m_separation_witness` / `c_component_decomposition` / `identify_via_c_factor` / `unidentifiable_via_c_forest`；`verify_identify` / `verify_numeric` 扩展；scheduler 对外暴露新的 ADMG theorem family —— S3.a / S3.b.1 / S3.b.2 的 runtime 结果在这一刻开始带 `identify_via_c_factor` derivation 标签，并接受独立 verifier 复核；`verify` 移除 `AdmgVerificationPending` 路径 | S3.b.2 |
-| **S5** | e2e 案例：至少 1 个可识别（经典 front-door-with-hidden-U，由 S3.a 识别）+ 1 个 ADMG-aware backdoor 可识别（由 S3.b.1 识别）+ 1 个 adjustment 外但 c-factor 可识别（由 S3.b.2 识别）+ 1 个不可识别（经典 bow arc）；旧 DAG 案例回归；CORE_STATUS.md 解冻段补全 | S4 |
+| Slice | 内容 | 依赖 | 状态 |
+|---|---|---|---|
+| **S1** | AST + schema：`BidirectedStatement` 类型、schema 扩展、serializer、syntactic validator | — | ✅ 落地 |
+| **S2** | **solver-only**：`structural_solver.m_separated` + `structural_solver.c_components`。纯算法原语，不挂 scheduler，不影响任何现有 query dispatch | S1 | ✅ 落地 |
+| **S3.a** | **front-door made ADMG-aware**：`instantiation` 处理 `BidirectedStatement`；`structural_solver.bidirected_from_ground` 抽取辅助；`front_door_sets` 新增 `bidirected` 形参，FD2 / FD3 检查改用 m-separation；scheduler 把 bidirected 边穿进 front-door；gate 放宽给 identify / effect 查询；**verifier 兼容补丁**：`themis.verify` 在检测到 program 含 bidirected 时抛 `AdmgVerificationPending` | S2 | ✅ 落地 |
+| **S3.b.1** | **backdoor made ADMG-aware**：`minimal_adjustment_sets` 新增 `bidirected` 形参，路径阻塞检查改用 m-separation；scheduler 在 ADMG 程序里先试 ADMG-aware backdoor，失败再回退到 S3.a 的 ADMG-aware front-door。formula 复用现有 `backdoor_formula` | S3.a | ✅ 落地 |
+| ~~S3.b.2~~ | ~~generic c-factor~~ —— **移出本 charter**（见 §0 / §4.2）。未来有真实案例时单开新 charter | — | ⏸ 延后 |
+| **S4** | **窄 verifier**：新增 `m_separation_witness` / `m_connection_witness` rule family（独立重实现 m-separation，不借 `structural_solver`）；scheduler 在 ADMG 程序的 identify / effect derivation 里插入 `m_separation_witness` 中间步；`verify_identify` 接受带 ADMG 见证的 backdoor / front-door derivation；移除 `AdmgVerificationPending` | S3.b.1 | ⏳ 未开工 |
+| **S5** | e2e + CORE_STATUS：至少 3 个案例——（1）front-door-with-hidden-U 由 S3.a 识别 + S4 verifier accept；（2）Z→X→Y, W↔Z, W→Y 由 S3.b.1 识别 + S4 verifier accept；（3）bow-arc（X→Y, X↔Y）走到 `needs_investigation`（本 charter 不判 unidentifiable）；旧 DAG 案例回归不变；CORE_STATUS.md 加 "冻结后显式立项的 fragment" §"Phase 2.latent（窄 scope，落地 TBD）" | S4 | ⏳ 未开工 |
 
 每个 slice 约束：
 
 - 不跨 slice borrow 代码 —— S4 的 verifier 独立重实现不依赖 S2 / S3.a /
-  S3.b 的 runtime 函数（`m_separated` / `c_components` /
-  `c_factor_formula` 在 verifier 内都要有独立实现）
+  S3.b.1 的 runtime 函数（`m_separated` 在 verifier 内有独立实现）
 - 每个 slice 本身有独立的测试集合和 pin
-- S2 合格门槛：`m_separated` 在 B=∅ 时和现有 `d_separated` 结果一致
-  （回归保证）；`c_components` 覆盖孤立节点 / 全连通 / 多分量三种
+- S2 合格门槛：`m_separated` 在 B=∅ 时和现有 `d_separated` 结果一致；
+  `c_components` 覆盖孤立节点 / 全连通 / 多分量三种
 - **S3.a 合格门槛**：
-  - 至少一个 ADMG 可识别案例（front-door-with-hidden-U）通过 `themis.run`
-    返回带 formula 的 `structurally_solved`
-  - 至少一个"directed skeleton 假装 front-door 成立、ADMG 实际不成立"的
-    反例被正确拒绝（证明 front-door FD2/FD3 确实换成了 m-sep）
-  - `themis.verify` 对 ADMG 结果抛 `AdmgVerificationPending`（不静默
-    accept、不 False-accept）
+  - front-door-with-hidden-U 通过 `themis.run` 返回 `structurally_solved`
+  - FD2 违反反例被正确拒绝
+  - `themis.verify` 对 ADMG 结果抛 `AdmgVerificationPending`
   - gate 仍然拒绝 cause / assoc / probability 查询带 bidirected 的程序
-  - v1.0 旧案例（exercise_waist 等）走 backdoor 路径回归不变
+  - v1.0 旧案例回归不变
 - **S3.b.1 合格门槛**：
-  - 至少一个 ADMG 案例（例如 Z→X→Y, W↔Z, W→Y）在 S3.a 下返回
-    `needs_investigation`、在 S3.b.1 下返回 `structurally_solved` +
-    backdoor 公式；证明 m-separation 验证的 adjustment set 确实被采用
-  - 一个 directed skeleton 误判为可调整但 ADMG 实际不可调整的反例被
-    正确拒绝（说明 m-sep 真的拦下了幽灵 adjustment）
-  - S3.a 的 front-door 路径在 backdoor 失败时仍能触发（回退顺序对）
+  - 一个 ADMG 案例在 S3.a 下 `needs_investigation`、在 S3.b.1 下
+    `structurally_solved`
+  - ghost-adjustment 反例正确拒绝
+  - S3.a 的 front-door 路径在 backdoor 失败时仍能触发
   - 旧 DAG 案例仍走原 backdoor
-- **S3.b.2 合格门槛**：至少一个 adjustment 形式打不到但 c-factor
-  可识别的 ADMG 案例返回 `structurally_solved`；S3.a / S3.b.1 的回归
-  保持
+- **S4 合格门槛**：
+  - `m_separation_witness` 独立实现不引用 `structural_solver.is_m_connected`
+  - 一个"m-sep 验证失败"的人工篡改 derivation 被 verifier 拒绝
+    （证明复核真的在做事）
+  - `themis.verify` 对 S3.a / S3.b.1 的 ADMG 结果直接 accept（不再抛
+    `AdmgVerificationPending`）
+  - DAG 回归路径不变
+- **S5 合格门槛**：三个 e2e 案例 + CORE_STATUS 解冻段就位
 
 ---
 
@@ -313,23 +374,26 @@ complete ID —— 见 §4。
 
 本 fragment 视为完成当且仅当：
 
-1. **四个经典 ADMG 案例**跑通（覆盖 S3.a / S3.b.1 / S3.b.2 / 负例）：
+1. **三个 ADMG 案例**跑通（S3.a / S3.b.1 / "本 charter 不判"的负例）：
    - front-door-with-hidden-U（X → M → Y, X ↔ Y）：由 S3.a 的 ADMG-aware
-     front-door 返回 `structurally_solved` + front-door 形状 formula
-   - ADMG-aware adjustment 可识别正例（如 Z→X→Y, W↔Z, W→Y）：由 S3.b.1
-     的 ADMG-aware backdoor 返回 `structurally_solved` + backdoor 公式
-   - c-factor 专属正例（adjustment 覆盖不到但 Tian 可识别）：由 S3.b.2
-     返回 `structurally_solved` + c-factor formula；S4 之后带
-     `identify_via_c_factor` derivation，verifier 接受
-   - 不可识别负例（如 bow-arc：X → Y + X ↔ Y）：
-     S4 之后返回 `unidentifiable_via_c_forest`，verifier 接受
-2. **至少 1 个旧 DAG 案例回归不变**（exercise_waist 照旧走 backdoor）
-3. **S1–S5 所有 pin 测试绿**（S3 分两拨：S3.a / S3.b），且 pytest 全套绿
-4. **verifier 与 runtime 独立**：把 runtime `c_components` 换成故意错误
-   的实现，verifier 仍能检测出（对偶覆盖率测试）。S3.a / S3.b 期间
-   verifier 对 ADMG 结果抛 `AdmgVerificationPending` 而非 False-accept
-5. CORE_STATUS.md 解冻段已写入（S5 完成时一次性写入，S3.a / S3.b
-   只在 charter 本文更新 Done 标志进度）
+     front-door 返回 `structurally_solved` + front-door 形状 formula；
+     S4 `verify` 独立 accept
+   - ADMG-aware adjustment 可识别正例（如 Z→X→Y, W↔Z, W→Y）：由
+     S3.b.1 的 ADMG-aware backdoor 返回 `structurally_solved` +
+     backdoor 公式；S4 `verify` 独立 accept
+   - bow-arc（X → Y + X ↔ Y）：返回 `needs_investigation` +
+     `query:identify_admg`（本 charter 不判 unidentifiable；
+     generic c-factor / c-forest 不在 scope 内）
+2. **至少 1 个旧 DAG 案例回归不变**（exercise_waist 照旧走 backdoor，
+   verify 独立 accept）
+3. **S1–S5 所有 pin 测试绿**，且 pytest 全套绿
+4. **verifier 与 runtime 独立**：把 runtime `is_m_connected` 换成故意
+   错误的实现，verifier 的 `m_separation_witness` 规则仍能检测出
+   （对偶覆盖率测试）
+5. CORE_STATUS.md "冻结后显式立项的 fragment" 段新增 Phase 2.latent
+   窄 scope 小节，列出 S3.a / S3.b.1 / S4 的交付
+6. `AdmgVerificationPending` 已从 `themis.verify` 的代码路径中移除
+   （S3.a 引入时承诺在 S4 收回；到了 done 标志时必须真的没了）
 
 ---
 
@@ -338,11 +402,12 @@ complete ID —— 见 §4。
 这些留给具体 slice 实现时决定，charter 不约束：
 
 - 多段 bidirected 是否支持聚合（默认：否）
-- `bidirected` 语句是否允许 `forall` 绑定（默认：是，和 `cause` 对称）
+- `bidirected` 语句是否允许 `forall` 绑定（默认：是，和 `cause` 对称，
+  S3.a 已按此落地）
 - `supporting_paths` 在含 bidirected 边时的字符串表示（提议：`X <-> Y`
-  用 `"<->"`, 方向边用 `"->"`）
-- unidentifiable witness 的 hedge 表示是否需要 minimal（charter §4.2
-  明示本期不要求 minimal）
+  用 `"<->"`, 方向边用 `"->"`；S4 实现时钉死）
+- 窄 scope 下不涉及 hedge / c-forest minimality —— 这部分连同 generic
+  c-factor 一起推到未来 charter
 
 ---
 
