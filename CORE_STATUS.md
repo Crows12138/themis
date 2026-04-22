@@ -84,6 +84,56 @@
 verifier 接受 / 拒绝三类篡改（mediator / 公式目标 / conditioned query）。
 451 passed 全绿。
 
+### Phase 2.latent — 窄 scope（立项 2026-04-21，S1–S4 落地同日；窄化 charter 同日）
+
+**理由**：ROADMAP Phase 2 的 theory-first 启动规则 —— ADMG + m-separation
++ ADMG-aware backdoor / front-door 是对 V0–V5 识别骨架的一次有边界的
+扩张；charter（[PHASE_2_LATENT_CHARTER.md](PHASE_2_LATENT_CHARTER.md)）
+§0 记录了实现过程中的一次 scope 窄化：generic Tian c-factor / c-forest
+/ complete ID 全部移出本 fragment，等真实案例逼出需求时再独立立项。
+
+**交付（runtime）**：
+
+- AST + schema：`BidirectedStatement`（无向 semi-Markov 边，`left` /
+  `right` / 可选 `forall` / 可选 `annotations`）；kernel_ast.schema.json
+  新增 `bidirectedStatement` $def 并入 `statement` oneOf
+- `structural_solver.m_separated` / `is_m_connected` / `c_components` /
+  `bidirected_from_ground`：ADMG 上的路径阻塞判定 + 分区原语 + ground
+  抽取。m-separation 在 `bidirected=∅` 下与 d-separation 精确一致
+  （6-node 全枚举回归 pin）
+- `front_door_sets` 增 `bidirected` 形参；FD2 / FD3 在 ADMG 上改用 m-sep
+- `minimal_adjustment_sets` 增 `bidirected` 形参；adjustment 有效性改用
+  ADMG-aware backdoor m-path 判定
+- scheduler：ADMG 程序 identify / effect 先试 ADMG-aware backdoor，失败
+  回退 ADMG-aware front-door，仍不通过则 `needs_investigation` +
+  `query:identify_admg` / `query:effect_admg`
+- gate：ADMG 程序上 cause / assoc / probability 查询仍被 semantic
+  validator 拒绝（dispatch 路径未 ADMG-aware）
+
+**交付（verifier, S4）**：
+
+- `VerificationContext.bidirected` 新字段
+- 独立 m-sep 重实现（byte-code 扫描 pin：`_verifier_is_m_connected` /
+  `_verifier_is_admg_backdoor_connected` 不调用 `structural_solver`）
+- 新 rule family：`m_separation_witness` / `m_connection_witness`
+- `backdoor_criterion` / `front_door_criterion` rule 在
+  `ctx.bidirected` 非空时切换到独立 m-sep 检查
+- `themis.verify` 对 ADMG 结果直接 accept，`AdmgVerificationPending`
+  从代码路径中移除（类符号保留供历史 import）
+
+**未包含（移出 charter，延后立项）**：
+
+- generic Tian c-factor 公式构造 + Pearl ID 算法递归
+- c-forest / hedge 作为 unidentifiable witness
+- IDC / 多 intervention / 多 target / 非空 given 的 conditional ID
+- ADMG 下的 cause / assoc / probability 查询（dispatch 路径仍需
+  ADMG-aware，独立立项）
+
+**Done 标志**：3 个 ADMG 案例 + DAG 回归（S3.a 正例：hidden-U 前门；
+S3.b.1 正例：Z→X→Y, W↔Z, W→Y 的 backdoor；bow-arc 反例：
+`needs_investigation`，本 charter 不判 unidentifiable）。verifier
+独立性由 byte-code 扫描 + 多个篡改复核测试 pin。640 passed 全绿。
+
 ---
 
 ## 一句话结论
