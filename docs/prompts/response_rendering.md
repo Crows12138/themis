@@ -209,7 +209,7 @@ Entry shape (per A1 prompt §5):
 
 ```json
 {
-  "kind": "intent | direction | scope | alias | confounder_refusal | state_vs_event",
+  "kind": "intent | direction | scope | alias | confounder_refusal | state_vs_event | subject_scope | reciprocal_causation | selection_bias | counterfactual_query | mechanism_vs_existence | individual_vs_population | categorical_compression",
   "chosen": "...",
   "alternatives": ["..."],
   "reason": "text",
@@ -227,6 +227,13 @@ Entry shape (per A1 prompt §5):
 | `alias` | "你的背景提到 `<alt_name>`，问题里写的是 `<chosen>` —— 这是同一件事吗？" |
 | `confounder_refusal` | "这两件事看起来相关，但我怀疑真正的原因是 `<confounder>`（`<reason>`），所以我没有直接画 `X → Y` 的边。你同意这个判断吗？" |
 | `state_vs_event` | "`<predicate>` 是一次性事件还是持续状态？我按 `<chosen>` 处理。" |
+| `subject_scope` | "你的问题跨了 `<subjects>` 两个主体，我先把它压平到单一主体回答。如果想区分，告诉我具体指哪个。" |
+| `reciprocal_causation` | "你提到两个方向都成立（`<chosen>` 与 `<alternatives>`）。DAG 不允许循环，我先按 `<chosen>` 这个方向跑了；要看反向请告诉我。" |
+| `selection_bias` | "`<reason>`——这个关联看起来是因为都在某个筛选条件里（如住院 / 幸存 / 入学），不是 X 真的导致 Y。所以我没画直接边。同意吗？" |
+| `counterfactual_query` | "你问的是'如果当初…'这类反事实问题（针对你个人的另一个可能结局）。本系统只能回答人群平均的干预效应作为近似，个体反事实暂不支持。下面给的是人群层面的近似答案。" |
+| `mechanism_vs_existence` | "你问的是'为什么 / 通过什么机制'——是要知道中间步骤的生理 / 物理过程？本系统目前只能回答'是否存在因果路径'这层，机制链细节不在范围内。下面按'是否存在'给答案。" |
+| `individual_vs_population` | "背景给的是人群平均效应（如'平均降压 X'），你问的是'对我有效吗'。这两个估计量不同——个体效应取决于你自己的特征。下面给的是人群平均，作为最接近的近似。" |
+| `categorical_compression` | "这个变量原本是 `<original_levels>` 多档，我压到了 bool（`<cut_point>`）便于运行。你如果想看具体档位之间的对比请告诉我。" |
 
 Use `disambiguation_ask` verbatim if A1 provided it — it was
 drafted with the specific NL context in mind.
