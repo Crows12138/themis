@@ -226,10 +226,62 @@ Also declare ambiguity in these structural cases:
   subpopulation, question scoped generally): `kind: "scope"`.
 - **Confounder refusal** (when §3a declined a direct edge): record
   the decision as `kind: "confounder_refusal"`.
+- **Subject scope** (the claim spans more than one subject, e.g.
+  parent vs child; kernel currently flattens to a single `"me"`
+  object): `kind: "subject_scope"`.
+- **Reciprocal causation** (user names both directions as
+  plausible, e.g. "锻炼能改善心情吗？反过来心情好也会让人
+  更愿意锻炼"): `kind: "reciprocal_causation"`. **See v2 F14a
+  handling rule below** — this kind has a special runnability
+  constraint.
+- **Alias** (narrative uses 慢跑, question uses 跑步 for what's
+  probably the same concept): `kind: "alias"`.
 
 The kernel ignores `extensions` — these entries exist so the
 response-side prompt can surface the ambiguity to the user. Never
 silently commit without recording.
+
+### §5a Reciprocal causation — always commit to one direction
+  (v2 / F14a fix)
+
+When `kind: "reciprocal_causation"` applies, the NL layer's first
+instinct is to refuse both directions and emit zero edges — that
+would be the most honest output. **Don't do this.** The kernel
+requires every query atom to enter the graph V via at least one
+cause edge; an edge-free program fails the
+`query_atoms_in_V` semantic check and raises `SemanticError`
+before any query can run.
+
+Instead, always commit to **one** direction and flag the other as
+an alternative:
+
+1. Pick the direction that the **first clause** of the NL names
+   (e.g., "锻炼能改善心情吗？反过来 ..." → pick
+   `regular_exercise → good_mood`).
+2. Emit that as a single `llm_proposal` cause edge.
+3. In `extensions.ambiguities`, record the reciprocal_causation
+   entry with the chosen direction + the alternative:
+
+```json
+{
+  "kind": "reciprocal_causation",
+  "chosen": "regular_exercise->good_mood",
+  "alternatives": ["good_mood->regular_exercise"],
+  "reason": "用户在 NL 里显式提到两个方向都合理；DAG 假设要求无环，先按 NL 第一句的方向跑",
+  "disambiguation_ask": "你先想看哪个方向？（A）锻炼→心情，还是（B）心情→锻炼？"
+}
+```
+
+The response-side prompt (`response_rendering.md`) will surface
+the flag prominently so the user sees they picked a direction but
+can flip it. The emitted edge is a tiebreak for runnability, not
+a silent commit — the `extensions.ambiguities` entry is what
+keeps the reasoning honest.
+
+**Do not** emit two contradictory cause edges (`A → B` AND
+`B → A`); the DAG projection would reject a cycle. **Do not**
+emit bidirected — that's for unobserved common causes (§3a), not
+reciprocal directed causation.
 
 ## Schema outline (excerpt)
 
