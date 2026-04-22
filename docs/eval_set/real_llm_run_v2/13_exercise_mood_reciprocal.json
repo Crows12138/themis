@@ -8,12 +8,25 @@
       {"kind": "variable", "predicate": "regular_exercise", "domain": [true, false]},
       {"kind": "variable", "predicate": "good_mood", "domain": [true, false]},
       {
+        "kind": "cause",
+        "from": {"predicate": "regular_exercise", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "good_mood",        "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
         "kind": "query",
-        "id": "q_forward",
+        "id": "q",
         "query": {
-          "kind": "cause",
-          "from": {"predicate": "regular_exercise", "args": [{"type": "const", "name": "me"}]},
-          "to":   {"predicate": "good_mood", "args": [{"type": "const", "name": "me"}]}
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "good_mood", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "regular_exercise", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
         }
       }
     ],
@@ -21,32 +34,134 @@
       "ambiguities": [
         {
           "kind": "reciprocal_causation",
-          "chosen": "q_forward_only: cause(regular_exercise → good_mood)",
-          "alternatives": [
-            "q_backward: cause(good_mood → regular_exercise)",
-            "bidirected_edge_only_no_query",
-            "two_separate_queries_q_forward_and_q_backward"
-          ],
-          "reason": "用户明确提出了两个方向：'长期锻炼能改善心情吗？反过来，心情好是不是也会让人更愿意锻炼？' DAG 语义要求无环，无法在同一个 DAG 中同时编码 regular_exercise → good_mood 和 good_mood → regular_exercise。因果优先级规则要求不能默默选定某一方向——双向因果关系必须显式声明。选择 q_forward（锻炼→心情）作为主查询并在此处记录反向，未添加任何因果边（因为双向都有可能），也未添加双向边（bidirected edge 通常表示共同原因而非互因）。",
-          "disambiguation_ask": "你是先想确认'长期锻炼→心情改善'这个方向，还是'心情好→更愿意锻炼'这个方向，或者你想同时分析两个方向作为反馈循环？"
-        },
-        {
-          "kind": "intent",
-          "chosen": "cause",
-          "alternatives": ["effect"],
-          "reason": "'长期锻炼'有干预标志（类似'经常'），但用户同时问了反向，整体语境更接近因果结构探询而非单次干预效果查询。退守保守默认 cause。",
-          "disambiguation_ask": "你是想知道锻炼和心情之间是否存在因果关系（结构问题），还是如果你坚持锻炼，心情会有多大改善（干预效果问题）？"
+          "chosen": "regular_exercise->good_mood",
+          "alternatives": ["good_mood->regular_exercise"],
+          "reason": "用户在 NL 里显式提到两个方向都合理（'反过来，心情好是不是也会让人更愿意锻炼'）；DAG 假设要求无环，先按 NL 第一句的方向跑（§5a tiebreak）",
+          "disambiguation_ask": "你先想看哪个方向？（A）长期锻炼 → 心情改善，还是（B）心情好 → 更愿意锻炼？"
         }
       ]
     }
   },
-  "themis_run_output": null,
-  "themis_error": "SemanticError: query references atoms ['good_mood', 'regular_exercise'] that are not in the instantiated variable set V (no cause edge introduces them). This is an expected kernel constraint failure: the semantically correct AST for reciprocal causation has no directed edges (per must_not_infer for both directions), but Themis requires query atoms to appear in at least one cause edge to enter graph V. The AST is intentionally preserved without edges; the error records the structural mismatch between the kernel's DAG-only semantics and the user's feedback-loop question.",
-  "agent_observations": "Reciprocal causation explicitly named by user (both directions stated). §5 fired: declared reciprocal_causation ambiguity with both directions documented; did NOT silently pick one direction or emit a causal edge in either direction (neither regular_exercise→good_mood nor good_mood→regular_exercise edge added, since adding either would prejudge the ambiguity). Primary query uses conservative 'cause' kind for the forward direction (exercise→mood) as the default entry point while backward direction is recorded as an alternative. §2a not applicable. §3a not triggered. Themis raised SemanticError because atoms with no edges can't be queried — this is expected and recorded in themis_error; the AST is semantically correct per the gold must_not_infer constraints.",
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "probability_ref",
+          "target": {
+            "atom": {"predicate": "good_mood", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": [
+            {
+              "atom": {"predicate": "regular_exercise", "args": [{"type": "const", "name": "me"}]},
+              "value": true
+            }
+          ]
+        },
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(good_mood=True|regular_exercise=True)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(good_mood=True|regular_exercise=True)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(good_mood=True|regular_exercise=True)",
+            "priority": "high",
+            "note": "Theta 中缺条目 P(good_mood=True|regular_exercise=True)",
+            "group": "parameter",
+            "items": [
+              {
+                "target": "parameter:P(good_mood=True|regular_exercise=True)",
+                "reason": "Theta 中缺条目 P(good_mood=True|regular_exercise=True)",
+                "skeleton": {
+                  "kind": "probability",
+                  "target": {
+                    "atom": {"predicate": "good_mood", "args": [{"type": "const", "name": "me"}]},
+                    "value": true
+                  },
+                  "given": [
+                    {
+                      "atom": {"predicate": "regular_exercise", "args": [{"type": "const", "name": "me"}]},
+                      "value": true
+                    }
+                  ],
+                  "value": null,
+                  "annotations": {"source": "TODO"}
+                }
+              }
+            ]
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "good_mood",
+                "reason": "variable 'good_mood' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "good_mood",
+                  "existing": {"domain": [true, false]},
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "regular_exercise",
+                "reason": "variable 'regular_exercise' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "regular_exercise",
+                  "existing": {"domain": [true, false]},
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "good_mood",
+            "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]
+          },
+          {
+            "predicate": "regular_exercise",
+            "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]
+          }
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "§5a fired: user explicitly named both directions ('反过来，心情好是不是也会让人更愿意锻炼'). Per §5a tiebreak rule, the first clause of the NL ('长期锻炼能改善心情吗') dictates picking regular_exercise→good_mood as the committed direction. One llm_proposal cause edge was emitted for that direction; no edge in the reverse direction. The reciprocal_causation ambiguity is declared in extensions.ambiguities with chosen='regular_exercise->good_mood', alternatives=['good_mood->regular_exercise'], and a disambiguation_ask. themis.run now succeeds (status: needs_investigation) because query atoms enter graph V via the committed edge.",
   "extracted_for_scoring": {
     "variables": ["regular_exercise", "good_mood"],
-    "directed_edges": [],
+    "directed_edges": [["regular_exercise", "good_mood"]],
     "bidirected_edges": [],
-    "ambiguities_declared": ["reciprocal_causation", "intent"]
+    "ambiguities_declared": ["reciprocal_causation"]
   }
 }
