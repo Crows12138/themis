@@ -1,0 +1,61 @@
+{
+  "id": "08_ice_cream_drowning_confounded",
+  "failure_modes": ["F8"],
+  "narrative": "夏天冰激凌卖得多的月份，溺水事件也多。",
+  "question": "所以吃冰激凌会导致溺水吗？",
+  "gold_variables": [
+    {
+      "predicate": "temperature_high",
+      "domain_hint": "bool",
+      "role": "confounder",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "ice_cream_consumption",
+      "domain_hint": "bool",
+      "role": "intervention_candidate",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "drowning_incidents",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "temperature_high",
+      "to": "ice_cream_consumption",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    },
+    {
+      "from": "temperature_high",
+      "to": "drowning_incidents",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "ice_cream_consumption",
+      "to": "drowning_incidents",
+      "reason": "Classic confounding example. The narrative describes a statistical association; the question invites a causal misread. A correct system either refuses the direct edge or explicitly marks it proposal + surfaces the confounder."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "intent",
+      "description": "User asked '会导致' which is a cause claim. The correct answer is 'no, via temperature confounding'. Silently drawing ice_cream → drowning would be a critical hallucination.",
+      "expected_behavior": "abstain or propose confounder structure; do not emit the direct cause edge as must"
+    }
+  ],
+  "gold_answerability": "answerable",
+  "gold_query_kind": "cause"
+}

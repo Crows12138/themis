@@ -1,0 +1,48 @@
+{
+  "id": "02_vitamin_d_narrative_edge",
+  "failure_modes": ["F2"],
+  "narrative": "我上个月开始每天服用维生素 D，最近两个月感冒次数明显少了。",
+  "question": "所以维生素 D 真的能减少感冒吗？",
+  "gold_variables": [
+    {
+      "predicate": "vitamin_d_supplement",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "past 2 months (narrative)",
+        "threshold": "daily",
+        "measurement": "self-report"
+      }
+    },
+    {
+      "predicate": "cold_frequency_reduced",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "past 2 months",
+        "measurement": "self-report count",
+        "baseline": "prior personal baseline (narrative implies comparison)"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "vitamin_d_supplement",
+      "to": "cold_frequency_reduced",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "维生素 D 真的能减少感冒吗"
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "confounding_risk",
+      "description": "Single-subject n=1 temporal coincidence. Real answer likely involves seasonality or behavioral changes confounding.",
+      "expected_behavior": "proposal — note that narrative evidence is personal anecdote, not group-level causal claim"
+    }
+  ],
+  "gold_answerability": "needs_framing",
+  "gold_query_kind": "effect"
+}

@@ -1,0 +1,48 @@
+{
+  "id": "03_coffee_insomnia_ambiguous",
+  "failure_modes": ["F3"],
+  "narrative": null,
+  "question": "咖啡和失眠有关系吗",
+  "gold_variables": [
+    {
+      "predicate": "drinks_coffee",
+      "domain_hint": "bool",
+      "role": "intervention_or_observed",
+      "operationalization_hints": {
+        "time_window": "null",
+        "threshold": "null",
+        "measurement": "null"
+      }
+    },
+    {
+      "predicate": "has_insomnia",
+      "domain_hint": "bool",
+      "role": "target_or_observed",
+      "operationalization_hints": {
+        "time_window": "null",
+        "threshold": "null",
+        "measurement": "null"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "drinks_coffee",
+      "to": "has_insomnia",
+      "kind": "directed",
+      "severity": "should",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "intent",
+      "description": "'有关系吗' reads as either cause (coffee → insomnia) or assoc (correlated). These have different answer shapes.",
+      "expected_behavior": "proposal — emit both query candidates or surface the disambiguation ask; do not silently pick one"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "cause_or_assoc"
+}

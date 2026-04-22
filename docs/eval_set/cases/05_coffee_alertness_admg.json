@@ -1,0 +1,62 @@
+{
+  "id": "05_coffee_alertness_admg",
+  "failure_modes": ["F5"],
+  "narrative": "每个人对咖啡因的敏感性不同，这部分是基因决定的；这种基因差异可能同时影响一个人是否养成喝咖啡的习惯、以及大脑本身的警觉水平。",
+  "question": "喝咖啡能让人更专注吗？",
+  "gold_variables": [
+    {
+      "predicate": "drinks_coffee",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "alertness",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "stays_focused",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "drinks_coffee",
+      "to": "alertness",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    },
+    {
+      "from": "alertness",
+      "to": "stays_focused",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    },
+    {
+      "from": "drinks_coffee",
+      "to": "stays_focused",
+      "kind": "bidirected",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "这种基因差异可能同时影响一个人是否养成喝咖啡的习惯、以及大脑本身的警觉水平"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "variable",
+      "predicate": "genetic_caffeine_sensitivity",
+      "reason": "Narrative explicitly says this is unobserved / only inferred. Should become bidirected edge, not an observed predicate (else A0/F1 will demand framing we can't give)."
+    }
+  ],
+  "ambiguities": [],
+  "gold_answerability": "answerable",
+  "gold_query_kind": "effect"
+}

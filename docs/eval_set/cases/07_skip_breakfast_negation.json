@@ -1,0 +1,54 @@
+{
+  "id": "07_skip_breakfast_negation",
+  "failure_modes": ["F7"],
+  "narrative": null,
+  "question": "不吃早餐会影响学习效率吗？",
+  "gold_variables": [
+    {
+      "predicate": "eats_breakfast",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "null",
+        "threshold": "null",
+        "measurement": "null"
+      }
+    },
+    {
+      "predicate": "study_efficiency",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "null",
+        "threshold": "null",
+        "measurement": "null"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "eats_breakfast",
+      "to": "study_efficiency",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "variable",
+      "predicate": "skips_breakfast",
+      "reason": "'不吃早餐' is the negative case of eats_breakfast, not a distinct predicate. Introducing skips_breakfast duplicates and splits the causal mass."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "direction",
+      "description": "User's intervention is the NEGATIVE case: eats_breakfast=False. Query.intervention.value must be False; naive extractor defaulting to True would silently answer the opposite question.",
+      "expected_behavior": "correctly set value=False on the intervention; don't silently normalize to positive"
+    }
+  ],
+  "gold_answerability": "needs_framing",
+  "gold_query_kind": "effect"
+}

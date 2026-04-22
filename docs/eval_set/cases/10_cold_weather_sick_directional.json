@@ -1,0 +1,60 @@
+{
+  "id": "10_cold_weather_sick_directional",
+  "failure_modes": ["F1", "F3"],
+  "narrative": "进入冬天后，办公室里感冒的人明显变多。",
+  "question": "冷天会让人更容易生病吗？",
+  "gold_variables": [
+    {
+      "predicate": "cold_weather",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "null — seasonally implied but not stated",
+        "threshold": "null — temperature threshold unstated",
+        "measurement": "null"
+      }
+    },
+    {
+      "predicate": "gets_sick",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "null",
+        "threshold": "null — what counts as sick?",
+        "measurement": "null"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "cold_weather",
+      "to": "gets_sick",
+      "kind": "directed",
+      "severity": "should",
+      "source": "question_intent",
+      "source_span": "冷天会让人更容易生病吗"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "cold_weather",
+      "to": "gets_sick",
+      "reason": "Actually the real causal mechanism is likely 'cold weather → more indoor time → virus transmission → sick', not direct 'cold air → sick'. Direct edge is a simplification but naive extraction treats it as must. Severity should be 'should' not 'must' for this case."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "direction",
+      "description": "'更容易' implies probability increase but doesn't pin direction (vs. mere association). Effect query with `gets_sick=True | do(cold_weather=True)` is likely intent.",
+      "expected_behavior": "surface as proposal; ask whether user wants cause query or effect-size estimate"
+    },
+    {
+      "kind": "population_scope",
+      "description": "Narrative says '办公室里的人' (specific subpopulation) but question asks general '让人'. Scope mismatch.",
+      "expected_behavior": "abstain on scope or flag — the narrative group and question group differ"
+    }
+  ],
+  "gold_answerability": "needs_framing",
+  "gold_query_kind": "effect"
+}

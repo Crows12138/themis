@@ -1,0 +1,54 @@
+{
+  "id": "06_running_jogging_alias",
+  "failure_modes": ["F6"],
+  "narrative": "我最近三个月每周慢跑 4 次，每次 30 分钟。",
+  "question": "跑步能让我更健康吗？",
+  "gold_variables": [
+    {
+      "predicate": "jogging",
+      "domain_hint": "bool",
+      "role": "observed_context",
+      "operationalization_hints": {
+        "time_window": "past 3 months",
+        "threshold": ">=4 sessions/week, 30 min each",
+        "measurement": "self-report"
+      }
+    },
+    {
+      "predicate": "running",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "null",
+        "threshold": "null",
+        "measurement": "null"
+      }
+    },
+    {
+      "predicate": "is_healthier",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "running",
+      "to": "is_healthier",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "跑步能让我更健康吗"
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "alias",
+      "description": "Narrative says '慢跑' (jogging); question says '跑步' (running). These are likely — but not necessarily — the same concept for the user. Naive merge silently unifies them; naive no-merge creates an orphan jogging predicate.",
+      "expected_behavior": "emit alias_candidate with status=proposal; surface for user confirmation instead of silent merge"
+    }
+  ],
+  "gold_answerability": "needs_structural_info",
+  "gold_query_kind": "effect"
+}

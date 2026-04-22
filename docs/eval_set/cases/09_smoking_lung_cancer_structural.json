@@ -1,0 +1,34 @@
+{
+  "id": "09_smoking_lung_cancer_structural",
+  "failure_modes": ["F9"],
+  "narrative": null,
+  "question": "吸烟会导致肺癌吗？",
+  "gold_variables": [
+    {
+      "predicate": "smoking",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "lung_cancer",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "smoking",
+      "to": "lung_cancer",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [],
+  "gold_answerability": "answerable",
+  "gold_query_kind": "cause"
+}

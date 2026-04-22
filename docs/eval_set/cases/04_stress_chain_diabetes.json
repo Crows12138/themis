@@ -1,0 +1,69 @@
+{
+  "id": "04_stress_chain_diabetes",
+  "failure_modes": ["F4"],
+  "narrative": null,
+  "question": "长期压力通过暴饮暴食和肥胖最终导致糖尿病，这条链可信吗？",
+  "gold_variables": [
+    {
+      "predicate": "chronic_stress",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "overeating",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "obesity",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "diabetes",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "chronic_stress",
+      "to": "overeating",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "压力通过暴饮暴食"
+    },
+    {
+      "from": "overeating",
+      "to": "obesity",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "暴饮暴食和肥胖"
+    },
+    {
+      "from": "obesity",
+      "to": "diabetes",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question_intent",
+      "source_span": "肥胖最终导致糖尿病"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "chronic_stress",
+      "to": "diabetes",
+      "reason": "User explicitly stated the chain goes through mediators; direct edge would shortcut the question"
+    }
+  ],
+  "ambiguities": [],
+  "gold_answerability": "needs_data",
+  "gold_query_kind": "effect_with_chain_reasoning"
+}

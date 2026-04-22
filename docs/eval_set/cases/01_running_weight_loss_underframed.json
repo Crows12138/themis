@@ -1,0 +1,42 @@
+{
+  "id": "01_running_weight_loss_underframed",
+  "failure_modes": ["F1"],
+  "narrative": null,
+  "question": "跑步能减肥吗",
+  "gold_variables": [
+    {
+      "predicate": "running",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "null — user didn't say",
+        "threshold": "null — how often?",
+        "measurement": "null — self-report? wearable?"
+      }
+    },
+    {
+      "predicate": "weight_loss",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "null",
+        "threshold": "null — how much loss counts?",
+        "measurement": "null — kg, BMI, waist cm?"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "running",
+      "to": "weight_loss",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [],
+  "gold_answerability": "needs_framing",
+  "gold_query_kind": "effect"
+}
