@@ -1,0 +1,107 @@
+{
+  "case_id": "07_skip_breakfast_negation",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "eats_breakfast", "domain": [true, false]},
+      {"kind": "variable", "predicate": "study_efficiency", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "eats_breakfast", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "study_efficiency", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "study_efficiency", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "eats_breakfast", "args": [{"type": "const", "name": "me"}]},
+            "value": false
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "intent",
+          "chosen": "effect",
+          "alternatives": ["cause"],
+          "reason": "会影响是因果问句，但不吃早餐指定了干预值为false，§2a给出effect查询带value=False的范式",
+          "disambiguation_ask": "你是在问不吃早餐这件事是否会导致学习效率降低，还是在问早餐摄入和学习效率之间因果关系的存在性？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "probability_ref",
+          "target": {
+            "atom": {"predicate": "study_efficiency", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": [
+            {
+              "atom": {"predicate": "eats_breakfast", "args": [{"type": "const", "name": "me"}]},
+              "value": false
+            }
+          ]
+        },
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(study_efficiency=True|eats_breakfast=False)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(study_efficiency=True|eats_breakfast=False)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(study_efficiency=True|eats_breakfast=False)",
+            "priority": "high",
+            "group": "parameter"
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "study_efficiency", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "eats_breakfast", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "No narrative. §2a applied: '不吃早餐' canonicalized to positive predicate 'eats_breakfast' with intervention.value=false; predicate 'skipping_breakfast' was NOT created. §3a: eats_breakfast→study_efficiency is plausible direct mechanism; no confounder trigger. §5: minor intent ambiguity declared (会影响 ambiguous between cause and effect, but §2a canonical example points to effect with value=false). Themis correctly asks for P(study_efficiency=True|eats_breakfast=False).",
+  "extracted_for_scoring": {
+    "variables": ["eats_breakfast", "study_efficiency"],
+    "directed_edges": [["eats_breakfast", "study_efficiency"]],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "intent",
+        "chosen": "effect",
+        "alternatives": ["cause"]
+      }
+    ]
+  }
+}

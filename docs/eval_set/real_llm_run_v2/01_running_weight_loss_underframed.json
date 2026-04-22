@@ -1,0 +1,86 @@
+{
+  "case_id": "01_running_weight_loss_underframed",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "running", "domain": [true, false]},
+      {"kind": "variable", "predicate": "weight_loss", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "weight_loss", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+          "to": {"predicate": "weight_loss", "args": [{"type": "const", "name": "me"}]}
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "intent",
+          "chosen": "cause",
+          "alternatives": ["effect"],
+          "reason": "NL说能…吗，没有每天/经常等干预标记；既可读为因果查询也可读为效果查询",
+          "disambiguation_ask": "你是想问跑步是否会导致减肥，还是如果你每天坚持跑步，减肥效果会怎样？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {"value": true, "supporting_paths": [["running(me)", "weight_loss(me)"]]},
+        "investigation_requests": [
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "running",
+                "reason": "variable 'running' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {"kind": "variable_patch", "predicate": "running", "existing": {"domain": [true, false]}, "fields": {"time_window": null, "measurement": null, "threshold": null, "observability": null, "direction": null, "baseline": null, "state_vs_event": null}}
+              },
+              {
+                "target": "weight_loss",
+                "reason": "variable 'weight_loss' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {"kind": "variable_patch", "predicate": "weight_loss", "existing": {"domain": [true, false]}, "fields": {"time_window": null, "measurement": null, "threshold": null, "observability": null, "direction": null, "baseline": null, "state_vs_event": null}}
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "running", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "weight_loss", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "No narrative (null). §2a not applicable (no negation). §3a: running→weight_loss is plausible direct mechanism (no seasonal/group confounder trigger). §5 applied: '能…吗' without intervention-frequency marker is ambiguous between cause and effect; chose cause (conservative default assoc≺cause≺effect) and declared intent ambiguity in extensions.ambiguities.",
+  "extracted_for_scoring": {
+    "variables": ["running", "weight_loss"],
+    "directed_edges": [["running", "weight_loss"]],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "intent",
+        "chosen": "cause",
+        "alternatives": ["effect"]
+      }
+    ]
+  }
+}

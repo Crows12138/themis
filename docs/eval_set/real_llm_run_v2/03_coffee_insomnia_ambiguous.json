@@ -1,0 +1,85 @@
+{
+  "case_id": "03_coffee_insomnia_ambiguous",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "drinks_coffee", "domain": [true, false]},
+      {"kind": "variable", "predicate": "has_insomnia", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "drinks_coffee", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "has_insomnia", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "assoc",
+          "left": {"predicate": "drinks_coffee", "args": [{"type": "const", "name": "me"}]},
+          "right": {"predicate": "has_insomnia", "args": [{"type": "const", "name": "me"}]},
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "intent",
+          "chosen": "assoc",
+          "alternatives": ["cause"],
+          "reason": "NL仅说有关系吗，既可读为相关性查询也可读为因果查询",
+          "disambiguation_ask": "你是想问喝咖啡和失眠是否相关（统计意义上），还是喝咖啡是否会导致失眠？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "assoc",
+        "query_id": "q",
+        "structural_result": {"value": true, "supporting_paths": [["drinks_coffee(me)", "has_insomnia(me)"]]},
+        "investigation_requests": [
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "drinks_coffee",
+                "reason": "variable 'drinks_coffee' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event"
+              },
+              {
+                "target": "has_insomnia",
+                "reason": "variable 'has_insomnia' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event"
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "drinks_coffee", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "has_insomnia", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "No narrative. §2a not applicable (no negation). §3a: coffee→insomnia is a plausible direct mechanism (caffeine inhibits adenosine receptors); no seasonal/group confounder trigger. §5 applied: '有关系吗' is the canonical assoc-vs-cause ambiguity signal from §5's table; chose assoc (most conservative) and declared cause as alternative in extensions.ambiguities. This is the F3 target case.",
+  "extracted_for_scoring": {
+    "variables": ["drinks_coffee", "has_insomnia"],
+    "directed_edges": [["drinks_coffee", "has_insomnia"]],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "intent",
+        "chosen": "assoc",
+        "alternatives": ["cause"]
+      }
+    ]
+  }
+}

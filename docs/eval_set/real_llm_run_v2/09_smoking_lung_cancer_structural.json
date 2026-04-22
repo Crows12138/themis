@@ -1,0 +1,77 @@
+{
+  "case_id": "09_smoking_lung_cancer_structural",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "smoking", "domain": [true, false]},
+      {"kind": "variable", "predicate": "lung_cancer", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "smoking", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "lung_cancer", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {"predicate": "smoking", "args": [{"type": "const", "name": "me"}]},
+          "to": {"predicate": "lung_cancer", "args": [{"type": "const", "name": "me"}]}
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "confounder_refusal",
+          "chosen": "direct_edge_retained",
+          "alternatives": ["confounder_structure"],
+          "reason": "吸烟→肺癌是经过大量流行病学研究证实的直接因果关系；§3a判断直接边成立，未引入混淆变量",
+          "disambiguation_ask": "此判断基于吸烟导致肺癌的直接因果证据；如需讨论可能的混淆因素（如基因易感性）请告知"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {
+          "value": true,
+          "supporting_paths": [["smoking(me)", "lung_cancer(me)"]]
+        },
+        "investigation_requests": [
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "smoking", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "lung_cancer", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "No narrative. §2a not applicable (no negation). §3a: smoking→lung cancer considered for confounder check; extensive epidemiological evidence supports direct causal link; per §3a exception ('if confident the link is direct and confounding is unlikely, emit direct edge'), direct edge retained. Judgment call documented in extensions.ambiguities as confounder_refusal with chosen=direct_edge_retained. §5: '会导致吗' = unambiguous cause intent.",
+  "extracted_for_scoring": {
+    "variables": ["smoking", "lung_cancer"],
+    "directed_edges": [["smoking", "lung_cancer"]],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "confounder_refusal",
+        "chosen": "direct_edge_retained",
+        "alternatives": ["confounder_structure"]
+      }
+    ]
+  }
+}

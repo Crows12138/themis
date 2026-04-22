@@ -1,0 +1,119 @@
+{
+  "case_id": "10_cold_weather_sick_directional",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "cold_weather", "domain": [true, false]},
+      {"kind": "variable", "predicate": "gets_sick", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "cold_weather", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "gets_sick", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "gets_sick", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "cold_weather", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "intent",
+          "chosen": "effect",
+          "alternatives": ["cause"],
+          "reason": "会让人更容易包含让人这一施动语气，指向效果查询；但没有每天/经常等明确干预标记",
+          "disambiguation_ask": "你是想问冷天是否会导致生病（因果），还是在冷天条件下人们更容易生病的概率有多高（效果）？"
+        },
+        {
+          "kind": "scope",
+          "chosen": "me",
+          "alternatives": ["office_population", "general_population"],
+          "reason": "叙述说的是办公室里的人（特定子群体），问题问的是人（一般群体），存在范围不一致",
+          "disambiguation_ask": "你的问题是针对一般人群还是特定办公环境中的人群？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "probability_ref",
+          "target": {
+            "atom": {"predicate": "gets_sick", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": [
+            {
+              "atom": {"predicate": "cold_weather", "args": [{"type": "const", "name": "me"}]},
+              "value": true
+            }
+          ]
+        },
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(gets_sick=True|cold_weather=True)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(gets_sick=True|cold_weather=True)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(gets_sick=True|cold_weather=True)",
+            "priority": "high",
+            "group": "parameter"
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "gets_sick", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "cold_weather", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Narrative present; A5 extracted cold_weather and gets_sick from seasonal observation. §2a not applicable (no negation). §3a: cold_weather→gets_sick was considered — narrative is group-level observation (office staff in winter) which could trigger group-level correlation check; however, cold→virus transmission→sick has a plausible direct mechanism, so direct edge retained. §5: two ambiguities declared — intent (effect vs cause) and scope (office subpopulation in narrative vs general population in question).",
+  "extracted_for_scoring": {
+    "variables": ["cold_weather", "gets_sick"],
+    "directed_edges": [["cold_weather", "gets_sick"]],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "intent",
+        "chosen": "effect",
+        "alternatives": ["cause"]
+      },
+      {
+        "kind": "scope",
+        "chosen": "me",
+        "alternatives": ["office_population", "general_population"]
+      }
+    ]
+  }
+}

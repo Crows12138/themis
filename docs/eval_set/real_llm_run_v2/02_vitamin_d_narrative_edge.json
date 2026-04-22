@@ -1,0 +1,120 @@
+{
+  "case_id": "02_vitamin_d_narrative_edge",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "vitamin_d_supplement",
+        "domain": [true, false],
+        "time_window": "past 2 months",
+        "threshold": "daily",
+        "observability": "self-report"
+      },
+      {
+        "kind": "variable",
+        "predicate": "cold_frequency_reduced",
+        "domain": [true, false],
+        "time_window": "past 2 months",
+        "measurement": "self-report count",
+        "observability": "self-report"
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "vitamin_d_supplement", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "cold_frequency_reduced", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "cold_frequency_reduced", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "vitamin_d_supplement", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "scope",
+          "chosen": "me",
+          "alternatives": ["general population"],
+          "reason": "叙述是单人n=1时间序列，但问题问的是维生素D普遍是否能减少感冒，存在从个人观察到一般性结论的跨度",
+          "disambiguation_ask": "你是在问对你自己而言是否有效，还是在问对一般人是否有证据？"
+        },
+        {
+          "kind": "confounder_refusal",
+          "chosen": "direct_edge_retained",
+          "alternatives": ["seasonal_confounder"],
+          "reason": "维生素D→免疫功能→感冒次数减少有公认机制；直接边保留，但个人n=1叙述不排除季节因素混淆",
+          "disambiguation_ask": "你的感冒次数减少是否可能与季节变化或其他生活方式改变同时发生？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(cold_frequency_reduced=True|vitamin_d_supplement=True)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(cold_frequency_reduced=True|vitamin_d_supplement=True)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(cold_frequency_reduced=True|vitamin_d_supplement=True)",
+            "priority": "high",
+            "group": "parameter"
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "cold_frequency_reduced", "missing": ["threshold", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "vitamin_d_supplement", "missing": ["measurement", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Narrative present; ran A5 first — extracted vitamin_d_supplement and cold_frequency_reduced with time_window and observability from narrative. §2a not applicable (no negation). §3a: direct edge retained because vitamin D→immune function→cold resistance has established mechanism, but n=1 temporal coincidence triggers scope and confounder notes in extensions.ambiguities. §5: scope ambiguity declared (n=1 narrative vs general question).",
+  "extracted_for_scoring": {
+    "variables": ["vitamin_d_supplement", "cold_frequency_reduced"],
+    "directed_edges": [["vitamin_d_supplement", "cold_frequency_reduced"]],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "scope",
+        "chosen": "me",
+        "alternatives": ["general population"]
+      },
+      {
+        "kind": "confounder_refusal",
+        "chosen": "direct_edge_retained",
+        "alternatives": ["seasonal_confounder"]
+      }
+    ]
+  }
+}

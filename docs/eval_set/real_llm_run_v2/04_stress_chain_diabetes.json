@@ -1,0 +1,78 @@
+{
+  "case_id": "04_stress_chain_diabetes",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "chronic_stress", "domain": [true, false]},
+      {"kind": "variable", "predicate": "overeating", "domain": [true, false]},
+      {"kind": "variable", "predicate": "obesity", "domain": [true, false]},
+      {"kind": "variable", "predicate": "diabetes", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "chronic_stress", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "overeating", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "overeating", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "obesity", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "obesity", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "diabetes", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {"predicate": "chronic_stress", "args": [{"type": "const", "name": "me"}]},
+          "to": {"predicate": "diabetes", "args": [{"type": "const", "name": "me"}]}
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {
+          "value": true,
+          "supporting_paths": [["chronic_stress(me)", "overeating(me)", "obesity(me)", "diabetes(me)"]]
+        },
+        "investigation_requests": [
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "chronic_stress", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "diabetes", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "No narrative. §2a not applicable (no negation). §3a: user explicitly stated the three-step chain via mediators; no confounder pattern detected. Direct chronic_stress→diabetes edge deliberately omitted because user's chain goes through overeating and obesity. §5 not triggered: '导致' + chain wording = clear cause intent, no ambiguity to declare.",
+  "extracted_for_scoring": {
+    "variables": ["chronic_stress", "overeating", "obesity", "diabetes"],
+    "directed_edges": [
+      ["chronic_stress", "overeating"],
+      ["overeating", "obesity"],
+      ["obesity", "diabetes"]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": []
+  }
+}

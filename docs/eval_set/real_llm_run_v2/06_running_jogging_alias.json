@@ -1,0 +1,114 @@
+{
+  "case_id": "06_running_jogging_alias",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "jogging",
+        "domain": [true, false],
+        "time_window": "past 3 months",
+        "threshold": ">=4 sessions/week, 30 min each",
+        "observability": "self-report"
+      },
+      {"kind": "variable", "predicate": "running", "domain": [true, false]},
+      {"kind": "variable", "predicate": "is_healthier", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "is_healthier", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "is_healthier", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "intent",
+          "chosen": "effect",
+          "alternatives": ["cause"],
+          "reason": "能让我…暗含干预语气，但缺少每天/经常等明确频率标记",
+          "disambiguation_ask": "你是想问跑步是否会导致健康改善，还是你自己坚持跑步的话会不会变健康？"
+        },
+        {
+          "kind": "alias",
+          "chosen": "running",
+          "alternatives": ["jogging"],
+          "reason": "叙述说慢跑(jogging)，问题说跑步(running)，可能是同一概念但未经用户确认",
+          "disambiguation_ask": "你叙述中的慢跑和问题中的跑步是否指的是同一件事？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "missing_information": [
+          {
+            "kind": "parameter",
+            "name": "parameter:P(is_healthier=True|running=True)",
+            "priority": "high",
+            "reason": "Theta 中缺条目 P(is_healthier=True|running=True)"
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(is_healthier=True|running=True)",
+            "priority": "high",
+            "group": "parameter"
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "is_healthier", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "running", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Narrative present; A5 extracted jogging with full framing (past 3 months, >=4 sessions/week, self-report). §2a not applicable (no negation). §3a: running→is_healthier is plausible; no confounder trigger. §5: alias ambiguity declared (慢跑/jogging in narrative vs 跑步/running in question) — kept as separate predicates pending user confirmation; also declared intent ambiguity.",
+  "extracted_for_scoring": {
+    "variables": ["jogging", "running", "is_healthier"],
+    "directed_edges": [["running", "is_healthier"]],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "intent",
+        "chosen": "effect",
+        "alternatives": ["cause"]
+      },
+      {
+        "kind": "alias",
+        "chosen": "running",
+        "alternatives": ["jogging"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "case_id": "05_coffee_alertness_admg",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "drinks_coffee", "domain": [true, false]},
+      {"kind": "variable", "predicate": "alertness", "domain": [true, false]},
+      {"kind": "variable", "predicate": "stays_focused", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "drinks_coffee", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "alertness", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "alertness", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "stays_focused", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "bidirected",
+        "left": {"predicate": "drinks_coffee", "args": [{"type": "const", "name": "me"}]},
+        "right": {"predicate": "alertness", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "target": {
+            "atom": {"predicate": "stays_focused", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "intervention": {
+            "atom": {"predicate": "drinks_coffee", "args": [{"type": "const", "name": "me"}]},
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "intent",
+          "chosen": "effect",
+          "alternatives": ["cause"],
+          "reason": "能让人更专注暗含让人这一施动语气，偏干预效果查询；但无每天/经常等明确干预标记",
+          "disambiguation_ask": "你是想问喝咖啡是否会导致专注力提升（因果），还是如果你喝咖啡，专注度会有所提高（干预效果）？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "needs_investigation",
+        "query_kind": "effect",
+        "query_id": "q",
+        "missing_information": [
+          {
+            "kind": "structure",
+            "name": "query:effect_admg",
+            "priority": "high",
+            "reason": "Phase 2.latent S3.b.1: this ADMG effect query is reachable neither by ADMG-aware backdoor nor front-door. Tian c-factor lands in S3.b.2; see PHASE_2_LATENT_CHARTER.md §7."
+          }
+        ],
+        "investigation_requests": [
+          {
+            "action": "run_experiment",
+            "target": "query:effect_admg",
+            "priority": "high",
+            "group": "structure"
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "stays_focused", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "drinks_coffee", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ]
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Narrative present; A5 identified genetic caffeine sensitivity as latent common cause (narrative says '这种基因差异可能同时影响…喝咖啡的习惯、以及大脑本身的警觉水平'). §3a: narrative explicitly encodes unobserved common cause — per must_not_infer the genetic variable should NOT become an observed predicate; emitted bidirected edge between drinks_coffee and alertness instead. §5: '能让人' slight ambiguity declared. Themis correctly returned needs_investigation with ADMG structure note (S3.b.2 frontier).",
+  "extracted_for_scoring": {
+    "variables": ["drinks_coffee", "alertness", "stays_focused"],
+    "directed_edges": [
+      ["drinks_coffee", "alertness"],
+      ["alertness", "stays_focused"]
+    ],
+    "bidirected_edges": [["drinks_coffee", "alertness"]],
+    "ambiguities_declared": [
+      {
+        "kind": "intent",
+        "chosen": "effect",
+        "alternatives": ["cause"]
+      }
+    ]
+  }
+}

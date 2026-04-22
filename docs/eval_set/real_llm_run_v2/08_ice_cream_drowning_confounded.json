@@ -1,0 +1,102 @@
+{
+  "case_id": "08_ice_cream_drowning_confounded",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "variable", "predicate": "temperature_high", "domain": [true, false]},
+      {"kind": "variable", "predicate": "ice_cream_consumption", "domain": [true, false]},
+      {"kind": "variable", "predicate": "drowning_incidents", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {"predicate": "temperature_high", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "ice_cream_consumption", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "temperature_high", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "drowning_incidents", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {"predicate": "ice_cream_consumption", "args": [{"type": "const", "name": "me"}]},
+          "to": {"predicate": "drowning_incidents", "args": [{"type": "const", "name": "me"}]}
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "confounder_refusal",
+          "chosen": "confounder_structure",
+          "alternatives": ["direct_edge"],
+          "reason": "叙述描述的是夏季共同出现的季节性相关性，高温是冰淇淋销量和溺水事件的共同原因；直接边ice_cream→drowning是经典混淆陷阱，§3a拒绝了直接边",
+          "disambiguation_ask": "你是否认为吃冰淇淋本身有导致溺水的机制（如行为影响），或者你只是注意到了季节性同步现象？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "cause",
+        "query_id": "q",
+        "structural_result": {"value": false},
+        "investigation_requests": [
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing"
+          }
+        ],
+        "framing_notes": [
+          {"predicate": "ice_cream_consumption", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]},
+          {"predicate": "drowning_incidents", "missing": ["time_window", "measurement", "threshold", "observability", "direction", "baseline", "state_vs_event"]}
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "no_directed_path",
+              "inputs": {
+                "graph": {
+                  "edges": [[2, 0], [2, 1]]
+                },
+                "src": {"predicate": "ice_cream_consumption"},
+                "dst": {"predicate": "drowning_incidents"}
+              },
+              "output": {"kind": "structural_result", "value": false},
+              "step_id": "s1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Narrative present; §3a triggered on seasonal co-occurrence pattern ('夏天冰激凌卖得多的月份，溺水事件也多'). Introduced temperature_high as confounder; emitted temperature_high→ice_cream_consumption and temperature_high→drowning_incidents (both llm_proposal). Direct ice_cream→drowning edge was NOT emitted. Themis returned structural_result=false (correct: no directed path from ice_cream to drowning). Confounder refusal documented in extensions.ambiguities.",
+  "extracted_for_scoring": {
+    "variables": ["temperature_high", "ice_cream_consumption", "drowning_incidents"],
+    "directed_edges": [
+      ["temperature_high", "ice_cream_consumption"],
+      ["temperature_high", "drowning_incidents"]
+    ],
+    "bidirected_edges": [],
+    "ambiguities_declared": [
+      {
+        "kind": "confounder_refusal",
+        "chosen": "confounder_structure",
+        "alternatives": ["direct_edge"]
+      }
+    ]
+  }
+}
