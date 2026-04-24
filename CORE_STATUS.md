@@ -509,24 +509,47 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 "LLM-native 全板块因果推理编排器"的新方向。Phase 6 是这个扩展的第
 一个里程碑——把识别层补齐到 Pearl 因果识别文献的 90%+ 覆盖。
 
-对应 charter：未立（下一步任务）。对应 ROADMAP 段：Phase 6。
+**状态总览**：
 
-**覆盖 slice**：
+| Slice | Charter | 状态 |
+|---|---|---|
+| 6.iv | PHASE_6_IV_CHARTER.md | **✅ 已落地（2026-04-24）**|
+| 6.mediation | 未立 | 待启动 |
+| 6.front-door-multi | 未立 | 待启动 |
+| 6.complete-id | 未立 | 可选延至 Phase 6.5 |
 
-- IV 识别（IV1/IV2/IV3 + conditional IV + 公式构造）
-- 中介识别（NDE / NIE / CDE + cross-world 假设显式声明）
-- 多 mediator 前门（链式 P(Z1..Zk|X) 分解）
-- Complete ID 算法（Shpitser-Pearl 2006，可选延到 Phase 6.5）
+#### Phase 6.iv 已落地（2026-04-24）
 
-**执行原则**：
+S.IV.1 – S.IV.7 全部完成：
+- `structural_solver.iv_sets`：Brito-Pearl 2002 公式，ADMG-aware +
+  conditional IV 搜索（|W| ≤ 3 默认）
+- `_dispatch_identify` 回退链：backdoor → front-door → **IV**
+- `_build_identify_via_iv` + 2-step derivation（iv_criterion_check
+  + identify_via_iv）
+- 新 verifier rule family：`iv_criterion_check` + `identify_via_iv`，
+  byte-code scan 钉独立性，不调 structural_solver
+- `query_result.schema.json` 加 `extensions.iv_identification` 子 schema
+- A1 prompt v2.2 §3b：NL 层 IV 识别规则；response_rendering v2.2：
+  IV 结果披露 + `iv_validity` ambiguity 模板
+- 2 个 eval case（21 valid IV / 22 conditional IV rescue）+ F19
+  taxonomy
+- DoWhy 0.14 parity：9 个 DAG 案例全部对齐；ADMG 案例文档化为 Themis
+  独有能力（DoWhy 无 bidirected 支持）
 
-- 完全自家写，**不接外部因果库作 production backend**
-- 外部库（DoWhy）仅作 parity calibration，dev dependency
-- 每个 slice 配套独立 charter + V0-V5 verifier 扩展 + eval case
+**Phase 6.iv 新增语言 / 语义面**（解冻清单）：
+- 无新 statement kind
+- 无新 query kind
+- 新增 `QueryResult.extensions.iv_identification` 结构化字段
+- `IdentifyResult` 识别策略加 "iv"（在 derivation rule name 层面）
 
-**未包含**：Phase 7（估计器）、Phase 8（发现 + 敏感性）——另立 charter。
+**未包含**：Phase 6 其余 slice（mediation / 多 mediator 前门 / 完整
+ID）独立 charter；Phase 7（估计器）、Phase 8（发现 + 敏感性）独立
+立项。
 
-**时间预估**：4 周（不含 complete ID；含则 2-4 月）
+**时间实际**：S.IV.1 到 S.IV.7 全部落地约 1.5 天（含 charter 起草）。
+Charter 原估 ~4 周是为 4 个 slice（iv + mediation + multi-front-door
++ complete-id）合计；单独 iv 子 slice 的实际耗时证实算法本身不复杂，
+主要工作在 verifier 独立实现 + schema 扩展 + eval case 配套。
 
 ---
 

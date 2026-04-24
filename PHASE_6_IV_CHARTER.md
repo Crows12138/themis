@@ -1,10 +1,13 @@
 # Phase 6.iv Charter — 工具变量 (IV) 识别 fragment
 
 > 立项日期：2026-04-24
-> 状态：**charter 草案** —— 未动代码
+> 状态：**✅ 已落地（2026-04-24）** —— S.IV.1 – S.IV.7 全部完成
 > 对应 ROADMAP：Phase 6 "识别层完整化 (M1)" 下的第一个 slice
-> 对应 TaskList：待新建条目
+> 对应 TaskList：#43 (完成)
 > 对应 VISION：扩展愿景——覆盖 12 板块的第 5 板块（IV）
+>
+> **落地 commit**: eff89d3 (S.IV.1) → d18f4f0 (S.IV.2) → 814dcad (S.IV.3)
+> → b36808e (S.IV.4) → e4f3fde (S.IV.5) → 860bdcf (S.IV.6) → 95a405e (S.IV.7)
 
 ## 0. Scope 说明
 

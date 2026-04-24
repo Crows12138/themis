@@ -15,7 +15,7 @@
 | 2 | ADMG / 潜变量 | **80%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / c-factor 推迟 |
 | 3 | 反事实（Layer 3） | **15-20%** | Balke-Pearl 二值单调 bounds ✓ / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **20-30%** | 1 阶 Markov ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
-| 5 | 工具变量 (IV) | **0%** | → **Phase 6 M1** |
+| 5 | 工具变量 (IV) | **~60%** | **Phase 6.iv 已落地**（basic + conditional + ADMG-aware identification）；2SLS / LATE 估计 → Phase 7 |
 | 6 | 中介分析 | **0%** | → **Phase 6 M1** |
 | 7 | 选择偏差 | **5%** | A1 §3a 能识别 / kernel 未算 → Phase 6.5 或 Phase 9+ |
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
@@ -24,7 +24,7 @@
 | 11 | 连续 / 数据驱动估计 | **0%** | → **Phase 7 M2**（L1+L2）+ Phase 9+（L3b）|
 | 12 | 因果发现 | **0%** | → **Phase 8 M3**（PC/FCI/LiNGAM）|
 
-**加权覆盖**：约 **15-20%**。大头在板块 1+2（Pearl 识别 + ADMG）。
+**加权覆盖**：约 **20-25%**。大头在板块 1+2+5（Pearl 识别 + ADMG + IV）。
 
 ---
 
