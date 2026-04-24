@@ -515,7 +515,7 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 |---|---|---|
 | 6.iv | PHASE_6_IV_CHARTER.md | **✅ 已落地（2026-04-24）**|
 | 6.mediation | PHASE_6_MEDIATION_CHARTER.md | **✅ 已落地（2026-04-24）**|
-| 6.front-door-multi | 未立 | 待启动 |
+| 6.front-door-multi | 无独立 charter（扩展既有族）| **✅ 已落地（2026-04-24）**|
 | 6.complete-id | 未立 | 可选延至 Phase 6.5 |
 
 #### Phase 6.iv 已落地（2026-04-24）

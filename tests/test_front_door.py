@@ -145,14 +145,25 @@ def test_front_door_formula_rejects_empty_mediators():
         )
 
 
-def test_front_door_formula_rejects_multi_mediator():
-    from themis.runtime.formula_builder import FormulaSupportError
-    with pytest.raises(FormulaSupportError, match="single mediator"):
-        formula_builder.front_door_formula(
-            target=ValuedAtom(atom=_atom("y"), value=True),
-            intervention=ValuedAtom(atom=_atom("x"), value=True),
-            mediators=(_atom("z1"), _atom("z2")),
-        )
+def test_front_door_formula_accepts_multi_mediator():
+    """Phase 6.front-door-multi: two mediators in topological order
+    produce a nested double-sum with chain-rule factored joint
+    conditional P(Z1|X) · P(Z2|Z1,X)."""
+    formula = formula_builder.front_door_formula(
+        target=ValuedAtom(atom=_atom("y"), value=True),
+        intervention=ValuedAtom(atom=_atom("x"), value=True),
+        mediators=(_atom("z1"), _atom("z2")),
+    )
+    # Outermost is a SumExpr over z1, body contains a nested SumExpr
+    # over z2. Precise structural match is enforced by the verifier
+    # round-trip test below; here we just confirm the shape.
+    from themis.types import SumExpr, ProductExpr
+    assert isinstance(formula, SumExpr)
+    assert formula.over == _atom("z1")
+    assert isinstance(formula.body, SumExpr)
+    assert formula.body.over == _atom("z2")
+    # The inner body is Product of chain factors and the x' sum
+    assert isinstance(formula.body.body, ProductExpr)
 
 
 # ============================================ scheduler end-to-end

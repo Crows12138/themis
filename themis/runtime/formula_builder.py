@@ -132,46 +132,68 @@ def front_door_formula(
     X against the mediator conditional. ``observed`` threads into every
     probability_ref the same way ``backdoor_formula`` handles it.
 
-    Multi-mediator front-door (``mediators`` of length >= 2) would
-    require a chain-rule expansion of P(Z1,...,Zk | X) and a
-    generalised inner loop; until a real case asks for it, this
-    function raises ``FormulaSupportError`` in that case. Single-
-    mediator front-door is the textbook form and covers the
-    identification gap most likely to show up in practice.
+    Multi-mediator front-door (``mediators`` of length >= 2, in
+    topological order): chain-rule factor the joint mediator
+    conditional and nest the sums:
+
+        ∑_{z1} ∑_{z2} ... ∑_{zk}
+            ∏_i P(Zi = zi | Z_{<i}, X = x, observed)
+            · ∑_{x'} P(Y = y | X = x', Z1=z1, ..., Zk=zk, observed)
+                    · P(X = x' | observed)
+
+    where ``Z_{<i}`` means the mediators earlier in the topological
+    order. This generalises the single-mediator case: when k=1 the
+    chain rule degenerates to ``P(Z1|X)`` and the formula reduces to
+    Pearl's textbook form above.
+
+    Phase 6.front-door-multi: the scheduler passes ``mediators`` in
+    topological order so the chain-rule factors are well-formed
+    without extra graph consultation in this function.
     """
     if len(mediators) == 0:
         raise FormulaSupportError(
             "front_door_formula requires at least one mediator"
         )
-    if len(mediators) > 1:
-        raise FormulaSupportError(
-            "front_door_formula currently supports a single mediator; "
-            f"got {len(mediators)}. Multi-mediator front-door will land "
-            f"in a later slice if a real case needs it."
-        )
 
-    z_atom = mediators[0]
     x_atom = intervention.atom
 
-    z_bind = fresh_bind_name(z_atom, frozenset())
-    x_bind = fresh_bind_name(x_atom, frozenset({z_bind.name}))
-
-    z_va = ValuedAtom(atom=z_atom, value=VarRef(name=z_bind.name))
+    # Build fresh bind names for each mediator in topo order and one
+    # for x' (inner sum). Collect incrementally so each later atom sees
+    # all prior names in its ``taken`` set.
+    taken: frozenset[str] = frozenset()
+    z_binds: list = []
+    z_vas: list[ValuedAtom] = []
+    for z_atom in mediators:
+        b = fresh_bind_name(z_atom, taken)
+        z_binds.append(b)
+        z_vas.append(ValuedAtom(atom=z_atom, value=VarRef(name=b.name)))
+        taken = taken | {b.name}
+    x_bind = fresh_bind_name(x_atom, taken)
     x_prime_va = ValuedAtom(atom=x_atom, value=VarRef(name=x_bind.name))
 
-    # Inner sum: ∑_{x'} P(Y=y | X=x', Z=z, observed) · P(X=x' | observed)
+    # Inner sum: ∑_{x'} P(Y | X=x', Z1=z1, ..., Zk=zk, observed) · P(X=x' | observed)
     inner_conditional = _conditional(
-        target, (x_prime_va, z_va) + observed
+        target, (x_prime_va, *z_vas) + observed
     )
     x_prior = _conditional(x_prime_va, observed)
     inner_body = ProductExpr(terms=(inner_conditional, x_prior))
     inner_sum = SumExpr(bind=x_bind, over=x_atom, body=inner_body)
 
-    # Outer body: P(Z=z | X=x, observed) · inner_sum
-    z_given_x = _conditional(z_va, (intervention,) + observed)
-    outer_body = ProductExpr(terms=(z_given_x, inner_sum))
+    # Chain-rule factors for the joint mediator conditional:
+    # P(Z1|X) · P(Z2|Z1,X) · ... · P(Zk|Z_{<k}, X)
+    chain_factors: list = []
+    for i, z_va in enumerate(z_vas):
+        prior_mediators = tuple(z_vas[:i])
+        chain_factors.append(
+            _conditional(z_va, (intervention,) + prior_mediators + observed)
+        )
 
-    return SumExpr(bind=z_bind, over=z_atom, body=outer_body)
+    # Combine factors with the inner sum; wrap in nested outer sums
+    # over z1, z2, ..., zk (outer-to-inner matches topological order).
+    body = ProductExpr(terms=tuple(chain_factors) + (inner_sum,))
+    for z_atom, z_bind in reversed(list(zip(mediators, z_binds))):
+        body = SumExpr(bind=z_bind, over=z_atom, body=body)
+    return body
 
 
 # ---------------------------------------------------------------------------

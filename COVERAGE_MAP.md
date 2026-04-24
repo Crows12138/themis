@@ -11,7 +11,7 @@
 
 | # | 板块 | 覆盖 | 现状 / 策略 |
 |---|---|---|---|
-| 1 | 可观测识别 | **60-70%** | backdoor ✓ / front-door 单 mediator ✓ / IV ✗ / 完整 ID ✗ → Phase 6 |
+| 1 | 可观测识别 | **75-80%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / 完整 ID (Shpitser) ✗ → Phase 6.complete-id（可选）|
 | 2 | ADMG / 潜变量 | **80%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / c-factor 推迟 |
 | 3 | 反事实（Layer 3） | **15-20%** | Balke-Pearl 二值单调 bounds ✓ / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **20-30%** | 1 阶 Markov ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |

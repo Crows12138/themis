@@ -556,16 +556,20 @@ def _build_expected_front_door_formula(
     intervention: ValuedAtom,
     mediators: tuple[Atom, ...],
 ) -> FormulaExpr:
-    """Independent restatement of the single-mediator front-door formula
-    (Pearl Eq. 3.29). Deliberately does not import from formula_builder
-    — the verifier is meant to catch regressions in the builder.
+    """Independent restatement of the front-door formula (Pearl Eq. 3.29
+    for the single-mediator case; chain-rule generalisation for
+    multi-mediator per Phase 6.front-door-multi).
+
+    Deliberately does not import from formula_builder — the verifier is
+    meant to catch regressions in the builder. The expected formula is
+    built here from scratch mirroring the builder's topological
+    chain-rule expansion; if the two disagree the verifier rejects.
     """
-    if len(mediators) != 1:
+    if len(mediators) == 0:
         raise RuleCheckFailed(
-            "front_door_adjustment_formula: single-mediator only in this slice",
+            "front_door_adjustment_formula requires at least one mediator",
             step_index=0, rule="front_door_adjustment_formula",
         )
-    z_atom = mediators[0]
     x_atom = intervention.atom
 
     def _bind_for(atom: Atom, taken: set) -> BindDecl:
@@ -578,23 +582,41 @@ def _build_expected_front_door_formula(
             i += 1
         return BindDecl(name=f"{base}_{i}")
 
+    # Generate bind names for each mediator in topological order, then
+    # one for x'. Each later name sees all prior names in ``taken``.
     taken: set[str] = set()
-    z_bind = _bind_for(z_atom, taken); taken.add(z_bind.name)
+    z_binds: list = []
+    z_vas: list[ValuedAtom] = []
+    for z_atom in mediators:
+        b = _bind_for(z_atom, taken)
+        taken.add(b.name)
+        z_binds.append(b)
+        z_vas.append(ValuedAtom(atom=z_atom, value=VarRef(name=b.name)))
     x_bind = _bind_for(x_atom, taken)
-
-    z_va = ValuedAtom(atom=z_atom, value=VarRef(name=z_bind.name))
     x_prime_va = ValuedAtom(atom=x_atom, value=VarRef(name=x_bind.name))
 
+    # Inner sum: ∑_{x'} P(Y | X=x', Z1=z1, ..., Zk=zk) · P(X=x')
     inner_conditional = ProbabilityRefExpr(
-        target=target, given=(x_prime_va, z_va),
+        target=target, given=(x_prime_va, *z_vas),
     )
     x_prior = ProbabilityRefExpr(target=x_prime_va, given=())
     inner_body = ProductExpr(terms=(inner_conditional, x_prior))
     inner_sum = SumExpr(bind=x_bind, over=x_atom, body=inner_body)
 
-    z_given_x = ProbabilityRefExpr(target=z_va, given=(intervention,))
-    outer_body = ProductExpr(terms=(z_given_x, inner_sum))
-    return SumExpr(bind=z_bind, over=z_atom, body=outer_body)
+    # Chain rule: P(Z1|X) · P(Z2|Z1,X) · ... · P(Zk|Z_{<k}, X)
+    chain_factors: list = []
+    for i, z_va in enumerate(z_vas):
+        prior_mediators = tuple(z_vas[:i])
+        chain_factors.append(
+            ProbabilityRefExpr(
+                target=z_va, given=(intervention,) + prior_mediators,
+            )
+        )
+
+    body = ProductExpr(terms=tuple(chain_factors) + (inner_sum,))
+    for z_atom, z_bind in reversed(list(zip(mediators, z_binds))):
+        body = SumExpr(bind=z_bind, over=z_atom, body=body)
+    return body
 
 
 def _rule_front_door_adjustment_formula(
@@ -619,9 +641,9 @@ def _rule_front_door_adjustment_formula(
             "front_door_adjustment_formula.z must be a tuple of Atom",
             step_index=step_index, rule="front_door_adjustment_formula",
         )
-    if len(z_tuple) != 1:
+    if len(z_tuple) == 0:
         raise RuleCheckFailed(
-            "front_door_adjustment_formula: single-mediator only in this slice",
+            "front_door_adjustment_formula: mediator tuple must be non-empty",
             step_index=step_index, rule="front_door_adjustment_formula",
         )
 
