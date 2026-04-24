@@ -43,6 +43,62 @@
         "counterfactual_error": {
           "type": "string",
           "description": "Phase 5 §C: error reason when a counterfactual query is outside the supported fragment (e.g. non-boolean domain)."
+        },
+        "mediation_decomposition": {
+          "type": "object",
+          "description": "Phase 6.mediation: decomposition metadata emitted for effect queries that carry a mediator atom. Reports structural identifiability of NDE/NIE and CDE separately; the chosen strategy picks the strongest identifiable form.",
+          "required": ["mediator", "mediator_valid", "nde_nie", "cde"],
+          "additionalProperties": false,
+          "properties": {
+            "mediator": {
+              "type": "string",
+              "description": "String form of the mediator atom."
+            },
+            "mediator_valid": {
+              "type": "boolean",
+              "description": "True iff the mediator lies on some directed X → ... → M → ... → Y path. False means the mediator declaration is structurally incompatible with the graph."
+            },
+            "strategy": {
+              "enum": ["nde_nie", "cde", "none"],
+              "description": "The strongest identifiable decomposition: nde_nie if Pearl 2001 four conditions hold, else cde if backdoor on (X,M) is available, else none. Absent when mediator_valid=false."
+            },
+            "nde_nie": {
+              "type": "object",
+              "required": ["identifiable", "adjustment", "failed_condition"],
+              "additionalProperties": false,
+              "properties": {
+                "identifiable": { "type": "boolean" },
+                "adjustment": {
+                  "type": "array",
+                  "description": "Sorted list of atom strings forming the adjustment set W used to make M1-M4 hold. Empty list when identifiable with no adjustment, or when not identifiable.",
+                  "items": { "type": "string" }
+                },
+                "failed_condition": {
+                  "type": ["string", "null"],
+                  "enum": ["M1", "M2", "M3", "M4", null],
+                  "description": "First Pearl 2001 condition that blocks identification (null when identifiable)."
+                }
+              }
+            },
+            "cde": {
+              "type": "object",
+              "required": ["identifiable", "adjustment", "failed_condition"],
+              "additionalProperties": false,
+              "properties": {
+                "identifiable": { "type": "boolean" },
+                "adjustment": {
+                  "type": "array",
+                  "description": "Sorted list of atom strings forming the backdoor adjustment set W for CDE.",
+                  "items": { "type": "string" }
+                },
+                "failed_condition": {
+                  "type": ["string", "null"],
+                  "enum": ["C1", "C2", null],
+                  "description": "First CDE backdoor condition that blocks identification (null when identifiable)."
+                }
+              }
+            }
+          }
         }
       }
     },
