@@ -510,6 +510,39 @@ def verify_identify(
         )
 
 
+def verify_effect_structural(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """Verify a STRUCTURALLY_SOLVED effect-query derivation.
+
+    Used by Phase 6.mediation where an EffectQuery with a mediator
+    lands in structural-identification territory (no numeric formula).
+    The derivation must end with ``identify_via_mediation`` whose
+    output matches the claimed StructuralResult.
+    """
+    if not isinstance(context.query, EffectQuery):
+        raise VerificationError(
+            "verify_effect_structural requires an EffectQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].rule != "identify_via_mediation":
+        raise VerificationError(
+            "structural effect derivation must end in identify_via_mediation; "
+            f"got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
 def verify_numeric(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,

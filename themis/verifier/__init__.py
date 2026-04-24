@@ -26,6 +26,7 @@ from .verify import (
     verify_assoc,
     verify_cause,
     verify_counterfactual,
+    verify_effect_structural,
     verify_identify,
     verify_numeric,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "verify_assoc",
     "verify_cause",
     "verify_counterfactual",
+    "verify_effect_structural",
     "verify_identify",
     "verify_numeric",
 ]

@@ -67,6 +67,7 @@ from .verifier import (
     verify_assoc,
     verify_cause,
     verify_counterfactual,
+    verify_effect_structural,
     verify_identify,
     verify_numeric,
 )
@@ -505,12 +506,20 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         claimed = _decode_structural_result_json(result["structural_result"])
         verify_identify(derivation, ctx, claimed)
     elif kind in ("effect", "probability"):
-        if "numeric_result" not in result:
-            raise ValueError(
-                f"verify(): {kind} result must carry a numeric_result"
-            )
-        claimed = _decode_numeric_result_json(result["numeric_result"])
-        verify_numeric(derivation, ctx, claimed)
+        status = result.get("status")
+        if status == "structurally_solved" and kind == "effect":
+            # Phase 6.mediation: effect queries with a mediator return
+            # STRUCTURALLY_SOLVED without a numeric formula. Route to
+            # the structural effect verifier.
+            claimed = _decode_structural_result_json(result["structural_result"])
+            verify_effect_structural(derivation, ctx, claimed)
+        else:
+            if "numeric_result" not in result:
+                raise ValueError(
+                    f"verify(): {kind} result must carry a numeric_result"
+                )
+            claimed = _decode_numeric_result_json(result["numeric_result"])
+            verify_numeric(derivation, ctx, claimed)
     elif kind == "counterfactual":
         if "numeric_result" not in result:
             raise ValueError(

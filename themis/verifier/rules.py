@@ -831,6 +831,246 @@ def _rule_identify_via_iv(
         )
 
 
+# ===================================================== Phase 6.mediation S.M.3
+
+def _rule_mediation_nde_nie_check(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify Pearl 2001 four-condition check for NDE/NIE identification.
+
+    Given candidate adjustment set W:
+
+    M1: Y m-separated from X given W in G\\bar{X}
+    M2: M m-separated from X given W in G\\bar{X}
+    M3: Y m-separated from M given {X} ∪ W in G\\bar{M}
+    M4: W contains no descendants of X in G
+
+    The check outputs True iff W satisfies all four conditions. A False
+    output means W (possibly empty) does not identify NDE/NIE; callers
+    typically pass adjustment=∅ as the witness for unidentifiability.
+
+    Independent reimplementation — does not call structural_solver.
+    """
+    graph = _require(inputs, "graph", step_index, "mediation_nde_nie_check")
+    _assert_same_graph(graph, ctx.graph, step_index, "mediation_nde_nie_check")
+    x = _require_atom(inputs, "x", step_index, "mediation_nde_nie_check")
+    y = _require_atom(inputs, "y", step_index, "mediation_nde_nie_check")
+    m = _require_atom(inputs, "mediator", step_index, "mediation_nde_nie_check")
+    w = _require_atom_set(
+        inputs, "adjustment", step_index, "mediation_nde_nie_check"
+    )
+
+    if x not in graph or y not in graph or m not in graph:
+        raise RuleCheckFailed(
+            "mediation_nde_nie_check: x, y, or mediator missing from graph",
+            step_index=step_index, rule="mediation_nde_nie_check",
+        )
+    if x == y or x == m or y == m:
+        raise RuleCheckFailed(
+            "mediation_nde_nie_check: x, y, and mediator must be distinct",
+            step_index=step_index, rule="mediation_nde_nie_check",
+        )
+    if w & {x, y, m}:
+        raise RuleCheckFailed(
+            "mediation_nde_nie_check: adjustment must not contain x, y, or mediator",
+            step_index=step_index, rule="mediation_nde_nie_check",
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+
+    # M4: W has no X-descendants. Compute descendants from the directed
+    # edges of G directly (BFS), without importing networkx.descendants.
+    x_desc = _verifier_directed_descendants(graph, x)
+    if w & x_desc:
+        m4 = False
+    else:
+        m4 = True
+
+    w_tuple = tuple(w)
+
+    # Build G\bar{X} (X's outgoing edges removed)
+    g_bar_x = graph.copy()
+    g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
+
+    # M1: Y ⊥ X | W in G\bar{X}
+    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w_tuple)
+
+    # M2: M ⊥ X | W in G\bar{X}
+    m2 = not _verifier_is_m_connected(g_bar_x, bidir, x, m, w_tuple)
+
+    # Build G\bar{M} (M's outgoing edges removed)
+    g_bar_m = graph.copy()
+    g_bar_m.remove_edges_from(list(g_bar_m.out_edges(m)))
+
+    # M3: Y ⊥ M | X, W in G\bar{M}
+    xw_tuple = tuple(w | {x})
+    m3 = not _verifier_is_m_connected(g_bar_m, bidir, m, y, xw_tuple)
+
+    recomputed = m1 and m2 and m3 and m4
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"mediation_nde_nie_check claimed {claimed_output!r}, "
+            f"recomputed {recomputed!r} (M1={m1}, M2={m2}, M3={m3}, M4={m4})",
+            step_index=step_index, rule="mediation_nde_nie_check",
+        )
+
+
+def _rule_mediation_cde_check(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify backdoor-based CDE(m) identification.
+
+    C1: Y m-separated from X given W AND Y m-separated from M given W,
+        both in G\\bar{XM} (outgoing edges from both X and M removed)
+    C2: W contains no descendants of X or M in G
+
+    Independent reimplementation — does not call structural_solver.
+    """
+    graph = _require(inputs, "graph", step_index, "mediation_cde_check")
+    _assert_same_graph(graph, ctx.graph, step_index, "mediation_cde_check")
+    x = _require_atom(inputs, "x", step_index, "mediation_cde_check")
+    y = _require_atom(inputs, "y", step_index, "mediation_cde_check")
+    m = _require_atom(inputs, "mediator", step_index, "mediation_cde_check")
+    w = _require_atom_set(
+        inputs, "adjustment", step_index, "mediation_cde_check"
+    )
+
+    if x not in graph or y not in graph or m not in graph:
+        raise RuleCheckFailed(
+            "mediation_cde_check: x, y, or mediator missing from graph",
+            step_index=step_index, rule="mediation_cde_check",
+        )
+    if x == y or x == m or y == m:
+        raise RuleCheckFailed(
+            "mediation_cde_check: x, y, and mediator must be distinct",
+            step_index=step_index, rule="mediation_cde_check",
+        )
+    if w & {x, y, m}:
+        raise RuleCheckFailed(
+            "mediation_cde_check: adjustment must not contain x, y, or mediator",
+            step_index=step_index, rule="mediation_cde_check",
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+
+    # C2: W has no descendants of X or M
+    x_desc = _verifier_directed_descendants(graph, x)
+    m_desc = _verifier_directed_descendants(graph, m)
+    if w & (x_desc | m_desc):
+        c2 = False
+    else:
+        c2 = True
+
+    w_tuple = tuple(w)
+
+    # Build G\bar{XM}: remove X's and M's outgoing edges
+    g_bar_xm = graph.copy()
+    g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(x)))
+    g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(m)))
+
+    # C1: both Y ⊥ X and Y ⊥ M given W in G\bar{XM}
+    c1_x = not _verifier_is_m_connected(g_bar_xm, bidir, x, y, w_tuple)
+    c1_m = not _verifier_is_m_connected(g_bar_xm, bidir, m, y, w_tuple)
+    c1 = c1_x and c1_m
+
+    recomputed = c1 and c2
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"mediation_cde_check claimed {claimed_output!r}, "
+            f"recomputed {recomputed!r} (C1={c1}, C2={c2})",
+            step_index=step_index, rule="mediation_cde_check",
+        )
+
+
+def _rule_identify_via_mediation(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Consume a mediation_nde_nie_check and a mediation_cde_check and
+    conclude structural identifiability of at least one decomposition.
+
+    ``claimed_output.value`` must be True iff either referenced step
+    output True. When both checks return False, the query is not
+    identifiable by standard backdoor methods and claimed_output.value
+    must be False.
+    """
+    nde_ref = _require(inputs, "nde_nie", step_index, "identify_via_mediation")
+    cde_ref = _require(inputs, "cde", step_index, "identify_via_mediation")
+    if not isinstance(nde_ref, StepRef) or not isinstance(cde_ref, StepRef):
+        raise UnknownRuleInputError(
+            "identify_via_mediation inputs must be StepRef",
+            step_index=step_index, rule="identify_via_mediation",
+        )
+
+    nde_step = step_by_id.get(nde_ref.step_id)
+    cde_step = step_by_id.get(cde_ref.step_id)
+    nde_out = step_output_by_id.get(nde_ref.step_id)
+    cde_out = step_output_by_id.get(cde_ref.step_id)
+
+    if nde_step is None or cde_step is None:
+        raise RuleCheckFailed(
+            "identify_via_mediation: referenced step missing",
+            step_index=step_index, rule="identify_via_mediation",
+        )
+    if nde_step.rule != "mediation_nde_nie_check":
+        raise RuleCheckFailed(
+            "identify_via_mediation: nde_nie must reference mediation_nde_nie_check",
+            step_index=step_index, rule="identify_via_mediation",
+        )
+    if cde_step.rule != "mediation_cde_check":
+        raise RuleCheckFailed(
+            "identify_via_mediation: cde must reference mediation_cde_check",
+            step_index=step_index, rule="identify_via_mediation",
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "identify_via_mediation output must be a StructuralResult",
+            step_index=step_index, rule="identify_via_mediation",
+        )
+
+    any_identifiable = bool(nde_out) or bool(cde_out)
+    if claimed_output.value is not any_identifiable:
+        raise RuleCheckFailed(
+            f"identify_via_mediation output.value must be {any_identifiable!r} "
+            f"(nde_nie={nde_out!r}, cde={cde_out!r}), got {claimed_output.value!r}",
+            step_index=step_index, rule="identify_via_mediation",
+        )
+
+
+def _verifier_directed_descendants(graph, node) -> frozenset:
+    """BFS forward along directed edges to collect descendants.
+
+    Inlined here instead of calling ``nx.descendants`` to keep the
+    verifier's byte-code footprint auditable — the rule functions above
+    scan their own ``co_names`` to prove independence from the runtime
+    solver.
+    """
+    if node not in graph:
+        return frozenset()
+    seen: set = set()
+    frontier = [node]
+    while frontier:
+        nxt = []
+        for n in frontier:
+            for _, succ in graph.out_edges(n):
+                if succ not in seen and succ != node:
+                    seen.add(succ)
+                    nxt.append(succ)
+        frontier = nxt
+    return frozenset(seen)
+
+
 # ========================================================== R6
 
 def _rule_probability_ref_lookup(
@@ -2318,11 +2558,15 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
+    # Phase 6.mediation S.M.3
+    "mediation_nde_nie_check": _rule_mediation_nde_nie_check,
+    "mediation_cde_check": _rule_mediation_cde_check,
 }
 _STEP_REF_RULES = {
     "identify_via_backdoor",
     "identify_via_front_door",
     "identify_via_iv",
+    "identify_via_mediation",
     "numeric_result",
 }
 
@@ -2352,6 +2596,11 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_iv":
         _rule_identify_via_iv(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_mediation":
+        _rule_identify_via_mediation(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return
