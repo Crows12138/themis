@@ -1093,6 +1093,170 @@ def _verifier_directed_descendants(graph, node) -> frozenset:
     return frozenset(seen)
 
 
+# ===================================================== Phase 7.1 S.N.4
+
+_NUMERIC_BACKDOOR_METHODS = frozenset({
+    "backdoor_linear",
+    "backdoor_logistic",
+})
+
+_SHA256_HEX_LEN = 64
+_MIN_NUMERIC_SAMPLE_SIZE = 10
+
+
+def _rule_numeric_backdoor_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Relaxed metadata audit for a data-based backdoor ATE estimate.
+
+    The verifier does NOT re-train — full numerical reproduction would
+    require shipping the data and accepting the runtime cost, and sklearn
+    / bootstrap introduce determinism requirements that make bit-exact
+    re-check brittle. Instead this rule audits the **metadata self-
+    consistency** of a numeric_estimate block:
+
+    - ``method`` is in the allowed enum
+    - ``point`` lies inside ``[ci_lower, ci_upper]`` when the CI is present
+    - ``ci_level`` is a probability in (0, 1)
+    - ``data_hash`` is a well-formed SHA-256 hex digest
+    - ``sample_size`` is at least the DataContract minimum (10)
+    - ``adjustment`` is disjoint from {treatment, outcome}
+    - referenced ``criterion`` step is a ``backdoor_criterion`` whose
+      claimed z-set matches ``adjustment``
+
+    This is narrower than the identification-layer rules (which do
+    full structural re-checks) but catches the realistic tampering
+    / bug cases: wrong method name, point outside CI, corrupted hash,
+    adjustment that overlaps the treatment, mismatched adjustment
+    between structural and numeric steps.
+    """
+    criterion_ref = _require(inputs, "criterion", step_index, "numeric_backdoor_estimate")
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_backdoor_estimate.criterion must be a StepRef",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+    treatment = _require_atom(inputs, "treatment", step_index, "numeric_backdoor_estimate")
+    outcome = _require_atom(inputs, "outcome", step_index, "numeric_backdoor_estimate")
+    adjustment = _require_atom_set(
+        inputs, "adjustment", step_index, "numeric_backdoor_estimate",
+    )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+
+    if method not in _NUMERIC_BACKDOOR_METHODS:
+        raise RuleCheckFailed(
+            f"numeric_backdoor_estimate.method must be one of "
+            f"{sorted(_NUMERIC_BACKDOOR_METHODS)}; got {method!r}",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"numeric_backdoor_estimate.data_hash must be a "
+            f"{_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            "numeric_backdoor_estimate.data_hash must be lowercase hex",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"numeric_backdoor_estimate.sample_size must be an int "
+            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"numeric_backdoor_estimate.point must be a number; got "
+            f"{point!r}",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+    ci_present = ci_lower is not None or ci_upper is not None
+    if ci_present:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                "numeric_backdoor_estimate: ci_lower and ci_upper must "
+                "both be present or both absent",
+                step_index=step_index, rule="numeric_backdoor_estimate",
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"numeric_backdoor_estimate: point {point} is outside "
+                f"[{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule="numeric_backdoor_estimate",
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"numeric_backdoor_estimate.ci_level must be in (0, 1); "
+                f"got {ci_level!r}",
+                step_index=step_index, rule="numeric_backdoor_estimate",
+            )
+
+    if adjustment & {treatment, outcome}:
+        raise RuleCheckFailed(
+            "numeric_backdoor_estimate.adjustment must be disjoint from "
+            "{treatment, outcome}",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None:
+        raise RuleCheckFailed(
+            f"numeric_backdoor_estimate: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+    if criterion_step.rule != "backdoor_criterion":
+        raise RuleCheckFailed(
+            "numeric_backdoor_estimate.criterion must reference a "
+            "backdoor_criterion step",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+    criterion_z = criterion_step.inputs.get("z")
+    if not isinstance(criterion_z, (frozenset, set)):
+        raise RuleCheckFailed(
+            "referenced backdoor_criterion.z must be an atom set",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+    if frozenset(criterion_z) != frozenset(adjustment):
+        raise RuleCheckFailed(
+            "numeric_backdoor_estimate.adjustment must equal the z-set "
+            "claimed by the referenced backdoor_criterion step",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "numeric_backdoor_estimate output must be a StructuralResult",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "numeric_backdoor_estimate output.value must be True",
+            step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+
 # ========================================================== R6
 
 def _rule_probability_ref_lookup(
@@ -2590,6 +2754,8 @@ _STEP_REF_RULES = {
     "identify_via_iv",
     "identify_via_mediation",
     "numeric_result",
+    # Phase 7.1 S.N.4
+    "numeric_backdoor_estimate",
 }
 
 
@@ -2623,6 +2789,11 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_mediation":
         _rule_identify_via_mediation(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_backdoor_estimate":
+        _rule_numeric_backdoor_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

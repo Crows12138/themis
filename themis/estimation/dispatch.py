@@ -140,9 +140,70 @@ def _estimate_effect_queries(
             "treatment": estimate.treatment,
             "outcome": estimate.outcome,
         }
+
+        # Synthesize a minimal derivation so the verifier can audit:
+        #   s1: backdoor_criterion (structural — independent rule re-runs it)
+        #   s2: numeric_backdoor_estimate (metadata audit only — no re-fit)
+        result["derivation"] = _build_numeric_derivation_dict(
+            graph=graph,
+            x=x_atom, y=y_atom,
+            adjustment=chosen,
+            given=frozenset(given_atoms),
+            estimate=estimate,
+        )
+
         # Flip status — numerical answer supersedes "needs_investigation"
         # for theta, which is no longer needed once we have data.
         result["status"] = "numerically_solved"
+        # Structural identifiability was just proven by
+        # minimal_adjustment_sets returning a non-empty result; reflect
+        # that in the structural_result so the verifier's claimed_output
+        # check lines up.
+        result["structural_result"] = {"value": True}
+        result.pop("missing_information", None)
+
+
+def _build_numeric_derivation_dict(
+    *, graph, x, y, adjustment, given, estimate,
+):
+    """Build a two-step derivation (backdoor_criterion + numeric_backdoor_estimate)
+    and encode it to the JSON shape used by query_result.schema.json.
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="backdoor_criterion",
+            inputs={
+                "graph": graph,
+                "x": x, "y": y,
+                "z": frozenset(adjustment),
+                "given": given,
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_backdoor_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "treatment": x,
+                "outcome": y,
+                "adjustment": frozenset(adjustment),
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
 
 
 def _pair_effect_queries(prog, output):

@@ -84,7 +84,18 @@ def _assert_query_binding(
     This keeps the verifier from accepting a perfectly valid proof for
     a different (X, Y, given, do-value) on the same graph.
     """
-    q: IdentifyQuery = context.query
+    q = context.query
+
+    # Extract target atom + given atoms from either an IdentifyQuery
+    # (target is already an Atom) or an EffectQuery (target is a
+    # ValuedAtom). Phase 7.1 reuses backdoor_criterion on the effect
+    # path for the numeric estimate witness.
+    if isinstance(q, EffectQuery):
+        q_target_atom = q.target.atom
+        q_given_atoms = frozenset(g.atom for g in q.given)
+    else:
+        q_target_atom = q.target
+        q_given_atoms = frozenset(q.given)
 
     if step.rule == "backdoor_criterion":
         if step.inputs.get("x") != q.intervention.atom:
@@ -93,14 +104,14 @@ def _assert_query_binding(
                 step_index=step_index,
                 rule=step.rule,
             )
-        if step.inputs.get("y") != q.target:
+        if step.inputs.get("y") != q_target_atom:
             raise VerificationError(
                 "backdoor_criterion.y does not match verification context query",
                 step_index=step_index,
                 rule=step.rule,
             )
         step_given = step.inputs.get("given", frozenset())
-        if frozenset(step_given) != frozenset(q.given):
+        if frozenset(step_given) != q_given_atoms:
             raise VerificationError(
                 "backdoor_criterion.given does not match verification context query",
                 step_index=step_index,
@@ -505,6 +516,41 @@ def verify_identify(
     if derivation[-1].rule not in expected_finals:
         raise VerificationError(
             f"identify derivation must end in one of {expected_finals}; "
+            f"got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
+def verify_numeric_estimate(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """Phase 7.1 — verify a data-based effect estimate derivation.
+
+    The derivation must end in ``numeric_backdoor_estimate``. The rule
+    handler audits metadata self-consistency (method enum, point in CI,
+    data_hash format, adjustment matches structural witness) without
+    re-training — a deliberate relaxation of the identification-layer
+    audits because numerical reproduction is prohibitively expensive
+    for a verifier pass.
+    """
+    if not isinstance(context.query, EffectQuery):
+        raise VerificationError(
+            "verify_numeric_estimate requires an EffectQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].rule != "numeric_backdoor_estimate":
+        raise VerificationError(
+            "numeric-estimate derivation must end in numeric_backdoor_estimate; "
             f"got {derivation[-1].rule!r}",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )

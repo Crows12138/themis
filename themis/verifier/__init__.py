@@ -29,6 +29,7 @@ from .verify import (
     verify_effect_structural,
     verify_identify,
     verify_numeric,
+    verify_numeric_estimate,
 )
 
 __all__ = [
@@ -48,4 +49,5 @@ __all__ = [
     "verify_effect_structural",
     "verify_identify",
     "verify_numeric",
+    "verify_numeric_estimate",
 ]

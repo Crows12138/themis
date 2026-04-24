@@ -245,6 +245,42 @@
     "derivation": {
       "$ref": "derivation.schema.json",
       "description": "Machine-verifiable reasoning chain. Only present when the runtime attached one (identify / effect / probability / cause / assoc). Constrained to the exact derivation.schema.json shape so an external agent can round-trip through derivation_from_dict and re-run the verifier."
+    },
+    "numeric_estimate": {
+      "type": "object",
+      "description": "Phase 7.1: data-based ATE point estimate + CI. Present on effect-query results routed through themis.estimate when a backdoor strategy was available. The verifier audits this block without re-training.",
+      "required": [
+        "point", "ci_lower", "ci_upper", "ci_level", "method",
+        "assumptions", "sample_size", "data_hash", "adjustment",
+        "treatment", "outcome"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "point": { "type": "number" },
+        "ci_lower": { "type": ["number", "null"] },
+        "ci_upper": { "type": ["number", "null"] },
+        "ci_level": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "method": { "enum": ["backdoor_linear", "backdoor_logistic"] },
+        "assumptions": { "type": "array", "items": { "type": "string" } },
+        "sample_size": { "type": "integer", "minimum": 10 },
+        "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "adjustment": { "type": "array", "items": { "type": "string" } },
+        "treatment": { "type": "string" },
+        "outcome": { "type": "string" }
+      }
+    },
+    "estimation_context": {
+      "type": "object",
+      "description": "Phase 7.1: data contract + option snapshot that gave rise to a numeric_estimate. Helps the verifier reason about reproducibility without access to the raw data.",
+      "additionalProperties": false,
+      "properties": {
+        "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sample_size": { "type": "integer", "minimum": 0 },
+        "data_contract_warnings": { "type": "array", "items": { "type": "string" } },
+        "random_state": { "type": "integer" },
+        "ci_bootstrap": { "type": "integer", "minimum": 0 },
+        "model_preference": { "enum": ["auto", "linear", "logistic"] }
+      }
     }
   },
   "$defs": {

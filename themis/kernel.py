@@ -70,6 +70,7 @@ from .verifier import (
     verify_effect_structural,
     verify_identify,
     verify_numeric,
+    verify_numeric_estimate,
 )
 
 
@@ -543,6 +544,15 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # the structural effect verifier.
             claimed = _decode_structural_result_json(result["structural_result"])
             verify_effect_structural(derivation, ctx, claimed)
+        elif (
+            status == "numerically_solved"
+            and kind == "effect"
+            and "numeric_estimate" in result
+        ):
+            # Phase 7.1: data-based effect estimate. Final step is
+            # numeric_backdoor_estimate (relaxed metadata audit).
+            claimed = _decode_structural_result_json(result["structural_result"])
+            verify_numeric_estimate(derivation, ctx, claimed)
         else:
             if "numeric_result" not in result:
                 raise ValueError(
