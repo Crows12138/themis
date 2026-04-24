@@ -957,9 +957,17 @@ def _dispatch_counterfactual(
             ),
         )
 
-    joint_xy, missing, skeletons = _counterfactual_joint_xy(
-        theta, q, graph, bidirected=bidirected
-    )
+    try:
+        joint_xy, missing, skeletons = _counterfactual_joint_xy(
+            theta, q, graph, bidirected=bidirected
+        )
+    except counterfactual.CounterfactualBoundsError as exc:
+        return QueryResult(
+            status=ResultStatus.OUTSIDE_LANGUAGE,
+            query_kind=QueryKind.COUNTERFACTUAL,
+            query_id=stmt.id,
+            extensions={"counterfactual_error": str(exc)},
+        )
     if missing:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
