@@ -1,0 +1,608 @@
+{
+  "case_id": "24_drug_inflammation_mediation_violation",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "takes_antihypertensive_drug",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "blood_pressure_elevated",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "inflammation_elevated",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "heart_disease",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "takes_antihypertensive_drug",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_elevated",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "blood_pressure_elevated",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "heart_disease",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "takes_antihypertensive_drug",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "inflammation_elevated",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "inflammation_elevated",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_elevated",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "inflammation_elevated",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "heart_disease",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "intervention": {
+            "atom": {
+              "predicate": "takes_antihypertensive_drug",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "target": {
+            "atom": {
+              "predicate": "heart_disease",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": [],
+          "mediator": {
+            "predicate": "blood_pressure_elevated",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "mediation_intermediate_confounder",
+          "variable": "inflammation_elevated",
+          "notes": "炎症 is a drug-descendant that also affects both the mediator (blood pressure) and the outcome (heart disease) — the canonical recanting-witness pattern. NDE/NIE are not identified under Pearl 2001's four conditions (M4 violated), and simple backdoor-based CDE also fails. Advanced methods (g-formula) may identify CDE in Phase 7+."
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "effect",
+        "query_id": "q",
+        "structural_result": {
+          "value": false
+        },
+        "investigation_requests": [
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "heart_disease",
+                "reason": "variable 'heart_disease' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "heart_disease",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "takes_antihypertensive_drug",
+                "reason": "variable 'takes_antihypertensive_drug' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "takes_antihypertensive_drug",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "heart_disease",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "takes_antihypertensive_drug",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "mediation_nde_nie_check",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "blood_pressure_elevated",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "heart_disease",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "inflammation_elevated",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "takes_antihypertensive_drug",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      2,
+                      0
+                    ],
+                    [
+                      2,
+                      1
+                    ],
+                    [
+                      3,
+                      0
+                    ],
+                    [
+                      3,
+                      2
+                    ]
+                  ]
+                },
+                "x": {
+                  "kind": "atom",
+                  "predicate": "takes_antihypertensive_drug",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "y": {
+                  "kind": "atom",
+                  "predicate": "heart_disease",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "mediator": {
+                  "kind": "atom",
+                  "predicate": "blood_pressure_elevated",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "adjustment": {
+                  "kind": "atom_set",
+                  "items": []
+                }
+              },
+              "output": false,
+              "step_id": "s1"
+            },
+            {
+              "rule": "mediation_cde_check",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "blood_pressure_elevated",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "heart_disease",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "inflammation_elevated",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "takes_antihypertensive_drug",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      2,
+                      0
+                    ],
+                    [
+                      2,
+                      1
+                    ],
+                    [
+                      3,
+                      0
+                    ],
+                    [
+                      3,
+                      2
+                    ]
+                  ]
+                },
+                "x": {
+                  "kind": "atom",
+                  "predicate": "takes_antihypertensive_drug",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "y": {
+                  "kind": "atom",
+                  "predicate": "heart_disease",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "mediator": {
+                  "kind": "atom",
+                  "predicate": "blood_pressure_elevated",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "adjustment": {
+                  "kind": "atom_set",
+                  "items": []
+                }
+              },
+              "output": false,
+              "step_id": "s2"
+            },
+            {
+              "rule": "identify_via_mediation",
+              "inputs": {
+                "nde_nie": {
+                  "kind": "step_ref",
+                  "step_id": "s1"
+                },
+                "cde": {
+                  "kind": "step_ref",
+                  "step_id": "s2"
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": false
+              },
+              "step_id": "s3"
+            }
+          ]
+        },
+        "extensions": {
+          "mediation_decomposition": {
+            "mediator": "blood_pressure_elevated(me)",
+            "mediator_valid": true,
+            "nde_nie": {
+              "identifiable": false,
+              "adjustment": [],
+              "failed_condition": "M3"
+            },
+            "cde": {
+              "identifiable": false,
+              "adjustment": [],
+              "failed_condition": "C1"
+            },
+            "strategy": "none"
+          }
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Case 24 (intermediate-confounder case): §3c 'Intermediate-confounder hazard' rule fires cleanly. Recognized inflammation as a drug-descendant that also affects both the mediator (blood pressure) and the outcome. Faithfully encoded the full five-edge structure rather than silently dropping inflammation. Declared mediation_intermediate_confounder ambiguity citing the recanting-witness pattern. Variable naming diverges from gold: sub-agent used 'blood_pressure_elevated' + 'takes_antihypertensive_drug' where gold uses 'blood_pressure_lowered' + 'drug'. Structural content identical. Expected kernel output: structurally_solved with strategy=none, nde_nie.failed_condition in {M3, M4}, cde.failed_condition in {C1, C2}.",
+  "extracted_for_scoring": {
+    "variables": [
+      "takes_antihypertensive_drug",
+      "blood_pressure_elevated",
+      "inflammation_elevated",
+      "heart_disease"
+    ],
+    "directed_edges": [
+      [
+        "takes_antihypertensive_drug",
+        "blood_pressure_elevated"
+      ],
+      [
+        "blood_pressure_elevated",
+        "heart_disease"
+      ],
+      [
+        "takes_antihypertensive_drug",
+        "inflammation_elevated"
+      ],
+      [
+        "inflammation_elevated",
+        "blood_pressure_elevated"
+      ],
+      [
+        "inflammation_elevated",
+        "heart_disease"
+      ]
+    ],
+    "mediator": "blood_pressure_elevated",
+    "ambiguities_declared": [
+      "mediation_intermediate_confounder"
+    ]
+  }
+}

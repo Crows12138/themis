@@ -1,0 +1,496 @@
+{
+  "case_id": "23_running_metabolism_mediation",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "running",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "metabolism_improved",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "weight_loss",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "metabolism_improved",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "metabolism_improved",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "weight_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "weight_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "intervention": {
+            "atom": {
+              "predicate": "running",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "target": {
+            "atom": {
+              "predicate": "weight_loss",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": [],
+          "mediator": {
+            "predicate": "metabolism_improved",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "effect",
+        "query_id": "q",
+        "structural_result": {
+          "value": true
+        },
+        "investigation_requests": [
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "weight_loss",
+                "reason": "variable 'weight_loss' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "weight_loss",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "running",
+                "reason": "variable 'running' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "running",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "weight_loss",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "running",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "mediation_nde_nie_check",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "metabolism_improved",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "running",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "weight_loss",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      2
+                    ],
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      1,
+                      2
+                    ]
+                  ]
+                },
+                "x": {
+                  "kind": "atom",
+                  "predicate": "running",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "y": {
+                  "kind": "atom",
+                  "predicate": "weight_loss",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "mediator": {
+                  "kind": "atom",
+                  "predicate": "metabolism_improved",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "adjustment": {
+                  "kind": "atom_set",
+                  "items": []
+                }
+              },
+              "output": true,
+              "step_id": "s1"
+            },
+            {
+              "rule": "mediation_cde_check",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "metabolism_improved",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "running",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "weight_loss",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      2
+                    ],
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      1,
+                      2
+                    ]
+                  ]
+                },
+                "x": {
+                  "kind": "atom",
+                  "predicate": "running",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "y": {
+                  "kind": "atom",
+                  "predicate": "weight_loss",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "mediator": {
+                  "kind": "atom",
+                  "predicate": "metabolism_improved",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "adjustment": {
+                  "kind": "atom_set",
+                  "items": []
+                }
+              },
+              "output": true,
+              "step_id": "s2"
+            },
+            {
+              "rule": "identify_via_mediation",
+              "inputs": {
+                "nde_nie": {
+                  "kind": "step_ref",
+                  "step_id": "s1"
+                },
+                "cde": {
+                  "kind": "step_ref",
+                  "step_id": "s2"
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": true
+              },
+              "step_id": "s3"
+            }
+          ]
+        },
+        "extensions": {
+          "mediation_decomposition": {
+            "mediator": "metabolism_improved(me)",
+            "mediator_valid": true,
+            "nde_nie": {
+              "identifiable": true,
+              "adjustment": [],
+              "failed_condition": null
+            },
+            "cde": {
+              "identifiable": true,
+              "adjustment": [],
+              "failed_condition": null
+            },
+            "strategy": "nde_nie"
+          }
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Case 23 (clean mediation): §3c canonical example match almost verbatim. Trigger pattern '直接效应和间接效应各占多少' fires the mediator-based effect query. Extracted running / metabolism_improved / weight_loss as three variables. Emitted direct edge running→weight_loss (calorie burn) plus mediated path running→metabolism→weight_loss. No confounder refusal needed because narrative explicitly rules out additional variables. mediator field set on query. No §5 ambiguity — prompt says 'clean mediation structure' cases need no ambiguities. Expected kernel output: structurally_solved with strategy=nde_nie.",
+  "extracted_for_scoring": {
+    "variables": [
+      "running",
+      "metabolism_improved",
+      "weight_loss"
+    ],
+    "directed_edges": [
+      [
+        "running",
+        "metabolism_improved"
+      ],
+      [
+        "metabolism_improved",
+        "weight_loss"
+      ],
+      [
+        "running",
+        "weight_loss"
+      ]
+    ],
+    "mediator": "metabolism_improved",
+    "ambiguities_declared": []
+  }
+}
