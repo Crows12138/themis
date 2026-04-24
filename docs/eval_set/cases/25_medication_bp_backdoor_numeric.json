@@ -1,0 +1,79 @@
+{
+  "id": "25_medication_bp_backdoor_numeric",
+  "failure_modes": ["F21_numeric_estimation"],
+  "narrative": "一项观察性研究的数据：病人是否服用某降压药由他们自己决定（不是随机分配），年龄更大的病人更倾向于服药、而且本身血压就更高。我们测量了病人的年龄、是否服药、收缩压。想知道如果所有人都服药，收缩压相比于没人服药会降低多少。",
+  "question": "给定这个观察数据，服药对收缩压的平均因果效应（ATE）是多少？请给出带置信区间的估计。",
+  "gold_variables": [
+    {
+      "predicate": "age",
+      "domain_hint": "continuous",
+      "role": "confounder",
+      "operationalization_hints": {
+        "measurement": "years"
+      }
+    },
+    {
+      "predicate": "medication",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "measurement": "medication adherence flag"
+      }
+    },
+    {
+      "predicate": "systolic_bp",
+      "domain_hint": "continuous",
+      "role": "target",
+      "operationalization_hints": {
+        "measurement": "mmHg"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "age",
+      "to": "medication",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "年龄更大的病人更倾向于服药"
+    },
+    {
+      "from": "age",
+      "to": "systolic_bp",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "本身血压就更高"
+    },
+    {
+      "from": "medication",
+      "to": "systolic_bp",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question",
+      "source_span": "服药对收缩压的平均因果效应"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "systolic_bp",
+      "to": "medication",
+      "reason": "Reverse causation not supported — narrative is about the drug's effect on BP, not about BP influencing drug choice (observed confounding goes through age, not through reverse-causation)"
+    }
+  ],
+  "ambiguities": [],
+  "gold_answerability": "numerically_solved",
+  "gold_query_kind": "effect",
+  "gold_extensions": {
+    "adjustment_set": ["age"],
+    "identification_strategy": "backdoor"
+  },
+  "gold_numeric_estimate": {
+    "true_ate": -10.0,
+    "tolerance": 1.0,
+    "method_expected": "backdoor_linear",
+    "dgp_description": "age ~ Uniform(40, 80); medication ~ Bernoulli(sigmoid(0.1*(age-60))); systolic_bp = 0.8*age + 80 + (-10)*medication + Normal(0, 5); true ATE of medication on bp is exactly -10 mmHg."
+  }
+}

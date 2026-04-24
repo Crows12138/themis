@@ -1,9 +1,10 @@
 # NL-layer failure-mode taxonomy
 
-> Status: v2.2 (2026-04-24). 20 codes. Expanded when a real case
+> Status: v2.3 (2026-04-24). 21 codes. Expanded when a real case
 > exposes a mode the current set doesn't cover. F19 added with
 > Phase 6.iv (IV identification slice). F20 added with
-> Phase 6.mediation (NDE/NIE/CDE identifiability).
+> Phase 6.mediation (NDE/NIE/CDE identifiability). F21 added with
+> Phase 7.1 (numerical estimation from data).
 
 Each code describes one way the A1 → A5 → merge → themis.run
 pipeline can produce a result the user would consider wrong or
@@ -405,6 +406,44 @@ backdoor-based CDE fails C1/C2 simultaneously. strategy=none.
 
 **Slice most relevant**: Phase 6.mediation (S.M.1-S.M.4) +
 mediation_nde_nie_check / mediation_cde_check verifier rules.
+
+## F21 — Numerical estimation from data (ATE recovery)
+
+**Pattern**: NL describes an observational study and asks for the
+numeric causal effect (ATE / risk difference / coefficient) rather
+than just structural identifiability. Data accompanies the question
+as a pandas DataFrame through the ``themis.estimate(ast, data)``
+API (not via kernel_ast JSON).
+
+The system must:
+
+- Identify a valid backdoor adjustment set from the graph
+- Fit E[Y|X, Z] via sklearn (linear for continuous Y, logistic for
+  bool Y) and average the counterfactual predictions over observed Z
+- Report point + (optional) bootstrap CI with method + assumptions
+- Stay deterministic under a fixed ``random_state``
+- Reject or pass through when the graph has no backdoor strategy
+  (7.2 / 7.3 / 7.4 handle front-door / IV / mediation)
+
+**Typical trigger, clean observational study**: "病人自己选择是否服药，
+年龄既影响服药倾向又影响血压。这个数据里服药的 ATE 是多少？" →
+``themis.estimate`` identifies backdoor on {age}, fits linear
+regression, recovers true ATE within tolerance.
+
+**Typical failure**: naive (unadjusted) estimate biased by age
+confounding; correct estimate requires adjustment on {age}.
+
+**Expected correct behavior**:
+
+- ``status = "numerically_solved"``
+- ``numeric_estimate.method`` in {"backdoor_linear", "backdoor_logistic"}
+- ``numeric_estimate.adjustment`` matches the backdoor set found by
+  the identification layer
+- ``numeric_estimate.point`` within DGP-defined tolerance of true ATE
+
+**Slice most relevant**: Phase 7.1 (S.N.1-S.N.7) +
+numeric_backdoor_estimate verifier rule. Front-door / IV / mediation
+numeric estimators land in 7.2 / 7.3 / 7.4.
 
 ## Growth rule
 
