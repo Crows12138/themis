@@ -1,0 +1,86 @@
+{
+  "id": "23_running_metabolism_mediation",
+  "failure_modes": ["F20_mediation_identification"],
+  "narrative": "每天跑步会减肥——一部分是直接消耗热量的作用，另一部分是跑步改善了基础代谢，代谢改善再帮助减肥。没有其他影响代谢和体重的变量被遗漏。",
+  "question": "跑步对减肥的效应里，有多少是通过代谢改善这条路径来的？直接消耗热量的那部分有多大？",
+  "gold_variables": [
+    {
+      "predicate": "running",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "measurement": "daily aerobic activity flag"
+      }
+    },
+    {
+      "predicate": "metabolism_improved",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {
+        "measurement": "resting metabolic rate elevation"
+      }
+    },
+    {
+      "predicate": "weight_loss",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "measurement": "weight change over 3 months",
+        "threshold": "2kg"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "running",
+      "to": "metabolism_improved",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "跑步改善了基础代谢"
+    },
+    {
+      "from": "metabolism_improved",
+      "to": "weight_loss",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "代谢改善再帮助减肥"
+    },
+    {
+      "from": "running",
+      "to": "weight_loss",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "一部分是直接消耗热量的作用"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "metabolism_improved",
+      "to": "running",
+      "reason": "Reverse causation unsupported by narrative — metabolism improvement is the downstream effect, not the cause of running"
+    },
+    {
+      "kind": "bidirected",
+      "pair": ["metabolism_improved", "weight_loss"],
+      "reason": "Narrative explicitly states no other variables affect metabolism and weight — no latent M-Y confounder"
+    }
+  ],
+  "ambiguities": [],
+  "gold_answerability": "structurally_solved",
+  "gold_query_kind": "effect",
+  "gold_query_extras": {
+    "mediator": "metabolism_improved"
+  },
+  "gold_extensions": {
+    "mediation_decomposition": {
+      "strategy": "nde_nie",
+      "mediator_valid": true,
+      "nde_nie_identifiable": true,
+      "cde_identifiable": true
+    }
+  }
+}

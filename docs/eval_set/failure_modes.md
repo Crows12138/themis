@@ -1,8 +1,9 @@
 # NL-layer failure-mode taxonomy
 
-> Status: v2.1 (2026-04-24). 19 codes. Expanded when a real case
+> Status: v2.2 (2026-04-24). 20 codes. Expanded when a real case
 > exposes a mode the current set doesn't cover. F19 added with
-> Phase 6.iv (IV identification slice).
+> Phase 6.iv (IV identification slice). F20 added with
+> Phase 6.mediation (NDE/NIE/CDE identifiability).
 
 Each code describes one way the A1 → A5 → merge → themis.run
 pipeline can produce a result the user would consider wrong or
@@ -364,6 +365,46 @@ identification, not silently accept.
 
 **Slice most relevant**: Phase 6.iv (identification) +
 iv_criterion_check verifier rule.
+
+## F20 — Mediation decomposition (NDE / NIE / CDE identifiability)
+
+**Pattern**: NL asks not just about total effect but about **how
+much of the effect goes through a specific mediator** — the direct
+vs indirect share. This requires Pearl 2001 identification
+(M1/M2/M3/M4 for NDE/NIE; C1/C2 for CDE) rather than a single
+adjustment formula.
+
+The system must:
+
+- Check Pearl's four conditions for NDE/NIE identifiability
+- Check backdoor conditions for CDE(m) identifiability separately
+- Report **strategy** as the strongest available: `nde_nie`
+  (clean decomposition), `cde` (only controlled direct effect),
+  or `none` (not backdoor-identifiable)
+- Surface which condition failed so the user can reason about it
+
+**Typical trigger, clean mediation**: "跑步 → 代谢 → 减肥，再
+加上跑步直接燃烧卡路里。代谢和体重没有其他未观测影响因素" →
+strategy=nde_nie, both decomposition strategies succeed.
+
+**Typical trigger, intermediate-confounder violation**: "药 →
+炎症 → 血压 → 心脏病，但炎症本身也会直接影响心脏病" → the
+canonical recanting-witness case. NDE/NIE fails M3 or M4 (the
+only adjustment candidate is a treatment-descendant), and
+backdoor-based CDE fails C1/C2 simultaneously. strategy=none.
+
+**Expected correct behavior**:
+
+- Clean graph: return `structurally_solved` with
+  `extensions.mediation_decomposition.strategy = "nde_nie"`
+- Intermediate confounder: return `structurally_solved` with
+  `strategy = "none"` and populated `failed_condition` fields
+- Invalid mediator (not on X→M→Y path): return
+  `needs_investigation` with `mediation:invalid_mediator` in
+  missing_information
+
+**Slice most relevant**: Phase 6.mediation (S.M.1-S.M.4) +
+mediation_nde_nie_check / mediation_cde_check verifier rules.
 
 ## Growth rule
 

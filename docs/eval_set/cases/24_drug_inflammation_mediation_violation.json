@@ -1,0 +1,114 @@
+{
+  "id": "24_drug_inflammation_mediation_violation",
+  "failure_modes": ["F20_mediation_identification"],
+  "narrative": "某降压药 → 降低血压 → 降低心脏病风险，但这个药同时也会引起身体炎症反应，炎症水平本身既被药影响、又会推高血压、而且独立影响心脏病风险。",
+  "question": "这个药对心脏病的直接作用（不通过血压）和通过血压的间接作用各占多少？",
+  "gold_variables": [
+    {
+      "predicate": "drug",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "measurement": "prescription adherence"
+      }
+    },
+    {
+      "predicate": "inflammation",
+      "domain_hint": "bool",
+      "role": "intermediate_confounder",
+      "operationalization_hints": {
+        "measurement": "CRP level elevation",
+        "observability": "measurable"
+      }
+    },
+    {
+      "predicate": "blood_pressure_lowered",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {
+        "measurement": "systolic drop",
+        "threshold": "10mmHg"
+      }
+    },
+    {
+      "predicate": "heart_disease",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "measurement": "clinical diagnosis"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "drug",
+      "to": "blood_pressure_lowered",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "降压药 → 降低血压"
+    },
+    {
+      "from": "blood_pressure_lowered",
+      "to": "heart_disease",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "降低血压 → 降低心脏病风险"
+    },
+    {
+      "from": "drug",
+      "to": "inflammation",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "这个药同时也会引起身体炎症反应"
+    },
+    {
+      "from": "inflammation",
+      "to": "blood_pressure_lowered",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "炎症水平本身... 又会推高血压"
+    },
+    {
+      "from": "inflammation",
+      "to": "heart_disease",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "独立影响心脏病风险"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "drug",
+      "to": "heart_disease",
+      "reason": "Narrative describes only indirect pathways (via blood_pressure and via inflammation). No direct drug→heart edge is supported — this is the whole point of the mediation question"
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "mediation_intermediate_confounder",
+      "description": "inflammation is a drug-descendant that also affects both blood_pressure and heart_disease. This is the canonical 'recanting witness' pattern — NDE/NIE decomposition fails Pearl's M4 condition, and backdoor-based CDE also fails (C2 excludes X-descendants from the adjustment pool).",
+      "expected_behavior": "emit extensions.ambiguities[kind=mediation_intermediate_confounder, variable=inflammation] so response_rendering can explain why the clean decomposition isn't available and suggest alternatives (total effect only, or Phase 7 g-formula CDE)"
+    }
+  ],
+  "gold_answerability": "structurally_solved",
+  "gold_query_kind": "effect",
+  "gold_query_extras": {
+    "mediator": "blood_pressure_lowered"
+  },
+  "gold_extensions": {
+    "mediation_decomposition": {
+      "strategy": "none",
+      "mediator_valid": true,
+      "nde_nie_identifiable": false,
+      "cde_identifiable": false,
+      "nde_nie_failed_condition_any_of": ["M3", "M4"],
+      "cde_failed_condition_any_of": ["C1", "C2"]
+    }
+  }
+}
