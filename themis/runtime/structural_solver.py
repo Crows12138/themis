@@ -526,6 +526,274 @@ def minimal_adjustment_sets(
 
 
 # =====================================================================
+# Phase 6.mediation: NDE/NIE/CDE identification (see
+# PHASE_6_MEDIATION_CHARTER.md)
+# =====================================================================
+
+
+class MediationAttempt(NamedTuple):
+    """Outcome of attempting to identify one mediation quantity.
+
+    - ``identifiable``: True iff Pearl's graph-level conditions succeed
+    - ``adjustment``: frozenset W used in the successful adjustment
+      (empty when ``identifiable`` is False)
+    - ``failed_condition``: the first condition that blocked
+      identification ("M1" / "M2" / "M3" / "M4" / "C1" / "C2"), or None
+      on success
+    """
+
+    identifiable: bool
+    adjustment: frozenset[Atom]
+    failed_condition: str | None
+
+
+class MediationResult(NamedTuple):
+    """Identification result for mediation quantities (X, M, Y).
+
+    Both NDE/NIE and CDE are attempted independently. A given graph may
+    support CDE only (classic M4 violation) or both — it never supports
+    NDE/NIE without CDE when the mediator structure is valid.
+    """
+
+    mediator: Atom
+    nde_nie: MediationAttempt
+    cde: MediationAttempt
+    mediator_valid: bool  # False if M doesn't mediate X→Y structurally
+
+
+def _mutilate_outgoing(graph: nx.DiGraph, node: Atom) -> nx.DiGraph:
+    """Return a copy of ``graph`` with all edges leaving ``node`` removed.
+
+    This realises Pearl's ``G_{\\bar{node}}`` subgraph used to isolate
+    backdoor paths (paths that cannot exit ``node`` via its outgoing
+    directed edges).
+    """
+    g = graph.copy()
+    g.remove_edges_from(list(g.out_edges(node)))
+    return g
+
+
+def _check_nde_nie_with_w(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    m: Atom,
+    w: frozenset[Atom],
+    bidirected: "BidirectedEdgeSet",
+) -> str | None:
+    """Return None iff the Pearl 2001 NDE/NIE four conditions hold for
+    adjustment set W; else the first failing condition label.
+    """
+    # M4: W contains no descendants of X
+    x_desc = nx.descendants(graph, x)
+    if w & x_desc:
+        return "M4"
+
+    w_tuple = tuple(w)
+
+    # M1: Y ⊥ X | W in G\bar{X} (all X→Y backdoors blocked by W)
+    g_bar_x = _mutilate_outgoing(graph, x)
+    if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
+        return "M1"
+
+    # M2: M ⊥ X | W in G\bar{X} (all X→M backdoors blocked by W)
+    if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
+        return "M2"
+
+    # M3: Y ⊥ M | X, W in G\bar{M} (all M→Y backdoors blocked by {X}∪W)
+    g_bar_m = _mutilate_outgoing(graph, m)
+    xw_tuple = tuple(w | {x})
+    if is_m_connected(g_bar_m, bidirected, m, y, xw_tuple):
+        return "M3"
+
+    return None
+
+
+def _check_cde_with_w(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    m: Atom,
+    w: frozenset[Atom],
+    bidirected: "BidirectedEdgeSet",
+) -> str | None:
+    """Return None iff the CDE(m) back-door adjustment conditions hold
+    for W; else the first failing condition label.
+
+    C1: in G\\bar{XM} (outgoing edges from both X and M removed), Y is
+        m-separated from X given W AND Y is m-separated from M given W.
+    C2: W contains no descendants of X or of M.
+
+    C2 is strictly weaker than M4 (CDE tolerates X-descendants that are
+    not M-descendants, as long as they aren't on the X→Y backdoor via M
+    routes).
+    """
+    # C2: W excludes descendants of X and of M
+    x_desc = nx.descendants(graph, x)
+    m_desc = nx.descendants(graph, m)
+    if w & (x_desc | m_desc):
+        return "C2"
+
+    w_tuple = tuple(w)
+
+    # C1: in G\bar{XM}, Y m-sep from both X and M given W
+    g_bar_xm = _mutilate_outgoing(graph, x)
+    g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(m)))
+    if is_m_connected(g_bar_xm, bidirected, x, y, w_tuple):
+        return "C1"
+    if is_m_connected(g_bar_xm, bidirected, m, y, w_tuple):
+        return "C1"
+
+    return None
+
+
+def mediation_sets(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    m: Atom,
+    *,
+    bidirected: "BidirectedEdgeSet | None" = None,
+    max_adjustment_size: int = 3,
+) -> MediationResult:
+    """Identify mediation quantities for treatment X, mediator M, outcome Y.
+
+    Checks two strategies in order of informativeness:
+
+    1. **NDE/NIE** (Pearl 2001 Theorem 2): four conditions M1-M4 over a
+       candidate adjustment set W. Succeeds iff some W of size ≤
+       ``max_adjustment_size`` (and drawn from non-X-descendants)
+       satisfies all four. When succeeds, both NDE and NIE are
+       identifiable via the mediation formula.
+    2. **CDE(m)** (backdoor adjustment): conditions C1-C2 over a
+       candidate W. Weaker than NDE/NIE — succeeds whenever standard
+       backdoor adjustment on (X, M) jointly works for Y.
+
+    Both strategies are attempted independently — a graph with an
+    intermediate confounder (X-descendant that affects both M and Y)
+    fails NDE/NIE (M4) but may still support CDE.
+
+    Structural precondition: M must mediate — ``X → ... → M`` and
+    ``M → ... → Y`` directed paths must both exist in ``graph``. If
+    not, ``mediator_valid`` is False and both attempts are reported as
+    non-identifiable with no specific failure code (mediator structure
+    itself fails).
+
+    Subset-minimal search: smallest W first, both strategies return the
+    first valid W found (not all W — keeps output compact).
+
+    Reference: Pearl 2001 "Direct and indirect effects"; VanderWeele
+    2015 ch.2.
+    """
+    from itertools import combinations
+
+    # Structural prerequisite: mediator must actually mediate
+    mediator_ok = (
+        x in graph and y in graph and m in graph
+        and x != y and x != m and y != m
+        and nx.has_path(graph, x, m)
+        and nx.has_path(graph, m, y)
+    )
+
+    if not mediator_ok:
+        empty = MediationAttempt(
+            identifiable=False,
+            adjustment=frozenset(),
+            failed_condition=None,
+        )
+        return MediationResult(
+            mediator=m,
+            nde_nie=empty,
+            cde=empty,
+            mediator_valid=False,
+        )
+
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
+
+    # Candidate W pool for NDE/NIE: excludes X, Y, M, and X-descendants
+    # (M4 pre-filter — saves redundant checks).
+    x_desc = nx.descendants(graph, x)
+    nde_w_pool = [
+        n for n in graph.nodes
+        if n != x and n != y and n != m and n not in x_desc
+    ]
+
+    # Candidate W pool for CDE: excludes X, Y, M, X-descendants, and
+    # M-descendants (C2 pre-filter).
+    m_desc = nx.descendants(graph, m)
+    cde_w_pool = [
+        n for n in graph.nodes
+        if n != x and n != y and n != m
+        and n not in x_desc and n not in m_desc
+    ]
+
+    # Search NDE/NIE (smallest W first)
+    nde_attempt = _search_mediation_adjustment(
+        graph, x, y, m, nde_w_pool, bidir_eff,
+        max_adjustment_size, _check_nde_nie_with_w,
+        default_failed="M4",
+    )
+
+    # Search CDE (smallest W first)
+    cde_attempt = _search_mediation_adjustment(
+        graph, x, y, m, cde_w_pool, bidir_eff,
+        max_adjustment_size, _check_cde_with_w,
+        default_failed="C1",
+    )
+
+    return MediationResult(
+        mediator=m,
+        nde_nie=nde_attempt,
+        cde=cde_attempt,
+        mediator_valid=True,
+    )
+
+
+def _search_mediation_adjustment(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    m: Atom,
+    w_pool: list[Atom],
+    bidirected: "BidirectedEdgeSet",
+    max_size: int,
+    checker,
+    default_failed: str,
+) -> MediationAttempt:
+    """Subset-enumerate W up to ``max_size`` and return the first
+    candidate passing ``checker``. If none pass, report the failure
+    mode of the smallest attempted W (or ``default_failed`` when the
+    pool is pre-filtered and empty).
+    """
+    from itertools import combinations
+
+    last_failure = default_failed
+    upper_size = min(max_size, len(w_pool))
+
+    for size in range(0, upper_size + 1):
+        for combo in combinations(w_pool, size):
+            w = frozenset(combo)
+            failure = checker(graph, x, y, m, w, bidirected)
+            if failure is None:
+                return MediationAttempt(
+                    identifiable=True,
+                    adjustment=w,
+                    failed_condition=None,
+                )
+            # Track the failure seen at the smallest W; when the pool is
+            # pre-filtered (M4/C2 already enforced), the failure must be
+            # a structural one (M1/M2/M3 or C1).
+            if size == 0:
+                last_failure = failure
+
+    return MediationAttempt(
+        identifiable=False,
+        adjustment=frozenset(),
+        failed_condition=last_failure,
+    )
+
+
+# =====================================================================
 # Phase 2.latent S2 — ADMG primitives (solver-only, no scheduler hookup)
 #
 # m-separation and c-component decomposition on a mixed graph. Charter:
