@@ -480,13 +480,16 @@ def _build_identify_via_iv(
 
     structural_result = StructuralResult(value=True)
 
-    # NOTE: bidirected not included in derivation inputs because the
-    # existing serializer treats frozenset as atom_set (it can't handle
-    # nested frozensets). The graph input + verifier reconstruction
-    # (S.IV.3) will re-derive bidirected from the program.
+    # Two-step derivation matching front-door pattern:
+    #   s1: iv_criterion_check — proves (Z, W) satisfies IV1/IV2/IV3
+    #   s2: identify_via_iv    — consumes s1 and concludes identifiable
+    #
+    # bidirected not included in derivation inputs because the existing
+    # serializer treats frozenset as atom_set (can't nest); the verifier
+    # rule reconstructs it from ctx.bidirected.
     derivation = (
         DerivationStep(
-            rule="identify_via_iv",
+            rule="iv_criterion_check",
             inputs={
                 "graph": graph,
                 "x": x,
@@ -494,8 +497,16 @@ def _build_identify_via_iv(
                 "instrument": chosen.instrument,
                 "conditioning": chosen.conditioning,
             },
-            output=structural_result,
+            output=True,
             step_id="s1",
+        ),
+        DerivationStep(
+            rule="identify_via_iv",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+            },
+            output=structural_result,
+            step_id="s2",
         ),
     )
 

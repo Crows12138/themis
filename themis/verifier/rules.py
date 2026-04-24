@@ -706,6 +706,131 @@ def _rule_identify_via_front_door(
         )
 
 
+# ========================================================== Phase 6.iv S.IV.3
+
+def _rule_iv_criterion_check(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify that (instrument Z, conditioning W) satisfies Pearl's IV
+    criterion for (X, Y):
+
+    (IV1 relevance)     Z is m-connected to X given W in G
+    (IV2 exclusion +
+     IV3 independence)  Z is m-separated from Y given W in
+                        G[\\bar{X}] (G with X's outgoing edges removed)
+
+    See PHASE_6_IV_CHARTER.md §3 for the formal reduction of Pearl's
+    three IV conditions to a single m-separation check in the
+    mutilated graph.
+
+    inputs: graph, x, y, instrument, conditioning (frozenset of atoms)
+    output: bool
+    """
+    graph = _require(inputs, "graph", step_index, "iv_criterion_check")
+    _assert_same_graph(graph, ctx.graph, step_index, "iv_criterion_check")
+    x = _require_atom(inputs, "x", step_index, "iv_criterion_check")
+    y = _require_atom(inputs, "y", step_index, "iv_criterion_check")
+    z = _require_atom(inputs, "instrument", step_index, "iv_criterion_check")
+    w = _require_atom_set(inputs, "conditioning", step_index, "iv_criterion_check")
+
+    if x not in graph or y not in graph or z not in graph:
+        raise RuleCheckFailed(
+            "iv_criterion_check: x, y, or instrument missing from graph",
+            step_index=step_index, rule="iv_criterion_check",
+        )
+    if x == y or z == x or z == y:
+        raise RuleCheckFailed(
+            "iv_criterion_check: x, y, and instrument must be distinct",
+            step_index=step_index, rule="iv_criterion_check",
+        )
+    if w & {x, y, z}:
+        raise RuleCheckFailed(
+            "iv_criterion_check: conditioning set must not contain x, y, or z",
+            step_index=step_index, rule="iv_criterion_check",
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    w_tuple = tuple(w)
+
+    # IV1 (relevance): Z and X m-connected given W in original G.
+    iv1 = _verifier_is_m_connected(graph, bidir, z, x, w_tuple)
+
+    # IV2 + IV3 (exogeneity + exclusion): in G with X's outgoing edges
+    # removed, Z is m-separated from Y given W. Build mutilated graph
+    # independently here — no delegation to structural_solver.
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(mutilated.out_edges(x)))
+    iv23 = not _verifier_is_m_connected(mutilated, bidir, z, y, w_tuple)
+
+    recomputed = iv1 and iv23
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"iv_criterion_check claimed {claimed_output!r}, "
+            f"recomputed {recomputed!r} (IV1={iv1}, IV2+IV3={iv23}, "
+            f"admg={bool(bidir)})",
+            step_index=step_index, rule="iv_criterion_check",
+        )
+
+
+def _rule_identify_via_iv(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Consume an ``iv_criterion_check`` step (output True) and conclude
+    that the query is structurally identifiable via IV.
+
+    Unlike ``identify_via_front_door`` / ``identify_via_backdoor`` which
+    also require a formula step, IV identification at the structural
+    layer does NOT emit a closed-form formula — the Wald / 2SLS / LATE
+    formula requires an additional assumption (monotonicity or
+    linearity) chosen at the estimation layer (Phase 7). So the
+    criterion step alone is the full witness.
+    """
+    criterion_ref = _require(inputs, "criterion", step_index, "identify_via_iv")
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "identify_via_iv.criterion must be a StepRef",
+            step_index=step_index, rule="identify_via_iv",
+        )
+
+    criterion_out = step_output_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_out is None or criterion_step is None:
+        raise RuleCheckFailed(
+            f"identify_via_iv: referenced step {criterion_ref.step_id!r} missing",
+            step_index=step_index, rule="identify_via_iv",
+        )
+    if criterion_step.rule != "iv_criterion_check":
+        raise RuleCheckFailed(
+            "identify_via_iv: criterion must reference an iv_criterion_check step",
+            step_index=step_index, rule="identify_via_iv",
+        )
+    if criterion_out is not True:
+        raise RuleCheckFailed(
+            f"identify_via_iv: criterion step did not prove True "
+            f"(got {criterion_out!r})",
+            step_index=step_index, rule="identify_via_iv",
+        )
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "identify_via_iv output must be a StructuralResult",
+            step_index=step_index, rule="identify_via_iv",
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"identify_via_iv output must have value=True, "
+            f"got {claimed_output.value!r}",
+            step_index=step_index, rule="identify_via_iv",
+        )
+
+
 # ========================================================== R6
 
 def _rule_probability_ref_lookup(
@@ -2191,10 +2316,13 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "T3_unroll_acyclic": _rule_t3_unroll_acyclic,
     # Phase 5 §C
     "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
+    # Phase 6.iv S.IV.3
+    "iv_criterion_check": _rule_iv_criterion_check,
 }
 _STEP_REF_RULES = {
     "identify_via_backdoor",
     "identify_via_front_door",
+    "identify_via_iv",
     "numeric_result",
 }
 
@@ -2219,6 +2347,11 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_front_door":
         _rule_identify_via_front_door(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_iv":
+        _rule_identify_via_iv(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

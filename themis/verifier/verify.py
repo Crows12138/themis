@@ -495,7 +495,11 @@ def verify_identify(
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
     if claimed_result.value is True:
-        expected_finals = ("identify_via_backdoor", "identify_via_front_door")
+        expected_finals = (
+            "identify_via_backdoor",
+            "identify_via_front_door",
+            "identify_via_iv",
+        )
     else:
         expected_finals = ("unidentifiable_via_backdoor",)
     if derivation[-1].rule not in expected_finals:
