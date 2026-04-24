@@ -24,6 +24,15 @@ run findings. Three new rules:
   alternative reading(s) in `extensions.ambiguities` so the
   response layer can surface the ambiguity to the user
 
+**v2.3 updates (2026-04-24, Phase 6.mediation)** — decomposition
+queries enter the surface:
+
+- §3c **Mediation decomposition**: when the NL asks about the share
+  of an effect that runs through a mediator (NDE/NIE/CDE), emit
+  `effect` with a `mediator` atom. The kernel runs Pearl 2001 four-
+  condition identification and reports NDE/NIE + CDE separately in
+  `extensions.mediation_decomposition`.
+
 **v2.2 updates (2026-04-22, Phase 5 §T / S.T.6)** — temporal lag is
 now part of the kernel surface:
 
@@ -305,6 +314,90 @@ Output:
 Z as a regular variable without the `Z → X → Y` pattern, and let
 the user clarify. Over-proposing IV is worse than under-proposing
 because users rarely notice silent IV2/IV3 violations.
+
+### 3c. Mediation decomposition (v2.3 / Phase 6.mediation)
+
+When the NL asks not just about total effect but about **how much of
+the effect goes through a specific mediator**, emit an `effect` query
+with a `mediator` field. This triggers the kernel's mediation
+identification path (NDE/NIE/CDE decomposition) instead of a plain
+total-effect formula.
+
+**Trigger patterns**:
+
+| NL pattern | Implied question |
+|---|---|
+| "X 对 Y 的影响里有多少是通过 M 的" | Mediation decomposition |
+| "X 的直接效应和间接效应各占多少" | NDE vs NIE |
+| "排除 M 的作用后，X 还对 Y 有影响吗" | Direct effect (NDE or CDE) |
+| "M 解释了多少 X → Y 的效应" | NIE / indirect share |
+| "如果 M 固定在某水平，X 对 Y 的效应是多少" | CDE (controlled direct) |
+
+**What to emit**:
+
+1. Declare X, Y, M as normal variables with standard framing
+2. Emit the directed edges reflecting the narrative: at minimum
+   `X → M` and `M → Y`; add `X → Y` direct if the NL describes a
+   direct pathway (e.g., "药本身对心脏有直接作用，另外药也会降血压
+   进而影响心脏")
+3. Emit observed confounders (§3a) as usual; if any X-descendant
+   confounds the M → Y relationship, flag `extensions.ambiguities`
+   with kind `mediation_intermediate_confounder`
+4. Set `query.mediator` to the M atom:
+
+```json
+"query": {
+  "kind": "effect",
+  "intervention": {"atom": <x>, "value": true},
+  "target": {"atom": <y>, "value": true},
+  "given": [],
+  "mediator": <m>
+}
+```
+
+**Canonical example**:
+
+NL: "跑步对减肥的影响里，有多少是通过代谢改善来的？"
+
+Output:
+- Variables: `running`, `metabolism_improved`, `weight_loss`
+- Edges:
+  - `running → metabolism_improved` (llm_proposal)
+  - `metabolism_improved → weight_loss` (llm_proposal)
+  - `running → weight_loss` (llm_proposal) — direct calorie burn
+- Query: `effect(weight_loss | do(running), mediator=metabolism_improved)`
+- Ambiguities: none — clean mediation structure
+
+**Intermediate-confounder hazard**:
+
+If the narrative mentions a variable that is both **affected by X**
+AND **affects both M and Y**, this is the canonical "recanting
+witness" — NDE/NIE won't be identifiable (M4 violation), and
+backdoor-based CDE also fails. Emit the structure faithfully and
+flag:
+
+```json
+"extensions.ambiguities": [{
+  "kind": "mediation_intermediate_confounder",
+  "variable": "<W atom>",
+  "notes": "W is an X-descendant that confounds M→Y; NDE/NIE and
+            simple CDE both fail. Advanced methods (g-formula) may
+            still identify CDE in Phase 7+."
+}]
+```
+
+**What NOT to do**:
+
+- Do not silently omit the mediator field when the NL is clearly
+  about decomposition — the kernel will only compute TE, not NDE/NIE
+- Do not confuse mediation with front-door: front-door **identifies
+  TE** when X-Y is confounded; mediation **decomposes TE** into
+  direct + indirect. The decision point is "does the user want one
+  number or a split?"
+- Do not emit multiple `mediator` atoms — first version supports
+  single mediator only. If NL involves a chain M1 → M2, pick the
+  most proximal mediator to Y and flag the other as a secondary
+  ambiguity
 
 ### 4. Emit the query statement
 

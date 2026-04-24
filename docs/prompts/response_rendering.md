@@ -235,6 +235,7 @@ Entry shape (per A1 prompt §5):
 | `individual_vs_population` | "背景给的是人群平均效应（如'平均降压 X'），你问的是'对我有效吗'。这两个估计量不同——个体效应取决于你自己的特征。下面给的是人群平均，作为最接近的近似。" |
 | `categorical_compression` | "这个变量原本是 `<original_levels>` 多档，我压到了 bool（`<cut_point>`）便于运行。你如果想看具体档位之间的对比请告诉我。" |
 | `iv_validity` | "我用 `<instrument>` 作为工具变量识别这个因果效应。这要求 `<instrument>` 只通过 `<treatment>` 影响 `<outcome>`、且 `<instrument>` 和未观测混杂无关——如果这两条哪条你有疑问，告诉我。" |
+| `mediation_intermediate_confounder` | "`<variable>` 既受 `<treatment>` 影响、又影响 `<mediator>` 和 `<outcome>`——这种'中间混杂器'会让直接效应和间接效应的标准分解失效（只能给控制直接效应 CDE，不能给自然直接/间接效应 NDE/NIE）。如果你实际关心的只是总效应而不是分解，我可以换一种算法；或者你确认这个变量实际不存在 / 可以忽略。" |
 
 Use `disambiguation_ask` verbatim if A1 provided it — it was
 drafted with the specific NL context in mind.
@@ -326,6 +327,82 @@ If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
 ambiguity disclosure block (above) will also surface; don't double-
 render — the IV identification section focuses on *what the answer
 is*, the ambiguity section focuses on *what could go wrong*.
+
+## Mediation decomposition disclosure (Phase 6.mediation)
+
+When `extensions.mediation_decomposition` is present, the query
+asked for an effect decomposition through a mediator. The rendering
+must make the four-way distinction explicit and handle partial
+identifiability:
+
+- `strategy: "nde_nie"` — **best case**. Both natural direct/indirect
+  and controlled direct effects are identifiable. Report TE = NDE +
+  NIE and name the adjustment set used.
+- `strategy: "cde"` — **partial**. NDE/NIE not identifiable (usually
+  M4 violation: intermediate confounder), but CDE(m) is. Tell the
+  user: "I can tell you what happens if M is held at a specific
+  value, but I can't cleanly separate direct from indirect under
+  the natural M distribution."
+- `strategy: "none"` — **not identifiable via backdoor methods**.
+  Report which condition failed (`nde_nie.failed_condition` and
+  `cde.failed_condition`) and explain what that means in plain terms.
+- `mediator_valid: false` — structural error: M isn't on any
+  X → ... → M → ... → Y path. Ask the user to verify the mediator
+  declaration or the edge list.
+
+Template for the `nde_nie` success case:
+
+> 关于 `<X>` 通过 `<M>` 对 `<Y>` 的影响分解：
+>
+> - **总效应 TE**：`<X>` 改变对 `<Y>` 的全部影响
+> - **自然间接效应 NIE**：通过 `<M>` 这条路径贡献的部分
+> - **自然直接效应 NDE**：不经过 `<M>` 的部分（比如 `<X>` 直接
+>   影响 `<Y>` 的机理）
+>
+> 在你的图上，这个分解**可以识别**（需要调整 `<adjustment>`）。
+> 具体数字需要 Phase 7 估计层——目前只给出"结构上可分解"的判断。
+
+Template for the `cde` fallback (when NDE/NIE fails):
+
+> 这个问题的**完整分解（NDE + NIE）不可识别**——原因是
+> `<nde_nie.failed_condition>`（通常是中间混杂器问题：有一个变量
+> 既被 `<X>` 影响、又影响 `<M>` 和 `<Y>`）。
+>
+> 但是**控制直接效应 CDE** 还是可以算：如果把 `<M>` 强制固定在某
+> 个值，`<X>` 对 `<Y>` 的剩余影响是多少。
+>
+> 如果你只关心"把 `<M>` 按某水平时 `<X>` 的直接作用有多大"，用
+> CDE；如果一定要"让 `<M>` 自然变化下的直接/间接分解"，这个图
+> 结构上识别不了，需要换图或者引入更强工具（Phase 7+ 的 g-formula）。
+
+Template for the `none` case:
+
+> 对不起，这个图上 `<X>` 对 `<Y>` 通过 `<M>` 的效应**连 CDE 都不
+> 可识别**：`<cde.failed_condition>` 违反了。具体来说：`<simple
+> explanation of which backdoor is open>`。
+>
+> 可能的解决方向：
+> - 观察更多混杂变量（可能解决 `<C1>` / `<M1>` 问题）
+> - 换一个合理的 mediator（如果 `<M>` 不是最合适的候选）
+> - 或者承认这个因果量在当前信息下不可回答
+
+Fields to pull:
+- `mediator` — the M atom name
+- `nde_nie.identifiable` / `cde.identifiable` — which branches succeeded
+- `nde_nie.adjustment` / `cde.adjustment` — the W used
+- `nde_nie.failed_condition` / `cde.failed_condition` — M1/M2/M3/M4
+  or C1/C2; map to plain-language reasons
+
+Common mapping of failed conditions to user-facing reasons:
+
+| Code | Plain explanation |
+|---|---|
+| M1 | "有未观测 / 未调整的 X-Y 混杂" |
+| M2 | "有未观测 / 未调整的 X-M 混杂" |
+| M3 | "有未观测 / 未调整的 M-Y 混杂（给定 X 下）" |
+| M4 | "有中间混杂器（X 的后代同时影响 M 和 Y），经典 recanting witness" |
+| C1 | "无法阻断 (X, M) 到 Y 的所有后门" |
+| C2 | "唯一能阻断后门的变量是 X 或 M 的后代（不允许调整）" |
 
 ## What NOT to do
 
