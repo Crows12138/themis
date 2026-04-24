@@ -137,6 +137,11 @@ class EffectQuery:
     target: "ValuedAtom"
     intervention: Intervention
     given: tuple["ValuedAtom", ...]
+    # Phase 6.mediation: when set, the query asks for a mediation
+    # decomposition (NDE/NIE/CDE) through this mediator atom rather
+    # than a plain total effect. Default None preserves pre-mediation
+    # semantics and JSON schema compatibility.
+    mediator: Atom | None = None
 
 
 @dataclass(frozen=True)

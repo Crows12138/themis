@@ -534,6 +534,151 @@ def _build_identify_via_iv(
     )
 
 
+def _dispatch_mediation(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: EffectQuery,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    """Phase 6.mediation — identification-layer dispatch for NDE/NIE/CDE.
+
+    Invoked from ``_dispatch_effect`` when ``q.mediator`` is set. Runs
+    Pearl's four-condition check for NDE/NIE and the backdoor-based
+    C1/C2 check for CDE via ``structural_solver.mediation_sets``, then
+    packages the result as a STRUCTURALLY_SOLVED QueryResult with
+    ``extensions.mediation_decomposition``.
+
+    No numeric formula is emitted at this layer — mediation estimation
+    (via g-formula / Imai et al. sensitivity analysis) belongs to
+    Phase 7. See PHASE_6_MEDIATION_CHARTER.md §3.3.
+    """
+    x = q.intervention.atom
+    y = q.target.atom
+    m = q.mediator
+    assert m is not None  # guaranteed by caller
+
+    mediation = structural_solver.mediation_sets(
+        graph, x, y, m, bidirected=bidirected or None
+    )
+
+    # Decompose result for extensions and derivation rendering.
+    nde_nie_info = {
+        "identifiable": mediation.nde_nie.identifiable,
+        "adjustment": sorted(
+            _atom_to_str(a) for a in mediation.nde_nie.adjustment
+        ),
+        "failed_condition": mediation.nde_nie.failed_condition,
+    }
+    cde_info = {
+        "identifiable": mediation.cde.identifiable,
+        "adjustment": sorted(
+            _atom_to_str(a) for a in mediation.cde.adjustment
+        ),
+        "failed_condition": mediation.cde.failed_condition,
+    }
+
+    if not mediation.mediator_valid:
+        # Mediator structural prereq fails (no X→M or no M→Y path).
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            structural_result=StructuralResult(value=False),
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="mediation:invalid_mediator",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "mediator does not lie on any directed path "
+                        "X → ... → M → ... → Y; check the mediator "
+                        "declaration or the graph edges"
+                    ),
+                ),
+            ),
+            extensions={
+                "mediation_decomposition": {
+                    "mediator": _atom_to_str(m),
+                    "mediator_valid": False,
+                    "nde_nie": nde_nie_info,
+                    "cde": cde_info,
+                }
+            },
+        )
+
+    # Three-step derivation:
+    #   s1: mediation_nde_nie_check — four-condition check for NDE/NIE
+    #   s2: mediation_cde_check     — backdoor check for CDE
+    #   s3: identify_via_mediation  — decomposition decision + strategy
+    derivation = (
+        DerivationStep(
+            rule="mediation_nde_nie_check",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+                "mediator": m,
+                "adjustment": mediation.nde_nie.adjustment,
+            },
+            output=mediation.nde_nie.identifiable,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="mediation_cde_check",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+                "mediator": m,
+                "adjustment": mediation.cde.adjustment,
+            },
+            output=mediation.cde.identifiable,
+            step_id="s2",
+        ),
+        DerivationStep(
+            rule="identify_via_mediation",
+            inputs={
+                "nde_nie": StepRef(step_id="s1"),
+                "cde": StepRef(step_id="s2"),
+            },
+            output=StructuralResult(
+                value=mediation.nde_nie.identifiable or mediation.cde.identifiable
+            ),
+            step_id="s3",
+        ),
+    )
+
+    extensions = {
+        "mediation_decomposition": {
+            "mediator": _atom_to_str(m),
+            "mediator_valid": True,
+            "nde_nie": nde_nie_info,
+            "cde": cde_info,
+            "strategy": (
+                "nde_nie" if mediation.nde_nie.identifiable
+                else ("cde" if mediation.cde.identifiable else "none")
+            ),
+        }
+    }
+
+    structural_result = StructuralResult(
+        value=mediation.nde_nie.identifiable or mediation.cde.identifiable
+    )
+
+    # Emit STRUCTURALLY_SOLVED regardless of which strategies succeed —
+    # the identifiability of each is captured in extensions. Downstream
+    # NL layer reads strategy + failed_condition to frame the answer.
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        query_id=stmt.id,
+        structural_result=structural_result,
+        derivation=derivation,
+        extensions=extensions,
+    )
+
+
 def _build_effect_frontdoor_structural_prefix(
     *,
     graph: nx.DiGraph,
@@ -1206,6 +1351,8 @@ def _dispatch_effect(
     missing_atoms = [
         a for a in (x, y_atom, *observed_atoms) if a not in graph
     ]
+    if q.mediator is not None and q.mediator not in graph:
+        missing_atoms.append(q.mediator)
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -1221,6 +1368,13 @@ def _dispatch_effect(
                 for a in missing_atoms
             ),
         )
+
+    # Phase 6.mediation: when the query declares a mediator, short-
+    # circuit into mediation identification (NDE/NIE/CDE decomposition)
+    # instead of computing the plain total-effect formula. Identification-
+    # only at this layer; numeric decomposition lands in Phase 7.
+    if q.mediator is not None:
+        return _dispatch_mediation(stmt, graph, q, bidirected=bidirected)
 
     # Phase 2.latent S3.b.1: ADMG-aware backdoor first, front-door
     # second, c-factor pending S3.b.2.

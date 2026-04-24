@@ -652,12 +652,15 @@ def _query_to_dict(q) -> dict:
             "given": [_atom_to_dict(a) for a in q.given],
         }
     if isinstance(q, EffectQuery):
-        return {
+        d = {
             "kind": "effect_query",
             "target": _valued_atom_to_dict(q.target),
             "intervention": _intervention_to_dict(q.intervention),
             "given": [_valued_atom_to_dict(a) for a in q.given],
         }
+        if q.mediator is not None:
+            d["mediator"] = _atom_to_dict(q.mediator)
+        return d
     if isinstance(q, ProbabilityQuery):
         return {
             "kind": "probability_query",
@@ -837,12 +840,16 @@ def _decode_query(d: dict):
         given_raw = d.get("given", [])
         if not isinstance(given_raw, list):
             raise DerivationSerializationError("effect_query.given must be a list")
+        mediator_raw = d.get("mediator")
         return EffectQuery(
             target=_decode_literal_valued_atom(d["target"], "effect_query.target"),
             intervention=_decode_intervention(d["intervention"]),
             given=tuple(
                 _decode_literal_valued_atom(a, f"effect_query.given[{i}]")
                 for i, a in enumerate(given_raw)
+            ),
+            mediator=(
+                _decode_atom(mediator_raw) if mediator_raw is not None else None
             ),
         )
     if kind == "probability_query":

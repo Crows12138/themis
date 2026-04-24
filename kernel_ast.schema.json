@@ -304,6 +304,10 @@
           "items": {
             "$ref": "atom.schema.json#/$defs/groundedAtom"
           }
+        },
+        "mediator": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "Phase 6.mediation: when present, the query asks for a mediation decomposition (NDE/NIE/CDE) through this mediator atom rather than a plain total effect. Omitting the field preserves total-effect semantics."
         }
       }
     },

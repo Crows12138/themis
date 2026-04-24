@@ -139,10 +139,12 @@ def _to_query(d: dict):
             given=tuple(_to_atom(a) for a in d["given"]),
         )
     if k == "effect":
+        mediator_raw = d.get("mediator")
         return EffectQuery(
             target=_to_grounded(d["target"]),
             intervention=_to_intervention(d["intervention"]),
             given=tuple(_to_grounded(a) for a in d["given"]),
+            mediator=_to_atom(mediator_raw) if mediator_raw is not None else None,
         )
     if k == "identify":
         return IdentifyQuery(
