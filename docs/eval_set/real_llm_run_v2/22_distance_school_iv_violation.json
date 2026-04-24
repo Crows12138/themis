@@ -1,0 +1,433 @@
+{
+  "case_id": "22_distance_school_iv_violation",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "distance_to_school",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "community_economic_level",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "high_education",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "high_income",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "distance_to_school",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "high_education",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "narrative"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "high_education",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "high_income",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "bidirected",
+        "left": {
+          "predicate": "high_education",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "right": {
+          "predicate": "high_income",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "narrative"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "community_economic_level",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "distance_to_school",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "narrative"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "community_economic_level",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "high_income",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "narrative"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "identify",
+          "intervention": {
+            "atom": {
+              "predicate": "high_education",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "target": {
+            "predicate": "high_income",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "iv_validity",
+          "instrument": "distance_to_school",
+          "iv2_violation": true,
+          "iv2_violation_path": "distance_to_school ← community_economic_level → high_income",
+          "notes": "IV2 exclusion restriction is VIOLATED. The narrative explicitly states that community_economic_level (偏远农村经济水平) causes both distance_to_school (偏远 → 距离远) and high_income (通过就业机会). This creates an alternative path from the proposed instrument (distance_to_school) to the outcome (high_income) that bypasses the treatment (high_education). Therefore distance_to_school does NOT satisfy IV2, and IV identification must be refused.",
+          "disambiguation_ask": "'距离学校远近'作为工具变量不成立：社区经济水平同时影响'距离远近'和'收入'，形成了工具变量→结果的替代路径（distance_to_school←community_economic_level→high_income），违反了 IV2 排他性限制。如果你能控制/测量社区经济水平，距离可能在条件化后成为有效工具变量——但需要对 community_economic_level 进行测量和调整。"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "identify",
+        "query_id": "q",
+        "structural_result": {
+          "value": true
+        },
+        "framing_notes": [
+          {
+            "predicate": "high_income",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "high_education",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "iv_criterion_check",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "community_economic_level",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "distance_to_school",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "high_education",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "high_income",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      0,
+                      3
+                    ],
+                    [
+                      1,
+                      2
+                    ],
+                    [
+                      2,
+                      3
+                    ]
+                  ]
+                },
+                "x": {
+                  "kind": "atom",
+                  "predicate": "high_education",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "y": {
+                  "kind": "atom",
+                  "predicate": "high_income",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "instrument": {
+                  "kind": "atom",
+                  "predicate": "distance_to_school",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "conditioning": {
+                  "kind": "atom_set",
+                  "items": [
+                    {
+                      "kind": "atom",
+                      "predicate": "community_economic_level",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "output": true,
+              "step_id": "s1"
+            },
+            {
+              "rule": "identify_via_iv",
+              "inputs": {
+                "criterion": {
+                  "kind": "step_ref",
+                  "step_id": "s1"
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": true
+              },
+              "step_id": "s2"
+            }
+          ]
+        },
+        "extensions": {
+          "iv_identification": {
+            "strategy": "iv",
+            "instrument": "distance_to_school(me)",
+            "conditioning": [
+              "community_economic_level(me)"
+            ],
+            "required_assumption": "monotonicity (for LATE/Wald) OR linearity (for 2SLS/ATE)",
+            "alternatives_count": 1
+          }
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Case 22 (Distance-to-school IV violation): §3b fires — distance_to_school is proposed as IV for high_education → high_income. Following the task instruction: DO NOT hide community_economic_level. Extraction: distance_to_school → high_education (IV1 candidate); high_education → high_income (main path); high_education ↔ high_income (bidirected — family background unobserved); community_economic_level → distance_to_school (narrative: 偏远农村经济水平低); community_economic_level → high_income (narrative: 非教育路径影响收入). The community_economic_level variable exposes IV2 violation: there is an alternative path distance_to_school ← community_economic_level → high_income that connects the proposed instrument to the outcome bypassing education. In the IV validity check, distance_to_school is NOT independent of high_income's determinants — community_economic_level is an observed common cause. Expected: IV dispatch tries distance_to_school as instrument; finds that community_economic_level → distance_to_school means distance is not independent of high_income (via community path) → IV3/IV2 violation → IV identification must fail → needs_investigation returned. Declared iv_validity with iv2_violation=True and the exact violation path. Prompt gap note: §3b says 'do NOT emit Z→Y edge to be safe' and focuses on the case where IV is valid. For the invalid-IV case, the correct action is to expose the IV2-violating structure (community_economic_level edges) rather than silently omitting it — this is consistent with §3b's emphasis on not hiding information, and with the task instruction to expose the violation.",
+  "extracted_for_scoring": {
+    "variables": [
+      "distance_to_school",
+      "community_economic_level",
+      "high_education",
+      "high_income"
+    ],
+    "directed_edges": [
+      [
+        "distance_to_school",
+        "high_education"
+      ],
+      [
+        "high_education",
+        "high_income"
+      ],
+      [
+        "community_economic_level",
+        "distance_to_school"
+      ],
+      [
+        "community_economic_level",
+        "high_income"
+      ]
+    ],
+    "bidirected_edges": [
+      [
+        "high_education",
+        "high_income"
+      ]
+    ],
+    "ambiguities_declared": [
+      "iv_validity"
+    ]
+  }
+}

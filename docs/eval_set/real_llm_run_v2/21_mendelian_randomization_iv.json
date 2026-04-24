@@ -1,0 +1,340 @@
+{
+  "case_id": "21_mendelian_randomization_iv",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "gene_variant",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "high_cholesterol",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "heart_disease",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "gene_variant",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "high_cholesterol",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "narrative"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "high_cholesterol",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "heart_disease",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "bidirected",
+        "left": {
+          "predicate": "high_cholesterol",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "right": {
+          "predicate": "heart_disease",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "narrative"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "identify",
+          "intervention": {
+            "atom": {
+              "predicate": "high_cholesterol",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "target": {
+            "predicate": "heart_disease",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "given": []
+        }
+      }
+    ],
+    "extensions": {
+      "ambiguities": [
+        {
+          "kind": "iv_validity",
+          "instrument": "gene_variant",
+          "assumptions": {
+            "IV1_relevance": "gene_variant affects high_cholesterol (narrative: 影响肝脏合成胆固醇)",
+            "IV2_exclusion": "gene_variant affects heart_disease ONLY via high_cholesterol — no direct path. Narrative explicitly states '只通过胆固醇影响心脏病，不直接影响心脏病'. No gene_variant→heart_disease edge emitted.",
+            "IV3_independence": "gene_variant is independent of the lifestyle confounder — narrative states '不和生活方式相关'. This is the Mendelian randomization assumption; challengeable if pleiotropy exists."
+          },
+          "notes": "All three IV assumptions are asserted by the narrative. Response layer should surface them explicitly so the user can challenge each assumption — especially IV3 (pleiotropic effects are a known threat to Mendelian randomization).",
+          "disambiguation_ask": "这个基因变异被假设满足三个工具变量条件：(IV1) 它影响胆固醇；(IV2) 它只通过胆固醇影响心脏病（无直接路径）；(IV3) 它与生活方式混杂因素无关。其中 IV3（独立性）在多效性（pleiotropy）存在时会被违反——这种情况在孟德尔随机化研究中是已知威胁。你同意这三个假设吗？"
+        }
+      ]
+    }
+  },
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "structurally_solved",
+        "query_kind": "identify",
+        "query_id": "q",
+        "structural_result": {
+          "value": true
+        },
+        "framing_notes": [
+          {
+            "predicate": "heart_disease",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "high_cholesterol",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "iv_criterion_check",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "gene_variant",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "heart_disease",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "high_cholesterol",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      2
+                    ],
+                    [
+                      2,
+                      1
+                    ]
+                  ]
+                },
+                "x": {
+                  "kind": "atom",
+                  "predicate": "high_cholesterol",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "y": {
+                  "kind": "atom",
+                  "predicate": "heart_disease",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "instrument": {
+                  "kind": "atom",
+                  "predicate": "gene_variant",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "conditioning": {
+                  "kind": "atom_set",
+                  "items": []
+                }
+              },
+              "output": true,
+              "step_id": "s1"
+            },
+            {
+              "rule": "identify_via_iv",
+              "inputs": {
+                "criterion": {
+                  "kind": "step_ref",
+                  "step_id": "s1"
+                }
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": true
+              },
+              "step_id": "s2"
+            }
+          ]
+        },
+        "extensions": {
+          "iv_identification": {
+            "strategy": "iv",
+            "instrument": "gene_variant(me)",
+            "conditioning": [],
+            "required_assumption": "monotonicity (for LATE/Wald) OR linearity (for 2SLS/ATE)",
+            "alternatives_count": 1
+          }
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Case 21 (Mendelian randomization IV): §3b fires — narrative explicitly names gene_variant as IV candidate ('只通过胆固醇影响心脏病'). Extraction: gene_variant → high_cholesterol (IV1, source=narrative); high_cholesterol → heart_disease (main path, llm_proposal); high_cholesterol ↔ heart_disease (bidirected ADMG edge — lifestyle is unobserved confounder, per §3b rule 4: emit bidirected not a U variable). Critically: NO gene_variant → heart_disease edge emitted — IV2 exclusion requires this, and narrative explicitly states it. Query kind=identify (gold says 'identify'; IV dispatch requires identify query to route through backdoor→front-door→IV fallback chain). Expected: backdoor fails (latent confounder high_cholesterol↔heart_disease blocks all deconfounding sets); front-door fails (no observed mediator — high_cholesterol→heart_disease is direct); IV fires with gene_variant. Declared iv_validity with all three assumptions (IV1/IV2/IV3) so response layer can surface them. Prompt note: §3b explicitly says to emit extensions.ambiguities[kind=iv_validity] — rule is clear and followed.",
+  "extracted_for_scoring": {
+    "variables": [
+      "gene_variant",
+      "high_cholesterol",
+      "heart_disease"
+    ],
+    "directed_edges": [
+      [
+        "gene_variant",
+        "high_cholesterol"
+      ],
+      [
+        "high_cholesterol",
+        "heart_disease"
+      ]
+    ],
+    "bidirected_edges": [
+      [
+        "high_cholesterol",
+        "heart_disease"
+      ]
+    ],
+    "ambiguities_declared": [
+      "iv_validity"
+    ]
+  }
+}

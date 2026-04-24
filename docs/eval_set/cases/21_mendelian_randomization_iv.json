@@ -1,0 +1,78 @@
+{
+  "id": "21_mendelian_randomization_iv",
+  "failure_modes": ["F19_iv_identification"],
+  "narrative": "血清胆固醇水平和心脏病风险相关。但肥胖 / 饮食等生活方式是未观测的混杂 —— 它们既影响胆固醇，也影响心脏病风险。我们找到一个特定的基因变异（影响肝脏合成胆固醇），它只通过胆固醇影响心脏病，不直接影响心脏病也不和生活方式相关。",
+  "question": "血清胆固醇升高是否会导致心脏病？能不能用这个基因变异作为工具变量来识别？",
+  "gold_variables": [
+    {
+      "predicate": "gene_variant",
+      "domain_hint": "bool",
+      "role": "instrument",
+      "operationalization_hints": {
+        "measurement": "specific single-nucleotide polymorphism",
+        "observability": "clinic-measured"
+      }
+    },
+    {
+      "predicate": "high_cholesterol",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "measurement": "serum LDL cholesterol",
+        "threshold": "null"
+      }
+    },
+    {
+      "predicate": "heart_disease",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "lifetime risk",
+        "measurement": "clinical diagnosis"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "gene_variant",
+      "to": "high_cholesterol",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "一个特定的基因变异（影响肝脏合成胆固醇）"
+    },
+    {
+      "from": "high_cholesterol",
+      "to": "heart_disease",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    },
+    {
+      "from": "high_cholesterol",
+      "to": "heart_disease",
+      "kind": "bidirected",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "肥胖 / 饮食等生活方式是未观测的混杂 —— 它们既影响胆固醇，也影响心脏病风险"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "gene_variant",
+      "to": "heart_disease",
+      "reason": "IV2 exclusion restriction —— narrative explicitly states the gene affects heart disease ONLY via cholesterol. Emitting a direct gene→heart_disease edge would silently invalidate the IV."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "iv_validity",
+      "description": "Narrative proposes gene_variant as IV under three assumptions: (IV1) affects cholesterol, (IV2) only via cholesterol, (IV3) independent of lifestyle confounder. The narrative asserts all three but the response layer should make them visible so the user can challenge.",
+      "expected_behavior": "emit extensions.ambiguities[kind=iv_validity] with instrument=gene_variant and a clear statement of the three assumptions so response_rendering can surface them"
+    }
+  ],
+  "gold_answerability": "needs_assumption",
+  "gold_query_kind": "identify"
+}

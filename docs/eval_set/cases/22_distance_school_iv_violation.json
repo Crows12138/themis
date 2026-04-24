@@ -1,0 +1,101 @@
+{
+  "id": "22_distance_school_iv_violation",
+  "failure_modes": ["F19_iv_identification"],
+  "narrative": "想估教育对收入的因果效应。家庭背景是未观测混杂。有人提议用'离学校远近'作为工具变量 —— 距离远 → 上学难度大 → 教育少。但是要注意：距离远的地方往往是偏远农村，社区经济水平本身就低，这可能通过非教育路径（如就业机会）影响收入。",
+  "question": "'距离学校远近'作为教育 → 收入因果效应的工具变量，能成立吗？",
+  "gold_variables": [
+    {
+      "predicate": "distance_to_school",
+      "domain_hint": "bool",
+      "role": "instrument_candidate",
+      "operationalization_hints": {
+        "measurement": "km to nearest school"
+      }
+    },
+    {
+      "predicate": "community_economic_level",
+      "domain_hint": "bool",
+      "role": "confounder_exposing_iv_violation",
+      "operationalization_hints": {
+        "measurement": "mean community income"
+      }
+    },
+    {
+      "predicate": "high_education",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {}
+    },
+    {
+      "predicate": "high_income",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {}
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "distance_to_school",
+      "to": "high_education",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "距离远 → 上学难度大 → 教育少"
+    },
+    {
+      "from": "high_education",
+      "to": "high_income",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge",
+      "source_span": null
+    },
+    {
+      "from": "community_economic_level",
+      "to": "distance_to_school",
+      "kind": "directed",
+      "severity": "should",
+      "source": "narrative",
+      "source_span": "距离远的地方往往是偏远农村，社区经济水平本身就低"
+    },
+    {
+      "from": "community_economic_level",
+      "to": "high_income",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "可能通过非教育路径（如就业机会）影响收入"
+    },
+    {
+      "from": "high_education",
+      "to": "high_income",
+      "kind": "bidirected",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "家庭背景是未观测混杂"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge_missing",
+      "target": "community_economic_level as latent/bidirected",
+      "reason": "community_economic_level is described in the narrative as observable (we can measure where people live and their local economy), so it should be emitted as an observed directed variable — NOT hidden as a latent bidirected edge. Hiding it would silently reclassify the problem."
+    },
+    {
+      "kind": "edge",
+      "from": "distance_to_school",
+      "to": "high_income",
+      "reason": "No direct distance → income edge. The IV2 violation path is via community_economic_level, not direct."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "iv_validity",
+      "description": "The narrative warns that basic IV fails because distance also correlates with community_economic_level which affects income via non-education paths. However, if community_economic_level is observable (as the narrative implies), conditional IV given community IS valid — distance becomes a valid instrument once community is in the conditioning set. The correct output exposes the community variable + its edges; the kernel's conditional IV logic then decides whether the IV is rescued.",
+      "expected_behavior": "emit community_economic_level + its edges (community → distance, community → income). Under Phase 6.iv S.IV.1's conditional IV search (|W| ≤ 3), the kernel will find distance_to_school valid IV given {community_economic_level}. The response layer should surface this via iv_validity ambiguity so the user can confirm community IS observable in their real dataset (if it isn't, conditional IV falls through)."
+    }
+  ],
+  "gold_answerability": "needs_assumption",
+  "gold_query_kind": "identify",
+  "notes_on_conditional_iv_rescue": "This case demonstrates a subtle point: an IV that looks violated at first glance may be rescued by conditional IV if the violating variable is observable. The user-visible output must be honest: 'valid as conditional IV given community' rather than a blanket 'valid IV'. If the user's real dataset doesn't measure community_economic_level, the answer should be upgraded to 'IV fails in this dataset'."
+}

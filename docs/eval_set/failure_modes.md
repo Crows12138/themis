@@ -1,7 +1,8 @@
 # NL-layer failure-mode taxonomy
 
-> Status: v2 (2026-04-22). 18 codes. Expanded when a real case
-> exposes a mode the current set doesn't cover.
+> Status: v2.1 (2026-04-24). 19 codes. Expanded when a real case
+> exposes a mode the current set doesn't cover. F19 added with
+> Phase 6.iv (IV identification slice).
 
 Each code describes one way the A1 → A5 → merge → themis.run
 pipeline can produce a result the user would consider wrong or
@@ -329,6 +330,40 @@ BP) if an individual prediction is genuinely wanted.
 **Slice most relevant**: A1 prompt extension (detect 对我 / 我
 会 patterns against population-level narrative) + response
 rendering disclosure.
+
+## F19 — IV identification (valid use, or IV assumption violation)
+
+**Pattern**: NL proposes a specific variable Z as工具变量 /
+instrumental variable / natural experiment for identifying
+X → Y when X and Y have an unobserved confounder. The system
+must check IV1 / IV2 / IV3 structurally:
+
+- IV1 (relevance): Z has a directed path to X
+- IV2 (exclusion): Z affects Y ONLY through X — no alternative
+  path
+- IV3 (independence): Z does not share latent confounders with Y
+
+**Typical trigger, valid IV**: "血清胆固醇 → 心脏病 identification
+via 某基因变异 (affects cholesterol only, independent of lifestyle)"
+→ structure should resolve via IV fallback (identify_via_iv).
+
+**Typical trigger, IV violation**: "教育 → 收入 via 距离学校，
+但距离同时和社区经济水平相关" → IV2 exclusion violated via
+distance → community → income alt-path. System must refuse IV
+identification, not silently accept.
+
+**Expected correct behavior**:
+
+- Structurally valid: return `structurally_solved` +
+  `extensions.iv_identification` populated + `iv_validity`
+  ambiguity listing the three assumptions
+- Structurally invalid: do NOT return iv_identification success;
+  either structurally_solved with value=False (unidentifiable) or
+  needs_investigation. Surface the specific criterion that failed
+  (IV1/IV2/IV3) in framing_notes or extensions.
+
+**Slice most relevant**: Phase 6.iv (identification) +
+iv_criterion_check verifier rule.
 
 ## Growth rule
 
