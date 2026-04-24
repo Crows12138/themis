@@ -1,10 +1,13 @@
 # Phase 6.mediation Charter — 中介效应分解 (NDE / NIE / CDE) fragment
 
 > 立项日期：2026-04-24
-> 状态：**草案** —— 等用户审阅
+> 状态：**✅ 已落地（2026-04-24）** —— S.M.1 – S.M.7 全部完成
 > 对应 ROADMAP：Phase 6 "识别层完整化 (M1)" 下的第二个 slice
 > 对应 VISION：扩展愿景——覆盖 12 板块的第 6 板块（Mediation）
 > 前置依赖：Phase 6.iv（已落地）；front-door 单 mediator（A6.front-door 已落地）
+>
+> **落地 commit**: ffb240e (S.M.1) → 01efe1d (S.M.2) → c27b44c (S.M.3)
+> → 241e684 (S.M.4) → b56c7da (S.M.5) → 4b7f2b6 (S.M.6) → cff26ea (S.M.7)
 
 ## 0. Scope 说明
 

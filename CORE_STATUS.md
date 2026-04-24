@@ -514,7 +514,7 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 | Slice | Charter | 状态 |
 |---|---|---|
 | 6.iv | PHASE_6_IV_CHARTER.md | **✅ 已落地（2026-04-24）**|
-| 6.mediation | 未立 | 待启动 |
+| 6.mediation | PHASE_6_MEDIATION_CHARTER.md | **✅ 已落地（2026-04-24）**|
 | 6.front-door-multi | 未立 | 待启动 |
 | 6.complete-id | 未立 | 可选延至 Phase 6.5 |
 
@@ -550,6 +550,36 @@ ID）独立 charter；Phase 7（估计器）、Phase 8（发现 + 敏感性）�
 Charter 原估 ~4 周是为 4 个 slice（iv + mediation + multi-front-door
 + complete-id）合计；单独 iv 子 slice 的实际耗时证实算法本身不复杂，
 主要工作在 verifier 独立实现 + schema 扩展 + eval case 配套。
+
+#### Phase 6.mediation 已落地（2026-04-24）
+
+S.M.1 – S.M.7 全部完成：
+- `structural_solver.mediation_sets`：Pearl 2001 四条件 (M1-M4) NDE/NIE
+  识别 + 后门式 CDE 识别 (C1-C2)，ADMG-aware，subset-minimal W 搜索
+- `EffectQuery.mediator` 可选字段 + `_dispatch_mediation` 在 `_dispatch_effect`
+  里短路：STRUCTURALLY_SOLVED + `extensions.mediation_decomposition`
+- 三个新 verifier rule：`mediation_nde_nie_check` / `mediation_cde_check` /
+  `identify_via_mediation`，byte-code scan 钉独立性
+- `verify_effect_structural` 支持 EffectQuery 的识别层结果路径
+- `query_result.schema.json` 加 `extensions.mediation_decomposition` 子
+  schema（strategy 枚举 / failed_condition 严格约束）
+- A1 prompt v2.3 §3c：mediation decomposition 触发模式 + canonical
+  example；response_rendering：三类 strategy 展示模板 + M1-C2 plain-
+  language 映射
+- 2 个 eval case（23 running_metabolism NDE/NIE / 24 drug_inflammation
+  recanting witness）+ F20 taxonomy
+- DoWhy 0.14 parity：5 个案例覆盖共识与语义差异（DoWhy auto-picks
+  mediator，Themis 用户指定 mediator）
+
+**Phase 6.mediation 新增语言 / 语义面**：
+- `EffectQuery` 加可选 `mediator: Atom | None` 字段
+- `QueryResult.extensions.mediation_decomposition` 结构化字段
+- 新 derivation rule names 族（`mediation_*_check` + `identify_via_mediation`）
+
+**未包含**：数值 NDE/NIE 估计（Imai 非参 / g-formula 的 CDE 救援）→
+Phase 7；多 mediator 链式前门 → 6.front-door-multi。
+
+**时间实际**：S.M.1 到 S.M.7 全部落地约 1 天（含 charter 起草 + 测试）。
 
 ---
 
