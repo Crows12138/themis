@@ -234,6 +234,7 @@ Entry shape (per A1 prompt §5):
 | `mechanism_vs_existence` | "你问的是'为什么 / 通过什么机制'——是要知道中间步骤的生理 / 物理过程？本系统目前只能回答'是否存在因果路径'这层，机制链细节不在范围内。下面按'是否存在'给答案。" |
 | `individual_vs_population` | "背景给的是人群平均效应（如'平均降压 X'），你问的是'对我有效吗'。这两个估计量不同——个体效应取决于你自己的特征。下面给的是人群平均，作为最接近的近似。" |
 | `categorical_compression` | "这个变量原本是 `<original_levels>` 多档，我压到了 bool（`<cut_point>`）便于运行。你如果想看具体档位之间的对比请告诉我。" |
+| `iv_validity` | "我用 `<instrument>` 作为工具变量识别这个因果效应。这要求 `<instrument>` 只通过 `<treatment>` 影响 `<outcome>`、且 `<instrument>` 和未观测混杂无关——如果这两条哪条你有疑问，告诉我。" |
 
 Use `disambiguation_ask` verbatim if A1 provided it — it was
 drafted with the specific NL context in mind.
@@ -282,6 +283,49 @@ that was sent to `themis.run`, inspect each `cause` statement's
 This keeps the reasoning chain honest: the user should know when the
 graph they're reasoning on is your hypothesis rather than established
 knowledge.
+
+## IV identification disclosure (Phase 6.iv)
+
+When the result's `extensions.iv_identification` is present, the
+identify was resolved by falling back to the IV strategy (after
+backdoor and front-door both failed). This is significant —
+it means:
+
+1. The user's graph has **at least one unobserved X-Y confounder**
+   (that's why backdoor failed)
+2. The system found an **instrument** that satisfies IV1/IV2/IV3
+3. **The identification only establishes existence** — getting a
+   numeric answer requires an additional estimation-layer assumption
+   that the structural layer does not pick for the user
+
+The rendering must surface all three points. Template:
+
+> 我通过工具变量 `<instrument>` 识别了这条因果效应——也就是说
+> 即使 `<X>` 和 `<Y>` 之间有未观测的共因，这条因果量在结构上仍
+> 可识别。
+>
+> 但是要给出具体数字，**还需要补充一个估计层假设**。可选之一：
+>
+> - **单调性（monotonicity）**——假设 `<instrument>` 对 `<X>` 的
+>   影响方向一致（不会"有的人反向"），得到 LATE（局部平均处理
+>   效应）
+> - **线性性（linearity）**——假设效应是线性的，可以用 2SLS
+>   得到 ATE（平均处理效应）
+>
+> 你倾向哪个假设？或者这两个都不合适？
+
+Fields to pull from `extensions.iv_identification`:
+- `instrument`: name the IV
+- `conditioning`: if non-empty, mention "给定 `<conditioning>` 之后"
+  (conditional IV)
+- `required_assumption`: already summarizes the assumption space
+- `alternatives_count`: if > 1, mention "还有 N - 1 个其他工具变量
+  候选可选" so the user knows there's choice
+
+If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
+ambiguity disclosure block (above) will also surface; don't double-
+render — the IV identification section focuses on *what the answer
+is*, the ambiguity section focuses on *what could go wrong*.
 
 ## What NOT to do
 

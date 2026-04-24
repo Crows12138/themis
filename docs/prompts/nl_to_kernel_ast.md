@@ -243,6 +243,69 @@ confounding has been explicitly studied and ruled out), emit the
 direct edge without a confounder. Judgment calls: add an
 `extensions.ambiguities` entry flagging the decision.
 
+### 3b. Instrumental variables (v2.2 / Phase 6.iv)
+
+When the NL names a candidate **工具变量** / **自然实验** / **外生变
+化**, include it in the extracted variables and (optionally) mark it
+so the kernel's IV dispatch can prioritize. This complements §3a:
+when backdoor identification fails (未观测混杂存在), the kernel
+can fall back to IV identification if a valid instrument is present.
+
+**Trigger patterns**:
+
+| NL pattern | Implied IV role |
+|---|---|
+| "Z 是一个自然实验 / 外生变化" | Z 是 IV 候选 |
+| "Z 只通过 X 影响 Y" / "Z 排除影响 Y 的直接路径" | Z 是 IV 候选 |
+| "用 Z 作工具变量 / 用 Z 做 IV" | Z 是 IV 候选（用户明确指定）|
+| 基因 / 出生日期 / 政策变化 / 距离 作为 X 的解释性变量 | 常见 IV 类型 |
+| "担心 X 和 Y 之间有未观测混杂" | 提示寻找 IV（如果有 Z → X 候选） |
+
+**What to emit**:
+
+1. Declare Z as a normal variable with standard framing fields
+2. Emit `Z → X` as `llm_proposal` cause edge (IV1 relevance)
+3. **Do NOT emit `Z → Y` or any edge from Z to Y** — IV2 exclusion
+   requires Z affects Y only through X
+4. If the NL also describes an unobserved X-Y confounder, emit a
+   bidirected edge `X ↔ Y` per Phase 2.latent (not a U variable
+   per §3a — IV scenarios are naturally ADMG)
+5. Optionally add `extensions.ambiguities` entry of kind `iv_validity`
+   listing the assumption that Z satisfies IV1/IV2/IV3
+
+**Canonical example — arbitrary reader**:
+
+NL: "我想估教育对收入的因果效应，家庭背景是未观测混杂。距离学校的
+远近影响上学难度，能用距离作工具变量吗？"
+
+Output:
+- Variables: `distance_to_school`, `education_level`, `income`
+- Edges:
+  - `distance_to_school → education_level` (llm_proposal) — IV1
+  - `education_level → income` (llm_proposal) — main path
+  - `education_level ↔ income` (bidirected) — the 未观测混杂
+  - **NO** `distance_to_school → income` direct edge (would violate IV2)
+- Query: `identify P(income | do(education_level))`
+- extensions.ambiguities: `{kind: iv_validity, instrument:
+  distance_to_school, notes: "IV2 exclusion assumes distance affects
+  income only through education — challengeable if距离 also correlates
+  with neighborhood income"}`
+
+**What NOT to do**:
+
+- Do not emit `Z → Y` "just to be safe" — this silently violates IV2
+  and will cause the kernel to reject Z as IV during identification
+- Do not force the kernel to pick Z as IV when backdoor might also
+  work — let the dispatch flow decide (backdoor > front-door > IV)
+- Do not claim IV3 (independence of Z from Y's latent confounders)
+  is satisfied silently — if the NL doesn't address it, record
+  the gap in `extensions.ambiguities`
+
+**When uncertain**: if you're not sure Z qualifies as IV, extract
+Z as a regular variable without the `Z → X → Y` pattern, and let
+the user clarify. Over-proposing IV is worse than under-proposing
+because users rarely notice silent IV2/IV3 violations.
+
 ### 4. Emit the query statement
 
 Exactly one `query` statement, with `id: "q"`:
