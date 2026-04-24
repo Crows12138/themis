@@ -1,0 +1,216 @@
+"""Phase 7.1 S.N.3 — end-to-end themis.estimate integration tests.
+
+Validates that:
+- effect query + data → numeric_estimate attached, status flips to
+  numerically_solved
+- adjustment set is recovered from the graph (not the data)
+- point estimate is in the expected range for a known DGP
+- mediation queries pass through untouched (7.4 territory)
+- unidentifiable queries skip the estimator cleanly
+"""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+
+import themis
+
+
+def _atom(p):
+    return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+
+
+def _linear_confounded_dgp(n=1000, seed=0, true_ate=2.0):
+    rng = np.random.default_rng(seed)
+    z = rng.standard_normal(n)
+    # Z confounds X and Y
+    x = rng.random(n) < (1 / (1 + np.exp(-0.8 * z)))
+    y = 1.0 * z + true_ate * x.astype(float) + rng.standard_normal(n) * 0.3
+    return pd.DataFrame({"x": x, "z": z, "y": y})
+
+
+def _confounded_ast():
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("y")},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+            }},
+        ],
+    }
+
+
+# ============================================ happy path
+
+
+def test_effect_query_with_data_returns_numeric_estimate():
+    df = _linear_confounded_dgp(n=1000, seed=0, true_ate=2.0)
+    out = themis.estimate(_confounded_ast(), df, ci_bootstrap=0)
+    result = out["results"][0]
+
+    assert result["status"] == "numerically_solved"
+    est = result["numeric_estimate"]
+    assert est["method"] == "backdoor_linear"
+    assert est["adjustment"] == ["z"]
+    assert abs(est["point"] - 2.0) < 0.25
+    assert est["treatment"] == "x"
+    assert est["outcome"] == "y"
+    assert est["sample_size"] == 1000
+
+
+def test_bootstrap_ci_populated_when_enabled():
+    df = _linear_confounded_dgp(n=500, seed=0, true_ate=2.0)
+    out = themis.estimate(_confounded_ast(), df, ci_bootstrap=100, random_state=1)
+    est = out["results"][0]["numeric_estimate"]
+    assert est["ci_lower"] is not None
+    assert est["ci_upper"] is not None
+    assert est["ci_lower"] <= est["point"] <= est["ci_upper"]
+
+
+def test_empty_adjustment_when_no_confounder():
+    """X → Y with no backdoor: ATE identifiable with empty adjustment."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+            }},
+        ],
+    }
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({
+        "x": rng.random(200) < 0.5,
+        "y": rng.random(200) < 0.5,
+    })
+    out = themis.estimate(ast, df, ci_bootstrap=0)
+    est = out["results"][0]["numeric_estimate"]
+    assert est["adjustment"] == []
+
+
+# ============================================ mediation passthrough
+
+
+def test_mediation_query_is_not_touched():
+    """Effect query with mediator is a 7.4 slot; 7.1 must not hijack it."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("m")},
+            {"kind": "cause", "from": _atom("m"), "to": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+                "mediator": _atom("m"),
+            }},
+        ],
+    }
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({
+        "x": rng.random(100) < 0.5,
+        "m": rng.random(100) < 0.5,
+        "y": rng.random(100) < 0.5,
+    })
+    out = themis.estimate(ast, df, ci_bootstrap=0)
+    result = out["results"][0]
+    # Status stays structurally_solved — mediation estimator is 7.4
+    assert result["status"] == "structurally_solved"
+    assert "numeric_estimate" not in result
+    # But the mediation identification extension is preserved
+    assert "mediation_decomposition" in result["extensions"]
+
+
+# ============================================ unidentifiable passthrough
+
+
+def test_unidentifiable_query_skips_numeric():
+    """X ↔ Y latent confounder, no IV. Backdoor fails, front-door
+    unavailable. 7.1 must not attempt numerical estimation — result
+    stays as-is from identification layer."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "bidirected",
+             "left": _atom("x"), "right": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+            }},
+        ],
+    }
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({
+        "x": rng.random(100) < 0.5,
+        "y": rng.random(100) < 0.5,
+    })
+    out = themis.estimate(ast, df, ci_bootstrap=0)
+    result = out["results"][0]
+    # Identification says needs_investigation — no numeric estimate
+    assert "numeric_estimate" not in result
+
+
+# ============================================ determinism
+
+
+def test_themis_estimate_is_deterministic():
+    df = _linear_confounded_dgp(n=300, seed=0)
+    o1 = themis.estimate(_confounded_ast(), df, ci_bootstrap=50, random_state=42)
+    o2 = themis.estimate(_confounded_ast(), df, ci_bootstrap=50, random_state=42)
+    e1 = o1["results"][0]["numeric_estimate"]
+    e2 = o2["results"][0]["numeric_estimate"]
+    assert e1["point"] == e2["point"]
+    assert e1["ci_lower"] == e2["ci_lower"]
+    assert e1["ci_upper"] == e2["ci_upper"]
+    assert e1["data_hash"] == e2["data_hash"]
+
+
+# ============================================ identify query untouched
+
+
+def test_identify_query_returns_unchanged():
+    """identify query results should NOT get a numeric_estimate — they
+    answer the structural question and have no data semantics."""
+    ast = _confounded_ast()
+    # Flip the query kind to identify
+    ast["statements"][-1] = {
+        "kind": "query", "id": "q", "query": {
+            "kind": "identify",
+            "intervention": {"atom": _atom("x"), "value": True},
+            "target": _atom("y"),
+            "given": [],
+        },
+    }
+    df = _linear_confounded_dgp(n=100, seed=0)
+    out = themis.estimate(ast, df, ci_bootstrap=0)
+    result = out["results"][0]
+    assert result["status"] == "structurally_solved"
+    assert "numeric_estimate" not in result
