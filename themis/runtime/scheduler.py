@@ -235,6 +235,17 @@ def _dispatch_identify(
                 )
                 if front:
                     return _build_identify_via_frontdoor(stmt, graph, q, front)
+                # Phase 6.iv: IV fallback when ADMG backdoor + front-door
+                # both fail. This is the classic IV scenario — X ↔ Y
+                # bidirected (unobserved confounder), and some Z → X with
+                # Z independent of Y in G[\bar{X}].
+                iv = structural_solver.iv_sets(
+                    graph, x, y, bidirected=bidirected
+                )
+                if iv:
+                    return _build_identify_via_iv(
+                        stmt, graph, q, iv, bidirected=bidirected
+                    )
             return QueryResult(
                 status=ResultStatus.NEEDS_INVESTIGATION,
                 query_kind=QueryKind.IDENTIFY,
@@ -247,7 +258,7 @@ def _dispatch_identify(
                         reason=(
                             "Phase 2.latent S3.b.1: this ADMG identify "
                             "query is reachable neither by ADMG-aware "
-                            "backdoor nor front-door. Tian c-factor "
+                            "backdoor, front-door, nor IV. Tian c-factor "
                             "lands in S3.b.2; see "
                             "PHASE_2_LATENT_CHARTER.md §7."
                         ),
@@ -268,6 +279,11 @@ def _dispatch_identify(
             front = structural_solver.front_door_sets(graph, x, y)
             if front:
                 return _build_identify_via_frontdoor(stmt, graph, q, front)
+            # Phase 6.iv: IV fallback. Fires when backdoor + front-door
+            # both unavailable and some Z satisfies Pearl's IV criterion.
+            iv = structural_solver.iv_sets(graph, x, y)
+            if iv:
+                return _build_identify_via_iv(stmt, graph, q, iv)
 
         # No valid adjustment at all. Report unidentifiable.
         result = StructuralResult(value=False)
@@ -431,6 +447,79 @@ def _build_identify_via_frontdoor(
         structural_result=structural_result,
         formula=formula,
         derivation=derivation,
+    )
+
+
+def _build_identify_via_iv(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: IdentifyQuery,
+    iv_candidates: tuple[structural_solver.IVCandidate, ...],
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    """Wrap IV identification into a full QueryResult.
+
+    Unlike backdoor / front-door, IV identification at the structural
+    layer only establishes *existence* of an identification strategy —
+    the specific formula (Wald / 2SLS / LATE) requires an additional
+    assumption (monotonicity or linearity) that lives in the estimation
+    layer (Phase 7). So we:
+
+    - set structural_result.value = True (identifiable)
+    - leave formula = None (no closed form without estimation-layer assumption)
+    - record the chosen instrument + conditioning in extensions
+    - emit a derivation step with rule ``identify_via_iv``
+
+    See PHASE_6_IV_CHARTER.md §3.4 for the identification-vs-estimation
+    boundary.
+    """
+    chosen = iv_candidates[0]  # already sorted by iv_sets (|W| asc)
+
+    x = q.intervention.atom
+    y = q.target
+
+    structural_result = StructuralResult(value=True)
+
+    # NOTE: bidirected not included in derivation inputs because the
+    # existing serializer treats frozenset as atom_set (it can't handle
+    # nested frozensets). The graph input + verifier reconstruction
+    # (S.IV.3) will re-derive bidirected from the program.
+    derivation = (
+        DerivationStep(
+            rule="identify_via_iv",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+                "instrument": chosen.instrument,
+                "conditioning": chosen.conditioning,
+            },
+            output=structural_result,
+            step_id="s1",
+        ),
+    )
+
+    extensions = {
+        "iv_identification": {
+            "strategy": "iv",
+            "instrument": _atom_to_str(chosen.instrument),
+            "conditioning": sorted(
+                _atom_to_str(a) for a in chosen.conditioning
+            ),
+            "required_assumption": (
+                "monotonicity (for LATE/Wald) OR linearity (for 2SLS/ATE)"
+            ),
+            "alternatives_count": len(iv_candidates),
+        }
+    }
+
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.IDENTIFY,
+        query_id=stmt.id,
+        structural_result=structural_result,
+        derivation=derivation,
+        extensions=extensions,
     )
 
 
