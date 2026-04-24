@@ -1,9 +1,12 @@
 # Phase 7.1 Charter — Backdoor 数值估计 + 数据契约
 
 > 立项日期：2026-04-24
-> 状态：**已批准** — 开工
+> 状态：**✅ 已落地（2026-04-24）** — S.N.1 – S.N.7 全部完成
 > 父 charter：PHASE_7_M2_CHARTER.md
 > 目标：打通"数据进来 → backdoor-adjusted ATE 出来"最小闭环
+>
+> **落地 commit**: 3935b81 (S.N.1) → 6059ed8 (S.N.2) → a42129b (S.N.3)
+> → a31bd7e (S.N.4 + partial S.N.5)
 
 ## 0. Scope
 
