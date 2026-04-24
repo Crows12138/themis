@@ -251,6 +251,139 @@ def front_door_sets(
     return tuple(minimal)
 
 
+# =====================================================================
+# Phase 6.iv: IV identification primitive (see PHASE_6_IV_CHARTER.md)
+# =====================================================================
+
+from typing import NamedTuple
+
+
+class IVCandidate(NamedTuple):
+    """A valid instrumental-variable candidate for (X, Y).
+
+    - ``instrument``: the atom Z that serves as the instrument
+    - ``conditioning``: frozen set W such that Z satisfies Pearl's IV
+      conditions given W (empty set = basic IV; non-empty = conditional
+      IV)
+    """
+
+    instrument: Atom
+    conditioning: frozenset[Atom]
+
+
+def iv_sets(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    *,
+    bidirected: "BidirectedEdgeSet | None" = None,
+    max_conditioning_size: int = 3,
+) -> tuple[IVCandidate, ...]:
+    """Find valid instrumental-variable candidates for (X, Y).
+
+    A node Z is a valid IV (optionally given conditioning set W) iff:
+
+    - **IV1 (relevance)**: Z is m-connected to X given W in G — i.e.
+      there is an open directed/ADMG path from Z to X that is not
+      entirely blocked by W.
+    - **IV2 + IV3 (exogeneity + exclusion)**: in the mutilated graph
+      G[\\bar{X}] (G with all edges *leaving* X removed), Z is
+      m-separated from Y given W. This captures both:
+        - exogeneity: Z shares no latent common cause with Y
+          (via bidirected edges, which are preserved in G[\\bar{X}])
+        - exclusion: every Z→Y association in original G goes through X
+
+    Reference: Brito & Pearl 2002 Theorem 2; Pearl 2009 ch.8. The IV
+    condition reduces cleanly to a single m-separation check in the
+    mutilated graph, plus a relevance check in the original graph.
+
+    ``bidirected`` carries ADMG semi-Markov edges (from Phase 2.latent).
+    When None or empty, the check reduces to the pure-DAG version.
+
+    ``max_conditioning_size`` caps the size of the search space for W
+    (see PHASE_6_IV_CHARTER.md §8.2). Default 3 balances coverage
+    (most real-world conditional IV use |W| ≤ 2) against enumeration
+    cost (O(n choose k) subsets for each Z).
+
+    W is drawn from nodes that are not X, Y, Z, or descendants of X
+    in G. Descendants are excluded to prevent conditioning on
+    mediators (standard IV practice).
+
+    Returns a tuple of ``IVCandidate`` entries, sorted by:
+
+    1. |W| ascending (basic IV before conditional IV)
+    2. instrument predicate (stable ordering across runs)
+    3. conditioning predicates (stable ordering)
+
+    For each Z, only subset-minimal valid W are reported — if both
+    W1 ⊂ W2 work for the same Z, only W1 is kept.
+    """
+    from itertools import combinations
+
+    if x not in graph or y not in graph or x == y:
+        return ()
+
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
+
+    # Mutilated graph: G with all edges leaving X removed.
+    # This captures "what can Z reach without going through X?".
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(mutilated.out_edges(x)))
+
+    # Descendants of X in ORIGINAL G — these are excluded from W
+    # (conditioning on mediators breaks identification).
+    x_descendants = nx.descendants(graph, x)
+
+    # Instrument candidates: all nodes except X and Y.
+    # IV1 will filter out any Z with no directed route to X.
+    z_candidates = [v for v in graph.nodes if v != x and v != y]
+
+    all_results: list[IVCandidate] = []
+
+    for z in z_candidates:
+        # W candidates: nodes other than X, Y, Z, and X's descendants.
+        w_pool = [
+            v for v in graph.nodes
+            if v != x and v != y and v != z and v not in x_descendants
+        ]
+
+        # Collect subset-minimal valid W for this Z.
+        minimal_ws: list[frozenset[Atom]] = []
+        upper_size = min(max_conditioning_size, len(w_pool))
+        for size in range(0, upper_size + 1):
+            for combo in combinations(w_pool, size):
+                w = frozenset(combo)
+                # Subset-minimality: skip if a smaller valid W exists.
+                if any(existing <= w for existing in minimal_ws):
+                    continue
+
+                w_tuple = tuple(w)
+
+                # IV1: Z and X m-connected given W in original G.
+                if not is_m_connected(graph, bidir_eff, z, x, w_tuple):
+                    continue
+
+                # IV2 + IV3: Z m-separated from Y in mutilated graph
+                # given W (all remaining Z→Y paths would require going
+                # through X's outgoing edges, which are removed).
+                if is_m_connected(mutilated, bidir_eff, z, y, w_tuple):
+                    continue
+
+                minimal_ws.append(w)
+
+        for w in minimal_ws:
+            all_results.append(IVCandidate(instrument=z, conditioning=w))
+
+    all_results.sort(
+        key=lambda c: (
+            len(c.conditioning),
+            c.instrument.predicate,
+            tuple(sorted(a.predicate for a in c.conditioning)),
+        )
+    )
+    return tuple(all_results)
+
+
 def _is_admg_backdoor_connected(
     graph: nx.DiGraph,
     bidirected: "BidirectedEdgeSet",
