@@ -317,6 +317,36 @@ def run(program: dict | str | bytes) -> dict:
     return _run_typed(prog)
 
 
+def estimate(program: dict | str | bytes, data, **options) -> dict:
+    """Phase 7 M2 entry point — numerical estimation from data.
+
+    ``program`` is a kernel_ast dict / JSON (same as ``run``).
+    ``data`` is a pandas DataFrame whose columns match the predicates
+    referenced by the program.
+
+    Runs the identification pipeline exactly as ``run`` would, then
+    — for effect queries with a resolved adjustment strategy — fits
+    the relevant estimator on ``data`` and attaches a
+    ``numeric_estimate`` block to the corresponding result.
+
+    Supported in 7.1: backdoor-adjusted ATE (binary intervention +
+    bool/continuous outcome). Front-door / IV / mediation estimators
+    land in 7.2 / 7.3 / 7.4 and will route through this same entry.
+
+    Options (kw-only):
+        random_state (int, default 42) — deterministic seed
+        ci_bootstrap (int, default 500) — bootstrap iterations; 0 skips
+        model (str, default 'auto') — 'auto' | 'linear' | 'logistic'
+
+    Returns a dict in the same shape as ``run`` with, where applicable,
+    ``result['numeric_estimate']`` populated.
+    """
+    # Delayed import avoids pulling pandas / sklearn into ``themis.run``'s
+    # import graph for callers that only need identification.
+    from .estimation.dispatch import estimate_program
+    return estimate_program(program, data, **options)
+
+
 def apply_patch_and_run(
     program: dict | str | bytes,
     patches: list[dict] | dict,

@@ -22,12 +22,19 @@ for the embedded reasoning chain). No natural language passes through
 this boundary.
 """
 
-from .kernel import AdmgVerificationPending, apply_patch_and_run, run, verify
+from .kernel import (
+    AdmgVerificationPending,
+    apply_patch_and_run,
+    estimate,
+    run,
+    verify,
+)
 
 __version__ = "0.1.0"
 __all__ = [
     "AdmgVerificationPending",
     "apply_patch_and_run",
+    "estimate",
     "run",
     "verify",
 ]
