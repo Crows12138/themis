@@ -10,7 +10,41 @@
   ],
   "properties": {
     "extensions": {
-      "type": "object"
+      "type": "object",
+      "description": "Open-ended extension map. Known sub-fields have explicit sub-schemas below; unknown fields are allowed (extensions is intentionally open for forward compatibility).",
+      "properties": {
+        "iv_identification": {
+          "type": "object",
+          "description": "Phase 6.iv: metadata emitted when identify / effect is resolved via the IV strategy. The identification only establishes existence of a strategy — the specific formula (Wald / 2SLS / LATE) requires an estimation-layer assumption not captured here.",
+          "required": ["strategy", "instrument", "conditioning", "required_assumption", "alternatives_count"],
+          "additionalProperties": false,
+          "properties": {
+            "strategy": { "const": "iv" },
+            "instrument": {
+              "type": "string",
+              "description": "String form of the chosen instrument atom."
+            },
+            "conditioning": {
+              "type": "array",
+              "description": "Sorted list of atom strings forming the conditioning set W (empty = basic IV, non-empty = conditional IV).",
+              "items": { "type": "string" }
+            },
+            "required_assumption": {
+              "type": "string",
+              "description": "Text describing the estimation-layer assumption needed to produce a numeric answer (e.g. monotonicity for LATE, linearity for 2SLS)."
+            },
+            "alternatives_count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Total number of valid (Z, W) IV candidates found by structural search. The chosen one is always the subset-minimal and lexicographically first; this count reports how many alternatives exist."
+            }
+          }
+        },
+        "counterfactual_error": {
+          "type": "string",
+          "description": "Phase 5 §C: error reason when a counterfactual query is outside the supported fragment (e.g. non-boolean domain)."
+        }
+      }
     },
     "status": {
       "enum": [
