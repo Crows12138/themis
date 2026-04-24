@@ -8,11 +8,12 @@ answer apart from a front-door one — or to re-run the verifier
 against the returned payload — the derivation must cross the JSON
 boundary. These tests pin exactly that:
 
-- Identify / effect / assoc results carry a non-empty ``derivation``
+- Identify / effect / assoc / counterfactual results carry a non-empty ``derivation``
   field under the ``derivation.schema.json`` shape
 - The derivation round-trips through
   ``themis.verifier.serialization.derivation_from_dict`` +
-  ``verify_identify`` / ``verify_cause`` / ``verify_assoc``
+  ``verify_identify`` / ``verify_cause`` / ``verify_assoc`` /
+  ``verify_counterfactual``
 - Results without a derivation (e.g. needs_investigation without an
   attached chain) simply omit the field
 """
@@ -28,6 +29,7 @@ from themis.verifier import (
     VerificationContext,
     derivation_from_dict,
     verify_cause,
+    verify_counterfactual,
     verify_identify,
 )
 
@@ -71,6 +73,41 @@ def _minimal_identify_program() -> dict:
     }
 
 
+def _minimal_counterfactual_program() -> dict:
+    def atom(p): return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": atom("x"), "to": atom("y")},
+            {"kind": "probability",
+             "target": {"atom": atom("x"), "value": False}, "given": [], "value": 0.6},
+            {"kind": "probability",
+             "target": {"atom": atom("x"), "value": True}, "given": [], "value": 0.4},
+            {"kind": "probability",
+             "target": {"atom": atom("y"), "value": False},
+             "given": [{"atom": atom("x"), "value": False}], "value": 0.7},
+            {"kind": "probability",
+             "target": {"atom": atom("y"), "value": True},
+             "given": [{"atom": atom("x"), "value": False}], "value": 0.3},
+            {"kind": "probability",
+             "target": {"atom": atom("y"), "value": False},
+             "given": [{"atom": atom("x"), "value": True}], "value": 0.2},
+            {"kind": "probability",
+             "target": {"atom": atom("y"), "value": True},
+             "given": [{"atom": atom("x"), "value": True}], "value": 0.8},
+            {"kind": "query", "id": "q",
+             "query": {"kind": "counterfactual",
+                       "observed": {"atom": atom("x"), "value": False},
+                       "counterfactual_intervention": {"atom": atom("x"), "value": True},
+                       "counterfactual_target": {"atom": atom("y"), "value": True},
+                       "assumptions": {"monotonicity": "non_decreasing"}}},
+        ],
+    }
+
+
 # ============================================================ presence
 
 def test_cause_result_json_carries_derivation():
@@ -102,6 +139,15 @@ def test_identify_json_distinguishes_backdoor_from_front_door():
     r = _run(_minimal_identify_program())[0]
     final = r["derivation"]["steps"][-1]["rule"]
     assert final in ("identify_via_backdoor", "identify_via_front_door")
+
+
+def test_counterfactual_result_json_carries_derivation():
+    r = _run(_minimal_counterfactual_program())[0]
+    assert "derivation" in r
+    assert r["derivation"]["kind"] == "derivation"
+    assert [s["rule"] for s in r["derivation"]["steps"]] == [
+        "counterfactual_bounds_binary_monotone"
+    ]
 
 
 # ========================================================== round-trip
@@ -169,6 +215,35 @@ def test_cause_derivation_round_trips_through_verify_cause():
     assert isinstance(q_stmt.query, CauseQuery)
     ctx = VerificationContext(graph=graph, query=q_stmt.query)
     verify_cause(decoded, ctx, typed_r.structural_result)
+
+
+def test_counterfactual_derivation_round_trips_through_verify_counterfactual():
+    from themis.input.semantic_validator import validate_program
+    from themis.input.syntactic_validator import validate_ast
+    from themis.runtime.graph_projection import project
+    from themis.runtime.instantiation import instantiate
+    from themis.runtime.theta_builder import build_theta
+    from themis.runtime.scheduler import dispatch_all
+    from themis.types import CounterfactualQuery
+
+    ast_dict = _minimal_counterfactual_program()
+    ast = validate_ast(json.loads(json.dumps(ast_dict)))
+    prog = validate_program(ast)
+    ground = instantiate(prog)
+    graph = project(ground)
+    theta = build_theta(ground)
+    typed_r = dispatch_all(prog, graph)[0]
+
+    json_r = themis.run(ast_dict)["results"][0]
+    decoded = derivation_from_dict(json_r["derivation"])
+
+    q_stmt = next(
+        s for s in prog.statements
+        if hasattr(s, "id") and getattr(s, "id", None) == "q"
+    )
+    assert isinstance(q_stmt.query, CounterfactualQuery)
+    ctx = VerificationContext(graph=graph, query=q_stmt.query, theta=theta)
+    verify_counterfactual(decoded, ctx, typed_r.numeric_result)
 
 
 # ============================================================= absence

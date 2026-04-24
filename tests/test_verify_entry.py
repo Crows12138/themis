@@ -114,6 +114,62 @@ def _probability_program_with_theta() -> dict:
     }
 
 
+def _counterfactual_program_with_theta() -> dict:
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "chose_cs_major", "domain": [True, False]},
+            {"kind": "variable", "predicate": "higher_income", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("chose_cs_major"), "to": _atom("higher_income")},
+            {
+                "kind": "probability",
+                "target": {"atom": _atom("chose_cs_major"), "value": False},
+                "given": [],
+                "value": 0.6,
+            },
+            {
+                "kind": "probability",
+                "target": {"atom": _atom("chose_cs_major"), "value": True},
+                "given": [],
+                "value": 0.4,
+            },
+            {
+                "kind": "probability",
+                "target": {"atom": _atom("higher_income"), "value": False},
+                "given": [{"atom": _atom("chose_cs_major"), "value": False}],
+                "value": 0.7,
+            },
+            {
+                "kind": "probability",
+                "target": {"atom": _atom("higher_income"), "value": True},
+                "given": [{"atom": _atom("chose_cs_major"), "value": False}],
+                "value": 0.3,
+            },
+            {
+                "kind": "probability",
+                "target": {"atom": _atom("higher_income"), "value": False},
+                "given": [{"atom": _atom("chose_cs_major"), "value": True}],
+                "value": 0.2,
+            },
+            {
+                "kind": "probability",
+                "target": {"atom": _atom("higher_income"), "value": True},
+                "given": [{"atom": _atom("chose_cs_major"), "value": True}],
+                "value": 0.8,
+            },
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "counterfactual",
+                 "observed": {"atom": _atom("chose_cs_major"), "value": False},
+                 "counterfactual_intervention": {"atom": _atom("chose_cs_major"), "value": True},
+                 "counterfactual_target": {"atom": _atom("higher_income"), "value": True},
+                 "assumptions": {"monotonicity": "non_decreasing"},
+             }},
+        ],
+    }
+
+
 # =============================================== accept round-trips
 
 @pytest.mark.parametrize("program_factory,expected_status", [
@@ -122,7 +178,8 @@ def _probability_program_with_theta() -> dict:
     (_assoc_program,                    "structurally_solved"),
     (_effect_program_with_theta,        "numerically_solved"),
     (_probability_program_with_theta,   "numerically_solved"),
-], ids=["cause", "identify", "assoc", "effect", "probability"])
+    (_counterfactual_program_with_theta, "counterfactual_bounded"),
+], ids=["cause", "identify", "assoc", "effect", "probability", "counterfactual"])
 def test_verify_accepts_run_output_round_trip(program_factory, expected_status):
     """For each query kind, a result produced by ``themis.run`` must
     pass ``themis.verify`` without raising."""
@@ -148,6 +205,16 @@ def test_verify_rejects_numeric_value_mismatch():
     program = _effect_program_with_theta()
     result = copy.deepcopy(themis.run(program)["results"][0])
     result["numeric_result"]["value"] = result["numeric_result"]["value"] + 0.1
+    with pytest.raises(VerificationError):
+        themis.verify(program, result)
+
+
+def test_verify_rejects_counterfactual_interval_mismatch():
+    program = _counterfactual_program_with_theta()
+    result = copy.deepcopy(themis.run(program)["results"][0])
+    result["numeric_result"]["interval"]["low"] = (
+        result["numeric_result"]["interval"]["low"] + 0.1
+    )
     with pytest.raises(VerificationError):
         themis.verify(program, result)
 

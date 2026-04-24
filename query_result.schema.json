@@ -17,7 +17,10 @@
         "structurally_solved",
         "numerically_solved",
         "needs_investigation",
-        "outside_language"
+        "outside_language",
+        "counterfactual_solved",
+        "counterfactual_bounded",
+        "needs_assumption"
       ]
     },
     "query_id": {
@@ -29,7 +32,8 @@
         "assoc",
         "effect",
         "identify",
-        "probability"
+        "probability",
+        "counterfactual"
       ]
     },
     "structural_result": {
@@ -362,6 +366,7 @@
             "observation",
             "sample",
             "structure",
+            "assumption",
             "framing"
           ]
         },
@@ -485,11 +490,12 @@
         "action": {
           "enum": [
             "collect_observation",
-            "run_experiment",
-            "increase_sample",
-            "validate_parameter",
-            "define_variable"
-          ]
+              "run_experiment",
+              "increase_sample",
+              "validate_parameter",
+              "define_assumption",
+              "define_variable"
+            ]
         },
         "target": {
           "type": "string",
@@ -507,7 +513,7 @@
         },
         "group": {
           "type": "string",
-          "description": "MissingKind.value for parameter/observation/sample/structure groups, or 'framing' for DEFINE_VARIABLE (slice F1) — items in the same request share a channel."
+          "description": "MissingKind.value for parameter/observation/sample/structure/assumption groups, or 'framing' for DEFINE_VARIABLE (slice F1) — items in the same request share a channel."
         },
         "items": {
           "type": "array",

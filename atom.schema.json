@@ -54,6 +54,22 @@
         }
       ]
     },
+    "relativeTimeIndex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "relative"
+        },
+        "value": {
+          "type": "integer"
+        }
+      }
+    },
     "atom": {
       "type": "object",
       "additionalProperties": false,
@@ -70,6 +86,9 @@
           "items": {
             "$ref": "#/$defs/term"
           }
+        },
+        "time_index": {
+          "$ref": "#/$defs/relativeTimeIndex"
         }
       }
     },

@@ -32,7 +32,15 @@ EXAMPLES_DIR = (
 def _load_narrative_examples():
     files = sorted(EXAMPLES_DIR.glob("narrative_*.json"))
     assert files, f"no narrative examples under {EXAMPLES_DIR}"
-    return [pytest.param(path, id=path.stem) for path in files]
+    variable_examples = []
+    for path in files:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if "variables" in payload:
+            variable_examples.append(pytest.param(path, id=path.stem))
+    assert variable_examples, (
+        f"no narrative->variables examples under {EXAMPLES_DIR}"
+    )
+    return variable_examples
 
 
 def _wrap_as_minimal_program(variables: list[dict]) -> dict:

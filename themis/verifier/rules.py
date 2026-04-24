@@ -17,6 +17,7 @@ Named rules in this file:
 """
 from __future__ import annotations
 
+from itertools import product
 from typing import Any, Callable
 
 import networkx as nx
@@ -26,8 +27,10 @@ from ..types import (
     Atom,
     BindDecl,
     ConstantExpr,
+    CounterfactualQuery,
     FormulaExpr,
     IdentifyQuery,
+    NumericInterval,
     NumericResult,
     ProbabilityRefExpr,
     ProductExpr,
@@ -1141,7 +1144,11 @@ def _atom_label_verifier(atom: Atom) -> str:
     string format aligned means the verifier can rebuild the supporting_paths
     tuple from Atom-form witnesses and compare to the elaborator's output."""
     args = ",".join(a.name for a in atom.args)
-    return f"{atom.predicate}({args})"
+    base = f"{atom.predicate}({args})"
+    if atom.time_index is None:
+        return base
+    t = atom.time_index.value
+    return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
 def _validate_path_as_tuple_of_atoms(
@@ -1607,6 +1614,555 @@ def _rule_m_connection_witness(
 
 # ========================================================== registry
 
+
+# ========================================================== Phase 5 §T / S.T.2
+
+def _relative_time_value(
+    atom: Atom,
+    *,
+    step_index: int,
+    rule: str,
+    what: str,
+) -> int:
+    ti = atom.time_index
+    if ti is None:
+        raise RuleCheckFailed(
+            f"{rule}: {what} must carry a relative time_index",
+            step_index=step_index, rule=rule,
+        )
+    return ti.value
+
+
+def _rule_t1_time_monotonicity(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Phase 5 §T / T1: source time must not be later than destination."""
+    graph = _require(inputs, "graph", step_index, "T1_time_monotonicity")
+    _assert_same_graph(graph, ctx.graph, step_index, "T1_time_monotonicity")
+    src = _require_atom(inputs, "src", step_index, "T1_time_monotonicity")
+    dst = _require_atom(inputs, "dst", step_index, "T1_time_monotonicity")
+    src_t = _relative_time_value(
+        src, step_index=step_index, rule="T1_time_monotonicity", what="src",
+    )
+    dst_t = _relative_time_value(
+        dst, step_index=step_index, rule="T1_time_monotonicity", what="dst",
+    )
+    recomputed = src_t <= dst_t
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"T1_time_monotonicity claimed {claimed_output!r}, recomputed "
+            f"{recomputed!r} for src_t={src_t}, dst_t={dst_t}",
+            step_index=step_index, rule="T1_time_monotonicity",
+        )
+
+
+def _rule_t2_lag_bound(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Phase 5 §T / T2: first-order Markov bound, lag <= 1."""
+    graph = _require(inputs, "graph", step_index, "T2_lag_bound")
+    _assert_same_graph(graph, ctx.graph, step_index, "T2_lag_bound")
+    src = _require_atom(inputs, "src", step_index, "T2_lag_bound")
+    dst = _require_atom(inputs, "dst", step_index, "T2_lag_bound")
+    src_t = _relative_time_value(
+        src, step_index=step_index, rule="T2_lag_bound", what="src",
+    )
+    dst_t = _relative_time_value(
+        dst, step_index=step_index, rule="T2_lag_bound", what="dst",
+    )
+    recomputed = (dst_t - src_t) <= 1
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"T2_lag_bound claimed {claimed_output!r}, recomputed "
+            f"{recomputed!r} for src_t={src_t}, dst_t={dst_t}",
+            step_index=step_index, rule="T2_lag_bound",
+        )
+
+
+def _rule_t3_unroll_acyclic(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Phase 5 §T / T3: the supplied time-unrolled graph is acyclic."""
+    graph = _require(inputs, "graph", step_index, "T3_unroll_acyclic")
+    _assert_same_graph(graph, ctx.graph, step_index, "T3_unroll_acyclic")
+    recomputed = nx.is_directed_acyclic_graph(graph)
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"T3_unroll_acyclic claimed {claimed_output!r}, recomputed "
+            f"{recomputed!r}",
+            step_index=step_index, rule="T3_unroll_acyclic",
+        )
+
+
+# ========================================================== Phase 5 §C / S.C.verifier
+
+def _counterfactual_theta_lookup(
+    theta: Theta,
+    *,
+    target_atom: Atom,
+    target_value: bool,
+    given: frozenset[tuple[Atom, bool]],
+    step_index: int,
+    rule: str,
+) -> float:
+    key = ProbabilityKey(
+        target_atom=target_atom,
+        target_value=target_value,
+        given=given,
+    )
+    value = theta.get(key)
+    if value is None:
+        raise RuleCheckFailed(
+            f"{rule}: theta is missing required entry {key!r}",
+            step_index=step_index, rule=rule,
+        )
+    return float(value)
+
+
+def _counterfactual_joint_xy_for_verifier(
+    graph: nx.DiGraph,
+    theta: Theta,
+    query: CounterfactualQuery,
+    *,
+    bidirected: frozenset[frozenset[Atom]] = frozenset(),
+    step_index: int,
+    rule: str,
+) -> dict[tuple[bool, bool], float]:
+    x_atom = query.observed.atom
+    y_atom = query.counterfactual_target.atom
+
+    if not set(theta.domain_of(x_atom)) or not set(theta.domain_of(x_atom)) <= {False, True}:
+        raise RuleCheckFailed(
+            f"{rule}: observed atom must have boolean domain",
+            step_index=step_index, rule=rule,
+        )
+    if not set(theta.domain_of(y_atom)) or not set(theta.domain_of(y_atom)) <= {False, True}:
+        raise RuleCheckFailed(
+            f"{rule}: target atom must have boolean domain",
+            step_index=step_index, rule=rule,
+        )
+
+    factorized = _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
+        graph,
+        theta,
+        x_atom=x_atom,
+        y_atom=y_atom,
+        bidirected=bidirected,
+        step_index=step_index,
+        rule=rule,
+    )
+    if factorized is not None:
+        return factorized
+
+    joint: dict[tuple[bool, bool], float] = {}
+    for x_val in (False, True):
+        for y_val in (False, True):
+            joint[(x_val, y_val)] = _counterfactual_joint_cell_for_verifier(
+                theta,
+                x_atom=x_atom,
+                x_val=x_val,
+                y_atom=y_atom,
+                y_val=y_val,
+                step_index=step_index,
+                rule=rule,
+            )
+    return joint
+
+
+def _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+    bidirected: frozenset[frozenset[Atom]],
+    step_index: int,
+    rule: str,
+) -> dict[tuple[bool, bool], float] | None:
+    """Verifier-local twin of the scheduler's ancestral BN recovery.
+
+    Keep the same conservative scope: only use directed ancestral
+    factorization when no bidirected edge touches the ancestral
+    subgraph of {X, Y}; otherwise fall back to the older local
+    chain-rule recovery.
+    """
+    ancestral_nodes = (
+        nx.ancestors(graph, x_atom)
+        | nx.ancestors(graph, y_atom)
+        | {x_atom, y_atom}
+    )
+    if not ancestral_nodes:
+        return None
+    if any(pair & ancestral_nodes for pair in bidirected):
+        return None
+
+    subgraph = graph.subgraph(ancestral_nodes).copy()
+    topo = tuple(nx.topological_sort(subgraph))
+    required_keys = _required_probability_keys_for_ancestral_joint_for_verifier(
+        subgraph,
+        topo=topo,
+        theta=theta,
+    )
+    for key in required_keys:
+        if _recover_boolean_theta_value_for_verifier(theta, key) is None:
+            return None
+
+    joint: dict[tuple[bool, bool], float] = {
+        (False, False): 0.0,
+        (False, True): 0.0,
+        (True, False): 0.0,
+        (True, True): 0.0,
+    }
+    for assignment in _ancestral_assignments_for_verifier(topo, theta):
+        prob = 1.0
+        for atom in topo:
+            key = _assignment_probability_key_for_verifier(subgraph, atom, assignment)
+            value = _recover_boolean_theta_value_for_verifier(theta, key)
+            if value is None:
+                raise RuleCheckFailed(
+                    f"{rule}: missing key survived ancestral precheck",
+                    step_index=step_index, rule=rule,
+                )
+            prob *= value
+        joint[(assignment[x_atom], assignment[y_atom])] += prob
+    return joint
+
+
+def _required_probability_keys_for_ancestral_joint_for_verifier(
+    graph: nx.DiGraph,
+    *,
+    topo: tuple[Atom, ...],
+    theta: Theta,
+) -> tuple[ProbabilityKey, ...]:
+    keys: set[ProbabilityKey] = set()
+    for assignment in _ancestral_assignments_for_verifier(topo, theta):
+        for atom in topo:
+            keys.add(_assignment_probability_key_for_verifier(graph, atom, assignment))
+    return tuple(sorted(keys, key=_probability_key_sort_key_for_verifier))
+
+
+def _ancestral_assignments_for_verifier(
+    topo: tuple[Atom, ...],
+    theta: Theta,
+):
+    domains = [
+        _counterfactual_factorization_domain_for_verifier(theta, atom)
+        for atom in topo
+    ]
+    for values in product(*domains):
+        yield dict(zip(topo, values))
+
+
+def _assignment_probability_key_for_verifier(
+    graph: nx.DiGraph,
+    atom: Atom,
+    assignment: dict[Atom, object],
+) -> ProbabilityKey:
+    return ProbabilityKey(
+        target_atom=atom,
+        target_value=assignment[atom],
+        given=frozenset(
+            (parent, assignment[parent])
+            for parent in graph.predecessors(atom)
+        ),
+    )
+
+
+def _probability_key_sort_key_for_verifier(key: ProbabilityKey) -> tuple:
+    given = tuple(
+        sorted(
+            (
+                (atom.predicate, tuple(arg.name for arg in atom.args), repr(value))
+                for atom, value in key.given
+            )
+        )
+    )
+    return (
+        key.target_atom.predicate,
+        tuple(arg.name for arg in key.target_atom.args),
+        repr(key.target_value),
+        given,
+    )
+
+
+def _counterfactual_factorization_domain_for_verifier(
+    theta: Theta,
+    atom: Atom,
+) -> tuple:
+    domain = tuple(theta.domain_of(atom))
+    if domain and set(domain) <= {False, True}:
+        return (False, True)
+    return domain
+
+
+def _counterfactual_joint_cell_for_verifier(
+    theta: Theta,
+    *,
+    x_atom: Atom,
+    x_val: bool,
+    y_atom: Atom,
+    y_val: bool,
+    step_index: int,
+    rule: str,
+) -> float:
+    """Verifier-local counterpart of scheduler's narrow joint recovery.
+
+    Local fallback only. Prefer the ancestor-subgraph factorization
+    above; if it is not applicable, still accept either chain-rule orientation:
+    - P(X=x) * P(Y=y | X=x)
+    - or, if unavailable, P(Y=y) * P(X=x | Y=y)
+    """
+    x_key = ProbabilityKey(
+        target_atom=x_atom,
+        target_value=x_val,
+        given=frozenset(),
+    )
+    y_given_x_key = ProbabilityKey(
+        target_atom=y_atom,
+        target_value=y_val,
+        given=frozenset({(x_atom, x_val)}),
+    )
+    p_x = _recover_boolean_theta_value_for_verifier(theta, x_key)
+    p_y_given_x = _recover_boolean_theta_value_for_verifier(theta, y_given_x_key)
+    if p_x is not None and p_y_given_x is not None:
+        return p_x * p_y_given_x
+
+    y_key = ProbabilityKey(
+        target_atom=y_atom,
+        target_value=y_val,
+        given=frozenset(),
+    )
+    x_given_y_key = ProbabilityKey(
+        target_atom=x_atom,
+        target_value=x_val,
+        given=frozenset({(y_atom, y_val)}),
+    )
+    p_y = _recover_boolean_theta_value_for_verifier(theta, y_key)
+    p_x_given_y = _recover_boolean_theta_value_for_verifier(theta, x_given_y_key)
+    if p_y is not None and p_x_given_y is not None:
+        return p_y * p_x_given_y
+
+    raise RuleCheckFailed(
+        f"{rule}: theta is missing a recoverable chain-rule factorization "
+        f"for joint cell ({x_val!r}, {y_val!r})",
+        step_index=step_index, rule=rule,
+    )
+
+
+def _recover_boolean_theta_value_for_verifier(
+    theta: Theta,
+    key: ProbabilityKey,
+) -> float | None:
+    value = theta.get(key)
+    if value is not None:
+        return float(value)
+    domain = set(theta.domain_of(key.target_atom))
+    if not domain or not domain <= {False, True} or not isinstance(key.target_value, bool):
+        return None
+    complement = theta.get(
+        ProbabilityKey(
+            target_atom=key.target_atom,
+            target_value=not key.target_value,
+            given=key.given,
+        )
+    )
+    if complement is None:
+        return None
+    return 1.0 - float(complement)
+
+
+def _cf_bounds_non_decreasing_for_verifier(
+    *,
+    x_obs: bool,
+    p_y1_given_xobs: float,
+    factual_y: bool | None,
+) -> tuple[float, float]:
+    if not x_obs:
+        if factual_y is True:
+            return 1.0, 1.0
+        if factual_y is False:
+            return 0.0, 1.0
+        return p_y1_given_xobs, 1.0
+
+    if factual_y is True:
+        return 0.0, 1.0
+    if factual_y is False:
+        return 0.0, 0.0
+    return 0.0, p_y1_given_xobs
+
+
+def _cf_bounds_non_increasing_for_verifier(
+    *,
+    x_obs: bool,
+    p_y1_given_xobs: float,
+    factual_y: bool | None,
+) -> tuple[float, float]:
+    if not x_obs:
+        if factual_y is True:
+            return 0.0, 1.0
+        if factual_y is False:
+            return 0.0, 0.0
+        return 0.0, p_y1_given_xobs
+
+    if factual_y is True:
+        return 1.0, 1.0
+    if factual_y is False:
+        return 0.0, 1.0
+    return p_y1_given_xobs, 1.0
+
+
+def _expected_counterfactual_numeric_result(
+    graph: nx.DiGraph,
+    query: CounterfactualQuery,
+    theta: Theta,
+    *,
+    bidirected: frozenset[frozenset[Atom]] = frozenset(),
+    step_index: int,
+    rule: str,
+) -> NumericResult:
+    if query.assumptions is None or query.assumptions.monotonicity is None:
+        raise RuleCheckFailed(
+            f"{rule}: query must carry an explicit monotonicity assumption",
+            step_index=step_index, rule=rule,
+        )
+
+    values = (
+        query.observed.value,
+        query.counterfactual_intervention.value,
+        query.counterfactual_target.value,
+        query.factual_target_known,
+    )
+    for value in values:
+        if value is not None and not isinstance(value, bool):
+            raise RuleCheckFailed(
+                f"{rule}: current verifier scope is boolean-only",
+                step_index=step_index, rule=rule,
+            )
+
+    joint = _counterfactual_joint_xy_for_verifier(
+        graph,
+        theta,
+        query,
+        bidirected=bidirected,
+        step_index=step_index,
+        rule=rule,
+    )
+    x_obs = query.observed.value
+    x_cf = query.counterfactual_intervention.value
+    y_star = query.counterfactual_target.value
+    factual_y = query.factual_target_known
+    p_x_obs = joint[(x_obs, False)] + joint[(x_obs, True)]
+    if p_x_obs == 0:
+        raise RuleCheckFailed(
+            f"{rule}: zero factual mass for observed value",
+            step_index=step_index, rule=rule,
+        )
+    p_y1_given_xobs = joint[(x_obs, True)] / p_x_obs
+
+    if x_cf == x_obs:
+        if factual_y is not None:
+            point = 1.0 if factual_y == y_star else 0.0
+        else:
+            point = p_y1_given_xobs if y_star else 1.0 - p_y1_given_xobs
+        return NumericResult(value=point)
+
+    if query.assumptions.monotonicity.value == "non_decreasing":
+        low_true, high_true = _cf_bounds_non_decreasing_for_verifier(
+            x_obs=x_obs, p_y1_given_xobs=p_y1_given_xobs, factual_y=factual_y,
+        )
+    else:
+        low_true, high_true = _cf_bounds_non_increasing_for_verifier(
+            x_obs=x_obs, p_y1_given_xobs=p_y1_given_xobs, factual_y=factual_y,
+        )
+
+    if y_star:
+        interval = NumericInterval(low=low_true, high=high_true)
+    else:
+        interval = NumericInterval(low=1.0 - high_true, high=1.0 - low_true)
+    if abs(interval.low - interval.high) <= _NUMERIC_TOL:
+        return NumericResult(value=interval.low)
+    return NumericResult(value=None, interval=interval)
+
+
+def _numeric_result_matches(
+    claimed: NumericResult,
+    expected: NumericResult,
+) -> bool:
+    if claimed.unit != expected.unit:
+        return False
+    if claimed.value is None or expected.value is None:
+        if claimed.value is not None or expected.value is not None:
+            return False
+    elif abs(float(claimed.value) - float(expected.value)) > _NUMERIC_TOL:
+        return False
+
+    if claimed.interval is None or expected.interval is None:
+        return claimed.interval is None and expected.interval is None
+    return (
+        abs(claimed.interval.low - expected.interval.low) <= _NUMERIC_TOL
+        and abs(claimed.interval.high - expected.interval.high) <= _NUMERIC_TOL
+    )
+
+
+def _rule_counterfactual_bounds_binary_monotone(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Phase 5 §C verifier rule for the currently landed narrow fragment.
+
+    Recomputes the binary monotone counterfactual point value / bounds
+    directly from the verification context:
+    - query must be CounterfactualQuery
+    - theta must support either
+      (a) ancestral BN recovery on the directed ancestral subgraph of
+          {X, Y}, or
+      (b) the older local chain-rule fallback
+    - monotonicity must be explicit on the query
+    """
+    graph = _require(inputs, "graph", step_index, "counterfactual_bounds_binary_monotone")
+    _assert_same_graph(graph, ctx.graph, step_index, "counterfactual_bounds_binary_monotone")
+    if not isinstance(ctx.query, CounterfactualQuery):
+        raise RuleCheckFailed(
+            "counterfactual_bounds_binary_monotone requires CounterfactualQuery context",
+            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+        )
+    if ctx.theta is None:
+        raise RuleCheckFailed(
+            "counterfactual_bounds_binary_monotone requires theta in context",
+            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+        )
+    if not isinstance(claimed_output, NumericResult):
+        raise RuleCheckFailed(
+            "counterfactual_bounds_binary_monotone output must be NumericResult",
+            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+        )
+
+    expected = _expected_counterfactual_numeric_result(
+        ctx.graph,
+        ctx.query,
+        ctx.theta,
+        bidirected=ctx.bidirected,
+        step_index=step_index,
+        rule="counterfactual_bounds_binary_monotone",
+    )
+    if not _numeric_result_matches(claimed_output, expected):
+        raise RuleCheckFailed(
+            "counterfactual_bounds_binary_monotone claimed output does not "
+            "match the recomputed narrow monotone bounds",
+            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+        )
+
 # rule name -> handler. Each handler has the signature
 #   (ctx, inputs, claimed_output, step_index, **maybe step_output_by_id) -> None
 # Handlers raise VerificationError subclasses to reject.
@@ -1629,6 +2185,12 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 2.latent S4
     "m_separation_witness": _rule_m_separation_witness,
     "m_connection_witness": _rule_m_connection_witness,
+    # Phase 5 §T / S.T.2
+    "T1_time_monotonicity": _rule_t1_time_monotonicity,
+    "T2_lag_bound": _rule_t2_lag_bound,
+    "T3_unroll_acyclic": _rule_t3_unroll_acyclic,
+    # Phase 5 §C
+    "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
 }
 _STEP_REF_RULES = {
     "identify_via_backdoor",

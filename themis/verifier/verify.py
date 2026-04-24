@@ -23,6 +23,7 @@ from ..types import (
     AssocQuery,
     CauseQuery,
     ConstantExpr,
+    CounterfactualQuery,
     DerivationStep,
     EffectQuery,
     IdentifyQuery,
@@ -384,6 +385,23 @@ def _assert_numeric_query_binding(
                 )
 
 
+def _assert_counterfactual_query_binding(
+    step: DerivationStep,
+    context: VerificationContext,
+    step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+) -> None:
+    """Current narrow counterfactual derivations have a single rule whose
+    semantics come entirely from the verification context.
+
+    The only explicit input we require is the graph, and the rule itself
+    rechecks that against ``ctx.graph``. Query-specific binding therefore
+    happens inside the rule rather than here.
+    """
+    return None
+
+
 def _walk(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,
@@ -616,5 +634,44 @@ def verify_assoc(
         raise VerificationError(
             f"assoc derivation with value={claimed_result.value!r} must end in "
             f"{expected_rule!r}, got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
+def verify_counterfactual(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: NumericResult,
+) -> None:
+    """Verify a narrow counterfactual derivation.
+
+    Current Phase 5 §C scope has a single witness family:
+    ``counterfactual_bounds_binary_monotone``. The rule independently
+    recomputes the currently landed binary monotone bounds / point value
+    from ``ctx.query`` + ``ctx.theta``.
+    """
+    if not isinstance(context.query, CounterfactualQuery):
+        raise VerificationError(
+            "verify_counterfactual requires a CounterfactualQuery in the context",
+            step_index=None, rule=None,
+        )
+    if context.theta is None:
+        raise VerificationError(
+            "verify_counterfactual requires a non-None theta in the context",
+            step_index=None, rule=None,
+        )
+
+    _walk(derivation, context, _assert_counterfactual_query_binding)
+
+    if derivation[-1].rule != "counterfactual_bounds_binary_monotone":
+        raise VerificationError(
+            "counterfactual derivation must end in "
+            "'counterfactual_bounds_binary_monotone'",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )

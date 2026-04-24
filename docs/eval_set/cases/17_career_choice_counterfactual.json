@@ -33,13 +33,7 @@
     }
   ],
   "must_not_infer": [],
-  "ambiguities": [
-    {
-      "kind": "counterfactual_query",
-      "description": "This is a unit-level counterfactual (如果当初我...), not a population-average effect question. Pearl's Layer 3 (counterfactuals / twin network) is out of scope for the current kernel — only Layer 2 (interventional effect, P(Y|do(X))) is supported. Silently answering with an interventional effect confuses 'had the population done CS' with 'had I personally done CS'.",
-      "expected_behavior": "declare extensions.ambiguities[kind=counterfactual_query] stating the kernel returns at best an interventional-effect proxy; the true counterfactual for THIS individual is out of scope. Query kind may still be effect, but the semantic gap must be named"
-    }
-  ],
-  "gold_answerability": "needs_structural_info",
-  "gold_query_kind": "effect"
+  "ambiguities": [],
+  "gold_answerability": "needs_assumption",
+  "gold_query_kind": "counterfactual"
 }

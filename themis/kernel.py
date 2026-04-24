@@ -40,12 +40,14 @@ from .types import (
     AssocQuery,
     Atom,
     BidirectedStatement,
+    CounterfactualQuery,
     CauseQuery,
     CauseStatement,
     ConstTerm,
     EffectQuery,
     IdentifyQuery,
     Intervention,
+    Monotonicity,
     NumericResult,
     ObservationStatement,
     ProbabilityQuery,
@@ -64,6 +66,7 @@ from .verifier import (
     derivation_from_dict,
     verify_assoc,
     verify_cause,
+    verify_counterfactual,
     verify_identify,
     verify_numeric,
 )
@@ -127,10 +130,13 @@ def _term_to_dict(t: Term) -> dict:
 
 
 def _atom_to_dict(a: Atom) -> dict:
-    return {
+    d = {
         "predicate": a.predicate,
         "args": [_term_to_dict(t) for t in a.args],
     }
+    if a.time_index is not None:
+        d["time_index"] = {"kind": "relative", "value": a.time_index.value}
+    return d
 
 
 def _valued_atom_to_dict(va: ValuedAtom) -> dict:
@@ -186,6 +192,24 @@ def _query_to_dict(q) -> dict:
             "target": _valued_atom_to_dict(q.target),
             "given": [_valued_atom_to_dict(va) for va in q.given],
         }
+    if isinstance(q, CounterfactualQuery):
+        d = {
+            "kind": "counterfactual",
+            "observed": _valued_atom_to_dict(q.observed),
+            "counterfactual_intervention": _intervention_to_dict(
+                q.counterfactual_intervention
+            ),
+            "counterfactual_target": _valued_atom_to_dict(
+                q.counterfactual_target
+            ),
+        }
+        if q.assumptions is not None and q.assumptions.monotonicity is not None:
+            d["assumptions"] = {
+                "monotonicity": q.assumptions.monotonicity.value,
+            }
+        if q.factual_target_known is not None:
+            d["factual_target_known"] = q.factual_target_known
+        return d
     raise TypeError(f"unknown query: {type(q).__name__}")
 
 
@@ -487,6 +511,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             )
         claimed = _decode_numeric_result_json(result["numeric_result"])
         verify_numeric(derivation, ctx, claimed)
+    elif kind == "counterfactual":
+        if "numeric_result" not in result:
+            raise ValueError(
+                "verify(): counterfactual result must carry a numeric_result"
+            )
+        claimed = _decode_numeric_result_json(result["numeric_result"])
+        verify_counterfactual(derivation, ctx, claimed)
     else:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"

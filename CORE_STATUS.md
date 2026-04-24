@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-04-21
+> 更新时间：2026-04-22
 
 这份文档只回答一件事：
 
@@ -16,7 +16,7 @@
 ## 核心冻结 v1.0
 
 > 冻结日期：2026-04-21
-> 已立项的延伸 fragment：A6.front-door（见下方"冻结后显式立项的 fragment"段）
+> 已立项的延伸 fragment：A6.front-door、Phase 2.latent、Phase 5.temporal、Phase 5.counterfactual（见下方"冻结后显式立项的 fragment"段）
 
 从这一版起，**Themis 核心（语言 + 运行时 + 数值层 + verifier）视为已收口**。
 后续工作往外长，不再往核心里塞。
@@ -134,6 +134,66 @@ S3.b.1 正例：Z→X→Y, W↔Z, W→Y 的 backdoor；bow-arc 反例：
 `needs_investigation`，本 charter 不判 unidentifiable）。verifier
 独立性由 byte-code 扫描 + 多个篡改复核测试 pin。640 passed 全绿。
 
+### Phase 5.temporal（立项 2026-04-22，§T / S.T.1–S.T.6 同日落地）
+
+**理由**：按 Phase 5 charter（[PHASE_5_CHARTER.md](PHASE_5_CHARTER.md)）
+对 v1.0 核心做一次显式时序解冻，让 kernel 能表达 clean `t-1 -> t`
+的相对时间滞后，而不再把这类问题压平成 atemporal DAG。
+
+**交付**：
+
+- AST / schema：`Atom.time_index`（首版只支持
+  `{"kind":"relative","value": int}`）
+- verifier：`T1_time_monotonicity` / `T2_lag_bound` /
+  `T3_unroll_acyclic`
+- graph projection：`(predicate, args, time_index)` 视作独立节点
+- scheduler：现有 `cause / assoc / identify / effect / probability`
+  直接复用时间展开图，无需专门 temporal dispatcher
+- e2e：Case 14 的 timed AST / timed query 跑通
+- prompt：A1 v2.2 直接产出 `time_index`，不再对 clean `t-1 -> t`
+  案例声明 `extensions.ambiguities[kind=temporal]`
+
+**首版 scope**：
+
+- 程序级相对时间轴
+- 1 阶 Markov（lag ≤ 1）
+- 不引入绝对时间 / 多步 lag / 动作序列 / planner
+
+**Done 标志**：`S.T.1–S.T.6` 全通；Case 14 从“压缩 + temporal
+ambiguity”升级为 timed AST / timed query。相关测试 29 passed。
+
+### Phase 5.counterfactual（立项 2026-04-22，§C / S.C.1–S.C.6 窄 scope 落地）
+
+**理由**：按 Phase 5 charter（[PHASE_5_CHARTER.md](PHASE_5_CHARTER.md)）
+对 v1.0 核心做一次显式反事实解冻，让 kernel 不再把 clean
+Layer-3 反事实问题一律压成 Layer-2 effect proxy。
+
+**交付**：
+
+- AST / schema：`counterfactual` query kind +
+  `assumptions.monotonicity`
+- runtime：twin-network projection primitive + Balke-Pearl binary
+  monotone bounds primitive
+- scheduler：缺 monotonicity -> `needs_assumption`；缺 Theta ->
+  `needs_investigation`；条件齐 -> `counterfactual_bounded` /
+  `counterfactual_solved`
+- prompt：A1 v2.3 对 clean "如果当初..." 直接产出 `counterfactual`
+  query，不再默认声明 `counterfactual_query` ambiguity
+- e2e：Case 17 从 effect-proxy / ambiguity 升级为 real
+  counterfactual query path
+
+**首版 scope**：
+
+- bool-only SCM
+- 单 intervention / 单 target
+- 显式 monotonicity 假设
+- 窄 runtime path：优先在无相关 `bidirected` 触碰的 directed ancestral
+  subgraph 上恢复 `P(X,Y)`；不适用时回退到局部链式 / 布尔互补恢复
+
+**Done 标志**：`S.C.1–S.C.6` 全通；Case 17 对 clean counterfactual
+不再走 ambiguity proxy；并已接上 derivation / verifier / context JSON 外部复核。
+当前检查点全量测试：726 passed / 143 skipped。
+
 ---
 
 ## 一句话结论
@@ -145,29 +205,31 @@ S3.b.1 正例：Z→X→Y, W↔Z, W→Y 的 backdoor；bow-arc 反例：
 - 已经能在给定结构、给定参数时，对 `cause / assoc / identify / effect / probability`
   做结构推理、公式构造、数值求值、缺口报告和最小工作流闭环
 - 已经开始具备“严格推导”的形态：核心结果可附带 derivation，由独立 verifier 复核
-- 还没有完成上游世界建模、完整变量框定闭环、时序语义、潜变量 / ADMG / ID 这些更大层次
+- 还没有完成上游世界建模、更宽的 counterfactual / 动作级时序、以及更完整的 ID / 自动建模这些更大层次
 
 所以当前最准确的定位是：
 
-**一个可运行、可验证、可补录的静态因果推理内核。**
+**一个可运行、可验证、可补录的因果推理内核；其静态 DAG 核心已收口，并已显式解冻出 front-door、窄 ADMG、窄 temporal、以及窄 counterfactual fragment。**
 
 ---
 
 ## 当前核心范围
 
-当前核心范围只包含：
+当前系统范围只包含：
 
 1. **已知变量、已知结构、已知/部分已知参数** 下的推理
-2. 因果与相关的**静态 DAG** 语义
+2. 静态 DAG 核心 + 已显式立项的 fragment：
+   - A6.front-door
+   - Phase 2.latent（窄 scope）
+   - Phase 5.temporal（窄 scope）
 3. 结构查询、数值查询、缺参数闭环
 4. 结果解释、confidence、以及 derivation verifier
 
-当前核心范围明确**不包含**：
+当前系统范围明确**不包含**：
 
 - 自动从语料构建变量和关系
-- 时间 / 动作序列语义
-- 潜变量 / 双向边 / ADMG
-- 前门 / 完备 ID
+- 动作序列语义 / 多步时间规划 / 完整时序系统
+- 完整潜变量 / 完整 ADMG / complete ID
 - 反事实
 - 通用 agent 行为
 
@@ -190,14 +252,17 @@ S3.b.1 正例：Z→X→Y, W↔Z, W→Y 的 backdoor；bow-arc 反例：
 - `assoc`
 - `identify`
 - 后门调整集
+- front-door
 - 条件 identify（`given`）
 - 路径 / 开放路径 / supporting_paths
+- 窄 ADMG：m-separation、c-components、ADMG-aware backdoor / front-door
+- 窄 temporal：relative `time_index`、time-expanded graph、现有 dispatcher 复用
 
 ### 3. 数值层
 
 - `Theta`
 - `probability` 查询数值求值
-- `effect` 查询通过后门公式数值求值
+- `effect` 查询通过后门 / front-door 公式数值求值
 - 布尔与分类值域
 - 缺参数时精确报缺，不瞎算
 
@@ -381,20 +446,16 @@ S3.b.1 正例：Z→X→Y, W↔Z, W→Y 的 backdoor；bow-arc 反例：
 
 包括：
 
-- 潜变量
-- 双向边
-- ADMG
-- 前门
 - 完备 ID
 
 当前明确延后，等待真实案例逼出需求。
 
 ### 3. 时序语义
 
-当前还没有真正的：
+当前已完成 **窄 scope temporal fragment**，但还没有真正的：
 
-- 时间索引
-- 时间一致性检查
+- 绝对时间
+- `lag >= 2`
 - 动作序列
 - 动态因果过程
 
@@ -449,5 +510,5 @@ Themis 核心已经基本成型：
 它能在已知模型下做静态因果推理、数值求值、缺参数补录和机器可验证推导。
 
 但它还不是完整世界建模系统；
-变量框定闭环、时序语义、潜变量/ADMG、自动语料建模都还在核心之外。
+完整反事实、动作级时序、自动语料建模都还在核心之外。
 ```

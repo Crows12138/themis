@@ -31,9 +31,15 @@ Term = Union[ConstTerm, VarTerm]
 
 
 @dataclass(frozen=True)
+class RelativeTimeIndex:
+    value: int
+
+
+@dataclass(frozen=True)
 class Atom:
     predicate: str
     args: tuple[Term, ...]
+    time_index: RelativeTimeIndex | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -148,12 +154,32 @@ class ProbabilityQuery:
     given: tuple["ValuedAtom", ...]
 
 
+class Monotonicity(str, Enum):
+    NON_DECREASING = "non_decreasing"
+    NON_INCREASING = "non_increasing"
+
+
+@dataclass(frozen=True)
+class CounterfactualAssumptions:
+    monotonicity: Monotonicity | None = None
+
+
+@dataclass(frozen=True)
+class CounterfactualQuery:
+    observed: "ValuedAtom"
+    counterfactual_intervention: Intervention
+    counterfactual_target: "ValuedAtom"
+    assumptions: CounterfactualAssumptions | None = None
+    factual_target_known: AtomValue | None = None
+
+
 Query = Union[
     CauseQuery,
     AssocQuery,
     EffectQuery,
     IdentifyQuery,
     ProbabilityQuery,
+    CounterfactualQuery,
 ]
 
 
@@ -277,6 +303,9 @@ class ResultStatus(str, Enum):
     NUMERICALLY_SOLVED = "numerically_solved"
     NEEDS_INVESTIGATION = "needs_investigation"
     OUTSIDE_LANGUAGE = "outside_language"
+    COUNTERFACTUAL_SOLVED = "counterfactual_solved"
+    COUNTERFACTUAL_BOUNDED = "counterfactual_bounded"
+    NEEDS_ASSUMPTION = "needs_assumption"
 
 
 class QueryKind(str, Enum):
@@ -285,6 +314,7 @@ class QueryKind(str, Enum):
     EFFECT = "effect"
     IDENTIFY = "identify"
     PROBABILITY = "probability"
+    COUNTERFACTUAL = "counterfactual"
 
 
 @dataclass(frozen=True)
@@ -311,6 +341,7 @@ class MissingKind(str, Enum):
     OBSERVATION = "observation"
     SAMPLE = "sample"
     STRUCTURE = "structure"
+    ASSUMPTION = "assumption"
     # Slice #36: strict_framing blocked the numeric path because a
     # predicate the query references has framing gaps. Declarative
     # only — the actionable follow-up lives in the F1 DEFINE_VARIABLE
@@ -337,6 +368,7 @@ class InvestigationAction(str, Enum):
     RUN_EXPERIMENT = "run_experiment"
     INCREASE_SAMPLE = "increase_sample"
     VALIDATE_PARAMETER = "validate_parameter"
+    DEFINE_ASSUMPTION = "define_assumption"
     # Slice F1: surface framing gaps as an actionable task, not just an
     # advisory note. One item per underframed predicate, each carrying a
     # variable_patch skeleton that feeds directly into the A1 fill-back

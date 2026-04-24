@@ -73,7 +73,9 @@ def test_example_kernel_ast_runs_through_themis(example_path):
 def test_example_flags_every_declared_predicate_for_framing(example_path):
     """The prompt convention is 'leave framing fields unset so the user
     fills them next turn'. If that convention is honored, every declared
-    predicate must appear in the DEFINE_VARIABLE investigation items."""
+    predicate must be surfaced back to the caller — either through the
+    DEFINE_VARIABLE workflow channel or, for purely structural queries,
+    through framing_notes."""
     payload = json.loads(example_path.read_text(encoding="utf-8"))
     ast = payload["kernel_ast"]
 
@@ -87,11 +89,14 @@ def test_example_flags_every_declared_predicate_for_framing(example_path):
         req for req in r.get("investigation_requests", [])
         if req["action"] == "define_variable"
     ]
-    assert define_reqs, (
-        f"{example_path.name}: no define_variable request — prompt "
-        f"example must demonstrate the framing-gap feedback loop"
+    if define_reqs:
+        flagged = {item["target"] for item in define_reqs[0]["items"]}
+    else:
+        flagged = {note["predicate"] for note in r.get("framing_notes", [])}
+    assert flagged, (
+        f"{example_path.name}: prompt example did not surface framing gaps "
+        f"through either define_variable or framing_notes"
     )
-    flagged = {item["target"] for item in define_reqs[0]["items"]}
     assert flagged == declared, (
         f"{example_path.name}: declared predicates {declared} do not "
         f"match flagged set {flagged}"
@@ -106,3 +111,69 @@ def test_example_output_is_json_serializable(example_path):
     out = themis.run(payload["kernel_ast"])
     round_tripped = json.loads(json.dumps(out, ensure_ascii=False))
     assert round_tripped == out
+
+
+def test_temporal_example_lifts_lag_into_time_index_instead_of_ambiguity():
+    """Phase 5 §T / S.T.6: a clean t-1 -> t question should be encoded
+    directly with time_index, not downgraded to a temporal ambiguity."""
+    path = EXAMPLES_DIR / "late_night_tired_temporal.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    ast = payload["kernel_ast"]
+
+    cause_stmt = next(
+        s for s in ast["statements"]
+        if s.get("kind") == "cause"
+    )
+    query_stmt = next(
+        s for s in ast["statements"]
+        if s.get("kind") == "query"
+    )
+
+    assert cause_stmt["from"]["time_index"] == {"kind": "relative", "value": -1}
+    assert cause_stmt["to"]["time_index"] == {"kind": "relative", "value": 0}
+    assert query_stmt["query"]["from"]["time_index"] == {
+        "kind": "relative", "value": -1
+    }
+    assert query_stmt["query"]["to"]["time_index"] == {
+        "kind": "relative", "value": 0
+    }
+
+    ambiguities = ast.get("extensions", {}).get("ambiguities", [])
+    assert all(item.get("kind") != "temporal" for item in ambiguities)
+
+    out = themis.run(ast)
+    r = out["results"][0]
+    assert r["status"] == "structurally_solved"
+    assert r["structural_result"]["supporting_paths"] == [
+        ["stays_up_late(me)@t-1", "feels_tired_next_morning(me)@t"]
+    ]
+
+
+def test_counterfactual_example_lifts_case17_into_counterfactual_query():
+    """Phase 5 §C / S.C.6: a clean '如果当初...' example should emit a
+    real counterfactual query, not an effect proxy or ambiguity."""
+    path = EXAMPLES_DIR / "career_choice_counterfactual.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    ast = payload["kernel_ast"]
+
+    query_stmt = next(
+        s for s in ast["statements"]
+        if s.get("kind") == "query"
+    )
+    assert query_stmt["query"]["kind"] == "counterfactual"
+    assert "assumptions" not in query_stmt["query"]
+
+    ambiguities = ast.get("extensions", {}).get("ambiguities", [])
+    assert all(item.get("kind") != "counterfactual_query" for item in ambiguities)
+
+    out = themis.run(ast)
+    r = out["results"][0]
+    assert r["status"] == "needs_assumption"
+    assert r["missing_information"] == [
+        {
+            "kind": "assumption",
+            "name": "assumptions.monotonicity",
+            "priority": "high",
+            "reason": "首版反事实 bounds 只支持显式 monotonicity 假设",
+        }
+    ]

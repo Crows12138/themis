@@ -1,0 +1,40 @@
+{
+  "version": "0.1",
+  "domain": {
+    "objects": [
+      {"kind": "object", "name": "me"}
+    ]
+  },
+  "statements": [
+    {
+      "kind": "cause",
+      "from": {
+        "predicate": "stays_up_late",
+        "args": [{"type": "const", "name": "me"}],
+        "time_index": {"kind": "relative", "value": -1}
+      },
+      "to": {
+        "predicate": "feels_tired_next_morning",
+        "args": [{"type": "const", "name": "me"}],
+        "time_index": {"kind": "relative", "value": 0}
+      }
+    },
+    {
+      "kind": "query",
+      "id": "q_case_14_temporal",
+      "query": {
+        "kind": "cause",
+        "from": {
+          "predicate": "stays_up_late",
+          "args": [{"type": "const", "name": "me"}],
+          "time_index": {"kind": "relative", "value": -1}
+        },
+        "to": {
+          "predicate": "feels_tired_next_morning",
+          "args": [{"type": "const", "name": "me"}],
+          "time_index": {"kind": "relative", "value": 0}
+        }
+      }
+    }
+  ]
+}

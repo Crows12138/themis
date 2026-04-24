@@ -7,8 +7,8 @@ objects that produced them.
 
 Coverage:
 
-- All five query types encode + decode (cause / assoc / identify /
-  effect / probability).
+- All six query types encode + decode (cause / assoc / identify /
+  effect / probability / counterfactual).
 - Graph nodes + edges survive.
 - Theta entries + domains survive (including categorical domains).
 - ``context_to_dict`` is stable (calling it twice yields the same
@@ -39,9 +39,12 @@ from themis.types import (
     Atom,
     CauseQuery,
     ConstTerm,
+    CounterfactualAssumptions,
+    CounterfactualQuery,
     EffectQuery,
     IdentifyQuery,
     Intervention,
+    Monotonicity,
     ProbabilityQuery,
     QueryKind,
     QueryStatement,
@@ -57,6 +60,7 @@ from themis.verifier import (
     derivation_from_dict,
     derivation_to_dict,
     verify_assoc,
+    verify_counterfactual,
     verify_cause,
     verify_identify,
     verify_numeric,
@@ -173,6 +177,31 @@ def test_probability_query_round_trip():
     assert back.query.given[0].value is False
 
 
+def test_counterfactual_query_round_trip():
+    g, a, b = _simple_graph()
+    ctx = VerificationContext(
+        graph=g,
+        query=CounterfactualQuery(
+            observed=ValuedAtom(atom=a, value=False),
+            counterfactual_intervention=Intervention(atom=a, value=True),
+            counterfactual_target=ValuedAtom(atom=b, value=True),
+            assumptions=CounterfactualAssumptions(
+                monotonicity=Monotonicity.NON_DECREASING
+            ),
+            factual_target_known=None,
+        ),
+    )
+    payload = context_to_dict(ctx)
+    _validate_context_schema(payload)
+    back = context_from_dict(payload)
+    assert isinstance(back.query, CounterfactualQuery)
+    assert back.query.observed.value is False
+    assert back.query.counterfactual_intervention.value is True
+    assert back.query.counterfactual_target.value is True
+    assert back.query.assumptions is not None
+    assert back.query.assumptions.monotonicity is Monotonicity.NON_DECREASING
+
+
 # =========================================================== theta round-trip
 
 def test_theta_round_trip_boolean_domain():
@@ -258,6 +287,161 @@ def _run(path: Path):
     return graph, theta, results, stmt_by_id
 
 
+def _counterfactual_program_ast(*, factual_target_known: bool | None = None) -> dict:
+    query: dict = {
+        "kind": "counterfactual",
+        "observed": {
+            "atom": {
+                "predicate": "chose_cs_major",
+                "args": [{"type": "const", "name": "me"}],
+            },
+            "value": False,
+        },
+        "counterfactual_intervention": {
+            "atom": {
+                "predicate": "chose_cs_major",
+                "args": [{"type": "const", "name": "me"}],
+            },
+            "value": True,
+        },
+        "counterfactual_target": {
+            "atom": {
+                "predicate": "higher_current_income",
+                "args": [{"type": "const", "name": "me"}],
+            },
+            "value": True,
+        },
+        "assumptions": {"monotonicity": "non_decreasing"},
+    }
+    if factual_target_known is not None:
+        query["factual_target_known"] = factual_target_known
+
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {
+                "kind": "cause",
+                "from": {
+                    "predicate": "chose_cs_major",
+                    "args": [{"type": "const", "name": "me"}],
+                },
+                "to": {
+                    "predicate": "higher_current_income",
+                    "args": [{"type": "const", "name": "me"}],
+                },
+            },
+            {"kind": "variable", "predicate": "chose_cs_major", "domain": [True, False]},
+            {"kind": "variable", "predicate": "higher_current_income", "domain": [True, False]},
+            {
+                "kind": "probability",
+                "target": {
+                    "atom": {
+                        "predicate": "chose_cs_major",
+                        "args": [{"type": "const", "name": "me"}],
+                    },
+                    "value": False,
+                },
+                "given": [],
+                "value": 0.6,
+            },
+            {
+                "kind": "probability",
+                "target": {
+                    "atom": {
+                        "predicate": "chose_cs_major",
+                        "args": [{"type": "const", "name": "me"}],
+                    },
+                    "value": True,
+                },
+                "given": [],
+                "value": 0.4,
+            },
+            {
+                "kind": "probability",
+                "target": {
+                    "atom": {
+                        "predicate": "higher_current_income",
+                        "args": [{"type": "const", "name": "me"}],
+                    },
+                    "value": False,
+                },
+                "given": [
+                    {
+                        "atom": {
+                            "predicate": "chose_cs_major",
+                            "args": [{"type": "const", "name": "me"}],
+                        },
+                        "value": False,
+                    }
+                ],
+                "value": 0.7,
+            },
+            {
+                "kind": "probability",
+                "target": {
+                    "atom": {
+                        "predicate": "higher_current_income",
+                        "args": [{"type": "const", "name": "me"}],
+                    },
+                    "value": True,
+                },
+                "given": [
+                    {
+                        "atom": {
+                            "predicate": "chose_cs_major",
+                            "args": [{"type": "const", "name": "me"}],
+                        },
+                        "value": False,
+                    }
+                ],
+                "value": 0.3,
+            },
+            {
+                "kind": "probability",
+                "target": {
+                    "atom": {
+                        "predicate": "higher_current_income",
+                        "args": [{"type": "const", "name": "me"}],
+                    },
+                    "value": False,
+                },
+                "given": [
+                    {
+                        "atom": {
+                            "predicate": "chose_cs_major",
+                            "args": [{"type": "const", "name": "me"}],
+                        },
+                        "value": True,
+                    }
+                ],
+                "value": 0.2,
+            },
+            {
+                "kind": "probability",
+                "target": {
+                    "atom": {
+                        "predicate": "higher_current_income",
+                        "args": [{"type": "const", "name": "me"}],
+                    },
+                    "value": True,
+                },
+                "given": [
+                    {
+                        "atom": {
+                            "predicate": "chose_cs_major",
+                            "args": [{"type": "const", "name": "me"}],
+                        },
+                        "value": True,
+                    }
+                ],
+                "value": 0.8,
+            },
+            {"kind": "query", "id": "q_cf", "query": query},
+        ],
+    }
+
+
 def test_effect_derivation_verifies_from_fully_serialized_payload():
     """The headline V5 guarantee: hand a verifier JSON strings for
     both context and derivation, get back accept."""
@@ -318,6 +502,31 @@ def test_assoc_positive_derivation_verifies_from_fully_serialized_payload():
     verify_assoc(back_deriv, back_ctx, r.structural_result)
 
 
+def test_counterfactual_derivation_verifies_from_fully_serialized_payload():
+    ast = _counterfactual_program_ast()
+    program = validate_program(validate_ast(ast))
+    ground = instantiate(program)
+    graph = project(ground)
+    theta = theta_builder.build_theta(ground)
+    results = dispatch_all(program, graph)
+    stmt_by_id = {
+        s.id: s for s in program.statements if isinstance(s, QueryStatement)
+    }
+    r = next(
+        x for x in results
+        if x.query_kind is QueryKind.COUNTERFACTUAL
+        and x.status is ResultStatus.COUNTERFACTUAL_BOUNDED
+    )
+    ctx = VerificationContext(
+        graph=graph, query=stmt_by_id[r.query_id].query, theta=theta,
+    )
+    back_ctx = context_from_dict(json.loads(json.dumps(context_to_dict(ctx))))
+    back_deriv = derivation_from_dict(
+        json.loads(json.dumps(derivation_to_dict(r.derivation)))
+    )
+    verify_counterfactual(back_deriv, back_ctx, r.numeric_result)
+
+
 # =========================================================== tamper on context
 
 def test_tampering_serialized_graph_edge_is_rejected_after_decode():
@@ -369,6 +578,53 @@ def test_tampering_serialized_theta_entry_is_rejected_after_decode():
 
     with pytest.raises(VerificationError):
         verify_numeric(r.derivation, bad_ctx, r.numeric_result)
+
+
+def test_tampering_counterfactual_theta_entry_is_rejected_after_decode():
+    ast = _counterfactual_program_ast()
+    program = validate_program(validate_ast(ast))
+    ground = instantiate(program)
+    graph = project(ground)
+    theta = theta_builder.build_theta(ground)
+    results = dispatch_all(program, graph)
+    stmt_by_id = {
+        s.id: s for s in program.statements if isinstance(s, QueryStatement)
+    }
+    r = next(
+        x for x in results
+        if x.query_kind is QueryKind.COUNTERFACTUAL
+        and x.status is ResultStatus.COUNTERFACTUAL_BOUNDED
+    )
+    ctx = VerificationContext(
+        graph=graph, query=stmt_by_id[r.query_id].query, theta=theta,
+    )
+    ctx_payload = context_to_dict(ctx)
+    assert ctx_payload["theta"]["entries"], "expected theta to have entries"
+    changed = False
+    for entry in ctx_payload["theta"]["entries"]:
+        key = entry["key"]
+        if (
+            key["target_atom"]["predicate"] == "higher_current_income"
+            and key["target_value"] is True
+            and key["given"] == [
+                {
+                    "atom": {
+                        "kind": "atom",
+                        "predicate": "chose_cs_major",
+                        "args": [{"type": "const", "name": "me"}],
+                    },
+                    "value": False,
+                }
+            ]
+        ):
+            entry["value"] = 0.1
+            changed = True
+            break
+    assert changed, "expected to find P(higher_current_income=True|chose_cs_major=False)"
+    bad_ctx = context_from_dict(ctx_payload)
+
+    with pytest.raises(VerificationError):
+        verify_counterfactual(r.derivation, bad_ctx, r.numeric_result)
 
 
 # =========================================================== errors

@@ -62,7 +62,11 @@ def _explain_assoc_zh(result: QueryResult) -> str:
 
 def _atom_label(atom) -> str:
     args = ",".join(a.name for a in atom.args)
-    return f"{atom.predicate}({args})"
+    base = f"{atom.predicate}({args})"
+    if getattr(atom, "time_index", None) is None:
+        return base
+    t = atom.time_index.value
+    return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
 def _format_atom_set(atoms) -> str:
@@ -102,6 +106,7 @@ _ACTION_PHRASE: dict[InvestigationAction, str] = {
     InvestigationAction.COLLECT_OBSERVATION:  "补采观测",
     InvestigationAction.INCREASE_SAMPLE:      "扩大样本",
     InvestigationAction.RUN_EXPERIMENT:       "运行实验",
+    InvestigationAction.DEFINE_ASSUMPTION:    "补充该假设",
 }
 
 _PRIORITY_PHRASE: dict[Priority, str] = {
@@ -247,6 +252,37 @@ def _explain_probability_zh(result: QueryResult, stmt) -> str:
     return f"{quantity}：结果未分类。"
 
 
+def _explain_counterfactual_zh(result: QueryResult) -> str:
+    if result.status is ResultStatus.COUNTERFACTUAL_SOLVED and result.numeric_result is not None:
+        return (
+            "反事实查询已得到点值结果。"
+            f"P(counterfactual target) = {_format_number(result.numeric_result.value)}。"
+        )
+    if (
+        result.status is ResultStatus.COUNTERFACTUAL_BOUNDED
+        and result.numeric_result is not None
+        and result.numeric_result.interval is not None
+    ):
+        interval = result.numeric_result.interval
+        return (
+            "反事实查询当前得到界而非点值。"
+            f"区间为 [{_format_number(interval.low)}, {_format_number(interval.high)}]。"
+        )
+    if result.status is ResultStatus.OUTSIDE_LANGUAGE:
+        return "反事实查询已进入语法层，但当前仍未进入求解层。"
+    if result.status is ResultStatus.NEEDS_INVESTIGATION:
+        gap = _describe_needs_investigation(result)
+        if gap:
+            return f"反事实查询暂时还算不出 bounds。{gap}"
+        return "反事实查询暂时还算不出 bounds。"
+    if result.status is ResultStatus.NEEDS_ASSUMPTION:
+        gap = _describe_needs_investigation(result)
+        if gap:
+            return f"反事实查询还缺少必要假设。{gap}"
+        return "反事实查询还缺少必要假设。"
+    return "反事实查询：结果未分类。"
+
+
 def _with_confidence_suffix(text: str, result: QueryResult) -> str:
     """Append a confidence clause when the result carries one.
 
@@ -309,6 +345,8 @@ def explain(
         text = _explain_effect_zh(result, stmt)
     elif result.query_kind == QueryKind.PROBABILITY:
         text = _explain_probability_zh(result, stmt)
+    elif result.query_kind == QueryKind.COUNTERFACTUAL:
+        text = _explain_counterfactual_zh(result)
     else:
         raise NotImplementedError(
             f"explainer for {result.query_kind.value} not implemented yet"

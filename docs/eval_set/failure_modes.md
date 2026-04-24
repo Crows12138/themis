@@ -186,13 +186,14 @@ indexing in the AST.
 ordering IS the causal signal; flattening to `stays_up_late →
 feels_tired` drops the implied same-day lag.
 
-**Expected correct behavior**: A1 compresses to atemporal
-`stays_up_late → feels_tired` edge AND declares temporal
-compression in `extensions.ambiguities.kind: "temporal"` so user
-knows time semantics was lost.
+**Expected correct behavior**: A1 emits a timed edge/query using
+`stays_up_late@t-1 → feels_tired@t` (or the equivalent target
+predicate name) directly in the kernel AST. Clean `t-1 → t`
+patterns should no longer be downgraded to
+`extensions.ambiguities.kind: "temporal"`.
 
-**Slice most relevant**: long-term Phase 5 temporal semantics, but
-NL-layer should flag the compression today.
+**Slice most relevant**: Phase 5 temporal semantics + A1 prompt
+v2.2 time-index lifting.
 
 ## F12 — Categorical-domain numeric query
 
@@ -273,22 +274,21 @@ being conditioned on, not unobserved common cause).
 
 **Pattern**: NL uses counterfactual phrasing ("如果当初我...",
 "要是没...", "假如我当时...") asking about a specific individual's
-alternative outcome. Kernel only supports Pearl Layer 2
-(interventional effect P(Y|do(X))); Layer 3 counterfactuals
-(twin networks, individual-level Y_i(1) − Y_i(0)) are out of
-scope.
+alternative outcome.
 
 **Typical trigger**: "如果当初我选的是计算机专业，现在收入会
 更高吗" — counterfactual for THIS individual, conditional on
 actually observed choice=history.
 
-**Expected correct behavior**: answer with the interventional
-proxy (population P(income=high | do(major=cs))) AND declare
-`extensions.ambiguities[kind=counterfactual_query]` making the
-Layer-2-vs-Layer-3 gap explicit.
+**Expected correct behavior**: when the question fits the current
+narrow Layer-3 fragment, emit a real `counterfactual` query instead
+of collapsing it to an `effect` proxy. If monotonicity is not stated,
+the correct kernel response is `needs_assumption`, not a hidden
+Layer-2 substitution. Reserve
+`extensions.ambiguities[kind=counterfactual_query]` for wider
+counterfactuals that still exceed the fragment.
 
-**Slice most relevant**: long-term Phase 5 counterfactuals
-fragment; until then, NL-layer must flag the semantic gap.
+**Slice most relevant**: Phase 5 counterfactuals (§C).
 
 ## F17 — Mechanism-vs-existence
 

@@ -27,6 +27,7 @@ from typing import Iterable
 from ..types import (
     AssocQuery,
     Atom,
+    CounterfactualQuery,
     CauseQuery,
     EffectQuery,
     FramingNote,
@@ -96,6 +97,12 @@ def _predicates_in_query(stmt: QueryStatement) -> tuple[str, ...]:
         atoms = (q.target, q.intervention.atom, *q.given)
     elif isinstance(q, ProbabilityQuery):
         atoms = (_as_atom(q.target), *(_as_atom(g) for g in q.given))
+    elif isinstance(q, CounterfactualQuery):
+        atoms = (
+            _as_atom(q.observed),
+            q.counterfactual_intervention.atom,
+            _as_atom(q.counterfactual_target),
+        )
     else:
         return ()
 

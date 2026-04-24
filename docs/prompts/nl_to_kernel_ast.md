@@ -24,6 +24,17 @@ run findings. Three new rules:
   alternative reading(s) in `extensions.ambiguities` so the
   response layer can surface the ambiguity to the user
 
+**v2.2 updates (2026-04-22, Phase 5 §T / S.T.6)** — temporal lag is
+now part of the kernel surface:
+
+- §2c / §4a **Temporal indexing**: when the NL explicitly encodes a
+  supported relative lag (`昨晚/今天`, `上个月/这个月`, `第二天`), emit
+  `time_index` directly on atoms instead of flattening to an
+  atemporal edge
+- remove the old `extensions.ambiguities[kind=temporal]` downgrade for
+  clean `t-1 -> t` patterns; if the lag is representable, encode it
+  rather than declaring compression
+
 ---
 
 ## Role
@@ -129,6 +140,44 @@ Signal:
 drops their operationalization. The "少→多" contrast is
 inexpressible as a single bool intervention.
 
+### 2c. Temporal indexing (v2.2 / Phase 5 §T)
+
+If the NL explicitly marks a **relative temporal lag** and that lag is
+the intended causal structure, encode it on the atoms with
+`time_index`, not as a top-level ambiguity.
+
+Supported first-pass patterns:
+
+| NL pattern | source atom | target atom |
+|---|---|---|
+| `昨天/昨晚 X，今天/今早/第二天 Y` | `time_index: -1` | `time_index: 0` |
+| `上个月 X，这个月 Y` | `time_index: -1` | `time_index: 0` |
+| `前一天 X，第二天 Y` | `time_index: -1` | `time_index: 0` |
+
+Shape:
+
+```json
+{
+  "predicate": "stays_up_late",
+  "args": [{"type": "const", "name": "me"}],
+  "time_index": {"kind": "relative", "value": -1}
+}
+```
+
+Rules:
+
+- Use a **program-global relative timeline**. `0` means the reference
+  moment implied by the question; earlier/later atoms move around that
+  anchor.
+- If the same predicate appears at two different times, emit two atoms
+  with the same predicate/args but different `time_index`.
+- For clean `t-1 -> t` statements, **do not** add
+  `extensions.ambiguities[kind=temporal]`. The lag is now represented
+  directly in the AST.
+- If the NL has no meaningful time lag, omit `time_index` entirely.
+- Do not invent `lag >= 2`, absolute calendar dates, or time series
+  chains in this prompt. Those are outside the current fragment.
+
 ### 3. Propose causal edges
 
 Based on common-sense / domain knowledge, emit direct edges for the predicates
@@ -204,6 +253,34 @@ Exactly one `query` statement, with `id: "q"`:
 
 An `<atom>` is `{"predicate": "<name>", "args": [{"type": "const", "name": "me"}]}`.
 
+### 4a. Carry temporal indices through the whole query
+
+When §2c identifies a relative lag, the same `time_index` must appear
+consistently in:
+
+- variable-level causal edges
+- the query atoms
+- any intervention / target / given atoms that refer to the lagged
+  variables
+
+Example:
+
+```json
+{
+  "kind": "cause",
+  "from": {
+    "predicate": "stays_up_late",
+    "args": [{"type": "const", "name": "me"}],
+    "time_index": {"kind": "relative", "value": -1}
+  },
+  "to": {
+    "predicate": "feels_tired_next_morning",
+    "args": [{"type": "const", "name": "me"}],
+    "time_index": {"kind": "relative", "value": 0}
+  }
+}
+```
+
 For **negated NL** (see §2a), set the affected query slot's
 `value` to `false` instead of `true`:
 
@@ -258,6 +335,10 @@ Also declare ambiguity in these structural cases:
   is unspecified — `kind: "direction"`, `alternatives: ["up", "down", "mixed"]`.
 - **Population scope mismatch** (narrative scoped to one
   subpopulation, question scoped generally): `kind: "scope"`.
+
+Do **not** declare `kind: "temporal"` merely because the NL contains a
+clean supported `t-1 -> t` lag. That case is now representable in the
+kernel and should be encoded directly via `time_index`.
 - **Confounder refusal** (when §3a declined a direct edge): record
   the decision as `kind: "confounder_refusal"`.
 - **Subject scope** (the claim spans more than one subject, e.g.
@@ -278,10 +359,12 @@ Also declare ambiguity in these structural cases:
   not an unobserved common cause. You may emit BOTH if both apply.
 - **Counterfactual query** (NL uses "如果当初我 X 就 Y 了", "要是
   当时没 X", "假如我当时" — asking about a specific individual's
-  alternative outcome): `kind: "counterfactual_query"`. This is
-  Pearl Layer-3 (twin network), which the kernel cannot evaluate.
-  Emit the interventional (Layer-2) program as the best proxy and
-  declare the estimand gap.
+  alternative outcome): emit a real `counterfactual` query. Do **not**
+  silently collapse it to an `effect` proxy when the question is a clean
+  Layer-3 estimand. If the NL does not state monotonicity, leave
+  `assumptions` absent and let the kernel return `needs_assumption`.
+  Keep `extensions.ambiguities[kind=counterfactual_query]` only for
+  wider counterfactuals that still exceed the current fragment.
 - **Mechanism vs existence** (NL uses "为什么 X 会 Y", "X 怎么
   导致 Y", "通过什么机制" — asking for the mediator chain, not
   whether a causal path exists): `kind: "mechanism_vs_existence"`.

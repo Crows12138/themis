@@ -14,6 +14,7 @@ MissingKind → InvestigationAction mapping:
 - ``structure``   → ``run_experiment``   (best-effort; some
                       structure gaps are not repairable by
                       experiments — the mapping is suggestive only)
+- ``assumption``  → ``define_assumption``
 
 Group priority is the max priority among its items (HIGH > MEDIUM >
 LOW). Input ordering is preserved: groups appear in the order their
@@ -37,6 +38,7 @@ _ACTION_OF: dict[MissingKind, InvestigationAction] = {
     MissingKind.OBSERVATION: InvestigationAction.COLLECT_OBSERVATION,
     MissingKind.SAMPLE:      InvestigationAction.INCREASE_SAMPLE,
     MissingKind.STRUCTURE:   InvestigationAction.RUN_EXPERIMENT,
+    MissingKind.ASSUMPTION:  InvestigationAction.DEFINE_ASSUMPTION,
 }
 
 

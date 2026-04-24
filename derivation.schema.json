@@ -37,6 +37,15 @@
         "args": {
           "type": "array",
           "items": { "$ref": "#/$defs/term" }
+        },
+        "time_index": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "relative" },
+            "value": { "type": "integer" }
+          }
         }
       }
     },

@@ -50,16 +50,20 @@ from ..types import (
     AssocQuery,
     Atom,
     BidirectedStatement,
+    CounterfactualAssumptions,
+    CounterfactualQuery,
     CauseQuery,
     CauseStatement,
     ConstTerm,
     EffectQuery,
     IdentifyQuery,
     Intervention,
+    Monotonicity,
     ObservationStatement,
     ProbabilityQuery,
     ProbabilityStatement,
     Program,
+    RelativeTimeIndex,
     QueryStatement,
     Term,
     ValuedAtom,
@@ -95,7 +99,15 @@ def _to_term(d: dict) -> Term:
 
 
 def _to_atom(d: dict) -> Atom:
-    return Atom(predicate=d["predicate"], args=tuple(_to_term(t) for t in d["args"]))
+    ti = d.get("time_index")
+    time_index = None
+    if ti is not None:
+        time_index = RelativeTimeIndex(value=ti["value"])
+    return Atom(
+        predicate=d["predicate"],
+        args=tuple(_to_term(t) for t in d["args"]),
+        time_index=time_index,
+    )
 
 
 def _to_annotation(d: dict | None) -> Annotation | None:
@@ -142,6 +154,26 @@ def _to_query(d: dict):
         return ProbabilityQuery(
             target=_to_grounded(d["target"]),
             given=tuple(_to_grounded(a) for a in d["given"]),
+        )
+    if k == "counterfactual":
+        assumptions_raw = d.get("assumptions")
+        assumptions = None
+        if assumptions_raw is not None:
+            assumptions = CounterfactualAssumptions(
+                monotonicity=(
+                    Monotonicity(assumptions_raw["monotonicity"])
+                    if assumptions_raw.get("monotonicity") is not None
+                    else None
+                )
+            )
+        return CounterfactualQuery(
+            observed=_to_grounded(d["observed"]),
+            counterfactual_intervention=_to_intervention(
+                d["counterfactual_intervention"]
+            ),
+            counterfactual_target=_to_grounded(d["counterfactual_target"]),
+            assumptions=assumptions,
+            factual_target_known=d.get("factual_target_known"),
         )
     raise SemanticError(f"unknown query kind: {k}")
 
@@ -229,6 +261,12 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
             return (q.target, q.intervention.atom, *q.given)
         if isinstance(q, ProbabilityQuery):
             return (_as_atom(q.target), *(_as_atom(g) for g in q.given))
+        if isinstance(q, CounterfactualQuery):
+            return (
+                _as_atom(q.observed),
+                q.counterfactual_intervention.atom,
+                _as_atom(q.counterfactual_target),
+            )
     return ()
 
 
@@ -453,6 +491,12 @@ def _query_structural_atoms(q) -> tuple[Atom, ...]:
             q.target.atom,
             q.intervention.atom,
             *(g.atom for g in q.given),
+        )
+    if isinstance(q, CounterfactualQuery):
+        return (
+            q.observed.atom,
+            q.counterfactual_intervention.atom,
+            q.counterfactual_target.atom,
         )
     return ()
 

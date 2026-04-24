@@ -1,0 +1,64 @@
+{
+  "nl_input": "熬夜真的会让第二天没精神吗？",
+  "reasoning": {
+    "intent": "cause",
+    "intent_reason": "The question uses pure causal wording ('会让') without an explicit action plan like '每天' or '坚持', so the conservative reading is cause rather than effect.",
+    "predicates": [
+      {"name": "stays_up_late", "role": "source", "translation": "熬夜"},
+      {"name": "feels_tired_next_morning", "role": "target", "translation": "第二天没精神"}
+    ],
+    "temporal_mapping": {
+      "why": "The temporal lag is explicit and is the core semantics of the question: tonight's staying up late is being linked to next morning's fatigue.",
+      "source_time_index": -1,
+      "target_time_index": 0,
+      "note": "Under Phase 5 §T, this is encoded directly in the AST instead of being downgraded to extensions.ambiguities[kind=temporal]."
+    },
+    "edges": [
+      {
+        "from": "stays_up_late@t-1",
+        "to": "feels_tired_next_morning@t",
+        "source": "common_knowledge"
+      }
+    ],
+    "framing_left_blank": "The question gives no operational definition of what counts as staying up late, no measurement for '没精神', and no explicit threshold or observability contract. Those framing fields remain unset so DEFINE_VARIABLE can ask next."
+  },
+  "kernel_ast": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "statements": [
+      {"kind": "variable", "predicate": "stays_up_late", "domain": [true, false]},
+      {"kind": "variable", "predicate": "feels_tired_next_morning", "domain": [true, false]},
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "stays_up_late",
+          "args": [{"type": "const", "name": "me"}],
+          "time_index": {"kind": "relative", "value": -1}
+        },
+        "to": {
+          "predicate": "feels_tired_next_morning",
+          "args": [{"type": "const", "name": "me"}],
+          "time_index": {"kind": "relative", "value": 0}
+        },
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "cause",
+          "from": {
+            "predicate": "stays_up_late",
+            "args": [{"type": "const", "name": "me"}],
+            "time_index": {"kind": "relative", "value": -1}
+          },
+          "to": {
+            "predicate": "feels_tired_next_morning",
+            "args": [{"type": "const", "name": "me"}],
+            "time_index": {"kind": "relative", "value": 0}
+          }
+        }
+      }
+    ]
+  }
+}

@@ -359,6 +359,56 @@
         }
       }
     },
+    "counterfactualQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "observed",
+        "counterfactual_intervention",
+        "counterfactual_target"
+      ],
+      "properties": {
+        "kind": {
+          "const": "counterfactual"
+        },
+        "observed": {
+          "$ref": "atom.schema.json#/$defs/groundedAtom",
+          "description": "Observed factual world assignment, e.g. chose_major=false."
+        },
+        "counterfactual_intervention": {
+          "$ref": "#/$defs/intervention"
+        },
+        "counterfactual_target": {
+          "$ref": "atom.schema.json#/$defs/groundedAtom",
+          "description": "Counterfactual target event whose probability is being queried."
+        },
+        "assumptions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "monotonicity"
+          ],
+          "properties": {
+            "monotonicity": {
+              "type": "string",
+              "enum": [
+                "non_decreasing",
+                "non_increasing"
+              ]
+            }
+          }
+        },
+        "factual_target_known": {
+          "type": [
+            "boolean",
+            "number",
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "query": {
       "oneOf": [
         {
@@ -375,6 +425,9 @@
         },
         {
           "$ref": "#/$defs/probabilityQuery"
+        },
+        {
+          "$ref": "#/$defs/counterfactualQuery"
         }
       ]
     },

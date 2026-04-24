@@ -36,6 +36,8 @@ Every in-language query surfaces a result; no silent drops.
 """
 from __future__ import annotations
 
+from itertools import product
+
 import networkx as nx
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
@@ -44,6 +46,7 @@ from ..types import (
     Atom,
     CauseQuery,
     ConfidenceSource,
+    CounterfactualQuery,
     DerivationStep,
     EffectQuery,
     IdentifyQuery,
@@ -52,6 +55,7 @@ from ..types import (
     InvestigationRequest,
     MissingItem,
     MissingKind,
+    NumericInterval,
     NumericResult,
     Priority,
     ProbabilityQuery,
@@ -67,6 +71,7 @@ from ..types import (
 )
 from . import (
     confidence_calc,
+    counterfactual,
     formula_builder,
     investigation_pusher,
     numeric_estimator,
@@ -91,12 +96,17 @@ _QUERY_KIND_OF: dict[type, QueryKind] = {
     EffectQuery: QueryKind.EFFECT,
     IdentifyQuery: QueryKind.IDENTIFY,
     ProbabilityQuery: QueryKind.PROBABILITY,
+    CounterfactualQuery: QueryKind.COUNTERFACTUAL,
 }
 
 
 def _atom_to_str(atom: Atom) -> str:
     args = ",".join(a.name for a in atom.args)
-    return f"{atom.predicate}({args})"
+    base = f"{atom.predicate}({args})"
+    if atom.time_index is None:
+        return base
+    t = atom.time_index.value
+    return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
 def _query_kind(q: Query) -> QueryKind:
@@ -573,13 +583,16 @@ def _missing_parameter_from_key(key: ProbabilityKey | None, reason: str) -> Miss
 def _atom_to_json(atom: Atom) -> dict:
     """Render an Atom as the same JSON shape the kernel_ast schema uses
     for ``atom`` — so a skeleton is paste-ready."""
-    return {
+    d = {
         "predicate": atom.predicate,
         "args": [
             {"type": "const", "name": t.name}
             for t in atom.args
         ],
     }
+    if atom.time_index is not None:
+        d["time_index"] = {"kind": "relative", "value": atom.time_index.value}
+    return d
 
 
 def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
@@ -603,6 +616,404 @@ def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
         "value": None,
         "annotations": {"source": "TODO"},
     }
+
+
+def _counterfactual_joint_xy(
+    theta: Theta,
+    q: CounterfactualQuery,
+    graph: nx.DiGraph,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> tuple[dict[tuple[bool, bool], float] | None, tuple[MissingItem, ...], dict]:
+    """Build the factual joint table P(X, Y) for the narrow S.C.5 path.
+
+    Current widening still stays inside the same fragment:
+    - X and Y themselves remain boolean
+    - first prefer graph-faithful ancestral BN factorization on the
+      directed ancestral subgraph of {X, Y}
+    - if that is not applicable (currently: relevant bidirected edges),
+      fall back to the older local chain-rule recovery
+
+    Missing entries still surface as ordinary PARAMETER gaps so the
+    existing fill-back workflow can recover the query.
+    """
+    x_atom = q.observed.atom
+    y_atom = q.counterfactual_target.atom
+    if not set(theta.domain_of(x_atom)) or not set(theta.domain_of(x_atom)) <= {False, True}:
+        raise counterfactual.CounterfactualBoundsError(
+            f"counterfactual solver requires boolean domain for {x_atom.predicate}"
+        )
+    if not set(theta.domain_of(y_atom)) or not set(theta.domain_of(y_atom)) <= {False, True}:
+        raise counterfactual.CounterfactualBoundsError(
+            f"counterfactual solver requires boolean domain for {y_atom.predicate}"
+        )
+
+    factorized_joint, factorized_missing, factorized_skeletons = (
+        _counterfactual_joint_xy_via_ancestral_factorization(
+            graph,
+            theta,
+            x_atom=x_atom,
+            y_atom=y_atom,
+            bidirected=bidirected,
+        )
+    )
+    if factorized_joint is not None or factorized_missing:
+        return factorized_joint, factorized_missing, factorized_skeletons
+
+    missing: list[MissingItem] = []
+    skeletons: dict = {}
+    joint: dict[tuple[bool, bool], float] = {}
+    for x_val in (False, True):
+        for y_val in (False, True):
+            try:
+                joint[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
+                    theta,
+                    x_atom=x_atom,
+                    x_val=x_val,
+                    y_atom=y_atom,
+                    y_val=y_val,
+                )
+            except InsufficientTheta as exc:
+                item = _missing_parameter_from_key(
+                    exc.missing_key,
+                    exc.reason,
+                )
+                missing.append(item)
+                if exc.missing_key is not None:
+                    skeletons[item.name] = _skeleton_for_parameter(exc.missing_key)
+    if missing:
+        deduped_missing: list[MissingItem] = []
+        seen_names: set[str] = set()
+        for item in missing:
+            if item.name in seen_names:
+                continue
+            seen_names.add(item.name)
+            deduped_missing.append(item)
+        return None, tuple(deduped_missing), skeletons
+    return joint, (), {}
+
+
+def _counterfactual_joint_xy_via_ancestral_factorization(
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> tuple[dict[tuple[bool, bool], float] | None, tuple[MissingItem, ...], dict]:
+    """Recover P(X, Y) by enumerating the directed ancestral subgraph.
+
+    This is the first non-local widening of the landed counterfactual
+    runtime: instead of only accepting handcrafted local factorizations
+    such as P(X) * P(Y|X), it uses the current DAG + CPT semantics
+    directly whenever the relevant observational model is an ordinary
+    ancestral BN.
+
+    We stay conservative around ADMGs: if any bidirected edge touches
+    the ancestral subgraph of {X, Y}, we do *not* pretend the directed
+    factorization is valid and fall back to the older local recovery
+    path.
+    """
+    ancestral_nodes = (
+        nx.ancestors(graph, x_atom)
+        | nx.ancestors(graph, y_atom)
+        | {x_atom, y_atom}
+    )
+    if not ancestral_nodes:
+        return None, (), {}
+    if any(pair & ancestral_nodes for pair in bidirected):
+        return None, (), {}
+
+    subgraph = graph.subgraph(ancestral_nodes).copy()
+    topo = tuple(nx.topological_sort(subgraph))
+    required_keys = _required_observational_probability_keys(
+        subgraph,
+        topo=topo,
+        theta=theta,
+    )
+    missing_keys = tuple(
+        key for key in required_keys
+        if _recover_boolean_theta_value(theta, key) is None
+    )
+    if missing_keys:
+        missing_items = tuple(
+            _missing_parameter_from_key(
+                key,
+                f"counterfactual bounds needs {format_probability_key(key)}",
+            )
+            for key in missing_keys
+        )
+        skeletons = {
+            item.name: _skeleton_for_parameter(key)
+            for item, key in zip(missing_items, missing_keys)
+        }
+        return None, missing_items, skeletons
+
+    joint: dict[tuple[bool, bool], float] = {
+        (False, False): 0.0,
+        (False, True): 0.0,
+        (True, False): 0.0,
+        (True, True): 0.0,
+    }
+    for assignment in _ancestral_assignments(topo, theta):
+        prob = 1.0
+        for atom in topo:
+            key = _assignment_probability_key(subgraph, atom, assignment)
+            value = _recover_boolean_theta_value(theta, key)
+            if value is None:
+                raise AssertionError(
+                    "missing key survived required-key precheck in "
+                    "_counterfactual_joint_xy_via_ancestral_factorization"
+                )
+            prob *= value
+        joint[(assignment[x_atom], assignment[y_atom])] += prob
+    return joint, (), {}
+
+
+def _required_observational_probability_keys(
+    graph: nx.DiGraph,
+    *,
+    topo: tuple[Atom, ...],
+    theta: Theta,
+) -> tuple[ProbabilityKey, ...]:
+    keys: set[ProbabilityKey] = set()
+    for assignment in _ancestral_assignments(topo, theta):
+        for atom in topo:
+            keys.add(_assignment_probability_key(graph, atom, assignment))
+    return tuple(sorted(keys, key=_probability_key_sort_key))
+
+
+def _ancestral_assignments(
+    topo: tuple[Atom, ...],
+    theta: Theta,
+):
+    domains = [_counterfactual_factorization_domain(theta, atom) for atom in topo]
+    for values in product(*domains):
+        yield dict(zip(topo, values))
+
+
+def _assignment_probability_key(
+    graph: nx.DiGraph,
+    atom: Atom,
+    assignment: dict[Atom, object],
+) -> ProbabilityKey:
+    return ProbabilityKey(
+        target_atom=atom,
+        target_value=assignment[atom],
+        given=frozenset(
+            (parent, assignment[parent])
+            for parent in graph.predecessors(atom)
+        ),
+    )
+
+
+def _probability_key_sort_key(key: ProbabilityKey) -> tuple:
+    given = tuple(
+        sorted(
+            (
+                (atom.predicate, tuple(arg.name for arg in atom.args), repr(value))
+                for atom, value in key.given
+            )
+        )
+    )
+    return (
+        key.target_atom.predicate,
+        tuple(arg.name for arg in key.target_atom.args),
+        repr(key.target_value),
+        given,
+    )
+
+
+def _counterfactual_factorization_domain(
+    theta: Theta,
+    atom: Atom,
+) -> tuple:
+    domain = tuple(theta.domain_of(atom))
+    if domain and set(domain) <= {False, True}:
+        return (False, True)
+    return domain
+
+
+def _estimate_counterfactual_joint_cell(
+    theta: Theta,
+    *,
+    x_atom: Atom,
+    x_val: bool,
+    y_atom: Atom,
+    y_val: bool,
+) -> float:
+    """Estimate one P(X=x, Y=y) cell for the narrow counterfactual path.
+
+    Local fallback only. Prefer the graph-faithful ancestral recovery
+    above; if that path is not applicable, current widening still stays
+    inside the same fragment:
+    - prefer the original chain-rule factorization P(X) * P(Y|X)
+    - if that is unavailable, fall back to P(Y) * P(X|Y)
+
+    If both fail, surface the missing key from the canonical
+    X-first attempt so the existing parameter fill-back workflow
+    stays deterministic.
+    """
+    x_key = ProbabilityKey(
+        target_atom=x_atom,
+        target_value=x_val,
+        given=frozenset(),
+    )
+    y_given_x_key = ProbabilityKey(
+        target_atom=y_atom,
+        target_value=y_val,
+        given=frozenset({(x_atom, x_val)}),
+    )
+    p_x = _recover_boolean_theta_value(theta, x_key)
+    p_y_given_x = _recover_boolean_theta_value(theta, y_given_x_key)
+    if p_x is not None and p_y_given_x is not None:
+        return p_x * p_y_given_x
+
+    y_key = ProbabilityKey(
+        target_atom=y_atom,
+        target_value=y_val,
+        given=frozenset(),
+    )
+    x_given_y_key = ProbabilityKey(
+        target_atom=x_atom,
+        target_value=x_val,
+        given=frozenset({(y_atom, y_val)}),
+    )
+    p_y = _recover_boolean_theta_value(theta, y_key)
+    p_x_given_y = _recover_boolean_theta_value(theta, x_given_y_key)
+    if p_y is not None and p_x_given_y is not None:
+        return p_y * p_x_given_y
+
+    missing_key = x_key if p_x is None else y_given_x_key
+    raise InsufficientTheta(
+        missing_key,
+        f"counterfactual bounds needs {format_probability_key(missing_key)}",
+    )
+
+
+def _recover_boolean_theta_value(
+    theta: Theta,
+    key: ProbabilityKey,
+) -> float | None:
+    """Return theta[key] or, for boolean domains, 1 - theta[complement].
+
+    This keeps counterfactual joint recovery inside current fragment
+    semantics: the program still supplies CPT-style parameters, but the
+    runtime no longer requires both boolean cells to be listed
+    redundantly.
+    """
+    value = theta.get(key)
+    if value is not None:
+        return float(value)
+    domain = set(theta.domain_of(key.target_atom))
+    if not domain or not domain <= {False, True} or not isinstance(key.target_value, bool):
+        return None
+    complement_key = ProbabilityKey(
+        target_atom=key.target_atom,
+        target_value=not key.target_value,
+        given=key.given,
+    )
+    complement = theta.get(complement_key)
+    if complement is None:
+        return None
+    return 1.0 - float(complement)
+
+
+def _dispatch_counterfactual(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    q: CounterfactualQuery = stmt.query  # type: ignore[assignment]
+
+    if q.assumptions is None or q.assumptions.monotonicity is None:
+        assumption_gap = MissingItem(
+            kind=MissingKind.ASSUMPTION,
+            name="assumptions.monotonicity",
+            priority=Priority.HIGH,
+            reason="首版反事实 bounds 只支持显式 monotonicity 假设",
+        )
+        return QueryResult(
+            status=ResultStatus.NEEDS_ASSUMPTION,
+            query_kind=QueryKind.COUNTERFACTUAL,
+            query_id=stmt.id,
+            missing_information=(assumption_gap,),
+            investigation_requests=(
+                InvestigationRequest(
+                    action=InvestigationAction.DEFINE_ASSUMPTION,
+                    target=assumption_gap.name,
+                    priority=assumption_gap.priority,
+                    note=assumption_gap.reason,
+                    group=MissingKind.ASSUMPTION.value,
+                    items=(
+                        InvestigationItem(
+                            target=assumption_gap.name,
+                            reason=assumption_gap.reason,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    joint_xy, missing, skeletons = _counterfactual_joint_xy(
+        theta, q, graph, bidirected=bidirected
+    )
+    if missing:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.COUNTERFACTUAL,
+            query_id=stmt.id,
+            missing_information=missing,
+            investigation_requests=investigation_pusher.push(
+                missing, skeletons=skeletons
+            ),
+        )
+
+    try:
+        twin = counterfactual.project_twin_network(graph, bidirected, q)
+        interval = counterfactual.balke_pearl_bounds_binary_monotone(
+            twin, q, joint_xy
+        )
+    except counterfactual.CounterfactualBoundsError as exc:
+        return QueryResult(
+            status=ResultStatus.OUTSIDE_LANGUAGE,
+            query_kind=QueryKind.COUNTERFACTUAL,
+            query_id=stmt.id,
+            extensions={"counterfactual_error": str(exc)},
+        )
+
+    bounded_result = NumericResult(
+        value=None,
+        interval=NumericInterval(low=interval.low, high=interval.high),
+    )
+    solved_result = NumericResult(value=interval.low)
+    derivation_output = solved_result if interval.low == interval.high else bounded_result
+    derivation = (
+        DerivationStep(
+            rule="counterfactual_bounds_binary_monotone",
+            inputs={"graph": graph},
+            output=derivation_output,
+            step_id="s1",
+        ),
+    )
+
+    if interval.low == interval.high:
+        return QueryResult(
+            status=ResultStatus.COUNTERFACTUAL_SOLVED,
+            query_kind=QueryKind.COUNTERFACTUAL,
+            query_id=stmt.id,
+            numeric_result=solved_result,
+            derivation=derivation,
+        )
+    return QueryResult(
+        status=ResultStatus.COUNTERFACTUAL_BOUNDED,
+        query_kind=QueryKind.COUNTERFACTUAL,
+        query_id=stmt.id,
+        numeric_result=bounded_result,
+        derivation=derivation,
+    )
 
 
 def _try_numeric(
@@ -950,7 +1361,13 @@ def _attach_framing(
 
     # F9: structural query kinds — framing gaps do not block the answer,
     # so keep the advisory notes but skip the actionable investigation.
-    if isinstance(stmt.query, (CauseQuery, AssocQuery, IdentifyQuery)):
+    # Counterfactual queries in S.C.1 also stay advisory-only: the
+    # blocking issue is lack of solver support, not missing variable
+    # metadata, so DEFINE_VARIABLE would be misleading here.
+    if (
+        isinstance(stmt.query, (CauseQuery, AssocQuery, IdentifyQuery, CounterfactualQuery))
+        or result.status is ResultStatus.OUTSIDE_LANGUAGE
+    ):
         return replace(result, framing_notes=notes)
 
     items = tuple(
@@ -1279,6 +1696,10 @@ def dispatch(
             )
         else:
             result = _dispatch_probability(stmt, graph, theta)
+    elif isinstance(q, CounterfactualQuery):
+        result = _dispatch_counterfactual(
+            stmt, graph, theta, bidirected=bidirected
+        )
     else:
         # Truly unknown type: fail loudly. The schema layer should
         # have already rejected it; reaching here is a programmer bug.

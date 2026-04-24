@@ -41,6 +41,15 @@
         "args": {
           "type": "array",
           "items": { "$ref": "#/$defs/term" }
+        },
+        "time_index": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "relative" },
+            "value": { "type": "integer" }
+          }
         }
       }
     },
@@ -150,13 +159,45 @@
         }
       }
     },
+    "counterfactual_assumptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["monotonicity"],
+      "properties": {
+        "monotonicity": {
+          "type": "string",
+          "enum": ["non_decreasing", "non_increasing"]
+        }
+      }
+    },
+    "counterfactual_query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "observed",
+        "counterfactual_intervention",
+        "counterfactual_target"
+      ],
+      "properties": {
+        "kind": { "const": "counterfactual_query" },
+        "observed": { "$ref": "#/$defs/valued_atom" },
+        "counterfactual_intervention": { "$ref": "#/$defs/intervention" },
+        "counterfactual_target": { "$ref": "#/$defs/valued_atom" },
+        "assumptions": { "$ref": "#/$defs/counterfactual_assumptions" },
+        "factual_target_known": {
+          "type": ["boolean", "number", "string", "null"]
+        }
+      }
+    },
     "query": {
       "oneOf": [
         { "$ref": "#/$defs/cause_query" },
         { "$ref": "#/$defs/assoc_query" },
         { "$ref": "#/$defs/identify_query" },
         { "$ref": "#/$defs/effect_query" },
-        { "$ref": "#/$defs/probability_query" }
+        { "$ref": "#/$defs/probability_query" },
+        { "$ref": "#/$defs/counterfactual_query" }
       ]
     },
     "probability_key": {

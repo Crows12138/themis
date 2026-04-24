@@ -38,6 +38,7 @@ def _subst_atom(atom: Atom, subst: dict[str, str]) -> Atom:
     return Atom(
         predicate=atom.predicate,
         args=tuple(_subst_term(t, subst) for t in atom.args),
+        time_index=atom.time_index,
     )
 
 

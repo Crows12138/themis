@@ -1,7 +1,7 @@
 # Phase 5 Charter — 时序 / 反事实 两个延伸 fragment
 
 > 立项日期：2026-04-22
-> 状态：**charter 草案** —— 未动代码
+> 状态：**§T 已落地；§C / S.C.1–S.C.6 已落地（窄 scope）**
 > 对应 ROADMAP：Phase 5 "更强推理能力" 中的时序 + 反事实分支
 > 对应 TaskList：#39
 
@@ -31,16 +31,16 @@ Phase 5 下有两个独立 fragment，各自承担一类语义扩展：
 两个 fragment 都由 eval 案例直接逼出来——不是假设性需求：
 
 - **Case 14 (F11 temporal)**: 用户 NL "最近连续熬夜，第二天没精神"。
-  当前 A1 v2 把 t→t+1 的时差压成无时间索引的边，并在
-  `extensions.ambiguities[kind=temporal]` 声明压缩。这个**声明**是诚实
-  的让步，不是答案；真正能表达时差的 kernel 还没有。
+  这个压力已经由 §T 吃掉：A1 v2.2 直接产出带 `time_index` 的 timed AST /
+  timed query，不再用 `extensions.ambiguities[kind=temporal]` 压缩降级。
 - **Case 17 (F16 counterfactual)**: 用户 NL "如果当初我选的是计算机
-  专业，现在收入会更高吗"。当前 A1 v2.1 把它塌缩成 Layer 2 干预查询
-  + `extensions.ambiguities[kind=counterfactual_query]` 声明 estimand
-  gap。这个声明同样是让步；真正的 Pearl Layer 3 语义还没有。
+  专业，现在收入会更高吗"。这条压力现在已经由窄 §C 吃掉：
+  A1 v2.3 直接产出 `counterfactual` query；若 query 未显式给
+  monotonicity，则 kernel 返回 `needs_assumption`；若 monotonicity +
+  Theta 都齐，则返回 `counterfactual_bounded` / `counterfactual_solved`。
 
-两例都是 **NL 层诚实地说 "我没法回答，因为 kernel 没有这个能力"**——
-正是 Phase 5 存在的目的。
+Case 14 已经从“Phase 5 立项动机”变成“Phase 5.temporal 的完成信号”；
+Case 17 仍然是 §C 的真实压力来源。
 
 ### 1.2 理论 fragment 是否已固化
 
@@ -290,12 +290,18 @@ true 的概率是多少？"
 - **S.C.6**: A1 prompt v2.3 加 counterfactual 识别规则 + 降级通道
   保留（Kernel 不支持时 fallback 到 Layer-2 proxy）
 
+> 落地后补充：当前 `§C` 不再只依赖 `P(X)` + `P(Y|X)` 的最窄 joint 恢复。
+> 在无相关 `bidirected` 触碰时，runtime / verifier 会先对 `{X, Y}` 的
+> directed ancestral subgraph 做 observational factorization；不适用时再回退
+> 到局部链式 / 布尔互补恢复。
+
 ### 3.7 §C 完成标志
 
 - Case 17 跑通：若 query 显式给了 monotonicity，则返回 Layer 3 bounds
   （或 bounds 收缩后的 `counterfactual_solved`）；若没给，则返回
   `needs_assumption`
 - S.C.1-S.C.6 测试过
+- derivation / verifier / context JSON 外部复核已接通
 - `CORE_STATUS.md` 列出 counterfactual 语义解冻段
 
 ---

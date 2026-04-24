@@ -230,7 +230,7 @@ Entry shape (per A1 prompt §5):
 | `subject_scope` | "你的问题跨了 `<subjects>` 两个主体，我先把它压平到单一主体回答。如果想区分，告诉我具体指哪个。" |
 | `reciprocal_causation` | "你提到两个方向都成立（`<chosen>` 与 `<alternatives>`）。DAG 不允许循环，我先按 `<chosen>` 这个方向跑了；要看反向请告诉我。" |
 | `selection_bias` | "`<reason>`——这个关联看起来是因为都在某个筛选条件里（如住院 / 幸存 / 入学），不是 X 真的导致 Y。所以我没画直接边。同意吗？" |
-| `counterfactual_query` | "你问的是'如果当初…'这类反事实问题（针对你个人的另一个可能结局）。本系统只能回答人群平均的干预效应作为近似，个体反事实暂不支持。下面给的是人群层面的近似答案。" |
+| `counterfactual_query` | "你问的是'如果当初…'这类反事实问题。当前 kernel 已支持一个窄的反事实 fragment；如果这条 query 仍被我标成 `counterfactual_query`，意思是它超出了当前 fragment，我只能退回到较弱的近似或请求你补充假设。" |
 | `mechanism_vs_existence` | "你问的是'为什么 / 通过什么机制'——是要知道中间步骤的生理 / 物理过程？本系统目前只能回答'是否存在因果路径'这层，机制链细节不在范围内。下面按'是否存在'给答案。" |
 | `individual_vs_population` | "背景给的是人群平均效应（如'平均降压 X'），你问的是'对我有效吗'。这两个估计量不同——个体效应取决于你自己的特征。下面给的是人群平均，作为最接近的近似。" |
 | `categorical_compression` | "这个变量原本是 `<original_levels>` 多档，我压到了 bool（`<cut_point>`）便于运行。你如果想看具体档位之间的对比请告诉我。" |

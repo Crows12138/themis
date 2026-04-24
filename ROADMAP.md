@@ -272,11 +272,26 @@ Themis 不负责“发明世界”，而负责：
 
 ### 状态
 
-远期。
+部分启动。
 
 ### 目标
 
 把构建层、推理层、行动层接起来，形成一个真正的 AI 推理系统。
+
+### 当前落地状态
+
+- **§T / temporal fragment**：已完成首版窄 scope
+  - `Atom.time_index`
+  - 程序级相对时间轴
+  - 1 阶 Markov 约束
+  - 现有 `cause / assoc / identify / effect / probability` 在时间展开图上的复用
+  - A1 v2.2 对 clean `t-1 -> t` lag 直接产出 timed AST
+- **§C / counterfactual fragment**：`S.C.1–S.C.6` 已以窄 scope 落地，
+  当前包含 runtime + derivation/verifier + context/JSON 外部复核，
+  并支持在适用时用 directed ancestral factorization 恢复观测 joint
+
+也就是说，Phase 5 不再是“完全远期”；它已经落地了 temporal 和窄
+counterfactual 两条子线，但还远没有形成完整的 Phase 5 体系。
 
 ### 可能包含
 
@@ -289,8 +304,9 @@ Themis 不负责“发明世界”，而负责：
 
 ### 说明
 
-这一阶段不是当前的近期目标。  
-它只有在前面几层都已经足够稳定时才值得推进。
+这一阶段里的语义跃迁需要**逐 fragment 显式立项**。  
+当前已经落地的是 `§T` 与窄 `§C`；更宽的时间 / 动作 / 策略系统以及更强的
+counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里塞。
 
 ---
 

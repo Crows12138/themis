@@ -38,8 +38,8 @@
   "ambiguities": [
     {
       "kind": "temporal",
-      "description": "NL explicitly encodes a t → t+1 lag (熬夜 tonight → 没精神 next morning). DAG semantics are atemporal; flattening to stays_up_late → feels_tired silently drops the lag. The correct behavior is flatten for runnability AND declare the compression so the user knows time semantics was lost.",
-      "expected_behavior": "emit atemporal edge AND extensions.ambiguities[kind=temporal] noting the per-night lag was compressed out"
+      "description": "NL explicitly encodes a t → t+1 lag (熬夜 tonight → 没精神 next morning). Under Phase 5 §T this lag is now representable directly in the kernel via relative time indices.",
+      "expected_behavior": "emit a timed edge/query using stays_up_late@t-1 and feels_tired_next_morning@t; no temporal-compression ambiguity should be emitted for this clean t-1 → t case"
     }
   ],
   "gold_answerability": "needs_structural_info",

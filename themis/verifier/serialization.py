@@ -48,6 +48,7 @@ from ..types import (
     NumericResult,
     ProbabilityRefExpr,
     ProductExpr,
+    RelativeTimeIndex,
     StepRef,
     StructuralResult,
     SumExpr,
@@ -130,7 +131,8 @@ def _canonical_atom_order(atoms) -> list[Atom]:
     """Sort atoms by (predicate, args-names) so atom_set round-trips
     to the same JSON regardless of Python's hash randomness."""
     def key(a: Atom):
-        return (a.predicate, tuple(t.name for t in a.args))
+        time_key = None if a.time_index is None else ("relative", a.time_index.value)
+        return (a.predicate, tuple(t.name for t in a.args), time_key)
     return sorted(atoms, key=key)
 
 
@@ -171,11 +173,14 @@ def _tuple_to_dict(tpl: tuple) -> dict:
 
 
 def _atom_to_dict(atom: Atom) -> dict:
-    return {
+    d = {
         "kind": "atom",
         "predicate": atom.predicate,
         "args": [_term_to_dict(t) for t in atom.args],
     }
+    if atom.time_index is not None:
+        d["time_index"] = {"kind": "relative", "value": atom.time_index.value}
+    return d
 
 
 def _term_to_dict(term: Term) -> dict:
@@ -336,8 +341,23 @@ def _decode_atom(d: dict) -> Atom:
         raise DerivationSerializationError(
             "atom requires predicate:str and args:list"
         )
+    time_raw = d.get("time_index")
+    time_index = None
+    if time_raw is not None:
+        if not isinstance(time_raw, dict):
+            raise DerivationSerializationError("atom.time_index must be a dict")
+        if time_raw.get("kind") != "relative":
+            raise DerivationSerializationError(
+                "atom.time_index.kind must be 'relative'"
+            )
+        value = time_raw.get("value")
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise DerivationSerializationError(
+                "atom.time_index.value must be an integer"
+            )
+        time_index = RelativeTimeIndex(value=value)
     args = tuple(_decode_term(t) for t in args_raw)
-    return Atom(predicate=pred, args=args)
+    return Atom(predicate=pred, args=args, time_index=time_index)
 
 
 def _decode_term(d: dict) -> Term:
@@ -585,9 +605,12 @@ from ..runtime.numeric_estimator import ProbabilityKey, Theta  # noqa: E402
 from ..types import (  # noqa: E402
     AssocQuery,
     CauseQuery,
+    CounterfactualAssumptions,
+    CounterfactualQuery,
     EffectQuery,
     IdentifyQuery,
     Intervention,
+    Monotonicity,
     ProbabilityQuery,
 )
 from .context import VerificationContext  # noqa: E402
@@ -641,6 +664,24 @@ def _query_to_dict(q) -> dict:
             "target": _valued_atom_to_dict(q.target),
             "given": [_valued_atom_to_dict(a) for a in q.given],
         }
+    if isinstance(q, CounterfactualQuery):
+        d = {
+            "kind": "counterfactual_query",
+            "observed": _valued_atom_to_dict(q.observed),
+            "counterfactual_intervention": _intervention_to_dict(
+                q.counterfactual_intervention
+            ),
+            "counterfactual_target": _valued_atom_to_dict(
+                q.counterfactual_target
+            ),
+        }
+        if q.assumptions is not None and q.assumptions.monotonicity is not None:
+            d["assumptions"] = {
+                "monotonicity": q.assumptions.monotonicity.value
+            }
+        if q.factual_target_known is not None:
+            d["factual_target_known"] = q.factual_target_known
+        return d
     raise DerivationSerializationError(
         f"don't know how to serialize query type {type(q).__name__}"
     )
@@ -686,6 +727,9 @@ def _theta_to_dict(theta: Theta) -> dict:
                     key=lambda pair: (
                         pair[0].predicate,
                         tuple(t.name for t in pair[0].args),
+                        None if pair[0].time_index is None else (
+                            "relative", pair[0].time_index.value
+                        ),
                         str(pair[1]),
                     ),
                 )
@@ -819,6 +863,55 @@ def _decode_query(d: dict):
                 _decode_literal_valued_atom(a, f"probability_query.given[{i}]")
                 for i, a in enumerate(given_raw)
             ),
+        )
+    if kind == "counterfactual_query":
+        if "observed" not in d:
+            raise DerivationSerializationError(
+                "counterfactual_query.observed is required"
+            )
+        if "counterfactual_intervention" not in d:
+            raise DerivationSerializationError(
+                "counterfactual_query.counterfactual_intervention is required"
+            )
+        if "counterfactual_target" not in d:
+            raise DerivationSerializationError(
+                "counterfactual_query.counterfactual_target is required"
+            )
+        assumptions_raw = d.get("assumptions")
+        assumptions = None
+        if assumptions_raw is not None:
+            if not isinstance(assumptions_raw, dict):
+                raise DerivationSerializationError(
+                    "counterfactual_query.assumptions must be a dict"
+                )
+            monotonicity = assumptions_raw.get("monotonicity")
+            if monotonicity is None:
+                raise DerivationSerializationError(
+                    "counterfactual_query.assumptions.monotonicity is required"
+                )
+            try:
+                monotonicity_enum = Monotonicity(monotonicity)
+            except ValueError as e:
+                raise DerivationSerializationError(
+                    "counterfactual_query.assumptions.monotonicity "
+                    "must be 'non_decreasing' or 'non_increasing'"
+                ) from e
+            assumptions = CounterfactualAssumptions(
+                monotonicity=monotonicity_enum
+            )
+        return CounterfactualQuery(
+            observed=_decode_literal_valued_atom(
+                d["observed"], "counterfactual_query.observed"
+            ),
+            counterfactual_intervention=_decode_intervention(
+                d["counterfactual_intervention"]
+            ),
+            counterfactual_target=_decode_literal_valued_atom(
+                d["counterfactual_target"],
+                "counterfactual_query.counterfactual_target",
+            ),
+            assumptions=assumptions,
+            factual_target_known=d.get("factual_target_known"),
         )
     raise DerivationSerializationError(f"unknown query kind: {kind!r}")
 

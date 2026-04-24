@@ -20,6 +20,7 @@ from ..runtime.numeric_estimator import Theta
 from ..types import (
     Atom,
     AssocQuery,
+    CounterfactualQuery,
     CauseQuery,
     EffectQuery,
     IdentifyQuery,
@@ -28,7 +29,12 @@ from ..types import (
 
 
 VerifiableQuery = Union[
-    CauseQuery, AssocQuery, IdentifyQuery, EffectQuery, ProbabilityQuery,
+    CauseQuery,
+    AssocQuery,
+    IdentifyQuery,
+    EffectQuery,
+    ProbabilityQuery,
+    CounterfactualQuery,
 ]
 
 

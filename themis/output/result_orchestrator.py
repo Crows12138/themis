@@ -60,10 +60,13 @@ def _term_to_dict(term: Term) -> dict:
 
 
 def _atom_to_dict(atom: Atom) -> dict:
-    return {
+    d = {
         "predicate": atom.predicate,
         "args": [_term_to_dict(t) for t in atom.args],
     }
+    if atom.time_index is not None:
+        d["time_index"] = {"kind": "relative", "value": atom.time_index.value}
+    return d
 
 
 def _value_to_json(v: ValueExpr):

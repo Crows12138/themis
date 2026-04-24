@@ -3,6 +3,15 @@
 Each ground atom becomes a node; each ground ``cause(A, B)`` becomes
 a directed edge A -> B.
 
+Phase 5 §T / S.T.3 extends the node identity from just
+``(predicate, args)`` to the full ``Atom`` value, which now includes an
+optional ``time_index``. That means:
+
+- ``sleep(me)@t-1`` and ``sleep(me)@t`` are distinct nodes
+- an atemporal atom (no ``time_index``) is its own node, equivalent to
+  the charter's "virtual atemporal index"
+- DAG acyclicity is checked on this already-unrolled graph
+
 The resulting graph is the working surface on which d-separation,
 back-door search, and identification operate.
 
@@ -34,8 +43,17 @@ class CyclicGraphError(ValueError):
 
 
 def _format_cycle(cycle: tuple[Atom, ...]) -> str:
-    path = [f"{a.predicate}({','.join(t.name for t in a.args)})" for a in cycle]
+    path = [_atom_label(a) for a in cycle]
     return " -> ".join(path + [path[0]])
+
+
+def _atom_label(atom: Atom) -> str:
+    args = ",".join(t.name for t in atom.args)
+    base = f"{atom.predicate}({args})"
+    if atom.time_index is None:
+        return base
+    t = atom.time_index.value
+    return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
 def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
