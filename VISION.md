@@ -162,6 +162,76 @@ Themis 当前**不是**：
 
 ---
 
+## 扩展愿景：LLM-native 全板块因果推理编排器（2026-04-24 起）
+
+经过 Phase 0–5 的验证，Themis 的定位从"静态因果推理内核"**扩展**为一个
+更大的目标：
+
+**成为 LLM-native 因果定量推理的统一编排层——覆盖因果定量问题的全部
+12 个板块，全部自家实现，全流程可审计。**
+
+### 为什么扩展
+
+- Phase 0-5 证明了 "JSON-in / JSON-out + 独立 verifier + LLM 前端"
+  这套机制本身是有价值的架构——不只是为 Pearl 识别服务
+- 真实 LLM 应用需要的不只是"backdoor 识别"，而是**整个因果定量问题
+  空间**（IV / 中介 / 反事实 / 发现 / 敏感性 / 估计等）的统一接口
+- 现有开源因果库（DoWhy / EconML / pgmpy / causal-learn）各自覆盖一
+  个子集，没有任何一个做了"LLM-native + 审计完整 + 跨子领域统一"这
+  件事——**这个位置目前真的空着**
+
+### 覆盖目标：12 板块
+
+Themis 最终目标覆盖因果定量问题的全部 12 板块，具体现状和策略见
+[COVERAGE_MAP.md](COVERAGE_MAP.md)：
+
+1. 可观测识别（Pearl backdoor / front-door / 完整 ID）
+2. 潜变量 / ADMG
+3. 反事实（Layer 3）
+4. 时序 / 动态
+5. 工具变量（IV）
+6. 中介分析（NDE / NIE / CDE）
+7. 选择偏差
+8. 测量误差
+9. 转移性 / 泛化
+10. 敏感性分析
+11. 连续变量 / 数据驱动估计
+12. 因果发现（从数据反推 DAG）
+
+### 执行原则
+
+对外部开源生态的定位变化：
+
+- **所有核心算法自家实现**——production 依赖里**不放任何因果推理库**
+  （DoWhy / EconML / CausalML / pgmpy / causal-learn 都不放）
+- 只依赖 ML 原语（`numpy / scipy / scikit-learn / networkx / pandas /
+  pytorch`），这些库稳定、确定、可 pin
+- **外部因果库降级为 parity calibration tool**——只在开发时跑对照测
+  试确认我们写对了，production 路径不依赖它们
+- API 调用的**5 条规则**（见 `COVERAGE_MAP.md`）：必须全部满足才允许
+  接 API，否则自写。其中最核心的是"**估计层结果禁止走 API**"——因为
+  默认参数漂移会破坏可审计承诺
+
+### 里程碑
+
+- **M1（≈ Phase 6）**：识别层完整化——IV / 中介 / 完整 ID
+- **M2（≈ Phase 7）**：基础估计器——IPTW / g-computation / DML / DR-Learner
+- **M3（≈ Phase 8）**：发现 + 敏感性——PC / FCI / E-value / Rosenbaum
+
+三个里程碑共约 3.5-4 个月，每个都独立可展示。超出 M1-M3 的板块（测量
+误差、转移性、L3b 深度方法等）按真实压力逐个立项。
+
+### 和原 VISION 的关系
+
+**不替换，只扩展**。原 VISION 对"静态因果推理核心"的描述仍然准确——
+Themis 在 Phase 0-5 完成的就是那部分。扩展愿景把目标从"静态因果核心"
+扩大到"全板块编排器 + LLM-native 前端"，把原 VISION 作为子集包住。
+
+核心原则不变：显式建模假设、机器可验证推导链、缺口显式报告、每个数
+字可追溯。这些在扩展到 12 板块后**更重要**，不是被放弃。
+
+---
+
 ## 当前原则
 
 当前阶段，Themis 优先坚持这四条原则：

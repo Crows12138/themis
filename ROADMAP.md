@@ -310,6 +310,164 @@ counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里�
 
 ---
 
+## Phase 6：识别层完整化（= M1，2026-04-24 立项）
+
+### 状态
+
+**未开始**（charter 未立）。
+
+### 目标
+
+把 Themis 识别层扩到 Pearl 因果识别文献 90% 以上的覆盖，成为**识别
+能力比 DoWhy 更完整**的纯自家实现。这是扩展愿景（见 VISION.md "扩展
+愿景"段）的第一个里程碑。
+
+### 包含的 slice
+
+- **IV 识别**：satisfies IV1/IV2/IV3 的工具变量搜索 + 公式构造 +
+  conditional IV（~1 周）
+- **中介识别**：NDE / NIE / CDE 三种效应的 identification + 对应公式
+  + cross-world 假设显式声明（~2 周）
+- **多 mediator 前门**：链式 P(Z1..Zk|X) 分解（~1 周）
+- **Complete ID 算法**：Shpitser-Pearl 2006 实现（可选，~1-3 个月）
+  ——如果时间有限，可延到 Phase 6.5
+
+### 不包含
+
+- 板块 11（数据驱动估计）——Phase 7 做
+- 板块 12（因果发现）——Phase 8 做
+- C++ 性能核心方法（Causal Forests / grf）——按需独立立项
+- 研究级 SuperLearner TMLE 等 L4 方法——long-term defer
+
+### 执行原则
+
+- 完全自家写（sklearn 之上），**不接外部因果库作为 production backend**
+- DoWhy 仅作 parity calibration（dev dependency，测试时用）
+- V0-V5 verifier 配套扩展新 rule family：`iv_*`、`mediation_*`、`id_*`
+- 每个 slice 配套 charter（仿 Phase 2.latent / Phase 5 格式）
+
+### 完成标志
+
+- IV + 中介 + 多 mediator 前门三个 slice 全部落地
+- 所有新功能有对应 verifier rule + 独立重检
+- eval set 至少 3 个新案例专门覆盖新识别策略
+- DoWhy identify 的 parity test 全绿
+- `CORE_STATUS.md` 列出 Phase 6 解冻段
+
+### 时间预估
+
+~4 周（不含 complete ID 算法；如含则 2-4 个月）
+
+---
+
+## Phase 7：数据驱动估计（= M2，2026-04-24 立项）
+
+### 状态
+
+**未开始**。依赖 Phase 6。
+
+### 目标
+
+让 Themis 从"给公式"升级到"给数字"——覆盖 70% 现实因果估计问题。
+
+### 包含的 slice
+
+**L1 基础估计器**（4 周）：
+- IPTW / IPCW
+- G-computation
+- 2SLS（线性 IV 估计）
+- 简单回归调整
+- Heckman selection correction
+
+**L2 现代估计器**（6-8 周）：
+- DML (ATE)
+- DR-Learner（constant effect）
+- TMLE 基础版
+- R-Learner（Nie-Wager 简化版）
+
+### 不包含
+
+- L3b C++ 核心的 Causal Forests / grf 原版——单独立项或 defer
+- L4 SuperLearner TMLE 等研究级方法
+
+### 执行原则
+
+- 全部自家写，sklearn 之上
+- 每个估计器配套 parity test，对照 EconML / CausalML 数字一致
+- 新增 V6 级 verifier 规则族——审核估计过程的不变性（propensity 范
+  围、cross-fitting 正确性、残差正交性等）
+
+### 完成标志
+
+- 9 个 L1-L2 估计器全部落地，每个有 DGP 测试 + parity test
+- V6 verifier 规则族收敛
+- 端到端 demo："给 Themis DAG + CSV 数据 + query，它返回带 CI 的效应
+  数字 + 完整 derivation"
+- `CORE_STATUS.md` 列出 Phase 7 解冻段
+
+### 时间预估
+
+~6-8 周
+
+---
+
+## Phase 8：发现 + 敏感性（= M3，2026-04-24 立项）
+
+### 状态
+
+**未开始**。依赖 Phase 6（识别层）；Phase 7 的基础估计器是 plus，不
+硬依赖。
+
+### 目标
+
+补齐"从数据反推 DAG"和"结论对假设的鲁棒性"这两项——这是真实因果推
+理应用里经常被要求的能力。
+
+### 包含的 slice
+
+**因果发现**（3-4 周）：
+- PC 算法（constraint-based）
+- FCI 算法（允许潜变量）
+- LiNGAM（非高斯性 + 线性）
+- 上游与 A1 prompt 集成（发现出的 DAG 作为候选给 LLM 确认）
+
+**敏感性分析**（2-3 周）：
+- E-value（VanderWeele 2017）
+- Rosenbaum bounds
+- Tipping-point analysis
+- 对所有 Phase 7 估计器加 sensitivity hook
+
+### 不包含
+
+- NOTEARS 等深度学习因果发现——按需 vendor gCastle 或 defer
+- 转移性（板块 9）——Phase 9+ 独立立项
+
+### 完成标志
+
+- PC / FCI / LiNGAM 三个发现算法落地
+- E-value / Rosenbaum 两个敏感性方法落地
+- 和 causal-learn 的 parity test 全绿
+- 发现结果能无缝输入 Phase 6 识别层
+
+### 时间预估
+
+~4-6 周
+
+---
+
+## Phase 9+：按需扩展
+
+完成 M1-M3（Phase 6-8）后，剩余板块按真实压力 / 用户需求独立立项：
+
+- **板块 8 测量误差**：只有真实用户场景要求时启动
+- **板块 9 转移性 / 泛化**：S-admissibility / selection diagrams
+- **L3b 深度方法**：Causal Forests Python 重写（若用户追求 CATE 且可
+  接受 Python 性能）
+- **连续反事实**：§C 扩展
+- **多 intervention / multi-target ID**：Phase 2.latent 里延后的方向
+
+---
+
 ## 当前优先级原则
 
 未来一段时间内，优先级按下面顺序排：

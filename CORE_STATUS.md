@@ -503,6 +503,33 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 
 ---
 
+### Phase 6 = M1 识别层完整化（立项 2026-04-24）
+
+**理由**：VISION.md "扩展愿景"段里确认了从"静态因果推理内核"扩展到
+"LLM-native 全板块因果推理编排器"的新方向。Phase 6 是这个扩展的第
+一个里程碑——把识别层补齐到 Pearl 因果识别文献的 90%+ 覆盖。
+
+对应 charter：未立（下一步任务）。对应 ROADMAP 段：Phase 6。
+
+**覆盖 slice**：
+
+- IV 识别（IV1/IV2/IV3 + conditional IV + 公式构造）
+- 中介识别（NDE / NIE / CDE + cross-world 假设显式声明）
+- 多 mediator 前门（链式 P(Z1..Zk|X) 分解）
+- Complete ID 算法（Shpitser-Pearl 2006，可选延到 Phase 6.5）
+
+**执行原则**：
+
+- 完全自家写，**不接外部因果库作 production backend**
+- 外部库（DoWhy）仅作 parity calibration，dev dependency
+- 每个 slice 配套独立 charter + V0-V5 verifier 扩展 + eval case
+
+**未包含**：Phase 7（估计器）、Phase 8（发现 + 敏感性）——另立 charter。
+
+**时间预估**：4 周（不含 complete ID；含则 2-4 月）
+
+---
+
 ## 最短版本
 
 ```text
