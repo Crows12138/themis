@@ -84,6 +84,7 @@ def _estimate_effect_queries(
     from ..runtime.instantiation import instantiate
     from ..runtime import structural_solver
     from .backdoor import estimate_backdoor_ate
+    from .frontdoor import estimate_frontdoor_ate
 
     ast = _ensure_dict(program)
     ast = validate_ast(ast)
@@ -109,58 +110,111 @@ def _estimate_effect_queries(
             given=given_atoms,
             bidirected=bidirected or None,
         )
-        if not adjustment_sets:
-            # No backdoor strategy available — 7.2/7.3/7.4 will catch
-            # front-door / IV / mediation cases. Skip for 7.1.
+        if adjustment_sets:
+            chosen = min(adjustment_sets, key=len)
+            adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+            estimate = estimate_backdoor_ate(
+                contract.data,
+                treatment=x_atom.predicate,
+                outcome=y_atom.predicate,
+                adjustment=adjustment_names,
+                ci_bootstrap=ci_bootstrap,
+                random_state=random_state,
+                model=model,  # type: ignore[arg-type]
+            )
+
+            result["numeric_estimate"] = {
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+                "method": estimate.method,
+                "assumptions": list(estimate.assumptions),
+                "sample_size": estimate.sample_size,
+                "data_hash": estimate.data_hash,
+                "adjustment": list(estimate.adjustment),
+                "treatment": estimate.treatment,
+                "outcome": estimate.outcome,
+            }
+
+            result["derivation"] = _build_numeric_derivation_dict(
+                graph=graph,
+                x=x_atom, y=y_atom,
+                adjustment=chosen,
+                given=frozenset(given_atoms),
+                estimate=estimate,
+            )
+            _finalise_numeric_result(result)
             continue
 
-        chosen = min(adjustment_sets, key=len)
-        adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
-
-        estimate = estimate_backdoor_ate(
-            contract.data,
-            treatment=x_atom.predicate,
-            outcome=y_atom.predicate,
-            adjustment=adjustment_names,
-            ci_bootstrap=ci_bootstrap,
-            random_state=random_state,
-            model=model,  # type: ignore[arg-type]
+        # Phase 7.2: backdoor failed — try front-door when ``given`` is
+        # empty (multi-mediator + conditioning isn't supported in the
+        # front-door formula yet; mirrors the identification layer).
+        if given_atoms:
+            continue
+        front = structural_solver.front_door_sets(
+            graph, x_atom, y_atom, bidirected=bidirected or None,
         )
+        if not front:
+            # No front-door either — 7.3 (IV) / 7.4 (mediation) will
+            # pick up the slack once landed. Skip for now.
+            continue
+
+        import networkx as nx
+        chosen_front = min(front, key=len)
+        topo_mediators = tuple(
+            n for n in nx.topological_sort(graph) if n in chosen_front
+        )
+        mediator_names = tuple(a.predicate for a in topo_mediators)
+
+        try:
+            fd_estimate = estimate_frontdoor_ate(
+                contract.data,
+                treatment=x_atom.predicate,
+                outcome=y_atom.predicate,
+                mediators=mediator_names,
+                ci_bootstrap=ci_bootstrap,
+                random_state=random_state,
+                model=model,  # type: ignore[arg-type]
+            )
+        except NotImplementedError:
+            # e.g. continuous mediator in the current v1 restriction —
+            # leave the result unchanged for now.
+            continue
 
         result["numeric_estimate"] = {
-            "point": estimate.point,
-            "ci_lower": estimate.ci_lower,
-            "ci_upper": estimate.ci_upper,
-            "ci_level": estimate.ci_level,
-            "method": estimate.method,
-            "assumptions": list(estimate.assumptions),
-            "sample_size": estimate.sample_size,
-            "data_hash": estimate.data_hash,
-            "adjustment": list(estimate.adjustment),
-            "treatment": estimate.treatment,
-            "outcome": estimate.outcome,
+            "point": fd_estimate.point,
+            "ci_lower": fd_estimate.ci_lower,
+            "ci_upper": fd_estimate.ci_upper,
+            "ci_level": fd_estimate.ci_level,
+            "method": fd_estimate.method,
+            "assumptions": list(fd_estimate.assumptions),
+            "sample_size": fd_estimate.sample_size,
+            "data_hash": fd_estimate.data_hash,
+            "mediators": list(fd_estimate.mediators),
+            "treatment": fd_estimate.treatment,
+            "outcome": fd_estimate.outcome,
         }
 
-        # Synthesize a minimal derivation so the verifier can audit:
-        #   s1: backdoor_criterion (structural — independent rule re-runs it)
-        #   s2: numeric_backdoor_estimate (metadata audit only — no re-fit)
-        result["derivation"] = _build_numeric_derivation_dict(
+        result["derivation"] = _build_frontdoor_numeric_derivation_dict(
             graph=graph,
             x=x_atom, y=y_atom,
-            adjustment=chosen,
-            given=frozenset(given_atoms),
-            estimate=estimate,
+            mediators=topo_mediators,
+            estimate=fd_estimate,
         )
+        _finalise_numeric_result(result)
 
-        # Flip status — numerical answer supersedes "needs_investigation"
-        # for theta, which is no longer needed once we have data.
-        result["status"] = "numerically_solved"
-        # Structural identifiability was just proven by
-        # minimal_adjustment_sets returning a non-empty result; reflect
-        # that in the structural_result so the verifier's claimed_output
-        # check lines up.
-        result["structural_result"] = {"value": True}
-        result.pop("missing_information", None)
+
+def _finalise_numeric_result(result: dict) -> None:
+    """Flip result status to numerically_solved, set a truthy
+    structural_result, and drop stale missing_information entries.
+
+    Shared between backdoor (7.1) and front-door (7.2) numeric paths.
+    """
+    result["status"] = "numerically_solved"
+    result["structural_result"] = {"value": True}
+    result.pop("missing_information", None)
 
 
 def _build_numeric_derivation_dict(
@@ -191,6 +245,50 @@ def _build_numeric_derivation_dict(
                 "treatment": x,
                 "outcome": y,
                 "adjustment": frozenset(adjustment),
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
+
+
+def _build_frontdoor_numeric_derivation_dict(
+    *, graph, x, y, mediators, estimate,
+):
+    """Build a two-step derivation for a front-door data estimate:
+
+        s1: front_door_criterion (structural witness)
+        s2: numeric_frontdoor_estimate (metadata audit only — no re-fit)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="front_door_criterion",
+            inputs={
+                "graph": graph,
+                "x": x, "y": y,
+                "z": frozenset(mediators),
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_frontdoor_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "treatment": x,
+                "outcome": y,
+                "mediators": frozenset(mediators),
                 "method": estimate.method,
                 "data_hash": estimate.data_hash,
                 "sample_size": estimate.sample_size,

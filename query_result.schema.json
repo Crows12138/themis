@@ -248,10 +248,10 @@
     },
     "numeric_estimate": {
       "type": "object",
-      "description": "Phase 7.1: data-based ATE point estimate + CI. Present on effect-query results routed through themis.estimate when a backdoor strategy was available. The verifier audits this block without re-training.",
+      "description": "Phase 7: data-based ATE point estimate + CI. Present on effect-query results routed through themis.estimate when a numerical strategy resolved. The verifier audits this block without re-training. Exactly one of ``adjustment`` (backdoor) or ``mediators`` (front-door) is present, corresponding to the ``method`` enum value.",
       "required": [
         "point", "ci_lower", "ci_upper", "ci_level", "method",
-        "assumptions", "sample_size", "data_hash", "adjustment",
+        "assumptions", "sample_size", "data_hash",
         "treatment", "outcome"
       ],
       "additionalProperties": false,
@@ -260,11 +260,17 @@
         "ci_lower": { "type": ["number", "null"] },
         "ci_upper": { "type": ["number", "null"] },
         "ci_level": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
-        "method": { "enum": ["backdoor_linear", "backdoor_logistic"] },
+        "method": {
+          "enum": [
+            "backdoor_linear", "backdoor_logistic",
+            "frontdoor_linear", "frontdoor_logistic"
+          ]
+        },
         "assumptions": { "type": "array", "items": { "type": "string" } },
         "sample_size": { "type": "integer", "minimum": 10 },
         "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "adjustment": { "type": "array", "items": { "type": "string" } },
+        "mediators": { "type": "array", "items": { "type": "string" } },
         "treatment": { "type": "string" },
         "outcome": { "type": "string" }
       }

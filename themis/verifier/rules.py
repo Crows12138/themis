@@ -1100,6 +1100,11 @@ _NUMERIC_BACKDOOR_METHODS = frozenset({
     "backdoor_logistic",
 })
 
+_NUMERIC_FRONTDOOR_METHODS = frozenset({
+    "frontdoor_linear",
+    "frontdoor_logistic",
+})
+
 _SHA256_HEX_LEN = 64
 _MIN_NUMERIC_SAMPLE_SIZE = 10
 
@@ -1254,6 +1259,152 @@ def _rule_numeric_backdoor_estimate(
         raise RuleCheckFailed(
             "numeric_backdoor_estimate output.value must be True",
             step_index=step_index, rule="numeric_backdoor_estimate",
+        )
+
+
+def _rule_numeric_frontdoor_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Phase 7.2 — relaxed audit for a data-based front-door ATE estimate.
+
+    Mirrors ``numeric_backdoor_estimate`` but for the front-door path:
+
+    - ``method`` is in ``_NUMERIC_FRONTDOOR_METHODS``
+    - ``point`` is inside ``[ci_lower, ci_upper]`` when the CI is present
+    - ``ci_level`` in (0, 1)
+    - ``data_hash`` is a well-formed SHA-256 hex digest
+    - ``sample_size`` >= 10
+    - ``mediators`` is non-empty and disjoint from {treatment, outcome}
+    - referenced ``criterion`` step is a ``front_door_criterion`` whose
+      z-set equals ``mediators``
+    """
+    criterion_ref = _require(inputs, "criterion", step_index, "numeric_frontdoor_estimate")
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_frontdoor_estimate.criterion must be a StepRef",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    treatment = _require_atom(inputs, "treatment", step_index, "numeric_frontdoor_estimate")
+    outcome = _require_atom(inputs, "outcome", step_index, "numeric_frontdoor_estimate")
+    mediators = _require_atom_set(
+        inputs, "mediators", step_index, "numeric_frontdoor_estimate",
+    )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+
+    if method not in _NUMERIC_FRONTDOOR_METHODS:
+        raise RuleCheckFailed(
+            f"numeric_frontdoor_estimate.method must be one of "
+            f"{sorted(_NUMERIC_FRONTDOOR_METHODS)}; got {method!r}",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"numeric_frontdoor_estimate.data_hash must be a "
+            f"{_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            "numeric_frontdoor_estimate.data_hash must be lowercase hex",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"numeric_frontdoor_estimate.sample_size must be an int "
+            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"numeric_frontdoor_estimate.point must be a number; got "
+            f"{point!r}",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+
+    ci_present = ci_lower is not None or ci_upper is not None
+    if ci_present:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                "numeric_frontdoor_estimate: ci_lower and ci_upper must "
+                "both be present or both absent",
+                step_index=step_index, rule="numeric_frontdoor_estimate",
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"numeric_frontdoor_estimate: point {point} outside "
+                f"[{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule="numeric_frontdoor_estimate",
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"numeric_frontdoor_estimate.ci_level must be in (0, 1); "
+                f"got {ci_level!r}",
+                step_index=step_index, rule="numeric_frontdoor_estimate",
+            )
+
+    if not mediators:
+        raise RuleCheckFailed(
+            "numeric_frontdoor_estimate.mediators must be non-empty",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    if mediators & {treatment, outcome}:
+        raise RuleCheckFailed(
+            "numeric_frontdoor_estimate.mediators must be disjoint from "
+            "{treatment, outcome}",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None:
+        raise RuleCheckFailed(
+            f"numeric_frontdoor_estimate: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    if criterion_step.rule != "front_door_criterion":
+        raise RuleCheckFailed(
+            "numeric_frontdoor_estimate.criterion must reference a "
+            "front_door_criterion step",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    criterion_z = criterion_step.inputs.get("z")
+    if not isinstance(criterion_z, (frozenset, set)):
+        raise RuleCheckFailed(
+            "referenced front_door_criterion.z must be an atom set",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    if frozenset(criterion_z) != frozenset(mediators):
+        raise RuleCheckFailed(
+            "numeric_frontdoor_estimate.mediators must equal the z-set "
+            "claimed by the referenced front_door_criterion step",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "numeric_frontdoor_estimate output must be a StructuralResult",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "numeric_frontdoor_estimate output.value must be True",
+            step_index=step_index, rule="numeric_frontdoor_estimate",
         )
 
 
@@ -2756,6 +2907,8 @@ _STEP_REF_RULES = {
     "numeric_result",
     # Phase 7.1 S.N.4
     "numeric_backdoor_estimate",
+    # Phase 7.2 S.FDN.3
+    "numeric_frontdoor_estimate",
 }
 
 
@@ -2794,6 +2947,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_backdoor_estimate":
         _rule_numeric_backdoor_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_frontdoor_estimate":
+        _rule_numeric_frontdoor_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

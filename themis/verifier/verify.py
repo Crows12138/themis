@@ -177,12 +177,12 @@ def _assert_query_binding(
                 "front_door_criterion.x does not match identify query intervention atom",
                 step_index=step_index, rule=step.rule,
             )
-        if step.inputs.get("y") != q.target:
+        if step.inputs.get("y") != q_target_atom:
             raise VerificationError(
                 "front_door_criterion.y does not match identify query target",
                 step_index=step_index, rule=step.rule,
             )
-        if q.given:
+        if q_given_atoms:
             raise VerificationError(
                 "front_door_criterion requires identify query given to be empty",
                 step_index=step_index, rule=step.rule,
@@ -548,9 +548,13 @@ def verify_numeric_estimate(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
-    if derivation[-1].rule != "numeric_backdoor_estimate":
+    allowed_finals = (
+        "numeric_backdoor_estimate",
+        "numeric_frontdoor_estimate",
+    )
+    if derivation[-1].rule not in allowed_finals:
         raise VerificationError(
-            "numeric-estimate derivation must end in numeric_backdoor_estimate; "
+            f"numeric-estimate derivation must end in one of {allowed_finals}; "
             f"got {derivation[-1].rule!r}",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
