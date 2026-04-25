@@ -62,6 +62,13 @@
         },
         "source": {
           "type": "string"
+        },
+        "evidence": {
+          "description": "Phase 4 / A2: free-text evidence quote(s) supporting this annotation. String for a single source paragraph; list of strings when merged across multiple narrative extractions. Reasoning rules do not read this — it is provenance metadata for downstream rendering / audit only.",
+          "oneOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "string"}}
+          ]
         }
       }
     },
