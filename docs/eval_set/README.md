@@ -1,8 +1,15 @@
 # Themis NL evaluation set
 
-> Status: v2.1 (2026-04-24). 22 cases across 19 failure modes
-> (F1–F19). F19 (IV identification) + cases 21/22 added with
-> Phase 6.iv slice.
+> Status: v2.4 (2026-04-25). **28 cases across 24 failure modes
+> (F1–F24)**. Growth log:
+> - v1: 20 cases / F1-F18
+> - v2.0: +case 21/22 with F19 (Phase 6.iv)
+> - v2.1: +case 23/24 with F20 (Phase 6.mediation)
+> - v2.2: +case 25 with F21 (Phase 7.1 numeric estimation)
+> - v2.3: +case 26/27/28 with F22 (Phase 7+8 numeric / sensitivity)
+> - v2.4: +F23 (refusal-only V-set) + F24 (ADMG cause+bidirected
+>   coexistence) — both surfaced by Phase 4 e2e blind stress; no
+>   new cases yet, exercised indirectly by cases 16 / 21
 
 This directory holds evaluation cases for the NL layer (A1 prompt,
 A5 narrative prompt, and the A1→themis.run→response_rendering
