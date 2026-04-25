@@ -478,6 +478,79 @@ surfaces the threshold band ("moderate" / "substantial" / etc.).
 + schema). Auto-attaches to all four numeric estimators (backdoor,
 front-door, IV, mediation TE).
 
+## F23 — Refusal-only narrative with declared variables
+
+The narrative declines to draw the queried edge (typical of selection
+bias / collider patterns from F15) but the user's question still asks
+"does X cause Y?". The kernel must answer the query — silently failing
+with SemanticError ("atom not in V") punishes the agent for correctly
+declining.
+
+The system must:
+
+- Accept that variables are declared via VariableDeclaration without
+  any cause edge touching them
+- Admit query atoms whose predicate is declared as **isolated nodes**
+  in G(M)
+- Resolve the cause / assoc query structurally (no path → False)
+
+**Typical trigger**: A2 emits a refusal entry for `X → Y` (e.g.
+case 16: `hospitalized → has_diabetes` is selection on collider);
+A1 emits the cause query anyway. Resulting program has variable
+declarations + query + refusal-side ambiguity records, but zero
+cause edges between the queried atoms.
+
+**Expected correct behavior**:
+
+- `themis.run` returns `structurally_solved` with `cause = false`
+- `derivation` cites `no_directed_path` rule
+- Response rendering surfaces the refusal pattern + suggests the
+  alternative explanation (collider, confounder, etc.) per A2's
+  `pattern` field
+
+**Counter-example (must still reject)**: query atom whose predicate
+is **not** declared (and not in any cause edge) — that's a typo /
+missing setup, not a refusal pattern. The strict V-set check still
+fires.
+
+**Slice most relevant**: Phase 4 graph_projection V-set relaxation
+(2026-04-25). Charter-free; behavior-preserving for declared atoms,
+strict for undeclared.
+
+## F24 — ADMG cause + bidirected on the same pair
+
+The narrative produces both `cause(X → Y)` AND `bidirected(X ↔ Y)`
+for the same predicate pair. This is the canonical IV / front-door
+pattern: X causes Y through a mechanism, AND there's an unobserved
+common cause of X and Y. Both edges coexist in any ADMG; rejecting
+one as "kind conflict" misreads the structure.
+
+The system must:
+
+- Accept cause + bidirected on the same pair in `merge_edge_extractions`
+  and `merge_edges_into_program` without raising MergeConflictError
+- Preserve both statements in the merged kernel_ast so downstream
+  identification (front-door, IV) sees the full ADMG
+
+**Typical trigger**: case 21 (Mendelian randomization). A2 emits:
+- `cause(genetic_variant → cholesterol)` (IV → X)
+- `cause(cholesterol → heart_disease)` (X → Y, the question)
+- `bidirected(cholesterol ↔ heart_disease)` (latent lifestyle confounder)
+
+The X-Y pair carries both edges; this is exactly what makes IV the
+right identification strategy.
+
+**Expected correct behavior**:
+
+- Merge layer accepts both; no MergeConflictError
+- Program runs through identification and resolves to the IV path
+- Refusal still conflicts with either edge kind (that's separate)
+
+**Slice most relevant**: Phase 4 narrative_merge ADMG fix (2026-04-25).
+Pre-fix the merge layer tracked a single kind per pair; post-fix it
+tracks a *set* of kinds, with refusal incompatible with edges and
+edges compatible with each other.
+
 ## Growth rule
 
 Add a new code only when a real case exposes a failure that
@@ -490,4 +563,6 @@ conditioning (distinct from F8's unobserved confounder), F16
 counterfactual vs interventional estimand gap, F17 mechanism-vs-
 existence question-kind mismatch, F18 individual-vs-population
 estimand gap. Each exposes a failure not reducible to the
-F1–F14 set.
+F1–F14 set. F23 / F24 added 2026-04-25 from Phase 4 e2e blind
+stress (cases 16 and 21) — both real bugs / gaps surfaced by
+end-to-end pipeline runs, neither reducible to F1–F22.
