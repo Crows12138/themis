@@ -121,17 +121,29 @@ def test_merge_bidirected_pair_is_unordered():
     assert len(out["edges"]) == 1
 
 
-def test_merge_cross_kind_conflict_raises():
+def test_merge_cause_and_bidirected_coexist_no_conflict():
+    """ADMG semantics: cause(X→Y) + bidirected(X↔Y) can coexist on the same
+    pair (a directed edge plus an unobserved confounder). Both edges are
+    kept; not a conflict."""
     a = {"edges": [_cause("x", "y")]}
     b = {"edges": [_bidir("x", "y")]}
-    with pytest.raises(MergeConflictError, match="kind conflict"):
-        merge_edge_extractions(a, b)
+    out = merge_edge_extractions(a, b)
+    kinds = {e["kind"] for e in out["edges"]}
+    assert kinds == {"cause", "bidirected"}
+    assert len(out["edges"]) == 2
 
 
 def test_merge_cause_vs_refusal_conflict_raises():
     a = {"edges": [_cause("x", "y")]}
     b = {"edges": [], "refusals": [_refusal("x", "y", "looks like confounder")]}
-    with pytest.raises(MergeConflictError, match="kind conflict"):
+    with pytest.raises(MergeConflictError, match="refusal vs"):
+        merge_edge_extractions(a, b)
+
+
+def test_merge_bidirected_vs_refusal_conflict_raises():
+    a = {"edges": [_bidir("x", "y")]}
+    b = {"edges": [], "refusals": [_refusal("x", "y", "selection bias")]}
+    with pytest.raises(MergeConflictError, match="refusal vs"):
         merge_edge_extractions(a, b)
 
 
@@ -204,14 +216,16 @@ def test_merge_into_program_skips_existing_pair():
     assert causes[0]["annotations"]["source"] == "manual"
 
 
-def test_merge_into_program_cross_kind_conflict_with_existing():
+def test_merge_into_program_allows_cause_plus_bidirected_coexistence():
+    """ADMG: program with existing cause(x→y) accepts incoming bidirected(x↔y)."""
     prog = _empty_program(["x", "y"])
     prog["statements"].append({
         "kind": "cause", "from": _atom("x"), "to": _atom("y"),
     })
     extraction = {"edges": [_bidir("x", "y")]}
-    with pytest.raises(MergeConflictError, match="cause.*bidirected"):
-        merge_edges_into_program(prog, extraction)
+    out = merge_edges_into_program(prog, extraction)
+    kinds = [s["kind"] for s in out["statements"] if s.get("kind") in ("cause", "bidirected")]
+    assert "cause" in kinds and "bidirected" in kinds
 
 
 def test_merge_into_program_inserts_bidirected_with_args():

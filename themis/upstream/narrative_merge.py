@@ -367,10 +367,24 @@ def merge_edge_extractions(*extractions: dict) -> dict:
     """
     edges_by_key: dict[tuple, dict] = {}
     edge_order: list[tuple] = []
-    pair_kind: dict[tuple[str, str], str] = {}  # unordered pair → kind tag
+    # Track set of kinds seen per unordered pair. cause + bidirected on the
+    # same pair coexist (standard ADMG); refusal contradicts both.
+    pair_kinds: dict[tuple[str, str], set[str]] = {}
     refusals_by_key: dict[tuple[str, str], dict] = {}
     refusal_order: list[tuple[str, str]] = []
     all_ambiguities: list[dict] = []
+
+    def _check_conflict(pair: tuple[str, str], incoming: str) -> None:
+        existing = pair_kinds.get(pair, set())
+        if incoming == "refusal" and existing & {"cause", "bidirected"}:
+            raise MergeConflictError(
+                f"edge pair {pair}: refusal vs existing edge ({sorted(existing)})"
+            )
+        if incoming in ("cause", "bidirected") and "refusal" in existing:
+            raise MergeConflictError(
+                f"edge pair {pair}: {incoming} vs existing refusal"
+            )
+        # cause + bidirected on the same pair COEXIST — no conflict.
 
     for idx, extraction in enumerate(extractions):
         e = _require_edges_extraction(extraction, f"extractions[{idx}]")
@@ -380,13 +394,8 @@ def merge_edge_extractions(*extractions: dict) -> dict:
             unordered = _pair_for_conflict(edge)
             kind_tag = key[0]
 
-            existing_kind = pair_kind.get(unordered)
-            if existing_kind is not None and existing_kind != kind_tag:
-                raise MergeConflictError(
-                    f"edge pair {unordered}: kind conflict "
-                    f"({existing_kind} vs {kind_tag})"
-                )
-            pair_kind[unordered] = kind_tag
+            _check_conflict(unordered, kind_tag)
+            pair_kinds.setdefault(unordered, set()).add(kind_tag)
 
             if key in edges_by_key:
                 edges_by_key[key] = _merge_two_edges(edges_by_key[key], edge)
@@ -396,13 +405,8 @@ def merge_edge_extractions(*extractions: dict) -> dict:
 
         for ref in e.get("refusals") or []:
             unordered = _pair_for_conflict(ref)
-            existing_kind = pair_kind.get(unordered)
-            if existing_kind is not None and existing_kind != "refusal":
-                raise MergeConflictError(
-                    f"edge pair {unordered}: kind conflict "
-                    f"({existing_kind} vs refusal)"
-                )
-            pair_kind[unordered] = "refusal"
+            _check_conflict(unordered, "refusal")
+            pair_kinds.setdefault(unordered, set()).add("refusal")
 
             rkey = _refusal_key(ref)
             if rkey not in refusals_by_key:
@@ -456,8 +460,10 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
     out = deepcopy(program_ast)
     statements: list = out["statements"]
 
-    # Index existing edges by normalized pair, including kind for conflict detection
-    existing_by_pair: dict[tuple[str, str], str] = {}
+    # Index existing edges by normalized pair. We allow cause AND bidirected
+    # to coexist on the same pair (ADMG semantics: directed edge + latent
+    # confounder), so track a set of kinds per pair, not a single kind.
+    existing_by_pair: dict[tuple[str, str], set[str]] = {}
     last_cause_idx = -1
     last_bidirected_idx = -1
     for i, s in enumerate(statements):
@@ -468,13 +474,13 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
             f = (s.get("from") or {}).get("predicate")
             t = (s.get("to") or {}).get("predicate")
             if isinstance(f, str) and isinstance(t, str):
-                existing_by_pair[tuple(sorted((f, t)))] = "cause"  # type: ignore[index]
+                existing_by_pair.setdefault(tuple(sorted((f, t))), set()).add("cause")  # type: ignore[arg-type]
         elif s.get("kind") == "bidirected":
             last_bidirected_idx = i
             l = (s.get("left") or {}).get("predicate")
             r = (s.get("right") or {}).get("predicate")
             if isinstance(l, str) and isinstance(r, str):
-                existing_by_pair[tuple(sorted((l, r)))] = "bidirected"  # type: ignore[index]
+                existing_by_pair.setdefault(tuple(sorted((l, r))), set()).add("bidirected")  # type: ignore[arg-type]
 
     # Insert new edges in two passes (cause first, then bidirected) to keep
     # ordering predictable.
@@ -488,13 +494,10 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
             f = edge["from"]["predicate"]
             t = edge["to"]["predicate"]
             unordered = tuple(sorted((f, t)))
-            existing = existing_by_pair.get(unordered)
-            if existing == "cause":
+            existing = existing_by_pair.get(unordered, set())
+            if "cause" in existing:
                 continue  # already present; don't duplicate
-            if existing == "bidirected":
-                raise MergeConflictError(
-                    f"edge pair {unordered}: existing bidirected vs incoming cause"
-                )
+            # cause + existing bidirected coexist (ADMG); no conflict raised.
             stmt = {
                 "kind": "cause",
                 "from": {"predicate": f, "args": _arg_const_me()},
@@ -510,19 +513,16 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
                 pass
             else:
                 bidirected_insert_at += 1
-            existing_by_pair[unordered] = "cause"
+            existing_by_pair.setdefault(unordered, set()).add("cause")
 
         else:  # bidirected
             l = edge["left"]["predicate"]
             r = edge["right"]["predicate"]
             unordered = tuple(sorted((l, r)))
-            existing = existing_by_pair.get(unordered)
-            if existing == "bidirected":
+            existing = existing_by_pair.get(unordered, set())
+            if "bidirected" in existing:
                 continue
-            if existing == "cause":
-                raise MergeConflictError(
-                    f"edge pair {unordered}: existing cause vs incoming bidirected"
-                )
+            # bidirected + existing cause coexist (ADMG); no conflict raised.
             stmt = {
                 "kind": "bidirected",
                 "left": {"predicate": l, "args": _arg_const_me()},
@@ -533,7 +533,7 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
                 stmt["annotations"] = deepcopy(anno)
             statements.insert(bidirected_insert_at, stmt)
             bidirected_insert_at += 1
-            existing_by_pair[unordered] = "bidirected"
+            existing_by_pair.setdefault(unordered, set()).add("bidirected")
 
     return out
 

@@ -1,0 +1,34 @@
+{
+  "a5_variables": {
+    "variables": [
+      {"kind": "variable", "predicate": "serum_cholesterol", "domain": [true, false], "measurement": "血清胆固醇水平"},
+      {"kind": "variable", "predicate": "heart_disease_risk", "domain": [true, false], "measurement": "心脏病风险"},
+      {"kind": "variable", "predicate": "genetic_variant", "domain": [true, false], "measurement": "特定基因变异", "state_vs_event": "state"}
+    ]
+  },
+  "a2_edges": {
+    "edges": [
+      {"kind": "cause", "from": {"predicate": "genetic_variant"}, "to": {"predicate": "serum_cholesterol"},
+       "annotations": {"source": "narrative_proposal", "evidence": "影响肝脏合成胆固醇"}},
+      {"kind": "cause", "from": {"predicate": "serum_cholesterol"}, "to": {"predicate": "heart_disease_risk"},
+       "annotations": {"source": "narrative_proposal", "evidence": "只通过胆固醇影响心脏病"}},
+      {"kind": "bidirected", "left": {"predicate": "serum_cholesterol"}, "right": {"predicate": "heart_disease_risk"},
+       "annotations": {"source": "narrative_proposal", "evidence": "肥胖/饮食是未观测混杂"}}
+    ],
+    "refusals": [],
+    "narrative_ambiguities": [
+      {"kind": "iv_validity", "description": "基因变异作为 IV 候选", "chosen": "Z->X only",
+       "alternatives": ["challenge IV2 pleiotropy", "challenge IV3 stratification"]}
+    ]
+  },
+  "a1_base": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "statements": [
+      {"kind": "query", "id": "q", "query": {"kind": "effect",
+        "intervention": {"atom": {"predicate": "serum_cholesterol", "args": [{"type": "const", "name": "me"}]}, "value": true},
+        "target": {"atom": {"predicate": "heart_disease_risk", "args": [{"type": "const", "name": "me"}]}, "value": true},
+        "given": []}}
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "a5_variables": {
+    "variables": [
+      {"kind": "variable", "predicate": "hospitalized", "domain": [true, false], "observability": "clinic-measured", "state_vs_event": "state"},
+      {"kind": "variable", "predicate": "has_diabetes", "domain": [true, false], "observability": "clinic-measured", "state_vs_event": "state"}
+    ]
+  },
+  "a2_edges": {
+    "edges": [],
+    "refusals": [
+      {"kind": "refuse_direct_edge", "from": "hospitalized", "to": "has_diabetes",
+       "reason": "叙述只在住院病人这一被选样本中观察到糖尿病比例偏高",
+       "suggested_confounder": "selection_on_hospitalization (collider)"}
+    ],
+    "narrative_ambiguities": [
+      {"kind": "selection_bias", "description": "Berkson 选择偏差", "chosen": "refuse_direct_edge", "alternatives": ["has_diabetes->hospitalized"]}
+    ]
+  },
+  "a1_base": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "options": {"strict_framing": false},
+    "statements": [
+      {"kind": "query", "id": "q", "query": {"kind": "cause",
+        "from": {"predicate": "hospitalized", "args": [{"type": "const", "name": "me"}]},
+        "to": {"predicate": "has_diabetes", "args": [{"type": "const", "name": "me"}]}}}
+    ],
+    "extensions": {
+      "ambiguities": [
+        {"kind": "selection_bias", "chosen": "refuse",
+         "alternatives": ["llm_proposal cause hospitalized->has_diabetes"],
+         "reason": "selection on collider",
+         "disambiguation_ask": "你是想问住院本身是否致病，还是只想理解相关性？"}
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "a5_variables": {
+    "variables": [
+      {"kind": "variable", "predicate": "stays_up_late", "domain": [true, false], "time_window": "past week", "threshold": "to 2am", "observability": "self-report", "state_vs_event": "event"},
+      {"kind": "variable", "predicate": "feels_energetic", "domain": [true, false], "time_window": "next morning", "observability": "self-report", "direction": "down", "state_vs_event": "state"}
+    ]
+  },
+  "a2_edges": {
+    "edges": [
+      {"kind": "cause",
+       "from": {"predicate": "stays_up_late", "time_index": {"kind": "relative", "value": -1}},
+       "to": {"predicate": "feels_energetic", "time_index": {"kind": "relative", "value": 0}},
+       "annotations": {"source": "narrative_proposal", "evidence": "最近连续一周熬夜到凌晨两点，第二天上午总是没精神"}}
+    ],
+    "refusals": [],
+    "narrative_ambiguities": []
+  },
+  "a1_base": {
+    "version": "0.1",
+    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "statements": [
+      {"kind": "query", "id": "q", "query": {"kind": "cause",
+        "from": {"predicate": "stays_up_late", "args": [{"type": "const", "name": "me"}], "time_index": {"kind": "relative", "value": -1}},
+        "to": {"predicate": "feels_energetic", "args": [{"type": "const", "name": "me"}], "time_index": {"kind": "relative", "value": 0}}}}
+    ]
+  }
+}
