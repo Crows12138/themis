@@ -22,9 +22,9 @@
 | 9 | 转移性 / 泛化 | **0%** | → Phase 9+（按需）|
 | 10 | 敏感性分析 | **~30%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在所有 binary outcome 估计上）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
 | 11 | 连续 / 数据驱动估计 | **~50%** | **Phase 7.1-7.4 全部落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI）|
-| 12 | 因果发现 | **0%** | → **Phase 8 M3**（PC/FCI/LiNGAM）|
+| 12 | 因果发现 | **~40%** | **Phase 8.1 已落地**（PC/FCI/LiNGAM via causal-learn + kernel_ast suggestion path）；NOTEARS / RL discovery → Phase 9+ |
 
-**加权覆盖**：约 **40-50%**。**Phase 7 M2 完整落地**——板块 11 跃升到 ~50%，识别 + 估计两个里程碑都拿下。
+**加权覆盖**：约 **50-60%**。**Phase 7 M2 + Phase 8 M3** 全部落地——识别 / 估计 / 敏感性 / 发现四大里程碑齐全，板块 10/11/12 都跨过 30%。
 
 ---
 

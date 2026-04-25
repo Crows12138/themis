@@ -242,6 +242,130 @@ def _extract_edges(graph, cols, Endpoint):
     return tuple(directed), tuple(bidirected), tuple(ambiguous)
 
 
+def discovery_to_kernel_ast(
+    result: DiscoveryResult,
+    *,
+    domain_subjects: tuple[str, ...] = ("me",),
+    bool_predicates: tuple[str, ...] = (),
+    query: dict | None = None,
+) -> dict:
+    """Convert a ``DiscoveryResult`` into a kernel_ast suggestion dict.
+
+    The output is a complete kernel_ast that ``themis.run`` will accept
+    — but agents / users SHOULD review and edit it before running:
+    ambiguous edges become ``extensions.ambiguities`` entries, and
+    each emitted ``cause`` edge carries an ``annotations.source =
+    "discovery"`` flag so downstream provenance is auditable.
+
+    Parameters
+    ----------
+    result: DiscoveryResult from ``discover_graph``.
+    domain_subjects: tuple of object names for the domain block.
+        Defaults to ``("me",)`` matching the rest of the kernel.
+    bool_predicates: tuple of column names to declare as bool domain.
+        Anything not in this list is left without an explicit domain
+        (the schema validator will reject; the agent must fill these).
+    query: optional pre-built query statement to append. Useful when
+        the discovery is being run inside an end-to-end pipeline that
+        already knows the question.
+
+    Returns
+    -------
+    dict — a kernel_ast suggestion. Always contains:
+        - version, domain, statements (variable + cause + bidirected)
+        - extensions.discovery_metadata: provenance + algorithm + alpha
+        - extensions.ambiguities: one entry per ambiguous edge
+
+    Caller is responsible for:
+        - filling variable domains for non-bool predicates
+        - resolving each ``ambiguous_orientation`` ambiguity by
+          deciding direction (or leaving both alternatives)
+        - appending a query statement if not provided
+    """
+    statements: list[dict] = []
+
+    # 1. Variable declarations — one per column
+    for col in result.columns:
+        if col in bool_predicates:
+            statements.append({
+                "kind": "variable",
+                "predicate": col,
+                "domain": [True, False],
+            })
+        else:
+            statements.append({
+                "kind": "variable",
+                "predicate": col,
+            })
+
+    # 2. Directed cause edges
+    args = [{"type": "const", "name": s} for s in domain_subjects]
+    for src, dst in result.directed_edges:
+        statements.append({
+            "kind": "cause",
+            "from": {"predicate": src, "args": args},
+            "to": {"predicate": dst, "args": args},
+            "annotations": {
+                "source": f"discovery:{result.algorithm}",
+            },
+        })
+
+    # 3. Bidirected (latent confounder) edges from FCI
+    for pair in result.bidirected_edges:
+        a, b = sorted(pair)
+        statements.append({
+            "kind": "bidirected",
+            "left": {"predicate": a, "args": args},
+            "right": {"predicate": b, "args": args},
+            "annotations": {
+                "source": f"discovery:{result.algorithm}",
+            },
+        })
+
+    # 4. Optional query statement
+    if query is not None:
+        statements.append(query)
+
+    # 5. Ambiguities for each undirected / partially-oriented edge
+    ambiguities: list[dict] = [
+        {
+            "kind": "ambiguous_orientation",
+            "endpoints": sorted(pair),
+            "discovery_algorithm": result.algorithm,
+            "disambiguation_ask": (
+                f"算法 {result.algorithm.upper()} 找到 {sorted(pair)[0]} "
+                f"和 {sorted(pair)[1]} 之间存在因果关联，但从数据无法判定"
+                "方向。你能根据领域知识告诉我方向吗？"
+            ),
+        }
+        for pair in result.ambiguous_edges
+    ]
+
+    extensions = {
+        "discovery_metadata": {
+            "algorithm": result.algorithm,
+            "alpha": result.alpha,
+            "sample_size": result.sample_size,
+            "data_hash": result.data_hash,
+            "columns": list(result.columns),
+            "note": result.note,
+        },
+    }
+    if ambiguities:
+        extensions["ambiguities"] = ambiguities
+
+    return {
+        "version": "0.1",
+        "domain": {
+            "objects": [
+                {"kind": "object", "name": s} for s in domain_subjects
+            ],
+        },
+        "statements": statements,
+        "extensions": extensions,
+    }
+
+
 def _format_note(algorithm: str, n_dir: int, n_bidir: int, n_amb: int) -> str:
     parts = [
         f"causal-learn {algorithm.upper()} found "

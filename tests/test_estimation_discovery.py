@@ -5,7 +5,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from themis.estimation.discovery import DiscoveryResult, discover_graph
+from themis.estimation.discovery import (
+    DiscoveryResult,
+    discover_graph,
+    discovery_to_kernel_ast,
+)
 
 
 # ============================================ helpers
@@ -140,6 +144,107 @@ def test_no_usable_columns_rejected():
 
 
 # ============================================ column subset
+
+
+def test_discovery_to_kernel_ast_directed_only_lingam():
+    """LiNGAM produces directed edges only — kernel_ast suggestion has
+    them all as cause statements with source=discovery."""
+    df = _chain_dgp(n=2000, seed=0, non_gaussian=True)
+    result = discover_graph(df, algorithm="lingam", random_state=42)
+    suggestion = discovery_to_kernel_ast(
+        result, bool_predicates=(),
+    )
+
+    assert suggestion["version"] == "0.1"
+    assert suggestion["domain"] == {
+        "objects": [{"kind": "object", "name": "me"}],
+    }
+
+    cause_stmts = [
+        s for s in suggestion["statements"] if s["kind"] == "cause"
+    ]
+    var_stmts = [
+        s for s in suggestion["statements"] if s["kind"] == "variable"
+    ]
+    bidir_stmts = [
+        s for s in suggestion["statements"] if s["kind"] == "bidirected"
+    ]
+
+    assert len(var_stmts) == 3
+    # LiNGAM directs the chain x→m→y → at least these two edges
+    cause_pairs = {(s["from"]["predicate"], s["to"]["predicate"]) for s in cause_stmts}
+    assert ("x", "m") in cause_pairs
+    assert ("m", "y") in cause_pairs
+
+    # No bidirected edges from LiNGAM
+    assert bidir_stmts == []
+
+    # All cause statements carry the discovery provenance
+    for s in cause_stmts:
+        assert s["annotations"]["source"] == "discovery:lingam"
+
+    # No ambiguities (LiNGAM directs everything)
+    ambs = suggestion.get("extensions", {}).get("ambiguities", [])
+    assert ambs == []
+
+    # discovery_metadata block carries provenance
+    meta = suggestion["extensions"]["discovery_metadata"]
+    assert meta["algorithm"] == "lingam"
+    assert meta["sample_size"] == 2000
+    assert len(meta["data_hash"]) == 64
+
+
+def test_discovery_to_kernel_ast_pc_emits_ambiguities():
+    """PC on Gaussian chain leaves edges undirected; ambiguities block
+    must surface each undirected pair so the agent can disambiguate."""
+    df = _chain_dgp(n=2000, seed=0)
+    result = discover_graph(df, algorithm="pc", alpha=0.05)
+    suggestion = discovery_to_kernel_ast(result)
+
+    ambs = suggestion["extensions"]["ambiguities"]
+    # At least one ambiguous edge is expected for a Gaussian chain
+    assert len(ambs) >= 1
+    for amb in ambs:
+        assert amb["kind"] == "ambiguous_orientation"
+        assert len(amb["endpoints"]) == 2
+        assert "disambiguation_ask" in amb
+
+
+def test_discovery_to_kernel_ast_with_bool_predicates():
+    df = _chain_dgp(n=500, seed=0)
+    df_bool = df.copy()
+    df_bool["x"] = df_bool["x"] > 0
+    result = discover_graph(
+        df_bool, algorithm="pc", columns=("x", "m", "y"),
+    )
+    suggestion = discovery_to_kernel_ast(
+        result, bool_predicates=("x",),
+    )
+    var_stmts = [
+        s for s in suggestion["statements"] if s["kind"] == "variable"
+    ]
+    x_var = next(s for s in var_stmts if s["predicate"] == "x")
+    assert x_var["domain"] == [True, False]
+    # m and y left without explicit domain
+    m_var = next(s for s in var_stmts if s["predicate"] == "m")
+    assert "domain" not in m_var
+
+
+def test_discovery_to_kernel_ast_with_query_appended():
+    df = _chain_dgp(n=200, seed=0)
+    result = discover_graph(df, algorithm="pc", alpha=0.05)
+    query = {
+        "kind": "query", "id": "q",
+        "query": {
+            "kind": "cause",
+            "from": {"predicate": "x", "args": [{"type": "const", "name": "me"}]},
+            "to": {"predicate": "y", "args": [{"type": "const", "name": "me"}]},
+        },
+    }
+    suggestion = discovery_to_kernel_ast(result, query=query)
+    query_stmts = [s for s in suggestion["statements"] if s["kind"] == "query"]
+    assert len(query_stmts) == 1
+    assert query_stmts[0]["id"] == "q"
 
 
 def test_columns_parameter_restricts_search():
