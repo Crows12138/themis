@@ -118,6 +118,48 @@
         }
       }
     },
+    "populationName": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "Phase 9 §T9.1: a population identifier. Used to label probability statements with the source population they came from, and to label queries with the target population whose effect is wanted. Must be a valid identifier (snake_case recommended)."
+    },
+    "selectionNodeStatement": {
+      "type": "object",
+      "description": "Phase 9 §T9.1. A selection node in a Bareinboim-Pearl selection diagram. Declares that the variable named in ``affects`` has a different distribution between the source and target populations — the canonical reason transport identification needs adjustment. Reasoning rules read it; verifier audits S-admissibility against it.",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "affects",
+        "source_population",
+        "target_population"
+      ],
+      "properties": {
+        "kind": {
+          "const": "selection_node"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier for this S node (e.g. ``S_age``). Used in derivation steps so the user can trace which S node a transport step references."
+        },
+        "affects": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The atom whose distribution differs across populations. Conceptually there is an arrow S → affects in the selection diagram; this field declares that arrow's head."
+        },
+        "source_population": {
+          "$ref": "#/$defs/populationName"
+        },
+        "target_population": {
+          "$ref": "#/$defs/populationName"
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotation",
+          "description": "Provenance / evidence for the claim that distributions differ (e.g. {\"source\": \"narrative_proposal\", \"evidence\": \"源人群均值 42 岁; 目标 28 岁\"}). Reasoning does not read this."
+        }
+      }
+    },
     "bidirectedStatement": {
       "type": "object",
       "description": "Phase 2.latent S1. An undirected 'bidirected' edge between two observed atoms, semantically declaring the existence of at least one unobserved common cause (semi-Markov representation). The kind is accepted by the schema but cannot yet be dispatched by the runtime — programs containing bidirectedStatement raise SemanticError until Phase 2.latent S2+ lands m-separation + c-component support. See PHASE_2_LATENT_CHARTER.md.",
@@ -184,6 +226,10 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Model-world conditional probability value, not an empirical sample frequency."
+        },
+        "population": {
+          "$ref": "#/$defs/populationName",
+          "description": "Phase 9 §T9.1: optional source-population label. Probability statements without this field are treated as universal across populations (back-compat)."
         },
         "annotations": {
           "$ref": "#/$defs/annotation"
@@ -315,6 +361,10 @@
         "mediator": {
           "$ref": "atom.schema.json#/$defs/atom",
           "description": "Phase 6.mediation: when present, the query asks for a mediation decomposition (NDE/NIE/CDE) through this mediator atom rather than a plain total effect. Omitting the field preserves total-effect semantics."
+        },
+        "target_population": {
+          "$ref": "#/$defs/populationName",
+          "description": "Phase 9 §T9.1: when present, the effect is wanted in this target population, not in the population the data was collected from. Triggers transport identification — requires at least one selectionNodeStatement to be meaningful."
         }
       }
     },
@@ -343,6 +393,10 @@
           "items": {
             "$ref": "atom.schema.json#/$defs/atom"
           }
+        },
+        "target_population": {
+          "$ref": "#/$defs/populationName",
+          "description": "Phase 9 §T9.1: when present, asks whether the interventional quantity is identifiable in this target population (transport identification). Requires at least one selectionNodeStatement."
         }
       }
     },
@@ -524,6 +578,9 @@
         },
         {
           "$ref": "#/$defs/bidirectedStatement"
+        },
+        {
+          "$ref": "#/$defs/selectionNodeStatement"
         },
         {
           "$ref": "#/$defs/probabilityStatement"

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "themis": {
+      "command": "python",
+      "args": ["-m", "themis.mcp.server"],
+      "cwd": "C:\\Users\\12916\\Desktop\\项目\\因果性ai"
+    }
+  }
+}
