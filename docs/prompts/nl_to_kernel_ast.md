@@ -24,6 +24,27 @@ run findings. Three new rules:
   alternative reading(s) in `extensions.ambiguities` so the
   response layer can surface the ambiguity to the user
 
+**v2.6 updates (2026-04-25, Phase 7+8 stress-test fixes)** — four
+gaps surfaced by the case 25-28 blind sub-agent run:
+
+- §2 amendment: do NOT default to bool when the NL describes a
+  measurable physical quantity with units (mmHg / cm / kg / 元 /
+  岁 / 年). Omit `domain` so the data column dtype is the source
+  of truth at fit time.
+- §3a guard: when the user has provided or implied a dataset, do
+  NOT introduce a U variable for unmeasured confounders — emit
+  bidirected `X ↔ Y` instead. Reason: U won't have a data column
+  and `themis.estimate` will fail with `DataContractError`.
+- §3d (new): explicit front-door encoding — when narrative
+  describes `X → M → Y` plus an unobserved X-Y common cause, emit
+  bidirected `X ↔ Y` (not a U variable). The kernel's front-door
+  identification dispatch needs ADMG representation.
+- §3e (new): do NOT invent ad-hoc kernel_ast entries for
+  "robustness / sensitivity" questions. The kernel auto-attaches
+  the VanderWeele E-value to every binary-outcome numeric estimate
+  (Phase 8.2). Just emit the standard effect query and the response
+  layer surfaces the sensitivity automatically.
+
 **v2.3 updates (2026-04-24, Phase 6.mediation)** — decomposition
 queries enter the surface:
 
@@ -83,6 +104,19 @@ missed).
 - Single subject — use object name `"me"` if the user refers to themselves
   (`我`, `你`), or if no subject is specified.
 - Every predicate is bool — `domain: [true, false]`.
+- **Exception (v2.6 / Phase 7+8 fix)**: when the NL describes a
+  variable as a measurable physical quantity with units (mmHg, cm,
+  kg, 元, 岁, 年, 次数), omit the `domain` field entirely. The
+  kernel's data-bearing path (`themis.estimate`) then reads the
+  column dtype from the DataFrame at fit time. Trigger words /
+  patterns:
+  - explicit units: "mmHg" / "kg" / "厘米" / "元" / "岁"
+  - measurement scales: "收缩压" / "体重" / "年龄" / "收入" / "次数"
+  - the question asks for "数值" / "ATE" / "降低多少" / "提高多少"
+  Continuous variables left without domain pass through `themis.run`
+  in identification mode (no values needed) and become float64
+  columns in `themis.estimate`. The bool default still applies to
+  binary phenomena (`是否`, `有没有`, 单调阴/阳性).
 - **Leave framing fields unset**. The framing set has seven slots:
   `time_window`, `measurement`, `threshold`, `observability`,
   `direction`, `baseline`, `state_vs_event`. Themis flags each unset
@@ -214,6 +248,25 @@ structure**:
 - do NOT add a direct `X → Y` edge
 - optionally add `extensions.ambiguities` documenting why the direct
   edge was refused, so the user can challenge your choice
+
+**v2.6 amendment — data-bearing guard**: the "introduce U" pattern
+is correct ONLY when no dataset is being attached. When the NL
+mentions data ("数据"/"观察"/"我们测量了"/"1000 名病人"), the
+unmeasured confounder MUST be encoded as **bidirected `X ↔ Y`** —
+not as a U variable — because U would have no data column and
+`themis.estimate` will reject the program with `DataContractError`.
+
+Decision flow:
+
+| Has data? | NL says U is unobserved? | Encoding |
+|---|---|---|
+| No | (irrelevant) | introduce U variable + U→X + U→Y |
+| Yes | Yes — explicit ("未观测", "测不到") | bidirected `X ↔ Y` |
+| Yes | No — confounder IS in the data | declare it as observed variable + emit edges |
+
+The bidirected encoding lets ADMG-aware identification (Phase 2.latent)
+detect the latent structure and route through front-door / IV / E-value
+sensitivity instead of crashing on a missing column.
 
 Trigger patterns (any one is sufficient to pause and consider):
 
@@ -398,6 +451,91 @@ flag:
   single mediator only. If NL involves a chain M1 → M2, pick the
   most proximal mediator to Y and flag the other as a secondary
   ambiguity
+
+### 3d. Front-door encoding (v2.6 / Phase 7+8 stress-test fix)
+
+When the NL describes the structure `X → M → Y` AND mentions an
+unobserved X-Y common cause (genetics, lifestyle, latent biology),
+encode the confounder as **bidirected `X ↔ Y`** — same pattern as
+§3b's IV scenarios. Do NOT introduce a U variable.
+
+This is the canonical Pearl front-door setup. The kernel's
+identification dispatch will detect that:
+- backdoor adjustment is impossible (`X ↔ Y` blocks every
+  observable adjustment set)
+- but the mediator `M` intercepts every directed `X → Y` path
+- → identify via `front_door_sets`, estimate via Pearl Eq 3.29
+
+**Trigger patterns** (any matches → front-door encoding):
+
+| NL pattern | Implied structure |
+|---|---|
+| "X 通过 M 影响 Y" + "未观测的 [遗传/生活方式/...] 共因" | X→M→Y + X↔Y |
+| "X 引起 M，M 决定 Y，但 X 和 Y 之间还有看不到的共因" | front-door |
+| "X 影响 Y 的机制是 M" + "测不到的 [...]" | front-door |
+
+**Canonical example**:
+
+NL: 抽烟会沉积焦油，焦油增加肺癌；但抽烟和肺癌之间还有未观测的
+遗传 / 生活习惯共因。
+
+Output:
+- Variables: `smoking`, `tar`, `cancer` (all bool)
+- Edges:
+  - `smoking → tar` (llm_proposal, narrative)
+  - `tar → cancer` (llm_proposal, narrative)
+  - `smoking ↔ cancer` (bidirected — the latent confounder)
+- Query: `effect(cancer | do(smoking))`
+- **No** direct `smoking → cancer` edge (would block front-door)
+- **No** U variable (would need a data column)
+
+**What NOT to do**:
+- Do not encode the latent confounder as a regular variable — it
+  has no data column and `themis.estimate` will reject the program
+- Do not emit a direct `X → Y` edge when narrative explicitly names
+  the mediator as the only mechanism — it would block front-door
+  identification
+
+### 3e. Sensitivity / robustness questions are auto-handled (v2.6)
+
+When the NL question contains a robustness sub-question — phrases
+like "对未观测混杂稳健吗" / "敏感性分析" / "如果有遗漏的混杂会怎样"
+/ "结论稳不稳" — you do NOT need to invent ad-hoc kernel_ast entries.
+
+The kernel automatically attaches **VanderWeele's E-value**
+(Phase 8.2) to every binary-outcome numeric estimate via
+`numeric_estimate.sensitivity_analysis`. The response_rendering
+prompt knows how to surface it as plain Chinese.
+
+**What to emit**:
+- The standard `effect` query for the causal estimate the user asks for
+- An `extensions.ambiguities` entry of kind
+  `unmeasured_confounder_concern` recording the user's worry, so
+  the response layer foregrounds the E-value disclosure section
+
+**What NOT to do**:
+- Do not invent a separate `sensitivity` query kind (does not exist)
+- Do not introduce U variables to "stand for" the worry (§3a v2.6
+  guard) — bidirected `X ↔ Y` is the right encoding when the user
+  has data
+- Do not declare a new top-level `sensitivity_request` field — the
+  schema rejects it
+
+**Example**:
+
+NL: "服阿司匹林对心脏病的因果效应是多少？这个结论对未观测混杂
+有多稳健？"
+
+Output:
+- Variables: `takes_aspirin_daily`, `heart_attack`, `age` (all bool;
+  the only adjustment-set candidate the user named is `age`)
+- Edges: `age → takes_aspirin_daily`, `age → heart_attack`,
+  `takes_aspirin_daily → heart_attack`
+- Query: `effect(heart_attack | do(takes_aspirin_daily))`
+- `extensions.ambiguities`: one entry with kind
+  `unmeasured_confounder_concern` and disambiguation_ask documenting
+  the user's worry — the kernel's auto-E-value will be surfaced by
+  the response renderer.
 
 ### 4. Emit the query statement
 
