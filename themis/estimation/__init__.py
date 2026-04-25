@@ -13,6 +13,7 @@ from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .contract import DataContract, DataContractError
 from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
 from .iv import IVEstimate, estimate_iv_ate
+from .mediation import MediationEstimate, estimate_mediation
 
 __all__ = [
     "BackdoorEstimate",
@@ -20,7 +21,9 @@ __all__ = [
     "DataContractError",
     "FrontdoorEstimate",
     "IVEstimate",
+    "MediationEstimate",
     "estimate_backdoor_ate",
     "estimate_frontdoor_ate",
     "estimate_iv_ate",
+    "estimate_mediation",
 ]
