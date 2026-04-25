@@ -117,6 +117,15 @@ missed).
   in identification mode (no values needed) and become float64
   columns in `themis.estimate`. The bool default still applies to
   binary phenomena (`是否`, `有没有`, 单调阴/阳性).
+- **Tiebreaker for naturally-continuous variables without explicit
+  units** (v2.6.1): variables that are conceptually continuous in
+  any reasonable framing — `age`, `weight`, `income`, `BMI`,
+  `temperature`, `dosage` — should always omit `domain` even when
+  the user doesn't explicitly say "岁" / "kg" / "元". The data column
+  will likely be float; declaring bool would force categorical
+  binning that loses fidelity. When in doubt, prefer omitting domain
+  over declaring bool — `themis.estimate` handles either gracefully,
+  but the bool declaration weakens the eventual point estimate.
 - **Leave framing fields unset**. The framing set has seven slots:
   `time_window`, `measurement`, `threshold`, `observability`,
   `direction`, `baseline`, `state_vs_event`. Themis flags each unset
@@ -271,6 +280,23 @@ instead of giving the user a number with E-value.
 **Test of which stance the user has**: does the user expect a
 number? If yes → worry, use observed encoding. If they're framing
 the question as "can we even know?" → assertion, use bidirected.
+
+**Bidirected statement schema shape** (v2.6.1) — explicit example
+because the schema differs from `cause`:
+
+```json
+{
+  "kind": "bidirected",
+  "left":  {"predicate": "smoking", "args": [{"type": "const", "name": "me"}]},
+  "right": {"predicate": "cancer",  "args": [{"type": "const", "name": "me"}]},
+  "annotations": {"source": "llm_proposal"}
+}
+```
+
+Note the keys are `left` / `right` (NOT `from` / `to` like `cause`).
+The relation is symmetric — order doesn't matter semantically, but
+using a stable lexicographic order keeps diffs clean. `annotations`
+follows the same `{source, confidence}` schema as `cause`.
 
 Trigger patterns (any one is sufficient to pause and consider):
 
