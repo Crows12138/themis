@@ -229,7 +229,9 @@ def merge_into_program(program_ast: dict, extraction: dict) -> dict:
 #     ],
 #     "refusals": [
 #       {"kind": "refuse_direct_edge", "from": "X", "to": "Y",
-#        "reason": "...", "suggested_confounder": "..."}
+#        "reason": "...",
+#        "pattern": "confounder|collider|reverse_causation|coincidence",
+#        "suggested_node": "..."}
 #     ],
 #     "narrative_ambiguities": [...]
 #   }

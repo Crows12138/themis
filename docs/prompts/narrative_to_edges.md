@@ -189,7 +189,8 @@ extensions.ambiguities =
 
 Refusals are **not** emitted as kernel statements — they are
 instructions to the orchestrator to skip question-side edges
-matching the refused pair. The refusal + suggested_confounder is
-recorded as `kind: "confounder_refusal"` in
-`extensions.ambiguities` so the response layer surfaces the
+matching the refused pair. The refusal (with `pattern` +
+`suggested_node`) is recorded as a matching `kind` in
+`extensions.ambiguities` (`confounder_refusal` /
+`selection_bias` / etc.) so the response layer surfaces the
 decision.

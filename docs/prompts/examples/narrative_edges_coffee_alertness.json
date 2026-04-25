@@ -13,7 +13,7 @@
       {
         "refused_edge": "drinks_coffee → alertness",
         "reason": "narrative explicitly flags an unobserved common cause (天生警觉性)",
-        "suggested_confounder": "(implicit — encoded as bidirected)"
+        "pattern": "confounder", "suggested_node": "(implicit — encoded as bidirected)"
       }
     ],
     "narrative_ambiguity_notes": "ADMG structure is the point here, not an ambiguity to surface — the narrative itself is unambiguous about the latent trait. No ambiguity entry needed."
@@ -35,7 +35,8 @@
       "from": "drinks_coffee",
       "to": "alertness",
       "reason": "narrative names an unobserved latent trait that is the true driver",
-      "suggested_confounder": null
+      "pattern": "confounder",
+      "suggested_node": null
     }
   ],
   "narrative_ambiguities": [

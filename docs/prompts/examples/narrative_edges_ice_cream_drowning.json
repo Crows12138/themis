@@ -12,7 +12,7 @@
       {
         "refused_edge": "eating_ice_cream → drowning",
         "reason": "夏天 is named as the co-occurrence window — temperature/season is the common cause of both increased ice cream consumption and more swimming (hence more drowning). The narrative describes co-occurrence, not a mechanism.",
-        "suggested_confounder": "hot_weather"
+        "pattern": "confounder", "suggested_node": "hot_weather"
       }
     ],
     "narrative_ambiguity_notes": "The refusal + confounder_refusal ambiguity are the right surface. No temporal ambiguity — the 夏天 scope is the confounder, not a lag."
@@ -24,7 +24,7 @@
       "from": "eating_ice_cream",
       "to": "drowning",
       "reason": "narrative describes seasonal co-occurrence, not mechanism — hot weather is the common cause",
-      "suggested_confounder": "hot_weather"
+      "pattern": "confounder", "suggested_node": "hot_weather"
     }
   ],
   "narrative_ambiguities": [
