@@ -702,3 +702,47 @@ Themis 已经从识别内核演化成全栈因果系统：
 但仍不是完整世界建模系统；
 完整反事实（Layer 3 全套）、动作级时序、自动语料建模仍在 Phase 9+。
 ```
+
+---
+
+### Phase 4 down-payment + 双面 bridge 打磨（2026-04-25）
+
+把 Phase 7+8 落地后暴露的输入/输出 bridge 缺口补齐，把 Phase 4 上游层
+从 prompt-only 推到端到端可跑。
+
+**输出 bridge：response_rendering.md v3 + v3.1**
+- 补 numeric_estimate 渲染（per-method 模板）/ IV trigger via numeric
+  path / bidirected provenance / numerically_solved + 仍开 requests /
+  schema mismatch / E-value 中英 band 对齐 / structure-group / framing_notes dedup
+- 4 个 blind 子代理在 cases 25-28 输出端 blind 验证：v3 关闭 10 个 gap
+- `themis/estimation/sensitivity.py` note 嵌入中文 band 与 prompt 表对齐
+
+**Phase 4 上游层端到端**
+- `merge_edge_extractions` / `merge_edges_into_program`：对称变量合并；
+  ADMG cause+bidirected 共存（修了一个真 bug，refusal vs edge 互斥）；
+  保留 atom 上的 `time_index`（吃下 case 14 V-set）
+- `compose_program(base, vars?, edges?)` 端到端胶水
+- annotation schema 加 `evidence`（A2 一直在 emit，schema 之前拒收）
+- e2e blind 压测：3 个子代理跑 A1+A5+A2，合成 + run，3/3 通过：
+  case 14 (temporal `cause=true`) / 16 (selection `cause=false`) /
+  21 (IV ADMG `needs_investigation`)
+
+**kernel V-set 放松**（charter-free，小修）
+- `graph_projection.project()` 为带 VariableDeclaration 的 query 原子
+  加孤立节点。Refusal-only 图（case 16）正确返回 `cause=false (no path)`
+  而非 SemanticError；未声明的原子仍被拒，V-set 严格性 6 测全过。
+
+**MCP server**（task #35）
+- `themis/mcp/server.py` FastMCP 包装：4 个 kernel 入口（run /
+  apply_patch_and_run / verify / estimate）+ 1 个 catalog tool；
+  5 个 prompts + 3 个 schema 作为 resources；不调 LLM
+- README + 8 个 in-process 测试
+
+**A2 prompt 小补**：refusal `suggested_confounder` →
+`pattern: confounder|collider|reverse_causation|coincidence` +
+`suggested_node`（按 pattern 解释）
+
+**DoWhy parity flake 修**：mediator 选择非确定 → 只断言 DoWhy 返回
+identification，不锁选哪个
+
+**测试**：1015 passed / 143 skipped（本轮 +28）；0 fail；0 known flake。
