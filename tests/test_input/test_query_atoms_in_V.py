@@ -155,3 +155,46 @@ def test_dispatch_all_fails_fast_on_unknown_query_atom():
     graph = project(instantiate(prog))
     with pytest.raises(SemanticError):
         dispatch_all(prog, graph)
+
+
+# ---------------------------------------------- Phase 4 V-set relaxation
+
+def test_query_atom_with_variable_declaration_admitted_as_isolated_node():
+    """Phase 4 (2026-04-25) relaxation: when a query references atoms
+    whose predicate has a VariableDeclaration but no cause edge touches
+    the atom, the atom is admitted to G(M) as an isolated node and the
+    cause query answers ``False`` (no directed path) — instead of the
+    pre-relaxation SemanticError.
+
+    Rationale: refusal-only narratives (selection bias, etc.) explicitly
+    declare variables and ask "does X cause Y?" while declining to draw
+    an edge. The right answer is "no causal path", not "your program is
+    broken"."""
+    from themis.types import VariableDeclaration
+
+    x, y = atom("x"), atom("y")
+    prog = _program([
+        VariableDeclaration(predicate="x", domain=(True, False)),
+        VariableDeclaration(predicate="y", domain=(True, False)),
+        QueryStatement(id="q", query=CauseQuery(from_atom=x, to_atom=y)),
+    ])
+    ground, graph = _ground_and_graph(prog)
+    # No SemanticError — both atoms admitted as isolated nodes
+    validate_against_graph(ground, graph)
+    assert x in graph and y in graph
+    # No edge between them — cause query will answer False downstream
+
+
+def test_query_atom_without_variable_declaration_still_rejected():
+    """The relaxation is keyed on a VariableDeclaration being present.
+    Bare query atoms with no declaration AND no cause edge still fail
+    the V-set check (catches typos / missing setup)."""
+    x, y, z = atom("x"), atom("y"), atom("z")
+    prog = _program([
+        CauseStatement(from_atom=x, to_atom=y),
+        # z has no VariableDeclaration AND no cause edge — still rejected
+        QueryStatement(id="q", query=CauseQuery(from_atom=x, to_atom=z)),
+    ])
+    ground, graph = _ground_and_graph(prog)
+    with pytest.raises(SemanticError, match=r"'z'.*not in the instantiated"):
+        validate_against_graph(ground, graph)

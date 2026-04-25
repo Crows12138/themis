@@ -27,7 +27,19 @@ from __future__ import annotations
 
 import networkx as nx
 
-from ..types import Atom, CauseStatement, Statement
+from ..types import (
+    AssocQuery,
+    Atom,
+    BidirectedStatement,
+    CauseQuery,
+    CauseStatement,
+    CounterfactualQuery,
+    EffectQuery,
+    IdentifyQuery,
+    QueryStatement,
+    Statement,
+    VariableDeclaration,
+)
 
 
 class CyclicGraphError(ValueError):
@@ -56,6 +68,25 @@ def _atom_label(atom: Atom) -> str:
     return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
+def _query_atoms(q) -> tuple[Atom, ...]:
+    """Pull structural atoms from a query (mirrors semantic_validator)."""
+    if isinstance(q, CauseQuery):
+        return (q.from_atom, q.to_atom)
+    if isinstance(q, AssocQuery):
+        return (q.left, q.right, *q.given)
+    if isinstance(q, IdentifyQuery):
+        return (q.target, q.intervention.atom, *q.given)
+    if isinstance(q, EffectQuery):
+        return (q.target.atom, q.intervention.atom, *(g.atom for g in q.given))
+    if isinstance(q, CounterfactualQuery):
+        return (
+            q.observed.atom,
+            q.counterfactual_intervention.atom,
+            q.counterfactual_target.atom,
+        )
+    return ()
+
+
 def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
     """Build a networkx.DiGraph from a ground statement list.
 
@@ -63,15 +94,45 @@ def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
     Edge attribute ``source`` points to the CauseStatement that
     produced it.
 
+    Phase 4 relaxation (2026-04-25): atoms that appear in query
+    statements OR bidirected statements but are not touched by any
+    cause edge are added as **isolated nodes** in the graph, IF
+    their predicate has a ``VariableDeclaration``. This makes
+    refusal-only narratives (e.g. selection-bias case where A2
+    declined to draw the edge) answer correctly with
+    ``cause = False (no path)`` instead of raising
+    SemanticError.
+
+    The "trace back to a source statement" invariant is preserved:
+    each isolated node traces back to a VariableDeclaration plus a
+    QueryStatement / BidirectedStatement that referenced it.
+
     Raises ``CyclicGraphError`` if the resulting graph is not acyclic.
     """
     graph: nx.DiGraph = nx.DiGraph()
+    declared_predicates: set[str] = set()
+    referenced_atoms: list[Atom] = []
+
     for stmt in statements:
-        if not isinstance(stmt, CauseStatement):
+        if isinstance(stmt, CauseStatement):
+            graph.add_node(stmt.from_atom, atom=stmt.from_atom)
+            graph.add_node(stmt.to_atom, atom=stmt.to_atom)
+            graph.add_edge(stmt.from_atom, stmt.to_atom, source=stmt)
+        elif isinstance(stmt, VariableDeclaration):
+            declared_predicates.add(stmt.predicate)
+        elif isinstance(stmt, BidirectedStatement):
+            # Bidirected atoms become isolated DAG nodes (the bidirected
+            # structure itself lives in the ADMG layer, not in G(M)).
+            referenced_atoms.append(stmt.left)
+            referenced_atoms.append(stmt.right)
+        elif isinstance(stmt, QueryStatement):
+            referenced_atoms.extend(_query_atoms(stmt.query))
+
+    for atom in referenced_atoms:
+        if atom in graph:
             continue
-        graph.add_node(stmt.from_atom, atom=stmt.from_atom)
-        graph.add_node(stmt.to_atom, atom=stmt.to_atom)
-        graph.add_edge(stmt.from_atom, stmt.to_atom, source=stmt)
+        if atom.predicate in declared_predicates:
+            graph.add_node(atom, atom=atom)
 
     if not nx.is_directed_acyclic_graph(graph):
         cycles = tuple(tuple(c) for c in nx.simple_cycles(graph))
