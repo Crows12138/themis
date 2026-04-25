@@ -746,3 +746,66 @@ Themis 已经从识别内核演化成全栈因果系统：
 identification，不锁选哪个
 
 **测试**：1015 passed / 143 skipped（本轮 +28）；0 fail；0 known flake。
+
+---
+
+### Phase 9 §T9.1 单源转移识别（2026-04-25 落地，板块 9: 0% → 25-30%）
+
+**真实压力来源**：W0 跑步 case 闭环后用户反问 "文献是 35-50 男性 RCT，
+我是 28 女 BMI 正常，0.55 这个数字适不适用"。这是 transportability
+问题——板块 9，之前 0% 覆盖。
+
+**charter**: PHASE_9_TRANSPORT_CHARTER.md（slice 内立项 + 7 sub-slice）
+
+**理论基础**：Bareinboim & Pearl 2014 "A General Algorithm for Deciding
+Transportability" Theorem 1（充分条件）：Z is S-admissible iff Z
+d-separates {S nodes} from Y in G_{\\bar{X}}.
+
+**OSS 现状检查**：DoWhy / EconML / causal-learn 都没有 Bareinboim
+selection-diagram transportability 的 production 实现；只有学术论文 +
+Causal Fusion (Columbia) web demo。Themis 做这块属于 **Python OSS 内
+首发**。自家写，不 vendor。
+
+**7 sub-slice 落地状态**：
+
+| Slice | 内容 | 状态 |
+|---|---|---|
+| S.T9.1.1 | schema (selectionNodeStatement / population / target_population) | ✅ |
+| S.T9.1.2 | types + parser + transport_runtime_gate | ✅ |
+| S.T9.1.3 | identify (s_admissibility_check / transport_formula / identify_via_transport) + scheduler dispatch hook | ✅ |
+| S.T9.1.4 | verifier T9-1 / T9-2 独立审 + 字节码独立性钉死 | ✅ |
+| S.T9.1.5 | eval case 29 (跑步瘦肚子 transport) + 4 e2e 测试 | ✅ |
+| S.T9.1.6 | A1 §3f population mismatch + response_rendering transport disclosure | ✅ |
+| S.T9.1.7 | docs sync (本节 + COVERAGE_MAP + failure_modes F25) | ✅ |
+
+**端到端**：跑步 case 现在跑通：
+
+```
+NL: "meta-analysis 是 35-50 男性，我 28 女 BMI 正常，能套吗"
+↓ (A1 §3f)
+kernel_ast: 3 selection_nodes (S_age/S_sex/S_bmi) + effect query w/ target_population=user
+↓ (themis.run + _dispatch_transport)
+status=structurally_solved, formula=P*(belly_fat_loss|do(running)) = Σ_{age,sex,bmi} P(...|...,Z) · P*(Z)
+↓ (themis.verify)
+T9-1 重跑 S-admissibility ✓; T9-2 审 formula 形状 ✓
+↓ (response_rendering Transport disclosure)
+"结构上可识别，调整集 = {age,sex,bmi}；要给数字还需要源人群分层 P 和你的 P*(Z)"
+```
+
+**显式 out-of-scope**（charter §4 已划清，按需另立 fragment）：
+- §T9.2 数值估计（IPSW / TMLE-transport）
+- §T9.3 latent S（不可观测的人群差异）
+- 多源 transport（Bareinboim 2014 §5）
+- 自动从 dataset 检测人群差异（discovery 范畴）
+
+**测试**：1064 passed / 143 skipped（+49 from baseline 1015）；0 fail；
+0 known flake。新增：
+- 15 schema/types/gate (test_phase9_transport_schema)
+- 13 transport primitive (test_runtime/test_transport)
+- 7 verifier (test_verifier/test_transport_rules)
+- 4 case 29 e2e (test_e2e/test_case_29_transport)
+
+**新失败模式**：F25 transport / population mismatch（failure_modes.md）
+
+**加权覆盖跃升**：约 55-65% → **60-70%**。第一次给板块 9 一个真实的
+非零数字。

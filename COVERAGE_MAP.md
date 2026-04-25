@@ -19,12 +19,12 @@
 | 6 | 中介分析 | **~70%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）；CDE 数值 / 多 mediator 链 → 后续 |
 | 7 | 选择偏差 | **15-20%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ 显式 collider conditioning 检测 → Phase 9+ |
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
-| 9 | 转移性 / 泛化 | **0%** | → Phase 9+（按需）|
+| 9 | 转移性 / 泛化 | **25-30%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）；只到结构层公式，数值估计 § T9.2 / 多源 §T9.3 / latent S → 后续 |
 | 10 | 敏感性分析 | **~30%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在所有 binary outcome 估计上）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
 | 11 | 连续 / 数据驱动估计 | **~50%** | **Phase 7.1-7.4 全部落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI）|
 | 12 | 因果发现 | **~40%** | **Phase 8.1 已落地**（PC/FCI/LiNGAM via causal-learn + kernel_ast suggestion path）；NOTEARS / RL discovery → Phase 9+ |
 
-**加权覆盖**：约 **55-65%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实里程碑齐全。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）。
+**加权覆盖**：约 **60-70%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C + Phase 9 §T9.1** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实 / 转移性里程碑齐全。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）；Phase 9 §T9.1 case 29 跑通（跑步×人群转移）。
 
 ---
 

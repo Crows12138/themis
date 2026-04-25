@@ -551,6 +551,50 @@ Pre-fix the merge layer tracked a single kind per pair; post-fix it
 tracks a *set* of kinds, with refusal incompatible with edges and
 edges compatible with each other.
 
+## F25 — Transport / population mismatch
+
+The user's target population differs from the population the source
+evidence was collected from. Reporting the source point estimate
+as the answer is a silent transfer error: it pretends external
+validity holds when it doesn't.
+
+The system must:
+
+- Detect population-mismatch language ("研究是 X 人群 / 我是 Y 人群"),
+  emit ``target_population`` on the effect query, and one
+  ``selection_node`` per shifted observable variable
+- Run Bareinboim-Pearl S-admissibility check (Theorem 1) to find an
+  adjustment set Z that d-separates S from Y in G_{\\bar{X}}
+- If identifiable: return ``structurally_solved`` with the transport
+  formula and adjustment set — but **do not** return a number
+  (numeric estimation is §T9.2 territory; §T9.1 only does structure)
+- If not identifiable: return ``needs_investigation`` naming which
+  S can't be blocked
+
+**Typical trigger**: case 29 (跑步瘦肚子 transport). Source =
+meta-analysis 35-50 男性 BMI 偏高; target = 用户 28 女性 BMI 正常.
+Three S nodes (S_age, S_sex, S_bmi).
+
+**Expected correct behavior**:
+
+- ``themis.run`` returns ``structurally_solved``, ``structural_result.value=true``
+- ``extensions.transport_identification`` carries source / target
+  population labels, S node IDs, adjustment set, and the symbolic
+  formula ``P*(y|do(x)) = Σ_z P(y|do(x),z) · P*(z)``
+- Verifier T9-1 / T9-2 independently re-derive S-admissibility +
+  audit formula shape
+- Response rendering surfaces the formula + names the two data
+  pieces still needed (source-side stratified P, target-side P*) —
+  honest "can't give a number yet" rather than a fake transfer
+
+**Counter-pattern (must NOT do)**: take the source point estimate
+(e.g. "RCT 平均下降 3.2 cm" → "你也会瘦 3.2 cm"). The whole point
+of F25 / Phase 9 §T9.1 is making this transfer step explicit.
+
+**Slice most relevant**: Phase 9 §T9.1 (graph_projection +
+selection_node + transport identification rules). Numeric estimation
+of the transported quantity is §T9.2 (separate fragment).
+
 ## Growth rule
 
 Add a new code only when a real case exposes a failure that
@@ -565,4 +609,7 @@ existence question-kind mismatch, F18 individual-vs-population
 estimand gap. Each exposes a failure not reducible to the
 F1–F14 set. F23 / F24 added 2026-04-25 from Phase 4 e2e blind
 stress (cases 16 and 21) — both real bugs / gaps surfaced by
-end-to-end pipeline runs, neither reducible to F1–F22.
+end-to-end pipeline runs, neither reducible to F1–F22. F25 added
+2026-04-25 from W0 跑步瘦肚子 真实压测 — the user pointed out the
+source-vs-target distribution gap; case 29 packages this as the
+canonical Phase 9 §T9.1 transportability failure mode.
