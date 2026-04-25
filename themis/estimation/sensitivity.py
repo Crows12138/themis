@@ -155,11 +155,11 @@ def _format_note(
     if e_ci is not None:
         parts.append(f"E-value on CI bound nearer the null = {e_ci:.2f}")
     if e_point < 1.5:
-        parts.append("interpretation: very weak — small unmeasured confounding could explain the result")
+        parts.append("interpretation: very weak / 很脆弱 — small unmeasured confounding could explain the result")
     elif e_point < 2.5:
-        parts.append("interpretation: moderate — a modestly strong confounder could explain the result")
+        parts.append("interpretation: moderate / 中等强度 — a modestly strong confounder could explain the result")
     elif e_point < 5.0:
-        parts.append("interpretation: substantial — confounder would need to be sizable to explain away")
+        parts.append("interpretation: substantial / 比较稳健 — confounder would need to be sizable to explain away")
     else:
-        parts.append("interpretation: very robust — implausibly strong confounder would be needed")
+        parts.append("interpretation: very robust / 非常稳健 — implausibly strong confounder would be needed")
     return "; ".join(parts)

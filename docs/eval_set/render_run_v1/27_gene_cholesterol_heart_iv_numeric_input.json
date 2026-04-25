@@ -1,0 +1,434 @@
+{
+  "case_id": "27_gene_cholesterol_heart_iv_numeric",
+  "narrative": "孟德尔随机化研究：某基因变异（gene_variant）通过影响肝脏胆固醇合成进而影响心脏病风险。肥胖 / 饮食等未观测生活方式同时影响胆固醇水平和心脏病。我们观察到个体的 gene_variant（随机继承，二值）、high_cholesterol（二值：是否 LDL 超过阈值）、heart_disease（二值：是否诊断）。基因变异对胆固醇的影响是单调的（所有人方向一致）。",
+  "question": "基于这个数据，高胆固醇（vs 低胆固醇）对心脏病风险的平均因果效应（LATE）是多少？",
+  "program": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "gene_variant",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "high_cholesterol",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "heart_disease",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "gene_variant",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "high_cholesterol",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "high_cholesterol",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "heart_disease",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "bidirected",
+        "left": {
+          "predicate": "high_cholesterol",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "right": {
+          "predicate": "heart_disease",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "intervention": {
+            "atom": {
+              "predicate": "high_cholesterol",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "target": {
+            "atom": {
+              "predicate": "heart_disease",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "result": {
+    "status": "numerically_solved",
+    "query_kind": "effect",
+    "query_id": "q",
+    "investigation_requests": [
+      {
+        "action": "run_experiment",
+        "target": "query:effect_admg",
+        "priority": "high",
+        "note": "Phase 2.latent S3.b.1: this ADMG effect query is reachable neither by ADMG-aware backdoor nor front-door. Tian c-factor lands in S3.b.2; see PHASE_2_LATENT_CHARTER.md §7.",
+        "group": "structure",
+        "items": [
+          {
+            "target": "query:effect_admg",
+            "reason": "Phase 2.latent S3.b.1: this ADMG effect query is reachable neither by ADMG-aware backdoor nor front-door. Tian c-factor lands in S3.b.2; see PHASE_2_LATENT_CHARTER.md §7."
+          }
+        ]
+      },
+      {
+        "action": "define_variable",
+        "target": "define_variable:2_items",
+        "priority": "medium",
+        "group": "framing",
+        "items": [
+          {
+            "target": "heart_disease",
+            "reason": "variable 'heart_disease' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "heart_disease",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          },
+          {
+            "target": "high_cholesterol",
+            "reason": "variable 'high_cholesterol' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+            "skeleton": {
+              "kind": "variable_patch",
+              "predicate": "high_cholesterol",
+              "existing": {
+                "domain": [
+                  true,
+                  false
+                ]
+              },
+              "fields": {
+                "time_window": null,
+                "measurement": null,
+                "threshold": null,
+                "observability": null,
+                "direction": null,
+                "baseline": null,
+                "state_vs_event": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "framing_notes": [
+      {
+        "predicate": "heart_disease",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      },
+      {
+        "predicate": "high_cholesterol",
+        "missing": [
+          "time_window",
+          "measurement",
+          "threshold",
+          "observability",
+          "direction",
+          "baseline",
+          "state_vs_event"
+        ]
+      }
+    ],
+    "estimation_context": {
+      "data_hash": "cf68f918eaab23896e289917e2dcc8b6185af90c2f44e02dcf0229cf66d27531",
+      "sample_size": 5000,
+      "data_contract_warnings": [],
+      "random_state": 42,
+      "ci_bootstrap": 500,
+      "model_preference": "auto"
+    },
+    "numeric_estimate": {
+      "point": 0.18687909535440425,
+      "ci_lower": 0.10999266549278736,
+      "ci_upper": 0.25765157880682693,
+      "ci_level": 0.95,
+      "method": "iv_wald",
+      "assumptions": [
+        "iv1_relevance_instrument_affects_treatment",
+        "iv2_exclusion_instrument_affects_outcome_only_via_treatment",
+        "iv3_independence_instrument_independent_of_latent_confounders",
+        "monotonicity_first_stage_effect_same_sign_for_all_units",
+        "estimand_is_LATE_on_compliers_not_population_ATE"
+      ],
+      "sample_size": 5000,
+      "data_hash": "cf68f918eaab23896e289917e2dcc8b6185af90c2f44e02dcf0229cf66d27531",
+      "instrument": "gene_variant",
+      "conditioning": [],
+      "treatment": "high_cholesterol",
+      "outcome": "heart_disease",
+      "sensitivity_analysis": {
+        "e_value": 2.8755170289111,
+        "e_value_ci_bound": 2.2267592223892527,
+        "risk_ratio": 1.7403786381922752,
+        "baseline_rate": 0.25241016652059595,
+        "note": "observed RR 1.740 (baseline rate 0.252); E-value on point estimate = 2.88; E-value on CI bound nearer the null = 2.23; interpretation: substantial / 比较稳健 — confounder would need to be sizable to explain away"
+      }
+    },
+    "derivation": {
+      "version": "0.1",
+      "kind": "derivation",
+      "steps": [
+        {
+          "rule": "iv_criterion_check",
+          "inputs": {
+            "graph": {
+              "kind": "graph",
+              "nodes": [
+                {
+                  "kind": "atom",
+                  "predicate": "gene_variant",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                {
+                  "kind": "atom",
+                  "predicate": "heart_disease",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                {
+                  "kind": "atom",
+                  "predicate": "high_cholesterol",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                }
+              ],
+              "edges": [
+                [
+                  0,
+                  2
+                ],
+                [
+                  2,
+                  1
+                ]
+              ]
+            },
+            "x": {
+              "kind": "atom",
+              "predicate": "high_cholesterol",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "y": {
+              "kind": "atom",
+              "predicate": "heart_disease",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "instrument": {
+              "kind": "atom",
+              "predicate": "gene_variant",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "conditioning": {
+              "kind": "atom_set",
+              "items": []
+            }
+          },
+          "output": true,
+          "step_id": "s1"
+        },
+        {
+          "rule": "numeric_iv_estimate",
+          "inputs": {
+            "criterion": {
+              "kind": "step_ref",
+              "step_id": "s1"
+            },
+            "treatment": {
+              "kind": "atom",
+              "predicate": "high_cholesterol",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "outcome": {
+              "kind": "atom",
+              "predicate": "heart_disease",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "instrument": {
+              "kind": "atom",
+              "predicate": "gene_variant",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "conditioning": {
+              "kind": "atom_set",
+              "items": []
+            },
+            "method": "iv_wald",
+            "data_hash": "cf68f918eaab23896e289917e2dcc8b6185af90c2f44e02dcf0229cf66d27531",
+            "sample_size": 5000,
+            "point": 0.18687909535440425,
+            "ci_lower": 0.10999266549278736,
+            "ci_upper": 0.25765157880682693,
+            "ci_level": 0.95
+          },
+          "output": {
+            "kind": "structural_result",
+            "value": true
+          },
+          "step_id": "s2"
+        }
+      ]
+    },
+    "structural_result": {
+      "value": true
+    }
+  }
+}

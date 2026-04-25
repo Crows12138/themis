@@ -1,4 +1,4 @@
-# Structured result → Chinese reply prompt (Slice A1, v2)
+# Structured result → Chinese reply prompt (Slice A1, v3)
 
 Symmetric counterpart of [`nl_to_kernel_ast.md`](nl_to_kernel_ast.md). Consumes
 the structured JSON that `themis.run(...)` produces and emits a Chinese reply
@@ -12,6 +12,20 @@ when NL intent / direction / scope / confounder-refusal decisions
 have alternatives worth flagging. The response layer must surface
 those to the user — never silently commit. See §"Ambiguity disclosure"
 below.
+
+**v3 updates (2026-04-25)** — closes the gaps surfaced by the
+output-side blind stress test (`docs/trial_reports/response_render_stress_test.md`).
+v3 adds:
+- New section §"Numeric estimate rendering (Phase 7)" — covers the
+  `numeric_estimate.*` block (point / CI / method / assumptions /
+  data_hash etc.) that v2 didn't have any template for.
+- IV section trigger now also fires on
+  `numeric_estimate.method ∈ {iv_wald, iv_2sls}` (not only on
+  `extensions.iv_identification`).
+- Edge-provenance disclosure now also covers `bidirected` statements.
+- New micro-rules: §"numerically_solved with still-open
+  investigation_requests", §"Schema mismatch disclosure",
+  §"Structure-group rendering", §"framing_notes vs investigation_requests".
 
 ## Role
 
@@ -53,7 +67,8 @@ Fields to look at, in order:
 | Field | What it tells you |
 |---|---|
 | `status` | `numerically_solved` → concrete answer available; `needs_investigation` → something is missing; `outside_language` → query type Themis doesn't support |
-| `numeric_result.value` | The concrete probability when `numerically_solved` |
+| `numeric_result.value` | The concrete probability when `numerically_solved` (symbolic / Theta-based path) |
+| `numeric_estimate.{point, ci_lower, ci_upper, method}` | The Phase 7 data-driven estimate when `numerically_solved` came from `themis.estimate(...)`. **See §"Numeric estimate rendering"** for the full template — do NOT just dump the field |
 | `structural_result.value` | `true` / `false` for cause / assoc when `structurally_solved` |
 | `investigation_requests[]` | Actionable tasks — **this is usually the main content of your reply** |
 | `framing_notes[]` | Advisory (same info is projected into `investigation_requests` with action `define_variable`); use the structured request instead for consistency |
@@ -80,6 +95,32 @@ Additionally, if the orchestrator passes the original `program`:
 
 Present them grouped by `group`, ordered by `priority` (`high` first), and
 within each group list each `items[*].target` with its `items[*].reason`.
+
+**v3: when `status: "numerically_solved"` AND `investigation_requests` is
+non-empty** — the answer has already been delivered, so the requests are
+**refinements**, not blockers. Demote the whole block to a footer with a
+heading like "还可以补的信息（不影响上面的数值，但能让回答更精确）"
+and skip any `priority: "low"` entries. Do NOT lead with the requests
+when a number is already on the table.
+
+**v3: `validate_parameter` requests under `numerically_solved` via
+`numeric_estimate`** — **suppress entirely**. Those requests target the
+symbolic Theta path; once the data-driven estimator already produced
+a number, the missing `P(...|...)` Theta entry is moot. Don't even put
+it in the footer.
+
+**v3: skip `framing_notes` when `investigation_requests[group=framing]`
+covers the same predicates.** They carry duplicate info; render only
+the structured request side. If `framing_notes` lists a predicate that
+has *no* corresponding `investigation_requests` entry (rare), surface
+that one note.
+
+**v3: structure-group rendering rule.** When `items[*].reason` cites
+internal doc paths (e.g. `"see PHASE_2_LATENT_CHARTER.md §7"`) or
+internal fragment IDs (`Phase 2.latent S3.b.1`), translate to plain
+user-facing language. Strip internal references. If the reason is
+purely diagnostic noise without user-actionable content, suppress the
+item entirely.
 
 ## Concrete-example guidance
 
@@ -271,13 +312,17 @@ Example placement:
 ## Edge-provenance disclosure (slice A2)
 
 If you (the orchestrating agent) also have access to the original kernel_ast
-that was sent to `themis.run`, inspect each `cause` statement's
-`annotations.source`:
+that was sent to `themis.run`, inspect each `cause` AND `bidirected`
+statement's `annotations.source` (v3: bidirected is also covered):
 
 - `"llm_proposal"` — you (the upstream LLM) proposed this edge from
   common knowledge, without a citation. **Disclose this in the reply**:
-  e.g. "我基于常识提了一条假设边 `running → belly_fat_loss`, 这条
-  关系本身还未经证据支持. 如果你有相关研究或数据, 请补充来源."
+  - For `cause`: "我基于常识提了一条假设边 `running → belly_fat_loss`,
+    这条关系本身还未经证据支持. 如果你有相关研究或数据, 请补充来源."
+  - For `bidirected` (v3): "我假设了一条未观测共因 `smoking ↔
+    lung_cancer`（即两者之间存在你没观测到的共同原因），这条假设是
+    前门 / IV 识别能成立的关键前提。如果你认为这两者并不共享未观测
+    混杂，告诉我换一种识别策略。"
 - A concrete citation (e.g. `"PubMed:12345"`) — the edge is
   evidence-backed; no special disclosure needed beyond the normal reply.
 
@@ -285,12 +330,17 @@ This keeps the reasoning chain honest: the user should know when the
 graph they're reasoning on is your hypothesis rather than established
 knowledge.
 
-## IV identification disclosure (Phase 6.iv)
+## IV identification disclosure (Phase 6.iv / Phase 7.3)
 
-When the result's `extensions.iv_identification` is present, the
-identify was resolved by falling back to the IV strategy (after
-backdoor and front-door both failed). This is significant —
-it means:
+**Trigger** (v3 — fire if any of these is true):
+- `extensions.iv_identification` is present (structural identify path), OR
+- `numeric_estimate.method ∈ {"iv_wald", "iv_2sls"}` (Phase 7 numeric
+  path; pull `instrument` / `conditioning` / `assumptions` from
+  `numeric_estimate` instead of `extensions.iv_identification`)
+
+When IV is in play, the identify was resolved by falling back to the
+IV strategy (after backdoor and front-door both failed). This is
+significant — it means:
 
 1. The user's graph has **at least one unobserved X-Y confounder**
    (that's why backdoor failed)
@@ -315,13 +365,22 @@ The rendering must surface all three points. Template:
 >
 > 你倾向哪个假设？或者这两个都不合适？
 
-Fields to pull from `extensions.iv_identification`:
+Fields to pull from `extensions.iv_identification` (structural path):
 - `instrument`: name the IV
 - `conditioning`: if non-empty, mention "给定 `<conditioning>` 之后"
   (conditional IV)
 - `required_assumption`: already summarizes the assumption space
 - `alternatives_count`: if > 1, mention "还有 N - 1 个其他工具变量
   候选可选" so the user knows there's choice
+
+Fields to pull from `numeric_estimate` (Phase 7 numeric path):
+- `instrument`, `conditioning`: same role as above
+- `assumptions[]`: contains `iv1_relevance` / `iv2_exclusion_*` /
+  `iv3_independence_*` / `monotonicity_*` / `consistency_*` strings.
+  Translate the IV1/IV2/IV3 + monotonicity items inline; quote them
+  by ID once so the user can refer back.
+- `method=iv_wald` → say "Wald 比率估计 → LATE"; `method=iv_2sls` →
+  "2SLS → ATE 假设线性性"
 
 If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
 ambiguity disclosure block (above) will also surface; don't double-
@@ -403,6 +462,128 @@ Common mapping of failed conditions to user-facing reasons:
 | M4 | "有中间混杂器（X 的后代同时影响 M 和 Y），经典 recanting witness" |
 | C1 | "无法阻断 (X, M) 到 Y 的所有后门" |
 | C2 | "唯一能阻断后门的变量是 X 或 M 的后代（不允许调整）" |
+
+## Numeric estimate rendering (Phase 7) — v3
+
+When `result.numeric_estimate` is present, the answer came from
+the data-driven estimation layer (`themis.estimate(ast, df)`),
+not from symbolic Theta. This block tells you how to render it.
+
+### Field map
+
+| Field | Meaning | Render? |
+|---|---|---|
+| `numeric_estimate.point` | The point estimate (ATE / LATE / NDE / NIE / etc.) | **always** |
+| `numeric_estimate.ci_lower` / `ci_upper` / `ci_level` | Bootstrap CI | **always** |
+| `numeric_estimate.method` | Estimator: `backdoor_linear` / `backdoor_logistic` / `frontdoor_logistic` / `frontdoor_linear` / `iv_wald` / `iv_2sls` / `mediation_*` | name it once in plain Chinese |
+| `numeric_estimate.assumptions[]` | snake_case ID list (e.g. `conditional_exchangeability_given_adjustment_set`) | **list 3-5 most relevant**, translate each, keep ID parenthetically |
+| `numeric_estimate.adjustment[]` (backdoor) | The W set used | name explicitly (essential for transparency) |
+| `numeric_estimate.mediators[]` (frontdoor) | The M chain | name explicitly |
+| `numeric_estimate.instrument` (IV) | The Z | name + IV section applies |
+| `numeric_estimate.treatment` / `outcome` | redundant with question, useful for double-check | mention once if helpful |
+| `numeric_estimate.formula` | symbolic formula (front-door Σ Σ form) | omit unless user asks "how" |
+| `numeric_estimate.sample_size` | n used | mention as parenthetical ("n=2000") |
+| `numeric_estimate.data_hash` | reproducibility hash | omit (developer-facing) |
+| `estimation_context.model_preference` / `random_state` / `ci_bootstrap` | knobs | omit unless user asks |
+| `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column, NaN, type coercion) | **always surface non-empty warnings** |
+
+### What the point value means (semantic translation)
+
+The user never sees raw `point: -0.069` — translate based on `method`:
+
+| Method | Point semantics | Example phrasing |
+|---|---|---|
+| `backdoor_logistic` / `frontdoor_logistic` | risk difference (probability) | "服阿司匹林使一年内心脏病发作概率下降约 6.9 个百分点" |
+| `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale | "服药使收缩压平均下降 9.83 个单位（按 outcome 列单位）" |
+| `iv_wald` | LATE = local risk difference among compliers | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点"（point ∈ [-1,1] 时 ×100 转百分点） |
+| `iv_2sls` | linear ATE | "ATE = X.X（线性假设下的人群平均效应）" |
+| `mediation_*` | see §"Mediation decomposition disclosure" | (covered there) |
+
+### Backdoor template
+
+> 在你提供的图上，`<treatment>` 对 `<outcome>` 的平均因果效应通过
+> **后门调整**识别，调整集 = `<adjustment>`。
+>
+> 在 N=`<sample_size>` 的数据上估出来：
+>
+> - 点估计 ATE = **`<point>`**（`<method-specific 解读>`）
+> - `<ci_level>` 置信区间：**[`<ci_lower>`, `<ci_upper>`]**（bootstrap）
+> - 估计方法：`<method>`
+>
+> 关键假设：`<列出 conditional_exchangeability / positivity /
+> consistency / 模型形式 4 条，给中文释义>`。
+
+### Front-door template
+
+> 在你提供的图上，`<treatment>` 对 `<outcome>` 的平均因果效应通过
+> **前门调整**识别——即使 `<treatment>` 和 `<outcome>` 之间存在
+> 未观测共因，因为通过 `<mediators>` 这条全可观测的中介路径仍可
+> 识别。
+>
+> 在 N=`<sample_size>` 的数据上估出来：
+>
+> - 点估计 ATE = **`<point>`**（`<解读>`）
+> - 置信区间：**[`<ci_lower>`, `<ci_upper>`]**（bootstrap）
+> - 估计方法：`<method>`
+>
+> 这种识别依赖：① 中介 `<mediators>` 拦截了 `<treatment>` →
+> `<outcome>` 的所有有向路径；② 前门各段后门都已被阻断；③ 一致性。
+
+### IV template
+
+See §"IV identification disclosure" — that section's template
+already covers the numeric (`iv_wald` / `iv_2sls`) path.
+
+### `assumptions[]` translation reference
+
+Common snake_case IDs and recommended Chinese:
+
+| ID | Chinese |
+|---|---|
+| `conditional_exchangeability_given_adjustment_set` | 给定调整集后处理可视为随机分配 |
+| `positivity_overlap_of_treatment_arms` | 处理两组在调整集每一层都有人（无极端 propensity） |
+| `consistency_of_potential_outcomes` | 一致性：观察到的 Y 等于该处理下的潜在结果 |
+| `linear_outcome_regression` | outcome 回归是线性的 |
+| `logit_outcome_link` | outcome 用 logit 链接 |
+| `iv1_relevance` | IV 与处理相关 |
+| `iv2_exclusion_instrument_affects_outcome_only_via_treatment` | IV 只通过处理影响结果 |
+| `iv3_independence_instrument_independent_of_unmeasured_confounders` | IV 与未观测混杂独立 |
+| `monotonicity_no_defiers` | 单调性：处理对每个个体的方向一致 |
+| `frontdoor_full_mediation` | 中介集拦截 X→Y 的所有有向路径 |
+| `frontdoor_no_treatment_mediator_backdoor` | X 到中介无未阻断后门 |
+| `frontdoor_mediator_outcome_backdoor_blocked_given_treatment` | 给定 X 后中介到 Y 的后门已被阻断 |
+| `front_door_criterion_holds_on_graph` | 前门准则在因果图上成立 |
+| `estimand_is_LATE_on_compliers_not_population_ATE` | 估计量是 LATE（仅 compliers 子人群），不是人群 ATE |
+| `mediator_intercepts_all_directed_paths_from_treatment_to_outcome` | 中介拦截了 X→Y 的所有有向路径 |
+| `no_unblocked_backdoor_from_treatment_to_mediator` | X→M 段无未阻断后门 |
+| `backdoor_from_mediator_to_outcome_blocked_by_treatment` | 给定 X 后 M→Y 的后门已被阻断 |
+
+If you see an assumption ID not in this table, render the snake_case
+words verbatim — don't invent translations.
+
+---
+
+## Schema mismatch disclosure (v3)
+
+When the kernel_ast's variable declares `domain: [true, false]`
+but the estimator picked a continuous-outcome method
+(`numeric_estimate.method ∈ {"backdoor_linear", "frontdoor_linear"}`)
+OR the point estimate is clearly outside [-1, 1], the program's
+declared domain disagrees with the data's actual dtype.
+
+Themis "data wins" — the estimate is correct. But surface this
+to the user as a one-line note:
+
+> ⚠ 注意：`<variable>` 在你的图描述里被声明为 bool，但底层数据
+> 是连续值（点估计 `<point>` 在 `<method>` 下显然是连续量级的）。
+> 这次按数据连续来算了；如果你想把 `<variable>` 二值化，告诉我
+> 阈值我重跑。
+
+This is defense-in-depth — the A1 prompt v2.6.1 was supposed to
+catch this upstream, but renderer surfacing it lets the user
+correct the loop on their own.
+
+---
 
 ## Sensitivity (E-value) disclosure (Phase 8.2)
 
