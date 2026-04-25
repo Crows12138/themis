@@ -150,6 +150,10 @@ def _estimate_effect_queries(
                 given=frozenset(given_atoms),
                 estimate=estimate,
             )
+            _attach_e_value_if_binary(
+                result, contract,
+                outcome=y_atom.predicate, treatment=x_atom.predicate,
+            )
             _finalise_numeric_result(result)
             continue
 
@@ -209,6 +213,10 @@ def _estimate_effect_queries(
                 conditioning=chosen_iv.conditioning,
                 estimate=iv_estimate,
             )
+            _attach_e_value_if_binary(
+                result, contract,
+                outcome=y_atom.predicate, treatment=x_atom.predicate,
+            )
             _finalise_numeric_result(result)
             continue
 
@@ -253,6 +261,10 @@ def _estimate_effect_queries(
             x=x_atom, y=y_atom,
             mediators=topo_mediators,
             estimate=fd_estimate,
+        )
+        _attach_e_value_if_binary(
+            result, contract,
+            outcome=y_atom.predicate, treatment=x_atom.predicate,
         )
         _finalise_numeric_result(result)
 
@@ -336,12 +348,87 @@ def _try_mediation_estimate(
             },
         },
     }
+    _attach_e_value_if_binary(
+        result, contract,
+        outcome=y_pred, treatment=x_pred,
+    )
+
     # NOTE: status stays "structurally_solved" — the identification
     # answer (strategy=nde_nie + adjustment) is the primary result; the
     # numeric_estimate block is supplementary detail. The existing
     # mediation derivation (mediation_*_check + identify_via_mediation)
     # already passes verify_effect_structural. Flipping to
     # numerically_solved would break that round-trip.
+
+
+def _attach_e_value_if_binary(
+    result: dict, contract, outcome: str, treatment: str,
+) -> None:
+    """Phase 8.2: compute the E-value sensitivity for the result's
+    numeric estimate when the outcome is binary, and attach it under
+    ``numeric_estimate.sensitivity_analysis``.
+
+    Skips quietly for non-binary outcomes (continuous Y has no
+    risk-ratio scale; future work could attach a different sensitivity
+    statistic). Mediation results carry a ``decomposition`` block
+    rather than a flat ``point`` — for those we attach the E-value to
+    the TE component (the most directly comparable summary).
+    """
+    import pandas as pd
+    from .sensitivity import e_value_from_ate_binary
+
+    estimate = result.get("numeric_estimate")
+    if estimate is None:
+        return
+
+    df = contract.data
+    if outcome not in df.columns:
+        return
+    if not pd.api.types.is_bool_dtype(df[outcome]):
+        return
+
+    treated_mask = df[treatment].to_numpy().astype(bool)
+    if treated_mask.all() or (~treated_mask).all():
+        return  # no untreated arm — can't compute baseline rate
+    baseline_rate = float(df.loc[~treated_mask, outcome].mean())
+
+    if "decomposition" in estimate:
+        # Mediation: use TE for the E-value summary.
+        te = estimate["decomposition"]["te"]
+        ate = te["point"]
+        ci_bound = _closer_to_null(te["point"], te["ci_lower"], te["ci_upper"])
+    else:
+        ate = estimate.get("point")
+        if ate is None:
+            return
+        ci_bound = _closer_to_null(
+            estimate["point"],
+            estimate.get("ci_lower"),
+            estimate.get("ci_upper"),
+        )
+
+    e_result = e_value_from_ate_binary(
+        ate=ate, baseline_rate=baseline_rate, ci_bound=ci_bound,
+    )
+    estimate["sensitivity_analysis"] = {
+        "e_value": e_result.e_value,
+        "e_value_ci_bound": e_result.e_value_ci_bound,
+        "risk_ratio": e_result.risk_ratio,
+        "baseline_rate": e_result.baseline_rate,
+        "note": e_result.note,
+    }
+
+
+def _closer_to_null(point, ci_lower, ci_upper):
+    """Return whichever CI bound is on the same side of zero as the
+    point estimate but closer to zero. None if either bound is missing."""
+    if ci_lower is None or ci_upper is None:
+        return None
+    if point >= 0:
+        # Lower bound is closer to null (zero) for a positive effect
+        return ci_lower if ci_lower >= 0 else None
+    # Upper bound is closer to null for a negative effect
+    return ci_upper if ci_upper <= 0 else None
 
 
 def _finalise_numeric_result(result: dict) -> None:

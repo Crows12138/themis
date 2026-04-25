@@ -275,6 +275,19 @@
         "n_rep": { "type": "integer", "minimum": 1 },
         "treatment": { "type": "string" },
         "outcome": { "type": "string" },
+        "sensitivity_analysis": {
+          "type": "object",
+          "description": "Phase 8.2: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present only when outcome is binary; otherwise estimator dispatch silently skips this block.",
+          "required": ["e_value", "e_value_ci_bound", "risk_ratio", "baseline_rate", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "e_value": { "type": ["number", "null"] },
+            "e_value_ci_bound": { "type": ["number", "null"] },
+            "risk_ratio": { "type": ["number", "null"] },
+            "baseline_rate": { "type": ["number", "null"] },
+            "note": { "type": "string" }
+          }
+        },
         "decomposition": {
           "type": "object",
           "description": "Phase 7.4 mediation decomposition: point + CI for NDE, NIE, TE.",
