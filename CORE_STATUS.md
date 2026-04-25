@@ -581,14 +581,124 @@ Phase 7；多 mediator 链式前门 → 6.front-door-multi。
 
 **时间实际**：S.M.1 到 S.M.7 全部落地约 1 天（含 charter 起草 + 测试）。
 
+#### Phase 6.front-door-multi 已落地（2026-04-24）
+
+扩展既有 front-door rule family 到多 mediator（无独立 charter）：
+- `formula_builder.front_door_formula` 接受 mediator 元组 ≥2，按拓扑
+  顺序做 chain-rule 因子分解 `P(Z1,...,Zk|X) = ∏ P(Zi|Z_{<i}, X)`
+- `_build_expected_front_door_formula` 镜像扩展（独立重实现，不调
+  builder）
+- `_rule_front_door_adjustment_formula` 不再硬限制 `len(z) == 1`
+- 4 集成测试：parallel-paths ADMG `X → M1 → Y, X → M2 → Y, X ↔ Y`
+  通过 {M1, M2} 识别 + verifier 圆环
+
+板块 1 覆盖 60-70% → 75-80%。落地 commit: `219cf5a`。
+
+### Phase 7 = M2 数值估计层（已全落地 2026-04-24/25）
+
+**理由**：M1 完成后用户能问"图能不能识别"但还要"给数字"。Phase 7
+打开数据→数字这一环。
+
+**状态总览**：
+
+| Slice | Charter | 状态 | 落地 commits |
+|---|---|---|---|
+| 7.1 backdoor numeric | PHASE_7_1_BACKDOOR_NUMERIC_CHARTER.md | ✅ | 3935b81 → eb92efd |
+| 7.2 front-door numeric | PHASE_7_2_FRONTDOOR_NUMERIC_CHARTER.md | ✅ | 5cdac9a → 7745d5a |
+| 7.3 IV numeric | PHASE_7_3_IV_NUMERIC_CHARTER.md | ✅ | aa5867c → 829845e |
+| 7.4 mediation numeric | （混入父 charter） | ✅ | 90dad85 → 4e474d1 |
+
+**Phase 7 新增公开 API**：
+- `themis.estimate(ast_dict, pandas_df) -> dict`：新顶层入口，数据
+  通过 Python 旁路（不进 JSON）保持识别契约纯净
+- `themis.estimation.{estimate_backdoor_ate, estimate_frontdoor_ate,
+  estimate_iv_ate, estimate_mediation}`：四个独立 estimator
+- `themis.estimation.DataContract`：DataFrame 验证 + SHA-256 hash
+
+**Estimator 选择**：
+- backdoor：sklearn LogisticRegression / LinearRegression + percentile
+  bootstrap CI
+- front-door：Pearl 3.29 plug-in，单/多 mediator chain-rule
+- IV：Wald (binary Z+X) + 2SLS (continuous)，auto select
+- mediation：statsmodels.stats.mediation.Mediation (Imai 2010
+  algorithms 1+2)，作 production backend
+
+**Verifier 松弛审**：4 个新 rule（`numeric_{backdoor,frontdoor,iv}_estimate`
++ mediation 走原 `identify_via_mediation`）。不重新训练（sklearn /
+bootstrap 引入随机性使 bit-exact 复检不现实），只审 method enum +
+point in CI + data_hash 格式 + adjustment 与识别 step 的一致性 + 字
+段 disjoint 等。byte-code scan 钉独立性。
+
+**Schema 扩展**：`numeric_estimate` 顶层字段 + `estimation_context`
++ `decomposition` 子块（mediation 用）。method enum 8 个值
+（backdoor / frontdoor / iv / mediation × linear/logistic）。
+
+**dispatch 优先级**：mediation queries (q.mediator 设) → backdoor
+→ front-door → IV。每条路径失败/不适用时静默跳过。
+
+**未包含**：CATE / ITE、AIPW、TMLE、Causal Forests Python
+简化版、deep causal、连续 treatment IV、CDE 数值（参考 m 值）。
+
+**时间实际**：Phase 7 整体（4 个子 slice）约 2 天落地。
+
+板块 6 中介 50% → 70%；板块 11 数据驱动估计 0% → 50%。
+
+### Phase 8 = M3 因果发现 + 敏感性（已全落地 2026-04-25）
+
+**理由**：到 M2 为止 Themis 假设用户给图。M3 解决"图从哪来"
+（discovery）和"图错了 / 假设违反时怎么办"（sensitivity）。
+
+**状态总览**：
+
+| Slice | 状态 | 落地 commits |
+|---|---|---|
+| 8.1 discovery (PC/FCI/LiNGAM) | ✅ | e2b2677 → 48a7e6f |
+| 8.2 sensitivity (E-value) | ✅ | e1d8bdc → 97daad6 |
+
+**8.1 Discovery**：
+- `themis.estimation.discover_graph(df, algorithm="auto")` 包装
+  causal-learn 0.1.4.5 的三个算法
+- `discovery_to_kernel_ast(result)` 把 DiscoveryResult 转成可直接
+  喂 `themis.run` 的 kernel_ast 草稿
+- Algorithms：PC（无潜变量假设，CPDAG），FCI（容许潜变量，PAG），
+  LiNGAM（线性非高斯，DAG）；'auto' 按 skewness 选 LiNGAM/PC
+- Output 三桶：directed / bidirected / ambiguous（CPDAG 或 PAG 圆环
+  端点）
+- Ambiguous edges 自动转成 `extensions.ambiguities[kind=
+  ambiguous_orientation]`，附 disambiguation_ask
+- 5 条 API gate 审计：causal-learn ⚠ track record 4 年（接近但未达
+  5 年门槛），其他 4 条满足；定为 production-with-caution，pin 版本
+
+**8.2 Sensitivity**：
+- `e_value_for_risk_ratio(rr)`：VanderWeele & Ding 2017 closed form
+- `e_value_from_ate_binary(ate, baseline_rate, ci_bound)`：从 ATE
+  自动转 RR 再算 E-value
+- 在 `dispatch.py` 的所有 4 个 estimator 路径尾巴自动调用
+  `_attach_e_value_if_binary`，仅对 bool outcome 触发
+- `numeric_estimate.sensitivity_analysis` 子 schema：e_value /
+  e_value_ci_bound / risk_ratio / baseline_rate / note
+- response_rendering 加专门 disclosure section + 4 档威胁水平模板
+- F22 加入失败模式 taxonomy
+
+板块 10 敏感性 0% → 30%；板块 12 因果发现 0% → 40%。
+
+**整体加权覆盖**：从 Phase 6 启动时的 ~20% 跃升到 **50-60%**。
+
+**时间实际**：Phase 8 整体（2 个子 slice）约 1 天落地。
+
 ---
 
 ## 最短版本
 
 ```text
-Themis 核心已经基本成型：
-它能在已知模型下做静态因果推理、数值求值、缺参数补录和机器可验证推导。
+Themis 已经从识别内核演化成全栈因果系统：
+- 识别（M1）：backdoor / front-door 单+多 / IV basic+conditional+ADMG / NDE-NIE-CDE
+- 估计（M2）：4 条识别路径都能给数字 + bootstrap CI（sklearn/statsmodels）
+- 敏感性（M3.1）：每个 binary outcome 自动带 VanderWeele E-value
+- 发现（M3.2）：用户给 DataFrame 没图时 PC/FCI/LiNGAM 自动建图建议
+- 全程 verifier 松弛 / 严格审，每步带 derivation
 
-但它还不是完整世界建模系统；
-完整反事实、动作级时序、自动语料建模都还在核心之外。
+12 板块加权覆盖 ~50-60%。
+但仍不是完整世界建模系统；
+完整反事实（Layer 3 全套）、动作级时序、自动语料建模仍在 Phase 9+。
 ```
