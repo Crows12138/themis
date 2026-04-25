@@ -16,15 +16,15 @@
 | 3 | 反事实（Layer 3） | **15-20%** | Balke-Pearl 二值单调 bounds ✓ / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **20-30%** | 1 阶 Markov ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~60%** | **Phase 6.iv 已落地**（basic + conditional + ADMG-aware identification）；2SLS / LATE 估计 → Phase 7 |
-| 6 | 中介分析 | **~50%** | **Phase 6.mediation 已落地**（NDE/NIE 四条件 + CDE 后门 + ADMG-aware identification）；数值估计（Imai / g-formula）→ Phase 7；多-mediator 链 → Phase 6.front-door-multi |
+| 6 | 中介分析 | **~70%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）；CDE 数值 / 多 mediator 链 → 后续 |
 | 7 | 选择偏差 | **5%** | A1 §3a 能识别 / kernel 未算 → Phase 6.5 或 Phase 9+ |
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
 | 9 | 转移性 / 泛化 | **0%** | → Phase 9+（按需）|
 | 10 | 敏感性分析 | **0%** | → **Phase 8 M3** |
-| 11 | 连续 / 数据驱动估计 | **~35%** | **Phase 7.1-7.3 已落地**（backdoor + front-door + IV numeric，Wald/2SLS 两个 IV estimator）；mediation 数值 → Phase 7.4 |
+| 11 | 连续 / 数据驱动估计 | **~50%** | **Phase 7.1-7.4 全部落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI）|
 | 12 | 因果发现 | **0%** | → **Phase 8 M3**（PC/FCI/LiNGAM）|
 
-**加权覆盖**：约 **30-35%**。大头在板块 1+2+5+6（Pearl 识别 + ADMG + IV + Mediation）+ 板块 11 的 backdoor 数值入门。
+**加权覆盖**：约 **40-50%**。**Phase 7 M2 完整落地**——板块 11 跃升到 ~50%，识别 + 估计两个里程碑都拿下。
 
 ---
 

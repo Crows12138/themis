@@ -97,9 +97,13 @@ def _estimate_effect_queries(
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None:
             continue
-        # Skip mediation queries — they have their own decomposition
-        # path that Phase 7.4 will implement.
+        # Phase 7.4: mediation queries route to the Imai-via-statsmodels
+        # estimator, gated on the identification layer's strategy result.
         if q_stmt.query.mediator is not None:
+            _try_mediation_estimate(
+                q_stmt, result, contract, graph, bidirected,
+                random_state=random_state,
+            )
             continue
 
         x_atom = q_stmt.query.intervention.atom
@@ -251,6 +255,93 @@ def _estimate_effect_queries(
             estimate=fd_estimate,
         )
         _finalise_numeric_result(result)
+
+
+def _try_mediation_estimate(
+    q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
+) -> None:
+    """Phase 7.4 — attach a mediation numeric estimate when the
+    identification layer has cleared NDE/NIE for the requested mediator.
+
+    Reads ``result.extensions.mediation_decomposition`` to decide
+    whether to fit. Only the ``nde_nie`` strategy is wired in 7.4 —
+    CDE numeric estimation is deferred (the reference mediator value
+    isn't expressible cleanly in the statsmodels Mediation API).
+    """
+    from .mediation import estimate_mediation
+
+    extensions = result.get("extensions") or {}
+    decomp = extensions.get("mediation_decomposition")
+    if decomp is None or decomp.get("strategy") != "nde_nie":
+        return
+
+    nde_nie_block = decomp.get("nde_nie", {})
+    if not nde_nie_block.get("identifiable"):
+        return
+    # The identification layer emits adjustment atoms in their string
+    # form (predicate(args)). Strip back to bare predicates so the
+    # estimator can index DataFrame columns.
+    adjustment = tuple(
+        a.split("(", 1)[0] for a in nde_nie_block.get("adjustment", ())
+    )
+
+    x_pred = q_stmt.query.intervention.atom.predicate
+    y_pred = q_stmt.query.target.atom.predicate
+    m_pred = q_stmt.query.mediator.predicate
+
+    # Skip cleanly when adjustment columns aren't all in the data
+    # contract (defensive — should be enforced upstream)
+    missing_cols = [c for c in adjustment if c not in contract.data.columns]
+    if missing_cols:
+        return
+
+    try:
+        med_estimate = estimate_mediation(
+            contract.data,
+            treatment=x_pred,
+            outcome=y_pred,
+            mediator=m_pred,
+            adjustment=adjustment,
+            random_state=random_state,
+        )
+    except (ValueError, NotImplementedError):
+        return
+
+    result["numeric_estimate"] = {
+        "method": med_estimate.method,
+        "ci_level": med_estimate.ci_level,
+        "assumptions": list(med_estimate.assumptions),
+        "sample_size": med_estimate.sample_size,
+        "data_hash": med_estimate.data_hash,
+        "treatment": med_estimate.treatment,
+        "outcome": med_estimate.outcome,
+        "mediator": med_estimate.mediator,
+        "adjustment": list(med_estimate.adjustment),
+        "n_rep": med_estimate.n_rep,
+        "decomposition": {
+            "nde": {
+                "point": med_estimate.nde_point,
+                "ci_lower": med_estimate.nde_ci_lower,
+                "ci_upper": med_estimate.nde_ci_upper,
+            },
+            "nie": {
+                "point": med_estimate.nie_point,
+                "ci_lower": med_estimate.nie_ci_lower,
+                "ci_upper": med_estimate.nie_ci_upper,
+            },
+            "te": {
+                "point": med_estimate.te_point,
+                "ci_lower": med_estimate.te_ci_lower,
+                "ci_upper": med_estimate.te_ci_upper,
+            },
+        },
+    }
+    # NOTE: status stays "structurally_solved" — the identification
+    # answer (strategy=nde_nie + adjustment) is the primary result; the
+    # numeric_estimate block is supplementary detail. The existing
+    # mediation derivation (mediation_*_check + identify_via_mediation)
+    # already passes verify_effect_structural. Flipping to
+    # numerically_solved would break that round-trip.
 
 
 def _finalise_numeric_result(result: dict) -> None:

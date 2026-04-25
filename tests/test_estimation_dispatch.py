@@ -108,8 +108,10 @@ def test_empty_adjustment_when_no_confounder():
 # ============================================ mediation passthrough
 
 
-def test_mediation_query_is_not_touched():
-    """Effect query with mediator is a 7.4 slot; 7.1 must not hijack it."""
+def test_mediation_query_now_runs_imai_estimator():
+    """Phase 7.4: mediation queries get a numeric NDE/NIE/TE block via
+    the Imai-via-statsmodels estimator. Status stays structurally_solved
+    because the identification is the primary answer; numeric is detail."""
     ast = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -136,11 +138,18 @@ def test_mediation_query_is_not_touched():
     })
     out = themis.estimate(ast, df, ci_bootstrap=0)
     result = out["results"][0]
-    # Status stays structurally_solved — mediation estimator is 7.4
+    # Status stays structurally_solved — identification is primary answer
     assert result["status"] == "structurally_solved"
-    assert "numeric_estimate" not in result
-    # But the mediation identification extension is preserved
+    # Mediation identification preserved
     assert "mediation_decomposition" in result["extensions"]
+    # Numeric attached with a decomposition sub-block
+    assert "numeric_estimate" in result
+    est = result["numeric_estimate"]
+    assert est["method"] in ("mediation_linear_imai", "mediation_logit_imai")
+    assert "decomposition" in est
+    for branch in ("nde", "nie", "te"):
+        assert "point" in est["decomposition"][branch]
+        assert "ci_lower" in est["decomposition"][branch]
 
 
 # ============================================ unidentifiable passthrough

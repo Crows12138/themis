@@ -248,12 +248,8 @@
     },
     "numeric_estimate": {
       "type": "object",
-      "description": "Phase 7: data-based ATE point estimate + CI. Present on effect-query results routed through themis.estimate when a numerical strategy resolved. The verifier audits this block without re-training. Exactly one of ``adjustment`` (backdoor) or ``mediators`` (front-door) is present, corresponding to the ``method`` enum value.",
-      "required": [
-        "point", "ci_lower", "ci_upper", "ci_level", "method",
-        "assumptions", "sample_size", "data_hash",
-        "treatment", "outcome"
-      ],
+      "description": "Phase 7: data-based estimate. For backdoor / front-door / IV queries this is a single ATE point + CI. For mediation queries it carries a ``decomposition`` sub-block with NDE/NIE/TE triples (point + CI each).",
+      "required": ["method", "ci_level", "assumptions", "sample_size", "data_hash", "treatment", "outcome"],
       "additionalProperties": false,
       "properties": {
         "point": { "type": "number" },
@@ -264,7 +260,8 @@
           "enum": [
             "backdoor_linear", "backdoor_logistic",
             "frontdoor_linear", "frontdoor_logistic",
-            "iv_wald", "iv_2sls"
+            "iv_wald", "iv_2sls",
+            "mediation_linear_imai", "mediation_logit_imai"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -274,8 +271,48 @@
         "mediators": { "type": "array", "items": { "type": "string" } },
         "instrument": { "type": "string" },
         "conditioning": { "type": "array", "items": { "type": "string" } },
+        "mediator": { "type": "string" },
+        "n_rep": { "type": "integer", "minimum": 1 },
         "treatment": { "type": "string" },
-        "outcome": { "type": "string" }
+        "outcome": { "type": "string" },
+        "decomposition": {
+          "type": "object",
+          "description": "Phase 7.4 mediation decomposition: point + CI for NDE, NIE, TE.",
+          "required": ["nde", "nie", "te"],
+          "additionalProperties": false,
+          "properties": {
+            "nde": {
+              "type": "object",
+              "required": ["point", "ci_lower", "ci_upper"],
+              "additionalProperties": false,
+              "properties": {
+                "point": { "type": "number" },
+                "ci_lower": { "type": "number" },
+                "ci_upper": { "type": "number" }
+              }
+            },
+            "nie": {
+              "type": "object",
+              "required": ["point", "ci_lower", "ci_upper"],
+              "additionalProperties": false,
+              "properties": {
+                "point": { "type": "number" },
+                "ci_lower": { "type": "number" },
+                "ci_upper": { "type": "number" }
+              }
+            },
+            "te": {
+              "type": "object",
+              "required": ["point", "ci_lower", "ci_upper"],
+              "additionalProperties": false,
+              "properties": {
+                "point": { "type": "number" },
+                "ci_lower": { "type": "number" },
+                "ci_upper": { "type": "number" }
+              }
+            }
+          }
+        }
       }
     },
     "estimation_context": {
