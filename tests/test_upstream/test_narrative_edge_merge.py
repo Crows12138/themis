@@ -238,6 +238,26 @@ def test_merge_into_program_inserts_bidirected_with_args():
     assert bs[0]["right"]["args"] == [{"type": "const", "name": "me"}]
 
 
+def test_merge_into_program_preserves_time_index_on_atoms():
+    """A1 §2c uses ``time_index`` to encode t-1→t lag; preserve it
+    when injecting cause/bidirected edges so V-set construction sees
+    the same time-indexed atoms the query references."""
+    prog = _empty_program(["x", "y"])
+    extraction = {"edges": [{
+        "kind": "cause",
+        "from": {"predicate": "x", "time_index": {"kind": "relative", "value": -1}},
+        "to": {"predicate": "y", "time_index": {"kind": "relative", "value": 0}},
+        "annotations": {"source": "narrative_proposal"},
+    }]}
+    out = merge_edges_into_program(prog, extraction)
+    causes = [s for s in out["statements"] if s.get("kind") == "cause"]
+    assert len(causes) == 1
+    # time_index preserved from A2 atoms; args injected as [const me]
+    assert causes[0]["from"]["time_index"] == {"kind": "relative", "value": -1}
+    assert causes[0]["to"]["time_index"] == {"kind": "relative", "value": 0}
+    assert causes[0]["from"]["args"] == [{"type": "const", "name": "me"}]
+
+
 def test_merge_into_program_does_not_mutate_input():
     prog = _empty_program(["x", "y"])
     original = dict(prog)

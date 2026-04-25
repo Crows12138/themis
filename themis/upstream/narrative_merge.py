@@ -489,6 +489,20 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
         last_bidirected_idx + 1 if last_bidirected_idx >= 0 else len(statements)
     )
 
+    def _build_atom(ref: dict) -> dict:
+        """Inject ``args=[const me]`` while preserving any other atom fields
+        the A2 prompt provided (notably ``time_index`` from §2c temporal
+        encoding). Args from A2 are normally absent — if present, honor them."""
+        out_atom = {"predicate": ref["predicate"]}
+        if "args" in ref and ref["args"]:
+            out_atom["args"] = deepcopy(ref["args"])
+        else:
+            out_atom["args"] = _arg_const_me()
+        for k, v in ref.items():
+            if k not in ("predicate", "args"):
+                out_atom[k] = deepcopy(v)
+        return out_atom
+
     for edge in e["edges"]:
         if edge["kind"] == "cause":
             f = edge["from"]["predicate"]
@@ -500,8 +514,8 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
             # cause + existing bidirected coexist (ADMG); no conflict raised.
             stmt = {
                 "kind": "cause",
-                "from": {"predicate": f, "args": _arg_const_me()},
-                "to": {"predicate": t, "args": _arg_const_me()},
+                "from": _build_atom(edge["from"]),
+                "to": _build_atom(edge["to"]),
             }
             anno = edge.get("annotations")
             if isinstance(anno, dict) and anno:
@@ -525,8 +539,8 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
             # bidirected + existing cause coexist (ADMG); no conflict raised.
             stmt = {
                 "kind": "bidirected",
-                "left": {"predicate": l, "args": _arg_const_me()},
-                "right": {"predicate": r, "args": _arg_const_me()},
+                "left": _build_atom(edge["left"]),
+                "right": _build_atom(edge["right"]),
             }
             anno = edge.get("annotations")
             if isinstance(anno, dict) and anno:

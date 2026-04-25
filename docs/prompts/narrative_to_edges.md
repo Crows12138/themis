@@ -35,7 +35,9 @@ Respond with **exactly one** JSON object:
   ],
   "refusals": [
     {"kind": "refuse_direct_edge", "from": "...", "to": "...",
-     "reason": "...", "suggested_confounder": "..."}
+     "reason": "...",
+     "pattern": "confounder | collider | reverse_causation | coincidence",
+     "suggested_node": "..."}
   ],
   "narrative_ambiguities": [
     {"kind": "...", "description": "...", "chosen": "...", "alternatives": ["..."]}
@@ -86,8 +88,21 @@ coincidence. Same §3a logic as A1:
   ("每天吃海鲜的族群 Y 高")
 - Clinical study of one drug → generalized ("某药的研究发现")
 
-Emit a `refusals` entry naming the pattern and, if possible,
-proposing a plausible confounder / selection variable.
+Emit a `refusals` entry naming the **structural pattern** that
+explains why a direct edge is the wrong reading:
+
+| `pattern` value | When to use | `suggested_node` is… |
+|---|---|---|
+| `confounder` | Both X and Y share an unobserved common cause | the confounder Z |
+| `collider` | The narrative conditioned on a node that is a descendant of both X and Y (selection bias) | the collider being conditioned on (e.g. `is_hospitalized`) |
+| `reverse_causation` | The arrow likely runs Y → X, not X → Y | optional — the actual causal direction's source if knowable |
+| `coincidence` | No mechanism, just temporal / spatial co-occurrence | omit — there's no canonical alternative |
+
+Use `suggested_node` (v2). The older `suggested_confounder` field
+biased toward confounder patterns and is misleading for collider /
+reverse-causation cases — emit `suggested_node` instead. If both
+patterns plausibly apply (e.g. confounder AND collider), pick the
+dominant one and mention the alternative in `reason`.
 
 ### 2. Tagging evidence
 
