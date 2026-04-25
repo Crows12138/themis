@@ -571,6 +571,81 @@ Output:
   to quantify how strong an unmeasured confounder would have to be
   to overturn the estimate.
 
+### 3f. Population mismatch / transport (v2.7 / Phase 9 §T9.1)
+
+When the NL question signals that **the source of the evidence and
+the user differ in observable ways** — phrases like:
+
+- "这是 35 岁男性的研究 / 我是 28 岁女性"
+- "数据来自欧美人群 / 我是亚洲人"
+- "RCT 在医院做的，我自己跑步在家不一样"
+- "这个研究是肥胖人群 / 我体重正常"
+- "用户问'文献是 X 类人，我是 Y 类人，能套吗'"
+
+→ emit a **transport-shaped** kernel_ast:
+
+1. **Effect query** with `target_population` set:
+   ```json
+   {"kind": "effect", ..., "target_population": "user"}
+   ```
+2. **One `selection_node` statement per shifting variable**:
+   ```json
+   {"kind": "selection_node",
+    "id": "S_age",
+    "affects": {"predicate": "age", "args": [{"type": "const", "name": "me"}]},
+    "source_population": "<source_label>",
+    "target_population": "user",
+    "annotations": {"source": "narrative_proposal", "evidence": "<NL quote>"}}
+   ```
+3. **One `variable` declaration per shifting variable** — the
+   selection_node refers to atoms whose predicates must be declared.
+4. **Edges from each shifting variable into the outcome** — only
+   if the NL or common knowledge says they affect outcome (S nodes
+   only get exercised by transport identification when there's a
+   path through them to Y).
+
+**Population identifiers**: snake_case strings (the schema enforces
+the `[A-Za-z_][A-Za-z0-9_]*` pattern).
+- `"user"` for the user / target population — convention
+- Source: descriptive label, e.g. `rct_meta_2022`, `nhanes_2018`,
+  `who_global`, `mendelian_uk_biobank`
+
+**Don't emit**:
+- `target_population` without any `selection_node` — kernel handles
+  it (trivially identifiable, transport formula reduces to identity)
+  but it adds no value over a regular effect query
+- A `selection_node` whose `affects` predicate has no edge to the
+  outcome — also a no-op (nothing to adjust for)
+- More than 4-5 S nodes — likely the user is conflating shift with
+  observational confounding; ask for clarification via an ambiguity
+  entry
+
+**Example** (case 29):
+
+NL: "meta-analysis 是 35-50 男性，我 28 女 BMI 正常，能套吗"
+
+Output:
+- Variables: `running`, `belly_fat_loss`, `age`, `sex`, `bmi`
+- Edges: `running → belly_fat_loss`, `age → belly_fat_loss`,
+  `sex → belly_fat_loss`, `bmi → belly_fat_loss`
+- 3 selection_node statements (S_age, S_sex, S_bmi all from
+  `rct_meta_2022` to `user`)
+- Query: `effect(belly_fat_loss | do(running), target_population=user)`
+
+The kernel will return `structurally_solved` with a
+`transport_identification` extension carrying the Bareinboim formula
+`P*(belly_fat_loss | do(running)) = Σ_{age,sex,bmi} P(...|...,age,sex,bmi)·P*(age,sex,bmi)`.
+The response renderer surfaces it.
+
+**Caveats to flag** (`extensions.ambiguities`):
+- If the user says "我担心还有别的变量也不一样" without naming →
+  ambiguity kind `unobserved_population_shift`, surface in reply that
+  §T9.1 only handles observable S, latent S is §T9.3 territory
+- If the user already gave a single number from the source ("RCT 说
+  3.2 cm 平均下降，我会一样吗") → ambiguity kind
+  `naive_transport_temptation`, the renderer warns against assuming
+  the source point estimate equals the target's
+
 ### 4. Emit the query statement
 
 Exactly one `query` statement, with `id: "q"`:

@@ -638,6 +638,101 @@ caveat:
 - E-value already in `note`'s interpretation phrase → don't repeat the
   threshold word; just quote the note
 
+## Transport identification disclosure (Phase 9 §T9.1)
+
+When `result.extensions.transport_identification` is present, the
+query asked about a target population that differs from the source
+of the evidence (Bareinboim & Pearl 2014 transport identification).
+
+**Field map**:
+
+| Field | Meaning |
+|---|---|
+| `source_population` | Where the evidence came from (e.g. `rct_meta_2022`) |
+| `target_population` | Where the user wants to apply it (usually `user`) |
+| `s_nodes[]` | List of variables whose distribution differs between populations |
+| `adjustment_set[]` | Z — variables that must be conditioned on for transport (the answer to "what variables matter") |
+| `formula_repr` | The symbolic transport formula |
+
+**§T9.1 deliberately does NOT give a number** — only structural
+identification + the formula. Numeric estimation (filling P(y|do(x), Z)
+from source data + P*(Z) from target data) lands in §T9.2. The reply
+must reflect this honestly: surface the formula + tell the user
+exactly what data would be needed.
+
+**Status meaning**:
+- `structurally_solved` + `structural_result.value=true` → the source
+  effect IS transportable to the target, here's the adjustment set
+  and formula; numbers come later
+- `needs_investigation` with a `structure`-group missing item naming
+  the failure → no S-admissible Z exists, the source effect is NOT
+  transportable under the declared selection diagram (more S to
+  observe? richer Z candidates?)
+
+### Template — identifiable case
+
+> 你这个问题需要做**跨人群转移识别**（源人群 `<source_population>` →
+> 目标人群 `<target_population>`）。
+>
+> 在你声明的差异变量（`<s_nodes ids>`）下，转移**结构上可识别**——
+> 调整集 = `<adjustment_set predicates>`。
+>
+> 转移公式：
+>
+> ```
+> <formula_repr>
+> ```
+>
+> 也就是说要把源人群的效应"按调整集分层后再用目标人群的边际分布
+> 重新加权"。
+>
+> **要给具体数字，还需要两类数据**：
+>
+> 1. **源人群的分层条件概率** `P(<outcome> | do(<treatment>),
+>    <adjustment_set>)`——meta-analysis 通常只给汇总（一个数字），
+>    分层数据需要原始 RCT 的 IPD 或者 subgroup 表。**这一项往往
+>    是真实瓶颈**。
+> 2. **目标人群（你 / 你这类人）的协变量联合分布**
+>    `P*(<adjustment_set>)`——你直接给（个人画像）或查公开数据库
+>    （如 NHANES / 国家统计）。
+>
+> Phase 9 §T9.1 只到结构识别这一层；具体数字落地到 §T9.2
+> 数值估计（IPSW / TMLE-transport）。
+
+### Template — unidentifiable case
+
+> 你声明的选择图下，这个跨人群效应**结构上不可识别**——
+> `<failure_reason>`。
+>
+> 通常的解决方向：
+>
+> 1. **观察更多变量进入 Z**：如果有些变量你能拿到目标人群分布，
+>    把它们加成额外的 selection_node + 变量声明
+> 2. **缩小 S 节点集合**：如果你声明的某些 shift 实际上不影响 outcome，
+>    去掉对应的 selection_node
+> 3. **承认这个问题在当前证据下无法回答**——可能需要不同来源的
+>    研究（更接近你这类人群的小样本）
+
+### When source has been found but transport adds little
+
+If `s_nodes` is empty (no declared shifts) but the agent emitted
+`target_population` anyway, the formula reduces to identity
+(`P*(y|do(x)) = P(y|do(x))`). Surface this as:
+
+> 你的目标人群和源人群在这次问题里**没有声明的分布差异**——所以
+> 源效应可以直接转移。如果实际上有差异（比如年龄 / 性别 / 体重）
+> 你想纳入考虑，告诉我，我会加上对应的 selection_node。
+
+### Caveats to always include
+
+- 如果 program 里有 `unobserved_population_shift` ambiguity → 提醒
+  用户 §T9.1 只处理观察到的 S；未观测的人群差异是 §T9.3 范围
+- 如果用户原始问题给了一个源人群的数字（"RCT 说 X cm 下降"）→
+  明确说 transport 不会输出"修正后的 X"——只会告诉你需要哪些数据
+  来算修正后的数字
+- 永远不要把源人群的点估计当作目标人群的答案。这是 F25 失败模式
+  的核心
+
 ## What NOT to do
 
 - Do not invent missing fields not listed in the JSON (if the JSON says
