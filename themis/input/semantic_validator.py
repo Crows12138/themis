@@ -50,6 +50,7 @@ from ..types import (
     AssocQuery,
     Atom,
     BidirectedStatement,
+    SelectionNode,
     CounterfactualAssumptions,
     CounterfactualQuery,
     CauseQuery,
@@ -80,6 +81,7 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "ground_queries",
         "unique_variable_declarations",
         "bidirected_runtime_gate",
+        "transport_runtime_gate",
     }
 )
 
@@ -145,12 +147,14 @@ def _to_query(d: dict):
             intervention=_to_intervention(d["intervention"]),
             given=tuple(_to_grounded(a) for a in d["given"]),
             mediator=_to_atom(mediator_raw) if mediator_raw is not None else None,
+            target_population=d.get("target_population"),
         )
     if k == "identify":
         return IdentifyQuery(
             target=_to_atom(d["target"]),
             intervention=_to_intervention(d["intervention"]),
             given=tuple(_to_atom(a) for a in d["given"]),
+            target_population=d.get("target_population"),
         )
     if k == "probability":
         return ProbabilityQuery(
@@ -196,12 +200,21 @@ def _to_statement(d: dict):
             forall=tuple(d.get("forall", ())),
             annotations=_to_annotation(d.get("annotations")),
         )
+    if k == "selection_node":
+        return SelectionNode(
+            id=d["id"],
+            affects=_to_atom(d["affects"]),
+            source_population=d["source_population"],
+            target_population=d["target_population"],
+            annotations=_to_annotation(d.get("annotations")),
+        )
     if k == "probability":
         return ProbabilityStatement(
             target=_to_grounded(d["target"]),
             given=tuple(_to_grounded(a) for a in d["given"]),
             value=d["value"],
             forall=tuple(d.get("forall", ())),
+            population=d.get("population"),
             annotations=_to_annotation(d.get("annotations")),
         )
     if k == "observation":
@@ -243,6 +256,8 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
         return (stmt.from_atom, stmt.to_atom)
     if isinstance(stmt, BidirectedStatement):
         return (stmt.left, stmt.right)
+    if isinstance(stmt, SelectionNode):
+        return (stmt.affects,)
     if isinstance(stmt, ProbabilityStatement):
         return (_as_atom(stmt.target), *(_as_atom(g) for g in stmt.given))
     if isinstance(stmt, ObservationStatement):
@@ -424,6 +439,52 @@ def _check_bidirected_runtime_gate(program: Program) -> None:
             )
 
 
+def _check_transport_runtime_gate(program: Program) -> None:
+    """Phase 9 §T9.1 schema-level guard.
+
+    When a program contains any query with ``target_population`` set,
+    or any ``selection_node`` statement that affects a query's
+    interventional path, transport identification rules must run.
+    Those rules land in S.T9.1.3; until then, dispatch this kind of
+    query would silently fall back to non-transport semantics, which
+    is precisely the kind of "silent wrong answer" the verifier
+    contract refuses.
+
+    This gate raises SemanticError as soon as a transport-shaped
+    program is submitted, with a pointer to the charter so the user
+    knows they're hitting an unimplemented sub-slice (not a bug).
+    Lifted by S.T9.1.3 once ``identify_via_transport`` exists.
+
+    Selection_node statements *without* a target_population query are
+    benign (they declare structure for a transport question that may
+    come later); they don't trip this gate.
+    """
+    has_transport_query = any(
+        isinstance(s, QueryStatement)
+        and isinstance(s.query, (EffectQuery, IdentifyQuery))
+        and getattr(s.query, "target_population", None) is not None
+        for s in program.statements
+    )
+    if not has_transport_query:
+        return
+
+    for idx, stmt in enumerate(program.statements):
+        if not isinstance(stmt, QueryStatement):
+            continue
+        if not isinstance(stmt.query, (EffectQuery, IdentifyQuery)):
+            continue
+        if getattr(stmt.query, "target_population", None) is None:
+            continue
+        raise SemanticError(
+            f"statements[{idx}] ({stmt.id}): query with "
+            f"target_population={stmt.query.target_population!r} requires "
+            f"transport identification (Phase 9 §T9.1.3), which is not "
+            f"yet implemented. The schema accepts the field (S.T9.1.1); "
+            f"the dispatch path lands in S.T9.1.3. See "
+            f"PHASE_9_TRANSPORT_CHARTER.md §3."
+        )
+
+
 _CHECK_FUNCS = {
     "objects": _check_objects,
     "forall_usage": _check_forall_usage,
@@ -432,6 +493,7 @@ _CHECK_FUNCS = {
     "ground_queries": _check_ground_queries,
     "unique_variable_declarations": _check_unique_variable_declarations,
     "bidirected_runtime_gate": _check_bidirected_runtime_gate,
+    "transport_runtime_gate": _check_transport_runtime_gate,
 }
 
 

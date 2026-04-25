@@ -89,6 +89,28 @@ AtomValue = Union[bool, int, float, str]
 
 
 @dataclass(frozen=True)
+class SelectionNode:
+    """Phase 9 §T9.1: a Bareinboim-Pearl selection node.
+
+    Declares that ``affects`` has a different distribution between
+    ``source_population`` and ``target_population`` — the canonical
+    reason transport identification needs adjustment. The S node
+    itself does NOT enter G(M) (the working causal graph); it only
+    enters the *selection diagram* D = G(M) ∪ {S → affects}, which
+    transport-aware identification rules construct on demand.
+
+    No ``forall`` — populations and S nodes are program-global, not
+    per-domain-object. The statement is dispatch-inert in S.T9.1.1
+    (schema only); transport identification rules in S.T9.1.3 read it.
+    """
+    id: str
+    affects: Atom
+    source_population: str
+    target_population: str
+    annotations: Annotation | None = None
+
+
+@dataclass(frozen=True)
 class ObservationStatement:
     atom: Atom
     value: AtomValue
@@ -109,6 +131,7 @@ class ProbabilityStatement:
     given: tuple["ValuedAtom", ...]
     value: float
     forall: tuple[str, ...] = ()
+    population: str | None = None  # Phase 9 §T9.1: source population label
     annotations: Annotation | None = None
 
 
@@ -142,6 +165,10 @@ class EffectQuery:
     # than a plain total effect. Default None preserves pre-mediation
     # semantics and JSON schema compatibility.
     mediator: Atom | None = None
+    # Phase 9 §T9.1: when set, asks for the effect in this target
+    # population (transport identification path). None preserves
+    # pre-transport semantics.
+    target_population: str | None = None
 
 
 @dataclass(frozen=True)
@@ -151,6 +178,9 @@ class IdentifyQuery:
     target: Atom
     intervention: Intervention
     given: tuple[Atom, ...]
+    # Phase 9 §T9.1: when set, asks whether the interventional quantity
+    # is identifiable in this target population.
+    target_population: str | None = None
 
 
 @dataclass(frozen=True)

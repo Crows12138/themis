@@ -184,3 +184,88 @@ def test_effect_query_without_target_population_still_validates():
         },
     ])
     validate_ast(prog)
+
+
+# ============================================ S.T9.1.2 types + runtime gate
+
+import themis  # noqa: E402
+from themis.input.semantic_validator import SemanticError  # noqa: E402
+
+
+def test_selection_node_alone_is_dispatch_inert():
+    """A selection_node with NO transport query in the program runs
+    fine — it's just structural metadata waiting for a transport
+    question. The runtime gate fires only on transport queries."""
+    prog = _base_program([
+        {
+            "kind": "selection_node",
+            "id": "S_age",
+            "affects": _atom("age"),
+            "source_population": "rct_2022",
+            "target_population": "user",
+        },
+        {
+            "kind": "query", "id": "q",
+            "query": {
+                "kind": "cause",
+                "from": _atom("x"),
+                "to": _atom("y"),
+            },
+        },
+    ])
+    out = themis.run(prog)
+    # cause query resolves normally; selection_node is a no-op
+    assert out["results"][0]["status"] == "structurally_solved"
+
+
+def test_transport_query_raises_until_S_T9_1_3():
+    """Phase 9 §T9.1 runtime gate: a query with target_population set
+    raises SemanticError pointing at the unimplemented sub-slice."""
+    prog = _base_program([
+        {
+            "kind": "selection_node",
+            "id": "S_age",
+            "affects": _atom("age"),
+            "source_population": "rct_2022",
+            "target_population": "user",
+        },
+        {
+            "kind": "query", "id": "q",
+            "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+                "target_population": "user",
+            },
+        },
+    ])
+    with pytest.raises(SemanticError, match=r"target_population.*Phase 9"):
+        themis.run(prog)
+
+
+def test_probability_population_field_round_trips_to_typed_object():
+    """The new ``population`` field on probability statements survives
+    parse → typed object → dispatch (the field exists on
+    ProbabilityStatement)."""
+    from themis.input.semantic_validator import _to_statement
+    stmt = _to_statement({
+        "kind": "probability",
+        "target": {"atom": _atom("y"), "value": True},
+        "given": [{"atom": _atom("x"), "value": True}],
+        "value": 0.55,
+        "population": "rct_2022",
+    })
+    assert stmt.population == "rct_2022"
+
+
+def test_effect_query_target_population_round_trips_to_typed_object():
+    from themis.input.semantic_validator import _to_query
+    q = _to_query({
+        "kind": "effect",
+        "intervention": {"atom": _atom("x"), "value": True},
+        "target": {"atom": _atom("y"), "value": True},
+        "given": [],
+        "target_population": "user",
+    })
+    assert q.target_population == "user"
