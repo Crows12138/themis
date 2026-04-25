@@ -12,6 +12,7 @@ IV / mediation estimators follow in 7.2 / 7.3 / 7.4.
 from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .contract import DataContract, DataContractError
 from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
+from .discovery import DiscoveryResult, discover_graph
 from .iv import IVEstimate, estimate_iv_ate
 from .mediation import MediationEstimate, estimate_mediation
 from .sensitivity import (
@@ -24,10 +25,12 @@ __all__ = [
     "BackdoorEstimate",
     "DataContract",
     "DataContractError",
+    "DiscoveryResult",
     "EValueResult",
     "FrontdoorEstimate",
     "IVEstimate",
     "MediationEstimate",
+    "discover_graph",
     "e_value_for_risk_ratio",
     "e_value_from_ate_binary",
     "estimate_backdoor_ate",
