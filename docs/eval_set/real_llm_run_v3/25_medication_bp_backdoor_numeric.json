@@ -1,0 +1,574 @@
+{
+  "case_id": "25_medication_bp_backdoor_numeric",
+  "produced_kernel_ast": {
+    "version": "0.1",
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
+    "options": {
+      "strict_framing": false
+    },
+    "statements": [
+      {
+        "kind": "variable",
+        "predicate": "takes_medication",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "systolic_bp",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "age",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "takes_medication",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "systolic_bp",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "takes_medication",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "systolic_bp",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "query",
+        "id": "q",
+        "query": {
+          "kind": "effect",
+          "intervention": {
+            "atom": {
+              "predicate": "takes_medication",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "target": {
+            "atom": {
+              "predicate": "systolic_bp",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
+            "value": true
+          },
+          "given": []
+        }
+      }
+    ]
+  },
+  "normalised_ast": null,
+  "themis_run_output": {
+    "results": [
+      {
+        "status": "numerically_solved",
+        "query_kind": "effect",
+        "query_id": "q",
+        "formula": {
+          "kind": "sum",
+          "bind": {
+            "name": "z_age_me"
+          },
+          "over": {
+            "predicate": "age",
+            "args": [
+              {
+                "type": "const",
+                "name": "me"
+              }
+            ]
+          },
+          "body": {
+            "kind": "product",
+            "terms": [
+              {
+                "kind": "probability_ref",
+                "target": {
+                  "atom": {
+                    "predicate": "systolic_bp",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  "value": true
+                },
+                "given": [
+                  {
+                    "atom": {
+                      "predicate": "takes_medication",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    "value": true
+                  },
+                  {
+                    "atom": {
+                      "predicate": "age",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    "value": {
+                      "kind": "var_ref",
+                      "name": "z_age_me"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "probability_ref",
+                "target": {
+                  "atom": {
+                    "predicate": "age",
+                    "args": [
+                      {
+                        "type": "const",
+                        "name": "me"
+                      }
+                    ]
+                  },
+                  "value": {
+                    "kind": "var_ref",
+                    "name": "z_age_me"
+                  }
+                },
+                "given": []
+              }
+            ]
+          }
+        },
+        "investigation_requests": [
+          {
+            "action": "validate_parameter",
+            "target": "parameter:P(systolic_bp=True|age=True,takes_medication=True)",
+            "priority": "high",
+            "note": "Theta 中缺条目 P(systolic_bp=True|age=True,takes_medication=True)",
+            "group": "parameter",
+            "items": [
+              {
+                "target": "parameter:P(systolic_bp=True|age=True,takes_medication=True)",
+                "reason": "Theta 中缺条目 P(systolic_bp=True|age=True,takes_medication=True)",
+                "skeleton": {
+                  "kind": "probability",
+                  "target": {
+                    "atom": {
+                      "predicate": "systolic_bp",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    "value": true
+                  },
+                  "given": [
+                    {
+                      "atom": {
+                        "predicate": "age",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      },
+                      "value": true
+                    },
+                    {
+                      "atom": {
+                        "predicate": "takes_medication",
+                        "args": [
+                          {
+                            "type": "const",
+                            "name": "me"
+                          }
+                        ]
+                      },
+                      "value": true
+                    }
+                  ],
+                  "value": null,
+                  "annotations": {
+                    "source": "TODO"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "action": "define_variable",
+            "target": "define_variable:2_items",
+            "priority": "medium",
+            "group": "framing",
+            "items": [
+              {
+                "target": "systolic_bp",
+                "reason": "variable 'systolic_bp' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "systolic_bp",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              },
+              {
+                "target": "takes_medication",
+                "reason": "variable 'takes_medication' is declared but missing 7 framing fields: time_window, measurement, threshold, observability, direction, baseline, state_vs_event",
+                "skeleton": {
+                  "kind": "variable_patch",
+                  "predicate": "takes_medication",
+                  "existing": {
+                    "domain": [
+                      true,
+                      false
+                    ]
+                  },
+                  "fields": {
+                    "time_window": null,
+                    "measurement": null,
+                    "threshold": null,
+                    "observability": null,
+                    "direction": null,
+                    "baseline": null,
+                    "state_vs_event": null
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "framing_notes": [
+          {
+            "predicate": "systolic_bp",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          },
+          {
+            "predicate": "takes_medication",
+            "missing": [
+              "time_window",
+              "measurement",
+              "threshold",
+              "observability",
+              "direction",
+              "baseline",
+              "state_vs_event"
+            ]
+          }
+        ],
+        "estimation_context": {
+          "data_hash": "300497f3229eb02cea439162ae392b1f71db8b6e3cae7201f9a99605674b1fe7",
+          "sample_size": 2000,
+          "data_contract_warnings": [],
+          "random_state": 42,
+          "ci_bootstrap": 500,
+          "model_preference": "auto"
+        },
+        "numeric_estimate": {
+          "point": -9.832362939990512,
+          "ci_lower": -10.305627945413804,
+          "ci_upper": -9.341612387609088,
+          "ci_level": 0.95,
+          "method": "backdoor_linear",
+          "assumptions": [
+            "conditional_exchangeability_given_adjustment_set",
+            "positivity_overlap_of_treatment_arms",
+            "consistency_of_potential_outcomes",
+            "linear_outcome_regression"
+          ],
+          "sample_size": 2000,
+          "data_hash": "300497f3229eb02cea439162ae392b1f71db8b6e3cae7201f9a99605674b1fe7",
+          "adjustment": [
+            "age"
+          ],
+          "treatment": "takes_medication",
+          "outcome": "systolic_bp"
+        },
+        "derivation": {
+          "version": "0.1",
+          "kind": "derivation",
+          "steps": [
+            {
+              "rule": "backdoor_criterion",
+              "inputs": {
+                "graph": {
+                  "kind": "graph",
+                  "nodes": [
+                    {
+                      "kind": "atom",
+                      "predicate": "age",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "systolic_bp",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "atom",
+                      "predicate": "takes_medication",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ],
+                  "edges": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      0,
+                      2
+                    ],
+                    [
+                      2,
+                      1
+                    ]
+                  ]
+                },
+                "x": {
+                  "kind": "atom",
+                  "predicate": "takes_medication",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "y": {
+                  "kind": "atom",
+                  "predicate": "systolic_bp",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "z": {
+                  "kind": "atom_set",
+                  "items": [
+                    {
+                      "kind": "atom",
+                      "predicate": "age",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "given": {
+                  "kind": "atom_set",
+                  "items": []
+                }
+              },
+              "output": true,
+              "step_id": "s1"
+            },
+            {
+              "rule": "numeric_backdoor_estimate",
+              "inputs": {
+                "criterion": {
+                  "kind": "step_ref",
+                  "step_id": "s1"
+                },
+                "treatment": {
+                  "kind": "atom",
+                  "predicate": "takes_medication",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "outcome": {
+                  "kind": "atom",
+                  "predicate": "systolic_bp",
+                  "args": [
+                    {
+                      "type": "const",
+                      "name": "me"
+                    }
+                  ]
+                },
+                "adjustment": {
+                  "kind": "atom_set",
+                  "items": [
+                    {
+                      "kind": "atom",
+                      "predicate": "age",
+                      "args": [
+                        {
+                          "type": "const",
+                          "name": "me"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "method": "backdoor_linear",
+                "data_hash": "300497f3229eb02cea439162ae392b1f71db8b6e3cae7201f9a99605674b1fe7",
+                "sample_size": 2000,
+                "point": -9.832362939990512,
+                "ci_lower": -10.305627945413804,
+                "ci_upper": -9.341612387609088,
+                "ci_level": 0.95
+              },
+              "output": {
+                "kind": "structural_result",
+                "value": true
+              },
+              "step_id": "s2"
+            }
+          ]
+        },
+        "structural_result": {
+          "value": true
+        }
+      }
+    ]
+  },
+  "themis_error": null,
+  "agent_observations": "Case 25: agent correctly identified backdoor on age. KEY ISSUE: agent declared continuous outcome systolic_bp as bool per §2 default — this loses semantic meaning (mmHg ATE collapses to bool prob diff). Agent flagged this as 'categorical_compression' ambiguity but the prompt has no convenient way to encode 'this is continuous'. Real prompt gap: §2 default to bool is wrong for clearly continuous outcomes like mmHg / income / weight. Recommend prompt v2.6 add §2d for continuous detection cues (单位 / 数值范围).",
+  "agent_prompt_gaps": [
+    "§2 default-to-bool is wrong for continuous outcomes (mmHg / years / kg)",
+    "No way to express 'leave dtype unspecified, infer from data column dtype'"
+  ]
+}
