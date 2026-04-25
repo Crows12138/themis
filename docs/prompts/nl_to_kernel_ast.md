@@ -251,22 +251,26 @@ structure**:
 
 **v2.6 amendment — data-bearing guard**: the "introduce U" pattern
 is correct ONLY when no dataset is being attached. When the NL
-mentions data ("数据"/"观察"/"我们测量了"/"1000 名病人"), the
-unmeasured confounder MUST be encoded as **bidirected `X ↔ Y`** —
-not as a U variable — because U would have no data column and
-`themis.estimate` will reject the program with `DataContractError`.
+mentions data ("数据"/"观察"/"我们测量了"/"1000 名病人"), do NOT
+introduce a U variable for unmeasured confounders — the kernel's
+data-bearing path needs every declared variable to have a column.
 
-Decision flow:
+**The harder distinction**: user *worry* vs user *assertion*.
 
-| Has data? | NL says U is unobserved? | Encoding |
-|---|---|---|
-| No | (irrelevant) | introduce U variable + U→X + U→Y |
-| Yes | Yes — explicit ("未观测", "测不到") | bidirected `X ↔ Y` |
-| Yes | No — confounder IS in the data | declare it as observed variable + emit edges |
+| User's stance on unmeasured confounder | Encoding |
+|---|---|
+| **Assertion** ("we cannot measure", "存在未观测共因", explicit mechanism named, e.g. "遗传/lifestyle 同时影响 X 和 Y") | **bidirected `X ↔ Y`** — the kernel will refuse a numeric estimate and route through ADMG / front-door / IV / sensitivity |
+| **Worry** ("担心还有未观测的混杂", "可能有遗漏", "稳健性如何") | **only the measured confounders** — emit observed variables + edges as usual; the kernel's auto-attached E-value (Phase 8.2) is the right tool for residual worry |
+| Confounder IS in the data | declare it as observed variable + emit edges (standard backdoor) |
 
-The bidirected encoding lets ADMG-aware identification (Phase 2.latent)
-detect the latent structure and route through front-door / IV / E-value
-sensitivity instead of crashing on a missing column.
+The mistake to avoid: emitting bidirected `X ↔ Y` for a worry-only
+case will make the estimate **unidentifiable** (no backdoor, no
+front-door, no IV) — the kernel returns `needs_investigation`
+instead of giving the user a number with E-value.
+
+**Test of which stance the user has**: does the user expect a
+number? If yes → worry, use observed encoding. If they're framing
+the question as "can we even know?" → assertion, use bidirected.
 
 Trigger patterns (any one is sufficient to pause and consider):
 
@@ -524,18 +528,22 @@ prompt knows how to surface it as plain Chinese.
 **Example**:
 
 NL: "服阿司匹林对心脏病的因果效应是多少？这个结论对未观测混杂
-有多稳健？"
+有多稳健？" (我们调整了年龄，担心还有未观测的运动/饮食/家族史)
 
 Output:
-- Variables: `takes_aspirin_daily`, `heart_attack`, `age` (all bool;
-  the only adjustment-set candidate the user named is `age`)
+- Variables: `takes_aspirin_daily`, `heart_attack`, `age` (the only
+  adjustment-set candidate the user named is `age`)
 - Edges: `age → takes_aspirin_daily`, `age → heart_attack`,
   `takes_aspirin_daily → heart_attack`
+- **NO bidirected edge** — the user's worry about additional
+  confounders is not an assertion they exist (§3a v2.6 distinction).
+  Bidirected here would make the estimate unidentifiable.
 - Query: `effect(heart_attack | do(takes_aspirin_daily))`
 - `extensions.ambiguities`: one entry with kind
-  `unmeasured_confounder_concern` and disambiguation_ask documenting
-  the user's worry — the kernel's auto-E-value will be surfaced by
-  the response renderer.
+  `unmeasured_confounder_concern` documenting the user's worry —
+  the kernel's auto-E-value will be surfaced by the response renderer
+  to quantify how strong an unmeasured confounder would have to be
+  to overturn the estimate.
 
 ### 4. Emit the query statement
 
