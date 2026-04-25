@@ -14,14 +14,22 @@ from .contract import DataContract, DataContractError
 from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
 from .iv import IVEstimate, estimate_iv_ate
 from .mediation import MediationEstimate, estimate_mediation
+from .sensitivity import (
+    EValueResult,
+    e_value_for_risk_ratio,
+    e_value_from_ate_binary,
+)
 
 __all__ = [
     "BackdoorEstimate",
     "DataContract",
     "DataContractError",
+    "EValueResult",
     "FrontdoorEstimate",
     "IVEstimate",
     "MediationEstimate",
+    "e_value_for_risk_ratio",
+    "e_value_from_ate_binary",
     "estimate_backdoor_ate",
     "estimate_frontdoor_ate",
     "estimate_iv_ate",
