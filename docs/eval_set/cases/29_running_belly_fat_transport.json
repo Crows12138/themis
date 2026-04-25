@@ -1,0 +1,143 @@
+{
+  "id": "29_running_belly_fat_transport",
+  "failure_modes": ["F25_transport_population_mismatch"],
+  "narrative": "一项 meta-analysis（PMC9540641）汇总了 25 个 RCT、共 1686 名 35-50 岁、超重的男性参与者，发现持续 12 周的有氧跑步使腰围平均下降 3.2 cm。我（28 岁、女性、BMI 正常）想知道这个结论对我自己适不适用——年龄、性别、BMI 这三个变量在我和源研究人群之间分布显然不同，而它们也都会影响腰围对运动的反应。",
+  "question": "源研究的跑步→腰围下降效应能搬到我这个人群吗？如果可以，识别公式是什么？",
+  "gold_variables": [
+    {
+      "predicate": "running",
+      "domain_hint": "bool",
+      "role": "intervention",
+      "operationalization_hints": {
+        "time_window": "持续 12 周",
+        "threshold": "≥30 min/天 × ≥3 次/周",
+        "measurement": "自报告"
+      }
+    },
+    {
+      "predicate": "belly_fat_loss",
+      "domain_hint": "bool",
+      "role": "target",
+      "operationalization_hints": {
+        "time_window": "12 周后",
+        "threshold": "≥3 cm 腰围下降",
+        "measurement": "腰围（cm）"
+      }
+    },
+    {
+      "predicate": "age",
+      "domain_hint": "continuous",
+      "role": "confounder_with_population_shift",
+      "operationalization_hints": {
+        "measurement": "years",
+        "source_distribution": "源人群均值约 42 岁",
+        "target_distribution": "目标人群（用户）28 岁"
+      }
+    },
+    {
+      "predicate": "sex",
+      "domain_hint": "categorical",
+      "role": "confounder_with_population_shift",
+      "operationalization_hints": {
+        "source_distribution": "源人群 100% 男性",
+        "target_distribution": "目标人群（用户）女性"
+      }
+    },
+    {
+      "predicate": "bmi",
+      "domain_hint": "continuous",
+      "role": "confounder_with_population_shift",
+      "operationalization_hints": {
+        "measurement": "kg/m²",
+        "source_distribution": "源人群超重（BMI 25-30）",
+        "target_distribution": "目标人群正常（BMI 18.5-25）"
+      }
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "running",
+      "to": "belly_fat_loss",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question",
+      "source_span": "跑步→腰围下降"
+    },
+    {
+      "from": "age",
+      "to": "belly_fat_loss",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "它们也都会影响腰围对运动的反应"
+    },
+    {
+      "from": "sex",
+      "to": "belly_fat_loss",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "它们也都会影响腰围对运动的反应"
+    },
+    {
+      "from": "bmi",
+      "to": "belly_fat_loss",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "它们也都会影响腰围对运动的反应"
+    }
+  ],
+  "gold_selection_nodes": [
+    {
+      "id": "S_age",
+      "affects": "age",
+      "source_population": "rct_meta_2022",
+      "target_population": "user",
+      "source_span": "年龄、性别、BMI 这三个变量在我和源研究人群之间分布显然不同"
+    },
+    {
+      "id": "S_sex",
+      "affects": "sex",
+      "source_population": "rct_meta_2022",
+      "target_population": "user",
+      "source_span": "年龄、性别、BMI 这三个变量在我和源研究人群之间分布显然不同"
+    },
+    {
+      "id": "S_bmi",
+      "affects": "bmi",
+      "source_population": "rct_meta_2022",
+      "target_population": "user",
+      "source_span": "年龄、性别、BMI 这三个变量在我和源研究人群之间分布显然不同"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "naive_transfer",
+      "reason": "Reporting the source ATE (3.2 cm reduction or 55% probability) as the target answer without acknowledging population shift is the F25 failure mode this case targets. The structurally honest answer is the transport formula, not a single number."
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "iv_validity",
+      "description": "源人群只是男性、BMI 偏高，未观测的变量（如内分泌特征 / 训练强度耐受度）可能在两人群间分布也不同，这里没有声明 S 节点；现版 §T9.1 只处理观测到差异的 S，未观测 S 是 §T9.3 范围",
+      "expected_behavior": "kernel 给出基于已声明 S 的 transport formula；response 渲染层应该明确 caveat 还有未观测 S 的可能性"
+    }
+  ],
+  "gold_answerability": "structurally_solved",
+  "gold_query_kind": "effect",
+  "gold_extensions": {
+    "transport_identification": {
+      "source_population": "rct_meta_2022",
+      "target_population": "user",
+      "adjustment_set": ["age", "sex", "bmi"],
+      "formula_repr_contains": [
+        "P*(belly_fat_loss | do(running))",
+        "Σ_{",
+        "P*(age, sex, bmi)"
+      ]
+    }
+  },
+  "gold_numeric_estimate": null,
+  "gold_numeric_note": "§T9.1 只到结构识别；要给数字还需要源人群 P(y|do(x), age, sex, bmi) 的分层数据（meta-analysis 不公开 IPD），所以正确答案是诚实的'不能给单点'+ 公式。Phase 9 §T9.2 数值估计落地后再补 expected numeric range。"
+}
