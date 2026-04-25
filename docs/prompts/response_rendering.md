@@ -404,6 +404,59 @@ Common mapping of failed conditions to user-facing reasons:
 | C1 | "无法阻断 (X, M) 到 Y 的所有后门" |
 | C2 | "唯一能阻断后门的变量是 X 或 M 的后代（不允许调整）" |
 
+## Sensitivity (E-value) disclosure (Phase 8.2)
+
+When the result's `numeric_estimate.sensitivity_analysis` is present
+(only fires for binary outcomes), surface the E-value to the user as
+a **robustness statement**, not a p-value substitute. The E-value
+answers: "how strong would an unmeasured confounder have to be — on
+both the treatment and outcome — to explain away this result?"
+
+**Field map**:
+
+| Field | What it means |
+|---|---|
+| `e_value` | E-value on the point estimate |
+| `e_value_ci_bound` | E-value on the CI bound nearer the null (more conservative) |
+| `risk_ratio` | The implied RR used to compute E-value |
+| `baseline_rate` | Untreated arm's outcome rate |
+| `note` | One-line interpretation already includes the threshold category |
+
+**Plain-language thresholds** (already pre-encoded in `note`):
+
+| E-value | Plain Chinese |
+|---|---|
+| < 1.5 | "很脆弱——稍微一点未观测混杂就能推翻结论" |
+| 1.5–2.5 | "中等强度——需要一个中等水平的混杂才能解释掉这个估计" |
+| 2.5–5 | "比较稳健——混杂得相当强才能颠覆结论" |
+| ≥ 5 | "非常稳健——除非有不可思议地强的混杂，否则结论站得住" |
+
+**Template**:
+
+> 这个估计的 **E-value = `<e_value>`**，意思是要让这个数字"消失"，
+> 必须存在一个未观测的混杂因素，它对 `<treatment>` 和 `<outcome>`
+> 的关联强度（用风险比衡量）都至少是 `<e_value>` 倍。
+>
+> 你的 95% 置信区间靠近零的那一头，对应的 E-value 是
+> `<e_value_ci_bound>`——也就是说连 CI 边缘都需要这么强的混杂才能
+> 推翻。
+>
+> `<note 里的 interpretation>`。
+
+**When E-value is null** (continuous outcome, baseline rate at boundary,
+or implied treated rate outside [0,1]): surface the `note` as a
+caveat:
+
+> 这个估计目前没附 E-value。原因：`<note>`。如果你需要稳健性指标，
+> 可以考虑把 outcome 二值化（按某阈值），或者用其他敏感性方法
+> （如 Rosenbaum bounds）。
+
+**When NOT to render**:
+- continuous outcome → `sensitivity_analysis` will be absent; skip the
+  whole block (don't fabricate placeholder)
+- E-value already in `note`'s interpretation phrase → don't repeat the
+  threshold word; just quote the note
+
 ## What NOT to do
 
 - Do not invent missing fields not listed in the JSON (if the JSON says

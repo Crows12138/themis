@@ -1,10 +1,11 @@
 # NL-layer failure-mode taxonomy
 
-> Status: v2.3 (2026-04-24). 21 codes. Expanded when a real case
+> Status: v2.4 (2026-04-25). 22 codes. Expanded when a real case
 > exposes a mode the current set doesn't cover. F19 added with
 > Phase 6.iv (IV identification slice). F20 added with
 > Phase 6.mediation (NDE/NIE/CDE identifiability). F21 added with
-> Phase 7.1 (numerical estimation from data).
+> Phase 7.1 (numerical estimation from data). F22 added with
+> Phase 8.2 (E-value sensitivity to unmeasured confounding).
 
 Each code describes one way the A1 → A5 → merge → themis.run
 pipeline can produce a result the user would consider wrong or
@@ -444,6 +445,38 @@ confounding; correct estimate requires adjustment on {age}.
 **Slice most relevant**: Phase 7.1 (S.N.1-S.N.7) +
 numeric_backdoor_estimate verifier rule. Front-door / IV / mediation
 numeric estimators land in 7.2 / 7.3 / 7.4.
+
+## F22 — Sensitivity to unmeasured confounding (E-value)
+
+**Pattern**: NL describes an observational study where the user
+explicitly worries about unmeasured confounders (e.g., 运动 / 饮食 /
+家族史 not in the data). Even after backdoor adjustment on what is
+measured, the user wants to know how robust the estimate is to
+remaining confounders.
+
+The system must:
+
+- Run identification + numeric estimation as usual
+- When outcome is binary, automatically attach an
+  ``numeric_estimate.sensitivity_analysis`` block with VanderWeele's
+  E-value (point + CI bound + risk ratio + baseline rate + note)
+- For continuous outcomes, skip the block silently (E-value isn't
+  defined on the risk-ratio scale there)
+
+**Typical trigger**: "我们调整了年龄但担心生活方式没观测到——这个
+estimated 因果效应有多稳健？" → E-value attached, response_rendering
+surfaces the threshold band ("moderate" / "substantial" / etc.).
+
+**Expected correct behavior**:
+
+- ``numeric_estimate`` populated as in F21
+- ``sensitivity_analysis.e_value`` non-null for binary outcomes
+- ``sensitivity_analysis.note`` includes a threshold-band phrase
+- Response rendering uses Phase 8.2's E-value disclosure template
+
+**Slice most relevant**: Phase 8.2 (sensitivity_analysis dispatch hook
++ schema). Auto-attaches to all four numeric estimators (backdoor,
+front-door, IV, mediation TE).
 
 ## Growth rule
 

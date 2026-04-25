@@ -20,7 +20,7 @@
 | 7 | 选择偏差 | **5%** | A1 §3a 能识别 / kernel 未算 → Phase 6.5 或 Phase 9+ |
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
 | 9 | 转移性 / 泛化 | **0%** | → Phase 9+（按需）|
-| 10 | 敏感性分析 | **0%** | → **Phase 8 M3** |
+| 10 | 敏感性分析 | **~30%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在所有 binary outcome 估计上）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
 | 11 | 连续 / 数据驱动估计 | **~50%** | **Phase 7.1-7.4 全部落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI）|
 | 12 | 因果发现 | **0%** | → **Phase 8 M3**（PC/FCI/LiNGAM）|
 

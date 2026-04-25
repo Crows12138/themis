@@ -1,0 +1,72 @@
+{
+  "id": "28_aspirin_heart_e_value_sensitivity",
+  "failure_modes": ["F22_sensitivity_analysis"],
+  "narrative": "观察性研究：日常服用阿司匹林与心脏病发作风险的关联。我们调整了年龄（已测量），但担心还有未观测的健康行为混杂（运动、饮食、家族史等）——它们可能既影响是否服药、又独立影响心脏病。数据是 1000 名病人观察一年的结果。",
+  "question": "服阿司匹林对心脏病的因果效应是多少？这个结论对未观测混杂有多稳健？",
+  "gold_variables": [
+    {
+      "predicate": "age",
+      "domain_hint": "continuous",
+      "role": "confounder"
+    },
+    {
+      "predicate": "aspirin",
+      "domain_hint": "bool",
+      "role": "intervention"
+    },
+    {
+      "predicate": "heart_attack",
+      "domain_hint": "bool",
+      "role": "target"
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "age",
+      "to": "aspirin",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge"
+    },
+    {
+      "from": "age",
+      "to": "heart_attack",
+      "kind": "directed",
+      "severity": "must",
+      "source": "common_knowledge"
+    },
+    {
+      "from": "aspirin",
+      "to": "heart_attack",
+      "kind": "directed",
+      "severity": "must",
+      "source": "question"
+    }
+  ],
+  "must_not_infer": [],
+  "ambiguities": [
+    {
+      "kind": "unobserved_confounder",
+      "description": "Narrative explicitly raises unobserved confounders (运动、饮食、家族史). E-value sensitivity analysis directly addresses this concern — response should surface the E-value prominently.",
+      "expected_behavior": "themis.estimate must attach numeric_estimate.sensitivity_analysis with a non-null e_value; response_rendering should foreground the E-value disclosure (Phase 8.2 §)"
+    }
+  ],
+  "gold_answerability": "numerically_solved",
+  "gold_query_kind": "effect",
+  "gold_extensions": {
+    "adjustment_set": ["age"],
+    "identification_strategy": "backdoor",
+    "sensitivity_analysis_required": true
+  },
+  "gold_numeric_estimate": {
+    "true_ate": -0.05,
+    "tolerance": 0.03,
+    "method_expected": "backdoor_logistic",
+    "sensitivity_expected": {
+      "e_value_min": 1.2,
+      "e_value_max": 3.0,
+      "interpretation_band": "moderate-or-weak"
+    },
+    "dgp_description": "age ~ Uniform(40, 80); aspirin ~ Bernoulli(sigmoid(0.05*(age-60))); heart_attack ~ Bernoulli(sigmoid(0.04*(age-60) - 0.5*aspirin - 1.5)); true ATE ≈ -0.05; baseline rate ≈ 0.20; expected RR ≈ 0.75 → E-value ≈ 2.0"
+  }
+}
