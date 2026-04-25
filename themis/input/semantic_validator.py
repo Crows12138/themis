@@ -440,49 +440,30 @@ def _check_bidirected_runtime_gate(program: Program) -> None:
 
 
 def _check_transport_runtime_gate(program: Program) -> None:
-    """Phase 9 §T9.1 schema-level guard.
+    """Phase 9 §T9.1.2 → S.T9.1.3 lifted (kept as a no-op stub).
 
-    When a program contains any query with ``target_population`` set,
-    or any ``selection_node`` statement that affects a query's
-    interventional path, transport identification rules must run.
-    Those rules land in S.T9.1.3; until then, dispatch this kind of
-    query would silently fall back to non-transport semantics, which
-    is precisely the kind of "silent wrong answer" the verifier
-    contract refuses.
+    Pre-S.T9.1.3 this check raised SemanticError on any query with
+    ``target_population`` set, because the dispatch path didn't exist.
+    S.T9.1.3 added ``transport.identify_via_transport`` and the
+    EffectQuery dispatch branch to handle it. The gate is now a no-op,
+    retained in the registry for symmetry with the bidirected gate
+    (so future versions can re-narrow it if needed without renaming).
 
-    This gate raises SemanticError as soon as a transport-shaped
-    program is submitted, with a pointer to the charter so the user
-    knows they're hitting an unimplemented sub-slice (not a bug).
-    Lifted by S.T9.1.3 once ``identify_via_transport`` exists.
-
-    Selection_node statements *without* a target_population query are
-    benign (they declare structure for a transport question that may
-    come later); they don't trip this gate.
+    Identify queries with ``target_population`` are still gated below
+    until §T9.2 lands their dispatch path.
     """
-    has_transport_query = any(
-        isinstance(s, QueryStatement)
-        and isinstance(s.query, (EffectQuery, IdentifyQuery))
-        and getattr(s.query, "target_population", None) is not None
-        for s in program.statements
-    )
-    if not has_transport_query:
-        return
-
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, QueryStatement):
             continue
-        if not isinstance(stmt.query, (EffectQuery, IdentifyQuery)):
-            continue
-        if getattr(stmt.query, "target_population", None) is None:
-            continue
-        raise SemanticError(
-            f"statements[{idx}] ({stmt.id}): query with "
-            f"target_population={stmt.query.target_population!r} requires "
-            f"transport identification (Phase 9 §T9.1.3), which is not "
-            f"yet implemented. The schema accepts the field (S.T9.1.1); "
-            f"the dispatch path lands in S.T9.1.3. See "
-            f"PHASE_9_TRANSPORT_CHARTER.md §3."
-        )
+        if isinstance(stmt.query, IdentifyQuery) and getattr(
+            stmt.query, "target_population", None
+        ) is not None:
+            raise SemanticError(
+                f"statements[{idx}] ({stmt.id}): identify query with "
+                f"target_population={stmt.query.target_population!r} is not "
+                f"yet supported (only effect queries support transport in "
+                f"S.T9.1.3). See PHASE_9_TRANSPORT_CHARTER.md §3."
+            )
 
 
 _CHECK_FUNCS = {

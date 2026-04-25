@@ -1337,11 +1337,119 @@ def _try_numeric(
     )
 
 
+def _dispatch_transport(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: EffectQuery,
+    selection_nodes: "tuple[Statement, ...]",
+) -> QueryResult:
+    """Phase 9 §T9.1.3: Bareinboim-Pearl single-source transport identification.
+
+    Returns a structural-only QueryResult (no numeric estimation in
+    §T9.1 — that's §T9.2). Identifiable case → ``structurally_solved``
+    with structural_result.value=True and a `transport_identification`
+    extension. Unidentifiable → ``needs_investigation`` with a
+    structure-group missing item naming the failure reason.
+    """
+    from . import transport as _transport
+
+    diagram, s_atoms = _transport.build_selection_diagram(selection_nodes, graph)
+    result = _transport.identify_via_transport(
+        diagram, s_atoms,
+        treatment=q.intervention.atom,
+        outcome=q.target.atom,
+    )
+
+    transport_block = {
+        "kind": "transport_identification",
+        "source_population": (
+            selection_nodes[0].source_population if selection_nodes else None
+        ),
+        "target_population": q.target_population,
+        "s_nodes": [
+            {"id": sn.id,
+             "affects": {
+                 "predicate": sn.affects.predicate,
+                 "args": [{"type": "const", "name": t.name} for t in sn.affects.args],
+             }}
+            for sn in selection_nodes
+        ],
+        "adjustment_set": [
+            {"predicate": a.predicate,
+             "args": [{"type": "const", "name": t.name} for t in a.args]}
+            for a in result.adjustment_set
+        ],
+        "formula_repr": result.formula_repr,
+    }
+
+    if not result.identifiable:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"transport:{q.target_population}",
+                    priority=Priority.HIGH,
+                    reason=result.failure_reason or "transport not identifiable",
+                ),
+            ),
+            extensions={"transport_identification": transport_block},
+        )
+
+    src_pop = selection_nodes[0].source_population if selection_nodes else ""
+    derivation_steps = (
+        DerivationStep(
+            rule="s_admissibility_check",
+            inputs={
+                "treatment": q.intervention.atom,
+                "outcome": q.target.atom,
+                "selection_nodes_ids": ",".join(sn.id for sn in selection_nodes),
+                "adjustment_set": result.adjustment_set,
+            },
+            output=True,
+            step_id="s_t9_1",
+        ),
+        DerivationStep(
+            rule="transport_formula",
+            inputs={
+                "treatment": q.intervention.atom,
+                "outcome": q.target.atom,
+                "adjustment_set": result.adjustment_set,
+                "source_population": src_pop,
+                "target_population": q.target_population,
+            },
+            output=result.formula_repr,
+            step_id="s_t9_2",
+        ),
+        DerivationStep(
+            rule="identify_via_transport",
+            inputs={
+                "criterion": StepRef(step_id="s_t9_1"),
+                "formula": StepRef(step_id="s_t9_2"),
+            },
+            output=StructuralResult(value=True),
+            step_id="s_t9_final",
+        ),
+    )
+
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        query_id=stmt.id,
+        structural_result=StructuralResult(value=True),
+        derivation=derivation_steps,
+        extensions={"transport_identification": transport_block},
+    )
+
+
 def _dispatch_effect(
     stmt: QueryStatement,
     graph: nx.DiGraph,
     theta: Theta,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    selection_nodes: "tuple[Statement, ...]" = (),
 ) -> QueryResult:
     q: EffectQuery = stmt.query  # type: ignore[assignment]
     x = q.intervention.atom
@@ -1368,6 +1476,13 @@ def _dispatch_effect(
                 for a in missing_atoms
             ),
         )
+
+    # Phase 9 §T9.1.3: when the query declares a target_population,
+    # short-circuit into transport identification (Bareinboim 2014).
+    # Returns structural identification only — no numeric estimation
+    # in §T9.1 (deferred to §T9.2).
+    if getattr(q, "target_population", None) is not None:
+        return _dispatch_transport(stmt, graph, q, selection_nodes)
 
     # Phase 6.mediation: when the query declares a mediator, short-
     # circuit into mediation identification (NDE/NIE/CDE decomposition)
@@ -1946,7 +2061,12 @@ def dispatch(
                 missing_information=strict_items,
             )
         else:
-            result = _dispatch_effect(stmt, graph, theta, bidirected=bidirected)
+            from ..types import SelectionNode as _SN
+            sel_nodes = tuple(s for s in program.statements if isinstance(s, _SN))
+            result = _dispatch_effect(
+                stmt, graph, theta,
+                bidirected=bidirected, selection_nodes=sel_nodes,
+            )
     elif isinstance(q, ProbabilityQuery):
         strict_items = _check_strict_framing(program, stmt)
         if strict_items:

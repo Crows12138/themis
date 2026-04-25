@@ -218,10 +218,17 @@ def test_selection_node_alone_is_dispatch_inert():
     assert out["results"][0]["status"] == "structurally_solved"
 
 
-def test_transport_query_raises_until_S_T9_1_3():
-    """Phase 9 §T9.1 runtime gate: a query with target_population set
-    raises SemanticError pointing at the unimplemented sub-slice."""
+def test_effect_transport_query_resolves_structurally():
+    """S.T9.1.3 lifted the runtime gate for effect queries with
+    target_population. The transport identification path now produces
+    a structurally_solved result with a transport_identification
+    extension and a derivation chain."""
     prog = _base_program([
+        # x is a descendant of age (we declare age → y so age is pretreatment
+        # but we also need a path from S_age to y; here age → y carries that)
+        {
+            "kind": "cause", "from": _atom("age"), "to": _atom("y"),
+        },
         {
             "kind": "selection_node",
             "id": "S_age",
@@ -240,7 +247,41 @@ def test_transport_query_raises_until_S_T9_1_3():
             },
         },
     ])
-    with pytest.raises(SemanticError, match=r"target_population.*Phase 9"):
+    out = themis.run(prog)
+    r = out["results"][0]
+    assert r["status"] == "structurally_solved"
+    assert r["structural_result"]["value"] is True
+    ext = r["extensions"]["transport_identification"]
+    assert ext["target_population"] == "user"
+    assert ext["source_population"] == "rct_2022"
+    # adjustment set should include age (S_age → age makes it required)
+    assert "age" in [a["predicate"] for a in ext["adjustment_set"]]
+    assert "P*(y" in ext["formula_repr"]
+
+
+def test_identify_transport_query_still_gated():
+    """Identify queries with target_population still raise — only effect
+    queries support transport in S.T9.1.3."""
+    prog = _base_program([
+        {
+            "kind": "selection_node",
+            "id": "S_age",
+            "affects": _atom("age"),
+            "source_population": "rct_2022",
+            "target_population": "user",
+        },
+        {
+            "kind": "query", "id": "q",
+            "query": {
+                "kind": "identify",
+                "target": _atom("y"),
+                "intervention": {"atom": _atom("x"), "value": True},
+                "given": [],
+                "target_population": "user",
+            },
+        },
+    ])
+    with pytest.raises(SemanticError, match=r"identify query.*not yet supported"):
         themis.run(prog)
 
 
