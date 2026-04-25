@@ -1,7 +1,9 @@
 # Phase 7.2 Charter — Front-door 数值估计
 
 > 立项日期：2026-04-25
-> 状态：**已批准** — 开工
+> 状态：**✅ 已落地（2026-04-25）** — S.FDN.1 – S.FDN.5 全部完成
+>
+> **落地 commit**: 5cdac9a (S.FDN.1) → 2839e9e (S.FDN.2-4)
 > 父 charter：PHASE_7_M2_CHARTER.md
 > 前置依赖：Phase 7.1 已落地（数据契约 + dispatch + schema + verifier 基础）
 

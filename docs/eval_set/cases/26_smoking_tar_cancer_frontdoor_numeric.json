@@ -1,0 +1,73 @@
+{
+  "id": "26_smoking_tar_cancer_frontdoor_numeric",
+  "failure_modes": ["F21_numeric_estimation"],
+  "narrative": "经典的吸烟-肺癌因果研究。抽烟会沉积焦油，焦油在肺部增加肿瘤风险。但是否抽烟本身和肺癌之间还有未观测的遗传 / 生活习惯共因——我们测不到。数据集里我们观察到吸烟（二值）、焦油沉积（二值阳性/阴性）和肺癌诊断（二值）。",
+  "question": "基于这个观察性数据，抽烟对肺癌风险的平均因果效应是多少？",
+  "gold_variables": [
+    {
+      "predicate": "smoking",
+      "domain_hint": "bool",
+      "role": "intervention"
+    },
+    {
+      "predicate": "tar",
+      "domain_hint": "bool",
+      "role": "mediator",
+      "operationalization_hints": {
+        "measurement": "lung tar deposit above threshold"
+      }
+    },
+    {
+      "predicate": "cancer",
+      "domain_hint": "bool",
+      "role": "target"
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "smoking",
+      "to": "tar",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "抽烟会沉积焦油"
+    },
+    {
+      "from": "tar",
+      "to": "cancer",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "焦油在肺部增加肿瘤风险"
+    },
+    {
+      "from": "smoking",
+      "to": "cancer",
+      "kind": "bidirected",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "未观测的遗传 / 生活习惯共因"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "smoking",
+      "to": "cancer",
+      "reason": "Narrative explicitly routes the effect through tar; a direct smoking→cancer edge would break the front-door criterion (tar would no longer intercept all directed paths)"
+    }
+  ],
+  "ambiguities": [],
+  "gold_answerability": "numerically_solved",
+  "gold_query_kind": "effect",
+  "gold_extensions": {
+    "mediator": ["tar"],
+    "identification_strategy": "front_door"
+  },
+  "gold_numeric_estimate": {
+    "true_ate": 0.127,
+    "tolerance": 0.05,
+    "method_expected": "frontdoor_logistic",
+    "dgp_description": "U ~ Normal(0, 1); smoking ~ Bernoulli(sigmoid(U)); tar ~ Bernoulli(sigmoid(2*smoking - 1)); cancer ~ Bernoulli(sigmoid(2*tar + 2*U - 2)); front-door ATE via Pearl 3.29 ≈ 0.127 on this DGP (calibrated via n=100000 front-door estimation)."
+  }
+}
