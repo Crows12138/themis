@@ -536,3 +536,40 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
             existing_by_pair[unordered] = "bidirected"
 
     return out
+
+
+# ============================================== end-to-end orchestration
+
+
+def compose_program(
+    base_program: dict,
+    variable_extraction: dict | None = None,
+    edge_extraction: dict | None = None,
+) -> dict:
+    """Phase 4 end-to-end glue: fold A5 variables + A2 edges into a base program.
+
+    The base program is typically the question-side kernel_ast that A1
+    emits from the user's question (variables + query, possibly with
+    common-knowledge cause edges). The narrative-side extractions
+    (A5 variables, A2 edges) are folded in on top, with the same
+    merge semantics as ``merge_into_program`` and
+    ``merge_edges_into_program``.
+
+    Either extraction may be ``None`` to skip that step.
+
+    Order matters: variables are merged first so any predicate
+    referenced by an incoming edge is already declared. The edge
+    merger does not validate that referenced predicates exist —
+    schema validation downstream will catch dangling references.
+
+    Returns a new program dict — ``base_program`` is not mutated.
+    Conflicts (variable framing disagreement, cross-kind edge clash)
+    raise ``MergeConflictError`` with a message naming the predicate
+    or pair.
+    """
+    out = deepcopy(base_program)
+    if variable_extraction is not None:
+        out = merge_into_program(out, variable_extraction)
+    if edge_extraction is not None:
+        out = merge_edges_into_program(out, edge_extraction)
+    return out

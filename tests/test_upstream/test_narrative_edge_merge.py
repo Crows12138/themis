@@ -7,12 +7,20 @@ a kernel_ast). Pure JSON-in / JSON-out; no typed Program, no LLM.
 """
 from __future__ import annotations
 
+import json
+from copy import deepcopy
+from pathlib import Path
+
 import pytest
 
 import themis
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 from themis.upstream import (
     ExtractionShapeError,
     MergeConflictError,
+    compose_program,
     merge_edge_extractions,
     merge_edges_into_program,
 )
@@ -243,3 +251,97 @@ def test_end_to_end_program_runs_after_edge_merge():
     out = themis.run(merged)
     assert "results" in out
     assert out["results"][0].get("status")
+
+
+# ======================================================= compose_program (end-to-end glue)
+
+
+def test_compose_program_with_both_extractions():
+    """A1 question-side program + A5 variable extraction + A2 edge extraction → kernel_ast."""
+    base = _empty_program(["x"])  # A1 only knows x from the question
+    base["statements"].append({
+        "kind": "query",
+        "id": "q",
+        "query": {
+            "kind": "assoc",
+            "left": _atom("x"),
+            "right": _atom("y"),
+            "given": [],
+        },
+    })
+    var_extraction = {
+        "variables": [
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+        ],
+    }
+    edge_extraction = {"edges": [_cause("x", "y", "narrative says X then Y")]}
+
+    out = compose_program(base, var_extraction, edge_extraction)
+    # y was added from A5
+    preds = {s["predicate"] for s in out["statements"] if s.get("kind") == "variable"}
+    assert preds == {"x", "y"}
+    # cause edge was added from A2
+    causes = [s for s in out["statements"] if s.get("kind") == "cause"]
+    assert len(causes) == 1
+    # full program runs through themis
+    result = themis.run(out)
+    assert result["results"][0].get("status")
+
+
+def test_compose_program_skips_none_extractions():
+    base = _empty_program(["x", "y"])
+    out = compose_program(base, None, None)
+    # No-op when both extractions are None
+    assert len(out["statements"]) == len(base["statements"])
+
+
+def test_compose_program_does_not_mutate_base():
+    base = _empty_program(["x", "y"])
+    base_copy = deepcopy(base)
+    edge_extraction = {"edges": [_cause("x", "y")]}
+    compose_program(base, None, edge_extraction)
+    assert base == base_copy
+
+
+def test_compose_program_with_real_narrative_run_fixture():
+    """End-to-end: feed an actual A2 fixture from narrative_to_edges_run/
+    plus a hand-curated question-side base, see it run cleanly."""
+    fixture_path = (
+        REPO_ROOT / "docs" / "eval_set" / "narrative_to_edges_run"
+        / "14_late_night_tired_temporal.json"
+    )
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    edge_extraction = fixture["narrative_to_edges_output"]
+
+    # A1-side question: "熬夜会让我第二天累吗?" → simplest assoc query.
+    # The narrative declares both predicates; A2 supplies the edge.
+    var_extraction = {
+        "variables": [
+            {"kind": "variable", "predicate": "stays_up_late", "domain": [True, False]},
+            {"kind": "variable", "predicate": "feels_tired_next_morning", "domain": [True, False]},
+        ],
+    }
+    base = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "query", "id": "q", "query": {
+                "kind": "assoc",
+                "left": _atom("stays_up_late"),
+                "right": _atom("feels_tired_next_morning"),
+                "given": [],
+            }},
+        ],
+    }
+
+    program = compose_program(base, var_extraction, edge_extraction)
+
+    # Variables and edge were folded in
+    kinds = [s.get("kind") for s in program["statements"]]
+    assert "variable" in kinds
+    assert "cause" in kinds
+    # And it actually runs through the kernel
+    result = themis.run(program)
+    assert result["results"][0]["status"] in (
+        "structurally_solved", "needs_investigation", "numerically_solved",
+    )
