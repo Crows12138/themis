@@ -1,6 +1,6 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-04-24
+> 更新时间：2026-04-25
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。
@@ -13,18 +13,18 @@
 |---|---|---|---|
 | 1 | 可观测识别 | **75-80%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / 完整 ID (Shpitser) ✗ → Phase 6.complete-id（可选）|
 | 2 | ADMG / 潜变量 | **80%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / c-factor 推迟 |
-| 3 | 反事实（Layer 3） | **15-20%** | Balke-Pearl 二值单调 bounds ✓ / ID\* / 连续 ✗ → 长期 |
-| 4 | 时序 / 动态 | **20-30%** | 1 阶 Markov ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
-| 5 | 工具变量 (IV) | **~60%** | **Phase 6.iv 已落地**（basic + conditional + ADMG-aware identification）；2SLS / LATE 估计 → Phase 7 |
+| 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
+| 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
+| 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|
 | 6 | 中介分析 | **~70%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）；CDE 数值 / 多 mediator 链 → 后续 |
-| 7 | 选择偏差 | **5%** | A1 §3a 能识别 / kernel 未算 → Phase 6.5 或 Phase 9+ |
+| 7 | 选择偏差 | **15-20%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ 显式 collider conditioning 检测 → Phase 9+ |
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
 | 9 | 转移性 / 泛化 | **0%** | → Phase 9+（按需）|
 | 10 | 敏感性分析 | **~30%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在所有 binary outcome 估计上）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
 | 11 | 连续 / 数据驱动估计 | **~50%** | **Phase 7.1-7.4 全部落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI）|
 | 12 | 因果发现 | **~40%** | **Phase 8.1 已落地**（PC/FCI/LiNGAM via causal-learn + kernel_ast suggestion path）；NOTEARS / RL discovery → Phase 9+ |
 
-**加权覆盖**：约 **50-60%**。**Phase 7 M2 + Phase 8 M3** 全部落地——识别 / 估计 / 敏感性 / 发现四大里程碑齐全，板块 10/11/12 都跨过 30%。
+**加权覆盖**：约 **55-65%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实里程碑齐全。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）。
 
 ---
 
@@ -34,14 +34,16 @@
 
 | 基础设施 | 状态 |
 |---|---|
-| NL↔JSON 桥（A1 v2.1 / A5 / #37.c / response_rendering） | **~100%** |
+| NL↔JSON 桥（A1 v2.6.1 / A5 / A2 / response_rendering v3.1） | **~100%** |
+| 上游层 narrative_merge（变量+边对称合并 + compose_program） | **~100%**（down-payment；ROADMAP 真独立层 → 长期） |
 | V0-V5 独立 verifier（byte-code scan 钉独立性） | **~100%** |
 | Derivation JSON + 审计字段 | **~100%** |
 | 13 种 ambiguity kind 分类体系 | **~100%** |
-| Eval set (20 cases / F1-F18) + 真实 LLM 基线 | **~100%** |
+| Eval set (28 cases / F1-F22) + 真实 LLM 基线 | **~100%** |
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |
 | Theta 数值层 + confidence 聚合 | **~100%** |
+| MCP server 包装（5 tools + 8 resources，stdio） | **~100%** |
 
 ---
 
