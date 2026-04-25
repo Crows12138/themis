@@ -21,7 +21,7 @@
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
 | 9 | 转移性 / 泛化 | **0%** | → Phase 9+（按需）|
 | 10 | 敏感性分析 | **0%** | → **Phase 8 M3** |
-| 11 | 连续 / 数据驱动估计 | **~25%** | **Phase 7.1 + 7.2 已落地**（backdoor + front-door numeric，sklearn + bootstrap CI + verifier 松弛审）；IV / mediation 数值 → Phase 7.3-7.4 |
+| 11 | 连续 / 数据驱动估计 | **~35%** | **Phase 7.1-7.3 已落地**（backdoor + front-door + IV numeric，Wald/2SLS 两个 IV estimator）；mediation 数值 → Phase 7.4 |
 | 12 | 因果发现 | **0%** | → **Phase 8 M3**（PC/FCI/LiNGAM）|
 
 **加权覆盖**：约 **30-35%**。大头在板块 1+2+5+6（Pearl 识别 + ADMG + IV + Mediation）+ 板块 11 的 backdoor 数值入门。

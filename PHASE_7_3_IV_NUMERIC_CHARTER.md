@@ -1,7 +1,9 @@
 # Phase 7.3 Charter — IV 数值估计
 
 > 立项日期：2026-04-25
-> 状态：**已批准** — 开工
+> 状态：**✅ 已落地（2026-04-25）** — S.IVN.1-5 全部完成
+>
+> **落地 commit**: aa5867c (S.IVN.1)
 > 父 charter：PHASE_7_M2_CHARTER.md
 > 前置：Phase 7.1 + 7.2 已落地
 

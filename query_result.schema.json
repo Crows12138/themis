@@ -263,7 +263,8 @@
         "method": {
           "enum": [
             "backdoor_linear", "backdoor_logistic",
-            "frontdoor_linear", "frontdoor_logistic"
+            "frontdoor_linear", "frontdoor_logistic",
+            "iv_wald", "iv_2sls"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -271,6 +272,8 @@
         "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "adjustment": { "type": "array", "items": { "type": "string" } },
         "mediators": { "type": "array", "items": { "type": "string" } },
+        "instrument": { "type": "string" },
+        "conditioning": { "type": "array", "items": { "type": "string" } },
         "treatment": { "type": "string" },
         "outcome": { "type": "string" }
       }

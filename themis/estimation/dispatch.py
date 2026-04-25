@@ -85,6 +85,7 @@ def _estimate_effect_queries(
     from ..runtime import structural_solver
     from .backdoor import estimate_backdoor_ate
     from .frontdoor import estimate_frontdoor_ate
+    from .iv import estimate_iv_ate
 
     ast = _ensure_dict(program)
     ast = validate_ast(ast)
@@ -151,14 +152,60 @@ def _estimate_effect_queries(
         # Phase 7.2: backdoor failed — try front-door when ``given`` is
         # empty (multi-mediator + conditioning isn't supported in the
         # front-door formula yet; mirrors the identification layer).
-        if given_atoms:
-            continue
-        front = structural_solver.front_door_sets(
-            graph, x_atom, y_atom, bidirected=bidirected or None,
-        )
+        front = None
+        if not given_atoms:
+            front = structural_solver.front_door_sets(
+                graph, x_atom, y_atom, bidirected=bidirected or None,
+            )
         if not front:
-            # No front-door either — 7.3 (IV) / 7.4 (mediation) will
-            # pick up the slack once landed. Skip for now.
+            # Phase 7.3: try IV as the third fallback.
+            iv_candidates = structural_solver.iv_sets(
+                graph, x_atom, y_atom, bidirected=bidirected or None,
+            )
+            if not iv_candidates:
+                # No strategy — 7.4 (mediation) remains. Skip for now.
+                continue
+
+            chosen_iv = iv_candidates[0]  # already sorted by |W| asc
+            try:
+                iv_estimate = estimate_iv_ate(
+                    contract.data,
+                    treatment=x_atom.predicate,
+                    outcome=y_atom.predicate,
+                    instrument=chosen_iv.instrument.predicate,
+                    conditioning=tuple(
+                        a.predicate for a in chosen_iv.conditioning
+                    ),
+                    ci_bootstrap=ci_bootstrap,
+                    random_state=random_state,
+                )
+            except (ValueError, NotImplementedError):
+                # e.g. Wald denom is zero on this data, or the chosen
+                # candidate's (Z, W) shape isn't supported in v1.
+                continue
+
+            result["numeric_estimate"] = {
+                "point": iv_estimate.point,
+                "ci_lower": iv_estimate.ci_lower,
+                "ci_upper": iv_estimate.ci_upper,
+                "ci_level": iv_estimate.ci_level,
+                "method": iv_estimate.method,
+                "assumptions": list(iv_estimate.assumptions),
+                "sample_size": iv_estimate.sample_size,
+                "data_hash": iv_estimate.data_hash,
+                "instrument": iv_estimate.instrument,
+                "conditioning": list(iv_estimate.conditioning),
+                "treatment": iv_estimate.treatment,
+                "outcome": iv_estimate.outcome,
+            }
+            result["derivation"] = _build_iv_numeric_derivation_dict(
+                graph=graph,
+                x=x_atom, y=y_atom,
+                instrument=chosen_iv.instrument,
+                conditioning=chosen_iv.conditioning,
+                estimate=iv_estimate,
+            )
+            _finalise_numeric_result(result)
             continue
 
         import networkx as nx
@@ -245,6 +292,52 @@ def _build_numeric_derivation_dict(
                 "treatment": x,
                 "outcome": y,
                 "adjustment": frozenset(adjustment),
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
+
+
+def _build_iv_numeric_derivation_dict(
+    *, graph, x, y, instrument, conditioning, estimate,
+):
+    """Two-step derivation for a data-based IV estimate:
+
+        s1: iv_criterion_check (structural witness, Phase 6.iv)
+        s2: numeric_iv_estimate (metadata audit — no re-fit)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="iv_criterion_check",
+            inputs={
+                "graph": graph,
+                "x": x, "y": y,
+                "instrument": instrument,
+                "conditioning": frozenset(conditioning),
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_iv_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "treatment": x,
+                "outcome": y,
+                "instrument": instrument,
+                "conditioning": frozenset(conditioning),
                 "method": estimate.method,
                 "data_hash": estimate.data_hash,
                 "sample_size": estimate.sample_size,

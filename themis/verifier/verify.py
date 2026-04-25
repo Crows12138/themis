@@ -551,6 +551,7 @@ def verify_numeric_estimate(
     allowed_finals = (
         "numeric_backdoor_estimate",
         "numeric_frontdoor_estimate",
+        "numeric_iv_estimate",
     )
     if derivation[-1].rule not in allowed_finals:
         raise VerificationError(

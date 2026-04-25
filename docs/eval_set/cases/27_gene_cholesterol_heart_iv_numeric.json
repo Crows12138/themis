@@ -1,0 +1,76 @@
+{
+  "id": "27_gene_cholesterol_heart_iv_numeric",
+  "failure_modes": ["F21_numeric_estimation", "F19_iv_identification"],
+  "narrative": "孟德尔随机化研究：某基因变异（gene_variant）通过影响肝脏胆固醇合成进而影响心脏病风险。肥胖 / 饮食等未观测生活方式同时影响胆固醇水平和心脏病。我们观察到个体的 gene_variant（随机继承，二值）、high_cholesterol（二值：是否 LDL 超过阈值）、heart_disease（二值：是否诊断）。基因变异对胆固醇的影响是单调的（所有人方向一致）。",
+  "question": "基于这个数据，高胆固醇（vs 低胆固醇）对心脏病风险的平均因果效应（LATE）是多少？",
+  "gold_variables": [
+    {
+      "predicate": "gene_variant",
+      "domain_hint": "bool",
+      "role": "instrument"
+    },
+    {
+      "predicate": "high_cholesterol",
+      "domain_hint": "bool",
+      "role": "intervention"
+    },
+    {
+      "predicate": "heart_disease",
+      "domain_hint": "bool",
+      "role": "target"
+    }
+  ],
+  "gold_edges": [
+    {
+      "from": "gene_variant",
+      "to": "high_cholesterol",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "某基因变异...影响肝脏胆固醇合成"
+    },
+    {
+      "from": "high_cholesterol",
+      "to": "heart_disease",
+      "kind": "directed",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "进而影响心脏病风险"
+    },
+    {
+      "from": "high_cholesterol",
+      "to": "heart_disease",
+      "kind": "bidirected",
+      "severity": "must",
+      "source": "narrative",
+      "source_span": "肥胖 / 饮食等未观测生活方式同时影响胆固醇水平和心脏病"
+    }
+  ],
+  "must_not_infer": [
+    {
+      "kind": "edge",
+      "from": "gene_variant",
+      "to": "heart_disease",
+      "reason": "IV2 exclusion: gene affects heart disease ONLY via cholesterol"
+    }
+  ],
+  "ambiguities": [
+    {
+      "kind": "iv_validity",
+      "instrument": "gene_variant",
+      "assumptions": "IV1/IV2/IV3 + monotonicity for LATE interpretation"
+    }
+  ],
+  "gold_answerability": "numerically_solved",
+  "gold_query_kind": "effect",
+  "gold_extensions": {
+    "instrument": "gene_variant",
+    "identification_strategy": "iv"
+  },
+  "gold_numeric_estimate": {
+    "true_late": 0.18,
+    "tolerance": 0.05,
+    "method_expected": "iv_wald",
+    "dgp_description": "U ~ Normal(0, 1); gene ~ Bernoulli(0.5) [marginally random]; cholesterol ~ Bernoulli(sigmoid(1.5*gene - 0.5 + 0.5*U)); heart ~ Bernoulli(sigmoid(1.0*cholesterol + 1.5*U - 1)); LATE via Wald ≈ 0.18 on compliers (calibrated n=100000)"
+  }
+}
