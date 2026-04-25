@@ -12,12 +12,15 @@ IV / mediation estimators follow in 7.2 / 7.3 / 7.4.
 from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .contract import DataContract, DataContractError
 from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
+from .iv import IVEstimate, estimate_iv_ate
 
 __all__ = [
     "BackdoorEstimate",
     "DataContract",
     "DataContractError",
     "FrontdoorEstimate",
+    "IVEstimate",
     "estimate_backdoor_ate",
     "estimate_frontdoor_ate",
+    "estimate_iv_ate",
 ]
