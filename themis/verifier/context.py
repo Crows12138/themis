@@ -50,3 +50,8 @@ class VerificationContext:
     # verifier reimplementation, not structural_solver) instead of
     # directed-only d-separation.
     bidirected: frozenset[frozenset[Atom]] = field(default_factory=frozenset)
+    # Phase 9 §T9.1: selection node set for transport identification.
+    # Empty tuple on non-transport programs preserves all pre-Phase-9
+    # paths bit-identically. T9-1 / T9-2 rules read this to re-derive
+    # S-admissibility independently of runtime/transport.py.
+    selection_nodes: tuple = ()

@@ -518,12 +518,17 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             f"verify(): no query with id={target_id!r} in the program"
         )
 
+    # Phase 9 §T9.1.4: selection nodes for transport verifier.
+    from .types import SelectionNode as _SN
+    selection_nodes = tuple(s for s in prog.statements if isinstance(s, _SN))
+
     derivation = derivation_from_dict(derivation_json)
     ctx = VerificationContext(
         graph=graph,
         query=query_stmt.query,
         theta=theta,
         bidirected=bidirected,
+        selection_nodes=selection_nodes,
     )
 
     kind = result.get("query_kind")

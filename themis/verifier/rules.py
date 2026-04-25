@@ -3007,6 +3007,211 @@ def _rule_counterfactual_bounds_binary_monotone(
             step_index=step_index, rule="counterfactual_bounds_binary_monotone",
         )
 
+
+# ============================================ Phase 9 §T9.1.4: T9-1, T9-2
+
+# Verifier-side selection diagram + S-admissibility re-derivation. NO
+# import from themis.runtime.transport — independence pin keeps the
+# audit honest. The diagram is constructed locally from ctx.graph and
+# ctx.selection_nodes; d-separation reuses the verifier-internal
+# ``_check_d_separation`` already used by R3 / R5.
+
+_VERIFIER_S_PREFIX = "__S_v__"  # distinct from runtime's __S__ prefix
+
+
+def _verifier_build_selection_diagram(
+    graph: nx.DiGraph,
+    selection_nodes: tuple,
+) -> tuple[nx.DiGraph, tuple]:
+    """Local re-implementation of selection diagram construction. The
+    runtime version lives in themis.runtime.transport; this one is
+    independent (different prefix, different code path) so the
+    independence audit can show it isn't calling the implementation
+    it's supposed to be auditing.
+    """
+    from ..types import Atom as _Atom, ConstTerm as _ConstTerm
+    diagram = graph.copy()
+    s_atoms: list = []
+    for sn in selection_nodes:
+        s_atom = _Atom(
+            predicate=f"{_VERIFIER_S_PREFIX}{sn.id}",
+            args=(_ConstTerm(name=sn.id),),
+        )
+        s_atoms.append(s_atom)
+        diagram.add_node(s_atom, atom=s_atom, kind="selection_node")
+        if sn.affects in diagram:
+            diagram.add_edge(s_atom, sn.affects)
+    return diagram, tuple(s_atoms)
+
+
+def _verifier_mutilate_incoming(graph: nx.DiGraph, x: Atom) -> nx.DiGraph:
+    g = graph.copy()
+    g.remove_edges_from(list(g.in_edges(x)))
+    return g
+
+
+def _rule_s_admissibility_check(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """T9-1: Re-derive Bareinboim Theorem 1 S-admissibility.
+
+    Z is S-admissible iff every S node is d-separated from Y given Z
+    in G_{\\overline{X}} (the intervention graph). Independent
+    reimplementation: builds the selection diagram locally from
+    ctx.selection_nodes and runs verifier-internal d-separation."""
+    treatment = _require_atom(inputs, "treatment", step_index, "s_admissibility_check")
+    outcome = _require_atom(inputs, "outcome", step_index, "s_admissibility_check")
+    z = _require_atom_set(inputs, "adjustment_set", step_index, "s_admissibility_check")
+
+    selection_nodes = getattr(ctx, "selection_nodes", ())
+    diagram, s_atoms = _verifier_build_selection_diagram(ctx.graph, selection_nodes)
+    g_bar_x = _verifier_mutilate_incoming(diagram, treatment)
+
+    # Re-run S-admissibility: for each S, check d-separation from outcome given Z
+    recomputed = True
+    for s in s_atoms:
+        if s not in g_bar_x or outcome not in g_bar_x:
+            continue
+        if _check_d_separation(g_bar_x, s, outcome, z):
+            continue  # d-separated — good, this S is admissible
+        recomputed = False
+        break
+
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"s_admissibility_check claimed {claimed_output!r}, recomputed "
+            f"{recomputed!r} (z={[a.predicate for a in z]}, "
+            f"|S|={len(s_atoms)})",
+            step_index=step_index, rule="s_admissibility_check",
+        )
+
+
+def _rule_transport_formula(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """T9-2: Verify the Bareinboim transport formula has correct shape.
+
+    Checks:
+    - claimed_output is a string starting with ``P*(...)``
+    - if adjustment_set is non-empty, formula contains ``Σ_{`` summation
+      over the adjustment-set variables
+    - source_population and target_population are non-empty strings
+      (semantic differentiation of P from P*)"""
+    treatment = _require_atom(inputs, "treatment", step_index, "transport_formula")
+    outcome = _require_atom(inputs, "outcome", step_index, "transport_formula")
+    z = _require_atom_set(inputs, "adjustment_set", step_index, "transport_formula")
+    source_pop = inputs.get("source_population")
+    target_pop = inputs.get("target_population")
+
+    if not isinstance(claimed_output, str):
+        raise RuleCheckFailed(
+            f"transport_formula output must be a string, got {type(claimed_output).__name__}",
+            step_index=step_index, rule="transport_formula",
+        )
+    if not claimed_output.startswith("P*("):
+        raise RuleCheckFailed(
+            "transport_formula output must lead with target-population term P*(...)",
+            step_index=step_index, rule="transport_formula",
+        )
+    if outcome.predicate not in claimed_output:
+        raise RuleCheckFailed(
+            f"transport_formula output missing outcome predicate {outcome.predicate!r}",
+            step_index=step_index, rule="transport_formula",
+        )
+    if treatment.predicate not in claimed_output:
+        raise RuleCheckFailed(
+            f"transport_formula output missing treatment predicate {treatment.predicate!r}",
+            step_index=step_index, rule="transport_formula",
+        )
+    if z and "Σ_{" not in claimed_output:
+        raise RuleCheckFailed(
+            "transport_formula has non-empty adjustment_set but formula "
+            "lacks Σ summation",
+            step_index=step_index, rule="transport_formula",
+        )
+    for a in z:
+        if a.predicate not in claimed_output:
+            raise RuleCheckFailed(
+                f"transport_formula adjustment variable {a.predicate!r} not "
+                "named in formula text",
+                step_index=step_index, rule="transport_formula",
+            )
+    if not isinstance(source_pop, str) or not source_pop:
+        if z:
+            raise RuleCheckFailed(
+                "transport_formula with non-empty Z requires source_population label",
+                step_index=step_index, rule="transport_formula",
+            )
+    if not isinstance(target_pop, str) or not target_pop:
+        raise RuleCheckFailed(
+            "transport_formula requires target_population label",
+            step_index=step_index, rule="transport_formula",
+        )
+
+
+def _rule_identify_via_transport(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict,
+    step_output_by_id: dict,
+) -> None:
+    """T9-final: Confirm the prior s_admissibility_check + transport_formula
+    steps were both successful, and the claimed output is a positive
+    StructuralResult."""
+    criterion_ref = inputs.get("criterion")
+    formula_ref = inputs.get("formula")
+    if criterion_ref is None or formula_ref is None:
+        raise RuleCheckFailed(
+            "identify_via_transport requires inputs.criterion and inputs.formula step refs",
+            step_index=step_index, rule="identify_via_transport",
+        )
+    criterion_id = getattr(criterion_ref, "step_id", None) or criterion_ref.get("step_id")
+    formula_id = getattr(formula_ref, "step_id", None) or formula_ref.get("step_id")
+
+    criterion_step = step_by_id.get(criterion_id)
+    formula_step = step_by_id.get(formula_id)
+    if criterion_step is None or formula_step is None:
+        raise RuleCheckFailed(
+            "identify_via_transport references unknown step_id(s)",
+            step_index=step_index, rule="identify_via_transport",
+        )
+    if criterion_step.rule != "s_admissibility_check":
+        raise RuleCheckFailed(
+            f"identify_via_transport.criterion must reference an "
+            f"s_admissibility_check step, got {criterion_step.rule!r}",
+            step_index=step_index, rule="identify_via_transport",
+        )
+    if formula_step.rule != "transport_formula":
+        raise RuleCheckFailed(
+            f"identify_via_transport.formula must reference a "
+            f"transport_formula step, got {formula_step.rule!r}",
+            step_index=step_index, rule="identify_via_transport",
+        )
+
+    criterion_output = step_output_by_id.get(criterion_id)
+    if criterion_output is not True:
+        raise RuleCheckFailed(
+            "identify_via_transport: referenced s_admissibility_check did "
+            f"not output True (got {criterion_output!r})",
+            step_index=step_index, rule="identify_via_transport",
+        )
+
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "identify_via_transport must claim StructuralResult(value=True) "
+            "when both criterion and formula steps succeed",
+            step_index=step_index, rule="identify_via_transport",
+        )
+
+
 # rule name -> handler. Each handler has the signature
 #   (ctx, inputs, claimed_output, step_index, **maybe step_output_by_id) -> None
 # Handlers raise VerificationError subclasses to reject.
@@ -3040,6 +3245,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 6.mediation S.M.3
     "mediation_nde_nie_check": _rule_mediation_nde_nie_check,
     "mediation_cde_check": _rule_mediation_cde_check,
+    # Phase 9 §T9.1.4 — independent transport audit
+    "s_admissibility_check": _rule_s_admissibility_check,
+    "transport_formula": _rule_transport_formula,
 }
 _STEP_REF_RULES = {
     "identify_via_backdoor",
@@ -3053,6 +3261,8 @@ _STEP_REF_RULES = {
     "numeric_frontdoor_estimate",
     # Phase 7.3 S.IVN.3
     "numeric_iv_estimate",
+    # Phase 9 §T9.1.4 — transport identification
+    "identify_via_transport",
 }
 
 
@@ -3106,6 +3316,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_result":
         _rule_numeric_result(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_transport":
+        _rule_identify_via_transport(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

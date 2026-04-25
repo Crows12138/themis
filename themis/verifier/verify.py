@@ -586,11 +586,12 @@ def verify_effect_structural(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
-    if derivation[-1].rule != "identify_via_mediation":
+    last_rule = derivation[-1].rule
+    if last_rule not in ("identify_via_mediation", "identify_via_transport"):
         raise VerificationError(
-            "structural effect derivation must end in identify_via_mediation; "
-            f"got {derivation[-1].rule!r}",
-            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+            "structural effect derivation must end in identify_via_mediation "
+            "or identify_via_transport; got " + repr(last_rule),
+            step_index=len(derivation) - 1, rule=last_rule,
         )
 
 
