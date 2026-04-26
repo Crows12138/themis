@@ -46,6 +46,8 @@ def test_server_exposes_prompt_and_schema_resources(app):
     # core prompts
     assert "themis://prompts/nl_to_kernel_ast.md" in uris
     assert "themis://prompts/response_rendering.md" in uris
+    # Phase 11.1 — agent loop closure
+    assert "themis://prompts/gap_to_action.md" in uris
     # schemas
     assert "themis://schemas/kernel_ast.schema.json" in uris
     assert "themis://schemas/query_result.schema.json" in uris

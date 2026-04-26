@@ -15,6 +15,7 @@ Resources (read by the client to drive NL↔JSON):
 - ``themis://prompts/narrative_to_variables.md`` — A5 upstream framer
 - ``themis://prompts/narrative_to_edges.md`` — A2 edge proposer
 - ``themis://prompts/reply_to_framing_patch.md`` — F1 follow-up patcher
+- ``themis://prompts/gap_to_action.md`` — Phase 11.1 agent-loop decision table
 - ``themis://schemas/kernel_ast.schema.json`` — input schema
 - ``themis://schemas/query_result.schema.json`` — output schema
 - ``themis://schemas/derivation.schema.json`` — embedded reasoning chain schema
@@ -45,6 +46,10 @@ PROMPT_FILES = (
     "narrative_to_variables.md",
     "narrative_to_edges.md",
     "reply_to_framing_patch.md",
+    # Phase 11.1 — closes the agent loop by telling the LLM what to do
+    # when data_gap_report is non-empty (next-action decision table +
+    # autonomous-fetch vs ask-user heuristics + loop termination rules).
+    "gap_to_action.md",
 )
 
 
