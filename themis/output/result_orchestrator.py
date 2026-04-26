@@ -20,6 +20,8 @@ from ..types import (
     Atom,
     ConstantExpr,
     ConstTerm,
+    DataGap,
+    DataGapReport,
     FormulaExpr,
     NumericResult,
     ProbabilityRefExpr,
@@ -179,7 +181,54 @@ def to_dict(result: QueryResult) -> dict:
         d["derivation"] = derivation_to_dict(result.derivation)
     if result.extensions is not None:
         d["extensions"] = result.extensions
+    if result.data_gap_report is not None:
+        d["data_gap_report"] = _data_gap_report_to_dict(result.data_gap_report)
     return d
+
+
+def _data_gap_report_to_dict(report: DataGapReport) -> dict:
+    out: dict = {
+        "summary": report.summary,
+        "gaps": [_data_gap_to_dict(g) for g in report.gaps],
+    }
+    if report.actionable_next_steps:
+        out["actionable_next_steps"] = list(report.actionable_next_steps)
+    return out
+
+
+def _data_gap_to_dict(gap: DataGap) -> dict:
+    out: dict = {
+        "kind": gap.kind.value,
+        "severity": gap.severity.value,
+        "description": gap.description,
+        "blocks": gap.blocks.value,
+        "provenance": [
+            {"ref_kind": ref.ref_kind.value, "ref_id": ref.ref_id}
+            for ref in gap.provenance
+        ],
+    }
+    if gap.signature is not None:
+        out["signature"] = gap.signature
+    if gap.required_data is not None:
+        rd = gap.required_data
+        rd_out: dict = {}
+        if rd.data_type is not None:
+            rd_out["data_type"] = rd.data_type.value
+        if rd.population is not None:
+            rd_out["population"] = rd.population
+        if rd.variables:
+            rd_out["variables"] = list(rd.variables)
+        if rd.min_sample_size is not None:
+            rd_out["min_sample_size"] = rd.min_sample_size
+        if rd.precision_target is not None:
+            rd_out["precision_target"] = rd.precision_target
+        if rd_out:
+            out["required_data"] = rd_out
+    if gap.if_provided is not None:
+        out["if_provided"] = gap.if_provided
+    if gap.alternative_paths:
+        out["alternative_paths"] = list(gap.alternative_paths)
+    return out
 
 
 def from_dict(payload: dict) -> QueryResult:

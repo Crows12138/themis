@@ -340,6 +340,13 @@
         "ci_bootstrap": { "type": "integer", "minimum": 0 },
         "model_preference": { "enum": ["auto", "linear", "logistic"] }
       }
+    },
+    "data_gap_report": {
+      "oneOf": [
+        { "$ref": "#/$defs/dataGapReport" },
+        { "type": "null" }
+      ],
+      "description": "Phase 10: structured 'what data is still needed to validate this causal claim' summary. Null for query kinds that don't carry data needs (cause / assoc) or when no gaps detected. Generator: themis/output/data_gap_report.py — pure function over derivation + investigation_requests + framing_notes + extensions, no I/O."
     }
   },
   "$defs": {
@@ -660,6 +667,109 @@
             { "$ref": "#/$defs/parameterSkeleton" },
             { "$ref": "#/$defs/variablePatch" }
           ]
+        }
+      }
+    },
+    "dataGapReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "gaps"],
+      "description": "Phase 10: top-level structured report on what data / assumptions / structural changes are still needed to make progress on the query. Gaps are sorted by severity (blocking > important > informational), then by derivation order within the same severity tier.",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "One-line natural-language summary of the most blocking gap, or empty string when gaps is empty."
+        },
+        "gaps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dataGap" }
+        },
+        "actionable_next_steps": {
+          "type": "array",
+          "description": "User-facing suggestions in order of impact. Each entry is a complete sentence in Chinese; rendering layer reads these as-is.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "dataGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "severity", "description", "blocks", "provenance"],
+      "description": "A single data / assumption / structural shortfall blocking some downstream output. Each gap maps to one or more upstream signals (derivation step, investigation_request, framing_note, verifier check) carried in provenance.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "unidentifiable_no_admissible_set",
+            "missing_distribution",
+            "missing_population_distribution",
+            "missing_assumption",
+            "missing_iv_candidate",
+            "missing_mediator_data",
+            "transport_target_distribution_unknown",
+            "ambiguous_variable_definition"
+          ],
+          "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
+        },
+        "signature": {
+          "type": "string",
+          "description": "Sub-classification within the kind. For missing_distribution: 'marginal' | 'conditional' | 'joint'. Omitted for kinds with no sub-shape."
+        },
+        "severity": {
+          "enum": ["blocking", "important", "informational"],
+          "description": "blocking = downstream output cannot be produced at all; important = output produced but quality reduced (e.g. needs untestable assumption, only bounds available); informational = caveat / framing note only."
+        },
+        "description": {
+          "type": "string",
+          "description": "Free-form explanation of the gap. Renderer translates to user-facing copy via response_rendering templates."
+        },
+        "required_data": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional. What kind of data, on which population, on which variables, would close this gap. Generator fills what it can infer; missing fields stay absent.",
+          "properties": {
+            "data_type": {
+              "enum": ["ipd", "marginal", "rct", "cohort", "case_control", "expert_judgment"]
+            },
+            "population": { "type": "string" },
+            "variables": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "min_sample_size": { "type": "integer", "minimum": 1 },
+            "precision_target": { "type": "string" }
+          }
+        },
+        "blocks": {
+          "enum": ["point_estimate", "bounds", "identification", "transport"],
+          "description": "Which downstream output this gap prevents."
+        },
+        "if_provided": {
+          "type": "string",
+          "description": "What becomes possible if this gap is filled (e.g. 'point estimate with bootstrap CI')."
+        },
+        "alternative_paths": {
+          "type": "array",
+          "description": "Alternative ways to make progress without this exact data (e.g. 'accept Balke-Pearl bounds' / 'add untestable monotonicity assumption').",
+          "items": { "type": "string" }
+        },
+        "provenance": {
+          "type": "array",
+          "minItems": 1,
+          "description": "One gap may be triggered by multiple upstream signals; array allows multi-source attribution. T10-1 verifier checks every ref resolves to a real artifact in the result envelope.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref_kind", "ref_id"],
+            "properties": {
+              "ref_kind": {
+                "enum": ["derivation_step", "investigation_request", "framing_note", "verifier_check"]
+              },
+              "ref_id": {
+                "type": "string",
+                "description": "Stable identifier within the chosen kind: derivation step_id, investigation_request.target, framing_note.predicate, or verifier rule name."
+              }
+            }
+          }
         }
       }
     },

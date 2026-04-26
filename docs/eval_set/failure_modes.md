@@ -595,6 +595,59 @@ of F25 / Phase 9 §T9.1 is making this transfer step explicit.
 selection_node + transport identification rules). Numeric estimation
 of the transported quantity is §T9.2 (separate fragment).
 
+## F26 — Silent data-gap suppression
+
+The result envelope carries explicit signals about what data is
+still needed (failed derivation steps, parameter
+investigation_requests, framing_notes, transport blocks with
+unmet `P*(Z)`). The renderer pretends the answer is complete by
+either omitting the gap section or paraphrasing it into a
+single vague sentence.
+
+The system must:
+
+- Attach a structured `data_gap_report` to every effect / identify /
+  counterfactual result whenever any upstream signal exists (see
+  `themis/output/data_gap_report.py`)
+- Sort gaps by severity (blocking → important → informational) and
+  expose all of them
+- Independently verify the report via T10-1 / T10-2 / T10-3
+  (`themis/verifier/data_gap_rules.py`) so a generator bug cannot
+  silently drop a gap
+- Render the gap section per `docs/prompts/response_rendering.md`
+  §"Data gap report rendering" — placement rules depend on whether
+  any gap is `blocking`
+
+**Typical trigger**: any case where dispatch returns `needs_investigation`
+or `structurally_solved` (without `numerically_solved`). All Phase 6+
+cases that hit identification but not estimation cleanly trigger
+F26. The exercise_waist_missing_parameter fixture is the canonical
+`missing_distribution` driver; case 29 is the canonical
+`transport_target_distribution_unknown` driver.
+
+**Expected correct behavior**:
+
+- `themis.run` attaches `data_gap_report` with at least one gap
+  whose `kind` matches the upstream signal
+- `themis.verify` calls T10-* verifier on the report and accepts
+- Renderer surfaces the gap section in the user-facing reply with
+  blocking gaps before any methodology / numeric details
+
+**Counter-pattern (must NOT do)**:
+
+- Drop the gap section because "the user can see status"
+- Merge multiple gaps into one vague sentence
+- Render gaps in fabricated order (must follow `gaps[]` array order
+  which is severity-sorted by the generator)
+- Add a fake "no gaps detected" line when `gaps == []`
+- Surface a number while the report has a `blocking` gap that
+  prevents that number's validity
+
+**Slice most relevant**: Phase 10 (`data_gap_report` schema +
+generator + T10 verifier + response_rendering.md §"Data gap
+report rendering"). The whole phase exists to make this failure
+mode impossible by giving it a first-class output channel.
+
 ## Growth rule
 
 Add a new code only when a real case exposes a failure that
@@ -613,3 +666,8 @@ end-to-end pipeline runs, neither reducible to F1–F22. F25 added
 2026-04-25 from W0 跑步瘦肚子 真实压测 — the user pointed out the
 source-vs-target distribution gap; case 29 packages this as the
 canonical Phase 9 §T9.1 transportability failure mode.
+F26 added 2026-04-26 from VISION 定位收紧 — Themis 重新定位为
+"验证器 + 数据缺口诊断器"，silently dropping the gap section is
+a contract violation; Phase 10 makes it impossible by structuring
+the gap report as a first-class output channel with independent
+T10 audit.

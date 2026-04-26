@@ -2092,7 +2092,29 @@ def dispatch(
         theta=theta, prob_index=prob_index, obs_index=obs_index,
     )
     result = _attach_framing(program, stmt, result)
+    result = _attach_data_gap_report(result)
     return result
+
+
+def _attach_data_gap_report(result: QueryResult) -> QueryResult:
+    """Phase 10 §10.3: synthesize the structured data-gap report from
+    signals already on the QueryResult (derivation, investigation
+    requests, framing notes, extensions). Pure function — no I/O."""
+    from dataclasses import replace as _replace
+
+    from ..output.data_gap_report import compute_data_gap_report
+
+    report = compute_data_gap_report(
+        query_kind=result.query_kind,
+        status=result.status,
+        derivation=result.derivation,
+        investigation_requests=result.investigation_requests,
+        framing_notes=result.framing_notes,
+        extensions=result.extensions,
+    )
+    if report is None and result.data_gap_report is None:
+        return result
+    return _replace(result, data_gap_report=report)
 
 
 def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]:

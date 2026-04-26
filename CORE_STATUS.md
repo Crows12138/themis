@@ -809,3 +809,80 @@ T9-1 重跑 S-admissibility ✓; T9-2 审 formula 形状 ✓
 
 **加权覆盖跃升**：约 55-65% → **60-70%**。第一次给板块 9 一个真实的
 非零数字。
+
+### Phase 10 数据缺口诊断器（2026-04-26 落地，VISION 定位收紧的输出 (2)）
+
+**真实压力来源**：2026-04-26 用户战略反思——"构建量化的因果关系太难
+了，主要是缺乏数据"。这是因果推理学科根本天花板，不是 Themis 工程
+问题。结论：把 Themis 重新定位为**因果断言验证器 + 数据缺口诊断
+器**，不再追求"任何因果问题都能给数字"——卖给用户的是"告诉你这问
+题能不能算 + 不能算缺什么数据"。这是 DoWhy / EconML / ChatGPT 都不
+做的独占生态位。
+
+**VISION 同步**：VISION.md 加新节"定位收紧 (2026-04-26)"——两段式
+输出契约：(1) 全面检查（已有）+ (2) **数据缺口报告（新）**。
+"当前原则"加第 5 条："数据缺口诊断 ≥ 数值估计"。
+
+**charter**: PHASE_10_DATA_GAP_REPORT_CHARTER.md（7 sub-slice）
+
+**理论基础**：不需要新理论 fragment——所有信号都在现有 derivation /
+investigation_request / framing_note / extensions 里，Phase 10 只是
+**结构化聚合 + 转换为 actionable 数据需求**。
+
+**OSS 现状检查**：无同类。流行病学有 Hernan "What If" 第 II 部分讲
+study design recommendation，但都是教科书，没有工程实现。Themis 做
+这块属于**全 OSS 内首发**。
+
+**7 sub-slice 落地状态**：
+
+| Slice | 内容 | 状态 |
+|---|---|---|
+| S.10.1 | schema (`data_gap_report` / `dataGap` $def / 8 gap_kind / 3 severity / 4 ref_kind / derivation step `success`) | ✅ |
+| S.10.2 | types (`DataGap` / `DataGapReport` dataclass + `DerivationStep.success` + result_orchestrator 序列化) | ✅ |
+| S.10.3 | generator (`themis/output/data_gap_report.py` 8 + 1 classifier 分支 + severity 排序 + scheduler `_attach_data_gap_report` 挂载) | ✅ |
+| S.10.4 | verifier T10-1 / T10-2 / T10-3 + byte-code 独立性钉死 (forbidden import + 独立 failure-rule 注册表) | ✅ |
+| S.10.5 | 5 e2e gap_kind 全覆盖 + multi-gap 排序 + `themis.verify` round-trip | ✅ |
+| S.10.6 | response_rendering v3.2 加 §"Data gap report rendering" 8 中文模板 + severity 排序 + multi-gap 措辞 + "禁止吞 gap" 硬规则 | ✅ |
+| S.10.7 | docs sync（本节 + COVERAGE_MAP + failure_modes F26 + VISION 已在定位收紧节落地） | ✅ |
+
+**端到端**：missing_parameter 案例闭环：
+
+```
+NL: "diet_control 干预下 waist_reduced 的 ATE"
+↓ (themis.run)
+status=needs_investigation, derivation=identify_via_backdoor (success=true),
+investigation_requests=[{group=parameter, target=P(waist_reduced=True|...)}]
+↓ (_attach_data_gap_report)
+data_gap_report:
+  summary: 缺概率分布 P(waist_reduced=True|...)
+  gaps: [{kind=missing_distribution, severity=blocking, signature=conditional,
+          required_data={data_type=ipd}, alternative_paths=[Balke-Pearl bounds]}]
+  actionable_next_steps: [补 ... → 可给点估计, 或：接受 bounds]
+↓ (themis.verify → T10-1/2/3)
+T10-1 provenance ref ✓; T10-2 失败 step + 参数 request 全覆盖 ✓; T10-3 kind 一致性 ✓
+↓ (response_rendering §Data gap report rendering)
+"识别上没问题，但要给点估计还缺一个条件分布 P(...)，类型需要 IPD..."
+```
+
+**显式 out-of-scope**（charter §4 已划清）：
+- 任何 I/O / API 调用（**绝对禁止**——生成器是纯 reasoning，需要外部
+  数据是 Phase 11+ KB 接入的事）
+- 样本量精确计算（statistical power）—— `min_sample_size` 字段允许
+  填，但生成器自己不算
+- 自动 KB 查询填补 gap → Phase 11+
+- 多 gap 之间的优先级排序算法（按 severity + derivation order 已够）
+- 可视化（DAG with red gap edges）
+
+**测试**：1168 passed / 144 skipped（+104 from baseline 1064）；0 fail；
+0 known flake。新增：
+- 33 schema (test_output/test_phase10_data_gap_schema)
+- 17 types (test_output/test_phase10_data_gap_types)
+- 24 generator (test_output/test_phase10_data_gap_generator)
+- 25 T10 verifier (test_verifier/test_data_gap_rules)
+- 5 + 1 e2e gap_kinds (test_e2e/test_phase10_gap_kinds)
+
+**新失败模式**：F26 silent data-gap suppression（failure_modes.md）
+
+**加权覆盖**：板块覆盖率不变（Phase 10 不在 12 板块内），但 Themis
+的产品定位重大跃迁——从"全板块编排器"扩展为"全板块编排器 + 数据
+缺口诊断器"。这是 VISION 写明的**独占生态位**第一次有可交付实现。

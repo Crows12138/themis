@@ -90,6 +90,10 @@ def _step_to_dict(step: DerivationStep) -> dict:
     }
     if step.step_id is not None:
         d["step_id"] = step.step_id
+    # Phase 10: only emit success when False (back-compat — default True
+    # means existing fixtures and rule emitters need not change).
+    if not step.success:
+        d["success"] = False
     return d
 
 
@@ -307,7 +311,18 @@ def _step_from_dict(d: dict, step_index: int) -> DerivationStep:
         raise DerivationSerializationError(
             f"steps[{step_index}].step_id must be a string or null"
         )
-    return DerivationStep(rule=rule, inputs=inputs, output=output, step_id=step_id)
+    # Phase 10: ``success`` is optional, default True. Failure-bearing
+    # rules emit success=False so the DataGapReport generator can pick
+    # them up when scanning derivation for unidentifiable / IV-missing /
+    # transport-failure signals.
+    success = d.get("success", True)
+    if not isinstance(success, bool):
+        raise DerivationSerializationError(
+            f"steps[{step_index}].success must be a boolean"
+        )
+    return DerivationStep(
+        rule=rule, inputs=inputs, output=output, step_id=step_id, success=success
+    )
 
 
 def _value_from_json(v: Any) -> Any:

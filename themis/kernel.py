@@ -576,3 +576,16 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"
         )
+
+    # Phase 10 §10.4: T10 audit of the data gap report (if attached).
+    # Independent of the derivation walk above — re-implements failure /
+    # coverage logic from scratch in themis.verifier.data_gap_rules.
+    gap_report = result.get("data_gap_report")
+    if gap_report is not None:
+        from .verifier.data_gap_rules import verify_data_gap_report
+        verify_data_gap_report(
+            gap_report,
+            derivation=derivation_json,
+            investigation_requests=result.get("investigation_requests", []),
+            framing_notes=result.get("framing_notes", []),
+        )

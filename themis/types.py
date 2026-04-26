@@ -459,11 +459,18 @@ class DerivationStep:
 
     ``inputs`` uses a ``dict`` for ergonomics — the dataclass itself is
     frozen, but callers should treat the dict as read-only.
+
+    ``success`` (Phase 10): false marks a step that ran but produced a
+    structural failure (e.g. backdoor_failed, iv_invalid). The Phase 10
+    DataGapReport generator scans success=false steps to emit
+    unidentifiable_no_admissible_set / missing_iv_candidate gaps.
+    Defaults to True so existing rule emitters need not be touched.
     """
     rule: str
     inputs: dict
     output: object
     step_id: str | None = None
+    success: bool = True
 
 
 @dataclass(frozen=True)
@@ -494,6 +501,101 @@ class ConfidenceSource:
     is_weakest: bool             # True iff confidence == the composite min
 
 
+# ============================================ Phase 10: DataGapReport
+#
+# Output (2) per VISION 定位收紧 (2026-04-26): structured "what data is
+# still needed to validate this causal claim" summary. The generator in
+# themis/output/data_gap_report.py is a pure function over derivation +
+# investigation_requests + framing_notes + extensions — no I/O.
+#
+# Schema mirror: query_result.schema.json#/$defs/{dataGapReport,dataGap}.
+
+
+class GapKind(str, Enum):
+    UNIDENTIFIABLE_NO_ADMISSIBLE_SET = "unidentifiable_no_admissible_set"
+    MISSING_DISTRIBUTION = "missing_distribution"
+    MISSING_POPULATION_DISTRIBUTION = "missing_population_distribution"
+    MISSING_ASSUMPTION = "missing_assumption"
+    MISSING_IV_CANDIDATE = "missing_iv_candidate"
+    MISSING_MEDIATOR_DATA = "missing_mediator_data"
+    TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN = "transport_target_distribution_unknown"
+    AMBIGUOUS_VARIABLE_DEFINITION = "ambiguous_variable_definition"
+
+
+class GapSeverity(str, Enum):
+    BLOCKING = "blocking"
+    IMPORTANT = "important"
+    INFORMATIONAL = "informational"
+
+
+class GapBlocks(str, Enum):
+    POINT_ESTIMATE = "point_estimate"
+    BOUNDS = "bounds"
+    IDENTIFICATION = "identification"
+    TRANSPORT = "transport"
+
+
+class GapRefKind(str, Enum):
+    DERIVATION_STEP = "derivation_step"
+    INVESTIGATION_REQUEST = "investigation_request"
+    FRAMING_NOTE = "framing_note"
+    VERIFIER_CHECK = "verifier_check"
+
+
+class RequiredDataType(str, Enum):
+    IPD = "ipd"
+    MARGINAL = "marginal"
+    RCT = "rct"
+    COHORT = "cohort"
+    CASE_CONTROL = "case_control"
+    EXPERT_JUDGMENT = "expert_judgment"
+
+
+@dataclass(frozen=True)
+class GapProvenanceRef:
+    """One signal (derivation step / investigation_request / framing_note /
+    verifier check) that triggered a DataGap. T10-1 verifier checks each
+    ref resolves to a real artifact in the result envelope."""
+    ref_kind: GapRefKind
+    ref_id: str
+
+
+@dataclass(frozen=True)
+class GapRequiredData:
+    """Optional 'what kind of data closes this gap' block. Generator fills
+    what it can infer from upstream signals; absent fields stay None."""
+    data_type: RequiredDataType | None = None
+    population: str | None = None
+    variables: tuple[str, ...] = ()
+    min_sample_size: int | None = None
+    precision_target: str | None = None
+
+
+@dataclass(frozen=True)
+class DataGap:
+    """A single data / assumption / structural shortfall blocking some
+    downstream output."""
+    kind: GapKind
+    severity: GapSeverity
+    description: str
+    blocks: GapBlocks
+    provenance: tuple[GapProvenanceRef, ...]
+    signature: str | None = None
+    required_data: GapRequiredData | None = None
+    if_provided: str | None = None
+    alternative_paths: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DataGapReport:
+    """Phase 10 top-level summary of what data / assumptions / structural
+    changes are still needed. Gaps are sorted by severity (blocking >
+    important > informational), then by derivation order."""
+    summary: str
+    gaps: tuple[DataGap, ...]
+    actionable_next_steps: tuple[str, ...] = ()
+
+
 @dataclass(frozen=True)
 class QueryResult:
     status: ResultStatus
@@ -510,3 +612,4 @@ class QueryResult:
     derivation: tuple[DerivationStep, ...] = ()
     explanation: str | None = None
     extensions: dict | None = None
+    data_gap_report: DataGapReport | None = None

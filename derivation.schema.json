@@ -284,7 +284,11 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/value" }
         },
-        "output": { "$ref": "#/$defs/value" }
+        "output": { "$ref": "#/$defs/value" },
+        "success": {
+          "type": "boolean",
+          "description": "Phase 10: false marks a derivation step that ran but produced a structural failure (e.g. backdoor_failed, iv_invalid, id_algorithm_failed). DataGapReport generator scans success=false steps to emit unidentifiable_no_admissible_set / missing_iv_candidate gaps. Default true; existing rules need not set this explicitly. Failure-bearing rules (those whose names end in _failed or whose semantics include 'criterion not met') MUST emit success=false."
+        }
       }
     }
   }

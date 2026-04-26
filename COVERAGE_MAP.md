@@ -1,6 +1,6 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-04-25
+> 更新时间：2026-04-26
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。
@@ -24,7 +24,12 @@
 | 11 | 连续 / 数据驱动估计 | **~50%** | **Phase 7.1-7.4 全部落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI）|
 | 12 | 因果发现 | **~40%** | **Phase 8.1 已落地**（PC/FCI/LiNGAM via causal-learn + kernel_ast suggestion path）；NOTEARS / RL discovery → Phase 9+ |
 
-**加权覆盖**：约 **60-70%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C + Phase 9 §T9.1** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实 / 转移性里程碑齐全。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）；Phase 9 §T9.1 case 29 跑通（跑步×人群转移）。
+**加权覆盖**：约 **60-70%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C + Phase 9 §T9.1 + Phase 10** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实 / 转移性里程碑齐全；**Phase 10 数据缺口诊断器**作为 VISION 定位收紧的输出 (2) 通道独立交付。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）；Phase 9 §T9.1 case 29 跑通；Phase 10 §10.5 五种 gap_kind e2e 全部跑通。
+
+> **Phase 10 不在 12 板块内**——它是输出层，不是新算法。但它是 Themis
+> 真正独占的生态位（"告诉用户去收什么数据"），见 VISION "定位收紧
+> (2026-04-26)" 节。所以从覆盖率角度它不计入板块，但从产品价值角度
+> 是一个独立里程碑。
 
 ---
 
@@ -34,12 +39,14 @@
 
 | 基础设施 | 状态 |
 |---|---|
-| NL↔JSON 桥（A1 v2.6.1 / A5 / A2 / response_rendering v3.1） | **~100%** |
+| NL↔JSON 桥（A1 v2.7 / A5 / A2 / response_rendering v3.2） | **~100%** |
 | 上游层 narrative_merge（变量+边对称合并 + compose_program） | **~100%**（down-payment；ROADMAP 真独立层 → 长期） |
 | V0-V5 独立 verifier（byte-code scan 钉独立性） | **~100%** |
-| Derivation JSON + 审计字段 | **~100%** |
+| **T10 DataGapReport 独立 verifier**（byte-code scan 钉独立性，Phase 10）| **~100%** |
+| Derivation JSON + 审计字段 + `success` 字段（Phase 10 标失败 step） | **~100%** |
 | 13 种 ambiguity kind 分类体系 | **~100%** |
-| Eval set (28 cases / F1-F22) + 真实 LLM 基线 | **~100%** |
+| **DataGapReport schema (8 gap_kind / 3 severity / 4 ref_kind, Phase 10)** | **~100%** |
+| Eval set (29 cases / F1-F26) + 真实 LLM 基线 | **~100%** |
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |
 | Theta 数值层 + confidence 聚合 | **~100%** |

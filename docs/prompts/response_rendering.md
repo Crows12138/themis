@@ -1,4 +1,4 @@
-# Structured result → Chinese reply prompt (Slice A1, v3)
+# Structured result → Chinese reply prompt (Slice A1, v3.2)
 
 Symmetric counterpart of [`nl_to_kernel_ast.md`](nl_to_kernel_ast.md). Consumes
 the structured JSON that `themis.run(...)` produces and emits a Chinese reply
@@ -26,6 +26,17 @@ v3 adds:
 - New micro-rules: §"numerically_solved with still-open
   investigation_requests", §"Schema mismatch disclosure",
   §"Structure-group rendering", §"framing_notes vs investigation_requests".
+
+**v3.2 updates (2026-04-26)** — Phase 10 §10.6. Adds the structured
+output-(2) channel:
+- New section §"Data gap report rendering (Phase 10)" — covers the
+  top-level `data_gap_report` field (8 gap_kind branches × Chinese
+  templates, severity-sort placement rule, multi-gap composition,
+  actionable_next_steps verbatim rendering).
+- New "do not skip the data gap report" rule in §"What NOT to do" —
+  surfacing 缺什么数据才能算 is half of Themis's value; silently
+  giving an answer while suppressing the gap section breaks the
+  contract.
 
 ## Role
 
@@ -733,6 +744,204 @@ If `s_nodes` is empty (no declared shifts) but the agent emitted
 - 永远不要把源人群的点估计当作目标人群的答案。这是 F25 失败模式
   的核心
 
+## Data gap report rendering (Phase 10)
+
+The kernel attaches a `data_gap_report` field to most `effect` /
+`identify` / `counterfactual` results. This is the **structured output
+(2)** per VISION 定位收紧 — it tells the user **what data is still
+needed to validate the causal claim**, separate from output (1) (the
+identification / verification result).
+
+> Themis 不是"什么因果问题都能给数字的工具"。它的承诺是**给数字时数字
+> 有出处，不能给时不会编**。`data_gap_report` 就是承担"不能给时告诉用
+> 户缺什么"那一半的渠道。**永远不要绕过它**——如果它非空，回复必须
+> surface 它的内容。
+
+### Field map
+
+| JSON path | Meaning | Render placement |
+|---|---|---|
+| `data_gap_report.summary` | One-line headline of the most blocking gap | First sentence of the gap section |
+| `data_gap_report.gaps[]` | Per-gap details, **already sorted** by severity (blocking → important → informational) then derivation order | One bullet per gap, in array order |
+| `data_gap_report.actionable_next_steps[]` | Generator-suggested next-step strings | Verbatim list at the end of the gap section |
+
+### Severity → user-facing language
+
+| Severity | Open with |
+|---|---|
+| `blocking` | **缺X不能给…** / **要Y必须先…** |
+| `important` | 给了答案，但需要假设 X / 警告 Y |
+| `informational` | 提示：变量定义有歧义，回答按当前理解给 |
+
+### Placement in the reply
+
+- If **any gap is `blocking`**: the gap section comes **right after the
+  one-sentence headline answer**, before any methodology / numeric
+  details. Users need to see "你的问题缺什么数据"前面，否则会以为答案
+  是完整的。
+- If **all gaps are `important` / `informational`**: gap section can
+  follow the main answer at the end as a "caveats" block.
+- If `data_gap_report` is `null` or `gaps == []` and status is
+  `numerically_solved` / `structurally_solved`: omit the gap section
+  entirely. Don't add fake "no gaps detected" boilerplate.
+
+### Per-kind Chinese templates
+
+Each template names the variables verbatim from `description` /
+`required_data` — never rename or translate predicate identifiers.
+
+#### `unidentifiable_no_admissible_set` (blocking)
+
+```
+在你给的因果图上，{X} → {Y} 的因果效应**结构上不可识别**——
+{description 里的具体原因，例如：X 和 Y 之间存在未观测的共同原因}。
+
+要算这个效应，你需要至少做以下一件事：
+- 测量并加入 unmeasured confounder Z（说明：找到那个共同原因变量并把它加入数据收集）
+- 在 X 上做随机干预实验（RCT），旁路 backdoor
+- 找一个满足 IV 三个条件 (relevance / exclusion / exchangeability) 的工具变量
+
+如果都做不到，最多只能给 bounds（区间），不能给点估计。
+```
+
+#### `missing_distribution` (blocking)
+
+```
+要给点估计，还缺一个{signature: marginal/conditional/joint}分布：
+**{description 里的 P(...)}**。
+
+数据需求：
+- 类型：{required_data.data_type — IPD/marginal/RCT/cohort}
+- 人群：{required_data.population，如有}
+- 变量：{required_data.variables，如有}
+
+如果暂时拿不到这个分布，可以接受 Balke-Pearl bounds 给区间答案，
+代价是不给点估计。
+```
+
+#### `missing_population_distribution` (blocking) — *placeholder, see §T9.2 future*
+
+(Currently no kernel path emits this — keep template ready for §T9.2 /
+§T9.3 multi-source transport.)
+
+#### `missing_assumption` (important)
+
+```
+识别需要一个**未在数据中可证伪的假设**：{description 里的 assumption 名，
+例如 monotonicity / sequential ignorability}。
+
+如果接受这个假设，可给点估计；如果不接受，回退到：
+- bounds 而非点估计 (Balke-Pearl / Manski)
+- 或运行 sensitivity analysis 量化"假设违反多严重才能改变结论"
+```
+
+#### `missing_iv_candidate` (important)
+
+```
+你描述的图里没有满足 IV 条件的工具变量（{description 里指出失败的具体路径}）。
+
+替代路径：
+- 改用 backdoor 路径（如可调整集存在）
+- 改用 front-door 路径（如有有效中介）
+- 或：找一个新变量 Z 同时满足 (a) 和 X 相关 (b) 不直接影响 Y
+  (c) 与 X-Y 之间无共同未观测原因
+```
+
+#### `missing_mediator_data` (blocking)
+
+```
+中介分解（NDE / NIE / TE）需要 **{required_data.variables[0]}**
+相关分布：{description 里的 P(...)}。
+
+替代方案：
+- 回退到 CDE（Controlled Direct Effect，控制中介值给条件直接效应）
+- 退回 total effect，不分解
+```
+
+#### `transport_target_distribution_unknown` (blocking)
+
+```
+转移公式已经识别出来了（见上方 transport_identification），
+但**目标人群 {target_population} 在 {Z 列表} 上的边缘分布 P*(Z) 还没有数据**。
+
+数据需求：
+- 类型：marginal（人群级统计就够，不需要 individual data）
+- 人群：{required_data.population}
+- 变量：{required_data.variables 里所有 Z}
+- 来源建议：NHANES / UK Biobank / 中国 CDC / 国家统计局人口学统计
+
+如果暂时拿不到 P*(Z)：可以接受源人群 ATE 作为粗略估计（外推有效性弱），
+或等待 §T9.2 transport sensitivity 给区间。
+```
+
+#### `ambiguous_variable_definition` (informational)
+
+```
+注意：变量 `{predicate}` 缺操作化定义（{missing fields 列表}）。
+当前回答是**按 LLM 默认理解给的**——如果你的实际定义和默认不同，
+回答可能完全不适用。
+
+建议在追问时明确：
+- {missing 中的每一项，给一个具体例子}
+```
+
+### Multi-gap composition
+
+When `gaps` has multiple entries:
+
+```markdown
+你的问题在结构 / 数据层有 N 个缺口（按阻塞性排序）：
+
+1. **[blocking]** {第一个 gap 的简短说明}
+2. **[blocking]** {第二个}
+3. **[important]** {…}
+4. *[informational]* {…}
+
+要让这个问题真正能回答，至少需要补 #1 和 #2。
+```
+
+Don't reorder — `gaps` is already sorted. Don't merge gaps of different
+kinds. Don't drop informational gaps just because the user "probably"
+won't care — let them decide.
+
+### Actionable next steps
+
+If `actionable_next_steps[]` is non-empty, render verbatim as a
+bulleted list at the END of the gap section. These are
+generator-curated suggestions — don't paraphrase, don't reorder.
+
+```markdown
+**接下来可以做的：**
+- {actionable_next_steps[0]}
+- {actionable_next_steps[1]}
+- ...
+```
+
+### Important: don't conflate with `investigation_requests`
+
+The two channels overlap intentionally:
+
+- `investigation_requests` is the **machine-actionable patch surface** —
+  used by `apply_patch_and_run` to round-trip a fix back into the kernel.
+  Render it when the user can paste back a value.
+- `data_gap_report.gaps` is the **diagnostic surface** — explains *why*
+  data is needed and *what kind*. Render it always when present.
+
+When both are present, render the data gap explanation FIRST (it
+answers "why am I being asked"), then the investigation request
+(answers "here's the form to paste back").
+
+### When to omit the gap section entirely
+
+- `data_gap_report` is `null` or absent
+- `data_gap_report.gaps == []` AND status ∈ `{numerically_solved,
+  structurally_solved, counterfactual_solved}`
+
+In all other cases, the gap section is **mandatory** even if it
+duplicates information visible elsewhere — explicit beats implicit.
+
+---
+
 ## What NOT to do
 
 - Do not invent missing fields not listed in the JSON (if the JSON says
@@ -752,3 +961,9 @@ If `s_nodes` is empty (no declared shifts) but the agent emitted
   `program.extensions.ambiguities` is non-empty, every entry must
   appear in your reply. Silently taking the A1-chosen reading without
   showing the user the alternatives defeats the entire F3 fix
+- **Do not skip the data gap report** (Phase 10 / VISION 定位收紧) —
+  if `data_gap_report` is non-null and `gaps` is non-empty, the gap
+  section is **mandatory** in the reply. Surfacing "缺什么数据才能算"
+  is half of Themis's value proposition; silently giving an answer
+  while suppressing the gap section breaks the contract that "不能给
+  数字时不会编"
