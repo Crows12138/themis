@@ -54,6 +54,7 @@ from .types import (
     ProbabilityStatement,
     Program,
     QueryStatement,
+    SelectionNode,
     StructuralResult,
     Term,
     ValuedAtom,
@@ -276,6 +277,18 @@ def _statement_to_dict(s) -> dict:
         return d
     if isinstance(s, QueryStatement):
         return {"kind": "query", "id": s.id, "query": _query_to_dict(s.query)}
+    if isinstance(s, SelectionNode):
+        d = {
+            "kind": "selection_node",
+            "id": s.id,
+            "affects": _atom_to_dict(s.affects),
+            "source_population": s.source_population,
+            "target_population": s.target_population,
+        }
+        ann = _annotation_to_dict(s.annotations)
+        if ann is not None:
+            d["annotations"] = ann
+        return d
     raise TypeError(f"unknown statement: {type(s).__name__}")
 
 

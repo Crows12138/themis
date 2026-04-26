@@ -122,7 +122,16 @@ trail to the rendered reply:
 
 `themis.apply_patch_and_run` accepts two bundle kinds. Use parameter
 fills for missing distributions, framing fills for ambiguous variable
-definitions:
+definitions.
+
+For Q2 "world has it" gaps, prefer the structured KB lookup flow in
+[`kb_lookup.md`](kb_lookup.md): `themis.kb.gap_to_kb_query` builds a
+typed `KBQuery`, the adapter (or `WebSearchProxyAdapter` wrapping a
+client search function) returns a `KBResult`, and
+`themis.kb.kb_results_to_bundle` produces the bundle below
+automatically — with `provenance.citation` carried verbatim into
+`annotations.source`. Hand-build the bundle only when no adapter
+framework is in use.
 
 ```json
 // parameter_fill_bundle — for missing_distribution / missing_mediator_data /

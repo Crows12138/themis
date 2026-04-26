@@ -48,9 +48,14 @@ def test_server_exposes_prompt_and_schema_resources(app):
     assert "themis://prompts/response_rendering.md" in uris
     # Phase 11.1 — agent loop closure
     assert "themis://prompts/gap_to_action.md" in uris
+    # Phase 11.2 — KB adapter contract
+    assert "themis://prompts/kb_lookup.md" in uris
     # schemas
     assert "themis://schemas/kernel_ast.schema.json" in uris
     assert "themis://schemas/query_result.schema.json" in uris
+    # Phase 11.2 — KB schemas
+    assert "themis://schemas/kb_query.schema.json" in uris
+    assert "themis://schemas/kb_result.schema.json" in uris
 
 
 # ============================================ tool behavior
