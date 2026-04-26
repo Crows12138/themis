@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://themis.example/kb_result.schema.json",
+  "title": "KBResult",
+  "description": "Adapter response Themis routes back into apply_patch_and_run. Phase 11.2.",
+  "type": "object",
+  "required": ["query", "success", "provenance"],
+  "additionalProperties": false,
+  "properties": {
+    "query": {"$ref": "#/$defs/kbQuery"},
+    "success": {"type": "boolean"},
+    "provenance": {"$ref": "#/$defs/kbProvenance"},
+    "value": {"type": ["number", "null"]},
+    "interval": {
+      "type": ["array", "null"],
+      "items": {"type": "number"},
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "sample_size": {"type": ["integer", "null"]},
+    "population_in_source": {"type": ["string", "null"]},
+    "failure_reason": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "kbQuery": {
+      "type": "object",
+      "required": ["kb_name", "query_kind", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "kb_name": {"type": "string"},
+        "query_kind": {
+          "type": "string",
+          "enum": [
+            "marginal_distribution",
+            "conditional_distribution",
+            "joint_distribution",
+            "stratified_subgroup",
+            "iv_candidate",
+            "mediator_distribution",
+            "target_population_marginal"
+          ]
+        },
+        "target": {
+          "type": "object",
+          "required": ["predicate"],
+          "properties": {
+            "predicate": {"type": "string"},
+            "args": {"type": "array"},
+            "value": {}
+          }
+        },
+        "given": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["predicate"],
+            "properties": {
+              "predicate": {"type": "string"},
+              "args": {"type": "array"},
+              "value": {}
+            }
+          }
+        },
+        "population": {"type": ["string", "null"]},
+        "constraints": {"type": ["object", "null"]},
+        "raw_string": {"type": ["string", "null"]}
+      }
+    },
+    "kbProvenance": {
+      "type": "object",
+      "required": [
+        "source_kb",
+        "query_used",
+        "retrieved_at",
+        "raw_response_hash",
+        "citation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_kb": {"type": "string"},
+        "query_used": {"$ref": "#/$defs/kbQuery"},
+        "retrieved_at": {
+          "type": "string",
+          "description": "ISO 8601 timestamp"
+        },
+        "raw_response_hash": {
+          "type": "string",
+          "description": "sha256 of the raw adapter response, for reproducibility audit"
+        },
+        "citation": {
+          "type": "string",
+          "description": "PMID / DOI / dataset+row / URL — copied into patch annotations.source"
+        },
+        "confidence_grade": {
+          "type": "string",
+          "enum": [
+            "rct_meta_analysis",
+            "single_rct",
+            "cohort",
+            "case_control",
+            "expert_opinion",
+            "unknown"
+          ],
+          "default": "unknown"
+        },
+        "notes": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://themis.example/kb_query.schema.json",
+  "title": "KBQuery",
+  "description": "Structured ask Themis hands to a KB adapter. Phase 11.2.",
+  "type": "object",
+  "required": ["kb_name", "query_kind", "target"],
+  "additionalProperties": false,
+  "properties": {
+    "kb_name": {
+      "type": "string",
+      "description": "Adapter identifier the registry routes to."
+    },
+    "query_kind": {
+      "type": "string",
+      "enum": [
+        "marginal_distribution",
+        "conditional_distribution",
+        "joint_distribution",
+        "stratified_subgroup",
+        "iv_candidate",
+        "mediator_distribution",
+        "target_population_marginal"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "description": "Atom-shape dict identifying what's asked about.",
+      "required": ["predicate"],
+      "properties": {
+        "predicate": {"type": "string"},
+        "args": {"type": "array"},
+        "value": {}
+      }
+    },
+    "given": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["predicate"],
+        "properties": {
+          "predicate": {"type": "string"},
+          "args": {"type": "array"},
+          "value": {}
+        }
+      },
+      "default": []
+    },
+    "population": {"type": ["string", "null"]},
+    "constraints": {"type": ["object", "null"]},
+    "raw_string": {"type": ["string", "null"]}
+  }
+}
