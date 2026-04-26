@@ -183,7 +183,26 @@ def to_dict(result: QueryResult) -> dict:
         d["extensions"] = result.extensions
     if result.data_gap_report is not None:
         d["data_gap_report"] = _data_gap_report_to_dict(result.data_gap_report)
+    if result.bounds_result is not None:
+        d["bounds_result"] = _bounds_result_to_dict(result.bounds_result)
     return d
+
+
+def _bounds_result_to_dict(b) -> dict:
+    out: dict = {
+        "method": b.method.value,
+        "lower_expression": b.lower_expression,
+        "upper_expression": b.upper_expression,
+    }
+    if b.assumptions:
+        out["assumptions"] = list(b.assumptions)
+    if b.data_required:
+        out["data_required"] = list(b.data_required)
+    if b.width_when_uninformative:
+        out["width_when_uninformative"] = True
+    if b.notes is not None:
+        out["notes"] = b.notes
+    return out
 
 
 def _data_gap_report_to_dict(report: DataGapReport) -> dict:

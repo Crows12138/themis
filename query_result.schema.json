@@ -347,6 +347,13 @@
         { "type": "null" }
       ],
       "description": "Phase 10: structured 'what data is still needed to validate this causal claim' summary. Null for query kinds that don't carry data needs (cause / assoc) or when no gaps detected. Generator: themis/output/data_gap_report.py — pure function over derivation + investigation_requests + framing_notes + extensions, no I/O."
+    },
+    "bounds_result": {
+      "oneOf": [
+        { "$ref": "#/$defs/boundsResult" },
+        { "type": "null" }
+      ],
+      "description": "Phase 12: symbolic bounds on the queried estimand when point identification fails. Null when point is identifiable, when bounds method doesn't apply, or for non-effect queries. Generator: themis/output/bounds.py."
     }
   },
   "$defs": {
@@ -668,6 +675,45 @@
             { "$ref": "#/$defs/variablePatch" }
           ]
         }
+      }
+    },
+    "boundsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "lower_expression", "upper_expression"],
+      "description": "Phase 12: symbolic bounds attached when point identification fails. Expressions are over observable distributions; numeric evaluation lives in the future estimator layer.",
+      "properties": {
+        "method": {
+          "enum": [
+            "manski_natural",
+            "balke_pearl_iv",
+            "frontdoor_partial",
+            "manski_tamer_monotonicity"
+          ]
+        },
+        "lower_expression": {
+          "type": "string",
+          "description": "Symbolic expression for the lower bound, e.g. 'max(0, P(Y=1|X=1) - P(X=0))'."
+        },
+        "upper_expression": {
+          "type": "string"
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Method-specific assumptions (Manski natural: empty; Balke-Pearl: IV1/IV2/IV3)."
+        },
+        "data_required": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Observable distributions a client must supply to evaluate the expressions."
+        },
+        "width_when_uninformative": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when bounds collapse to the trivial range (e.g. [-1, 1] for risk difference) — answer is honest but not useful."
+        },
+        "notes": {"type": ["string", "null"]}
       }
     },
     "dataGapReport": {

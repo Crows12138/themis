@@ -619,3 +619,49 @@ class QueryResult:
     explanation: str | None = None
     extensions: dict | None = None
     data_gap_report: DataGapReport | None = None
+    bounds_result: "BoundsResult | None" = None  # Phase 12 — symbolic bounds
+
+
+# ---------------------------------------------------------------------------
+# Phase 12 — bounds-first output channel
+#
+# When point identification fails (no admissible adjustment set / missing
+# distribution / refused assumption), the validator computes information-
+# preserving bounds instead of staying silent. Symbolic only in this phase
+# — the client (or future numeric estimator) plugs in observed
+# distributions to get a numeric interval.
+#
+# Schema mirror: query_result.schema.json#/$defs/boundsResult.
+
+
+class BoundsMethod(str, Enum):
+    MANSKI_NATURAL = "manski_natural"
+    BALKE_PEARL_IV = "balke_pearl_iv"
+    FRONTDOOR_PARTIAL = "frontdoor_partial"
+    MANSKI_TAMER_MONOTONICITY = "manski_tamer_monotonicity"
+
+
+@dataclass(frozen=True)
+class BoundsResult:
+    """Symbolic bounds on the queried estimand.
+
+    `lower_expression` and `upper_expression` are human-readable strings
+    over observable quantities (e.g. ``"max(0, P(Y=1|X=1) - P(X=0))"``).
+    Future numeric layer evaluates these against a DataFrame; for now
+    they document what the bounds *would be* given observable data.
+
+    `width_when_uninformative` flag is True when the bounds reduce to
+    the trivial [-1, 1] / [0, 1] range — the answer is honest but
+    useless, so the renderer warns the user.
+
+    `assumptions` lists what the method requires (e.g. Manski has none;
+    Balke-Pearl needs IV1/IV2/IV3). `data_required` lists the observable
+    distributions a client would need to evaluate the expressions.
+    """
+    method: BoundsMethod
+    lower_expression: str
+    upper_expression: str
+    assumptions: tuple[str, ...] = ()
+    data_required: tuple[str, ...] = ()
+    width_when_uninformative: bool = False
+    notes: str | None = None
