@@ -33,6 +33,11 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from .sample_size import (
+    estimate_min_n_single_proportion,
+    estimate_min_n_two_arm_binary,
+    is_binary_outcome_distribution,
+)
 from ..types import (
     DataGap,
     DataGapReport,
@@ -219,6 +224,9 @@ def _classify_missing_distribution(
                 "parameter:"
             ) else target
             signature = _distribution_signature(display)
+            min_n, precision = _estimate_sample_size_for_distribution(
+                display, signature,
+            )
             yield DataGap(
                 kind=GapKind.MISSING_DISTRIBUTION,
                 severity=GapSeverity.BLOCKING,
@@ -231,6 +239,8 @@ def _classify_missing_distribution(
                         if signature == "conditional"
                         else RequiredDataType.MARGINAL
                     ),
+                    min_sample_size=min_n,
+                    precision_target=precision,
                 ),
                 if_provided="可给点估计",
                 alternative_paths=(
@@ -537,6 +547,26 @@ def _distribution_signature(target: str) -> str | None:
     if "," in target:
         return "joint"
     return "marginal"
+
+
+def _estimate_sample_size_for_distribution(
+    display: str, signature: str | None,
+) -> tuple[int | None, str | None]:
+    """Map a missing-distribution gap to (min_n, precision_target).
+
+    Only fires for binary-outcome distributions — the heuristic sniffs
+    the rendered ``P(y=true|...)`` form. Continuous / unknown outcomes
+    return ``(None, None)`` so the caller leaves the field unset.
+
+    Conditional → two-arm binary comparison (Cohen's h power calc).
+    Marginal / joint → single-proportion ± precision (worst-case p=0.5).
+    """
+    if not is_binary_outcome_distribution(display):
+        return None, None
+    if signature == "conditional":
+        return estimate_min_n_two_arm_binary()
+    # marginal or joint — single proportion suffices for the lead variable
+    return estimate_min_n_single_proportion()
 
 
 def _step_ref(step: DerivationStep) -> GapProvenanceRef:

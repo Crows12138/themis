@@ -157,6 +157,18 @@ fallback) is constant; the substance comes from the JSON's
 `description` and `required_data` fields. Never invent a fallback the
 generator didn't suggest.
 
+**Sample-size hint**: when `required_data.min_sample_size` is set
+(currently fires for binary-outcome `missing_distribution` gaps), name
+it as a concrete target so the user knows the floor:
+
+> 数据规模建议：n ≥ {min_sample_size}（{precision_target}）
+
+When `min_sample_size` is null, do **not** invent a number — the
+generator deliberately abstains for continuous outcomes / mediation /
+IV / transport because the power calc needs information the gap
+doesn't carry. "n ≥ ?" with a "depends on outcome scale" caveat is
+honest; a guessed number is not.
+
 **Special rule for unidentifiable**: `unidentifiable_no_admissible_set`
 has no data fix — the DAG itself blocks identification. Its shape
 swaps "what fills it" for the verbatim `alternative_paths` field:
