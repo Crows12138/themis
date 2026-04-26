@@ -515,7 +515,40 @@ def _make_actionable_steps(gaps: list[DataGap]) -> list[str]:
         if gap.severity == GapSeverity.INFORMATIONAL:
             continue
         if gap.if_provided:
-            steps.append(f"补 {gap.description} → {gap.if_provided}")
+            steps.append(f"补 {_short_label_for(gap)} → {gap.if_provided}")
         if gap.alternative_paths:
             steps.append(f"或：{gap.alternative_paths[0]}")
     return steps
+
+
+def _short_label_for(gap: DataGap) -> str:
+    """A noun-phrase label for the actionable_next_steps line. The full
+    ``description`` is a complete sentence — concatenating it into "补 X
+    → Y" produces a wall of text. Each gap_kind gets a concise label
+    that names *what is missing* in 1-3 nouns."""
+    rd = gap.required_data
+    if gap.kind == GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN:
+        if rd and rd.variables:
+            vars_str = ", ".join(rd.variables)
+            pop = rd.population or "目标人群"
+            return f"P*({vars_str}) on {pop}"
+        return "目标人群上的 P*(Z)"
+    if gap.kind == GapKind.MISSING_DISTRIBUTION:
+        # gap.description is already "缺概率分布 P(...)" — strip the prefix.
+        prefix = "缺概率分布 "
+        if gap.description.startswith(prefix):
+            return gap.description[len(prefix):]
+        return gap.description
+    if gap.kind == GapKind.MISSING_POPULATION_DISTRIBUTION:
+        return "目标人群分布"
+    if gap.kind == GapKind.MISSING_ASSUMPTION:
+        return "识别假设"
+    if gap.kind == GapKind.MISSING_IV_CANDIDATE:
+        return "有效的工具变量"
+    if gap.kind == GapKind.MISSING_MEDIATOR_DATA:
+        if rd and rd.variables:
+            return f"中介 {rd.variables[0]} 的相关分布"
+        return "中介相关分布"
+    if gap.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET:
+        return "可识别的调整集 / 替代识别路径"
+    return gap.description

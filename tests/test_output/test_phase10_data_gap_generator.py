@@ -453,6 +453,55 @@ def test_actionable_steps_skip_informational_gaps():
     assert report.actionable_next_steps == ()
 
 
+def test_actionable_steps_use_short_label_for_transport():
+    """The actionable_next_steps line for transport must be a concise
+    label like 'P*(age, sex, bmi) on user', NOT the full description
+    sentence — verbatim render of the full description bloats the
+    user-facing reply."""
+    extensions = {
+        "transport_identification": {
+            "kind": "transport_identification",
+            "target_population": "user",
+            "adjustment_set": [
+                {"predicate": "age", "args": [{"type": "const", "name": "me"}]},
+                {"predicate": "sex", "args": [{"type": "const", "name": "me"}]},
+                {"predicate": "bmi", "args": [{"type": "const", "name": "me"}]},
+            ],
+            "formula_repr": "...",
+        }
+    }
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        extensions=extensions,
+    )
+    fix_step = next(
+        s for s in report.actionable_next_steps if s.startswith("补 ")
+    )
+    # Concise label, not the full description sentence.
+    assert "P*(age, sex, bmi)" in fix_step
+    assert "on user" in fix_step
+    # The verbose phrase from description should NOT bleed into the
+    # actionable line.
+    assert "未提供" not in fix_step
+    assert "已识别" not in fix_step
+
+
+def test_actionable_steps_use_short_label_for_missing_distribution():
+    requests = (_param_request([("P(y=true|x=true)", None)]),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    fix_step = next(
+        s for s in report.actionable_next_steps if s.startswith("补 ")
+    )
+    # Just the P(...) part, no "缺概率分布 " prefix.
+    assert "P(y=true|x=true)" in fix_step
+    assert "缺概率分布" not in fix_step
+
+
 def test_actionable_steps_include_alternative_path():
     derivation = (_failed_step("unidentifiable_via_backdoor"),)
     report = compute_data_gap_report(
