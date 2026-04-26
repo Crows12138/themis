@@ -211,17 +211,26 @@ def test_transport_emits_blocking_gap():
     result = out["results"][0]
     report = result.get("data_gap_report")
     assert report is not None
-    assert "transport_target_distribution_unknown" in _gap_kinds(report)
+    kinds = _gap_kinds(report)
+    # Bareinboim formula has two data needs — both gap_kinds must fire.
+    assert "transport_target_distribution_unknown" in kinds
+    assert "transport_source_conditional_unknown" in kinds
 
-    gap = next(
+    target = next(
         g for g in report["gaps"]
         if g["kind"] == "transport_target_distribution_unknown"
     )
-    assert gap["severity"] == "blocking"
-    assert gap["blocks"] == "transport"
-    assert gap["required_data"]["population"] == "user"
-    # All three shifted Zs (age, sex, bmi) must be requested.
-    assert set(gap["required_data"]["variables"]) >= {"age", "sex", "bmi"}
+    assert target["severity"] == "blocking"
+    assert target["blocks"] == "transport"
+    assert target["required_data"]["population"] == "user"
+    assert set(target["required_data"]["variables"]) >= {"age", "sex", "bmi"}
+
+    source = next(
+        g for g in report["gaps"]
+        if g["kind"] == "transport_source_conditional_unknown"
+    )
+    assert source["required_data"]["data_type"] == "ipd"
+    assert source["required_data"]["population"] == "rct_meta_2022"
 
 
 # ============================================ 5. ambiguous_variable_definition

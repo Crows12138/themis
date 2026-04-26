@@ -111,6 +111,7 @@ def test_data_gap_report_empty_gaps_validates():
         "missing_iv_candidate",
         "missing_mediator_data",
         "transport_target_distribution_unknown",
+        "transport_source_conditional_unknown",
         "ambiguous_variable_definition",
     ],
 )

@@ -251,6 +251,9 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "transport_target_distribution_unknown": frozenset(
         {"derivation_step", "investigation_request"}
     ),
+    "transport_source_conditional_unknown": frozenset(
+        {"derivation_step", "investigation_request"}
+    ),
     "ambiguous_variable_definition": frozenset({"framing_note"}),
 }
 

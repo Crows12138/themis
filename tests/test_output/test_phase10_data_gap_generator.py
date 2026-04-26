@@ -323,7 +323,11 @@ def test_mediation_block_without_invalid_mediator_emits_no_mediator_gap():
 # ============================================ 7. transport_target_distribution_unknown
 
 
-def test_transport_block_with_nonempty_z_emits_transport_gap():
+def test_transport_block_with_nonempty_z_emits_both_transport_gaps():
+    """Bareinboim formula has TWO data needs: target P*(Z) AND source
+    P(Y|do(X), Z). Both must be reported — meta-analyses publishing only
+    marginal effects make the source-stratified conditional often the
+    real bottleneck."""
     extensions = {
         "transport_identification": {
             "kind": "transport_identification",
@@ -333,7 +337,11 @@ def test_transport_block_with_nonempty_z_emits_transport_gap():
                 {"predicate": "age", "args": [{"type": "const", "name": "me"}]},
                 {"predicate": "bmi", "args": [{"type": "const", "name": "me"}]},
             ],
-            "formula_repr": "P*(y|do(x)) = ...",
+            "formula_repr": (
+                "P*(belly_fat_loss | do(running)) = "
+                "Σ_{age, bmi} P(belly_fat_loss | do(running), age, bmi) "
+                "· P*(age, bmi)"
+            ),
         }
     }
     report = compute_data_gap_report(
@@ -341,14 +349,29 @@ def test_transport_block_with_nonempty_z_emits_transport_gap():
         status=ResultStatus.STRUCTURALLY_SOLVED,
         extensions=extensions,
     )
-    transport_gaps = [
+    target_gaps = [
         g for g in report.gaps
         if g.kind == GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN
     ]
-    assert len(transport_gaps) == 1
-    g = transport_gaps[0]
-    assert g.required_data.population == "user_28f"
-    assert set(g.required_data.variables) == {"age", "bmi"}
+    source_gaps = [
+        g for g in report.gaps
+        if g.kind == GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN
+    ]
+    assert len(target_gaps) == 1
+    assert len(source_gaps) == 1
+
+    target = target_gaps[0]
+    assert target.required_data.population == "user_28f"
+    assert target.required_data.data_type.value == "marginal"
+    assert set(target.required_data.variables) == {"age", "bmi"}
+
+    source = source_gaps[0]
+    assert source.required_data.population == "meta_2022"
+    assert source.required_data.data_type.value == "ipd"
+    assert set(source.required_data.variables) == {"age", "bmi"}
+    # description should reference the predicate names from formula_repr
+    assert "running" in source.description
+    assert "belly_fat_loss" in source.description
 
 
 def test_transport_block_with_empty_z_emits_no_transport_gap():
@@ -454,20 +477,21 @@ def test_actionable_steps_skip_informational_gaps():
 
 
 def test_actionable_steps_use_short_label_for_transport():
-    """The actionable_next_steps line for transport must be a concise
-    label like 'P*(age, sex, bmi) on user', NOT the full description
-    sentence — verbatim render of the full description bloats the
-    user-facing reply."""
+    """The actionable_next_steps lines for transport must be concise
+    labels — verbatim render of the full description sentence bloats
+    the user-facing reply. Two gaps fire (target + source); both must
+    use short labels."""
     extensions = {
         "transport_identification": {
             "kind": "transport_identification",
+            "source_population": "rct_meta",
             "target_population": "user",
             "adjustment_set": [
                 {"predicate": "age", "args": [{"type": "const", "name": "me"}]},
                 {"predicate": "sex", "args": [{"type": "const", "name": "me"}]},
                 {"predicate": "bmi", "args": [{"type": "const", "name": "me"}]},
             ],
-            "formula_repr": "...",
+            "formula_repr": "P*(y | do(x)) = ...",
         }
     }
     report = compute_data_gap_report(
@@ -475,16 +499,24 @@ def test_actionable_steps_use_short_label_for_transport():
         status=ResultStatus.STRUCTURALLY_SOLVED,
         extensions=extensions,
     )
-    fix_step = next(
+    fix_steps = [
         s for s in report.actionable_next_steps if s.startswith("补 ")
-    )
-    # Concise label, not the full description sentence.
-    assert "P*(age, sex, bmi)" in fix_step
-    assert "on user" in fix_step
-    # The verbose phrase from description should NOT bleed into the
-    # actionable line.
-    assert "未提供" not in fix_step
-    assert "已识别" not in fix_step
+    ]
+    # Two transport gaps → two "补 ..." lines.
+    assert len(fix_steps) == 2
+
+    # Target-side line: "P*(age, sex, bmi) on user".
+    target_line = next(s for s in fix_steps if "P*(" in s)
+    assert "P*(age, sex, bmi)" in target_line
+    assert "on user" in target_line
+    # Source-side line: "P(Y|do(X), age, sex, bmi) 在 rct_meta 上的分层..."
+    source_line = next(s for s in fix_steps if "P(Y|do(X)" in s)
+    assert "rct_meta" in source_line
+
+    # Verbose phrase from full description must not bleed into either.
+    for line in fix_steps:
+        assert "未提供" not in line
+        assert "已识别" not in line
 
 
 def test_actionable_steps_use_short_label_for_missing_distribution():

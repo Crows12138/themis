@@ -706,6 +706,7 @@
             "missing_iv_candidate",
             "missing_mediator_data",
             "transport_target_distribution_unknown",
+            "transport_source_conditional_unknown",
             "ambiguous_variable_definition"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."

@@ -874,6 +874,29 @@ Each template names the variables verbatim from `description` /
 或等待 §T9.2 transport sensitivity 给区间。
 ```
 
+#### `transport_source_conditional_unknown` (blocking)
+
+```
+转移公式还需要源人群（{source_population}）的**分层条件分布**：
+**{description 里的 P(Y | do(X), Z) 形式}**。
+
+数据需求：
+- 类型：IPD（individual data）或 RCT subgroup table
+- 人群：{required_data.population}
+- 变量：{required_data.variables 里所有 Z}
+
+⚠ **这一项往往才是真正的瓶颈**——meta-analysis 通常只汇总成一个数字
+（"平均下降 X cm"），不给分层。要拿到分层数据需要：
+- 找原始 RCT 的 IPD（联系作者 / 看 supplementary table）
+- 找 meta-analysis 的 subgroup analysis（按相关 Z 分层）
+- 退而求其次：找单个最匹配你子群的小型 RCT，承担样本量小的代价
+```
+
+> **重要**：transport 路径下两个 gap 同时出现是常态——
+> `transport_target_distribution_unknown`（目标 P*(Z)）和
+> `transport_source_conditional_unknown`（源分层条件 P(Y|do(X),Z)）。
+> 二者是 Bareinboim 公式的**两个独立加数**，缺一不可，**必须都报告**。
+
 #### `ambiguous_variable_definition` (informational)
 
 ```

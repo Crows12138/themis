@@ -519,6 +519,12 @@ class GapKind(str, Enum):
     MISSING_IV_CANDIDATE = "missing_iv_candidate"
     MISSING_MEDIATOR_DATA = "missing_mediator_data"
     TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN = "transport_target_distribution_unknown"
+    # Bareinboim transport formula has TWO data needs: target P*(Z) AND
+    # source P(Y|do(X), Z). Most meta-analyses only publish marginal
+    # effects, so the source-stratified conditional is often the real
+    # bottleneck — surfaced as its own gap_kind so the diagnosis names
+    # it explicitly.
+    TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN = "transport_source_conditional_unknown"
     AMBIGUOUS_VARIABLE_DEFINITION = "ambiguous_variable_definition"
 
 

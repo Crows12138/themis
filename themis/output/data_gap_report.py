@@ -397,18 +397,33 @@ def _classify_missing_mediator(
 def _classify_transport_target_distribution(
     extensions: dict,
 ) -> Iterable[DataGap]:
+    """Bareinboim transport formula:
+
+        P*(y|do(x)) = Σ_z P(y|do(x), z) · P*(z)
+
+    Two distinct data needs that ``§T9.1`` structural identification
+    leaves open — both must be filled before §T9.2 can produce a
+    transport-adjusted point estimate:
+
+    1. Target-side ``P*(z)`` — population-level marginal on Z (this gap)
+    2. Source-side ``P(y|do(x), z)`` — RCT subgroup / IPD stratification
+       (the second gap, often the real bottleneck since most
+       meta-analyses only publish marginal effects)
+
+    Both are emitted whenever a transport_identification block exists
+    with a non-empty adjustment set."""
     block = extensions.get("transport_identification")
     if not block:
         return
     adjustment_set = block.get("adjustment_set", []) or []
-    target_pop = block.get("target_population")
     if not adjustment_set:
         return
-    # Phase 9 §T9.1 only solves to formula shape; the target-population
-    # distribution P*(Z) is never quantified by the kernel. So whenever
-    # a transport block carries a non-empty adjustment set we know
-    # P*(Z) is open data work for the user.
+    target_pop = block.get("target_population")
+    source_pop = block.get("source_population")
     z_names = ", ".join(_atom_label(a) for a in adjustment_set)
+    treatment, outcome = _transport_treatment_outcome(block)
+
+    # 1. Target-side P*(Z) — population marginal.
     yield DataGap(
         kind=GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN,
         severity=GapSeverity.BLOCKING,
@@ -433,6 +448,60 @@ def _classify_transport_target_distribution(
             ),
         ),
     )
+
+    # 2. Source-side P(Y|do(X), Z) — stratified conditional.
+    # Often the real bottleneck since meta-analyses publish marginal
+    # effects (one number) rather than per-subgroup tables.
+    if treatment and outcome:
+        formula_repr = (
+            f"P({outcome} | do({treatment}), {z_names})"
+        )
+    else:
+        formula_repr = "P(Y | do(X), Z)"
+    yield DataGap(
+        kind=GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN,
+        severity=GapSeverity.BLOCKING,
+        description=(
+            f"转移公式还需要源人群 {source_pop or '<未命名>'} 的"
+            f"分层条件分布 {formula_repr}（meta-analysis 通常只汇总"
+            "成一个数，不给分层）"
+        ),
+        blocks=GapBlocks.TRANSPORT,
+        required_data=GapRequiredData(
+            data_type=RequiredDataType.IPD,
+            population=source_pop,
+            variables=tuple(_atom_label(a) for a in adjustment_set),
+        ),
+        if_provided="可给目标人群的 transport-adjusted ATE 点估计",
+        alternative_paths=(
+            "找原始 RCT IPD（联系作者 / 看附件 supplementary table）",
+            "找 meta-analysis 的 subgroup analysis（按 age / sex / BMI 分层）",
+            "退而求其次：找单个最匹配你子群的小型 RCT，承担样本量小的代价",
+        ),
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.DERIVATION_STEP, ref_id="s_t9_2"
+            ),
+        ),
+    )
+
+
+def _transport_treatment_outcome(block: dict) -> tuple[str | None, str | None]:
+    """Pull treatment / outcome predicate names out of a transport
+    block's formula_repr like ``P*(Y | do(X)) = ...``. Returns (X, Y)
+    or (None, None) if parsing fails (defensive — block schema may
+    drift)."""
+    formula = block.get("formula_repr", "")
+    # Cheap regex-free parse: look for "P*(<outcome> | do(<treatment>)".
+    try:
+        head = formula.split("=", 1)[0]
+        out_part = head.split("(", 1)[1]
+        outcome = out_part.split("|", 1)[0].strip()
+        do_part = out_part.split("do(", 1)[1]
+        treatment = do_part.split(")", 1)[0].strip()
+        return treatment or None, outcome or None
+    except (IndexError, ValueError):
+        return None, None
 
 
 def _classify_ambiguous_variable(
@@ -533,6 +602,12 @@ def _short_label_for(gap: DataGap) -> str:
             pop = rd.population or "目标人群"
             return f"P*({vars_str}) on {pop}"
         return "目标人群上的 P*(Z)"
+    if gap.kind == GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN:
+        if rd and rd.variables:
+            vars_str = ", ".join(rd.variables)
+            pop = rd.population or "源人群"
+            return f"P(Y|do(X), {vars_str}) 在 {pop} 上的分层条件分布"
+        return "源人群上的分层条件分布 P(Y|do(X), Z)"
     if gap.kind == GapKind.MISSING_DISTRIBUTION:
         # gap.description is already "缺概率分布 P(...)" — strip the prefix.
         prefix = "缺概率分布 "
