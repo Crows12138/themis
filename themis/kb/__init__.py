@@ -8,6 +8,7 @@ into structured KBQuery and KBResult into apply_patch_and_run patches.
 """
 from __future__ import annotations
 
+from .contract import KBAdapter, KBRegistry
 from .schemas import (
     KBConfidenceGrade,
     KBProvenance,
@@ -21,17 +22,29 @@ from .schemas import (
     kb_result_from_dict,
     kb_result_to_dict,
 )
+from .translator import (
+    DEFAULT_KB_NAME,
+    gap_to_kb_query,
+    kb_result_to_skeleton,
+    kb_results_to_bundle,
+)
 
 __all__ = [
+    "DEFAULT_KB_NAME",
+    "KBAdapter",
     "KBConfidenceGrade",
     "KBProvenance",
     "KBQuery",
     "KBQueryKind",
+    "KBRegistry",
     "KBResult",
+    "gap_to_kb_query",
     "kb_provenance_from_dict",
     "kb_provenance_to_dict",
     "kb_query_from_dict",
     "kb_query_to_dict",
     "kb_result_from_dict",
     "kb_result_to_dict",
+    "kb_result_to_skeleton",
+    "kb_results_to_bundle",
 ]
