@@ -129,6 +129,39 @@ treats unsourced values as `confidence == 0`. Provenance is the spine
 of the audit chain — fabricating values silently breaks the entire
 contract.
 
+## When NOT to patch (dtype / schema mismatch)
+
+Found a real number in literature, but its **dtype doesn't match the
+variable declaration**? Common cases:
+
+- Variable declared as `bool` (e.g. `systolic_bp` with `domain=[True, False]`)
+  but literature gives **continuous mmHg** (e.g. "SBP -4.3 mmHg")
+- Variable declared with `domain=["low","mid","high"]` but literature
+  gives **percentile** (e.g. "patients in 75th percentile")
+- Variable is a **rate** (events per person-year) but literature gives
+  **odds ratio** or **hazard ratio**
+
+**Do NOT patch in these cases.** Forcing a continuous mmHg into a
+boolean P(...) by inventing a threshold ("SBP < 140 = True") **is
+fabrication** even if the upstream number is real — the threshold
+choice is yours, not the literature's, and it changes the answer.
+
+**Instead**:
+
+1. **Skip apply_patch_and_run** for that gap
+2. **In the rendered reply**, surface the literature evidence directly
+   (with citation) AND explicitly note the schema mismatch via
+   response_rendering.md §"Schema mismatch disclosure"
+3. **Suggest the user re-frame** the question with the matching dtype
+   (e.g. "if you want a probability, set a clinical threshold first;
+   if you want the magnitude, ask for ATE in mmHg directly via the
+   literature numeric rendering path")
+
+This is **not** a `Never fabricate values` violation — surfacing real
+literature with a noted dtype gap is honest. **Inventing a probability
+to make Themis's bool variable accept a continuous datum** is the
+violation.
+
 ## Worked example: transport with two blocking gaps
 
 Initial result (from themis.run):

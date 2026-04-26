@@ -1,4 +1,4 @@
-# Structured result → Chinese reply prompt (Slice A1, v3.2)
+# Structured result → Chinese reply prompt (Slice A1, v3.3)
 
 Symmetric counterpart of [`nl_to_kernel_ast.md`](nl_to_kernel_ast.md). Consumes
 the structured JSON that `themis.run(...)` produces and emits a Chinese reply
@@ -593,6 +593,76 @@ to the user as a one-line note:
 This is defense-in-depth — the A1 prompt v2.6.1 was supposed to
 catch this upstream, but renderer surfacing it lets the user
 correct the loop on their own.
+
+---
+
+## Literature numeric rendering (WebSearch / KB sources, Phase 11.1)
+
+When a numeric value comes from **outside the kernel** — typically
+WebSearch-fetched meta-analyses, Cochrane reviews, KB lookups — the
+`Numeric estimate rendering` template doesn't apply (those numbers
+were neither produced by `themis.estimate` nor verified by
+`numeric_backdoor_estimate` etc.). Use this template instead.
+
+### When this applies
+
+- The agent loop fetched a number externally (gap_to_action.md flow)
+- The number was **not** patched into Themis (e.g. dtype mismatch
+  meant `parameter_fill_bundle` was skipped)
+- You want to surface the literature evidence to the user as part of
+  the answer
+
+### Field map
+
+| Render this | Pulled from |
+|---|---|
+| Point + interval | The fetched study's reported effect (mean / median, CI / IQR) |
+| Population | The **source** study population (NOT the user's) |
+| Sample size | The fetched study's `n` (or meta-analysis `total n`) |
+| Citation | Verbatim study identifier (PMID / DOI / URL) |
+| Dose / time | If reported (e.g. "150 min/week × 8 weeks") |
+
+### Template
+
+```
+基于 {study type, e.g. 2023 meta-analysis / 2019 RCT}（{population}, n={n}），
+{intervention} 对 {outcome} 的人群平均效应：
+
+- {effect}: {point} {unit} ({CI / IQR})
+- 起效时间 / 剂量响应: {if reported}
+
+引用: {PMID / DOI}
+```
+
+### Critical caveats — ALWAYS include all three
+
+1. **Population disclaimer**: Source population vs user. Even if it
+   "looks similar", flag the gap explicitly. Use the
+   `transport_target_distribution_unknown` template language as
+   reference if applicable.
+2. **ATE vs ITE disclaimer**: Literature gives **population means** —
+   the user's individual response can differ substantially. Suggest:
+   "对你这一类人群的平均效应是 X，但你个人可能多 / 少甚至没反应"
+3. **Schema-mismatch disclaimer (if applicable)**: If the literature
+   number's dtype doesn't match the kernel's variable declaration
+   (continuous vs bool, etc.), say so via §"Schema mismatch disclosure"
+   below, AND add: "因此这个数字没有进入 Themis 的可验证推导链 —
+   它是引用，不是推算"
+
+### What NOT to do
+
+- **Never let a literature number masquerade as a Themis-verified
+  estimate.** The user must see "this came from a paper, not from our
+  kernel" — the citation IS the audit trail
+- **Never combine literature point estimates** across studies on your
+  own ("study A says 4 mmHg + study B says 7 mmHg → 5.5 mmHg avg") —
+  that's amateur meta-analysis. Cite each separately or pick one with
+  reason
+- **Never extrapolate the literature interval** to the user's
+  individual case ("the meta-analysis CI is [3, 6] so you can expect
+  3-6 mmHg") — the CI is on the population mean, not on individuals
+- **Never drop the citation**. Inline link or PMID is mandatory.
+  Unsourced literature quotes are no better than fabricated values
 
 ---
 
