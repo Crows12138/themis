@@ -1,7 +1,8 @@
 # Phase 11 Charter — Agent Loop Closure
 
 > 立项日期：2026-04-26
-> 状态：**S.11.1 已落地（gap_to_action prompt）**；S.11.2+ 待开
+> 状态：**S.11.1 / 11.1.2-3 / 11.2 全部已落地**；S.11.3+（真 KB adapter）按
+> 真实压力推进
 > 对应 VISION：Phase 10 把 gap **结构化**，Phase 11 把 gap **触发**外部
 > 动作 — 让 Themis 从被动诊断器升级为 agent 工作流的因果决策中枢
 > 触发：2026-04-26 用户洞察 — "发现缺陷告诉 LLM 之后，其实就是驱动
@@ -127,16 +128,24 @@ S.11.2+ 是把那一行的 "WebSearch" 升级成结构化 KG 查询，提高数�
 
 按真实压力分阶段：
 
-| Sub-slice | KB | 板块 | 估时 |
-|---|---|---|---|
-| **S.11.2** | PrimeKG (Harvard) — 结构化 + evidence_grade 字段 | 生物医学 | 1.5 周 |
-| **S.11.3** | SciGraph SCP (浙大/上海 AI Lab) — 现成 MCP，覆盖中文中药 | 生物医学补充 | 1 周 |
-| **S.11.4** | SemMedDB — 11M biomedical SPO triples, 接近 Themis 想要的 "X causes Y + 文献来源" | 生物医学 | 2 周 |
-| **S.11.5** | Wikidata — 实体对齐（"运动" → "physical exercise" Q1003932）| 通用 | 1 周 |
-| **S.11.6** | SQLite cache `themis/cache/edge_evidence.sqlite` 把 KB 查询结果固化进 derivation | 元基础设施 | 1 周 |
-| **S.11.7** | 冲突解决算法（多 KB 给不同结论时按 study_type × sample_size × recency 加权）| 元基础设施 | 1 周 |
+**重要重排（2026-04-27）**：原计划 S.11.2 = PrimeKG 直接接入，
+1.5 周。实际执行选择 adapter-first：先建 `themis/kb/` 契约骨架
+（`PHASE_11_2_KB_ADAPTER_CHARTER.md`），后续真 KB 接入插件式做。
+理由：避免 PrimeKG-shaped 抽象偏倚后续 SciGraph/SemMedDB 接入。
+重排后：
 
-每个 sub-slice 独立立 charter，按真实压力推进。
+| Sub-slice | KB / 工作 | 板块 | 估时 | 状态 |
+|---|---|---|---|---|
+| **S.11.2** | KB adapter 契约骨架（schemas / ABC / translator / cache / reference adapter） | 元基础设施 | ~1 天 | ✅ 已落地 (2026-04-27, +95 tests) |
+| **S.11.3** | PrimeKG (Harvard) — 结构化 + evidence_grade 字段 | 生物医学 | ~3 d (sibling repo) | 待开 |
+| **S.11.4** | SciGraph SCP (浙大/上海 AI Lab) — 现成 MCP，覆盖中文中药 | 生物医学补充 | ~3 d | 待开 |
+| **S.11.5** | SemMedDB — 11M biomedical SPO triples，接近 Themis 想要的 "X causes Y + 文献来源" | 生物医学 | ~4 d | 待开 |
+| **S.11.6** | Wikidata — 实体对齐（"运动" → "physical exercise" Q1003932）| 通用 | ~3 d | 待开 |
+| **S.11.7** | 冲突解决算法（多 KB 给不同结论时按 study_type × sample_size × recency 加权） | 元基础设施 | 1 周 | 待开 |
+
+注：S.11.3+ 必须 **sibling repo 形态**，不进 themis 主仓
+（详见 `project_kb_adapter_invariants.md` 记忆）。每个独立立 charter，
+按真实压力推进。
 
 ---
 

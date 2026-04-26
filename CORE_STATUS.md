@@ -886,3 +886,57 @@ T10-1 provenance ref ✓; T10-2 失败 step + 参数 request 全覆盖 ✓; T10-
 **加权覆盖**：板块覆盖率不变（Phase 10 不在 12 板块内），但 Themis
 的产品定位重大跃迁——从"全板块编排器"扩展为"全板块编排器 + 数据
 缺口诊断器"。这是 VISION 写明的**独占生态位**第一次有可交付实现。
+
+---
+
+## Phase 11.1 prompt-only 闭环 (2026-04-26 → 2026-04-27, S.11.1.1-3)
+
+新增 `docs/prompts/gap_to_action.md` —— LLM 拿到 `data_gap_report` 后
+按三个原则（结构可修？数据 vs 用户选？dtype 匹配？）自主决策下一步动
+作（autonomous fetch / ask user / 终止），不再编造。MCP 注册 + 子 agent
+真测找到并修了 transport 对偶 gap、prompt 的 schema 不匹配漏洞、
+literature numeric 缺渲染模板等问题。
+
+S.11.1.2-3 prompt elegance pass：`gap_to_action.md` / `response_rendering.md`
+/ `nl_to_kernel_ast.md` 三个最累 prompt 从枚举换原则 + worked example，
+2255→1652 行 (-27%)。子 agent 真测每次都找出 ~3 个真洞已立即修复。
+
+零代码改动：所有挂 Themis MCP 的 LLM 客户端读到这份 prompt 即可。
+
+## Phase 11.2 KB adapter 契约 (2026-04-27, S.11.2.1-7)
+
+`themis/kb/` package 落地：
+
+- **schemas.py**: `KBQuery` / `KBResult` / `KBProvenance` 数据类 + 7 个
+  `KBQueryKind` (映射自 gap_kind) + 6 个 GRADE-style `KBConfidenceGrade`
+  + JSON dict 双向转换
+- **contract.py**: `KBAdapter` ABC + `KBRegistry` 客户端容器
+- **translator.py**: `gap_to_kb_query()` + `kb_results_to_bundle()` 纯
+  函数；3 个 gap_kind 不可 KB-fixable 时返回 None
+- **cache.py**: `KBCache` (SQLite, 无 TTL, 可缓存负结果)
+- **adapters/websearch_proxy.py**: reference adapter 包装客户端 search_fn
+- **MCP 暴露**: 2 个 schema 资源 + 1 个新 prompt (`kb_lookup.md`)
+- **关键架构边界**：Themis 自己不发任何网络请求；adapter 实例化 + 执行
+  在客户端 / 第三方 repo（详见 `PHASE_11_2_KB_ADAPTER_CHARTER.md` §1）
+
+子 agent 真测找到一个 pre-existing bug：`SelectionNode` 漏在
+`_statement_to_dict` 里，让任何 transport 程序过不了 `apply_patch_and_run`
+—— 已修复并加 transport 全闭环 e2e 回归测试。
+
+**测试**：1266 passed / 144 skipped（+95 from 1171）；0 fail。
+
+**显式 out-of-scope（已划清）**：
+- ❌ 真实 PrimeKG / SciGraph / SemMedDB adapter 进 themis 主仓 → 必须
+  sibling repo 形态（详见 `project_kb_adapter_invariants.md` 记忆）
+- ❌ Themis 内置任何 HTTP client / 数据库 driver
+- ❌ 跨 KB 冲突解决（S.11.7 元基础设施扩展）
+- ❌ async adapter（先做同步契约）
+
+## 下一步候选（按真实压力等待选）
+
+- **S.11.3+ 真 KB adapter 实现**（PrimeKG / SciGraph / SemMedDB / Wikidata）
+  — sibling repo 形态，每个 ~3d
+- **Phase 12 bounds-first** — effect query 默认输出 bounds（Balke-Pearl /
+  Manski），点估计要明确 opt-in；让"alternative: bounds"承诺有交付物
+- **真人测试** — 找不熟项目的人跑一遍 MCP（一直没做，是诚实的 gap）
+- **样本量计算** — 让 `min_sample_size` 字段有真值（statistical power）
