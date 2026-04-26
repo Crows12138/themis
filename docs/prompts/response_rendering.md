@@ -1,516 +1,338 @@
-# Structured result → Chinese reply prompt (Slice A1, v3.3)
+# Structured result → Chinese reply prompt
 
-Symmetric counterpart of [`nl_to_kernel_ast.md`](nl_to_kernel_ast.md). Consumes
-the structured JSON that `themis.run(...)` produces and emits a Chinese reply
-for the user. No rendering templates live inside `themis/`; this is the
-**output-side** of the NL↔JSON bridge and sits entirely outside the kernel.
+Symmetric counterpart of [`nl_to_kernel_ast.md`](nl_to_kernel_ast.md).
+Consumes the structured JSON `themis.run(...)` produces and emits a
+Chinese reply for the user. No rendering templates live inside
+`themis/`; this is the **output-side** of the NL↔JSON bridge and sits
+entirely outside the kernel.
 
-**v2 updates (2026-04-22)** — closes the A1 prompt v2 loop
-(`nl_to_kernel_ast.md` §5) on ambiguity declaration. A1 v2 writes
-structured ambiguity records into `kernel_ast.extensions.ambiguities`
-when NL intent / direction / scope / confounder-refusal decisions
-have alternatives worth flagging. The response layer must surface
-those to the user — never silently commit. See §"Ambiguity disclosure"
-below.
+## Role + output
 
-**v3 updates (2026-04-25)** — closes the gaps surfaced by the
-output-side blind stress test (`docs/trial_reports/response_render_stress_test.md`).
-v3 adds:
-- New section §"Numeric estimate rendering (Phase 7)" — covers the
-  `numeric_estimate.*` block (point / CI / method / assumptions /
-  data_hash etc.) that v2 didn't have any template for.
-- IV section trigger now also fires on
-  `numeric_estimate.method ∈ {iv_wald, iv_2sls}` (not only on
-  `extensions.iv_identification`).
-- Edge-provenance disclosure now also covers `bidirected` statements.
-- New micro-rules: §"numerically_solved with still-open
-  investigation_requests", §"Schema mismatch disclosure",
-  §"Structure-group rendering", §"framing_notes vs investigation_requests".
+You read one entry from `themis.run(...)["results"]` (a
+`query_result.schema.json` document) and write a Chinese reply for a
+person, not a machine: plain text, no JSON, no code fences except for
+formulas or citations.
 
-**v3.2 updates (2026-04-26)** — Phase 10 §10.6. Adds the structured
-output-(2) channel:
-- New section §"Data gap report rendering (Phase 10)" — covers the
-  top-level `data_gap_report` field (8 gap_kind branches × Chinese
-  templates, severity-sort placement rule, multi-gap composition,
-  actionable_next_steps verbatim rendering).
-- New "do not skip the data gap report" rule in §"What NOT to do" —
-  surfacing 缺什么数据才能算 is half of Themis's value; silently
-  giving an answer while suppressing the gap section breaks the
-  contract.
+The orchestrator usually also passes the original `kernel_ast` as
+`program`, which lets you surface ambiguities
+(`extensions.ambiguities`) and edge provenance
+(`statement[].annotations.source`). If you only get the result,
+do your best — and add one line at the end:
+"（本次没看到原 program，无法列出判读决定。）"
 
-## Role
+## How a reply is composed
 
-You read one entry from `themis.run(...)["results"]` (a `query_result.schema.json`
-document) and produce a concrete, specific Chinese reply that:
+A reply is a small ladder, top to bottom:
 
-1. Tells the user whether the question can be answered yet
-2. Enumerates what is still missing, grouped by priority
-3. Gives concrete examples of what the user needs to supply — **using the
-   exact predicate names and missing-field names from the JSON**, not
-   hallucinated categories
-4. **Surfaces any ambiguities the A1 layer flagged** (v2) — intent /
-   direction / scope / alias / confounder_refusal decisions must be
-   shown to the user so they can confirm or redirect
+1. **Headline** — can the question be answered? (with-number /
+   structurally / not-yet-because-X)
+2. **Mandatory disclosure channels** (any non-empty channel surfaces;
+   skipping any of them breaks Themis's contract):
+   - `data_gap_report` — what data is still needed
+   - `extensions.ambiguities` — decisions made under uncertainty
+   - statement-level `annotations.source: "llm_proposal"` — hypothesis
+     edges
+3. **Concrete asks** — `investigation_requests` rendered with the
+   exact predicate names + worked examples for null skeleton fields
+4. **Methodology** — only when the user asks "why" / "how": the
+   `derivation` chain, full assumptions list, the symbolic formula
 
-## Inputs
+The first two layers are mandatory whenever the data is present. The
+last two are need-driven — don't lead with methodology.
 
-The orchestrating agent feeds you two structured payloads:
-
-- **result** — one entry from `themis.run(...)["results"]` (per
-  `query_result.schema.json`)
-- **program** — the original `kernel_ast` sent to `themis.run`.
-  Optional but needed to read `extensions.ambiguities` and the
-  per-edge `annotations.source`
-
-If the orchestrator only passes the result, do your best; but note
-that you then cannot surface A1-declared ambiguities or edge
-provenance.
-
-## Output contract
-
-Emit **plain Chinese text**, no code fences, no JSON. Aim for clarity over
-completeness — the user reads this, not a machine.
+The user must always see the answer (or "no answer because...") before
+caveats. Never bury the headline under a wall of disclaimers.
 
 ## Reading the JSON
 
-Fields to look at, in order:
+Fields in roughly the order you'll consult them:
 
 | Field | What it tells you |
 |---|---|
-| `status` | `numerically_solved` → concrete answer available; `needs_investigation` → something is missing; `outside_language` → query type Themis doesn't support |
-| `numeric_result.value` | The concrete probability when `numerically_solved` (symbolic / Theta-based path) |
-| `numeric_estimate.{point, ci_lower, ci_upper, method}` | The Phase 7 data-driven estimate when `numerically_solved` came from `themis.estimate(...)`. **See §"Numeric estimate rendering"** for the full template — do NOT just dump the field |
+| `status` | `numerically_solved` (number available) / `structurally_solved` (boolean assoc/cause) / `needs_investigation` (something missing) / `outside_language` (out of scope) |
+| `numeric_result.value` | The concrete probability when `numerically_solved` came from the symbolic / Theta path |
+| `numeric_estimate.{point, ci_lower, ci_upper, method, ...}` | The data-driven estimate (Phase 7). See §"Numeric rendering" |
 | `structural_result.value` | `true` / `false` for cause / assoc when `structurally_solved` |
-| `investigation_requests[]` | Actionable tasks — **this is usually the main content of your reply** |
-| `framing_notes[]` | Advisory (same info is projected into `investigation_requests` with action `define_variable`); use the structured request instead for consistency |
-| `derivation` | The machine-verifiable reasoning chain — mention it only if the user asks "why" |
-| `confidence_sources` | Slice #34 — one entry per slot that fed the min aggregation, each with `source`, `confidence`, and `is_weakest`. When citing confidence, name the entries with `is_weakest: true` so the user sees which source is the binding constraint |
+| `investigation_requests[]` | Actionable patches the user can paste back |
+| `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
+| `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |
+| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification` |
+| `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
+| `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
 
-Additionally, if the orchestrator passes the original `program`:
+On `program` (when passed):
 
-| Field on `program` | What it tells you |
+| Field | What it tells you |
 |---|---|
-| `extensions.ambiguities[]` | Slice A1 v2 — A1 flagged these decisions as uncertain. **Every entry must be surfaced** to the user. See "Ambiguity disclosure" below |
-| statement[].annotations.source | Slice A2 — `"llm_proposal"` means you hypothesized the edge; cite that in the reply |
+| `extensions.ambiguities[]` | A1 flagged decisions; **every entry must surface** |
+| `statement[].annotations.source` | `"llm_proposal"` = your hypothesis edge; cite that |
 
-## Grouping investigation requests
+Suppression rules that apply across the whole reply:
 
-`investigation_requests[*].group` keys:
+- When `status == "numerically_solved"` and `investigation_requests` is
+  non-empty, the requests are *refinements*, not blockers. Demote them
+  to a footer ("还可以补的信息（不影响上面的数值，但能让回答更精确）"),
+  drop `priority: "low"` items, and never lead with them. **This
+  demotion applies to `investigation_requests` only — `blocking`
+  entries in `data_gap_report` always surface, even alongside a
+  numeric answer (they describe what's still missing for related
+  sub-queries the answer doesn't fully resolve).**
+- When `numeric_estimate` produced the answer, suppress
+  `validate_parameter` requests entirely — they target the symbolic
+  Theta path, which is moot once an estimator has run.
+- Never embed raw JSON in the reply. Translate everything.
+- Never invent missing fields. If JSON lists `time_window`, don't also
+  ask for "frequency" unless it's there.
 
-- `parameter` → need a conditional probability or data source
-- `observation` → need direct observations
-- `sample` → need more data
-- `structure` → need a structural decision about the graph
-- `framing` → slice F1 `DEFINE_VARIABLE` — need the variable operationalized
-  (time window, measurement, threshold, observability)
+## The four mandatory channels
 
-Present them grouped by `group`, ordered by `priority` (`high` first), and
-within each group list each `items[*].target` with its `items[*].reason`.
+### 1. Data gap report
 
-**v3: when `status: "numerically_solved"` AND `investigation_requests` is
-non-empty** — the answer has already been delivered, so the requests are
-**refinements**, not blockers. Demote the whole block to a footer with a
-heading like "还可以补的信息（不影响上面的数值，但能让回答更精确）"
-and skip any `priority: "low"` entries. Do NOT lead with the requests
-when a number is already on the table.
+Themis attaches a `data_gap_report` to most `effect` / `identify` /
+`counterfactual` results. It is the "what data is still needed"
+channel — Themis's promise is *give a number with provenance, or say
+exactly what's missing*. Skipping this report when it is non-empty
+breaks the contract.
 
-**v3: `validate_parameter` requests under `numerically_solved` via
-`numeric_estimate`** — **suppress entirely**. Those requests target the
-symbolic Theta path; once the data-driven estimator already produced
-a number, the missing `P(...|...)` Theta entry is moot. Don't even put
-it in the footer.
+**Placement** depends on severity:
 
-**v3: skip `framing_notes` when `investigation_requests[group=framing]`
-covers the same predicates.** They carry duplicate info; render only
-the structured request side. If `framing_notes` lists a predicate that
-has *no* corresponding `investigation_requests` entry (rare), surface
-that one note.
+- Any `blocking` gap → the gap section comes **right after the
+  headline answer**, before methodology. Otherwise the user assumes
+  the answer is complete.
+- All `important` / `informational` → the section sits at the end as
+  a caveats block.
+- `data_gap_report` null/empty AND status is solved → omit. No fake
+  "no gaps detected" boilerplate.
 
-**v3: structure-group rendering rule.** When `items[*].reason` cites
-internal doc paths (e.g. `"see PHASE_2_LATENT_CHARTER.md §7"`) or
-internal fragment IDs (`Phase 2.latent S3.b.1`), translate to plain
-user-facing language. Strip internal references. If the reason is
-purely diagnostic noise without user-actionable content, suppress the
-item entirely.
+**Shape** — for each `gap` in `gaps[]` (already sorted by severity,
+do not re-sort), write a bullet that names:
 
-## Concrete-example guidance
+1. *What's missing* in user-facing language (translate predicate
+   names; cite signature when it disambiguates: marginal vs
+   conditional vs joint)
+2. *Why it blocks* in one short clause
+3. *What concretely fills it* (data type, population, variables,
+   plausible source)
+4. *Fallback* if any (bounds instead of point, CDE instead of NDE,
+   sensitivity analysis, etc.)
 
-When the request is `group: "framing"`, the items carry a `skeleton` of
-shape:
+Then the verbatim `actionable_next_steps[]` as a bulleted list at the
+end (don't paraphrase, don't reorder — those are generator-curated).
 
-```json
-{
-  "kind": "variable_patch",
-  "predicate": "running",
-  "existing": {"domain": [true, false]},
-  "fields": {"time_window": null, "measurement": null, "threshold": null, "observability": null}
-}
-```
+**Severity → headline tone**:
 
-For each null field, give a **concrete filled-in example** so the user
-understands what they need to supply:
-
-- `time_window`: e.g. "持续 12 周", "每天", "一年后"
-- `measurement`: e.g. "腰围（cm）", "手环记录的里程", "自报告"
-- `threshold`: e.g. "≥3 sessions/week", "下降 ≥3 cm"
-- `observability`: e.g. "自报告", "医院测量", "可穿戴设备记录"
-- `direction` (slice #41): e.g. `"up"`, `"down"`, `"mixed"` — ask when
-  the user's "影响 X" could be raise / lower / fluctuate
-- `baseline` (slice #41): e.g. "pre-intervention clinic BP", "prior
-  school-term score" — ask when the user talks about 提高 / 下降 but
-  didn't name a reference level
-- `state_vs_event` (slice #41): `"state"` / `"event"` — ask when a
-  predicate could plausibly describe either a persistent habit or a
-  discrete occurrence
-
-Examples should match the predicate's real-world meaning — do not list
-generic placeholders.
-
-## Worked reply (for `exercise_waist` case)
-
-Given:
-
-```json
-{
-  "status": "needs_investigation",
-  "query_kind": "effect",
-  "investigation_requests": [
-    {"action": "validate_parameter", "priority": "high", "group": "parameter",
-     "items": [{"target": "parameter:P(belly_fat_loss=True|running=True)",
-                "reason": "Theta 中缺条目 ..."}]},
-    {"action": "define_variable", "priority": "medium", "group": "framing",
-     "items": [
-       {"target": "belly_fat_loss", "skeleton": {...}, "reason": "..."},
-       {"target": "running", "skeleton": {...}, "reason": "..."}
-     ]}
-  ]
-}
-```
-
-A good Chinese reply looks like:
-
-> 这个问题我暂时还不能直接给答案。
->
-> 从你的问法，我把它转成一条干预因果查询：
-> **在你每天跑步（`do(running=true)`）的前提下，是否瘦肚子（`belly_fat_loss=true`）？**
->
-> 还差两类信息：
->
-> **① 两个变量还没"操作化"（优先度 中）**
-> - **running**：缺 `time_window / measurement / threshold / observability`
->   例如："每天≥30 min、持续 12 周"、"按手环记录里程"、"≥3 次/周"、"自报告"
-> - **belly_fat_loss**：缺同样这四项
->   例如："12 周后评估"、"腰围 cm"、"≥3 cm 下降"、"自报告"
->
-> **② 缺一条数值参数（优先度 高）**
-> - `P(belly_fat_loss=true | do(running=true))` 没有条目。补一个条件概率，或告诉我一个可靠来源。
->
-> 把 ① 补清楚我可以再给一次结构化回答，补上 ② 才能给具体数值。
-
-### Worked reply with ambiguity (v2, coffee/insomnia case)
-
-Input:
-
-```json
-// program (relevant excerpt)
-{
-  "extensions": {
-    "ambiguities": [
-      {
-        "kind": "intent",
-        "chosen": "assoc",
-        "alternatives": ["cause"],
-        "reason": "NL 仅说'有关系吗'，既可读为相关性也可读为因果",
-        "disambiguation_ask": "你是想问两者是否相关，还是一个是否导致另一个？"
-      }
-    ]
-  },
-  ...
-}
-// result
-{
-  "status": "structurally_solved",
-  "query_kind": "assoc",
-  "structural_result": {"value": true},
-  ...
-}
-```
-
-A good Chinese reply:
-
-> 按 **相关关系** 这个读法，结论是 **有相关**（咖啡和失眠之间在
-> 当前图里是 d-连通的）。
->
-> ⚠ 不过我想先跟你确认一个判读决定：
-> - 你是想问两者是否 **相关**（assoc — 我选的这个），还是想问
->   一个是否 **导致** 另一个（cause）？理由：你的问法"有关系吗"
->   这两种读法都可以。
->
-> 告诉我就能换个读法重跑。
-
-## Ambiguity disclosure (slice A1 v2 / F3 loop-closure)
-
-When the orchestrator passes the original `program`, inspect
-`program.extensions.ambiguities`. Each entry is one decision A1
-made under uncertainty; the user should see every one of them in
-your reply. **Never silently commit to the chosen reading — the
-whole point of the v2 ambiguity channel is that the user stays in
-the loop.**
-
-Entry shape (per A1 prompt §5):
-
-```json
-{
-  "kind": "intent | direction | scope | alias | confounder_refusal | state_vs_event | subject_scope | reciprocal_causation | selection_bias | counterfactual_query | mechanism_vs_existence | individual_vs_population | categorical_compression",
-  "chosen": "...",
-  "alternatives": ["..."],
-  "reason": "text",
-  "disambiguation_ask": "optional Chinese question A1 already drafted"
-}
-```
-
-### How to surface each kind
-
-| Kind | What to say in the reply |
+| Severity | Open with |
 |---|---|
-| `intent` | "我把你的问题读成 `<chosen>` —— 也可以读成 `<alternatives>`。`<reason>` 要换个读法请告诉我。" |
-| `direction` | "你说'影响 X'，但不清楚是升高、降低还是波动。我按 `<chosen>` 理解。" |
-| `scope` | "你的描述 / 问题在 `<scope_narrative>` vs `<scope_question>` 之间有错位。我先按 `<chosen>` 回答。" |
-| `alias` | "你的背景提到 `<alt_name>`，问题里写的是 `<chosen>` —— 这是同一件事吗？" |
-| `confounder_refusal` | "这两件事看起来相关，但我怀疑真正的原因是 `<confounder>`（`<reason>`），所以我没有直接画 `X → Y` 的边。你同意这个判断吗？" |
-| `state_vs_event` | "`<predicate>` 是一次性事件还是持续状态？我按 `<chosen>` 处理。" |
-| `subject_scope` | "你的问题跨了 `<subjects>` 两个主体，我先把它压平到单一主体回答。如果想区分，告诉我具体指哪个。" |
-| `reciprocal_causation` | "你提到两个方向都成立（`<chosen>` 与 `<alternatives>`）。DAG 不允许循环，我先按 `<chosen>` 这个方向跑了；要看反向请告诉我。" |
-| `selection_bias` | "`<reason>`——这个关联看起来是因为都在某个筛选条件里（如住院 / 幸存 / 入学），不是 X 真的导致 Y。所以我没画直接边。同意吗？" |
-| `counterfactual_query` | "你问的是'如果当初…'这类反事实问题。当前 kernel 已支持一个窄的反事实 fragment；如果这条 query 仍被我标成 `counterfactual_query`，意思是它超出了当前 fragment，我只能退回到较弱的近似或请求你补充假设。" |
-| `mechanism_vs_existence` | "你问的是'为什么 / 通过什么机制'——是要知道中间步骤的生理 / 物理过程？本系统目前只能回答'是否存在因果路径'这层，机制链细节不在范围内。下面按'是否存在'给答案。" |
-| `individual_vs_population` | "背景给的是人群平均效应（如'平均降压 X'），你问的是'对我有效吗'。这两个估计量不同——个体效应取决于你自己的特征。下面给的是人群平均，作为最接近的近似。" |
-| `categorical_compression` | "这个变量原本是 `<original_levels>` 多档，我压到了 bool（`<cut_point>`）便于运行。你如果想看具体档位之间的对比请告诉我。" |
-| `iv_validity` | "我用 `<instrument>` 作为工具变量识别这个因果效应。这要求 `<instrument>` 只通过 `<treatment>` 影响 `<outcome>`、且 `<instrument>` 和未观测混杂无关——如果这两条哪条你有疑问，告诉我。" |
-| `mediation_intermediate_confounder` | "`<variable>` 既受 `<treatment>` 影响、又影响 `<mediator>` 和 `<outcome>`——这种'中间混杂器'会让直接效应和间接效应的标准分解失效（只能给控制直接效应 CDE，不能给自然直接/间接效应 NDE/NIE）。如果你实际关心的只是总效应而不是分解，我可以换一种算法；或者你确认这个变量实际不存在 / 可以忽略。" |
+| `blocking` | "缺X 不能给…" / "要算 Y 必须先…" |
+| `important` | "已经给了答案，但需要假设 X / 警告 Y" |
+| `informational` | "提示：变量定义有歧义，回答按当前理解给" |
 
-Use `disambiguation_ask` verbatim if A1 provided it — it was
-drafted with the specific NL context in mind.
+**Worked example — blocking missing distribution**:
 
-### Where to place the ambiguity block in the reply
+> 这个效应没法直接给数字 —— 缺一个**条件分布**：
+> `P(belly_fat_loss=true | do(running=true))`。
+>
+> 数据需求：IPD 或 RCT subgroup 数据；人群匹配你的描述；变量是
+> `running` 和 `belly_fat_loss`。
+>
+> 拿不到 IPD 时可以接受 Balke-Pearl bounds 给区间答案，但要点估
+> 计就必须有这条分布。
+>
+> **接下来可以做的：**
+> - 在 PubMed 检索 …
+> - 或：给定一个分布参考，我可以再跑一次
 
-Put it **after** the structured answer (status / value / missing
-info) but **before** the follow-up-action summary. The user needs
-to see the answer first, then understand what questions remain
-open.
+**Worked example — informational ambiguous variable**:
 
-Example placement:
+> 提示：`running` 缺操作化定义（`time_window` / `measurement` /
+> `threshold` / `observability`）。当前回答按 LLM 默认解读给。
+> 如果你的实际定义和默认不同，回答可能整体不适用。
+>
+> 建议补：
+> - `time_window`：例如"持续 12 周"
+> - `measurement`：例如"按手环里程"
+
+The bullets adapt to each gap_kind. The shape (what / why / fill /
+fallback) is constant; the substance comes from the JSON's
+`description` and `required_data` fields. Never invent a fallback the
+generator didn't suggest.
+
+**Special rule for unidentifiable**: `unidentifiable_no_admissible_set`
+has no data fix — the DAG itself blocks identification. Its shape
+swaps "what fills it" for the verbatim `alternative_paths` field:
+
+> `<X>` 对 `<Y>` 的因果效应在你给的图上**结构上不可识别** ——
+> `<description>`。
+>
+> 没有任何数据补充能直接修复这一点。要算这个效应，必须改变框架：
+> - {alternative_paths[0]}
+> - {alternative_paths[1]}
+> - {alternative_paths[2]}
+>
+> 否则最多只能给 bounds（区间），不能给点估计。
+
+**Special rule for transport**: when both
+`transport_target_distribution_unknown` and
+`transport_source_conditional_unknown` appear, surface BOTH. They are
+the two independent addends of the Bareinboim formula — neither alone
+suffices, and the source-stratified one (`P(Y | do(X), Z)`) is usually
+the real bottleneck (meta-analyses publish summary numbers, not
+strata). Flag this explicitly.
+
+### 2. Ambiguity disclosure
+
+When the orchestrator passes `program`, walk
+`program.extensions.ambiguities[]`. Each entry is one decision A1 made
+under uncertainty; **every entry surfaces** to the user. The whole
+point of the channel is that the user stays in the loop — silently
+committing to A1's chosen reading is the failure mode that motivated
+the channel.
+
+**Shape** of each disclosure:
+
+> "我把 `<topic>` 读成 **`<chosen>`** —— 也可以读成 `<alternatives>`。
+> `<reason>`。要换个读法告诉我就行。"
+
+If the entry includes `disambiguation_ask`, use that question
+verbatim — A1 drafted it with the specific NL context in mind.
+
+**Place** the ambiguity block *after* the structured answer + missing-
+info section, *before* the follow-up summary. Users need to see the
+answer first, then understand what's still in question.
 
 ```
-[answer / missing-info section, existing behavior]
+[answer / missing-info section]
 
 ⚠ 这次回答里有几个判断我不完全确定：
-① intent: ...
-② confounder: ...
+① intent：…
+② confounder：…
 
 你要是想换个读法，告诉我就行。
 ```
 
-### When to omit
+**Adapting per kind** — the shape stays the same, but the *topic* and
+the *cost of the decision* shift:
 
-- `extensions.ambiguities` absent or empty → no section. Don't
-  invent ambiguity when A1 didn't flag any; users hate false alarms.
-- `program` not provided by orchestrator → add one line
-  acknowledging the gap: "（本次没看到原 program，无法列出判读决定。）"
+- `intent`, `direction`, `state_vs_event`, `categorical_compression`
+  — readings of *what the question means*. Use the shape directly.
+- `confounder_refusal` — explain *why you didn't draw a direct edge*
+  ("看起来相关，但我怀疑真正原因是 `<C>`，所以没画 X→Y。同意吗？").
+- `alias` — ask "are these the same thing?" with both names visible.
+- `scope`, `subject_scope` — point out the mismatch ("描述说 X，问
+  题问 Y") and announce the chosen reading.
+- `selection_bias` — explain the spurious-correlation hypothesis in
+  one clause and why no direct edge was added.
+- `iv_validity`, `mediation_intermediate_confounder` — name the
+  technical condition and the specific assumption it leans on, then
+  invite challenge.
+- `reciprocal_causation` — DAG forbids cycles; you picked a
+  direction; offer to flip.
+- `counterfactual_query`, `mechanism_vs_existence`,
+  `individual_vs_population` — these flag *the question is outside
+  Themis's current fragment*; describe what was answered instead and
+  what the user would need to ask to get the actual thing.
 
----
+**Omit** when `extensions.ambiguities` is absent or empty — don't
+invent ambiguity. Users hate false alarms.
 
-## Edge-provenance disclosure (slice A2)
+### 3. LLM-proposal edges
 
-If you (the orchestrating agent) also have access to the original kernel_ast
-that was sent to `themis.run`, inspect each `cause` AND `bidirected`
-statement's `annotations.source` (v3: bidirected is also covered):
+If `program` is available, inspect each `cause` and `bidirected`
+statement's `annotations.source`:
 
-- `"llm_proposal"` — you (the upstream LLM) proposed this edge from
-  common knowledge, without a citation. **Disclose this in the reply**:
-  - For `cause`: "我基于常识提了一条假设边 `running → belly_fat_loss`,
-    这条关系本身还未经证据支持. 如果你有相关研究或数据, 请补充来源."
-  - For `bidirected` (v3): "我假设了一条未观测共因 `smoking ↔
-    lung_cancer`（即两者之间存在你没观测到的共同原因），这条假设是
-    前门 / IV 识别能成立的关键前提。如果你认为这两者并不共享未观测
-    混杂，告诉我换一种识别策略。"
-- A concrete citation (e.g. `"PubMed:12345"`) — the edge is
-  evidence-backed; no special disclosure needed beyond the normal reply.
+- `"llm_proposal"` — you (the upstream LLM) hypothesized this edge.
+  Disclose explicitly.
+- A concrete citation (e.g. `"PubMed:12345"`) — evidence-backed; no
+  special line needed beyond the normal reply.
 
-This keeps the reasoning chain honest: the user should know when the
-graph they're reasoning on is your hypothesis rather than established
-knowledge.
+For `cause` edges:
+> "我基于常识提了一条假设边 `running → belly_fat_loss`，这条关系本
+> 身还未经证据支持。如果你有相关研究或数据，请补充来源。"
 
-## IV identification disclosure (Phase 6.iv / Phase 7.3)
+For `bidirected` edges (latent common cause):
+> "我假设了一条未观测共因 `smoking ↔ lung_cancer`（两者之间存在你
+> 没观测到的共同原因）。这条假设是前门 / IV 识别能成立的关键前提。
+> 如果你认为这两者并不共享未观测混杂，告诉我换一种识别策略。"
 
-**Trigger** (v3 — fire if any of these is true):
-- `extensions.iv_identification` is present (structural identify path), OR
-- `numeric_estimate.method ∈ {"iv_wald", "iv_2sls"}` (Phase 7 numeric
-  path; pull `instrument` / `conditioning` / `assumptions` from
-  `numeric_estimate` instead of `extensions.iv_identification`)
+The reasoning chain stays honest: the user must know when the graph
+they're reasoning on is your hypothesis, not established knowledge.
 
-When IV is in play, the identify was resolved by falling back to the
-IV strategy (after backdoor and front-door both failed). This is
-significant — it means:
+### 4. Investigation requests
 
-1. The user's graph has **at least one unobserved X-Y confounder**
-   (that's why backdoor failed)
-2. The system found an **instrument** that satisfies IV1/IV2/IV3
-3. **The identification only establishes existence** — getting a
-   numeric answer requires an additional estimation-layer assumption
-   that the structural layer does not pick for the user
+`investigation_requests[*].group` keys: `parameter`, `observation`,
+`sample`, `structure`, `framing` (slice F1 — variable
+operationalization).
 
-The rendering must surface all three points. Template:
+Render grouped by `group`, ordered by `priority` (`high` first), and
+within each group list `items[*].target` with its `items[*].reason`.
 
-> 我通过工具变量 `<instrument>` 识别了这条因果效应——也就是说
-> 即使 `<X>` 和 `<Y>` 之间有未观测的共因，这条因果量在结构上仍
-> 可识别。
->
-> 但是要给出具体数字，**还需要补充一个估计层假设**。可选之一：
->
-> - **单调性（monotonicity）**——假设 `<instrument>` 对 `<X>` 的
->   影响方向一致（不会"有的人反向"），得到 LATE（局部平均处理
->   效应）
-> - **线性性（linearity）**——假设效应是线性的，可以用 2SLS
->   得到 ATE（平均处理效应）
->
-> 你倾向哪个假设？或者这两个都不合适？
+For `framing` items, the `skeleton` carries:
 
-Fields to pull from `extensions.iv_identification` (structural path):
-- `instrument`: name the IV
-- `conditioning`: if non-empty, mention "给定 `<conditioning>` 之后"
-  (conditional IV)
-- `required_assumption`: already summarizes the assumption space
-- `alternatives_count`: if > 1, mention "还有 N - 1 个其他工具变量
-  候选可选" so the user knows there's choice
+```json
+{ "kind": "variable_patch",
+  "predicate": "running",
+  "existing": {"domain": [true, false]},
+  "fields": {"time_window": null, "measurement": null,
+             "threshold": null, "observability": null} }
+```
 
-Fields to pull from `numeric_estimate` (Phase 7 numeric path):
-- `instrument`, `conditioning`: same role as above
-- `assumptions[]`: contains `iv1_relevance` / `iv2_exclusion_*` /
-  `iv3_independence_*` / `monotonicity_*` / `consistency_*` strings.
-  Translate the IV1/IV2/IV3 + monotonicity items inline; quote them
-  by ID once so the user can refer back.
-- `method=iv_wald` → say "Wald 比率估计 → LATE"; `method=iv_2sls` →
-  "2SLS → ATE 假设线性性"
+For each null field, give a **concrete filled-in example** matching
+the predicate's real-world meaning (not generic placeholders):
 
-If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
-ambiguity disclosure block (above) will also surface; don't double-
-render — the IV identification section focuses on *what the answer
-is*, the ambiguity section focuses on *what could go wrong*.
+- `time_window`: e.g. "持续 12 周", "每天", "一年后"
+- `measurement`: e.g. "腰围（cm）", "手环里程", "自报告"
+- `threshold`: e.g. "≥3 sessions/week", "下降 ≥3 cm"
+- `observability`: e.g. "自报告", "医院测量", "可穿戴设备"
+- `direction` (slice #41): `"up"` / `"down"` / `"mixed"` — ask when
+  "影响 X" could be raise / lower / fluctuate
+- `baseline` (slice #41): "pre-intervention clinic BP", "prior
+  school-term score" — when the user said 提高 / 下降 without naming
+  a reference
+- `state_vs_event` (slice #41): `"state"` / `"event"` — when the
+  predicate could plausibly be either a habit or an occurrence
 
-## Mediation decomposition disclosure (Phase 6.mediation)
+For `structure` items, translate any internal references in `reason`
+(e.g. `"see PHASE_2_LATENT_CHARTER.md §7"`, `"Phase 2.latent S3.b.1"`)
+to plain user-facing language. Strip internal IDs. If a reason is pure
+diagnostic noise without user-actionable content, suppress that item.
 
-When `extensions.mediation_decomposition` is present, the query
-asked for an effect decomposition through a mediator. The rendering
-must make the four-way distinction explicit and handle partial
-identifiability:
+## Numeric rendering
 
-- `strategy: "nde_nie"` — **best case**. Both natural direct/indirect
-  and controlled direct effects are identifiable. Report TE = NDE +
-  NIE and name the adjustment set used.
-- `strategy: "cde"` — **partial**. NDE/NIE not identifiable (usually
-  M4 violation: intermediate confounder), but CDE(m) is. Tell the
-  user: "I can tell you what happens if M is held at a specific
-  value, but I can't cleanly separate direct from indirect under
-  the natural M distribution."
-- `strategy: "none"` — **not identifiable via backdoor methods**.
-  Report which condition failed (`nde_nie.failed_condition` and
-  `cde.failed_condition`) and explain what that means in plain terms.
-- `mediator_valid: false` — structural error: M isn't on any
-  X → ... → M → ... → Y path. Ask the user to verify the mediator
-  declaration or the edge list.
+### From the kernel — `numeric_estimate`
 
-Template for the `nde_nie` success case:
+This block appears when the answer came from `themis.estimate(ast,
+df)`, not from symbolic Theta.
 
-> 关于 `<X>` 通过 `<M>` 对 `<Y>` 的影响分解：
->
-> - **总效应 TE**：`<X>` 改变对 `<Y>` 的全部影响
-> - **自然间接效应 NIE**：通过 `<M>` 这条路径贡献的部分
-> - **自然直接效应 NDE**：不经过 `<M>` 的部分（比如 `<X>` 直接
->   影响 `<Y>` 的机理）
->
-> 在你的图上，这个分解**可以识别**（需要调整 `<adjustment>`）。
-> 具体数字需要 Phase 7 估计层——目前只给出"结构上可分解"的判断。
-
-Template for the `cde` fallback (when NDE/NIE fails):
-
-> 这个问题的**完整分解（NDE + NIE）不可识别**——原因是
-> `<nde_nie.failed_condition>`（通常是中间混杂器问题：有一个变量
-> 既被 `<X>` 影响、又影响 `<M>` 和 `<Y>`）。
->
-> 但是**控制直接效应 CDE** 还是可以算：如果把 `<M>` 强制固定在某
-> 个值，`<X>` 对 `<Y>` 的剩余影响是多少。
->
-> 如果你只关心"把 `<M>` 按某水平时 `<X>` 的直接作用有多大"，用
-> CDE；如果一定要"让 `<M>` 自然变化下的直接/间接分解"，这个图
-> 结构上识别不了，需要换图或者引入更强工具（Phase 7+ 的 g-formula）。
-
-Template for the `none` case:
-
-> 对不起，这个图上 `<X>` 对 `<Y>` 通过 `<M>` 的效应**连 CDE 都不
-> 可识别**：`<cde.failed_condition>` 违反了。具体来说：`<simple
-> explanation of which backdoor is open>`。
->
-> 可能的解决方向：
-> - 观察更多混杂变量（可能解决 `<C1>` / `<M1>` 问题）
-> - 换一个合理的 mediator（如果 `<M>` 不是最合适的候选）
-> - 或者承认这个因果量在当前信息下不可回答
-
-Fields to pull:
-- `mediator` — the M atom name
-- `nde_nie.identifiable` / `cde.identifiable` — which branches succeeded
-- `nde_nie.adjustment` / `cde.adjustment` — the W used
-- `nde_nie.failed_condition` / `cde.failed_condition` — M1/M2/M3/M4
-  or C1/C2; map to plain-language reasons
-
-Common mapping of failed conditions to user-facing reasons:
-
-| Code | Plain explanation |
+| Field | Render? |
 |---|---|
-| M1 | "有未观测 / 未调整的 X-Y 混杂" |
-| M2 | "有未观测 / 未调整的 X-M 混杂" |
-| M3 | "有未观测 / 未调整的 M-Y 混杂（给定 X 下）" |
-| M4 | "有中间混杂器（X 的后代同时影响 M 和 Y），经典 recanting witness" |
-| C1 | "无法阻断 (X, M) 到 Y 的所有后门" |
-| C2 | "唯一能阻断后门的变量是 X 或 M 的后代（不允许调整）" |
+| `point` | always |
+| `ci_lower` / `ci_upper` / `ci_level` | always |
+| `method` | name once in plain Chinese |
+| `assumptions[]` | list 3–5 most relevant; translate via glossary, keep ID parenthetically |
+| `adjustment[]` (backdoor) | name explicitly — essential for transparency |
+| `mediators[]` (frontdoor) | name explicitly |
+| `instrument` (IV) | name + IV section applies |
+| `treatment` / `outcome` | mention once if it helps double-check |
+| `formula` | omit unless user asks "how" |
+| `sample_size` | parenthetical ("n=2000") |
+| `data_hash` | omit (developer-facing) |
+| `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column / NaN / coercion); always surface |
+| `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
 
-## Numeric estimate rendering (Phase 7) — v3
-
-When `result.numeric_estimate` is present, the answer came from
-the data-driven estimation layer (`themis.estimate(ast, df)`),
-not from symbolic Theta. This block tells you how to render it.
-
-### Field map
-
-| Field | Meaning | Render? |
-|---|---|---|
-| `numeric_estimate.point` | The point estimate (ATE / LATE / NDE / NIE / etc.) | **always** |
-| `numeric_estimate.ci_lower` / `ci_upper` / `ci_level` | Bootstrap CI | **always** |
-| `numeric_estimate.method` | Estimator: `backdoor_linear` / `backdoor_logistic` / `frontdoor_logistic` / `frontdoor_linear` / `iv_wald` / `iv_2sls` / `mediation_*` | name it once in plain Chinese |
-| `numeric_estimate.assumptions[]` | snake_case ID list (e.g. `conditional_exchangeability_given_adjustment_set`) | **list 3-5 most relevant**, translate each, keep ID parenthetically |
-| `numeric_estimate.adjustment[]` (backdoor) | The W set used | name explicitly (essential for transparency) |
-| `numeric_estimate.mediators[]` (frontdoor) | The M chain | name explicitly |
-| `numeric_estimate.instrument` (IV) | The Z | name + IV section applies |
-| `numeric_estimate.treatment` / `outcome` | redundant with question, useful for double-check | mention once if helpful |
-| `numeric_estimate.formula` | symbolic formula (front-door Σ Σ form) | omit unless user asks "how" |
-| `numeric_estimate.sample_size` | n used | mention as parenthetical ("n=2000") |
-| `numeric_estimate.data_hash` | reproducibility hash | omit (developer-facing) |
-| `estimation_context.model_preference` / `random_state` / `ci_bootstrap` | knobs | omit unless user asks |
-| `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column, NaN, type coercion) | **always surface non-empty warnings** |
-
-### What the point value means (semantic translation)
-
-The user never sees raw `point: -0.069` — translate based on `method`:
+**The point value's meaning depends on `method`** — never dump
+`point: -0.069` raw:
 
 | Method | Point semantics | Example phrasing |
 |---|---|---|
 | `backdoor_logistic` / `frontdoor_logistic` | risk difference (probability) | "服阿司匹林使一年内心脏病发作概率下降约 6.9 个百分点" |
 | `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale | "服药使收缩压平均下降 9.83 个单位（按 outcome 列单位）" |
-| `iv_wald` | LATE = local risk difference among compliers | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点"（point ∈ [-1,1] 时 ×100 转百分点） |
+| `iv_wald` | LATE = local risk difference among compliers | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点"（point ∈ [-1,1] 时 ×100） |
 | `iv_2sls` | linear ATE | "ATE = X.X（线性假设下的人群平均效应）" |
-| `mediation_*` | see §"Mediation decomposition disclosure" | (covered there) |
+| `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale | "把 M 固定在 m 时 X 对 Y 的直接效应是 X.X 个单位" |
+| `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale | "经过 M 这条路径贡献的部分是 X.X（NIE）" |
+| `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases | (covered there) |
 
-### Backdoor template
+**Backdoor template**:
 
 > 在你提供的图上，`<treatment>` 对 `<outcome>` 的平均因果效应通过
 > **后门调整**识别，调整集 = `<adjustment>`。
@@ -524,30 +346,25 @@ The user never sees raw `point: -0.069` — translate based on `method`:
 > 关键假设：`<列出 conditional_exchangeability / positivity /
 > consistency / 模型形式 4 条，给中文释义>`。
 
-### Front-door template
+**Front-door template**:
 
-> 在你提供的图上，`<treatment>` 对 `<outcome>` 的平均因果效应通过
-> **前门调整**识别——即使 `<treatment>` 和 `<outcome>` 之间存在
-> 未观测共因，因为通过 `<mediators>` 这条全可观测的中介路径仍可
-> 识别。
+> 在你提供的图上，`<treatment>` 对 `<outcome>` 通过**前门调整**识别
+> —— 即使 `<treatment>` 和 `<outcome>` 之间存在未观测共因，因为
+> `<mediators>` 这条全可观测的中介路径仍可识别。
 >
 > 在 N=`<sample_size>` 的数据上估出来：
 >
 > - 点估计 ATE = **`<point>`**（`<解读>`）
-> - 置信区间：**[`<ci_lower>`, `<ci_upper>`]**（bootstrap）
+> - 置信区间：**[`<ci_lower>`, `<ci_upper>`]**
 > - 估计方法：`<method>`
 >
 > 这种识别依赖：① 中介 `<mediators>` 拦截了 `<treatment>` →
 > `<outcome>` 的所有有向路径；② 前门各段后门都已被阻断；③ 一致性。
 
-### IV template
+**IV template** is in §"IV identification" below — it covers both the
+structural and the numeric (`iv_wald` / `iv_2sls`) paths.
 
-See §"IV identification disclosure" — that section's template
-already covers the numeric (`iv_wald` / `iv_2sls`) path.
-
-### `assumptions[]` translation reference
-
-Common snake_case IDs and recommended Chinese:
+#### Assumption glossary (`assumptions[]` translation)
 
 | ID | Chinese |
 |---|---|
@@ -569,60 +386,18 @@ Common snake_case IDs and recommended Chinese:
 | `no_unblocked_backdoor_from_treatment_to_mediator` | X→M 段无未阻断后门 |
 | `backdoor_from_mediator_to_outcome_blocked_by_treatment` | 给定 X 后 M→Y 的后门已被阻断 |
 
-If you see an assumption ID not in this table, render the snake_case
-words verbatim — don't invent translations.
+For IDs not in the table, render the snake_case verbatim — don't
+invent translations.
 
----
+### From literature — outside the kernel (Phase 11.1)
 
-## Schema mismatch disclosure (v3)
+When a number comes from WebSearch / KB lookups (gap_to_action.md
+flow) and was **not** patched into Themis (typically because of dtype
+mismatch — see §"Schema mismatch"), the kernel-numeric template
+doesn't apply: that number was neither produced by `themis.estimate`
+nor verified by any kernel rule.
 
-When the kernel_ast's variable declares `domain: [true, false]`
-but the estimator picked a continuous-outcome method
-(`numeric_estimate.method ∈ {"backdoor_linear", "frontdoor_linear"}`)
-OR the point estimate is clearly outside [-1, 1], the program's
-declared domain disagrees with the data's actual dtype.
-
-Themis "data wins" — the estimate is correct. But surface this
-to the user as a one-line note:
-
-> ⚠ 注意：`<variable>` 在你的图描述里被声明为 bool，但底层数据
-> 是连续值（点估计 `<point>` 在 `<method>` 下显然是连续量级的）。
-> 这次按数据连续来算了；如果你想把 `<variable>` 二值化，告诉我
-> 阈值我重跑。
-
-This is defense-in-depth — the A1 prompt v2.6.1 was supposed to
-catch this upstream, but renderer surfacing it lets the user
-correct the loop on their own.
-
----
-
-## Literature numeric rendering (WebSearch / KB sources, Phase 11.1)
-
-When a numeric value comes from **outside the kernel** — typically
-WebSearch-fetched meta-analyses, Cochrane reviews, KB lookups — the
-`Numeric estimate rendering` template doesn't apply (those numbers
-were neither produced by `themis.estimate` nor verified by
-`numeric_backdoor_estimate` etc.). Use this template instead.
-
-### When this applies
-
-- The agent loop fetched a number externally (gap_to_action.md flow)
-- The number was **not** patched into Themis (e.g. dtype mismatch
-  meant `parameter_fill_bundle` was skipped)
-- You want to surface the literature evidence to the user as part of
-  the answer
-
-### Field map
-
-| Render this | Pulled from |
-|---|---|
-| Point + interval | The fetched study's reported effect (mean / median, CI / IQR) |
-| Population | The **source** study population (NOT the user's) |
-| Sample size | The fetched study's `n` (or meta-analysis `total n`) |
-| Citation | Verbatim study identifier (PMID / DOI / URL) |
-| Dose / time | If reported (e.g. "150 min/week × 8 weeks") |
-
-### Template
+Use this template instead:
 
 ```
 基于 {study type, e.g. 2023 meta-analysis / 2019 RCT}（{population}, n={n}），
@@ -634,129 +409,175 @@ were neither produced by `themis.estimate` nor verified by
 引用: {PMID / DOI}
 ```
 
-### Critical caveats — ALWAYS include all three
+**Three caveats are mandatory** for every literature-derived number:
 
-1. **Population disclaimer**: Source population vs user. Even if it
-   "looks similar", flag the gap explicitly. Use the
-   `transport_target_distribution_unknown` template language as
-   reference if applicable.
-2. **ATE vs ITE disclaimer**: Literature gives **population means** —
-   the user's individual response can differ substantially. Suggest:
-   "对你这一类人群的平均效应是 X，但你个人可能多 / 少甚至没反应"
-3. **Schema-mismatch disclaimer (if applicable)**: If the literature
-   number's dtype doesn't match the kernel's variable declaration
-   (continuous vs bool, etc.), say so via §"Schema mismatch disclosure"
-   below, AND add: "因此这个数字没有进入 Themis 的可验证推导链 —
+1. **Population**: source population vs user. Even if "looks similar",
+   flag the gap. Reuse §"Transport identification" framing if it
+   applies.
+2. **ATE vs ITE**: literature gives **population means**; the user's
+   individual response can differ substantially. Add: "对你这一类人群
+   的平均效应是 X，但你个人可能多 / 少甚至没反应"
+3. **Schema mismatch (if the patch was skipped because of dtype)**:
+   say so, and add: "因此这个数字没有进入 Themis 的可验证推导链 —
    它是引用，不是推算"
 
-### What NOT to do
+Anti-patterns specific to literature numbers:
 
-- **Never let a literature number masquerade as a Themis-verified
-  estimate.** The user must see "this came from a paper, not from our
-  kernel" — the citation IS the audit trail
-- **Never combine literature point estimates** across studies on your
-  own ("study A says 4 mmHg + study B says 7 mmHg → 5.5 mmHg avg") —
-  that's amateur meta-analysis. Cite each separately or pick one with
-  reason
-- **Never extrapolate the literature interval** to the user's
-  individual case ("the meta-analysis CI is [3, 6] so you can expect
-  3-6 mmHg") — the CI is on the population mean, not on individuals
-- **Never drop the citation**. Inline link or PMID is mandatory.
-  Unsourced literature quotes are no better than fabricated values
+- Letting a literature number masquerade as Themis-verified
+- Combining literature point estimates across studies on your own
+  ("study A + study B → average") — that's amateur meta-analysis
+- Extrapolating the literature CI to the user's individual case
+  (the CI is on the population mean, not on individuals)
+- Dropping the citation. Inline link or PMID is mandatory.
+  Unsourced literature is operationally fabrication
 
----
+## Domain-specific patterns
 
-## Sensitivity (E-value) disclosure (Phase 8.2)
+### IV identification (Phase 6.iv / Phase 7.3)
 
-When the result's `numeric_estimate.sensitivity_analysis` is present
-(only fires for binary outcomes), surface the E-value to the user as
-a **robustness statement**, not a p-value substitute. The E-value
-answers: "how strong would an unmeasured confounder have to be — on
-both the treatment and outcome — to explain away this result?"
+**Trigger**: any of —
+- `extensions.iv_identification` is present (structural identify path)
+- `numeric_estimate.method ∈ {"iv_wald", "iv_2sls"}` (numeric path;
+  pull `instrument` / `conditioning` / `assumptions` from
+  `numeric_estimate`)
 
-**Field map**:
+When IV is in play, identification fell back to it after backdoor and
+front-door both failed. Three things follow that the rendering must
+make explicit:
 
-| Field | What it means |
-|---|---|
-| `e_value` | E-value on the point estimate |
-| `e_value_ci_bound` | E-value on the CI bound nearer the null (more conservative) |
-| `risk_ratio` | The implied RR used to compute E-value |
-| `baseline_rate` | Untreated arm's outcome rate |
-| `note` | One-line interpretation already includes the threshold category |
+1. The user's graph has **at least one unobserved X-Y confounder**
+   (that's why backdoor failed)
+2. The system found an **instrument** satisfying IV1/IV2/IV3
+3. **Identification only establishes existence** — the numeric answer
+   needs an additional estimation-layer assumption that the structural
+   layer doesn't pick
 
-**Plain-language thresholds** (already pre-encoded in `note`):
+Template:
 
-| E-value | Plain Chinese |
-|---|---|
-| < 1.5 | "很脆弱——稍微一点未观测混杂就能推翻结论" |
-| 1.5–2.5 | "中等强度——需要一个中等水平的混杂才能解释掉这个估计" |
-| 2.5–5 | "比较稳健——混杂得相当强才能颠覆结论" |
-| ≥ 5 | "非常稳健——除非有不可思议地强的混杂，否则结论站得住" |
-
-**Template**:
-
-> 这个估计的 **E-value = `<e_value>`**，意思是要让这个数字"消失"，
-> 必须存在一个未观测的混杂因素，它对 `<treatment>` 和 `<outcome>`
-> 的关联强度（用风险比衡量）都至少是 `<e_value>` 倍。
+> 我通过工具变量 `<instrument>` 识别了这条因果效应 —— 即使 `<X>`
+> 和 `<Y>` 之间有未观测共因，这条因果量在结构上仍可识别。
 >
-> 你的 95% 置信区间靠近零的那一头，对应的 E-value 是
-> `<e_value_ci_bound>`——也就是说连 CI 边缘都需要这么强的混杂才能
-> 推翻。
+> 但是要给出具体数字，**还需要补充一个估计层假设**。可选之一：
 >
-> `<note 里的 interpretation>`。
+> - **单调性（monotonicity）** —— 假设 `<instrument>` 对 `<X>` 的
+>   影响方向一致（不会"有的人反向"），得到 LATE（局部平均处理效应）
+> - **线性性（linearity）** —— 假设效应是线性的，可以用 2SLS
+>   得到 ATE（平均处理效应）
+>
+> 你倾向哪个假设？或者这两个都不合适？
 
-**When E-value is null** (continuous outcome, baseline rate at boundary,
-or implied treated rate outside [0,1]): surface the `note` as a
-caveat:
+Pull from `extensions.iv_identification` (structural) or
+`numeric_estimate` (numeric):
+- `instrument` — name it
+- `conditioning` — if non-empty, mention "给定 `<conditioning>` 之后"
+  (conditional IV)
+- `required_assumption` (structural) / `assumptions[]` (numeric) —
+  translate IV1/IV2/IV3 + monotonicity inline; quote the IDs once
+  so the user can refer back
+- `alternatives_count` (structural) — if > 1, mention "还有 N-1 个
+  其他工具变量候选可选"
+- numeric path: `iv_wald` → "Wald 比率估计 → LATE";
+  `iv_2sls` → "2SLS → ATE 假设线性性"
 
-> 这个估计目前没附 E-value。原因：`<note>`。如果你需要稳健性指标，
-> 可以考虑把 outcome 二值化（按某阈值），或者用其他敏感性方法
-> （如 Rosenbaum bounds）。
+If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
+ambiguity disclosure block will surface that aspect — don't double-
+render. The IV section focuses on *what the answer is*; the ambiguity
+section focuses on *what could go wrong*.
 
-**When NOT to render**:
-- continuous outcome → `sensitivity_analysis` will be absent; skip the
-  whole block (don't fabricate placeholder)
-- E-value already in `note`'s interpretation phrase → don't repeat the
-  threshold word; just quote the note
+### Mediation decomposition (Phase 6.mediation)
 
-## Transport identification disclosure (Phase 9 §T9.1)
+When `extensions.mediation_decomposition` is present, the query asked
+for an effect decomposition through a mediator.
+
+`strategy` field branches:
+
+- `nde_nie` — best case. Both natural direct/indirect and CDE
+  identifiable. Report TE = NDE + NIE and name the adjustment set.
+- `cde` — partial. NDE/NIE not identifiable (usually M4: intermediate
+  confounder), CDE(m) is. "I can tell you what happens if M is held
+  at a specific value, but I can't cleanly separate direct from
+  indirect under the natural M distribution."
+- `none` — not identifiable via backdoor methods. Report which
+  condition failed (`nde_nie.failed_condition` / `cde.failed_condition`)
+  and explain what that means in plain terms.
+- `mediator_valid: false` — structural error: M isn't on any
+  X → ... → M → ... → Y path. Ask the user to verify the mediator
+  declaration or the edge list.
+
+**Template — `nde_nie` success**:
+
+> 关于 `<X>` 通过 `<M>` 对 `<Y>` 的影响分解：
+>
+> - **总效应 TE**：`<X>` 改变对 `<Y>` 的全部影响
+> - **自然间接效应 NIE**：通过 `<M>` 这条路径贡献的部分
+> - **自然直接效应 NDE**：不经过 `<M>` 的部分
+>
+> 在你的图上这个分解**可以识别**（需要调整 `<adjustment>`）。具体
+> 数字需要 Phase 7 估计层 —— 目前只给出"结构上可分解"的判断。
+
+**Template — `cde` fallback**:
+
+> 这个问题的**完整分解（NDE + NIE）不可识别** —— 原因是
+> `<failed_condition>`（通常是中间混杂器问题：有变量既被 `<X>`
+> 影响、又影响 `<M>` 和 `<Y>`）。
+>
+> 但是**控制直接效应 CDE** 还是可以算：把 `<M>` 强制固定在某个值，
+> `<X>` 对 `<Y>` 的剩余影响是多少。
+>
+> 如果你只关心"把 M 按某水平时 X 的直接作用"，用 CDE；如果一定
+> 要"M 自然变化下的直接/间接分解"，这个图结构上识别不了，需要
+> 换图或者引入更强工具（Phase 7+ g-formula）。
+
+**Template — `none`**:
+
+> 对不起，这个图上 `<X>` 对 `<Y>` 通过 `<M>` 的效应**连 CDE 都不
+> 可识别**：`<failed_condition>` 违反了。具体来说：`<which backdoor
+> is open, in plain words>`。
+>
+> 可能的解决方向：
+> - 观察更多混杂变量（可能解决 `<C1>` / `<M1>` 问题）
+> - 换一个合理的 mediator
+> - 或者承认这个因果量在当前信息下不可回答
+
+Failed-condition codes → plain explanation:
+
+| Code | Plain explanation |
+|---|---|
+| M1 | 有未观测 / 未调整的 X-Y 混杂 |
+| M2 | 有未观测 / 未调整的 X-M 混杂 |
+| M3 | 有未观测 / 未调整的 M-Y 混杂（给定 X 下） |
+| M4 | 有中间混杂器（X 的后代同时影响 M 和 Y），经典 recanting witness |
+| C1 | 无法阻断 (X, M) 到 Y 的所有后门 |
+| C2 | 唯一能阻断后门的变量是 X 或 M 的后代（不允许调整） |
+
+### Transport identification (Phase 9 §T9.1)
 
 When `result.extensions.transport_identification` is present, the
-query asked about a target population that differs from the source
-of the evidence (Bareinboim & Pearl 2014 transport identification).
+query asked about a target population that differs from the source of
+evidence (Bareinboim & Pearl 2014).
 
-**Field map**:
+§T9.1 deliberately does NOT give a number — only structural
+identification + the formula. Numeric estimation lands in §T9.2. The
+reply must reflect this honestly: surface the formula + name the data
+that would be needed.
 
-| Field | Meaning |
-|---|---|
-| `source_population` | Where the evidence came from (e.g. `rct_meta_2022`) |
-| `target_population` | Where the user wants to apply it (usually `user`) |
-| `s_nodes[]` | List of variables whose distribution differs between populations |
-| `adjustment_set[]` | Z — variables that must be conditioned on for transport (the answer to "what variables matter") |
-| `formula_repr` | The symbolic transport formula |
+Field map: `source_population`, `target_population`, `s_nodes[]`
+(variables differing across populations), `adjustment_set[]` (the Z
+that must be conditioned on), `formula_repr`.
 
-**§T9.1 deliberately does NOT give a number** — only structural
-identification + the formula. Numeric estimation (filling P(y|do(x), Z)
-from source data + P*(Z) from target data) lands in §T9.2. The reply
-must reflect this honestly: surface the formula + tell the user
-exactly what data would be needed.
+Status semantics:
+- `structurally_solved` + `value=true` → the source effect IS
+  transportable to the target; numbers come later
+- `needs_investigation` with a `structure`-group missing item → no
+  S-admissible Z exists under the declared selection diagram
 
-**Status meaning**:
-- `structurally_solved` + `structural_result.value=true` → the source
-  effect IS transportable to the target, here's the adjustment set
-  and formula; numbers come later
-- `needs_investigation` with a `structure`-group missing item naming
-  the failure → no S-admissible Z exists, the source effect is NOT
-  transportable under the declared selection diagram (more S to
-  observe? richer Z candidates?)
+**Template — identifiable**:
 
-### Template — identifiable case
-
-> 你这个问题需要做**跨人群转移识别**（源人群 `<source_population>` →
-> 目标人群 `<target_population>`）。
+> 你这个问题需要做**跨人群转移识别**（源人群 `<source>` → 目标
+> `<target>`）。
 >
-> 在你声明的差异变量（`<s_nodes ids>`）下，转移**结构上可识别**——
-> 调整集 = `<adjustment_set predicates>`。
+> 在你声明的差异变量（`<s_nodes>`）下，转移**结构上可识别** ——
+> 调整集 = `<adjustment_set>`。
 >
 > 转移公式：
 >
@@ -770,293 +591,191 @@ exactly what data would be needed.
 > **要给具体数字，还需要两类数据**：
 >
 > 1. **源人群的分层条件概率** `P(<outcome> | do(<treatment>),
->    <adjustment_set>)`——meta-analysis 通常只给汇总（一个数字），
->    分层数据需要原始 RCT 的 IPD 或者 subgroup 表。**这一项往往
->    是真实瓶颈**。
-> 2. **目标人群（你 / 你这类人）的协变量联合分布**
->    `P*(<adjustment_set>)`——你直接给（个人画像）或查公开数据库
->    （如 NHANES / 国家统计）。
+>    <adjustment_set>)` —— meta-analysis 通常只汇总（一个数字），
+>    分层数据需要原始 RCT 的 IPD 或 subgroup 表。**这一项往往是
+>    真正的瓶颈**。
+> 2. **目标人群的协变量边缘分布** `P*(<adjustment_set>)` —— 用户
+>    自报或查公开数据库（NHANES / 国家统计）。
 >
-> Phase 9 §T9.1 只到结构识别这一层；具体数字落地到 §T9.2
-> 数值估计（IPSW / TMLE-transport）。
+> Phase 9 §T9.1 只到结构识别这一层；数字落地是 §T9.2 (IPSW /
+> TMLE-transport)。
 
-### Template — unidentifiable case
+**Template — unidentifiable**:
 
-> 你声明的选择图下，这个跨人群效应**结构上不可识别**——
+> 你声明的选择图下，这个跨人群效应**结构上不可识别** ——
 > `<failure_reason>`。
 >
-> 通常的解决方向：
->
-> 1. **观察更多变量进入 Z**：如果有些变量你能拿到目标人群分布，
->    把它们加成额外的 selection_node + 变量声明
-> 2. **缩小 S 节点集合**：如果你声明的某些 shift 实际上不影响 outcome，
->    去掉对应的 selection_node
-> 3. **承认这个问题在当前证据下无法回答**——可能需要不同来源的
->    研究（更接近你这类人群的小样本）
+> 解决方向：
+> 1. **观察更多变量进入 Z**：拿到目标人群分布的变量加入
+> 2. **缩小 S 节点集合**：去掉确实不影响 outcome 的 shift
+> 3. **承认无法回答**：可能需要更接近目标人群的研究
 
-### When source has been found but transport adds little
+**Special case** — `s_nodes` empty (no declared shifts) but
+`target_population` set: formula reduces to identity. Surface as:
 
-If `s_nodes` is empty (no declared shifts) but the agent emitted
-`target_population` anyway, the formula reduces to identity
-(`P*(y|do(x)) = P(y|do(x))`). Surface this as:
+> 你的目标人群和源人群在这次问题里**没有声明的分布差异** —— 所以
+> 源效应可以直接转移。如果实际上有差异（年龄 / 性别 / 体重）你想
+> 纳入考虑，告诉我，我会加上对应的 selection_node。
 
-> 你的目标人群和源人群在这次问题里**没有声明的分布差异**——所以
-> 源效应可以直接转移。如果实际上有差异（比如年龄 / 性别 / 体重）
-> 你想纳入考虑，告诉我，我会加上对应的 selection_node。
+**Caveats always include**:
+- 如果 program 有 `unobserved_population_shift` ambiguity → 提醒用户
+  §T9.1 只处理观察到的 S；未观测差异是 §T9.3 范围
+- 如果用户原始问题给了一个源人群数字（"RCT 说 X cm 下降"）→ 明确
+  说 transport 不会输出"修正后的 X" —— 只会告诉你需要哪些数据来算
+- 永远不要把源人群的点估计当作目标人群的答案（F25 失败模式核心）
 
-### Caveats to always include
+### Sensitivity (E-value) — Phase 8.2
 
-- 如果 program 里有 `unobserved_population_shift` ambiguity → 提醒
-  用户 §T9.1 只处理观察到的 S；未观测的人群差异是 §T9.3 范围
-- 如果用户原始问题给了一个源人群的数字（"RCT 说 X cm 下降"）→
-  明确说 transport 不会输出"修正后的 X"——只会告诉你需要哪些数据
-  来算修正后的数字
-- 永远不要把源人群的点估计当作目标人群的答案。这是 F25 失败模式
-  的核心
+Fires when `numeric_estimate.sensitivity_analysis` is present (binary
+outcomes only). Surface as a **robustness statement**, not a p-value
+substitute. The E-value answers: "how strong would an unmeasured
+confounder have to be — on both treatment and outcome — to explain
+this away?"
 
-## Data gap report rendering (Phase 10)
+Field map: `e_value`, `e_value_ci_bound` (E-value on the CI bound
+nearer the null; more conservative), `risk_ratio`, `baseline_rate`,
+`note` (one-line interpretation already includes the threshold
+category).
 
-The kernel attaches a `data_gap_report` field to most `effect` /
-`identify` / `counterfactual` results. This is the **structured output
-(2)** per VISION 定位收紧 — it tells the user **what data is still
-needed to validate the causal claim**, separate from output (1) (the
-identification / verification result).
+Plain-language thresholds (already encoded in `note`):
 
-> Themis 不是"什么因果问题都能给数字的工具"。它的承诺是**给数字时数字
-> 有出处，不能给时不会编**。`data_gap_report` 就是承担"不能给时告诉用
-> 户缺什么"那一半的渠道。**永远不要绕过它**——如果它非空，回复必须
-> surface 它的内容。
-
-### Field map
-
-| JSON path | Meaning | Render placement |
-|---|---|---|
-| `data_gap_report.summary` | One-line headline of the most blocking gap | First sentence of the gap section |
-| `data_gap_report.gaps[]` | Per-gap details, **already sorted** by severity (blocking → important → informational) then derivation order | One bullet per gap, in array order |
-| `data_gap_report.actionable_next_steps[]` | Generator-suggested next-step strings | Verbatim list at the end of the gap section |
-
-### Severity → user-facing language
-
-| Severity | Open with |
+| E-value | Meaning |
 |---|---|
-| `blocking` | **缺X不能给…** / **要Y必须先…** |
-| `important` | 给了答案，但需要假设 X / 警告 Y |
-| `informational` | 提示：变量定义有歧义，回答按当前理解给 |
+| < 1.5 | 很脆弱 —— 稍微一点未观测混杂就能推翻结论 |
+| 1.5–2.5 | 中等强度 —— 需要一个中等水平的混杂才能解释掉 |
+| 2.5–5 | 比较稳健 —— 混杂得相当强才能颠覆 |
+| ≥ 5 | 非常稳健 —— 除非有不可思议地强的混杂，否则结论站得住 |
 
-### Placement in the reply
+Template:
 
-- If **any gap is `blocking`**: the gap section comes **right after the
-  one-sentence headline answer**, before any methodology / numeric
-  details. Users need to see "你的问题缺什么数据"前面，否则会以为答案
-  是完整的。
-- If **all gaps are `important` / `informational`**: gap section can
-  follow the main answer at the end as a "caveats" block.
-- If `data_gap_report` is `null` or `gaps == []` and status is
-  `numerically_solved` / `structurally_solved`: omit the gap section
-  entirely. Don't add fake "no gaps detected" boilerplate.
+> 这个估计的 **E-value = `<e_value>`**，意思是要让这个数字"消失"，
+> 必须存在一个未观测的混杂因素，它对 `<treatment>` 和 `<outcome>`
+> 的关联强度（用风险比衡量）都至少是 `<e_value>` 倍。
+>
+> 你的 95% 置信区间靠近零的那一头，对应的 E-value 是
+> `<e_value_ci_bound>` —— 也就是说连 CI 边缘都需要这么强的混杂才
+> 能推翻。
+>
+> `<note 里的 interpretation>`。
 
-### Per-kind Chinese templates
+When E-value is null (continuous outcome / baseline at boundary /
+implied treated rate outside [0,1]):
 
-Each template names the variables verbatim from `description` /
-`required_data` — never rename or translate predicate identifiers.
+> 这个估计目前没附 E-value。原因：`<note>`。如果你需要稳健性指标，
+> 可以考虑把 outcome 二值化（按某阈值），或用其他敏感性方法
+> （如 Rosenbaum bounds）。
 
-#### `unidentifiable_no_admissible_set` (blocking)
+Skip the block entirely for continuous outcomes. Don't fabricate
+placeholders.
 
-```
-在你给的因果图上，{X} → {Y} 的因果效应**结构上不可识别**——
-{description 里的具体原因，例如：X 和 Y 之间存在未观测的共同原因}。
+### Schema mismatch
 
-要算这个效应，你需要至少做以下一件事：
-- 测量并加入 unmeasured confounder Z（说明：找到那个共同原因变量并把它加入数据收集）
-- 在 X 上做随机干预实验（RCT），旁路 backdoor
-- 找一个满足 IV 三个条件 (relevance / exclusion / exchangeability) 的工具变量
+When the kernel_ast variable declares `domain: [true, false]` but the
+estimator picked a continuous-outcome method
+(`numeric_estimate.method ∈ {"backdoor_linear", "frontdoor_linear"}`)
+OR the point estimate is clearly outside [-1, 1], the declared domain
+disagrees with the data's actual dtype.
 
-如果都做不到，最多只能给 bounds（区间），不能给点估计。
-```
+Themis "data wins" — the estimate is correct. Surface this as a
+one-line note:
 
-#### `missing_distribution` (blocking)
+> ⚠ 注意：`<variable>` 在你的图描述里被声明为 bool，但底层数据
+> 是连续值（点估计 `<point>` 在 `<method>` 下显然是连续量级的）。
+> 这次按数据连续来算了；如果你想把 `<variable>` 二值化，告诉我
+> 阈值我重跑。
 
-```
-要给点估计，还缺一个{signature: marginal/conditional/joint}分布：
-**{description 里的 P(...)}**。
+Defense in depth — A1 prompt v2.6.1 was supposed to catch this
+upstream, but renderer surfacing lets the user correct the loop.
 
-数据需求：
-- 类型：{required_data.data_type — IPD/marginal/RCT/cohort}
-- 人群：{required_data.population，如有}
-- 变量：{required_data.variables，如有}
+## Worked example (end-to-end)
 
-如果暂时拿不到这个分布，可以接受 Balke-Pearl bounds 给区间答案，
-代价是不给点估计。
-```
+Given:
 
-#### `missing_population_distribution` (blocking) — *placeholder, see §T9.2 future*
-
-(Currently no kernel path emits this — keep template ready for §T9.2 /
-§T9.3 multi-source transport.)
-
-#### `missing_assumption` (important)
-
-```
-识别需要一个**未在数据中可证伪的假设**：{description 里的 assumption 名，
-例如 monotonicity / sequential ignorability}。
-
-如果接受这个假设，可给点估计；如果不接受，回退到：
-- bounds 而非点估计 (Balke-Pearl / Manski)
-- 或运行 sensitivity analysis 量化"假设违反多严重才能改变结论"
-```
-
-#### `missing_iv_candidate` (important)
-
-```
-你描述的图里没有满足 IV 条件的工具变量（{description 里指出失败的具体路径}）。
-
-替代路径：
-- 改用 backdoor 路径（如可调整集存在）
-- 改用 front-door 路径（如有有效中介）
-- 或：找一个新变量 Z 同时满足 (a) 和 X 相关 (b) 不直接影响 Y
-  (c) 与 X-Y 之间无共同未观测原因
+```json
+{
+  "status": "needs_investigation",
+  "query_kind": "effect",
+  "investigation_requests": [
+    {"action": "validate_parameter", "priority": "high", "group": "parameter",
+     "items": [{"target": "parameter:P(belly_fat_loss=True|running=True)",
+                "reason": "Theta 中缺条目 ..."}]},
+    {"action": "define_variable", "priority": "medium", "group": "framing",
+     "items": [
+       {"target": "belly_fat_loss", "skeleton": {...}, "reason": "..."},
+       {"target": "running", "skeleton": {...}, "reason": "..."}
+     ]}
+  ]
+}
 ```
 
-#### `missing_mediator_data` (blocking)
+A good Chinese reply:
 
-```
-中介分解（NDE / NIE / TE）需要 **{required_data.variables[0]}**
-相关分布：{description 里的 P(...)}。
+> 这个问题我暂时还不能直接给答案。
+>
+> 从你的问法，我把它转成一条干预因果查询：
+> **在你每天跑步（`do(running=true)`）的前提下，是否瘦肚子（`belly_fat_loss=true`）？**
+>
+> 还差两类信息：
+>
+> **① 两个变量还没"操作化"（优先度 中）**
+> - **running**：缺 `time_window / measurement / threshold / observability`
+>   例如："每天≥30 min、持续 12 周"、"按手环记录里程"、"≥3 次/周"、"自报告"
+> - **belly_fat_loss**：缺同样这四项
+>   例如："12 周后评估"、"腰围 cm"、"≥3 cm 下降"、"自报告"
+>
+> **② 缺一条数值参数（优先度 高）**
+> - `P(belly_fat_loss=true | do(running=true))` 没有条目。补一个条件概率，或告诉我一个可靠来源。
+>
+> 把 ① 补清楚我可以再给一次结构化回答，补上 ② 才能给具体数值。
 
-替代方案：
-- 回退到 CDE（Controlled Direct Effect，控制中介值给条件直接效应）
-- 退回 total effect，不分解
-```
+## Worked example with ambiguity
 
-#### `transport_target_distribution_unknown` (blocking)
+Input excerpt:
 
-```
-转移公式已经识别出来了（见上方 transport_identification），
-但**目标人群 {target_population} 在 {Z 列表} 上的边缘分布 P*(Z) 还没有数据**。
-
-数据需求：
-- 类型：marginal（人群级统计就够，不需要 individual data）
-- 人群：{required_data.population}
-- 变量：{required_data.variables 里所有 Z}
-- 来源建议：NHANES / UK Biobank / 中国 CDC / 国家统计局人口学统计
-
-如果暂时拿不到 P*(Z)：可以接受源人群 ATE 作为粗略估计（外推有效性弱），
-或等待 §T9.2 transport sensitivity 给区间。
-```
-
-#### `transport_source_conditional_unknown` (blocking)
-
-```
-转移公式还需要源人群（{source_population}）的**分层条件分布**：
-**{description 里的 P(Y | do(X), Z) 形式}**。
-
-数据需求：
-- 类型：IPD（individual data）或 RCT subgroup table
-- 人群：{required_data.population}
-- 变量：{required_data.variables 里所有 Z}
-
-⚠ **这一项往往才是真正的瓶颈**——meta-analysis 通常只汇总成一个数字
-（"平均下降 X cm"），不给分层。要拿到分层数据需要：
-- 找原始 RCT 的 IPD（联系作者 / 看 supplementary table）
-- 找 meta-analysis 的 subgroup analysis（按相关 Z 分层）
-- 退而求其次：找单个最匹配你子群的小型 RCT，承担样本量小的代价
+```json
+// program.extensions.ambiguities
+[{
+  "kind": "intent",
+  "chosen": "assoc",
+  "alternatives": ["cause"],
+  "reason": "NL 仅说'有关系吗'，既可读为相关性也可读为因果",
+  "disambiguation_ask": "你是想问两者是否相关，还是一个是否导致另一个？"
+}]
+// result
+{ "status": "structurally_solved", "query_kind": "assoc",
+  "structural_result": {"value": true} }
 ```
 
-> **重要**：transport 路径下两个 gap 同时出现是常态——
-> `transport_target_distribution_unknown`（目标 P*(Z)）和
-> `transport_source_conditional_unknown`（源分层条件 P(Y|do(X),Z)）。
-> 二者是 Bareinboim 公式的**两个独立加数**，缺一不可，**必须都报告**。
+Reply:
 
-#### `ambiguous_variable_definition` (informational)
+> 按 **相关关系** 这个读法，结论是 **有相关**（咖啡和失眠之间在
+> 当前图里是 d-连通的）。
+>
+> ⚠ 不过我想先跟你确认一个判读决定：
+> - 你是想问两者是否 **相关**（assoc — 我选的这个），还是想问
+>   一个是否 **导致** 另一个（cause）？理由：你的问法"有关系吗"
+>   这两种读法都可以。
+>
+> 告诉我就能换个读法重跑。
 
-```
-注意：变量 `{predicate}` 缺操作化定义（{missing fields 列表}）。
-当前回答是**按 LLM 默认理解给的**——如果你的实际定义和默认不同，
-回答可能完全不适用。
+## Anti-patterns
 
-建议在追问时明确：
-- {missing 中的每一项，给一个具体例子}
-```
-
-### Multi-gap composition
-
-When `gaps` has multiple entries:
-
-```markdown
-你的问题在结构 / 数据层有 N 个缺口（按阻塞性排序）：
-
-1. **[blocking]** {第一个 gap 的简短说明}
-2. **[blocking]** {第二个}
-3. **[important]** {…}
-4. *[informational]* {…}
-
-要让这个问题真正能回答，至少需要补 #1 和 #2。
-```
-
-Don't reorder — `gaps` is already sorted. Don't merge gaps of different
-kinds. Don't drop informational gaps just because the user "probably"
-won't care — let them decide.
-
-### Actionable next steps
-
-If `actionable_next_steps[]` is non-empty, render verbatim as a
-bulleted list at the END of the gap section. These are
-generator-curated suggestions — don't paraphrase, don't reorder.
-
-```markdown
-**接下来可以做的：**
-- {actionable_next_steps[0]}
-- {actionable_next_steps[1]}
-- ...
-```
-
-### Important: don't conflate with `investigation_requests`
-
-The two channels overlap intentionally:
-
-- `investigation_requests` is the **machine-actionable patch surface** —
-  used by `apply_patch_and_run` to round-trip a fix back into the kernel.
-  Render it when the user can paste back a value.
-- `data_gap_report.gaps` is the **diagnostic surface** — explains *why*
-  data is needed and *what kind*. Render it always when present.
-
-When both are present, render the data gap explanation FIRST (it
-answers "why am I being asked"), then the investigation request
-(answers "here's the form to paste back").
-
-### When to omit the gap section entirely
-
-- `data_gap_report` is `null` or absent
-- `data_gap_report.gaps == []` AND status ∈ `{numerically_solved,
-  structurally_solved, counterfactual_solved}`
-
-In all other cases, the gap section is **mandatory** even if it
-duplicates information visible elsewhere — explicit beats implicit.
-
----
-
-## What NOT to do
-
-- Do not invent missing fields not listed in the JSON (if the JSON says
-  `time_window` is missing, don't also mention "frequency" unless it's in
-  the list)
-- Do not paraphrase predicate names into Chinese only — keep the English
-  identifier once so the follow-up turn can match them
-- Do not give a probability unless `status` is `numerically_solved` —
+- **Inventing missing fields not in the JSON** — render only what's
+  declared
+- **Paraphrasing predicate names into Chinese only** — keep the
+  English identifier once so the user can reference it back
+- **Giving a probability when status is not `numerically_solved`** —
   never invent numbers
-- Do not explain the verifier / `derivation` unless the user specifically
-  asks "why" or "how do you know"
-- Do not embed the full JSON in your reply — summarize
-- Do not claim your LLM-proposed edges are evidence-backed — if the
-  input kernel_ast has `annotations.source: "llm_proposal"` on a cause
-  statement, the reply must reflect that
-- **Do not silently commit to ambiguous readings** (v2) — if
-  `program.extensions.ambiguities` is non-empty, every entry must
-  appear in your reply. Silently taking the A1-chosen reading without
-  showing the user the alternatives defeats the entire F3 fix
-- **Do not skip the data gap report** (Phase 10 / VISION 定位收紧) —
-  if `data_gap_report` is non-null and `gaps` is non-empty, the gap
-  section is **mandatory** in the reply. Surfacing "缺什么数据才能算"
-  is half of Themis's value proposition; silently giving an answer
-  while suppressing the gap section breaks the contract that "不能给
-  数字时不会编"
+- **Front-loading methodology** — the user wants the answer first;
+  `derivation` and assumptions only on demand
+- **Embedding raw JSON in the reply** — translate
+- **Claiming LLM-proposed edges are evidence-backed** — if
+  `annotations.source: "llm_proposal"` is present, disclose
+- **Silently committing to ambiguous readings** — every entry in
+  `program.extensions.ambiguities` must surface
+- **Skipping the data gap report** — `data_gap_report` non-null +
+  non-empty means the gap section is mandatory; surfacing "缺什么数据
+  才能算" is half of Themis's value, and silently giving an answer
+  while suppressing it breaks the contract that "不能给数字时不会编"
+- **Combining or extrapolating literature numbers** without sources —
+  citation IS the audit trail
