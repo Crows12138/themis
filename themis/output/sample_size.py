@@ -54,6 +54,36 @@ def estimate_min_n_two_arm_binary(
     return total, note
 
 
+def estimate_min_n_mediation_nde_nie(
+    *,
+    cohens_h: float = DEFAULT_COHENS_H,
+    inflation_factor: float = 2.5,
+    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
+    z_beta: float = _Z_BETA_POWER_80,
+) -> tuple[int, str]:
+    """Total sample size to detect NDE + NIE jointly under Cohen's h on
+    each path, two-arm equal allocation.
+
+    Heuristic — not a bespoke power calc: ~``inflation_factor`` × the
+    simple-ATE detection n (default 2.5×, VanderWeele 2015 §4 — direct
+    + indirect path power requires inflated n vs total effect alone).
+    """
+    if inflation_factor <= 0:
+        raise ValueError(
+            f"inflation_factor must be positive, got {inflation_factor}"
+        )
+    base, _ = estimate_min_n_two_arm_binary(
+        cohens_h=cohens_h, z_alpha_2=z_alpha_2, z_beta=z_beta,
+    )
+    total = _round_up_50(int(base * inflation_factor))
+    note = (
+        f"detect NDE + NIE jointly at Cohen's h={cohens_h} on each path "
+        f"(α=0.05, power=0.80); heuristic = {inflation_factor}× simple "
+        f"ATE n per VanderWeele 2015 §4"
+    )
+    return total, note
+
+
 def estimate_min_n_single_proportion(
     *,
     precision: float = DEFAULT_PROPORTION_PRECISION,

@@ -9,6 +9,7 @@ import pytest
 from themis.output.sample_size import (
     DEFAULT_COHENS_H,
     DEFAULT_PROPORTION_PRECISION,
+    estimate_min_n_mediation_nde_nie,
     estimate_min_n_single_proportion,
     estimate_min_n_two_arm_binary,
     is_binary_outcome_distribution,
@@ -221,5 +222,117 @@ def test_gap_report_leaves_min_sample_size_unset_for_continuous():
         extensions=None,
     )
     gap = next(g for g in report.gaps if g.kind.value == "missing_distribution")
+    assert gap.required_data.min_sample_size is None
+    assert gap.required_data.precision_target is None
+
+
+# ----------------------------------------------- mediation NDE/NIE
+
+def test_mediation_default_inflation():
+    """Default inflation 2.5× over simple ATE n (=400) → 1000."""
+    n, note = estimate_min_n_mediation_nde_nie()
+    assert n == 1000
+    assert "NDE" in note and "NIE" in note
+    assert "VanderWeele" in note
+
+
+def test_mediation_custom_inflation_factor():
+    n_2, _ = estimate_min_n_mediation_nde_nie(inflation_factor=2.0)
+    n_3, _ = estimate_min_n_mediation_nde_nie(inflation_factor=3.0)
+    assert n_3 > n_2
+
+
+def test_mediation_rejects_zero_inflation():
+    with pytest.raises(ValueError, match="positive"):
+        estimate_min_n_mediation_nde_nie(inflation_factor=0)
+
+
+def test_mediation_rounds_to_50():
+    n, _ = estimate_min_n_mediation_nde_nie()
+    assert n % 50 == 0
+
+
+def test_gap_report_fills_min_sample_size_for_binary_mediator():
+    """End-to-end: a missing P(M=true|X=true) parameter request alongside
+    a mediation_decomposition extension should attach the 1000-n
+    mediation heuristic on the mediator gap."""
+    from themis.output.data_gap_report import compute_data_gap_report
+    from themis.types import (
+        InvestigationAction,
+        InvestigationItem,
+        InvestigationRequest,
+        Priority,
+        QueryKind,
+        ResultStatus,
+    )
+
+    mediator = "low_bmi"
+    target = f"parameter:P({mediator}=true|exercise=true)"
+    req = InvestigationRequest(
+        action=InvestigationAction.VALIDATE_PARAMETER,
+        target=target,
+        priority=Priority.HIGH,
+        group="parameter",
+        items=(InvestigationItem(target=target),),
+    )
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        derivation=(),
+        investigation_requests=(req,),
+        framing_notes=(),
+        extensions={
+            "mediation_decomposition": {
+                "mediator": mediator,
+                "mediator_valid": True,
+            },
+        },
+    )
+    assert report is not None
+    gap = next(
+        g for g in report.gaps if g.kind.value == "missing_mediator_data"
+    )
+    assert gap.required_data is not None
+    assert gap.required_data.min_sample_size == 1000
+    assert "NDE" in gap.required_data.precision_target
+
+
+def test_gap_report_leaves_mediator_n_unset_for_continuous():
+    """Continuous mediator → no min_sample_size."""
+    from themis.output.data_gap_report import compute_data_gap_report
+    from themis.types import (
+        InvestigationAction,
+        InvestigationItem,
+        InvestigationRequest,
+        Priority,
+        QueryKind,
+        ResultStatus,
+    )
+
+    mediator = "bmi_continuous"
+    target = f"parameter:P({mediator}|exercise=true)"
+    req = InvestigationRequest(
+        action=InvestigationAction.VALIDATE_PARAMETER,
+        target=target,
+        priority=Priority.HIGH,
+        group="parameter",
+        items=(InvestigationItem(target=target),),
+    )
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        derivation=(),
+        investigation_requests=(req,),
+        framing_notes=(),
+        extensions={
+            "mediation_decomposition": {
+                "mediator": mediator,
+                "mediator_valid": True,
+            },
+        },
+    )
+    gap = next(
+        g for g in report.gaps if g.kind.value == "missing_mediator_data"
+    )
     assert gap.required_data.min_sample_size is None
     assert gap.required_data.precision_target is None

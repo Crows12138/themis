@@ -387,6 +387,7 @@ def _classify_missing_mediator(
         for item in req.items:
             if mediator not in item.target:
                 continue
+            min_n, precision = _estimate_sample_size_for_mediator(item.target)
             yield DataGap(
                 kind=GapKind.MISSING_MEDIATOR_DATA,
                 severity=GapSeverity.BLOCKING,
@@ -397,6 +398,8 @@ def _classify_missing_mediator(
                 required_data=GapRequiredData(
                     data_type=RequiredDataType.IPD,
                     variables=(mediator,),
+                    min_sample_size=min_n,
+                    precision_target=precision,
                 ),
                 if_provided="可给 NDE / NIE / TE 数值分解",
                 alternative_paths=(
@@ -557,6 +560,22 @@ def _distribution_signature(target: str) -> str | None:
     if "," in target:
         return "joint"
     return "marginal"
+
+
+def _estimate_sample_size_for_mediator(
+    target: str,
+) -> tuple[int | None, str | None]:
+    """Mediation NDE/NIE sample size: only fires when the rendered
+    parameter target looks binary-outcome (same heuristic as
+    ``_estimate_sample_size_for_distribution``)."""
+    from .sample_size import (
+        estimate_min_n_mediation_nde_nie,
+        is_binary_outcome_distribution,
+    )
+
+    if not is_binary_outcome_distribution(target):
+        return None, None
+    return estimate_min_n_mediation_nde_nie()
 
 
 def _estimate_sample_size_for_distribution(
