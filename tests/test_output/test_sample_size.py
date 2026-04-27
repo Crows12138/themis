@@ -7,6 +7,7 @@ import math
 import pytest
 
 from themis.output.sample_size import (
+    DEFAULT_COHENS_D,
     DEFAULT_COHENS_H,
     DEFAULT_PROPORTION_PRECISION,
     estimate_min_n_mediation_nde_nie,
@@ -14,7 +15,9 @@ from themis.output.sample_size import (
     estimate_min_n_transport_source_conditional,
     estimate_min_n_transport_target_marginal,
     estimate_min_n_two_arm_binary,
+    estimate_min_n_two_arm_continuous,
     is_binary_outcome_distribution,
+    is_continuous_outcome_distribution,
 )
 
 
@@ -194,9 +197,10 @@ def test_gap_report_fills_min_sample_size_for_binary_marginal():
     assert "p=0.5" in gap.required_data.precision_target
 
 
-def test_gap_report_leaves_min_sample_size_unset_for_continuous():
-    """No bool tokens → continuous outcome → min_sample_size stays None
-    (we don't bluff power calc for continuous)."""
+def test_gap_report_leaves_min_sample_size_unset_for_unknown_outcome():
+    """Outcome shape unknown — neither =true/false nor =<number> on the
+    target side → can't pick between Cohen's h and Cohen's d → leave
+    min_sample_size None rather than bluff."""
     from themis.output.data_gap_report import compute_data_gap_report
     from themis.types import (
         InvestigationAction,
@@ -369,6 +373,78 @@ def test_transport_target_scales_linearly_with_strata():
     n1, _ = estimate_min_n_transport_target_marginal(n_strata=1)
     n4, _ = estimate_min_n_transport_target_marginal(n_strata=4)
     assert n4 == 4 * n1
+
+
+# ----------------------------------------------- continuous outcome (Cohen's d)
+
+def test_two_arm_continuous_default_round_number():
+    """d=0.5 (medium): n_per_arm = 2·(1.96+0.84)²/0.25 ≈ 63 → 126 → 150
+    after round-up-50."""
+    n, note = estimate_min_n_two_arm_continuous()
+    assert n == 150
+    assert "Cohen" in note and "d=0.5" in note
+
+
+def test_two_arm_continuous_small_d_huge_n():
+    n, _ = estimate_min_n_two_arm_continuous(cohens_d=0.2)
+    assert n > 700  # ~784, rounded → 800
+
+
+def test_two_arm_continuous_rejects_zero_d():
+    with pytest.raises(ValueError, match="positive"):
+        estimate_min_n_two_arm_continuous(cohens_d=0)
+
+
+def test_is_continuous_detects_numeric_target():
+    assert is_continuous_outcome_distribution("P(systolic_bp=140|salt=true)")
+    assert is_continuous_outcome_distribution("P(wage=50000)")
+    assert is_continuous_outcome_distribution("P(score=0.85|x=true)")
+
+
+def test_is_continuous_rejects_binary():
+    assert not is_continuous_outcome_distribution("P(y=true|x=true)")
+    assert not is_continuous_outcome_distribution("P(y=False)")
+
+
+def test_is_continuous_rejects_no_value():
+    """Marginal P(systolic_bp|...) with no =N on target side is shape-
+    unknown — leave both detectors False so caller skips power calc."""
+    assert not is_continuous_outcome_distribution("P(systolic_bp|aspirin=true)")
+
+
+def test_gap_report_fills_min_sample_size_for_continuous_conditional():
+    """End-to-end: P(systolic_bp=140|salt=true) → continuous conditional
+    → Cohen's d → n=150."""
+    from themis.output.data_gap_report import compute_data_gap_report
+    from themis.types import (
+        InvestigationAction,
+        InvestigationItem,
+        InvestigationRequest,
+        Priority,
+        QueryKind,
+        ResultStatus,
+    )
+
+    target = "parameter:P(systolic_bp=140|salt=true)"
+    req = InvestigationRequest(
+        action=InvestigationAction.VALIDATE_PARAMETER,
+        target=target,
+        priority=Priority.HIGH,
+        group="parameter",
+        items=(InvestigationItem(target=target),),
+    )
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        derivation=(),
+        investigation_requests=(req,),
+        framing_notes=(),
+        extensions=None,
+    )
+    gap = next(g for g in report.gaps if g.kind.value == "missing_distribution")
+    assert gap.required_data.min_sample_size == 150
+    assert "Cohen" in gap.required_data.precision_target
+    assert "d=0.5" in gap.required_data.precision_target
 
 
 def test_gap_report_fills_min_sample_size_for_transport_gaps():

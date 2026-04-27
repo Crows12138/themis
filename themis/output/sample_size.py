@@ -27,6 +27,7 @@ _Z_ALPHA_2_TWO_SIDED_05 = 1.959964   # P(|Z| > z) = 0.05
 _Z_BETA_POWER_80 = 0.841621          # P(Z > z) = 0.20
 
 DEFAULT_COHENS_H = 0.2                # small-to-medium binary effect
+DEFAULT_COHENS_D = 0.5                # medium continuous effect (Cohen 1988)
 DEFAULT_PROPORTION_PRECISION = 0.03   # ±3 pp around assumed p
 
 
@@ -49,6 +50,36 @@ def estimate_min_n_two_arm_binary(
     total = _round_up_50(2 * n_per_arm)
     note = (
         f"detect Cohen's h={cohens_h} (small-to-medium binary effect) "
+        f"at α=0.05 two-sided, power=0.80; two-arm equal allocation"
+    )
+    return total, note
+
+
+def estimate_min_n_two_arm_continuous(
+    *,
+    cohens_d: float = DEFAULT_COHENS_D,
+    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
+    z_beta: float = _Z_BETA_POWER_80,
+) -> tuple[int, str]:
+    """Total sample size for detecting a continuous-outcome treatment
+    effect of standardized magnitude ``cohens_d`` (Cohen 1988) under
+    two-arm equal allocation, two-sample t-test power formula:
+
+        n_per_arm = 2 · (z_{α/2} + z_β)² / d²
+
+    Defaults: d=0.5 (medium effect), α=0.05 two-sided, power=0.80
+    → ~64 per arm → 150 total after round-up-50.
+
+    Pairs with the binary ``estimate_min_n_two_arm_binary`` (Cohen's h)
+    so missing-distribution gaps targeting continuous outcomes can also
+    surface a min sample size instead of staying ``None``.
+    """
+    if cohens_d <= 0:
+        raise ValueError(f"cohens_d must be positive, got {cohens_d}")
+    n_per_arm = math.ceil(2 * (z_alpha_2 + z_beta) ** 2 / cohens_d ** 2)
+    total = _round_up_50(2 * n_per_arm)
+    note = (
+        f"detect Cohen's d={cohens_d} (medium continuous effect) "
         f"at α=0.05 two-sided, power=0.80; two-arm equal allocation"
     )
     return total, note
@@ -172,6 +203,7 @@ def _round_up_50(n: int) -> int:
 
 
 _BOOL_VALUE_TOKENS = ("=true", "=false", "=True", "=False")
+_NUMERIC_VALUE_RE = __import__("re").compile(r"=-?\d+(\.\d+)?(?![\w])")
 
 
 def is_binary_outcome_distribution(rendered: str) -> bool:
@@ -186,3 +218,18 @@ def is_binary_outcome_distribution(rendered: str) -> bool:
         inner = inner[2:]
     target_part = inner.split("|", 1)[0]
     return any(tok in target_part for tok in _BOOL_VALUE_TOKENS)
+
+
+def is_continuous_outcome_distribution(rendered: str) -> bool:
+    """Heuristic — true iff the rendered ``P(...)`` string contains a
+    numeric (non-bool) target value, e.g. ``P(systolic_bp=140|...)``
+    or ``P(wage=50000)``. Used to route continuous-outcome gaps to
+    Cohen's d sample-size estimation instead of leaving min_n unset.
+    """
+    inner = rendered.strip()
+    if inner.startswith("P("):
+        inner = inner[2:]
+    target_part = inner.split("|", 1)[0]
+    if any(tok in target_part for tok in _BOOL_VALUE_TOKENS):
+        return False
+    return bool(_NUMERIC_VALUE_RE.search(target_part))

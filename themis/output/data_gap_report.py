@@ -615,19 +615,30 @@ def _estimate_sample_size_for_distribution(
 ) -> tuple[int | None, str | None]:
     """Map a missing-distribution gap to (min_n, precision_target).
 
-    Only fires for binary-outcome distributions — the heuristic sniffs
-    the rendered ``P(y=true|...)`` form. Continuous / unknown outcomes
-    return ``(None, None)`` so the caller leaves the field unset.
+    Routes by outcome dtype sniffed from the rendered ``P(...)`` string:
 
-    Conditional → two-arm binary comparison (Cohen's h power calc).
-    Marginal / joint → single-proportion ± precision (worst-case p=0.5).
+    - Binary outcome (``P(y=true|...)``):
+      conditional → two-arm Cohen's h, marginal/joint → single proportion
+    - Continuous outcome (``P(systolic_bp=140|...)`` or marginal numeric):
+      conditional → two-arm Cohen's d, marginal → leave None (single
+      mean estimation needs σ that we don't have)
+    - Unknown shape: ``(None, None)`` — better silent than wrong.
     """
-    if not is_binary_outcome_distribution(display):
+    from .sample_size import (
+        estimate_min_n_two_arm_continuous,
+        is_continuous_outcome_distribution,
+    )
+
+    if is_binary_outcome_distribution(display):
+        if signature == "conditional":
+            return estimate_min_n_two_arm_binary()
+        return estimate_min_n_single_proportion()
+    if is_continuous_outcome_distribution(display):
+        if signature == "conditional":
+            return estimate_min_n_two_arm_continuous()
+        # marginal continuous: we don't have σ, can't run mean precision
         return None, None
-    if signature == "conditional":
-        return estimate_min_n_two_arm_binary()
-    # marginal or joint — single proportion suffices for the lead variable
-    return estimate_min_n_single_proportion()
+    return None, None
 
 
 def _step_ref(step: DerivationStep) -> GapProvenanceRef:
