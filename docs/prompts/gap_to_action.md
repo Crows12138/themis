@@ -133,6 +133,19 @@ automatically — with `provenance.citation` carried verbatim into
 `annotations.source`. Hand-build the bundle only when no adapter
 framework is in use.
 
+**Critical shape note** — the `investigation_requests[].items[].skeleton`
+you read out of `themis.run`'s output is a **single record**
+(`probability` or `variable_patch`). To submit it back via
+`apply_patch_and_run` you must **wrap one or more such records in a
+bundle**:
+
+- `probability` skeletons → wrap in `parameter_fill_bundle.skeletons[]`
+- `variable_patch` skeletons → wrap in `framing_skeleton_bundle.patches[]`
+
+The two list field names differ on purpose — parameter bundles add new
+statements, framing bundles patch existing variable declarations. Don't
+submit the raw skeleton; the apply layer expects the bundle envelope.
+
 ```json
 // parameter_fill_bundle — for missing_distribution / missing_mediator_data /
 //                         transport_*_unknown

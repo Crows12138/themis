@@ -231,8 +231,9 @@ def test_alt_paths_reconciled_with_attached_bounds():
     assert not any("Balke-Pearl" in a for a in alts)
     # Replaced with concrete reference to the computed method
     assert any(method in a and "bounds_result" in a for a in alts)
-    # actionable_next_steps reflects the rewritten alt
-    assert any(method in s for s in report["actionable_next_steps"])
+    # Subagent real-test caught: bounds pointer must NOT also appear in
+    # actionable_next_steps — would duplicate against bounds_result block
+    assert not any("bounds_result" in s for s in report["actionable_next_steps"])
 
 
 def test_unidentifiable_gap_gets_bounds_appended_when_missing():
@@ -287,8 +288,9 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
     assert unid["alternative_paths"][0] == (
         f"已计算 bounds（method={method}）— 见 bounds_result"
     )
-    # And shows up in actionable_next_steps
-    assert any("bounds_result" in s for s in report["actionable_next_steps"])
+    # actionable_next_steps stays free of the duplicated pointer (renderer
+    # reads bounds_result directly as its own block)
+    assert not any("bounds_result" in s for s in report["actionable_next_steps"])
 
 
 def test_non_binary_outcome_strips_static_bounds_promise():

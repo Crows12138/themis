@@ -2268,11 +2268,18 @@ def _reconcile_alt_paths_with_bounds(result: QueryResult) -> QueryResult:
 
     from ..output.data_gap_report import _make_actionable_steps
 
-    new_steps = tuple(_make_actionable_steps(list(new_gaps)))
+    new_steps = list(_make_actionable_steps(list(new_gaps)))
+    if bounds_present:
+        # Subagent real-test caught: with bounds_result attached, the
+        # actionable_next_steps "或：已计算 bounds — 见 bounds_result"
+        # line duplicates the pointer that's already in alt_paths AND
+        # the bounds_result rendering. Drop the dup — renderer reads
+        # bounds_result as its own block.
+        new_steps = [s for s in new_steps if "bounds_result" not in s]
     new_report = _replace(
         result.data_gap_report,
         gaps=tuple(new_gaps),
-        actionable_next_steps=new_steps,
+        actionable_next_steps=tuple(new_steps),
     )
     return _replace(result, data_gap_report=new_report)
 
