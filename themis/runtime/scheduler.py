@@ -2213,22 +2213,38 @@ def _reconcile_alt_paths_with_bounds(result: QueryResult) -> QueryResult:
     def _is_bounds_hint(s: str) -> bool:
         return any(tok in s for tok in _BOUNDS_HINT_TOKENS)
 
+    from ..types import GapSeverity
+
     new_gaps = []
     changed = False
     for gap in result.data_gap_report.gaps:
-        if not gap.alternative_paths:
-            new_gaps.append(gap)
-            continue
         rewritten: list[str] = []
+        gap_changed = False
+        had_bounds_mention = False
         for alt in gap.alternative_paths:
             if _is_bounds_hint(alt):
+                had_bounds_mention = True
                 if concrete not in rewritten:
                     rewritten.append(concrete)
-                changed = True
+                gap_changed = True
             else:
                 rewritten.append(alt)
-        if changed:
+        # If this is a blocking gap that doesn't already mention bounds,
+        # append the computed-bounds line — bounds_result is the most
+        # actionable fallback when point identification / data is gone.
+        if (
+            gap.severity == GapSeverity.BLOCKING
+            and not had_bounds_mention
+            and concrete not in rewritten
+        ):
+            # Prepend so actionable_next_steps (which surfaces only the
+            # first alt) shows the already-computed fallback ahead of
+            # heavier structural suggestions like 'do an RCT'.
+            rewritten.insert(0, concrete)
+            gap_changed = True
+        if gap_changed:
             new_gaps.append(_replace(gap, alternative_paths=tuple(rewritten)))
+            changed = True
         else:
             new_gaps.append(gap)
 

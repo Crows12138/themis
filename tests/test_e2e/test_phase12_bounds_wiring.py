@@ -233,3 +233,59 @@ def test_alt_paths_reconciled_with_attached_bounds():
     assert any(method in a and "bounds_result" in a for a in alts)
     # actionable_next_steps reflects the rewritten alt
     assert any(method in s for s in report["actionable_next_steps"])
+
+
+def test_unidentifiable_gap_gets_bounds_appended_when_missing():
+    """When the blocking gap (e.g. unidentifiable_no_admissible_set)
+    has no bounds-flavored alt_path text — its static suggestions are
+    purely structural ('measure unmeasured Z', 'do an RCT', 'find an
+    IV') — the reconciler should still surface the already-computed
+    bounds as a prepended fallback so actionable_next_steps shows it
+    ahead of the heavier structural moves."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "cause",
+             "from": {"predicate": "x",
+                      "args": [{"type": "const", "name": "me"}]},
+             "to":   {"predicate": "y",
+                      "args": [{"type": "const", "name": "me"}]}},
+            {"kind": "bidirected",
+             "left":  {"predicate": "x",
+                       "args": [{"type": "const", "name": "me"}]},
+             "right": {"predicate": "y",
+                       "args": [{"type": "const", "name": "me"}]}},
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "effect",
+                 "intervention": {
+                     "atom": {"predicate": "x",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": True},
+                 "target": {
+                     "atom": {"predicate": "y",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": True},
+                 "given": []}},
+        ],
+    }
+    envelope = themis.run(program)
+    result = envelope["results"][0]
+    bounds = result.get("bounds_result")
+    assert bounds is not None
+    method = bounds["method"]
+    report = result["data_gap_report"]
+    unid = next(
+        g for g in report["gaps"]
+        if g["kind"] == "unidentifiable_no_admissible_set"
+    )
+    # Bounds line was *appended* (no original bounds-flavored alt to
+    # rewrite) — and prepended so it leads the list
+    assert unid["alternative_paths"][0] == (
+        f"已计算 bounds（method={method}）— 见 bounds_result"
+    )
+    # And shows up in actionable_next_steps
+    assert any("bounds_result" in s for s in report["actionable_next_steps"])
