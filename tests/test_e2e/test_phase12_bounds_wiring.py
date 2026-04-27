@@ -185,3 +185,51 @@ def test_non_effect_query_no_bounds():
     envelope = themis.run(program)
     result = envelope["results"][0]
     assert result.get("bounds_result") is None
+
+
+def test_alt_paths_reconciled_with_attached_bounds():
+    """Phase 12 §S.12.4 follow-up: when bounds_result is attached, the
+    data_gap_report's static "接受 Balke-Pearl bounds" alternative_paths
+    text gets rewritten to point at the actually-computed method, and
+    actionable_next_steps reflects the rewrite."""
+    # Program with no IV → only Manski applies (the Balke-Pearl wording
+    # in the static template would be misleading)
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "cause",
+             "from": {"predicate": "x",
+                      "args": [{"type": "const", "name": "me"}]},
+             "to":   {"predicate": "y",
+                      "args": [{"type": "const", "name": "me"}]}},
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "effect",
+                 "intervention": {
+                     "atom": {"predicate": "x",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": True},
+                 "target": {
+                     "atom": {"predicate": "y",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": True},
+                 "given": []}},
+        ],
+    }
+    envelope = themis.run(program)
+    result = envelope["results"][0]
+    bounds = result.get("bounds_result")
+    assert bounds is not None
+    method = bounds["method"]
+    report = result["data_gap_report"]
+    blocking = next(g for g in report["gaps"] if g["severity"] == "blocking")
+    alts = blocking["alternative_paths"]
+    # Old static "Balke-Pearl bounds" wording must be gone
+    assert not any("Balke-Pearl" in a for a in alts)
+    # Replaced with concrete reference to the computed method
+    assert any(method in a and "bounds_result" in a for a in alts)
+    # actionable_next_steps reflects the rewritten alt
+    assert any(method in s for s in report["actionable_next_steps"])

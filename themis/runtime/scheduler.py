@@ -2094,6 +2094,7 @@ def dispatch(
     result = _attach_framing(program, stmt, result)
     result = _attach_data_gap_report(result)
     result = _attach_bounds_result(program, stmt, result, bidirected=bidirected)
+    result = _reconcile_alt_paths_with_bounds(result)
     return result
 
 
@@ -2184,6 +2185,65 @@ def _attach_bounds_result(
     if bounds is None:
         return result
     return _replace(result, bounds_result=bounds)
+
+
+_BOUNDS_HINT_TOKENS = ("Balke-Pearl bounds", "Manski", "bounds")
+
+
+def _reconcile_alt_paths_with_bounds(result: QueryResult) -> QueryResult:
+    """Phase 12 §S.12.4 follow-up: when ``bounds_result`` has been
+    attached, rewrite ``data_gap_report`` alternative_paths that still
+    speak in static "接受 Balke-Pearl bounds 给区间答案" terms — they
+    were written before bounds were actually computed and now mislead
+    (e.g. mention Balke-Pearl when only Manski applies, or hint at a
+    fallback that's already in ``bounds_result``).
+    """
+    from dataclasses import replace as _replace
+
+    if result.bounds_result is None:
+        return result
+    if result.data_gap_report is None:
+        return result
+
+    method_name = result.bounds_result.method.value
+    concrete = (
+        f"已计算 bounds（method={method_name}）— 见 bounds_result"
+    )
+
+    def _is_bounds_hint(s: str) -> bool:
+        return any(tok in s for tok in _BOUNDS_HINT_TOKENS)
+
+    new_gaps = []
+    changed = False
+    for gap in result.data_gap_report.gaps:
+        if not gap.alternative_paths:
+            new_gaps.append(gap)
+            continue
+        rewritten: list[str] = []
+        for alt in gap.alternative_paths:
+            if _is_bounds_hint(alt):
+                if concrete not in rewritten:
+                    rewritten.append(concrete)
+                changed = True
+            else:
+                rewritten.append(alt)
+        if changed:
+            new_gaps.append(_replace(gap, alternative_paths=tuple(rewritten)))
+        else:
+            new_gaps.append(gap)
+
+    if not changed:
+        return result
+
+    from ..output.data_gap_report import _make_actionable_steps
+
+    new_steps = tuple(_make_actionable_steps(list(new_gaps)))
+    new_report = _replace(
+        result.data_gap_report,
+        gaps=tuple(new_gaps),
+        actionable_next_steps=new_steps,
+    )
+    return _replace(result, data_gap_report=new_report)
 
 
 def _detect_iv_candidate_structural(
