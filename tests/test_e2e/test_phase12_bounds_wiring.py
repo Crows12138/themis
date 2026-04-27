@@ -294,20 +294,25 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
 
 
 def test_non_binary_outcome_strips_static_bounds_promise():
-    """Non-binary outcome: bounds attempt runs but returns None (Manski
-    natural is binary-only this phase). The static "接受 Balke-Pearl
-    bounds 给区间答案" line on missing_distribution must be stripped
-    rather than left as a false promise the user can't act on."""
+    """Unbounded continuous outcome (no domain declared): the target
+    event ``P(Y=specific_number)`` is degenerate point-mass on a
+    continuous distribution, Manski returns None. The static
+    "接受 Balke-Pearl bounds 给区间答案" line on missing_distribution
+    must be stripped rather than left as a false promise.
+
+    (Discrete-numeric Likert/grid targets DO get Manski now — this
+    test specifically pins the unbounded-continuous case.)"""
     program = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
         "statements": [
-            {"kind": "variable", "predicate": "y", "domain": [0, 1, 2, 3]},
+            # No domain declared = continuous (per nl_to_kernel_ast §2)
+            {"kind": "variable", "predicate": "wage"},
             {"kind": "variable", "predicate": "x", "domain": [True, False]},
             {"kind": "cause",
              "from": {"predicate": "x",
                       "args": [{"type": "const", "name": "me"}]},
-             "to":   {"predicate": "y",
+             "to":   {"predicate": "wage",
                       "args": [{"type": "const", "name": "me"}]}},
             {"kind": "query", "id": "q",
              "query": {
@@ -317,9 +322,9 @@ def test_non_binary_outcome_strips_static_bounds_promise():
                               "args": [{"type": "const", "name": "me"}]},
                      "value": True},
                  "target": {
-                     "atom": {"predicate": "y",
+                     "atom": {"predicate": "wage",
                               "args": [{"type": "const", "name": "me"}]},
-                     "value": 2},
+                     "value": 50000},
                  "given": []}},
         ],
     }
@@ -334,3 +339,83 @@ def test_non_binary_outcome_strips_static_bounds_promise():
     # Critical: no surviving bounds promise
     assert not any("Balke-Pearl" in a or "Manski" in a or "bounds" in a
                    for a in alts)
+
+
+def test_likert_outcome_gets_manski_bounds():
+    """Discrete-numeric outcome (Likert 1-5): the target event
+    'engagement=4' IS a non-degenerate probability when domain is
+    declared, so Manski natural bounds fire with the same shape as
+    the binary case. This was the subagent #1 trip — engagement got
+    twisted to bool because Themis used to drop bounds for any
+    non-bool target. Continuous bounded outcomes are now in scope."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "engagement",
+             "domain": [1, 2, 3, 4, 5]},
+            {"kind": "variable", "predicate": "raise_1k",
+             "domain": [True, False]},
+            {"kind": "cause",
+             "from": {"predicate": "raise_1k",
+                      "args": [{"type": "const", "name": "me"}]},
+             "to":   {"predicate": "engagement",
+                      "args": [{"type": "const", "name": "me"}]}},
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "effect",
+                 "intervention": {
+                     "atom": {"predicate": "raise_1k",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": True},
+                 "target": {
+                     "atom": {"predicate": "engagement",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": 4},
+                 "given": []}},
+        ],
+    }
+    envelope = themis.run(program)
+    result = envelope["results"][0]
+    bounds = result.get("bounds_result")
+    assert bounds is not None
+    assert bounds["method"] == "manski_natural"
+    # Expressions carry the numeric target value verbatim
+    assert "engagement=4" in bounds["lower_expression"]
+    assert "raise_1k" in bounds["lower_expression"]
+
+
+def test_target_value_outside_declared_domain_no_bounds():
+    """Defensive: target.value=99 with domain=[1,2,3,4,5] is asking
+    about an event that isn't in the declared range — fall back to
+    'no bounds' rather than emit something the user can't interpret."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "engagement",
+             "domain": [1, 2, 3, 4, 5]},
+            {"kind": "variable", "predicate": "x",
+             "domain": [True, False]},
+            {"kind": "cause",
+             "from": {"predicate": "x",
+                      "args": [{"type": "const", "name": "me"}]},
+             "to":   {"predicate": "engagement",
+                      "args": [{"type": "const", "name": "me"}]}},
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "effect",
+                 "intervention": {
+                     "atom": {"predicate": "x",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": True},
+                 "target": {
+                     "atom": {"predicate": "engagement",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": 99},
+                 "given": []}},
+        ],
+    }
+    envelope = themis.run(program)
+    result = envelope["results"][0]
+    assert result.get("bounds_result") is None

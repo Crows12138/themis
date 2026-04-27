@@ -20,10 +20,10 @@ from ..types import BoundsMethod, BoundsResult, EffectQuery
 def attempt_manski_natural(
     query: EffectQuery,
     *,
-    outcome_is_binary: bool,
+    outcome_event_is_discrete: bool,
 ) -> BoundsResult | None:
-    """Manski (1990) natural bounds on ``P(target | do(intervention))``
-    for a binary outcome.
+    """Manski (1990) natural bounds on ``P(Y_event | do(X=x))`` where
+    ``Y_event`` is the concrete event ``target.atom = target.value``.
 
     Derivation: under SUTVA + consistency, the observed conditional
     ``P(Y=y | X=x)`` only constrains the potential outcome on the X=x
@@ -34,17 +34,17 @@ def attempt_manski_natural(
             [ P(Y=y | X=x) · P(X=x),
               P(Y=y | X=x) · P(X=x) + P(X≠x) ]
 
-    No assumptions required. Bounds collapse to a point iff
-    ``P(X=x)=1`` (no untreated arm); become trivially [0, 1] iff
-    ``P(X=x)=0``. Width is exactly ``P(X≠x)`` — readable proxy for
-    "how much of the population we have no info on under this
-    intervention".
+    The formula is independent of Y's dtype — it works for bool targets
+    (engagement=true) AND discrete-numeric targets (engagement=4 on a
+    Likert 1-5 scale, BP=140 on a fixed grid) — as long as
+    ``P(Y=value)`` is a non-degenerate probability.
 
-    Returns ``None`` for non-binary outcomes — Manski natural bounds for
-    bounded continuous outcomes use ``[Y_min, Y_max]`` instead of
-    ``[0, 1]``; that variant is out of scope this phase.
+    Caller passes ``outcome_event_is_discrete=True`` when the target
+    predicate is bool OR has a declared discrete numeric domain;
+    ``False`` for unbounded continuous outcomes where ``P(Y=specific)``
+    is point mass on a continuous distribution (degenerate).
     """
-    if not outcome_is_binary:
+    if not outcome_event_is_discrete:
         return None
     if query.given:
         # Conditional effect queries (effect | given) are out of scope:

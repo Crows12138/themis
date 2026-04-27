@@ -2156,11 +2156,17 @@ def _attach_bounds_result(
 
     target_is_bool = isinstance(query.target.value, bool)
     intervention_is_bool = isinstance(query.intervention.value, bool)
-    if not (target_is_bool and intervention_is_bool):
+    if not intervention_is_bool:
+        return result
+
+    target_event_is_discrete = _target_event_is_discrete(program, query)
+    if not target_event_is_discrete:
         return result
 
     bounds = None
-    # 1. Try kernel-emitted IV identification first (richest)
+    # 1. Try kernel-emitted IV identification first (richest).
+    #    BP-IV's 8-term formula assumes Y ∈ {0,1} so it gates on bool
+    #    outcome — discrete-numeric targets fall through to Manski.
     iv_ext = (result.extensions or {}).get("iv_identification")
     instrument_pred: str | None = None
     if isinstance(iv_ext, dict):
@@ -2170,7 +2176,7 @@ def _attach_bounds_result(
         instrument_pred = _detect_iv_candidate_structural(
             program, query,
         )
-    if instrument_pred:
+    if instrument_pred and target_is_bool:
         bounds = attempt_balke_pearl_iv(
             query,
             instrument_predicate=instrument_pred,
@@ -2178,13 +2184,55 @@ def _attach_bounds_result(
             treatment_is_binary=True,
             instrument_is_binary=True,
         )
-    # 3. Always-available fallback
+    # 3. Always-available fallback (works for bool OR discrete-numeric)
     if bounds is None:
-        bounds = attempt_manski_natural(query, outcome_is_binary=True)
+        bounds = attempt_manski_natural(
+            query, outcome_event_is_discrete=True,
+        )
 
     if bounds is None:
         return result
     return _replace(result, bounds_result=bounds)
+
+
+def _target_event_is_discrete(program: Program, query) -> bool:
+    """Check whether ``P(target.atom = target.value)`` is a non-degenerate
+    discrete event — needed before invoking Manski-style bounds whose
+    formula assumes a well-defined event probability.
+
+    True iff target.value is bool, OR target.value is numeric (int/float
+    not bool) AND the target predicate's variable declaration carries a
+    discrete numeric ``domain`` of length ≥2 containing the value.
+    """
+    from ..types import EffectQuery, VariableDeclaration
+
+    if not isinstance(query, EffectQuery):
+        return False
+    val = query.target.value
+    if isinstance(val, bool):
+        return True
+    if not isinstance(val, (int, float)):
+        return False  # string targets fall here — out of scope this phase
+
+    target_pred = query.target.atom.predicate
+    decl = next(
+        (
+            s for s in program.statements
+            if isinstance(s, VariableDeclaration) and s.predicate == target_pred
+        ),
+        None,
+    )
+    if decl is None or decl.domain is None:
+        return False  # no domain → unbounded continuous → degenerate
+    domain = list(decl.domain)
+    if len(domain) < 2:
+        return False
+    if not all(
+        isinstance(v, (int, float)) and not isinstance(v, bool)
+        for v in domain
+    ):
+        return False
+    return val in domain
 
 
 _BOUNDS_HINT_TOKENS = ("Balke-Pearl bounds", "Manski", "bounds")
