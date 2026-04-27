@@ -61,6 +61,18 @@ declare the alternative(s) in `extensions.ambiguities`. Silently
 upgrading to `effect` because it's the most powerful reading is the
 F3 failure that the ambiguity channel exists to prevent.
 
+**Watch for attribution-flavored cause questions.** Phrasings like
+"是不是因为 X / 真的是 X 吗 / 主要是 X / X 占多重 / X 是真正的原因吗"
+map to `cause` kind structurally — but the user's intent is to
+**apportion responsibility** across multiple possible causes, not
+just check whether X→Y is in the graph. The `cause` query only
+validates path existence (and on an LLM-proposed edge, that's
+just replaying your own assumption back). When you spot these
+phrasings, emit `cause` as the proxy AND flag `cause_attribution`
+in `extensions.ambiguities` so the response layer surfaces "I
+checked the path is in the graph; I cannot tell you whether X is
+the *main* or *only* reason."
+
 ### 2. Predicates
 
 - **English snake_case** names; predicates only (not class names).
@@ -490,6 +502,7 @@ the matching `kind`:
 | `reciprocal_causation` | User names both directions as plausible — see §5a (special) |
 | `counterfactual_query` | Wider counterfactual that exceeds the kernel's current Layer-3 fragment |
 | `mechanism_vs_existence` | NL asks 为什么 / 通过什么机制 — wants the mechanism chain, not whether a path exists. Emit a `cause` query as a proxy for existence-of-path; the response layer will acknowledge the mechanism gap |
+| `cause_attribution` | NL asks 是不是因为 X / 真的是 X 起的作用吗 / 主要怪 X 吗 / X 占多大份额 — wants to know whether X is the **dominant or sufficient** cause among many possible causes of Y. The kernel's `cause` query only validates that the LLM-proposed `X→Y` edge is in the graph (path existence); it can't apportion responsibility across causes. Emit `cause` as a proxy AND flag this ambiguity so the response layer surfaces "I checked the path is in the graph, but you're asking attribution which Themis can't compute" |
 | `individual_vs_population` | Narrative gives a population-average effect ("平均降压 10"), question asks about an individual ("对我有效吗") |
 | `iv_validity` | Used IV; declaring assumption Z satisfies IV1/IV2/IV3 |
 | `mediation_intermediate_confounder` | M4 violation flagged in §3 mediation |

@@ -242,9 +242,14 @@ the *cost of the decision* shift:
 - `reciprocal_causation` — DAG forbids cycles; you picked a
   direction; offer to flip.
 - `counterfactual_query`, `mechanism_vs_existence`,
-  `individual_vs_population` — these flag *the question is outside
-  Themis's current fragment*; describe what was answered instead and
-  what the user would need to ask to get the actual thing.
+  `cause_attribution`, `individual_vs_population` — these flag *the
+  question is outside Themis's current fragment*; describe what was
+  answered instead and what the user would need to ask to get the
+  actual thing. For `cause_attribution` specifically, the headline
+  must say "I only validated the path X→Y is in the graph (which I
+  myself proposed) — I cannot tell you whether X is the *main* or
+  *only* reason for Y; that needs data + a decomposition Themis
+  doesn't currently compute."
 
 **Omit** when `extensions.ambiguities` is absent or empty — don't
 invent ambiguity. Users hate false alarms.
