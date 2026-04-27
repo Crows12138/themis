@@ -253,6 +253,10 @@ def test_ambiguous_variable_emits_informational_gap():
                 if g["kind"] == "ambiguous_variable_definition"
             )
             assert gap["severity"] == "informational"
+            # framing gaps don't block identification (graph-only) or the
+            # estimate (Theta numbers); they block the user's ability to
+            # *interpret* what was identified / estimated.
+            assert gap["blocks"] == "interpretation"
     assert triggered, "expected ambiguous_variable_definition gap on the underframed fixture"
 
 

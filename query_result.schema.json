@@ -787,7 +787,7 @@
           }
         },
         "blocks": {
-          "enum": ["point_estimate", "bounds", "identification", "transport"],
+          "enum": ["point_estimate", "bounds", "identification", "interpretation", "transport"],
           "description": "Which downstream output this gap prevents."
         },
         "if_provided": {

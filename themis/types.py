@@ -538,6 +538,7 @@ class GapBlocks(str, Enum):
     POINT_ESTIMATE = "point_estimate"
     BOUNDS = "bounds"
     IDENTIFICATION = "identification"
+    INTERPRETATION = "interpretation"
     TRANSPORT = "transport"
 
 

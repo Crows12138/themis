@@ -533,8 +533,11 @@ def _classify_ambiguous_variable(
             description=(
                 f"变量 `{note.predicate}` 缺操作化定义：{missing_str}"
             ),
-            blocks=GapBlocks.IDENTIFICATION,
-            if_provided="变量被框架化后下游识别 / 估计才有明确语义",
+            blocks=GapBlocks.INTERPRETATION,
+            if_provided=(
+                "变量框架化后，下游结果（点估计 / bounds）的语义才确定 —— "
+                "用户能判断 'P(Y|X)' 到底说的是哪段时间窗 / 哪种测量"
+            ),
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.FRAMING_NOTE, ref_id=note.predicate
