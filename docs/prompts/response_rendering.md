@@ -306,6 +306,17 @@ the predicate's real-world meaning (not generic placeholders):
 - `state_vs_event` (slice #41): `"state"` / `"event"` — when the
   predicate could plausibly be either a habit or an occurrence
 
+**Defer framing detail when blocking gaps exist.** If
+`data_gap_report.gaps[]` contains *any* `severity=blocking` item
+(e.g. `missing_distribution`, `unidentifiable_no_admissible_set`),
+collapse the framing items into a single short note —
+"另外 N 个变量缺操作化定义（time_window / measurement / ...），
+建议先解决上面的 blocking，后续再回来定义" — instead of itemizing
+all 7 fields per variable. Reason: when the user can't even compute
+a number, asking them to choose 14+ framing fields is noise that
+crowds out the real blocker. Itemize fully only when framing is the
+*only* thing left.
+
 For `structure` items, translate any internal references in `reason`
 (e.g. `"see PHASE_2_LATENT_CHARTER.md §7"`, `"Phase 2.latent S3.b.1"`)
 to plain user-facing language. Strip internal IDs. If a reason is pure
