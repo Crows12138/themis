@@ -2093,6 +2093,7 @@ def dispatch(
     )
     result = _attach_framing(program, stmt, result)
     result = _attach_data_gap_report(result)
+    result = _attach_bounds_result(stmt, result)
     return result
 
 
@@ -2115,6 +2116,54 @@ def _attach_data_gap_report(result: QueryResult) -> QueryResult:
     if report is None and result.data_gap_report is None:
         return result
     return _replace(result, data_gap_report=report)
+
+
+def _attach_bounds_result(
+    stmt: QueryStatement, result: QueryResult,
+) -> QueryResult:
+    """Phase 12 §S.12.4: when point identification failed on an effect
+    query, try symbolic bounds (Manski natural always; Balke-Pearl IV
+    when extensions.iv_identification is present + binary triple).
+    Pure function — no I/O.
+
+    Prefers the tighter method (BP when applicable, else Manski).
+    """
+    from dataclasses import replace as _replace
+
+    from ..output.bounds import attempt_balke_pearl_iv, attempt_manski_natural
+    from ..types import EffectQuery, ResultStatus
+
+    if result.bounds_result is not None:
+        return result
+    if result.status != ResultStatus.NEEDS_INVESTIGATION:
+        return result
+    if not isinstance(stmt.query, EffectQuery):
+        return result
+    query = stmt.query
+
+    target_is_bool = isinstance(query.target.value, bool)
+    intervention_is_bool = isinstance(query.intervention.value, bool)
+    if not (target_is_bool and intervention_is_bool):
+        return result
+
+    bounds = None
+    iv_ext = (result.extensions or {}).get("iv_identification")
+    if isinstance(iv_ext, dict):
+        instrument_pred = iv_ext.get("instrument")
+        if instrument_pred:
+            bounds = attempt_balke_pearl_iv(
+                query,
+                instrument_predicate=str(instrument_pred),
+                outcome_is_binary=True,
+                treatment_is_binary=True,
+                instrument_is_binary=True,
+            )
+    if bounds is None:
+        bounds = attempt_manski_natural(query, outcome_is_binary=True)
+
+    if bounds is None:
+        return result
+    return _replace(result, bounds_result=bounds)
 
 
 def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]:
