@@ -458,7 +458,6 @@ def _classify_transport_target_distribution(
         if_provided="可给目标人群的 transport-adjusted ATE 点估计",
         alternative_paths=(
             "接受源人群 ATE 作为粗略估计（外推有效性弱）",
-            "等待 §T9.2 transport sensitivity 给区间",
         ),
         provenance=(
             GapProvenanceRef(
