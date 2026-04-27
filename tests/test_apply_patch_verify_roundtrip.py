@@ -224,3 +224,82 @@ def test_merged_program_output_is_json_serializable():
     text = json.dumps(out, ensure_ascii=False)
     reloaded = json.loads(text)
     assert reloaded == out
+
+
+# ================================================== forgiving input grammar
+# Subagent real-test caught the legacy "must wrap in bundle" trip.
+# apply_patch_and_run now accepts raw skeletons too — the four shapes
+# below all reach the same numerically_solved result.
+
+def _raw_probability_record(value: float = 0.55) -> dict:
+    return {
+        "kind": "probability",
+        "target": {"atom": _atom("belly_fat_loss"), "value": True},
+        "given": [{"atom": _atom("running"), "value": True}],
+        "value": value,
+    }
+
+
+def _raw_variable_patch() -> dict:
+    return {
+        "kind": "variable_patch",
+        "predicate": "belly_fat_loss",
+        "fields": {"time_window": "12w"},
+    }
+
+
+def test_apply_patch_accepts_single_raw_probability_record():
+    out = themis.apply_patch_and_run(
+        _underframed_program(), _raw_probability_record(0.55)
+    )
+    assert out["results"][0]["status"] == "numerically_solved"
+    assert out["results"][0]["numeric_result"]["value"] == 0.55
+
+
+def test_apply_patch_accepts_list_of_raw_records():
+    out = themis.apply_patch_and_run(
+        _underframed_program(), [_raw_probability_record(0.6)]
+    )
+    assert out["results"][0]["numeric_result"]["value"] == 0.6
+
+
+def test_apply_patch_accepts_mixed_bundles_and_raw_records():
+    """Bundle + raw variable_patch in same list — auto-wraps the raw one."""
+    out = themis.apply_patch_and_run(
+        _underframed_program(),
+        [_parameter_bundle(0.7), _raw_variable_patch()],
+    )
+    assert out["results"][0]["status"] == "numerically_solved"
+    decls = {
+        s["predicate"]: s
+        for s in out["merged_program"]["statements"]
+        if s["kind"] == "variable"
+    }
+    assert decls["belly_fat_loss"]["time_window"] == "12w"
+
+
+def test_apply_patch_consecutive_raw_records_grouped_into_one_bundle():
+    """Two raw probability records in a row should land as a single
+    parameter_fill_bundle. We can't observe the bundle directly, but
+    the merged program should carry both filled probabilities."""
+    second = _raw_probability_record(0.4)
+    second["given"] = [{"atom": _atom("running"), "value": False}]
+    out = themis.apply_patch_and_run(
+        _underframed_program(),
+        [_raw_probability_record(0.7), second],
+    )
+    probs = [
+        s for s in out["merged_program"]["statements"]
+        if s["kind"] == "probability"
+    ]
+    assert len(probs) == 2
+    values = sorted(p["value"] for p in probs)
+    assert values == [0.4, 0.7]
+
+
+def test_apply_patch_rejects_unknown_kind_with_helpful_message():
+    with pytest.raises(ValueError, match="not a supported patch shape"):
+        themis.apply_patch_and_run(
+            _underframed_program(),
+            {"kind": "totally_made_up", "skeletons": []},
+        )

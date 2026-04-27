@@ -102,6 +102,18 @@ from .workflow.variable_framing import (
     merge_variable_declaration,
 )
 
+# Map: record `kind` → (target bundle kind, bundle list-field name).
+# Used by ``apply_patch_and_run`` to forgivingly accept raw skeletons
+# (the exact records emitted on ``investigation_requests[].items[].skeleton``)
+# and auto-wrap them into the appropriate bundle envelope. The two list
+# field names differ on purpose: ``skeletons`` for new probability
+# statements, ``patches`` for diffs against existing variable
+# declarations.
+_RECORD_KIND_TO_BUNDLE = {
+    "probability": (PARAMETER_BUNDLE_KIND, "skeletons"),
+    "variable_patch": (FRAMING_BUNDLE_KIND, "patches"),
+}
+
 
 def _to_ast(program: dict | str | bytes) -> dict:
     if isinstance(program, (str, bytes)):
@@ -407,6 +419,42 @@ def apply_patch_and_run(
     ast = validate_ast(ast)
     prog = validate_program(ast)
 
+    bundles = _normalize_patches_to_bundles(patches)
+    for patch in bundles:
+        kind = patch["kind"]
+        if kind == FRAMING_BUNDLE_KIND:
+            prog = merge_variable_declaration(prog, patch)
+        else:  # PARAMETER_BUNDLE_KIND — _normalize guarantees one of the two
+            prog = merge_skeleton_bundle(prog, patch)
+
+    out = _run_typed(prog)
+    out["merged_program"] = _program_to_ast_dict(prog)
+    return out
+
+
+def _normalize_patches_to_bundles(patches) -> list[dict]:
+    """Forgiving input handling for ``apply_patch_and_run.patches``.
+
+    Accepts (and converts everything to a list of bundles ready to merge):
+
+    1. ``dict`` with ``kind`` ∈ {parameter_fill_bundle, framing_skeleton_bundle}
+       → one-element list (legacy path)
+    2. ``dict`` with ``kind`` ∈ {probability, variable_patch}
+       → wrap in a single-record bundle of the matching type
+    3. ``list[dict]`` mixing bundles and raw records — bundles pass
+       through; consecutive raw records of the same kind are auto-wrapped
+       into one bundle each (preserving order)
+
+    The whole point: an LLM that copies an
+    ``investigation_requests[].items[].skeleton`` verbatim and calls
+    ``apply_patch_and_run`` should just work — not get
+    ``MalformedBundleError: bundle.version must be '0.1'``. Hand-built
+    bundles still work; this only widens the input grammar.
+
+    Mixed kinds in adjacent raw records are tolerated (they go into
+    separate bundles). Unknown ``kind`` raises ``ValueError`` with the
+    full set of accepted values so the LLM can correct.
+    """
     if isinstance(patches, dict):
         patches = [patches]
     if not isinstance(patches, list):
@@ -415,23 +463,40 @@ def apply_patch_and_run(
             f"got {type(patches).__name__}"
         )
 
+    out: list[dict] = []
+    pending: dict[str, list[dict]] = {k: [] for k in _RECORD_KIND_TO_BUNDLE}
+
+    def _flush() -> None:
+        for record_kind, recs in pending.items():
+            if not recs:
+                continue
+            bundle_kind, list_field = _RECORD_KIND_TO_BUNDLE[record_kind]
+            out.append({
+                "version": "0.1",
+                "kind": bundle_kind,
+                list_field: list(recs),
+            })
+            pending[record_kind] = []
+
     for i, patch in enumerate(patches):
         if not isinstance(patch, dict):
             raise TypeError(f"patches[{i}] must be a dict")
         kind = patch.get("kind")
-        if kind == FRAMING_BUNDLE_KIND:
-            prog = merge_variable_declaration(prog, patch)
-        elif kind == PARAMETER_BUNDLE_KIND:
-            prog = merge_skeleton_bundle(prog, patch)
+        if kind in (FRAMING_BUNDLE_KIND, PARAMETER_BUNDLE_KIND):
+            _flush()
+            out.append(patch)
+        elif kind in _RECORD_KIND_TO_BUNDLE:
+            pending[kind].append(patch)
         else:
+            accepted = (
+                [FRAMING_BUNDLE_KIND, PARAMETER_BUNDLE_KIND]
+                + list(_RECORD_KIND_TO_BUNDLE)
+            )
             raise ValueError(
                 f"patches[{i}].kind={kind!r} is not a supported patch "
-                f"bundle; expected one of "
-                f"{[FRAMING_BUNDLE_KIND, PARAMETER_BUNDLE_KIND]}"
+                f"shape; expected one of {accepted}"
             )
-
-    out = _run_typed(prog)
-    out["merged_program"] = _program_to_ast_dict(prog)
+    _flush()
     return out
 
 
