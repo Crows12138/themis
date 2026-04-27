@@ -2191,29 +2191,43 @@ _BOUNDS_HINT_TOKENS = ("Balke-Pearl bounds", "Manski", "bounds")
 
 
 def _reconcile_alt_paths_with_bounds(result: QueryResult) -> QueryResult:
-    """Phase 12 §S.12.4 follow-up: when ``bounds_result`` has been
-    attached, rewrite ``data_gap_report`` alternative_paths that still
-    speak in static "接受 Balke-Pearl bounds 给区间答案" terms — they
-    were written before bounds were actually computed and now mislead
-    (e.g. mention Balke-Pearl when only Manski applies, or hint at a
-    fallback that's already in ``bounds_result``).
+    """Phase 12 §S.12.4 follow-up: align ``data_gap_report``'s static
+    alternative_paths text with what the bounds attempt actually produced.
+
+    Three cases:
+    - ``bounds_result`` present → rewrite static "接受 Balke-Pearl bounds"
+      lines to the concrete "已计算 bounds（method=...）— 见 bounds_result";
+      prepend that line on blocking gaps that didn't already mention bounds
+    - bounds attempt ran but returned None (effect query +
+      needs_investigation) → strip static bounds promises rather than
+      lying that BP/Manski works for non-binary outcomes
+    - bounds not attempted → leave alt_paths untouched
     """
     from dataclasses import replace as _replace
 
-    if result.bounds_result is None:
-        return result
+    from ..types import GapSeverity, QueryKind, ResultStatus
+
     if result.data_gap_report is None:
         return result
 
-    method_name = result.bounds_result.method.value
-    concrete = (
-        f"已计算 bounds（method={method_name}）— 见 bounds_result"
+    bounds_attempted = (
+        result.query_kind == QueryKind.EFFECT
+        and result.status == ResultStatus.NEEDS_INVESTIGATION
     )
+    bounds_present = result.bounds_result is not None
+
+    if not bounds_attempted and not bounds_present:
+        return result
 
     def _is_bounds_hint(s: str) -> bool:
         return any(tok in s for tok in _BOUNDS_HINT_TOKENS)
 
-    from ..types import GapSeverity
+    concrete = None
+    if bounds_present:
+        method_name = result.bounds_result.method.value
+        concrete = (
+            f"已计算 bounds（method={method_name}）— 见 bounds_result"
+        )
 
     new_gaps = []
     changed = False
@@ -2224,16 +2238,17 @@ def _reconcile_alt_paths_with_bounds(result: QueryResult) -> QueryResult:
         for alt in gap.alternative_paths:
             if _is_bounds_hint(alt):
                 had_bounds_mention = True
-                if concrete not in rewritten:
-                    rewritten.append(concrete)
+                if bounds_present:
+                    if concrete not in rewritten:
+                        rewritten.append(concrete)
+                # else: bounds attempt ran and gave None → drop the
+                # misleading static promise rather than re-emit it
                 gap_changed = True
             else:
                 rewritten.append(alt)
-        # If this is a blocking gap that doesn't already mention bounds,
-        # append the computed-bounds line — bounds_result is the most
-        # actionable fallback when point identification / data is gone.
         if (
-            gap.severity == GapSeverity.BLOCKING
+            bounds_present
+            and gap.severity == GapSeverity.BLOCKING
             and not had_bounds_mention
             and concrete not in rewritten
         ):

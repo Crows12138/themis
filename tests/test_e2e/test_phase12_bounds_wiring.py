@@ -289,3 +289,46 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
     )
     # And shows up in actionable_next_steps
     assert any("bounds_result" in s for s in report["actionable_next_steps"])
+
+
+def test_non_binary_outcome_strips_static_bounds_promise():
+    """Non-binary outcome: bounds attempt runs but returns None (Manski
+    natural is binary-only this phase). The static "接受 Balke-Pearl
+    bounds 给区间答案" line on missing_distribution must be stripped
+    rather than left as a false promise the user can't act on."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "y", "domain": [0, 1, 2, 3]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "cause",
+             "from": {"predicate": "x",
+                      "args": [{"type": "const", "name": "me"}]},
+             "to":   {"predicate": "y",
+                      "args": [{"type": "const", "name": "me"}]}},
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "effect",
+                 "intervention": {
+                     "atom": {"predicate": "x",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": True},
+                 "target": {
+                     "atom": {"predicate": "y",
+                              "args": [{"type": "const", "name": "me"}]},
+                     "value": 2},
+                 "given": []}},
+        ],
+    }
+    envelope = themis.run(program)
+    result = envelope["results"][0]
+    assert result.get("bounds_result") is None
+    blocking = next(
+        g for g in result["data_gap_report"]["gaps"]
+        if g["severity"] == "blocking"
+    )
+    alts = blocking.get("alternative_paths", [])
+    # Critical: no surviving bounds promise
+    assert not any("Balke-Pearl" in a or "Manski" in a or "bounds" in a
+                   for a in alts)
