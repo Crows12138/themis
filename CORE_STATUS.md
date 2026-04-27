@@ -956,10 +956,34 @@ S.11.1.2-3 prompt elegance pass：`gap_to_action.md` / `response_rendering.md`
 
 测试：1335 passed / 144 skipped（+~80 Phase 12 新增）；0 fail。
 
+### Phase 12 followup (2026-04-27 同日，9 场景真测驱动)
+
+`themis.run` 跑 9 个真实场景（W0 跑步 / sleep+bidirected / 非 binary BP /
+mediation / transport / counterfactual / conditional effect / happy path /
+apply_patch_and_run）逐个查 alt_paths × bounds_result × required_data 对齐，
+找出 5 真 bug + 配套 UX/sample_size 补齐。8 commits：
+
+- `57785c7` reconcile alt_paths：算出的 method 名替换静态 "Balke-Pearl"
+- `2d8e731` `GapBlocks.INTERPRETATION` 新增；framing gap 不再谎称 block
+  identification
+- `1557289` blocking gap 没提 bounds 时 prepend 已计算结果（让
+  actionable_next_steps 看得到）
+- `4845746` 非 binary outcome 时 bounds attempt 返回 None → strip 静态
+  bounds 承诺，不留空头支票
+- `919f1b2` response_rendering：blocking 存在时 framing 折叠成一句话
+  （subagent 之前提的 UX 改进）
+- `8b100ea` 移除 alt_paths 里泄给用户的内部章节号 "§T9.2"
+- `8d23b00` mediation NDE/NIE sample_size（2.5× simple ATE 启发）
+- `670abf7` transport sample_size（target marginal + source conditional
+  按 2^k strata 缩放）
+
+测试：1350 passed / 144 skipped（+15 followup 新增）；0 fail。
+
 显式 out-of-scope（仍未做，按真实压力）：
 - 数值 bounds estimator（symbolic 已经够用作 validator 输出）
 - Frontdoor partial / Manski-Tamer monotonicity 等更高级方法
 - 非 binary outcome 的 bounds
+- IV 路径 sample_size（gap 是结构性"找 IV 变量"，不是分布，无 n 可算）
 
 ## 下一步候选（按真实压力等待选）
 
