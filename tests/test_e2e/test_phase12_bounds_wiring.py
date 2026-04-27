@@ -128,6 +128,32 @@ def test_solved_query_has_no_bounds():
         assert result.get("bounds_result") is None
 
 
+def test_iv_shape_program_triggers_balke_pearl():
+    """Phase 12 §S.12.6 patch: when the user supplies an IV-shaped DAG
+    (Z→X edge, X↔Y bidirected, no Z→Y), bounds_result picks Balke-Pearl
+    even though the kernel's IV identification pass doesn't run on
+    ADMG-unidentifiable effect queries."""
+    envelope = themis.run(_program(with_iv=True))
+    result = envelope["results"][0]
+    assert result["status"] == "needs_investigation"
+    bounds = result.get("bounds_result")
+    assert bounds is not None
+    assert bounds["method"] == "balke_pearl_iv"
+    # Confirm the detected IV is named in the expressions
+    assert "z" in bounds["lower_expression"]
+    assert "z" in bounds["upper_expression"]
+
+
+def test_admg_unidentifiable_emits_unidentifiable_gap():
+    """Phase 12 §S.12.6 patch: ADMG-blocked effect queries emit
+    `unidentifiable_no_admissible_set` gap_kind via the structure-group
+    investigation_request route (target=query:effect_admg)."""
+    envelope = themis.run(_program())  # bidirected X↔Y, no IV
+    result = envelope["results"][0]
+    gap_kinds = [g["kind"] for g in (result.get("data_gap_report") or {}).get("gaps", [])]
+    assert "unidentifiable_no_admissible_set" in gap_kinds
+
+
 def test_non_effect_query_no_bounds():
     """Cause / assoc queries don't get bounds (out of scope)."""
     program = {

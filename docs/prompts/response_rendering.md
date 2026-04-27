@@ -25,9 +25,11 @@ do your best — and add one line at the end:
 A reply is a small ladder, top to bottom:
 
 1. **Headline** — can the question be answered? (with-number /
-   structurally / not-yet-because-X)
+   with-bounds / structurally / not-yet-because-X)
 2. **Mandatory disclosure channels** (any non-empty channel surfaces;
    skipping any of them breaks Themis's contract):
+   - `bounds_result` — Phase 12: when point fails, surface the
+     interval (Manski / Balke-Pearl) right after the headline
    - `data_gap_report` — what data is still needed
    - `extensions.ambiguities` — decisions made under uncertainty
    - statement-level `annotations.source: "llm_proposal"` — hypothesis
@@ -56,6 +58,7 @@ Fields in roughly the order you'll consult them:
 | `investigation_requests[]` | Actionable patches the user can paste back |
 | `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
 | `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |
+| `bounds_result` | Phase 12: symbolic bounds when point identification failed. Method + lower/upper expressions + assumptions. See §"Bounds rendering" |
 | `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification` |
 | `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
 | `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
@@ -698,6 +701,124 @@ one-line note:
 
 Defense in depth — A1 prompt v2.6.1 was supposed to catch this
 upstream, but renderer surfacing lets the user correct the loop.
+
+## Bounds rendering (Phase 12)
+
+When `result.bounds_result` is set, point identification failed but
+Themis computed information-preserving bounds instead. The validator
+tried to give *something* useful rather than just refuse. Surface
+this prominently — if the user's `data_gap_report` mentions
+"接受 Balke-Pearl bounds" as an alternative_path, the bounds_result
+**is** that interval (no need to send the user looking).
+
+### Placement
+
+Bounds come **right after the headline answer**, alongside (not
+inside) the data_gap_report block. Order:
+
+1. Headline: "点估计算不出，但区间答案可以给"
+2. Bounds block (this section)
+3. Data gap report (now reframed as "to upgrade from interval to
+   point, you'd need...")
+4. Other channels (ambiguity, edge provenance)
+
+When `bounds_result` is null AND the gap report's alternative_paths
+mention bounds, surface the gap report's text verbatim (the bounds
+weren't computed — explain in the data gap section, not pretend
+they were).
+
+### Field map
+
+| Field | Render |
+|---|---|
+| `method` | name once: "Manski 自然界限" / "Balke-Pearl 工具变量界限" |
+| `lower_expression` / `upper_expression` | symbolic — show as code block; the user / their analyst evaluates against data |
+| `assumptions` | translate via the assumption glossary (Manski natural: "无假设"; BP: lists IV1/IV2/IV3) |
+| `data_required` | name the observable distribution(s) the analyst must supply |
+| `width_when_uninformative` | when True, prepend warning that bounds are trivial |
+| `notes` | quote verbatim — generator-curated context |
+
+### Per-method shape
+
+#### `manski_natural` (no assumptions)
+
+> 这个效应的点估计在你给的图上算不出（缺关键数据 / 不可识别），但
+> **不需要任何额外假设**就能给一个区间答案 ——
+>
+> **Manski 自然界限**：
+>
+> ```
+> P({target} | do({intervention})) ∈
+>     [ {lower_expression}, {upper_expression} ]
+> ```
+>
+> 计算只需要观察到的 `{data_required}`。
+>
+> **解读**：区间宽度 = P({intervention} 的另一个值) —— 治疗组之外
+> 的人群对这条干预我们没有信息，区间宽度反映了这部分的不确定。
+> 想缩窄就要么扩大覆盖率（让另一组也有人受治疗），要么接受额外
+> 假设（如 monotonicity）。
+
+#### `balke_pearl_iv` (requires IV1/IV2/IV3)
+
+> 你的图里有一个工具变量 `{instrument}`（满足 IV1/IV2/IV3 时），
+> 这让我可以用 **Balke-Pearl 工具变量界限**（1997）给一个比 Manski
+> 自然界限更窄的区间 —— 但这次界的是 **平均因果效应 ACE**：
+>
+> ```
+> ACE = E[{target} | do({intervention}=1)] - E[{target} | do({intervention}=0)]
+> ACE ∈ [ {lower_expression}, {upper_expression} ]
+> ```
+>
+> 计算只需要观察到的 `{data_required}`（8 个概率，二值三元组）。
+>
+> **关键假设**：
+> - IV1: 工具变量 `{instrument}` 与处理 `{intervention}` 相关
+> - IV2: 工具变量只通过处理影响结果（exclusion restriction）
+> - IV3: 工具变量与未观测混杂独立
+>
+> 如果这三条哪条你有疑问 —— 比如 `{instrument}` 真的不直接影响
+> `{target}` 吗？—— 告诉我，我可以退回 Manski 自然界限（更宽但不
+> 需要 IV 假设）。
+
+### When the bounds are uninformative
+
+If `width_when_uninformative` is True OR you can see lower/upper
+collapse to the trivial range (e.g. [0, 1] for probabilities,
+[-1, 1] for ACE), be honest:
+
+> 严格来说界限存在 —— `[{lower}, {upper}]` —— 但实际上覆盖了整个
+> 可能范围，这等于"不知道"。这种情况下**界限本身没有信息**，要
+> 真的得出有用区间需要：
+> - 更多观察（增加另一组的覆盖率）
+> - 接受 monotonicity（处理对每个个体的方向一致）
+> - 找一个有效的 IV（如果当前没有）
+
+Don't bury the warning. Useless bounds dressed up as useful is the
+single biggest bounds-rendering anti-pattern.
+
+### Cross-reference with data_gap_report
+
+When both `bounds_result` and `data_gap_report` are present, the
+gap report's `alternative_paths` text "接受 Balke-Pearl bounds 给
+区间答案" is now backed by an actual interval (the bounds_result
+above). Phrase the gap section as:
+
+> 上面已经给了区间答案 — 要从区间升级到点估计，你需要补：
+> - {gap.required_data.data_type} 形式的 {gap.required_data.variables}
+> - n ≥ {gap.required_data.min_sample_size}（{precision_target}）
+
+Don't repeat the bounds expression inside the gap section — it's
+already rendered above.
+
+### When NOT to render bounds
+
+- `bounds_result` is null → omit entirely. Don't fabricate.
+- `status == "numerically_solved"` AND bounds_result somehow set
+  (shouldn't happen but defensive) → render the point + a one-line
+  note "bounds also computed: [a, b]"; the point is the answer.
+- `query_kind != effect` → `bounds_result` should be null already;
+  if not, it's an upstream bug — don't render.
 
 ## Worked example (end-to-end)
 

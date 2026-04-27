@@ -2093,7 +2093,7 @@ def dispatch(
     )
     result = _attach_framing(program, stmt, result)
     result = _attach_data_gap_report(result)
-    result = _attach_bounds_result(stmt, result)
+    result = _attach_bounds_result(program, stmt, result, bidirected=bidirected)
     return result
 
 
@@ -2119,19 +2119,31 @@ def _attach_data_gap_report(result: QueryResult) -> QueryResult:
 
 
 def _attach_bounds_result(
-    stmt: QueryStatement, result: QueryResult,
+    program: Program,
+    stmt: QueryStatement,
+    result: QueryResult,
+    *,
+    bidirected: "frozenset[frozenset[Atom]] | None" = None,
 ) -> QueryResult:
     """Phase 12 §S.12.4: when point identification failed on an effect
     query, try symbolic bounds (Manski natural always; Balke-Pearl IV
-    when extensions.iv_identification is present + binary triple).
+    when a binary IV candidate exists either via
+    extensions.iv_identification or via lightweight graph detection).
     Pure function — no I/O.
 
     Prefers the tighter method (BP when applicable, else Manski).
+
+    IV detection (Phase 12 §S.12.6 patch): the kernel's IV identification
+    pass does NOT run on ADMG-unidentifiable effect queries, so
+    extensions.iv_identification is empty in the most common bounds-
+    triggering scenario. We do a lightweight structural check directly:
+    Z is an IV candidate iff there's a cause edge Z→X and no cause edge
+    Z→Y, and Z's variable declaration is bool.
     """
     from dataclasses import replace as _replace
 
     from ..output.bounds import attempt_balke_pearl_iv, attempt_manski_natural
-    from ..types import EffectQuery, ResultStatus
+    from ..types import EffectQuery, ResultStatus, VariableDeclaration
 
     if result.bounds_result is not None:
         return result
@@ -2147,23 +2159,72 @@ def _attach_bounds_result(
         return result
 
     bounds = None
+    # 1. Try kernel-emitted IV identification first (richest)
     iv_ext = (result.extensions or {}).get("iv_identification")
+    instrument_pred: str | None = None
     if isinstance(iv_ext, dict):
         instrument_pred = iv_ext.get("instrument")
-        if instrument_pred:
-            bounds = attempt_balke_pearl_iv(
-                query,
-                instrument_predicate=str(instrument_pred),
-                outcome_is_binary=True,
-                treatment_is_binary=True,
-                instrument_is_binary=True,
-            )
+    # 2. Fallback: lightweight structural detection
+    if instrument_pred is None:
+        instrument_pred = _detect_iv_candidate_structural(
+            program, query,
+        )
+    if instrument_pred:
+        bounds = attempt_balke_pearl_iv(
+            query,
+            instrument_predicate=instrument_pred,
+            outcome_is_binary=True,
+            treatment_is_binary=True,
+            instrument_is_binary=True,
+        )
+    # 3. Always-available fallback
     if bounds is None:
         bounds = attempt_manski_natural(query, outcome_is_binary=True)
 
     if bounds is None:
         return result
     return _replace(result, bounds_result=bounds)
+
+
+def _detect_iv_candidate_structural(
+    program: Program,
+    query: "EffectQuery",
+) -> str | None:
+    """Lightweight IV candidate detection from program edge structure.
+
+    Returns predicate name of Z iff:
+      - exists cause edge Z→X (X = intervention predicate)
+      - no cause edge Z→Y (Y = target predicate)
+      - Z is declared as a bool variable
+    Returns None if zero or multiple candidates (don't guess on tie).
+    """
+    from ..types import CauseStatement, VariableDeclaration
+
+    target_pred = query.target.atom.predicate
+    intervention_pred = query.intervention.atom.predicate
+
+    # Collect predicates with edge → intervention
+    edges_to_intervention: set[str] = set()
+    edges_to_target: set[str] = set()
+    bool_vars: set[str] = set()
+    for s in program.statements:
+        if isinstance(s, CauseStatement):
+            from_pred = s.from_atom.predicate
+            to_pred = s.to_atom.predicate
+            if to_pred == intervention_pred:
+                edges_to_intervention.add(from_pred)
+            if to_pred == target_pred:
+                edges_to_target.add(from_pred)
+        elif isinstance(s, VariableDeclaration):
+            if s.domain is not None and set(s.domain) == {True, False}:
+                bool_vars.add(s.predicate)
+
+    candidates = (edges_to_intervention - edges_to_target) & bool_vars
+    candidates.discard(intervention_pred)
+    candidates.discard(target_pred)
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    return None
 
 
 def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]:

@@ -175,7 +175,15 @@ def _classify_unidentifiable_from_request(
 ) -> Iterable[DataGap]:
     """Identification failures that go through the missing-info channel
     (no derivation step) — e.g. ADMG identify_admg returning a
-    structure-group request with target ``query:identify_*``."""
+    structure-group request with target ``query:identify_*`` /
+    ``query:effect_admg`` / ``query:counterfactual_admg``."""
+    # Targets that signal "no admissible identification path on this graph";
+    # all share the same downstream remediation (more variables / RCT / IV).
+    _UNIDENTIFIABLE_PREFIXES = (
+        "query:identify",
+        "query:effect_admg",
+        "query:counterfactual_admg",
+    )
     for req in requests:
         if req.group != "structure":
             continue
@@ -185,7 +193,7 @@ def _classify_unidentifiable_from_request(
                 # Routes through _classify_missing_iv to keep IV-flavored
                 # alternatives.
                 continue
-            if not target.startswith("query:identify"):
+            if not any(target.startswith(p) for p in _UNIDENTIFIABLE_PREFIXES):
                 continue
             yield DataGap(
                 kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
