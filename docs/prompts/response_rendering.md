@@ -224,6 +224,35 @@ answer first, then understand what's still in question.
 你要是想换个读法，告诉我就行。
 ```
 
+**Rank by load-bearing-ness when there are ≥3 entries.** Subagent
+real-test caught: a wall of "I'm not sure about X / Y / Z" gives a
+user 3+ open questions to triage at once. Use two tiers:
+
+*Top tier — full disclosure shape, ask the user to confirm/redirect*
+(these change what was answered):
+
+- `cause_attribution`, `mechanism_vs_existence`, `counterfactual_query`,
+  `individual_vs_population` — answer-vs-question mismatch
+- `confounder_refusal`, `reciprocal_causation`, `selection_bias`,
+  `mediation_intermediate_confounder` — structural / direction
+  commitments
+- `unmeasured_confounder_concern`, `iv_validity` — assumption-bearing
+
+*Lower tier — collapsed into one closing sentence* (read-flavor
+decisions that don't move the needle on whether the answer is right):
+
+- `state_vs_event`, `categorical_compression`, `direction`,
+  `alias`, `subject_scope`, `scope`
+
+Render lower-tier as a single tail line: "另几个细节判断我按惯例
+处理了（变量是 state 还是 event；压成了 binary；方向看作 up）—
+要细看告诉我。" Don't itemize. Itemize fully only when those are
+the *only* ambiguities present.
+
+When everything is top-tier and there are still many, still render
+all — but lead with the one whose decision most changes the answer
+(prefer the `out_of_fragment` cluster first if any are present).
+
 **Adapting per kind** — the shape stays the same, but the *topic* and
 the *cost of the decision* shift:
 
