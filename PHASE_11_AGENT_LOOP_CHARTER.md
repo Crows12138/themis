@@ -134,6 +134,14 @@ S.11.2+ 是把那一行的 "WebSearch" 升级成结构化 KG 查询，提高数�
 理由：避免 PrimeKG-shaped 抽象偏倚后续 SciGraph/SemMedDB 接入。
 重排后：
 
+> **进一步收紧（2026-04-27 同日）**：用户明确"LLM 怎么搜资料不关我们
+> 的事"。S.11.3-S.11.7 全部**废弃**——真 KB adapter（PrimeKG /
+> SciGraph / SemMedDB / Wikidata / 冲突解决）都不是 Themis 的事，是
+> 客户端 / 第三方 repo 的工作。Themis 的 KB 工作以 S.11.2 契约骨架为
+> 终点；下表保留作历史记录但不会推进。详见
+> `project_kb_adapter_invariants.md` 记忆（"Themis 不发网络请求 + 不
+> 教 LLM 如何 fetch"双重边界）。
+
 | Sub-slice | KB / 工作 | 板块 | 估时 | 状态 |
 |---|---|---|---|---|
 | **S.11.2** | KB adapter 契约骨架（schemas / ABC / translator / cache / reference adapter） | 元基础设施 | ~1 天 | ✅ 已落地 (2026-04-27, +95 tests) |

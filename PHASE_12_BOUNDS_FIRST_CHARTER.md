@@ -1,7 +1,8 @@
 # Phase 12 Charter — Bounds-first Output
 
 > 立项日期：2026-04-27
-> 状态：**待 review / 未开始**
+> 状态：**S.12.1-6 全部已落地（同日）**；commits 88653eb / aa1b577 /
+> b208897 / 4342808。
 > 触发：Phase 10 落地后 9 个 gap_kind 里 5 个的 `alternative_paths`
 > 写"接受 Balke-Pearl bounds"——但 kernel 算不出 bounds，是空头承诺。
 > Phase 12 把它兑现。

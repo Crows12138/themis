@@ -932,11 +932,47 @@ S.11.1.2-3 prompt elegance pass：`gap_to_action.md` / `response_rendering.md`
 - ❌ 跨 KB 冲突解决（S.11.7 元基础设施扩展）
 - ❌ async adapter（先做同步契约）
 
+## Phase 12 bounds-first (2026-04-27, S.12.1-6)
+
+兑现 Phase 10 的"alternative_paths 接受 bounds"承诺 —— 之前是空话，
+现在 kernel 真在算 bounds。
+
+- **types + schema**: `BoundsMethod` enum (manski_natural / balke_pearl_iv /
+  frontdoor_partial / manski_tamer_monotonicity) + `BoundsResult` 数据类
+  + `QueryResult.bounds_result` 字段 + JSON schema $def
+- **themis/output/bounds.py**: `attempt_manski_natural`（无假设，binary
+  outcome 自然界限）+ `attempt_balke_pearl_iv`（Pearl 1995 §3 / BP 1997，
+  binary 三元组 + IV1/IV2/IV3）
+- **scheduler `_attach_bounds_result`**: identify 失败时自动尝试；BP 优先
+  Manski 兜底；轻量 IV 检测（程序图里 Z→X 且无 Z→Y 且 Z 是 bool → 取
+  作 IV）
+- **response_rendering.md**: 新 §"Bounds rendering"（placement / per-method
+  shape / uninformative-bounds 反模式 / 不要伪装界限有用）
+- **subagent 真测**找到 2 真 bug，都已修：
+  - `unidentifiable_no_admissible_set` 在 ADMG 不可识别 effect query 漏
+    发（`query:effect_admg` prefix 不被 classifier 接 → 已扩展前缀列表）
+  - BP-IV 在用户给 IV-shape 但 kernel 没跑 IV identification 时不触发
+    （lightweight structural 检测补上）
+
+测试：1335 passed / 144 skipped（+~80 Phase 12 新增）；0 fail。
+
+显式 out-of-scope（仍未做，按真实压力）：
+- 数值 bounds estimator（symbolic 已经够用作 validator 输出）
+- Frontdoor partial / Manski-Tamer monotonicity 等更高级方法
+- 非 binary outcome 的 bounds
+
 ## 下一步候选（按真实压力等待选）
 
-- **S.11.3+ 真 KB adapter 实现**（PrimeKG / SciGraph / SemMedDB / Wikidata）
-  — sibling repo 形态，每个 ~3d
-- **Phase 12 bounds-first** — effect query 默认输出 bounds（Balke-Pearl /
-  Manski），点估计要明确 opt-in；让"alternative: bounds"承诺有交付物
 - **真人测试** — 找不熟项目的人跑一遍 MCP（一直没做，是诚实的 gap）
-- **样本量计算** — 让 `min_sample_size` 字段有真值（statistical power）
+- **样本量扩展** — sample_size 接到 mediation / IV / transport 路径
+- **更多 gap_kind / 更深检测** — dtype mismatch / IV 强度不足 /
+  propensity overlap / SUTVA 违反
+- **bounds 扩展** — frontdoor partial / Manski-Tamer monotonicity /
+  非 binary outcome / 数值层
+- **A1/A2/歧义识别更广** — 输入诊断更准
+- **V0-V5 + T10 verifier 更深规则** — 验证器更严
+
+**注**：Phase 11 母 charter §3 列的 S.11.3-S.11.7（PrimeKG / SciGraph /
+SemMedDB / Wikidata / 冲突解决）**已废弃** — "LLM 怎么搜资料不关我们
+的事"（2026-04-27 用户校正）。adapter 在客户端，Themis 不教 LLM 怎么
+找数据。详见 `project_kb_adapter_invariants.md` 记忆。
