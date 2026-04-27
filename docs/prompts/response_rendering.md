@@ -13,12 +13,11 @@ You read one entry from `themis.run(...)["results"]` (a
 person, not a machine: plain text, no JSON, no code fences except for
 formulas or citations.
 
-The orchestrator usually also passes the original `kernel_ast` as
-`program`, which lets you surface ambiguities
-(`extensions.ambiguities`) and edge provenance
-(`statement[].annotations.source`). If you only get the result,
-do your best — and add one line at the end:
-"（本次没看到原 program，无法列出判读决定。）"
+`themis.run` echoes the validated program back as `out["program"]`
+(and `apply_patch_and_run` echoes its merged version as
+`out["merged_program"]`). Always read `program.extensions.ambiguities`
+and edge `annotations.source` from there — they are part of the run
+contract, not optional context the orchestrator might forget to pass.
 
 ## How a reply is composed
 

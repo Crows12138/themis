@@ -330,8 +330,14 @@ def run(program: dict | str | bytes) -> dict:
     or constructed programmatically) or a JSON string / bytes payload
     conforming to ``kernel_ast.schema.json``.
 
-    Returns ``{"results": [<query_result_dict>, ...]}``. Each entry
-    conforms to ``query_result.schema.json``.
+    Returns ``{"results": [<query_result_dict>, ...], "program":
+    <kernel_ast dict>}``. ``results[*]`` conforms to
+    ``query_result.schema.json``. ``program`` is the validated /
+    normalized AST the kernel actually ran on — same shape as
+    ``apply_patch_and_run``'s ``merged_program``. Echoing it back
+    means downstream response renderers can surface
+    ``program.extensions.ambiguities`` and edge provenance without
+    having to retain the original input across turns.
 
     Raises ``SyntacticError`` / ``SemanticError`` if the input is
     malformed. No natural-language fallbacks — the caller is expected
@@ -340,7 +346,9 @@ def run(program: dict | str | bytes) -> dict:
     ast = _to_ast(program)
     ast = validate_ast(ast)
     prog = validate_program(ast)
-    return _run_typed(prog)
+    out = _run_typed(prog)
+    out["program"] = _program_to_ast_dict(prog)
+    return out
 
 
 def estimate(program: dict | str | bytes, data, **options) -> dict:

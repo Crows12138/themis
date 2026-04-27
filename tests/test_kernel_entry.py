@@ -67,9 +67,29 @@ def _minimal_effect_program() -> dict:
 def test_run_accepts_dict_and_returns_results_envelope():
     out = themis.run(_minimal_effect_program())
     assert isinstance(out, dict)
-    assert list(out.keys()) == ["results"]
+    assert set(out.keys()) == {"results", "program"}
     assert isinstance(out["results"], list)
     assert len(out["results"]) == 1
+
+
+def test_run_echoes_program_with_extensions_for_response_renderer():
+    """Subagent real-test caught: program-level extensions.ambiguities
+    were lost between input and output, breaking response_rendering's
+    'orchestrator passes the original program' assumption. Run now
+    echoes the validated program so renderers always have access."""
+    program = _minimal_effect_program()
+    program["extensions"] = {
+        "ambiguities": [{
+            "kind": "reciprocal_causation",
+            "description": "X ↔ Y plausible both ways",
+            "committed_direction": "X→Y",
+        }],
+    }
+    out = themis.run(program)
+    echoed = out["program"]
+    assert echoed["extensions"]["ambiguities"][0]["kind"] == (
+        "reciprocal_causation"
+    )
 
 
 def test_run_accepts_json_string():

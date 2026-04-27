@@ -152,7 +152,9 @@ def test_themis_run_accepts_annotated_cause_and_reasons_identically():
 
     # The reasoning result (value, explanation, everything the kernel
     # produces) must be identical — annotations never influence any rule.
-    assert out_with == out_plain
+    # Compare results[] only; the program echo naturally differs because
+    # one program carries the annotation and the other doesn't.
+    assert out_with["results"] == out_plain["results"]
     # Sanity: the reasoning actually produced a structurally_solved answer.
     r = out_with["results"][0]
     assert r["query_kind"] == "cause"
