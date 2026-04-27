@@ -84,6 +84,56 @@ def estimate_min_n_mediation_nde_nie(
     return total, note
 
 
+def estimate_min_n_transport_source_conditional(
+    *,
+    n_strata: int,
+    cohens_h: float = DEFAULT_COHENS_H,
+    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
+    z_beta: float = _Z_BETA_POWER_80,
+) -> tuple[int, str]:
+    """Source-side stratified P(Y|do(X), Z): need an ATE-detection arm
+    inside each stratum, total = n_strata × simple-ATE n.
+
+    ``n_strata`` should be the caller's count of unique combinations of
+    the adjustment-set values (e.g. 2^k for k binary covariates). Caller
+    is responsible for that arithmetic — this helper only multiplies.
+    """
+    if n_strata < 1:
+        raise ValueError(f"n_strata must be >=1, got {n_strata}")
+    base, _ = estimate_min_n_two_arm_binary(
+        cohens_h=cohens_h, z_alpha_2=z_alpha_2, z_beta=z_beta,
+    )
+    total = _round_up_50(base * n_strata)
+    note = (
+        f"detect transport-adjusted ATE (Cohen's h={cohens_h}) per "
+        f"stratum × {n_strata} strata; α=0.05 two-sided, power=0.80"
+    )
+    return total, note
+
+
+def estimate_min_n_transport_target_marginal(
+    *,
+    n_strata: int,
+    precision: float = DEFAULT_PROPORTION_PRECISION,
+    p_assumed: float = 0.5,
+    z_alpha_2: float = _Z_ALPHA_2_TWO_SIDED_05,
+) -> tuple[int, str]:
+    """Target-side P*(Z): single-proportion estimation per stratum,
+    total = n_strata × single-proportion n.
+    """
+    if n_strata < 1:
+        raise ValueError(f"n_strata must be >=1, got {n_strata}")
+    base, _ = estimate_min_n_single_proportion(
+        precision=precision, p_assumed=p_assumed, z_alpha_2=z_alpha_2,
+    )
+    total = _round_up_50(base * n_strata)
+    note = (
+        f"estimate target-population P*(Z) within ±{precision} per "
+        f"stratum × {n_strata} strata (assumed worst-case p={p_assumed})"
+    )
+    return total, note
+
+
 def estimate_min_n_single_proportion(
     *,
     precision: float = DEFAULT_PROPORTION_PRECISION,

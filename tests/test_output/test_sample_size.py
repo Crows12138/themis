@@ -11,6 +11,8 @@ from themis.output.sample_size import (
     DEFAULT_PROPORTION_PRECISION,
     estimate_min_n_mediation_nde_nie,
     estimate_min_n_single_proportion,
+    estimate_min_n_transport_source_conditional,
+    estimate_min_n_transport_target_marginal,
     estimate_min_n_two_arm_binary,
     is_binary_outcome_distribution,
 )
@@ -336,3 +338,73 @@ def test_gap_report_leaves_mediator_n_unset_for_continuous():
     )
     assert gap.required_data.min_sample_size is None
     assert gap.required_data.precision_target is None
+
+
+# ----------------------------------------------- transport stratified
+
+def test_transport_source_one_stratum_equals_simple_ate():
+    n_simple, _ = estimate_min_n_two_arm_binary()
+    n_src, _ = estimate_min_n_transport_source_conditional(n_strata=1)
+    assert n_src == n_simple
+
+
+def test_transport_source_scales_linearly_with_strata():
+    n1, _ = estimate_min_n_transport_source_conditional(n_strata=1)
+    n4, _ = estimate_min_n_transport_source_conditional(n_strata=4)
+    assert n4 == 4 * n1
+
+
+def test_transport_source_rejects_zero_strata():
+    with pytest.raises(ValueError, match=">=1"):
+        estimate_min_n_transport_source_conditional(n_strata=0)
+
+
+def test_transport_target_one_stratum_equals_single_proportion():
+    n_sp, _ = estimate_min_n_single_proportion()
+    n_tgt, _ = estimate_min_n_transport_target_marginal(n_strata=1)
+    assert n_tgt == n_sp
+
+
+def test_transport_target_scales_linearly_with_strata():
+    n1, _ = estimate_min_n_transport_target_marginal(n_strata=1)
+    n4, _ = estimate_min_n_transport_target_marginal(n_strata=4)
+    assert n4 == 4 * n1
+
+
+def test_gap_report_fills_min_sample_size_for_transport_gaps():
+    """E2e: transport_identification with binary adjustment set of size 1
+    → 2 strata. Source gap gets 800 (=2×400), target gap gets 2200
+    (=2×1100)."""
+    from themis.output.data_gap_report import compute_data_gap_report
+    from themis.types import QueryKind, ResultStatus
+
+    extensions = {
+        "transport_identification": {
+            "target_population": "tgt",
+            "source_population": "src",
+            "adjustment_set": [
+                {"predicate": "age_group", "args": []},
+            ],
+            "formula_repr": "P*(recovery|do(drug)) = ...",
+        },
+    }
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        derivation=(),
+        investigation_requests=(),
+        framing_notes=(),
+        extensions=extensions,
+    )
+    src = next(
+        g for g in report.gaps
+        if g.kind.value == "transport_source_conditional_unknown"
+    )
+    tgt = next(
+        g for g in report.gaps
+        if g.kind.value == "transport_target_distribution_unknown"
+    )
+    assert src.required_data.min_sample_size == 800
+    assert "stratum" in src.required_data.precision_target
+    assert tgt.required_data.min_sample_size == 2200
+    assert "P*(Z)" in tgt.required_data.precision_target

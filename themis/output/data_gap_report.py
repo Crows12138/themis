@@ -444,6 +444,16 @@ def _classify_transport_target_distribution(
     z_names = ", ".join(_atom_label(a) for a in adjustment_set)
     treatment, outcome = _transport_treatment_outcome(block)
 
+    # Heuristic strata count: assume each adjustment-set predicate is
+    # binary. Phase 12 is binary-only; revise when non-binary lands.
+    n_strata = 2 ** len(adjustment_set)
+    target_n, target_precision = _estimate_sample_size_for_transport_target(
+        n_strata,
+    )
+    source_n, source_precision = _estimate_sample_size_for_transport_source(
+        n_strata,
+    )
+
     # 1. Target-side P*(Z) — population marginal.
     yield DataGap(
         kind=GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN,
@@ -457,6 +467,8 @@ def _classify_transport_target_distribution(
             data_type=RequiredDataType.MARGINAL,
             population=target_pop,
             variables=tuple(_atom_label(a) for a in adjustment_set),
+            min_sample_size=target_n,
+            precision_target=target_precision,
         ),
         if_provided="可给目标人群的 transport-adjusted ATE 点估计",
         alternative_paths=(
@@ -491,6 +503,8 @@ def _classify_transport_target_distribution(
             data_type=RequiredDataType.IPD,
             population=source_pop,
             variables=tuple(_atom_label(a) for a in adjustment_set),
+            min_sample_size=source_n,
+            precision_target=source_precision,
         ),
         if_provided="可给目标人群的 transport-adjusted ATE 点估计",
         alternative_paths=(
@@ -576,6 +590,24 @@ def _estimate_sample_size_for_mediator(
     if not is_binary_outcome_distribution(target):
         return None, None
     return estimate_min_n_mediation_nde_nie()
+
+
+def _estimate_sample_size_for_transport_target(
+    n_strata: int,
+) -> tuple[int | None, str | None]:
+    """Target-population P*(Z): single-proportion per stratum."""
+    from .sample_size import estimate_min_n_transport_target_marginal
+
+    return estimate_min_n_transport_target_marginal(n_strata=n_strata)
+
+
+def _estimate_sample_size_for_transport_source(
+    n_strata: int,
+) -> tuple[int | None, str | None]:
+    """Source-population stratified P(Y|do(X), Z)."""
+    from .sample_size import estimate_min_n_transport_source_conditional
+
+    return estimate_min_n_transport_source_conditional(n_strata=n_strata)
 
 
 def _estimate_sample_size_for_distribution(
