@@ -146,13 +146,15 @@ def test_forest_backend_via_explicit_model_kwarg():
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
-def test_auto_picks_forest_when_n_large():
-    """n=600 ≥ 200 → 'auto' resolves to forest."""
+def test_auto_picks_drlearner_when_n_large_and_enough_points():
+    """slice b.2: 'auto' now prefers drlearner when n ≥ 200 and
+    ≥ 3 sampling points — it's the only backend that recovers T-Y
+    non-linearity, so the user's most likely intent is to get one."""
     out = themis.estimate(
         _dose_response_program(), _nonlinear_synth(n=600), model="auto",
     )
     assert out["results"][0]["numeric_estimate"]["method"] == \
-        "dose_response_causal_forest_dml"
+        "dose_response_linear_drlearner"
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
@@ -179,6 +181,63 @@ def test_forest_assumption_admits_t_linearity_limit():
     # Either explicit Chinese phrasing or English equivalent
     assert ("不能恢复" in assumptions and "非线性" in assumptions) or \
            "DRLearner" in assumptions
+
+
+# ---------- slice b.2: LinearDRLearner non-linear curve ----------
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_drlearner_method_label_and_assumption():
+    out = themis.estimate(
+        _dose_response_program(), _nonlinear_synth(n=600), model="drlearner",
+    )
+    ne = out["results"][0]["numeric_estimate"]
+    assert ne["method"] == "dose_response_linear_drlearner"
+    assumptions = " ".join(ne["assumptions"])
+    assert "DRLearner" in assumptions
+    assert "非线性" in assumptions or "doubly-robust" in assumptions
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_drlearner_recovers_concave_shape():
+    """Truth: y = 1 + 0.4·T - 0.03·T². Concave-down with peak around
+    T≈6.7. With n=800 and 5 sampling points covering [0, 10], the
+    drlearner curve must show non-monotonic shape — peak should NOT
+    be at the last sampling point."""
+    out = themis.estimate(
+        _dose_response_program(), _nonlinear_synth(n=800), model="drlearner",
+    )
+    curve = out["results"][0]["numeric_estimate"]["dose_response_curve"]
+    effects = [p["effect"] for p in curve]
+    peak_idx = effects.index(max(effects))
+    assert peak_idx < len(effects) - 1, (
+        f"drlearner should bend down at the high end, got monotone curve "
+        f"{effects}"
+    )
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_drlearner_reference_point_effect_zero():
+    """First curve point is the reference bin — effect must be 0 by
+    construction (it's compared to itself)."""
+    out = themis.estimate(
+        _dose_response_program(), _nonlinear_synth(n=600), model="drlearner",
+    )
+    curve = out["results"][0]["numeric_estimate"]["dose_response_curve"]
+    assert curve[0]["effect"] == pytest.approx(0.0, abs=1e-9)
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_drlearner_overlap_failure_when_bin_empty():
+    """If a sampling point falls in a region with no observations,
+    its bin is empty after digitization → overlap_insufficient."""
+    program = _dose_response_program()
+    for stmt in program["statements"]:
+        if stmt.get("kind") == "variable" and stmt["predicate"] == "raise_amount":
+            stmt["domain"] = [0.0, 5.0, 100.0]  # 100 is far outside [0, 10]
+    out = themis.estimate(program, _nonlinear_synth(n=600), model="drlearner")
+    failure = out["results"][0].get("estimator_failure")
+    assert failure is not None
+    assert failure["failure_type"] == "overlap_insufficient"
 
 
 # ---------- slice c: structured failures ----------

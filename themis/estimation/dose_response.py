@@ -1,17 +1,22 @@
 """Phase 14 — dose-response estimator (EconML-backed).
 
-Wraps EconML's ``LinearDML`` / ``CausalForestDML`` to produce a
-dose-response curve when a program's ``extensions.ambiguities`` carries
-a ``dose_response_query`` flag (the same trigger Phase 13's diagnostic
-uses).
+Wraps EconML's ``LinearDML`` / ``CausalForestDML`` / ``LinearDRLearner``
+to produce a dose-response curve when a program's
+``extensions.ambiguities`` carries a ``dose_response_query`` flag (the
+same trigger Phase 13's diagnostic uses).
 
 Backend selection (``model`` kwarg):
 - ``'linear'`` — LinearDML; partially-linear, curve is necessarily a
   straight line. Cheapest, smallest-n viable.
-- ``'forest'`` — CausalForestDML; heterogeneous treatment effects via
-  honest random forest. Captures non-linearity but needs more data.
-- ``'auto'`` (default) — forest when n ≥ 200, else linear. Documented
-  in the result's ``assumptions`` string so the caller knows which.
+- ``'forest'`` — CausalForestDML; flexible nuisance models (Y~W, T~W),
+  but final stage still linear in T (does not recover T-Y
+  non-linearity).
+- ``'drlearner'`` — LinearDRLearner with T discretized into K bins by
+  the sampling-point boundaries; estimates each bin's effect against
+  the reference bin doubly-robust. **Only backend that produces a
+  genuinely non-linear curve.** Needs n ≥ 200 and ≥ 3 sampling points.
+- ``'auto'`` (default) — drlearner when conditions met, else linear.
+  Forest is opt-in only (it doesn't fix the linear-in-T limitation).
 
 Sampling points come from (a) the treatment variable's declared numeric
 domain when present, otherwise (b) quantiles of the observed treatment
@@ -43,7 +48,7 @@ _DEFAULT_QUANTILES = (0.10, 0.25, 0.50, 0.75, 0.90)
 # to give meaningful CIs; below this we fall back to the linear model.
 _FOREST_MIN_N = 200
 
-ModelChoice = Literal["auto", "linear", "forest"]
+ModelChoice = Literal["auto", "linear", "forest", "drlearner"]
 
 
 class EstimatorDependencyMissing(RuntimeError):
@@ -153,12 +158,25 @@ def estimate_dose_response(
     # a meaningless estimate.
     _check_overlap(t=t, points=points)
 
-    resolved = _resolve_model_choice(model, n)
+    resolved = _resolve_model_choice(model, n, len(points))
+    alpha = 1.0 - ci_level
     try:
-        est, method, model_assumption, x_for_predict = _fit_dml_backend(
-            resolved, y=y, t=t, w=w, random_state=random_state,
-        )
+        if resolved == "drlearner":
+            curve_points, method, model_assumption = _fit_drlearner_curve(
+                y=y, t=t, w=w, points=points, alpha=alpha,
+                random_state=random_state,
+            )
+        else:
+            est, method, model_assumption, x_for_predict = _fit_dml_backend(
+                resolved, y=y, t=t, w=w, random_state=random_state,
+            )
+            curve_points = _predict_curve(
+                est, points=points, reference=reference, n=n, alpha=alpha,
+                x_for_predict=x_for_predict,
+            )
     except EstimatorDependencyMissing:
+        raise
+    except EstimatorFailure:
         raise
     except (np.linalg.LinAlgError, FloatingPointError) as exc:
         raise EstimatorFailure(
@@ -166,12 +184,6 @@ def estimate_dose_response(
             message=f"DML 拟合数值失败：{exc}",
             backend=resolved,
         ) from exc
-
-    alpha = 1.0 - ci_level
-    curve_points = _predict_curve(
-        est, points=points, reference=reference, n=n, alpha=alpha,
-        x_for_predict=x_for_predict,
-    )
 
     assumptions = (
         model_assumption,
@@ -195,10 +207,15 @@ def estimate_dose_response(
     )
 
 
-def _resolve_model_choice(model: ModelChoice, n: int) -> str:
+def _resolve_model_choice(model: ModelChoice, n: int, k: int) -> str:
     if model == "auto":
-        return "forest" if n >= _FOREST_MIN_N else "linear"
-    if model in ("linear", "forest"):
+        # Slice b.2: prefer drlearner when conditions are met — it's
+        # the only backend that produces a non-linear curve. Forest
+        # never wins 'auto' since its final stage is still linear in T.
+        if n >= _FOREST_MIN_N and k >= 3:
+            return "drlearner"
+        return "linear"
+    if model in ("linear", "forest", "drlearner"):
         return model
     raise ValueError(f"unknown model: {model!r}")
 
@@ -258,6 +275,95 @@ def _fit_dml_backend(
         ) from exc
 
     return est, method, assumption, x_for_predict
+
+
+def _fit_drlearner_curve(*, y, t, w, points, alpha, random_state):
+    """Slice b.2 — bin T at sampling-point midpoints, fit
+    LinearDRLearner on the categorical T, return per-bin effects vs
+    the reference bin. This is the only backend that recovers
+    non-linearity because the final stage is independent per bin
+    rather than linear in T.
+
+    Returns (curve_points, method, assumption)."""
+    K = len(points)
+    if K < 2:
+        raise EstimatorFailure(
+            failure_type="overlap_insufficient",
+            message=f"DRLearner 需要 ≥ 2 采样点，仅有 {K}",
+            sampling_points=list(points),
+        )
+
+    edges = _bin_midpoints(points)
+    t_binned = np.digitize(t, edges)  # 0..K-1
+
+    # Each bin must have enough samples for the doubly-robust stage to
+    # behave. Mirror the slice-c overlap threshold.
+    bin_counts = np.bincount(t_binned, minlength=K)
+    sparse = [
+        {"bin": int(k), "x": float(points[k]), "n": int(c)}
+        for k, c in enumerate(bin_counts) if c < 5
+    ]
+    if sparse:
+        raise EstimatorFailure(
+            failure_type="overlap_insufficient",
+            message=(
+                f"DRLearner: 离散化后某些 bin 样本不足 (要求 ≥5)：{sparse}"
+            ),
+            sparse_bins=sparse,
+            bin_counts=[int(c) for c in bin_counts],
+        )
+
+    try:
+        from econml.dr import LinearDRLearner
+    except ImportError as exc:
+        raise EstimatorDependencyMissing(
+            package="econml",
+            install_hint=(
+                "pip install econml  # or: pip install themis[estimator]"
+            ),
+        ) from exc
+
+    est = LinearDRLearner(random_state=random_state)
+    # X is required for heterogeneity; use the adjustment columns.
+    est.fit(Y=y, T=t_binned, X=w, W=None)
+
+    curve_points: list[CurvePoint] = []
+    # Reference bin: effect = 0 by construction.
+    curve_points.append(
+        CurvePoint(x=float(points[0]), effect=0.0, ci_lower=0.0, ci_upper=0.0),
+    )
+    for k in range(1, K):
+        per_row = est.effect(X=w, T0=0, T1=k)
+        point = float(np.mean(per_row))
+        try:
+            lo, hi = est.effect_interval(X=w, T0=0, T1=k, alpha=alpha)
+            ci_lo = float(np.mean(lo))
+            ci_hi = float(np.mean(hi))
+        except Exception:
+            ci_lo, ci_hi = None, None
+        curve_points.append(
+            CurvePoint(
+                x=float(points[k]),
+                effect=point, ci_lower=ci_lo, ci_upper=ci_hi,
+            ),
+        )
+
+    method = "dose_response_linear_drlearner"
+    assumption = (
+        "LinearDRLearner：T 按相邻采样点中点离散化为 K 个 bin；每 bin 用"
+        "doubly-robust 估计相对参考 bin 的平均效应；曲线由 K 个独立估计"
+        "组成，可恢复非线性 dose-response（每 bin 至少需 5 观测）。"
+    )
+    return curve_points, method, assumption
+
+
+def _bin_midpoints(points: tuple[float, ...]) -> np.ndarray:
+    """Bin edges for np.digitize: midpoints between adjacent sampling
+    points. n points → n-1 edges → n bins indexed 0..n-1."""
+    pts = sorted(float(p) for p in points)
+    return np.array(
+        [(pts[i] + pts[i + 1]) / 2.0 for i in range(len(pts) - 1)],
+    )
 
 
 def _predict_curve(est, *, points, reference, n, alpha, x_for_predict):

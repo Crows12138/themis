@@ -116,10 +116,17 @@ T 离散化（或 SparseLinearDML + poly features）。这是 slice b.2 / 未来
 - 缺列/dtype 错误的细分（contract.DataContractError 在 estimate 入口
   之外抛 — 要改需要包 estimate_program 顶层）
 
-## slice b.2（新发现，charter 没列）
+## 已落地：slice b.2（2026-04-28）
 
-- DRLearner + T 离散化（用 sampling_points 作 K 个 bin）→ 真正非线性曲线
-- 或 SparseLinearDML + PolynomialFeatures(degree=2) on T
+- `model='drlearner'` — LinearDRLearner + T 按相邻采样点中点离散化为 K
+  个 bin；每 bin 用 doubly-robust 估计相对参考 bin 的平均效应
+- **真正能恢复 T-Y 非线性**（concave / convex / 任意单调或非单调形状）：
+  test 验证了 y = 1 + 0.4·T - 0.03·T² 的 concave-down 峰值能被检测到
+- `model='auto'` 改为：n ≥ 200 且 ≥ 3 采样点 → drlearner，否则 linear。
+  forest 不再是 auto 候选（它不解决 T 非线性问题，留作 explicit opt-in）
+- drlearner 自带 overlap check：每 bin 必须 ≥ 5 观测，否则
+  `failure_type='overlap_insufficient'` 携带 `sparse_bins`/`bin_counts`
+  详情
 
 ## 3. 触发条件（什么时候开 Phase 14？）
 
