@@ -94,6 +94,8 @@ def _estimate_effect_queries(
     graph = project(ground_statements)
     bidirected = structural_solver.bidirected_from_ground(ground_statements)
 
+    dose_response_triggered = _program_flags_dose_response(prog)
+
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None:
             continue
@@ -115,6 +117,30 @@ def _estimate_effect_queries(
             given=given_atoms,
             bidirected=bidirected or None,
         )
+        # Phase 14 slice a: when the program flagged a dose-response
+        # query AND identification clears via backdoor, fit the curve
+        # estimator instead of the binary-effect ATE estimator. Other
+        # strategies (front-door / IV / mediation) keep their existing
+        # binary-effect path until a real-case demands the curve there.
+        if dose_response_triggered and adjustment_sets:
+            chosen = min(adjustment_sets, key=len)
+            adjustment_names = tuple(
+                a.predicate for a in _topo_order(graph, chosen)
+            )
+            sampling_points = _resolve_dose_response_points(prog, x_atom)
+            if _try_dose_response_estimate(
+                result=result,
+                contract=contract,
+                treatment=x_atom.predicate,
+                outcome=y_atom.predicate,
+                adjustment=adjustment_names,
+                sampling_points=sampling_points,
+                random_state=random_state,
+                graph=graph, x=x_atom, y=y_atom, chosen=chosen, given=given_atoms,
+            ):
+                continue
+            # Estimator unavailable / failed structurally — fall through
+            # to the binary path so the user still gets *something*.
         if adjustment_sets:
             chosen = min(adjustment_sets, key=len)
             adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
@@ -591,6 +617,128 @@ def _pair_effect_queries(prog, output):
             continue
         qid = result.get("query_id")
         yield id_to_stmt.get(qid), result
+
+
+def _program_flags_dose_response(prog) -> bool:
+    """True iff the program declares a ``dose_response_query`` ambiguity
+    (the same trigger Phase 13's diagnostic uses)."""
+    extensions = getattr(prog, "extensions", None) or {}
+    ambs = extensions.get("ambiguities") or []
+    return any(
+        isinstance(a, dict) and a.get("kind") == "dose_response_query"
+        for a in ambs
+    )
+
+
+def _resolve_dose_response_points(prog, x_atom):
+    """Pick sampling points for the curve. Prefers the treatment
+    variable's declared numeric domain (e.g. raise tiers [500, 1000,
+    2000]); returns None to let the estimator fall back to quantiles
+    when the domain is missing or non-numeric."""
+    from ..types import VariableDeclaration
+
+    for stmt in prog.statements:
+        if not isinstance(stmt, VariableDeclaration):
+            continue
+        if stmt.predicate != x_atom.predicate:
+            continue
+        domain = stmt.domain
+        if not domain:
+            return None
+        try:
+            return tuple(sorted(float(v) for v in domain))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _try_dose_response_estimate(
+    *,
+    result, contract,
+    treatment, outcome, adjustment,
+    sampling_points, random_state,
+    graph, x, y, chosen, given,
+) -> bool:
+    """Fit the dose-response curve and attach to ``result``. Returns
+    True when an estimate was attached (success OR structured-error),
+    False when dispatch should fall through to the binary path."""
+    from .dose_response import (
+        EstimatorDependencyMissing,
+        estimate_dose_response,
+    )
+
+    try:
+        est = estimate_dose_response(
+            contract.data,
+            treatment=treatment,
+            outcome=outcome,
+            adjustment=tuple(adjustment),
+            sampling_points=sampling_points,
+            random_state=random_state,
+        )
+    except EstimatorDependencyMissing as exc:
+        result["estimator_dependency_missing"] = {
+            "package": exc.package,
+            "install_hint": exc.install_hint,
+            "estimator": "dose_response_linear_dml",
+        }
+        return True
+    except (ValueError, RuntimeError) as exc:
+        # Numeric failure (singular design, no overlap, etc.). Surface
+        # structurally rather than crashing dispatch.
+        result["estimator_failure"] = {
+            "estimator": "dose_response_linear_dml",
+            "reason": str(exc),
+        }
+        return True
+
+    result["numeric_estimate"] = {
+        "method": est.method,
+        "ci_level": est.ci_level,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "adjustment": list(est.adjustment),
+        "sampling_points": list(est.sampling_points),
+        "reference_point": est.reference_point,
+        "dose_response_curve": [
+            {
+                "x": p.x,
+                "effect": p.effect,
+                "ci_lower": p.ci_lower,
+                "ci_upper": p.ci_upper,
+            }
+            for p in est.curve
+        ],
+    }
+    result["derivation"] = _build_numeric_derivation_dict(
+        graph=graph, x=x, y=y, adjustment=chosen, given=frozenset(given),
+        estimate=_LinearDMLAdapter(est),
+    )
+    _finalise_numeric_result(result)
+    return True
+
+
+class _LinearDMLAdapter:
+    """Shim so the existing _build_numeric_derivation_dict (which expects
+    a flat point/ci_lower/ci_upper estimate) accepts a dose-response
+    estimate. Surfaces only the metadata fields the derivation
+    serializer reads — the curve itself is in numeric_estimate."""
+
+    def __init__(self, est):
+        self.method = est.method
+        self.data_hash = est.data_hash
+        self.sample_size = est.sample_size
+        # Use the largest sampled effect as the headline scalar so the
+        # derivation has a non-trivial point. Verifier doesn't gate on
+        # this value — it's metadata only.
+        last = est.curve[-1] if est.curve else None
+        self.point = last.effect if last else 0.0
+        self.ci_lower = last.ci_lower if last else None
+        self.ci_upper = last.ci_upper if last else None
+        self.ci_level = est.ci_level
 
 
 def _topo_order(graph, atoms):

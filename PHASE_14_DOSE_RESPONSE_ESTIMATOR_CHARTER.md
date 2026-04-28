@@ -1,7 +1,7 @@
-# Phase 14 Charter — Dose-Response Estimator (sketch)
+# Phase 14 Charter — Dose-Response Estimator
 
 > 立项日期：2026-04-28
-> 状态：**charter sketch — placeholder, 不开工**
+> 状态：**slice a 已落地** (2026-04-28)
 > 触发：用户在讨论 Phase 13 时提出"我们也可以做"——意思是既然 Themis
 > 已经有 `themis.estimate(prog, df)` 这条 estimator 腿（Phase 7 起接
 > sklearn/doubleml），把 dose-response 加入是合理延伸。
@@ -57,6 +57,41 @@ Themis 当前公开三个 entry point：
 出现后再扩展本文件。
 
 **估时草估：2-3 天**（estimator 接入 + 序列化 + 测试 + 文档）。
+
+## 已落地：slice a（2026-04-28）
+
+最小可证路径已通：
+
+- `themis/estimation/dose_response.py` — `estimate_dose_response()` 包
+  EconML 的 `LinearDML`，输出 `DoseResponseEstimate(curve=...)`
+- `themis/estimation/dispatch.py` — 当 program 携带
+  `dose_response_query` ambiguity 且 backdoor 可识别时，自动路由到
+  dose-response estimator；任何缺路径都 fallback 到 binary
+- `themis.estimate(prog, df)` → `numeric_estimate.dose_response_curve =
+  [{x, effect, ci_lower, ci_upper}, ...]`，`reference_point` 为最小
+  采样点（effect=0）
+- 采样点优先用 treatment variable 的 declared numeric domain；缺时退
+  回 [10, 25, 50, 75, 90] 分位
+- EconML lazy import；缺包返回结构化 `estimator_dependency_missing`
+  block 而不抛 traceback
+- `tests/test_estimation_dose_response.py` — 7 tests，6 个
+  `skipif(not _ECONML_AVAILABLE)`，1 个 dependency-missing 路径
+
+**slice a 的硬限制**（应该等真用过再决定要不要做 b/c）：
+
+- LinearDML 的 PLM 假设 → 预测曲线必为直线（已写进
+  `assumptions`）。真有非线性时 caller 要自己换 estimator
+- 没接 CausalForestDML / GAM
+- 没用 cross-fit 的 sandwich SE（用 EconML 默认）
+- schema 没更新——`dose_response_curve` 当前是 free-form dict 字段，正式
+  入 schema 等真有外部 consumer 再做（problem 3 = "先 dict 凑合"）
+
+## 1.X — slice b/c 的剩余范围（按 charter 1.1/1.2，未做）
+
+- CausalForestDML 自动选择（非线性怀疑触发）
+- 显式 cross-fit + sandwich SE
+- 接 Phase 13 的 sampling_point_count = K 推荐值
+- estimate 失败的更细分类（缺列 / overlap 不足 / 收敛失败 → 各自结构化错误）
 
 ## 3. 触发条件（什么时候开 Phase 14？）
 
