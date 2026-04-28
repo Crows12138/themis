@@ -288,6 +288,66 @@ def test_failure_type_field_present_on_all_paths():
     }
 
 
+# ---------- round-2 subagent-caught regressions ----------
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_verify_roundtrip_for_dose_response_result():
+    """Round-2 subagent caught: themis.verify rejected every dose-response
+    result because (1) the schema didn't whitelist the new method names
+    or curve fields, and (2) the verifier rule for numeric_backdoor_estimate
+    hardcoded the legacy method enum, and (3) the data-gap kind whitelist
+    didn't include dose_response_data_required. Without all three fixes
+    the entire Phase 14 happy path violates the kernel audit contract."""
+    out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
+    result = out["results"][0]
+    # Must succeed — None means clean
+    assert themis.verify(_dose_response_program(), result) is None
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_verify_roundtrip_for_drlearner_result():
+    out = themis.estimate(
+        _dose_response_program(), _nonlinear_synth(n=600), model="drlearner",
+    )
+    assert themis.verify(_dose_response_program(), out["results"][0]) is None
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_uppercase_drlearner_is_honored_not_silently_demoted():
+    """Round-2 subagent caught: model='DRLearner' (the natural casing
+    matching EconML's class name LinearDRLearner) silently fell to
+    'auto', then linear at small n. With normalization, casing typos
+    are accepted explicitly."""
+    out = themis.estimate(
+        _dose_response_program(), _synth_data(n=80), model="DRLearner",
+    )
+    ne = out["results"][0].get("numeric_estimate")
+    failure = out["results"][0].get("estimator_failure")
+    if ne is not None:
+        assert ne["method"] == "dose_response_linear_drlearner"
+    else:
+        assert failure is not None  # structured failure is fine
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_unknown_model_string_raises_loudly():
+    """Typos like 'forestdml' that don't normalize to a real backend
+    should fail loudly, not silently demote to auto."""
+    with pytest.raises(ValueError, match="unknown model"):
+        themis.estimate(
+            _dose_response_program(), _synth_data(), model="forestdml",
+        )
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_whitespace_in_model_normalized():
+    out = themis.estimate(
+        _dose_response_program(), _synth_data(), model="  Linear  ",
+    )
+    assert out["results"][0]["numeric_estimate"]["method"] == \
+        "dose_response_linear_dml"
+
+
 # ---------- subagent-caught regressions (2026-04-28) ----------
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")

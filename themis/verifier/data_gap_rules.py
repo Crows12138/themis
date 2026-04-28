@@ -255,6 +255,11 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
         {"derivation_step", "investigation_request"}
     ),
     "ambiguous_variable_definition": frozenset({"framing_note"}),
+    # Phase 13: dose-response data spec — provenance is a verifier_check
+    # ref pointing at program.extensions.ambiguities.dose_response_query
+    # (no derivation step exists for this kind; the gap is triggered by
+    # a program-level ambiguity, not a failed derivation rule).
+    "dose_response_data_required": frozenset({"verifier_check"}),
 }
 
 

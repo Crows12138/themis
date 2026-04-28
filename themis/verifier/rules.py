@@ -1098,6 +1098,13 @@ def _verifier_directed_descendants(graph, node) -> frozenset:
 _NUMERIC_BACKDOOR_METHODS = frozenset({
     "backdoor_linear",
     "backdoor_logistic",
+    # Phase 14: dose-response estimators are still backdoor-identified
+    # (the criterion step is unchanged); they fit a curve over T given
+    # the same Z, so verify can re-use the backdoor rule with an
+    # extended method whitelist instead of duplicating the whole rule.
+    "dose_response_linear_dml",
+    "dose_response_causal_forest_dml",
+    "dose_response_linear_drlearner",
 })
 
 _NUMERIC_FRONTDOOR_METHODS = frozenset({

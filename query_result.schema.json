@@ -261,7 +261,10 @@
             "backdoor_linear", "backdoor_logistic",
             "frontdoor_linear", "frontdoor_logistic",
             "iv_wald", "iv_2sls",
-            "mediation_linear_imai", "mediation_logit_imai"
+            "mediation_linear_imai", "mediation_logit_imai",
+            "dose_response_linear_dml",
+            "dose_response_causal_forest_dml",
+            "dose_response_linear_drlearner"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -286,6 +289,31 @@
             "risk_ratio": { "type": ["number", "null"] },
             "baseline_rate": { "type": ["number", "null"] },
             "note": { "type": "string" }
+          }
+        },
+        "sampling_points": {
+          "type": "array",
+          "description": "Phase 14: T values at which the dose-response curve was evaluated. Sorted ascending; first value is the reference (effect=0 by construction).",
+          "items": { "type": "number" },
+          "minItems": 2
+        },
+        "reference_point": {
+          "type": "number",
+          "description": "Phase 14: T value used as the reference for curve effect calculations (the smallest sampling point)."
+        },
+        "dose_response_curve": {
+          "type": "array",
+          "description": "Phase 14: predicted average effect on Y of moving T from reference_point to each sampling_point. Length matches sampling_points; the reference point's row has effect=0.",
+          "items": {
+            "type": "object",
+            "required": ["x", "effect"],
+            "additionalProperties": false,
+            "properties": {
+              "x": { "type": "number" },
+              "effect": { "type": "number" },
+              "ci_lower": { "type": ["number", "null"] },
+              "ci_upper": { "type": ["number", "null"] }
+            }
           }
         },
         "decomposition": {
@@ -338,7 +366,34 @@
         "data_contract_warnings": { "type": "array", "items": { "type": "string" } },
         "random_state": { "type": "integer" },
         "ci_bootstrap": { "type": "integer", "minimum": 0 },
-        "model_preference": { "enum": ["auto", "linear", "logistic"] }
+        "model_preference": {
+          "enum": ["auto", "linear", "logistic", "forest", "drlearner"]
+        }
+      }
+    },
+    "estimator_failure": {
+      "type": "object",
+      "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result.",
+      "required": ["estimator", "failure_type", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "estimator": { "type": "string" },
+        "failure_type": {
+          "enum": ["overlap_insufficient", "convergence_failure", "unknown"]
+        },
+        "reason": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    },
+    "estimator_dependency_missing": {
+      "type": "object",
+      "description": "Phase 14: surfaces when an optional estimator backend (e.g. EconML for dose-response) isn't installed. Carries the install hint so the caller can resolve.",
+      "required": ["package", "install_hint", "estimator"],
+      "additionalProperties": false,
+      "properties": {
+        "package": { "type": "string" },
+        "install_hint": { "type": "string" },
+        "estimator": { "type": "string" }
       }
     },
     "data_gap_report": {

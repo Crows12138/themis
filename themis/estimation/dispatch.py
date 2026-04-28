@@ -695,13 +695,27 @@ def _resolve_dose_response_model(model: str) -> str:
     ('auto'/'linear'/'forest'/'drlearner'). 'logistic' has no
     dose-response counterpart — fall back to 'auto'.
 
-    Subagent real-test caught: 'drlearner' was missing from this
-    whitelist, so callers passing model='drlearner' silently got
-    'auto' (which only chose drlearner when n ≥ 200 + ≥ 3 points —
-    otherwise they got linear, not what they asked for)."""
-    if model in ("auto", "linear", "forest", "drlearner"):
-        return model
-    return "auto"
+    Round-2 subagent caught: 'DRLearner' (the natural casing — it
+    matches EconML's class name LinearDRLearner) and ' drlearner '
+    (trailing whitespace) were silently demoted to 'auto'. Normalize
+    the input (strip + lowercase) before whitelisting so casing/
+    whitespace typos hit the explicit ValueError below instead of
+    quietly disappearing.
+    """
+    if not isinstance(model, str):
+        raise ValueError(f"model must be a string, got {type(model).__name__}")
+    normalized = model.strip().lower()
+    if normalized in ("auto", "linear", "forest", "drlearner"):
+        return normalized
+    if normalized == "logistic":
+        # Binary-effect vocabulary, no dose-response counterpart — fall
+        # back to 'auto' rather than rejecting outright (logistic is a
+        # legal value of the parent estimate() entry).
+        return "auto"
+    raise ValueError(
+        f"unknown model {model!r}; expected one of "
+        f"'auto' / 'linear' / 'forest' / 'drlearner' (case-insensitive)"
+    )
 
 
 def _try_dose_response_estimate(
