@@ -62,7 +62,7 @@ def _synth_data(n: int = 400, slope: float = 0.5, seed: int = 7) -> pd.DataFrame
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_dose_response_curve_attached_when_ambiguity_flagged():
-    out = themis.estimate(_dose_response_program(), _synth_data())
+    out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
     result = out["results"][0]
     assert "numeric_estimate" in result
     ne = result["numeric_estimate"]
@@ -81,7 +81,9 @@ def test_dose_response_curve_attached_when_ambiguity_flagged():
 def test_dose_response_recovers_linear_slope():
     """Synthetic data has slope 0.5; the curve at x=10 vs x≈0 should
     show an effect near 5.0 (loose tolerance — DML adds noise)."""
-    out = themis.estimate(_dose_response_program(), _synth_data(slope=0.5))
+    out = themis.estimate(
+        _dose_response_program(), _synth_data(slope=0.5), model="linear",
+    )
     curve = out["results"][0]["numeric_estimate"]["dose_response_curve"]
     last = curve[-1]
     first = curve[0]
@@ -92,7 +94,7 @@ def test_dose_response_recovers_linear_slope():
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_dose_response_assumptions_name_linearity():
-    out = themis.estimate(_dose_response_program(), _synth_data())
+    out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
     ne = out["results"][0]["numeric_estimate"]
     assumptions = " ".join(ne["assumptions"])
     assert "LinearDML" in assumptions or "线性" in assumptions
@@ -100,7 +102,7 @@ def test_dose_response_assumptions_name_linearity():
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_dose_response_status_flips_to_numerically_solved():
-    out = themis.estimate(_dose_response_program(), _synth_data())
+    out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
     assert out["results"][0]["status"] == "numerically_solved"
 
 
@@ -113,9 +115,70 @@ def test_dose_response_uses_declared_domain_when_available():
     for stmt in program["statements"]:
         if stmt.get("kind") == "variable" and stmt["predicate"] == "raise_amount":
             stmt["domain"] = [0.0, 5.0, 10.0]
-    out = themis.estimate(program, _synth_data())
+    out = themis.estimate(program, _synth_data(), model="linear")
     ne = out["results"][0]["numeric_estimate"]
     assert ne["sampling_points"] == [0.0, 5.0, 10.0]
+
+
+# ---------- slice b: CausalForestDML backend ----------
+
+def _nonlinear_synth(n: int = 600, seed: int = 11) -> pd.DataFrame:
+    """Y = 1 + 0.4·T - 0.03·T² + noise — concave-down dose-response."""
+    rng = np.random.default_rng(seed)
+    raise_amount = rng.uniform(0.0, 10.0, size=n)
+    noise = rng.normal(0.0, 0.5, size=n)
+    engagement = 1.0 + 0.4 * raise_amount - 0.03 * raise_amount ** 2 + noise
+    return pd.DataFrame({
+        "raise_amount": raise_amount,
+        "engagement": engagement,
+    })
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_forest_backend_via_explicit_model_kwarg():
+    out = themis.estimate(
+        _dose_response_program(), _nonlinear_synth(), model="forest",
+    )
+    ne = out["results"][0]["numeric_estimate"]
+    assert ne["method"] == "dose_response_causal_forest_dml"
+    assert "森林" in " ".join(ne["assumptions"]) or \
+           "CausalForestDML" in " ".join(ne["assumptions"])
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_auto_picks_forest_when_n_large():
+    """n=600 ≥ 200 → 'auto' resolves to forest."""
+    out = themis.estimate(
+        _dose_response_program(), _nonlinear_synth(n=600), model="auto",
+    )
+    assert out["results"][0]["numeric_estimate"]["method"] == \
+        "dose_response_causal_forest_dml"
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_auto_picks_linear_when_n_small():
+    """n=80 < 200 → 'auto' resolves to linear (forest needs the
+    sample size for honest splits to behave)."""
+    out = themis.estimate(
+        _dose_response_program(), _synth_data(n=80), model="auto",
+    )
+    assert out["results"][0]["numeric_estimate"]["method"] == \
+        "dose_response_linear_dml"
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_forest_assumption_admits_t_linearity_limit():
+    """Forest's nuisance-stage flexibility doesn't extend to the T-Y
+    relationship — the final stage is still linear in T. Make sure the
+    assumption text says so, so callers don't read the curve as
+    non-linear evidence when it isn't."""
+    out = themis.estimate(
+        _dose_response_program(), _nonlinear_synth(), model="forest",
+    )
+    assumptions = " ".join(out["results"][0]["numeric_estimate"]["assumptions"])
+    # Either explicit Chinese phrasing or English equivalent
+    assert ("不能恢复" in assumptions and "非线性" in assumptions) or \
+           "DRLearner" in assumptions
 
 
 def test_no_dose_response_ambiguity_keeps_binary_path():
@@ -142,7 +205,7 @@ def test_missing_econml_surfaces_structured_error(monkeypatch):
     real_econml_dml = sys.modules.pop("econml.dml", None)
     monkeypatch.setitem(sys.modules, "econml", None)
     try:
-        out = themis.estimate(_dose_response_program(), _synth_data())
+        out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
         result = out["results"][0]
         # Either dependency-missing block is set, or the binary
         # fallback ran (also acceptable — both paths surface

@@ -128,6 +128,7 @@ def _estimate_effect_queries(
                 a.predicate for a in _topo_order(graph, chosen)
             )
             sampling_points = _resolve_dose_response_points(prog, x_atom)
+            dr_model = _resolve_dose_response_model(model)
             if _try_dose_response_estimate(
                 result=result,
                 contract=contract,
@@ -136,6 +137,7 @@ def _estimate_effect_queries(
                 adjustment=adjustment_names,
                 sampling_points=sampling_points,
                 random_state=random_state,
+                model=dr_model,
                 graph=graph, x=x_atom, y=y_atom, chosen=chosen, given=given_atoms,
             ):
                 continue
@@ -652,11 +654,21 @@ def _resolve_dose_response_points(prog, x_atom):
     return None
 
 
+def _resolve_dose_response_model(model: str) -> str:
+    """Map themis.estimate's ``model`` kwarg (binary-effect vocabulary:
+    'auto'/'linear'/'logistic') to the dose-response vocabulary
+    ('auto'/'linear'/'forest'). 'logistic' has no dose-response
+    counterpart — fall back to 'auto'."""
+    if model in ("auto", "linear", "forest"):
+        return model
+    return "auto"
+
+
 def _try_dose_response_estimate(
     *,
     result, contract,
     treatment, outcome, adjustment,
-    sampling_points, random_state,
+    sampling_points, random_state, model,
     graph, x, y, chosen, given,
 ) -> bool:
     """Fit the dose-response curve and attach to ``result``. Returns
@@ -675,19 +687,22 @@ def _try_dose_response_estimate(
             adjustment=tuple(adjustment),
             sampling_points=sampling_points,
             random_state=random_state,
+            model=model,
         )
     except EstimatorDependencyMissing as exc:
         result["estimator_dependency_missing"] = {
             "package": exc.package,
             "install_hint": exc.install_hint,
-            "estimator": "dose_response_linear_dml",
+            "estimator": f"dose_response_{model}_dml" if model != "auto"
+                         else "dose_response_dml",
         }
         return True
     except (ValueError, RuntimeError) as exc:
         # Numeric failure (singular design, no overlap, etc.). Surface
         # structurally rather than crashing dispatch.
         result["estimator_failure"] = {
-            "estimator": "dose_response_linear_dml",
+            "estimator": f"dose_response_{model}_dml" if model != "auto"
+                         else "dose_response_dml",
             "reason": str(exc),
         }
         return True

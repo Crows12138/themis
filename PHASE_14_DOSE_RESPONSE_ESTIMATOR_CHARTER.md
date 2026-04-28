@@ -86,12 +86,27 @@ Themis 当前公开三个 entry point：
 - schema 没更新——`dose_response_curve` 当前是 free-form dict 字段，正式
   入 schema 等真有外部 consumer 再做（problem 3 = "先 dict 凑合"）
 
-## 1.X — slice b/c 的剩余范围（按 charter 1.1/1.2，未做）
+## 已落地：slice b（2026-04-28）
 
-- CausalForestDML 自动选择（非线性怀疑触发）
-- 显式 cross-fit + sandwich SE
+- `model='auto'|'linear'|'forest'` kwarg；'auto' 在 n ≥ 200 时选 forest
+- CausalForestDML 作为可选 backend（nuisance 阶段非参数）
+- assumption 文本如实声明 forest **不能恢复 T-Y 非线性**（CausalForestDML
+  在 X 上做异质，对 T 仍线性 — 这是踩坑后改正的）
+
+**slice b 学到的事**：CausalForestDML 给的是"按 X 的异质效应"，不是
+"T-Y 非线性曲线"。要真正非线性 dose-response 必须 DRLearner +
+T 离散化（或 SparseLinearDML + poly features）。这是 slice b.2 / 未来
+工作，不在本次范围。
+
+## slice c（charter 1.2）剩余
+
 - 接 Phase 13 的 sampling_point_count = K 推荐值
 - estimate 失败的更细分类（缺列 / overlap 不足 / 收敛失败 → 各自结构化错误）
+
+## slice b.2（新发现，charter 没列）
+
+- DRLearner + T 离散化（用 sampling_points 作 K 个 bin）→ 真正非线性曲线
+- 或 SparseLinearDML + PolynomialFeatures(degree=2) on T
 
 ## 3. 触发条件（什么时候开 Phase 14？）
 
