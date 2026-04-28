@@ -2092,16 +2092,21 @@ def dispatch(
         theta=theta, prob_index=prob_index, obs_index=obs_index,
     )
     result = _attach_framing(program, stmt, result)
-    result = _attach_data_gap_report(result)
+    result = _attach_data_gap_report(result, program=program, stmt=stmt)
     result = _attach_bounds_result(program, stmt, result, bidirected=bidirected)
     result = _reconcile_alt_paths_with_bounds(result)
     return result
 
 
-def _attach_data_gap_report(result: QueryResult) -> QueryResult:
-    """Phase 10 §10.3: synthesize the structured data-gap report from
-    signals already on the QueryResult (derivation, investigation
-    requests, framing notes, extensions). Pure function — no I/O."""
+def _attach_data_gap_report(
+    result: QueryResult,
+    *,
+    program: Program | None = None,
+    stmt: QueryStatement | None = None,
+) -> QueryResult:
+    """Phase 10 §10.3 + Phase 13: synthesize the structured data-gap
+    report from signals already on the QueryResult, plus (Phase 13)
+    program-level extensions.ambiguities for dose-response detection."""
     from dataclasses import replace as _replace
 
     from ..output.data_gap_report import compute_data_gap_report
@@ -2112,6 +2117,8 @@ def _attach_data_gap_report(result: QueryResult) -> QueryResult:
         derivation=result.derivation,
         investigation_requests=result.investigation_requests,
         framing_notes=result.framing_notes,
+        program=program,
+        stmt=stmt,
         extensions=result.extensions,
     )
     if report is None and result.data_gap_report is None:

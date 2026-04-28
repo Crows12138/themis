@@ -526,6 +526,14 @@ class GapKind(str, Enum):
     # it explicitly.
     TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN = "transport_source_conditional_unknown"
     AMBIGUOUS_VARIABLE_DEFINITION = "ambiguous_variable_definition"
+    # Phase 13: NL questions of shape "X 让 Y 升多少 / X 和 Y 的关系图"
+    # ask for a dose-response curve E[Y|do(X=x)] as a function of x.
+    # Themis is a validator + diagnostician, not a regression engine —
+    # it doesn't compute the curve. This gap_kind names everything the
+    # user needs to fit the curve elsewhere (EconML / DoubleML / GAM):
+    # X sampling points, per-point sample size, confounders to control,
+    # time window, SUTVA concerns.
+    DOSE_RESPONSE_DATA_REQUIRED = "dose_response_data_required"
 
 
 class GapSeverity(str, Enum):
@@ -576,6 +584,21 @@ class GapRequiredData:
     variables: tuple[str, ...] = ()
     min_sample_size: int | None = None
     precision_target: str | None = None
+    # Phase 13 — fields used by DOSE_RESPONSE_DATA_REQUIRED. Other gap
+    # kinds leave these as defaults; they're additive and JSON-omitted
+    # when None / empty.
+    sampling_point_count: int | None = None
+    """How many distinct X values the user should sample to fit the curve
+    (e.g. 5 raise amounts: 0/500/1000/2000/5000). Hill-Tukey rule of
+    thumb: ≥4 to detect non-linearity."""
+    confounders_required: tuple[str, ...] = ()
+    """Predicates the user must measure and condition on (typically the
+    backdoor adjustment set extracted from the program's DAG)."""
+    time_window: str | None = None
+    """Recommended measurement schedule, e.g. 'baseline + 4w + 12w'."""
+    sutva_concerns: tuple[str, ...] = ()
+    """Domain-specific SUTVA / interference risks to control for in
+    study design (e.g. 'employees discussing raises with each other')."""
 
 
 @dataclass(frozen=True)

@@ -241,6 +241,14 @@ def _data_gap_to_dict(gap: DataGap) -> dict:
             rd_out["min_sample_size"] = rd.min_sample_size
         if rd.precision_target is not None:
             rd_out["precision_target"] = rd.precision_target
+        if rd.sampling_point_count is not None:
+            rd_out["sampling_point_count"] = rd.sampling_point_count
+        if rd.confounders_required:
+            rd_out["confounders_required"] = list(rd.confounders_required)
+        if rd.time_window is not None:
+            rd_out["time_window"] = rd.time_window
+        if rd.sutva_concerns:
+            rd_out["sutva_concerns"] = list(rd.sutva_concerns)
         if rd_out:
             out["required_data"] = rd_out
     if gap.if_provided is not None:

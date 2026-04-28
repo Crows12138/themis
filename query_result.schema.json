@@ -753,7 +753,8 @@
             "missing_mediator_data",
             "transport_target_distribution_unknown",
             "transport_source_conditional_unknown",
-            "ambiguous_variable_definition"
+            "ambiguous_variable_definition",
+            "dose_response_data_required"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },
@@ -783,7 +784,26 @@
               "items": { "type": "string" }
             },
             "min_sample_size": { "type": "integer", "minimum": 1 },
-            "precision_target": { "type": "string" }
+            "precision_target": { "type": "string" },
+            "sampling_point_count": {
+              "type": "integer",
+              "minimum": 2,
+              "description": "Phase 13: distinct X values to sample for dose-response curve fitting (≥4 recommended)."
+            },
+            "confounders_required": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Phase 13: predicates the user must measure and adjust for (typically the backdoor set)."
+            },
+            "time_window": {
+              "type": "string",
+              "description": "Phase 13: recommended measurement schedule for dose-response data collection."
+            },
+            "sutva_concerns": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Phase 13: SUTVA / interference risks to control for in study design."
+            }
           }
         },
         "blocks": {

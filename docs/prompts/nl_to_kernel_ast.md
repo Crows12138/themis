@@ -73,6 +73,19 @@ in `extensions.ambiguities` so the response layer surfaces "I
 checked the path is in the graph; I cannot tell you whether X is
 the *main* or *only* reason."
 
+**Watch for dose-response phrasings.** Phrasings like "X 让 Y 升
+/ 降多少 / 多大 / 多重 / X 和 Y 的关系曲线 / 从 X1 到 X2 时 Y 怎么变
+/ dose-response" ask for a **curve** `E[Y|do(X=x)]` over varying x.
+Themis doesn't compute curves — that's regression-engine territory
+(EconML / DoubleML / GAM). Emit a closest-fit binary `effect` query
+for Themis to validate (e.g. X=high vs X=low at sensible thresholds)
+AND flag `dose_response_query` in `extensions.ambiguities`. The
+kernel's `dose_response_data_required` gap_kind will list the data
+spec the user needs to fit the curve elsewhere — sampling points,
+per-point sample size, backdoor-set confounders to control,
+measurement schedule, SUTVA concerns. Don't pretend Themis itself
+can answer "the relationship".
+
 ### 2. Predicates
 
 - **English snake_case** names; predicates only (not class names).
@@ -503,6 +516,7 @@ the matching `kind`:
 | `counterfactual_query` | Wider counterfactual that exceeds the kernel's current Layer-3 fragment |
 | `mechanism_vs_existence` | NL asks 为什么 / 通过什么机制 — wants the mechanism chain, not whether a path exists. Emit a `cause` query as a proxy for existence-of-path; the response layer will acknowledge the mechanism gap |
 | `cause_attribution` | NL asks 是不是因为 X / 真的是 X 起的作用吗 / 主要怪 X 吗 / X 占多大份额 — wants to know whether X is the **dominant or sufficient** cause among many possible causes of Y. The kernel's `cause` query only validates that the LLM-proposed `X→Y` edge is in the graph (path existence); it can't apportion responsibility across causes. Emit `cause` as a proxy AND flag this ambiguity so the response layer surfaces "I checked the path is in the graph, but you're asking attribution which Themis can't compute" |
+| `dose_response_query` | NL asks "X 让 Y 升 / 降多少 / 多大 / X 和 Y 的关系图 / 从 X1 到 X2 时 Y 怎么变 / 关系曲线 / dose-response" — wants the dose-response curve `E[Y|do(X=x)]` as a function of x. Themis is a validator + diagnostician, not a regression engine — it doesn't compute curves. Emit a closest-fit binary `effect` query (X=high vs X=low at sensible thresholds) for Themis to validate AND flag this ambiguity. The kernel emits a `dose_response_data_required` gap_kind that lists the data spec (X sampling points / per-point sample size / confounders / time window / SUTVA concerns) so the user can fit the curve in EconML / DoubleML / GAM externally |
 | `individual_vs_population` | Narrative gives a population-average effect ("平均降压 10"), question asks about an individual ("对我有效吗") |
 | `iv_validity` | Used IV; declaring assumption Z satisfies IV1/IV2/IV3 |
 | `mediation_intermediate_confounder` | M4 violation flagged in §3 mediation |

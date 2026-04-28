@@ -94,6 +94,8 @@ def compute_data_gap_report(
     investigation_requests: tuple[InvestigationRequest, ...] = (),
     framing_notes: tuple[FramingNote, ...] = (),
     extensions: dict | None = None,
+    program=None,
+    stmt=None,
 ) -> DataGapReport | None:
     """Synthesize a DataGapReport from the result-envelope signals.
 
@@ -126,6 +128,7 @@ def compute_data_gap_report(
     gaps.extend(_classify_missing_mediator(extensions, investigation_requests))
     gaps.extend(_classify_transport_target_distribution(extensions))
     gaps.extend(_classify_ambiguous_variable(framing_notes))
+    gaps.extend(_classify_dose_response_data(program, stmt, derivation))
 
     gaps.sort(key=_gap_sort_key)
     summary = _make_summary(gaps)
@@ -536,6 +539,127 @@ def _transport_treatment_outcome(block: dict) -> tuple[str | None, str | None]:
         return treatment or None, outcome or None
     except (IndexError, ValueError):
         return None, None
+
+
+_DEFAULT_DOSE_RESPONSE_K = 5
+
+
+def _classify_dose_response_data(
+    program, stmt, derivation: tuple[DerivationStep, ...],
+) -> Iterable[DataGap]:
+    """Phase 13: when the user asks for a dose-response curve (NL flagged
+    via program.extensions.ambiguities[kind=dose_response_query]),
+    Themis itself doesn't compute curves — but emits a fully-specified
+    'what data you need to fit it elsewhere' gap.
+
+    Trigger: program-level ambiguity entry with kind=dose_response_query.
+    Renderer + LLM-prompt layer pair this with 'use EconML / DoubleML
+    / GAM' guidance.
+    """
+    if program is None or stmt is None:
+        return
+    ext = getattr(program, "extensions", None) or {}
+    ambs = ext.get("ambiguities") or []
+    triggered = any(
+        isinstance(a, dict) and a.get("kind") == "dose_response_query"
+        for a in ambs
+    )
+    if not triggered:
+        return
+
+    from ..output.sample_size import estimate_min_n_two_arm_continuous
+
+    # Per-arm n at default Cohen's d=0.5 → estimate_min_n_two_arm_continuous
+    # returns total (~150). Per-arm = total / 2 ≈ 75; rounded → 100 for
+    # K-point scaling readability.
+    total_two_arm, _ = estimate_min_n_two_arm_continuous()
+    n_per_point = max(50, total_two_arm // 2)
+    K = _DEFAULT_DOSE_RESPONSE_K
+    total = K * n_per_point
+
+    confounders = _extract_dose_response_confounders(derivation)
+
+    # Best-effort target / intervention names for the description
+    target_label = _query_target_label(stmt)
+    intervention_label = _query_intervention_label(stmt)
+
+    yield DataGap(
+        kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
+        severity=GapSeverity.BLOCKING,
+        description=(
+            f"用户问的是 {intervention_label} 与 {target_label} 之间的"
+            f"剂量响应关系（曲线 / 关系图）。Themis 不算曲线（请用 EconML "
+            f"/ DoubleML / GAM）—— 但下面是你做这件事所需的数据规格。"
+        ),
+        blocks=GapBlocks.POINT_ESTIMATE,
+        required_data=GapRequiredData(
+            data_type=RequiredDataType.IPD,
+            sampling_point_count=K,
+            min_sample_size=total,
+            precision_target=(
+                f"K={K} 个 X 采样点 × n={n_per_point}/点 "
+                f"(Cohen's d=0.5, α=0.05, power=0.80)"
+            ),
+            confounders_required=tuple(confounders),
+            time_window="建议 baseline + 4w + 12w（视实际研究问题调整）",
+            sutva_concerns=(
+                "受试者之间不能讨论 / 协调干预（违反 SUTVA）",
+                "若有溢出 / 同侪效应，需登记并在分析中纳入",
+            ),
+        ),
+        if_provided=(
+            "数据齐了之后，去 EconML / DoubleML / GAM 拟合曲线 —— "
+            "Themis 不在 estimator 这一步参与"
+        ),
+        alternative_paths=(
+            "退一步只看二元对比 (X=high vs X=low)：Themis 能给区间答案",
+        ),
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="program:extensions.ambiguities.dose_response_query",
+            ),
+        ),
+    )
+
+
+def _extract_dose_response_confounders(
+    derivation: tuple[DerivationStep, ...],
+) -> list[str]:
+    """Pull confounder predicates from the derivation's backdoor /
+    front-door step. Best-effort — returns an empty list if no
+    adjustment set is present (e.g. unidentifiable graph). The
+    response renderer surfaces 'no confounders captured' explicitly
+    rather than pretending."""
+    for step in derivation:
+        if "backdoor" in step.rule and not _step_failed(step):
+            ctx = step.context or {}
+            adj = ctx.get("adjustment_set") or ctx.get("backdoor_set")
+            if isinstance(adj, (list, tuple)):
+                return [str(z) for z in adj]
+    return []
+
+
+def _query_target_label(stmt) -> str:
+    q = getattr(stmt, "query", None)
+    if q is None:
+        return "<target>"
+    target = getattr(q, "target", None)
+    if target is None:
+        return "<target>"
+    atom = getattr(target, "atom", None) or target
+    return getattr(atom, "predicate", "<target>")
+
+
+def _query_intervention_label(stmt) -> str:
+    q = getattr(stmt, "query", None)
+    if q is None:
+        return "<intervention>"
+    intv = getattr(q, "intervention", None)
+    if intv is None:
+        return "<intervention>"
+    atom = getattr(intv, "atom", None) or intv
+    return getattr(atom, "predicate", "<intervention>")
 
 
 def _classify_ambiguous_variable(

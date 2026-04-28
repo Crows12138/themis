@@ -193,6 +193,34 @@ suffices, and the source-stratified one (`P(Y | do(X), Z)`) is usually
 the real bottleneck (meta-analyses publish summary numbers, not
 strata). Flag this explicitly.
 
+**Special rule for `dose_response_data_required`** (Phase 13): the
+user asked for a curve / relationship, not a single contrast. Lead
+the headline with **"你问的是关系图，Themis 不画图"** so the user
+isn't misled into thinking we'll fit it. Then render the
+`required_data` block in full — every populated field is concretely
+actionable for someone designing or collecting data:
+
+> 你问的是关系图（剂量响应），Themis 不画图 —— 那是回归引擎的活
+> （EconML / DoubleML / GAM）。但**要画这条曲线，你的数据需要满足**：
+>
+> - **X 采样点**：至少 `{sampling_point_count}` 个不同的干预水平
+>   （建议覆盖你关心的 X 范围，例如加薪 0/500/1000/2000/5000）
+> - **总样本量**：≥ `{min_sample_size}`（`{precision_target}`）
+> - **必须测量并控制的混杂**：`{confounders_required}` —— 没测齐这
+>   些变量，回归出来的系数不是因果效应而是相关系数
+> - **测量节奏**：`{time_window}`
+> - **SUTVA 风险**：`{sutva_concerns[*]}` —— 任何一条违反，外推都
+>   失效
+>
+> 数据齐了之后请用 EconML/DoubleML/GAM 拟合。如果暂时拿不到完整
+> 数据，可以退回到 Themis 能给的二元对比（X=high vs X=low），那个
+> Themis 能给区间答案。
+
+If `confounders_required` is empty (the kernel couldn't extract a
+backdoor set — e.g. unidentifiable graph), **say so explicitly** rather
+than dropping the bullet: "我从你给的图里没能自动列出关键混杂——
+你需要自己列清，否则数据再多也算不出因果效应".
+
 ### 2. Ambiguity disclosure
 
 When the orchestrator passes `program`, walk
