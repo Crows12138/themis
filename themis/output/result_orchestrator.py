@@ -243,7 +243,14 @@ def _data_gap_to_dict(gap: DataGap) -> dict:
             rd_out["precision_target"] = rd.precision_target
         if rd.sampling_point_count is not None:
             rd_out["sampling_point_count"] = rd.sampling_point_count
-        if rd.confounders_required:
+        # confounders_required: emit always when sampling_point_count is
+        # set (i.e. dose-response gap context) so renderer can distinguish
+        # 'tried but kernel couldn't extract' (empty array) from 'not
+        # applicable' (key absent). Subagent real-test caught this: when
+        # absent, the LLM filled in confounders by guessing.
+        if rd.sampling_point_count is not None:
+            rd_out["confounders_required"] = list(rd.confounders_required)
+        elif rd.confounders_required:
             rd_out["confounders_required"] = list(rd.confounders_required)
         if rd.time_window is not None:
             rd_out["time_window"] = rd.time_window

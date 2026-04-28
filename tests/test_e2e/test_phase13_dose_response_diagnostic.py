@@ -146,3 +146,23 @@ def test_gap_kind_enum_includes_dose_response():
     assert GapKind.DOSE_RESPONSE_DATA_REQUIRED.value == (
         "dose_response_data_required"
     )
+
+
+def test_confounders_required_surfaces_even_when_empty():
+    """Subagent real-test caught: when the DAG has no observed
+    confounders (empty backdoor set), confounders_required was being
+    filtered out of the JSON. The LLM consumer then guessed confounders
+    on its own and presented them as Themis output. The contract for
+    dose-response gaps: emit confounders_required ALWAYS (empty array
+    when nothing extracted) so renderer can distinguish 'kernel tried
+    and got nothing' from 'kernel didn't try'."""
+    out = themis.run(_dose_response_program())
+    gap = next(
+        g for g in out["results"][0]["data_gap_report"]["gaps"]
+        if g["kind"] == "dose_response_data_required"
+    )
+    rd = gap["required_data"]
+    # Key must be present (even if empty list — that's the signal)
+    assert "confounders_required" in rd
+    # Empty for this fixture (no observed confounder declared)
+    assert rd["confounders_required"] == []
