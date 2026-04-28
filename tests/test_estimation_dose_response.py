@@ -288,6 +288,117 @@ def test_failure_type_field_present_on_all_paths():
     }
 
 
+# ---------- subagent-caught regressions (2026-04-28) ----------
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_constant_outcome_fails_loudly_not_silently_zero():
+    """Subagent caught: constant Y was producing all-zero curves with
+    `numerically_solved` status — a confident false-negative. Must now
+    surface as estimator_failure(convergence_failure)."""
+    df = _synth_data()
+    df["engagement"] = 4.0  # collapse outcome
+    out = themis.estimate(_dose_response_program(), df, model="linear")
+    failure = out["results"][0].get("estimator_failure")
+    assert failure is not None
+    assert failure["failure_type"] == "convergence_failure"
+    assert "outcome" in failure["reason"] or "退化" in failure["reason"]
+    # Status must NOT have flipped to numerically_solved
+    assert out["results"][0]["status"] != "numerically_solved"
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_explicit_drlearner_at_small_n_is_honored():
+    """Subagent caught: 'drlearner' was missing from dispatch's
+    whitelist — fell to 'auto', which at small n picks 'linear'. So
+    asking for drlearner at n=80 silently produced linear results.
+    With the fix, n=80 + model='drlearner' must reach drlearner OR
+    fail loudly (here: bin-overlap failure since 80/5 bins = 16/bin
+    is fine, so the call should succeed with drlearner method)."""
+    out = themis.estimate(
+        _dose_response_program(), _synth_data(n=80), model="drlearner",
+    )
+    ne = out["results"][0].get("numeric_estimate")
+    failure = out["results"][0].get("estimator_failure")
+    # Either succeeded as drlearner, or failed structurally — but never
+    # silently fell back to linear.
+    if ne is not None:
+        assert ne["method"] == "dose_response_linear_drlearner"
+    else:
+        assert failure is not None  # structured failure is acceptable
+
+
+def test_dose_response_ambiguity_only_routes_first_effect_query():
+    """Subagent caught: the program-level dose_response_query flag was
+    bleeding onto every effect query. With the fix, multi-query
+    programs with no explicit query_id only route the FIRST effect
+    query through dose-response — others take the binary backdoor
+    path."""
+    program = _dose_response_program()
+    # Add a second, unrelated effect query
+    program["statements"].append({
+        "kind": "variable", "predicate": "tenure",
+    })
+    program["statements"].append({
+        "kind": "cause",
+        "from": _atom("tenure"), "to": _atom("engagement"),
+        "annotations": {"source": "llm_proposal"},
+    })
+    program["statements"].append({
+        "kind": "query", "id": "q_tenure",
+        "query": {
+            "kind": "effect",
+            "intervention": {"atom": _atom("tenure"), "value": True},
+            "target": {"atom": _atom("engagement"), "value": 4},
+            "given": [],
+        },
+    })
+    df = _synth_data()
+    df["tenure"] = (df["raise_amount"] > 5).astype(float)
+    df["engagement"] = (df["engagement"] > df["engagement"].median()).astype(float)
+    out = themis.estimate(program, df, model="linear")
+    by_id = {r["query_id"]: r for r in out["results"]}
+    # First query (q): dose-response. Second (q_tenure): binary or unset.
+    q1_method = by_id["q"].get("numeric_estimate", {}).get("method", "")
+    q2_method = by_id["q_tenure"].get("numeric_estimate", {}).get("method", "")
+    assert "dose_response" in q1_method
+    assert "dose_response" not in q2_method
+
+
+def test_dose_response_ambiguity_with_explicit_query_id_targets_only_that():
+    """When an ambiguity carries query_id, only that query gets the
+    treatment — even if it's not the first effect query."""
+    program = _dose_response_program()
+    program["extensions"]["ambiguities"][0]["query_id"] = "q_tenure"
+    program["statements"].append({
+        "kind": "variable", "predicate": "tenure",
+    })
+    program["statements"].append({
+        "kind": "cause",
+        "from": _atom("tenure"), "to": _atom("engagement"),
+        "annotations": {"source": "llm_proposal"},
+    })
+    program["statements"].append({
+        "kind": "query", "id": "q_tenure",
+        "query": {
+            "kind": "effect",
+            "intervention": {"atom": _atom("tenure"), "value": True},
+            "target": {"atom": _atom("engagement"), "value": 4},
+            "given": [],
+        },
+    })
+    df = _synth_data()
+    df["tenure"] = df["raise_amount"]  # tenure also continuous
+    out = themis.estimate(program, df, model="linear")
+    by_id = {r["query_id"]: r for r in out["results"]}
+    q1_method = by_id["q"].get("numeric_estimate", {}).get("method", "")
+    q_tenure_method = by_id["q_tenure"].get("numeric_estimate", {}).get(
+        "method", "",
+    )
+    # Only q_tenure (named in query_id) should be dose-response now.
+    assert "dose_response" not in q1_method
+    assert "dose_response" in q_tenure_method
+
+
 def test_no_dose_response_ambiguity_keeps_binary_path():
     """Without the ambiguity flag, dispatch must NOT route to the
     dose-response estimator — it falls through to the standard binary

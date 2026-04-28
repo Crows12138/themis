@@ -94,11 +94,12 @@ def _estimate_effect_queries(
     graph = project(ground_statements)
     bidirected = structural_solver.bidirected_from_ground(ground_statements)
 
-    dose_response_triggered = _program_flags_dose_response(prog)
+    dose_response_query_ids = _dose_response_target_query_ids(prog)
 
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None:
             continue
+        dose_response_triggered = q_stmt.id in dose_response_query_ids
         # Phase 7.4: mediation queries route to the Imai-via-statsmodels
         # estimator, gated on the identification layer's strategy result.
         if q_stmt.query.mediator is not None:
@@ -621,15 +622,49 @@ def _pair_effect_queries(prog, output):
         yield id_to_stmt.get(qid), result
 
 
-def _program_flags_dose_response(prog) -> bool:
-    """True iff the program declares a ``dose_response_query`` ambiguity
-    (the same trigger Phase 13's diagnostic uses)."""
+def _dose_response_target_query_ids(prog) -> set[str]:
+    """Returns the set of query_ids that should get dose-response
+    estimation. Subagent real-test caught: when a program had multiple
+    effect queries and a single program-level dose_response_query
+    ambiguity, ALL queries were routed through the curve estimator —
+    even ones the user clearly meant as ordinary binary contrasts.
+
+    Resolution rule:
+    1. If an ambiguity carries an explicit ``query_id``, only that
+       query gets dose-response treatment.
+    2. If no explicit ``query_id`` is set, dose-response applies to
+       the FIRST effect query only — preserving the legacy single-query
+       flow without bleeding onto neighbors.
+
+    Returns an empty set when no dose-response ambiguity is present."""
+    from ..types import EffectQuery, QueryStatement
+
     extensions = getattr(prog, "extensions", None) or {}
     ambs = extensions.get("ambiguities") or []
-    return any(
-        isinstance(a, dict) and a.get("kind") == "dose_response_query"
-        for a in ambs
-    )
+    dose_ambs = [
+        a for a in ambs
+        if isinstance(a, dict) and a.get("kind") == "dose_response_query"
+    ]
+    if not dose_ambs:
+        return set()
+
+    effect_query_ids = [
+        s.id for s in prog.statements
+        if isinstance(s, QueryStatement) and isinstance(s.query, EffectQuery)
+    ]
+    if not effect_query_ids:
+        return set()
+    first_effect_id = effect_query_ids[0]
+
+    targets: set[str] = set()
+    for a in dose_ambs:
+        explicit = a.get("query_id")
+        if explicit is not None:
+            if explicit in effect_query_ids:
+                targets.add(explicit)
+        else:
+            targets.add(first_effect_id)
+    return targets
 
 
 def _resolve_dose_response_points(prog, x_atom):
@@ -657,9 +692,14 @@ def _resolve_dose_response_points(prog, x_atom):
 def _resolve_dose_response_model(model: str) -> str:
     """Map themis.estimate's ``model`` kwarg (binary-effect vocabulary:
     'auto'/'linear'/'logistic') to the dose-response vocabulary
-    ('auto'/'linear'/'forest'). 'logistic' has no dose-response
-    counterpart — fall back to 'auto'."""
-    if model in ("auto", "linear", "forest"):
+    ('auto'/'linear'/'forest'/'drlearner'). 'logistic' has no
+    dose-response counterpart — fall back to 'auto'.
+
+    Subagent real-test caught: 'drlearner' was missing from this
+    whitelist, so callers passing model='drlearner' silently got
+    'auto' (which only chose drlearner when n ≥ 200 + ≥ 3 points —
+    otherwise they got linear, not what they asked for)."""
+    if model in ("auto", "linear", "forest", "drlearner"):
         return model
     return "auto"
 

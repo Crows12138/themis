@@ -153,6 +153,12 @@ def estimate_dose_response(
     reference = float(points[0])
     n = len(df)
 
+    # Subagent real-test caught: constant-Y was silently producing
+    # all-zero curves with `numerically_solved` status — a confident
+    # false-negative. Pre-check outcome variance so degenerate fits
+    # surface as structured failures, like degenerate T already did.
+    _check_outcome_variance(y=y)
+
     # Slice c: pre-check overlap before fitting so a sparse sampling
     # point fails as a structured error rather than silently producing
     # a meaningless estimate.
@@ -389,6 +395,26 @@ def _predict_curve(est, *, points, reference, n, alpha, x_for_predict):
             CurvePoint(x=x, effect=point, ci_lower=ci_lo, ci_upper=ci_hi),
         )
     return curve_points
+
+
+def _check_outcome_variance(*, y: np.ndarray) -> None:
+    """Reject constant or near-constant Y. Without this, EconML returns
+    a fit that "works" with all-zero coefficients and zero-width CIs —
+    the user reads it as "no effect" when reality is "fit was
+    degenerate"."""
+    y_std = float(np.std(y))
+    y_range = float(y.max() - y.min())
+    if y_std < 1e-9 or y_range < 1e-9:
+        raise EstimatorFailure(
+            failure_type="convergence_failure",
+            message=(
+                f"outcome 列方差过低（std={y_std:.2g}, range={y_range:.2g}）；"
+                "退化拟合会给出全零曲线和零宽 CI，用户会读成'无效应'实为"
+                "数据问题。"
+            ),
+            outcome_std=y_std,
+            outcome_range=y_range,
+        )
 
 
 def _check_overlap(*, t: np.ndarray, points: tuple[float, ...]) -> None:
