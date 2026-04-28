@@ -181,6 +181,54 @@ def test_forest_assumption_admits_t_linearity_limit():
            "DRLearner" in assumptions
 
 
+# ---------- slice c: structured failures ----------
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_overlap_insufficient_when_constant_treatment():
+    """Treatment with zero variance can't yield any dose-response;
+    surface as overlap_insufficient, not a crash."""
+    df = _synth_data()
+    df["raise_amount"] = 5.0  # collapse to constant
+    out = themis.estimate(_dose_response_program(), df, model="linear")
+    failure = out["results"][0].get("estimator_failure")
+    assert failure is not None
+    assert failure["failure_type"] == "overlap_insufficient"
+    assert "没有变化" in failure["reason"] or "max == min" in failure["reason"]
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_overlap_insufficient_when_sampling_point_in_gap():
+    """Declared domain includes points outside the observed support;
+    those points should fail with sparse_points details."""
+    program = _dose_response_program()
+    for stmt in program["statements"]:
+        if stmt.get("kind") == "variable" and stmt["predicate"] == "raise_amount":
+            # Observed data is uniform on [0, 10]. Declaring 100 forces
+            # a sampling point that's nowhere near any observation.
+            stmt["domain"] = [0.0, 5.0, 100.0]
+    out = themis.estimate(program, _synth_data(), model="linear")
+    failure = out["results"][0].get("estimator_failure")
+    assert failure is not None
+    assert failure["failure_type"] == "overlap_insufficient"
+    sparse = failure["details"]["sparse_points"]
+    assert any(p["x"] == 100.0 for p in sparse)
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_failure_type_field_present_on_all_paths():
+    """Every estimator_failure block must carry failure_type so callers
+    can branch on it without parsing the reason string."""
+    df = _synth_data()
+    df["raise_amount"] = 5.0
+    out = themis.estimate(_dose_response_program(), df, model="linear")
+    failure = out["results"][0]["estimator_failure"]
+    # Three legal values (slice c): overlap_insufficient,
+    # convergence_failure, unknown
+    assert failure["failure_type"] in {
+        "overlap_insufficient", "convergence_failure", "unknown",
+    }
+
+
 def test_no_dose_response_ambiguity_keeps_binary_path():
     """Without the ambiguity flag, dispatch must NOT route to the
     dose-response estimator — it falls through to the standard binary

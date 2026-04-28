@@ -59,6 +59,29 @@ class EstimatorDependencyMissing(RuntimeError):
         self.install_hint = install_hint
 
 
+class EstimatorFailure(RuntimeError):
+    """Raised by the dose-response estimator on a recoverable numeric
+    failure. Dispatch turns this into a structured ``estimator_failure``
+    block with ``failure_type`` so the caller can branch on the cause
+    without parsing free-form messages.
+
+    failure_type values (slice c):
+    - ``'overlap_insufficient'`` — one or more sampling points have
+      fewer than ``min_neighbors`` observations within the chosen
+      bandwidth; the estimate at that point would be uninformative.
+    - ``'convergence_failure'`` — the underlying sklearn / EconML
+      regressor raised LinAlgError, ConvergenceWarning-as-error, or
+      similar.
+    - ``'unknown'`` — fallback when the underlying message doesn't
+      match one of the above shapes.
+    """
+
+    def __init__(self, failure_type: str, message: str, **details):
+        super().__init__(message)
+        self.failure_type = failure_type
+        self.details = details
+
+
 @dataclass(frozen=True)
 class CurvePoint:
     x: float
@@ -125,10 +148,24 @@ def estimate_dose_response(
     reference = float(points[0])
     n = len(df)
 
+    # Slice c: pre-check overlap before fitting so a sparse sampling
+    # point fails as a structured error rather than silently producing
+    # a meaningless estimate.
+    _check_overlap(t=t, points=points)
+
     resolved = _resolve_model_choice(model, n)
-    est, method, model_assumption, x_for_predict = _fit_dml_backend(
-        resolved, y=y, t=t, w=w, random_state=random_state,
-    )
+    try:
+        est, method, model_assumption, x_for_predict = _fit_dml_backend(
+            resolved, y=y, t=t, w=w, random_state=random_state,
+        )
+    except EstimatorDependencyMissing:
+        raise
+    except (np.linalg.LinAlgError, FloatingPointError) as exc:
+        raise EstimatorFailure(
+            failure_type="convergence_failure",
+            message=f"DML 拟合数值失败：{exc}",
+            backend=resolved,
+        ) from exc
 
     alpha = 1.0 - ci_level
     curve_points = _predict_curve(
@@ -246,6 +283,39 @@ def _predict_curve(est, *, points, reference, n, alpha, x_for_predict):
             CurvePoint(x=x, effect=point, ci_lower=ci_lo, ci_upper=ci_hi),
         )
     return curve_points
+
+
+def _check_overlap(*, t: np.ndarray, points: tuple[float, ...]) -> None:
+    """Raise EstimatorFailure(overlap_insufficient) when any sampling
+    point has fewer than ``min_neighbors`` observations within a
+    Silverman-ish bandwidth (10% of the T range). This is a soft check
+    — passing doesn't guarantee good overlap, but failing does
+    guarantee the estimate would be uninformative."""
+    min_neighbors = 5
+    t_range = float(t.max() - t.min())
+    if t_range <= 0:
+        raise EstimatorFailure(
+            failure_type="overlap_insufficient",
+            message="treatment column 没有变化（max == min），无法估计剂量响应",
+            t_range=t_range,
+        )
+    bandwidth = 0.1 * t_range
+    sparse_points = []
+    for p in points:
+        in_band = int(np.sum(np.abs(t - p) <= bandwidth))
+        if in_band < min_neighbors:
+            sparse_points.append({"x": float(p), "n_within_bandwidth": in_band})
+    if sparse_points:
+        raise EstimatorFailure(
+            failure_type="overlap_insufficient",
+            message=(
+                f"采样点附近样本不足（带宽 ±{bandwidth:.3g}，要求 ≥"
+                f"{min_neighbors}）；这些点估计将不可信：{sparse_points}"
+            ),
+            sparse_points=sparse_points,
+            bandwidth=float(bandwidth),
+            min_neighbors=min_neighbors,
+        )
 
 
 def _resolve_sampling_points(

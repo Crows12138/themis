@@ -98,10 +98,23 @@ Themis 当前公开三个 entry point：
 T 离散化（或 SparseLinearDML + poly features）。这是 slice b.2 / 未来
 工作，不在本次范围。
 
-## slice c（charter 1.2）剩余
+## 已落地：slice c（2026-04-28）
 
-- 接 Phase 13 的 sampling_point_count = K 推荐值
-- estimate 失败的更细分类（缺列 / overlap 不足 / 收敛失败 → 各自结构化错误）
+- `EstimatorFailure(failure_type, message, **details)` 异常类型
+- pre-fit overlap check：每个采样点 ±10% T-range 内必须有 ≥5 观测，否
+  则 `failure_type='overlap_insufficient'` + `details.sparse_points`
+- 数值收敛失败（LinAlgError / FloatingPointError）→
+  `failure_type='convergence_failure'`
+- dispatch 的 `estimator_failure` block 一律带 `failure_type` 和（可选）
+  `details` 字段，caller 不需要解析 reason 字符串
+
+## slice c 没做（charter 1.2 剩余）
+
+- 接 Phase 13 的 `sampling_point_count = K` 自定义值
+  （目前 K 固定 = `_DEFAULT_QUANTILES` 的 5 点；想改要传 sampling_points
+  kwarg 或在 variable.domain 里写）
+- 缺列/dtype 错误的细分（contract.DataContractError 在 estimate 入口
+  之外抛 — 要改需要包 estimate_program 顶层）
 
 ## slice b.2（新发现，charter 没列）
 

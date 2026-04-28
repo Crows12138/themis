@@ -676,7 +676,12 @@ def _try_dose_response_estimate(
     False when dispatch should fall through to the binary path."""
     from .dose_response import (
         EstimatorDependencyMissing,
+        EstimatorFailure,
         estimate_dose_response,
+    )
+
+    estimator_label = (
+        f"dose_response_{model}_dml" if model != "auto" else "dose_response_dml"
     )
 
     try:
@@ -693,16 +698,26 @@ def _try_dose_response_estimate(
         result["estimator_dependency_missing"] = {
             "package": exc.package,
             "install_hint": exc.install_hint,
-            "estimator": f"dose_response_{model}_dml" if model != "auto"
-                         else "dose_response_dml",
+            "estimator": estimator_label,
         }
         return True
+    except EstimatorFailure as exc:
+        # Slice c: structured failures with a typed cause and the
+        # diagnostic detail block the estimator collected.
+        block = {
+            "estimator": estimator_label,
+            "failure_type": exc.failure_type,
+            "reason": str(exc),
+        }
+        if exc.details:
+            block["details"] = exc.details
+        result["estimator_failure"] = block
+        return True
     except (ValueError, RuntimeError) as exc:
-        # Numeric failure (singular design, no overlap, etc.). Surface
-        # structurally rather than crashing dispatch.
+        # Fallback: untyped failure. Same shape, failure_type='unknown'.
         result["estimator_failure"] = {
-            "estimator": f"dose_response_{model}_dml" if model != "auto"
-                         else "dose_response_dml",
+            "estimator": estimator_label,
+            "failure_type": "unknown",
             "reason": str(exc),
         }
         return True
