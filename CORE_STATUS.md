@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1400 passed / 144 skipped
+1401 passed / 144 skipped
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1061,7 +1061,7 @@ DataFrame 旁路。
 - CATE / 自动 hyperparameter 搜索 / 多 outcome dose-response 仍不在当前范围
 - 统计有效性依赖 overlap、样本量、模型设定；Themis 只承诺显式披露方法和失败原因
 
-**当前全量测试**：1400 passed / 144 skipped。
+**当前全量测试**：1401 passed / 144 skipped。
 
 ## 下一步候选（按真实压力等待选）
 
