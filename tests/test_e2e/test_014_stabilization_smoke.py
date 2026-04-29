@@ -41,3 +41,16 @@ def test_014_stabilization_smoke_has_no_failures():
     }
     failures = [result for result in results if result.status == "FAIL"]
     assert failures == []
+
+    by_name = {result.name: result for result in results}
+    dose_diag = by_name["dose_response_diagnostic"].details
+    assert dose_diag["query_verify"] == "not_applicable:no_derivation"
+    assert dose_diag["data_gap_verify"] == "accepted"
+
+    transport = by_name["transport_verify_and_gap"].details
+    assert transport["query_verify"] == "accepted"
+    assert transport["data_gap_verify"] == "accepted"
+
+    estimate = by_name["dose_response_estimate_verify"].details
+    assert estimate["query_verify"] == "accepted"
+    assert estimate["data_gap_verify"] == "accepted"

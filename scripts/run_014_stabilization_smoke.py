@@ -41,6 +41,22 @@ def _verify_state(program: dict[str, Any], result: dict[str, Any]) -> str:
     return "accepted"
 
 
+def _verify_data_gap_state(result: dict[str, Any]) -> str:
+    report = result.get("data_gap_report")
+    if report is None:
+        return "not_applicable:no_data_gap_report"
+
+    from themis.verifier.data_gap_rules import verify_data_gap_report
+
+    verify_data_gap_report(
+        report,
+        derivation=result.get("derivation"),
+        investigation_requests=result.get("investigation_requests", []),
+        framing_notes=result.get("framing_notes", []),
+    )
+    return "accepted"
+
+
 def _dose_response_diagnostic_program() -> dict[str, Any]:
     return {
         "version": "0.1",
@@ -113,7 +129,8 @@ def smoke_dose_response_diagnostic() -> SmokeResult:
             "kernel_status": result["status"],
             "gap_kinds": gap_kinds,
             "sampling_point_count": required_data["sampling_point_count"],
-            "verify": _verify_state(program, result),
+            "query_verify": _verify_state(program, result),
+            "data_gap_verify": _verify_data_gap_state(result),
         },
     )
 
@@ -188,7 +205,8 @@ def smoke_transport_verify() -> SmokeResult:
         status="PASS",
         details={
             "kernel_status": result["status"],
-            "verify": verify,
+            "query_verify": verify,
+            "data_gap_verify": _verify_data_gap_state(result),
             "gap_kinds": gap_kinds,
             "adjustment_set": [
                 atom["predicate"] for atom in extension.get("adjustment_set", [])
@@ -282,7 +300,8 @@ def smoke_dose_response_estimate() -> SmokeResult:
         status="PASS",
         details={
             "kernel_status": result["status"],
-            "verify": verify,
+            "query_verify": verify,
+            "data_gap_verify": _verify_data_gap_state(result),
             "method": numeric_estimate["method"],
             "curve_points": len(curve),
             "first_x": curve[0]["x"],
