@@ -13,9 +13,11 @@ import pytest
 
 import themis
 from themis.upstream import (
+    apply_predicate_links,
     diagnose_predicate_links,
     ExtractionShapeError,
     MergeConflictError,
+    PredicateLinkError,
     merge_into_program,
     merge_variable_extractions,
 )
@@ -350,3 +352,86 @@ def test_diagnose_predicate_links_does_not_mutate_inputs():
 
     assert prog == before_prog
     assert narrative == before_narrative
+
+
+def test_apply_predicate_links_rewrites_confirmed_sources():
+    narrative = {"variables": [
+        _var("staying_up_late", threshold="bedtime after 01:00"),
+        _var("cognitive_slowness", observability="self-report"),
+    ]}
+    links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "staying_up_late",
+                "target_predicate": "stays_up_late",
+            },
+            {
+                "source_predicate": "cognitive_slowness",
+                "target_predicate": "feels_tired_next_morning",
+            },
+        ],
+    }
+
+    rewritten = apply_predicate_links(narrative, links)
+
+    assert [v["predicate"] for v in rewritten["variables"]] == [
+        "stays_up_late",
+        "feels_tired_next_morning",
+    ]
+    assert rewritten["variables"][0]["threshold"] == "bedtime after 01:00"
+    assert rewritten["variables"][1]["observability"] == "self-report"
+
+
+def test_apply_predicate_links_merges_collapsed_declarations():
+    narrative = {"variables": [
+        _var("staying_up_late", threshold="bedtime after 01:00"),
+        _var("stays_up_late", observability="self-report"),
+    ]}
+    links = [
+        {
+            "source_predicate": "staying_up_late",
+            "target_predicate": "stays_up_late",
+        },
+    ]
+
+    rewritten = apply_predicate_links(narrative, links)
+
+    assert len(rewritten["variables"]) == 1
+    merged = rewritten["variables"][0]
+    assert merged["predicate"] == "stays_up_late"
+    assert merged["threshold"] == "bedtime after 01:00"
+    assert merged["observability"] == "self-report"
+
+
+def test_apply_predicate_links_conflict_raises_merge_conflict():
+    narrative = {"variables": [
+        _var("a", threshold="one"),
+        _var("b", threshold="two"),
+    ]}
+    links = [
+        {"source_predicate": "a", "target_predicate": "x"},
+        {"source_predicate": "b", "target_predicate": "x"},
+    ]
+
+    with pytest.raises(MergeConflictError, match="threshold"):
+        apply_predicate_links(narrative, links)
+
+
+def test_apply_predicate_links_rejects_malformed_bundle():
+    narrative = {"variables": [_var("a")]}
+
+    with pytest.raises(PredicateLinkError):
+        apply_predicate_links(narrative, {"kind": "wrong", "links": []})
+
+
+def test_apply_predicate_links_does_not_mutate_input():
+    narrative = {"variables": [_var("staying_up_late", threshold="01:00")]}
+    before = deepcopy(narrative)
+
+    apply_predicate_links(
+        narrative,
+        [{"source_predicate": "staying_up_late", "target_predicate": "stays_up_late"}],
+    )
+
+    assert narrative == before

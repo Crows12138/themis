@@ -43,6 +43,19 @@ def test_015_world_modeling_pressure_script_passes():
         "feels_tired_next_morning",
         "stays_up_late",
     }
+    after_links = late_sleep["after_confirmed_links"]
+    assert after_links["introduced_predicates"] == []
+    assert after_links["query_predicate_gaps"]["stays_up_late"] == [
+        "measurement",
+        "direction",
+        "baseline",
+        "state_vs_event",
+    ]
+    assert "observability" not in after_links["query_predicate_gaps"][
+        "feels_tired_next_morning"
+    ]
+    assert after_links["verify"] == "accepted"
+    assert after_links["data_gap_verify"] == "accepted"
     assert late_sleep["verify"] == "accepted"
     assert late_sleep["data_gap_verify"] == "accepted"
     assert (

@@ -69,6 +69,10 @@ class MergeConflictError(ValueError):
     """
 
 
+class PredicateLinkError(ValueError):
+    """Confirmed predicate-link bundle is malformed or internally inconsistent."""
+
+
 # -------------------------------------------------------------- helpers
 
 def _require_variables_list(extraction: dict, what: str) -> list[dict]:
@@ -328,6 +332,63 @@ def diagnose_predicate_links(
         "exact_matches": exact_matches,
         "unmatched": unmatched,
     }
+
+
+def _normalize_predicate_links(links) -> dict[str, str]:
+    if isinstance(links, dict):
+        if links.get("kind") != "predicate_link_bundle":
+            raise PredicateLinkError(
+                "link bundle kind must be 'predicate_link_bundle'"
+            )
+        link_items = links.get("links")
+    else:
+        link_items = links
+
+    if not isinstance(link_items, list):
+        raise PredicateLinkError("predicate links must be a list")
+
+    mapping: dict[str, str] = {}
+    for i, item in enumerate(link_items):
+        if not isinstance(item, dict):
+            raise PredicateLinkError(f"links[{i}] must be a dict")
+        source = item.get("source_predicate")
+        target = item.get("target_predicate")
+        if not isinstance(source, str) or not source:
+            raise PredicateLinkError(
+                f"links[{i}].source_predicate must be a non-empty string"
+            )
+        if not isinstance(target, str) or not target:
+            raise PredicateLinkError(
+                f"links[{i}].target_predicate must be a non-empty string"
+            )
+        previous = mapping.get(source)
+        if previous is not None and previous != target:
+            raise PredicateLinkError(
+                f"source predicate {source!r} maps to both "
+                f"{previous!r} and {target!r}"
+            )
+        mapping[source] = target
+    return mapping
+
+
+def apply_predicate_links(extraction: dict, links) -> dict:
+    """Rewrite narrative variable predicates after explicit confirmation.
+
+    ``diagnose_predicate_links`` only proposes candidates. This helper
+    consumes the confirmed source -> target mapping and returns a new
+    A5-shape extraction. If several variables collapse to the same
+    target predicate, their declarations are merged with the same
+    conflict rules as ``merge_variable_extractions``.
+    """
+    variables = _require_variables_list(extraction, "extraction")
+    mapping = _normalize_predicate_links(links)
+
+    rewritten: list[dict] = []
+    for variable in variables:
+        item = deepcopy(variable)
+        item["predicate"] = mapping.get(item["predicate"], item["predicate"])
+        rewritten.append(item)
+    return merge_variable_extractions({"variables": rewritten})
 
 
 # ====================================================== edge merge (Phase 4)

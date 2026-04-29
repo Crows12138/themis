@@ -20,6 +20,8 @@ from .program_builder import (
 from .narrative_merge import (
     ExtractionShapeError,
     MergeConflictError,
+    PredicateLinkError,
+    apply_predicate_links,
     compose_program,
     diagnose_predicate_links,
     merge_edge_extractions,
@@ -32,6 +34,8 @@ __all__ = [
     "ExtractionError",
     "ExtractionShapeError",
     "MergeConflictError",
+    "PredicateLinkError",
+    "apply_predicate_links",
     "build_program_from_extraction",
     "compose_program",
     "diagnose_predicate_links",

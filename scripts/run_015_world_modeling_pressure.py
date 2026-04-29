@@ -13,7 +13,11 @@ if str(ROOT) not in sys.path:
 
 import themis
 from themis.input.semantic_validator import SemanticError
-from themis.upstream import compose_program, diagnose_predicate_links
+from themis.upstream import (
+    apply_predicate_links,
+    compose_program,
+    diagnose_predicate_links,
+)
 
 
 EXAMPLES_DIR = ROOT / "docs" / "prompts" / "examples"
@@ -150,6 +154,31 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
     themis.verify(program, result)
     themis.verify_data_gap_report(result)
 
+    confirmed_links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "staying_up_late",
+                "target_predicate": "stays_up_late",
+            },
+            {
+                "source_predicate": "cognitive_slowness",
+                "target_predicate": "feels_tired_next_morning",
+            },
+        ],
+    }
+    linked_extraction = apply_predicate_links(
+        {"variables": narrative["variables"]},
+        confirmed_links,
+    )
+    linked_program = compose_program(
+        question,
+        variable_extraction=linked_extraction,
+    )
+    linked_result = themis.run(linked_program)["results"][0]
+    themis.verify(linked_program, linked_result)
+    themis.verify_data_gap_report(linked_result)
+
     introduced = sorted(_declared_predicates(program) - before_predicates)
     gaps = _framing_gaps(result)
     _require(result["status"] == "structurally_solved", "temporal cause should solve structurally")
@@ -178,6 +207,28 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
         set(gaps["feels_tired_next_morning"]) == set(FRAMING_FIELDS),
         "question-side outcome should remain unframed because the narrative used cognitive_slowness",
     )
+    linked_gaps = _framing_gaps(linked_result)
+    _require(
+        _declared_predicates(linked_program) == before_predicates,
+        "confirmed predicate links should not add new declarations",
+    )
+    _require(
+        set(linked_gaps["stays_up_late"])
+        == {"measurement", "direction", "baseline", "state_vs_event"},
+        "confirmed link should transfer late-sleep framing onto query predicate",
+    )
+    _require(
+        set(linked_gaps["feels_tired_next_morning"])
+        == {
+            "time_window",
+            "measurement",
+            "threshold",
+            "direction",
+            "baseline",
+            "state_vs_event",
+        },
+        "confirmed link should transfer outcome observability onto query predicate",
+    )
 
     return PressureResult(
         name="late_sleep_predicate_drift",
@@ -187,6 +238,14 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
             "introduced_predicates": introduced,
             "link_diagnostic": link_diagnostic,
             "query_predicate_gaps": gaps,
+            "after_confirmed_links": {
+                "introduced_predicates": sorted(
+                    _declared_predicates(linked_program) - before_predicates
+                ),
+                "query_predicate_gaps": linked_gaps,
+                "verify": "accepted",
+                "data_gap_verify": "accepted",
+            },
             "verify": "accepted",
             "data_gap_verify": "accepted",
             "pressure_signal": "predicate_name_drift_blocks_narrative_framing_reuse",

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1406 passed / 144 skipped, warning-clean
+1411 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1089,11 +1089,16 @@ python scripts\run_015_world_modeling_pressure.py
 
 - `themis.upstream.diagnose_predicate_links(...)`：对 narrative extraction
   里未命中 base program 的 predicate 产出候选 link 诊断；只建议、不自动重写
+- `themis.upstream.apply_predicate_links(...)`：消费已确认的
+  source -> target link bundle，重写 narrative variables 后再走既有 merge；
+  多个 source 合到同一 target 时复用字段冲突检查
 - 0.15 压测输出现在包含 `predicate_link_diagnostic`，能把
   `staying_up_late -> stays_up_late` 这种形态漂移高分暴露出来，同时把
   `cognitive_slowness` 这种低 lexical evidence 保持为待确认项
+- late_sleep 压测现在还证明：确认 link 后不会新增 predicate，query 侧
+  `stays_up_late` / `feels_tired_next_morning` 的 framing gaps 会按已补字段缩小
 
-**当前全量测试**：1406 passed / 144 skipped, warning-clean。
+**当前全量测试**：1411 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 

@@ -21,7 +21,7 @@ Themis 是一个 JSON-in / JSON-out 的因果推理系统。当前开发态为
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-当前全量测试基线：`1406 passed / 144 skipped`，warning-clean。
+当前全量测试基线：`1411 passed / 144 skipped`，warning-clean。
 
 ---
 
@@ -80,7 +80,7 @@ python scripts\run_015_world_modeling_pressure.py
 这条脚本同样不调 LLM、不发网络请求，用现有 prompt example 固定三类
 0.15 压力信号：变量 framing merge、predicate 命名漂移、ADMG edge 语义 gate。
 其中 predicate 漂移通过 `diagnose_predicate_links(...)` 只产出候选诊断，
-不自动改写模型语义。
+确认后再由 `apply_predicate_links(...)` 回注；不自动改写模型语义。
 
 ---
 
