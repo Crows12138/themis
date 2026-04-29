@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -519,6 +520,29 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "MCP resource catalog omitted response_rendering prompt",
     )
 
+    with tempfile.TemporaryDirectory() as tmp:
+        csv_path = Path(tmp) / "dose_response.csv"
+        _linear_dose_response_data().to_csv(csv_path, index=False)
+        estimate_out = _call_mcp_tool(
+            app,
+            "themis_estimate",
+            {
+                "program": _dose_response_estimator_program(),
+                "csv_path": str(csv_path),
+                "options": {"model": "linear"},
+            },
+        )
+    estimate_result = estimate_out["results"][0]
+    numeric_estimate = estimate_result.get("numeric_estimate") or {}
+    _require(
+        estimate_result["status"] == "numerically_solved",
+        "MCP themis_estimate did not solve numerically",
+    )
+    _require(
+        numeric_estimate.get("method") == "dose_response_linear_dml",
+        "MCP themis_estimate did not forward model='linear'",
+    )
+
     return SmokeResult(
         name="mcp_wrapper",
         status="PASS",
@@ -527,6 +551,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
             "resources": len(resource_uris),
             "run_status": run_out["results"][0]["status"],
             "verify": "accepted",
+            "estimate_method": numeric_estimate["method"],
         },
     )
 

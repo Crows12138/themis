@@ -65,7 +65,7 @@ python scripts\run_014_stabilization_smoke.py
 - transport 结构识别 -> `verify`
 - dose-response 估计 -> `numeric_estimate` + `verify`
 - transport gap -> mock KB adapter -> patch bundle -> `apply_patch_and_run`
-- MCP wrapper -> tool catalog + `themis_run` + `themis_verify` + resources
+- MCP wrapper -> tool catalog + `themis_run` + `themis_verify` + `themis_estimate` + resources
 
 ---
 

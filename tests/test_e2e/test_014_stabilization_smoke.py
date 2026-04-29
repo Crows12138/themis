@@ -58,5 +58,6 @@ def test_014_stabilization_smoke_has_no_failures():
 
     mcp = by_name["mcp_wrapper"].details
     assert mcp["verify"] == "accepted"
+    assert mcp["estimate_method"] == "dose_response_linear_dml"
     assert "themis_run" in mcp["tools"]
     assert mcp["resources"] >= 9
