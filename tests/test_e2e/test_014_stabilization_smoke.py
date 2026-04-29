@@ -38,6 +38,7 @@ def test_014_stabilization_smoke_has_no_failures():
         "transport_verify_and_gap",
         "dose_response_estimate_verify",
         "kb_patch_loop",
+        "mcp_wrapper",
     }
     failures = [result for result in results if result.status == "FAIL"]
     assert failures == []
@@ -54,3 +55,8 @@ def test_014_stabilization_smoke_has_no_failures():
     estimate = by_name["dose_response_estimate_verify"].details
     assert estimate["query_verify"] == "accepted"
     assert estimate["data_gap_verify"] == "accepted"
+
+    mcp = by_name["mcp_wrapper"].details
+    assert mcp["verify"] == "accepted"
+    assert "themis_run" in mcp["tools"]
+    assert mcp["resources"] >= 9

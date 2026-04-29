@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from dataclasses import asdict, dataclass
@@ -32,6 +33,15 @@ def _atom(predicate: str) -> dict[str, Any]:
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
+
+
+def _call_mcp_tool(app: Any, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    blocks = asyncio.run(app.call_tool(name, args))
+    for block in blocks:
+        text = getattr(block, "text", None)
+        if text:
+            return json.loads(text)
+    raise AssertionError(f"no text content returned by MCP tool {name!r}")
 
 
 def _verify_state(program: dict[str, Any], result: dict[str, Any]) -> str:
@@ -467,11 +477,66 @@ def smoke_kb_patch_loop() -> SmokeResult:
     )
 
 
+def smoke_mcp_wrapper() -> SmokeResult:
+    from themis.mcp import build_server
+
+    app = build_server()
+    tool_names = {tool.name for tool in asyncio.run(app.list_tools())}
+    resource_uris = {str(resource.uri) for resource in asyncio.run(app.list_resources())}
+
+    expected_tools = {
+        "themis_run",
+        "themis_apply_patch_and_run",
+        "themis_verify",
+        "themis_estimate",
+        "themis_list_resources",
+    }
+    _require(tool_names == expected_tools, "MCP tool catalog drifted")
+    _require(
+        "themis://prompts/response_rendering.md" in resource_uris,
+        "missing response_rendering prompt resource",
+    )
+    _require(
+        "themis://schemas/kb_result.schema.json" in resource_uris,
+        "missing KB result schema resource",
+    )
+
+    fixture = ROOT / "tests" / "test_e2e" / "fixtures" / "assoc_canonical.json"
+    program = json.loads(fixture.read_text(encoding="utf-8"))
+    run_out = _call_mcp_tool(app, "themis_run", {"program": program})
+    _require(run_out.get("results"), "MCP themis_run returned no results")
+
+    verify_out = _call_mcp_tool(
+        app,
+        "themis_verify",
+        {"program": program, "result": run_out["results"][0]},
+    )
+    _require(verify_out == {"ok": True}, "MCP themis_verify did not accept result")
+
+    catalog = _call_mcp_tool(app, "themis_list_resources", {})
+    _require(
+        "themis://prompts/response_rendering.md" in catalog.get("prompts", []),
+        "MCP resource catalog omitted response_rendering prompt",
+    )
+
+    return SmokeResult(
+        name="mcp_wrapper",
+        status="PASS",
+        details={
+            "tools": sorted(tool_names),
+            "resources": len(resource_uris),
+            "run_status": run_out["results"][0]["status"],
+            "verify": "accepted",
+        },
+    )
+
+
 SMOKES: tuple[Callable[[], SmokeResult], ...] = (
     smoke_dose_response_diagnostic,
     smoke_transport_verify,
     smoke_dose_response_estimate,
     smoke_kb_patch_loop,
+    smoke_mcp_wrapper,
 )
 
 

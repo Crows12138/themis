@@ -59,12 +59,13 @@ verify(program, out["results"][0])
 python scripts\run_014_stabilization_smoke.py
 ```
 
-这条脚本不调 LLM、不发网络请求，覆盖四条 0.14 关键路径：
+这条脚本不调 LLM、不发网络请求，覆盖五条 0.14 关键路径：
 
 - dose-response 问句 -> `data_gap_report`
 - transport 结构识别 -> `verify`
 - dose-response 估计 -> `numeric_estimate` + `verify`
 - transport gap -> mock KB adapter -> patch bundle -> `apply_patch_and_run`
+- MCP wrapper -> tool catalog + `themis_run` + `themis_verify` + resources
 
 ---
 
