@@ -334,6 +334,51 @@ def diagnose_predicate_links(
     }
 
 
+def _diagnose_predicate_names(
+    program_ast: dict,
+    sources: Iterable[str],
+    *,
+    max_candidates: int,
+    kind: str,
+) -> dict:
+    if max_candidates < 1:
+        raise ValueError("max_candidates must be >= 1")
+
+    targets = _program_variable_predicates(program_ast)
+    target_set = set(targets)
+    exact_matches: list[str] = []
+    unmatched: list[dict] = []
+    seen: set[str] = set()
+
+    for source in sources:
+        if source in seen:
+            continue
+        seen.add(source)
+        if source in target_set:
+            exact_matches.append(source)
+            continue
+        scored = []
+        for target in targets:
+            score, reasons = _link_score(source, target)
+            scored.append({
+                "target_predicate": target,
+                "score": score,
+                "reasons": reasons,
+            })
+        scored.sort(key=lambda item: (-item["score"], item["target_predicate"]))
+        unmatched.append({
+            "source_predicate": source,
+            "candidates": scored[:max_candidates],
+            "action": "confirm_link_or_keep_new",
+        })
+
+    return {
+        "kind": kind,
+        "exact_matches": exact_matches,
+        "unmatched": unmatched,
+    }
+
+
 def _normalize_predicate_links(links) -> dict[str, str]:
     if isinstance(links, dict):
         if links.get("kind") != "predicate_link_bundle":
@@ -522,6 +567,43 @@ def _require_refusals_list(extraction: dict, what: str) -> list[dict]:
                 )
         out.append(ref)
     return out
+
+
+def _edge_extraction_predicates(edge_extraction: dict) -> list[str]:
+    predicates: list[str] = []
+    for edge in edge_extraction["edges"]:
+        if edge["kind"] == "cause":
+            predicates.append(edge["from"]["predicate"])
+            predicates.append(edge["to"]["predicate"])
+        else:
+            predicates.append(edge["left"]["predicate"])
+            predicates.append(edge["right"]["predicate"])
+    for refusal in _require_refusals_list(edge_extraction, "edge_extraction"):
+        predicates.append(refusal["from"])
+        predicates.append(refusal["to"])
+    return predicates
+
+
+def diagnose_edge_predicate_links(
+    program_ast: dict,
+    edge_extraction: dict,
+    *,
+    max_candidates: int = 3,
+) -> dict:
+    """Suggest explicit predicate links for A2 edge/refusal endpoints.
+
+    This is diagnostic-only, symmetric to ``diagnose_predicate_links`` for
+    A5 variables. It helps an orchestrator confirm whether edge endpoints
+    like ``staying_up_late`` should be rewritten to an existing program
+    predicate such as ``stays_up_late`` before composing the final AST.
+    """
+    e = _require_edges_extraction(edge_extraction, "edge_extraction")
+    return _diagnose_predicate_names(
+        program_ast,
+        _edge_extraction_predicates(e),
+        max_candidates=max_candidates,
+        kind="edge_predicate_link_diagnostic",
+    )
 
 
 def _edge_pair_key(edge: dict) -> tuple[str, tuple[str, ...]]:

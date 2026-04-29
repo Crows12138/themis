@@ -23,6 +23,7 @@ from themis.upstream import (
     apply_edge_refusals,
     apply_predicate_links_to_edges,
     compose_program,
+    diagnose_edge_predicate_links,
     merge_edge_extractions,
     merge_edges_into_program,
     merge_narrative_ambiguities_into_program,
@@ -225,6 +226,32 @@ def test_apply_predicate_links_to_edges_rewrites_all_edge_endpoints():
     assert out["refusals"][0]["to"] == "stays_up_late"
     assert out["narrative_ambiguities"] == extraction["narrative_ambiguities"]
     assert extraction["edges"][0]["from"]["predicate"] == "staying_up_late"
+
+
+def test_diagnose_edge_predicate_links_reports_unmatched_endpoints_once():
+    program = _empty_program(["stays_up_late", "feels_tired_next_morning"])
+    extraction = {
+        "edges": [
+            _cause("staying_up_late", "cognitive_slowness"),
+        ],
+        "refusals": [
+            _refusal("staying_up_late", "cognitive_slowness", "same drift"),
+        ],
+    }
+
+    diagnostic = diagnose_edge_predicate_links(program, extraction)
+
+    assert diagnostic["kind"] == "edge_predicate_link_diagnostic"
+    unmatched = {
+        item["source_predicate"]: item
+        for item in diagnostic["unmatched"]
+    }
+    assert set(unmatched) == {"cognitive_slowness", "staying_up_late"}
+    assert (
+        unmatched["staying_up_late"]["candidates"][0]["target_predicate"]
+        == "stays_up_late"
+    )
+    assert len(diagnostic["unmatched"]) == 2
 
 
 # ======================================================= merge_edges_into_program

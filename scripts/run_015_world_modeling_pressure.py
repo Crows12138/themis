@@ -16,6 +16,7 @@ from themis.upstream import (
     apply_predicate_links,
     apply_predicate_links_to_edges,
     compose_program,
+    diagnose_edge_predicate_links,
     diagnose_predicate_links,
 )
 
@@ -389,6 +390,10 @@ def pressure_late_sleep_predicate_links_rewrite_edges() -> PressureResult:
             },
         ],
     }
+    link_diagnostic = diagnose_edge_predicate_links(
+        _late_sleep_edge_link_base_program(),
+        drifted_edge_extraction,
+    )
 
     linked_edges = apply_predicate_links_to_edges(
         drifted_edge_extraction,
@@ -407,6 +412,19 @@ def pressure_late_sleep_predicate_links_rewrite_edges() -> PressureResult:
         ambiguity.get("kind")
         for ambiguity in program.get("extensions", {}).get("ambiguities", [])
     ]
+    by_source = {
+        item["source_predicate"]: item
+        for item in link_diagnostic["unmatched"]
+    }
+    _require(
+        set(by_source) == {"cognitive_slowness", "staying_up_late"},
+        "edge predicate diagnostic should report both drifted endpoints",
+    )
+    _require(
+        by_source["staying_up_late"]["candidates"][0]["target_predicate"]
+        == "stays_up_late",
+        "edge predicate diagnostic should rank the morphological match first",
+    )
     _require(
         pairs == [["stays_up_late", "feels_tired_next_morning"]],
         "confirmed predicate links should rewrite narrative edge endpoints",
@@ -424,6 +442,7 @@ def pressure_late_sleep_predicate_links_rewrite_edges() -> PressureResult:
         name="late_sleep_predicate_links_rewrite_edges",
         status="PASS",
         details={
+            "link_diagnostic": link_diagnostic,
             "edge_pairs": pairs,
             "ambiguity_kinds": ambiguity_kinds,
             "result_status": result["status"],

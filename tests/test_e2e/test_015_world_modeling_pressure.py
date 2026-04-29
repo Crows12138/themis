@@ -83,6 +83,15 @@ def test_015_world_modeling_pressure_script_passes():
     )
 
     late_sleep_edges = by_name["late_sleep_predicate_links_rewrite_edges"].details
+    edge_unmatched = {
+        item["source_predicate"]: item
+        for item in late_sleep_edges["link_diagnostic"]["unmatched"]
+    }
+    assert set(edge_unmatched) == {"cognitive_slowness", "staying_up_late"}
+    assert (
+        edge_unmatched["staying_up_late"]["candidates"][0]["target_predicate"]
+        == "stays_up_late"
+    )
     assert late_sleep_edges["edge_pairs"] == [
         ["stays_up_late", "feels_tired_next_morning"],
     ]

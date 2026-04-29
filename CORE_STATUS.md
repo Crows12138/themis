@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1415 passed / 144 skipped, warning-clean
+1416 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1094,6 +1094,8 @@ python scripts\run_015_world_modeling_pressure.py
 
 - `themis.upstream.diagnose_predicate_links(...)`：对 narrative extraction
   里未命中 base program 的 predicate 产出候选 link 诊断；只建议、不自动重写
+- `themis.upstream.diagnose_edge_predicate_links(...)`：对 A2 edge /
+  refusal endpoints 做同类候选诊断；去重后只输出待确认项
 - `themis.upstream.apply_predicate_links(...)`：消费已确认的
   source -> target link bundle，重写 narrative variables 后再走既有 merge；
   多个 source 合到同一 target 时复用字段冲突检查
@@ -1119,7 +1121,7 @@ python scripts\run_015_world_modeling_pressure.py
 - Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的
   association 查询走 m-separation；`cause` / `probability` 仍保持 gate
 
-**当前全量测试**：1415 passed / 144 skipped, warning-clean。
+**当前全量测试**：1416 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 
