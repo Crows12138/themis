@@ -1,16 +1,16 @@
 # Phase 14 Charter — Dose-Response Estimator
 
 > 立项日期：2026-04-28
-> 状态：**slice a 已落地** (2026-04-28)
+> 状态：**slice a / b / c / b.2 + followups 已落地** (2026-04-28)
 > 触发：用户在讨论 Phase 13 时提出"我们也可以做"——意思是既然 Themis
 > 已经有 `themis.estimate(prog, df)` 这条 estimator 腿（Phase 7 起接
 > sklearn/doubleml），把 dose-response 加入是合理延伸。
 > 但这等于把 Themis 从 "validator+diagnostician" 升级为
 > **"validator+estimator"**，定位变化要 charter 写明、要决心。
 
-> ⚠️ **Phase 13 (诊断) 必须先完成 + 验收 + 跑过真测**，再考虑 Phase 14。
-> Phase 13 已经能解 80% 用户卡点；先看那 20% 是不是真痛再决定要不要
-> 踩 estimator 这一步深。
+> 历史门槛：Phase 13 (诊断) 已完成并把 dose-response 数据规格打通；
+> Phase 14 已在此基础上把 `themis.estimate(...)` 扩到 dose-response
+> curve。下文保留立项时的边界与踩坑记录。
 
 ---
 
@@ -128,11 +128,20 @@ T 离散化（或 SparseLinearDML + poly features）。这是 slice b.2 / 未来
   `failure_type='overlap_insufficient'` 携带 `sparse_bins`/`bin_counts`
   详情
 
-## 3. 触发条件（什么时候开 Phase 14？）
+## 3. 触发条件（历史）与当前状态
+
+原始触发条件：
 
 - Phase 13 真测后，subagent / 真用户**实际使用 dose-response 数据
   清单后**说"清单很对，但是我没工具跑"
 - 至少 3 个独立来源的"我有数据但跑不了"反馈
 - 用户决心从 validator+diagnostician 升级为 validator+estimator
 
-满足上面 3 条再开。否则 Phase 13 已经够。
+当前已经开工并落地到 b.2：Themis 现在确实包含 estimator 腿。后续如果
+继续扩，应按真实数据压力单独立项，而不是继续在本 charter 里累加：
+
+- CATE / ITE
+- 自动 hyperparameter search
+- 多 outcome dose-response
+- 更强 overlap / positivity diagnostics
+- 估计层 verifier 深化

@@ -1,6 +1,6 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-04-26
+> 更新时间：2026-04-29
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。
@@ -21,10 +21,10 @@
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
 | 9 | 转移性 / 泛化 | **25-30%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）；只到结构层公式，数值估计 § T9.2 / 多源 §T9.3 / latent S → 后续 |
 | 10 | 敏感性分析 | **~30%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在所有 binary outcome 估计上）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
-| 11 | 连续 / 数据驱动估计 | **~50%** | **Phase 7.1-7.4 全部落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI）|
+| 11 | 连续 / 数据驱动估计 | **~55-65%** | **Phase 7.1-7.4 + Phase 14 已落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI；dose-response estimator 支持 LinearDML / CausalForestDML opt-in / DRLearner）|
 | 12 | 因果发现 | **~40%** | **Phase 8.1 已落地**（PC/FCI/LiNGAM via causal-learn + kernel_ast suggestion path）；NOTEARS / RL discovery → Phase 9+ |
 
-**加权覆盖**：约 **60-70%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C + Phase 9 §T9.1 + Phase 10** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实 / 转移性里程碑齐全；**Phase 10 数据缺口诊断器**作为 VISION 定位收紧的输出 (2) 通道独立交付。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）；Phase 9 §T9.1 case 29 跑通；Phase 10 §10.5 五种 gap_kind e2e 全部跑通。
+**加权覆盖**：约 **65-75%**。**Phase 7 M2 + Phase 8 M3 + Phase 5 §T/§C + Phase 9 §T9.1 + Phase 10-14** 全部落地——识别 / 估计 / 敏感性 / 发现 / 时序 / 反事实 / 转移性 / 数据缺口诊断 / dose-response 诊断与估计里程碑齐全；**Phase 10 数据缺口诊断器**作为 VISION 定位收紧的输出 (2) 通道独立交付。Phase 4 上游层端到端 e2e 3/3 通过（cases 14/16/21）；Phase 9 §T9.1 case 29 跑通；Phase 10 §10.5 五种 gap_kind e2e 全部跑通；Phase 13/14 把 dose-response 从数据规格推进到估计曲线。
 
 > **Phase 10 不在 12 板块内**——它是输出层，不是新算法。但它是 Themis
 > 真正独占的生态位（"告诉用户去收什么数据"），见 VISION "定位收紧

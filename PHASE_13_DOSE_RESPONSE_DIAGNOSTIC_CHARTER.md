@@ -1,7 +1,7 @@
 # Phase 13 Charter — Dose-Response Diagnostic
 
 > 立项日期：2026-04-28
-> 状态：**charter draft, 待用户签字**
+> 状态：**已落地**（2026-04-28；后续 Phase 14 已接上 estimator）
 > 触发：5-subagent 真测 + 用户提问形态归纳显示一类用户痛点 Themis 没正面回答：
 > "X 让 Y 增加多少 / 关系图" 这种 dose-response 问题。
 > 当前 Themis 把它压成 binary effect 或丢给 ambiguity，没有显式产出
@@ -181,10 +181,10 @@ def _classify_dose_response_data(
   各自成段
 - 末尾标"画完图请用 EconML / DoubleML / GAM —— Themis 不算曲线"
 
-### 2.4 不做（永远 / 推后到 Phase 14）
+### 2.4 本 charter 不做（已由 Phase 14 接手的另算）
 
-- **真画曲线 / 调 EconML / 出数值** — Phase 14 才做
-- **CATE / 异质性效应** — Phase 14
+- **真画曲线 / 调 EconML / 出数值** — 已由 Phase 14 dose-response estimator 接手
+- **CATE / 异质性效应** — Phase 14 以后另立更宽 estimator slice
 - **自动 K 采样点选择**（按 X 范围 / 用户先验自适应）— 没必要
 - **多 outcome 同时 dose-response** — 单一 Y 这一版
 
@@ -205,7 +205,7 @@ def _classify_dose_response_data(
 
 ### 必须
 
-- 1363 baseline tests 不降级
+- 历史 baseline tests 不降级；当前全量基线见 CORE_STATUS.md
 - ~25 新测试覆盖 classifier + schema + e2e
 - subagent 真测：跑 "加薪能让敬业度升多少" 出来的 data_gap_report
   含 `dose_response_data_required`，required_data 的 5 个新字段都填了
@@ -218,13 +218,16 @@ def _classify_dose_response_data(
 
 ## 5. 显式 out-of-scope
 
-- 调 EconML / 任何外部估计库（Phase 14 才做）
+- 调 EconML / 任何外部估计库（已由 Phase 14 estimator 接手）
 - 自动从 X 范围拟合采样点
 - 多变量 dose-response 联合
 - 时序 dose-response（time-indexed）
 - counterfactual dose-response
 
-## 6. Review checklist（用户答）
+## 6. Review checklist（历史）
+
+本 checklist 是立项前讨论记录；当前实现已按 Phase 13 诊断层落地，真正
+估计能力另见 [PHASE_14_DOSE_RESPONSE_ESTIMATOR_CHARTER.md](PHASE_14_DOSE_RESPONSE_ESTIMATOR_CHARTER.md)。
 
 1. ☐ 新 gap_kind 命名 `DOSE_RESPONSE_DATA_REQUIRED` 是否合适？或者
    `dose_response_data_spec`?

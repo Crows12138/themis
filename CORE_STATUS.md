@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-04-22
+> 更新时间：2026-04-29
 
 这份文档只回答一件事：
 
@@ -13,10 +13,38 @@
 
 ---
 
+## 当前快照（2026-04-29）
+
+Themis 当前开发态是 **`0.14.0-dev`**。它已经不只是 `v0.1` 静态
+DAG 内核，而是：
+
+**可审计的因果推理编排器 + 数据缺口诊断器 + 受控估计层。**
+
+当前已落地的主线能力：
+
+- 静态 DAG 核心 + front-door / 窄 ADMG / 窄 temporal / 窄 counterfactual
+- IV / mediation / transport 结构识别
+- backdoor / front-door / IV / mediation / dose-response 数值估计
+- causal discovery / sensitivity / bounds-first / data-gap report
+- NL bridge、variable framing、KB adapter contract、MCP wrapper
+- V0-V5 derivation verifier + T10 data-gap verifier
+
+当前全量验证基线：
+
+```text
+1400 passed / 144 skipped
+```
+
+注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
+后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
+不是对 `v0.1.0` 基线的静默漂移。
+
+---
+
 ## 核心冻结 v1.0
 
 > 冻结日期：2026-04-21
-> 已立项的延伸 fragment：A6.front-door、Phase 2.latent、Phase 5.temporal、Phase 5.counterfactual（见下方"冻结后显式立项的 fragment"段）
+> 初始冻结后第一批延伸 fragment：A6.front-door、Phase 2.latent、Phase 5.temporal、Phase 5.counterfactual（见下方"冻结后显式立项的 fragment"段）。后续 Phase 6-14 另以独立 charter / slice 继续显式解冻。
 
 从这一版起，**Themis 核心（语言 + 运行时 + 数值层 + verifier）视为已收口**。
 后续工作往外长，不再往核心里塞。
@@ -227,10 +255,10 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 
 当前系统范围明确**不包含**：
 
-- 自动从语料构建变量和关系
-- 动作序列语义 / 多步时间规划 / 完整时序系统
+- 完整自动世界建模平台（事实抽取 / 候选关系收敛 / 自动模型治理）
+- 动作序列语义 / 多步时间规划 / 完整动态系统
 - 完整潜变量 / 完整 ADMG / complete ID
-- 反事实
+- 完整 Layer-3 反事实 / 连续反事实 / 通用 twin-network ID
 - 通用 agent 行为
 
 ---
@@ -429,14 +457,16 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 
 ## 还没有开始或明确延后的部分
 
-### 1. 上游世界建模
+### 1. 完整上游世界建模平台
 
-包括：
+当前已经有 NL bridge、narrative merge、variable framing、KB adapter
+contract 和 MCP wrapper 这些 down-payment。仍未完成的是：
 
-- 变量框定器完整闭环
 - 事实抽取
 - 候选关系生成
 - 模型收敛
+- 跨来源冲突解决
+- 自动模型治理
 
 这部分是
 [WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
@@ -450,7 +480,7 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 
 当前明确延后，等待真实案例逼出需求。
 
-### 3. 时序语义
+### 3. 更宽时序语义
 
 当前已完成 **窄 scope temporal fragment**，但还没有真正的：
 
@@ -459,31 +489,37 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 - 动作序列
 - 动态因果过程
 
-### 4. 强问题 gate
+### 4. 更宽问题 gate
 
-当前系统还没有做到：
+当前已经有 opt-in `program.options.strict_framing: true`，能在问题
+框定不充分时拒绝 `effect / probability` 出数。仍未完成的是：
 
-- 变量定义不充分时自动拒绝数值推理
-
-现在只有 advisory 提示，不会拦住求值。
+- 默认全局强 gate 策略
+- 不同 query kind 的细粒度 gate policy
+- 上游世界建模输出进入推理前的系统级 gate
 
 ---
 
 ## 现在可以认为“收口”的部分
 
-如果只看 Themis 核心，这一批内容已经可以视为当前收口面：
+如果只看 Themis 核心 + 已显式立项的主要 fragment，这一批内容已经可以
+视为当前收口面：
 
 - 静态 DAG 推理语义
 - `cause / assoc / identify / effect / probability`
 - 结构结果与数值结果
 - parameter fill-back workflow
+- variable framing workflow + opt-in strict gate
 - confidence
-- framing advisory
 - derivation verifier V0..V5
+- data-gap report + T10 verifier
+- bounds-first 输出
+- Phase 6-14 已落地 slice 的当前实现边界
 
 这意味着：
 
-**接下来如果继续改 Themis 核心，应该优先是小修小补和边界澄清，不应再随意扩大语义面。**
+**接下来如果继续改 Themis 核心，应该优先是小修小补、边界澄清、文档
+同步和真实压力测试，不应再随意扩大语义面。**
 
 ---
 
@@ -491,9 +527,10 @@ Layer-3 反事实问题一律压成 Layer-2 effect proxy。
 
 当前更合理的节奏不是继续膨胀核心，而是：
 
-1. 把当前 Themis 核心视为**稳定收口候选**
-2. 继续拿真实案例试跑
-3. 让下一阶段需求从真实痛点里长出来
+1. 把当前 Themis 视为 **`0.14.0-dev` 收口候选**
+2. 同步 README / ROADMAP / CORE_STATUS / charter 状态，避免文档和代码脱节
+3. 继续拿真实案例试跑，尤其压测 estimation / data-gap / KB / MCP 组合路径
+4. 让下一阶段需求从真实痛点或明确 theory-first charter 里长出来
 
 也就是说：
 
@@ -693,14 +730,15 @@ point in CI + data_hash 格式 + adjustment 与识别 step 的一致性 + 字
 ```text
 Themis 已经从识别内核演化成全栈因果系统：
 - 识别（M1）：backdoor / front-door 单+多 / IV basic+conditional+ADMG / NDE-NIE-CDE
-- 估计（M2）：4 条识别路径都能给数字 + bootstrap CI（sklearn/statsmodels）
+- 估计（M2+Phase14）：backdoor / front-door / IV / mediation / dose-response 都能给数字 + CI 或结构化失败
 - 敏感性（M3.1）：每个 binary outcome 自动带 VanderWeele E-value
 - 发现（M3.2）：用户给 DataFrame 没图时 PC/FCI/LiNGAM 自动建图建议
+- 诊断（Phase10-13）：data_gap_report + bounds-first + dose-response 数据规格
 - 全程 verifier 松弛 / 严格审，每步带 derivation
 
-12 板块加权覆盖 ~50-60%。
+12 板块加权覆盖 ~65-75%。
 但仍不是完整世界建模系统；
-完整反事实（Layer 3 全套）、动作级时序、自动语料建模仍在 Phase 9+。
+完整反事实（Layer 3 全套）、动作级时序、自动语料建模仍在后续 Phase。
 ```
 
 ---
@@ -984,6 +1022,46 @@ apply_patch_and_run）逐个查 alt_paths × bounds_result × required_data 对�
 - Frontdoor partial / Manski-Tamer monotonicity 等更高级方法
 - 非 binary outcome 的 bounds
 - IV 路径 sample_size（gap 是结构性"找 IV 变量"，不是分布，无 n 可算）
+
+## Phase 13 dose-response diagnostic (2026-04-28 落地)
+
+**真实压力来源**：用户问的不是二元 ATE，而是"X 让 Y 增加多少 / 关系图 /
+从 A 到 B 怎么变"。这类问题不能再被静默压成 binary effect。
+
+**交付**：
+
+- 新 `GapKind.DOSE_RESPONSE_DATA_REQUIRED`
+- `GapRequiredData` 扩展 sampling points / sampling_point_count /
+  confounders_required / time_window / sutva_concerns
+- data-gap classifier 能把 dose-response 问题转成可执行数据规格
+- A1 prompt 新增 `dose_response_query` ambiguity
+- response rendering 明确区分"诊断清单"与"真实画曲线"
+
+**边界**：Phase 13 不估计曲线，只告诉用户画曲线需要什么数据和假设。
+真实估计由 Phase 14 接手。
+
+## Phase 14 dose-response estimator (2026-04-28 落地)
+
+**定位变化**：`themis.estimate(...)` 从 binary treatment ATE 扩到连续 /
+多剂量 treatment 的 dose-response curve。kernel 仍保持纯 JSON；估计层走
+DataFrame 旁路。
+
+**已落地 slice**：
+
+- slice a：EconML `LinearDML` wrapper，输出 `dose_response_curve`
+- slice b：`model='auto'|'linear'|'forest'`，`CausalForestDML` explicit opt-in
+- slice c：typed `EstimatorFailure` + overlap pre-check
+- slice b.2：`model='drlearner'`，LinearDRLearner + T 离散化，可恢复
+  T-Y 非线性；`auto` 在样本量和采样点足够时选择 drlearner
+- followup：verify roundtrip 与 model-string normalization 修复
+
+**当前边界**：
+
+- 依赖 EconML / sklearn 等估计栈；缺依赖或数据契约不满足时返回结构化失败
+- CATE / 自动 hyperparameter 搜索 / 多 outcome dose-response 仍不在当前范围
+- 统计有效性依赖 overlap、样本量、模型设定；Themis 只承诺显式披露方法和失败原因
+
+**当前全量测试**：1400 passed / 144 skipped。
 
 ## 下一步候选（按真实压力等待选）
 

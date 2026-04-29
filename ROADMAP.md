@@ -17,34 +17,41 @@ V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的
 [CORE_STATUS.md](C:\Users\12916\Desktop\项目\因果性ai\CORE_STATUS.md) 中
 “核心冻结 v1.0”一节。路线图后续阶段在核心之外推进。
 
+**当前开发态**：`0.14.0-dev`（2026-04-29）。Phase 6-14 已经作为
+显式立项 fragment / workflow / estimator 扩展落地；本文件保留早期
+Phase 0-5 的路线语义，但当前判断以 [CORE_STATUS.md](C:\Users\12916\Desktop\项目\因果性ai\CORE_STATUS.md)
+和 [COVERAGE_MAP.md](C:\Users\12916\Desktop\项目\因果性ai\COVERAGE_MAP.md)
+为准。
+
 ---
 
 ## 当前阶段
 
 当前 Themis 已经完成了：
 
-- 静态因果推理核心
-- 后门识别
-- effect / probability 数值求值 MVP
-- confidence 聚合
-- 缺参数调查与 skeleton 回填闭环
-- 中文解释层
+- 静态因果推理核心 + derivation verifier
+- front-door / ADMG / temporal / counterfactual 的窄 scope fragment
+- IV / mediation / transport 等识别扩展
+- backdoor / front-door / IV / mediation / dose-response 估计层
+- data-gap report / bounds-first / dose-response diagnostic
+- variable framing / NL bridge / KB adapter contract / MCP wrapper
 
 当前更准确的定位是：
 
-**“一个可运行的静态因果推理内核 + 最小工作流闭环”**
+**“可审计的因果推理编排器 + 数据缺口诊断器 + 受控估计层”**
 
 而不是：
 
-- 完整因果平台
+- 完整自动世界建模平台
 - 自动世界建模系统
 - 通用 AI agent
 
-版本映射先定成：
+版本映射：
 
 - **Phase 0 ≈ v0.1.0**（已 tag）
-- **Phase 1 ≈ v0.2**（进行中）
-- **Phase 2 以后暂不预定版本号**；只有当真实需求或明确的理论立项目标触发语义跃迁时再单独编号
+- **core freeze ≈ v1.0 收口面**（早期内核语义冻结）
+- **当前开发态 = 0.14.0-dev**（Phase 14 dose-response estimator 已落地）
+- **Phase 编号不是稳定发布号**；它记录理论 fragment 与工程 slice 的推进顺序
 
 ---
 
@@ -87,12 +94,15 @@ V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的
 
 ### 状态
 
-进行中。
+历史阶段，主体已完成并被后续 Phase 3 / Phase 10 / Phase 11 workflow
+吸收。
 
 ### 版本映射
 
-**当前主要对应 `v0.2`**。  
-这一阶段不再追求推理语义的大跳跃，而是把已有能力打磨成真实工作流里顺手、可复用、可审计的系统。
+**早期主要对应 `v0.2`**。
+这一阶段不再追求推理语义的大跳跃，而是把已有能力打磨成真实工作流里
+顺手、可复用、可审计的系统。当前其主要成果已经进入 parameter /
+variable fill-back、framing gate、data-gap report 和 KB/MCP bridge。
 
 ### 目标
 
@@ -134,11 +144,13 @@ V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的
 
 ### 状态
 
-延后，不立即启动。
+窄 scope 已落地；complete ID / generic c-factor 仍延后。
 
 ### 目标
 
-只有在真实案例真正逼出“后门不够”的时候，才扩展识别能力。
+只有在真实案例或清晰 theory-first charter 真正逼出“后门不够”的时候，
+才扩展识别能力。当前已经落地的是 front-door、窄 ADMG、IV、mediation、
+transport 等可边界化 fragment；complete ID 仍不急。
 
 ### 触发条件
 
@@ -171,7 +183,7 @@ V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的
 
 ### 状态
 
-尚未开始，但概念上已经明确需要。
+已落地第一版闭环与 opt-in strict gate。
 
 ### 目标
 
@@ -224,7 +236,7 @@ V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的
 
 ### 状态
 
-长期目标，尚未开始。
+长期目标；已有 down-payment，但完整平台未开始。
 
 ### 目标
 
@@ -314,7 +326,8 @@ counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里�
 
 ### 状态
 
-**未开始**（charter 未立）。
+**已大部分落地**。IV、mediation、多 mediator front-door 已完成；complete
+ID 延后。
 
 ### 目标
 
@@ -364,7 +377,8 @@ counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里�
 
 ### 状态
 
-**未开始**。依赖 Phase 6。
+**已落地第一版**。backdoor / front-door / IV / mediation 数值估计已完成，
+Phase 14 又扩展到 dose-response estimator。
 
 ### 目标
 
@@ -415,8 +429,8 @@ counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里�
 
 ### 状态
 
-**未开始**。依赖 Phase 6（识别层）；Phase 7 的基础估计器是 plus，不
-硬依赖。
+**已落地第一版**。PC / FCI / LiNGAM discovery 与 E-value sensitivity
+已经进入系统。
 
 ### 目标
 
@@ -466,6 +480,15 @@ counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里�
 - **连续反事实**：§C 扩展
 - **多 intervention / multi-target ID**：Phase 2.latent 里延后的方向
 
+已落地的 Phase 9+ 主要扩展：
+
+- **Phase 9 transport**：单源 selection-diagram transport identification
+- **Phase 10 data-gap report**：把 failure / request / framing 转成结构化数据缺口
+- **Phase 11 prompt / KB adapter**：gap_to_action prompt 与 KB adapter contract
+- **Phase 12 bounds-first**：识别失败时优先给可审计 bounds
+- **Phase 13 dose-response diagnostic**：识别 dose-response 问句并输出数据规格
+- **Phase 14 dose-response estimator**：`themis.estimate(...)` 支持 dose-response curve
+
 ---
 
 ## 当前优先级原则
@@ -489,14 +512,17 @@ counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里�
 
 ## 现在最该做的事
 
-不是再扩理论，而是持续回答这两个问题：
+不是再扩理论，而是先把当前 `0.14.0-dev` 状态收口，持续回答这三个问题：
 
-1. 当前试跑案例里，第一个真正卡住的点是什么？
-2. 这个卡点属于：
+1. 文档、版本、README、CORE_STATUS 是否准确描述当前代码？
+2. 当前试跑案例里，第一个真正卡住的点是什么？
+3. 这个卡点属于：
    - 工作流
    - 解释
    - 证据
-   - 还是识别能力
+   - 识别能力
+   - 估计可靠性
+   - 上游世界建模
 
 只有当答案稳定重复出现，下一阶段才应该真正启动。
 
@@ -505,7 +531,6 @@ counterfactual ID 仍应按独立 charter 推进，而不是顺手往核心里�
 ## 一句话版本
 
 ```text
-先把 Themis 做成一个在真实案例里顺手、诚实、可补录的静态因果推理内核；
-等真实问题持续逼出“后门不够”或“手工建模太重”，
-再分别进入更强识别阶段和世界建模阶段。
+先把 Themis 当前的推理、诊断、估计、KB/MCP bridge 状态说清楚；
+再用真实案例压测，不要让文档继续停留在 v0.1 时代。
 ```

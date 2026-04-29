@@ -1,51 +1,116 @@
-# Themis — 因果推理内核 v0.1
+# Themis — 可验证因果推理与估计系统
 
-基于 Pearl 因果图 + 关系级有限对象域的静态因果推理内核。
-核心立意：**语义干净、缺口显式、扩展点清楚**——而不是算法先进。
+Themis 是一个 JSON-in / JSON-out 的因果推理系统。当前开发态为
+`0.14.0-dev`，代码已经远超早期 `v0.1` 静态内核：它同时包含形式推理、
+独立 verifier、数据缺口诊断、估计器、上游 NL/KB/MCP bridge 雏形。
+
+核心原则仍然不变：
+
+**语义干净、缺口显式、推导可审、不能算时说清楚缺什么。**
+
+---
 
 ## 当前能力（一句话）
 
-结构可识别（cause / assoc / 后门 identify）+ 数值可评估（effect / probability，基于用户提供的 Theta）+ 诚实的缺口报告（needs_investigation 四态）+ pgmpy 差分可验证。
+在已知或候选模型上，Themis 可以：
 
-完整 scope freeze 见 **[`v0_1_scope.md`](v0_1_scope.md)**。
+- 运行结构查询：`cause / assoc / identify / effect / probability`
+- 处理已显式立项的 fragment：front-door、窄 ADMG、窄 temporal、窄 counterfactual、IV、mediation、transport
+- 输出严格推导链，并通过独立 verifier 复核
+- 在有数据时通过 `themis.estimate(...)` 给出 backdoor / front-door / IV / mediation / dose-response 估计
+- 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
+- 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-## 文档
+当前全量测试基线：`1400 passed / 144 skipped`。
 
-- `v0_1_scope.md` — **v0.1 能力与边界（权威契约，已冻结）**
-- `v0_2_priorities.md` — v0.2 第一批 slice 优先级（活文档）
-- `理论框架_v0_1.md` — 语言与语义形式定义
-- `formula_ast_spec_v0_1.md` — 公式子语言规范
-- `因果图规则总览.md` — d-sep / 后门 / 调整集教学版
-- `ARCHITECTURE.md` — 分层、依赖方向、反模式
+---
 
-## Schema
+## 公开入口
 
-- `atom.schema.json` — 共享原子 / 项定义
-- `kernel_ast.schema.json` — 程序 AST
-- `query_result.schema.json` — 查询结果
-- `minimal_example_v0_1.json` — 最小示例
+```python
+from themis import run, apply_patch_and_run, estimate, verify
 
-## 代码
+# Pure symbolic kernel: JSON/dict -> JSON/dict
+out = run(program)
 
-`themis/` 下分四层 + 一个旁路：
+# Multi-turn补录闭环
+out2 = apply_patch_and_run(program, [filled_bundle])
 
-```
-input/     parser + syntactic validator + semantic validator (两阶段)
-runtime/   instantiation / graph projection / structural solver /
-           formula builder / theta builder / numeric estimator /
-           confidence calc (v0.1 占位) / scheduler / investigation pusher
-oracle/    pgmpy / ananke adapters + differential comparator（开发期）
-output/    result orchestrator + explainer
+# DataFrame旁路估计
+estimated = estimate(program, df)
+
+# 独立复核一个 result JSON
+verify(program, out["results"][0])
 ```
 
-各模块实现状态详见 `v0_1_scope.md`。
+边界约定：
 
-## 依赖
+- `run` / `verify` 是纯 JSON 边界，不读外部数据。
+- `estimate` 接 DataFrame，是估计层旁路，不改变 kernel AST 的纯语义。
+- Themis 自己不发网络请求；KB adapter / LLM / 外部资料检索放在客户端或 sibling repo。
 
-- 运行期：`networkx`、`jsonschema`、`referencing`
-- 开发期（可选）：`pgmpy`、`ananke`、`pytest`
+---
 
-## 版本
+## 主要目录
 
-- 当前：v0.1（结构层 + 数值层 MVP）
-- v0.2 候选范围见 `v0_1_scope.md` 末节
+```text
+themis/
+  input/        parser + syntactic / semantic validation
+  runtime/      graph projection, structural solvers, scheduler, formulas, theta
+  verifier/     independent derivation / context / data-gap verification
+  output/       result serialization, explanation, data-gap report, bounds
+  workflow/     parameter / variable framing fill-back workflows
+  upstream/     NL bridge helpers: program builder and narrative merge
+  estimation/   backdoor, front-door, IV, mediation, sensitivity, discovery, dose-response
+  kb/           KB adapter contract, translator, cache, reference proxy
+  mcp/          FastMCP wrapper for tools/resources
+  oracle/       development-only differential/parity adapters
+```
+
+---
+
+## 权威状态文档
+
+- [CORE_STATUS.md](CORE_STATUS.md) — 当前真实完成度与收口面
+- [ROADMAP.md](ROADMAP.md) — 阶段路线与下一步原则
+- [COVERAGE_MAP.md](COVERAGE_MAP.md) — 12 个因果定量板块覆盖图
+- [VISION.md](VISION.md) — 长期系统定位
+- [WORLD_MODELING.md](WORLD_MODELING.md) — 上游世界建模层设计
+
+历史基线仍保留：
+
+- [v0_1_scope.md](v0_1_scope.md) — `v0.1.0` 已冻结基线
+- [v0_2_priorities.md](v0_2_priorities.md) — 早期真实工作流强化记录
+- [理论框架_v0_1.md](理论框架_v0_1.md) / [formula_ast_spec_v0_1.md](formula_ast_spec_v0_1.md) — 初始形式语义与公式子语言
+
+---
+
+## 当前定位
+
+Themis 现在最准确的定位是：
+
+**可审计的因果推理编排器 + 数据缺口诊断器 + 受控估计层。**
+
+它不是：
+
+- 通用 agent
+- 自动世界建模平台
+- 预测建模工具
+- 替代统计专家的黑盒估计器
+
+Themis 的价值不在“什么都能算”，而在：
+
+1. 能形式化的问题严格推导；
+2. 可识别但缺数据的问题明确报缺；
+3. 可以估计的问题留下数据契约、方法、CI、敏感性提示；
+4. 不该回答的问题拒绝伪装成结论。
+
+---
+
+## 版本状态
+
+- `v0.1.0`：静态 DAG 推理内核历史冻结 tag。
+- `v1.0 core freeze`：早期语言 / 运行时 / verifier 收口面，见 `CORE_STATUS.md`。
+- `0.14.0-dev`：当前开发态，已经包含 Phase 14 dose-response estimator。
+
+Phase 编号不是稳定发布号；它记录理论 fragment 与工程 slice 的推进顺序。
