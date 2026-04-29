@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-04-29
+> 更新时间：2026-04-30
 
 这份文档只回答一件事：
 
@@ -13,9 +13,9 @@
 
 ---
 
-## 当前快照（2026-04-29）
+## 当前快照（2026-04-30）
 
-Themis 当前开发态是 **`0.14.0-dev`**。它已经不只是 `v0.1` 静态
+Themis 当前开发态是 **`0.15.0-dev`**。它已经不只是 `v0.1` 静态
 DAG 内核，而是：
 
 **可审计的因果推理编排器 + 数据缺口诊断器 + 受控估计层。**
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1402 passed / 144 skipped, warning-clean
+1403 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -514,7 +514,7 @@ contract 和 MCP wrapper 这些 down-payment。仍未完成的是：
 - derivation verifier V0..V5
 - data-gap report + T10 verifier
 - bounds-first 输出
-- Phase 6-14 已落地 slice 的当前实现边界
+- Phase 6-15 已落地 slice 的当前实现边界
 
 这意味着：
 
@@ -527,9 +527,9 @@ contract 和 MCP wrapper 这些 down-payment。仍未完成的是：
 
 当前更合理的节奏不是继续膨胀核心，而是：
 
-1. 把当前 Themis 视为 **`0.14.0-dev` 收口候选**
+1. 把当前 Themis 视为 **`0.15.0-dev` 收口候选**
 2. 同步 README / ROADMAP / CORE_STATUS / charter 状态，避免文档和代码脱节
-3. 继续拿真实案例试跑，尤其压测 estimation / data-gap / KB / MCP 组合路径
+3. 继续拿真实案例试跑，尤其压测 world-modeling / estimation / data-gap / KB / MCP 组合路径
 4. 让下一阶段需求从真实痛点或明确 theory-first charter 里长出来
 
 也就是说：
@@ -1062,6 +1062,30 @@ DataFrame 旁路。
 - 统计有效性依赖 overlap、样本量、模型设定；Themis 只承诺显式披露方法和失败原因
 
 **当前全量测试**：1402 passed / 144 skipped, warning-clean。
+
+## Phase 15 world-modeling pressure harness (2026-04-30 起步)
+
+**定位**：不新增内核语义，不接 LLM。把已有 A1/A2/A5 prompt examples、
+`themis.upstream.compose_program(...)`、`themis.run(...)`、`verify` /
+`verify_data_gap_report` 串成可重复压测，先暴露上游世界建模真正卡点。
+
+**当前脚本**：
+
+```powershell
+python scripts\run_015_world_modeling_pressure.py
+```
+
+**已固定的 3 个压力信号**：
+
+- `exercise_waist_variable_merge`：narrative framing 能缩小 `running`
+  的 gap，但 target `belly_fat_loss` 仍完整欠框定，且 effect 仍缺分布数据
+- `late_sleep_predicate_drift`：question 用 `stays_up_late` /
+  `feels_tired_next_morning`，narrative 用 `staying_up_late` /
+  `cognitive_slowness`，导致补录无法复用 —— 暴露 predicate linking 缺口
+- `coffee_latent_edge_gate`：A2 能抽出 bidirected latent edge，但当前 ADMG
+  assoc query 仍被语义 gate 拦住 —— 暴露后续 S4 scheduler/verifier 暴露缺口
+
+**当前全量测试**：1403 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 

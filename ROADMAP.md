@@ -17,7 +17,7 @@ V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的
 [CORE_STATUS.md](C:\Users\12916\Desktop\项目\因果性ai\CORE_STATUS.md) 中
 “核心冻结 v1.0”一节。路线图后续阶段在核心之外推进。
 
-**当前开发态**：`0.14.0-dev`（2026-04-29）。Phase 6-14 已经作为
+**当前开发态**：`0.15.0-dev`（2026-04-30）。Phase 6-15 已经作为
 显式立项 fragment / workflow / estimator 扩展落地；本文件保留早期
 Phase 0-5 的路线语义，但当前判断以 [CORE_STATUS.md](C:\Users\12916\Desktop\项目\因果性ai\CORE_STATUS.md)
 和 [COVERAGE_MAP.md](C:\Users\12916\Desktop\项目\因果性ai\COVERAGE_MAP.md)
@@ -50,7 +50,7 @@ Phase 0-5 的路线语义，但当前判断以 [CORE_STATUS.md](C:\Users\12916\D
 
 - **Phase 0 ≈ v0.1.0**（已 tag）
 - **core freeze ≈ v1.0 收口面**（早期内核语义冻结）
-- **当前开发态 = 0.14.0-dev**（Phase 14 dose-response estimator 已落地）
+- **当前开发态 = 0.15.0-dev**（Phase 15 world-modeling pressure harness 已起步）
 - **Phase 编号不是稳定发布号**；它记录理论 fragment 与工程 slice 的推进顺序
 
 ---
@@ -488,6 +488,7 @@ Phase 14 又扩展到 dose-response estimator。
 - **Phase 12 bounds-first**：识别失败时优先给可审计 bounds
 - **Phase 13 dose-response diagnostic**：识别 dose-response 问句并输出数据规格
 - **Phase 14 dose-response estimator**：`themis.estimate(...)` 支持 dose-response curve
+- **Phase 15 world-modeling pressure harness**：用 prompt examples 固定上游建模链路的真实卡点
 
 ---
 
@@ -512,7 +513,7 @@ Phase 14 又扩展到 dose-response estimator。
 
 ## 现在最该做的事
 
-不是再扩理论，而是先把当前 `0.14.0-dev` 状态收口，持续回答这三个问题：
+不是再扩理论，而是先把当前 `0.15.0-dev` 状态收口，持续回答这三个问题：
 
 1. 文档、版本、README、CORE_STATUS 是否准确描述当前代码？
 2. 当前试跑案例里，第一个真正卡住的点是什么？

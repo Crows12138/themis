@@ -1,7 +1,7 @@
 # Themis — 可验证因果推理与估计系统
 
 Themis 是一个 JSON-in / JSON-out 的因果推理系统。当前开发态为
-`0.14.0-dev`，代码已经远超早期 `v0.1` 静态内核：它同时包含形式推理、
+`0.15.0-dev`，代码已经远超早期 `v0.1` 静态内核：它同时包含形式推理、
 独立 verifier、数据缺口诊断、估计器、上游 NL/KB/MCP bridge 雏形。
 
 核心原则仍然不变：
@@ -21,7 +21,7 @@ Themis 是一个 JSON-in / JSON-out 的因果推理系统。当前开发态为
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-当前全量测试基线：`1402 passed / 144 skipped`，warning-clean。
+当前全量测试基线：`1403 passed / 144 skipped`，warning-clean。
 
 ---
 
@@ -70,6 +70,15 @@ python scripts\run_014_stabilization_smoke.py
 - dose-response 估计 -> `numeric_estimate` + `verify`
 - transport gap -> mock KB adapter -> patch bundle -> `apply_patch_and_run`
 - MCP wrapper -> tool catalog + `themis_run` + `themis_verify` + `themis_verify_data_gap_report` + `themis_estimate` + resources
+
+上游世界建模层的当前压力测试：
+
+```powershell
+python scripts\run_015_world_modeling_pressure.py
+```
+
+这条脚本同样不调 LLM、不发网络请求，用现有 prompt example 固定三类
+0.15 压力信号：变量 framing merge、predicate 命名漂移、ADMG edge 语义 gate。
 
 ---
 
@@ -133,6 +142,7 @@ Themis 的价值不在“什么都能算”，而在：
 
 - `v0.1.0`：静态 DAG 推理内核历史冻结 tag。
 - `v1.0 core freeze`：早期语言 / 运行时 / verifier 收口面，见 `CORE_STATUS.md`。
-- `0.14.0-dev`：当前开发态，已经包含 Phase 14 dose-response estimator。
+- `0.14.0-dev`：Phase 14 dose-response estimator。
+- `0.15.0-dev`：当前开发态，新增 world-modeling pressure harness。
 
 Phase 编号不是稳定发布号；它记录理论 fragment 与工程 slice 的推进顺序。
