@@ -1082,8 +1082,8 @@ python scripts\run_015_world_modeling_pressure.py
 - `late_sleep_predicate_drift`：question 用 `stays_up_late` /
   `feels_tired_next_morning`，narrative 用 `staying_up_late` /
   `cognitive_slowness`，导致补录无法复用 —— 暴露 predicate linking 缺口
-- `coffee_latent_edge_gate`：A2 能抽出 bidirected latent edge，但当前 ADMG
-  assoc query 仍被语义 gate 拦住 —— 暴露后续 S4 scheduler/verifier 暴露缺口
+- `coffee_latent_edge_assoc`：A2 能抽出 bidirected latent edge，ADMG
+  assoc query 现在经 `m_connection_witness` 返回结构解，并可被 verifier 复核
 
 **当前 followup**：
 
@@ -1097,6 +1097,8 @@ python scripts\run_015_world_modeling_pressure.py
   `cognitive_slowness` 这种低 lexical evidence 保持为待确认项
 - late_sleep 压测现在还证明：确认 link 后不会新增 predicate，query 侧
   `stays_up_late` / `feels_tired_next_morning` 的 framing gaps 会按已补字段缩小
+- Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的
+  association 查询走 m-separation；`cause` / `probability` 仍保持 gate
 
 **当前全量测试**：1411 passed / 144 skipped, warning-clean。
 

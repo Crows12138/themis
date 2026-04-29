@@ -240,7 +240,12 @@ def _assert_assoc_query_binding(
     step_output_by_id: dict[str, object],
 ) -> None:
     q: AssocQuery = context.query
-    if step.rule in ("d_separated", "d_connected_via_open_path"):
+    if step.rule in (
+        "d_separated",
+        "d_connected_via_open_path",
+        "m_separation_witness",
+        "m_connection_witness",
+    ):
         if step.inputs.get("x") != q.left:
             raise VerificationError(
                 f"{step.rule}.x does not match assoc query left atom",
@@ -251,10 +256,13 @@ def _assert_assoc_query_binding(
                 f"{step.rule}.y does not match assoc query right atom",
                 step_index=step_index, rule=step.rule,
             )
-        step_cond = step.inputs.get("conditioning", frozenset())
+        if step.rule in ("m_separation_witness", "m_connection_witness"):
+            step_cond = step.inputs.get("z", frozenset())
+        else:
+            step_cond = step.inputs.get("conditioning", frozenset())
         if frozenset(step_cond) != frozenset(q.given):
             raise VerificationError(
-                f"{step.rule}.conditioning does not match assoc query given",
+                f"{step.rule} conditioning set does not match assoc query given",
                 step_index=step_index, rule=step.rule,
             )
 
@@ -714,11 +722,18 @@ def verify_assoc(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
-    expected_rule = (
-        "d_connected_via_open_path"
-        if claimed_result.value is True
-        else "d_separated"
-    )
+    if context.bidirected:
+        expected_rule = (
+            "m_connection_witness"
+            if claimed_result.value is True
+            else "m_separation_witness"
+        )
+    else:
+        expected_rule = (
+            "d_connected_via_open_path"
+            if claimed_result.value is True
+            else "d_separated"
+        )
     if derivation[-1].rule != expected_rule:
         raise VerificationError(
             f"assoc derivation with value={claimed_result.value!r} must end in "

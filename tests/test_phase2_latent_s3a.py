@@ -1,11 +1,10 @@
-"""Phase 2.latent S3.a: ADMG-aware front-door + verifier pending path.
+"""Phase 2.latent S3/S4: ADMG-aware front-door + assoc m-separation.
 
 S3.a widens dispatch to accept identify / effect queries on ADMG
 programs via an ADMG-aware front-door check (FD2 / FD3 use
-m-separation instead of plain d-separation). The S3.a compatibility
-patch on ``themis.verify`` raises ``AdmgVerificationPending`` on any
-program carrying bidirected edges — rejecting a False-accept path
-until S4 lands the independent verifier rules.
+m-separation instead of plain d-separation). S4 adds verifier support
+and admits assoc queries on ADMG programs through m-separation /
+m-connection witnesses.
 
 See PHASE_2_LATENT_CHARTER.md §7 S3.a for the slice threshold.
 """
@@ -148,16 +147,20 @@ def test_gate_still_rejects_cause_query_on_admg():
     assert "cause" in str(exc.value).lower()
 
 
-def test_gate_still_rejects_assoc_query_on_admg():
+def test_gate_allows_assoc_query_on_admg_with_m_witness():
     ast = _hidden_u_program([
         {"kind": "query", "id": "a",
          "query": {"kind": "assoc",
                    "left": _atom("x"), "right": _atom("y"),
                    "given": []}},
     ])
-    with pytest.raises(SemanticError) as exc:
-        themis.run(ast)
-    assert "assoc" in str(exc.value).lower()
+    out = themis.run(ast)
+    result = out["results"][0]
+
+    assert result["status"] == "structurally_solved"
+    assert result["structural_result"]["value"] is True
+    assert result["derivation"]["steps"][-1]["rule"] == "m_connection_witness"
+    assert themis.verify(ast, result) is None
 
 
 def test_gate_still_rejects_probability_query_on_admg():

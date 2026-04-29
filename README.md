@@ -78,7 +78,7 @@ python scripts\run_015_world_modeling_pressure.py
 ```
 
 这条脚本同样不调 LLM、不发网络请求，用现有 prompt example 固定三类
-0.15 压力信号：变量 framing merge、predicate 命名漂移、ADMG edge 语义 gate。
+0.15 压力信号：变量 framing merge、predicate 命名漂移、ADMG assoc m-connection。
 其中 predicate 漂移通过 `diagnose_predicate_links(...)` 只产出候选诊断，
 确认后再由 `apply_predicate_links(...)` 回注；不自动改写模型语义。
 

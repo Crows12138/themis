@@ -12,7 +12,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import themis
-from themis.input.semantic_validator import SemanticError
 from themis.upstream import (
     apply_predicate_links,
     compose_program,
@@ -274,7 +273,7 @@ def _coffee_assoc_base_program() -> dict[str, Any]:
     }
 
 
-def pressure_coffee_latent_edge_gate() -> PressureResult:
+def pressure_coffee_latent_edge_assoc() -> PressureResult:
     edge_extraction = _load_example("narrative_edges_coffee_alertness.json")
     program = compose_program(
         _coffee_assoc_base_program(),
@@ -283,33 +282,40 @@ def pressure_coffee_latent_edge_gate() -> PressureResult:
 
     kinds = _edge_kinds(program)
     _require("bidirected" in kinds, "narrative edge extraction should inject a bidirected edge")
+    result = themis.run(program)["results"][0]
+    themis.verify(program, result)
+    themis.verify_data_gap_report(result)
 
-    try:
-        themis.run(program)
-    except SemanticError as exc:
-        message = str(exc)
-        _require(
-            "assoc query on a program containing bidirected edges is not yet supported" in message,
-            "unexpected semantic gate message",
-        )
-        return PressureResult(
-            name="coffee_latent_edge_gate",
-            status="PASS",
-            details={
-                "edge_kinds": kinds,
-                "blocked_by": type(exc).__name__,
-                "message": message,
-                "pressure_signal": "admg_assoc_query_needs_scheduler_and_verifier_exposure",
-            },
-        )
+    _require(
+        result["status"] == "structurally_solved",
+        "ADMG assoc query should solve structurally after S4 gate lift",
+    )
+    _require(
+        result["structural_result"]["value"] is True,
+        "coffee latent edge should make the two variables m-connected",
+    )
+    rule = result["derivation"]["steps"][-1]["rule"]
+    _require(rule == "m_connection_witness", "expected m-connection witness")
 
-    raise AssertionError("expected SemanticError for ADMG assoc query")
+    return PressureResult(
+        name="coffee_latent_edge_assoc",
+        status="PASS",
+        details={
+            "edge_kinds": kinds,
+            "result_status": result["status"],
+            "structural_value": result["structural_result"]["value"],
+            "witness_rule": rule,
+            "verify": "accepted",
+            "data_gap_verify": "accepted",
+            "pressure_signal": "admg_assoc_query_now_uses_m_connection_witness",
+        },
+    )
 
 
 PRESSURES: tuple[Callable[[], PressureResult], ...] = (
     pressure_exercise_waist_variable_merge,
     pressure_late_sleep_predicate_drift,
-    pressure_coffee_latent_edge_gate,
+    pressure_coffee_latent_edge_assoc,
 )
 
 

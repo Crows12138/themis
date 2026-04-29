@@ -762,8 +762,43 @@ def _build_identify_derivation(
     )
 
 
-def _dispatch_assoc(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
+def _dispatch_assoc(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
     q: AssocQuery = stmt.query  # type: ignore[assignment]
+    if bidirected:
+        connected = structural_solver.is_m_connected(
+            graph, bidirected, q.left, q.right, q.given,
+        )
+        result = StructuralResult(value=connected)
+        derivation: tuple[DerivationStep, ...] = ()
+        if q.left in graph and q.right in graph and q.left != q.right:
+            derivation = (
+                DerivationStep(
+                    rule=(
+                        "m_connection_witness"
+                        if connected else "m_separation_witness"
+                    ),
+                    inputs={
+                        "graph": graph,
+                        "x": q.left,
+                        "y": q.right,
+                        "z": frozenset(q.given),
+                    },
+                    output=result,
+                    step_id="s1",
+                ),
+            )
+        return QueryResult(
+            status=ResultStatus.STRUCTURALLY_SOLVED,
+            query_kind=QueryKind.ASSOC,
+            query_id=stmt.id,
+            structural_result=result,
+            derivation=derivation,
+        )
+
     connected = structural_solver.is_d_connected(graph, q.left, q.right, q.given)
     paths: tuple[tuple[Atom, ...], ...] = ()
     if connected:
@@ -2048,7 +2083,7 @@ def dispatch(
     if isinstance(q, CauseQuery):
         result = _dispatch_cause(stmt, graph)
     elif isinstance(q, AssocQuery):
-        result = _dispatch_assoc(stmt, graph)
+        result = _dispatch_assoc(stmt, graph, bidirected=bidirected)
     elif isinstance(q, IdentifyQuery):
         result = _dispatch_identify(stmt, graph, bidirected=bidirected)
     elif isinstance(q, EffectQuery):

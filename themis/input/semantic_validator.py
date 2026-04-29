@@ -400,15 +400,12 @@ def _check_unique_variable_declarations(program: Program) -> None:
 def _check_bidirected_runtime_gate(program: Program) -> None:
     """Phase 2.latent S3.a guard (narrowed from S1).
 
-    When a program contains any ``BidirectedStatement``, the only
-    query kinds the runtime can dispatch safely are ``identify`` and
-    ``effect`` (handled by S3.a's ADMG-aware front-door). ``cause``,
-    ``assoc``, and ``probability`` queries on an ADMG program still
-    land in silent-drop territory because their dispatch paths
-    (directed-skeleton ``has_directed_path`` / ``is_d_connected`` /
-    CPT lookup) are not yet ADMG-aware. This check rejects programs
-    that mix bidirected edges with those query kinds so the failure
-    cannot be mistaken for a silent drop.
+    When a program contains any ``BidirectedStatement``, dispatch is
+    allowed only for query kinds whose runtime path explicitly reads
+    the bidirected edge set: ``identify`` / ``effect`` (ADMG-aware
+    identification) and ``assoc`` (S4 m-separation). ``cause`` and
+    ``probability`` still use directed-skeleton / CPT semantics and
+    remain gated so the failure cannot be mistaken for a silent drop.
 
     S4 lifts this gate entirely once every dispatch path reads the
     bidirected edge set.
@@ -423,18 +420,18 @@ def _check_bidirected_runtime_gate(program: Program) -> None:
         if not isinstance(stmt, QueryStatement):
             continue
         q = stmt.query
-        if isinstance(q, (CauseQuery, AssocQuery, ProbabilityQuery)):
+        if isinstance(q, (CauseQuery, ProbabilityQuery)):
             kind_name = {
                 CauseQuery: "cause",
-                AssocQuery: "assoc",
                 ProbabilityQuery: "probability",
             }[type(q)]
             raise SemanticError(
                 f"statements[{idx}] ({stmt.id}): {kind_name} query on "
                 f"a program containing bidirected edges is not yet "
-                f"supported. Phase 2.latent S3.a supports identify / "
-                f"effect queries via ADMG-aware front-door; the other "
-                f"dispatch paths become ADMG-aware in S4. See "
+                f"supported. Phase 2.latent S4 supports assoc via "
+                f"m-separation and identify / effect via ADMG-aware "
+                f"identification; the remaining dispatch paths become "
+                f"ADMG-aware later. See "
                 f"PHASE_2_LATENT_CHARTER.md §7."
             )
 

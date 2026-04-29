@@ -63,11 +63,14 @@ def test_015_world_modeling_pressure_script_passes():
         == "predicate_name_drift_blocks_narrative_framing_reuse"
     )
 
-    coffee = by_name["coffee_latent_edge_gate"].details
+    coffee = by_name["coffee_latent_edge_assoc"].details
     assert coffee["edge_kinds"] == ["bidirected"]
-    assert coffee["blocked_by"] == "SemanticError"
-    assert "bidirected edges is not yet supported" in coffee["message"]
+    assert coffee["result_status"] == "structurally_solved"
+    assert coffee["structural_value"] is True
+    assert coffee["witness_rule"] == "m_connection_witness"
+    assert coffee["verify"] == "accepted"
+    assert coffee["data_gap_verify"] == "accepted"
     assert (
         coffee["pressure_signal"]
-        == "admg_assoc_query_needs_scheduler_and_verifier_exposure"
+        == "admg_assoc_query_now_uses_m_connection_witness"
     )

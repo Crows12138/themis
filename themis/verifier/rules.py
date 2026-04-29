@@ -2397,7 +2397,8 @@ def _rule_m_separation_witness(
 
     inputs:
         graph        — directed part of the ADMG (must equal ctx.graph)
-        bidirected   — bidirected edge set (must equal ctx.bidirected)
+        bidirected   — optional bidirected edge set; when omitted the
+                       verifier uses ctx.bidirected
         x, y, z      — atoms / atom set claimed to satisfy X ⊥_m Y | Z
     output:
         True iff X and Y are m-separated by Z in the ADMG.
@@ -2407,7 +2408,7 @@ def _rule_m_separation_witness(
     """
     graph = _require(inputs, "graph", step_index, "m_separation_witness")
     _assert_same_graph(graph, ctx.graph, step_index, "m_separation_witness")
-    bidir = inputs.get("bidirected", frozenset())
+    bidir = inputs.get("bidirected", ctx.bidirected)
     if bidir != ctx.bidirected:
         raise RuleCheckFailed(
             "m_separation_witness: bidirected input does not match context",
@@ -2419,7 +2420,11 @@ def _rule_m_separation_witness(
 
     connected = _verifier_is_m_connected(graph, bidir, x, y, z)
     recomputed = not connected
-    if recomputed != bool(claimed_output):
+    if isinstance(claimed_output, StructuralResult):
+        claimed_bool = claimed_output.value
+    else:
+        claimed_bool = bool(claimed_output)
+    if recomputed != claimed_bool:
         raise RuleCheckFailed(
             f"m_separation_witness claimed {claimed_output!r}, recomputed "
             f"{recomputed!r} for x={x.predicate}, y={y.predicate}, "
@@ -2443,7 +2448,7 @@ def _rule_m_connection_witness(
     """
     graph = _require(inputs, "graph", step_index, "m_connection_witness")
     _assert_same_graph(graph, ctx.graph, step_index, "m_connection_witness")
-    bidir = inputs.get("bidirected", frozenset())
+    bidir = inputs.get("bidirected", ctx.bidirected)
     if bidir != ctx.bidirected:
         raise RuleCheckFailed(
             "m_connection_witness: bidirected input does not match context",
@@ -2454,7 +2459,11 @@ def _rule_m_connection_witness(
     z = _require_atom_set(inputs, "z", step_index, "m_connection_witness")
 
     recomputed = _verifier_is_m_connected(graph, bidir, x, y, z)
-    if recomputed != bool(claimed_output):
+    if isinstance(claimed_output, StructuralResult):
+        claimed_bool = claimed_output.value
+    else:
+        claimed_bool = bool(claimed_output)
+    if recomputed != claimed_bool:
         raise RuleCheckFailed(
             f"m_connection_witness claimed {claimed_output!r}, recomputed "
             f"{recomputed!r} for x={x.predicate}, y={y.predicate}, "
