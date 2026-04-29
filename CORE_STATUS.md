@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1413 passed / 144 skipped, warning-clean
+1414 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1107,10 +1107,14 @@ python scripts\run_015_world_modeling_pressure.py
 - narrative edge refusal 现在由 `apply_edge_refusals(...)` 在
   `compose_program(...)` 内先执行：只删除 exact directed `cause` match，
   不删除反向边或 bidirected；拒绝理由写回 `extensions.ambiguities`
+- A2 的 `narrative_ambiguities` 现在由
+  `merge_narrative_ambiguities_into_program(...)` 保留到最终 program 边界；
+  coffee ADMG case 会同时保留 latent-common-cause ambiguity 与 refusal
+  audit trail
 - Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的
   association 查询走 m-separation；`cause` / `probability` 仍保持 gate
 
-**当前全量测试**：1413 passed / 144 skipped, warning-clean。
+**当前全量测试**：1414 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 

@@ -787,6 +787,54 @@ def _refusal_ambiguity(refusal: dict) -> dict:
     return ambiguity
 
 
+def _ensure_ambiguities_list(program_ast: dict) -> list:
+    extensions = program_ast.setdefault("extensions", {})
+    if not isinstance(extensions, dict):
+        extensions = {}
+        program_ast["extensions"] = extensions
+    ambiguities = extensions.setdefault("ambiguities", [])
+    if not isinstance(ambiguities, list):
+        ambiguities = []
+        extensions["ambiguities"] = ambiguities
+    return ambiguities
+
+
+def merge_narrative_ambiguities_into_program(
+    program_ast: dict,
+    edge_extraction: dict,
+) -> dict:
+    """Append A2 ``narrative_ambiguities`` to ``extensions.ambiguities``.
+
+    The edge prompt's ambiguities are not kernel statements, but they are
+    part of the auditable upstream modeling decision. This helper keeps
+    them on the final program boundary so downstream response rendering
+    can explain why a candidate edge was represented, refused, or left
+    ambiguous.
+    """
+    if not isinstance(program_ast, dict):
+        raise ExtractionShapeError("program_ast must be a dict")
+    if not isinstance(program_ast.get("statements"), list):
+        raise ExtractionShapeError("program_ast.statements must be a list")
+    e = _require_edges_extraction(edge_extraction, "edge_extraction")
+    narrative_ambiguities = e.get("narrative_ambiguities") or []
+    if not isinstance(narrative_ambiguities, list):
+        raise ExtractionShapeError(
+            "edge_extraction.narrative_ambiguities must be a list when present"
+        )
+
+    out = deepcopy(program_ast)
+    ambiguities = _ensure_ambiguities_list(out)
+    for i, ambiguity in enumerate(narrative_ambiguities):
+        if not isinstance(ambiguity, dict):
+            raise ExtractionShapeError(
+                f"edge_extraction.narrative_ambiguities[{i}] must be a dict"
+            )
+        ambiguity_copy = deepcopy(ambiguity)
+        if ambiguity_copy not in ambiguities:
+            ambiguities.append(ambiguity_copy)
+    return out
+
+
 def apply_edge_refusals(program_ast: dict, edge_extraction: dict) -> dict:
     """Apply A2 narrative refusals to question-side directed edges.
 
@@ -821,17 +869,15 @@ def apply_edge_refusals(program_ast: dict, edge_extraction: dict) -> dict:
         )
     ]
 
-    extensions = out.setdefault("extensions", {})
-    if not isinstance(extensions, dict):
-        extensions = {}
-        out["extensions"] = extensions
-    ambiguities = extensions.setdefault("ambiguities", [])
-    if not isinstance(ambiguities, list):
-        ambiguities = []
-        extensions["ambiguities"] = ambiguities
+    ambiguities = _ensure_ambiguities_list(out)
 
     for refusal in refusals:
-        ambiguities.append(_refusal_ambiguity(refusal))
+        generated = _refusal_ambiguity(refusal)
+        if not any(
+            isinstance(item, dict) and item.get("kind") == generated["kind"]
+            for item in ambiguities
+        ):
+            ambiguities.append(generated)
 
     return out
 
@@ -868,6 +914,7 @@ def compose_program(
     """
     out = deepcopy(base_program)
     if edge_extraction is not None:
+        out = merge_narrative_ambiguities_into_program(out, edge_extraction)
         out = apply_edge_refusals(out, edge_extraction)
     if variable_extraction is not None:
         out = merge_into_program(out, variable_extraction)

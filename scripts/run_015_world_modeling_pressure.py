@@ -346,6 +346,14 @@ def pressure_coffee_latent_edge_assoc() -> PressureResult:
 
     kinds = _edge_kinds(program)
     _require("bidirected" in kinds, "narrative edge extraction should inject a bidirected edge")
+    ambiguity_kinds = [
+        ambiguity.get("kind")
+        for ambiguity in program.get("extensions", {}).get("ambiguities", [])
+    ]
+    _require(
+        "admg_unobserved_common_cause" in ambiguity_kinds,
+        "narrative ADMG ambiguity should stay on the final program boundary",
+    )
     result = themis.run(program)["results"][0]
     themis.verify(program, result)
     themis.verify_data_gap_report(result)
@@ -366,6 +374,7 @@ def pressure_coffee_latent_edge_assoc() -> PressureResult:
         status="PASS",
         details={
             "edge_kinds": kinds,
+            "ambiguity_kinds": ambiguity_kinds,
             "result_status": result["status"],
             "structural_value": result["structural_result"]["value"],
             "witness_rule": rule,

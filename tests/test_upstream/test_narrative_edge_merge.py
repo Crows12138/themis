@@ -24,6 +24,7 @@ from themis.upstream import (
     compose_program,
     merge_edge_extractions,
     merge_edges_into_program,
+    merge_narrative_ambiguities_into_program,
 )
 
 
@@ -360,6 +361,28 @@ def test_apply_edge_refusals_removes_exact_question_side_direct_edge():
     assert ambiguities[0]["alternatives"] == ["eating_ice_cream -> drowning"]
 
 
+def test_merge_narrative_ambiguities_into_program_preserves_prompt_decision():
+    base = _empty_program(["drinks_coffee", "alertness"])
+    edge_extraction = json.loads(
+        (
+            REPO_ROOT
+            / "docs"
+            / "prompts"
+            / "examples"
+            / "narrative_edges_coffee_alertness.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    out = merge_narrative_ambiguities_into_program(base, edge_extraction)
+
+    ambiguity_kinds = [
+        item["kind"]
+        for item in out["extensions"]["ambiguities"]
+    ]
+    assert ambiguity_kinds == ["admg_unobserved_common_cause"]
+    assert "extensions" not in base
+
+
 def test_compose_program_applies_narrative_refusal_before_kernel_run():
     base = _empty_program(["eating_ice_cream", "drowning"])
     base["statements"].extend([
@@ -398,6 +421,11 @@ def test_compose_program_applies_narrative_refusal_before_kernel_run():
     result = themis.run(program)["results"][0]
     assert result["status"] == "structurally_solved"
     assert result["structural_result"]["value"] is False
+    ambiguity_kinds = [
+        item["kind"]
+        for item in program["extensions"]["ambiguities"]
+    ]
+    assert ambiguity_kinds == ["confounder_refusal"]
     themis.verify(program, result)
 
 

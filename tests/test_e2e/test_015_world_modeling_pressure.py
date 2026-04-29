@@ -84,6 +84,7 @@ def test_015_world_modeling_pressure_script_passes():
 
     coffee = by_name["coffee_latent_edge_assoc"].details
     assert coffee["edge_kinds"] == ["bidirected"]
+    assert "admg_unobserved_common_cause" in coffee["ambiguity_kinds"]
     assert coffee["result_status"] == "structurally_solved"
     assert coffee["structural_value"] is True
     assert coffee["witness_rule"] == "m_connection_witness"

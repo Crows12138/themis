@@ -28,6 +28,7 @@ from .narrative_merge import (
     merge_edge_extractions,
     merge_edges_into_program,
     merge_into_program,
+    merge_narrative_ambiguities_into_program,
     merge_variable_extractions,
 )
 
@@ -44,5 +45,6 @@ __all__ = [
     "merge_edge_extractions",
     "merge_edges_into_program",
     "merge_into_program",
+    "merge_narrative_ambiguities_into_program",
     "merge_variable_extractions",
 ]
