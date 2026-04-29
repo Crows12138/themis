@@ -32,8 +32,7 @@ KB_RESULT_SCHEMA = json.loads((REPO_ROOT / "kb_result.schema.json").read_text("u
 
 
 def _result_validator():
-    resolver = jsonschema.RefResolver.from_schema(KB_RESULT_SCHEMA)
-    return jsonschema.Draft202012Validator(KB_RESULT_SCHEMA, resolver=resolver)
+    return jsonschema.Draft202012Validator(KB_RESULT_SCHEMA)
 
 
 # ----------------------------------------------------------- KBQuery
