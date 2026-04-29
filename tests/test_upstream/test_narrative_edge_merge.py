@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 from themis.upstream import (
     ExtractionShapeError,
     MergeConflictError,
+    apply_edge_refusals,
     compose_program,
     merge_edge_extractions,
     merge_edges_into_program,
@@ -327,6 +328,77 @@ def test_compose_program_skips_none_extractions():
     out = compose_program(base, None, None)
     # No-op when both extractions are None
     assert len(out["statements"]) == len(base["statements"])
+
+
+def test_apply_edge_refusals_removes_exact_question_side_direct_edge():
+    base = _empty_program(["eating_ice_cream", "drowning"])
+    base["statements"].append({
+        "kind": "cause",
+        "from": _atom("eating_ice_cream"),
+        "to": _atom("drowning"),
+        "annotations": {"source": "llm_proposal"},
+    })
+    edge_extraction = json.loads(
+        (
+            REPO_ROOT
+            / "docs"
+            / "prompts"
+            / "examples"
+            / "narrative_edges_ice_cream_drowning.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    out = apply_edge_refusals(base, edge_extraction)
+
+    assert any(s.get("kind") == "cause" for s in base["statements"])
+    assert [
+        s for s in out["statements"]
+        if s.get("kind") == "cause"
+    ] == []
+    ambiguities = out["extensions"]["ambiguities"]
+    assert ambiguities[0]["kind"] == "confounder_refusal"
+    assert ambiguities[0]["alternatives"] == ["eating_ice_cream -> drowning"]
+
+
+def test_compose_program_applies_narrative_refusal_before_kernel_run():
+    base = _empty_program(["eating_ice_cream", "drowning"])
+    base["statements"].extend([
+        {
+            "kind": "cause",
+            "from": _atom("eating_ice_cream"),
+            "to": _atom("drowning"),
+            "annotations": {"source": "llm_proposal"},
+        },
+        {
+            "kind": "query",
+            "id": "q",
+            "query": {
+                "kind": "cause",
+                "from": _atom("eating_ice_cream"),
+                "to": _atom("drowning"),
+            },
+        },
+    ])
+    edge_extraction = json.loads(
+        (
+            REPO_ROOT
+            / "docs"
+            / "prompts"
+            / "examples"
+            / "narrative_edges_ice_cream_drowning.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    program = compose_program(base, edge_extraction=edge_extraction)
+    assert [
+        s for s in program["statements"]
+        if s.get("kind") == "cause"
+    ] == []
+
+    result = themis.run(program)["results"][0]
+    assert result["status"] == "structurally_solved"
+    assert result["structural_result"]["value"] is False
+    themis.verify(program, result)
 
 
 def test_compose_program_does_not_mutate_base():

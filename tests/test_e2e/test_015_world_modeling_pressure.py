@@ -93,3 +93,15 @@ def test_015_world_modeling_pressure_script_passes():
         coffee["pressure_signal"]
         == "admg_assoc_query_now_uses_m_connection_witness"
     )
+
+    ice_cream = by_name["ice_cream_refusal_filters_edge"].details
+    assert ice_cream["edge_kinds_after_refusal"] == []
+    assert "confounder_refusal" in ice_cream["ambiguity_kinds"]
+    assert ice_cream["result_status"] == "structurally_solved"
+    assert ice_cream["structural_value"] is False
+    assert ice_cream["verify"] == "accepted"
+    assert ice_cream["data_gap_verify"] == "accepted"
+    assert (
+        ice_cream["pressure_signal"]
+        == "narrative_refusal_filters_question_side_naive_edge"
+    )

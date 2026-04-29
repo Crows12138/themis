@@ -61,8 +61,8 @@ class MergeConflictError(ValueError):
     """Two declarations of the same predicate / edge pair disagree.
 
     For variables: the same field is set to different concrete values.
-    For edges: the same predicate pair is declared as different kinds
-    (cause / bidirected / refusal) by different extractions.
+    For edges: the same predicate pair is both concretely asserted and
+    refused by different extractions.
 
     The message names the predicate or pair so the caller can surface
     the conflict back to the user / LLM for re-prompting.
@@ -418,8 +418,8 @@ def apply_predicate_links(extraction: dict, links) -> dict:
 # - refusals deduped by (from, to) pair
 # - narrative_ambiguities concatenated (each may originate from a different
 #   paragraph; deduplication is the LLM's job upstream)
-# - cross-kind conflict for the same pair (cause vs bidirected vs refusal)
-#   raises MergeConflictError
+# - refusal vs concrete edge for the same pair raises MergeConflictError
+# - cause + bidirected on the same pair coexist under ADMG semantics
 
 
 def _require_edges_extraction(extraction: dict, what: str) -> dict:
@@ -457,6 +457,27 @@ def _require_edges_extraction(extraction: dict, what: str) -> dict:
         if val is not None and not isinstance(val, list):
             raise ExtractionShapeError(f"{what}.{key} must be a list when present")
     return extraction
+
+
+def _require_refusals_list(extraction: dict, what: str) -> list[dict]:
+    refs = extraction.get("refusals") or []
+    if not isinstance(refs, list):
+        raise ExtractionShapeError(f"{what}.refusals must be a list when present")
+    out: list[dict] = []
+    for i, ref in enumerate(refs):
+        if not isinstance(ref, dict):
+            raise ExtractionShapeError(f"{what}.refusals[{i}] must be a dict")
+        if ref.get("kind") != "refuse_direct_edge":
+            raise ExtractionShapeError(
+                f"{what}.refusals[{i}].kind must be 'refuse_direct_edge'"
+            )
+        for end in ("from", "to"):
+            if not isinstance(ref.get(end), str) or not ref[end]:
+                raise ExtractionShapeError(
+                    f"{what}.refusals[{i}].{end} must be a non-empty string"
+                )
+        out.append(ref)
+    return out
 
 
 def _edge_pair_key(edge: dict) -> tuple[str, tuple[str, ...]]:
@@ -534,8 +555,9 @@ def merge_edge_extractions(*extractions: dict) -> dict:
 
     Behavior:
     - same-kind same-pair edges merge (evidence unioned)
-    - cross-kind conflicts on the same predicate pair (e.g. cause vs
-      bidirected, cause vs refusal) raise ``MergeConflictError``
+    - refusal vs concrete edge on the same predicate pair raises
+      ``MergeConflictError``; cause + bidirected coexist under ADMG
+      semantics
     - refusals dedup by ``(from, to)``
     - ``narrative_ambiguities`` concatenated as-is (each may come from a
       different paragraph)
@@ -580,7 +602,7 @@ def merge_edge_extractions(*extractions: dict) -> dict:
                 edges_by_key[key] = deepcopy(edge)
                 edge_order.append(key)
 
-        for ref in e.get("refusals") or []:
+        for ref in _require_refusals_list(e, f"extractions[{idx}]"):
             unordered = _pair_for_conflict(ref)
             _check_conflict(unordered, "refusal")
             pair_kinds.setdefault(unordered, set()).add("refusal")
@@ -616,8 +638,8 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
     - If the program already contains an edge for the same predicate pair
       (same kind), the duplicate is skipped (existing program wins on
       annotations, since it likely has hand-curated provenance).
-    - Cross-kind conflict (existing cause edge vs incoming bidirected for
-      the same pair, or vice versa) raises ``MergeConflictError``.
+    - Existing cause + incoming bidirected on the same pair, or vice versa,
+      coexist under ADMG semantics.
     - Refusals and narrative_ambiguities from the extraction are NOT
       merged into the program directly — refusals are advisory (they
       explain why the agent did NOT propose an edge), and ambiguities
@@ -729,6 +751,91 @@ def merge_edges_into_program(program_ast: dict, edge_extraction: dict) -> dict:
     return out
 
 
+def _cause_statement_pair(statement: dict) -> tuple[str, str] | None:
+    f = (statement.get("from") or {}).get("predicate")
+    t = (statement.get("to") or {}).get("predicate")
+    if isinstance(f, str) and isinstance(t, str):
+        return (f, t)
+    return None
+
+
+def _refusal_ambiguity(refusal: dict) -> dict:
+    pattern = refusal.get("pattern")
+    kind_by_pattern = {
+        "confounder": "confounder_refusal",
+        "collider": "selection_bias",
+        "reverse_causation": "reverse_causation_refusal",
+        "coincidence": "coincidence_refusal",
+    }
+    kind = kind_by_pattern.get(pattern, "edge_refusal")
+    src = refusal["from"]
+    dst = refusal["to"]
+    ambiguity = {
+        "kind": kind,
+        "description": refusal.get(
+            "reason",
+            f"narrative refused direct edge {src} -> {dst}",
+        ),
+        "chosen": "no direct edge",
+        "alternatives": [f"{src} -> {dst}"],
+    }
+    suggested = refusal.get("suggested_node")
+    if suggested is None:
+        suggested = refusal.get("suggested_confounder")
+    if suggested is not None:
+        ambiguity["suggested_node"] = suggested
+    return ambiguity
+
+
+def apply_edge_refusals(program_ast: dict, edge_extraction: dict) -> dict:
+    """Apply A2 narrative refusals to question-side directed edges.
+
+    ``narrative_to_edges.md`` treats refusals as orchestrator
+    instructions: if the question-side A1 program emitted a naive direct
+    edge that the narrative explicitly rejects, the final program should
+    not carry that edge into the kernel. This helper removes only exact
+    directed ``cause`` matches; reverse edges and bidirected edges are
+    left untouched.
+
+    The refusal reason is recorded under ``extensions.ambiguities`` so
+    the removal remains auditable.
+    """
+    if not isinstance(program_ast, dict):
+        raise ExtractionShapeError("program_ast must be a dict")
+    if not isinstance(program_ast.get("statements"), list):
+        raise ExtractionShapeError("program_ast.statements must be a list")
+    e = _require_edges_extraction(edge_extraction, "edge_extraction")
+    refusals = _require_refusals_list(e, "edge_extraction")
+    if not refusals:
+        return deepcopy(program_ast)
+
+    refused_pairs = {(ref["from"], ref["to"]) for ref in refusals}
+    out = deepcopy(program_ast)
+    out["statements"] = [
+        statement
+        for statement in out["statements"]
+        if not (
+            isinstance(statement, dict)
+            and statement.get("kind") == "cause"
+            and _cause_statement_pair(statement) in refused_pairs
+        )
+    ]
+
+    extensions = out.setdefault("extensions", {})
+    if not isinstance(extensions, dict):
+        extensions = {}
+        out["extensions"] = extensions
+    ambiguities = extensions.setdefault("ambiguities", [])
+    if not isinstance(ambiguities, list):
+        ambiguities = []
+        extensions["ambiguities"] = ambiguities
+
+    for refusal in refusals:
+        ambiguities.append(_refusal_ambiguity(refusal))
+
+    return out
+
+
 # ============================================== end-to-end orchestration
 
 
@@ -744,7 +851,9 @@ def compose_program(
     common-knowledge cause edges). The narrative-side extractions
     (A5 variables, A2 edges) are folded in on top, with the same
     merge semantics as ``merge_into_program`` and
-    ``merge_edges_into_program``.
+    ``merge_edges_into_program``. Narrative edge refusals are applied
+    before edge insertion so question-side naive direct causes that the
+    narrative explicitly rejects do not enter the final kernel program.
 
     Either extraction may be ``None`` to skip that step.
 
@@ -754,11 +863,12 @@ def compose_program(
     schema validation downstream will catch dangling references.
 
     Returns a new program dict — ``base_program`` is not mutated.
-    Conflicts (variable framing disagreement, cross-kind edge clash)
-    raise ``MergeConflictError`` with a message naming the predicate
-    or pair.
+    Conflicts (variable framing disagreement, refusal vs concrete edge)
+    raise ``MergeConflictError`` with a message naming the predicate or pair.
     """
     out = deepcopy(base_program)
+    if edge_extraction is not None:
+        out = apply_edge_refusals(out, edge_extraction)
     if variable_extraction is not None:
         out = merge_into_program(out, variable_extraction)
     if edge_extraction is not None:

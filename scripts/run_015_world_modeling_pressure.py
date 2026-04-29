@@ -376,10 +376,77 @@ def pressure_coffee_latent_edge_assoc() -> PressureResult:
     )
 
 
+def _ice_cream_refusal_base_program() -> dict[str, Any]:
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "eating_ice_cream", "domain": [True, False]},
+            {"kind": "variable", "predicate": "drowning", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": _atom("eating_ice_cream"),
+                "to": _atom("drowning"),
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "cause",
+                    "from": _atom("eating_ice_cream"),
+                    "to": _atom("drowning"),
+                },
+            },
+        ],
+    }
+
+
+def pressure_ice_cream_refusal_filters_edge() -> PressureResult:
+    edge_extraction = _load_example("narrative_edges_ice_cream_drowning.json")
+    program = compose_program(
+        _ice_cream_refusal_base_program(),
+        edge_extraction=edge_extraction,
+    )
+    result = themis.run(program)["results"][0]
+    themis.verify(program, result)
+    themis.verify_data_gap_report(result)
+
+    edge_kinds = _edge_kinds(program)
+    ambiguity_kinds = [
+        ambiguity.get("kind")
+        for ambiguity in program.get("extensions", {}).get("ambiguities", [])
+    ]
+    _require(edge_kinds == [], "narrative refusal should remove the naive direct edge")
+    _require(
+        "confounder_refusal" in ambiguity_kinds,
+        "refusal should remain visible as an ambiguity record",
+    )
+    _require(
+        result["structural_result"]["value"] is False,
+        "after refusal filtering, cause query should be structurally false",
+    )
+
+    return PressureResult(
+        name="ice_cream_refusal_filters_edge",
+        status="PASS",
+        details={
+            "edge_kinds_after_refusal": edge_kinds,
+            "ambiguity_kinds": ambiguity_kinds,
+            "result_status": result["status"],
+            "structural_value": result["structural_result"]["value"],
+            "verify": "accepted",
+            "data_gap_verify": "accepted",
+            "pressure_signal": "narrative_refusal_filters_question_side_naive_edge",
+        },
+    )
+
+
 PRESSURES: tuple[Callable[[], PressureResult], ...] = (
     pressure_exercise_waist_variable_merge,
     pressure_late_sleep_predicate_drift,
     pressure_coffee_latent_edge_assoc,
+    pressure_ice_cream_refusal_filters_edge,
 )
 
 

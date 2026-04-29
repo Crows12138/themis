@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1411 passed / 144 skipped, warning-clean
+1413 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1075,7 +1075,7 @@ DataFrame 旁路。
 python scripts\run_015_world_modeling_pressure.py
 ```
 
-**已固定的 3 个压力信号**：
+**已固定的 4 个压力信号**：
 
 - `exercise_waist_variable_merge`：narrative framing 能缩小 `running`
   的 gap，但 target `belly_fat_loss` 仍完整欠框定，且 effect 仍缺分布数据
@@ -1084,6 +1084,9 @@ python scripts\run_015_world_modeling_pressure.py
   `cognitive_slowness`，导致补录无法复用 —— 暴露 predicate linking 缺口
 - `coffee_latent_edge_assoc`：A2 能抽出 bidirected latent edge，ADMG
   assoc query 现在经 `m_connection_witness` 返回结构解，并可被 verifier 复核
+- `ice_cream_refusal_filters_edge`：A2 refusal 能过滤 A1 question-side
+  naive direct edge，最终 cause query 返回 `false`，拒绝理由保留在
+  `extensions.ambiguities`
 
 **当前 followup**：
 
@@ -1101,10 +1104,13 @@ python scripts\run_015_world_modeling_pressure.py
   `missing_distribution` 仍保留
 - late_sleep 压测现在还证明：确认 link 后不会新增 predicate，query 侧
   `stays_up_late` / `feels_tired_next_morning` 的 framing gaps 会按已补字段缩小
+- narrative edge refusal 现在由 `apply_edge_refusals(...)` 在
+  `compose_program(...)` 内先执行：只删除 exact directed `cause` match，
+  不删除反向边或 bidirected；拒绝理由写回 `extensions.ambiguities`
 - Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的
   association 查询走 m-separation；`cause` / `probability` 仍保持 gate
 
-**当前全量测试**：1411 passed / 144 skipped, warning-clean。
+**当前全量测试**：1413 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 
