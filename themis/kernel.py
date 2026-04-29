@@ -675,3 +675,30 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             investigation_requests=result.get("investigation_requests", []),
             framing_notes=result.get("framing_notes", []),
         )
+
+
+def verify_data_gap_report(result: dict) -> None:
+    """Independently audit the ``data_gap_report`` inside one result.
+
+    This is the public T10-only counterpart to :func:`verify`. It is
+    deliberately result-only: data-gap reports cite the result envelope's
+    derivation / investigation requests / framing notes, not the source
+    program graph. It also accepts results with no derivation, which is
+    necessary for advisory/diagnostic outputs such as Phase 13
+    dose-response data requirements.
+
+    Returns ``None`` on accept. Raises ``VerificationError`` or
+    ``SyntacticError`` on malformed or inconsistent reports.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+
+    from .verifier.data_gap_rules import verify_data_gap_report as _verify_t10
+
+    _verify_t10(
+        result.get("data_gap_report"),
+        derivation=result.get("derivation"),
+        investigation_requests=result.get("investigation_requests", []),
+        framing_notes=result.get("framing_notes", []),
+    )

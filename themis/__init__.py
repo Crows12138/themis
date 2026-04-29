@@ -4,7 +4,13 @@ See ARCHITECTURE.md for layer definitions and dependency rules.
 
 Public entry points::
 
-    from themis import run, apply_patch_and_run, estimate, verify
+    from themis import (
+        run,
+        apply_patch_and_run,
+        estimate,
+        verify,
+        verify_data_gap_report,
+    )
 
     # Pure symbolic kernel:
     out = run(program_json_or_dict)
@@ -17,6 +23,9 @@ Public entry points::
 
     # Independent re-check (pure JSON; no typed objects needed):
     verify(program_json, out["results"][0])
+
+    # T10-only data-gap audit, including diagnostic results with no derivation:
+    verify_data_gap_report(out["results"][0])
 
 The kernel is JSON-in / JSON-out. Inputs conform to
 ``kernel_ast.schema.json``; outputs' ``results`` entries conform to
@@ -32,6 +41,7 @@ from .kernel import (
     estimate,
     run,
     verify,
+    verify_data_gap_report,
 )
 
 __version__ = "0.14.0-dev"
@@ -41,4 +51,5 @@ __all__ = [
     "estimate",
     "run",
     "verify",
+    "verify_data_gap_report",
 ]

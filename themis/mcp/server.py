@@ -5,6 +5,7 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_run(program)`` → wraps :func:`themis.run`
 - ``themis_apply_patch_and_run(program, patches)`` → wraps :func:`themis.apply_patch_and_run`
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None)`` → wraps :func:`themis.estimate`; loads CSV from disk
 - ``themis_list_resources()`` → returns the resource URI catalog
 
@@ -106,6 +107,20 @@ def build_server():
         """
         try:
             themis.verify(program, result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.tool()
+    def themis_verify_data_gap_report(result: dict) -> dict:
+        """Independently audit a result's data_gap_report.
+
+        This is intentionally separate from ``themis_verify``: some
+        diagnostic outputs have no query derivation to audit, but their
+        T10 data-gap report is still independently checkable.
+        """
+        try:
+            themis.verify_data_gap_report(result)
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}

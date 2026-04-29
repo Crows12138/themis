@@ -36,6 +36,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_run",
         "themis_apply_patch_and_run",
         "themis_verify",
+        "themis_verify_data_gap_report",
         "themis_estimate",
         "themis_list_resources",
     }
@@ -111,6 +112,48 @@ def test_themis_verify_tool_returns_error_on_bad_result(app):
     assert out["ok"] is False
     assert "error" in out
     assert isinstance(out["error"], str) and out["error"]
+
+
+def _atom(predicate: str) -> dict:
+    return {"predicate": predicate, "args": [{"type": "const", "name": "me"}]}
+
+
+def _dose_response_diagnostic_program() -> dict:
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "extensions": {
+            "ambiguities": [
+                {"kind": "dose_response_query", "description": "curve"},
+            ],
+        },
+        "statements": [
+            {"kind": "variable", "predicate": "engagement", "domain": [1, 2, 3, 4, 5]},
+            {"kind": "variable", "predicate": "raise_amount"},
+            {"kind": "cause", "from": _atom("raise_amount"), "to": _atom("engagement")},
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {"atom": _atom("raise_amount"), "value": True},
+                    "target": {"atom": _atom("engagement"), "value": 4},
+                    "given": [],
+                },
+            },
+        ],
+    }
+
+
+def test_themis_verify_data_gap_report_accepts_diagnostic_result(app):
+    program = _dose_response_diagnostic_program()
+    run_out = _call_tool(app, "themis_run", {"program": program})
+    result = run_out["results"][0]
+    assert "derivation" not in result
+    assert result.get("data_gap_report") is not None
+
+    out = _call_tool(app, "themis_verify_data_gap_report", {"result": result})
+    assert out == {"ok": True}
 
 
 def test_themis_list_resources_tool_returns_uri_catalog(app):

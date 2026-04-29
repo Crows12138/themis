@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1401 passed / 144 skipped, warning-clean
+1402 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -771,9 +771,9 @@ Themis 已经从识别内核演化成全栈因果系统：
   而非 SemanticError；未声明的原子仍被拒，V-set 严格性 6 测全过。
 
 **MCP server**（task #35）
-- `themis/mcp/server.py` FastMCP 包装：4 个 kernel 入口（run /
-  apply_patch_and_run / verify / estimate）+ 1 个 catalog tool；
-  5 个 prompts + 3 个 schema 作为 resources；不调 LLM
+- `themis/mcp/server.py` FastMCP 包装：5 个 kernel / audit 入口（run /
+  apply_patch_and_run / verify / verify_data_gap_report / estimate）+ 1 个
+  catalog tool；7 个 prompts + 5 个 schema 作为 resources；不调 LLM
 - README + 8 个 in-process 测试
 
 **A2 prompt 小补**：refusal `suggested_confounder` →
@@ -1061,7 +1061,7 @@ DataFrame 旁路。
 - CATE / 自动 hyperparameter 搜索 / 多 outcome dose-response 仍不在当前范围
 - 统计有效性依赖 overlap、样本量、模型设定；Themis 只承诺显式披露方法和失败原因
 
-**当前全量测试**：1401 passed / 144 skipped, warning-clean。
+**当前全量测试**：1402 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 

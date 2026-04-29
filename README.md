@@ -21,7 +21,7 @@ Themis 是一个 JSON-in / JSON-out 的因果推理系统。当前开发态为
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-当前全量测试基线：`1401 passed / 144 skipped`，warning-clean。
+当前全量测试基线：`1402 passed / 144 skipped`，warning-clean。
 
 ---
 
@@ -41,6 +41,10 @@ estimated = estimate(program, df)
 
 # 独立复核一个 result JSON
 verify(program, out["results"][0])
+
+# 独立复核 data_gap_report；适用于没有 derivation 的诊断类结果
+from themis import verify_data_gap_report
+verify_data_gap_report(out["results"][0])
 ```
 
 边界约定：
@@ -65,7 +69,7 @@ python scripts\run_014_stabilization_smoke.py
 - transport 结构识别 -> `verify`
 - dose-response 估计 -> `numeric_estimate` + `verify`
 - transport gap -> mock KB adapter -> patch bundle -> `apply_patch_and_run`
-- MCP wrapper -> tool catalog + `themis_run` + `themis_verify` + `themis_estimate` + resources
+- MCP wrapper -> tool catalog + `themis_run` + `themis_verify` + `themis_verify_data_gap_report` + `themis_estimate` + resources
 
 ---
 

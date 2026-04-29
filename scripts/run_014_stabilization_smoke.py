@@ -489,6 +489,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_run",
         "themis_apply_patch_and_run",
         "themis_verify",
+        "themis_verify_data_gap_report",
         "themis_estimate",
         "themis_list_resources",
     }
@@ -518,6 +519,17 @@ def smoke_mcp_wrapper() -> SmokeResult:
     _require(
         "themis://prompts/response_rendering.md" in catalog.get("prompts", []),
         "MCP resource catalog omitted response_rendering prompt",
+    )
+
+    diagnostic_result = themis.run(_dose_response_diagnostic_program())["results"][0]
+    gap_verify = _call_mcp_tool(
+        app,
+        "themis_verify_data_gap_report",
+        {"result": diagnostic_result},
+    )
+    _require(
+        gap_verify == {"ok": True},
+        "MCP data-gap verifier did not accept diagnostic result",
     )
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -551,6 +563,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
             "resources": len(resource_uris),
             "run_status": run_out["results"][0]["status"],
             "verify": "accepted",
+            "data_gap_verify": "accepted",
             "estimate_method": numeric_estimate["method"],
         },
     )
