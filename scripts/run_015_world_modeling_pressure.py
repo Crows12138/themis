@@ -99,6 +99,10 @@ def pressure_exercise_waist_variable_merge() -> PressureResult:
     narrative = _load_example("narrative_running.json")
 
     before_predicates = _declared_predicates(question)
+    link_diagnostic = diagnose_predicate_links(
+        question,
+        {"variables": narrative["variables"]},
+    )
     program = compose_program(
         question,
         variable_extraction={"variables": narrative["variables"]},
@@ -106,7 +110,28 @@ def pressure_exercise_waist_variable_merge() -> PressureResult:
     result = themis.run(program)["results"][0]
     themis.verify_data_gap_report(result)
 
+    confirmed_links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "waist_reduced",
+                "target_predicate": "belly_fat_loss",
+            },
+        ],
+    }
+    linked_extraction = apply_predicate_links(
+        {"variables": narrative["variables"]},
+        confirmed_links,
+    )
+    linked_program = compose_program(
+        question,
+        variable_extraction=linked_extraction,
+    )
+    linked_result = themis.run(linked_program)["results"][0]
+    themis.verify_data_gap_report(linked_result)
+
     gaps = _framing_gaps(result)
+    linked_gaps = _framing_gaps(linked_result)
     _require(result["status"] == "needs_investigation", "exercise case should need data")
     _require(
         set(gaps["running"]) == {"direction", "baseline", "state_vs_event"},
@@ -120,6 +145,36 @@ def pressure_exercise_waist_variable_merge() -> PressureResult:
         "missing_distribution" in _data_gap_kinds(result),
         "effect case should surface missing_distribution",
     )
+    by_source = {
+        item["source_predicate"]: item
+        for item in link_diagnostic["unmatched"]
+    }
+    _require(
+        set(by_source) == {"waist_reduced"},
+        "exercise link diagnostic should report the narrative-only waist predicate",
+    )
+    _require(
+        by_source["waist_reduced"]["candidates"][0]["target_predicate"]
+        == "belly_fat_loss",
+        "exercise link diagnostic should rank the query target first",
+    )
+    _require(
+        by_source["waist_reduced"]["candidates"][0]["score"] < 0.5,
+        "waist_reduced -> belly_fat_loss must stay explicit-confirmation only",
+    )
+    _require(
+        _declared_predicates(linked_program) == before_predicates,
+        "confirmed exercise target link should not add new declarations",
+    )
+    _require(
+        set(linked_gaps["belly_fat_loss"])
+        == {"direction", "baseline", "state_vs_event"},
+        "confirmed waist target link should transfer measurement framing",
+    )
+    _require(
+        "missing_distribution" in _data_gap_kinds(linked_result),
+        "confirmed target framing still leaves the statistical data gap",
+    )
 
     return PressureResult(
         name="exercise_waist_variable_merge",
@@ -127,7 +182,16 @@ def pressure_exercise_waist_variable_merge() -> PressureResult:
         details={
             "result_status": result["status"],
             "introduced_predicates": sorted(_declared_predicates(program) - before_predicates),
+            "link_diagnostic": link_diagnostic,
             "framing_gaps": gaps,
+            "after_confirmed_links": {
+                "introduced_predicates": sorted(
+                    _declared_predicates(linked_program) - before_predicates
+                ),
+                "framing_gaps": linked_gaps,
+                "data_gap_kinds": _data_gap_kinds(linked_result),
+                "data_gap_verify": "accepted",
+            },
             "investigation_actions": _investigation_actions(result),
             "data_gap_kinds": _data_gap_kinds(result),
             "data_gap_verify": "accepted",

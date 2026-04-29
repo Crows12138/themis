@@ -1095,6 +1095,10 @@ python scripts\run_015_world_modeling_pressure.py
 - 0.15 压测输出现在包含 `predicate_link_diagnostic`，能把
   `staying_up_late -> stays_up_late` 这种形态漂移高分暴露出来，同时把
   `cognitive_slowness` 这种低 lexical evidence 保持为待确认项
+- exercise 压测也固定了低 lexical evidence 的 target link：
+  `waist_reduced -> belly_fat_loss` 只作为候选出现；确认回注后不会新增
+  predicate，`belly_fat_loss` 的 framing gaps 会缩小，但
+  `missing_distribution` 仍保留
 - late_sleep 压测现在还证明：确认 link 后不会新增 predicate，query 侧
   `stays_up_late` / `feels_tired_next_morning` 的 framing gaps 会按已补字段缩小
 - Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的

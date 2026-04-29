@@ -80,7 +80,9 @@ python scripts\run_015_world_modeling_pressure.py
 这条脚本同样不调 LLM、不发网络请求，用现有 prompt example 固定三类
 0.15 压力信号：变量 framing merge、predicate 命名漂移、ADMG assoc m-connection。
 其中 predicate 漂移通过 `diagnose_predicate_links(...)` 只产出候选诊断，
-确认后再由 `apply_predicate_links(...)` 回注；不自动改写模型语义。
+确认后再由 `apply_predicate_links(...)` 回注；不自动改写模型语义。exercise
+case 也固定了低分 `waist_reduced -> belly_fat_loss` 候选：确认后 target
+framing 缩小，但 `missing_distribution` 仍保留。
 
 ---
 

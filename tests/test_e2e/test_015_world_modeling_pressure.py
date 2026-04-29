@@ -19,6 +19,25 @@ def test_015_world_modeling_pressure_script_passes():
     ]
     assert "missing_distribution" in exercise["data_gap_kinds"]
     assert exercise["data_gap_verify"] == "accepted"
+    exercise_unmatched = {
+        item["source_predicate"]: item
+        for item in exercise["link_diagnostic"]["unmatched"]
+    }
+    assert set(exercise_unmatched) == {"waist_reduced"}
+    assert (
+        exercise_unmatched["waist_reduced"]["candidates"][0]["target_predicate"]
+        == "belly_fat_loss"
+    )
+    assert exercise_unmatched["waist_reduced"]["candidates"][0]["score"] < 0.5
+    exercise_after_links = exercise["after_confirmed_links"]
+    assert exercise_after_links["introduced_predicates"] == []
+    assert exercise_after_links["framing_gaps"]["belly_fat_loss"] == [
+        "direction",
+        "baseline",
+        "state_vs_event",
+    ]
+    assert "missing_distribution" in exercise_after_links["data_gap_kinds"]
+    assert exercise_after_links["data_gap_verify"] == "accepted"
     assert (
         exercise["pressure_signal"]
         == "variable_framing_merge_works_but_target_still_underframed"
