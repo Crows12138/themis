@@ -29,13 +29,15 @@ Merge semantics for two declarations of the same predicate:
   picking a winner
 
 Synonym collapsing (e.g. ``running`` vs ``daily_running``) is
-explicitly NOT in scope — predicates are matched by exact name. The
-A5 prompt is responsible for stable naming across extractions; if it
-drifts, the human orchestrator resolves it upstream.
+explicitly NOT part of merge — predicates are matched by exact name.
+When names drift, ``diagnose_predicate_links`` can emit a conservative
+candidate list for the orchestrator / LLM to confirm before any rewrite.
 """
 from __future__ import annotations
 
 from copy import deepcopy
+from difflib import SequenceMatcher
+import re
 from typing import Iterable
 
 
@@ -134,6 +136,68 @@ def _merge_two_decls(a: dict, b: dict, predicate: str) -> dict:
     return out
 
 
+def _program_variable_predicates(program_ast: dict) -> list[str]:
+    if not isinstance(program_ast, dict):
+        raise ExtractionShapeError("program_ast must be a dict")
+    if not isinstance(program_ast.get("statements"), list):
+        raise ExtractionShapeError("program_ast.statements must be a list")
+    out: list[str] = []
+    for s in program_ast["statements"]:
+        if not isinstance(s, dict) or s.get("kind") != "variable":
+            continue
+        pred = s.get("predicate")
+        if isinstance(pred, str) and pred:
+            out.append(pred)
+    return out
+
+
+def _stem_token(token: str) -> str:
+    if token.endswith("ing") and len(token) > 5:
+        stem = token[:-3]
+        if len(stem) >= 2 and stem[-1] == stem[-2]:
+            stem = stem[:-1]
+        return stem
+    if token.endswith("ies") and len(token) > 4:
+        return token[:-3] + "y"
+    if token.endswith("s") and len(token) > 3:
+        return token[:-1]
+    return token
+
+
+def _predicate_tokens(predicate: str) -> set[str]:
+    raw_tokens = [
+        t
+        for t in re.split(r"[^a-z0-9]+", predicate.lower())
+        if t
+    ]
+    tokens: set[str] = set()
+    for token in raw_tokens:
+        tokens.add(token)
+        stem = _stem_token(token)
+        if stem:
+            tokens.add(stem)
+    return tokens
+
+
+def _link_score(source: str, target: str) -> tuple[float, list[str]]:
+    source_tokens = _predicate_tokens(source)
+    target_tokens = _predicate_tokens(target)
+    overlap = source_tokens & target_tokens
+    union = source_tokens | target_tokens
+    token_score = len(overlap) / len(union) if union else 0.0
+    string_score = SequenceMatcher(None, source, target).ratio()
+    score = max(token_score, string_score)
+
+    reasons: list[str] = []
+    if overlap:
+        reasons.append(f"token_overlap:{','.join(sorted(overlap))}")
+    if string_score >= 0.5:
+        reasons.append(f"string_similarity:{string_score:.2f}")
+    if not reasons:
+        reasons.append("low_lexical_evidence")
+    return round(score, 3), reasons
+
+
 # ========================================================= public API
 
 def merge_variable_extractions(*extractions: dict) -> dict:
@@ -214,6 +278,56 @@ def merge_into_program(program_ast: dict, extraction: dict) -> dict:
             insert_at += 1
 
     return out
+
+
+def diagnose_predicate_links(
+    program_ast: dict,
+    extraction: dict,
+    *,
+    max_candidates: int = 3,
+) -> dict:
+    """Suggest explicit predicate links before merging narrative variables.
+
+    This is a diagnostic surface, not an automatic rewrite. Exact-name
+    matches are reported separately. Narrative predicates that do not
+    exist in the base program get a ranked candidate list, but callers
+    must confirm a link (or keep it as a new predicate) before changing
+    either input.
+    """
+    if max_candidates < 1:
+        raise ValueError("max_candidates must be >= 1")
+
+    targets = _program_variable_predicates(program_ast)
+    target_set = set(targets)
+    variables = _require_variables_list(extraction, "extraction")
+    sources = [v["predicate"] for v in variables]
+
+    exact_matches: list[str] = []
+    unmatched: list[dict] = []
+    for source in sources:
+        if source in target_set:
+            exact_matches.append(source)
+            continue
+        scored = []
+        for target in targets:
+            score, reasons = _link_score(source, target)
+            scored.append({
+                "target_predicate": target,
+                "score": score,
+                "reasons": reasons,
+            })
+        scored.sort(key=lambda item: (-item["score"], item["target_predicate"]))
+        unmatched.append({
+            "source_predicate": source,
+            "candidates": scored[:max_candidates],
+            "action": "confirm_link_or_keep_new",
+        })
+
+    return {
+        "kind": "predicate_link_diagnostic",
+        "exact_matches": exact_matches,
+        "unmatched": unmatched,
+    }
 
 
 # ====================================================== edge merge (Phase 4)

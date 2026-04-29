@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 import themis
 from themis.input.semantic_validator import SemanticError
-from themis.upstream import compose_program
+from themis.upstream import compose_program, diagnose_predicate_links
 
 
 EXAMPLES_DIR = ROOT / "docs" / "prompts" / "examples"
@@ -138,6 +138,10 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
     narrative = _load_example("narrative_late_sleep.json")
 
     before_predicates = _declared_predicates(question)
+    link_diagnostic = diagnose_predicate_links(
+        question,
+        {"variables": narrative["variables"]},
+    )
     program = compose_program(
         question,
         variable_extraction={"variables": narrative["variables"]},
@@ -152,6 +156,19 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
     _require(
         introduced == ["cognitive_slowness", "staying_up_late"],
         "narrative predicates should land as unmatched declarations",
+    )
+    by_source = {
+        item["source_predicate"]: item
+        for item in link_diagnostic["unmatched"]
+    }
+    _require(
+        set(by_source) == {"cognitive_slowness", "staying_up_late"},
+        "link diagnostic should report both drifted narrative predicates",
+    )
+    _require(
+        by_source["staying_up_late"]["candidates"][0]["target_predicate"]
+        == "stays_up_late",
+        "link diagnostic should rank the morphological late-sleep match first",
     )
     _require(
         set(gaps["stays_up_late"]) == set(FRAMING_FIELDS),
@@ -168,6 +185,7 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
         details={
             "result_status": result["status"],
             "introduced_predicates": introduced,
+            "link_diagnostic": link_diagnostic,
             "query_predicate_gaps": gaps,
             "verify": "accepted",
             "data_gap_verify": "accepted",

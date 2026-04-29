@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1403 passed / 144 skipped, warning-clean
+1406 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1085,7 +1085,15 @@ python scripts\run_015_world_modeling_pressure.py
 - `coffee_latent_edge_gate`：A2 能抽出 bidirected latent edge，但当前 ADMG
   assoc query 仍被语义 gate 拦住 —— 暴露后续 S4 scheduler/verifier 暴露缺口
 
-**当前全量测试**：1403 passed / 144 skipped, warning-clean。
+**当前 followup**：
+
+- `themis.upstream.diagnose_predicate_links(...)`：对 narrative extraction
+  里未命中 base program 的 predicate 产出候选 link 诊断；只建议、不自动重写
+- 0.15 压测输出现在包含 `predicate_link_diagnostic`，能把
+  `staying_up_late -> stays_up_late` 这种形态漂移高分暴露出来，同时把
+  `cognitive_slowness` 这种低 lexical evidence 保持为待确认项
+
+**当前全量测试**：1406 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 

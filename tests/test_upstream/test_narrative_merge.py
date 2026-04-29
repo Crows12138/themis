@@ -7,10 +7,13 @@ Program objects, no LLM calls.
 """
 from __future__ import annotations
 
+from copy import deepcopy
+
 import pytest
 
 import themis
 from themis.upstream import (
+    diagnose_predicate_links,
     ExtractionShapeError,
     MergeConflictError,
     merge_into_program,
@@ -280,3 +283,70 @@ def test_merge_multi_extraction_then_into_program():
     # waist_reduced was not in the question — it's added as a new decl
     assert any(s.get("predicate") == "waist_reduced"
                for s in merged["statements"])
+
+
+# =================================== predicate link diagnostics
+
+def test_diagnose_predicate_links_reports_exact_and_unmatched():
+    prog = _effect_program(
+        predicates=["running", "belly_fat_loss"],
+        edges=[("running", "belly_fat_loss")],
+        target="belly_fat_loss",
+        intervention="running",
+    )
+    narrative = {"variables": [
+        _var("running", time_window="past 3 months"),
+        _var("waist_reduced", measurement="cm"),
+    ]}
+
+    diagnostic = diagnose_predicate_links(prog, narrative)
+
+    assert diagnostic["kind"] == "predicate_link_diagnostic"
+    assert diagnostic["exact_matches"] == ["running"]
+    assert diagnostic["unmatched"][0]["source_predicate"] == "waist_reduced"
+    assert diagnostic["unmatched"][0]["action"] == "confirm_link_or_keep_new"
+    assert [
+        candidate["target_predicate"]
+        for candidate in diagnostic["unmatched"][0]["candidates"]
+    ] == ["belly_fat_loss", "running"]
+
+
+def test_diagnose_predicate_links_ranks_morphological_drift():
+    prog = _effect_program(
+        predicates=["stays_up_late", "feels_tired_next_morning"],
+        edges=[("stays_up_late", "feels_tired_next_morning")],
+        target="feels_tired_next_morning",
+        intervention="stays_up_late",
+    )
+    narrative = {"variables": [
+        _var("staying_up_late", threshold="bedtime after 01:00"),
+    ]}
+
+    diagnostic = diagnose_predicate_links(prog, narrative)
+    candidates = diagnostic["unmatched"][0]["candidates"]
+
+    assert diagnostic["exact_matches"] == []
+    assert diagnostic["unmatched"][0]["source_predicate"] == "staying_up_late"
+    assert candidates[0]["target_predicate"] == "stays_up_late"
+    assert candidates[0]["score"] >= 0.7
+    assert any(
+        reason.startswith("token_overlap:")
+        for reason in candidates[0]["reasons"]
+    )
+
+
+def test_diagnose_predicate_links_does_not_mutate_inputs():
+    prog = _effect_program(
+        predicates=["running", "belly_fat_loss"],
+        edges=[("running", "belly_fat_loss")],
+        target="belly_fat_loss",
+        intervention="running",
+    )
+    narrative = {"variables": [_var("waist_reduced", measurement="cm")]}
+    before_prog = deepcopy(prog)
+    before_narrative = deepcopy(narrative)
+
+    diagnose_predicate_links(prog, narrative)
+
+    assert prog == before_prog
+    assert narrative == before_narrative

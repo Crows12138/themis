@@ -30,6 +30,15 @@ def test_015_world_modeling_pressure_script_passes():
         "cognitive_slowness",
         "staying_up_late",
     ]
+    unmatched = {
+        item["source_predicate"]: item
+        for item in late_sleep["link_diagnostic"]["unmatched"]
+    }
+    assert set(unmatched) == {"cognitive_slowness", "staying_up_late"}
+    assert (
+        unmatched["staying_up_late"]["candidates"][0]["target_predicate"]
+        == "stays_up_late"
+    )
     assert set(late_sleep["query_predicate_gaps"]) == {
         "feels_tired_next_morning",
         "stays_up_late",
