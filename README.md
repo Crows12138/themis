@@ -51,6 +51,23 @@ verify(program, out["results"][0])
 
 ---
 
+## 快速压测
+
+当前收口期的最小 smoke：
+
+```powershell
+python scripts\run_014_stabilization_smoke.py
+```
+
+这条脚本不调 LLM、不发网络请求，覆盖四条 0.14 关键路径：
+
+- dose-response 问句 -> `data_gap_report`
+- transport 结构识别 -> `verify`
+- dose-response 估计 -> `numeric_estimate` + `verify`
+- transport gap -> mock KB adapter -> patch bundle -> `apply_patch_and_run`
+
+---
+
 ## 主要目录
 
 ```text
