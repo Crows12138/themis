@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1414 passed / 144 skipped, warning-clean
+1415 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1075,13 +1075,15 @@ DataFrame 旁路。
 python scripts\run_015_world_modeling_pressure.py
 ```
 
-**已固定的 4 个压力信号**：
+**已固定的 5 个压力用例**：
 
 - `exercise_waist_variable_merge`：narrative framing 能缩小 `running`
   的 gap，但 target `belly_fat_loss` 仍完整欠框定，且 effect 仍缺分布数据
 - `late_sleep_predicate_drift`：question 用 `stays_up_late` /
   `feels_tired_next_morning`，narrative 用 `staying_up_late` /
   `cognitive_slowness`，导致补录无法复用 —— 暴露 predicate linking 缺口
+- `late_sleep_predicate_links_rewrite_edges`：同一份已确认 predicate link
+  bundle 能同步改写 A2 edge endpoints，避免边把旧谓词名重新带回图里
 - `coffee_latent_edge_assoc`：A2 能抽出 bidirected latent edge，ADMG
   assoc query 现在经 `m_connection_witness` 返回结构解，并可被 verifier 复核
 - `ice_cream_refusal_filters_edge`：A2 refusal 能过滤 A1 question-side
@@ -1095,6 +1097,9 @@ python scripts\run_015_world_modeling_pressure.py
 - `themis.upstream.apply_predicate_links(...)`：消费已确认的
   source -> target link bundle，重写 narrative variables 后再走既有 merge；
   多个 source 合到同一 target 时复用字段冲突检查
+- `themis.upstream.apply_predicate_links_to_edges(...)`：同一 confirmed
+  link bundle 可重写 A2 cause / bidirected endpoints 与 refusals，保证
+  变量合并和边合并使用同一套 predicate 对齐
 - 0.15 压测输出现在包含 `predicate_link_diagnostic`，能把
   `staying_up_late -> stays_up_late` 这种形态漂移高分暴露出来，同时把
   `cognitive_slowness` 这种低 lexical evidence 保持为待确认项
@@ -1114,7 +1119,7 @@ python scripts\run_015_world_modeling_pressure.py
 - Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的
   association 查询走 m-separation；`cause` / `probability` 仍保持 gate
 
-**当前全量测试**：1414 passed / 144 skipped, warning-clean。
+**当前全量测试**：1415 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 

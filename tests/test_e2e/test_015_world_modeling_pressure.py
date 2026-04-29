@@ -82,6 +82,20 @@ def test_015_world_modeling_pressure_script_passes():
         == "predicate_name_drift_blocks_narrative_framing_reuse"
     )
 
+    late_sleep_edges = by_name["late_sleep_predicate_links_rewrite_edges"].details
+    assert late_sleep_edges["edge_pairs"] == [
+        ["stays_up_late", "feels_tired_next_morning"],
+    ]
+    assert "alias" in late_sleep_edges["ambiguity_kinds"]
+    assert late_sleep_edges["result_status"] == "structurally_solved"
+    assert late_sleep_edges["structural_value"] is True
+    assert late_sleep_edges["verify"] == "accepted"
+    assert late_sleep_edges["data_gap_verify"] == "accepted"
+    assert (
+        late_sleep_edges["pressure_signal"]
+        == "confirmed_predicate_links_rewrite_edge_endpoints"
+    )
+
     coffee = by_name["coffee_latent_edge_assoc"].details
     assert coffee["edge_kinds"] == ["bidirected"]
     assert "admg_unobserved_common_cause" in coffee["ambiguity_kinds"]

@@ -21,6 +21,7 @@ from themis.upstream import (
     ExtractionShapeError,
     MergeConflictError,
     apply_edge_refusals,
+    apply_predicate_links_to_edges,
     compose_program,
     merge_edge_extractions,
     merge_edges_into_program,
@@ -187,6 +188,43 @@ def test_merge_shape_validation_rejects_unknown_kind():
     bad = {"edges": [{"kind": "wishful", "from": {"predicate": "x"}, "to": {"predicate": "y"}}]}
     with pytest.raises(ExtractionShapeError, match="cause.*bidirected"):
         merge_edge_extractions(bad)
+
+
+def test_apply_predicate_links_to_edges_rewrites_all_edge_endpoints():
+    extraction = {
+        "edges": [
+            _cause("staying_up_late", "cognitive_slowness", "temporal evidence"),
+            _bidir("staying_up_late", "latent_alertness", "shared trait"),
+        ],
+        "refusals": [
+            _refusal("cognitive_slowness", "staying_up_late", "reverse"),
+        ],
+        "narrative_ambiguities": [{"kind": "alias", "description": "drift"}],
+    }
+    links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "staying_up_late",
+                "target_predicate": "stays_up_late",
+            },
+            {
+                "source_predicate": "cognitive_slowness",
+                "target_predicate": "feels_tired_next_morning",
+            },
+        ],
+    }
+
+    out = apply_predicate_links_to_edges(extraction, links)
+
+    assert out["edges"][0]["from"]["predicate"] == "stays_up_late"
+    assert out["edges"][0]["to"]["predicate"] == "feels_tired_next_morning"
+    assert out["edges"][1]["left"]["predicate"] == "stays_up_late"
+    assert out["edges"][1]["right"]["predicate"] == "latent_alertness"
+    assert out["refusals"][0]["from"] == "feels_tired_next_morning"
+    assert out["refusals"][0]["to"] == "stays_up_late"
+    assert out["narrative_ambiguities"] == extraction["narrative_ambiguities"]
+    assert extraction["edges"][0]["from"]["predicate"] == "staying_up_late"
 
 
 # ======================================================= merge_edges_into_program

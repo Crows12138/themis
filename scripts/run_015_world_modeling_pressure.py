@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 import themis
 from themis.upstream import (
     apply_predicate_links,
+    apply_predicate_links_to_edges,
     compose_program,
     diagnose_predicate_links,
 )
@@ -92,6 +93,24 @@ def _edge_kinds(program: dict[str, Any]) -> list[str]:
         for statement in program.get("statements", [])
         if isinstance(statement, dict) and statement.get("kind") in {"cause", "bidirected"}
     ]
+
+
+def _edge_pairs(program: dict[str, Any]) -> list[list[str]]:
+    pairs: list[list[str]] = []
+    for statement in program.get("statements", []):
+        if not isinstance(statement, dict):
+            continue
+        if statement.get("kind") == "cause":
+            pairs.append([
+                statement["from"]["predicate"],
+                statement["to"]["predicate"],
+            ])
+        elif statement.get("kind") == "bidirected":
+            pairs.append([
+                statement["left"]["predicate"],
+                statement["right"]["predicate"],
+            ])
+    return pairs
 
 
 def pressure_exercise_waist_variable_merge() -> PressureResult:
@@ -316,6 +335,106 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
     )
 
 
+def _late_sleep_edge_link_base_program() -> dict[str, Any]:
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "stays_up_late", "domain": [True, False]},
+            {"kind": "variable", "predicate": "feels_tired_next_morning", "domain": [True, False]},
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "cause",
+                    "from": _atom("stays_up_late"),
+                    "to": _atom("feels_tired_next_morning"),
+                },
+            },
+        ],
+    }
+
+
+def pressure_late_sleep_predicate_links_rewrite_edges() -> PressureResult:
+    drifted_edge_extraction = {
+        "edges": [
+            {
+                "kind": "cause",
+                "from": {"predicate": "staying_up_late"},
+                "to": {"predicate": "cognitive_slowness"},
+                "annotations": {
+                    "source": "narrative_proposal",
+                    "evidence": "最近连续一周熬夜到凌晨两点，第二天上午总是没精神",
+                },
+            },
+        ],
+        "refusals": [],
+        "narrative_ambiguities": [
+            {
+                "kind": "alias",
+                "description": "narrative edge predicates use the unconfirmed A5 names",
+            },
+        ],
+    }
+    confirmed_links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "staying_up_late",
+                "target_predicate": "stays_up_late",
+            },
+            {
+                "source_predicate": "cognitive_slowness",
+                "target_predicate": "feels_tired_next_morning",
+            },
+        ],
+    }
+
+    linked_edges = apply_predicate_links_to_edges(
+        drifted_edge_extraction,
+        confirmed_links,
+    )
+    program = compose_program(
+        _late_sleep_edge_link_base_program(),
+        edge_extraction=linked_edges,
+    )
+    result = themis.run(program)["results"][0]
+    themis.verify(program, result)
+    themis.verify_data_gap_report(result)
+
+    pairs = _edge_pairs(program)
+    ambiguity_kinds = [
+        ambiguity.get("kind")
+        for ambiguity in program.get("extensions", {}).get("ambiguities", [])
+    ]
+    _require(
+        pairs == [["stays_up_late", "feels_tired_next_morning"]],
+        "confirmed predicate links should rewrite narrative edge endpoints",
+    )
+    _require(
+        result["structural_result"]["value"] is True,
+        "rewritten narrative edge should support the cause query",
+    )
+    _require(
+        "alias" in ambiguity_kinds,
+        "edge-level alias decision should remain auditable",
+    )
+
+    return PressureResult(
+        name="late_sleep_predicate_links_rewrite_edges",
+        status="PASS",
+        details={
+            "edge_pairs": pairs,
+            "ambiguity_kinds": ambiguity_kinds,
+            "result_status": result["status"],
+            "structural_value": result["structural_result"]["value"],
+            "verify": "accepted",
+            "data_gap_verify": "accepted",
+            "pressure_signal": "confirmed_predicate_links_rewrite_edge_endpoints",
+        },
+    )
+
+
 def _coffee_assoc_base_program() -> dict[str, Any]:
     return {
         "version": "0.1",
@@ -454,6 +573,7 @@ def pressure_ice_cream_refusal_filters_edge() -> PressureResult:
 PRESSURES: tuple[Callable[[], PressureResult], ...] = (
     pressure_exercise_waist_variable_merge,
     pressure_late_sleep_predicate_drift,
+    pressure_late_sleep_predicate_links_rewrite_edges,
     pressure_coffee_latent_edge_assoc,
     pressure_ice_cream_refusal_filters_edge,
 )

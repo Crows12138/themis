@@ -391,6 +391,50 @@ def apply_predicate_links(extraction: dict, links) -> dict:
     return merge_variable_extractions({"variables": rewritten})
 
 
+def _rewrite_predicate_ref(ref: dict, mapping: dict[str, str]) -> dict:
+    out = deepcopy(ref)
+    pred = out.get("predicate")
+    if isinstance(pred, str):
+        out["predicate"] = mapping.get(pred, pred)
+    return out
+
+
+def apply_predicate_links_to_edges(edge_extraction: dict, links) -> dict:
+    """Rewrite narrative edge predicates after explicit link confirmation.
+
+    This is the A2 counterpart to ``apply_predicate_links`` for A5
+    variables. Confirmed source -> target predicate links must be applied
+    to edge endpoints too; otherwise a cleaned variable extraction can be
+    re-contaminated when the edge extraction reintroduces the old alias.
+    """
+    e = _require_edges_extraction(edge_extraction, "edge_extraction")
+    mapping = _normalize_predicate_links(links)
+
+    out = deepcopy(e)
+    rewritten_edges: list[dict] = []
+    for edge in e["edges"]:
+        item = deepcopy(edge)
+        if item["kind"] == "cause":
+            item["from"] = _rewrite_predicate_ref(item["from"], mapping)
+            item["to"] = _rewrite_predicate_ref(item["to"], mapping)
+        else:
+            item["left"] = _rewrite_predicate_ref(item["left"], mapping)
+            item["right"] = _rewrite_predicate_ref(item["right"], mapping)
+        rewritten_edges.append(item)
+    out["edges"] = rewritten_edges
+
+    rewritten_refusals: list[dict] = []
+    for refusal in _require_refusals_list(e, "edge_extraction"):
+        item = deepcopy(refusal)
+        item["from"] = mapping.get(item["from"], item["from"])
+        item["to"] = mapping.get(item["to"], item["to"])
+        rewritten_refusals.append(item)
+    if "refusals" in out or rewritten_refusals:
+        out["refusals"] = rewritten_refusals
+
+    return out
+
+
 # ====================================================== edge merge (Phase 4)
 #
 # A2 prompt (`narrative_to_edges.md`) emits this shape:
