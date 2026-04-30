@@ -14,7 +14,6 @@ if str(ROOT) not in sys.path:
 import themis
 from themis.upstream import (
     apply_predicate_links,
-    apply_predicate_links_to_edges,
     compose_program,
     diagnose_edge_predicate_links,
     diagnose_predicate_links,
@@ -395,13 +394,10 @@ def pressure_late_sleep_predicate_links_rewrite_edges() -> PressureResult:
         drifted_edge_extraction,
     )
 
-    linked_edges = apply_predicate_links_to_edges(
-        drifted_edge_extraction,
-        confirmed_links,
-    )
     program = compose_program(
         _late_sleep_edge_link_base_program(),
-        edge_extraction=linked_edges,
+        edge_extraction=drifted_edge_extraction,
+        predicate_links=confirmed_links,
     )
     result = themis.run(program)["results"][0]
     themis.verify(program, result)

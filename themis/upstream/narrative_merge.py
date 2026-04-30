@@ -1015,6 +1015,7 @@ def compose_program(
     base_program: dict,
     variable_extraction: dict | None = None,
     edge_extraction: dict | None = None,
+    predicate_links=None,
 ) -> dict:
     """Phase 4 end-to-end glue: fold A5 variables + A2 edges into a base program.
 
@@ -1027,7 +1028,10 @@ def compose_program(
     before edge insertion so question-side naive direct causes that the
     narrative explicitly rejects do not enter the final kernel program.
 
-    Either extraction may be ``None`` to skip that step.
+    Either extraction may be ``None`` to skip that step. If
+    ``predicate_links`` is provided, the same confirmed source -> target
+    mapping is applied to both variable declarations and edge/refusal
+    endpoints before composing the final program.
 
     Order matters: variables are merged first so any predicate
     referenced by an incoming edge is already declared. The edge
@@ -1039,6 +1043,17 @@ def compose_program(
     raise ``MergeConflictError`` with a message naming the predicate or pair.
     """
     out = deepcopy(base_program)
+    if predicate_links is not None:
+        if variable_extraction is not None:
+            variable_extraction = apply_predicate_links(
+                variable_extraction,
+                predicate_links,
+            )
+        if edge_extraction is not None:
+            edge_extraction = apply_predicate_links_to_edges(
+                edge_extraction,
+                predicate_links,
+            )
     if edge_extraction is not None:
         out = merge_narrative_ambiguities_into_program(out, edge_extraction)
         out = apply_edge_refusals(out, edge_extraction)

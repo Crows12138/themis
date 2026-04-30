@@ -389,6 +389,68 @@ def test_compose_program_with_both_extractions():
     assert result["results"][0].get("status")
 
 
+def test_compose_program_applies_confirmed_predicate_links_to_variables_and_edges():
+    base = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "stays_up_late", "domain": [True, False]},
+            {"kind": "variable", "predicate": "feels_tired_next_morning", "domain": [True, False]},
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "cause",
+                    "from": _atom("stays_up_late"),
+                    "to": _atom("feels_tired_next_morning"),
+                },
+            },
+        ],
+    }
+    variables = {
+        "variables": [
+            {
+                "kind": "variable",
+                "predicate": "staying_up_late",
+                "domain": [True, False],
+                "observability": "self-report",
+            },
+        ],
+    }
+    edges = {
+        "edges": [_cause("staying_up_late", "cognitive_slowness")],
+    }
+    links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "staying_up_late",
+                "target_predicate": "stays_up_late",
+            },
+            {
+                "source_predicate": "cognitive_slowness",
+                "target_predicate": "feels_tired_next_morning",
+            },
+        ],
+    }
+
+    out = compose_program(base, variables, edges, predicate_links=links)
+
+    decls = {
+        s["predicate"]: s
+        for s in out["statements"]
+        if s.get("kind") == "variable"
+    }
+    assert set(decls) == {"feels_tired_next_morning", "stays_up_late"}
+    assert decls["stays_up_late"]["observability"] == "self-report"
+    causes = [s for s in out["statements"] if s.get("kind") == "cause"]
+    assert causes[0]["from"]["predicate"] == "stays_up_late"
+    assert causes[0]["to"]["predicate"] == "feels_tired_next_morning"
+
+    result = themis.run(out)["results"][0]
+    assert result["structural_result"]["value"] is True
+
+
 def test_compose_program_skips_none_extractions():
     base = _empty_program(["x", "y"])
     out = compose_program(base, None, None)
