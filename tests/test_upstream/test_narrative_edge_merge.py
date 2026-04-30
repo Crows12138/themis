@@ -198,7 +198,7 @@ def test_apply_predicate_links_to_edges_rewrites_all_edge_endpoints():
             _bidir("staying_up_late", "latent_alertness", "shared trait"),
         ],
         "refusals": [
-            _refusal("cognitive_slowness", "staying_up_late", "reverse"),
+            _refusal("cognitive_slowness", "latent_alertness", "reverse"),
         ],
         "narrative_ambiguities": [{"kind": "alias", "description": "drift"}],
     }
@@ -223,9 +223,35 @@ def test_apply_predicate_links_to_edges_rewrites_all_edge_endpoints():
     assert out["edges"][1]["left"]["predicate"] == "stays_up_late"
     assert out["edges"][1]["right"]["predicate"] == "latent_alertness"
     assert out["refusals"][0]["from"] == "feels_tired_next_morning"
-    assert out["refusals"][0]["to"] == "stays_up_late"
+    assert out["refusals"][0]["to"] == "latent_alertness"
     assert out["narrative_ambiguities"] == extraction["narrative_ambiguities"]
     assert extraction["edges"][0]["from"]["predicate"] == "staying_up_late"
+
+
+def test_apply_predicate_links_to_edges_dedups_collapsed_edges_with_evidence():
+    extraction = {
+        "edges": [
+            _cause("jogging", "health_improved", "first span"),
+            _cause("running", "health_improved", "second span"),
+        ],
+    }
+    links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "jogging",
+                "target_predicate": "running",
+            },
+        ],
+    }
+
+    out = apply_predicate_links_to_edges(extraction, links)
+
+    assert len(out["edges"]) == 1
+    edge = out["edges"][0]
+    assert edge["from"]["predicate"] == "running"
+    assert edge["to"]["predicate"] == "health_improved"
+    assert edge["annotations"]["evidence"] == ["first span", "second span"]
 
 
 def test_diagnose_edge_predicate_links_reports_unmatched_endpoints_once():

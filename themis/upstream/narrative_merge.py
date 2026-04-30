@@ -477,7 +477,7 @@ def apply_predicate_links_to_edges(edge_extraction: dict, links) -> dict:
     if "refusals" in out or rewritten_refusals:
         out["refusals"] = rewritten_refusals
 
-    return out
+    return merge_edge_extractions(out)
 
 
 # ====================================================== edge merge (Phase 4)

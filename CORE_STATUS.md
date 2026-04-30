@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1418 passed / 144 skipped, warning-clean
+1419 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1123,7 +1123,7 @@ python scripts\run_015_world_modeling_pressure.py
 - Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的
   association 查询走 m-separation；`cause` / `probability` 仍保持 gate
 
-**当前全量测试**：1418 passed / 144 skipped, warning-clean。
+**当前全量测试**：1419 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 
