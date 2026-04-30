@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1419 passed / 144 skipped, warning-clean
+1420 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1103,7 +1103,8 @@ python scripts\run_015_world_modeling_pressure.py
   link bundle 可重写 A2 cause / bidirected endpoints 与 refusals，保证
   变量合并和边合并使用同一套 predicate 对齐
 - `themis.upstream.compose_program(..., predicate_links=...)`：把 confirmed
-  link bundle 作为统一入口，同时应用到 variables 和 edges，降低调用方漏改一侧的风险
+  link bundle 作为统一入口，同时应用到 variables 和 edges，降低调用方漏改一侧的风险；
+  link target 必须已存在于 base program variables，否则抛 `PredicateLinkError`
 - 0.15 压测输出现在包含 `predicate_link_diagnostic`，能把
   `staying_up_late -> stays_up_late` 这种形态漂移高分暴露出来，同时把
   `cognitive_slowness` 这种低 lexical evidence 保持为待确认项
@@ -1123,7 +1124,7 @@ python scripts\run_015_world_modeling_pressure.py
 - Phase 2.latent S4 的窄 runtime gate 已放开 `assoc`：ADMG 程序上的
   association 查询走 m-separation；`cause` / `probability` 仍保持 gate
 
-**当前全量测试**：1419 passed / 144 skipped, warning-clean。
+**当前全量测试**：1420 passed / 144 skipped, warning-clean。
 
 ## 下一步候选（按真实压力等待选）
 

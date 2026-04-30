@@ -416,6 +416,17 @@ def _normalize_predicate_links(links) -> dict[str, str]:
     return mapping
 
 
+def _validate_link_targets_in_program(program_ast: dict, links) -> None:
+    mapping = _normalize_predicate_links(links)
+    targets = set(_program_variable_predicates(program_ast))
+    missing = sorted({target for target in mapping.values() if target not in targets})
+    if missing:
+        raise PredicateLinkError(
+            "predicate link targets must exist in base program variables: "
+            + ", ".join(missing)
+        )
+
+
 def apply_predicate_links(extraction: dict, links) -> dict:
     """Rewrite narrative variable predicates after explicit confirmation.
 
@@ -1041,6 +1052,7 @@ def compose_program(
     """
     out = deepcopy(base_program)
     if predicate_links is not None:
+        _validate_link_targets_in_program(out, predicate_links)
         if variable_extraction is not None:
             variable_extraction = apply_predicate_links(
                 variable_extraction,

@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 from themis.upstream import (
     ExtractionShapeError,
     MergeConflictError,
+    PredicateLinkError,
     apply_edge_refusals,
     apply_predicate_links_to_edges,
     compose_program,
@@ -475,6 +476,27 @@ def test_compose_program_applies_confirmed_predicate_links_to_variables_and_edge
 
     result = themis.run(out)["results"][0]
     assert result["structural_result"]["value"] is True
+
+
+def test_compose_program_rejects_predicate_link_target_outside_base_program():
+    base = _empty_program(["running"])
+    variables = {
+        "variables": [
+            {"kind": "variable", "predicate": "jogging", "domain": [True, False]},
+        ],
+    }
+    links = {
+        "kind": "predicate_link_bundle",
+        "links": [
+            {
+                "source_predicate": "jogging",
+                "target_predicate": "runing_typo",
+            },
+        ],
+    }
+
+    with pytest.raises(PredicateLinkError, match="runing_typo"):
+        compose_program(base, variables, predicate_links=links)
 
 
 def test_compose_program_skips_none_extractions():
