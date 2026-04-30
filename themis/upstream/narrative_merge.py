@@ -999,10 +999,7 @@ def apply_edge_refusals(program_ast: dict, edge_extraction: dict) -> dict:
 
     for refusal in refusals:
         generated = _refusal_ambiguity(refusal)
-        if not any(
-            isinstance(item, dict) and item.get("kind") == generated["kind"]
-            for item in ambiguities
-        ):
+        if generated not in ambiguities:
             ambiguities.append(generated)
 
     return out

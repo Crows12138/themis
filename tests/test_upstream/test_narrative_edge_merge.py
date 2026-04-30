@@ -488,6 +488,46 @@ def test_apply_edge_refusals_removes_exact_question_side_direct_edge():
     assert ambiguities[0]["alternatives"] == ["eating_ice_cream -> drowning"]
 
 
+def test_apply_edge_refusals_keeps_multiple_same_kind_audit_records():
+    base = _empty_program(["x1", "y1", "x2", "y2"])
+    base["statements"].extend([
+        {"kind": "cause", "from": _atom("x1"), "to": _atom("y1")},
+        {"kind": "cause", "from": _atom("x2"), "to": _atom("y2")},
+    ])
+    edge_extraction = {
+        "edges": [],
+        "refusals": [
+            {
+                "kind": "refuse_direct_edge",
+                "from": "x1",
+                "to": "y1",
+                "pattern": "confounder",
+                "reason": "first confounder",
+            },
+            {
+                "kind": "refuse_direct_edge",
+                "from": "x2",
+                "to": "y2",
+                "pattern": "confounder",
+                "reason": "second confounder",
+            },
+        ],
+    }
+
+    out = apply_edge_refusals(base, edge_extraction)
+
+    assert [s for s in out["statements"] if s.get("kind") == "cause"] == []
+    ambiguities = out["extensions"]["ambiguities"]
+    assert [item["kind"] for item in ambiguities] == [
+        "confounder_refusal",
+        "confounder_refusal",
+    ]
+    assert [item["alternatives"] for item in ambiguities] == [
+        ["x1 -> y1"],
+        ["x2 -> y2"],
+    ]
+
+
 def test_merge_narrative_ambiguities_into_program_preserves_prompt_decision():
     base = _empty_program(["drinks_coffee", "alertness"])
     edge_extraction = json.loads(
@@ -552,7 +592,11 @@ def test_compose_program_applies_narrative_refusal_before_kernel_run():
         item["kind"]
         for item in program["extensions"]["ambiguities"]
     ]
-    assert ambiguity_kinds == ["confounder_refusal"]
+    assert ambiguity_kinds == ["confounder_refusal", "confounder_refusal"]
+    assert any(
+        item.get("alternatives") == ["eating_ice_cream -> drowning"]
+        for item in program["extensions"]["ambiguities"]
+    )
     themis.verify(program, result)
 
 
