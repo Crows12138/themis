@@ -236,9 +236,13 @@ def test_transport_emits_blocking_gap():
 # ============================================ 5. ambiguous_variable_definition
 
 
-def test_ambiguous_variable_emits_informational_gap():
+def test_ambiguous_variable_emits_important_gap_when_on_query_path():
     """A variable declared with framing fields missing AND referenced by
-    the query → framing_note fires → informational gap."""
+    the query → framing_note fires → important gap (the framing shapes
+    how the answer reads, so it surfaces near the headline rather than
+    as an end-of-reply caveat). Predicates declared but not on the
+    query path stay informational; covered in
+    test_phase10_data_gap_generator.py."""
     fx = REPO / "tests" / "test_e2e" / "fixtures" / "exercise_waist_underframed.json"
     program = json.loads(fx.read_text(encoding="utf-8"))
     out = _run_and_verify(program)
@@ -252,7 +256,7 @@ def test_ambiguous_variable_emits_informational_gap():
                 g for g in report["gaps"]
                 if g["kind"] == "ambiguous_variable_definition"
             )
-            assert gap["severity"] == "informational"
+            assert gap["severity"] == "important"
             # framing gaps don't block identification (graph-only) or the
             # estimate (Theta numbers); they block the user's ability to
             # *interpret* what was identified / estimated.

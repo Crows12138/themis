@@ -127,7 +127,7 @@ def compute_data_gap_report(
     gaps.extend(_classify_missing_iv(investigation_requests, derivation))
     gaps.extend(_classify_missing_mediator(extensions, investigation_requests))
     gaps.extend(_classify_transport_target_distribution(extensions))
-    gaps.extend(_classify_ambiguous_variable(framing_notes))
+    gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
     gaps.extend(_classify_dose_response_data(program, stmt, derivation))
 
     gaps.sort(key=_gap_sort_key)
@@ -697,12 +697,24 @@ def _query_intervention_label(stmt) -> str:
 
 def _classify_ambiguous_variable(
     framing_notes: tuple[FramingNote, ...],
+    stmt=None,
 ) -> Iterable[DataGap]:
+    on_query_path = _query_referenced_predicates(stmt)
     for note in framing_notes:
+        # Predicates the query directly references take IMPORTANT
+        # severity — their framing shapes how the answer is read,
+        # so the gap belongs near the headline rather than at the end
+        # as a quiet caveat. Predicates declared in the program but
+        # not on the query path stay INFORMATIONAL.
+        severity = (
+            GapSeverity.IMPORTANT
+            if note.predicate in on_query_path
+            else GapSeverity.INFORMATIONAL
+        )
         missing_str = ", ".join(note.missing)
         yield DataGap(
             kind=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
-            severity=GapSeverity.INFORMATIONAL,
+            severity=severity,
             description=(
                 f"变量 `{note.predicate}` 缺操作化定义：{missing_str}"
             ),
@@ -717,6 +729,47 @@ def _classify_ambiguous_variable(
                 ),
             ),
         )
+
+
+def _query_referenced_predicates(stmt) -> frozenset[str]:
+    """Predicates the query atom references — across all query kinds.
+
+    Returns an empty set when ``stmt`` is None or has no recoverable
+    query atoms. Effect queries name intervention / target / given /
+    mediator; cause queries name from_atom / to_atom; assoc queries
+    name left / right.
+    """
+    if stmt is None:
+        return frozenset()
+    q = getattr(stmt, "query", None)
+    if q is None:
+        return frozenset()
+    found: set[str] = set()
+
+    def _add_atom(obj) -> None:
+        if obj is None:
+            return
+        atom = getattr(obj, "atom", None) or obj
+        pred = getattr(atom, "predicate", None)
+        if pred:
+            found.add(pred)
+
+    # Effect / counterfactual shape: intervention.atom, target.atom, mediator,
+    # given is a list of atoms (or atom wrappers).
+    _add_atom(getattr(q, "intervention", None))
+    _add_atom(getattr(q, "target", None))
+    _add_atom(getattr(q, "mediator", None))
+    given = getattr(q, "given", None)
+    if given:
+        for entry in given:
+            _add_atom(entry)
+    # Cause query: from_atom / to_atom (plus dict-shaped fallbacks).
+    for attr in ("from_atom", "from_", "from", "to_atom", "to"):
+        _add_atom(getattr(q, attr, None))
+    # Assoc query: left / right.
+    for attr in ("left", "right"):
+        _add_atom(getattr(q, attr, None))
+    return frozenset(found)
 
 
 # ============================================ helpers

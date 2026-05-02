@@ -418,6 +418,76 @@ def test_framing_note_emits_informational_gap():
     assert "time_window" in g.description and "measurement" in g.description
 
 
+def test_framing_note_on_query_path_upgrades_to_important():
+    """Real-test caught: when the underframed predicate is referenced
+    by the query atom (intervention / target / from / to / left / right
+    / mediator / given), its framing gap is load-bearing for how the
+    answer reads — bumped from `informational` to `important` so the
+    renderer surfaces it near the headline rather than as a quiet
+    end-of-reply caveat."""
+    import themis
+
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "stays_up_late"},
+            {"kind": "variable", "predicate": "prefrontal_function"},
+            {"kind": "cause",
+             "from": {"predicate": "stays_up_late",
+                      "args": [{"type": "const", "name": "me"}]},
+             "to": {"predicate": "prefrontal_function",
+                    "args": [{"type": "const", "name": "me"}]},
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "query", "id": "q",
+             "query": {
+               "kind": "cause",
+               "from": {"predicate": "stays_up_late",
+                        "args": [{"type": "const", "name": "me"}]},
+               "to": {"predicate": "prefrontal_function",
+                      "args": [{"type": "const", "name": "me"}]}}}
+        ],
+    }
+    out = themis.run(program)
+    gaps = out["results"][0]["data_gap_report"]["gaps"]
+    framing = [g for g in gaps
+               if g["kind"] == "ambiguous_variable_definition"]
+    # Both predicates are on the query path, so both are important.
+    assert len(framing) == 2
+    assert all(g["severity"] == "important" for g in framing)
+
+
+def test_framing_note_off_query_path_stays_informational():
+    """Companion to the upgrade rule: a framing note for a predicate
+    the query does not reference keeps informational severity. Built
+    directly against ``compute_data_gap_report`` via a duck-typed stmt
+    so the test isolates the severity decision from kernel framing-note
+    generation (which only emits notes for query-relevant predicates)."""
+    from types import SimpleNamespace
+
+    notes = (
+        FramingNote(predicate="on_query_path", missing=("time_window",)),
+        FramingNote(predicate="off_query_path", missing=("time_window",)),
+    )
+    stmt = SimpleNamespace(query=SimpleNamespace(
+        from_atom=SimpleNamespace(predicate="on_query_path"),
+        to_atom=SimpleNamespace(predicate="other_target"),
+    ))
+    report = compute_data_gap_report(
+        query_kind=QueryKind.CAUSE,
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        framing_notes=notes,
+        stmt=stmt,
+    )
+    by_pred = {
+        g.description.split("`")[1]: g.severity
+        for g in report.gaps
+        if g.kind == GapKind.AMBIGUOUS_VARIABLE_DEFINITION
+    }
+    assert by_pred["on_query_path"] == GapSeverity.IMPORTANT
+    assert by_pred["off_query_path"] == GapSeverity.INFORMATIONAL
+
+
 # ============================================ multi-gap composition
 
 
