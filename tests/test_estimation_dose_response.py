@@ -366,6 +366,24 @@ def test_constant_outcome_fails_loudly_not_silently_zero():
     assert out["results"][0]["status"] != "numerically_solved"
 
 
+def test_near_constant_outcome_uses_relative_variance_threshold():
+    """A1: absolute std threshold leaked near-constant outcomes when
+    std was just above 1e-9 on a normal outcome scale. Relative std/scale
+    must reject the same degenerate fit before EconML runs."""
+    df = _synth_data()
+    rng = np.random.default_rng(123)
+    df["engagement"] = 4.0 + rng.normal(0.0, 1e-8, size=len(df))
+
+    out = themis.estimate(_dose_response_program(), df, model="linear")
+
+    failure = out["results"][0].get("estimator_failure")
+    assert failure is not None
+    assert failure["failure_type"] == "convergence_failure"
+    details = failure["details"]
+    assert details["outcome_relative_std"] < 1e-8
+    assert "numeric_estimate" not in out["results"][0]
+
+
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_explicit_drlearner_at_small_n_is_honored():
     """Subagent caught: 'drlearner' was missing from dispatch's
@@ -457,6 +475,138 @@ def test_dose_response_ambiguity_with_explicit_query_id_targets_only_that():
     # Only q_tenure (named in query_id) should be dose-response now.
     assert "dose_response" not in q1_method
     assert "dose_response" in q_tenure_method
+
+
+def test_dose_response_invalid_explicit_query_id_warns_not_silent():
+    """A3: explicit query_id that points nowhere used to disappear.
+    The estimator should leave the normal effect path alone but surface
+    a data_contract_warning naming the bad query_id."""
+    program = _dose_response_program()
+    program["extensions"]["ambiguities"][0]["query_id"] = "no_such_query"
+    df = _synth_data()
+    df["raise_amount"] = df["raise_amount"] > 5.0
+    df["engagement"] = df["engagement"] > df["engagement"].median()
+
+    out = themis.estimate(program, df, model="linear")
+
+    result = out["results"][0]
+    warnings = result["estimation_context"]["data_contract_warnings"]
+    assert any("no_such_query" in warning for warning in warnings)
+    method = result.get("numeric_estimate", {}).get("method", "")
+    assert "dose_response" not in method
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_implicit_dose_response_skips_leading_mediation_query():
+    """A2: a leading mediation effect query must not consume an
+    unqualified dose_response ambiguity. Route to the next plain effect
+    query and emit a warning about the skip."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "extensions": {
+            "ambiguities": [
+                {"kind": "dose_response_query", "description": "curve"},
+            ],
+        },
+        "statements": [
+            {"kind": "variable", "predicate": "x"},
+            {"kind": "variable", "predicate": "m"},
+            {"kind": "variable", "predicate": "y"},
+            {"kind": "variable", "predicate": "raise_amount"},
+            {"kind": "variable", "predicate": "engagement"},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("m")},
+            {"kind": "cause", "from": _atom("m"), "to": _atom("y")},
+            {"kind": "cause", "from": _atom("raise_amount"), "to": _atom("engagement")},
+            {
+                "kind": "query",
+                "id": "q_med",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {"atom": _atom("x"), "value": True},
+                    "target": {"atom": _atom("y"), "value": True},
+                    "given": [],
+                    "mediator": _atom("m"),
+                },
+            },
+            {
+                "kind": "query",
+                "id": "q_curve",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {"atom": _atom("raise_amount"), "value": True},
+                    "target": {"atom": _atom("engagement"), "value": 4},
+                    "given": [],
+                },
+            },
+        ],
+    }
+    df = _synth_data(n=120)
+    rng = np.random.default_rng(5)
+    df["x"] = rng.random(len(df)) < 0.5
+    df["m"] = rng.random(len(df)) < 0.5
+    df["y"] = rng.random(len(df)) < 0.5
+
+    out = themis.estimate(program, df, model="linear")
+
+    by_id = {r["query_id"]: r for r in out["results"]}
+    assert "dose_response" not in by_id["q_med"].get("numeric_estimate", {}).get(
+        "method", "",
+    )
+    assert "dose_response" in by_id["q_curve"]["numeric_estimate"]["method"]
+    warnings = by_id["q_curve"]["estimation_context"]["data_contract_warnings"]
+    assert any("q_med" in warning and "q_curve" in warning for warning in warnings)
+
+
+def test_no_effect_query_with_dose_response_ambiguity_warns_and_keeps_gap():
+    """B2: if dose_response_query exists but there is no effect query,
+    estimation must not be silent. The run layer already emits the
+    dose_response_data_required gap; estimate adds a contract warning."""
+    program = _dose_response_program()
+    program["statements"] = [
+        stmt for stmt in program["statements"]
+        if stmt.get("kind") != "query"
+    ]
+    program["statements"].append({
+        "kind": "query",
+        "id": "q_cause",
+        "query": {
+            "kind": "cause",
+            "from": _atom("raise_amount"),
+            "to": _atom("engagement"),
+        },
+    })
+
+    out = themis.estimate(program, _synth_data(n=80), model="linear")
+
+    result = out["results"][0]
+    gaps = result["data_gap_report"]["gaps"]
+    assert any(gap["kind"] == "dose_response_data_required" for gap in gaps)
+    warnings = result["estimation_context"]["data_contract_warnings"]
+    assert any("no effect query" in warning for warning in warnings)
+
+
+def test_bool_treatment_dose_response_falls_back_to_marked_binary_effect():
+    """B3: bool T plus dose_response used to return an unmarked
+    two-point curve. Prefer the binary effect estimator and mark the
+    fallback explicitly."""
+    df = _synth_data(n=200)
+    rng = np.random.default_rng(33)
+    df["raise_amount"] = rng.random(len(df)) < 0.5
+    p = 0.2 + 0.4 * df["raise_amount"].astype(float)
+    df["engagement"] = rng.random(len(df)) < p
+
+    out = themis.estimate(_dose_response_program(), df, model="linear")
+
+    result = out["results"][0]
+    fallback = result.get("estimator_fallback")
+    assert fallback is not None
+    assert fallback["from"] == "dose_response"
+    assert fallback["to"] == "binary_effect"
+    method = result["numeric_estimate"]["method"]
+    assert "dose_response" not in method
+    warnings = result["estimation_context"]["data_contract_warnings"]
+    assert any("binary" in warning for warning in warnings)
 
 
 def test_no_dose_response_ambiguity_keeps_binary_path():

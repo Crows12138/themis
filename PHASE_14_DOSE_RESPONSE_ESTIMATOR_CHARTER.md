@@ -128,6 +128,26 @@ T 离散化（或 SparseLinearDML + poly features）。这是 slice b.2 / 未来
   `failure_type='overlap_insufficient'` 携带 `sparse_bins`/`bin_counts`
   详情
 
+## 已落地：hardening A/B（2026-05-02）
+
+这轮不是扩 estimator 能力，而是收紧已有 dose-response 行为边界：
+
+- A1：constant-outcome guard 从绝对阈值改成 `std/scale` 与
+  `range/scale` 相对阈值，避免正常量纲下近似常数 outcome 漏过 pre-fit
+  检查后产出伪曲线。
+- A2：program-level `dose_response_query` 不再被第一个 mediation effect
+  query 静默吞掉；无显式 `query_id` 时路由到第一个非 mediation effect
+  query，并把跳过行为写入 `data_contract_warnings`。
+- A3：显式 `query_id` 指向不存在的 query 时，不再静默丢弃；估计输出
+  保持普通 effect 路径，同时写入 `data_contract_warnings`。
+- A5：dose-response estimator 内部失败继续抛 `EstimatorFailure`，dispatch
+  统一转成结构化 `estimator_failure`，不回到旧的 silent fallback 语义。
+- B2：只有 `dose_response_query` ambiguity 但没有 effect query 时，输出
+  `data_contract_warnings`，并保留 run 层的 `dose_response_data_required`
+  gap，避免用户误以为 estimator 已处理。
+- B3：boolean treatment 命中 `dose_response_query` 时，不再生成未标记的
+  两点曲线；显式 fallback 到 binary effect，并记录 `estimator_fallback`。
+
 ## 3. 触发条件（历史）与当前状态
 
 原始触发条件：

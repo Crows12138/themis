@@ -94,7 +94,8 @@ def _estimate_effect_queries(
     graph = project(ground_statements)
     bidirected = structural_solver.bidirected_from_ground(ground_statements)
 
-    dose_response_query_ids = _dose_response_target_query_ids(prog)
+    dose_response_query_ids, dose_response_warnings = _dose_response_routing_plan(prog)
+    _append_data_contract_warnings(output, dose_response_warnings)
 
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None:
@@ -123,7 +124,26 @@ def _estimate_effect_queries(
         # estimator instead of the binary-effect ATE estimator. Other
         # strategies (front-door / IV / mediation) keep their existing
         # binary-effect path until a real-case demands the curve there.
-        if dose_response_triggered and adjustment_sets:
+        if dose_response_triggered and _is_binary_treatment(
+            contract.data, x_atom.predicate,
+        ):
+            result["estimator_fallback"] = {
+                "from": "dose_response",
+                "to": "binary_effect",
+                "reason": (
+                    "treatment is binary; a dose-response curve would "
+                    "degenerate to a two-point contrast"
+                ),
+            }
+            _append_result_data_contract_warning(
+                result,
+                (
+                    "dose_response_query fell back to binary effect because "
+                    f"treatment {x_atom.predicate!r} is binary"
+                ),
+            )
+
+        if dose_response_triggered and "estimator_fallback" not in result and adjustment_sets:
             chosen = min(adjustment_sets, key=len)
             adjustment_names = tuple(
                 a.predicate for a in _topo_order(graph, chosen)
@@ -622,21 +642,22 @@ def _pair_effect_queries(prog, output):
         yield id_to_stmt.get(qid), result
 
 
-def _dose_response_target_query_ids(prog) -> set[str]:
-    """Returns the set of query_ids that should get dose-response
-    estimation. Subagent real-test caught: when a program had multiple
-    effect queries and a single program-level dose_response_query
-    ambiguity, ALL queries were routed through the curve estimator —
-    even ones the user clearly meant as ordinary binary contrasts.
+def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
+    """Return (target_query_ids, warnings) for dose-response estimation.
 
     Resolution rule:
-    1. If an ambiguity carries an explicit ``query_id``, only that
-       query gets dose-response treatment.
-    2. If no explicit ``query_id`` is set, dose-response applies to
-       the FIRST effect query only — preserving the legacy single-query
-       flow without bleeding onto neighbors.
-
-    Returns an empty set when no dose-response ambiguity is present."""
+    1. Explicit ``query_id`` targets exactly that non-mediation effect
+       query. Bad ids and mediation ids produce warnings instead of
+       silently disappearing.
+    2. Without explicit ``query_id``, route the first *non-mediation*
+       effect query. This avoids the old leak where a leading mediation
+       query consumed the dose-response ambiguity and the intended
+       ordinary effect query was never estimated.
+    3. If there is no eligible effect query, leave routing empty and
+       emit a data-contract warning. The structural layer may still
+       expose a ``dose_response_data_required`` gap on a non-effect
+       query; the estimator must not stay silent.
+    """
     from ..types import EffectQuery, QueryStatement
 
     extensions = getattr(prog, "extensions", None) or {}
@@ -646,25 +667,93 @@ def _dose_response_target_query_ids(prog) -> set[str]:
         if isinstance(a, dict) and a.get("kind") == "dose_response_query"
     ]
     if not dose_ambs:
-        return set()
+        return set(), []
 
-    effect_query_ids = [
-        s.id for s in prog.statements
+    effect_stmts = [
+        s for s in prog.statements
         if isinstance(s, QueryStatement) and isinstance(s.query, EffectQuery)
     ]
-    if not effect_query_ids:
-        return set()
-    first_effect_id = effect_query_ids[0]
+    effect_by_id = {s.id: s for s in effect_stmts}
+    eligible_effect_ids = [
+        s.id for s in effect_stmts
+        if s.query.mediator is None
+    ]
+
+    warnings: list[str] = []
+    if not effect_stmts:
+        warnings.append(
+            "dose_response_query present but program has no effect query; "
+            "estimator skipped and data-gap report should be used",
+        )
+        return set(), warnings
+    if not eligible_effect_ids:
+        warnings.append(
+            "dose_response_query present but all effect queries are mediation "
+            "queries; dose-response estimator requires a non-mediation "
+            "effect query",
+        )
+        return set(), warnings
 
     targets: set[str] = set()
     for a in dose_ambs:
         explicit = a.get("query_id")
         if explicit is not None:
-            if explicit in effect_query_ids:
+            target_stmt = effect_by_id.get(explicit)
+            if target_stmt is None:
+                warnings.append(
+                    f"dose_response_query query_id {explicit!r} does not "
+                    "match any effect query; estimator skipped for that "
+                    "ambiguity",
+                )
+            elif target_stmt.query.mediator is not None:
+                warnings.append(
+                    f"dose_response_query query_id {explicit!r} targets a "
+                    "mediation effect query; dose-response estimator skipped",
+                )
+            else:
                 targets.add(explicit)
         else:
-            targets.add(first_effect_id)
-    return targets
+            first_effect_id = effect_stmts[0].id
+            first_eligible_id = eligible_effect_ids[0]
+            if first_effect_id != first_eligible_id:
+                warnings.append(
+                    "dose_response_query without query_id skipped leading "
+                    f"mediation effect query {first_effect_id!r} and routed "
+                    f"to {first_eligible_id!r}",
+                )
+            targets.add(first_eligible_id)
+    return targets, warnings
+
+
+def _append_data_contract_warnings(output: dict, warnings: list[str]) -> None:
+    if not warnings:
+        return
+    for result in output.get("results", []):
+        for warning in warnings:
+            _append_result_data_contract_warning(result, warning)
+
+
+def _append_result_data_contract_warning(result: dict, warning: str) -> None:
+    ctx = result.setdefault("estimation_context", {})
+    existing = list(ctx.get("data_contract_warnings") or [])
+    if warning not in existing:
+        existing.append(warning)
+    ctx["data_contract_warnings"] = existing
+
+
+def _is_binary_treatment(data, treatment: str) -> bool:
+    if treatment not in data.columns:
+        return False
+    series = data[treatment].dropna()
+    if series.empty:
+        return False
+    try:
+        if str(series.dtype) == "bool":
+            return True
+        values = set(series.unique().tolist())
+    except Exception:
+        return False
+    return values.issubset({False, True, 0, 1}) and len(values) <= 2
 
 
 def _resolve_dose_response_points(prog, x_atom):

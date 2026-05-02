@@ -47,6 +47,7 @@ _DEFAULT_QUANTILES = (0.10, 0.25, 0.50, 0.75, 0.90)
 # in 'auto' mode. Forest needs enough data per leaf for honest splits
 # to give meaningful CIs; below this we fall back to the linear model.
 _FOREST_MIN_N = 200
+_MIN_RELATIVE_OUTCOME_STD = 1e-8
 
 ModelChoice = Literal["auto", "linear", "forest", "drlearner"]
 
@@ -404,16 +405,26 @@ def _check_outcome_variance(*, y: np.ndarray) -> None:
     degenerate"."""
     y_std = float(np.std(y))
     y_range = float(y.max() - y.min())
-    if y_std < 1e-9 or y_range < 1e-9:
+    scale = max(float(np.max(np.abs(y))), 1.0)
+    relative_std = y_std / scale
+    relative_range = y_range / scale
+    if (
+        relative_std < _MIN_RELATIVE_OUTCOME_STD
+        or relative_range < _MIN_RELATIVE_OUTCOME_STD
+    ):
         raise EstimatorFailure(
             failure_type="convergence_failure",
             message=(
-                f"outcome 列方差过低（std={y_std:.2g}, range={y_range:.2g}）；"
+                f"outcome 列方差过低（std={y_std:.2g}, range={y_range:.2g}, "
+                f"relative_std={relative_std:.2g}）；"
                 "退化拟合会给出全零曲线和零宽 CI，用户会读成'无效应'实为"
                 "数据问题。"
             ),
             outcome_std=y_std,
             outcome_range=y_range,
+            outcome_scale=scale,
+            outcome_relative_std=relative_std,
+            outcome_relative_range=relative_range,
         )
 
 
