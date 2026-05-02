@@ -317,7 +317,12 @@ If `program` is available, inspect each `cause` and `bidirected`
 statement's `annotations.source`:
 
 - `"llm_proposal"` — you (the upstream LLM) hypothesized this edge.
-  Disclose explicitly.
+  Disclose with weight proportional to how much the answer leans on
+  the proposal. When the query itself is *about* a proposal edge or
+  proposal mediator (e.g. cause query on a proposal edge, mediation
+  decomposition through a proposal mediator), disclosure leads the
+  headline — the structural answer is then a replay of your own
+  assumption, not Themis's independent verification.
 - A concrete citation (e.g. `"PubMed:12345"`) — evidence-backed; no
   special line needed beyond the normal reply.
 
@@ -472,6 +477,11 @@ structural and the numeric (`iv_wald` / `iv_2sls`) paths.
 | `mediator_intercepts_all_directed_paths_from_treatment_to_outcome` | 中介拦截了 X→Y 的所有有向路径 |
 | `no_unblocked_backdoor_from_treatment_to_mediator` | X→M 段无未阻断后门 |
 | `backdoor_from_mediator_to_outcome_blocked_by_treatment` | 给定 X 后 M→Y 的后门已被阻断 |
+| `sequential_ignorability_treatment_and_mediator` | 顺序可忽略性：处理 + 中介都满足条件随机化（Imai 关键假设）|
+| `no_intermediate_confounder_affected_by_treatment` | 没有被处理影响的"中间混杂"（即不存在 X 的后代同时影响 M 和 Y）|
+| `pearl_2001_four_conditions_hold_on_the_graph` | Pearl 2001 中介分解四条件在因果图上成立 |
+| `logit_outcome_regression` | outcome 用 logit 回归 |
+| `adjustment_set_blocks_mediator_outcome_backdoor_given_treatment` | 给定 X 后调整集阻断 M→Y 的后门 |
 
 For IDs not in the table, render the snake_case verbatim — don't
 invent translations.
@@ -576,6 +586,16 @@ section focuses on *what could go wrong*.
 When `extensions.mediation_decomposition` is present, the query asked
 for an effect decomposition through a mediator.
 
+Identifiability is a property of the graph: "可识别" means the graph
+permits decomposition under the declared assumptions, not that the
+mediator factually mediates the effect. Don't translate it as
+existential ("合法 / 真实 / 确实"). When `numeric_estimate` is also
+present (mediation went through `themis.estimate`), render numbers
+the same way as the backdoor / front-door numeric templates: point +
+CI + method + assumptions translated via the glossary. No parallel
+mediation-numeric template lives below — reuse the §"Numeric
+rendering" shape.
+
 `strategy` field branches:
 
 - `nde_nie` — best case. Both natural direct/indirect and CDE
@@ -591,7 +611,12 @@ for an effect decomposition through a mediator.
   X → ... → M → ... → Y path. Ask the user to verify the mediator
   declaration or the edge list.
 
-**Template — `nde_nie` success**:
+**Template — `nde_nie` success (structural only)**:
+
+Use this when `extensions.mediation_decomposition.strategy == "nde_nie"`
+AND `numeric_estimate` is **absent**. With `numeric_estimate` present,
+follow §"Numeric rendering" instead — Imai-specific assumptions live
+in the glossary.
 
 > 关于 `<X>` 通过 `<M>` 对 `<Y>` 的影响分解：
 >
