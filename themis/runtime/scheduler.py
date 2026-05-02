@@ -109,6 +109,21 @@ def _atom_to_str(atom: Atom) -> str:
     return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
+def _sort_supporting_paths(
+    paths: tuple[tuple[str, ...], ...],
+) -> tuple[tuple[str, ...], ...]:
+    """Sort structural-result supporting_paths deterministically.
+
+    The cause and assoc dispatchers call different solvers
+    (``directed_paths`` vs ``open_paths``) which surface paths in
+    traversal-dependent order — same graph + same source/target can
+    yield different orderings depending on the query kind. Sorting by
+    (length, lexicographic) puts the most direct path first regardless
+    of solver, so renderers see the same shape across query kinds.
+    """
+    return tuple(sorted(paths, key=lambda p: (len(p), p)))
+
+
 def _query_kind(q: Query) -> QueryKind:
     kind = _QUERY_KIND_OF.get(type(q))
     if kind is None:
@@ -122,7 +137,9 @@ def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     paths: tuple[tuple[Atom, ...], ...] = ()
     if exists:
         paths = structural_solver.directed_paths(graph, q.from_atom, q.to_atom)
-    supporting = tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
+    supporting = _sort_supporting_paths(
+        tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
+    )
     result = StructuralResult(value=exists, supporting_paths=supporting)
     derivation: tuple[DerivationStep, ...] = ()
     if (
@@ -803,7 +820,9 @@ def _dispatch_assoc(
     paths: tuple[tuple[Atom, ...], ...] = ()
     if connected:
         paths = structural_solver.open_paths(graph, q.left, q.right, q.given)
-    supporting = tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
+    supporting = _sort_supporting_paths(
+        tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
+    )
     result = StructuralResult(value=connected, supporting_paths=supporting)
     derivation: tuple[DerivationStep, ...] = ()
     if q.left in graph and q.right in graph and q.left != q.right:

@@ -88,3 +88,58 @@ def test_q_cause_1_explanation_mentions_path() -> None:
     text = explain(result)
     assert "smokes(alice) -> tar(alice) -> cancer(alice)" in text
     assert "因果影响" in text
+
+
+def test_supporting_paths_match_across_cause_and_assoc():
+    """Same DAG, same source/target — supporting_paths must surface in
+    the same order regardless of query kind. The cause and assoc
+    dispatchers call different solvers (``directed_paths`` vs
+    ``open_paths``); without sorting, traversal order leaked into the
+    result and renderers saw the same paths in different positions
+    depending on which kind the caller asked."""
+    import themis
+
+    def me(p):
+        return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+
+    program_template = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "X"},
+            {"kind": "variable", "predicate": "M"},
+            {"kind": "variable", "predicate": "Y"},
+            {"kind": "cause", "from": me("X"), "to": me("M"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "cause", "from": me("M"), "to": me("Y"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "cause", "from": me("X"), "to": me("Y"),
+             "annotations": {"source": "llm_proposal"}},
+        ],
+    }
+
+    cause_query = {
+        "kind": "query", "id": "q",
+        "query": {"kind": "cause", "from": me("X"), "to": me("Y")},
+    }
+    assoc_query = {
+        "kind": "query", "id": "q",
+        "query": {"kind": "assoc", "left": me("X"),
+                  "right": me("Y"), "given": []},
+    }
+
+    cause_out = themis.run(
+        {**program_template,
+         "statements": program_template["statements"] + [cause_query]}
+    )
+    assoc_out = themis.run(
+        {**program_template,
+         "statements": program_template["statements"] + [assoc_query]}
+    )
+
+    cause_paths = cause_out["results"][0]["structural_result"]["supporting_paths"]
+    assoc_paths = assoc_out["results"][0]["structural_result"]["supporting_paths"]
+    assert cause_paths == assoc_paths
+    # Direct edge first (length 2), mediated path second (length 3).
+    assert cause_paths[0] == ["X(me)", "Y(me)"]
+    assert cause_paths[1] == ["X(me)", "M(me)", "Y(me)"]
