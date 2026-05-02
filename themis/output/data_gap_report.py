@@ -641,25 +641,58 @@ def _extract_dose_response_confounders(
 
 
 def _query_target_label(stmt) -> str:
+    """Best-effort label for the query's outcome variable.
+
+    Real-test caught: cause queries (with `from`/`to`) used to fall
+    through to the literal string ``<target>`` because only effect
+    queries' `target.atom` shape was handled. Now also reads `to` for
+    cause queries and falls back to a generic phrase instead of an
+    angle-bracketed placeholder a renderer would surface verbatim.
+    """
     q = getattr(stmt, "query", None)
     if q is None:
-        return "<target>"
+        return "目标变量"
     target = getattr(q, "target", None)
-    if target is None:
-        return "<target>"
-    atom = getattr(target, "atom", None) or target
-    return getattr(atom, "predicate", "<target>")
+    if target is not None:
+        atom = getattr(target, "atom", None) or target
+        pred = getattr(atom, "predicate", None)
+        if pred:
+            return pred
+    # CauseQuery exposes its source/destination as ``from_atom`` /
+    # ``to_atom`` (avoiding Python's ``from`` keyword); AssocQuery uses
+    # left/right.
+    for attr in ("to_atom", "to", "right"):
+        atom = getattr(q, attr, None)
+        if atom is not None:
+            pred = getattr(atom, "predicate", None)
+            if pred:
+                return pred
+    return "目标变量"
 
 
 def _query_intervention_label(stmt) -> str:
+    """Best-effort label for the query's treatment variable. See
+    ``_query_target_label`` for the cause-query motivation."""
     q = getattr(stmt, "query", None)
     if q is None:
-        return "<intervention>"
+        return "干预变量"
     intv = getattr(q, "intervention", None)
-    if intv is None:
-        return "<intervention>"
-    atom = getattr(intv, "atom", None) or intv
-    return getattr(atom, "predicate", "<intervention>")
+    if intv is not None:
+        atom = getattr(intv, "atom", None) or intv
+        pred = getattr(atom, "predicate", None)
+        if pred:
+            return pred
+    # CauseQuery exposes its source as ``from_atom``; AssocQuery uses
+    # ``left``. ``from`` is a Python keyword so it never appears as an
+    # attribute name on typed objects, but check it for dict-shaped
+    # callers anyway.
+    for attr in ("from_atom", "from_", "from", "left"):
+        atom = getattr(q, attr, None)
+        if atom is not None:
+            pred = getattr(atom, "predicate", None)
+            if pred:
+                return pred
+    return "干预变量"
 
 
 def _classify_ambiguous_variable(

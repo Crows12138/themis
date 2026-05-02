@@ -2127,10 +2127,53 @@ def dispatch(
         theta=theta, prob_index=prob_index, obs_index=obs_index,
     )
     result = _attach_framing(program, stmt, result)
+    result = _attach_program_ambiguities(result, program=program)
     result = _attach_data_gap_report(result, program=program, stmt=stmt)
     result = _attach_bounds_result(program, stmt, result, bidirected=bidirected)
     result = _reconcile_alt_paths_with_bounds(result)
     return result
+
+
+def _attach_program_ambiguities(
+    result: QueryResult,
+    *,
+    program: Program | None = None,
+) -> QueryResult:
+    """Echo program-level ``extensions.ambiguities`` into the result so
+    LLM-declared uncertainty is visible to renderers even for kinds the
+    kernel has no dedicated handler for.
+
+    Real-test caught: when the LLM flagged ``reciprocal_causation`` /
+    ``mechanism_vs_existence`` / ``mediator_choice``, the kernel
+    silently swallowed them — only ``dose_response_query`` triggered a
+    Phase 13 gap, so the audit trail lost the rest. Renderers couldn't
+    tell whether the LLM omitted those concerns or the kernel just
+    didn't surface them.
+
+    Per-query targeting: an ambiguity dict carrying ``query_id`` only
+    attaches to that result; ones without ``query_id`` attach to every
+    effect-shaped result (program-wide concerns)."""
+    from dataclasses import replace as _replace
+
+    if program is None:
+        return result
+    ext = getattr(program, "extensions", None) or {}
+    ambs = ext.get("ambiguities") or []
+    if not ambs:
+        return result
+    qid = result.query_id
+    relevant: list[dict] = []
+    for a in ambs:
+        if not isinstance(a, dict):
+            continue
+        target_qid = a.get("query_id")
+        if target_qid is None or target_qid == qid:
+            relevant.append(a)
+    if not relevant:
+        return result
+    new_ext = dict(result.extensions or {})
+    new_ext["ambiguities"] = relevant
+    return _replace(result, extensions=new_ext)
 
 
 def _attach_data_gap_report(

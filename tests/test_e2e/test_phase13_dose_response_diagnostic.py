@@ -166,3 +166,104 @@ def test_confounders_required_surfaces_even_when_empty():
     assert "confounders_required" in rd
     # Empty for this fixture (no observed confounder declared)
     assert rd["confounders_required"] == []
+
+
+def test_dose_response_description_renders_predicate_names_for_cause_query():
+    """Real-test caught: when the LLM emits a `cause` query (instead
+    of `effect`) alongside dose_response_query ambiguity, the gap
+    description used to render literal `<intervention>` / `<target>`
+    placeholders because the labeller only handled effect queries.
+    The fix walks `to_atom` / `from_atom` / `left` / `right` so all
+    query kinds resolve to actual predicate names."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "extensions": {
+            "ambiguities": [
+                {"kind": "dose_response_query", "description": "x"},
+            ],
+        },
+        "statements": [
+            {"kind": "variable", "predicate": "stays_up_late"},
+            {"kind": "variable", "predicate": "prefrontal_function"},
+            {"kind": "cause",
+             "from": _atom("stays_up_late"),
+             "to": _atom("prefrontal_function"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "cause",
+                 "from": _atom("stays_up_late"),
+                 "to": _atom("prefrontal_function")}},
+        ],
+    }
+    out = themis.run(program)
+    desc = next(
+        g["description"]
+        for g in out["results"][0]["data_gap_report"]["gaps"]
+        if g["kind"] == "dose_response_data_required"
+    )
+    assert "<intervention>" not in desc
+    assert "<target>" not in desc
+    assert "stays_up_late" in desc
+    assert "prefrontal_function" in desc
+
+
+def test_program_ambiguities_echoed_into_each_result():
+    """Real-test caught: the kernel only had a handler for
+    dose_response_query — other declared ambiguities (reciprocal,
+    mechanism, mediator_choice, ...) were silently swallowed. The fix
+    echoes every program-level ambiguity into result.extensions so
+    renderers can still see them, even without a per-kind kernel
+    handler. Per-query targeting via ambiguity.query_id is preserved."""
+    program = _dose_response_program()
+    program["extensions"]["ambiguities"].extend([
+        {"kind": "reciprocal_causation", "description": "X 反过来影响 Y"},
+        {"kind": "mechanism_vs_existence", "description": "想问机制不止存在"},
+    ])
+    out = themis.run(program)
+    ext = out["results"][0].get("extensions") or {}
+    kinds = [a["kind"] for a in ext.get("ambiguities", [])]
+    assert "dose_response_query" in kinds
+    assert "reciprocal_causation" in kinds
+    assert "mechanism_vs_existence" in kinds
+
+
+def test_program_ambiguity_with_query_id_targets_only_that_query():
+    """An ambiguity carrying ``query_id`` should attach to that
+    specific query result only — not the whole program. Mirrors the
+    Phase 14 dose-response per-query routing."""
+    program = _dose_response_program()
+    # Add a second effect query
+    program["statements"].append(
+        {"kind": "variable", "predicate": "tenure"})
+    program["statements"].append({
+        "kind": "cause",
+        "from": _atom("tenure"), "to": _atom("engagement"),
+        "annotations": {"source": "llm_proposal"}})
+    program["statements"].append({
+        "kind": "query", "id": "q_tenure",
+        "query": {"kind": "effect",
+                  "intervention": {"atom": _atom("tenure"), "value": True},
+                  "target": {"atom": _atom("engagement"), "value": 4},
+                  "given": []}})
+    program["extensions"]["ambiguities"].append({
+        "kind": "reciprocal_causation",
+        "description": "specific to tenure",
+        "query_id": "q_tenure",
+    })
+    out = themis.run(program)
+    by_id = {r["query_id"]: r for r in out["results"]}
+    q_kinds = [
+        a["kind"]
+        for a in (by_id["q"].get("extensions") or {}).get("ambiguities", [])
+    ]
+    q_tenure_kinds = [
+        a["kind"]
+        for a in (by_id["q_tenure"].get("extensions") or {}).get("ambiguities", [])
+    ]
+    # q gets only the program-wide dose_response_query
+    assert "reciprocal_causation" not in q_kinds
+    # q_tenure gets the targeted reciprocal_causation AND the
+    # program-wide dose_response_query
+    assert "reciprocal_causation" in q_tenure_kinds
