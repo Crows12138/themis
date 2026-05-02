@@ -234,18 +234,3 @@ No TTL — KB facts are not session state. To force a refresh, call
 Negative results are cached too (failure with `failure_reason`) — that
 prevents re-asking dead KBs every turn.
 
-## When NOT to lookup
-
-`gap_to_action.md` §"Three questions per gap" still owns the decision
-of whether to fetch at all. This prompt only kicks in once you've
-decided yes. Specifically, do NOT structured-lookup when:
-
-- `gap.kind in {unidentifiable_no_admissible_set, missing_assumption,
-  ambiguous_variable_definition}` — `gap_to_kb_query` returns None;
-  no fetch is appropriate
-- The dtype mismatches (kernel says bool, KB has continuous mmHg) —
-  even if the lookup succeeds, the patch will be a fabrication of
-  YOUR threshold. Surface the literature value via
-  `response_rendering.md` §"Literature numeric rendering" instead
-- The user has explicitly asked you to wait / not search
-

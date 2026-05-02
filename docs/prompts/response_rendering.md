@@ -277,8 +277,8 @@ decisions that don't move the needle on whether the answer is right):
 
 Render lower-tier as a single tail line: "另几个细节判断我按惯例
 处理了（变量是 state 还是 event；压成了 binary；方向看作 up）—
-要细看告诉我。" Don't itemize. Itemize fully only when those are
-the *only* ambiguities present.
+要细看告诉我。" Itemize them fully only when they are the *only*
+ambiguities present.
 
 When everything is top-tier and there are still many, still render
 all — but lead with the one whose decision most changes the answer
@@ -486,8 +486,7 @@ structural and the numeric (`iv_wald` / `iv_2sls`) paths.
 | `logit_outcome_regression` | outcome 用 logit 回归 |
 | `adjustment_set_blocks_mediator_outcome_backdoor_given_treatment` | 给定 X 后调整集阻断 M→Y 的后门 |
 
-For IDs not in the table, render the snake_case verbatim — don't
-invent translations.
+For IDs not in the table, render the snake_case verbatim.
 
 ### From literature — outside the kernel (Phase 11.1)
 
@@ -521,15 +520,9 @@ Use this template instead:
    say so, and add: "因此这个数字没有进入 Themis 的可验证推导链 —
    它是引用，不是推算"
 
-Anti-patterns specific to literature numbers:
-
-- Letting a literature number masquerade as Themis-verified
-- Combining literature point estimates across studies on your own
-  ("study A + study B → average") — that's amateur meta-analysis
-- Extrapolating the literature CI to the user's individual case
-  (the CI is on the population mean, not on individuals)
-- Dropping the citation. Inline link or PMID is mandatory.
-  Unsourced literature is operationally fabrication
+Each literature number stands on its own citation: when two studies
+both apply, surface them as separate references — combining their
+point estimates is amateur meta-analysis and breaks the audit chain.
 
 ## Domain-specific patterns
 
@@ -591,11 +584,11 @@ for an effect decomposition through a mediator.
 
 Identifiability is a property of the graph: "可识别" means the graph
 permits decomposition under the declared assumptions, not that the
-mediator factually mediates the effect. Don't translate it as
-existential ("合法 / 真实 / 确实"). When `numeric_estimate` is also
-present (mediation went through `themis.estimate`), render numbers
-the same way as the backdoor / front-door numeric templates: point +
-CI + method + assumptions translated via the glossary. No parallel
+mediator factually mediates the effect — the rendering stays
+structural, not existential. When `numeric_estimate` is also present
+(mediation went through `themis.estimate`), render numbers the same
+way as the backdoor / front-door numeric templates: point + CI +
+method + assumptions translated via the glossary. No parallel
 mediation-numeric template lives below — reuse the §"Numeric
 rendering" shape.
 
@@ -733,11 +726,16 @@ Status semantics:
 > 纳入考虑，告诉我，我会加上对应的 selection_node。
 
 **Caveats always include**:
+
+§T9.1's output is *data requirements*, not a corrected number — source-
+population point estimates do not transfer directly to the target
+(F25 failure mode core).
+
+Plus the context-specific caveats:
 - 如果 program 有 `unobserved_population_shift` ambiguity → 提醒用户
   §T9.1 只处理观察到的 S；未观测差异是 §T9.3 范围
 - 如果用户原始问题给了一个源人群数字（"RCT 说 X cm 下降"）→ 明确
   说 transport 不会输出"修正后的 X" —— 只会告诉你需要哪些数据来算
-- 永远不要把源人群的点估计当作目标人群的答案（F25 失败模式核心）
 
 ### Sensitivity (E-value) — Phase 8.2
 
@@ -780,8 +778,8 @@ implied treated rate outside [0,1]):
 > 可以考虑把 outcome 二值化（按某阈值），或用其他敏感性方法
 > （如 Rosenbaum bounds）。
 
-Skip the block entirely for continuous outcomes. Don't fabricate
-placeholders.
+For continuous outcomes the block is skipped — no E-value, no
+placeholder.
 
 ### Schema mismatch
 
@@ -798,9 +796,6 @@ one-line note:
 > 是连续值（点估计 `<point>` 在 `<method>` 下显然是连续量级的）。
 > 这次按数据连续来算了；如果你想把 `<variable>` 二值化，告诉我
 > 阈值我重跑。
-
-Defense in depth — A1 prompt v2.6.1 was supposed to catch this
-upstream, but renderer surfacing lets the user correct the loop.
 
 ## Bounds rendering (Phase 12)
 
@@ -894,9 +889,6 @@ collapse to the trivial range (e.g. [0, 1] for probabilities,
 > - 接受 monotonicity（处理对每个个体的方向一致）
 > - 找一个有效的 IV（如果当前没有）
 
-Don't bury the warning. Useless bounds dressed up as useful is the
-single biggest bounds-rendering anti-pattern.
-
 ### Cross-reference with data_gap_report
 
 When both `bounds_result` and `data_gap_report` are present, the
@@ -908,17 +900,17 @@ above). Phrase the gap section as:
 > - {gap.required_data.data_type} 形式的 {gap.required_data.variables}
 > - n ≥ {gap.required_data.min_sample_size}（{precision_target}）
 
-Don't repeat the bounds expression inside the gap section — it's
-already rendered above.
+The gap section references the upgrade requirement only — the bounds
+expression itself was rendered above and isn't repeated here.
 
-### When NOT to render bounds
+### Render decision
 
-- `bounds_result` is null → omit entirely. Don't fabricate.
-- `status == "numerically_solved"` AND bounds_result somehow set
-  (shouldn't happen but defensive) → render the point + a one-line
-  note "bounds also computed: [a, b]"; the point is the answer.
-- `query_kind != effect` → `bounds_result` should be null already;
-  if not, it's an upstream bug — don't render.
+- `bounds_result` null → omit the section entirely.
+- `status == "numerically_solved"` and bounds_result also set → render
+  the point as the answer with a one-line tail ("bounds also computed:
+  [a, b]").
+- `query_kind != effect` → `bounds_result` should already be null;
+  if it's set, treat as an upstream bug and skip.
 
 ## Worked example (end-to-end)
 

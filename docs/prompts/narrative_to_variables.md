@@ -88,9 +88,8 @@ Skip:
 - Fill a field **only when the narrative explicitly (or strongly implicitly)
   provides it**. Leaving a field absent is the right move if the narrative
   doesn't mention it — A0 / F1 will then surface it as a gap for the user
-  to answer.
-- Do not hallucinate framing. If the narrative says "我跑步" without any
-  frequency, leave `time_window` / `threshold` absent.
+  to answer. (E.g. narrative says "我跑步" with no frequency → `time_window`
+  and `threshold` stay absent.)
 - `domain` is always `[true, false]` for now (bool-only; categorical
   support comes later if a real case needs it).
 

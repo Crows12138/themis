@@ -23,9 +23,10 @@ valid object, return `{"error": "<reason>"}` instead.
 This is a translation task with one rule above all others:
 **represent what the user said, not what would be convenient**.
 
-- When the user is ambiguous, commit conservatively AND declare the
-  ambiguity in `extensions.ambiguities` — never silently prefer the
-  more powerful reading.
+- When the user is ambiguous, commit conservatively (the least-
+  powerful reading consistent with the cues) AND declare alternatives
+  in `extensions.ambiguities`. Silent escalation is the F3 failure
+  the ambiguity channel exists to prevent.
 - When the user describes a structure the kernel can identify
   (mediation, front-door, IV, transport, temporal lag), encode it
   directly so the kernel's identification dispatch can reach it.
@@ -33,8 +34,8 @@ This is a translation task with one rule above all others:
   declare the gap via `extensions.ambiguities` rather than silently
   approximate.
 - Trust the kernel: it computes identification, attaches E-values,
-  flags missing data, runs verifier rules. Do not pre-empt it with
-  ad-hoc fields the schema doesn't define.
+  flags missing data, runs verifier rules — work through its
+  schema-defined slots rather than inventing new top-level fields.
 
 The kernel handles the math. Your job is honest structure
 extraction.
@@ -83,8 +84,7 @@ AND flag `dose_response_query` in `extensions.ambiguities`. The
 kernel's `dose_response_data_required` gap_kind will list the data
 spec the user needs to fit the curve elsewhere — sampling points,
 per-point sample size, backdoor-set confounders to control,
-measurement schedule, SUTVA concerns. Don't pretend Themis itself
-can answer "the relationship".
+measurement schedule, SUTVA concerns.
 
 ### 2. Predicates
 
@@ -189,14 +189,16 @@ emit two atoms with different `time_index`. Out of scope:
 
 ### 3. Edges
 
-Emit direct edges from common-sense / domain knowledge for predicates
-in the question. Tag every LLM-proposed edge with
+Emit direct edges from common-sense / domain knowledge between the
+predicates the user named. Tag every LLM-proposed edge with
 `"annotations": {"source": "llm_proposal"}` so downstream consumers
 can distinguish your hypotheses from evidence-backed edges. If you
 have a concrete citation (PubMed ID, textbook), put that in `source`
 instead.
 
-Do not invent intermediate variables the user didn't mention.
+Edges connect predicates the user mentioned. Intermediate variables
+enter the graph only when the user names them, or as the explicit
+mediator/instrument of the §3 mediation / front-door / IV shapes.
 
 #### The confounding decision: assertion / worry / in-data
 
@@ -366,20 +368,18 @@ Canonical example: "抽烟会沉积焦油，焦油增加肺癌；但抽烟和肺
 Trigger: NL asks about robustness ("对未观测混杂稳健吗", "敏感性分析",
 "如果有遗漏的混杂会怎样", "结论稳不稳").
 
-Do **not** invent ad-hoc kernel_ast entries. The kernel auto-attaches
-VanderWeele's E-value to every binary-outcome numeric estimate via
-`numeric_estimate.sensitivity_analysis`; the response_rendering prompt
-surfaces it as plain Chinese.
+The kernel auto-attaches VanderWeele's E-value to every binary-outcome
+numeric estimate via `numeric_estimate.sensitivity_analysis`; the
+response_rendering prompt surfaces it as plain Chinese. The robustness
+question is therefore answered through the standard query path — no
+new kind, no U variable, no sensitivity_request field is needed (and
+the schema rejects all three).
 
 Emit:
 - The standard `effect` query for the causal estimate
 - `extensions.ambiguities[kind=unmeasured_confounder_concern]`
   recording the worry — the response layer foregrounds the E-value
   disclosure when this kind is present
-
-Do not invent a `sensitivity` query kind, do not introduce U
-variables, do not declare a `sensitivity_request` top-level field —
-the schema rejects all three.
 
 ##### Population transport
 
@@ -412,13 +412,13 @@ Population identifiers: snake_case (schema enforces
 descriptive label like `rct_meta_2022`, `nhanes_2018`,
 `mendelian_uk_biobank`.
 
-Avoid:
-- `target_population` without any `selection_node` — kernel handles
-  it but it adds no value over a regular effect query
-- A `selection_node` whose `affects` predicate has no edge to the
-  outcome (no-op)
-- More than 4–5 S nodes — the user is likely conflating shift with
-  observational confounding; ask via `extensions.ambiguities` instead
+Sizing heuristics:
+- Each `selection_node` should pair with a `target_population` and
+  with at least one edge from `affects` to the outcome — selection
+  nodes only do work when there's a path through them to Y.
+- Stay under 4–5 S nodes per question. Beyond that, the user is
+  usually conflating population shift with observational confounding;
+  surface as `extensions.ambiguities` instead of multiplying nodes.
 
 Caveats to flag:
 - User says "我担心还有别的变量也不一样" without naming →

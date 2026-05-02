@@ -108,9 +108,10 @@ dominant one and mention the alternative in `reason`.
 
 Every `edges` entry carries
 `annotations.source: "narrative_proposal"` (distinct from
-`"llm_proposal"` in the question prompt). Also include
+`"llm_proposal"` in the question prompt) plus
 `annotations.evidence` — a short Chinese quote from the narrative
-that justifies the edge. Without evidence, don't emit the edge.
+that justifies the edge. The quote is required: an edge without one
+has no narrative support and belongs in the question-side prompt.
 
 ### 3. Narrative-specific ambiguities
 

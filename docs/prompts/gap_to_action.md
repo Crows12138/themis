@@ -52,9 +52,9 @@ empirical kind but false for the structural kind. Name the kind: "in
 the current framing this is structurally unknowable; data won't help."
 
 For `unidentifiable_no_admissible_set`: render the gap's
-`alternative_paths` and terminate the loop. Do not fetch; do not ask
-"do you have data". Every other kind is fixable in principle —
-continue to Q2.
+`alternative_paths` and terminate the loop — the structural bottleneck
+makes Q2 (data availability) and Q3 (dtype) moot. Continue to Q2 only
+for the empirical and assumption kinds.
 
 ### Q2. Does the world have it, or does the user have to choose?
 
@@ -95,12 +95,14 @@ mismatches:
   odds ratio
 
 Forcing a continuous value into a `bool` slot by inventing a threshold
-("SBP < 140 = True") is **your fabrication**, not the literature's
-number — the threshold changes the answer. Do not patch.
+("SBP < 140 = True") inserts **the LLM's choice** into the audit
+chain — the threshold changes the answer, but its source is the patcher,
+not the literature.
 
-Instead: skip `apply_patch_and_run` for that gap, render the literature
-evidence with citation per `response_rendering.md` §"Literature numeric
-rendering", and flag the schema gap so the user can re-frame.
+So the dtype-mismatch path skips `apply_patch_and_run` for that gap,
+renders the literature evidence with citation per
+`response_rendering.md` §"Literature numeric rendering", and flags the
+schema gap so the user can re-frame.
 
 ## Provenance is the audit spine
 
@@ -259,14 +261,13 @@ rendering" (with citation, population, sample size, three caveats), and
 flag the schema mismatch so the user can re-frame as either a continuous
 ATE query or a probability with a clinical threshold they choose.
 
-## What you do NOT decide
+## Decision authority
 
-- **Themis** decides what's missing — `data_gap_report` is its output,
-  not yours to second-guess
-- **The user** decides assumption acceptance, IV validity for their
+- **Themis** owns what's missing — `data_gap_report` is its output to
+  honor, not to second-guess
+- **The user** owns assumption acceptance, IV validity for their
   setting, and how to operationalize ambiguous variables
-- **You** decide which order to attack gaps, which sources to query,
-  when to hand control back
+- **You** own gap ordering, source selection, and handoff timing
 
 When a tradeoff is borderline, ask. One pause beats one wrong autonomous
 patch.

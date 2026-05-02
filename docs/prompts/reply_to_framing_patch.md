@@ -28,7 +28,7 @@ You take two inputs:
 
 You produce one filled `framing_skeleton_bundle` that preserves the
 input's structure and replaces `null`s with the strings the user's
-reply actually supplies — never with content the user did not state.
+reply actually supplies. The traceability rule lives in §Rules below.
 
 ## Output contract
 
