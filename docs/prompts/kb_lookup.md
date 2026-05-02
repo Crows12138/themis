@@ -235,10 +235,6 @@ decided yes. Specifically, do NOT structured-lookup when:
 
 ## Anti-patterns
 
-- **Fabricating `KBResult.provenance.citation`** when no real KB
-  returned anything. The verifier's confidence machinery treats every
-  patch with a citation as sourced — fabricated citations defeat
-  exactly the audit trail KBProvenance exists to maintain
 - **Bypassing the cache** for repeated lookups in the same loop.
   KB facts don't change between turns; bypass burns network + makes
   the audit trail noisier
@@ -250,5 +246,3 @@ decided yes. Specifically, do NOT structured-lookup when:
 - **Treating `kb_result_to_skeleton(failed_result)` returning None
   as a bug**. It's the contract — failures don't become patches.
   Surface the gap as still-blocking instead
-- **Fetching when `gap_to_kb_query` returned None**. The translator
-  refused for a reason; honor it

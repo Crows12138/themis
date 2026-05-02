@@ -136,13 +136,3 @@ Each file carries:
   framing fields stayed blank
 - `variables` — the JSON output of this prompt
 
-## What NOT to do
-
-- Do not produce cause edges — that's the question prompt's job
-- Do not produce queries — this prompt takes no question as input
-- Do not hallucinate framing (e.g. inventing a `time_window` the user
-  did not mention) — Themis would rather ask the user than guess
-- Do not emit predicates for vague / unmeasurable concepts until the
-  narrative makes them concrete
-- Do not duplicate a predicate if the narrative mentions it twice —
-  one declaration per predicate

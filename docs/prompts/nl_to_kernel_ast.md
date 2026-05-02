@@ -611,34 +611,3 @@ To produce a Chinese reply, see
 [`response_rendering.md`](response_rendering.md). To act on the
 result (fetch data / patch / re-run), see
 [`gap_to_action.md`](gap_to_action.md).
-
----
-
-## Anti-patterns
-
-- **Inventing predicates not in the question** — your job is
-  extraction, not enrichment
-- **Filling framing fields the user didn't specify** — leaving them
-  unset is how Themis knows to ask
-- **Proposing intermediate variables** the user didn't mention
-  (`calorie_deficit` between running and belly_fat_loss) — unless
-  they're the named mediator in a §3 mediation/front-door query
-- **Adding Theta / probability statements** — the numeric layer is
-  filled in a separate turn, not at NL parsing
-- **Code fences around the JSON** — emit raw JSON only
-- **Silently committing to the powerful reading** when intent is
-  ambiguous — declare in `extensions.ambiguities`
-- **Emitting `Z → Y` "just to be safe"** when Z is an instrument —
-  silently violates IV2
-- **Encoding latent confounders as a regular `U` variable** when
-  data is attached — `themis.estimate` will reject (no column).
-  Use bidirected
-- **Encoding "worry about unmeasured confounding" as bidirected** —
-  makes the estimate unidentifiable; the kernel's auto-E-value is
-  the right tool for residual worry
-- **Emitting both `A → B` and `B → A`** for reciprocal causation —
-  DAG cycle; commit to first-clause direction + flag (§5a)
-- **Inventing top-level fields not in the schema** (`sensitivity_request`,
-  custom query kinds) — schema rejects
-- **Declaring `kind: temporal` ambiguity** for clean supported
-  `t-1 → t` lags — those are encoded directly via `time_index`

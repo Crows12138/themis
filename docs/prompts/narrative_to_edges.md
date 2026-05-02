@@ -128,24 +128,6 @@ same kinds as A1 §5 but scoped to narrative reading:
 The orchestrator merges these with any A1-produced ambiguities
 into `extensions.ambiguities` on the final program.
 
-### 4. What NOT to emit
-
-- **Edges from common knowledge alone**: if the narrative doesn't
-  actually say "X causes Y" or strongly imply it, leave the edge
-  to the question-side prompt. "narrative_proposal" means *the
-  narrative itself is the evidence*.
-- **Mediator chains the narrative doesn't name**: don't invent
-  intermediates ("stress → cortisol → cravings → overeating") if
-  the narrative just says "stress made me overeat".
-- **Edges for variables neither the narrative nor question will
-  declare**: if you propose `U → X`, `U → Y`, the unobserved `U`
-  stays implicit — that's what bidirected is for.
-- **Directed edges where confounding is more plausible**: pick
-  bidirected or a refusal instead (see §3a in A1 prompt).
-- **Edges you can't quote evidence for**: if you can't write the
-  `annotations.evidence` field, you don't have a narrative-evidenced
-  edge. Leave it to the question side.
-
 ## Worked examples
 
 Three narrative → edges pairs live in `docs/prompts/examples/`:

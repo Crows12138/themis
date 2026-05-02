@@ -253,12 +253,7 @@ patch.
 
 ## Anti-patterns
 
-- Fabricating a value to "fill" a gap. No source = no patch
-- Asking the user for a number that's clearly in public stats (CDC, NHANES)
-- Auto-resolving an assumption gap (monotonicity etc.) without asking
 - Paraphrasing `unidentifiable_no_admissible_set` as "we don't know yet"
   — it means *structurally impossible to know with current framing*
 - Dropping a previously surfaced gap from the audit trail when you
   re-render. If the loop went 3 → 1 gaps, show the user what got fixed
-- Looping past the budget. Render the current best + remaining gaps
-  instead

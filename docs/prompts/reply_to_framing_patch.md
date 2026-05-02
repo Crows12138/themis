@@ -11,7 +11,8 @@ that answer into a `framing_skeleton_bundle` that
 
 The kernel / JSON side of the same loop has been closed since A3 —
 this module is strictly an agent-side adapter and does not touch the
-kernel. It exists entirely in prompt-land.
+kernel. It exists entirely in prompt-land. Scope: framing fields only —
+the symmetric `parameter_fill_bundle` task is a separate slice.
 
 ---
 
@@ -97,10 +98,10 @@ Per predicate:
 - Keep `predicate`, `kind`, and top-level `version` / `kind` unchanged
 - `fields` map keys are exactly the ones the input had; do not add or
   remove keys
+- Patch count and predicate-to-patch mapping match the input — one
+  patch per input patch, no merging or splitting
 
 ## Rules
-
-**Must:**
 
 - Every string you put in `fields` must be traceable to a phrase the
   user actually said in the reply
@@ -109,15 +110,6 @@ Per predicate:
   default to leaving the field `null` rather than guessing
 - Translation from Chinese to a short English tag is fine
   (e.g. `observability: "self-report"`)
-
-**Must not:**
-
-- Invent framing content the user did not state (e.g. fabricating a
-  `time_window` of "12w" when the user only said "最近")
-- Rewrite the `existing` dict, the `kind`, the `predicate`, or the
-  set of field keys in the input
-- Merge multiple predicates into one patch, or split one into two
-- Emit fields the input did not ask about
 
 ## Worked examples
 
@@ -143,13 +135,3 @@ entries and re-runs the kernel. If some fields are still `null`, the
 next turn's result surfaces a smaller `DEFINE_VARIABLE` investigation
 covering just those; if all gaps are closed, `framing_notes` and the
 `DEFINE_VARIABLE` channel disappear entirely.
-
-## What NOT to do
-
-- Do not emit a new kind of bundle — only `framing_skeleton_bundle`
-- Do not touch the parameter side — the `parameter_fill_bundle` is
-  a separate NL-to-JSON task (future slice)
-- Do not add prose / commentary around the JSON
-- Do not "helpfully" fill in fields the user could have meant but
-  did not say — leaving `null` is the right behavior; it lets
-  Themis ask the user again next turn
