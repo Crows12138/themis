@@ -614,6 +614,12 @@ AND `numeric_estimate` is **absent**. With `numeric_estimate` present,
 follow §"Numeric rendering" instead — Imai-specific assumptions live
 in the glossary.
 
+The structural decomposition's `nde_nie.assumptions` list names the
+cross-world conditions identifiability rests on. Translate them via
+the glossary into the assumption block — "可识别" without the
+assumption block reads as unconditional, which is wrong: structural
+identification is always *conditional on* these holding.
+
 > 关于 `<X>` 通过 `<M>` 对 `<Y>` 的影响分解：
 >
 > - **总效应 TE**：`<X>` 改变对 `<Y>` 的全部影响
@@ -622,6 +628,9 @@ in the glossary.
 >
 > 在你的图上这个分解**可以识别**（需要调整 `<adjustment>`）。具体
 > 数字需要 Phase 7 估计层 —— 目前只给出"结构上可分解"的判断。
+>
+> 这个判断的前提（任一不成立就不可信）：
+> - `<assumptions[*] 按 glossary 翻译，每条一行>`
 
 **Template — `cde` fallback**:
 

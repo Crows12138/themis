@@ -124,6 +124,32 @@ def _sort_supporting_paths(
     return tuple(sorted(paths, key=lambda p: (len(p), p)))
 
 
+def _structural_mediation_assumptions(
+    strategy: str,
+) -> tuple[str, ...]:
+    """Assumptions a structural mediation identifiability claim rests on.
+
+    Mirrors ``themis/estimation/mediation.py:_assumptions_for`` but at
+    the identification (graph-only) layer — outcome-model assumptions
+    don't apply yet (no model has been fit). The IDs reuse the renderer
+    glossary so the response layer translates them via the same table
+    used for backdoor / front-door numeric assumptions.
+    """
+    if strategy == "nde_nie":
+        return (
+            "pearl_2001_four_conditions_hold_on_the_graph",
+            "sequential_ignorability_treatment_and_mediator",
+            "no_intermediate_confounder_affected_by_treatment",
+            "consistency_of_potential_outcomes",
+        )
+    if strategy == "cde":
+        return (
+            "adjustment_set_blocks_mediator_outcome_backdoor_given_treatment",
+            "consistency_of_potential_outcomes",
+        )
+    return ()
+
+
 def _query_kind(q: Query) -> QueryKind:
     kind = _QUERY_KIND_OF.get(type(q))
     if kind is None:
@@ -586,6 +612,14 @@ def _dispatch_mediation(
             _atom_to_str(a) for a in mediation.nde_nie.adjustment
         ),
         "failed_condition": mediation.nde_nie.failed_condition,
+        # Structural identification of NDE/NIE rests on Pearl 2001's
+        # cross-world conditions; surfacing them lets the renderer cite
+        # what 'identifiable' is conditional on rather than presenting
+        # it as an unconditional yes.
+        "assumptions": list(
+            _structural_mediation_assumptions("nde_nie")
+            if mediation.nde_nie.identifiable else ()
+        ),
     }
     cde_info = {
         "identifiable": mediation.cde.identifiable,
@@ -593,6 +627,10 @@ def _dispatch_mediation(
             _atom_to_str(a) for a in mediation.cde.adjustment
         ),
         "failed_condition": mediation.cde.failed_condition,
+        "assumptions": list(
+            _structural_mediation_assumptions("cde")
+            if mediation.cde.identifiable else ()
+        ),
     }
 
     if not mediation.mediator_valid:

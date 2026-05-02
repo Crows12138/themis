@@ -77,6 +77,11 @@
                   "type": ["string", "null"],
                   "enum": ["M1", "M2", "M3", "M4", null],
                   "description": "First Pearl 2001 condition that blocks identification (null when identifiable)."
+                },
+                "assumptions": {
+                  "type": "array",
+                  "description": "Assumptions the structural NDE/NIE identifiability claim rests on (Pearl 2001 cross-world conditions, sequential ignorability, no intermediate confounder, consistency). Empty when not identifiable. IDs reuse the renderer assumption glossary.",
+                  "items": { "type": "string" }
                 }
               }
             },
@@ -95,6 +100,11 @@
                   "type": ["string", "null"],
                   "enum": ["C1", "C2", null],
                   "description": "First CDE backdoor condition that blocks identification (null when identifiable)."
+                },
+                "assumptions": {
+                  "type": "array",
+                  "description": "Assumptions the structural CDE identifiability claim rests on (mediator-outcome backdoor adjustment given treatment, consistency). Empty when not identifiable. IDs reuse the renderer assumption glossary.",
+                  "items": { "type": "string" }
                 }
               }
             }

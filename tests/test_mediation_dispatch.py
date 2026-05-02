@@ -68,6 +68,64 @@ def test_bare_mediator_succeeds_with_nde_nie():
     assert "identify_via_mediation" in rules
 
 
+def test_structural_mediation_surfaces_assumptions_when_identifiable():
+    """Real-test caught: structural mediation_decomposition reported
+    'identifiable: true' without naming what identifiability rests on
+    (Pearl 2001 cross-world conditions, sequential ignorability, no
+    intermediate confounder, consistency). Renderers had to render
+    '可识别' as if unconditional. Now each branch carries an
+    `assumptions` list of glossary IDs the renderer translates."""
+    ast = _program([
+        {"kind": "variable", "predicate": "x", "domain": [True, False]},
+        {"kind": "variable", "predicate": "m", "domain": [True, False]},
+        {"kind": "variable", "predicate": "y", "domain": [True, False]},
+        {"kind": "cause", "from": _atom("x"), "to": _atom("m")},
+        {"kind": "cause", "from": _atom("m"), "to": _atom("y")},
+        _effect_query_with_mediator("x", "y", "m"),
+    ])
+
+    out = themis.run(ast)
+    mediation = out["results"][0]["extensions"]["mediation_decomposition"]
+
+    # NDE/NIE assumptions: Pearl 2001 four conditions + cross-world
+    # ignorability + no intermediate confounder + consistency.
+    nde_assumptions = mediation["nde_nie"]["assumptions"]
+    assert "pearl_2001_four_conditions_hold_on_the_graph" in nde_assumptions
+    assert "sequential_ignorability_treatment_and_mediator" in nde_assumptions
+    assert "no_intermediate_confounder_affected_by_treatment" in nde_assumptions
+    assert "consistency_of_potential_outcomes" in nde_assumptions
+
+    # CDE assumptions: backdoor adjustment for M→Y given X + consistency.
+    cde_assumptions = mediation["cde"]["assumptions"]
+    assert "adjustment_set_blocks_mediator_outcome_backdoor_given_treatment" in cde_assumptions
+    assert "consistency_of_potential_outcomes" in cde_assumptions
+
+
+def test_structural_mediation_assumptions_empty_when_not_identifiable():
+    """Companion: when a branch is not identifiable, no claim is being
+    made — the assumptions list is empty rather than misleadingly
+    listing unmet preconditions."""
+    ast = _program([
+        {"kind": "variable", "predicate": "x", "domain": [True, False]},
+        {"kind": "variable", "predicate": "w", "domain": [True, False]},
+        {"kind": "variable", "predicate": "m", "domain": [True, False]},
+        {"kind": "variable", "predicate": "y", "domain": [True, False]},
+        {"kind": "cause", "from": _atom("x"), "to": _atom("w")},
+        {"kind": "cause", "from": _atom("w"), "to": _atom("m")},
+        {"kind": "cause", "from": _atom("w"), "to": _atom("y")},
+        {"kind": "cause", "from": _atom("x"), "to": _atom("m")},
+        {"kind": "cause", "from": _atom("m"), "to": _atom("y")},
+        _effect_query_with_mediator("x", "y", "m"),
+    ])
+
+    out = themis.run(ast)
+    mediation = out["results"][0]["extensions"]["mediation_decomposition"]
+    assert mediation["nde_nie"]["identifiable"] is False
+    assert mediation["nde_nie"]["assumptions"] == []
+    assert mediation["cde"]["identifiable"] is False
+    assert mediation["cde"]["assumptions"] == []
+
+
 # ===================================== intermediate confounder (M4 violation)
 
 
