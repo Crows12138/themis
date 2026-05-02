@@ -33,14 +33,28 @@ ask:
 
 ### Q1. Is it structurally fixable at all?
 
-`unidentifiable_no_admissible_set` is the only kind where the answer is
-**no — no data closes this**. The DAG itself blocks identification; only
-changing the framing (more variables, an RCT, a valid IV) can rescue it.
-Render the gap's `alternative_paths` and terminate the loop. Do not
-fetch; do not ask "do you have data" — the bottleneck is structure, not
-data.
+There are three kinds of unknown, with sharply different remedies — get
+the kind right before doing anything else:
 
-Every other kind is fixable in principle. Continue to Q2.
+- **Structural** (`unidentifiable_no_admissible_set`): the DAG itself
+  blocks identification. **No data and no assumption closes this.** Only
+  changing the framing — adding measured variables, an RCT, a valid IV
+  — can rescue it.
+- **Empirical**: the world has the number, you just haven't fetched it
+  (most `missing_distribution` / transport / mediator gaps).
+- **Assumption**: the user must commit to an untestable premise
+  (monotonicity, sequential ignorability, IV validity for *their*
+  setting). No source can supply this.
+
+So a downstream reader of an unidentifiable gap doesn't say "we don't
+know yet" — *yet* implies "more data later", which is true for the
+empirical kind but false for the structural kind. Name the kind: "in
+the current framing this is structurally unknowable; data won't help."
+
+For `unidentifiable_no_admissible_set`: render the gap's
+`alternative_paths` and terminate the loop. Do not fetch; do not ask
+"do you have data". Every other kind is fixable in principle —
+continue to Q2.
 
 ### Q2. Does the world have it, or does the user have to choose?
 
@@ -117,6 +131,12 @@ trail to the rendered reply:
 ```
 （已尝试 N 轮数据补全：补到了 X / Y / Z；剩余缺口见上方）
 ```
+
+The audit trail is **cumulative across the loop**, not a per-turn
+snapshot. Every gap that surfaced at any point stays visible until it's
+resolved (filled and verified) or explicitly declined by the user — a
+re-render that drops earlier gaps because they got partially fixed
+hides progress and lets unresolved gaps slip out of the user's view.
 
 ## Patch shapes
 
@@ -251,9 +271,3 @@ ATE query or a probability with a clinical threshold they choose.
 When a tradeoff is borderline, ask. One pause beats one wrong autonomous
 patch.
 
-## Anti-patterns
-
-- Paraphrasing `unidentifiable_no_admissible_set` as "we don't know yet"
-  — it means *structurally impossible to know with current framing*
-- Dropping a previously surfaced gap from the audit trail when you
-  re-render. If the loop went 3 → 1 gaps, show the user what got fixed

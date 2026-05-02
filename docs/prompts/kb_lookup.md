@@ -177,9 +177,18 @@ the LLM's domain, not the adapter's.
 ## Building the patch
 
 `kb_results_to_bundle(results)` turns one or more `KBResult`s into the
-`parameter_fill_bundle` shape. Failed / value-less results are
-silently dropped, so checking `len(bundle["skeletons"])` against
-`len(results)` tells you how many KB calls actually produced data.
+`parameter_fill_bundle` shape. Two invariants govern the conversion:
+
+- **Provenance is per-value, not aggregable.** Each `KBResult` carries
+  its own `provenance.citation`. When two adapters answer the same
+  gap, both become separate skeletons (each with its own citation) —
+  values across sources are never averaged or otherwise combined,
+  because the resulting number would have no single source to audit.
+- **None is the contract for failure, not a bug.** Failed / value-less
+  results are silently dropped from the bundle. Checking
+  `len(bundle["skeletons"])` against `len(results)` tells you how many
+  KB calls actually produced data; the missing ones leave their gap
+  in `blocking` state, which is the intended signal.
 
 ```python
 from themis.kb import kb_results_to_bundle
@@ -195,6 +204,13 @@ real citation in `provenance.citation`, the patch will be treated as
 fabricated.
 
 ## Caching
+
+KB facts are immutable across a session — the same `KBQuery` returns
+the same answer the next turn, the next hour, and (usually) the next
+week. The cache is therefore the canonical store for any query that
+has been issued: re-issuing a query means reading the cache, not
+re-fetching. Negative results are part of this contract — a cached
+failure is just as authoritative as a cached success.
 
 `themis.kb.KBCache` is local SQLite. The orchestrator manages it
 (Themis doesn't touch it):
@@ -233,16 +249,3 @@ decided yes. Specifically, do NOT structured-lookup when:
   `response_rendering.md` §"Literature numeric rendering" instead
 - The user has explicitly asked you to wait / not search
 
-## Anti-patterns
-
-- **Bypassing the cache** for repeated lookups in the same loop.
-  KB facts don't change between turns; bypass burns network + makes
-  the audit trail noisier
-- **Combining `KBResult`s from different KBs** without recording each
-  source. If two adapters both return for the same gap, log both as
-  separate skeletons (with separate citations); don't average their
-  values silently — that's amateur meta-analysis (see
-  `response_rendering.md` §"Literature numeric rendering")
-- **Treating `kb_result_to_skeleton(failed_result)` returning None
-  as a bug**. It's the contract — failures don't become patches.
-  Surface the gap as still-blocking instead

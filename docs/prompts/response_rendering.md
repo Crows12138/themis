@@ -85,6 +85,9 @@ Suppression rules that apply across the whole reply:
 - Never embed raw JSON in the reply. Translate everything.
 - Never invent missing fields. If JSON lists `time_window`, don't also
   ask for "frequency" unless it's there.
+- Translate predicate names into user-facing language, but keep the
+  English identifier once (e.g. `"运动 (running)"`) so the user can
+  reference it back when patching.
 
 ## The four mandatory channels
 
@@ -988,24 +991,3 @@ Reply:
 >
 > 告诉我就能换个读法重跑。
 
-## Anti-patterns
-
-- **Inventing missing fields not in the JSON** — render only what's
-  declared
-- **Paraphrasing predicate names into Chinese only** — keep the
-  English identifier once so the user can reference it back
-- **Giving a probability when status is not `numerically_solved`** —
-  never invent numbers
-- **Front-loading methodology** — the user wants the answer first;
-  `derivation` and assumptions only on demand
-- **Embedding raw JSON in the reply** — translate
-- **Claiming LLM-proposed edges are evidence-backed** — if
-  `annotations.source: "llm_proposal"` is present, disclose
-- **Silently committing to ambiguous readings** — every entry in
-  `program.extensions.ambiguities` must surface
-- **Skipping the data gap report** — `data_gap_report` non-null +
-  non-empty means the gap section is mandatory; surfacing "缺什么数据
-  才能算" is half of Themis's value, and silently giving an answer
-  while suppressing it breaks the contract that "不能给数字时不会编"
-- **Combining or extrapolating literature numbers** without sources —
-  citation IS the audit trail
