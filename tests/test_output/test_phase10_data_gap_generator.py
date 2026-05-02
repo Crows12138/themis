@@ -457,6 +457,39 @@ def test_framing_note_on_query_path_upgrades_to_important():
     assert all(g["severity"] == "important" for g in framing)
 
 
+def test_actionable_steps_are_short_imperatives_not_description_repeats():
+    """Real-test caught: actionable_next_steps used to be
+    `f'补 {short_label} → {gap.if_provided}'`, which inlined the same
+    if_provided text the renderer surfaces inside the gap bullet itself
+    — so the user saw 'why this matters' twice, once per gap and once
+    per actionable step. Now the action is short imperative only; the
+    why stays in the gap object."""
+    from types import SimpleNamespace
+
+    notes = (
+        FramingNote(predicate="stays_up_late", missing=("time_window",)),
+    )
+    stmt = SimpleNamespace(query=SimpleNamespace(
+        from_atom=SimpleNamespace(predicate="stays_up_late"),
+        to_atom=SimpleNamespace(predicate="prefrontal_function"),
+    ))
+    report = compute_data_gap_report(
+        query_kind=QueryKind.CAUSE,
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        framing_notes=notes,
+        stmt=stmt,
+    )
+    # The gap's if_provided text must NOT leak into actionable_next_steps.
+    why_text = "下游结果（点估计 / bounds）的语义"
+    assert any(why_text in g.if_provided for g in report.gaps), \
+        "if_provided still on the gap (sanity check)"
+    assert not any(why_text in step for step in report.actionable_next_steps), \
+        "actionable_next_steps should not repeat gap.if_provided"
+    # Step text mentions the predicate (so the user knows which one).
+    assert any("stays_up_late" in step
+               for step in report.actionable_next_steps)
+
+
 def test_framing_note_off_query_path_stays_informational():
     """Companion to the upgrade rule: a framing note for a predicate
     the query does not reference keeps informational severity. Built

@@ -891,12 +891,20 @@ def _make_summary(gaps: list[DataGap]) -> str:
 
 
 def _make_actionable_steps(gaps: list[DataGap]) -> list[str]:
+    """Short imperative tail rendered after the gap section.
+
+    Each step is an action ('补 X' / '或：换识别路径'), not a restatement
+    of gap.description or gap.if_provided — those live inside the gap
+    object and are already surfaced by the renderer within each gap's
+    bullet. Concatenating description + if_provided here produced a
+    wall of text that just repeated the gap section verbatim.
+    """
     steps: list[str] = []
     for gap in gaps:
         if gap.severity == GapSeverity.INFORMATIONAL:
             continue
         if gap.if_provided:
-            steps.append(f"补 {_short_label_for(gap)} → {gap.if_provided}")
+            steps.append(f"补 {_short_label_for(gap)}")
         if gap.alternative_paths:
             steps.append(f"或：{gap.alternative_paths[0]}")
     return steps
@@ -938,4 +946,10 @@ def _short_label_for(gap: DataGap) -> str:
         return "中介相关分布"
     if gap.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET:
         return "可识别的调整集 / 替代识别路径"
+    if gap.kind == GapKind.AMBIGUOUS_VARIABLE_DEFINITION:
+        # Provenance carries the predicate name (a FRAMING_NOTE ref).
+        for prov in gap.provenance or ():
+            if prov.ref_kind == GapRefKind.FRAMING_NOTE and prov.ref_id:
+                return f"`{prov.ref_id}` 的操作化定义"
+        return "变量的操作化定义"
     return gap.description
