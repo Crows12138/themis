@@ -491,6 +491,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_verify",
         "themis_verify_data_gap_report",
         "themis_estimate",
+        "themis_discover",
         "themis_list_resources",
     }
     _require(tool_names == expected_tools, "MCP tool catalog drifted")

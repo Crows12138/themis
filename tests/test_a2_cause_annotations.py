@@ -140,25 +140,28 @@ def test_instantiation_preserves_annotations_across_forall_expansion():
 # ================================================================== run()
 
 def test_themis_run_accepts_annotated_cause_and_reasons_identically():
-    """Annotations are metadata — a program with vs without an annotation
-    on the same edge must produce identical reasoning output (only the
-    typed Program differs, not the result)."""
+    """Annotations are inert to reasoning — status, structural_result,
+    and derivation are identical with vs without the annotation. Both
+    ``data_gap_report`` and ``explanation`` deliberately differ: the
+    proposal-edge disclosure is the whole point of provenance, and the
+    explanation channel is the kernel-side guarantee that the disclosure
+    surfaces even when the renderer skips ``data_gap_report``. Covered
+    separately in test_unverified_proposal_edge_*."""
     ast_with = _ast_with_annotated_cause(source="llm_proposal")
     ast_plain = _ast_with_annotated_cause()
     del ast_plain["statements"][2]["annotations"]
 
-    out_with = themis.run(ast_with)
-    out_plain = themis.run(ast_plain)
+    r_with = themis.run(ast_with)["results"][0]
+    r_plain = themis.run(ast_plain)["results"][0]
 
-    # The reasoning result (value, explanation, everything the kernel
-    # produces) must be identical — annotations never influence any rule.
-    # Compare results[] only; the program echo naturally differs because
-    # one program carries the annotation and the other doesn't.
-    assert out_with["results"] == out_plain["results"]
-    # Sanity: the reasoning actually produced a structurally_solved answer.
-    r = out_with["results"][0]
-    assert r["query_kind"] == "cause"
-    assert r["status"] == "structurally_solved"
+    # Reasoning fields must match exactly — no rule reads annotations.
+    for field in ("status", "query_kind", "query_id", "structural_result",
+                  "derivation", "missing_information",
+                  "investigation_requests", "framing_notes",
+                  "extensions", "confidence", "numeric_result"):
+        assert r_with.get(field) == r_plain.get(field), field
+    assert r_with["query_kind"] == "cause"
+    assert r_with["status"] == "structurally_solved"
 
 
 def test_instantiation_lifts_annotation_from_forall_cause_into_every_ground_copy():
@@ -212,3 +215,161 @@ def test_instantiation_lifts_annotation_from_forall_cause_into_every_ground_copy
     # End-to-end still runs cleanly.
     out = themis.run(ast)
     assert out["results"][0]["status"] == "structurally_solved"
+
+
+# ====================================== unverified-proposal-edge data gap
+
+
+def test_unverified_proposal_edge_emits_informational_gap():
+    """Real-test caught: rendering layer was the *only* place that read
+    `annotations.source = "llm_proposal"` — if the downstream LLM forgot
+    to walk `program.statements`, the user got an answer that looked
+    independently verified but was actually a self-replay of the LLM's
+    own assumption. The gap report now surfaces this as INFORMATIONAL so
+    disclosure has a structured signal, not a textual hint."""
+    ast = _ast_with_annotated_cause(source="llm_proposal")
+    out = themis.run(ast)
+    result = out["results"][0]
+    report = result["data_gap_report"]
+    kinds = [g["kind"] for g in report["gaps"]]
+    assert "unverified_proposal_edge_on_query_path" in kinds
+
+    proposal_gap = next(
+        g for g in report["gaps"]
+        if g["kind"] == "unverified_proposal_edge_on_query_path"
+    )
+    assert proposal_gap["severity"] == "informational"
+    # Description names the actual edge, not a placeholder.
+    assert "running" in proposal_gap["description"]
+    assert "belly_fat_loss" in proposal_gap["description"]
+
+    # Geometric guarantee: the disclosure also lands in ``explanation``
+    # so a renderer that skips data_gap_report still cannot drop it.
+    assert result.get("explanation") is not None
+    assert "running" in result["explanation"]
+    assert "belly_fat_loss" in result["explanation"]
+    assert "llm_proposal" in result["explanation"]
+
+
+def test_evidence_backed_edge_does_not_emit_proposal_gap():
+    """Companion: edges with a concrete citation (PubMed:..., DOI:...)
+    or no annotation at all must not trigger the proposal-edge gap —
+    that would muddy the signal and produce false alarms."""
+    ast_cite = _ast_with_annotated_cause(source="PubMed:12345")
+    ast_plain = _ast_with_annotated_cause()
+    del ast_plain["statements"][2]["annotations"]
+
+    for ast in (ast_cite, ast_plain):
+        out = themis.run(ast)
+        report = out["results"][0].get("data_gap_report")
+        kinds = [g["kind"] for g in (report["gaps"] if report else ())]
+        assert "unverified_proposal_edge_on_query_path" not in kinds
+
+
+def test_unverified_proposal_edge_flags_effect_query_via_dag_walk():
+    """Effect / identify queries do not expose ``supporting_paths``;
+    proposal-edge detection has to walk the program-derived DAG between
+    query-relevant predicates instead. Pin: an effect query whose only
+    causal pathway is an llm_proposal edge produces the same gap as the
+    cause-query case."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "running",
+             "domain": [True, False]},
+            {"kind": "variable", "predicate": "belly_fat_loss",
+             "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "running",
+                         "args": [{"type": "const", "name": "me"}]},
+                "to": {"predicate": "belly_fat_loss",
+                       "args": [{"type": "const", "name": "me"}]},
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {
+                        "atom": {"predicate": "running",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                    "target": {
+                        "atom": {"predicate": "belly_fat_loss",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                    "given": [],
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    result = out["results"][0]
+    assert result["query_kind"] == "effect"
+    report = result["data_gap_report"]
+    kinds = [g["kind"] for g in report["gaps"]]
+    assert "unverified_proposal_edge_on_query_path" in kinds
+
+
+def test_unverified_proposal_edge_flags_mediator_chain():
+    """Mediation pathway: X -> M -> Y. Both edges llm_proposal — both
+    should be flagged. Mediator predicate enters the relevant set so the
+    DFS picks up X→M and M→Y separately."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "x",
+                         "args": [{"type": "const", "name": "me"}]},
+                "to": {"predicate": "m",
+                       "args": [{"type": "const", "name": "me"}]},
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "cause",
+                "from": {"predicate": "m",
+                         "args": [{"type": "const", "name": "me"}]},
+                "to": {"predicate": "y",
+                       "args": [{"type": "const", "name": "me"}]},
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {
+                        "atom": {"predicate": "x",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                    "target": {
+                        "atom": {"predicate": "y",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                    "given": [],
+                    "mediator": {"predicate": "m",
+                                 "args": [{"type": "const", "name": "me"}]},
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    result = out["results"][0]
+    report = result["data_gap_report"]
+    proposal_gaps = [
+        g for g in report["gaps"]
+        if g["kind"] == "unverified_proposal_edge_on_query_path"
+    ]
+    assert len(proposal_gaps) == 2
+    descriptions = " ".join(g["description"] for g in proposal_gaps)
+    assert "x" in descriptions and "m" in descriptions and "y" in descriptions

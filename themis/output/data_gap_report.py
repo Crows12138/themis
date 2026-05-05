@@ -39,6 +39,8 @@ from .sample_size import (
     is_binary_outcome_distribution,
 )
 from ..types import (
+    BidirectedStatement,
+    CauseStatement,
     DataGap,
     DataGapReport,
     DerivationStep,
@@ -96,6 +98,9 @@ def compute_data_gap_report(
     extensions: dict | None = None,
     program=None,
     stmt=None,
+    structural_result=None,
+    bounds_result=None,
+    confidence: float | None = None,
 ) -> DataGapReport | None:
     """Synthesize a DataGapReport from the result-envelope signals.
 
@@ -108,13 +113,36 @@ def compute_data_gap_report(
     """
     extensions = extensions or {}
 
+    must_disclose_gaps: list[DataGap] = []
+    must_disclose_gaps.extend(
+        _classify_unverified_proposal_edges(
+            program, structural_result, stmt, extensions,
+        )
+    )
+    must_disclose_gaps.extend(_classify_iv_assumption(extensions))
+    must_disclose_gaps.extend(_classify_mediation_assumptions(extensions))
+    must_disclose_gaps.extend(_classify_transport_assumptions(extensions))
+    must_disclose_gaps.extend(_classify_llm_ambiguities(extensions))
+    must_disclose_gaps.extend(_classify_bounds_not_point(bounds_result))
+    must_disclose_gaps.extend(_classify_low_confidence(confidence))
+    must_disclose_gaps.extend(_classify_front_door_assumptions(derivation))
+    must_disclose_gaps.extend(_classify_counterfactual_assumptions(
+        derivation, status,
+    ))
+    must_disclose_gaps.extend(_classify_graph_learned_from_data(program))
+
     # For cause / assoc / probability the only data-need-bearing channel
-    # is framing (variable definition ambiguity). If that's also empty,
-    # short-circuit to None — no point attaching an empty report.
-    if query_kind in _QUERY_KINDS_WITHOUT_DATA_NEEDS and not framing_notes:
+    # was framing. Must-disclose caveats now also keep the report alive
+    # — without them a renderer would never see the structural caveats
+    # the kernel detected.
+    if (
+        query_kind in _QUERY_KINDS_WITHOUT_DATA_NEEDS
+        and not framing_notes
+        and not must_disclose_gaps
+    ):
         return None
 
-    gaps: list[DataGap] = []
+    gaps: list[DataGap] = list(must_disclose_gaps)
     gaps.extend(_classify_unidentifiable(derivation))
     gaps.extend(
         _classify_unidentifiable_from_request(investigation_requests)
@@ -138,6 +166,612 @@ def compute_data_gap_report(
         gaps=tuple(gaps),
         actionable_next_steps=tuple(actionable),
     )
+
+
+def _classify_unverified_proposal_edges(
+    program,
+    structural_result,
+    stmt,
+    extensions: dict,
+) -> Iterable[DataGap]:
+    """The structural answer rests on edges the upstream LLM proposed
+    (``annotations.source == "llm_proposal"``) rather than
+    evidence-backed edges. Reasoning replays the LLM's own assumption
+    instead of independently verifying it — surfaced as INFORMATIONAL so
+    the renderer can disclose without overstating risk.
+
+    Both directed (``CauseStatement``) and bidirected
+    (``BidirectedStatement``, latent common cause) edges are scanned.
+    Bidirected proposal edges are particularly load-bearing for IV /
+    front-door identification, where the latent confounder is the
+    *reason* an alternative identification strategy is needed.
+
+    Edges are flagged via two complementary signals (either suffices):
+
+    1. **supporting_paths** — concrete on cause / assoc results; each
+       consecutive node pair on a returned path is an edge that was
+       actually traversed.
+
+    2. **DAG walk** — for every other query kind (effect / identify /
+       IV / mediation / counterfactual), enumerate simple directed
+       paths in the program-derived DAG between every pair of
+       query-relevant predicates (intervention / target / mediator /
+       given), plus instrument / adjustment-set predicates pulled from
+       ``extensions`` when the dispatcher exposed them. Any
+       proposal edge lying on such a path is load-bearing.
+
+    Bidirected proposal edges are flagged when either endpoint is a
+    query-relevant predicate (they are undirected, so 'on the path' is
+    not the natural test — incidence on a query node is).
+    """
+    if program is None:
+        return
+
+    proposal_edges, adjacency = _build_dag_with_proposals(program)
+    bidirected_proposals = _collect_bidirected_proposal_pairs(program)
+    if not proposal_edges and not bidirected_proposals:
+        return
+
+    flagged: set[tuple[str, str]] = set()
+
+    paths = getattr(structural_result, "supporting_paths", ()) or ()
+    for path in paths:
+        for i in range(len(path) - 1):
+            a_pred = path[i].split("(", 1)[0]
+            b_pred = path[i + 1].split("(", 1)[0]
+            if (a_pred, b_pred) in proposal_edges:
+                flagged.add((a_pred, b_pred))
+
+    relevant = _query_relevant_predicates_for_path_walk(stmt, extensions)
+    if relevant and adjacency:
+        for src in relevant:
+            for dst in relevant:
+                if src == dst:
+                    continue
+                for path in _enumerate_simple_directed_paths(
+                    adjacency, src, dst,
+                ):
+                    for i in range(len(path) - 1):
+                        edge = (path[i], path[i + 1])
+                        if edge in proposal_edges:
+                            flagged.add(edge)
+
+    if bidirected_proposals and relevant:
+        for left, right in bidirected_proposals:
+            if left in relevant or right in relevant:
+                # Render with ↔ so the renderer distinguishes from
+                # directed edges. Tuple ordered for deterministic output.
+                a, b = sorted((left, right))
+                flagged.add((a, f"↔{b}"))
+
+    edge_sources = _index_edge_sources(program)
+    for frm, to in sorted(flagged):
+        # Look up the actual source string so the description can name
+        # 'LLM hypothesis' vs 'PC algorithm output' specifically.
+        bidirected = to.startswith("↔")
+        clean_to = to[1:] if bidirected else to
+        source_key = (
+            ("bidirected", tuple(sorted((frm, clean_to))))
+            if bidirected
+            else ("cause", (frm, clean_to))
+        )
+        source_str = edge_sources.get(source_key, "")
+        edge_render = f"{frm} ↔ {clean_to}" if bidirected else f"{frm} → {to}"
+        if source_str.startswith("discovery:"):
+            algo = source_str.split(":", 1)[1]
+            description = (
+                f"结构性回答途径上的边 `{edge_render}` 是因果发现算法 "
+                f"`{algo.upper()}` 从数据中学出的，结果以算法假设（如 PC: "
+                f"忠实性 + 因果充足性；LiNGAM: 线性 + 非高斯）为前提。"
+            )
+        else:
+            description = (
+                f"结构性回答途径上的边 `{edge_render}` 是上游 LLM 提出的"
+                f"假设（annotations.source = llm_proposal），不是经证据"
+                f"支持的边。当前回答相当于复述这条假设，而非独立验证。"
+            )
+        yield DataGap(
+            kind=GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH,
+            severity=GapSeverity.INFORMATIONAL,
+            description=description,
+            blocks=GapBlocks.INTERPRETATION,
+            if_provided="可换成证据支持的边或外部文献的引用",
+            alternative_paths=(
+                "提供支持这条边的研究 / 数据来源",
+                "改为询问'若该边成立则…'的条件性问题",
+            ),
+            provenance=(
+                GapProvenanceRef(
+                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_id=(
+                        f"program:bidirected:{frm}↔{clean_to}:annotations.source"
+                        if bidirected
+                        else f"program:cause:{frm}->{to}:annotations.source"
+                    ),
+                ),
+            ),
+        )
+
+
+def _index_edge_sources(program) -> dict[tuple[str, tuple[str, ...]], str]:
+    """Build a lookup from (kind, predicate-pair) to the verbatim
+    annotations.source string. ``kind`` is ``"cause"`` or ``"bidirected"``.
+    Used by the proposal-edge classifier to render description text that
+    names the *kind* of non-evidence source (LLM vs discovery algorithm).
+    """
+    out: dict[tuple[str, tuple[str, ...]], str] = {}
+    for st in program.statements:
+        ann = getattr(st, "annotations", None)
+        if ann is None or ann.source is None:
+            continue
+        if isinstance(st, CauseStatement):
+            out[("cause", (st.from_atom.predicate, st.to_atom.predicate))] = ann.source
+        elif isinstance(st, BidirectedStatement):
+            pair = tuple(sorted((st.left.predicate, st.right.predicate)))
+            out[("bidirected", pair)] = ann.source
+    return out
+
+
+def _collect_bidirected_proposal_pairs(
+    program,
+) -> set[tuple[str, str]]:
+    """Bidirected (latent common cause) statements with a non-evidence
+    ``annotations.source``. Returned unordered as sets of (left, right)
+    predicate pairs."""
+    pairs: set[tuple[str, str]] = set()
+    for st in program.statements:
+        if not isinstance(st, BidirectedStatement):
+            continue
+        ann = getattr(st, "annotations", None)
+        if ann is None or not _is_non_evidence_source(ann.source):
+            continue
+        pairs.add((st.left.predicate, st.right.predicate))
+    return pairs
+
+
+def _build_dag_with_proposals(
+    program,
+) -> tuple[set[tuple[str, str]], dict[str, list[str]]]:
+    """Pull the predicate-level DAG and the subset of non-evidence edges
+    out of program.statements in a single pass.
+
+    "Non-evidence" covers both ``annotations.source == "llm_proposal"``
+    (LLM hypothesis) and ``annotations.source`` starting with
+    ``"discovery:"`` (PC / FCI / LiNGAM algorithmic output). Both share
+    the load-bearing-without-citation property.
+    """
+    proposal_edges: set[tuple[str, str]] = set()
+    adjacency: dict[str, list[str]] = {}
+    for st in program.statements:
+        if not isinstance(st, CauseStatement):
+            continue
+        edge = (st.from_atom.predicate, st.to_atom.predicate)
+        adjacency.setdefault(edge[0], []).append(edge[1])
+        ann = getattr(st, "annotations", None)
+        if ann is not None and _is_non_evidence_source(ann.source):
+            proposal_edges.add(edge)
+    return proposal_edges, adjacency
+
+
+def _is_non_evidence_source(source: str | None) -> bool:
+    """An edge source counts as non-evidence (must-disclose) when it is
+    ``"llm_proposal"`` or starts with ``"discovery:"``."""
+    if source is None:
+        return False
+    if source == "llm_proposal":
+        return True
+    if source.startswith("discovery:"):
+        return True
+    return False
+
+
+def _query_relevant_predicates_for_path_walk(
+    stmt, extensions: dict,
+) -> frozenset[str]:
+    """Predicates whose pairwise directed paths are load-bearing for the
+    query. Combines query atoms (via ``_query_referenced_predicates``)
+    with structural artifacts the dispatcher exposed in ``extensions``:
+    instrument (IV), adjustment set / mediator adjustment, mediator.
+    """
+    base = set(_query_referenced_predicates(stmt))
+
+    iv = (extensions or {}).get("iv_identification") or {}
+    instrument = iv.get("instrument")
+    if instrument:
+        base.add(str(instrument).split("(", 1)[0])
+    for entry in iv.get("conditioning") or ():
+        base.add(str(entry).split("(", 1)[0])
+
+    mediation = (extensions or {}).get("mediation_decomposition") or {}
+    nde = mediation.get("nde_nie") or {}
+    cde = mediation.get("cde") or {}
+    for entry in (nde.get("adjustment") or ()):
+        base.add(str(entry).split("(", 1)[0])
+    for entry in (cde.get("adjustment") or ()):
+        base.add(str(entry).split("(", 1)[0])
+    mediator = mediation.get("mediator")
+    if mediator:
+        base.add(str(mediator).split("(", 1)[0])
+
+    return frozenset(base)
+
+
+def _classify_iv_assumption(extensions: dict) -> Iterable[DataGap]:
+    """IV identification rests on monotonicity (LATE/Wald) or linearity
+    (2SLS/ATE). The extension carries the wording verbatim; surface as a
+    must-disclose caveat so the renderer cannot present an IV estimate
+    as an unconditional ATE."""
+    iv = (extensions or {}).get("iv_identification") or {}
+    assumption = iv.get("required_assumption")
+    instrument = iv.get("instrument")
+    if not assumption:
+        return
+    yield DataGap(
+        kind=GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED,
+        severity=GapSeverity.INFORMATIONAL,
+        description=(
+            f"IV 识别（工具变量 `{instrument}`）的有效性以下列假设为前提："
+            f"{assumption}。读 IV 估计前应明确这条假设是否在你的场景下成立。"
+        ),
+        blocks=GapBlocks.INTERPRETATION,
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="extensions.iv_identification.required_assumption",
+            ),
+        ),
+    )
+
+
+def _classify_mediation_assumptions(
+    extensions: dict,
+) -> Iterable[DataGap]:
+    """NDE/NIE / CDE identification each carry a non-empty `assumptions`
+    list when identifiable. Surface a single caveat per identifiable
+    branch so the renderer cannot read 'identifiable: true' as
+    unconditional."""
+    mediation = (extensions or {}).get("mediation_decomposition") or {}
+    if not mediation.get("mediator_valid"):
+        return
+    for branch_name, branch in (
+        ("NDE/NIE", mediation.get("nde_nie") or {}),
+        ("CDE", mediation.get("cde") or {}),
+    ):
+        if not branch.get("identifiable"):
+            continue
+        assumptions = branch.get("assumptions") or ()
+        if not assumptions:
+            continue
+        yield DataGap(
+            kind=GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED,
+            severity=GapSeverity.INFORMATIONAL,
+            description=(
+                f"中介分解 {branch_name} 标识为可识别，前提是以下假设成立："
+                f"{', '.join(assumptions)}。"
+            ),
+            blocks=GapBlocks.INTERPRETATION,
+            provenance=(
+                GapProvenanceRef(
+                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_id=(
+                        "extensions.mediation_decomposition."
+                        f"{'nde_nie' if branch_name == 'NDE/NIE' else 'cde'}"
+                        ".assumptions"
+                    ),
+                ),
+            ),
+        )
+
+
+def _classify_transport_assumptions(
+    extensions: dict,
+) -> Iterable[DataGap]:
+    """Transport identification (Bareinboim-Pearl) requires
+    S-admissibility plus correct selection-node specification. The
+    transferred estimate is invalid outside those assumptions."""
+    transport = (extensions or {}).get("transport_identification") or {}
+    if not transport:
+        return
+    src_pop = transport.get("source_population", "<源人群>")
+    tgt_pop = transport.get("target_population", "<目标人群>")
+    yield DataGap(
+        kind=GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED,
+        severity=GapSeverity.INFORMATIONAL,
+        description=(
+            f"将估计从 {src_pop} 转移到 {tgt_pop} 的有效性以 S-admissibility "
+            f"为前提：声明的 selection_nodes 必须正确捕获两人群间分布差异。"
+        ),
+        blocks=GapBlocks.TRANSPORT,
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="extensions.transport_identification",
+            ),
+        ),
+    )
+
+
+def _classify_llm_ambiguities(extensions: dict) -> Iterable[DataGap]:
+    """LLM-declared ambiguities the kernel did not resolve into a
+    structural decision (reciprocal causation, mechanism vs existence,
+    mediator choice). Renderer must surface the LLM's own uncertainty —
+    leaving these unspoken would make the answer look confident when the
+    upstream itself wasn't."""
+    ambiguities = (extensions or {}).get("ambiguities") or ()
+    for amb in ambiguities:
+        if not isinstance(amb, dict):
+            continue
+        kind = amb.get("kind", "<unspecified>")
+        rationale = amb.get("rationale") or amb.get("note") or ""
+        # dose_response_query has its own dedicated gap_kind; skip.
+        if kind == "dose_response_query":
+            continue
+        suffix = f"：{rationale}" if rationale else ""
+        yield DataGap(
+            kind=GapKind.LLM_DECLARED_AMBIGUITY,
+            severity=GapSeverity.INFORMATIONAL,
+            description=(
+                f"上游 LLM 标记了不确定性 `{kind}`{suffix}。"
+                f"答案的解读应将其考虑在内。"
+            ),
+            blocks=GapBlocks.INTERPRETATION,
+            provenance=(
+                GapProvenanceRef(
+                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_id=f"extensions.ambiguities[{kind}]",
+                ),
+            ),
+        )
+
+
+# Threshold below which composite confidence triggers a must-disclose
+# caveat. 0.6 is the conventional "substantial uncertainty" line —
+# anything ≥ 0.6 gets through silently to keep the channel signal-rich
+# rather than firing on every routine answer.
+_LOW_CONFIDENCE_THRESHOLD: float = 0.6
+
+
+def _classify_low_confidence(confidence: float | None) -> Iterable[DataGap]:
+    """Composite confidence (min across slot-level annotations) below the
+    threshold means at least one input statement carries substantial
+    uncertainty. The answer inherits that uncertainty — surface so it
+    does not read as a clean point estimate."""
+    if confidence is None:
+        return
+    if confidence >= _LOW_CONFIDENCE_THRESHOLD:
+        return
+    yield DataGap(
+        kind=GapKind.LOW_CONFIDENCE_INPUT_DATA,
+        severity=GapSeverity.INFORMATIONAL,
+        description=(
+            f"答案的复合可信度为 {confidence:.2f}（< {_LOW_CONFIDENCE_THRESHOLD}）— "
+            f"至少有一项输入语句的置信度较低，结果应视为不确定的。具体的薄弱"
+            f"环节见 `confidence_sources` 中标记 is_weakest=true 的条目。"
+        ),
+        blocks=GapBlocks.INTERPRETATION,
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="result.confidence",
+            ),
+        ),
+    )
+
+
+_FRONT_DOOR_DERIVATION_RULES: frozenset[str] = frozenset({
+    "front_door_criterion",
+    "front_door_adjustment_formula",
+    "identify_via_front_door",
+})
+
+
+def _classify_front_door_assumptions(
+    derivation: tuple[DerivationStep, ...],
+) -> Iterable[DataGap]:
+    """Front-door identification rests on Pearl's three graphical premises
+    plus consistency. Detected by scanning derivation rules — the
+    dispatcher does not currently echo a `front_door_identification`
+    extension, so the derivation chain is the authoritative signal."""
+    triggering = next(
+        (
+            step for step in derivation
+            if step.rule in _FRONT_DOOR_DERIVATION_RULES
+            and not _step_failed(step)
+        ),
+        None,
+    )
+    if triggering is None:
+        return
+    yield DataGap(
+        kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
+        severity=GapSeverity.INFORMATIONAL,
+        description=(
+            "前门识别（Pearl front-door criterion）的有效性以下列假设为前提："
+            "(1) 中介集 M 阻断 X→Y 的所有有向路径；"
+            "(2) 不存在未阻断的 X→M 后门路径；"
+            "(3) 所有 M→Y 后门路径已被 X 阻断；"
+            "(4) consistency of potential outcomes。"
+            "若任一假设不成立，前门估计失效。"
+        ),
+        blocks=GapBlocks.INTERPRETATION,
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.DERIVATION_STEP,
+                ref_id=triggering.step_id or triggering.rule,
+            ),
+        ),
+    )
+
+
+_COUNTERFACTUAL_DERIVATION_RULES: frozenset[str] = frozenset({
+    "counterfactual_bounds_binary_monotone",
+    "counterfactual_twin_network",
+    "counterfactual_consistency",
+})
+
+
+def _classify_counterfactual_assumptions(
+    derivation: tuple[DerivationStep, ...],
+    status: ResultStatus,
+) -> Iterable[DataGap]:
+    """Counterfactual identification (twin network / monotone bounds)
+    rests on consistency + composition axioms (and binary + monotonicity
+    when bounds are used). Triggered by counterfactual derivation rules
+    or COUNTERFACTUAL_* status — either signal pinpoints the answer as
+    a counterfactual that needs assumption disclosure."""
+    triggering = next(
+        (
+            step for step in derivation
+            if step.rule in _COUNTERFACTUAL_DERIVATION_RULES
+            and not _step_failed(step)
+        ),
+        None,
+    )
+    is_counterfactual_status = status in (
+        ResultStatus.COUNTERFACTUAL_SOLVED,
+        ResultStatus.COUNTERFACTUAL_BOUNDED,
+    )
+    if triggering is None and not is_counterfactual_status:
+        return
+    yield DataGap(
+        kind=GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
+        severity=GapSeverity.INFORMATIONAL,
+        description=(
+            "反事实推理的有效性以 consistency（观察值 = do(实际取值) 下的潜在结果）"
+            "+ composition 公理为前提；当走 monotone bounds 时还需要二值结果"
+            "+ X 对 Y 的单调性。这些假设无法从数据本身验证。"
+        ),
+        blocks=GapBlocks.INTERPRETATION,
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.DERIVATION_STEP,
+                ref_id=(
+                    triggering.step_id or triggering.rule
+                    if triggering else "counterfactual_status"
+                ),
+            ),
+        ),
+    )
+
+
+def _classify_bounds_not_point(bounds_result) -> Iterable[DataGap]:
+    """When ``bounds_result`` is non-null the answer is a symbolic
+    interval, not a point estimate. Surfaces both the method-vs-point
+    distinction and the method's specific assumptions (e.g. Balke-Pearl
+    needs IV1/IV2/IV3) — without these the bounds read like a point
+    with confidence intervals."""
+    if bounds_result is None:
+        return
+    method = getattr(bounds_result, "method", None)
+    method_name = method.value if hasattr(method, "value") else str(method)
+    uninformative = getattr(bounds_result, "width_when_uninformative", False)
+    assumptions = getattr(bounds_result, "assumptions", ()) or ()
+    pieces: list[str] = [
+        f"答案是 `{method_name}` 给出的符号区间，不是点估计"
+    ]
+    if uninformative:
+        pieces.append("（且区间为非信息性 [0,1] / [-1,1]，无实际辨别力）")
+    pieces.append("。渲染时必须明示这是 bounds 而非具体数值")
+    if assumptions:
+        pieces.append(
+            f"。区间的有效性以以下假设为前提：{', '.join(assumptions)}"
+        )
+    pieces.append("。")
+    yield DataGap(
+        kind=GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE,
+        severity=GapSeverity.INFORMATIONAL,
+        description="".join(pieces),
+        blocks=GapBlocks.INTERPRETATION,
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="bounds_result",
+            ),
+        ),
+    )
+
+
+def _classify_graph_learned_from_data(program) -> Iterable[DataGap]:
+    """When ``program.extensions.discovery_metadata`` is populated, the
+    DAG (or part of it) was learned from data by a causal-discovery
+    algorithm. The user must know — without disclosure they assume the
+    graph came from domain knowledge.
+
+    Reads from ``program.extensions`` rather than ``result.extensions``
+    because discovery is a program-shape signal, not a per-query one.
+    """
+    if program is None:
+        return
+    program_ext = getattr(program, "extensions", None) or {}
+    metadata = program_ext.get("discovery_metadata") or {}
+    if not metadata:
+        return
+    algo = metadata.get("algorithm", "<unknown>")
+    alpha = metadata.get("alpha")
+    n = metadata.get("sample_size")
+    pieces = [
+        f"DAG 是由因果发现算法 `{algo.upper()}` 从数据中学出的，不是用"
+        f"领域知识手工声明的。"
+    ]
+    if alpha is not None:
+        pieces.append(f"显著性阈值 α = {alpha}。")
+    if n is not None:
+        pieces.append(f"样本量 N = {n}。")
+    pieces.append(
+        "结果继承算法的核心假设："
+        "PC 需要忠实性 (faithfulness) + 因果充足性 (causal sufficiency)；"
+        "FCI 放宽因果充足性但仍需忠实性；"
+        "LiNGAM 需要线性 + 非高斯噪声。"
+    )
+    yield DataGap(
+        kind=GapKind.GRAPH_LEARNED_FROM_DATA,
+        severity=GapSeverity.INFORMATIONAL,
+        description="".join(pieces),
+        blocks=GapBlocks.INTERPRETATION,
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="extensions.discovery_metadata",
+            ),
+        ),
+    )
+
+
+def _enumerate_simple_directed_paths(
+    adjacency: dict[str, list[str]],
+    src: str,
+    dst: str,
+    *,
+    max_paths: int = 32,
+    max_depth: int = 12,
+) -> list[tuple[str, ...]]:
+    """Bounded DFS for simple directed paths src→dst. Bounds protect
+    against pathological dense DAGs; real causal models are sparse so
+    32×12 is comfortably above what any real query traverses.
+    """
+    paths: list[tuple[str, ...]] = []
+
+    def _dfs(node: str, trail: list[str], visited: set[str]) -> None:
+        if len(paths) >= max_paths:
+            return
+        if len(trail) > max_depth:
+            return
+        if node == dst:
+            paths.append(tuple(trail))
+            return
+        for nxt in adjacency.get(node, ()):
+            if nxt in visited:
+                continue
+            visited.add(nxt)
+            trail.append(nxt)
+            _dfs(nxt, trail, visited)
+            trail.pop()
+            visited.remove(nxt)
+
+    if src not in adjacency:
+        return paths
+    _dfs(src, [src], {src})
+    return paths
 
 
 # ============================================ classifiers

@@ -534,6 +534,56 @@ class GapKind(str, Enum):
     # X sampling points, per-point sample size, confounders to control,
     # time window, SUTVA concerns.
     DOSE_RESPONSE_DATA_REQUIRED = "dose_response_data_required"
+    # The structural answer was reached only by traversing edges the
+    # upstream LLM proposed (annotations.source == "llm_proposal") rather
+    # than evidence-backed edges. Reasoning replays the LLM's own
+    # assumption — surfaced as INFORMATIONAL so the renderer can disclose
+    # this instead of presenting the answer as independently verified.
+    UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH = "unverified_proposal_edge_on_query_path"
+    # IV identification carries a non-default assumption (monotonicity for
+    # LATE/Wald, linearity for 2SLS/ATE) — surfaced as a must-disclose
+    # caveat so the renderer cannot silently report the IV estimate as
+    # an unconditional ATE.
+    IV_IDENTIFICATION_ASSUMPTION_REQUIRED = "iv_identification_assumption_required"
+    # Mediation NDE/NIE / CDE identification each rest on cross-world
+    # ignorability + sequential ignorability + no intermediate confounder
+    # + consistency. "Identifiable=true" reads as unconditional unless the
+    # underlying assumptions are surfaced.
+    MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED = "mediation_identification_assumption_required"
+    # Transport identification rests on S-admissibility + correct
+    # selection-node specification. The transferred estimate isn't valid
+    # outside those assumptions.
+    TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED = "transport_identification_assumption_required"
+    # The upstream program declared an ambiguity the kernel did not
+    # resolve into a structural decision (reciprocal causation, mechanism
+    # vs existence, mediator choice, etc.). Renderer must surface so the
+    # user sees the LLM's own uncertainty.
+    LLM_DECLARED_AMBIGUITY = "llm_declared_ambiguity"
+    # Numeric answer comes from symbolic bounds (Manski / Balke-Pearl),
+    # not a point estimate. Without disclosure the bounds interval reads
+    # like a point with confidence intervals.
+    ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE = "answer_is_bounds_not_point_estimate"
+    # Composite confidence (min across slot annotations) is below the
+    # caveat threshold — at least one input statement is low-confidence
+    # and the answer inherits that uncertainty.
+    LOW_CONFIDENCE_INPUT_DATA = "low_confidence_input_data"
+    # Pearl's front-door criterion identification rests on three graphical
+    # premises (M intercepts every X→Y path, no unblocked X→M backdoor,
+    # all M→Y backdoors blocked by X) plus consistency. Without disclosure
+    # 'identifiable via front-door' reads as unconditional.
+    FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED = "front_door_identification_assumption_required"
+    # Counterfactual identification (twin network / monotone bounds)
+    # depends on the consistency + composition axioms and, for bounds,
+    # binary + monotonicity. Renderers must surface or counterfactual
+    # numbers read like ordinary point estimates.
+    COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED = "counterfactual_identification_assumption_required"
+    # The DAG itself (or part of it) was learned from data by a causal-
+    # discovery algorithm (PC / FCI / LiNGAM) rather than declared from
+    # domain knowledge. The result inherits the algorithm's assumptions —
+    # faithfulness, causal sufficiency (PC), or LiNGAM's linearity /
+    # non-Gaussianity. Surfaced as a top-level caveat distinct from
+    # individual proposal-edge gaps.
+    GRAPH_LEARNED_FROM_DATA = "graph_learned_from_data"
 
 
 class GapSeverity(str, Enum):

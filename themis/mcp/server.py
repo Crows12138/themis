@@ -149,6 +149,55 @@ def build_server():
         return themis.estimate(program, df, **(options or {}))
 
     @app.tool()
+    def themis_discover(
+        csv_path: str,
+        bool_predicates: list[str] | None = None,
+        algorithm: str = "auto",
+        alpha: float = 0.05,
+        random_state: int = 42,
+        query: dict | None = None,
+    ) -> dict:
+        """Run causal discovery (PC / FCI / LiNGAM) on a CSV-backed
+        dataset and return a kernel_ast suggestion the agent can review,
+        edit, then feed to ``themis_run``.
+
+        Each emitted ``cause`` / ``bidirected`` edge carries
+        ``annotations.source = "discovery:<algo>"`` so downstream the
+        gap report flags them as algorithmic (not domain knowledge),
+        and the orchestrator can ask the user to review the suggested
+        graph before committing to identification.
+
+        ``algorithm``: ``"pc"`` / ``"fci"`` / ``"lingam"`` / ``"auto"``
+        (auto picks LiNGAM for clearly non-Gaussian data, else PC).
+        ``bool_predicates``: column names to declare as bool domain
+        (others must be filled in by the agent before themis_run will
+        accept the suggestion).
+        ``query``: optional pre-built query statement to embed.
+        """
+        import pandas as pd
+
+        from themis.estimation.discovery import (
+            discover_graph,
+            discovery_to_kernel_ast,
+        )
+
+        path = Path(csv_path)
+        if not path.is_absolute():
+            path = (REPO_ROOT / csv_path).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
+        df = pd.read_csv(path)
+        result = discover_graph(
+            df, algorithm=algorithm, alpha=alpha,
+            random_state=random_state,
+        )
+        return discovery_to_kernel_ast(
+            result,
+            bool_predicates=tuple(bool_predicates or ()),
+            query=query,
+        )
+
+    @app.tool()
     def themis_list_resources() -> dict:
         """Catalog of available MCP resource URIs.
 

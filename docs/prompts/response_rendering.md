@@ -24,18 +24,53 @@ contract, not optional context the orchestrator might forget to pass.
 A reply is a small ladder, top to bottom:
 
 1. **Headline** — can the question be answered? (with-number /
-   with-bounds / structurally / not-yet-because-X)
-2. **Mandatory disclosure channels** (any non-empty channel surfaces;
-   skipping any of them breaks Themis's contract):
-   - `bounds_result` — Phase 12: when point fails, surface the
-     interval (Manski / Balke-Pearl) right after the headline
-   - `data_gap_report` — what data is still needed
-   - `extensions.ambiguities` — decisions made under uncertainty
-   - statement-level `annotations.source: "llm_proposal"` — hypothesis
-     edges
-3. **Concrete asks** — `investigation_requests` rendered with the
+   with-bounds / structurally / not-yet-because-X). When multiple
+   caveats stack and conflict (e.g. mediation says "structurally
+   decomposable" but `cause_attribution` says "answer is just
+   replaying my assumption"), lead with the **most-undermining**
+   caveat. The ranking is: ambiguities that question the question
+   itself (cause_attribution, mechanism_vs_existence) > all-edges-are-
+   proposals (`graph_learned_from_data` or every supporting edge
+   carrying `llm_proposal`) > query-specific identification caveats
+   (mediation/IV/front-door/transport assumptions) > bounds-not-point.
+2. **`result.explanation`** — when populated, every ⚠ line must
+   surface in your reply (rephrased as natural prose, not dropped).
+   This is the kernel-side disclosure channel: structural caveats the
+   answer depends on are guaranteed to land here. The mirrored set
+   (kernel auto-copies these gap descriptions into `explanation`):
+
+   | Gap kind | What it disclosed |
+   |---|---|
+   | `unverified_proposal_edge_on_query_path` | edge is `llm_proposal` or `discovery:*` |
+   | `iv_identification_assumption_required` | IV needs monotonicity / linearity |
+   | `mediation_identification_assumption_required` | NDE/NIE / CDE assumptions |
+   | `transport_identification_assumption_required` | S-admissibility |
+   | `llm_declared_ambiguity` | each `extensions.ambiguities[]` entry |
+   | `answer_is_bounds_not_point_estimate` | bounds vs point + method assumptions |
+   | `low_confidence_input_data` | composite confidence below threshold |
+   | `front_door_identification_assumption_required` | Pearl front-door premises |
+   | `counterfactual_identification_assumption_required` | consistency / composition axioms |
+   | `graph_learned_from_data` | DAG learned by PC/FCI/LiNGAM |
+
+   When you see one of these kinds in `data_gap_report.gaps[]`, do
+   NOT itemize it again as a separate bullet — the matching ⚠ line
+   in `explanation` is already its disclosure. Use the gap entry
+   only to pull *more specific detail* the user asks for.
+3. **Mandatory disclosure channels** (any non-empty channel surfaces):
+   - `bounds_result` — when point fails, surface the interval
+     expressions (Manski / Balke-Pearl) right after the headline
+   - `data_gap_report` — *blocking* and *important* gaps surface
+     here as itemized lines (informational gaps in the mirrored
+     set above are already in `explanation`)
+   - `extensions.ambiguities` — already mirrored; pull the specific
+     `kind` / `rationale` from here when the user deserves more than
+     the one-line caveat already in `explanation`
+   - statement-level `annotations.source: "llm_proposal"` — for
+     proposal edges *off* the query path (on-path ones are already
+     in `explanation`)
+4. **Concrete asks** — `investigation_requests` rendered with the
    exact predicate names + worked examples for null skeleton fields
-4. **Methodology** — only when the user asks "why" / "how": the
+5. **Methodology** — only when the user asks "why" / "how": the
    `derivation` chain, full assumptions list, the symbolic formula
 
 The first two layers are mandatory whenever the data is present. The
@@ -316,18 +351,31 @@ invent ambiguity. Users hate false alarms.
 
 ### 3. LLM-proposal edges
 
-If `program` is available, inspect each `cause` and `bidirected`
-statement's `annotations.source`:
+Themis enforces proposal-edge disclosure through two parallel channels:
 
-- `"llm_proposal"` — you (the upstream LLM) hypothesized this edge.
-  Disclose with weight proportional to how much the answer leans on
-  the proposal. When the query itself is *about* a proposal edge or
-  proposal mediator (e.g. cause query on a proposal edge, mediation
-  decomposition through a proposal mediator), disclosure leads the
-  headline — the structural answer is then a replay of your own
-  assumption, not Themis's independent verification.
-- A concrete citation (e.g. `"PubMed:12345"`) — evidence-backed; no
-  special line needed beyond the normal reply.
+- **`result.explanation`** — when load-bearing proposal edges exist,
+  the kernel populates this field with one ⚠ line per edge. Treat it
+  as a must-quote channel: every line in `explanation` surfaces in
+  your reply (rephrased into natural prose, not dropped). This is the
+  geometric guarantee — the disclosure path doesn't depend on you
+  reading the gap report.
+- **`data_gap_report.gaps[]`** — same edges also appear as structured
+  entries with `kind = "unverified_proposal_edge_on_query_path"`
+  (severity `informational`), useful when you need machine-readable
+  detail (which edge, which provenance ref).
+
+When proposal edges are load-bearing the structural answer is a replay
+of the LLM's own assumption, not Themis's independent verification —
+disclosure leads the headline.
+
+For edges that don't appear on the query path (e.g. proposal edges
+sitting in the wider DAG, or `bidirected` latent-common-cause
+statements which Themis does not yet path-walk), inspect `program`
+directly: each `cause` / `bidirected` statement's `annotations.source`
+is either `"llm_proposal"` (you hypothesized it) or a concrete
+citation like `"PubMed:12345"` (evidence-backed; no special line
+needed). Disclose proposal edges in proportion to how much the answer
+leans on them.
 
 For `cause` edges:
 > "我基于常识提了一条假设边 `running → belly_fat_loss`，这条关系本
@@ -991,4 +1039,84 @@ Reply:
 >   这两种读法都可以。
 >
 > 告诉我就能换个读法重跑。
+
+## Worked example — effect query with mediator and all llm_proposal edges
+
+The most common shape (and the easiest to render *wrong*): the user
+asks a mechanism question, the upstream LLM proposes the causal graph
+itself, and Themis says "structurally decomposable" — which sounds
+authoritative but is structurally a replay of the LLM's own
+assumption. Explanation must lead.
+
+Input excerpt:
+
+```json
+// program (LLM-built)
+{
+  "statements": [
+    // ... variable declarations ...
+    { "kind": "cause",
+      "from": running, "to": endorphin_release,
+      "annotations": { "source": "llm_proposal" } },
+    { "kind": "cause",
+      "from": endorphin_release, "to": good_mood,
+      "annotations": { "source": "llm_proposal" } },
+    { "kind": "cause",
+      "from": running, "to": good_mood,
+      "annotations": { "source": "llm_proposal" } },
+    { "kind": "query", "query": {
+        "kind": "effect",
+        "intervention": { "atom": running, "value": true },
+        "target": { "atom": good_mood, "value": true },
+        "mediator": endorphin_release } }
+  ],
+  "extensions": { "ambiguities": [
+    { "kind": "cause_attribution",
+      "rationale": "用户问'是不是因为内啡肽'是归因，Themis 只能验证图上的路径" }
+  ]}
+}
+
+// result
+{ "status": "structurally_solved",
+  "structural_result": { "value": true },
+  "extensions": { "mediation_decomposition": {
+      "strategy": "nde_nie",
+      "nde_nie": { "identifiable": true, "assumptions": [...] },
+      "cde": { "identifiable": true, "assumptions": [...] } } },
+  "explanation": "⚠ 上游 LLM 标记了不确定性 cause_attribution...\n⚠ 中介分解 NDE/NIE 标识为可识别，前提是...\n⚠ 中介分解 CDE 标识为可识别，前提是...\n⚠ 结构性回答途径上的边 running → endorphin_release 是上游 LLM 提出的假设...\n⚠ ... endorphin_release → good_mood ...\n⚠ ... running → good_mood ..." }
+```
+
+Reply (note headline priority: `cause_attribution` outranks
+"structurally decomposable"):
+
+> 直接答你的问题：**我没法告诉你"是不是因为内啡肽"** —— 这是个归
+> 因问题，需要数据 + 一个 Themis 当前不算的分解步骤；我能告诉你
+> 的只是"在我自己脑补的图上，'跑步 → 心情变好'这条效应在结构上
+> 可以拆成内啡肽这条路径 + 其它路径"，并且**整张图是我作为 LLM 自
+> 己提的**，没有文献支撑。
+>
+> 几个你必须知道的前提：
+>
+> - **三条边都是我自己提的假设**（`running → endorphin → good_mood`
+>   + `running → good_mood` 直接路径）。结构上"算得通"本质上在复
+>   述我的假设，不是 Themis 独立验证。有运动神经科学引用请补给我。
+> - **"分解可识别"是有条件的**：NDE/NIE 依赖 Pearl 2001 跨世界条件
+>   + 顺序可忽略性 + 没有被处理影响的中间混杂 + 一致性；CDE 还需
+>   M→Y 后门可调整 + 一致性。任意一条不成立这个"可识别"就破。
+> - **跑步改善心情还有很多其它通路**：阳光/维生素D、规律作息、社
+>   交、成就感、BDNF、降低炎症因子……要做"内啡肽 vs 其它通路"的
+>   归因分解，需要分层数据 + 当前不在 Themis 范围里的分解流程。
+>
+> 要从"图上能拆"升级到具体数字，缺的是：
+> - `good_mood` 的操作化定义（time_window / measurement / threshold...）
+> - `running` 的操作化定义（同上七项）
+> - 之后再补一份分层数据 P(good_mood | do(running), endorphin)。
+
+The reply pattern: (a) headline answers the *question they actually
+asked* (mechanism / attribution) before the *question Themis answered*
+(structural decomposability), (b) every ⚠ from `explanation` lands as
+prose, (c) `mediation_identification_assumption_required` does NOT
+get re-itemized in a separate "assumptions" section because the
+explanation already covered it, (d) framing gaps come last as the
+concrete next ask.
 

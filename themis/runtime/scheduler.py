@@ -2185,8 +2185,11 @@ def dispatch(
     )
     result = _attach_framing(program, stmt, result)
     result = _attach_program_ambiguities(result, program=program)
-    result = _attach_data_gap_report(result, program=program, stmt=stmt)
+    # Bounds first so the gap classifier can surface bounds-not-point as
+    # a must-disclose caveat. The report is built after bounds, then
+    # reconcile rewrites alt_paths inside the now-existing report.
     result = _attach_bounds_result(program, stmt, result, bidirected=bidirected)
+    result = _attach_data_gap_report(result, program=program, stmt=stmt)
     result = _reconcile_alt_paths_with_bounds(result)
     return result
 
@@ -2255,10 +2258,66 @@ def _attach_data_gap_report(
         program=program,
         stmt=stmt,
         extensions=result.extensions,
+        structural_result=result.structural_result,
+        bounds_result=result.bounds_result,
+        confidence=result.confidence,
     )
     if report is None and result.data_gap_report is None:
         return result
-    return _replace(result, data_gap_report=report)
+    result = _replace(result, data_gap_report=report)
+    return _attach_structural_caveats(result)
+
+
+# Whitelist of gap_kinds whose `description` must surface in
+# ``result.explanation`` regardless of severity. These are structural
+# caveats — the renderer cannot interpret the answer correctly without
+# them (e.g. "this is bounds, not a point estimate", "identification
+# rests on monotonicity"). The set is intentionally narrow; ordinary
+# data needs (missing distributions, IV candidates) live in the gap
+# report only.
+_MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
+    "unverified_proposal_edge_on_query_path",
+    "iv_identification_assumption_required",
+    "mediation_identification_assumption_required",
+    "transport_identification_assumption_required",
+    "llm_declared_ambiguity",
+    "answer_is_bounds_not_point_estimate",
+    "low_confidence_input_data",
+    "front_door_identification_assumption_required",
+    "counterfactual_identification_assumption_required",
+    "graph_learned_from_data",
+})
+
+
+def _attach_structural_caveats(result: QueryResult) -> QueryResult:
+    """Geometric guarantee: structural caveats the renderer must surface
+    are copied into ``result.explanation`` as ⚠-prefixed lines. The
+    renderer prompt makes ``explanation`` a must-quote field — with this
+    attachment, the disclosure path is structural, not LLM-discretionary.
+
+    The set of caveat kinds is the ``_MUST_DISCLOSE_GAP_KINDS``
+    whitelist. Adding a new caveat kind is a two-line change: add the
+    kind value here and emit it from a classifier with a description
+    that reads as a complete ⚠ line.
+    """
+    from dataclasses import replace as _replace
+
+    report = result.data_gap_report
+    if report is None or not report.gaps:
+        return result
+    lines = [
+        f"⚠ {gap.description}"
+        for gap in report.gaps
+        if gap.kind.value in _MUST_DISCLOSE_GAP_KINDS
+    ]
+    if not lines:
+        return result
+    existing = result.explanation or ""
+    appended = "\n".join(lines)
+    new_explanation = (
+        f"{existing}\n{appended}".strip() if existing else appended
+    )
+    return _replace(result, explanation=new_explanation)
 
 
 def _attach_bounds_result(

@@ -819,7 +819,17 @@
             "transport_target_distribution_unknown",
             "transport_source_conditional_unknown",
             "ambiguous_variable_definition",
-            "dose_response_data_required"
+            "dose_response_data_required",
+            "unverified_proposal_edge_on_query_path",
+            "iv_identification_assumption_required",
+            "mediation_identification_assumption_required",
+            "transport_identification_assumption_required",
+            "llm_declared_ambiguity",
+            "answer_is_bounds_not_point_estimate",
+            "low_confidence_input_data",
+            "front_door_identification_assumption_required",
+            "counterfactual_identification_assumption_required",
+            "graph_learned_from_data"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

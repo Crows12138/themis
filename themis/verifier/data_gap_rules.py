@@ -260,6 +260,30 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # (no derivation step exists for this kind; the gap is triggered by
     # a program-level ambiguity, not a failed derivation rule).
     "dose_response_data_required": frozenset({"verifier_check"}),
+    # Phase 11.x §C: provenance is a verifier_check ref pointing at the
+    # specific cause-statement annotation that flagged the path edge as
+    # an LLM hypothesis. Reference shape: program:cause:<from>-><to>:
+    # annotations.source.
+    "unverified_proposal_edge_on_query_path": frozenset({"verifier_check"}),
+    # Must-disclose caveat kinds — provenance points at the result-side
+    # extension or bounds_result the caveat is derived from.
+    "iv_identification_assumption_required": frozenset({"verifier_check"}),
+    "mediation_identification_assumption_required": frozenset(
+        {"verifier_check"}
+    ),
+    "transport_identification_assumption_required": frozenset(
+        {"verifier_check"}
+    ),
+    "llm_declared_ambiguity": frozenset({"verifier_check"}),
+    "answer_is_bounds_not_point_estimate": frozenset({"verifier_check"}),
+    "low_confidence_input_data": frozenset({"verifier_check"}),
+    "front_door_identification_assumption_required": frozenset(
+        {"derivation_step"}
+    ),
+    "counterfactual_identification_assumption_required": frozenset(
+        {"derivation_step"}
+    ),
+    "graph_learned_from_data": frozenset({"verifier_check"}),
 }
 
 
