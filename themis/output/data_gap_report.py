@@ -127,7 +127,7 @@ def compute_data_gap_report(
     must_disclose_gaps.extend(_classify_low_confidence(confidence))
     must_disclose_gaps.extend(_classify_front_door_assumptions(derivation))
     must_disclose_gaps.extend(_classify_counterfactual_assumptions(
-        derivation, status,
+        derivation, status, query_kind,
     ))
     must_disclose_gaps.extend(_classify_graph_learned_from_data(program))
 
@@ -613,12 +613,16 @@ _COUNTERFACTUAL_DERIVATION_RULES: frozenset[str] = frozenset({
 def _classify_counterfactual_assumptions(
     derivation: tuple[DerivationStep, ...],
     status: ResultStatus,
+    query_kind: QueryKind,
 ) -> Iterable[DataGap]:
     """Counterfactual identification (twin network / monotone bounds)
     rests on consistency + composition axioms (and binary + monotonicity
-    when bounds are used). Triggered by counterfactual derivation rules
-    or COUNTERFACTUAL_* status — either signal pinpoints the answer as
-    a counterfactual that needs assumption disclosure."""
+    when bounds are used). The user asking a counterfactual question is
+    itself the trigger — the assumptions apply whether the kernel
+    reached COUNTERFACTUAL_SOLVED, returned bounds, or stopped at
+    NEEDS_ASSUMPTION. Without this caveat a NEEDS_ASSUMPTION counterfactual
+    surfaces only as a generic 'missing assumption' gap and the
+    L3 vs L2 distinction is lost in rendering."""
     triggering = next(
         (
             step for step in derivation
@@ -631,7 +635,12 @@ def _classify_counterfactual_assumptions(
         ResultStatus.COUNTERFACTUAL_SOLVED,
         ResultStatus.COUNTERFACTUAL_BOUNDED,
     )
-    if triggering is None and not is_counterfactual_status:
+    is_counterfactual_query = query_kind == QueryKind.COUNTERFACTUAL
+    if (
+        triggering is None
+        and not is_counterfactual_status
+        and not is_counterfactual_query
+    ):
         return
     yield DataGap(
         kind=GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
@@ -646,8 +655,13 @@ def _classify_counterfactual_assumptions(
             GapProvenanceRef(
                 ref_kind=GapRefKind.DERIVATION_STEP,
                 ref_id=(
-                    triggering.step_id or triggering.rule
-                    if triggering else "counterfactual_status"
+                    (triggering.step_id or triggering.rule)
+                    if triggering
+                    else (
+                        "counterfactual_status"
+                        if is_counterfactual_status
+                        else "counterfactual_query_kind"
+                    )
                 ),
             ),
         ),
@@ -1410,6 +1424,11 @@ def _query_referenced_predicates(stmt) -> frozenset[str]:
     # Assoc query: left / right.
     for attr in ("left", "right"):
         _add_atom(getattr(q, attr, None))
+    # Counterfactual query: observed (GroundedValue), intervention
+    # (Intervention wrapper), counterfactual_target (GroundedValue).
+    _add_atom(getattr(q, "observed", None))
+    _add_atom(getattr(q, "counterfactual_intervention", None))
+    _add_atom(getattr(q, "counterfactual_target", None))
     return frozenset(found)
 
 

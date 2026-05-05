@@ -200,10 +200,11 @@ def test_counterfactual_classifier_fires_on_status():
     """Unit test on the classifier: COUNTERFACTUAL_SOLVED status alone
     triggers the assumption gap (consistency + composition axioms)."""
     from themis.output.data_gap_report import _classify_counterfactual_assumptions
-    from themis.types import ResultStatus
+    from themis.types import QueryKind, ResultStatus
 
     fired = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.COUNTERFACTUAL_SOLVED,
+        query_kind=QueryKind.COUNTERFACTUAL,
     ))
     assert len(fired) == 1
     assert fired[0].kind.value == "counterfactual_identification_assumption_required"
@@ -211,13 +212,26 @@ def test_counterfactual_classifier_fires_on_status():
 
     fired_bounded = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.COUNTERFACTUAL_BOUNDED,
+        query_kind=QueryKind.COUNTERFACTUAL,
     ))
     assert len(fired_bounded) == 1
 
+    # Status alone (non-counterfactual query somehow getting a non-CF
+    # status) must not trigger.
     not_counterfactual = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
     ))
     assert not_counterfactual == []
+
+    # Query-kind alone — the Bug 2 case: NEEDS_ASSUMPTION on a
+    # counterfactual query must still fire the assumption caveat.
+    fired_by_kind = list(_classify_counterfactual_assumptions(
+        derivation=(), status=ResultStatus.NEEDS_ASSUMPTION,
+        query_kind=QueryKind.COUNTERFACTUAL,
+    ))
+    assert len(fired_by_kind) == 1
+    assert fired_by_kind[0].provenance[0].ref_id == "counterfactual_query_kind"
 
 
 def test_bidirected_llm_proposal_edge_surfaces_as_caveat():
@@ -425,3 +439,118 @@ def test_llm_declared_ambiguity_surfaces_as_caveat():
     assert _has_kind(result["data_gap_report"], "llm_declared_ambiguity")
     explanation = result.get("explanation") or ""
     assert "reciprocal_causation" in explanation
+
+
+# ============================================ counterfactual full path
+
+
+def test_counterfactual_query_kind_alone_fires_assumption_caveat_e2e():
+    """End-to-end: a counterfactual that stops at NEEDS_ASSUMPTION must
+    still surface the L3 caveat — without this the
+    monotonicity / consistency disclosure is lost when bounds aren't
+    reached."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "study", "domain": [True, False]},
+            {"kind": "variable", "predicate": "job", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("study"), "to": _atom("job")},
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "counterfactual",
+                    "observed": {"atom": _atom("study"), "value": False},
+                    "counterfactual_intervention": {
+                        "atom": _atom("study"), "value": True,
+                    },
+                    "counterfactual_target": {
+                        "atom": _atom("job"), "value": True,
+                    },
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    result = out["results"][0]
+    assert _has_kind(result["data_gap_report"],
+                     "counterfactual_identification_assumption_required")
+    explanation = result.get("explanation") or ""
+    assert "consistency" in explanation
+
+
+def test_counterfactual_atoms_feed_proposal_edge_path_walk():
+    """Bug 7 regression: counterfactual queries must feed their own
+    atoms into the unverified-proposal-edge path walker. Without this,
+    a llm_proposal cause edge between counterfactual antecedent and
+    consequent is never flagged."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "study", "domain": [True, False]},
+            {"kind": "variable", "predicate": "job", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": _atom("study"),
+                "to": _atom("job"),
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "counterfactual",
+                    "observed": {"atom": _atom("study"), "value": False},
+                    "counterfactual_intervention": {
+                        "atom": _atom("study"), "value": True,
+                    },
+                    "counterfactual_target": {
+                        "atom": _atom("job"), "value": True,
+                    },
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    result = out["results"][0]
+    assert _has_kind(result["data_gap_report"],
+                     "unverified_proposal_edge_on_query_path")
+
+
+# ============================================ low-confidence on edges
+
+
+def test_cause_edge_confidence_propagates_to_low_confidence_caveat():
+    """Bug 5 regression: annotations.confidence on a load-bearing
+    CauseStatement must reach the composite confidence calc and trigger
+    LOW_CONFIDENCE_INPUT_DATA. Pre-fix, only probability/observation
+    slots contributed, so structural answers ignored edge confidences
+    entirely."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "study", "domain": [True, False]},
+            {"kind": "variable", "predicate": "job", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": _atom("study"),
+                "to": _atom("job"),
+                "annotations": {"source": "PubMed:99999", "confidence": 0.2},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "cause",
+                    "from": _atom("study"),
+                    "to": _atom("job"),
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    result = out["results"][0]
+    assert result.get("confidence") == 0.2
+    assert _has_kind(result["data_gap_report"], "low_confidence_input_data")
+    explanation = result.get("explanation") or ""
+    assert "0.20" in explanation or "0.2" in explanation

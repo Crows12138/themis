@@ -1973,21 +1973,37 @@ def _gather_input_sources(
     is_weakest=False that ``_attach_confidence`` stamps to True on
     the sources matching the composite min.
 
-    - Structural queries contribute nothing.
     - Effect / probability queries enumerate distinct ProbabilityKeys
       from the formula (dedupe) and observation slots from q.given.
+    - Structural queries (cause / assoc / identify / counterfactual)
+      enumerate load-bearing CauseStatement annotations.confidence
+      values via supporting_paths or, when paths aren't echoed, the
+      query-relevant DAG path walk. Without this collection a
+      counterfactual whose load-bearing edge is marked low-confidence
+      would surface as confidence=None and bypass the
+      LOW_CONFIDENCE_INPUT_DATA gap.
     - Intervention atoms never contribute (do-cut).
-    - Missing theta / indices return () — same defensive behavior as
-      the original _gather_input_confidences.
+    - Missing theta / indices on a numeric path return () for the
+      probability/observation slots, but the structural-edge path
+      still runs (it does not depend on theta).
     """
-    if result.query_kind not in (QueryKind.EFFECT, QueryKind.PROBABILITY):
-        return ()
-    if result.formula is None:
-        return ()
-    if theta is None or prob_index is None or obs_index is None:
-        return ()
-
     collected: list[ConfidenceSource] = []
+    seen_keys: set = set()
+
+    # §3.3 structural-edge slots — runs for every query kind so
+    # cause-edge confidences propagate even when no numeric formula
+    # was built.
+    collected.extend(
+        _gather_structural_edge_sources(program, stmt, result),
+    )
+
+    if result.query_kind not in (QueryKind.EFFECT, QueryKind.PROBABILITY):
+        return tuple(collected)
+    if result.formula is None:
+        return tuple(collected)
+    if theta is None or prob_index is None or obs_index is None:
+        return tuple(collected)
+
     seen_keys: set = set()
 
     # §3.1 probability slots
@@ -2035,6 +2051,84 @@ def _gather_input_sources(
         ))
 
     return tuple(collected)
+
+
+def _gather_structural_edge_sources(
+    program: Program,
+    stmt: QueryStatement,
+    result: QueryResult,
+) -> tuple[ConfidenceSource, ...]:
+    """RFC §3.3 — collect annotations.confidence from CauseStatements
+    on the structurally load-bearing path(s) of the query.
+
+    Two complementary signals (matching the data-gap classifier):
+    - ``supporting_paths`` from the structural result, when the
+      dispatcher exposes them (cause / assoc).
+    - For every other query kind, walk simple directed paths between
+      query-relevant predicates in the program-derived DAG.
+
+    Returns one ConfidenceSource per (frm, to) edge whose
+    CauseStatement carries a non-None confidence.
+    """
+    from ..types import CauseStatement
+    cause_conf: dict[tuple[str, str], tuple[str | None, float]] = {}
+    for s in program.statements:
+        if not isinstance(s, CauseStatement):
+            continue
+        ann = s.annotations
+        if ann is None or ann.confidence is None:
+            continue
+        cause_conf[(s.from_atom.predicate, s.to_atom.predicate)] = (
+            ann.source,
+            ann.confidence,
+        )
+    if not cause_conf:
+        return ()
+
+    flagged: set[tuple[str, str]] = set()
+    structural_result = getattr(result, "structural_result", None)
+    paths = getattr(structural_result, "supporting_paths", ()) or ()
+    for path in paths:
+        for i in range(len(path) - 1):
+            a = path[i].split("(", 1)[0]
+            b = path[i + 1].split("(", 1)[0]
+            if (a, b) in cause_conf:
+                flagged.add((a, b))
+
+    # DAG walk for non-cause/assoc query kinds. Reuse the data-gap
+    # classifier's machinery so the two surfaces stay in lock-step.
+    from ..output.data_gap_report import (
+        _build_dag_with_proposals,
+        _enumerate_simple_directed_paths,
+        _query_relevant_predicates_for_path_walk,
+    )
+    _proposal_edges, adjacency = _build_dag_with_proposals(program)
+    extensions = result.extensions or {}
+    relevant = _query_relevant_predicates_for_path_walk(stmt, extensions)
+    if relevant and adjacency:
+        for src in relevant:
+            for dst in relevant:
+                if src == dst:
+                    continue
+                for path in _enumerate_simple_directed_paths(
+                    adjacency, src, dst,
+                ):
+                    for i in range(len(path) - 1):
+                        edge = (path[i], path[i + 1])
+                        if edge in cause_conf:
+                            flagged.add(edge)
+
+    if not flagged:
+        return ()
+    return tuple(
+        ConfidenceSource(
+            slot_label=f"edge:{frm}->{to}",
+            source=cause_conf[(frm, to)][0],
+            confidence=cause_conf[(frm, to)][1],
+            is_weakest=False,
+        )
+        for frm, to in sorted(flagged)
+    )
 
 
 def _gather_input_confidences(
