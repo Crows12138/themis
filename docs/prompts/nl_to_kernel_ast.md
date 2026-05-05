@@ -18,6 +18,69 @@ Respond with **exactly one** JSON object matching the kernel_ast
 schema. No prefix, no suffix, no code fences. If you cannot produce a
 valid object, return `{"error": "<reason>"}` instead.
 
+## Precondition: edges must be falsifiable
+
+Before any of the five decisions below, check whether the link the
+user is asking about is, in principle, scientifically falsifiable.
+A causal claim is falsifiable when there exists *some* observable
+data pattern that would refute it. Causal claims that fail this
+test do not belong in a kernel_ast — Themis would dutifully
+verify the path "exists in the graph" and a downstream renderer
+would read that as endorsement.
+
+Return `{"error": "outside_falsifiable_domain", "reason": "..."}`
+when the link rests on:
+
+- mystical / supernatural premises (星座, 命理, 风水, 因果报应,
+  宿命, 灵气, 占星)
+- pure value / aesthetic / normative judgment
+  ("这首诗好不好看", "这个决定对不对")
+- contested political / moral attribution as a causal claim
+  ("某政策错不错")
+- fully tautological framings ("我累是因为我累")
+
+Pre-filtering at the translator entry is preferred over emitting
+the edges and adding an ambiguity flag — the ambiguity channel is
+for *empirically uncertain* claims, not for category errors. The
+user gets a clean refusal with a brief reason instead of a kernel
+output that looks scientific.
+
+## Precondition: data-driven vs assumption-driven
+
+This prompt translates **assumption-driven** questions: the user
+states a hypothesis ("does X cause Y") and edges come from your
+domain knowledge with `annotations.source = "llm_proposal"`.
+
+When the user instead **attaches data** ("我记录了一年的 X / 我有
+睡眠和成绩的数据 / 这是我的 CSV"), the right path is not for you
+to invent edges. The MCP tool `themis_discover` exists exactly for
+this — it runs PC / FCI / LiNGAM on the data and emits a kernel_ast
+suggestion with each edge carrying `annotations.source =
+"discovery:<algo>"`, which the gap report then flags through the
+same caveat channel as `llm_proposal`.
+
+Detect data-attachment from cues like "我记录了 / 我有 / 我跟踪了
+N 天 / 我有 X 年的数据 / 这是我的 CSV / 数据集 / 表格". When
+detected, return:
+
+```json
+{ "defer_to": "themis_discover",
+  "csv_path": "<path or 'ask_user'>",
+  "tier1_predicates": [<the variables the user named>],
+  "query_intent": "<cause / effect / assoc, parsed from the NL>",
+  "reason": "<one-line: user attached data, route to discovery>" }
+```
+
+The orchestrator picks this up and routes to `themis_discover`,
+then comes back through this prompt with the discovered DAG +
+the user's question to produce the final kernel_ast. Do **not**
+fabricate `llm_proposal` edges and run the kernel anyway — that
+strips the data of its evidential weight.
+
+If the user names data they have but the path is unclear (e.g. they
+describe data verbally without supplying a file), set
+`"csv_path": "ask_user"` so the orchestrator solicits the file.
+
 ## How to think about the conversion
 
 This is a translation task with one rule above all others:
@@ -51,7 +114,8 @@ edges, query, ambiguities.
 
 | Surface cue | Query kind |
 |---|---|
-| Intervention markers: `每天`, `经常`, `坚持`, `定期`, `多吃`, `要是`, `如果` | `effect` |
+| Counterfactual contrary-to-fact + past tense: `如果当初`, `如果当时`, `要是没`, `当初要是`, `如果那时` (factual world already happened, user asks the alternative) | `counterfactual` |
+| Forward-intervention markers: `每天`, `经常`, `坚持`, `定期`, `多吃`, `要是开始`, `如果(我)开始` | `effect` |
 | Pure causal phrasing without action: `X 导致 Y 吗`, `X 会 Y 吗` | `cause` |
 | Correlation / prediction phrasing: `X 和 Y 有关系吗`, `X 能预测 Y 吗` | `assoc` |
 
@@ -259,10 +323,14 @@ confounders is recoverable (user deletes). Emitting a false direct
 causal edge is **not** recoverable through the response layer — it
 reads as "yes" to a false claim.
 
-If you are confident the link is direct (smoking → lung cancer, where
-confounding has been studied and ruled out), emit the direct edge.
-For judgment calls, add an `extensions.ambiguities[kind=confounder_refusal]`
-entry so the user can challenge.
+A direct edge is only justified when you can name a published RCT
+that established it, or when the link is part of standard medical /
+scientific curriculum (smoking → lung cancer, salt → blood pressure
+in hypertensives, vaccine → immunity). "I'm confident" without a
+citable anchor is not enough — bias toward the confounder structure.
+For judgment calls between the two, add an
+`extensions.ambiguities[kind=confounder_refusal]` entry so the user
+can challenge.
 
 #### Special structures the kernel knows about
 
@@ -362,6 +430,52 @@ Canonical example: "抽烟会沉积焦油，焦油增加肺癌；但抽烟和肺
 - **no** direct `smoking → cancer` edge (would block front-door)
 - **no** U variable (would need a data column)
 - query: `effect(cancer | do(smoking))`
+
+##### Counterfactual queries — emit `kind: counterfactual` directly
+
+Trigger: NL uses contrary-to-fact past-tense conditional referring
+to events the user is treating as already-happened
+("如果当初选了金融", "要是没熬夜", "当时如果不喝酒"). Both a
+factual world (what happened) and a counterfactual alternative are
+implicit.
+
+Emit:
+
+```json
+{
+  "kind": "query",
+  "id": "q",
+  "query": {
+    "kind": "counterfactual",
+    "observed": <factual atom, e.g. chose_humanities=true>,
+    "counterfactual_intervention":
+      { "atom": <same predicate>, "value": <alternative, e.g. false> },
+    "counterfactual_target": <outcome atom, e.g. salary_high=true>
+  }
+}
+```
+
+Do **not** include `assumptions.monotonicity` unless the user
+explicitly named a direction. The kernel will return
+`status: needs_assumption` asking for monotonicity — that is the
+geometrically correct answer (Layer-3 individual counterfactuals
+need an extra assumption beyond Layer-2 effects), not a degraded
+one. The renderer treats `needs_assumption` as a first-class
+headline ("如果你愿意接受 X 这个假设，我能给区间").
+
+**When to compress to effect proxy instead** (then flag
+`counterfactual_query` ambiguity):
+- Nested counterfactuals ("如果 A 的话 B 就会怎样")
+- Counterfactual chains spanning multiple do-operations
+- Counterfactual on a target the kernel cannot reach Layer-3 for
+  (e.g. continuous outcome with no monotone bounds)
+
+Compression is a fallback. Default for clean individual
+counterfactuals is direct `kind: counterfactual` emission. On the
+direct path do **not** also flag `counterfactual_query` in
+`extensions.ambiguities` — that flag's meaning is "I had to
+compress"; setting it on the direct path makes the response layer
+disclaim "答错一类问题" when the answer is actually well-typed.
 
 ##### Sensitivity / robustness sub-questions are auto-handled
 
@@ -513,7 +627,7 @@ the matching `kind`:
 | `state_vs_event` | Predicate could be either a persistent habit or a discrete occurrence |
 | `categorical_compression` | Compressed a multi-level domain to bool for runnability |
 | `reciprocal_causation` | User names both directions as plausible — see §5a (special) |
-| `counterfactual_query` | Wider counterfactual that exceeds the kernel's current Layer-3 fragment |
+| `counterfactual_query` | The NL is a counterfactual the kernel's Layer-3 fragment cannot directly evaluate — *only* set when you compressed to a non-counterfactual proxy (see "When to compress" below). Default for clean individual counterfactuals is to emit `kind: counterfactual` directly; the kernel returns `needs_assumption` (asking the user to grant monotonicity) which is the geometrically correct answer, not a `counterfactual_query` ambiguity flag |
 | `mechanism_vs_existence` | NL asks 为什么 / 通过什么机制 — wants the mechanism chain, not whether a path exists. Emit a `cause` query as a proxy for existence-of-path; the response layer will acknowledge the mechanism gap |
 | `cause_attribution` | NL asks 是不是因为 X / 真的是 X 起的作用吗 / 主要怪 X 吗 / X 占多大份额 — wants to know whether X is the **dominant or sufficient** cause among many possible causes of Y. The kernel's `cause` query only validates that the LLM-proposed `X→Y` edge is in the graph (path existence); it can't apportion responsibility across causes. Emit `cause` as a proxy AND flag this ambiguity so the response layer surfaces "I checked the path is in the graph, but you're asking attribution which Themis can't compute" |
 | `dose_response_query` | NL asks "X 让 Y 升 / 降多少 / 多大 / X 和 Y 的关系图 / 从 X1 到 X2 时 Y 怎么变 / 关系曲线 / dose-response" — wants the dose-response curve `E[Y|do(X=x)]` as a function of x. Themis is a validator + diagnostician, not a regression engine — it doesn't compute curves. Emit a closest-fit binary `effect` query (X=high vs X=low at sensible thresholds) for Themis to validate AND flag this ambiguity. The kernel emits a `dose_response_data_required` gap_kind that lists the data spec (X sampling points / per-point sample size / confounders / time window / SUTVA concerns) so the user can fit the curve in EconML / DoubleML / GAM externally |

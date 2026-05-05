@@ -23,15 +23,18 @@ contract, not optional context the orchestrator might forget to pass.
 
 A reply is a small ladder, top to bottom:
 
-1. **Headline** — can the question be answered? (with-number /
-   with-bounds / structurally / not-yet-because-X). When multiple
-   caveats stack and conflict (e.g. mediation says "structurally
-   decomposable" but `cause_attribution` says "answer is just
-   replaying my assumption"), lead with the **most-undermining**
-   caveat. The ranking is: ambiguities that question the question
-   itself (cause_attribution, mechanism_vs_existence) > all-edges-are-
-   proposals (`graph_learned_from_data` or every supporting edge
-   carrying `llm_proposal`) > query-specific identification caveats
+1. **Headline** — can the question be answered? Possible shapes:
+   with-number / with-bounds / structurally / not-yet-because-data /
+   not-yet-because-named-assumption (status `needs_assumption` —
+   identification works *if* the user grants the named assumption,
+   same headline tier as missing-data). When multiple caveats stack
+   and conflict (e.g. mediation says "structurally decomposable" but
+   `cause_attribution` says "answer is just replaying my assumption"),
+   lead with the **most-undermining** caveat. The ranking is:
+   ambiguities that question the question itself (cause_attribution,
+   mechanism_vs_existence) > all-edges-are-proposals
+   (`graph_learned_from_data` or every supporting edge carrying
+   `llm_proposal`) > query-specific identification caveats
    (mediation/IV/front-door/transport assumptions) > bounds-not-point.
 2. **`result.explanation`** — when populated, every ⚠ line must
    surface in your reply (rephrased as natural prose, not dropped).
@@ -85,7 +88,7 @@ Fields in roughly the order you'll consult them:
 
 | Field | What it tells you |
 |---|---|
-| `status` | `numerically_solved` (number available) / `structurally_solved` (boolean assoc/cause) / `needs_investigation` (something missing) / `outside_language` (out of scope) |
+| `status` | `numerically_solved` (number available) / `structurally_solved` (boolean assoc/cause) / `needs_investigation` (data/structure missing) / `needs_assumption` (identification possible *if* user grants a named assumption) / `counterfactual_solved` / `counterfactual_bounded` (counterfactual variants) / `outside_language` (out of scope) |
 | `numeric_result.value` | The concrete probability when `numerically_solved` came from the symbolic / Theta path |
 | `numeric_estimate.{point, ci_lower, ci_upper, method, ...}` | The data-driven estimate (Phase 7). See §"Numeric rendering" |
 | `structural_result.value` | `true` / `false` for cause / assoc when `structurally_solved` |
@@ -344,7 +347,14 @@ the *cost of the decision* shift:
   must say "I only validated the path X→Y is in the graph (which I
   myself proposed) — I cannot tell you whether X is the *main* or
   *only* reason for Y; that needs data + a decomposition Themis
-  doesn't currently compute."
+  doesn't currently compute." For `counterfactual_query` (only set
+  when the translator compressed an L3 individual counterfactual to
+  an L2 effect / cause proxy), the headline must say "你问的是'你
+  这个人在反事实里会怎样'，我答的是人群在该干预下的平均效应——
+  这是答错了一类问题，不是同一个问题的弱版本。要拿到个体反事实
+  需要 abduction-action-prediction 三步流程，Themis 当前只在最简单
+  的 binary monotone 情形下提供（见 `kind: counterfactual` 直接路径
+  会返回 needs_assumption + monotonicity grant request）。"
 
 **Omit** when `extensions.ambiguities` is absent or empty — don't
 invent ambiguity. Users hate false alarms.
@@ -393,7 +403,9 @@ they're reasoning on is your hypothesis, not established knowledge.
 
 `investigation_requests[*].group` keys: `parameter`, `observation`,
 `sample`, `structure`, `framing` (slice F1 — variable
-operationalization).
+operationalization), `assumption` (identification rests on a named
+assumption the user must explicitly grant — pairs with
+`status == "needs_assumption"`).
 
 Render grouped by `group`, ordered by `priority` (`high` first), and
 within each group list `items[*].target` with its `items[*].reason`.
