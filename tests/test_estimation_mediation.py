@@ -156,6 +156,25 @@ def test_shape_and_fields():
 # ============================================ error path
 
 
+def test_proportion_mediated_present_and_consistent_with_ratio():
+    """Real test caught: 'X 占多少比例' is the user's actual mediation
+    question. The estimator now surfaces NIE / TE as
+    ``proportion_mediated`` (Imai's bootstrap on the ratio, not
+    naive point/point) so the renderer doesn't have to compute it."""
+    df = _linear_med_dgp(n=2000, seed=0, nde_true=0.5, nie_true=2.0)
+    est = estimate_mediation(
+        df, treatment="x", outcome="y", mediator="m",
+        n_rep=200, random_state=42,
+    )
+    # Point should be in the same ballpark as naive ratio (Imai's
+    # bootstrap on the ratio uses median of ratio, not ratio of medians)
+    naive_ratio = est.nie_point / est.te_point
+    assert abs(est.proportion_mediated_point - naive_ratio) < 0.05
+    # CI bounds well-ordered
+    assert est.proportion_mediated_ci_lower <= est.proportion_mediated_point
+    assert est.proportion_mediated_point <= est.proportion_mediated_ci_upper
+
+
 def test_unknown_model_rejected():
     df = _linear_med_dgp(n=100, seed=0)
     with pytest.raises(ValueError, match="unknown model"):

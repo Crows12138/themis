@@ -27,11 +27,19 @@ A reply is a small ladder, top to bottom:
    with-number / with-bounds / structurally / not-yet-because-data /
    not-yet-because-named-assumption (status `needs_assumption` —
    identification works *if* the user grants the named assumption,
-   same headline tier as missing-data). When multiple caveats stack
-   and conflict (e.g. mediation says "structurally decomposable" but
-   `cause_attribution` says "answer is just replaying my assumption"),
-   lead with the **most-undermining** caveat. The ranking is:
-   ambiguities that question the question itself (cause_attribution,
+   same headline tier as missing-data). The with-number shape
+   triggers on the *presence of a numeric block*, not on `status`
+   alone — a mediation result with
+   `numeric_estimate.decomposition.proportion_mediated` is
+   with-number even when `status == "structurally_solved"` (kernel
+   keeps that status to preserve the structural derivation; the
+   numeric block is supplementary detail at the schema level but
+   the *primary* answer at the renderer level for cause_attribution
+   questions). When multiple caveats stack and conflict (e.g.
+   mediation says "structurally decomposable" but `cause_attribution`
+   says "answer is just replaying my assumption"), lead with the
+   **most-undermining** caveat. The ranking is: ambiguities that
+   question the question itself (cause_attribution,
    mechanism_vs_existence) > all-edges-are-proposals
    (`graph_learned_from_data` or every supporting edge carrying
    `llm_proposal`) > query-specific identification caveats
@@ -343,11 +351,18 @@ the *cost of the decision* shift:
   `cause_attribution`, `individual_vs_population` — these flag *the
   question is outside Themis's current fragment*; describe what was
   answered instead and what the user would need to ask to get the
-  actual thing. For `cause_attribution` specifically, the headline
-  must say "I only validated the path X→Y is in the graph (which I
-  myself proposed) — I cannot tell you whether X is the *main* or
-  *only* reason for Y; that needs data + a decomposition Themis
-  doesn't currently compute." For `counterfactual_query` (only set
+  actual thing. For `cause_attribution` specifically: when the result
+  carries `numeric_estimate.decomposition.proportion_mediated`
+  (mediation analysis ran on user-supplied data), surface it
+  directly — that **is** the answer to "X 占多少比例 / 是不是因为
+  M". Headline: "在你的数据上，M 这条路径承载了 TE 的
+  `point*100`%（CI: `ci_lower*100`% — `ci_upper*100`%）" plus the
+  must-disclose Pearl-2001 assumptions (already in `explanation`).
+  Only when `proportion_mediated` is absent (no mediator query, or
+  no data) fall back to "I only validated the path X→Y is in the
+  graph (which I myself proposed) — I cannot tell you whether X is
+  the *main* or *only* reason for Y; that needs data + a
+  decomposition Themis doesn't currently compute." For `counterfactual_query` (only set
   when the translator compressed an L3 individual counterfactual to
   an L2 effect / cause proxy), the headline must say "你问的是'你
   这个人在反事实里会怎样'，我答的是人群在该干预下的平均效应——

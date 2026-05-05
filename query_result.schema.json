@@ -328,8 +328,8 @@
         },
         "decomposition": {
           "type": "object",
-          "description": "Phase 7.4 mediation decomposition: point + CI for NDE, NIE, TE.",
-          "required": ["nde", "nie", "te"],
+          "description": "Phase 7.4 mediation decomposition: point + CI for NDE, NIE, TE, plus the proportion of total effect mediated through M (NIE / TE).",
+          "required": ["nde", "nie", "te", "proportion_mediated"],
           "additionalProperties": false,
           "properties": {
             "nde": {
@@ -354,6 +354,17 @@
             },
             "te": {
               "type": "object",
+              "required": ["point", "ci_lower", "ci_upper"],
+              "additionalProperties": false,
+              "properties": {
+                "point": { "type": "number" },
+                "ci_lower": { "type": "number" },
+                "ci_upper": { "type": "number" }
+              }
+            },
+            "proportion_mediated": {
+              "type": "object",
+              "description": "NIE / TE — the fraction of the total effect that flows through the mediator. Renderer surfaces this directly as the answer to attribution-flavored questions ('X 占多大份额', '是不是因为 M').",
               "required": ["point", "ci_lower", "ci_upper"],
               "additionalProperties": false,
               "properties": {

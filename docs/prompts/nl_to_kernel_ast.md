@@ -335,6 +335,16 @@ can distinguish your hypotheses from evidence-backed edges. If you
 have a concrete citation (PubMed ID, textbook), put that in `source`
 instead.
 
+The `source` annotation tracks **how the edge entered the graph**,
+not whether the user has data on the predicates. A user attaching
+a dataset doesn't change the edge's provenance — if you proposed
+`X → Y` from common sense and the user happens to have measurements
+of X and Y, the edge is still `llm_proposal` until something
+upgrades it (literature citation, or a discover algorithm reading
+the data and emitting `discovery:<algo>`). Surface the proposal-
+edge caveat alongside any numeric estimate the data produces; the
+two are independent disclosures.
+
 Edges connect predicates the user mentioned. Intermediate variables
 enter the graph only when the user names them, or as the explicit
 mediator/instrument of the §3 mediation / front-door / IV shapes.

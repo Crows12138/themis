@@ -54,6 +54,13 @@ class MediationEstimate:
     te_point: float
     te_ci_lower: float
     te_ci_upper: float
+    # Proportion of total effect mediated through M = NIE / TE.
+    # The user's "X 占多少比例" question — surfaced explicitly so the
+    # renderer doesn't have to compute it from {nie, te} (and lose the
+    # CI by doing the division naively).
+    proportion_mediated_point: float
+    proportion_mediated_ci_lower: float
+    proportion_mediated_ci_upper: float
     ci_level: float
     method: str                   # "mediation_linear_imai" | "mediation_logit_imai"
     assumptions: tuple[str, ...]
@@ -147,11 +154,18 @@ def estimate_mediation(
     nie_p, nie_lo, nie_hi = _row("ACME (average)")
     nde_p, nde_lo, nde_hi = _row("ADE (average)")
     te_p, te_lo, te_hi = _row("Total effect")
+    # Imai's bootstrap also computes a CI for the NIE/TE ratio — use it
+    # rather than re-doing point/point (which would lose the CI). The
+    # row is "Prop. mediated (average)".
+    pm_p, pm_lo, pm_hi = _row("Prop. mediated (average)")
 
     return MediationEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
         nie_point=nie_p, nie_ci_lower=nie_lo, nie_ci_upper=nie_hi,
         te_point=te_p, te_ci_lower=te_lo, te_ci_upper=te_hi,
+        proportion_mediated_point=pm_p,
+        proportion_mediated_ci_lower=pm_lo,
+        proportion_mediated_ci_upper=pm_hi,
         ci_level=ci_level,
         method=method,
         assumptions=_assumptions_for(resolved, len(adjustment)),

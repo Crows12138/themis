@@ -395,6 +395,11 @@ def _try_mediation_estimate(
                 "ci_lower": med_estimate.te_ci_lower,
                 "ci_upper": med_estimate.te_ci_upper,
             },
+            "proportion_mediated": {
+                "point": med_estimate.proportion_mediated_point,
+                "ci_lower": med_estimate.proportion_mediated_ci_lower,
+                "ci_upper": med_estimate.proportion_mediated_ci_upper,
+            },
         },
     }
     _attach_e_value_if_binary(

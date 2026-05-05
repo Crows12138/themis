@@ -71,6 +71,14 @@ def test_clean_mediation_attaches_numeric_decomposition():
     assert abs(nie["point"] - 2.0) < 0.3
     assert abs(te["point"] - 2.5) < 0.3
 
+    # Real test caught: 'X 占多少比例' is the user's actual mediation
+    # question. ``proportion_mediated = NIE / TE = 2.0 / 2.5 = 0.8``
+    # surfaces in the decomposition block alongside the absolute
+    # effects, with its own bootstrap CI from Imai 2010.
+    pm = est["decomposition"]["proportion_mediated"]
+    assert abs(pm["point"] - 0.8) < 0.15
+    assert pm["ci_lower"] <= pm["point"] <= pm["ci_upper"]
+
 
 def test_intermediate_confounder_skips_numeric():
     """Recanting witness — strategy=none means no numeric estimate."""
