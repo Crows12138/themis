@@ -723,6 +723,13 @@ def _classify_graph_learned_from_data(program) -> Iterable[DataGap]:
         "FCI 放宽因果充足性但仍需忠实性；"
         "LiNGAM 需要线性 + 非高斯噪声。"
     )
+    violations = metadata.get("assumption_violations") or ()
+    if violations:
+        pieces.append(
+            " 检测到当前数据上算法假设的具体违反："
+            + "；".join(violations)
+            + "。"
+        )
     yield DataGap(
         kind=GapKind.GRAPH_LEARNED_FROM_DATA,
         severity=GapSeverity.INFORMATIONAL,

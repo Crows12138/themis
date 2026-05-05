@@ -81,6 +81,81 @@ If the user names data they have but the path is unclear (e.g. they
 describe data verbally without supplying a file), set
 `"csv_path": "ask_user"` so the orchestrator solicits the file.
 
+**Second-pass instructions for the data-driven path (after discover
+returns).** When this prompt is re-invoked with the discover output,
+treat it as: §1 intent + §4 query are still your job; §2 predicates
++ §3 edges are *already done* by the discover output. Specifically:
+
+1. The variable declarations and `cause` / `bidirected` edges in the
+   discover output are authoritative — do not edit them. They carry
+   `annotations.source = "discovery:<algo>"` and the existing caveat
+   channel surfaces algorithm assumptions automatically.
+2. Run §1 intent on the user's NL question to pick `cause` / `assoc`
+   / `effect` / `counterfactual` / `identify`.
+3. Run §4 query: write the query atom set against the discovered
+   predicate names. Predicates the user mentioned in NL but the
+   discover output didn't include (because that column wasn't in the
+   CSV) need an `extensions.ambiguities[kind=missing_data_column]`
+   entry, not a new `llm_proposal` edge.
+4. Domain mismatch: if the discover output's
+   `extensions.discovery_metadata.column_dtypes` reports a column as
+   `continuous` and your query needs a binary intervention, ask the
+   user to discretize ("睡眠 ≥ 7 小时算 high 吗？") rather than
+   silently pick a threshold. `discovery_to_kernel_ast` refuses to
+   declare a continuous column as bool; emit the discretization ask
+   as an explicit follow-up question, not a guessed threshold.
+5. Ambiguous edges in the discover output (PC / FCI undirected) come
+   with `extensions.ambiguities[kind=ambiguous_orientation]` entries.
+   Do not silently orient them — leave them ambiguous so the renderer
+   surfaces the question to the user. Pick the most-conservative
+   reading consistent with §1's `assoc ≺ cause ≺ effect` ordering for
+   the immediate query; flag the alternative.
+
+The discover-then-query flow has the same final shape as the
+assumption-driven flow: a kernel_ast that `themis.run` accepts plus
+ambiguities the renderer surfaces. The difference is that edges came
+from data with statistical assumptions, not from your common sense.
+
+**Two second-pass output shapes.** When all information needed to
+write the final kernel_ast is present, return the kernel_ast
+directly. When at least one blocker remains (continuous column needs
+discretization, ambiguous edge needs orientation by the user, NL
+predicate doesn't appear in any discovered column), return:
+
+```json
+{ "ask_user": "<one or two specific questions in Chinese>",
+  "context": {
+    "discover_kernel_ast": <the discover output, verbatim>,
+    "user_query_intent": "<cause / effect / assoc / counterfactual>",
+    "blocked_reason": "<which §Second-pass rule blocks: discretization / orientation / missing_column>",
+    "pending_predicates": [<column names still needing user input>] }}
+```
+
+The orchestrator pairs this with the user's reply and re-invokes
+this prompt with both the original NL question and the user's
+clarification. The `context` echo lets the next pass pick up where
+this one stopped without re-running discover.
+
+**How discover output reaches second-pass invocation.** The
+orchestrator passes the discover output as a JSON object embedded in
+the user message under the key `"discover_output"`, alongside the
+original NL question under `"nl_question"`. Detect this shape on
+input — when both keys are present, you are in second-pass mode and
+should run §Second-pass instead of the default first-pass flow.
+
+**Ambiguous orientation × NL directional cues.** When the discover
+output has `extensions.ambiguities[kind=ambiguous_orientation]` AND
+the user's NL contains a directional cue ("X **导致** Y", "X **让**
+Y", "X **会不会** Y"), do not silently use the NL cue to orient.
+Use it to *propose* a direction in the `ask_user` Chinese text
+("我猜你心里默认是 X → Y，能确认吗？") so the user explicitly
+ratifies. If they confirm, the second-pass-after-confirmation emits
+the directed edge with `annotations.source = "discovery:<algo>"`
+plus an `extensions.ambiguities[kind=user_directed_after_pc]` entry
+recording that the orientation came from user ratification, not
+from the algorithm. The discover algorithm did not in fact direct
+this edge; the provenance must say so.
+
 ## How to think about the conversion
 
 This is a translation task with one rule above all others:

@@ -74,6 +74,21 @@ class DiscoveryResult:
     data_hash: str
     columns: tuple[str, ...]
     note: str
+    assumption_violations: tuple[str, ...] = ()
+    """Empirically detected violations of the algorithm's preconditions
+    (e.g. Gaussian data on LiNGAM, sub-threshold sample size). Surfaces
+    through ``extensions.discovery_metadata`` so the
+    ``graph_learned_from_data`` caveat names *which* algorithm
+    assumptions look unsafe on the actual data, not just which
+    assumptions the algorithm requires in principle."""
+
+    column_dtypes: tuple[tuple[str, str], ...] = ()
+    """Per-column classification: ``"bool"`` (≤2 unique values),
+    ``"discrete"`` (3-20 unique values), ``"continuous"`` (more, or
+    non-integer). Used by ``discovery_to_kernel_ast`` to validate
+    caller-supplied ``bool_predicates`` against the actual data shape
+    — flagging a column as bool when it has 100 unique values produces
+    a kernel_ast that's syntactically valid but semantically lying."""
 
 
 def discover_graph(
@@ -128,6 +143,10 @@ def discover_graph(
         raise ValueError(f"unknown algorithm {algorithm!r}")
 
     note = _format_note(resolved, len(directed), len(bidirected), len(ambiguous))
+    violations = _detect_assumption_violations(resolved, df, contract.sample_size)
+    column_dtypes = tuple(
+        (col, _classify_column(df[col])) for col in cols
+    )
 
     return DiscoveryResult(
         directed_edges=directed,
@@ -139,7 +158,60 @@ def discover_graph(
         data_hash=contract.data_hash,
         columns=cols,
         note=note,
+        assumption_violations=violations,
+        column_dtypes=column_dtypes,
     )
+
+
+def _classify_column(series: pd.Series) -> str:
+    """Per-column dtype classification used to validate caller-supplied
+    ``bool_predicates`` later. Two unique values is bool; up to 20
+    distinct integer / categorical values is discrete; otherwise
+    continuous."""
+    n_unique = series.nunique(dropna=True)
+    if n_unique <= 2:
+        return "bool"
+    if n_unique <= 20 and (
+        pd.api.types.is_integer_dtype(series)
+        or pd.api.types.is_object_dtype(series)
+        or pd.api.types.is_categorical_dtype(series)
+    ):
+        return "discrete"
+    return "continuous"
+
+
+def _detect_assumption_violations(
+    algorithm: str,
+    df: pd.DataFrame,
+    sample_size: int,
+) -> tuple[str, ...]:
+    """Empirically check the data against the algorithm's preconditions.
+    Returns a tuple of human-readable violation messages — empty tuple
+    if no violations detected.
+
+    Detection is intentionally conservative: only flag clear violations
+    (Gaussian data on LiNGAM, sample size below standard thresholds).
+    Borderline cases pass silently to avoid false-alarming on every run.
+    """
+    violations: list[str] = []
+    numeric = df.select_dtypes(include=[np.number])
+
+    if algorithm == "lingam" and not numeric.empty:
+        max_abs_skew = float(numeric.apply(lambda s: float(s.skew())).abs().max())
+        if max_abs_skew < 0.5:
+            violations.append(
+                f"data appears Gaussian (max |skew| = {max_abs_skew:.2f} < 0.5); "
+                "LiNGAM identifiability requires non-Gaussian noise — "
+                "edge directions on Gaussian data are essentially arbitrary"
+            )
+
+    if algorithm in ("pc", "fci") and sample_size < 200:
+        violations.append(
+            f"sample size {sample_size} < 200 — conditional independence "
+            "tests have low power; expect spurious edges and missed edges"
+        )
+
+    return tuple(violations)
 
 
 # --- internals ----------------------------------------------------------------
@@ -242,6 +314,14 @@ def _extract_edges(graph, cols, Endpoint):
     return tuple(directed), tuple(bidirected), tuple(ambiguous)
 
 
+class DomainMismatchError(ValueError):
+    """Caller declared a column as bool but the data has more than two
+    unique values. Refusing to emit a syntactically-valid-but-lying
+    kernel_ast is preferred over running structural reasoning over a
+    domain that doesn't match the data.
+    """
+
+
 def discovery_to_kernel_ast(
     result: DiscoveryResult,
     *,
@@ -281,7 +361,30 @@ def discovery_to_kernel_ast(
         - resolving each ``ambiguous_orientation`` ambiguity by
           deciding direction (or leaving both alternatives)
         - appending a query statement if not provided
+
+    Raises ``DomainMismatchError`` when a column listed in
+    ``bool_predicates`` has more than two unique values in the
+    underlying data — emitting a ``[True, False]`` domain on a
+    continuous column would let structural reasoning run over a
+    schema-valid but semantically lying kernel_ast.
     """
+    dtypes_lookup = dict(result.column_dtypes)
+    mismatched = [
+        col for col in bool_predicates
+        if dtypes_lookup.get(col, "bool") != "bool"
+    ]
+    if mismatched:
+        details = ", ".join(
+            f"{col} ({dtypes_lookup.get(col, '?')})" for col in mismatched
+        )
+        raise DomainMismatchError(
+            f"bool_predicates declared {details} as bool but the data has "
+            f"more than two unique values for these columns. Discretize "
+            f"explicitly (median split / threshold) before calling discover, "
+            f"or drop them from bool_predicates and supply an explicit "
+            f"multi-level domain to the resulting kernel_ast."
+        )
+
     statements: list[dict] = []
 
     # 1. Variable declarations — one per column
@@ -349,6 +452,8 @@ def discovery_to_kernel_ast(
             "data_hash": result.data_hash,
             "columns": list(result.columns),
             "note": result.note,
+            "assumption_violations": list(result.assumption_violations),
+            "column_dtypes": {col: dt for col, dt in result.column_dtypes},
         },
     }
     if ambiguities:
