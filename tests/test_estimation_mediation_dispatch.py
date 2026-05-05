@@ -79,6 +79,15 @@ def test_clean_mediation_attaches_numeric_decomposition():
     assert abs(pm["point"] - 0.8) < 0.15
     assert pm["ci_lower"] <= pm["point"] <= pm["ci_upper"]
 
+    # Headline: proportion_mediated must be the first line of
+    # result.explanation so the renderer doesn't have to dig into
+    # decomposition. Without this surfacing the answer to "X 占多少比例"
+    # would be reconstructable but non-deterministic.
+    explanation = result.get("explanation") or ""
+    assert explanation.startswith("中介比例 (NIE/TE):"), explanation[:200]
+    assert "%" in explanation.split("\n", 1)[0]
+    assert "95% CI" in explanation.split("\n", 1)[0]
+
 
 def test_intermediate_confounder_skips_numeric():
     """Recanting witness — strategy=none means no numeric estimate."""

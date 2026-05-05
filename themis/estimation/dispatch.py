@@ -406,6 +406,7 @@ def _try_mediation_estimate(
         result, contract,
         outcome=y_pred, treatment=x_pred,
     )
+    _prepend_proportion_mediated_headline(result, med_estimate)
 
     # NOTE: status stays "structurally_solved" — the identification
     # answer (strategy=nde_nie + adjustment) is the primary result; the
@@ -413,6 +414,32 @@ def _try_mediation_estimate(
     # mediation derivation (mediation_*_check + identify_via_mediation)
     # already passes verify_effect_structural. Flipping to
     # numerically_solved would break that round-trip.
+
+
+def _prepend_proportion_mediated_headline(
+    result: dict, med_estimate,
+) -> None:
+    """Surface NIE / TE as a headline at the top of result.explanation.
+
+    The user-side question shape that drives this is "X 占多少比例" (how
+    much of the effect goes through the mediator). The number lives in
+    decomposition.proportion_mediated; without a headline the renderer
+    has to construct it from raw NIE/TE/CI fields. Prepending it here
+    gives the renderer a deterministic single-line answer to quote.
+    """
+    point = med_estimate.proportion_mediated_point
+    lo = med_estimate.proportion_mediated_ci_lower
+    hi = med_estimate.proportion_mediated_ci_upper
+    if point is None:
+        return
+    headline = (
+        f"中介比例 (NIE/TE): {point * 100:.1f}% "
+        f"(95% CI [{lo * 100:.1f}%, {hi * 100:.1f}%])"
+    )
+    existing = result.get("explanation") or ""
+    result["explanation"] = (
+        f"{headline}\n{existing}".strip() if existing else headline
+    )
 
 
 def _attach_e_value_if_binary(
