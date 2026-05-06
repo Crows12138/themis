@@ -18,6 +18,8 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
 - test_failure_modes_header_count_matches_actual_entries
 - test_eval_set_readme_counts_match_actual_files
 - test_coverage_map_mcp_counts_match_actual_server
+- test_mcp_readme_counts_match_actual_server (iter 104, symmetric with
+  iter 59 COVERAGE_MAP pin)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -780,6 +782,48 @@ def test_readme_subpackage_list_matches_actual():
     )
     assert not extra_in_readme, (
         f"README '主要目录' lists non-existent sub-packages: {extra_in_readme}"
+    )
+
+
+def test_mcp_readme_counts_match_actual_server():
+    """themis/mcp/README.md "Architecture" section quotes
+    "current count: N tools + M resources". Iter 103 found this stale
+    (said 4 tools / 8 resources but actual was 7 / 12). Iter 104 pin
+    catches future regression where another tool/resource is added
+    without updating the README quote.
+
+    Symmetric with iter 59's COVERAGE_MAP MCP count pin — both files
+    quote the same numbers, so they're independently checked against
+    actual server output.
+    """
+    import asyncio
+    import re
+    from themis.mcp import build_server
+    app = build_server()
+    actual_tools = len(asyncio.run(app.list_tools()))
+    actual_resources = len(list(asyncio.run(app.list_resources())))
+
+    readme = (
+        REPO_ROOT / "themis" / "mcp" / "README.md"
+    ).read_text(encoding="utf-8")
+    m = re.search(
+        r"current count[：:]?\s*(\d+)\s+tools\s*\+\s*(\d+)\s+resources",
+        readme,
+        re.IGNORECASE,
+    )
+    assert m, (
+        "themis/mcp/README.md must quote 'current count: N tools + M "
+        "resources' for audit to detect drift"
+    )
+    quoted_tools = int(m.group(1))
+    quoted_resources = int(m.group(2))
+    assert quoted_tools == actual_tools, (
+        f"MCP README says {quoted_tools} tools but server has "
+        f"{actual_tools}. Update themis/mcp/README.md."
+    )
+    assert quoted_resources == actual_resources, (
+        f"MCP README says {quoted_resources} resources but server has "
+        f"{actual_resources}. Update themis/mcp/README.md."
     )
 
 
