@@ -17,7 +17,7 @@ V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的
 [CORE_STATUS.md](CORE_STATUS.md) 中
 “核心冻结 v1.0”一节。路线图后续阶段在核心之外推进。
 
-**当前开发态**：`0.15.0-dev`（2026-04-30）。Phase 6-15 已经作为
+**当前开发态**：`0.15.0-dev`（2026-05-07）。Phase 6-15 已经作为
 显式立项 fragment / workflow / estimator 扩展落地；本文件保留早期
 Phase 0-5 的路线语义，但当前判断以 [CORE_STATUS.md](CORE_STATUS.md)
 和 [COVERAGE_MAP.md](COVERAGE_MAP.md)
