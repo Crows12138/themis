@@ -198,6 +198,28 @@ def test_test_count_consistent_between_core_status_and_readme():
     )
 
 
+def test_status_docs_have_update_timestamp():
+    """CORE_STATUS.md and COVERAGE_MAP.md must declare a `更新时间`
+    timestamp in their header. Iter 85-87 found three timestamp drifts
+    where these fields existed but were stale; iter 89 pin guards
+    against the field being silently removed (which would make future
+    drift undetectable by audit).
+
+    Field format: `> 更新时间：YYYY-MM-DD`. The audit only checks
+    presence, not freshness — staleness depends on file content
+    history which can't be reliably regex'd.
+    """
+    import re
+    pattern = re.compile(r"^>\s*更新时间[：:]\s*\d{4}-\d{2}-\d{2}",
+                          re.MULTILINE)
+    for fname in ("CORE_STATUS.md", "COVERAGE_MAP.md"):
+        text = (REPO_ROOT / fname).read_text(encoding="utf-8")
+        assert pattern.search(text), (
+            f"{fname} must declare '> 更新时间：YYYY-MM-DD' in header. "
+            f"Without it, doc-content drift can't be flagged by audit."
+        )
+
+
 def test_failure_modes_header_count_matches_actual_entries():
     """docs/eval_set/failure_modes.md header quotes 'N codes' as the
     taxonomy size. Iter 56 found this stale: header said '22 codes'
