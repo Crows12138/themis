@@ -1,16 +1,49 @@
-"""Meta-test: every GapKind enum value has at least one test that
-asserts it can fire.
+"""Meta-tests: cross-file invariants + structural pins.
 
-When a new gap_kind is added (like iter 5's unmeasured_confounder_risk
-or iter 19's unattempted_layer_due_to_dispatch_conflict), it's easy
-to forget the corresponding test. This meta-test scans the test
-directory for assertions that mention each gap_kind and fails fast
-when one is unattended.
+Originally seeded by iter 25 ('every GapKind has test reference') after
+iter 5/19 added two new gap_kinds. The file accumulated additional
+sync / preventive pins through iter 90 as drift categories were
+caught:
 
-Detection is text-based (grep for the kind value in test files). False
-positives are possible (a kind merely mentioned in a test doc string
-counts), but it's a coarse safety net that catches the typical 'I
-added the enum but forgot to write a test' regression.
+GapKind sync (iter 25-26, 37):
+- test_gap_kind_has_test_coverage — every enum value referenced
+- test_gap_kind_enum_synced_with_schema — types ↔ JSON schema
+- test_gap_kind_enum_synced_with_verifier_registry — types ↔ T10
+- test_must_disclose_set_is_subset_of_gap_kinds — scheduler whitelist
+- test_must_disclose_kinds_documented_in_response_rendering_prompt
+
+Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
+- test_test_count_consistent_between_core_status_and_readme
+- test_package_version_matches_roadmap_and_core_status
+- test_failure_modes_header_count_matches_actual_entries
+- test_eval_set_readme_counts_match_actual_files
+- test_coverage_map_mcp_counts_match_actual_server
+- test_readme_subpackage_list_matches_actual
+- test_status_docs_have_update_timestamp
+
+Path / link integrity (iter 63-66, 84):
+- test_no_windows_absolute_paths_in_committed_files
+- test_markdown_cross_links_resolve
+- test_markdown_backtick_path_refs_resolve
+
+Structure / docstring (iter 34, 67, 72, 77, 79, 80, 90):
+- test_no_orphan_test_files
+- test_themis_init_all_matches_imports
+- test_themis_init_docstring_exception_imports_resolve
+- test_themis_py_files_have_module_docstrings
+- test_scripts_py_files_have_module_docstrings
+- test_tests_py_files_have_module_docstrings
+- test_wall_md_has_required_structure
+- test_every_phase_charter_declares_status (iter 55)
+
+Hygiene (iter 62, 69, 76):
+- test_readme_public_entry_imports_actually_resolve
+- test_kernel_run_emits_no_deprecation_warnings
+- test_all_committed_json_files_parse_cleanly
+
+Each pin documents which iter found the original drift (if any) plus
+the regression class it guards. Add new pins symmetric with existing
+patterns when new drift classes surface.
 """
 from __future__ import annotations
 
