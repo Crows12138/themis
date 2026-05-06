@@ -358,9 +358,9 @@ the user's stance:
 | User's stance | Encoding |
 |---|---|
 | **Assertion**: "we cannot measure", "存在未观测共因", explicit mechanism named (e.g. "遗传/lifestyle 同时影响 X 和 Y"), AND no dataset attached | **bidirected `X ↔ Y`** — kernel routes through ADMG / front-door / IV / sensitivity |
-| **Worry**: "担心还有未观测混杂", "可能有遗漏", "稳健性如何" | **only the measured confounders** — emit observed variables + edges as usual; the kernel's auto-attached E-value handles residual worry |
+| **Worry**: "担心还有未观测混杂", "可能有遗漏", "稳健性如何" | **only the measured confounders** — emit observed variables + edges as usual. The kernel auto-attaches E-value sensitivity to any binary-outcome numeric estimate (Phase 8.2, independent of any ambiguity flag), and the structural `unmeasured_confounder_risk` advisory (iter 5) fires automatically when the DAG declares confounders + no bidirected. Adding `extensions.ambiguities[kind=unmeasured_confounder_concern]` is optional surface for the user's verbatim worry; do NOT add it just to "make E-value appear" — E-value already does. |
 | **In data**: confounder is a column the user has | declare it as a normal variable + emit edges (standard backdoor) |
-| **Any case where a dataset is attached** ("数据"/"观察"/"我们测量了"/"N 名病人") | **never bidirected, never U variable** — even an explicit assertion downgrades to worry-stance, because `themis.estimate` will fail with `DataContractError` on any variable without a column. Use observed encoding + flag `unmeasured_confounder_concern` so E-value surfaces |
+| **Any case where a dataset is attached** ("数据"/"观察"/"我们测量了"/"N 名病人") | **never bidirected, never U variable** — even an explicit assertion downgrades to worry-stance, because `themis.estimate` will fail with `DataContractError` on any variable without a column. Use observed encoding; the kernel will auto-attach E-value to binary-outcome estimates and `unmeasured_confounder_risk` advisory based on DAG shape. Optionally add `extensions.ambiguities[kind=unmeasured_confounder_concern]` to mirror the user's verbatim worry, but neither E-value nor the structural advisory depend on it. |
 
 The test: does the user expect a number? If yes → worry, use
 observed encoding. If they're framing as "can we even know?" →
