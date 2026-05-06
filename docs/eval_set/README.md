@@ -1,7 +1,7 @@
 # Themis NL evaluation set
 
-> Status: v2.4 (2026-04-25). **28 cases across 24 failure modes
-> (F1–F24)**. Growth log:
+> Status: v2.5 (2026-05-07). **29 cases across 26 failure modes
+> (F1–F26)**. Growth log:
 > - v1: 20 cases / F1-F18
 > - v2.0: +case 21/22 with F19 (Phase 6.iv)
 > - v2.1: +case 23/24 with F20 (Phase 6.mediation)
@@ -10,6 +10,10 @@
 > - v2.4: +F23 (refusal-only V-set) + F24 (ADMG cause+bidirected
 >   coexistence) — both surfaced by Phase 4 e2e blind stress; no
 >   new cases yet, exercised indirectly by cases 16 / 21
+> - v2.5: +case 29 with F25 (Phase 9 §T9.1 transport / population
+>   mismatch) + F26 (Phase 10 silent data-gap suppression — surfaced
+>   by Phase 10 charter; no new case yet, exercised indirectly by
+>   case 25 + the L3 simulation corpus in [`../l3_simulation/`](../l3_simulation/))
 
 This directory holds evaluation cases for the NL layer (A1 prompt,
 A5 narrative prompt, and the A1→themis.run→response_rendering
