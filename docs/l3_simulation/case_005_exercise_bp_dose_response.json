@@ -1,0 +1,38 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "person"}]},
+  "extensions": {
+    "ambiguities": [
+      {
+        "kind": "dose_response_query",
+        "description": "用户问每周做多少分钟有氧运动能降多少收缩压"
+      }
+    ]
+  },
+  "statements": [
+    {"kind": "variable", "predicate": "weekly_aerobic_minutes", "domain": [true, false]},
+    {"kind": "variable", "predicate": "systolic_bp_reduction", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "weekly_aerobic_minutes", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "systolic_bp_reduction", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "literature_meta_analysis"}
+    },
+    {
+      "kind": "query",
+      "id": "q_exercise_bp_curve",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "systolic_bp_reduction", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "weekly_aerobic_minutes", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}

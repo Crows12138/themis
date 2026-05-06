@@ -99,3 +99,7 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   needs_investigation 时 derivation 空导致 FD1/FD2/FD3 advisory 不
   fire，加 program-shape fallback；同时 ✅ 验证 unmeasured_confounder_risk
   抑制路径正确）
+- [Case 005 — Exercise dose-response for blood pressure (Whelton 2002)](case_005_exercise_bp_dose_response.md)
+  （2026-05-07 iter 12，✅ match：第一个 L3-tested Phase 13
+  `dose_response_data_required` gap_kind；spec 合理 (5 采样点 × n=75)；
+  次要 finding 关于 confounders_required empty 时可加 hint，候选 iter 13+）
