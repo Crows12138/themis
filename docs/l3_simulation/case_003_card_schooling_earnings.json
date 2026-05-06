@@ -1,0 +1,50 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "person"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "distance", "domain": [true, false]},
+    {"kind": "variable", "predicate": "schooling", "domain": [true, false]},
+    {"kind": "variable", "predicate": "earnings", "domain": [true, false]},
+    {"kind": "variable", "predicate": "ability", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "distance", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "schooling", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "ability", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "schooling", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "ability", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "earnings", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "schooling", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "earnings", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "literature_observational"}
+    },
+    {
+      "kind": "query",
+      "id": "q_schooling_earnings",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "earnings", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "schooling", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}

@@ -89,3 +89,8 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
 - [Case 002 — Vitamin D supplementation for CVD](case_002_vitamin_d_cvd.md)
   （2026-05-07，原 ◐ partial miss → 升 ✅ match：iter 5 实现了
   `unmeasured_confounder_risk` gap_kind，case 001/002 都 fire）
+- [Case 003 — Card 1995 schooling → earnings](case_003_card_schooling_earnings.md)
+  （2026-05-07 iter 7，✅ match 跨域：教育经济学；额外验证 Themis
+  自动 IV-shape 检测 + Balke-Pearl IV bounds；次要发现 advisory
+  description 的 domain examples 是 medicine-only，跨域 portability
+  待改进）
