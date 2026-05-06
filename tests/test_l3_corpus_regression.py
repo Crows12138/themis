@@ -210,6 +210,28 @@ def test_l3_readme_case_index_matches_actual_files():
     )
 
 
+def test_every_l3_case_md_has_required_sections():
+    """Every case_NNN_*.md must include the standard L3 audit sections:
+    - `## NL question` — what the user actually asked
+    - `## Authoritative source` — external ground truth
+    - `## 历史` — iter-by-iter assessment trail
+
+    Iter 83 preventive pin. The L3 audit methodology relies on every
+    case .md describing (a) the user-facing question, (b) the external
+    authority being checked against, and (c) the assessment evolution.
+    A case without these sections breaks the corpus comparability.
+
+    All 10 currently consistent. Pin holds."""
+    required = ["## NL question", "## Authoritative source", "## 历史"]
+    violations = []
+    for f in sorted(L3_DIR.glob("case_*.md")):
+        text = f.read_text(encoding="utf-8")
+        missing = [s for s in required if s not in text]
+        if missing:
+            violations.append(f"{f.name}: missing {missing}")
+    assert not violations, "\n".join(violations)
+
+
 def test_every_l3_case_file_has_regression_test_entry():
     """Every case_NNN_*.json under docs/l3_simulation/ must have a
     matching entry in this file's CASES list (the parametrized
