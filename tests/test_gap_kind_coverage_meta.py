@@ -198,6 +198,32 @@ def test_test_count_consistent_between_core_status_and_readme():
     )
 
 
+def test_wall_md_has_required_structure():
+    """wall.md is the autonomous-loop blocker log — central to the
+    /loop's design. Iter 90 preventive pin: must exist + must have
+    a `Format:` declaration line + at least one ## YYYY-MM-DD entry.
+
+    Without these, the loop's "记在 wall.md" instruction has no
+    parseable target. Catches accidental deletion / restructure that
+    breaks the audit log's contract.
+    """
+    import re
+    wall_path = REPO_ROOT / "wall.md"
+    assert wall_path.exists(), "wall.md must exist (autonomous-loop blocker log)"
+    text = wall_path.read_text(encoding="utf-8")
+    assert re.search(r"^Format[：:]", text, re.MULTILINE), (
+        "wall.md must have a 'Format:' declaration line at top describing "
+        "entry shape"
+    )
+    entry_re = re.compile(r"^##\s+\d{4}-\d{2}-\d{2}", re.MULTILINE)
+    entries = entry_re.findall(text)
+    assert entries, (
+        "wall.md must have at least one '## YYYY-MM-DD …' entry. "
+        "An empty wall.md means the loop has nothing to read on "
+        "subsequent iters."
+    )
+
+
 def test_status_docs_have_update_timestamp():
     """CORE_STATUS.md and COVERAGE_MAP.md must declare a `更新时间`
     timestamp in their header. Iter 85-87 found three timestamp drifts
