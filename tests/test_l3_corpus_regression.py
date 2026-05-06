@@ -154,6 +154,30 @@ def test_l3_case_emits_expected_gap_kinds(case_file, must_have, must_not_have):
         )
 
 
+def test_every_l3_case_json_has_matching_markdown():
+    """Each case_NNN_*.json must have a sibling case_NNN_*.md describing
+    the authoritative source, encoded DAG, expected behavior, and
+    assessment. The .md is the L3 audit trail — without it a future
+    contributor reading the .json has no idea what's being tested
+    against what ground truth.
+
+    iter 40 audit pin: 10 cases all have matching markdown today; this
+    pins the invariant so adding a .json without a .md fails fast.
+    """
+    json_files = sorted(L3_DIR.glob("case_*.json"))
+    md_files = {f.stem for f in L3_DIR.glob("case_*.md")}
+    missing = []
+    for jf in json_files:
+        if jf.stem not in md_files:
+            missing.append(jf.name)
+    assert not missing, (
+        f"L3 case JSON without matching markdown audit trail: {missing}. "
+        f"Add case_NNN_*.md describing the authoritative source + "
+        f"expected behavior + assessment per docs/l3_simulation/README.md "
+        f"case format."
+    )
+
+
 def test_l3_corpus_count_at_plateau():
     """Sanity: corpus has reached plateau (≥10 cases). If a case is
     accidentally deleted this catches it."""
