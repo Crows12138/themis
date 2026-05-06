@@ -116,3 +116,26 @@ def test_must_disclose_set_is_subset_of_gap_kinds():
         f"_MUST_DISCLOSE_GAP_KINDS has unknown values: {unknown}. "
         f"Either typo or stale enum reference."
     )
+
+
+def test_no_orphan_test_files():
+    """Every tests/test_*.py file must contain at least one test
+    function (def test_… or async def test_…). Pytest silently skips
+    files with zero test funcs — a typo'd helper-only file named
+    test_foo.py would never run, leaving the contract un-checked.
+
+    This guard catches the typical 'I renamed a test func and broke
+    the prefix' regression.
+    """
+    import re
+    test_func_re = re.compile(r"^\s*(?:async\s+)?def\s+test_", re.MULTILINE)
+    orphans = []
+    for p in TESTS_DIR.rglob("test_*.py"):
+        if test_func_re.search(p.read_text(encoding="utf-8")):
+            continue
+        orphans.append(p.relative_to(REPO_ROOT))
+    assert not orphans, (
+        f"test_*.py files without any test function: {orphans}. "
+        f"Pytest silently skips these — rename to non-test_ prefix or "
+        f"add at least one test_xxx() function."
+    )
