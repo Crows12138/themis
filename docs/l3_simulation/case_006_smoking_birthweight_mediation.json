@@ -1,0 +1,57 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "pregnancy"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "smoking_during_pregnancy", "domain": [true, false]},
+    {"kind": "variable", "predicate": "placental_dysfunction", "domain": [true, false]},
+    {"kind": "variable", "predicate": "low_birthweight", "domain": [true, false]},
+    {"kind": "variable", "predicate": "ses_low", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "smoking_during_pregnancy", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "placental_dysfunction", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "literature_observational"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "placental_dysfunction", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "biology"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "smoking_during_pregnancy", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "literature_observational"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "ses_low", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "smoking_during_pregnancy", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "ses_low", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "query",
+      "id": "q_smoking_birthweight_mediation",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "smoking_during_pregnancy", "args": [{"type": "const", "name": "pregnancy"}]},
+          "value": true
+        },
+        "mediator": {"predicate": "placental_dysfunction", "args": [{"type": "const", "name": "pregnancy"}]},
+        "given": []
+      }
+    }
+  ]
+}
