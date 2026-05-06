@@ -31,6 +31,28 @@ Each turn, do exactly one of:
 Walk `data_gap_report.gaps[]` (already sorted by severity). For each gap,
 ask:
 
+### Q0 (pre-screen). Is this a pure disclosure?
+
+`severity == "informational"` gaps are advisory — their `description`
+is already mirrored as a ⚠ line in `result.explanation`. **Do not fetch
+or ask** for these. Surface them in the reply (rephrased as natural
+prose) and move on. They name structural caveats the user must know to
+interpret the answer correctly (front-door / IV / mediation /
+counterfactual / transport assumption disclosures, bounds-not-point,
+unmeasured-confounder-risk, learned-from-data, low-confidence,
+unverified-proposal-edges). They are not data targets.
+
+`severity == "important"` gaps are usually actionable, but
+**check before fetching**:
+- `ambiguous_variable_definition` → Q1-Q3 walk (this is a real
+  framing / data gap)
+- `unattempted_layer_due_to_dispatch_conflict` → no fetch; the action
+  is to **reformulate the query** (split into two sequential queries,
+  or drop one of `mediator` / `target_population`) per the gap's
+  `alternative_paths`. Surface in reply; advise reformulation.
+
+`severity == "blocking"` always needs Q1-Q3.
+
 ### Q1. Is it structurally fixable at all?
 
 There are three kinds of unknown, with sharply different remedies — get
