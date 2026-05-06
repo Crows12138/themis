@@ -46,4 +46,31 @@ recruitment。
 data_gap_report 是否对应他们实际的数据可得性；(3) 中文 NL 输入 / 错误
 信息友好度反馈。loop 都做不到，需要外部触达用户。
 
+### 2026-05-07 iter 21-40 update — post-plateau infrastructure saturated
+
+iter 21-40（doc / test / sync 安全网）累积现状：
+- 5 cross-file sync pins（GapKind ↔ schema / verifier registry /
+  must-disclose set / response_rendering prompt / kb_lookup prompt）
+- 4 service-surface 透传 regression（kernel.run / web `/api/run` /
+  MCP `themis_run` / apply_patch_and_run round 持续）
+- 8 prompt audited / 多 stale module docstring 同步
+- L3 perf pin（200 ms/case + 1 s total 阈值）
+- L3 corpus .json/.md pairing pin
+- orphan test file guard
+
+剩 "下一步候选" 都需要外部 unblock 或 substantial 单 iter 不可达：
+- 真人测试 — 等用户 recruitment（已记上方）
+- Tian Line 7 — 需 Q[S'] re-factorization recursion，估 100+ LOC（c_factor.py
+  iter 39 docstring 已记 honest deferral）
+- 更多 gap_kind（dtype mismatch / propensity overlap / IV strength /
+  SUTVA）— 需要 estimation pipeline + 真数据信号
+- bounds 扩展（frontdoor partial / Manski-Tamer / 非 binary）— 真用户
+  需求 trigger 才立项
+- A1/A2 widening — 需 LLM 触达
+- V0-V5 / T10 deeper — 需 V framework architectural extension
+
+**loop 边际收益已显著递减**。继续 iter 仍可贡献小修，但每 iter
+contribution magnitude 已下降到"小 docstring sync / 小 meta-test"
+量级。建议触达真人 unblock L3 价值层 → 真用户反馈会驱动新一波 finding 与 fix。
+
 ---
