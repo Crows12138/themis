@@ -118,3 +118,8 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   (Layer 3) 路径；Phase 5 §C 的 Balke-Pearl bounds + monotonicity
   assumption 全部正确触发；副观察 6 个 missing_distribution 可聚合
   UX polish iter 17+ 候选）
+- [Case 009 — Mediation × Transport 共现 stress test](case_009_mediation_x_transport.md)
+  （2026-05-07 iter 18，◐ partial：query 同时设 mediator + target_population
+  时 Themis 静默走 transport，mediation 被 skip 但不告知 user。这是
+  silent dispatch finding，违反 VISION "诚实告诉用户没做什么"。iter 19+
+  候选 fix：新 gap_kind `unattempted_layer_due_to_dispatch_conflict`）

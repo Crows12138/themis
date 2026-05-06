@@ -1,0 +1,65 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "pregnancy"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "smoking_cessation", "domain": [true, false]},
+    {"kind": "variable", "predicate": "placental_function", "domain": [true, false]},
+    {"kind": "variable", "predicate": "low_birthweight", "domain": [true, false]},
+    {"kind": "variable", "predicate": "age_high", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "smoking_cessation", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "placental_function", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "literature_rct"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "placental_function", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "biology"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "smoking_cessation", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "literature_rct"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age_high", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "smoking_cessation", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age_high", "args": [{"type": "const", "name": "pregnancy"}]},
+      "to":   {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "selection_node",
+      "id": "S_age",
+      "affects": {"predicate": "age_high", "args": [{"type": "const", "name": "pregnancy"}]},
+      "source_population": "us_rct_2018",
+      "target_population": "china_user_population"
+    },
+    {
+      "kind": "query",
+      "id": "q_smoking_birthweight_mediation_transport",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "low_birthweight", "args": [{"type": "const", "name": "pregnancy"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "smoking_cessation", "args": [{"type": "const", "name": "pregnancy"}]},
+          "value": true
+        },
+        "mediator": {"predicate": "placental_function", "args": [{"type": "const", "name": "pregnancy"}]},
+        "given": [],
+        "target_population": "china_user_population"
+      }
+    }
+  ]
+}
