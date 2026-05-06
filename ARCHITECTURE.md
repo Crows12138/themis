@@ -1,5 +1,12 @@
 # 架构说明 v0.1
 
+> **当前版本指针**：此文件描述的是 v0.1（静态 DAG 内核）阶段的分层架构。
+> 系统已演化到 0.15.0-dev（含 Phase 6-15 + L3 simulation 安全网，详见
+> [`CORE_STATUS.md`](CORE_STATUS.md)）。本文件保留作为 v0.1 基线参考——
+> 四层划分 / 依赖方向 / Oracle 定位等结构问题在演化中保持稳定。最新
+> Phase 解冻列表见 [`COVERAGE_MAP.md`](COVERAGE_MAP.md) 与
+> [`ROADMAP.md`](ROADMAP.md) "Phase 9+" 节。
+
 本文件固化因果推理内核的分层、依赖方向与设计意图。
 
 它不讨论算法细节（见 `理论框架_v0_1.md`、`formula_ast_spec_v0_1.md`），只回答下面几个结构问题：
