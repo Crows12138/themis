@@ -1,0 +1,144 @@
+"""L3 simulation corpus regression test.
+
+Iter 1-16 mined 8 L3 cases from authoritative sources to pressure-test
+the data_gap_report. This test pins the corpus contract: each case's
+expected gap_kinds must remain in the report. A code change that
+silently drops one of these gaps fails here.
+
+Each case is encoded in docs/l3_simulation/case_NNN_*.json with a
+matching .md describing the authoritative source + expected behavior.
+This test loads the JSON, runs themis.run, and asserts the expected
+gap_kinds are present.
+
+Cases:
+- 001/002 backdoor (medicine) — measured confounders + no bidirected
+- 003 IV via Balke-Pearl bounds (econ) — Card 1995 schooling-earnings
+- 004 front-door (medicine) — Pearl smoking->tar->cancer
+- 005 dose-response (medicine) — Whelton 2002 exercise-BP
+- 006 mediation (epi) — Cnattingius 2004 smoking-birthweight
+- 007 transport (medicine) — USPSTF 2022 statin to 75+
+- 008 counterfactual (Layer 3) — Pearl 2009 monotone bounds
+
+L3 simulation methodology + per-case authoritative sources:
+docs/l3_simulation/README.md.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from themis import run
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+L3_DIR = REPO_ROOT / "docs" / "l3_simulation"
+
+
+def _load(name: str) -> dict:
+    return json.loads((L3_DIR / name).read_text(encoding="utf-8"))
+
+
+def _gap_kinds(out: dict) -> list[str]:
+    result = out["results"][0]
+    report = result.get("data_gap_report") or {}
+    return [g["kind"] for g in report.get("gaps", [])]
+
+
+# Each entry: (case file, must-have gap_kinds, must-NOT-have gap_kinds)
+CASES = [
+    (
+        "case_001_hrt_cvd.json",
+        # measured confounders + no bidirected → unmeasured_confounder_risk fires
+        ["missing_distribution", "answer_is_bounds_not_point_estimate",
+         "unmeasured_confounder_risk"],
+        ["front_door_identification_assumption_required",
+         "transport_identification_assumption_required"],
+    ),
+    (
+        "case_002_vitamin_d_cvd.json",
+        ["missing_distribution", "answer_is_bounds_not_point_estimate",
+         "unmeasured_confounder_risk"],
+        ["front_door_identification_assumption_required"],
+    ),
+    (
+        "case_003_card_schooling_earnings.json",
+        # IV-shape detected → Balke-Pearl IV bounds + unmeasured_confounder_risk
+        # (ability is a confounder + no bidirected, so risk fires)
+        ["missing_distribution", "answer_is_bounds_not_point_estimate",
+         "unmeasured_confounder_risk"],
+        [],
+    ),
+    (
+        "case_004_pearl_smoking_tar_cancer.json",
+        # bidirected declared → unmeasured_confounder_risk SUPPRESSED
+        # front-door pattern → front_door_identification_assumption_required fires
+        # (iter 10 fix)
+        ["missing_distribution", "answer_is_bounds_not_point_estimate",
+         "front_door_identification_assumption_required"],
+        ["unmeasured_confounder_risk"],
+    ),
+    (
+        "case_005_exercise_bp_dose_response.json",
+        # extensions.ambiguities[kind=dose_response_query] → dose-response gap
+        ["dose_response_data_required", "missing_distribution",
+         "answer_is_bounds_not_point_estimate"],
+        [],
+    ),
+    (
+        "case_006_smoking_birthweight_mediation.json",
+        # mediation query → mediation_identification_assumption_required (×2)
+        # ses_low confounder + no bidirected → unmeasured_confounder_risk
+        ["mediation_identification_assumption_required",
+         "unmeasured_confounder_risk"],
+        ["front_door_identification_assumption_required"],
+    ),
+    (
+        "case_007_statin_transport.json",
+        # selection_node + target_population → transport identification
+        # 4-layer advisory: structure / assumption / data×2 / DAG completeness
+        ["transport_identification_assumption_required",
+         "transport_target_distribution_unknown",
+         "transport_source_conditional_unknown",
+         "unmeasured_confounder_risk"],
+        ["front_door_identification_assumption_required"],
+    ),
+    (
+        "case_008_pearl_monotone_counterfactual.json",
+        # counterfactual query → counterfactual advisory + 6 missing_distribution
+        # 2-var DAG → unmeasured_confounder_risk SUPPRESSED (var_count < 3)
+        ["counterfactual_identification_assumption_required",
+         "missing_distribution"],
+        ["unmeasured_confounder_risk",
+         "front_door_identification_assumption_required"],
+    ),
+]
+
+
+@pytest.mark.parametrize("case_file,must_have,must_not_have", CASES,
+                         ids=[c[0] for c in CASES])
+def test_l3_case_emits_expected_gap_kinds(case_file, must_have, must_not_have):
+    program = _load(case_file)
+    out = run(program)
+    kinds = _gap_kinds(out)
+    for k in must_have:
+        assert k in kinds, (
+            f"L3 corpus regression: {case_file} should emit gap_kind "
+            f"{k!r} but did not. Got: {kinds}"
+        )
+    for k in must_not_have:
+        assert k not in kinds, (
+            f"L3 corpus regression: {case_file} should NOT emit gap_kind "
+            f"{k!r} but did. Got: {kinds}"
+        )
+
+
+def test_l3_corpus_count_at_least_eight():
+    """Sanity: directory contains ≥8 case JSON files. If a case is
+    accidentally deleted this catches it."""
+    case_files = list(L3_DIR.glob("case_*.json"))
+    assert len(case_files) >= 8, (
+        f"L3 corpus expected ≥8 cases, found {len(case_files)}. "
+        f"Files: {[f.name for f in case_files]}"
+    )
