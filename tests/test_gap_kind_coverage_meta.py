@@ -260,6 +260,42 @@ def test_readme_public_entry_imports_actually_resolve():
     )
 
 
+def test_markdown_cross_links_resolve():
+    """Every relative .md cross-link in committed markdown must resolve
+    to an existing file. Iter 63 stripped 28 abs paths to relative
+    paths; if a target file was renamed/deleted, those relative links
+    would now be broken — caught here.
+
+    Iter 65 audit: all currently resolve. Pin the invariant for future
+    drift (e.g., delete a charter file without grep'ing for incoming
+    references).
+
+    Skips http(s) / external links and anchor-only fragments.
+    """
+    import re
+    link_re = re.compile(r"\[([^\]]+)\]\(([^)#]+\.md)(?:#[^)]*)?\)")
+    violations = []
+    for f in sorted(REPO_ROOT.rglob("*.md")):
+        if any(part.startswith(".") for part in f.parts):
+            continue
+        text = f.read_text(encoding="utf-8")
+        for m in link_re.finditer(text):
+            target = m.group(2)
+            if target.startswith(("http://", "https://")):
+                continue
+            target_path = (f.parent / target).resolve()
+            if not target_path.exists():
+                line = text[:m.start()].count("\n") + 1
+                violations.append(
+                    f"{f.relative_to(REPO_ROOT)}:{line}: "
+                    f"link {target!r} -> NOT FOUND"
+                )
+    assert not violations, (
+        f"Broken markdown cross-links: {violations[:10]}"
+        f"{'...' if len(violations) > 10 else ''}"
+    )
+
+
 def test_no_windows_absolute_paths_in_committed_files():
     """Iter 63 audit found 28 hardcoded `C:\\Users\\12916\\...\\` paths
     across 7 .md files. Iter 64 extends this to .py files in
