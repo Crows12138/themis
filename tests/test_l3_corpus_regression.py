@@ -20,8 +20,9 @@ Pins (chronological):
 - test_l3_case_emits_expected_gap_kinds (iter 17, parametrized) —
   per-case must-have / must-not-have gap_kind lists
 - test_l3_corpus_count_at_plateau (iter 17, ≥10 sanity)
-- test_dispatch_conflict_fires_on_mediator_plus_target_pop (iter 19) +
-  2 suppression tests (mediation-only / transport-only)
+- test_dispatch_conflict_fires_on_mediator_plus_target_pop (iter 19)
+- test_dispatch_conflict_suppressed_when_only_mediator (iter 19)
+- test_dispatch_conflict_suppressed_when_only_target_pop (iter 19)
 - test_l3_corpus_runtime_regression (iter 33) — perf budget
   200 ms/case + 1 s total; current ~6 ms max (33x headroom)
 - test_dispatch_conflict_persists_through_apply_patch_and_run (iter 31)
@@ -29,6 +30,8 @@ Pins (chronological):
 - test_l3_readme_case_index_matches_actual_files (iter 73)
 - test_every_l3_case_file_has_regression_test_entry (iter 74)
 - test_every_l3_case_md_has_required_sections (iter 83)
+- test_l3_corpus_docstring_inventories_all_test_functions (iter 95,
+  symmetric with test_gap_kind_coverage_meta self-pin iter 94)
 
 L3 simulation methodology + per-case authoritative sources:
 docs/l3_simulation/README.md.
@@ -265,6 +268,33 @@ def test_every_l3_case_file_has_regression_test_entry():
     )
     assert not extra, (
         f"CASES list references non-existent case files: {sorted(extra)}"
+    )
+
+
+def test_l3_corpus_docstring_inventories_all_test_functions():
+    """Iter 95 self-pin, symmetric with iter 94's
+    test_meta_test_docstring_inventories_all_test_functions in
+    test_gap_kind_coverage_meta.py.
+
+    Every test_… function in this file must appear by name in the
+    module docstring's pin inventory. Catches 'add new pin, forget
+    to update the docstring' regression — caught by iter 95 audit
+    which found 2 dispatch_conflict suppression tests bundled as
+    '+ 2 suppression tests' in iter 92 docstring without specific
+    names.
+    """
+    import ast
+    self_text = Path(__file__).read_text(encoding="utf-8")
+    tree = ast.parse(self_text)
+    actual = sorted(
+        n.name for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
+    )
+    docstring = ast.get_docstring(tree) or ""
+    missing = [name for name in actual if name not in docstring]
+    assert not missing, (
+        f"Module docstring inventory missing test names: {missing}. "
+        f"Add to the appropriate section in the docstring."
     )
 
 
