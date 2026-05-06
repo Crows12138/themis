@@ -48,14 +48,22 @@ data_gap_report 是否对应他们实际的数据可得性；(3) 中文 NL 输�
 
 ### 2026-05-07 iter 21-40 update — post-plateau infrastructure saturated
 
-iter 21-40（doc / test / sync 安全网）累积现状：
-- 5 cross-file sync pins（GapKind ↔ schema / verifier registry /
-  must-disclose set / response_rendering prompt / kb_lookup prompt）
+iter 21-80（doc / test / sync 安全网）累积现状：
+- **25 sync pins**（GapKind ↔ schema / verifier registry / must-disclose
+  set / response_rendering / kb_lookup; CORE_STATUS↔README 测试数;
+  package version ↔ 3 doc files; charter status presence; failure_modes
+  count; eval_set README counts; COVERAGE_MAP MCP tool/resource count;
+  README sub-package list; L3 corpus .json/.md pairing; eval_set case
+  edge consistency; README from-themis import; abs path ban .md/.py;
+  markdown cross-link resolve; backtick py refs resolve; __all__ ↔
+  imports; kernel deprecation-clean; L3 README case index; L3 CASES
+  symmetry; .json validity; themis/ docstring; scripts/ docstring;
+  tests/ docstring; init docstring exception import resolves）
 - 4 service-surface 透传 regression（kernel.run / web `/api/run` /
   MCP `themis_run` / apply_patch_and_run round 持续）
-- 8 prompt audited / 多 stale module docstring 同步
+- 多 prompt audited（4 个 prompt 至少一次 currency check）/ 多 stale
+  module docstring 同步 / 5 个 v0.x-era doc 加版本指针
 - L3 perf pin（200 ms/case + 1 s total 阈值）
-- L3 corpus .json/.md pairing pin
 - orphan test file guard
 
 剩 "下一步候选" 都需要外部 unblock 或 substantial 单 iter 不可达：
