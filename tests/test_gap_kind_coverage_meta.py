@@ -118,6 +118,36 @@ def test_must_disclose_set_is_subset_of_gap_kinds():
     )
 
 
+def test_must_disclose_kinds_documented_in_response_rendering_prompt():
+    """Every gap_kind in scheduler._MUST_DISCLOSE_GAP_KINDS must appear
+    in docs/prompts/response_rendering.md's mirrored-set table. The
+    table is the contract the renderer LLM reads to know which gap_kinds
+    are auto-prepended to result.explanation as ⚠ lines (so the
+    renderer doesn't itemize them again).
+
+    Adding a kind to _MUST_DISCLOSE_GAP_KINDS without updating the prompt
+    breaks the contract silently — the LLM might double-render or fail
+    to surface the caveat. Iter 9 (unmeasured_confounder_risk) and
+    iter 19 (dispatch_conflict) both required this prompt update; this
+    test catches the third or fourth time.
+    """
+    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+    rendering_md = (
+        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+    ).read_text(encoding="utf-8")
+    missing = []
+    for kind in _MUST_DISCLOSE_GAP_KINDS:
+        # Look for the kind name in a backtick-quoted form, which is
+        # how the prompt's mirrored-set table cites it.
+        if f"`{kind}`" not in rendering_md:
+            missing.append(kind)
+    assert not missing, (
+        f"_MUST_DISCLOSE_GAP_KINDS members missing from "
+        f"response_rendering.md prompt: {missing}. Add a row to the "
+        f"mirrored-set table at docs/prompts/response_rendering.md."
+    )
+
+
 def test_no_orphan_test_files():
     """Every tests/test_*.py file must contain at least one test
     function (def test_… or async def test_…). Pytest silently skips
