@@ -9,18 +9,18 @@
 3. 从当前“推理层”走到未来“语料建模 + 推理”整体系统，中间要跨哪些台阶
 
 它不是 release note，也不是 backlog 清单。  
-它是对 [VISION.md](C:\Users\12916\Desktop\项目\因果性ai\VISION.md) 的工程化展开。  
-其中与“上游模型从哪里来”有关的详细设计，单独放在 [WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)。
+它是对 [VISION.md](VISION.md) 的工程化展开。  
+其中与“上游模型从哪里来”有关的详细设计，单独放在 [WORLD_MODELING.md](WORLD_MODELING.md)。
 
 **核心冻结状态**：自 2026-04-21 起，Themis 核心（语言 / 运行时 / 数值 / verifier
 V0–V5 / A0–A1）视为 v1.0 收口。详细冻结范围、允许与禁止的改动见
-[CORE_STATUS.md](C:\Users\12916\Desktop\项目\因果性ai\CORE_STATUS.md) 中
+[CORE_STATUS.md](CORE_STATUS.md) 中
 “核心冻结 v1.0”一节。路线图后续阶段在核心之外推进。
 
 **当前开发态**：`0.15.0-dev`（2026-04-30）。Phase 6-15 已经作为
 显式立项 fragment / workflow / estimator 扩展落地；本文件保留早期
-Phase 0-5 的路线语义，但当前判断以 [CORE_STATUS.md](C:\Users\12916\Desktop\项目\因果性ai\CORE_STATUS.md)
-和 [COVERAGE_MAP.md](C:\Users\12916\Desktop\项目\因果性ai\COVERAGE_MAP.md)
+Phase 0-5 的路线语义，但当前判断以 [CORE_STATUS.md](CORE_STATUS.md)
+和 [COVERAGE_MAP.md](COVERAGE_MAP.md)
 为准。
 
 ---
@@ -205,7 +205,7 @@ transport 等可边界化 fragment；complete ID 仍不急。
 都应先通过这道“问题是否被充分框定”的检查，再进入 Themis 的正式推理流程。
 
 这意味着 Phase 3 虽然暂时还在 Themis 周边实现，但在概念上已经属于
-[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
+[WORLD_MODELING.md](WORLD_MODELING.md)
 定义的上游建模职责的一部分。
 
 ### 背景
@@ -243,7 +243,7 @@ transport 等可边界化 fragment；complete ID 仍不急。
 不再要求用户手工把所有变量和关系写好，而是让系统从事实语料中构建候选世界模型。
 
 这一阶段的详细设计基线见：
-[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
+[WORLD_MODELING.md](WORLD_MODELING.md)
 
 ### 典型输入
 
@@ -275,7 +275,7 @@ Themis 不负责“发明世界”，而负责：
 **世界建模层在 Themis 之前，Themis 是它的推理后端。**
 
 因此，Phase 4 不是“继续往 Themis 里塞功能”，而是把
-[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
+[WORLD_MODELING.md](WORLD_MODELING.md)
 里定义的变量构建、事实抽取、候选关系生成、模型收敛，正式落成独立上游层。
 
 ---

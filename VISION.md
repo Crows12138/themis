@@ -114,7 +114,7 @@ Themis 当前**不是**：
 这两层可以强耦合协作，但不应在概念上混成一层。
 
 关于这层的正式定义，见
-[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)。
+[WORLD_MODELING.md](WORLD_MODELING.md)。
 
 ---
 

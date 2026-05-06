@@ -4,7 +4,7 @@
 
 这份文档回答一件事：
 
-**Themis 要怎么落实 [VISION.md](C:\Users\12916\Desktop\项目\因果性ai\VISION.md) 里新版的"严格"定义。**
+**Themis 要怎么落实 [VISION.md](VISION.md) 里新版的"严格"定义。**
 
 新版"严格"的关键句是：
 

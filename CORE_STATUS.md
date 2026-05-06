@@ -7,9 +7,9 @@
 **当前 Themis 核心到底完成到了什么程度。**
 
 它不是愿景文档，也不是长期路线图。  
-长期目标看 [VISION.md](C:\Users\12916\Desktop\项目\因果性ai\VISION.md)，阶段路线看
-[ROADMAP.md](C:\Users\12916\Desktop\项目\因果性ai\ROADMAP.md)，上游建模层看
-[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)。
+长期目标看 [VISION.md](VISION.md)，阶段路线看
+[ROADMAP.md](ROADMAP.md)，上游建模层看
+[WORLD_MODELING.md](WORLD_MODELING.md)。
 
 ---
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1573 passed / 143 skipped, warning-clean
+1574 passed / 143 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -470,7 +470,7 @@ contract 和 MCP wrapper 这些 down-payment。仍未完成的是：
 - 自动模型治理
 
 这部分是
-[WORLD_MODELING.md](C:\Users\12916\Desktop\项目\因果性ai\WORLD_MODELING.md)
+[WORLD_MODELING.md](WORLD_MODELING.md)
 定义的上游层，不是 Themis 当前核心的一部分。
 
 ### 2. 更强识别能力
