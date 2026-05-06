@@ -221,6 +221,45 @@ def test_failure_modes_header_count_matches_actual_entries():
     )
 
 
+def test_readme_public_entry_imports_actually_resolve():
+    """README.md '公开入口' code block shows `from themis import (...)`
+    listing the public API. Iter 62 pin: extract those names + assert
+    every one is actually importable + callable from `themis`. Catches
+    a future README drift where someone removes a function from
+    themis/__init__.py without updating the README example.
+
+    Also catches the reverse drift: if a function is added to
+    __init__.py but NOT mentioned in README example, the test fails
+    only by the reverse direction (only enforces 'README names exist'
+    not 'all exports are documented'); the doc-completeness side is
+    judgement, not strict invariant."""
+    import re
+    import themis
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    # Match either `from themis import (a, b, c)` or `from themis import a, b, c`
+    block_matches = re.findall(
+        r"from\s+themis\s+import\s+(?:\(\s*([^)]+?)\s*\)|([^\n#]+))",
+        readme,
+    )
+    assert block_matches, "README must contain 'from themis import …' block"
+    names: list[str] = []
+    for paren_form, line_form in block_matches:
+        raw = paren_form or line_form
+        for n in raw.split(","):
+            n = n.strip()
+            if n and not n.startswith("#"):
+                names.append(n)
+    missing = []
+    for name in names:
+        attr = getattr(themis, name, None)
+        if attr is None or not callable(attr):
+            missing.append(name)
+    assert not missing, (
+        f"README cites these names in 'from themis import (...)' but "
+        f"they are not importable + callable from themis: {missing}"
+    )
+
+
 def test_eval_set_cases_have_internally_consistent_edges():
     """Each docs/eval_set/cases/*.json must have gold_edges whose from /
     to predicates all appear in gold_variables.
