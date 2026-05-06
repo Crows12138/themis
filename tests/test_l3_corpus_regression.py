@@ -204,6 +204,40 @@ def test_dispatch_conflict_suppressed_when_only_target_pop():
     assert "unattempted_layer_due_to_dispatch_conflict" not in kinds
 
 
+def test_l3_corpus_runtime_regression():
+    """iter 33 perf pin. Each L3 case currently runs in 2-5 ms, total
+    ~36 ms (measured on local machine, no concurrency). Conservative
+    threshold of 200 ms per case + 1 s total catches a true 10-50x
+    regression without flaking under CI variance.
+
+    Skipped if any case file is somehow unreadable — perf test is a
+    diagnostic safety net, not a build gate."""
+    import time
+    cases = sorted(L3_DIR.glob("case_*.json"))
+    assert len(cases) >= 10  # plateau guarantee
+
+    # Warm up to get past first-import overhead
+    run(_load(cases[0].name))
+
+    total = 0.0
+    for case_file in cases:
+        program = _load(case_file.name)
+        t0 = time.perf_counter()
+        run(program)
+        t = time.perf_counter() - t0
+        assert t < 0.200, (
+            f"{case_file.name}: themis.run took {t*1000:.0f} ms, "
+            f"exceeding 200 ms regression threshold (typical 2-5 ms). "
+            f"A perf regression of this magnitude probably indicates a "
+            f"missed optimization or accidental quadratic walk."
+        )
+        total += t
+    assert total < 1.0, (
+        f"Total L3 corpus runtime {total*1000:.0f} ms exceeds 1000 ms "
+        f"regression threshold (typical ~36 ms)."
+    )
+
+
 def test_dispatch_conflict_persists_through_apply_patch_and_run():
     """iter 31 audit, symmetric with iter 30's unmeasured_confounder_risk
     test. unattempted_layer_due_to_dispatch_conflict triggers on the
