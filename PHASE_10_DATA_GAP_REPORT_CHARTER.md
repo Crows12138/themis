@@ -1,7 +1,11 @@
 # Phase 10 Charter — DataGapReport（数据缺口诊断器）
 
 > 立项日期：2026-04-26
-> 状态：**Draft，待 review**
+> 状态：**✅ 已落地（2026-04-26）** — S.10.1-S.10.7 全部完成；详见
+> [`CORE_STATUS.md`](CORE_STATUS.md) "Phase 10 数据缺口诊断器" 节。
+> 后续 L3 simulation 工作（2026-05-07，10 cases + 2 真 bug 修 + 1 新
+> gap_kind `unmeasured_confounder_risk` 完整 lifecycle + 1 新 gap_kind
+> `unattempted_layer_due_to_dispatch_conflict`）在此 charter 基础上扩展。
 > 对应 VISION：定位收紧 (2026-04-26) — Themis = 验证器 + 数据缺口诊断器
 > 触发：2026-04-26 战略对齐——量化因果数据缺乏是学科天花板，"告诉
 > 用户去收什么数据"是 DoWhy/EconML/ChatGPT 都不做的独占生态位

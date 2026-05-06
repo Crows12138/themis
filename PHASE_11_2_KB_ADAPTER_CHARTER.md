@@ -2,7 +2,12 @@
 
 > 立项日期：2026-04-27
 > 母 charter：[`PHASE_11_AGENT_LOOP_CHARTER.md`](PHASE_11_AGENT_LOOP_CHARTER.md)
-> 状态：**待确认范围 / 未开始**
+> 状态：**✅ 已落地（2026-04-27）** — S.11.2.1-7 全部完成；KB adapter
+> 契约 + 转换函数 + 缓存 + reference adapter + MCP 暴露 + KB README
+> 全部进 themis/kb/。详见 [`CORE_STATUS.md`](CORE_STATUS.md) "Phase 11.2"
+> 节。S.11.3+（真 PrimeKG / SciGraph / SemMedDB adapter）按用户校正
+> 必须 sibling repo 形态，不在本 charter 主仓 scope 内（见
+> `themis/kb/README.md` adapter quickstart）。
 > 触发：S.11.1 prompt-only 闭环已落地 + 验证可用；下一步把 LLM 那
 > 一头的 "WebSearch 字符串" 升级成结构化 KB lookup 接口
 
