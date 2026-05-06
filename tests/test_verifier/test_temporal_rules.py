@@ -87,8 +87,22 @@ def test_t2_accepts_lag_one():
     _dispatch("T2_lag_bound", ctx, {"graph": g, "src": x, "dst": y}, True)
 
 
-def test_t2_rejects_lag_two():
-    x = _atom("x", -2)
+def test_t2_accepts_arbitrary_positive_lag():
+    """T2 was relaxed from lag <= 1 (first-order Markov scaffolding)
+    to any non-negative lag, driven by real cases like 1 week of sugar
+    → cavity and 1 month of training → marathon time."""
+    x = _atom("x", -7)
+    y = _atom("y", 0)
+    g = nx.DiGraph()
+    g.add_edge(x, y)
+    ctx = _ctx(g, x, y)
+    _dispatch("T2_lag_bound", ctx, {"graph": g, "src": x, "dst": y}, True)
+
+
+def test_t2_still_rejects_negative_lag():
+    """Negative lag (cause after effect) is still rejected — T1 catches
+    it directly; T2 carries the same predicate as a sanity redundancy."""
+    x = _atom("x", 1)
     y = _atom("y", 0)
     g = nx.DiGraph()
     g.add_edge(x, y)

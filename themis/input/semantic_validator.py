@@ -82,6 +82,7 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "unique_variable_declarations",
         "bidirected_runtime_gate",
         "transport_runtime_gate",
+        "temporal_monotonicity",
     }
 )
 
@@ -463,6 +464,43 @@ def _check_transport_runtime_gate(program: Program) -> None:
             )
 
 
+def _check_temporal_monotonicity(program: Program) -> None:
+    """Phase 5 §T / T1 enforcement: a `cause` whose source carries a
+    later time_index than its destination is rejected — there is no
+    coherent "tomorrow's X causes today's Y" semantics.
+
+    Rules:
+    - If both endpoints carry a time_index, src.value <= dst.value.
+    - If only one endpoint carries a time_index, no constraint
+      (atemporal endpoint sits on the virtual atemporal index, ordering
+      with a temporal endpoint is undefined and out-of-scope).
+    - Bidirected statements: same rule applies symmetrically because
+      bidirected coupling implies a shared latent that exists across
+      both endpoints' time slices — but in this slice we only enforce
+      directed-cause ordering. Bidirected ordering (if any future case
+      drives it) lands in a separate check.
+
+    The verifier already has T1_time_monotonicity as a primitive but
+    runtime never wired it in — this semantic check is the runtime-side
+    enforcement that mirrors the verifier rule.
+    """
+    for idx, stmt in enumerate(program.statements):
+        if not isinstance(stmt, CauseStatement):
+            continue
+        src_ti = stmt.from_atom.time_index
+        dst_ti = stmt.to_atom.time_index
+        if src_ti is None or dst_ti is None:
+            continue
+        if src_ti.value > dst_ti.value:
+            raise SemanticError(
+                f"statements[{idx}]: cause direction violates time "
+                f"monotonicity — source '{stmt.from_atom.predicate}' at "
+                f"t={src_ti.value} is later than destination "
+                f"'{stmt.to_atom.predicate}' at t={dst_ti.value}. "
+                f"Causes cannot run backwards in time. Phase 5 §T / T1."
+            )
+
+
 _CHECK_FUNCS = {
     "objects": _check_objects,
     "forall_usage": _check_forall_usage,
@@ -472,6 +510,7 @@ _CHECK_FUNCS = {
     "unique_variable_declarations": _check_unique_variable_declarations,
     "bidirected_runtime_gate": _check_bidirected_runtime_gate,
     "transport_runtime_gate": _check_transport_runtime_gate,
+    "temporal_monotonicity": _check_temporal_monotonicity,
 }
 
 

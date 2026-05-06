@@ -2525,7 +2525,20 @@ def _rule_t2_lag_bound(
     claimed_output: Any,
     step_index: int,
 ) -> None:
-    """Phase 5 §T / T2: first-order Markov bound, lag <= 1."""
+    """Phase 5 §T / T2: lag is non-negative.
+
+    The original Phase 5 charter capped lag at 1 (``|t2 - t1| <= 1``)
+    as conservative scaffolding for first-order Markov. Real-case
+    causes have long latency — '1 week of sugar → cavity', '1 month
+    of marathon training → marathon time' — so the upper bound was
+    relaxed to admit any non-negative lag. Lag negativity is still
+    rejected (cf. T1_time_monotonicity).
+
+    The rule is effectively a redundancy check on top of T1: if T1
+    accepts (src.t <= dst.t), T2 also accepts. Kept in the registry
+    so existing derivations citing T2 keep validating; future
+    runtimes that emit T2 steps get the wider lag range.
+    """
     graph = _require(inputs, "graph", step_index, "T2_lag_bound")
     _assert_same_graph(graph, ctx.graph, step_index, "T2_lag_bound")
     src = _require_atom(inputs, "src", step_index, "T2_lag_bound")
@@ -2536,7 +2549,7 @@ def _rule_t2_lag_bound(
     dst_t = _relative_time_value(
         dst, step_index=step_index, rule="T2_lag_bound", what="dst",
     )
-    recomputed = (dst_t - src_t) <= 1
+    recomputed = (dst_t - src_t) >= 0
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
             f"T2_lag_bound claimed {claimed_output!r}, recomputed "
