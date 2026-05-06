@@ -122,3 +122,6 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   （2026-05-07 iter 18 ◐ partial → iter 19 ✅ match：iter 19 实现新
   gap_kind `unattempted_layer_due_to_dispatch_conflict`，silent dispatch
   finding 闭环。3 regression test pin。）
+- [Case 010 — IPCC: 人为 CO2 是否导致全球升温](case_010_co2_temperature_ipcc.md)
+  （2026-05-07 iter 20，✅ match：第 10 例 capstone，气候科学域 cause
+  query。L3 plateau condition 达成 — corpus 10/10，详见 wall.md plateau update。）

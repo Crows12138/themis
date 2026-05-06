@@ -122,6 +122,17 @@ CASES = [
          "unmeasured_confounder_risk"],
         ["mediation_identification_assumption_required"],
     ),
+    (
+        "case_010_co2_temperature_ipcc.json",
+        # cause query (boolean) — minimal gaps, no must-disclose. cause
+        # queries don't need data; query_kind != EFFECT so
+        # unmeasured_confounder_risk correctly suppressed.
+        ["ambiguous_variable_definition"],
+        ["unmeasured_confounder_risk",
+         "missing_distribution",
+         "front_door_identification_assumption_required",
+         "unattempted_layer_due_to_dispatch_conflict"],
+    ),
 ]
 
 
@@ -143,12 +154,12 @@ def test_l3_case_emits_expected_gap_kinds(case_file, must_have, must_not_have):
         )
 
 
-def test_l3_corpus_count_at_least_nine():
-    """Sanity: directory contains ≥9 case JSON files. If a case is
+def test_l3_corpus_count_at_plateau():
+    """Sanity: corpus has reached plateau (≥10 cases). If a case is
     accidentally deleted this catches it."""
     case_files = list(L3_DIR.glob("case_*.json"))
-    assert len(case_files) >= 9, (
-        f"L3 corpus expected ≥9 cases, found {len(case_files)}. "
+    assert len(case_files) >= 10, (
+        f"L3 corpus expected ≥10 cases at plateau, found {len(case_files)}. "
         f"Files: {[f.name for f in case_files]}"
     )
 

@@ -1,0 +1,37 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "earth_system"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "anthropogenic_co2_high", "domain": [true, false]},
+    {"kind": "variable", "predicate": "global_temp_anomaly_high", "domain": [true, false]},
+    {"kind": "variable", "predicate": "solar_irradiance_high", "domain": [true, false]},
+    {"kind": "variable", "predicate": "volcanic_aerosols_high", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "anthropogenic_co2_high", "args": [{"type": "const", "name": "earth_system"}]},
+      "to":   {"predicate": "global_temp_anomaly_high", "args": [{"type": "const", "name": "earth_system"}]},
+      "annotations": {"source": "ipcc_ar6_wg1"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "solar_irradiance_high", "args": [{"type": "const", "name": "earth_system"}]},
+      "to":   {"predicate": "global_temp_anomaly_high", "args": [{"type": "const", "name": "earth_system"}]},
+      "annotations": {"source": "physics"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "volcanic_aerosols_high", "args": [{"type": "const", "name": "earth_system"}]},
+      "to":   {"predicate": "global_temp_anomaly_high", "args": [{"type": "const", "name": "earth_system"}]},
+      "annotations": {"source": "physics"}
+    },
+    {
+      "kind": "query",
+      "id": "q_co2_causes_warming",
+      "query": {
+        "kind": "cause",
+        "from": {"predicate": "anthropogenic_co2_high", "args": [{"type": "const", "name": "earth_system"}]},
+        "to":   {"predicate": "global_temp_anomaly_high", "args": [{"type": "const", "name": "earth_system"}]}
+      }
+    }
+  ]
+}

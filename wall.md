@@ -30,4 +30,20 @@ recruitment。
 上误判 gap_kind，是真 bug，回到 kernel / report generator 修，**不**
 判定 L3 通过。
 
+### 2026-05-07 iter 20 update — plateau **达成**
+
+- 10 cases mined（cases 001-010），跨 7 个域，覆盖全 8 识别路径 + cause query
+- ✅ 9 ✅ + 1 ✅ (case 009 经 partial → iter 19 fix 升 match)
+- 2 个真 bug 修：front-door derivation-empty fallback (iter 10) +
+  unattempted_layer_due_to_dispatch_conflict (iter 19)
+- 1 个新 gap_kind 全 lifecycle：unmeasured_confounder_risk (iter 5-9)
+- L3 corpus regression test pin 10/10 cases (iter 17 + iter 19)
+
+**status**: L3 simulation plateaued。loop 不应再 mine 新 case，应转向
+其他 VISION gaps 或等真人 recruitment unblock L3 价值层验证。
+
+实测真人需要的：(1) 真人提交他们关心的因果问题；(2) 收集 Themis 的
+data_gap_report 是否对应他们实际的数据可得性；(3) 中文 NL 输入 / 错误
+信息友好度反馈。loop 都做不到，需要外部触达用户。
+
 ---
