@@ -5,9 +5,21 @@ front-door / IV all fail. Implements Shpitser & Pearl 2006's complete
 ID algorithm (which subsumes Tian 2002), restricted to the kernel's
 identify-query shape: single intervention, single target, empty given.
 
-The algorithm returns either a `FormulaExpr` over observable
-probabilities (and an audit-friendly derivation witness) or
-`None, "hedge"` when the query is unidentifiable.
+Three return shapes:
+
+- `(FormulaExpr, ...)` — query identifiable; witness is a c-factor
+  product. Lines 1-6 of the recursion (ancestral shrink, descendant
+  exclusion, c-component split, hedge witness, Q[S] product form).
+- `(None, "hedge")` — query is provably unidentifiable; witness is the
+  hedge graph (Lines 1-5).
+- `None` (no second value) — **Line 7 deferred**: the recursion needs
+  symbolic substitution under a Q[S'] re-factorization (S ⊊ S' for
+  some c-component S' of G), which this slice does not implement.
+  Scheduler treats this as `needs_investigation` rather than falsely
+  claiming unidentifiable. Identifiable-via-Line-7 ADMGs (the "ID-Y
+  descent" case) are a documented capability gap; no real eval case
+  has triggered Line 7 yet, so the deferral has not blocked any
+  observed user query.
 
 Output formula uses the c-factor product form for Q[S] (S a c-component
 of the full ADMG): each variable in S contributes
