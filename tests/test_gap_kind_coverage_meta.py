@@ -60,3 +60,59 @@ def test_gap_kind_has_test_coverage(kind: GapKind):
         f"test file under {TESTS_DIR}. Add at least one positive or "
         f"suppression assertion when introducing a new gap_kind."
     )
+
+
+def test_gap_kind_enum_synced_with_schema():
+    """The query_result.schema.json gap_kind enum and Python GapKind enum
+    must list exactly the same values. Adding to one but forgetting the
+    other (a real risk; iter 5/19 had to update both manually) breaks
+    schema validation in opaque ways."""
+    import json
+    schema = json.loads(
+        (REPO_ROOT / "query_result.schema.json").read_text(encoding="utf-8")
+    )
+    schema_kinds = set(schema["$defs"]["dataGap"]["properties"]["kind"]["enum"])
+    enum_kinds = {k.value for k in GapKind}
+    only_in_schema = schema_kinds - enum_kinds
+    only_in_enum = enum_kinds - schema_kinds
+    assert not only_in_schema, (
+        f"gap_kinds in schema but missing from GapKind enum: {only_in_schema}"
+    )
+    assert not only_in_enum, (
+        f"gap_kinds in GapKind enum but missing from schema: {only_in_enum}. "
+        f"Add to query_result.schema.json $defs.dataGap.properties.kind.enum."
+    )
+
+
+def test_gap_kind_enum_synced_with_verifier_registry():
+    """The verifier's _KIND_ACCEPTS_REF must have an entry for
+    every GapKind enum value. T10-3 raises VerificationError when a gap
+    has an unregistered kind, so missing registrations cause silent
+    test failures the moment the gap fires (caught by iter 5 hard way
+    when test_t10_passes_on_real_dispatch_output failed before the
+    verifier registration was added)."""
+    from themis.verifier.data_gap_rules import _KIND_ACCEPTS_REF
+    registry_kinds = set(_KIND_ACCEPTS_REF.keys())
+    enum_kinds = {k.value for k in GapKind}
+    only_in_registry = registry_kinds - enum_kinds
+    only_in_enum = enum_kinds - registry_kinds
+    assert not only_in_registry, (
+        f"verifier registry has unknown gap_kinds: {only_in_registry}"
+    )
+    assert not only_in_enum, (
+        f"GapKind values missing from verifier registry: {only_in_enum}. "
+        f"Add to themis/verifier/data_gap_rules.py _KIND_ACCEPTS_REF."
+    )
+
+
+def test_must_disclose_set_is_subset_of_gap_kinds():
+    """The scheduler's _MUST_DISCLOSE_GAP_KINDS whitelist must be a
+    subset of GapKind values. A typo or rename would make the gap
+    silently NOT auto-prepend to result.explanation."""
+    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+    enum_kinds = {k.value for k in GapKind}
+    unknown = _MUST_DISCLOSE_GAP_KINDS - enum_kinds
+    assert not unknown, (
+        f"_MUST_DISCLOSE_GAP_KINDS has unknown values: {unknown}. "
+        f"Either typo or stale enum reference."
+    )
