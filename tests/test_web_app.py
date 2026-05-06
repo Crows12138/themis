@@ -95,6 +95,49 @@ def test_verify_endpoint_returns_structured_error_when_unverifiable():
     assert "error" in body
 
 
+def test_new_gap_kinds_round_trip_through_web_api():
+    """iter 28 audit guard: the gap_kinds added in iter 5
+    (unmeasured_confounder_risk) and iter 19
+    (unattempted_layer_due_to_dispatch_conflict) must propagate through
+    the web /api/run endpoint with their ⚠ caveats reaching
+    result.explanation. The web layer is a thin pass-through, so kernel
+    fixes should automatically reach web users — but let's pin that
+    contract explicitly so a future serialization regression doesn't
+    silently strip the new gap_kinds."""
+    import json
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[1]
+
+    cases = [
+        ("case_001_hrt_cvd.json", "unmeasured_confounder_risk"),
+        (
+            "case_009_mediation_x_transport.json",
+            "unattempted_layer_due_to_dispatch_conflict",
+        ),
+    ]
+    for case_file, expected_kind in cases:
+        program = json.loads(
+            (repo_root / "docs" / "l3_simulation" / case_file).read_text(
+                encoding="utf-8"
+            )
+        )
+        resp = client.post("/api/run", json={"program": program})
+        assert resp.status_code == 200, f"{case_file}: {resp.text[:200]}"
+        result = resp.json()["results"][0]
+        gap_kinds = [
+            g["kind"]
+            for g in result.get("data_gap_report", {}).get("gaps", [])
+        ]
+        assert expected_kind in gap_kinds, (
+            f"{case_file}: expected {expected_kind!r} in gap_kinds; got {gap_kinds}"
+        )
+        explanation = result.get("explanation") or ""
+        assert "⚠" in explanation, (
+            f"{case_file}: must-disclose caveat ⚠ should appear in "
+            f"explanation; got: {explanation[:200]!r}"
+        )
+
+
 def test_examples_endpoint_lists_worked_examples():
     r = client.get("/api/examples")
     assert r.status_code == 200
