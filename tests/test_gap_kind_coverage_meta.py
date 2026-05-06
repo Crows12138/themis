@@ -221,6 +221,55 @@ def test_failure_modes_header_count_matches_actual_entries():
     )
 
 
+def test_eval_set_readme_counts_match_actual_files():
+    """docs/eval_set/README.md header quotes 'N cases across M failure
+    modes (F1-FM)'. Iter 57 audit found this stale: header said
+    '28 cases / 24 failure modes' while actual was 29 cases + 26 codes.
+
+    Pin both counts:
+    - 'N cases' must match docs/eval_set/cases/*.json count
+    - 'M failure modes (F1-FM)' must match the F-code count in
+      failure_modes.md
+
+    Same drift class as iter 56 failure_modes header pin.
+    """
+    import re
+    eval_readme = (
+        REPO_ROOT / "docs" / "eval_set" / "README.md"
+    ).read_text(encoding="utf-8")
+
+    # Count actual case JSON files
+    case_files = list((REPO_ROOT / "docs" / "eval_set" / "cases").glob("*.json"))
+    actual_cases = len(case_files)
+
+    # Header quote: 'N cases'
+    cases_match = re.search(r"\*\*(\d+)\s+cases\s+across\s+(\d+)\s+failure\s+modes",
+                            eval_readme)
+    assert cases_match, (
+        "docs/eval_set/README.md header must quote '**N cases across "
+        "M failure modes**'"
+    )
+    header_cases = int(cases_match.group(1))
+    header_modes = int(cases_match.group(2))
+
+    assert header_cases == actual_cases, (
+        f"eval_set README header says {header_cases} cases but "
+        f"docs/eval_set/cases/ has {actual_cases} JSON files. "
+        f"Update the 'N cases' quote in the header."
+    )
+
+    # Failure mode count via failure_modes.md
+    fm = (REPO_ROOT / "docs" / "eval_set" / "failure_modes.md").read_text(
+        encoding="utf-8"
+    )
+    actual_modes = len(re.findall(r"^##\s+F\d+", fm, re.MULTILINE))
+    assert header_modes == actual_modes, (
+        f"eval_set README header says {header_modes} failure modes but "
+        f"failure_modes.md has {actual_modes} F-codes. "
+        f"Update the 'M failure modes' quote in the header."
+    )
+
+
 def test_every_phase_charter_declares_status():
     """Every PHASE_*_CHARTER.md must declare a status line (> 状态：…).
 
