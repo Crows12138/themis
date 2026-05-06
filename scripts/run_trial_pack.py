@@ -1,3 +1,18 @@
+"""Run a trial pack of fixture programs through the kernel.
+
+Driver for batch-running JSON fixtures through ``themis.run`` and
+printing concise per-fixture status. Used as a manual smoke check
+during early development; pytest now covers most of the same surface
+in finer detail (see scripts/run_014_stabilization_smoke.py for the
+modern stabilization smoke).
+
+Usage::
+
+    python scripts/run_trial_pack.py path/to/fixtures/dir
+
+Each ``*.json`` under the fixtures dir is parsed + run; pass/fail
+status prints to stdout.
+"""
 from __future__ import annotations
 
 import json
