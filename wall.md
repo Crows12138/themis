@@ -30,6 +30,22 @@ recruitment。
 上误判 gap_kind，是真 bug，回到 kernel / report generator 修，**不**
 判定 L3 通过。
 
+### 2026-05-07 iter 96 — minor cosmetic findings not pinned
+
+- 2 files with mixed CRLF/LF line endings (`themis/kernel.py`,
+  `tests/test_runtime/test_scheduler.py`). Repo is on Windows; git
+  auto-conversion handles most consumer environments. Normalizing
+  them to LF would trigger CRLF re-conversion warnings on next
+  Windows checkout (`warning: LF will be replaced by CRLF`),
+  cascading into many files. Documented here, not auto-fixed.
+
+- Other test files (`test_unmeasured_confounder_risk.py` 12 tests,
+  `test_web_app.py` 7 tests, `test_mcp_server.py` 10 tests, etc.)
+  don't have docstring inventory like meta-test files do. Inventory
+  pattern is appropriate for long meta-files (gap_kind_coverage at
+  844 lines / 28 tests, l3_corpus at ~390 lines / 11 tests) where
+  navigation matters; smaller files get by without.
+
 ### 2026-05-07 iter 20 update — plateau **达成**
 
 - 10 cases mined（cases 001-010），跨 7 个域，覆盖全 8 识别路径 + cause query
