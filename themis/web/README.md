@@ -1,9 +1,17 @@
 # Themis Web UI (local)
 
-Minimal browser UI for `themis.run` / `themis.verify`. No NL bridge,
-no LLM call, no persistence — just a paste-JSON-see-result panel
-that renders explanation, ⚠ caveats, data-gap report, and
-derivation rules in a more readable form than raw JSON.
+Minimal browser UI for `themis.run` / `themis.verify` plus an optional
+NL-bridge "Ask" path (mode (a)) backed by Anthropic. Two modes:
+
+- **Mode (b) paste-JSON** — paste kernel_ast → `themis.run` → render
+  explanation, ⚠ caveats, data-gap report, and derivation rules in a
+  more readable form than raw JSON. No LLM, no key needed.
+- **Mode (a) Ask** — type a Chinese question, the LLM bridge calls
+  Anthropic to translate NL → kernel_ast, runs `themis.run`, then
+  calls Anthropic again to render a Chinese reply. Requires API key.
+
+Both modes share endpoints (`/api/run` / `/api/verify` / `/api/examples`
+/ `/api/ask`); the UI surfaces them in the same page.
 
 ## Run
 
