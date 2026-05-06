@@ -260,6 +260,38 @@ def test_readme_public_entry_imports_actually_resolve():
     )
 
 
+def test_markdown_backtick_py_refs_resolve():
+    """Plain-text references like `themis/runtime/c_factor.py` in
+    markdown backticks must point at existing files. Iter 66
+    preventive pin (no current drift). Catches future regressions
+    where a .py is renamed/moved without grep'ing for incoming
+    references in narrative prose.
+
+    Distinct from iter 65's link-form pin: this catches references
+    in prose like 'see `themis/runtime/c_factor.py` for details',
+    which doesn't use markdown link syntax but is just as fragile.
+    """
+    import re
+    ref_re = re.compile(r"`(themis/(?:[\w_]+/)*[\w_]+\.py)`")
+    violations = []
+    for f in sorted(REPO_ROOT.rglob("*.md")):
+        if any(part.startswith(".") for part in f.parts):
+            continue
+        text = f.read_text(encoding="utf-8")
+        for m in ref_re.finditer(text):
+            target = m.group(1)
+            if not (REPO_ROOT / target).exists():
+                line = text[:m.start()].count("\n") + 1
+                violations.append(
+                    f"{f.relative_to(REPO_ROOT)}:{line}: `{target}` "
+                    f"-> NOT FOUND"
+                )
+    assert not violations, (
+        f"Backtick `themis/*.py` references not resolving: "
+        f"{violations[:10]}{'...' if len(violations) > 10 else ''}"
+    )
+
+
 def test_markdown_cross_links_resolve():
     """Every relative .md cross-link in committed markdown must resolve
     to an existing file. Iter 63 stripped 28 abs paths to relative
