@@ -349,10 +349,10 @@ def test_dispatch_conflict_suppressed_when_only_target_pop():
 
 
 def test_l3_corpus_runtime_regression():
-    """iter 33 perf pin. Each L3 case currently runs in 2-5 ms, total
-    ~36 ms (measured on local machine, no concurrency). Conservative
-    threshold of 200 ms per case + 1 s total catches a true 10-50x
-    regression without flaking under CI variance.
+    """iter 33 perf pin. Each L3 case currently runs in 2-6 ms, total
+    ~36 ms (measured on local machine, iter 33 / 91 / 96 cross-checked
+    no flake). Conservative threshold of 200 ms per case + 1 s total
+    catches a true 10-50x regression without flaking under CI variance.
 
     Skipped if any case file is somehow unreadable — perf test is a
     diagnostic safety net, not a build gate."""
