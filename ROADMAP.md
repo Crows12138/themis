@@ -489,6 +489,12 @@ Phase 14 又扩展到 dose-response estimator。
 - **Phase 13 dose-response diagnostic**：识别 dose-response 问句并输出数据规格
 - **Phase 14 dose-response estimator**：`themis.estimate(...)` 支持 dose-response curve
 - **Phase 15 world-modeling pressure harness**：用 prompt examples 固定上游建模链路的真实卡点
+- **L3 simulation 数据缺口诊断器压测**（2026-05-07）：10 cases 跨 7
+  域真权威源压测 data_gap_report；过程修两个真 bug（front-door
+  derivation-empty fallback / unattempted_layer_due_to_dispatch_conflict
+  silent skip）+ 加一新 gap_kind `unmeasured_confounder_risk` 完整 lifecycle。
+  详见 [docs/l3_simulation/README.md](docs/l3_simulation/README.md) 与
+  `wall.md` plateau update。L3 价值层"真用户验证"仍待外部 recruitment unblock。
 
 ---
 
