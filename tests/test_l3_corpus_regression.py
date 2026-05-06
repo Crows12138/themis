@@ -210,6 +210,31 @@ def test_l3_readme_case_index_matches_actual_files():
     )
 
 
+def test_every_l3_case_file_has_regression_test_entry():
+    """Every case_NNN_*.json under docs/l3_simulation/ must have a
+    matching entry in this file's CASES list (the parametrized
+    regression test source of truth).
+
+    Iter 74 preventive pin. Without this, a future contributor adds
+    case 011 + .md + index entry but forgets to add to CASES — the
+    new case has no regression test until manually noticed.
+
+    Comparison is by case file name, not number, since CASES holds
+    the file path as the first tuple element."""
+    cased_files = {entry[0] for entry in CASES}
+    actual_files = {f.name for f in L3_DIR.glob("case_*.json")}
+    missing = actual_files - cased_files
+    extra = cased_files - actual_files
+    assert not missing, (
+        f"L3 case files without regression test entry in CASES list: "
+        f"{sorted(missing)}. Add tuples to test_l3_corpus_regression.py "
+        f"CASES with (file, must_have, must_not_have)."
+    )
+    assert not extra, (
+        f"CASES list references non-existent case files: {sorted(extra)}"
+    )
+
+
 def test_l3_corpus_count_at_plateau():
     """Sanity: corpus has reached plateau (≥10 cases). If a case is
     accidentally deleted this catches it."""
