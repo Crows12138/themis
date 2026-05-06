@@ -113,3 +113,10 @@ AND result.extensions.mediation_decomposition is None。
   现时 mediation 被静默 skip**。这是 silent dispatch finding，对应
   VISION "诚实告诉用户没做什么"原则下的 honesty gap。iter 19+ 候选
   fix：新 gap_kind 显式 disclose unattempted layer。
+- 2026-05-07 iter 19：**finding 已 fix**——加新 gap_kind
+  `unattempted_layer_due_to_dispatch_conflict`（IMPORTANT 严重性，
+  must-disclose 入 explanation）。trigger：query 有 mediator AND
+  target_population AND 只一个 extension 被 populate。description 显
+  式 name 哪个跑了哪个 skip + 给两条 alternative paths（拆 query 或
+  删字段）。3 个 regression test pin（positive + 2 个 suppression
+  symmetric）。case 009 升 ◐ partial → ✅ match。L3 corpus 9/10。

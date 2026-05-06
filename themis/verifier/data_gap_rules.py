@@ -293,6 +293,9 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # NEEDS_INVESTIGATION due to missing theta), so provenance is a
     # verifier_check ref pointing at the symbolic program-shape predicate.
     "unmeasured_confounder_risk": frozenset({"verifier_check"}),
+    # Trigger compares query fields against result.extensions; provenance
+    # is a verifier_check ref pointing at the symbolic conflict locator.
+    "unattempted_layer_due_to_dispatch_conflict": frozenset({"verifier_check"}),
 }
 
 

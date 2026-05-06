@@ -136,6 +136,9 @@ def compute_data_gap_report(
     must_disclose_gaps.extend(_classify_unmeasured_confounder_risk(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
     ))
+    must_disclose_gaps.extend(_classify_unattempted_layer_dispatch_conflict(
+        stmt=stmt, extensions=extensions,
+    ))
 
     # For cause / assoc / probability the only data-need-bearing channel
     # was framing. Must-disclose caveats now also keep the report alive
@@ -1491,6 +1494,83 @@ def _classify_dose_response_data(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
                 ref_id="program:extensions.ambiguities.dose_response_query",
+            ),
+        ),
+    )
+
+
+def _classify_unattempted_layer_dispatch_conflict(
+    *,
+    stmt,
+    extensions: dict,
+) -> Iterable[DataGap]:
+    """L3 case 009 finding: when a query specifies multiple identification
+    layers (e.g. both ``mediator`` and ``target_population``), the kernel
+    only dispatches one and silently skips the other. Without this
+    disclosure the user may read the ``structurally_solved`` result and
+    assume both layers were handled. Cole & Stuart 2010 + VanderWeele
+    2016 §6.2 establish that mediation × transport are sequential
+    operations, not a single dispatch.
+
+    Trigger pairs (when both fields set on the query but only one
+    extension populated):
+    - mediator + target_population, transport_identification populated
+      but mediation_decomposition missing/invalid → mediation skipped
+    - mediator + target_population, mediation_decomposition populated
+      but transport_identification missing → transport skipped
+
+    Severity: IMPORTANT — the dispatched layer is structurally valid
+    (not a bug to block), but silent skip violates VISION's
+    honest-about-what-wasn't-done principle.
+    """
+    if stmt is None:
+        return
+    q = getattr(stmt, "query", None)
+    has_mediator = getattr(q, "mediator", None) is not None
+    has_target_pop = getattr(q, "target_population", None) is not None
+    if not (has_mediator and has_target_pop):
+        return
+    ext = extensions or {}
+    transport_done = bool(ext.get("transport_identification"))
+    mediation_done = bool(
+        (ext.get("mediation_decomposition") or {}).get("mediator_valid")
+    )
+    if transport_done and not mediation_done:
+        attempted, skipped = "transport", "mediation"
+    elif mediation_done and not transport_done:
+        attempted, skipped = "mediation", "transport"
+    else:
+        return
+    yield DataGap(
+        kind=GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
+        severity=GapSeverity.IMPORTANT,
+        description=(
+            f"Query 同时设了 `mediator` 和 `target_population` 字段；"
+            f"当前 dispatch 只跑了 **{attempted}**，**{skipped}** 被静默"
+            f"跳过。"
+            f"Cole & Stuart 2010 / VanderWeele 2016 §6.2: mediation × "
+            f"transport 是 sequential operations（先在 source population"
+            f"做 mediation, 再 transport 各 component 到 target），"
+            f"不能在一个 query 里同时 dispatch。当前 result 只反映 "
+            f"{attempted} 层；{skipped} 分析需要单独 query。"
+        ),
+        blocks=GapBlocks.INTERPRETATION,
+        if_provided=(
+            f"拆成两个 query：先在 source population 跑 {skipped} 分析，"
+            f"再用结果做 {attempted}（或反过来按 Cole-Stuart 顺序）"
+        ),
+        alternative_paths=(
+            f"如果只想要 {attempted} 结果，从 query 删除"
+            f" {'`target_population`' if attempted == 'mediation' else '`mediator`'}"
+            f" 字段使 dispatch 唯一",
+            f"如果只想要 {skipped} 结果，从 query 删除"
+            f" {'`target_population`' if skipped == 'mediation' else '`mediator`'}"
+            f" 字段使 dispatch 唯一",
+        ),
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id=f"query:dispatch_conflict:{attempted}_dispatched_{skipped}_skipped",
             ),
         ),
     )

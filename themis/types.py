@@ -596,6 +596,17 @@ class GapKind(str, Enum):
     # bidirected edges (the user already knows about latents) or used IV /
     # Tian identification (those strategies *exist* to handle latents).
     UNMEASURED_CONFOUNDER_RISK = "unmeasured_confounder_risk"
+    # Query specified multiple identification layers (e.g. both mediator
+    # and target_population), but the kernel only dispatched one of them.
+    # The other was silently skipped — Themis returned a valid result for
+    # the dispatched layer but did NOT compute the other. Without this
+    # disclosure the user may read 'structurally_solved' and assume both
+    # layers were handled. Cole & Stuart 2010 + VanderWeele 2016 §6.2:
+    # mediation × transport must be sequential operations, not a single
+    # dispatch. Logged as IMPORTANT severity (not blocking — the
+    # dispatched layer is correct; not informational — silent skip
+    # violates VISION's honest-about-what-wasn't-done principle).
+    UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT = "unattempted_layer_due_to_dispatch_conflict"
 
 
 class GapSeverity(str, Enum):

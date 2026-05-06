@@ -113,6 +113,15 @@ CASES = [
         ["unmeasured_confounder_risk",
          "front_door_identification_assumption_required"],
     ),
+    (
+        "case_009_mediation_x_transport.json",
+        # query has BOTH mediator + target_population; iter 19 fix:
+        # unattempted_layer_due_to_dispatch_conflict surfaces silent skip
+        ["unattempted_layer_due_to_dispatch_conflict",
+         "transport_identification_assumption_required",
+         "unmeasured_confounder_risk"],
+        ["mediation_identification_assumption_required"],
+    ),
 ]
 
 
@@ -134,11 +143,51 @@ def test_l3_case_emits_expected_gap_kinds(case_file, must_have, must_not_have):
         )
 
 
-def test_l3_corpus_count_at_least_eight():
-    """Sanity: directory contains ≥8 case JSON files. If a case is
+def test_l3_corpus_count_at_least_nine():
+    """Sanity: directory contains ≥9 case JSON files. If a case is
     accidentally deleted this catches it."""
     case_files = list(L3_DIR.glob("case_*.json"))
-    assert len(case_files) >= 8, (
-        f"L3 corpus expected ≥8 cases, found {len(case_files)}. "
+    assert len(case_files) >= 9, (
+        f"L3 corpus expected ≥9 cases, found {len(case_files)}. "
         f"Files: {[f.name for f in case_files]}"
     )
+
+
+def test_dispatch_conflict_fires_on_mediator_plus_target_pop():
+    """iter 19 finding-fix: when query has both mediator and target_population
+    set, but only one of mediation_decomposition / transport_identification
+    extension is populated, the kernel must surface
+    unattempted_layer_due_to_dispatch_conflict to disclose the silent skip."""
+    program = _load("case_009_mediation_x_transport.json")
+    out = run(program)
+    kinds = _gap_kinds(out)
+    assert "unattempted_layer_due_to_dispatch_conflict" in kinds
+    matching = [
+        g for g in out["results"][0]["data_gap_report"]["gaps"]
+        if g["kind"] == "unattempted_layer_due_to_dispatch_conflict"
+    ]
+    assert len(matching) == 1
+    gap = matching[0]
+    assert gap["severity"] == "important"
+    # Description names what was attempted and what was skipped
+    assert "transport" in gap["description"]
+    assert "mediation" in gap["description"]
+
+
+def test_dispatch_conflict_suppressed_when_only_mediator():
+    """Symmetric: pure mediation query (no target_population) should NOT
+    fire the conflict gap — there's no conflict, only one layer was asked
+    for."""
+    program = _load("case_006_smoking_birthweight_mediation.json")
+    out = run(program)
+    kinds = _gap_kinds(out)
+    assert "unattempted_layer_due_to_dispatch_conflict" not in kinds
+
+
+def test_dispatch_conflict_suppressed_when_only_target_pop():
+    """Symmetric: pure transport query (no mediator) should NOT fire the
+    conflict gap."""
+    program = _load("case_007_statin_transport.json")
+    out = run(program)
+    kinds = _gap_kinds(out)
+    assert "unattempted_layer_due_to_dispatch_conflict" not in kinds
