@@ -41,6 +41,10 @@ Hygiene (iter 62, 69, 76):
 - test_kernel_run_emits_no_deprecation_warnings
 - test_all_committed_json_files_parse_cleanly
 
+Eval set internal (iter 61):
+- test_eval_set_cases_have_internally_consistent_edges — every
+  gold_edges from/to predicate must appear in gold_variables
+
 Each pin documents which iter found the original drift (if any) plus
 the regression class it guards. Add new pins symmetric with existing
 patterns when new drift classes surface.
