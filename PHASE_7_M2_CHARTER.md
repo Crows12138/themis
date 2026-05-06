@@ -1,7 +1,10 @@
 # Phase 7 (M2) Charter — 数值估计层
 
 > 立项日期：2026-04-24
-> 状态：**已批准（2026-04-24）**—— 开工 Phase 7.1
+> 状态：**✅ 已落地** —— Phase 7.1 / 7.2 / 7.3 / 7.4 子 charter 全部
+> 完成（2026-04-24/25），sub-charters 自身已标 ✅。Phase 14 dose-response
+> estimator (2026-04-28) 在此 M2 基础上扩展。详见
+> [`CORE_STATUS.md`](CORE_STATUS.md) "Phase 7 = M2 数值估计层" 节。
 > 关键决策确认：
 > - Q1 数据契约：Python API（不污染 JSON）
 > - Q2 Imai 非参：**vendor statsmodels 0.14.6**（已验证 5 条 API 允许规则全通过；statsmodels.stats.mediation 内置 Imai 2010 算法 1+2，15+ 年稳定）

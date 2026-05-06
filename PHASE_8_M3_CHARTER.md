@@ -1,7 +1,10 @@
 # Phase 8 (M3) Charter — 因果发现 + 敏感性分析
 
 > 立项日期：2026-04-25
-> 状态：**已批准** — 开工 8.1
+> 状态：**✅ 已落地** — 8.1 (PC/FCI/LiNGAM discovery) + 8.2 (E-value
+> sensitivity) 已落地（2026-04-25），详见
+> [`CORE_STATUS.md`](CORE_STATUS.md) "Phase 8 = M3 因果发现 + 敏感性"
+> 节。
 > 前置：M1 (识别) + M2 (估计) 全部落地
 > 对应 VISION：板块 10（敏感性）+ 板块 12（因果发现）
 

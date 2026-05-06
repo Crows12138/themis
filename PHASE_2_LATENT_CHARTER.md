@@ -2,8 +2,12 @@
 
 > 立项日期：2026-04-21
 > 最近重定 scope：2026-04-21（A 方案）
-> 状态：**窄 scope 进行中** —— S1 / S2 / S3.a / S3.b.1 已落地；
-> S4（窄 verifier）和 S5（e2e + CORE_STATUS）未开工
+> 状态：**✅ 窄 scope 全部已落地** —— S1 / S2 / S3.a / S3.b.1 / S4 / S5
+> 全部完成。**扩展 §S3.b.2 Tian / Shpitser ID Lines 1-6** 也已落地
+> （2026-05-06，commit `a1d3675`）；Line 7（Q[S'] re-factorization
+> recursion）按 charter §0 显式延后，记在 [`themis/runtime/c_factor.py`](themis/runtime/c_factor.py)
+> module docstring（iter 39 文档诚实）。详见
+> [`CORE_STATUS.md`](CORE_STATUS.md) "Phase 2.latent" 节 + "S3.b.2 Tian" 节。
 > 对应 ROADMAP：Phase 2 "更强识别能力"中的潜变量 / ADMG / 前门分支
 > 对应 TaskList：#38
 
