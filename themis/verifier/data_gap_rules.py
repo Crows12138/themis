@@ -284,6 +284,12 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
         {"derivation_step"}
     ),
     "graph_learned_from_data": frozenset({"verifier_check"}),
+    # Program-shape signal: declared confounder pattern (Z->X & Z->Y) with no
+    # bidirected edges. Trigger does not require a recorded derivation step
+    # (the kernel may skip identify_via_backdoor when status is
+    # NEEDS_INVESTIGATION due to missing theta), so provenance is a
+    # verifier_check ref pointing at the symbolic program-shape predicate.
+    "unmeasured_confounder_risk": frozenset({"verifier_check"}),
 }
 
 

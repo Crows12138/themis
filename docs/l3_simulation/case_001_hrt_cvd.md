@@ -144,4 +144,9 @@ gap_kinds 看有没有近似，没有就加）。
 
 ## 历史
 
-- 2026-05-07 iter 3：编码 + 跑 + 评估，partial match。
+- 2026-05-07 iter 3：编码 + 跑 + 评估，partial match（miss
+  unmeasured_confounder_risk）。
+- 2026-05-07 iter 5：实现新 gap_kind `unmeasured_confounder_risk`
+  （types.py + classifier + schema + verifier + 7 测试）。重跑该 case
+  现在 surface 5 gap_kinds（之前 4 个 + 新 informational）。提议落地
+  → 升格为 ✅ match（partial 部分已闭环）。

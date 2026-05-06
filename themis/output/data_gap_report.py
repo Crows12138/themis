@@ -55,6 +55,7 @@ from ..types import (
     QueryKind,
     RequiredDataType,
     ResultStatus,
+    VariableDeclaration,
 )
 
 # ============================================ failure-rule registry
@@ -130,6 +131,9 @@ def compute_data_gap_report(
         derivation, status, query_kind,
     ))
     must_disclose_gaps.extend(_classify_graph_learned_from_data(program))
+    must_disclose_gaps.extend(_classify_unmeasured_confounder_risk(
+        program=program, query_kind=query_kind, stmt=stmt, status=status,
+    ))
 
     # For cause / assoc / probability the only data-need-bearing channel
     # was framing. Must-disclose caveats now also keep the report alive
@@ -753,6 +757,109 @@ def _classify_graph_learned_from_data(program) -> Iterable[DataGap]:
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
                 ref_id="extensions.discovery_metadata",
+            ),
+        ),
+    )
+
+
+def _classify_unmeasured_confounder_risk(
+    *,
+    program,
+    query_kind: QueryKind,
+    stmt,
+    status,
+) -> Iterable[DataGap]:
+    """User-provided DAG has at least one declared confounder (Z with
+    Z→X and Z→Y) but no bidirected / latent-common-cause edges — the DAG
+    implicitly asserts every confounder is measured. Real-world cases
+    (HRT-CVD WHI 2002, vitamin D-CVD VITAL 2018, breastfeeding-IQ
+    Der 2006) document large RCT-vs-observational gaps from *unmeasured*
+    confounders surviving measured-covariate adjustment. Surfaced as
+    INFORMATIONAL so the user is alerted *before* collecting data —
+    sensitivity hooks (E-value) attach later at the numeric stage
+    (Phase 8.2).
+
+    Triggered by program-shape only (declared confounder pattern + no
+    bidirected), not derivation, because the kernel does not always
+    record an `identify_via_backdoor` step when status is
+    NEEDS_INVESTIGATION due to missing theta.
+
+    Suppressed when:
+    - query is not effect (data needs don't apply)
+    - bidirected edges declared (user already knows about latents)
+    - status indicates identification failed (UNIDENTIFIABLE branches
+      already surface their own gap_kind)
+    - no Z with Z→X AND Z→Y in the declared edges (no confounder
+      modeling — would fire on front-door / IV / mediator-only shapes
+      where this advisory is unhelpful)
+    """
+    if program is None or stmt is None:
+        return
+    if query_kind != QueryKind.EFFECT:
+        return
+    if status not in (
+        ResultStatus.STRUCTURALLY_SOLVED,
+        ResultStatus.NUMERICALLY_SOLVED,
+        ResultStatus.NEEDS_INVESTIGATION,
+    ):
+        return
+    has_bidirected = any(
+        isinstance(st, BidirectedStatement) for st in program.statements
+    )
+    if has_bidirected:
+        return
+    query_atom = getattr(stmt, "query", None)
+    intervention = getattr(query_atom, "intervention", None)
+    target = getattr(query_atom, "target", None)
+    if intervention is None or target is None:
+        return
+    intervention_pred = intervention.atom.predicate
+    target_pred = target.atom.predicate
+    children_of: dict[str, set[str]] = {}
+    for st in program.statements:
+        if isinstance(st, CauseStatement):
+            children_of.setdefault(
+                st.from_atom.predicate, set()
+            ).add(st.to_atom.predicate)
+    has_confounder = False
+    for pred, children in children_of.items():
+        if pred in (intervention_pred, target_pred):
+            continue
+        if intervention_pred in children and target_pred in children:
+            has_confounder = True
+            break
+    if not has_confounder:
+        return
+    yield DataGap(
+        kind=GapKind.UNMEASURED_CONFOUNDER_RISK,
+        severity=GapSeverity.INFORMATIONAL,
+        description=(
+            "Backdoor 识别假设你列出的 confounder 已经测全 —— DAG 里没"
+            "有声明任何 bidirected / latent-common-cause 边。现实中 "
+            "well-documented domain（HRT-CVD WHI 2002、vitamin D-CVD "
+            "VITAL 2018、breastfeeding-IQ 等）有大幅 RCT-vs-observational "
+            "反转，归因于 measured-covariate 调整之后仍残留的 unmeasured "
+            "confounder（healthy-user bias / lifestyle factors / 反向因"
+            "果）。拿到数据后跑 sensitivity analysis（E-value）量化对"
+            " unmeasured confounder 的稳健性。"
+        ),
+        blocks=GapBlocks.INTERPRETATION,
+        if_provided=(
+            "若怀疑某 latent 共因，添加 bidirected 边；Themis 会改走 "
+            "ADMG-aware（Tian / front-door / IV）识别策略并报对应的 "
+            "structural gap"
+        ),
+        alternative_paths=(
+            "数据到位后跑 E-value sensitivity analysis（Phase 8.2，对"
+            " binary outcome 自动附）",
+            "Triangulate with RCT / quasi-experimental data when available",
+            "Hernán-Robins target trial emulation framework "
+            "（per-protocol analysis with strict eligibility）",
+        ),
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id="program:confounder_pattern:no_bidirected",
             ),
         ),
     )

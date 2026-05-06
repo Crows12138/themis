@@ -584,6 +584,18 @@ class GapKind(str, Enum):
     # non-Gaussianity. Surfaced as a top-level caveat distinct from
     # individual proposal-edge gaps.
     GRAPH_LEARNED_FROM_DATA = "graph_learned_from_data"
+    # Backdoor identification succeeded, but the user-provided DAG implicitly
+    # asserts every relevant confounder is measured (no bidirected /
+    # latent-common-cause edges declared). Real-world cases (HRT-CVD WHI 2002,
+    # vitamin D-CVD VITAL 2018, breastfeeding-IQ Der 2006) document large
+    # observational-vs-RCT gaps caused by *unmeasured* confounders that
+    # survived measured-covariate adjustment. Fired as an INFORMATIONAL
+    # advisory at the structural-solved stage so the user is alerted *before*
+    # collecting data — sensitivity-analysis hooks (E-value) attach later at
+    # the numeric stage. Suppressed on programs that already declare
+    # bidirected edges (the user already knows about latents) or used IV /
+    # Tian identification (those strategies *exist* to handle latents).
+    UNMEASURED_CONFOUNDER_RISK = "unmeasured_confounder_risk"
 
 
 class GapSeverity(str, Enum):

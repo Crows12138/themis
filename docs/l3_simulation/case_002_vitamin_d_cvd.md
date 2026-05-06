@@ -109,3 +109,5 @@ N=2，跨 case 一致 → 提议的新 gap_kind `unmeasured_confounder_risk` 不
 
 - 2026-05-07 iter 4：case 002 编码 + 跑，确认与 case 001 相同 partial
   miss → 新 gap_kind 立项条件成熟。
+- 2026-05-07 iter 5：实现 `unmeasured_confounder_risk`，case 002 重跑
+  fire 5 gap_kinds（含新 informational）。✅ match.

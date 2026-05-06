@@ -840,7 +840,8 @@
             "low_confidence_input_data",
             "front_door_identification_assumption_required",
             "counterfactual_identification_assumption_required",
-            "graph_learned_from_data"
+            "graph_learned_from_data",
+            "unmeasured_confounder_risk"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },
