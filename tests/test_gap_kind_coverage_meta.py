@@ -198,6 +198,29 @@ def test_test_count_consistent_between_core_status_and_readme():
     )
 
 
+def test_failure_modes_header_count_matches_actual_entries():
+    """docs/eval_set/failure_modes.md header quotes 'N codes' as the
+    taxonomy size. Iter 56 found this stale: header said '22 codes'
+    while file actually had 26 (F23-F26 added without updating count).
+
+    Pin: regex extract header count + count actual `## F\\d+` entries;
+    assert equal.
+    """
+    import re
+    fm = (REPO_ROOT / "docs" / "eval_set" / "failure_modes.md").read_text(
+        encoding="utf-8"
+    )
+    header_match = re.search(r"(\d+)\s+codes\.", fm)
+    assert header_match, "failure_modes.md header must quote 'N codes.'"
+    header_count = int(header_match.group(1))
+    actual_codes = re.findall(r"^##\s+F\d+", fm, re.MULTILINE)
+    assert header_count == len(actual_codes), (
+        f"failure_modes.md header says {header_count} codes but file has "
+        f"{len(actual_codes)}: {[c.strip() for c in actual_codes[:5]]}... "
+        f"Update the 'N codes' line in the header."
+    )
+
+
 def test_every_phase_charter_declares_status():
     """Every PHASE_*_CHARTER.md must declare a status line (> 状态：…).
 

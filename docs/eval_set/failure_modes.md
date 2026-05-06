@@ -1,11 +1,13 @@
 # NL-layer failure-mode taxonomy
 
-> Status: v2.4 (2026-04-25). 22 codes. Expanded when a real case
+> Status: v2.5 (2026-05-07). 26 codes. Expanded when a real case
 > exposes a mode the current set doesn't cover. F19 added with
 > Phase 6.iv (IV identification slice). F20 added with
 > Phase 6.mediation (NDE/NIE/CDE identifiability). F21 added with
 > Phase 7.1 (numerical estimation from data). F22 added with
-> Phase 8.2 (E-value sensitivity to unmeasured confounding).
+> Phase 8.2 (E-value sensitivity to unmeasured confounding). F23-F25
+> added with Phase 9 transport / Phase 4 ADMG cause edges / refusal
+> narratives. F26 added with Phase 10 (silent data-gap suppression).
 
 Each code describes one way the A1 → A5 → merge → themis.run
 pipeline can produce a result the user would consider wrong or
