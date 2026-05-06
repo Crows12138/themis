@@ -1,0 +1,34 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "patient"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "treatment", "domain": [true, false]},
+    {"kind": "variable", "predicate": "survival", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "treatment", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "survival", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "literature_rct"}
+    },
+    {
+      "kind": "query",
+      "id": "q_counterfactual_survival",
+      "query": {
+        "kind": "counterfactual",
+        "observed": {
+          "atom": {"predicate": "treatment", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "counterfactual_intervention": {
+          "atom": {"predicate": "treatment", "args": [{"type": "const", "name": "patient"}]},
+          "value": false
+        },
+        "counterfactual_target": {
+          "atom": {"predicate": "survival", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "assumptions": {"monotonicity": "non_decreasing"}
+      }
+    }
+  ]
+}

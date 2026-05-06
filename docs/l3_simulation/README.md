@@ -113,3 +113,8 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   Phase 9 §T9.1；S-admissibility identification + 双 distribution
   gap + assumption advisory + unmeasured_confounder_risk 四层互补；
   USPSTF 2022 quote 直接支持 source-conditional unknown finding）
+- [Case 008 — Pearl monotone counterfactual](case_008_pearl_monotone_counterfactual.md)
+  （2026-05-07 iter 16，✅ match：第一个 L3-tested counterfactual
+  (Layer 3) 路径；Phase 5 §C 的 Balke-Pearl bounds + monotonicity
+  assumption 全部正确触发；副观察 6 个 missing_distribution 可聚合
+  UX polish iter 17+ 候选）
