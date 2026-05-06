@@ -62,7 +62,7 @@ recruitment。
 data_gap_report 是否对应他们实际的数据可得性；(3) 中文 NL 输入 / 错误
 信息友好度反馈。loop 都做不到，需要外部触达用户。
 
-### 2026-05-07 iter 21-40 update — post-plateau infrastructure saturated
+### 2026-05-07 iter 21-80 update — post-plateau infrastructure saturated
 
 iter 21-80（doc / test / sync 安全网）累积现状：
 - **25 sync pins**（GapKind ↔ schema / verifier registry / must-disclose
