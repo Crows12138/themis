@@ -105,8 +105,9 @@ q = gap_to_kb_query(
 )
 
 if q is None:
-    # gap_kind not KB-fixable (unidentifiable / missing_assumption /
-    # ambiguous_variable_definition) — render and ask user instead
+    # gap_kind not KB-fixable. The translator returns None for any
+    # gap that is structural / a user choice / pure disclosure.
+    # See gap_to_action.md Q0 — surface and ask/render, don't fetch.
     ...
 ```
 
@@ -125,6 +126,18 @@ Mappings that translator applies:
 | `unidentifiable_no_admissible_set` | (None — structural) |
 | `missing_assumption` | (None — user choice) |
 | `ambiguous_variable_definition` | (None — user reframing) |
+| `dose_response_data_required` | (None — fully-spec'd locally; fit
+  the curve in EconML / DoubleML / GAM, not via KB) |
+
+**All `severity == "informational"` gap_kinds also map to `None`** —
+they are advisory disclosures (front-door / IV / mediation / transport
+/ counterfactual assumption advisories, bounds-not-point, low-confidence,
+graph-learned-from-data, unverified-proposal-edges, unmeasured-confounder-risk).
+Their `description` is mirrored as a ⚠ line in `result.explanation`;
+nothing to fetch.
+
+`unattempted_layer_due_to_dispatch_conflict` (important severity) also
+maps to `None` — the action is query reformulation, not data fetch.
 
 ## Calling the adapter
 
