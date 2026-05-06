@@ -102,13 +102,39 @@
     border-left: 2px solid var(--accent); border-radius: 3px;
     font-size: 13px; color: var(--fg); margin-bottom: 12px; }
   .nl-source::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+  .reply { padding: 14px 16px; background: rgba(95,217,158,0.06);
+    border-left: 3px solid var(--ok); border-radius: 3px;
+    font-size: 14px; line-height: 1.6; color: var(--fg);
+    margin-bottom: 16px; white-space: pre-wrap; }
+  .stage-tag { display: inline-block; font-family: "SF Mono", Consolas, monospace;
+    font-size: 10px; padding: 2px 6px; background: var(--panel); color: var(--muted);
+    border-radius: 2px; margin-left: 6px; }
+  .key-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6); display: none; align-items: center;
+    justify-content: center; z-index: 100; }
+  .key-modal.open { display: flex; }
+  .key-modal-box { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 20px; min-width: 400px; }
+  .key-modal-box h3 { margin: 0 0 12px; font-size: 13px; }
+  .key-modal-box p { margin: 0 0 12px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .key-modal-box input { width: 100%; padding: 8px; background: var(--bg);
+    color: var(--fg); border: 1px solid var(--border); border-radius: 3px;
+    font: 12px "SF Mono", Consolas, monospace; outline: none; }
+  .key-modal-buttons { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+  .spinner { display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--muted); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <header>
   <h1>Themis</h1>
-  <span class="muted">paste kernel_ast → run / verify</span>
-  <span class="muted" id="version-tag" style="margin-left: auto;"></span>
+  <span class="muted">中文问 → kernel_ast → 中文答（或粘 JSON 直接 run）</span>
+  <span class="muted" id="version-tag" style="margin-left: auto;">
+    <a href="#" id="key-link" style="color: var(--accent); text-decoration: none;">API key</a>
+  </span>
 </header>
 <main>
   <div class="pane">
@@ -117,12 +143,17 @@
       <select id="example-picker">
         <option value="">— load example —</option>
       </select>
-      <button id="btn-run" class="primary">Run</button>
+      <button id="btn-ask" class="primary">Ask</button>
+      <button id="btn-run">Run JSON</button>
       <button id="btn-verify">Verify</button>
       <button id="btn-clear">Clear</button>
     </div>
-    <div class="pane-body">
-      <textarea id="input" spellcheck="false" placeholder='{
+    <div class="pane-body" style="display: flex; flex-direction: column; gap: 8px;">
+      <input id="nl-input" type="text" placeholder='中文问题，比如："我每天跑步，肚子上的肉会瘦下来吗"'
+        style="width: 100%; padding: 10px; background: var(--bg); color: var(--fg);
+               border: 1px solid var(--border); border-radius: 4px; font-size: 14px; outline: none;"/>
+      <textarea id="input" spellcheck="false" style="flex: 1;" placeholder='or paste kernel_ast JSON here directly:
+{
   "version": "0.1",
   "domain": {"objects": [{"kind": "object", "name": "me"}]},
   "statements": [...]
@@ -141,14 +172,61 @@
   </div>
 </main>
 
+<div class="key-modal" id="key-modal">
+  <div class="key-modal-box">
+    <h3>Anthropic API key</h3>
+    <p>留空 = 用 server 的 <code>ANTHROPIC_API_KEY</code> 环境变量。<br>
+       粘贴 = 这次会话用你自己的 key（存在浏览器 localStorage，server 不持久化）。</p>
+    <input id="api-key-input" type="password" placeholder="sk-ant-..." />
+    <div class="key-modal-buttons">
+      <button id="key-clear">Clear</button>
+      <button id="key-save" class="primary">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const $ = (s) => document.querySelector(s);
 const inputEl = $("#input");
+const nlInputEl = $("#nl-input");
 const outputEl = $("#output");
 const statusHost = $("#status-host");
 const examplePicker = $("#example-picker");
 
 let lastResult = null;  // last full envelope, for verify round-trip
+
+const KEY_STORAGE = "themis_anthropic_api_key";
+function getApiKey() {
+  return localStorage.getItem(KEY_STORAGE) || null;
+}
+function setApiKey(k) {
+  if (k) localStorage.setItem(KEY_STORAGE, k);
+  else localStorage.removeItem(KEY_STORAGE);
+  updateKeyLink();
+}
+function updateKeyLink() {
+  const link = $("#key-link");
+  link.textContent = getApiKey() ? "API key ✓" : "API key";
+}
+updateKeyLink();
+
+$("#key-link").addEventListener("click", (e) => {
+  e.preventDefault();
+  $("#api-key-input").value = getApiKey() || "";
+  $("#key-modal").classList.add("open");
+});
+$("#key-save").addEventListener("click", () => {
+  setApiKey($("#api-key-input").value.trim() || null);
+  $("#key-modal").classList.remove("open");
+});
+$("#key-clear").addEventListener("click", () => {
+  setApiKey(null);
+  $("#api-key-input").value = "";
+  $("#key-modal").classList.remove("open");
+});
+$("#key-modal").addEventListener("click", (e) => {
+  if (e.target.id === "key-modal") $("#key-modal").classList.remove("open");
+});
 
 async function loadExamples() {
   const r = await fetch("/api/examples");
@@ -177,9 +255,46 @@ examplePicker.addEventListener("change", () => {
 
 $("#btn-clear").addEventListener("click", () => {
   inputEl.value = "";
+  nlInputEl.value = "";
   outputEl.innerHTML = `<div class="empty">cleared</div>`;
   statusHost.innerHTML = "";
   lastResult = null;
+});
+
+$("#btn-ask").addEventListener("click", async () => {
+  const nl = nlInputEl.value.trim();
+  if (!nl) {
+    alert("先输入中文问题");
+    return;
+  }
+  outputEl.innerHTML = `<div class="empty"><span class="spinner"></span>LLM → kernel_ast → run → reply…</div>`;
+  statusHost.innerHTML = "";
+  try {
+    const r = await fetch("/api/ask", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({nl, api_key: getApiKey()}),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      renderAskError(data);
+      return;
+    }
+    // mirror the generated kernel_ast into the textarea so the user
+    // sees what the LLM produced and can tweak/run-JSON later.
+    inputEl.value = JSON.stringify(data.kernel_ast, null, 2);
+    lastResult = {program: data.kernel_ast, envelope: data.envelope};
+    renderAsk(data);
+  } catch (e) {
+    renderAskError({stage: "network", error: "NetworkError", message: String(e)});
+  }
+});
+
+nlInputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    $("#btn-ask").click();
+  }
 });
 
 $("#btn-run").addEventListener("click", async () => {
@@ -258,16 +373,74 @@ function renderError(err) {
   </div>`;
 }
 
+function renderAskError(err) {
+  statusHost.innerHTML = `<span class="status-pill s-error">error</span>`;
+  const stage = err.stage || "?";
+  let html = `<div class="err-box">
+    <div class="err-name">${escapeHtml(err.error || "Error")}<span class="stage-tag">stage: ${escapeHtml(stage)}</span></div>
+    <div class="err-msg">${escapeHtml(err.message || "")}</div>
+  </div>`;
+  // If failure happened mid-pipeline, show what we already have so the
+  // user can debug.
+  if (err.kernel_ast) {
+    html += `<div class="section">
+      <div class="section-title">kernel_ast (already generated)</div>
+      <pre class="raw">${escapeHtml(JSON.stringify(err.kernel_ast, null, 2))}</pre></div>`;
+  }
+  if (err.envelope) {
+    html += `<div class="section">
+      <div class="section-title">themis envelope (run succeeded)</div>
+      <pre class="raw">${escapeHtml(JSON.stringify(err.envelope, null, 2))}</pre></div>`;
+  }
+  outputEl.innerHTML = html;
+}
+
+function renderAsk(data) {
+  const r = data.envelope.results[0];
+  const status = r.status || "unknown";
+  statusHost.innerHTML = `<span class="status-pill s-${escapeHtml(status)}">${escapeHtml(status)}</span>`;
+
+  let html = "";
+  // 1. NL question echo
+  html += `<div class="nl-source">${escapeHtml(data.nl)}</div>`;
+  // 2. LLM-rendered Chinese reply (the headline answer)
+  html += `<div class="reply">${escapeHtml(data.reply)}</div>`;
+  // 3. Generated kernel_ast (collapsed by default)
+  html += `<div class="section">
+    <span class="raw-toggle" onclick="toggleAstAudit()">▸ generated kernel_ast (audit)</span>
+    <pre class="raw" id="ast-audit" style="display:none;">${escapeHtml(JSON.stringify(data.kernel_ast, null, 2))}</pre>
+  </div>`;
+  // 4. Structured envelope (delegate to the existing renderEnvelope)
+  outputEl.innerHTML = html;
+  const structDiv = document.createElement("div");
+  outputEl.appendChild(structDiv);
+  appendStructuredSections(data.envelope, structDiv);
+}
+
+function toggleAstAudit() {
+  const el = document.getElementById("ast-audit");
+  const tog = document.querySelector(".raw-toggle");
+  if (el.style.display === "none") {
+    el.style.display = "block"; tog.textContent = "▾ generated kernel_ast (audit)";
+  } else {
+    el.style.display = "none"; tog.textContent = "▸ generated kernel_ast (audit)";
+  }
+}
+
 function renderEnvelope(env) {
   if (!env.results || env.results.length === 0) {
     outputEl.innerHTML = `<div class="empty">no results in envelope</div>`;
     return;
   }
   const r = env.results[0];
-
   const status = r.status || "unknown";
   statusHost.innerHTML = `<span class="status-pill s-${escapeHtml(status)}">${escapeHtml(status)}</span>`;
+  outputEl.innerHTML = "";
+  appendStructuredSections(env, outputEl);
+}
 
+function appendStructuredSections(env, host) {
+  const r = env.results[0];
   let html = "";
 
   // Headline + caveats split from explanation
@@ -384,7 +557,9 @@ function renderEnvelope(env) {
     <pre class="raw" id="raw-pre" style="display:none;">${escapeHtml(JSON.stringify(env, null, 2))}</pre>
   </div>`;
 
-  outputEl.innerHTML = html;
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  host.appendChild(div);
 }
 
 function toggleRaw() {

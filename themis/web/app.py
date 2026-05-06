@@ -41,6 +41,11 @@ class VerifyRequest(BaseModel):
     result: dict
 
 
+class AskRequest(BaseModel):
+    nl: str
+    api_key: str | None = None
+
+
 @app.get("/")
 def index():
     return FileResponse(_STATIC / "index.html")
@@ -81,6 +86,74 @@ def api_verify(req: VerifyRequest):
                 "message": str(exc),
             },
         )
+
+
+@app.post("/api/ask")
+def api_ask(req: AskRequest):
+    """End-to-end NL → kernel_ast → run → reply via the LLM bridge.
+
+    Returns ``{nl, kernel_ast, envelope, reply}`` on success. On any
+    failure (missing API key, LLM refusal, kernel semantic rejection,
+    network error) returns 400 with ``{stage, error, message}`` so the
+    UI can pinpoint where in the pipeline things broke.
+    """
+    from .llm_bridge import LLMBridgeError, ask
+    import themis
+
+    # Pipeline stages so the UI can report "LLM stage failed" vs
+    # "kernel stage failed". Wrapping each stage individually rather
+    # than calling ask() so we can attribute errors precisely.
+    try:
+        from .llm_bridge import nl_to_kernel_ast, render_reply
+        kernel_ast = nl_to_kernel_ast(req.nl, api_key=req.api_key)
+    except LLMBridgeError as exc:
+        return JSONResponse(status_code=400, content={
+            "stage": "nl_to_kernel_ast",
+            "error": "LLMBridgeError",
+            "message": str(exc),
+        })
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "stage": "nl_to_kernel_ast",
+            "error": type(exc).__name__,
+            "message": str(exc),
+        })
+
+    try:
+        envelope = themis.run(kernel_ast)
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "stage": "themis_run",
+            "error": type(exc).__name__,
+            "message": str(exc),
+            "kernel_ast": kernel_ast,
+        })
+
+    try:
+        reply = render_reply(envelope, nl=req.nl, api_key=req.api_key)
+    except LLMBridgeError as exc:
+        return JSONResponse(status_code=400, content={
+            "stage": "render_reply",
+            "error": "LLMBridgeError",
+            "message": str(exc),
+            "kernel_ast": kernel_ast,
+            "envelope": envelope,
+        })
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "stage": "render_reply",
+            "error": type(exc).__name__,
+            "message": str(exc),
+            "kernel_ast": kernel_ast,
+            "envelope": envelope,
+        })
+
+    return {
+        "nl": req.nl,
+        "kernel_ast": kernel_ast,
+        "envelope": envelope,
+        "reply": reply,
+    }
 
 
 @app.get("/api/examples")
