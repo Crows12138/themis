@@ -126,7 +126,9 @@ def compute_data_gap_report(
     must_disclose_gaps.extend(_classify_llm_ambiguities(extensions))
     must_disclose_gaps.extend(_classify_bounds_not_point(bounds_result))
     must_disclose_gaps.extend(_classify_low_confidence(confidence))
-    must_disclose_gaps.extend(_classify_front_door_assumptions(derivation))
+    must_disclose_gaps.extend(_classify_front_door_assumptions(
+        derivation, program=program, stmt=stmt,
+    ))
     must_disclose_gaps.extend(_classify_counterfactual_assumptions(
         derivation, status, query_kind,
     ))
@@ -571,11 +573,27 @@ _FRONT_DOOR_DERIVATION_RULES: frozenset[str] = frozenset({
 
 def _classify_front_door_assumptions(
     derivation: tuple[DerivationStep, ...],
+    *,
+    program=None,
+    stmt=None,
 ) -> Iterable[DataGap]:
     """Front-door identification rests on Pearl's three graphical premises
-    plus consistency. Detected by scanning derivation rules — the
-    dispatcher does not currently echo a `front_door_identification`
-    extension, so the derivation chain is the authoritative signal."""
+    plus consistency. Primary signal is a derivation step with rule in
+    ``_FRONT_DOOR_DERIVATION_RULES``. Fallback signal: program-shape
+    detection of a front-door pattern (X↔Y bidirected + at least one
+    M with X→M and M→Y), used when status is NEEDS_INVESTIGATION due
+    to missing theta and the kernel skipped recording the
+    identify_via_front_door step. Same fallback pattern as
+    ``_classify_unmeasured_confounder_risk``.
+    """
+    description = (
+        "前门识别（Pearl front-door criterion）的有效性以下列假设为前提："
+        "(1) 中介集 M 阻断 X→Y 的所有有向路径；"
+        "(2) 不存在未阻断的 X→M 后门路径；"
+        "(3) 所有 M→Y 后门路径已被 X 阻断；"
+        "(4) consistency of potential outcomes。"
+        "若任一假设不成立，前门估计失效。"
+    )
     triggering = next(
         (
             step for step in derivation
@@ -584,27 +602,74 @@ def _classify_front_door_assumptions(
         ),
         None,
     )
-    if triggering is None:
-        return
-    yield DataGap(
-        kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
-        severity=GapSeverity.INFORMATIONAL,
-        description=(
-            "前门识别（Pearl front-door criterion）的有效性以下列假设为前提："
-            "(1) 中介集 M 阻断 X→Y 的所有有向路径；"
-            "(2) 不存在未阻断的 X→M 后门路径；"
-            "(3) 所有 M→Y 后门路径已被 X 阻断；"
-            "(4) consistency of potential outcomes。"
-            "若任一假设不成立，前门估计失效。"
-        ),
-        blocks=GapBlocks.INTERPRETATION,
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.DERIVATION_STEP,
-                ref_id=triggering.step_id or triggering.rule,
+    if triggering is not None:
+        yield DataGap(
+            kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
+            severity=GapSeverity.INFORMATIONAL,
+            description=description,
+            blocks=GapBlocks.INTERPRETATION,
+            provenance=(
+                GapProvenanceRef(
+                    ref_kind=GapRefKind.DERIVATION_STEP,
+                    ref_id=triggering.step_id or triggering.rule,
+                ),
             ),
-        ),
-    )
+        )
+        return
+    if _has_front_door_pattern(program, stmt):
+        yield DataGap(
+            kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
+            severity=GapSeverity.INFORMATIONAL,
+            description=description,
+            blocks=GapBlocks.INTERPRETATION,
+            provenance=(
+                GapProvenanceRef(
+                    ref_kind=GapRefKind.VERIFIER_CHECK,
+                    ref_id="program:front_door_pattern",
+                ),
+            ),
+        )
+
+
+def _has_front_door_pattern(program, stmt) -> bool:
+    """Detect front-door identification pattern from program shape:
+    bidirected edge between intervention X and target Y AND at least
+    one mediator M with X→M and M→Y. Used as a fallback when the
+    derivation chain is empty (NEEDS_INVESTIGATION due to missing theta)."""
+    if program is None or stmt is None:
+        return False
+    q = getattr(stmt, "query", None)
+    intervention = getattr(q, "intervention", None)
+    target = getattr(q, "target", None)
+    if intervention is None or target is None:
+        return False
+    # Some queries hold ValuedAtom / Intervention with `.atom`; others hold
+    # Atom directly. Fall through with getattr to handle both.
+    x_atom = getattr(intervention, "atom", intervention)
+    y_atom = getattr(target, "atom", target)
+    x_pred = getattr(x_atom, "predicate", None)
+    y_pred = getattr(y_atom, "predicate", None)
+    if x_pred is None or y_pred is None:
+        return False
+    has_bidirected_xy = False
+    children_of: dict[str, set[str]] = {}
+    for st in program.statements:
+        if isinstance(st, BidirectedStatement):
+            pair = {st.left.predicate, st.right.predicate}
+            if pair == {x_pred, y_pred}:
+                has_bidirected_xy = True
+        if isinstance(st, CauseStatement):
+            children_of.setdefault(
+                st.from_atom.predicate, set()
+            ).add(st.to_atom.predicate)
+    if not has_bidirected_xy:
+        return False
+    for mediator in children_of.get(x_pred, ()):
+        if mediator in (x_pred, y_pred):
+            continue
+        if y_pred in children_of.get(mediator, ()):
+            return True
+    return False
 
 
 _COUNTERFACTUAL_DERIVATION_RULES: frozenset[str] = frozenset({

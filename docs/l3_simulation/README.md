@@ -93,4 +93,9 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   （2026-05-07 iter 7，✅ match 跨域：教育经济学；额外验证 Themis
   自动 IV-shape 检测 + Balke-Pearl IV bounds；次要发现 advisory
   description 的 domain examples 是 medicine-only，跨域 portability
-  待改进）
+  待改进 — iter 8 已修）
+- [Case 004 — Pearl smoking → tar → cancer (front-door)](case_004_pearl_smoking_tar_cancer.md)
+  （2026-05-07 iter 10，发现真 bug → 修：front-door 识别 +
+  needs_investigation 时 derivation 空导致 FD1/FD2/FD3 advisory 不
+  fire，加 program-shape fallback；同时 ✅ 验证 unmeasured_confounder_risk
+  抑制路径正确）

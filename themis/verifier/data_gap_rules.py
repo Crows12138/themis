@@ -278,7 +278,10 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "answer_is_bounds_not_point_estimate": frozenset({"verifier_check"}),
     "low_confidence_input_data": frozenset({"verifier_check"}),
     "front_door_identification_assumption_required": frozenset(
-        {"derivation_step"}
+        # derivation_step when identify_via_front_door step is recorded;
+        # verifier_check (program:front_door_pattern) when status is
+        # NEEDS_INVESTIGATION and the kernel skipped recording the step.
+        {"derivation_step", "verifier_check"}
     ),
     "counterfactual_identification_assumption_required": frozenset(
         {"derivation_step"}

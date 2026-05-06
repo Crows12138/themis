@@ -187,3 +187,64 @@ def test_alternative_paths_mentions_evalue():
     ]
     paths_text = " ".join(matching.get("alternative_paths", []) or [])
     assert "E-value" in paths_text or "e-value" in paths_text.lower()
+
+
+def test_front_door_advisory_fires_via_program_shape_fallback():
+    """iter 10 finding: front-door identification with missing theta has
+    empty derivation, so the original derivation-only signal in
+    _classify_front_door_assumptions silently dropped the FD1/FD2/FD3
+    advisory. Pearl's smoking->tar->cancer with smoking<->cancer is the
+    canonical front-door case; verify the advisory fires via the new
+    program-shape fallback even when status is needs_investigation."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "m", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "cause",
+                "from": {"predicate": "m", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "bidirected",
+                "left":  {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                "right": {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "target": {
+                        "atom": {
+                            "predicate": "y",
+                            "args": [{"type": "const", "name": "p"}],
+                        },
+                        "value": True,
+                    },
+                    "intervention": {
+                        "atom": {
+                            "predicate": "x",
+                            "args": [{"type": "const", "name": "p"}],
+                        },
+                        "value": True,
+                    },
+                    "given": [],
+                },
+            },
+        ],
+    }
+    out = run(program)
+    result = out["results"][0]
+    kinds = [g["kind"] for g in result.get("data_gap_report", {}).get("gaps", [])]
+    assert "front_door_identification_assumption_required" in kinds
+    explanation = result.get("explanation") or ""
+    assert "前门" in explanation or "front-door" in explanation.lower()

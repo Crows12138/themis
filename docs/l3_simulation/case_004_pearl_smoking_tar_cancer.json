@@ -1,0 +1,43 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "smoker"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "smoking", "domain": [true, false]},
+    {"kind": "variable", "predicate": "tar", "domain": [true, false]},
+    {"kind": "variable", "predicate": "cancer", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "smoking", "args": [{"type": "const", "name": "smoker"}]},
+      "to":   {"predicate": "tar", "args": [{"type": "const", "name": "smoker"}]},
+      "annotations": {"source": "biology"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "tar", "args": [{"type": "const", "name": "smoker"}]},
+      "to":   {"predicate": "cancer", "args": [{"type": "const", "name": "smoker"}]},
+      "annotations": {"source": "biology"}
+    },
+    {
+      "kind": "bidirected",
+      "left":  {"predicate": "smoking", "args": [{"type": "const", "name": "smoker"}]},
+      "right": {"predicate": "cancer", "args": [{"type": "const", "name": "smoker"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "query",
+      "id": "q_smoking_cancer",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "cancer", "args": [{"type": "const", "name": "smoker"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "smoking", "args": [{"type": "const", "name": "smoker"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}
