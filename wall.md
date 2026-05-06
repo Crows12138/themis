@@ -86,4 +86,29 @@ sync 漏了 `__init__.py`。任何 `import themis; print(themis.__version__)`
 价值，但用户应当知道：每个 commit 平均 magnitude 较 iter 1-20 显著
 下降。
 
+#### 2026-05-07 iter 45-74 update — 8+ distinct drift categories caught
+
+事实进一步反驳"saturation 等同零边际"：iter 45-74 实际找到 8 个独立
+drift category（不计同类多个 instance）：
+
+1. iter 45: `themis.__version__ = 0.14.0-dev` vs docs 0.15.0-dev
+2. iter 52-54: 6 PHASE_*_CHARTER status lines stale (Phase 10 / 11.2 /
+   2.latent / 7 M2 / 8 M3 / 5)
+3. iter 56: failure_modes.md header "22 codes" vs 实际 26
+4. iter 57: eval_set/README.md "28 cases / 24 modes" vs 实际 29 / 26
+5. iter 59: COVERAGE_MAP "6 MCP tools" vs 实际 7
+6. iter 60: README 主要目录漏 web/ 子包
+7. iter 63: 28 个 .md 文件含 hardcoded user-specific Windows abs paths
+8. iter 68: pytest-asyncio `asyncio_default_fixture_loop_scope` unset
+   deprecation warning
+
+加 iter 71 真实 user-facing gap (kernel API 缺 exception docs)，约
+50+ 个 specific drift instances 修复。每发现 drift class 立 sync pin
+（共 21 个）防再发。
+
+修订观察：post-saturation 命中率下降但**非零**——仍是有效的低成本
+audit 通道。每 1-3 iter 平均仍能 catch 1 个真 finding。loop 继续运转
+仍有价值，特别是发现 doc/code drift（很难靠人工 review catch 这种
+"小但累积"的问题）。
+
 ---
