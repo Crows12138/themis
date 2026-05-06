@@ -45,6 +45,12 @@ Eval set internal (iter 61):
 - test_eval_set_cases_have_internally_consistent_edges — every
   gold_edges from/to predicate must appear in gold_variables
 
+Self-meta (iter 94):
+- test_meta_test_docstring_inventories_all_test_functions — every
+  test_… function in this file must be mentioned in this docstring;
+  catches 'added test, forgot to inventory' regression (iter 91→93
+  was that exact pattern)
+
 Each pin documents which iter found the original drift (if any) plus
 the regression class it guards. Add new pins symmetric with existing
 patterns when new drift classes surface.
@@ -232,6 +238,35 @@ def test_test_count_consistent_between_core_status_and_readme():
         f"CORE_STATUS.md says {core_match.group()} but README.md says "
         f"{readme_match.group()}. Both files quote the test baseline; "
         f"keep them in sync."
+    )
+
+
+def test_meta_test_docstring_inventories_all_test_functions():
+    """Iter 91-93 self-meta find: this file's module docstring lists
+    each pin by category. Iter 91 wrote it with 26 entries; iter 93
+    audit found one missing (eval_set consistency from iter 61) and
+    the docstring's category total was wrong by 1.
+
+    Iter 94 pin: count test_… function definitions in this file,
+    count test name mentions in the module docstring's bullet lines,
+    assert every actual function name appears in docstring bullets.
+
+    Catches the 'add new pin, forget docstring entry' regression.
+    """
+    import ast
+    self_text = Path(__file__).read_text(encoding="utf-8")
+    tree = ast.parse(self_text)
+    actual_test_funcs = sorted(
+        node.name for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    )
+    docstring = ast.get_docstring(tree) or ""
+    missing = [
+        name for name in actual_test_funcs if name not in docstring
+    ]
+    assert not missing, (
+        f"Module docstring inventory missing test names: {missing}. "
+        f"Add to the appropriate '<Category>:' section."
     )
 
 
