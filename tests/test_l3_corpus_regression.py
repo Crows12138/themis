@@ -178,6 +178,38 @@ def test_every_l3_case_json_has_matching_markdown():
     )
 
 
+def test_l3_readme_case_index_matches_actual_files():
+    """docs/l3_simulation/README.md has a 'case index' listing all
+    cases as `- [Case NNN — title](case_NNN_*.md)` entries. Each line
+    must match an actual case_NNN_*.md file in the directory.
+
+    Iter 73 preventive pin (no current drift). Catches future
+    regression where case 011 is added without README index update,
+    or a .md is renamed without reflecting in README.
+    """
+    import re
+    readme = (L3_DIR / "README.md").read_text(encoding="utf-8")
+    entry_re = re.compile(r"\[Case\s+(\d+)\s+—[^\]]+\]\(([^)]+\.md)\)")
+    indexed = {int(m.group(1)) for m in entry_re.finditer(readme)}
+
+    actual = set()
+    for f in L3_DIR.glob("case_*.md"):
+        m = re.match(r"case_(\d+)_", f.name)
+        if m:
+            actual.add(int(m.group(1)))
+
+    missing = actual - indexed
+    extra = indexed - actual
+    assert not missing, (
+        f"L3 README case index missing actual cases: {sorted(missing)}. "
+        f"Add entries for these to docs/l3_simulation/README.md."
+    )
+    assert not extra, (
+        f"L3 README case index references non-existent cases: "
+        f"{sorted(extra)}"
+    )
+
+
 def test_l3_corpus_count_at_plateau():
     """Sanity: corpus has reached plateau (≥10 cases). If a case is
     accidentally deleted this catches it."""
