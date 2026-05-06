@@ -23,12 +23,24 @@ from ..workflow.parameter_fill import BUNDLE_KIND, BUNDLE_VERSION
 from .schemas import KBQuery, KBQueryKind, KBResult
 
 
-# Maps DataGap.kind → KBQueryKind. Three gap_kinds are intentionally
-# absent: UNIDENTIFIABLE_NO_ADMISSIBLE_SET (no data fixes structure),
-# MISSING_ASSUMPTION (user epistemological choice), and
-# AMBIGUOUS_VARIABLE_DEFINITION (user reframing). For those,
-# gap_to_kb_query returns None — the caller surfaces the gap to the
-# user via ask-then-render, not via KB lookup.
+# Maps DataGap.kind → KBQueryKind. Categories that intentionally map
+# to None (gap_to_kb_query returns None — caller surfaces via
+# ask-then-render, not KB lookup):
+#
+# Structural / user-choice / user-reframing (Phase 10 charter):
+#   UNIDENTIFIABLE_NO_ADMISSIBLE_SET — no data fixes structure
+#   MISSING_ASSUMPTION              — user epistemological choice
+#   AMBIGUOUS_VARIABLE_DEFINITION   — user reframing
+# Externally-fitted (Phase 13):
+#   DOSE_RESPONSE_DATA_REQUIRED — data spec to fit curve in EconML/GAM,
+#                                  not a single number to fetch
+# Pure-disclosure informational kinds (12 — Phase 6/8/9/10/11.x/12 +
+# iter 5 / iter 19 L3-driven additions): everything in
+# scheduler._MUST_DISCLOSE_GAP_KINDS plus
+# UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT (iter 19, query
+# reformulation, not data fetch).
+#
+# kb_lookup.md prompt mirrors this list with categorical rule.
 _GAP_TO_QUERY_KIND: dict[GapKind, KBQueryKind] = {
     GapKind.MISSING_POPULATION_DISTRIBUTION: KBQueryKind.TARGET_POPULATION_MARGINAL,
     GapKind.MISSING_IV_CANDIDATE: KBQueryKind.IV_CANDIDATE,
@@ -70,8 +82,13 @@ def gap_to_kb_query(
     not reliably parseable.
 
     Returns None when the gap_kind has no KB-fixable mapping:
-    UNIDENTIFIABLE_NO_ADMISSIBLE_SET (structural), MISSING_ASSUMPTION
-    (user choice), AMBIGUOUS_VARIABLE_DEFINITION (user reframing).
+    structural (UNIDENTIFIABLE_NO_ADMISSIBLE_SET), user-choice
+    (MISSING_ASSUMPTION), user-reframing (AMBIGUOUS_VARIABLE_DEFINITION),
+    externally-fitted (DOSE_RESPONSE_DATA_REQUIRED), or any pure-
+    disclosure informational kind (mirror of
+    scheduler._MUST_DISCLOSE_GAP_KINDS plus
+    UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT). See module-level
+    _GAP_TO_QUERY_KIND comment for the full categorical breakdown.
     """
     query_kind = _resolve_query_kind(gap)
     if query_kind is None:
