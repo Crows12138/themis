@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Themis Web UI</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e8e8e8;
+    --muted: #888;
+    --accent: #5fb3ff;
+    --warn: #ffb84d;
+    --err: #ff6b6b;
+    --ok: #5fd99e;
+    --panel: #232323;
+    --border: #333;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%;
+    font: 14px/1.4 -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+    background: var(--bg); color: var(--fg); }
+  header { padding: 10px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  header .muted { color: var(--muted); font-size: 12px; }
+  main { display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; background: var(--border); height: calc(100vh - 45px); }
+  .pane { background: var(--bg); display: flex; flex-direction: column;
+    overflow: hidden; }
+  .pane-header { padding: 8px 12px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pane-header strong { font-size: 12px; }
+  .pane-body { flex: 1; overflow: auto; padding: 12px; }
+  textarea#input { width: 100%; height: 100%;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 4px;
+    font: 12px/1.4 "SF Mono", Consolas, monospace; padding: 10px;
+    resize: none; outline: none; }
+  textarea#input:focus { border-color: var(--accent); }
+  button { background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 10px; font-size: 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #000;
+    border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { color: #000; opacity: 0.85; }
+  select { background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font-size: 12px; max-width: 220px; }
+
+  .status-pill { display: inline-block; padding: 2px 8px; border-radius: 3px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; }
+  .s-structurally_solved { background: rgba(95,217,158,0.18); color: var(--ok); }
+  .s-numerically_solved { background: rgba(95,217,158,0.18); color: var(--ok); }
+  .s-counterfactual_solved { background: rgba(95,217,158,0.18); color: var(--ok); }
+  .s-counterfactual_bounded { background: rgba(95,179,255,0.18); color: var(--accent); }
+  .s-needs_investigation { background: rgba(255,184,77,0.18); color: var(--warn); }
+  .s-needs_assumption { background: rgba(255,184,77,0.18); color: var(--warn); }
+  .s-outside_language { background: rgba(255,107,107,0.18); color: var(--err); }
+  .s-error { background: rgba(255,107,107,0.18); color: var(--err); }
+
+  .section { margin-bottom: 16px; }
+  .section-title { font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+  .headline { background: rgba(95,179,255,0.08); border-left: 3px solid var(--accent);
+    padding: 8px 12px; border-radius: 3px; font-size: 14px; font-weight: 500;
+    margin-bottom: 12px; }
+  .caveat { background: rgba(255,184,77,0.08); border-left: 3px solid var(--warn);
+    padding: 8px 12px; border-radius: 3px; margin: 6px 0; font-size: 13px;
+    line-height: 1.5; }
+  .caveat::before { content: "⚠ "; color: var(--warn); font-weight: 600; }
+  .gap { background: var(--panel); border-radius: 3px; padding: 10px 12px;
+    margin: 6px 0; font-size: 12px; }
+  .gap-kind { font-family: "SF Mono", Consolas, monospace; color: var(--accent);
+    font-size: 11px; font-weight: 600; }
+  .gap-sev { display: inline-block; margin-left: 6px; padding: 1px 6px;
+    border-radius: 2px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; }
+  .gap-sev.blocking { background: rgba(255,107,107,0.2); color: var(--err); }
+  .gap-sev.important { background: rgba(255,184,77,0.2); color: var(--warn); }
+  .gap-sev.informational { background: rgba(136,136,136,0.2); color: var(--muted); }
+  .gap-desc { margin-top: 4px; line-height: 1.5; color: var(--fg); }
+  .gap-meta { margin-top: 6px; font-size: 11px; color: var(--muted); }
+  .deriv-step { font-family: "SF Mono", Consolas, monospace; font-size: 11px;
+    padding: 3px 8px; background: var(--panel); border-radius: 2px;
+    display: inline-block; margin: 2px 4px 2px 0; }
+  .raw-toggle { color: var(--accent); cursor: pointer; font-size: 11px;
+    user-select: none; }
+  pre.raw { background: var(--panel); border: 1px solid var(--border);
+    padding: 10px; border-radius: 3px; font-size: 11px; line-height: 1.4;
+    overflow: auto; max-height: 400px; }
+  .empty { color: var(--muted); font-style: italic; padding: 20px;
+    text-align: center; font-size: 12px; }
+  .err-box { background: rgba(255,107,107,0.08); border-left: 3px solid var(--err);
+    padding: 10px 12px; border-radius: 3px; }
+  .err-box .err-name { color: var(--err); font-weight: 600;
+    font-family: "SF Mono", Consolas, monospace; font-size: 12px; }
+  .err-box .err-msg { margin-top: 6px; font-size: 12px; line-height: 1.5; }
+  .nl-source { padding: 8px 12px; background: rgba(95,179,255,0.05);
+    border-left: 2px solid var(--accent); border-radius: 3px;
+    font-size: 13px; color: var(--fg); margin-bottom: 12px; }
+  .nl-source::before { content: "Q: "; color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Themis</h1>
+  <span class="muted">paste kernel_ast → run / verify</span>
+  <span class="muted" id="version-tag" style="margin-left: auto;"></span>
+</header>
+<main>
+  <div class="pane">
+    <div class="pane-header">
+      <strong>Input</strong>
+      <select id="example-picker">
+        <option value="">— load example —</option>
+      </select>
+      <button id="btn-run" class="primary">Run</button>
+      <button id="btn-verify">Verify</button>
+      <button id="btn-clear">Clear</button>
+    </div>
+    <div class="pane-body">
+      <textarea id="input" spellcheck="false" placeholder='{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "me"}]},
+  "statements": [...]
+}'></textarea>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-header">
+      <strong>Result</strong>
+      <span id="status-host"></span>
+    </div>
+    <div class="pane-body" id="output">
+      <div class="empty">Paste a kernel_ast on the left and click <strong>Run</strong>.<br>
+        Or pick a worked example from the dropdown.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const inputEl = $("#input");
+const outputEl = $("#output");
+const statusHost = $("#status-host");
+const examplePicker = $("#example-picker");
+
+let lastResult = null;  // last full envelope, for verify round-trip
+
+async function loadExamples() {
+  const r = await fetch("/api/examples");
+  const items = await r.json();
+  for (const it of items) {
+    const opt = document.createElement("option");
+    opt.value = it.name;
+    opt.textContent = it.name;
+    opt.dataset.payload = JSON.stringify(it);
+    examplePicker.appendChild(opt);
+  }
+}
+
+examplePicker.addEventListener("change", () => {
+  const opt = examplePicker.selectedOptions[0];
+  if (!opt || !opt.dataset.payload) return;
+  const it = JSON.parse(opt.dataset.payload);
+  inputEl.value = JSON.stringify(it.program, null, 2);
+  outputEl.innerHTML = it.nl_input
+    ? `<div class="nl-source">${escapeHtml(it.nl_input)}</div>` +
+      `<div class="empty">click <strong>Run</strong> to evaluate</div>`
+    : `<div class="empty">click <strong>Run</strong> to evaluate</div>`;
+  statusHost.innerHTML = "";
+  lastResult = null;
+});
+
+$("#btn-clear").addEventListener("click", () => {
+  inputEl.value = "";
+  outputEl.innerHTML = `<div class="empty">cleared</div>`;
+  statusHost.innerHTML = "";
+  lastResult = null;
+});
+
+$("#btn-run").addEventListener("click", async () => {
+  const program = parseInputOrAlert();
+  if (program === null) return;
+
+  outputEl.innerHTML = `<div class="empty">running…</div>`;
+  statusHost.innerHTML = "";
+
+  try {
+    const r = await fetch("/api/run", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({program}),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      renderError(data);
+      return;
+    }
+    lastResult = {program, envelope: data};
+    renderEnvelope(data);
+  } catch (e) {
+    renderError({error: "NetworkError", message: String(e)});
+  }
+});
+
+$("#btn-verify").addEventListener("click", async () => {
+  if (!lastResult) {
+    alert("Run a program first; verify acts on the last result.");
+    return;
+  }
+  const r = await fetch("/api/verify", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      program: lastResult.program,
+      result: lastResult.envelope.results[0],
+    }),
+  });
+  const data = await r.json();
+  if (data.ok) {
+    flashStatus("verify ok", "ok");
+  } else {
+    flashStatus("verify failed", "err");
+    appendVerifyError(data);
+  }
+});
+
+function parseInputOrAlert() {
+  const raw = inputEl.value.trim();
+  if (!raw) {
+    alert("input is empty");
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    alert("invalid JSON: " + e.message);
+    return null;
+  }
+}
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function renderError(err) {
+  statusHost.innerHTML = `<span class="status-pill s-error">error</span>`;
+  outputEl.innerHTML = `<div class="err-box">
+    <div class="err-name">${escapeHtml(err.error || "Error")}</div>
+    <div class="err-msg">${escapeHtml(err.message || "")}</div>
+  </div>`;
+}
+
+function renderEnvelope(env) {
+  if (!env.results || env.results.length === 0) {
+    outputEl.innerHTML = `<div class="empty">no results in envelope</div>`;
+    return;
+  }
+  const r = env.results[0];
+
+  const status = r.status || "unknown";
+  statusHost.innerHTML = `<span class="status-pill s-${escapeHtml(status)}">${escapeHtml(status)}</span>`;
+
+  let html = "";
+
+  // Headline + caveats split from explanation
+  const explanation = r.explanation || "";
+  if (explanation) {
+    const lines = explanation.split("\n");
+    const caveats = [];
+    const headlines = [];
+    for (const line of lines) {
+      const stripped = line.trim();
+      if (!stripped) continue;
+      if (stripped.startsWith("⚠")) {
+        caveats.push(stripped.replace(/^⚠\s*/, ""));
+      } else {
+        headlines.push(stripped);
+      }
+    }
+    if (headlines.length) {
+      html += `<div class="section">`;
+      for (const h of headlines) {
+        html += `<div class="headline">${escapeHtml(h)}</div>`;
+      }
+      html += `</div>`;
+    }
+    if (caveats.length) {
+      html += `<div class="section">
+        <div class="section-title">must-disclose caveats</div>`;
+      for (const c of caveats) {
+        html += `<div class="caveat">${escapeHtml(c)}</div>`;
+      }
+      html += `</div>`;
+    }
+  }
+
+  // Structural / numeric result
+  const struct = r.structural_result;
+  const numeric = r.numeric_result;
+  if (struct || numeric) {
+    html += `<div class="section">
+      <div class="section-title">answer</div>`;
+    if (struct) {
+      html += `<div class="gap" style="background:none;padding:4px 0;">structural: <strong>${escapeHtml(JSON.stringify(struct.value))}</strong></div>`;
+    }
+    if (numeric) {
+      const v = numeric.value;
+      const iv = numeric.interval;
+      let line = "";
+      if (v != null) line = `numeric: <strong>${v}</strong>`;
+      else if (iv) line = `interval: <strong>[${iv.low}, ${iv.high}]</strong>`;
+      html += `<div class="gap" style="background:none;padding:4px 0;">${line}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Bounds result
+  if (r.bounds_result) {
+    const b = r.bounds_result;
+    html += `<div class="section">
+      <div class="section-title">bounds (${escapeHtml(b.method)})</div>
+      <div class="gap"><div class="gap-desc">
+        lower: <code>${escapeHtml(b.lower_expression || "?")}</code><br>
+        upper: <code>${escapeHtml(b.upper_expression || "?")}</code>
+      </div></div></div>`;
+  }
+
+  // Data gap report
+  const report = r.data_gap_report;
+  if (report && report.gaps && report.gaps.length) {
+    html += `<div class="section">
+      <div class="section-title">data gap report (${report.gaps.length})</div>`;
+    for (const g of report.gaps) {
+      html += `<div class="gap">
+        <span class="gap-kind">${escapeHtml(g.kind)}</span>
+        <span class="gap-sev ${escapeHtml(g.severity)}">${escapeHtml(g.severity)}</span>
+        <div class="gap-desc">${escapeHtml(g.description || "")}</div>`;
+      const meta = [];
+      if (g.if_provided) meta.push("if provided: " + g.if_provided);
+      if (g.alternative_paths && g.alternative_paths.length) {
+        meta.push("alternatives: " + g.alternative_paths.join(" / "));
+      }
+      if (meta.length) {
+        html += `<div class="gap-meta">${escapeHtml(meta.join(" · "))}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Missing information / investigation requests
+  if (r.missing_information && r.missing_information.length) {
+    html += `<div class="section">
+      <div class="section-title">missing info</div>`;
+    for (const m of r.missing_information) {
+      html += `<div class="gap">
+        <span class="gap-kind">${escapeHtml(m.name)}</span>
+        <div class="gap-desc">${escapeHtml(m.reason || "")}</div></div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Derivation rules
+  if (r.derivation && r.derivation.steps && r.derivation.steps.length) {
+    html += `<div class="section">
+      <div class="section-title">derivation</div>`;
+    for (const s of r.derivation.steps) {
+      html += `<span class="deriv-step">${escapeHtml(s.rule)}</span>`;
+    }
+    html += `</div>`;
+  }
+
+  // Raw envelope toggle
+  html += `<div class="section">
+    <span class="raw-toggle" onclick="toggleRaw()">▸ raw envelope</span>
+    <pre class="raw" id="raw-pre" style="display:none;">${escapeHtml(JSON.stringify(env, null, 2))}</pre>
+  </div>`;
+
+  outputEl.innerHTML = html;
+}
+
+function toggleRaw() {
+  const el = document.getElementById("raw-pre");
+  const tog = document.querySelector(".raw-toggle");
+  if (el.style.display === "none") {
+    el.style.display = "block";
+    tog.textContent = "▾ raw envelope";
+  } else {
+    el.style.display = "none";
+    tog.textContent = "▸ raw envelope";
+  }
+}
+
+function flashStatus(text, kind) {
+  const node = document.createElement("span");
+  node.className = `status-pill s-${kind === "ok" ? "structurally_solved" : "error"}`;
+  node.textContent = text;
+  node.style.marginLeft = "8px";
+  statusHost.appendChild(node);
+  setTimeout(() => node.remove(), 4000);
+}
+
+function appendVerifyError(data) {
+  const div = document.createElement("div");
+  div.className = "err-box";
+  div.style.marginTop = "12px";
+  div.innerHTML = `
+    <div class="err-name">verify: ${escapeHtml(data.error || "Error")}</div>
+    <div class="err-msg">${escapeHtml(data.message || "")}</div>`;
+  outputEl.prepend(div);
+}
+
+loadExamples();
+</script>
+</body>
+</html>
