@@ -167,6 +167,18 @@ def test_provenance_is_verifier_check_program_shape():
     assert "confounder_pattern" in prov["ref_id"]
 
 
+def test_caveat_surfaced_in_result_explanation():
+    """The gap is in the must-disclose channel — its description must
+    appear as a ⚠ line in result.explanation (where the renderer is
+    contractually required to quote it). Without this, the gap lives in
+    data_gap_report.gaps only and a renderer might silently drop it."""
+    out = run(_base_program(with_confounder=True, with_bidirected=False))
+    explanation = out["results"][0].get("explanation") or ""
+    assert "⚠" in explanation
+    assert "unmeasured confounder" in explanation.lower() or \
+        "confounder" in explanation
+
+
 def test_alternative_paths_mentions_evalue():
     out = run(_base_program(with_confounder=True, with_bidirected=False))
     report = out["results"][0]["data_gap_report"]

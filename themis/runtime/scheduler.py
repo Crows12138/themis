@@ -2497,6 +2497,7 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     "front_door_identification_assumption_required",
     "counterfactual_identification_assumption_required",
     "graph_learned_from_data",
+    "unmeasured_confounder_risk",
 })
 
 
