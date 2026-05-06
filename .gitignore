@@ -36,6 +36,7 @@ htmlcov/
 # MCP / language-server tooling
 .serena/
 .claude/
+*.log
 
 # OS
 .DS_Store
