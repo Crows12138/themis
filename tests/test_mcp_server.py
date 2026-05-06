@@ -198,3 +198,49 @@ def test_resource_serves_valid_schema_json(app):
     parsed = json.loads(text)  # must be valid JSON
     # kernel_ast schema declares a top-level $id or "title" or "$schema"
     assert any(k in parsed for k in ("$id", "$schema", "title", "type"))
+
+
+# ============================================ iter 29: new gap_kinds round-trip
+
+
+@pytest.mark.parametrize("case_file,expected_kind", [
+    ("case_001_hrt_cvd.json", "unmeasured_confounder_risk"),
+    (
+        "case_009_mediation_x_transport.json",
+        "unattempted_layer_due_to_dispatch_conflict",
+    ),
+])
+def test_new_gap_kinds_round_trip_through_mcp(
+    app, case_file: str, expected_kind: str,
+):
+    """iter 29 audit guard: gap_kinds added in iter 5 / iter 19 must
+    propagate through the MCP themis_run tool with their ⚠ caveats
+    reaching result.explanation. Same pattern as the web /api/run
+    regression test (iter 28); MCP is also a thin pass-through, but
+    serialization quirks (FastMCP JSON content blocks) deserve their
+    own pin."""
+    program = json.loads(
+        (REPO_ROOT / "docs" / "l3_simulation" / case_file).read_text(
+            encoding="utf-8"
+        )
+    )
+    out = _call_tool(app, "themis_run", {"program": program})
+    result = out["results"][0]
+    gap_kinds = [
+        g["kind"] for g in result.get("data_gap_report", {}).get("gaps", [])
+    ]
+    assert expected_kind in gap_kinds, (
+        f"{case_file}: expected {expected_kind!r} in gap_kinds; got {gap_kinds}"
+    )
+    explanation = result.get("explanation") or ""
+    assert "⚠" in explanation, (
+        f"{case_file}: must-disclose ⚠ caveat should be in explanation"
+    )
+
+    # And the data-gap report itself round-trips through verify
+    verify_out = _call_tool(
+        app, "themis_verify_data_gap_report", {"result": result}
+    )
+    assert verify_out.get("ok") is True, (
+        f"{case_file}: themis_verify_data_gap_report should accept; got {verify_out}"
+    )
