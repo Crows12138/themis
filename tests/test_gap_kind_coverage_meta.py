@@ -466,11 +466,17 @@ def test_themis_init_all_matches_imports():
     )
 
     # Every name imported from .kernel must be in __all__
-    m = re.search(r"from\s+\.kernel\s+import\s+\(([^)]+)\)", init_text)
-    assert m, "themis/__init__.py must import from .kernel via parens form"
+    # Handle both parens and bare-name forms; iter 82 generalizes the
+    # iter 67 pin to be format-tolerant.
+    m = re.search(
+        r"from\s+\.kernel\s+import\s+(?:\(\s*([^)]+?)\s*\)|([^\n#]+))",
+        init_text,
+    )
+    assert m, "themis/__init__.py must import names from .kernel"
+    raw = m.group(1) or m.group(2)
     imported = {
         n.strip().rstrip(",")
-        for n in m.group(1).split()
+        for n in raw.replace(",", " ").split()
         if n.strip().rstrip(",")
     }
     missing_from_all = imported - declared_all
