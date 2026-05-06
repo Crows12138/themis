@@ -1,3 +1,31 @@
+"""0.15 world-modeling pressure harness — fix Phase 4 / Phase 15
+upstream-modeling pressure cases as repeatable end-to-end runs.
+
+No new kernel semantics, no LLM. Threads existing A1/A2/A5 prompt
+examples + ``themis.upstream.compose_program(...)`` +
+``themis.run(...)`` + ``verify`` / ``verify_data_gap_report`` into
+five pinned cases that historically surfaced upstream-layer pain:
+
+1. **exercise_waist_variable_merge** — narrative framing shrinks
+   `running` gap but `belly_fat_loss` stays under-framed
+2. **late_sleep_predicate_drift** — question and narrative use
+   different predicate names; tests predicate-link diagnostic
+3. **late_sleep_predicate_links_rewrite_edges** — confirmed link
+   bundle rewrites both narrative variables and A2 edge endpoints
+4. **coffee_latent_edge_assoc** — A2-extracted bidirected latent edge
+   makes ADMG assoc query return structural answer via
+   `m_connection_witness`
+5. **ice_cream_refusal_filters_edge** — A2 refusal filters A1
+   question-side naive edge; final cause query returns ``False``
+
+Run with::
+
+    python scripts/run_015_world_modeling_pressure.py
+
+Each case prints `[PASS] <name>` with key fields. Loses the diagnostic
+value if any pressure_signal stops triggering — these are the ground
+truth that 0.15 upstream layer must keep producing as it evolves.
+"""
 from __future__ import annotations
 
 import argparse
