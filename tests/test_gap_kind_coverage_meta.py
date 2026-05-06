@@ -221,6 +221,33 @@ def test_failure_modes_header_count_matches_actual_entries():
     )
 
 
+def test_eval_set_cases_have_internally_consistent_edges():
+    """Each docs/eval_set/cases/*.json must have gold_edges whose from /
+    to predicates all appear in gold_variables.
+
+    Catches typos like 'gold_variables: [..., {predicate: smkoing}]' +
+    'gold_edges: [{from: smoking, ...}]' — pytest doesn't run these
+    JSON cases directly (the e2e tests build kernel_ast from gold);
+    a typo would only surface at e2e test time with a confusing error.
+
+    All 29 currently consistent (iter 61 audit).
+    """
+    import json
+    cases_dir = REPO_ROOT / "docs" / "eval_set" / "cases"
+    issues = []
+    for f in sorted(cases_dir.glob("*.json")):
+        case = json.loads(f.read_text(encoding="utf-8"))
+        var_names = {v["predicate"] for v in case.get("gold_variables", [])}
+        for e in case.get("gold_edges", []) or []:
+            for endpoint in (e.get("from"), e.get("to")):
+                if endpoint and endpoint not in var_names:
+                    issues.append(
+                        f"{f.name}: gold_edge endpoint {endpoint!r} not in "
+                        f"gold_variables (got {sorted(var_names)})"
+                    )
+    assert not issues, "\n".join(issues)
+
+
 def test_readme_subpackage_list_matches_actual():
     """README.md '主要目录' code block lists themis/<sub-package>/
     entries. Iter 60 found drift: README listed 10 sub-packages but
