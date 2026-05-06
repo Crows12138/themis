@@ -709,10 +709,18 @@ class QueryResult:
 
 
 class BoundsMethod(str, Enum):
+    # Implemented and reachable from runtime / output.bounds:
     MANSKI_NATURAL = "manski_natural"
     BALKE_PEARL_IV = "balke_pearl_iv"
-    FRONTDOOR_PARTIAL = "frontdoor_partial"
-    MANSKI_TAMER_MONOTONICITY = "manski_tamer_monotonicity"
+    # Stub slots — declared so future implementations don't churn the
+    # enum, but currently NEITHER reachable from runtime NOR backed
+    # by a builder. Adding either is a real-case-driven follow-up:
+    # implement only when a query actually surfaces a graph that
+    # would benefit from tighter bounds than Manski-natural can give.
+    # Per CLAUDE.md "don't design for hypothetical future requirements"
+    # — speculative implementation is explicitly out of scope.
+    FRONTDOOR_PARTIAL = "frontdoor_partial"  # Tian 2002 partial front-door
+    MANSKI_TAMER_MONOTONICITY = "manski_tamer_monotonicity"  # under outcome monotonicity
 
 
 @dataclass(frozen=True)
