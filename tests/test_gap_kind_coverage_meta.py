@@ -28,6 +28,9 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   same drift class as the README tables, in the server.py module
   docstring; both surfaces need to stay synced with @app.tool() and
   @app.resource() registrations)
+- test_readme_query_kind_list_matches_enum (iter 106 — README "当前能力"
+  section listed 5 kinds while QueryKind enum has 6; counterfactual
+  was added by Phase 5 §C but README claim never updated)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -899,6 +902,41 @@ def test_mcp_readme_catalog_tables_match_server():
         f"{sorted(actual_resource_uris - listed_resources)}; "
         f"extra in README: "
         f"{sorted(listed_resources - actual_resource_uris)}"
+    )
+
+
+def test_readme_query_kind_list_matches_enum():
+    """README.md "当前能力" section claims "运行结构查询: cause / assoc /
+    identify / effect / probability / counterfactual". Iter 106 caught
+    that this list was stuck at 5 kinds — counterfactual landed via
+    Phase 5 §C and `QueryKind.COUNTERFACTUAL` is a canonical
+    dispatched kind, but the README never grew to mention it.
+
+    Pre-Phase-5 historical lists in CORE_STATUS.md (v1.0 frozen surface,
+    Phase 5 §T scope) intentionally retain the older 5-kind list and
+    are NOT pinned by this test — README's "当前能力" section is the
+    one that promises the present-tense capability.
+    """
+    import re
+
+    from themis.types import QueryKind
+
+    actual_kinds = {k.value for k in QueryKind}
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    m = re.search(
+        r"运行结构查询[：:]\s*`([^`]+)`",
+        readme,
+    )
+    assert m, (
+        "README.md '当前能力' must quote 运行结构查询 list inline "
+        "for audit to detect drift"
+    )
+    listed = {tok.strip() for tok in m.group(1).split("/")}
+    assert listed == actual_kinds, (
+        f"README query-kind list drifted from QueryKind enum. "
+        f"Missing from README: {sorted(actual_kinds - listed)}; "
+        f"extra in README: {sorted(listed - actual_kinds)}"
     )
 
 

@@ -14,14 +14,14 @@ Themis 是一个 JSON-in / JSON-out 的因果推理系统。当前开发态为
 
 在已知或候选模型上，Themis 可以：
 
-- 运行结构查询：`cause / assoc / identify / effect / probability`
+- 运行结构查询：`cause / assoc / identify / effect / probability / counterfactual`
 - 处理已显式立项的 fragment：front-door、窄 ADMG、窄 temporal、窄 counterfactual、IV、mediation、transport
 - 输出严格推导链，并通过独立 verifier 复核
 - 在有数据时通过 `themis.estimate(...)` 给出 backdoor / front-door / IV / mediation / dose-response 估计
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-当前全量测试基线：`1594 passed / 143 skipped`，warning-clean。
+当前全量测试基线：`1595 passed / 143 skipped`，warning-clean。
 
 ---
 
