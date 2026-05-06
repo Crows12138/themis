@@ -1,3 +1,15 @@
+"""E2E pin for the 0.15 world-modeling pressure harness.
+
+Calls into ``scripts.run_015_world_modeling_pressure.run_all`` so the
+five upstream-modeling pressure cases (variable framing merge,
+predicate drift, predicate-link rewrite-edges, ADMG assoc m-connection,
+narrative refusal filter) keep firing their expected pressure_signal.
+The script itself prints `[PASS] <name>` lines on standalone run; this
+test asserts the same paths fail-fast under pytest.
+
+Cross-link: ``scripts/run_015_world_modeling_pressure.py`` (same five
+cases described in its module docstring iter 44).
+"""
 from __future__ import annotations
 
 from scripts.run_015_world_modeling_pressure import run_all

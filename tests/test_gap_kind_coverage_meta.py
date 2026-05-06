@@ -288,6 +288,34 @@ def test_kernel_run_emits_no_deprecation_warnings():
     assert "results" in out
 
 
+def test_tests_py_files_have_module_docstrings():
+    """Symmetric with iter 77 (themis) and iter 79 (scripts) docstring
+    pins. Every .py file under tests/ must have a module docstring
+    so a future contributor reading test_xxx.py knows what's being
+    pressure-tested at a glance.
+
+    Iter 80 found one missing (test_015_world_modeling_pressure.py)
+    and added a docstring; this pin prevents regression.
+
+    Skips empty __init__.py files (size < 50 bytes — sub-package
+    marker files).
+    """
+    import ast
+    violations = []
+    for p in sorted((REPO_ROOT / "tests").rglob("*.py")):
+        if "__pycache__" in p.parts:
+            continue
+        if p.name == "__init__.py" and p.stat().st_size < 50:
+            continue
+        text = p.read_text(encoding="utf-8")
+        tree = ast.parse(text)
+        if not ast.get_docstring(tree):
+            violations.append(str(p.relative_to(REPO_ROOT)))
+    assert not violations, (
+        f"tests/ .py files missing module docstring: {violations}"
+    )
+
+
 def test_scripts_py_files_have_module_docstrings():
     """Symmetric with iter 77's themis docstring pin. Every .py file
     under scripts/ must have a module docstring.
