@@ -288,6 +288,44 @@ def test_kernel_run_emits_no_deprecation_warnings():
     assert "results" in out
 
 
+def test_themis_init_docstring_exception_imports_resolve():
+    """themis/__init__.py docstring (iter 71) lists 7 'common exceptions'
+    with explicit `from themis.X.Y import Z` paths. If a future
+    submodule rename / refactor breaks one of those import paths,
+    users following the docstring would hit ImportError. Pin the
+    paths so a rename forces an explicit doc update.
+
+    Extracts every `from themis.… import …` line from the docstring
+    and asserts each import works.
+    """
+    import re
+    import importlib
+    init_text = (REPO_ROOT / "themis" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    # Match exception imports inside the docstring (any `from themis…`
+    # line — same regex as the smoke-test for any documented import)
+    import_re = re.compile(
+        r"from\s+(themis(?:\.\w+)*)\s+import\s+([\w_]+(?:\s*,\s*[\w_]+)*)"
+    )
+    failed = []
+    for m in import_re.finditer(init_text):
+        module = m.group(1)
+        names = [n.strip() for n in m.group(2).split(",")]
+        try:
+            mod = importlib.import_module(module)
+        except ImportError as e:
+            failed.append(f"{module!r}: {e}")
+            continue
+        for name in names:
+            if not hasattr(mod, name):
+                failed.append(f"{module}.{name}: not found on module")
+    assert not failed, (
+        f"Docstring-cited imports broken: {failed}. "
+        f"Update the docstring or fix the rename."
+    )
+
+
 def test_themis_init_all_matches_imports():
     """themis/__init__.py imports a tuple of names from .kernel and
     declares __all__. The two must agree:
