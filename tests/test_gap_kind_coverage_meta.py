@@ -288,6 +288,35 @@ def test_kernel_run_emits_no_deprecation_warnings():
     assert "results" in out
 
 
+def test_themis_py_files_have_module_docstrings():
+    """Every themis/**/*.py file must have a module-level docstring.
+
+    Iter 77 preventive pin. Themis is intentionally well-documented
+    at the module level (e.g. iter 36 / iter 39 fixed two stale
+    docstrings; iter 71 added exception docs to __init__.py). A new
+    .py file without a docstring would be a real onboarding cost for
+    contributors trying to find what each module does.
+
+    Skips empty __init__.py files (size < 50 bytes — a marker file
+    not requiring narrative). Currently every non-empty file passes.
+    """
+    import ast
+    violations = []
+    for p in sorted((REPO_ROOT / "themis").rglob("*.py")):
+        if "__pycache__" in p.parts:
+            continue
+        if p.name == "__init__.py" and p.stat().st_size < 50:
+            continue
+        text = p.read_text(encoding="utf-8")
+        tree = ast.parse(text)
+        if not ast.get_docstring(tree):
+            violations.append(str(p.relative_to(REPO_ROOT)))
+    assert not violations, (
+        f"themis/ .py files missing module docstring: {violations}. "
+        f"Add a top-level docstring describing the module's purpose."
+    )
+
+
 def test_all_committed_json_files_parse_cleanly():
     """Every .json file in the repo (excluding hidden / __pycache__ /
     node_modules) must be syntactically valid JSON.
