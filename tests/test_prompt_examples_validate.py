@@ -63,3 +63,36 @@ def test_at_least_five_kernel_ast_examples_present():
         f"docs/prompts/examples/ should have >=5 files with kernel_ast key; "
         f"found {len(examples)}: {[p.name for p in examples]}"
     )
+
+
+# Iter 99 audit: 4 known example shape groups
+_KNOWN_EXAMPLE_SHAPES = {
+    # A1 worked NL→kernel_ast (5 files)
+    ("kernel_ast", "nl_input", "reasoning"),
+    # A5 narrative→variables (3 files)
+    ("narrative_input", "reasoning", "variables"),
+    # A2 narrative→edges (3 files)
+    ("edges", "narrative_ambiguities", "narrative_input", "reasoning",
+     "refusals"),
+    # Reply / patch bundles (3 files)
+    ("filled_bundle", "input_bundle", "nl_reply", "reasoning"),
+}
+
+
+def test_example_files_match_known_shape():
+    """Every docs/prompts/examples/*.json must match one of the known
+    shape signatures (top-level key tuple).
+
+    Iter 99 preventive pin. New example added with a typo or
+    accidentally different key set silently joins as a "5th shape" —
+    rather than being noticed and either consolidated to existing
+    shapes or formally introducing a new shape category, the audit
+    surface is preserved.
+    """
+    violations = []
+    for f in sorted(EXAMPLES_DIR.glob("*.json")):
+        d = json.loads(f.read_text(encoding="utf-8"))
+        shape = tuple(sorted(d.keys()))
+        if shape not in _KNOWN_EXAMPLE_SHAPES:
+            violations.append(f"{f.name}: shape {shape} not in known set")
+    assert not violations, "\n".join(violations)
