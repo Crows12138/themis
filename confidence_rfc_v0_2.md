@@ -41,10 +41,11 @@ v0.1 现在返回 `()`。v0.2 需要实打实地收集。按查询类型划分�
 
 | 查询类型 | 证据来源 |
 |---|---|
-| `cause` | DAG 结构，无 annotation → 空 |
-| `assoc` | DAG 结构 + 条件集，无 annotation → 空 |
-| `identify` | DAG 结构 → 空（识别本身是纯结构问题） |
-| `effect` | 公式引用的**唯一** probability slot 的来源 confidence + 查询实际用到的 observation 的 confidence（见 §3.1 / §3.2） |
+| `cause` | 结构化负载边的 `annotations.confidence`（见 §3.4）|
+| `assoc` | 同上 |
+| `identify` | 同上 |
+| `counterfactual` | 同上 |
+| `effect` | 公式引用的**唯一** probability slot 的来源 confidence + 查询实际用到的 observation 的 confidence + 结构化负载边（见 §3.1 / §3.2 / §3.4） |
 | `probability` | 同 effect，但公式更简单（通常就是单条 probability_ref） |
 
 以下两节把 §1 那条"不是模糊的'相关 observation'，而是可审计规则"钉死。
@@ -104,10 +105,54 @@ for (atom, value) in q.given:            # only for effect / probability
     if c is not None:
         inputs.append(c)
 
+for (frm, to) in load_bearing_edges:     # all query kinds (§3.4)
+    c = edge_slot_conf(frm, to)
+    if c is not None:
+        inputs.append(c)
+
 composite_confidence = composite(*inputs)  # min rule from §7
 ```
 
 `composite(*())` → None，和 §4 S4 一致。
+
+### 3.4 Cause-edge slots（结构查询的 confidence 通道）
+
+**问题**：v0.2 的 §3.1 / §3.2 只采集概率参数和观测值上的 confidence；
+但用户经常把不确定标在边上（"我猜 X→Y，置信度 0.2"），结构查询
+（cause / assoc / identify / counterfactual）整个流程都不读
+probability/observation slot，于是边上的 confidence 被全部丢失，结构
+答案 confidence 永远是 None。
+
+**规则**：对每个 ground `CauseStatement`，若 `annotations.confidence is not None`
+且该边是查询的"结构化负载边"（即被走到了），则参与合成。
+
+判定"被走到了"用两条互补信号（与 `data_gap_report` 中的
+unverified-proposal-edge 分类器同一套）：
+
+1. 当 `structural_result.supporting_paths` 非空（cause / assoc 答案）：
+   每条 path 上相邻 `(predicate_a, predicate_b)` 与 cause 边 `(frm, to)`
+   的谓词重合时，该边被标为负载。
+2. 否则在程序对应的 DAG 上枚举"查询相关谓词"两两之间的简单有向路径
+   （查询相关谓词 = intervention / target / mediator / given / IV
+   instrument / 调整集 / counterfactual {observed, intervention, target}），
+   路径上每条边都被标为负载。
+
+**多条来源**：同一条 ground `(frm, to)` 边对应多条 `CauseStatement` 时
+（不同 source 的同向声明），`edge_slot_conf = min(annotations.confidence)`，
+规则同 §3.1。
+
+**bidirected**：bidirected 边目前不参与 confidence 合成。它们是 ADMG
+拓扑信号，不携带"边强度"语义；如果未来需要给 latent 假设打分，单开槽。
+
+**与 §3.1 / §3.2 的合并语义**：edge slot 与 probability slot / observation
+slot 一起进 §3.3 的 min。结果：composite confidence 是"沿用证据链中最弱
+一环"的全局视图；具体是哪一环弱，看 `confidence_sources` 里
+`is_weakest=True` 的 `slot_label`（`edge:frm->to` / `parameter:K` /
+`observation:atom=value`）。
+
+**为什么不分开"结构置信"和"数值置信"两通道**：分开的代价是消费者要
+分别读两个数才知道答案靠不靠谱；min 合成保证"任一环节弱整体就弱"，
+和 v0.2 §1 "最弱一环原则" 一致。需要细分时直接读 `confidence_sources`。
 
 ---
 
@@ -331,3 +376,4 @@ v0.2 composite confidence = min(收集到的非 None 输入 confidence)，空则
 
 - 2026-04-20 首版 draft
 - 2026-04-20 §3 拆分为 §3.1 / §3.2 / §3.3，把"重复来源 → slot min"和"observation 参与条件"的规则钉死；§8.1 / §8.4 同步收紧
+- 2026-05-06 §3.4 cause-edge slots：把结构查询的 edge confidence 钉进合成；§3 类型表格、§3.3 最终输入构造同步更新。触发原因：agent 真测发现 `annotations.confidence=0.2` 标在 cause 边上时，结构查询的 composite 全程为 None，违反 §1 "最弱一环原则"

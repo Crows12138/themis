@@ -53,6 +53,13 @@ verify_data_gap_report(out["results"][0])
 - `estimate` 接 DataFrame，是估计层旁路，不改变 kernel AST 的纯语义。
 - Themis 自己不发网络请求；KB adapter / LLM / 外部资料检索放在客户端或 sibling repo。
 
+通过 MCP 调用时：MCP server 是长进程，Python 模块只在启动时 import 一次，不
+监听文件改动。改完 `themis/*.py` 之后必须重启 MCP server（在 Claude Code 里
+退出会话或 `/mcp restart`），否则旧进程会用旧字节码运行新场景，常见症状是
+`AttributeError: GapKind has no attribute 'XXX'` 这类对最近加的 enum 找不到的
+错误。in-process（`python -c "import themis; ..."` / pytest）每次都是新进程，
+不受影响。
+
 ---
 
 ## 快速压测
