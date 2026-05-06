@@ -148,6 +148,33 @@ def test_must_disclose_kinds_documented_in_response_rendering_prompt():
     )
 
 
+def test_package_version_matches_roadmap_and_core_status():
+    """themis.__version__ in themis/__init__.py must match the version
+    quoted in ROADMAP.md / CORE_STATUS.md / README.md. Iter 45 found
+    this drift the hard way: __version__ was '0.14.0-dev' for an entire
+    release cycle while doc files all said '0.15.0-dev'.
+
+    The version string moves with each release boundary; pin sync so
+    bumping one and forgetting another fails fast."""
+    import themis
+    pkg_version = themis.__version__
+
+    roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+    core = (REPO_ROOT / "CORE_STATUS.md").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert pkg_version in roadmap, (
+        f"themis.__version__ = {pkg_version!r} not found in ROADMAP.md "
+        f"(expected the file to quote the same version somewhere)"
+    )
+    assert pkg_version in core, (
+        f"themis.__version__ = {pkg_version!r} not found in CORE_STATUS.md"
+    )
+    assert pkg_version in readme, (
+        f"themis.__version__ = {pkg_version!r} not found in README.md"
+    )
+
+
 def test_test_count_consistent_between_core_status_and_readme():
     """CORE_STATUS.md and README.md both quote 'N passed / M skipped' as
     the current full-suite baseline. They must agree — iter 5 onwards
