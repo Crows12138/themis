@@ -1,0 +1,56 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "patient"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "hrt_use", "domain": [true, false]},
+    {"kind": "variable", "predicate": "cvd_event", "domain": [true, false]},
+    {"kind": "variable", "predicate": "age", "domain": [true, false]},
+    {"kind": "variable", "predicate": "baseline_health", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "hrt_use", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "literature_observational"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "hrt_use", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "baseline_health", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "hrt_use", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "baseline_health", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "query",
+      "id": "q_hrt_cvd_effect",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "hrt_use", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}
