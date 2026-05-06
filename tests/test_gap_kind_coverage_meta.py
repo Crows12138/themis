@@ -487,19 +487,24 @@ def test_themis_init_all_matches_imports():
     )
 
 
-def test_markdown_backtick_py_refs_resolve():
-    """Plain-text references like `themis/runtime/c_factor.py` in
-    markdown backticks must point at existing files. Iter 66
-    preventive pin (no current drift). Catches future regressions
-    where a .py is renamed/moved without grep'ing for incoming
-    references in narrative prose.
+def test_markdown_backtick_path_refs_resolve():
+    """Plain-text references in markdown backticks to repo paths must
+    point at existing files. Iter 66 covered `themis/*.py`; iter 84
+    extends to `docs/.../*.{md,json,py}` references.
+
+    Catches narrative prose like 'see `docs/prompts/response_rendering.md`'
+    or 'inspect `themis/runtime/c_factor.py`' becoming dead links when
+    files are renamed/moved without grep'ing for incoming references.
 
     Distinct from iter 65's link-form pin: this catches references
-    in prose like 'see `themis/runtime/c_factor.py` for details',
-    which doesn't use markdown link syntax but is just as fragile.
+    that use only backtick syntax, no link wrapper.
     """
     import re
-    ref_re = re.compile(r"`(themis/(?:[\w_]+/)*[\w_]+\.py)`")
+    # Match `themis/.../*.py` OR `docs/.../<file>.<ext>`
+    ref_re = re.compile(
+        r"`(themis/(?:[\w_]+/)*[\w_]+\.py"
+        r"|docs/(?:[\w_]+/)*[\w_.\-]+\.(?:md|json|py))`"
+    )
     violations = []
     for f in sorted(REPO_ROOT.rglob("*.md")):
         if any(part.startswith(".") for part in f.parts):
@@ -514,7 +519,7 @@ def test_markdown_backtick_py_refs_resolve():
                     f"-> NOT FOUND"
                 )
     assert not violations, (
-        f"Backtick `themis/*.py` references not resolving: "
+        f"Backtick path references not resolving: "
         f"{violations[:10]}{'...' if len(violations) > 10 else ''}"
     )
 
