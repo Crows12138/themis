@@ -13,21 +13,41 @@ It only reads what dispatch already produced and re-shapes it into the
 DataGap / DataGapReport schema. The independence pin in T10 verifier
 (S.10.4) guarantees the verifier itself does not depend on this module.
 
-Eight gap_kind branches per charter §2.2:
+Gap_kind branches (current enum: see ``themis.types.GapKind``; cross-file
+sync is pinned by ``tests/test_gap_kind_coverage_meta.py``):
 
+Phase 10 charter §2.2 (initial 8):
 1. unidentifiable_no_admissible_set       — derivation has unidentifiable_*
 2. missing_distribution                   — investigation parameter group
-3. missing_population_distribution        — placeholder, populated by future
-                                            multi-source transport (§T9.2/§T9.3)
-4. missing_assumption                     — status NEEDS_ASSUMPTION or
-                                            assumption-pending derivation
+3. missing_population_distribution        — placeholder for §T9.2/§T9.3
+4. missing_assumption                     — status NEEDS_ASSUMPTION
 5. missing_iv_candidate                   — structure group naming an IV gap
 6. missing_mediator_data                  — mediation block valid + parameter
-                                            request for mediator distribution
-7. transport_target_distribution_unknown  — transport_identification block
-                                            present with non-empty Z (P*(Z)
-                                            never quantified in §T9.1)
+7. transport_target_distribution_unknown  — transport_identification + non-empty Z
 8. ambiguous_variable_definition          — framing_notes non-empty
+
+Phase 11+ structural caveats (must-disclose channel; mirrored to
+``result.explanation`` by ``scheduler._attach_structural_caveats``):
+- unverified_proposal_edge_on_query_path — Phase 11.x §C
+- iv_identification_assumption_required — Phase 6.iv
+- mediation_identification_assumption_required — Phase 6.mediation
+- transport_identification_assumption_required — Phase 9 §T9.1
+- llm_declared_ambiguity — A1-emitted ambiguities
+- answer_is_bounds_not_point_estimate — Phase 12 bounds-first
+- low_confidence_input_data — composite confidence below threshold
+- front_door_identification_assumption_required — A6.front-door (program-shape
+  fallback added iter 10 for needs_investigation + missing-theta case)
+- counterfactual_identification_assumption_required — Phase 5 §C
+- graph_learned_from_data — Phase 8.1 discovery
+- transport_source_conditional_unknown — Phase 9 §T9.1 second data need
+- dose_response_data_required — Phase 13
+
+L3 simulation 2026-05-07 additions (iter 5 / iter 19):
+- unmeasured_confounder_risk — DAG declares confounders but no bidirected;
+  warns measured-covariate adjustment may have residual unmeasured-confounder
+  bias. Cross-domain examples (HRT-CVD / Card 1995 / vitamin D-CVD).
+- unattempted_layer_due_to_dispatch_conflict — query has BOTH mediator and
+  target_population set; only one extension populated. Discloses silent skip.
 """
 from __future__ import annotations
 
