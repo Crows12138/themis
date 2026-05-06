@@ -518,9 +518,13 @@ def verify_identify(
             "identify_via_backdoor",
             "identify_via_front_door",
             "identify_via_iv",
+            "identify_via_tian",
         )
     else:
-        expected_finals = ("unidentifiable_via_backdoor",)
+        expected_finals = (
+            "unidentifiable_via_backdoor",
+            "tian_hedge_witness",
+        )
     if derivation[-1].rule not in expected_finals:
         raise VerificationError(
             f"identify derivation must end in one of {expected_finals}; "

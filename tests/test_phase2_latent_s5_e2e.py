@@ -91,11 +91,13 @@ def test_case_admg_aware_backdoor_runs_and_verifies():
 
 # ============================================ charter §8 case 3 (negative)
 
-def test_case_bow_arc_stays_needs_investigation():
-    """Bow-arc: X → Y + X ↔ Y. No ADMG-aware backdoor and no front-door
-    mediator; this charter's narrow scope doesn't assert unidentifiable
-    (that would be c-forest territory, which moved out of scope).
-    Instead: needs_investigation pointing at the deferred c-factor work."""
+def test_case_bow_arc_resolves_to_tian_hedge():
+    """Bow-arc: X → Y + X ↔ Y. Phase 2.latent ext §S3.b.2 Tian /
+    Shpitser ID Line 5 fires — X and Y are in the same c-component
+    of An(Y), so P(Y | do(X)) is unidentifiable from observational
+    data. Pre-S3.b.2 this returned needs_investigation pointing at
+    the deferred c-factor work; post-S3.b.2 it's the definitive
+    structurally_solved + value=False answer."""
     ast = _program([
         {"kind": "variable", "predicate": "x", "domain": [True, False]},
         {"kind": "variable", "predicate": "y", "domain": [True, False]},
@@ -105,11 +107,12 @@ def test_case_bow_arc_stays_needs_investigation():
     ])
     out = themis.run(ast)
     r = out["results"][0]
-    assert r["status"] == "needs_investigation"
-    names = {m["name"] for m in r.get("missing_information", [])}
-    assert "query:identify_admg" in names
-    # No derivation — verify() would raise for that reason, not for
-    # ADMG-specific handling. Not calling verify here.
+    assert r["status"] == "structurally_solved"
+    assert r["structural_result"]["value"] is False
+    rules = [s["rule"] for s in r["derivation"]["steps"]]
+    assert "tian_hedge_witness" in rules
+    # verify round-trip: hedge witness rule must accept independently.
+    assert themis.verify(ast, r) is None
 
 
 # ============================================ charter §8 DAG regression

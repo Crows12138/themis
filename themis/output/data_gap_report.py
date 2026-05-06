@@ -802,6 +802,30 @@ def _classify_unidentifiable(
     derivation: tuple[DerivationStep, ...],
 ) -> Iterable[DataGap]:
     for step in derivation:
+        # Tian Shpitser Line 5: a successful tian_hedge_witness step
+        # IS the unidentifiability witness — same downstream meaning
+        # as a failed unidentifiable_via_backdoor, just discovered via
+        # the c-component decomposition rather than backdoor exhaustion.
+        if step.rule == "tian_hedge_witness" and not _step_failed(step):
+            yield DataGap(
+                kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+                severity=GapSeverity.BLOCKING,
+                description=(
+                    "识别失败：Tian 算法在 An(Y) 子图上找到 c-component "
+                    "hedge —— X 与 Y 处于同一 c-component，说明它们之间存在"
+                    "未被任何观测变量遮断的潜在共同原因 / 双向耦合，"
+                    "P(Y | do(X)) 在该 ADMG 下不可从观测分布识别"
+                ),
+                blocks=GapBlocks.IDENTIFICATION,
+                provenance=(_step_ref(step),),
+                if_provided="可给出识别公式 + 后续点估计",
+                alternative_paths=(
+                    "测量并加入 unmeasured confounder Z，打破 hedge",
+                    "在 X 上做 RCT (如可行)，旁路 hedge",
+                    "找一个满足 IV 条件的工具变量",
+                ),
+            )
+            continue
         if not _step_failed(step):
             continue
         # IV-specific failure routes through _classify_missing_iv to attach

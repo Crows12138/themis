@@ -211,11 +211,13 @@ def test_directed_only_would_admit_empty_adjustment_admg_rejects():
     }
     out = themis.run(ast)
     r = out["results"][0]
-    # No ADMG-aware adjustment and no front-door mediator → S3.b.1 must
-    # drop to query:identify_admg (c-factor pending S3.b.2).
-    assert r["status"] == "needs_investigation"
-    names = {m["name"] for m in r.get("missing_information", [])}
-    assert "query:identify_admg" in names
+    # Phase 2.latent ext §S3.b.2: bow arc → Tian hedge witness fires.
+    # Pre-Tian this was needs_investigation; post-Tian the kernel
+    # gives the definitive structurally_solved + value=False answer.
+    assert r["status"] == "structurally_solved"
+    assert r["structural_result"]["value"] is False
+    rules = [s["rule"] for s in r["derivation"]["steps"]]
+    assert "tian_hedge_witness" in rules
 
 
 # ===================================== S3.a front-door still triggered

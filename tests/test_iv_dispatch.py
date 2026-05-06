@@ -144,9 +144,13 @@ def test_frontdoor_still_preferred_over_iv():
     assert any("front" in r for r in rules)
 
 
-def test_needs_investigation_when_all_three_fail_admg():
+def test_unidentifiable_when_all_three_fail_admg():
     """When backdoor, front-door, AND IV all fail on an ADMG case,
-    dispatcher returns needs_investigation (not a fake success)."""
+    Tian's hedge witness fires (Phase 2.latent ext §S3.b.2) — the bow
+    arc is the canonical hedge graph, X and Y in the same c-component
+    of An(Y). Result is structurally_solved with value=False, not
+    needs_investigation. Pre-Tian this returned needs_investigation
+    pointing at S3.b.2."""
     ast = _program([
         {"kind": "variable", "predicate": "x", "domain": [True, False]},
         {"kind": "variable", "predicate": "y", "domain": [True, False]},
@@ -158,10 +162,10 @@ def test_needs_investigation_when_all_three_fail_admg():
 
     out = themis.run(ast)
     result = out["results"][0]
-    assert result["status"] == "needs_investigation"
-    # Reason should mention IV alongside backdoor / front-door
-    reasons = [m["reason"] for m in result["missing_information"]]
-    assert any("IV" in r or "iv" in r for r in reasons)
+    assert result["status"] == "structurally_solved"
+    assert result["structural_result"]["value"] is False
+    rules = [s["rule"] for s in result["derivation"]["steps"]]
+    assert "tian_hedge_witness" in rules
 
 
 def test_iv_conditional_case_fires():

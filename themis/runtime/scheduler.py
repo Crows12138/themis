@@ -289,6 +289,26 @@ def _dispatch_identify(
                     return _build_identify_via_iv(
                         stmt, graph, q, iv, bidirected=bidirected
                     )
+                # Tian / Shpitser ID — last resort before
+                # needs_investigation. Handles c-factor-identifiable
+                # ADMGs that backdoor/front-door/IV miss. Returns
+                # None when the case requires Shpitser Line 7
+                # symbolic substitution (not implemented in this
+                # slice); scheduler then falls through to
+                # needs_investigation.
+                from . import c_factor
+                tian = c_factor.identify_via_tian(
+                    graph, bidirected, x, y, q.intervention.value,
+                )
+                if tian.identifiable:
+                    return _build_identify_via_tian(stmt, graph, q, tian)
+                if tian.hedge is not None:
+                    # Shpitser Line 5 produced a hedge — definitive
+                    # unidentifiability witness. Return as
+                    # structurally_solved with value=False.
+                    return _build_identify_unidentifiable_via_tian(
+                        stmt, graph, q, tian,
+                    )
             return QueryResult(
                 status=ResultStatus.NEEDS_INVESTIGATION,
                 query_kind=QueryKind.IDENTIFY,
@@ -301,9 +321,10 @@ def _dispatch_identify(
                         reason=(
                             "Phase 2.latent S3.b.1: this ADMG identify "
                             "query is reachable neither by ADMG-aware "
-                            "backdoor, front-door, nor IV. Tian c-factor "
-                            "lands in S3.b.2; see "
-                            "PHASE_2_LATENT_CHARTER.md §7."
+                            "backdoor, front-door, nor IV. Tian Lines "
+                            "1-6 also did not apply; the Shpitser Line "
+                            "7 case (recursive symbolic substitution) "
+                            "is not implemented in this slice."
                         ),
                     ),
                 ),
@@ -489,6 +510,102 @@ def _build_identify_via_frontdoor(
         query_id=stmt.id,
         structural_result=structural_result,
         formula=formula,
+        derivation=derivation,
+    )
+
+
+def _build_identify_via_tian(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: IdentifyQuery,
+    tian,
+) -> QueryResult:
+    """Wrap a Tian / Shpitser ID success into a full QueryResult.
+
+    Two-step derivation:
+      s1: tian_c_decomposition — c-component partitions visited by the
+          recursion, frozen as the witness trail.
+      s2: identify_via_tian    — consumes s1 + the constructed formula
+          and concludes identifiable.
+
+    The verifier replays the c-component decomposition independently
+    and checks the formula's c-factor product structure matches the
+    declared c-component partition.
+    """
+    x = q.intervention.atom
+    y = q.target
+    structural_result = StructuralResult(value=True)
+    validate_formula(tian.formula)
+
+    derivation = (
+        DerivationStep(
+            rule="tian_c_decomposition",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="identify_via_tian",
+            inputs={
+                "decomposition": StepRef(step_id="s1"),
+                "formula": tian.formula,
+            },
+            output=structural_result,
+            step_id="s2",
+        ),
+    )
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.IDENTIFY,
+        query_id=stmt.id,
+        structural_result=structural_result,
+        formula=tian.formula,
+        derivation=derivation,
+    )
+
+
+def _build_identify_unidentifiable_via_tian(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: IdentifyQuery,
+    tian,
+) -> QueryResult:
+    """Wrap a Shpitser-Line-5 hedge witness into structurally_solved
+    with structural_result.value = False. The hedge c-component is
+    recorded as an explicit witness for the verifier to replay."""
+    x = q.intervention.atom
+    y = q.target
+    structural_result = StructuralResult(value=False)
+
+    derivation = (
+        DerivationStep(
+            rule="tian_c_decomposition",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="tian_hedge_witness",
+            inputs={
+                "decomposition": StepRef(step_id="s1"),
+            },
+            output=structural_result,
+            step_id="s2",
+        ),
+    )
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.IDENTIFY,
+        query_id=stmt.id,
+        structural_result=structural_result,
         derivation=derivation,
     )
 

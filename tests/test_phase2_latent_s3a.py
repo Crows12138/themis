@@ -128,10 +128,16 @@ def test_fd2_violated_via_bidirected_is_correctly_rejected():
     }
     out = themis.run(ast)
     r = out["results"][0]
-    # No valid front-door; S3.a has no c-factor yet, so needs_investigation.
-    assert r["status"] == "needs_investigation"
-    names = {m["name"] for m in r.get("missing_information", [])}
-    assert "query:identify_admg" in names
+    # Phase 2.latent ext §S3.b.2: front-door correctly rejects M (FD2
+    # violated by X↔M), and Tian's hedge witness then confirms the
+    # ADMG is genuinely unidentifiable — bidirected {X,Y} ∪ {X,M}
+    # transitively places X, M, Y in one c-component covering An(Y).
+    # Pre-Tian this was needs_investigation; post-Tian it's the
+    # definitive structurally_solved + value=False answer.
+    assert r["status"] == "structurally_solved"
+    assert r["structural_result"]["value"] is False
+    rules = [s["rule"] for s in r["derivation"]["steps"]]
+    assert "tian_hedge_witness" in rules
 
 
 # =========================================== gate: cause / assoc / prob

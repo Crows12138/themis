@@ -92,7 +92,15 @@ def test_unidentifiable_emits_blocking_gap():
     }
     out = _run_and_verify(program)
     result = out["results"][0]
-    assert result["status"] == "needs_investigation"
+    # Phase 2.latent ext §S3.b.2 Tian Line 5: bow arc is now
+    # structurally proven unidentifiable (was needs_investigation before
+    # Tian wiring). The downstream gap signal is the same blocking
+    # `unidentifiable_no_admissible_set` kind — the difference is
+    # status now reads "structurally_solved" with value=False, and the
+    # description names the hedge / c-component instead of pointing at
+    # backdoor exhaustion.
+    assert result["status"] == "structurally_solved"
+    assert result["structural_result"]["value"] is False
     report = result.get("data_gap_report")
     assert report is not None
     assert "unidentifiable_no_admissible_set" in _gap_kinds(report)
@@ -102,6 +110,7 @@ def test_unidentifiable_emits_blocking_gap():
     )
     assert blocking["severity"] == "blocking"
     assert blocking["blocks"] == "identification"
+    assert "hedge" in blocking["description"] or "c-component" in blocking["description"]
 
 
 # ============================================ 2. missing_distribution

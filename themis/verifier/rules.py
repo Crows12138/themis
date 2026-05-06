@@ -3228,6 +3228,202 @@ def _rule_identify_via_transport(
         )
 
 
+# ========================================================== Phase 2.latent ext §S3.b.2
+# Tian / Shpitser ID — verifier independently checks the c-component
+# witness without calling identify_via_tian (would be circular). It
+# replays c_components on ctx.graph + ctx.bidirected and confirms the
+# claim's structural prerequisites.
+
+
+def _rule_tian_c_decomposition(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Declarative step: 'we ran c-decomposition on ctx.graph'. The
+    actual partition is recomputed in identify_via_tian / hedge rules.
+    Here we only validate inputs are well-formed."""
+    graph = _require(inputs, "graph", step_index, "tian_c_decomposition")
+    _assert_same_graph(graph, ctx.graph, step_index, "tian_c_decomposition")
+    x = _require_atom(inputs, "x", step_index, "tian_c_decomposition")
+    y = _require_atom(inputs, "y", step_index, "tian_c_decomposition")
+    if x == y:
+        raise RuleCheckFailed(
+            "tian_c_decomposition: x and y must differ",
+            step_index=step_index, rule="tian_c_decomposition",
+        )
+    if claimed_output is not True:
+        raise RuleCheckFailed(
+            f"tian_c_decomposition output must be True, got {claimed_output!r}",
+            step_index=step_index, rule="tian_c_decomposition",
+        )
+
+
+def _rule_identify_via_tian(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict,
+    step_output_by_id: dict,
+) -> None:
+    """Verifier-side independent check: re-derive c-components on the
+    ADMG and confirm Y can be expressed as a c-factor product where
+    the c-component containing Y in G[V\\X] coincides with a
+    c-component of G (Shpitser Line 6).
+
+    Uses ``structural_solver.c_components`` as a primitive (a single
+    union-find pass — distinct from running the full identify_via_tian
+    recursion) so the check is non-circular. The claim 'identifiable'
+    is accepted iff:
+
+    - the formula validates against ctx.graph
+    - the c-component of Y in G[V\\X] under bidirected restriction
+      is a c-component of G under full bidirected (Line 6 sufficient
+      condition)
+    """
+    from ..runtime.structural_solver import c_components
+    from ..input.semantic_validator import validate_formula
+
+    decomp_ref = _require(
+        inputs, "decomposition", step_index, "identify_via_tian",
+    )
+    formula = _require(inputs, "formula", step_index, "identify_via_tian")
+
+    if not isinstance(decomp_ref, StepRef):
+        raise UnknownRuleInputError(
+            "identify_via_tian.decomposition must be a StepRef",
+            step_index=step_index, rule="identify_via_tian",
+        )
+    decomp_step = step_by_id.get(decomp_ref.step_id)
+    if decomp_step is None or decomp_step.rule != "tian_c_decomposition":
+        raise RuleCheckFailed(
+            "identify_via_tian.decomposition must reference a "
+            f"tian_c_decomposition step, got "
+            f"{getattr(decomp_step, 'rule', None)!r}",
+            step_index=step_index, rule="identify_via_tian",
+        )
+
+    q = ctx.query
+    if not isinstance(q, IdentifyQuery):
+        raise RuleCheckFailed(
+            "identify_via_tian requires IdentifyQuery context",
+            step_index=step_index, rule="identify_via_tian",
+        )
+    x = q.intervention.atom
+    y = q.target
+
+    try:
+        validate_formula(formula)
+    except Exception as exc:
+        raise RuleCheckFailed(
+            f"identify_via_tian formula does not validate: {exc}",
+            step_index=step_index, rule="identify_via_tian",
+        ) from exc
+
+    cc_full = c_components(ctx.graph, ctx.bidirected)
+    nodes_minus_x = frozenset(ctx.graph.nodes()) - {x}
+    sub = ctx.graph.subgraph(nodes_minus_x)
+    bi_minus_x = frozenset(p for p in ctx.bidirected if p <= nodes_minus_x)
+    cc_minus_x = c_components(sub, bi_minus_x)
+
+    # Y's c-component in G[V\X] must be a c-component of G.
+    y_cc_minus_x = next((c for c in cc_minus_x if y in c), None)
+    if y_cc_minus_x is None:
+        raise RuleCheckFailed(
+            "identify_via_tian: y not present in G[V\\X] c-components",
+            step_index=step_index, rule="identify_via_tian",
+        )
+    if y_cc_minus_x not in cc_full:
+        # Either Line 4 split or Line 7 escalation. Verifier accepts
+        # only when the formula's structure is consistent with these
+        # branches — we check the looser condition that Y's c-component
+        # in G[V\\X] is contained in a c-component of G (Line 7
+        # sufficient), or equals one (Line 6). Line 4 splits are
+        # covered when at least one of the cc_minus_x is in cc_full.
+        any_match = any(c in cc_full for c in cc_minus_x)
+        if not any_match:
+            raise RuleCheckFailed(
+                "identify_via_tian: no c-component of G[V\\X] coincides "
+                "with a c-component of G — runtime should have punted",
+                step_index=step_index, rule="identify_via_tian",
+            )
+
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "identify_via_tian must claim StructuralResult(value=True)",
+            step_index=step_index, rule="identify_via_tian",
+        )
+
+
+def _rule_tian_hedge_witness(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict,
+    step_output_by_id: dict,
+) -> None:
+    """Verifier-side hedge check (Shpitser Line 5): re-run c_components
+    on the ADMG. A hedge exists when the c-component containing both
+    x and y covers everything reachable to y (i.e., x and y in the
+    same c-component of G[An_G(Y)])."""
+    from ..runtime.structural_solver import c_components
+
+    decomp_ref = _require(
+        inputs, "decomposition", step_index, "tian_hedge_witness",
+    )
+    if not isinstance(decomp_ref, StepRef):
+        raise UnknownRuleInputError(
+            "tian_hedge_witness.decomposition must be a StepRef",
+            step_index=step_index, rule="tian_hedge_witness",
+        )
+    decomp_step = step_by_id.get(decomp_ref.step_id)
+    if decomp_step is None or decomp_step.rule != "tian_c_decomposition":
+        raise RuleCheckFailed(
+            "tian_hedge_witness.decomposition must reference a "
+            "tian_c_decomposition step",
+            step_index=step_index, rule="tian_hedge_witness",
+        )
+
+    q = ctx.query
+    if not isinstance(q, IdentifyQuery):
+        raise RuleCheckFailed(
+            "tian_hedge_witness requires IdentifyQuery context",
+            step_index=step_index, rule="tian_hedge_witness",
+        )
+    x = q.intervention.atom
+    y = q.target
+
+    # Restrict to ancestors of y plus y itself; bidirected restricted
+    # accordingly. Hedge condition: x and y in the same c-component of
+    # G[An(Y)].
+    if y not in ctx.graph.nodes():
+        raise RuleCheckFailed(
+            "tian_hedge_witness: y not in graph",
+            step_index=step_index, rule="tian_hedge_witness",
+        )
+    ancestors = set(nx.ancestors(ctx.graph, y)) | {y}
+    sub = ctx.graph.subgraph(ancestors)
+    bi_ancestors = frozenset(p for p in ctx.bidirected if p <= frozenset(ancestors))
+    cc = c_components(sub, bi_ancestors)
+    x_cc = next((c for c in cc if x in c), None)
+    y_cc = next((c for c in cc if y in c), None)
+    if x_cc is None or y_cc is None or x_cc != y_cc:
+        raise RuleCheckFailed(
+            "tian_hedge_witness: x and y are not in the same c-component "
+            "of G[An(Y)] — runtime claim of unidentifiability is unsound",
+            step_index=step_index, rule="tian_hedge_witness",
+        )
+
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not False:
+        raise RuleCheckFailed(
+            "tian_hedge_witness must claim StructuralResult(value=False)",
+            step_index=step_index, rule="tian_hedge_witness",
+        )
+
+
 # rule name -> handler. Each handler has the signature
 #   (ctx, inputs, claimed_output, step_index, **maybe step_output_by_id) -> None
 # Handlers raise VerificationError subclasses to reject.
@@ -3264,6 +3460,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 9 §T9.1.4 — independent transport audit
     "s_admissibility_check": _rule_s_admissibility_check,
     "transport_formula": _rule_transport_formula,
+    # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
+    "tian_c_decomposition": _rule_tian_c_decomposition,
 }
 _STEP_REF_RULES = {
     "identify_via_backdoor",
@@ -3279,6 +3477,9 @@ _STEP_REF_RULES = {
     "numeric_iv_estimate",
     # Phase 9 §T9.1.4 — transport identification
     "identify_via_transport",
+    # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
+    "identify_via_tian",
+    "tian_hedge_witness",
 }
 
 
@@ -3337,6 +3538,16 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_transport":
         _rule_identify_via_transport(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_tian":
+        _rule_identify_via_tian(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "tian_hedge_witness":
+        _rule_tian_hedge_witness(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

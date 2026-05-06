@@ -328,19 +328,28 @@ def _verify_t10_3_kind_consistency(
                 step_index=None, rule="data_gap_kind_consistency_check",
             )
         # Failure-only gap kinds: the cited derivation step must be a
-        # failed step, otherwise the gap is fabricated.
+        # failed step, otherwise the gap is fabricated. Exception:
+        # ``tian_hedge_witness`` is a SUCCESSFUL step that proves
+        # unidentifiability — it's the witness, not a failure record,
+        # but downstream consumers see the same blocking gap.
         if kind in (
             "unidentifiable_no_admissible_set",
             "missing_iv_candidate",
         ):
+            tian_hedge_step_ids = {
+                _step_id_or_rule(s)
+                for s in derivation_steps
+                if s.get("rule") == "tian_hedge_witness"
+            }
+            tian_hedge_step_ids |= {"tian_hedge_witness"}
             for ref in provenance:
                 if ref.get("ref_kind") != "derivation_step":
                     continue
                 rid = ref.get("ref_id")
                 # If the gap claims missing_iv_candidate / unidentifiable,
-                # at least one cited step must be a failure. We allow
-                # multiple refs in case the generator also cites context.
-                if rid in failed_step_ids:
+                # at least one cited step must be a failure or a Tian
+                # hedge witness. Multiple refs allowed.
+                if rid in failed_step_ids or rid in tian_hedge_step_ids:
                     break
             else:
                 # No derivation_step ref pointed at a failed step.
