@@ -73,4 +73,17 @@ iter 21-40（doc / test / sync 安全网）累积现状：
 contribution magnitude 已下降到"小 docstring sync / 小 meta-test"
 量级。建议触达真人 unblock L3 价值层 → 真用户反馈会驱动新一波 finding 与 fix。
 
+#### 2026-05-07 iter 45 update — 校正 saturation 绝对论
+
+iter 45 audit 找到真 drift：`themis.__version__ = "0.14.0-dev"` 与
+CORE_STATUS / ROADMAP / README 写的 "0.15.0-dev" 不一致——iter 1 doc
+sync 漏了 `__init__.py`。任何 `import themis; print(themis.__version__)`
+整个 release cycle 拿错版本。修 + 加新 sync pin（package version vs
+3 doc files）。
+
+→ "saturation" 不是"零边际"。post-saturation iter 仍能 catch 真 drift；
+只是命中率下降到"audit 多次找到一次真 find"水平。继续 cron 仍有信号
+价值，但用户应当知道：每个 commit 平均 magnitude 较 iter 1-20 显著
+下降。
+
 ---
