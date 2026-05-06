@@ -288,6 +288,34 @@ def test_kernel_run_emits_no_deprecation_warnings():
     assert "results" in out
 
 
+def test_all_committed_json_files_parse_cleanly():
+    """Every .json file in the repo (excluding hidden / __pycache__ /
+    node_modules) must be syntactically valid JSON.
+
+    Iter 76 preventive pin. Catches typos, accidental save corruptions,
+    incomplete edits where someone forgot a closing brace, etc.
+
+    129 files currently audited. The repo has eval_set/cases JSONs,
+    L3 simulation JSONs, schema files, prompt example JSONs, render
+    runs, etc. — any malformed entry would break either the kernel or
+    the regression test reading them, but only at point of use. This
+    test catches them all upfront.
+    """
+    import json
+    violations = []
+    for p in sorted(REPO_ROOT.rglob("*.json")):
+        if any(part.startswith(".") or part == "__pycache__"
+               for part in p.parts):
+            continue
+        if "node_modules" in p.parts:
+            continue
+        try:
+            json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            violations.append(f"{p.relative_to(REPO_ROOT)}: {e}")
+    assert not violations, "Malformed JSON files: " + "\n".join(violations[:10])
+
+
 def test_themis_init_docstring_exception_imports_resolve():
     """themis/__init__.py docstring (iter 71) lists 7 'common exceptions'
     with explicit `from themis.X.Y import Z` paths. If a future
