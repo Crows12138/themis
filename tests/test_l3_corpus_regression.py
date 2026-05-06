@@ -202,3 +202,52 @@ def test_dispatch_conflict_suppressed_when_only_target_pop():
     out = run(program)
     kinds = _gap_kinds(out)
     assert "unattempted_layer_due_to_dispatch_conflict" not in kinds
+
+
+def test_dispatch_conflict_persists_through_apply_patch_and_run():
+    """iter 31 audit, symmetric with iter 30's unmeasured_confounder_risk
+    test. unattempted_layer_due_to_dispatch_conflict triggers on the
+    query shape (mediator + target_population both set). The query
+    doesn't change across apply_patch_and_run rounds — only data does
+    — so the advisory must persist. Pins 'data filling cannot elide
+    a query-construction advisory.'"""
+    from themis import apply_patch_and_run
+    program = _load("case_009_mediation_x_transport.json")
+    initial = run(program)
+    initial_kinds = _gap_kinds(initial)
+    assert "unattempted_layer_due_to_dispatch_conflict" in initial_kinds
+
+    # Build a small framing patch (case 009 has 2 ambiguous_variable_definition
+    # gaps that come with skeletons we can fill quickly)
+    framing_ir = next(
+        (
+            ir for ir in initial["results"][0]["investigation_requests"]
+            if ir["group"] == "framing"
+        ),
+        None,
+    )
+    if framing_ir is None:
+        # No framing patch available — apply empty bundle just to round-trip
+        patches: list[dict] = []
+    else:
+        patches = []
+        for item in framing_ir["items"]:
+            patch = dict(item["skeleton"])
+            patch["fields"] = {
+                "time_window": "12 weeks",
+                "measurement": "test fixture",
+                "threshold": "binary",
+                "observability": "fully observable",
+                "direction": "increasing",
+                "baseline": "untreated",
+                "state_vs_event": "event",
+            }
+            patches.append(patch)
+
+    if patches:
+        patched = apply_patch_and_run(program, patches)
+        patched_kinds = _gap_kinds(patched)
+        assert "unattempted_layer_due_to_dispatch_conflict" in patched_kinds, (
+            "dispatch_conflict should persist through apply_patch_and_run; "
+            f"query unchanged but advisory elided. gap_kinds: {patched_kinds}"
+        )
