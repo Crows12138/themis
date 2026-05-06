@@ -60,21 +60,27 @@ prefixed `mcp__themis__`.
 | `themis_run` | `themis.run(program)` | Single-turn full pipeline |
 | `themis_apply_patch_and_run` | `themis.apply_patch_and_run(program, patches)` | Multi-turn closed loop (slice A3) |
 | `themis_verify` | `themis.verify(program, result)` | Returns `{ok, error?}` instead of raising |
-| `themis_estimate` | `themis.estimate(program, df)` | Loads CSV from `csv_path` |
+| `themis_verify_data_gap_report` | `themis.verify_data_gap_report(result)` | Phase 10 — independent audit of gap report |
+| `themis_estimate` | `themis.estimate(program, df)` | Loads CSV from `csv_path` (Phase 7+14) |
+| `themis_discover` | `themis.estimation.discovery.discover_*` | Phase 8.1 — PC / GES skeletons from CSV |
 | `themis_list_resources` | n/a | Returns the resource URI catalog |
 
 ## Resource catalog
 
 | URI | Content |
 |---|---|
-| `themis://prompts/nl_to_kernel_ast.md` | A1 NL → kernel_ast prompt (v3) |
-| `themis://prompts/response_rendering.md` | Output bridge prompt (v3) |
+| `themis://prompts/nl_to_kernel_ast.md` | A1 NL → kernel_ast prompt |
+| `themis://prompts/response_rendering.md` | Output bridge prompt |
 | `themis://prompts/narrative_to_variables.md` | A5 upstream framer |
 | `themis://prompts/narrative_to_edges.md` | A2 edge proposer |
 | `themis://prompts/reply_to_framing_patch.md` | F1 patch follow-up |
+| `themis://prompts/gap_to_action.md` | Phase 11.1 agent-loop decision table |
+| `themis://prompts/kb_lookup.md` | Phase 11.2 structured KB query/result |
 | `themis://schemas/kernel_ast.schema.json` | Input schema |
 | `themis://schemas/query_result.schema.json` | Output schema |
 | `themis://schemas/derivation.schema.json` | Embedded reasoning chain schema |
+| `themis://schemas/kb_query.schema.json` | Phase 11.2 KB adapter input |
+| `themis://schemas/kb_result.schema.json` | Phase 11.2 KB adapter output |
 
 ## Typical client flow
 

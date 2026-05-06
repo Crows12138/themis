@@ -7,6 +7,7 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None)`` → wraps :func:`themis.estimate`; loads CSV from disk
+- ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_list_resources()`` → returns the resource URI catalog
 
 Resources (read by the client to drive NL↔JSON):
@@ -17,9 +18,12 @@ Resources (read by the client to drive NL↔JSON):
 - ``themis://prompts/narrative_to_edges.md`` — A2 edge proposer
 - ``themis://prompts/reply_to_framing_patch.md`` — F1 follow-up patcher
 - ``themis://prompts/gap_to_action.md`` — Phase 11.1 agent-loop decision table
+- ``themis://prompts/kb_lookup.md`` — Phase 11.2 structured KB query/result
 - ``themis://schemas/kernel_ast.schema.json`` — input schema
 - ``themis://schemas/query_result.schema.json`` — output schema
 - ``themis://schemas/derivation.schema.json`` — embedded reasoning chain schema
+- ``themis://schemas/kb_query.schema.json`` — Phase 11.2 KB adapter input
+- ``themis://schemas/kb_result.schema.json`` — Phase 11.2 KB adapter output
 
 The server does NOT call any LLM. The client (e.g. Claude Code) reads
 the prompts, converts NL ↔ JSON, and calls the tools.

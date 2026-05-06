@@ -20,6 +20,14 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
 - test_coverage_map_mcp_counts_match_actual_server
 - test_mcp_readme_counts_match_actual_server (iter 104, symmetric with
   iter 59 COVERAGE_MAP pin)
+- test_mcp_readme_catalog_tables_match_server (iter 105 — count pin
+  alone missed the table contents drifting independently of the prose
+  count: iter 103 fixed the prose count but tables still listed
+  5 tools / 8 resources)
+- test_mcp_server_docstring_lists_all_tools_and_resources (iter 105 —
+  same drift class as the README tables, in the server.py module
+  docstring; both surfaces need to stay synced with @app.tool() and
+  @app.resource() registrations)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -824,6 +832,112 @@ def test_mcp_readme_counts_match_actual_server():
     assert quoted_resources == actual_resources, (
         f"MCP README says {quoted_resources} resources but server has "
         f"{actual_resources}. Update themis/mcp/README.md."
+    )
+
+
+def test_mcp_readme_catalog_tables_match_server():
+    """themis/mcp/README.md has two markdown tables — "Tool catalog" and
+    "Resource catalog" — that list each tool name / resource URI as table
+    rows. Iter 105 found these drifted independently of the count quote
+    fixed by iter 103/104: the prose said "7 tools + 12 resources" but
+    the tables still showed only 5 tools and 8 resources from before
+    Phase 8.1 (themis_discover) / Phase 10 (themis_verify_data_gap_report)
+    / Phase 11.1-11.2 (gap_to_action / kb_lookup / kb_query / kb_result)
+    landed.
+
+    Count pins catch "the number is wrong"; this catches "the list is
+    wrong" — same drift root cause (new tool/resource added, README
+    catalog not updated), different surface.
+    """
+    import asyncio
+    import re
+    from themis.mcp import build_server
+
+    app = build_server()
+    actual_tool_names = {t.name for t in asyncio.run(app.list_tools())}
+    actual_resource_uris = {
+        str(r.uri) for r in asyncio.run(app.list_resources())
+    }
+
+    readme = (
+        REPO_ROOT / "themis" / "mcp" / "README.md"
+    ).read_text(encoding="utf-8")
+
+    # Tool catalog: rows look like "| `themis_X` | ... | ... |"
+    tool_section = re.search(
+        r"##\s*Tool catalog\s*\n(.*?)(?=\n##\s|\Z)",
+        readme,
+        re.DOTALL,
+    )
+    assert tool_section, "themis/mcp/README.md must have ## Tool catalog"
+    listed_tools = set(re.findall(
+        r"^\|\s*`(themis_\w+)`\s*\|", tool_section.group(1), re.MULTILINE
+    ))
+    assert listed_tools == actual_tool_names, (
+        "themis/mcp/README.md Tool catalog drifted from server. "
+        f"Missing from README: {sorted(actual_tool_names - listed_tools)}; "
+        f"extra in README: {sorted(listed_tools - actual_tool_names)}"
+    )
+
+    # Resource catalog: rows look like "| `themis://...` | ... |"
+    resource_section = re.search(
+        r"##\s*Resource catalog\s*\n(.*?)(?=\n##\s|\Z)",
+        readme,
+        re.DOTALL,
+    )
+    assert resource_section, (
+        "themis/mcp/README.md must have ## Resource catalog"
+    )
+    listed_resources = set(re.findall(
+        r"^\|\s*`(themis://[^`]+)`\s*\|",
+        resource_section.group(1),
+        re.MULTILINE,
+    ))
+    assert listed_resources == actual_resource_uris, (
+        "themis/mcp/README.md Resource catalog drifted from server. "
+        f"Missing from README: "
+        f"{sorted(actual_resource_uris - listed_resources)}; "
+        f"extra in README: "
+        f"{sorted(listed_resources - actual_resource_uris)}"
+    )
+
+
+def test_mcp_server_docstring_lists_all_tools_and_resources():
+    """themis/mcp/server.py module docstring has parallel inventories
+    to themis/mcp/README.md catalog tables — same drift class. Iter 105
+    found server.py docstring listed 6 tools (missing themis_discover)
+    and 9 resources (missing kb_lookup.md / kb_query.schema.json /
+    kb_result.schema.json) while the README count quote already said
+    "7 tools + 12 resources" post-iter-103.
+    """
+    import asyncio
+    import re
+
+    from themis.mcp import build_server, server as server_mod
+
+    app = build_server()
+    actual_tool_names = {t.name for t in asyncio.run(app.list_tools())}
+    actual_resource_uris = {
+        str(r.uri) for r in asyncio.run(app.list_resources())
+    }
+
+    docstring = server_mod.__doc__ or ""
+    listed_tools = set(re.findall(r"``(themis_\w+)\(", docstring))
+    listed_resources = set(re.findall(
+        r"``(themis://[^`]+)``", docstring
+    ))
+
+    assert listed_tools == actual_tool_names, (
+        "themis/mcp/server.py docstring tool inventory drifted. "
+        f"Missing from docstring: {sorted(actual_tool_names - listed_tools)}; "
+        f"extra in docstring: {sorted(listed_tools - actual_tool_names)}"
+    )
+    assert listed_resources == actual_resource_uris, (
+        "themis/mcp/server.py docstring resource inventory drifted. "
+        "Missing from docstring: "
+        f"{sorted(actual_resource_uris - listed_resources)}; "
+        "extra in docstring: "
+        f"{sorted(listed_resources - actual_resource_uris)}"
     )
 
 
