@@ -85,4 +85,7 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
 - [Case 001 — HRT-CVD discrepancy](case_001_hrt_cvd.md)（2026-05-07，
   ◐ partial match：识别 / formula / bounds / framing 全对，但 miss 了
   unmeasured-confounder-risk advisory；提议新 gap_kind
-  `unmeasured_confounder_risk` 给 iter 4+）
+  `unmeasured_confounder_risk`）
+- [Case 002 — Vitamin D supplementation for CVD](case_002_vitamin_d_cvd.md)
+  （2026-05-07，◐ same partial miss as case 001 → confirmed systematic：
+  N=2 跨 case 同一 4 gap_kind 集合，新 gap_kind 立项条件成熟）

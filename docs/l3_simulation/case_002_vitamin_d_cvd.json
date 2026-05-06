@@ -1,0 +1,56 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "patient"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "vitamin_d_supplementation", "domain": [true, false]},
+    {"kind": "variable", "predicate": "cvd_event", "domain": [true, false]},
+    {"kind": "variable", "predicate": "age", "domain": [true, false]},
+    {"kind": "variable", "predicate": "exercise", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "vitamin_d_supplementation", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "literature_observational"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "vitamin_d_supplementation", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "exercise", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "vitamin_d_supplementation", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "exercise", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "query",
+      "id": "q_vitd_cvd_effect",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "vitamin_d_supplementation", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}
