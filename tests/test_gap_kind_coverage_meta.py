@@ -260,6 +260,47 @@ def test_readme_public_entry_imports_actually_resolve():
     )
 
 
+def test_themis_init_all_matches_imports():
+    """themis/__init__.py imports a tuple of names from .kernel and
+    declares __all__. The two must agree:
+    - Every imported name appears in __all__ (else `from themis import *`
+      is asymmetric vs explicit imports)
+    - Every __all__ entry is actually an attribute on the themis module
+      (else IDE auto-import / type-checker reports a phantom)
+
+    Iter 67 preventive pin (no current drift). Future regression: add a
+    new public function, import it, but forget to add to __all__ →
+    invisible to `from themis import *`.
+    """
+    import re
+    import themis
+    init_text = (REPO_ROOT / "themis" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    declared_all = set(themis.__all__)
+
+    # Every __all__ name must be an attribute on the module
+    missing_attrs = [n for n in declared_all if not hasattr(themis, n)]
+    assert not missing_attrs, (
+        f"__all__ lists names not actually on themis module: {missing_attrs}"
+    )
+
+    # Every name imported from .kernel must be in __all__
+    m = re.search(r"from\s+\.kernel\s+import\s+\(([^)]+)\)", init_text)
+    assert m, "themis/__init__.py must import from .kernel via parens form"
+    imported = {
+        n.strip().rstrip(",")
+        for n in m.group(1).split()
+        if n.strip().rstrip(",")
+    }
+    missing_from_all = imported - declared_all
+    assert not missing_from_all, (
+        f"Names imported from .kernel but missing from __all__: "
+        f"{missing_from_all}. Public imports should appear in __all__ "
+        f"so `from themis import *` matches explicit-name imports."
+    )
+
+
 def test_markdown_backtick_py_refs_resolve():
     """Plain-text references like `themis/runtime/c_factor.py` in
     markdown backticks must point at existing files. Iter 66
