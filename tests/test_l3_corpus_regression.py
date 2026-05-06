@@ -1,16 +1,11 @@
-"""L3 simulation corpus regression test.
+"""L3 simulation corpus regression + structural pins.
 
-Iter 1-16 mined 8 L3 cases from authoritative sources to pressure-test
-the data_gap_report. This test pins the corpus contract: each case's
-expected gap_kinds must remain in the report. A code change that
-silently drops one of these gaps fails here.
+Originally seeded by iter 17 ('every L3 case must emit expected
+gap_kinds') after iter 1-16 mined 10 cases from authoritative sources.
+The file accumulated additional structural / preventive pins through
+iter 90 as the corpus grew and drift classes were caught.
 
-Each case is encoded in docs/l3_simulation/case_NNN_*.json with a
-matching .md describing the authoritative source + expected behavior.
-This test loads the JSON, runs themis.run, and asserts the expected
-gap_kinds are present.
-
-Cases:
+Cases corpus (10 total, plateau achieved iter 20):
 - 001/002 backdoor (medicine) — measured confounders + no bidirected
 - 003 IV via Balke-Pearl bounds (econ) — Card 1995 schooling-earnings
 - 004 front-door (medicine) — Pearl smoking->tar->cancer
@@ -18,6 +13,22 @@ Cases:
 - 006 mediation (epi) — Cnattingius 2004 smoking-birthweight
 - 007 transport (medicine) — USPSTF 2022 statin to 75+
 - 008 counterfactual (Layer 3) — Pearl 2009 monotone bounds
+- 009 mediation × transport (silent dispatch finding → iter 19 fix)
+- 010 cause query (climate) — IPCC AR6 attribution
+
+Pins (chronological):
+- test_l3_case_emits_expected_gap_kinds (iter 17, parametrized) —
+  per-case must-have / must-not-have gap_kind lists
+- test_l3_corpus_count_at_plateau (iter 17, ≥10 sanity)
+- test_dispatch_conflict_fires_on_mediator_plus_target_pop (iter 19) +
+  2 suppression tests (mediation-only / transport-only)
+- test_l3_corpus_runtime_regression (iter 33) — perf budget
+  200 ms/case + 1 s total; current ~6 ms max (33x headroom)
+- test_dispatch_conflict_persists_through_apply_patch_and_run (iter 31)
+- test_every_l3_case_json_has_matching_markdown (iter 40)
+- test_l3_readme_case_index_matches_actual_files (iter 73)
+- test_every_l3_case_file_has_regression_test_entry (iter 74)
+- test_every_l3_case_md_has_required_sections (iter 83)
 
 L3 simulation methodology + per-case authoritative sources:
 docs/l3_simulation/README.md.
