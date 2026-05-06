@@ -1439,6 +1439,22 @@ def _classify_dose_response_data(
     target_label = _query_target_label(stmt)
     intervention_label = _query_intervention_label(stmt)
 
+    # iter 13 (case 005 finding): if confounders_required is empty AND the
+    # user's program has no extra-variable nodes beyond X / Y, the DAG is
+    # bare X→Y. This is unusual for observational dose-response work
+    # (Whelton 2002 / AHA 2013 / Cornelissen 2013 all flag baseline
+    # outcome + demographic covariates as standard). Append a generic
+    # hint so the renderer prompts the user to confirm minimality is
+    # intentional. Avoids hardcoding domain-specific covariate names.
+    extra_hint = ""
+    if not confounders and _program_has_no_declared_confounders(program, stmt):
+        extra_hint = (
+            "（注：你的 DAG 仅声明了 intervention + target 两个节点，没有"
+            "任何 confounder。观察性剂量响应分析典型需要在 DAG 里至少声明"
+            " baseline outcome 与关键 demographic covariates；若你确实"
+            "想保持 minimal DAG（如随机化 RCT 设计），可以忽略此提示。）"
+        )
+
     yield DataGap(
         kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
         severity=GapSeverity.BLOCKING,
@@ -1446,6 +1462,7 @@ def _classify_dose_response_data(
             f"用户问的是 {intervention_label} 与 {target_label} 之间的"
             f"剂量响应关系（曲线 / 关系图）。Themis 不算曲线（请用 EconML "
             f"/ DoubleML / GAM）—— 但下面是你做这件事所需的数据规格。"
+            f"{extra_hint}"
         ),
         blocks=GapBlocks.POINT_ESTIMATE,
         required_data=GapRequiredData(
@@ -1477,6 +1494,35 @@ def _classify_dose_response_data(
             ),
         ),
     )
+
+
+def _program_has_no_declared_confounders(program, stmt) -> bool:
+    """Returns True when the program declares only the intervention and
+    target predicates (no third node that could be a confounder /
+    mediator / instrument). Used by the dose-response advisory to detect
+    when the DAG is bare X→Y so the renderer can prompt the user to
+    confirm minimality is intentional. Conservative: requires both
+    intervention and target to be identifiable from stmt — if either is
+    None, returns False (don't fire the hint)."""
+    if program is None or stmt is None:
+        return False
+    q = getattr(stmt, "query", None)
+    intervention = getattr(q, "intervention", None)
+    target = getattr(q, "target", None)
+    if intervention is None or target is None:
+        return False
+    x_atom = getattr(intervention, "atom", intervention)
+    y_atom = getattr(target, "atom", target)
+    x_pred = getattr(x_atom, "predicate", None)
+    y_pred = getattr(y_atom, "predicate", None)
+    if x_pred is None or y_pred is None:
+        return False
+    declared_predicates = {
+        st.predicate for st in program.statements
+        if isinstance(st, VariableDeclaration)
+    }
+    extras = declared_predicates - {x_pred, y_pred}
+    return len(extras) == 0
 
 
 def _extract_dose_response_confounders(

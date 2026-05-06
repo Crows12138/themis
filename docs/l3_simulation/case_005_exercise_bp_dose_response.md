@@ -84,26 +84,29 @@ dose_response spec:
   intervention" 同范围
 - SUTVA concerns 给的两条覆盖了 lifestyle interventions 的标准坑
 
-### 次要 finding（domain-specific opportunity）
+### 次要 finding（已在 iter 13 修）
 
-**`confounders_required` 是空的**，因为 user encoded DAG 只有 2 节点
-（treatment + outcome）。但 Whelton 2002 + AHA 2013 都明确指出
-exercise-BP RCT 应控制 age, BMI, baseline BP, sex（baseline BP 尤其
-critical 因为 regression-to-mean）。
+**~~`confounders_required` 是空的~~** 在 iter 13 已加 generic hint：
+当 dose-response query 的 DAG 是 bare X→Y（没有任何 extra 节点）时，
+description 后面 append 一句话提示用户"DAG 仅声明 intervention +
+target 两个节点，没有任何 confounder。观察性剂量响应分析典型需要在
+DAG 里至少声明 baseline outcome 与关键 demographic covariates；若你
+确实想保持 minimal DAG（如随机化 RCT 设计），可以忽略此提示。"
 
-**这不是 Themis bug**——kernel 信任用户给的 DAG。但 advisory 可以
-更 helpful：在 confounders_required 空时，加一条 description
-hint："dose-response 分析典型还需控制 baseline outcome（regression-
-to-mean）+ age + 可能的 effect modifiers；用户给的 DAG 没声明这些。"
+避免硬编码具体 covariate 名（如 age / sex / BMI）—— 措辞 generic
+但点出关键考虑项（baseline outcome 是 generic 重要因 regression-to-
+mean，demographic covariates 是 generic 重要因 confounding）。
 
-iter 13+ 候选改进：当 confounders_required is empty AND query is
-dose-response，加 hint 提示"可能漏了 baseline / age / sex 等 standard
-covariates"——但要小心避免变成 domain-specific 的硬编码。可能用
-"dose-response 推荐至少声明 baseline outcome + 主要 demographic
-covariates"这种 generic 措辞。
+trigger 条件：confounders_required 空 AND program 中除 X、Y 外没有
+任何其他 declared variable（即 bare X→Y）。如果用户已经声明了
+confounder（即使不在 dose-response 路径上），不会触发 hint。
 
 ## 历史
 
 - 2026-05-07 iter 12：编码 + 跑 ✅ match。第一个 L3-tested 的 Phase
   13 dose-response gap_kind。次要 finding 关于 confounders_required
   empty 时 advisory 可以更 proactive，候选 iter 13+ 推进。
+- 2026-05-07 iter 13：修 iter 12 finding。trigger：bare X→Y DAG 时
+  description 加 generic minimality hint（不硬编码具体 covariates）。
+  2 新 regression test (positive 触发 / negative 抑制)。1507 → 1509 tests
+  passing。

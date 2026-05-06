@@ -64,6 +64,109 @@ def test_dose_response_gap_is_blocking_point_estimate():
     assert gap["blocks"] == "point_estimate"
 
 
+def test_dose_response_bare_x_y_dag_appends_minimality_hint():
+    """iter 13 (case 005 finding): when the dose-response query has a
+    bare X→Y DAG (no declared confounders), the gap description should
+    append a generic hint asking the user to confirm minimality is
+    intentional. Avoids hardcoding domain-specific covariate names but
+    surfaces the typical observational dose-response expectation
+    (baseline outcome + demographics)."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "extensions": {
+            "ambiguities": [
+                {"kind": "dose_response_query", "description": "..."},
+            ],
+        },
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {
+                        "atom": {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                        "value": True,
+                    },
+                    "target": {
+                        "atom": {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+                        "value": True,
+                    },
+                    "given": [],
+                },
+            },
+        ],
+    }
+    out = themis.run(program)
+    gap = next(
+        g for g in out["results"][0]["data_gap_report"]["gaps"]
+        if g["kind"] == "dose_response_data_required"
+    )
+    assert "minimal" in gap["description"] or "DAG 仅声明" in gap["description"]
+
+
+def test_dose_response_with_confounder_does_not_append_hint():
+    """Symmetric: if user declared at least one extra node (typical
+    confounder pattern), the minimality hint should NOT fire."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "extensions": {
+            "ambiguities": [
+                {"kind": "dose_response_query", "description": "..."},
+            ],
+        },
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "z", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "cause",
+                "from": {"predicate": "z", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "cause",
+                "from": {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {
+                        "atom": {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                        "value": True,
+                    },
+                    "target": {
+                        "atom": {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+                        "value": True,
+                    },
+                    "given": [],
+                },
+            },
+        ],
+    }
+    out = themis.run(program)
+    gap = next(
+        g for g in out["results"][0]["data_gap_report"]["gaps"]
+        if g["kind"] == "dose_response_data_required"
+    )
+    assert "DAG 仅声明" not in gap["description"]
+
+
 def test_dose_response_required_data_carries_full_spec():
     """The whole point of this gap_kind: fully-spec'd data sheet so
     user can take it elsewhere and fit the curve."""
