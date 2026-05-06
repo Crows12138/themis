@@ -1,7 +1,11 @@
 # Phase 5 Charter — 时序 / 反事实 两个延伸 fragment
 
 > 立项日期：2026-04-22
-> 状态：**§T 已落地；§C / S.C.1–S.C.6 已落地（窄 scope）**
+> 状态：**✅ 两 fragment 全部已落地** — §T (temporal) 落地 2026-04-22；
+> §C (counterfactual) S.C.1-S.C.6 落地 2026-04-22；§T 进一步加 runtime
+> 强制（commit `3e79338`，2026-05-06，iter 之外）。详见
+> [`CORE_STATUS.md`](CORE_STATUS.md) "Phase 5.temporal" + "Phase 5.counterfactual"
+> + "Phase 5 §T runtime 强制" 节。
 > 对应 ROADMAP：Phase 5 "更强推理能力" 中的时序 + 反事实分支
 > 对应 TaskList：#39
 
