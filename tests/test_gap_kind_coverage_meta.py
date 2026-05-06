@@ -198,6 +198,36 @@ def test_test_count_consistent_between_core_status_and_readme():
     )
 
 
+def test_every_phase_charter_declares_status():
+    """Every PHASE_*_CHARTER.md must declare a status line (> 状态：…).
+
+    Iter 52-54 audit revealed 6 charters with stale status lines that
+    had drifted from CORE_STATUS truth — but the deeper invariant is
+    that EVERY charter MUST have a parseable status line, otherwise
+    audit can't even spot drift. Catches:
+
+    - New charter created without status line at all
+    - Status line accidentally deleted in a refactor
+    - Status moved to a non-blockquote line and missed by audit pattern
+    """
+    import re
+    status_re = re.compile(r"^>\s*状态[：:]", re.MULTILINE)
+    charters = list(REPO_ROOT.glob("PHASE_*_CHARTER.md"))
+    assert len(charters) >= 5, (
+        f"Expected ≥5 PHASE_*_CHARTER.md files, found {len(charters)}"
+    )
+    missing = []
+    for p in charters:
+        text = p.read_text(encoding="utf-8")
+        if not status_re.search(text):
+            missing.append(p.name)
+    assert not missing, (
+        f"Charters without parseable '> 状态：' line: {missing}. "
+        f"Add a status line in the charter header blockquote so audit "
+        f"can detect drift against CORE_STATUS."
+    )
+
+
 def test_no_orphan_test_files():
     """Every tests/test_*.py file must contain at least one test
     function (def test_… or async def test_…). Pytest silently skips
