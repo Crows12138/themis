@@ -260,39 +260,43 @@ def test_readme_public_entry_imports_actually_resolve():
     )
 
 
-def test_no_windows_absolute_paths_in_committed_markdown():
+def test_no_windows_absolute_paths_in_committed_files():
     """Iter 63 audit found 28 hardcoded `C:\\Users\\12916\\...\\` paths
-    across 7 .md files (VISION / CORE_STATUS / ROADMAP / VERIFIER_DESIGN /
-    试跑案例_v0_1 / 试跑包_v0_2 / 因果图规则总览). These break:
+    across 7 .md files. Iter 64 extends this to .py files in
+    themis/ / scripts/ / tests/ — code is clean today (Python uses
+    Path/__file__ idioms naturally) but absolute paths could leak in
+    via future copy-paste from a debugger or shell command.
 
+    These break:
     - Anyone reading the docs on Linux / macOS
     - CI rendering of markdown
     - Anyone who clones the repo to a different path
     - Markdown link resolution from any repo browser
+    - Code execution outside the original author's machine
 
-    All 28 fixed in iter 63 (each path was 'C:\\\\Users\\\\12916\\\\Desktop\\\\
-    项目\\\\因果性ai\\\\<filename>'; the prefix should be empty for relative-
-    to-repo-root references).
-
-    Pin: no .md file in the repo (excluding .git/ etc.) may contain
-    'C:\\Users\\' or '/c/Users/' style absolute paths.
+    Pin: no committed .md or .py file (excluding hidden dirs) may
+    contain 'C:\\Users\\…' or '/c/Users/…' user-specific paths.
+    Test data exemption: this test file itself contains the patterns
+    as regex data — accepted via path-based skip.
     """
     import re
     pattern = re.compile(r"C:[\\\\/]Users[\\\\/]12916|/c/Users/12916")
     violations = []
-    for p in REPO_ROOT.rglob("*.md"):
-        # Skip vendored / cache locations
-        if any(part.startswith(".") for part in p.parts):
-            continue
-        text = p.read_text(encoding="utf-8")
-        for m in pattern.finditer(text):
-            line = text[:m.start()].count("\n") + 1
-            violations.append(f"{p.relative_to(REPO_ROOT)}:{line}")
+    for ext in ("*.md", "*.py"):
+        for p in REPO_ROOT.rglob(ext):
+            # Skip hidden dirs (e.g. .git, .venv) and this self-test
+            if any(part.startswith(".") for part in p.parts):
+                continue
+            if p.resolve() == Path(__file__).resolve():
+                continue
+            text = p.read_text(encoding="utf-8")
+            for m in pattern.finditer(text):
+                line = text[:m.start()].count("\n") + 1
+                violations.append(f"{p.relative_to(REPO_ROOT)}:{line}")
     assert not violations, (
-        f"Markdown files with hardcoded user-specific absolute paths: "
+        f"Files with hardcoded user-specific absolute paths: "
         f"{violations[:10]}{'...' if len(violations) > 10 else ''}. "
-        f"Use relative paths (e.g. `[CORE_STATUS.md](CORE_STATUS.md)` "
-        f"not `[CORE_STATUS.md](C:\\\\Users\\\\you\\\\...\\\\CORE_STATUS.md)`)."
+        f"Use relative paths or Path(__file__).parent / Path(__file__).resolve()."
     )
 
 
