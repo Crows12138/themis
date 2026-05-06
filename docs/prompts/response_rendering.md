@@ -42,8 +42,10 @@ A reply is a small ladder, top to bottom:
    question the question itself (cause_attribution,
    mechanism_vs_existence) > all-edges-are-proposals
    (`graph_learned_from_data` or every supporting edge carrying
-   `llm_proposal`) > query-specific identification caveats
-   (mediation/IV/front-door/transport assumptions) > bounds-not-point.
+   `llm_proposal`) > DAG-completeness caveats
+   (`unmeasured_confounder_risk`) > query-specific identification
+   caveats (mediation/IV/front-door/transport assumptions) >
+   bounds-not-point.
 2. **`result.explanation`** — when populated, every ⚠ line must
    surface in your reply (rephrased as natural prose, not dropped).
    This is the kernel-side disclosure channel: structural caveats the
@@ -62,6 +64,7 @@ A reply is a small ladder, top to bottom:
    | `front_door_identification_assumption_required` | Pearl front-door premises |
    | `counterfactual_identification_assumption_required` | consistency / composition axioms |
    | `graph_learned_from_data` | DAG learned by PC/FCI/LiNGAM |
+   | `unmeasured_confounder_risk` | DAG has measured confounders but no bidirected — adjustment may leave residual unmeasured-confounder bias (HRT-CVD / Card 1995 schooling / vitamin D-CVD pattern) |
 
    When you see one of these kinds in `data_gap_report.gaps[]`, do
    NOT itemize it again as a separate bullet — the matching ⚠ line
