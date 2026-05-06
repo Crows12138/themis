@@ -835,13 +835,18 @@ def _classify_unmeasured_confounder_risk(
         severity=GapSeverity.INFORMATIONAL,
         description=(
             "Backdoor 识别假设你列出的 confounder 已经测全 —— DAG 里没"
-            "有声明任何 bidirected / latent-common-cause 边。现实中 "
-            "well-documented domain（HRT-CVD WHI 2002、vitamin D-CVD "
-            "VITAL 2018、breastfeeding-IQ 等）有大幅 RCT-vs-observational "
-            "反转，归因于 measured-covariate 调整之后仍残留的 unmeasured "
-            "confounder（healthy-user bias / lifestyle factors / 反向因"
-            "果）。拿到数据后跑 sensitivity analysis（E-value）量化对"
-            " unmeasured confounder 的稳健性。"
+            "有声明任何 bidirected / latent-common-cause 边。这是"
+            " measured-covariate 调整后仍残留 unmeasured confounder 的"
+            "典型场景。多个域有 well-documented RCT-vs-observational"
+            "（或实验-vs-观察）反转：医学（HRT-CVD WHI 2002、"
+            "vitamin D-CVD VITAL 2018）、劳动经济学（Card 1995 schooling"
+            "-earnings 中的 ability bias）、教育评估（charter schools "
+            "CREDO 2013 中的 parental motivation）。机制各域不同（"
+            "healthy-user bias / ability bias / selection effects），"
+            "但**结构教训一致**——measured 调整不够。拿到数据后跑 "
+            "sensitivity analysis（E-value）量化对 unmeasured confounder"
+            " 的稳健性，或在 DAG 里把怀疑的 latent 显式声明为 "
+            "bidirected。"
         ),
         blocks=GapBlocks.INTERPRETATION,
         if_provided=(

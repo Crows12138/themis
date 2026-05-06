@@ -97,17 +97,23 @@ bounds_result.method: balke_pearl_iv（不是 case 001/002 的 manski_natural！
 第二条 actionable next step（"添加 bidirected 边"）正好对应 Card 用
 IV 的动机——把 unmeasured ability 显式纳入图。
 
-### 域 portability 注意
+### 域 portability 注意（iter 8 已修）
 
-advisory 描述里的具体 case（HRT-CVD / vitamin D-CVD / breastfeeding-IQ）
+~~advisory 描述里的具体 case（HRT-CVD / vitamin D-CVD / breastfeeding-IQ）
 都是 medicine 域。教育经济学家看到这条可能觉得"和我无关"——message
-正确但例子不接地。**iter 8+ 候选改进**：让 description 用更通用的
-phrasing（"此结构在多个域有 well-documented RCT-vs-observational /
-IV-vs-OLS reversal"）或按域插入相应例子（要 KB / domain detection
-hint）。
+正确但例子不接地。~~
+
+**iter 8 修**：description 改为多域 spread——医学（HRT-CVD /
+vitamin D-CVD）+ 劳动经济学（Card 1995 schooling-earnings ability
+bias）+ 教育评估（charter schools CREDO parental motivation）。机制
+各域不同但结构教训一致："measured 调整不够"。Card 案例本身现在被引
+用在 advisory 里，跨域 user 看着接地。
 
 ## 历史
 
 - 2026-05-07 iter 7：编码 + 跑 + 评估，✅ match。第三个跨域
   confirmation（医学 × 2 + 教育经济学 × 1）。次要发现：advisory
-  domain examples 是 medicine-only，跨域 portability 待 iter 8+ 改进。
+  domain examples 是 medicine-only。
+- 2026-05-07 iter 8：description 改 domain-spread（医学 + 劳动经济学
+  + 教育评估，含 Card 1995 自己作为引用例）。三个 case 重跑全部仍
+  fire ✅。1505 tests 仍 passing。
