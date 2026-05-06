@@ -260,6 +260,34 @@ def test_readme_public_entry_imports_actually_resolve():
     )
 
 
+def test_kernel_run_emits_no_deprecation_warnings():
+    """Importing `themis` and running a representative L3 case must not
+    emit DeprecationWarning. Iter 68 silenced the pytest-asyncio config
+    warning; iter 69 pins kernel-level cleanliness so a future
+    DeprecationWarning leaking from themis or its deps would fail here.
+
+    Doesn't substitute for the broader pytest filterwarnings in
+    pytest.ini — those handle test-time noise from estimator deps.
+    This test only enforces the import + symbolic-kernel path stays
+    deprecation-clean (no estimation, no external libs)."""
+    import json
+    import warnings
+    program = json.loads(
+        (REPO_ROOT / "docs" / "l3_simulation"
+         / "case_001_hrt_cvd.json").read_text(encoding="utf-8")
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        import themis
+        out = themis.run(program)
+    deprec = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert not deprec, (
+        f"themis.run emitted DeprecationWarning(s): "
+        f"{[(w.category.__name__, str(w.message)[:120]) for w in deprec]}"
+    )
+    assert "results" in out
+
+
 def test_themis_init_all_matches_imports():
     """themis/__init__.py imports a tuple of names from .kernel and
     declares __all__. The two must agree:
