@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-04-30
+> 更新时间：2026-05-06
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1420 passed / 144 skipped, warning-clean
+1496 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -151,8 +151,9 @@ verifier 接受 / 拒绝三类篡改（mediator / 公式目标 / conditioned que
 
 **未包含（移出 charter，延后立项）**：
 
-- generic Tian c-factor 公式构造 + Pearl ID 算法递归
-- c-forest / hedge 作为 unidentifiable witness
+- ~~generic Tian c-factor 公式构造 + Pearl ID 算法递归~~ → **已落地为
+  S.3.b.2 fragment**（2026-05-06，见下方 Phase 2.latent §S3.b.2 节）
+- ~~c-forest / hedge 作为 unidentifiable witness~~ → **同上**
 - IDC / 多 intervention / 多 target / 非空 given 的 conditional ID
 - ADMG 下的 cause / assoc / probability 查询（dispatch 路径仍需
   ADMG-aware，独立立项）
@@ -1126,9 +1127,107 @@ python scripts\run_015_world_modeling_pressure.py
 
 **当前全量测试**：1420 passed / 144 skipped, warning-clean。
 
+## Phase 2.latent §S3.b.2 — Tian / Shpitser ID（2026-05-06 落地）
+
+**真实压力来源**：bow-arc 形 ADMG 案例（X ↔ Y 直接 latent confounder）当
+backdoor / front-door / IV 全失败时落到 needs_investigation。c-component
+分解 primitive 已经在 `structural_solver` 里了，闲置；hedge witness 形态
+是 ADMG 不可识别中最常见的一种。Phase 2.latent charter §4.2 记的延后条件
+（"实际案例逼出"）触发。
+
+**交付**：
+
+- `themis/runtime/c_factor.py`：Shpitser-Pearl ID 算法在 kernel identify
+  query shape 上的 restriction（单 intervention / 单 target / 空 given）。
+  覆盖递归 Lines 1-6：祖先收缩、后代排除、c-component split、hedge
+  witness、Q[S] 乘积形式
+- 新 derivation rule family：
+  - `tian_c_decomposition`：声明性 c-decomposition step
+  - `identify_via_tian`：terminal rule，结果 `StructuralResult(True)` +
+    c-factor 公式
+  - `tian_hedge_witness`：terminal rule，结果 `StructuralResult(False)` +
+    hedge graph
+- scheduler dispatch：ADMG 上 backdoor / front-door / IV 全失败后回退到
+  Tian
+- Line 7（递归符号 substitute under Q[S'] re-factorization）返回 None；
+  scheduler 落到 `needs_investigation`，**不假声 unidentifiable**
+
+**未包含**：
+
+- Line 7 完整 ID*（递归 Q[S'] re-factorization）
+- IDC（conditional ID）/ 多 intervention / 多 target / 非空 given
+- ADMG 下的 cause / assoc / probability 查询（dispatch 路径仍需 ADMG-aware）
+
+**Done 标志**：8 个测试覆盖正例（c-decomposition）+ 反例（hedge witness）
++ Line-7 fall-through。bow-arc 之前 `needs_investigation`，现在
+`structurally_solved` value=False + `tian_hedge_witness` rule。
+
+板块 2 ADMG 80% → ~85%。
+
+---
+
+## Phase 5 §T runtime 强制（2026-05-06 落地）
+
+**真实压力来源**：Phase 5 §T 标"已落地"，但 verifier 的 T1 / T2 / T3
+primitive 从未被 runtime 调用——意味着 kernel 程序声明 `X@t=1 cause
+Y@t=0`（因果反向跑）会被 kernel 静默接受。这是一个真实的语义漏洞。
+
+**交付**：
+
+- `semantic_validator` 新增 `temporal_monotonicity` 检查：parse 时拒绝
+  `CauseStatement` 当 `src.time_index > dst.time_index`。无 `time_index`
+  的 atemporal endpoint 旁路（处于虚拟 atemporal slice，顺序不指定）
+- T2_lag_bound verifier rule：从 `|lag| ≤ 1`（一阶 Markov 脚手架）放宽
+  到 `lag ≥ 0`。真实案例——1 周糖 → 蛀牙、1 月训练 → 马拉松时间、多日
+  压力 → 疲劳链——都需要 `lag > 1`。T2 现在与 T1 冗余（都强制非负），
+  保留在 registry 让既有 derivation 引用 T2 仍能验证
+
+**测试**：`tests/test_temporal_enforcement.py` 7 个新测试。负例：反向时间
+被拒；正例：向前 / 同时 / 部分 atemporal 接受、多日 lag 和混合 lag 链
+接受。既有 T2 unit test 更新到断言放宽。
+
+---
+
+## Web UI mode (a) + (b)（2026-05-06 落地）
+
+**定位**：peripheral surface——给没有 agent / MCP 的非开发者用户一个
+可点的探索入口。kernel 仍纯 JSON，不被这层污染。
+
+**Mode (b) — paste-JSON 探索**（commit `f420a70`）：
+
+- `python -m themis.web` → FastAPI `http://127.0.0.1:8000`
+- 单页 UI 把 result envelope（explanation / ⚠ caveats /
+  structural_result / numeric_result / bounds / data_gap_report /
+  derivation）渲染成比 raw JSON 易读的形式
+- POST `/api/run` / POST `/api/verify` / GET `/api/examples`（从
+  `docs/prompts/examples/` 加载 worked NL→kernel_ast pairs）
+- localhost-bound 默认；`--host 0.0.0.0` 局域网共享
+
+**Mode (a) — LLM bridge**（commit `dfdf1c7`）：
+
+- 中文问题 → LLM emit kernel_ast → `themis.run` → LLM render 中文回复
+- `themis/web/llm_bridge.py`：包装 anthropic SDK，两个函数
+  (`nl_to_kernel_ast` / `render_reply`) + e2e `ask()`
+- POST `/api/ask` 返回 `{nl, kernel_ast, envelope, reply}`；失败返回
+  400 + `{stage, error, message}` + 中间 artifacts（让 UI 能调试
+  mid-pipeline 中断）
+- `LLMBridgeError` 与 kernel 异常区分开，API 能正确归因失败 stage
+
+**未包含**：
+
+- 公网部署（kernel 自己不发网络请求；公网部署是客户端 / sibling repo
+  的事）
+- 鉴权 / rate limit / billing — 当前 demo 级别
+- mode (a) 的 LLM provider 切换抽象（当前固定 anthropic）
+
+**测试**：`tests/test_web_app.py`（6）+ `tests/test_web_llm_bridge.py`（13）。
+
+---
+
 ## 下一步候选（按真实压力等待选）
 
-- **真人测试** — 找不熟项目的人跑一遍 MCP（一直没做，是诚实的 gap）
+- **真人测试** — 找不熟项目的人跑一遍 MCP / web UI（一直没做，是诚实
+  的 gap）
 - **样本量扩展** — sample_size 接到 mediation / IV / transport 路径
 - **更多 gap_kind / 更深检测** — dtype mismatch / IV 强度不足 /
   propensity overlap / SUTVA 违反
@@ -1136,6 +1235,7 @@ python scripts\run_015_world_modeling_pressure.py
   非 binary outcome / 数值层
 - **A1/A2/歧义识别更广** — 输入诊断更准
 - **V0-V5 + T10 verifier 更深规则** — 验证器更严
+- **Tian Line 7** — 完整 ID* 递归（当前案例没逼出，但延后随时可立项）
 
 **注**：Phase 11 母 charter §3 列的 S.11.3-S.11.7（PrimeKG / SciGraph /
 SemMedDB / Wikidata / 冲突解决）**已废弃** — "LLM 怎么搜资料不关我们
