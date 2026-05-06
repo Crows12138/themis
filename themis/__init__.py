@@ -33,6 +33,27 @@ The kernel is JSON-in / JSON-out. Inputs conform to
 for the embedded reasoning chain). No natural language passes through
 this boundary. The estimation entry point accepts DataFrame data as an
 explicit side channel and does not change the kernel AST contract.
+
+Common exceptions (importable from their sub-modules; not re-exported
+on ``themis`` directly to keep the public surface minimal)::
+
+    from themis.input.syntactic_validator import SyntacticError
+    from themis.input.semantic_validator import SemanticError
+    from themis.estimation.contract import DataContractError
+    from themis.estimation.dose_response import EstimatorFailure
+    from themis.estimation.dose_response import EstimatorDependencyMissing
+    from themis.runtime.numeric_estimator import InsufficientTheta
+    from themis.verifier import VerificationError
+
+``run`` raises ``SyntacticError`` / ``SemanticError`` for malformed
+input. ``estimate`` raises ``DataContractError`` (DataFrame fails
+column / dtype check) or ``EstimatorFailure`` (estimator hits an
+overlap / convergence / sample-size limit). ``verify`` /
+``verify_data_gap_report`` raise ``VerificationError``.
+``AdmgVerificationPending`` (re-exported below) is preserved for
+backward-compat from the v0.1 era; current ADMG verification is
+covered by the V0-V5 verifier and this exception is no longer raised
+by the runtime path.
 """
 
 from .kernel import (
