@@ -30,6 +30,44 @@ recruitment。
 上误判 gap_kind，是真 bug，回到 kernel / report generator 修，**不**
 判定 L3 通过。
 
+### 2026-05-07 iter 100 — milestone retrospective
+
+100 iters of /loop. Summary metrics:
+
+- Tests: 1420 → 1591 (+171)
+- L3 corpus: 10/10 plateau achieved (iter 20)
+- Real findings: 5 substantive
+  - iter 5-9: unmeasured_confounder_risk gap_kind full lifecycle
+  - iter 10: front-door derivation-empty fallback (real bug fix)
+  - iter 19: unattempted_layer_due_to_dispatch_conflict gap_kind
+  - iter 45: themis.__version__ stale (0.14 → 0.15)
+  - iter 60-71: misc real drifts (charter status × 7, count drifts × 4,
+    abs paths × 28, pytest deprecation, exception docs, missing test
+    docstring, etc.)
+- Preventive sync pins: ~32 across cross-file sync / docstring inventory /
+  link integrity / path bans / count consistency / version sync
+- Doc surface: 5 v0.x-era docs got version-pointer headers; all charters
+  status-synced; prompt audit (4 files); 5 timestamp drifts caught and
+  reset
+
+**iter 41 saturation prediction was wrong** (post-iter-41 still found
+~10 more real drift categories). **iter 51 correction was right**
+("signal not zero, just lower hit rate"). True命中率: roughly 1
+substantive finding per 5-10 post-saturation iters.
+
+Where the loop stops being valuable: when each iter is
+- 30-line micro-doc improvements + sync pin tightening
+- the loop has fully covered cross-file consistency for current code state
+
+Honest current-state assessment (iter 99): basically there. iter 100+
+expected to be cosmetic / late preventive work. Genuine future value:
+- Real-user testing (still externally blocked)
+- Tian Line 7 (single-iter-infeasible algorithm work)
+- New gap_kinds driven by real user data (dtype mismatch / propensity
+  overlap / SUTVA), not synthetic case mining
+
+---
+
 ### 2026-05-07 iter 96 — minor cosmetic findings not pinned
 
 - 2 files with mixed CRLF/LF line endings (`themis/kernel.py`,
