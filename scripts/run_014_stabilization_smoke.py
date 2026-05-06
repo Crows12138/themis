@@ -1,3 +1,25 @@
+"""0.14 stabilization smoke — fast end-to-end check of the five paths
+that are easiest to break with a careless refactor:
+
+1. dose-response NL question → `data_gap_report` with
+   `dose_response_data_required` (Phase 13)
+2. transport `themis.run` → `themis.verify` round-trip (Phase 9 §T9.1)
+3. dose-response `themis.estimate(...)` → `numeric_estimate` + verify
+   (Phase 14)
+4. transport gap → mock KB adapter → `parameter_fill_bundle` →
+   `apply_patch_and_run`
+5. MCP wrapper → tool catalog + `themis_run` + `themis_verify` +
+   `themis_verify_data_gap_report` + `themis_estimate` + resources
+
+No LLM, no network. Run with::
+
+    python scripts/run_014_stabilization_smoke.py
+
+Each path prints a `[PASS] <name>` line with the key fields it
+verified, or fails fast with a traceback. The pytest suite covers the
+same surface with finer granularity; this script is a one-shot
+sanity check for releases / demos.
+"""
 from __future__ import annotations
 
 import argparse
