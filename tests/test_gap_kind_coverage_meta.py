@@ -288,6 +288,35 @@ def test_kernel_run_emits_no_deprecation_warnings():
     assert "results" in out
 
 
+def test_scripts_py_files_have_module_docstrings():
+    """Symmetric with iter 77's themis docstring pin. Every .py file
+    under scripts/ must have a module docstring.
+
+    Iter 78 added the last missing docstring (run_trial_pack.py); this
+    pin (iter 79) prevents regression. Scripts are typically run
+    directly by users, so a no-docstring entry-point script is a real
+    UX problem — running with --help / inspecting the file should give
+    a quick overview.
+    """
+    import ast
+    violations = []
+    scripts_dir = REPO_ROOT / "scripts"
+    if not scripts_dir.exists():
+        pytest.skip("no scripts/ directory")
+    for p in sorted(scripts_dir.rglob("*.py")):
+        if "__pycache__" in p.parts:
+            continue
+        if p.name == "__init__.py" and p.stat().st_size < 50:
+            continue
+        text = p.read_text(encoding="utf-8")
+        tree = ast.parse(text)
+        if not ast.get_docstring(tree):
+            violations.append(str(p.relative_to(REPO_ROOT)))
+    assert not violations, (
+        f"scripts/ .py files missing module docstring: {violations}"
+    )
+
+
 def test_themis_py_files_have_module_docstrings():
     """Every themis/**/*.py file must have a module-level docstring.
 
