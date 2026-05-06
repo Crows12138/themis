@@ -189,6 +189,66 @@ def test_alternative_paths_mentions_evalue():
     assert "E-value" in paths_text or "e-value" in paths_text.lower()
 
 
+def test_transport_advisory_fires_on_structurally_solved():
+    """iter 24 audit guard: confirm transport advisory fires correctly
+    when transport identification succeeds. Transport queries return
+    status=structurally_solved, extensions has transport_identification —
+    same code path as mediation (extensions-driven, no derivation-empty
+    risk like front-door had pre-iter-10). Pins the contract."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "z", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "cause",
+                "from": {"predicate": "z", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "cause",
+                "from": {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                "to":   {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+            },
+            {
+                "kind": "selection_node",
+                "id": "S_z",
+                "affects": {"predicate": "z", "args": [{"type": "const", "name": "p"}]},
+                "source_population": "src",
+                "target_population": "tgt",
+            },
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "target": {
+                        "atom": {"predicate": "y", "args": [{"type": "const", "name": "p"}]},
+                        "value": True,
+                    },
+                    "intervention": {
+                        "atom": {"predicate": "x", "args": [{"type": "const", "name": "p"}]},
+                        "value": True,
+                    },
+                    "given": [],
+                    "target_population": "tgt",
+                },
+            },
+        ],
+    }
+    out = run(program)
+    result = out["results"][0]
+    kinds = [g["kind"] for g in result.get("data_gap_report", {}).get("gaps", [])]
+    assert "transport_identification_assumption_required" in kinds
+
+
 def test_mediation_advisory_fires_on_structurally_solved():
     """iter 11 audit guard: confirm mediation advisory fires correctly
     when mediation identification succeeds. Mediation queries return
