@@ -1,5 +1,15 @@
 # v0.1 能力与边界
 
+> **当前版本指针**：本文件固化的是 v0.1 的能力边界（标题"v0.1"已显
+> 标）。系统现已演化到 0.15.0-dev——本文件的"v0.2 或更后"中很多项
+> 已经实际落地（front-door / IV / mediation / transport / counterfactual
+> bounds / dose-response 估计 / data-gap report / KB adapter contract /
+> MCP wrapper / 等），详见
+> [`CORE_STATUS.md`](CORE_STATUS.md) 与
+> [`COVERAGE_MAP.md`](COVERAGE_MAP.md)。本文件保留作为 v0.1 scope 的
+> 历史快照——"v0.1 这个查询能不能答"的 single-point query 仍准确，
+> 但要回答"系统当前能不能答"请看 CORE_STATUS。
+
 本文件固化 Themis v0.1 的**语言和实现契约**。
 
 把"已完成 / 占位 / 明确不支持"写死的目的：
