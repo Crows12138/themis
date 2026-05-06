@@ -221,6 +221,37 @@ def test_failure_modes_header_count_matches_actual_entries():
     )
 
 
+def test_coverage_map_mcp_counts_match_actual_server():
+    """COVERAGE_MAP.md quotes 'N tools + M resources' for the MCP server.
+    Iter 59 found drift: said '6 tools' while actual is 7
+    (themis_apply_patch_and_run / discover / estimate / list_resources /
+    run / verify / verify_data_gap_report). Pin actual server output."""
+    import asyncio
+    import re
+    from themis.mcp import build_server
+    app = build_server()
+    actual_tools = len(asyncio.run(app.list_tools()))
+    actual_resources = len(list(asyncio.run(app.list_resources())))
+
+    cov = (REPO_ROOT / "COVERAGE_MAP.md").read_text(encoding="utf-8")
+    # Handle both ASCII () and full-width （）parentheses around the count
+    m = re.search(
+        r"MCP server[^|]*[\(（](\d+)\s+tools\s*\+\s*(\d+)\s+resources",
+        cov,
+    )
+    assert m, "COVERAGE_MAP.md must quote 'MCP server ...(N tools + M resources...'"
+    quoted_tools = int(m.group(1))
+    quoted_resources = int(m.group(2))
+    assert quoted_tools == actual_tools, (
+        f"COVERAGE_MAP says {quoted_tools} MCP tools but server has "
+        f"{actual_tools}. Update the table row in COVERAGE_MAP.md."
+    )
+    assert quoted_resources == actual_resources, (
+        f"COVERAGE_MAP says {quoted_resources} MCP resources but server has "
+        f"{actual_resources}. Update the table row in COVERAGE_MAP.md."
+    )
+
+
 def test_eval_set_readme_counts_match_actual_files():
     """docs/eval_set/README.md header quotes 'N cases across M failure
     modes (F1-FM)'. Iter 57 audit found this stale: header said

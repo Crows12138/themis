@@ -50,7 +50,7 @@
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |
 | Theta 数值层 + confidence 聚合 | **~100%** |
-| MCP server 包装（6 tools + 12 resources，stdio） | **~100%** |
+| MCP server 包装（7 tools + 12 resources，stdio） | **~100%** |
 
 ---
 
