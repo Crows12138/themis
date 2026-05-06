@@ -221,6 +221,42 @@ def test_failure_modes_header_count_matches_actual_entries():
     )
 
 
+def test_readme_subpackage_list_matches_actual():
+    """README.md '主要目录' code block lists themis/<sub-package>/
+    entries. Iter 60 found drift: README listed 10 sub-packages but
+    actual themis/ has 11 (web/ was missing — added in this session
+    via mode (a) LLM bridge + mode (b) paste-JSON commits).
+
+    Pin: extract sub-package names from the code block, compare against
+    actual directories under themis/."""
+    import re
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    # Extract lines like '  upstream/   NL bridge helpers: ...' inside the
+    # 主要目录 code block
+    block_match = re.search(r"## 主要目录\s*\n+```text\n(.*?)\n```", readme,
+                             re.DOTALL)
+    assert block_match, "README must have '主要目录' code block"
+    block = block_match.group(1)
+    listed = set()
+    for line in block.splitlines():
+        m = re.match(r"\s+(\w+)/\s+", line)
+        if m:
+            listed.add(m.group(1))
+
+    actual = {
+        p.name for p in (REPO_ROOT / "themis").iterdir()
+        if p.is_dir() and not p.name.startswith("_")
+    }
+    missing_from_readme = actual - listed
+    extra_in_readme = listed - actual
+    assert not missing_from_readme, (
+        f"README '主要目录' missing actual sub-packages: {missing_from_readme}"
+    )
+    assert not extra_in_readme, (
+        f"README '主要目录' lists non-existent sub-packages: {extra_in_readme}"
+    )
+
+
 def test_coverage_map_mcp_counts_match_actual_server():
     """COVERAGE_MAP.md quotes 'N tools + M resources' for the MCP server.
     Iter 59 found drift: said '6 tools' while actual is 7

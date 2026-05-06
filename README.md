@@ -21,7 +21,7 @@ Themis 是一个 JSON-in / JSON-out 的因果推理系统。当前开发态为
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-当前全量测试基线：`1570 passed / 143 skipped`，warning-clean。
+当前全量测试基线：`1571 passed / 143 skipped`，warning-clean。
 
 ---
 
@@ -110,6 +110,7 @@ themis/
   estimation/   backdoor, front-door, IV, mediation, sensitivity, discovery, dose-response
   kb/           KB adapter contract, translator, cache, reference proxy
   mcp/          FastMCP wrapper for tools/resources
+  web/          local FastAPI UI: mode (b) paste-JSON + mode (a) LLM bridge
   oracle/       development-only differential/parity adapters
 ```
 
