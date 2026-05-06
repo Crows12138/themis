@@ -189,6 +189,35 @@ def test_alternative_paths_mentions_evalue():
     assert "E-value" in paths_text or "e-value" in paths_text.lower()
 
 
+def test_unmeasured_confounder_risk_persists_through_apply_patch_and_run():
+    """iter 30 audit: unmeasured_confounder_risk is a structural advisory
+    (about DAG completeness, not data). It must persist when the user
+    fills missing distributions via apply_patch_and_run — the DAG hasn't
+    changed, so the advisory still applies even if status flips toward
+    numerically_solved.
+
+    Catches a class of regression where some dispatch path could
+    accidentally elide structural advisories once theta is more filled."""
+    from themis import apply_patch_and_run
+    program = _base_program(with_confounder=True, with_bidirected=False)
+    initial = run(program)
+    initial_kinds = _gap_kinds(initial)
+    assert "unmeasured_confounder_risk" in initial_kinds
+
+    # Fill the missing parameter via the investigation_request skeleton
+    investigation = initial["results"][0]["investigation_requests"][0]
+    skeleton = dict(investigation["items"][0]["skeleton"])
+    skeleton["value"] = 0.5
+    skeleton["annotations"] = {"source": "test_fixture"}
+
+    patched = apply_patch_and_run(program, [skeleton])
+    patched_kinds = _gap_kinds(patched)
+    assert "unmeasured_confounder_risk" in patched_kinds, (
+        "Structural advisory should persist through apply_patch_and_run; "
+        f"DAG unchanged but advisory elided. gap_kinds: {patched_kinds}"
+    )
+
+
 def test_transport_advisory_fires_on_structurally_solved():
     """iter 24 audit guard: confirm transport advisory fires correctly
     when transport identification succeeds. Transport queries return
