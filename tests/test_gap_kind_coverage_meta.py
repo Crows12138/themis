@@ -148,6 +148,29 @@ def test_must_disclose_kinds_documented_in_response_rendering_prompt():
     )
 
 
+def test_test_count_consistent_between_core_status_and_readme():
+    """CORE_STATUS.md and README.md both quote 'N passed / M skipped' as
+    the current full-suite baseline. They must agree — iter 5 onwards
+    each test-adding commit updated both manually, easy to miss one.
+
+    Pin: extract the count line from each file via regex, assert equal.
+    Future test-count changes update both files (or this test catches
+    the drift)."""
+    import re
+    pattern = re.compile(r"(\d+)\s*passed\s*/\s*(\d+)\s*skipped")
+    core = (REPO_ROOT / "CORE_STATUS.md").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    core_match = pattern.search(core)
+    readme_match = pattern.search(readme)
+    assert core_match, "CORE_STATUS.md must list 'N passed / M skipped'"
+    assert readme_match, "README.md must list 'N passed / M skipped'"
+    assert core_match.groups() == readme_match.groups(), (
+        f"CORE_STATUS.md says {core_match.group()} but README.md says "
+        f"{readme_match.group()}. Both files quote the test baseline; "
+        f"keep them in sync."
+    )
+
+
 def test_no_orphan_test_files():
     """Every tests/test_*.py file must contain at least one test
     function (def test_… or async def test_…). Pytest silently skips
