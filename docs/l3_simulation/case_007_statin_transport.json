@@ -1,0 +1,51 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "patient"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "statin_use", "domain": [true, false]},
+    {"kind": "variable", "predicate": "cvd_event", "domain": [true, false]},
+    {"kind": "variable", "predicate": "age_high", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "age_high", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "statin_use", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age_high", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "statin_use", "args": [{"type": "const", "name": "patient"}]},
+      "to":   {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+      "annotations": {"source": "literature_rct"}
+    },
+    {
+      "kind": "selection_node",
+      "id": "S_age",
+      "affects": {"predicate": "age_high", "args": [{"type": "const", "name": "patient"}]},
+      "source_population": "rct_50_to_70_pool",
+      "target_population": "user_75plus"
+    },
+    {
+      "kind": "query",
+      "id": "q_statin_transport",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "cvd_event", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "statin_use", "args": [{"type": "const", "name": "patient"}]},
+          "value": true
+        },
+        "given": [],
+        "target_population": "user_75plus"
+      }
+    }
+  ]
+}

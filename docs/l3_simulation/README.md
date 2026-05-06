@@ -108,3 +108,8 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   mediation NDE/NIE + CDE 都 identifiable，mediation advisory 双
   branch 触发；与 unmeasured_confounder_risk 协同不冗余；同时验
   iter 11 audit 结论 mediation 走 structurally_solved 路径）
+- [Case 007 — Statin RCT 推到 75+ 老年人 (transport)](case_007_statin_transport.md)
+  （2026-05-07 iter 15，✅ match：第一个 L3-tested transport 路径
+  Phase 9 §T9.1；S-admissibility identification + 双 distribution
+  gap + assumption advisory + unmeasured_confounder_risk 四层互补；
+  USPSTF 2022 quote 直接支持 source-conditional unknown finding）
