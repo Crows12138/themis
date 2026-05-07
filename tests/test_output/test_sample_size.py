@@ -16,6 +16,7 @@ from themis.output.sample_size import (
     estimate_min_n_transport_target_marginal,
     estimate_min_n_two_arm_binary,
     estimate_min_n_two_arm_continuous,
+    estimate_n_for_target_ci_half_width,
     is_binary_outcome_distribution,
     is_continuous_outcome_distribution,
 )
@@ -484,3 +485,73 @@ def test_gap_report_fills_min_sample_size_for_transport_gaps():
     assert "stratum" in src.required_data.precision_target
     assert tgt.required_data.min_sample_size == 2200
     assert "P*(Z)" in tgt.required_data.precision_target
+
+
+# ----------------------------------------- post-hoc precision budgeting
+
+
+def test_post_hoc_halve_ci_requires_4x_n():
+    """SE ∝ 1/√N → halving CI half-width needs 4× the samples.
+    Pure σ-free arithmetic: N_old=400, W_old=0.10, W_new=0.05 →
+    N_new = 400 · 4 = 1600."""
+    n, hint = estimate_n_for_target_ci_half_width(
+        current_n=400,
+        current_ci_half_width=0.10,
+        target_ci_half_width=0.05,
+    )
+    assert n == 1600
+    assert "1600" in hint
+    assert "4.00" in hint  # ratio² = (0.10/0.05)² = 4
+
+
+def test_post_hoc_no_change_when_target_equals_current():
+    """If target == current, n_new = n_old (no extra samples)."""
+    n, _ = estimate_n_for_target_ci_half_width(
+        current_n=300,
+        current_ci_half_width=0.08,
+        target_ci_half_width=0.08,
+    )
+    assert n == 300
+
+
+def test_post_hoc_loosen_target_returns_smaller_n():
+    """If user accepts a wider CI, can downsize. N_old=1000, W_old=0.04,
+    W_new=0.08 → N_new = 1000 · 0.25 = 250."""
+    n, _ = estimate_n_for_target_ci_half_width(
+        current_n=1000,
+        current_ci_half_width=0.04,
+        target_ci_half_width=0.08,
+    )
+    assert n == 250
+
+
+def test_post_hoc_round_up_to_50():
+    """Edge case: 333 rounds up to 350."""
+    n, _ = estimate_n_for_target_ci_half_width(
+        current_n=333,
+        current_ci_half_width=0.10,
+        target_ci_half_width=0.10,
+    )
+    # ratio² = 1.0 → exact 333 → round up to 350
+    assert n == 350
+
+
+def test_post_hoc_rejects_invalid_inputs():
+    with pytest.raises(ValueError, match="current_n"):
+        estimate_n_for_target_ci_half_width(
+            current_n=0,
+            current_ci_half_width=0.1,
+            target_ci_half_width=0.05,
+        )
+    with pytest.raises(ValueError, match="current_ci_half_width"):
+        estimate_n_for_target_ci_half_width(
+            current_n=100,
+            current_ci_half_width=0.0,
+            target_ci_half_width=0.05,
+        )
+    with pytest.raises(ValueError, match="target_ci_half_width"):
+        estimate_n_for_target_ci_half_width(
+            current_n=100,
+            current_ci_half_width=0.1,
+            target_ci_half_width=-0.05,
+        )

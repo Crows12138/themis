@@ -187,6 +187,56 @@ def estimate_min_n_single_proportion(
     return _round_up_50(n), note
 
 
+def estimate_n_for_target_ci_half_width(
+    *,
+    current_n: int,
+    current_ci_half_width: float,
+    target_ci_half_width: float,
+) -> tuple[int, str]:
+    """Post-hoc precision budgeting: given an estimate produced from
+    ``current_n`` samples with 95% CI half-width ``current_ci_half_width``,
+    how large would N need to be to shrink the CI to
+    ``target_ci_half_width``?
+
+    Standard error scales as 1/√N for IID estimators, so:
+
+        SE_new / SE_old = √(N_old / N_new)
+        →  N_new = N_old · (W_old / W_new)²
+
+    The formula is σ-free (σ cancels) and applies to any estimator
+    whose CI is symmetric and width is dominated by 1/√N — i.e.
+    ATE / IV / mediation point estimates from this codebase.
+
+    Returns ``(n_new, hint_string)``. ``n_new`` is rounded up to the
+    nearest 50 (consistent with the a-priori helpers in this module).
+
+    Aligns with VISION 2026-04-26 §"输出 (2)" requirement: "在子群 G
+    做 RCT n=N 能把 CI 收缩到 ±δ" — when a current estimate's CI is
+    wider than the user wants, this helper tells them how much more
+    data is needed.
+    """
+    if current_n < 1:
+        raise ValueError(f"current_n must be >=1, got {current_n}")
+    if current_ci_half_width <= 0:
+        raise ValueError(
+            f"current_ci_half_width must be positive, got "
+            f"{current_ci_half_width}"
+        )
+    if target_ci_half_width <= 0:
+        raise ValueError(
+            f"target_ci_half_width must be positive, got "
+            f"{target_ci_half_width}"
+        )
+    ratio = current_ci_half_width / target_ci_half_width
+    n_new = math.ceil(current_n * ratio ** 2)
+    hint = (
+        f"current N={current_n} → 95% CI ±{current_ci_half_width:g}; "
+        f"to shrink to ±{target_ci_half_width:g}, need N≈{n_new} "
+        f"(SE scales as 1/√N → factor {ratio**2:.2f}× more samples)"
+    )
+    return _round_up_50(n_new), hint
+
+
 def _round_up_50(n: int) -> int:
     """Round up to the nearest 50."""
     return ((n + 49) // 50) * 50
