@@ -12,6 +12,11 @@ Landed scope:
   ``estimate_frontdoor_ate`` / ``estimate_iv_ate`` /
   ``estimate_mediation`` returning ``BackdoorEstimate`` /
   ``FrontdoorEstimate`` / ``IVEstimate`` / ``MediationEstimate``
+- Phase 7.5 (iter 125) — Controlled Direct Effect at fixed M=m*:
+  ``estimate_cde`` returning ``CDEEstimate``. Plug-in g-formula
+  on a sklearn outcome model; complements the Imai NDE/NIE path
+  with the policy-relevant "what if we forced M to this level?"
+  contrast (VanderWeele 2015 ch.2.3.3).
 - Phase 8.1 — discovery: ``discover_graph`` (PC / FCI / LiNGAM via
   causal-learn) returning ``DiscoveryResult`` +
   ``discovery_to_kernel_ast`` adapter
@@ -37,7 +42,12 @@ from .discovery import (
     discovery_to_kernel_ast,
 )
 from .iv import IVEstimate, estimate_iv_ate
-from .mediation import MediationEstimate, estimate_mediation
+from .mediation import (
+    CDEEstimate,
+    MediationEstimate,
+    estimate_cde,
+    estimate_mediation,
+)
 from .sensitivity import (
     EValueResult,
     e_value_for_risk_ratio,
@@ -47,6 +57,7 @@ from .sensitivity import (
 
 __all__ = [
     "BackdoorEstimate",
+    "CDEEstimate",
     "DataContract",
     "DataContractError",
     "DiscoveryResult",
@@ -60,6 +71,7 @@ __all__ = [
     "e_value_from_ate_binary",
     "e_value_from_ate_continuous",
     "estimate_backdoor_ate",
+    "estimate_cde",
     "estimate_frontdoor_ate",
     "estimate_iv_ate",
     "estimate_mediation",

@@ -1,19 +1,25 @@
-"""Phase 7.4 S.MN.1 — mediation numeric estimator (NDE / NIE / TE).
+"""Phase 7.4 + 7.5 — mediation numeric estimators.
 
-Wraps statsmodels' ``statsmodels.stats.mediation.Mediation`` (Imai,
-Keele, Tingley 2010 algorithms 1 & 2) so Themis can produce numeric
-natural direct / indirect / total effects when the identification
-layer has cleared Pearl's four conditions (see Phase 6.mediation).
+S.MN.1 (Phase 7.4): NDE / NIE / TE via statsmodels' Mediation class
+(Imai, Keele, Tingley 2010 algorithms 1 & 2). See ``estimate_mediation``.
 
-Scope (v1):
+S.CDE (Phase 7.5, iter 125): Controlled Direct Effect at a fixed
+mediator value m* via plug-in g-formula on a fitted outcome model
+``Y ~ X + M + Z``. See ``estimate_cde``. Implementation is sklearn-
+based (not statsmodels) because choosing a reference m* and computing
+``E[Y|do(X=x), do(M=m*)]`` requires a custom plug-in that the
+statsmodels Mediation API doesn't expose. Bootstrap CI matches the
+backdoor estimator's percentile pattern.
+
+Scope (current):
 - Single mediator (bool or continuous)
 - Binary treatment
 - Bool or continuous outcome (logit / OLS)
 - Adjustment set ``adjustment`` threaded into both outcome and
   mediator models as linear features
-- CDE estimation **not** included in v1 — requires choosing a
-  reference mediator value m* that isn't expressible cleanly in the
-  statsmodels API. Deferred to 7.5 if a real case needs it.
+- CDE: requires the user to pass ``mediator_value=m*`` (no implicit
+  reference choice — Themis does not invent which level is the
+  "control" for the mediator)
 
 Uses statsmodels as a production backend (not dev-only parity) per
 the 5-rule API gate:
@@ -22,6 +28,9 @@ the 5-rule API gate:
 - version pinned in environment
 - parity-testable against DoWhy's mediation estimator
 - all outputs (3 point estimates + 3 CIs) fit in derivation JSON
+
+CDE path uses sklearn linear / logistic regression for the outcome
+model, same backend as ``themis/estimation/backdoor.py``.
 """
 from __future__ import annotations
 
@@ -176,6 +185,165 @@ def estimate_mediation(
         treatment=treatment,
         outcome=outcome,
         n_rep=n_rep,
+    )
+
+
+@dataclass(frozen=True)
+class CDEEstimate:
+    """Phase 7.5 (iter 125) — Controlled Direct Effect at fixed M=m*.
+
+    CDE(x, x', m*) = E[Y | do(X=x), do(M=m*)] - E[Y | do(X=x'), do(M=m*)]
+
+    Differences from NDE/NIE:
+    - CDE fixes M at a chosen level m* (the "control" for the
+      mediator); NDE/NIE take expectations over M's natural distribution.
+    - CDE only requires the X→Y identification given M (one-step
+      no-unmeasured-confounders), not Pearl's full sequential
+      ignorability — a strictly weaker assumption set.
+    - Per VanderWeele 2015 ch.2.3.3, CDE is the policy-relevant
+      direct effect when M is itself an intervention target (e.g.
+      "what would the effect of X on Y look like if we forced
+      everyone's M to m*?").
+    """
+
+    point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    ci_level: float
+    method: str                   # "cde_linear" | "cde_logit"
+    mediator_value: object        # the m* the CDE was computed at
+    treatment_low: object         # the x' (control treatment level)
+    treatment_high: object        # the x (treated level)
+    sample_size: int
+    data_hash: str
+    adjustment: tuple[str, ...]
+    mediator: str
+    treatment: str
+    outcome: str
+    assumptions: tuple[str, ...]
+
+
+def estimate_cde(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    mediator: str,
+    mediator_value: object,
+    adjustment: tuple[str, ...] = (),
+    treatment_low: object = False,
+    treatment_high: object = True,
+    model: str = "auto",
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+) -> CDEEstimate:
+    """Plug-in g-formula CDE at fixed ``M = mediator_value``.
+
+    Steps:
+    1. Fit ``E[Y | X, M, Z]`` with sklearn (linear if Y continuous,
+       logistic if Y bool).
+    2. For each row i, predict at ``(X=high, M=m*, Z=Z_i)`` and
+       ``(X=low, M=m*, Z=Z_i)``; the CDE is the sample-mean difference.
+    3. Percentile bootstrap CI (same pattern as backdoor.py).
+
+    Returns ``CDEEstimate``. Does NOT require statsmodels — purely
+    sklearn — because the statsmodels Mediation API doesn't expose
+    do(M=m*) plug-in directly.
+    """
+    from sklearn.linear_model import LinearRegression, LogisticRegression
+
+    required = {treatment, outcome, mediator, *adjustment}
+    contract = validate_data(data, required_columns=required)
+    df = contract.data
+
+    is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
+    if model == "auto":
+        resolved = "logit" if is_bool_outcome else "linear"
+    else:
+        resolved = model
+
+    feature_cols = [treatment, mediator, *adjustment]
+
+    def _fit_predict_diff(sample: pd.DataFrame) -> float:
+        X_full = sample[feature_cols].to_numpy(dtype=float)
+        y = sample[outcome].to_numpy()
+        if resolved == "logit":
+            y_int = y.astype(int)
+            if len(np.unique(y_int)) < 2:
+                raise ValueError("only one outcome value in this draw")
+            clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+            clf.fit(X_full, y_int)
+            X_high = X_full.copy()
+            X_low = X_full.copy()
+            # Replace the treatment column (index 0) and mediator (index 1)
+            X_high[:, 0] = float(treatment_high)
+            X_low[:, 0] = float(treatment_low)
+            X_high[:, 1] = float(mediator_value)
+            X_low[:, 1] = float(mediator_value)
+            p_high = clf.predict_proba(X_high)[:, 1]
+            p_low = clf.predict_proba(X_low)[:, 1]
+            return float(np.mean(p_high - p_low))
+        elif resolved == "linear":
+            reg = LinearRegression()
+            reg.fit(X_full, y.astype(float))
+            X_high = X_full.copy()
+            X_low = X_full.copy()
+            X_high[:, 0] = float(treatment_high)
+            X_low[:, 0] = float(treatment_low)
+            X_high[:, 1] = float(mediator_value)
+            X_low[:, 1] = float(mediator_value)
+            return float(np.mean(reg.predict(X_high) - reg.predict(X_low)))
+        else:
+            raise ValueError(f"unknown model {model!r}")
+
+    point = _fit_predict_diff(df)
+
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if ci_bootstrap > 0:
+        rng = np.random.default_rng(random_state)
+        n = len(df)
+        draws = np.empty(ci_bootstrap)
+        for i in range(ci_bootstrap):
+            idx = rng.integers(0, n, size=n)
+            try:
+                draws[i] = _fit_predict_diff(df.iloc[idx])
+            except (ValueError, np.linalg.LinAlgError):
+                draws[i] = np.nan
+        draws = draws[~np.isnan(draws)]
+        if len(draws) > 0:
+            alpha = (1 - ci_level) / 2
+            ci_lower = float(np.quantile(draws, alpha))
+            ci_upper = float(np.quantile(draws, 1 - alpha))
+
+    method = f"cde_{resolved}"
+    assumptions = (
+        "no_unmeasured_confounder_x_y_given_m_and_adjustment",
+        "no_unmeasured_confounder_m_y_given_x_and_adjustment",
+        "consistency_of_potential_outcomes",
+    )
+    if adjustment:
+        assumptions = assumptions + (
+            "adjustment_set_blocks_xy_and_my_backdoors",
+        )
+
+    return CDEEstimate(
+        point=point,
+        ci_lower=ci_lower,
+        ci_upper=ci_upper,
+        ci_level=ci_level,
+        method=method,
+        mediator_value=mediator_value,
+        treatment_low=treatment_low,
+        treatment_high=treatment_high,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        adjustment=tuple(adjustment),
+        mediator=mediator,
+        treatment=treatment,
+        outcome=outcome,
+        assumptions=assumptions,
     )
 
 
