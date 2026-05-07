@@ -1130,3 +1130,108 @@ result still routes the case under a generic kind. Free-text reason
 fields and structured kinds have different consumers; they need
 parallel updates or the structured layer silently lags one iter behind
 the human-facing layer.
+
+---
+
+#### 2026-05-07 iter 204 — d-sep guard wasn't engaged on the probability-query dispatch path (L3 case 012 real bug)
+
+L3 simulation methodology applied to iter 199-203 d-sep refusal:
+mined a real authoritative case (Pearl 1995 *Biometrika* / Pearl 2009
+*Causality* §3.3.2 smoking-tar-cancer chain) and ran it through
+``themis.run`` to evaluate refusal-text readability. The probe
+**accidentally surfaced a real silent-wrong bug** that iter 199-203
+sync pins did NOT catch.
+
+Setup: chain DAG ``smoking → tar → lung_cancer``, marginal-only
+theta ``P(lung_cancer | smoking)``, probability query
+``P(lung_cancer=T | smoking=T, tar=T)``. Per Pearl §1.2.3 the chain
+implies ``lung_cancer ⊥ smoking | tar``, NOT ``lung_cancer ⊥ tar |
+smoking`` — so the marginal cannot legitimately substitute for the
+conditional. The iter 199 d-sep guard was supposed to catch exactly
+this.
+
+**Pre-iter-204 result**: status ``numerically_solved``, value 0.18
+(the marginal). **No** refusal, **no** ``graph_theta_independence_
+mismatch`` gap_kind, just a silent substitution. The same scenario
+on the effect-query path correctly refuses (covered by iter 199 +
+iter 202 tests).
+
+**Root cause**: iter 199 wired the d-sep guard inside
+``_try_marginal_independence_lookup`` to fire only when
+``graph is not None AND bidirected is not None`` (both required
+because the m-separation walk crosses bidirected siblings).
+``_dispatch_probability`` in ``scheduler.py`` accepted ``graph`` from
+the kernel but never accepted / forwarded ``bidirected`` to
+``_try_numeric``. Default ``bidirected=None`` short-circuited the
+guard, falling back to iter 193 trust-the-user behavior on the
+**entire** probability dispatch path. The effect-query path threads
+bidirected at multiple layers (line 1416 / 1513 etc.); the
+probability path is independent and was never updated when iter 199
+landed.
+
+iter 199-201's three sync pins
+(test_iter_199_dsep_guard_*, test_iter_200_*, test_iter_201_*) all
+test ``estimate_formula`` directly with explicit ``bidirected=``;
+they did not exercise the kernel-level ``themis.run`` dispatch
+fan-out, so the dropped argument was invisible.
+
+**Structural fix** (5-line, no logic change): add ``bidirected``
+kwarg to ``_dispatch_probability`` and forward to ``_try_numeric``;
+update the kernel-level call site (line 2396) to pass
+``bidirected=bidirected``. The dispatch fan-out for counterfactual /
+effect / mediation already passed bidirected; this brings probability
+in line.
+
+End-to-end demo. Pre-iter-204:
+
+    status: numerically_solved
+    numeric_result.value: 0.18         ← silently wrong substitution
+    data_gap_report.gaps: [framing only, no d-sep refusal]
+
+Post-iter-204:
+
+    status: needs_investigation
+    numeric_result: None
+    data_gap_report.gaps[*].kind contains
+      "graph_theta_independence_mismatch"
+    explanation:
+      ⚠ 声明的图与提供的 CPT 不一致：缺
+        P(lung_cancer=True|smoking=True,tar=True)，但 theta 中
+        存在的边缘量被 d-separation 拒绝（图蕴含的独立性不成立）
+
+Tests added (2 new, total 1893 → 1895):
+
+- ``test_iter_204_probability_dispatch_threads_bidirected_for_dsep_guard``:
+  e2e through ``themis.run``; pins (a) status/value behavior, (b)
+  ``graph_theta_independence_mismatch`` fires, (c) generic
+  ``missing_distribution`` is suppressed (per iter 203 routing)
+- L3 case 012 entry in ``CASES`` (parametrized regression): asserts
+  the same gap_kind shape under the corpus harness
+
+Full suite 1895 passed / 143 skipped, no regression.
+
+L3 case file: ``docs/l3_simulation/case_012_pearl_chain_dsep_refusal.{json,md}``;
+authoritative source quoted in the .md. Corpus 11 → 12.
+
+Why this is the iter, not "more identification capability": this is
+exactly the L3-simulation methodology working as designed —
+synthetic in-process tests covered the new guard's algorithmic
+correctness; an external authoritative case run end-to-end through
+``themis.run`` surfaced a dispatch-fan-out hole the in-process tests
+had no visibility into. iter 199-203 closed silent-wrong on chain
+DAG + effect query + theta refusal; iter 204 closes the parallel
+hole on probability query. Three more dispatch routes
+(cause / assoc / identify) don't reach ``_try_numeric`` because
+they are structural-only — verified by reading the dispatch table
+in scheduler line 2356-2400. So the "did we close everywhere"
+audit terminates here for now.
+
+Lesson: when an internal helper requires multiple kwargs to be
+non-None for a guard to fire, every dispatch fan-out site is a
+potential silent bypass. Algorithmic-correctness sync pins
+(test_iter_199 / 200 / 201) exercise the helper; they do NOT
+exercise the n call sites threading the kwargs to it. Real-user-
+mining is what caught this — in-process synthetic tests can't
+randomly generate dispatch combinations, but a real authoritative
+case "user declares chain + supplies marginal + asks conditional"
+hits exactly the path no synthetic test thought to construct.

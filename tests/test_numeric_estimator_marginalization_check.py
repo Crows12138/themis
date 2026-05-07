@@ -705,3 +705,118 @@ def test_iter_202_runtime_and_verifier_diagnostics_agree_on_refusal():
         missing, theta, graph=g_par, bidirected=bi,
     )
     assert rt_par is None and vf_par is None
+
+
+def test_iter_204_probability_dispatch_threads_bidirected_for_dsep_guard():
+    """Iter 204 — sync pin for the dispatch-fan-out hole found by
+    L3 case 012 (Pearl 1995 smoking-tar-cancer chain).
+
+    Pre-iter-204, ``_dispatch_probability`` accepted ``graph`` but
+    NOT ``bidirected``, then forwarded with ``bidirected=None`` to
+    ``_try_numeric``. The d-sep guard inside
+    ``_try_marginal_independence_lookup`` short-circuits when
+    ``bidirected is None`` (see the ``if graph is not None and
+    bidirected is not None`` clause), so on the entire
+    probability-query dispatch path the iter 199-201 guard was
+    dormant: a chain DAG (S→T→C) with marginal-only theta P(C|S)
+    and a query P(C|S,T) silently returned 0.18 (the substituted
+    marginal) instead of refusing.
+
+    iter 204 fixes _dispatch_probability to forward bidirected and
+    the kernel-level call site to pass it. This test pins the
+    end-to-end behaviour: the same chain + marginal + probability
+    query goes through ``themis.run`` and lands on
+    ``graph_theta_independence_mismatch`` with status
+    ``needs_investigation``, not ``numerically_solved`` with value
+    0.18.
+
+    Effect-query d-sep was already covered by tests
+    test_iter_199 / test_iter_202 / case 012 catches the parallel
+    probability-query path that those tests didn't reach.
+    """
+    import themis
+
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "smoking",
+             "domain": [True, False]},
+            {"kind": "variable", "predicate": "tar",
+             "domain": [True, False]},
+            {"kind": "variable", "predicate": "lung_cancer",
+             "domain": [True, False]},
+            {"kind": "cause",
+             "from": {"predicate": "smoking",
+                      "args": [{"type": "const", "name": "p"}]},
+             "to": {"predicate": "tar",
+                    "args": [{"type": "const", "name": "p"}]}},
+            {"kind": "cause",
+             "from": {"predicate": "tar",
+                      "args": [{"type": "const", "name": "p"}]},
+             "to": {"predicate": "lung_cancer",
+                    "args": [{"type": "const", "name": "p"}]}},
+            {"kind": "probability",
+             "target": {"atom": {"predicate": "lung_cancer",
+                                 "args": [{"type": "const",
+                                           "name": "p"}]},
+                        "value": True},
+             "given": [{"atom": {"predicate": "smoking",
+                                 "args": [{"type": "const",
+                                           "name": "p"}]},
+                        "value": True}],
+             "value": 0.18},
+            {"kind": "probability",
+             "target": {"atom": {"predicate": "lung_cancer",
+                                 "args": [{"type": "const",
+                                           "name": "p"}]},
+                        "value": True},
+             "given": [{"atom": {"predicate": "smoking",
+                                 "args": [{"type": "const",
+                                           "name": "p"}]},
+                        "value": False}],
+             "value": 0.013},
+            {"kind": "query", "id": "q",
+             "query": {
+                 "kind": "probability",
+                 "target": {"atom": {"predicate": "lung_cancer",
+                                     "args": [{"type": "const",
+                                               "name": "p"}]},
+                            "value": True},
+                 "given": [
+                     {"atom": {"predicate": "smoking",
+                               "args": [{"type": "const",
+                                         "name": "p"}]},
+                      "value": True},
+                     {"atom": {"predicate": "tar",
+                               "args": [{"type": "const",
+                                         "name": "p"}]},
+                      "value": True},
+                 ]}},
+        ],
+    }
+
+    out = themis.run(ast)
+    res = out["results"][0]
+
+    # Behaviour pin: silent-wrong path is closed.
+    assert res["status"] == "needs_investigation", (
+        "iter 204 regression: the chain × marginal-only probability "
+        "query is silently substituting the marginal again"
+    )
+    assert res.get("numeric_result") is None, (
+        "iter 204 regression: no numeric_result should be emitted "
+        "when the d-sep guard refuses the substitution"
+    )
+
+    # Structured-channel pin: the dedicated iter 203 kind fires, not
+    # the generic missing_distribution.
+    kinds = {g["kind"] for g in res["data_gap_report"]["gaps"]}
+    assert "graph_theta_independence_mismatch" in kinds, (
+        "iter 204 regression: d-sep refusal in probability dispatch "
+        "did not route to the dedicated gap kind"
+    )
+    assert "missing_distribution" not in kinds, (
+        "iter 204: when the d-sep refusal signature is present, the "
+        "generic missing_distribution must be suppressed (per iter 203)"
+    )

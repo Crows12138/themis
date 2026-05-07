@@ -1906,7 +1906,11 @@ def _build_effect_structural_prefix(
 
 
 def _dispatch_probability(
-    stmt: QueryStatement, graph: nx.DiGraph, theta: Theta
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    bidirected=None,
 ) -> QueryResult:
     """Probability queries are purely distributional lookups.
 
@@ -1918,6 +1922,16 @@ def _dispatch_probability(
     evaluator surfaces a structured missing-parameter report, and the
     caller can supply the entry without first declaring a spurious
     cause edge.
+
+    Iter 204: thread ``bidirected`` through to ``_try_numeric`` so the
+    iter 199 d-separation guard actually fires for probability queries.
+    Pre-iter-204 the bidirected argument was dropped at this call site,
+    leaving the guard dormant for the entire ``probability`` query path
+    — a chain DAG (S→T→C) with marginal-only theta P(C|S) and a query
+    P(C|S,T) silently returned the marginal value (0.18) instead of
+    refusing, because the guard short-circuits when ``bidirected is
+    None`` (see numeric_estimator._try_marginal_independence_lookup).
+    Found by L3 case 012 (Pearl 1995 smoking-tar-cancer chain).
     """
     q: ProbabilityQuery = stmt.query  # type: ignore[assignment]
     formula = formula_builder._conditional(  # type: ignore[attr-defined]
@@ -1925,7 +1939,8 @@ def _dispatch_probability(
         q.given,
     )
     return _try_numeric(
-        stmt, formula, theta, QueryKind.PROBABILITY, graph=graph,
+        stmt, formula, theta, QueryKind.PROBABILITY,
+        graph=graph, bidirected=bidirected,
     )
 
 
@@ -2393,7 +2408,9 @@ def dispatch(
                 missing_information=strict_items,
             )
         else:
-            result = _dispatch_probability(stmt, graph, theta)
+            result = _dispatch_probability(
+                stmt, graph, theta, bidirected=bidirected,
+            )
     elif isinstance(q, CounterfactualQuery):
         result = _dispatch_counterfactual(
             stmt, graph, theta, bidirected=bidirected

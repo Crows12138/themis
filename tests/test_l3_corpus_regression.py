@@ -5,7 +5,8 @@ gap_kinds') after iter 1-16 mined 10 cases from authoritative sources.
 The file accumulated additional structural / preventive pins through
 iter 90 as the corpus grew and drift classes were caught.
 
-Cases corpus (10 total, plateau achieved iter 20):
+Cases corpus (12 total; 10/10 plateau achieved iter 20, then 011 + 012
+mined post-plateau as deliberate stress probes):
 - 001/002 backdoor (medicine) — measured confounders + no bidirected
 - 003 IV via Balke-Pearl bounds (econ) — Card 1995 schooling-earnings
 - 004 front-door (medicine) — Pearl smoking->tar->cancer
@@ -15,6 +16,11 @@ Cases corpus (10 total, plateau achieved iter 20):
 - 008 counterfactual (Layer 3) — Pearl 2009 monotone bounds
 - 009 mediation × transport (silent dispatch finding → iter 19 fix)
 - 010 cause query (climate) — IPCC AR6 attribution
+- 011 continuous treatment + measurement error (DASH-Sodium/INTERSALT,
+  iter 129 anti-finding)
+- 012 chain DAG × marginal-only theta probability query (Pearl 1995/2009,
+  iter 204 real-bug finding — d-sep guard wasn't engaged on
+  probability dispatch path; bidirected threading fix)
 
 Pins (chronological):
 - test_l3_case_emits_expected_gap_kinds (iter 17, parametrized) —
@@ -163,6 +169,26 @@ CASES = [
          "unmeasured_confounder_risk"],
         ["unattempted_layer_due_to_dispatch_conflict",
          "iv_identification_assumption_required",
+         "front_door_identification_assumption_required"],
+    ),
+    (
+        "case_012_pearl_chain_dsep_refusal.json",
+        # Iter 204 real-bug case: Pearl smoking-tar-cancer chain
+        # (S→T→C) with marginal-only theta P(C|S) and a probability
+        # query asking P(C|S,T). Pre-iter-204, _dispatch_probability
+        # didn't thread bidirected to _try_numeric, so the iter 199
+        # d-sep guard was dormant on the entire probability dispatch
+        # path → Themis silently returned 0.18 (the marginal) instead
+        # of refusing. Post-iter-204 fix:
+        #   - graph_theta_independence_mismatch fires (iter 203 kind)
+        #   - status = needs_investigation, no numeric value
+        #   - the substituted-marginal route is closed for prob queries
+        # NOT missing_distribution: iter 203 routes the d-sep refusal
+        # signature to the dedicated kind, not the generic one.
+        ["graph_theta_independence_mismatch",
+         "ambiguous_variable_definition"],
+        ["missing_distribution",
+         "unmeasured_confounder_risk",
          "front_door_identification_assumption_required"],
     ),
 ]

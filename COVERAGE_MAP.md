@@ -1,6 +1,10 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07（iter 203 把 iter 202 的 d-sep refusal 升格为
+> 更新时间：2026-05-07（iter 204 修 probability 查询 dispatch 路径上的 d-sep
+> guard dormant bug：L3 case 012 真实案例压测发现 `_dispatch_probability`
+> 从未把 bidirected 传给 `_try_numeric`，导致 chain DAG + marginal-only
+> theta + probability query 整条路径默默用 marginal 替代条件量。修复
+> 5 行 + 加 sync pin。iter 203 把 iter 202 的 d-sep refusal 升格为
 > 一等 GapKind `graph_theta_independence_mismatch`：现在
 > data_gap_report.gaps[].kind 直接告诉下游 LLM/UI "图与 CPT 矛盾，
 > 修图或补条件量"，不再被 generic `missing_distribution` 误导成"补更多

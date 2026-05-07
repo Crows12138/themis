@@ -1,0 +1,33 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "p"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "smoking", "domain": [true, false]},
+    {"kind": "variable", "predicate": "tar", "domain": [true, false]},
+    {"kind": "variable", "predicate": "lung_cancer", "domain": [true, false]},
+    {"kind": "cause",
+     "from": {"predicate": "smoking", "args": [{"type": "const", "name": "p"}]},
+     "to":   {"predicate": "tar", "args": [{"type": "const", "name": "p"}]},
+     "annotations": {"source": "Pearl 1995 §3"}},
+    {"kind": "cause",
+     "from": {"predicate": "tar", "args": [{"type": "const", "name": "p"}]},
+     "to":   {"predicate": "lung_cancer", "args": [{"type": "const", "name": "p"}]},
+     "annotations": {"source": "Pearl 1995 §3"}},
+    {"kind": "probability",
+     "target": {"atom": {"predicate": "lung_cancer", "args": [{"type": "const", "name": "p"}]}, "value": true},
+     "given": [{"atom": {"predicate": "smoking", "args": [{"type": "const", "name": "p"}]}, "value": true}],
+     "value": 0.18,
+     "annotations": {"source": "marginal-only theta — does NOT match the declared chain graph"}},
+    {"kind": "probability",
+     "target": {"atom": {"predicate": "lung_cancer", "args": [{"type": "const", "name": "p"}]}, "value": true},
+     "given": [{"atom": {"predicate": "smoking", "args": [{"type": "const", "name": "p"}]}, "value": false}],
+     "value": 0.013},
+    {"kind": "query", "id": "q_chain_conditional",
+     "query": {"kind": "probability",
+       "target": {"atom": {"predicate": "lung_cancer", "args": [{"type": "const", "name": "p"}]}, "value": true},
+       "given": [
+         {"atom": {"predicate": "smoking", "args": [{"type": "const", "name": "p"}]}, "value": true},
+         {"atom": {"predicate": "tar", "args": [{"type": "const", "name": "p"}]}, "value": true}
+       ]}}
+  ]
+}

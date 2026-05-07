@@ -130,3 +130,10 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   治疗 + 测量误差经典案例的 6 gap_kinds 覆盖已足够；不需要新 gap_kind。
   验证了 iter 119-128 features 在医学统计文献 documented limitation 上
   的 coverage 充分。corpus 11/11。）
+- [Case 012 — Pearl chain × marginal-only theta probability query](case_012_pearl_chain_dsep_refusal.md)
+  （2026-05-07 iter 204，✅ match real bug fix：第一次用真实权威案例压
+  iter 199-203 d-sep refusal pipeline，发现 `_dispatch_probability`
+  从未把 `bidirected` 传给 `_try_numeric`，导致整条 probability 查询路径
+  的 d-sep guard dormant。chain DAG + marginal-only theta + probability
+  query → 默默返回 marginal 值代替条件量。iter 204 修 + 加 sync pin。
+  corpus 12/12。）
