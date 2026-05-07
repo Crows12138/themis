@@ -703,3 +703,64 @@ Lesson: architectural multi-layer gaps DO yield to incremental
 60s iters when each layer's fix is well-scoped and the tracker
 keeps the goal in sight. Honest 9-iter progression beat the "this
 is too risky for 60s" intuition I had at iter 167.
+
+---
+
+#### 2026-05-07 iter 181-183 mini-arc — iter 168 unlocked unanticipated capability
+
+After iter 174-180 micro-refinements (where I kept saying "value
+saturated"), iter 181 probed whether the iter 167-173 infrastructure
+had any non-obvious effects. Tried the canonical Tian Line 7 trigger
+fixture (X→M→Y, X↔Y latent — what iter 141-143 attempted via Tian
+shortcut and retracted).
+
+Discovery: themis.run NOW produces correct Pearl front-door 0.6 for
+this fixture. NOT via Tian Line 7 (still punted), but via the
+EXISTING front-door fragment combined with iter 168's validator
+loosen. Pre-iter-168 the fixture's P(Y|X, M) was rejected because
+X isn't Y's structural parent. Iter 168's "parents ∪ ancestors ∪
+siblings" rule admitted X (BOTH ancestor of Y via X→M→Y AND
+bidirected sibling via X↔Y).
+
+So a capability that was structurally impossible to express pre-
+iter-168 is now standard kernel behavior. iter 141-143 tried to
+force this via Tian Line 7 and failed; the actual fix was at the
+validator layer four iters earlier without my realizing.
+
+Verifier-side gap surfaced: themis.verify rejected the same fixture
+with a cryptic "backdoor_adjustment_formula witness" error. iter 182
+traced to verify.py:367 hardcoding backdoor as the only valid
+witness for formula_evaluation. Fix: extended to a frozenset of
+admissible identification-formula rules (backdoor + front-door).
+
+Iter 183: hoisted the witness set to module level + added sync pin
+to prevent the same hardcoded-magic-string drift class.
+
+Mini-arc deliverables (iter 181-183):
+- 181: discovered the unlock + filed regression test for runtime
+- 182: closed verifier-side gap (witness set extension)
+- 183: hoisted the set + sync pin
+
+Test count 1869 → 1871.
+
+Lessons:
+
+1. **Don't trust "value saturated"**. After iter 174-180 of micro-
+   refinements I had concluded the loop was at diminishing returns.
+   iter 181's probe found a real new capability that came online
+   from the iter 167-173 work but went undocumented for 8 iters.
+   Probing what was unlocked, not what's still broken, is a
+   different question worth asking.
+
+2. **Architectural fixes have unanticipated downstream effects**.
+   iter 168 was scoped narrowly (admit ADMG c-factor CPTs for the
+   disjoint-Y case). It silently unlocked the front-door variant
+   too — because the validator rule applies to all ADMG cases, not
+   just the one driving the fix. Worth probing related fixtures
+   after any cross-cutting fix.
+
+3. **Verifier independence cuts both ways**. The verifier's hardcoded
+   backdoor-only witness rule wasn't a bug per the "verifier is
+   independent" principle — but it WAS a bug in coverage. New
+   capabilities need both runtime AND verifier extension; iter 175's
+   sync pin pattern + iter 183's witness-set pin both address this.
