@@ -490,6 +490,7 @@ df)`, not from symbolic Theta.
 | `treatment` / `outcome` | mention once if it helps double-check |
 | `formula` | omit unless user asks "how" |
 | `sample_size` | parenthetical ("n=2000") |
+| `precision_budget.{current_ci_half_width, n_to_halve_ci, hint}` | render only when CI is wide enough that the user might want it tighter — see §"Precision budget" |
 | `data_hash` | omit (developer-facing) |
 | `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column / NaN / coercion); always surface |
 | `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
@@ -567,6 +568,41 @@ structural and the numeric (`iv_wald` / `iv_2sls`) paths.
 | `adjustment_set_blocks_mediator_outcome_backdoor_given_treatment` | 给定 X 后调整集阻断 M→Y 的后门 |
 
 For IDs not in the table, render the snake_case verbatim.
+
+#### Precision budget (`precision_budget`) — when to surface
+
+`numeric_estimate.precision_budget` is iter 151-155 wiring of VISION
+2026-04-26 §"输出 (2)" — "在子群 G 做 RCT n=N 能把 CI 收缩到 ±δ".
+It tells the user how much more N is needed to halve the current
+95% CI.
+
+- **Backdoor / IV / front-door / transport**: top-level
+  `numeric_estimate.precision_budget`.
+- **Mediation**: per-component under
+  `numeric_estimate.decomposition.{nde,nie,te,proportion_mediated}.precision_budget`.
+- **Dose-response**: per-curve-point under
+  `numeric_estimate.dose_response_curve[i].precision_budget` (skip
+  the reference-row whose CI is degenerate).
+
+**Rendering rule**: surface ONLY when the current CI is wide enough
+that "more data would help" is genuinely actionable — judgment call,
+but use the heuristic: if the CI half-width is more than ~30% of the
+point estimate's magnitude, attach the budget. If the user explicitly
+asks "how much data would I need to be sure?", surface it regardless.
+
+**Surface format**:
+
+> （目前样本 n=`<sample_size>`，95% CI ±`<half_width>`。如果你想把
+> CI 收紧一半（±`<half_width/2>`），SE 按 1/√N 缩放需要 ≈
+> **n=`<n_to_halve_ci>`**，约 `<ratio_factor>×` 现在的样本量。）
+
+Don't over-rely on the helper's own hint string — render in the
+user's domain language. Mention the SE 1/√N scaling once if the
+user seems numerate; skip it for casual askers.
+
+Don't surface a precision_budget when the answer isn't a point
+estimate (e.g. structurally unidentifiable, bounds-only). The field
+won't be there in those cases anyway.
 
 ### From literature — outside the kernel (Phase 11.1)
 
