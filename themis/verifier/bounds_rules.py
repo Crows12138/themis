@@ -1,8 +1,8 @@
-"""Iter 126 — independent verification for ``bounds_result`` payloads.
+"""Iter 126/127 — independent verification for ``bounds_result`` payloads.
 
 Phase 12 (Manski natural, Balke-Pearl IV) and iter 119 (Manski-Tamer
-monotonicity) both produce ``bounds_result`` blocks via
-``themis/output/bounds.py``. Until iter 126 those payloads were
+monotonicity) all produce ``bounds_result`` blocks via
+``themis/output/bounds.py``. Before iter 126 those payloads were
 unverified — ``themis.verify`` walked the derivation chain but never
 re-derived the bounds.
 
@@ -12,19 +12,26 @@ program shape + query metadata + (for MTR) the
 import ``themis.output.bounds`` — same posture as T10 verifier
 independence (see ``data_gap_rules.py``).
 
-Current scope (iter 126):
+Current scope:
 
-- ``verify_manski_tamer_bounds_result`` — the iter 119 producer.
-  Re-derives which side tightens (lower vs upper) based on
+- ``verify_manski_tamer_bounds_result`` (iter 126) — the iter 119 MTR
+  producer. Re-derives which side tightens (lower vs upper) based on
   monotonicity direction and intervention value, asserts the
-  ``lower_expression`` and ``upper_expression`` strings match
-  the canonical pattern.
+  ``lower_expression`` and ``upper_expression`` strings match the
+  canonical pattern.
+- ``verify_manski_natural_bounds_result`` (iter 127) — the original
+  Phase 12 ``manski_natural`` producer. Re-derives the canonical
+  ``P(Y | X) · P(X)`` lower / ``+ P(¬X)`` upper expressions from the
+  query and asserts equality. No assumption-tag check (Manski
+  natural is the assumption-free baseline).
 
-Out of scope this iter (deliberate, well-scoped):
+Out of scope (deliberate):
 
-- ``manski_natural`` and ``balke_pearl_iv`` verification are
-  follow-ups; kernel.verify continues to leave their bounds
-  unaudited until those rules are added.
+- ``balke_pearl_iv`` verification — Balke-Pearl uses a compact
+  symbolic reference rather than spelling out the 16 linear
+  combinations, so re-derivation reduces to "method matches +
+  reference shape unchanged"; that's lower-value than the structural
+  audits above. Follow-up.
 """
 from __future__ import annotations
 
@@ -175,6 +182,93 @@ def verify_manski_tamer_bounds_result(
             f"MTR bounds assumptions must include {expected_assumption_tag!r}; "
             f"got {list(assumptions)!r}",
             step_index=None, rule="bounds_manski_tamer",
+        )
+
+
+def verify_manski_natural_bounds_result(
+    bounds_result: dict,
+    *,
+    query_dict: dict,
+) -> None:
+    """Iter 127 — re-derive the expected Manski natural (1990) bounds
+    expressions and assert agreement with the claimed payload.
+
+    Manski natural is the assumption-free baseline:
+    ``P(Y=y | do(X=x)) ∈ [P(Y=y|X=x)·P(X=x),
+                          P(Y=y|X=x)·P(X=x) + P(X≠x)]``
+
+    Raises ``VerificationError`` on:
+    - method-field mismatch
+    - non-bool intervention value (Manski natural for non-binary X is
+      out of scope per the producer)
+    - lower / upper expression doesn't match the canonical pattern
+    - assumptions tuple is non-empty (Manski natural by definition
+      makes no claim — non-empty signals tampering)
+    """
+    if bounds_result.get("method") != "manski_natural":
+        raise VerificationError(
+            f"verify_manski_natural_bounds_result called with method "
+            f"{bounds_result.get('method')!r}; expected 'manski_natural'",
+            step_index=None, rule="bounds_manski_natural",
+        )
+
+    target = query_dict.get("target", {})
+    intervention = query_dict.get("intervention", {})
+    target_atom = target.get("atom", {})
+    intervention_atom = intervention.get("atom", {})
+
+    target_pred = target_atom.get("predicate")
+    intervention_pred = intervention_atom.get("predicate")
+    target_val = target.get("value")
+    intervention_val = intervention.get("value")
+
+    if not isinstance(intervention_val, bool):
+        raise VerificationError(
+            "Manski natural bounds require a boolean intervention value; "
+            f"got {intervention_val!r}",
+            step_index=None, rule="bounds_manski_natural",
+        )
+
+    target_val_str = _fmt_value(target_val)
+    intervention_val_str = _fmt_value(intervention_val)
+    other_arm_val_str = _fmt_value(not intervention_val)
+
+    expected_lower = (
+        f"P({target_pred}={target_val_str} | "
+        f"{intervention_pred}={intervention_val_str})"
+        f" · P({intervention_pred}={intervention_val_str})"
+    )
+    expected_upper = (
+        f"{expected_lower} + P({intervention_pred}={other_arm_val_str})"
+    )
+
+    actual_lower = bounds_result.get("lower_expression")
+    actual_upper = bounds_result.get("upper_expression")
+
+    if actual_lower != expected_lower:
+        raise VerificationError(
+            f"Manski natural lower_expression mismatch.\n"
+            f"  expected: {expected_lower!r}\n"
+            f"  actual:   {actual_lower!r}",
+            step_index=None, rule="bounds_manski_natural",
+        )
+    if actual_upper != expected_upper:
+        raise VerificationError(
+            f"Manski natural upper_expression mismatch.\n"
+            f"  expected: {expected_upper!r}\n"
+            f"  actual:   {actual_upper!r}",
+            step_index=None, rule="bounds_manski_natural",
+        )
+
+    # Manski natural is the assumption-free baseline; the producer
+    # emits assumptions=() (or []). Anything non-empty signals tampering
+    # or a producer bug.
+    assumptions = bounds_result.get("assumptions") or []
+    if assumptions:
+        raise VerificationError(
+            f"Manski natural is the assumption-free baseline; "
+            f"assumptions tuple must be empty, got {list(assumptions)!r}",
+            step_index=None, rule="bounds_manski_natural",
         )
 
 
