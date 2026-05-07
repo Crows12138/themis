@@ -56,6 +56,13 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   while the package had grown to include Phase 8.1 / 8.2 / 14
   exports; pin asserts every __all__ name appears in the docstring
   body so future additions force docstring updates)
+- test_subpackage_init_docstrings_inventory_all_exports (iter 112 —
+  same drift class as iter 111, applied to themis.kb / themis.upstream
+  / themis.verifier / themis.mcp: each had __all__ exporting 2-19
+  names with most/all missing from the module docstring. mcp also said
+  "four public ... entry points" which was stale (now seven). One pin
+  parametrized over the four packages forces docstring sync going
+  forward.)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1106,6 +1113,34 @@ def test_estimation_init_docstring_inventories_all_exports():
         f"themis/estimation/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring to inventory new "
         "exports."
+    )
+
+
+@pytest.mark.parametrize("pkg_name", ["kb", "upstream", "verifier", "mcp"])
+def test_subpackage_init_docstrings_inventory_all_exports(pkg_name):
+    """Iter 112 — same pin as iter 111's estimation pin, applied to the
+    other subpackages with __all__: kb (19 exports) / upstream (16) /
+    verifier (17) / mcp (2). Each had docstring drift where most
+    exports were not named — mcp's also said "four public entry
+    points" while the actual count was seven.
+
+    Pinning each forces future additions to either appear in the
+    docstring or be left out of __all__ deliberately. Skips packages
+    where __init__.py has no __all__ (web / runtime / output / workflow
+    / oracle / input — these don't claim a curated re-export surface).
+    """
+    import importlib
+
+    pkg = importlib.import_module(f"themis.{pkg_name}")
+    assert hasattr(pkg, "__all__"), (
+        f"themis.{pkg_name} no longer has __all__; remove from this "
+        "parametrize list or restore __all__"
+    )
+    docstring = pkg.__doc__ or ""
+    missing = [name for name in pkg.__all__ if name not in docstring]
+    assert not missing, (
+        f"themis/{pkg_name}/__init__.py docstring missing names from "
+        f"__all__: {missing}. Update the docstring."
     )
 
 

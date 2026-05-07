@@ -5,6 +5,19 @@ Themis itself performs no IO. This package defines the contract that
 client-side adapters (PrimeKG, SciGraph, SemMedDB, WebSearch wrappers)
 implement, plus pure helpers for translating data_gap_report entries
 into structured KBQuery and KBResult into apply_patch_and_run patches.
+
+Public surface (re-exports from sub-modules):
+
+- Schemas — ``KBQuery`` / ``KBResult`` / ``KBProvenance`` /
+  ``KBQueryKind`` / ``KBConfidenceGrade`` plus their dict
+  serialization helpers (``kb_query_to_dict`` / ``kb_query_from_dict``,
+  ``kb_result_to_dict`` / ``kb_result_from_dict``,
+  ``kb_provenance_to_dict`` / ``kb_provenance_from_dict``)
+- Contract — ``KBAdapter`` ABC + ``KBRegistry`` for adapter routing
+- Translator — ``gap_to_kb_query`` (DataGap → KBQuery),
+  ``kb_results_to_bundle`` (KBResult[] → parameter_fill_bundle),
+  ``kb_result_to_skeleton`` helper, ``DEFAULT_KB_NAME`` constant
+- Cache — ``KBCache`` deterministic store + ``cache_key`` builder
 """
 from __future__ import annotations
 

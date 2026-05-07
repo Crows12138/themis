@@ -12,6 +12,23 @@ has no runtime dependency beyond ``themis.types``.
 
 If future consumers converge on emitting canonical kernel_ast JSON
 directly, this layer can be deleted without affecting the kernel.
+
+Public surface (re-exports from sub-modules):
+
+- ``program_builder`` — ``build_program_from_extraction``
+  (extraction dict → ``Program``); raises ``ExtractionError`` when
+  the input shape is rejected
+- ``narrative_merge`` — variable / edge / ambiguity merge helpers:
+  ``merge_into_program`` / ``merge_variable_extractions`` /
+  ``merge_edges_into_program`` / ``merge_edge_extractions`` /
+  ``merge_narrative_ambiguities_into_program`` / ``compose_program``
+  (single-call entry); plus refusal pass-through
+  (``apply_edge_refusals``) and the predicate-link drift detection
+  + apply pair (``diagnose_predicate_links`` /
+  ``diagnose_edge_predicate_links`` / ``apply_predicate_links`` /
+  ``apply_predicate_links_to_edges``); raises
+  ``ExtractionShapeError`` / ``MergeConflictError`` /
+  ``PredicateLinkError`` for malformed input or conflicts
 """
 from .program_builder import (
     ExtractionError,
