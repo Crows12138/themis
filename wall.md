@@ -174,3 +174,42 @@ audit 通道。每 1-3 iter 平均仍能 catch 1 个真 finding。loop 继续运
 "小但累积"的问题）。
 
 ---
+
+#### 2026-05-07 iter 119 update — direction shift: feature instead of drift-hunt
+
+iter 105-118 全是 doc / inventory drift sync。iter 100 retrospective 的
+"basically there + cosmetic phase" 判断把 cron 锁在了易拿 commit 的
+低价值动作上。用户 iter 118 直接质问"你现在就是在写 docs 吗"——是。
+我之前把 "真正能推进 VISION 的事都需要外部 unblock" 当借口。
+
+实际：iter 110 找到 BoundsMethod 有两个 enum value 没 producer
+(frontdoor_partial, manski_tamer_monotonicity)，这是真 feature 缺口
+而不是真 unblock。Manski 1997 数学发表 30 年，~150 LOC 实现，scope
+clean。
+
+iter 119 落地 **Manski-Tamer monotonicity bounds**：
+
+- `themis/output/bounds.py`: `attempt_manski_tamer_monotonicity` 函数。
+  binary outcome / binary intervention 下，给定 MTR 方向（non_decreasing
+  / non_increasing），把 Manski natural 的**一边**收紧到观察到的边
+  际 P(Y=y)。另一边不变。strictly contained in Manski natural interval。
+- `themis/runtime/scheduler.py`: dispatch 优先级 BP-IV → MTR → Manski
+  natural；MTR 触发条件读 `program.extensions.monotonicity` dict
+  （或 dict 列表），匹配查询的 target+treatment pair。**没有改 kernel
+  surface**——不加 EffectQuery 字段、不加 schema 必填 enum、走现有
+  extensions 通道。
+- `docs/prompts/response_rendering.md`: 加 `#### manski_tamer_monotonicity`
+  渲染模板（iter 110 pin 要求 producer 必须有 template）。
+- 测试：12 个单元测试 (`test_phase12_bounds_manski_tamer.py`) +
+  7 个 dispatch 集成测试 (`test_bounds_manski_tamer_dispatch.py`)
+  覆盖 happy path / 4 个方向 × 干预值组合 / fallback / 无关 pair /
+  list 形式 / 不合法 direction。
+
+测试基线 1610 → 1629（+19）。iter 100 plateau 判断被这次破除——存量
+"aspirational enum 没人写"也算系统真增量，不需要外部 unblock。
+
+下一步候选（同样不需要 unblock）：
+1. Front-door partial bounds (Tian 2002) — 第 2 个 aspirational 占位
+2. dtype mismatch gap_kind — 从 program 声明 vs estimator 要求推断
+3. IV strength gap_kind — F-stat threshold check
+4. SUTVA gap_kind — 从 program shape (network/spillover variable) 警告

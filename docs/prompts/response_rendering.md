@@ -964,6 +964,31 @@ they were).
 > `{target}` 吗？—— 告诉我，我可以退回 Manski 自然界限（更宽但不
 > 需要 IV 假设）。
 
+#### `manski_tamer_monotonicity` (requires user-asserted MTR)
+
+> 你已经声明了**单调治疗反应（MTR）假设**：处理对每个个体的方向
+> 一致——`{target}` 不会因为接受 `{intervention}` 而变差（或不会
+> 变好，取决于声明方向）。在这条假设下，可以收紧 Manski 自然界限
+> 的**一边**到观察到的边际：
+>
+> ```
+> P({target} | do({intervention})) ∈
+>     [ {lower_expression}, {upper_expression} ]
+> ```
+>
+> 计算只需要观察到的 `{data_required}`。
+>
+> **关键假设**：MTR——治疗对结果的方向是一致的；个体之间的反应
+> 大小可以不同，但符号方向不可逆转。
+>
+> **直觉**：MTR 让"未受处理那一组的反事实"在数据中找到了下/上界
+>  的来源——观察到 X=¬x 时的 Y 实际就是该组在 do(X=¬x) 下的潜在
+> 结果，MTR 把它和 do(X=x) 下的潜在结果用方向不等式联系起来。
+>
+> **何时考虑放弃这条假设**：如果你怀疑某些子群对处理反应方向相反
+> （效应异质性 with sign reversal），MTR 不成立——告诉我，我可以
+> 退回 Manski 自然界限（更宽但不需要 MTR 假设）。
+
 ### When the bounds are uninformative
 
 If `width_when_uninformative` is True OR you can see lower/upper

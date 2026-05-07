@@ -8,13 +8,18 @@ Charter §3 priority — implemented in this module:
   binary-outcome effect query.
 - ``attempt_balke_pearl_iv`` (S.12.3, separate function): requires a
   binary IV with valid IV1/IV2/IV3.
+- ``attempt_manski_tamer_monotonicity`` (Phase 12.MT, post-saturation
+  iter 119): tightens one side of the Manski natural interval when
+  the user asserts monotone treatment response (Manski 1997 MTR;
+  binary outcome). Triggered via ``program.extensions['monotonicity']``
+  declaration — no kernel surface change.
 
-Out of scope this phase: frontdoor partial, Manski-Tamer monotonicity,
-non-binary outcomes (charter §6).
+Out of scope this phase: frontdoor partial, non-binary outcomes
+(charter §6).
 """
 from __future__ import annotations
 
-from ..types import BoundsMethod, BoundsResult, EffectQuery
+from ..types import BoundsMethod, BoundsResult, EffectQuery, Monotonicity
 
 
 def attempt_manski_natural(
@@ -163,6 +168,125 @@ def attempt_balke_pearl_iv(
             f"E[{target_pred} | do({treatment_pred}=0)]. "
             f"Tighter than Manski natural when IV {z} is valid. "
             f"Uses only observable P({target_pred}, {treatment_pred} | {z})."
+        ),
+    )
+
+
+def attempt_manski_tamer_monotonicity(
+    query: EffectQuery,
+    *,
+    monotonicity: Monotonicity,
+    outcome_event_is_discrete: bool,
+) -> BoundsResult | None:
+    """Manski (1997) bounds under monotone treatment response (MTR).
+
+    Tightens **one side** of the Manski natural interval when the user
+    asserts that the potential outcome is monotone in treatment. For
+    binary X, binary outcome event ``Y=y``, monotonicity direction
+    ``non_decreasing`` means ``Y(1) ≥ Y(0)`` (treatment cannot decrease
+    the outcome event); ``non_increasing`` means ``Y(1) ≤ Y(0)``.
+
+    Derivation for ``non_decreasing`` and target event ``Y=y`` with
+    intervention ``X=x``:
+
+    - Among the ``X=x`` stratum, ``Y(x) = Y`` is observed; contribution
+      to ``E[Y(x)]`` is exactly ``P(Y=y, X=x)``.
+    - Among the ``X=¬x`` stratum, ``Y(x)`` is unobserved but constrained
+      by MTR relative to the observed ``Y(¬x) = Y``.
+      * For x=1 with MTR ``Y(1) ≥ Y(0)``: when ``Y(0)=1`` we observe in
+        the X=0 stratum, ``Y(1)`` must be 1 — so the lower bound for
+        ``E[Y(1)]`` from the unseen stratum gains the observed
+        ``P(Y=1, X=0)`` contribution that Manski natural couldn't
+        claim. Lower of ``P(Y=1 | do(X=1))`` becomes ``P(Y=1)``
+        (the observed outcome marginal). Upper is unchanged from
+        Manski natural.
+      * For x=0 with MTR ``Y(1) ≥ Y(0)`` (so ``Y(0) ≤ Y(1)``):
+        symmetric — upper of ``P(Y=1 | do(X=0))`` tightens to
+        ``P(Y=1)``; lower unchanged.
+
+    For ``non_increasing`` the roles flip. In all cases the interval
+    is **strictly contained** in Manski natural's, sometimes
+    collapsing to a point only when the data already pins it.
+
+    Returns ``None`` if outcome is not a discrete event, intervention
+    is not boolean, or the query is conditional. Conditional queries
+    (``given`` non-empty) are out of scope this slice — same posture
+    as Manski natural.
+    """
+    if not outcome_event_is_discrete:
+        return None
+    if query.given:
+        return None
+    if not isinstance(query.intervention.value, bool):
+        return None
+
+    target_pred = query.target.atom.predicate
+    target_val = _fmt_value(query.target.value)
+    intervention_pred = query.intervention.atom.predicate
+    intervention_val = _fmt_value(query.intervention.value)
+    other_arm_val = _fmt_value(_negate(query.intervention.value))
+
+    # Same-arm contribution: P(Y=y | X=x) · P(X=x) — observed exactly.
+    same_arm = (
+        f"P({target_pred}={target_val} | "
+        f"{intervention_pred}={intervention_val})"
+        f" · P({intervention_pred}={intervention_val})"
+    )
+    other_arm_mass = f"P({intervention_pred}={other_arm_val})"
+    other_arm_observed = (
+        f"P({target_pred}={target_val} | "
+        f"{intervention_pred}={other_arm_val})"
+        f" · {other_arm_mass}"
+    )
+    target_marginal = f"P({target_pred}={target_val})"
+
+    # Determine which side tightens. The rule:
+    # MTR Y(1) >= Y(0):
+    #   x=1: lower tightens to marginal,  upper = Manski natural upper
+    #   x=0: lower = Manski natural,       upper tightens to marginal
+    # MTR Y(1) <= Y(0):
+    #   x=1: lower = Manski natural,       upper tightens to marginal
+    #   x=0: lower tightens to marginal,  upper = Manski natural upper
+    treating_high = bool(query.intervention.value)
+    direction_increases_y = monotonicity is Monotonicity.NON_DECREASING
+
+    # tighten_lower is True when MTR makes the lower bound informative
+    # at the *observed marginal* of the target event.
+    tighten_lower = treating_high == direction_increases_y
+
+    manski_lower = same_arm
+    manski_upper = f"{same_arm} + {other_arm_mass}"
+
+    if tighten_lower:
+        lower = target_marginal
+        upper = manski_upper
+        tightened_side = "lower"
+    else:
+        lower = manski_lower
+        upper = target_marginal
+        tightened_side = "upper"
+
+    direction_str = (
+        "non-decreasing (Y(1) ≥ Y(0))"
+        if direction_increases_y
+        else "non-increasing (Y(1) ≤ Y(0))"
+    )
+
+    return BoundsResult(
+        method=BoundsMethod.MANSKI_TAMER_MONOTONICITY,
+        lower_expression=lower,
+        upper_expression=upper,
+        assumptions=(f"mtr_{monotonicity.value}",),
+        data_required=(
+            f"P({target_pred}, {intervention_pred})  # joint observation",
+        ),
+        width_when_uninformative=False,
+        notes=(
+            f"Manski-Tamer (Manski 1997) MTR bounds with assumption "
+            f"{direction_str}. The {tightened_side} bound tightens to "
+            f"the observed marginal {target_marginal} relative to "
+            "Manski natural; the other side is unchanged. Strictly "
+            "contained in the Manski natural interval."
         ),
     )
 

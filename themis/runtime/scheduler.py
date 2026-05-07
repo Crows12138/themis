@@ -2557,8 +2557,17 @@ def _attach_bounds_result(
     """
     from dataclasses import replace as _replace
 
-    from ..output.bounds import attempt_balke_pearl_iv, attempt_manski_natural
-    from ..types import EffectQuery, ResultStatus, VariableDeclaration
+    from ..output.bounds import (
+        attempt_balke_pearl_iv,
+        attempt_manski_natural,
+        attempt_manski_tamer_monotonicity,
+    )
+    from ..types import (
+        EffectQuery,
+        Monotonicity,
+        ResultStatus,
+        VariableDeclaration,
+    )
 
     if result.bounds_result is not None:
         return result
@@ -2598,7 +2607,22 @@ def _attach_bounds_result(
             treatment_is_binary=True,
             instrument_is_binary=True,
         )
-    # 3. Always-available fallback (works for bool OR discrete-numeric)
+
+    # 3. Manski-Tamer (MTR) — tighter than Manski natural when the user
+    #    asserts monotone treatment response. Triggered via
+    #    program.extensions['monotonicity'] dict matching this query's
+    #    target+treatment pair. Falls back to Manski natural if no MTR
+    #    declaration applies.
+    if bounds is None:
+        mtr_direction = _detect_monotonicity_for_query(program, query)
+        if mtr_direction is not None:
+            bounds = attempt_manski_tamer_monotonicity(
+                query,
+                monotonicity=mtr_direction,
+                outcome_event_is_discrete=True,
+            )
+
+    # 4. Always-available fallback (works for bool OR discrete-numeric)
     if bounds is None:
         bounds = attempt_manski_natural(
             query, outcome_event_is_discrete=True,
@@ -2607,6 +2631,51 @@ def _attach_bounds_result(
     if bounds is None:
         return result
     return _replace(result, bounds_result=bounds)
+
+
+def _detect_monotonicity_for_query(program, query):
+    """Iter 119 — read MTR declaration from program.extensions.
+
+    Shape:
+        program.extensions = {
+            "monotonicity": {
+                "target": "<target_predicate>",
+                "treatment": "<treatment_predicate>",
+                "direction": "non_decreasing" | "non_increasing",
+            }
+        }
+
+    Returns the matching ``Monotonicity`` enum value when the
+    declaration's target+treatment pair matches the query, else None.
+    Multiple declarations can be expressed as a list under the same key.
+    """
+    from ..types import Monotonicity
+
+    extensions = program.extensions or {}
+    decls = extensions.get("monotonicity")
+    if decls is None:
+        return None
+    if isinstance(decls, dict):
+        decls = [decls]
+    if not isinstance(decls, list):
+        return None
+
+    target_pred = query.target.atom.predicate
+    treatment_pred = query.intervention.atom.predicate
+
+    for decl in decls:
+        if not isinstance(decl, dict):
+            continue
+        if decl.get("target") != target_pred:
+            continue
+        if decl.get("treatment") != treatment_pred:
+            continue
+        direction = decl.get("direction")
+        try:
+            return Monotonicity(direction)
+        except ValueError:
+            continue
+    return None
 
 
 def _target_event_is_discrete(program: Program, query) -> bool:
