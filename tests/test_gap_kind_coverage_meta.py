@@ -44,6 +44,13 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   README claimed "five-level GRADE-style ladder" but KBConfidenceGrade
   enum has 6 values; ladder text also listed 6 entries while saying
   "five". Pin asserts the named values in the prose match the enum)
+- test_bounds_method_producers_have_rendering_template (iter 110 —
+  preventative: every BoundsMethod value actually produced by
+  themis/output/bounds.py must have a matching '#### `method_name`'
+  section in response_rendering.md. Locks the LLM-rendering coverage
+  invariant for future bounds solvers — current state is in sync but
+  adding a frontdoor_partial / manski_tamer producer without prompt
+  template would silently downgrade rendering)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1069,6 +1076,55 @@ def test_kb_readme_gap_to_query_kind_table_matches_translator():
         "_GAP_TO_QUERY_KIND. Missing from README: "
         f"{sorted(actual_mapped_names - listed)}; extra in README: "
         f"{sorted(listed - actual_mapped_names)}"
+    )
+
+
+def test_bounds_method_producers_have_rendering_template():
+    r"""Every BoundsMethod value actually produced by themis/output/
+    bounds.py must have a matching ``#### `method_name``` section in
+    docs/prompts/response_rendering.md. Iter 110 added this
+    preventatively — current state is in sync (manski_natural +
+    balke_pearl_iv produced + rendered; frontdoor_partial +
+    manski_tamer_monotonicity declared in enum but not yet produced
+    so prompt correctly omits them). Pin catches future drift where a
+    new bounds solver lands without a rendering template.
+
+    The check uses 'producer' set (what bounds.py emits) rather than
+    'enum' set (what BoundsMethod declares) because aspirational enum
+    values shouldn't force premature prompt expansion.
+    """
+    import re
+
+    bounds_src = (
+        REPO_ROOT / "themis" / "output" / "bounds.py"
+    ).read_text(encoding="utf-8")
+    produced = set(re.findall(
+        r"method=BoundsMethod\.([A-Z_]+)", bounds_src
+    ))
+    assert produced, (
+        "Could not find any BoundsMethod producers in "
+        "themis/output/bounds.py — pin assumption violated"
+    )
+
+    # Map enum NAMES (e.g. MANSKI_NATURAL) to their .value strings.
+    from themis.types import BoundsMethod
+    name_to_value = {bm.name: bm.value for bm in BoundsMethod}
+    produced_values = {name_to_value[n] for n in produced}
+
+    prompt = (
+        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+    ).read_text(encoding="utf-8")
+
+    # "#### `<method_value>`" anchored at line start.
+    rendered = set(re.findall(
+        r"^####\s+`([a-z_]+)`", prompt, re.MULTILINE
+    ))
+
+    missing = produced_values - rendered
+    assert not missing, (
+        f"BoundsMethod values produced by bounds.py have no rendering "
+        f"template in response_rendering.md: {sorted(missing)}. "
+        "Add a '#### `<value>`' section with the per-method shape."
     )
 
 
