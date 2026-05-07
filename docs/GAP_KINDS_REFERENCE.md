@@ -1,0 +1,117 @@
+# GapKind reference — single-source table for all 26 gap_kinds
+
+> **Authoritative source**: ``themis.types.GapKind`` enum.
+> This document mirrors that enum for human reading.
+> A sync pin (``test_every_gap_kind_documented_in_reference``) asserts
+> every enum value has a row here verbatim — adding a new GapKind
+> without updating this file breaks the test.
+
+Themis's data-gap-diagnostician position (VISION line 248-298) lives
+in the gap_kind taxonomy. Each gap names a specific reason an answer
+is incomplete or caveated, plus what's needed to close it. Gaps come
+from three places: the **classifier** in
+``themis/output/data_gap_report.py`` (program-shape signals + result-
+envelope inspection), the **estimator-runtime hooks** in
+``themis/estimation/dispatch.py`` (post-fit diagnostics), and a
+**must-disclose channel** in ``themis/runtime/scheduler.py`` that
+auto-mirrors selected kinds to ``result.explanation`` as ⚠ lines.
+
+For the LLM-side rendering / decision rules see
+``docs/prompts/response_rendering.md`` (mirrored-set table) and
+``docs/prompts/gap_to_action.md`` (Q0 INFORMATIONAL pre-screen).
+
+## Table
+
+| GapKind value | Severity (typical) | Blocks | Description |
+|---|---|---|---|
+| `unidentifiable_no_admissible_set` | blocking | identification | DAG itself blocks identification — no data closes this; the structural bottleneck is the only fix (add measured Z, RCT, valid IV). |
+| `missing_distribution` | blocking | point_estimate | Backdoor / front-door formula needs a probability conditional Themis doesn't have; ``signature`` field tags marginal vs conditional vs joint. |
+| `missing_population_distribution` | blocking | identification | Phase 9 §T9.1 transport — target population marginal P*(Z) needed. |
+| `missing_assumption` | important | identification | Identification is possible *if* the user grants a named assumption (typically monotonicity). Status pairs with ``needs_assumption``. |
+| `missing_iv_candidate` | blocking | identification | IV-shape detected in the program but no instrument was nominated. |
+| `missing_mediator_data` | blocking | point_estimate | Mediation identification requires P(M\|X) and/or P(Y\|M,X) data the user hasn't provided. |
+| `transport_target_distribution_unknown` | blocking | identification | Phase 9 §T9.1 / Bareinboim transport — selection diagram needs target marginal of S-affected variables. |
+| `transport_source_conditional_unknown` | blocking | identification | Phase 9 §T9.1 — source population conditional needed for the transport formula. |
+| `ambiguous_variable_definition` | important | interpretation | A1 framing fields (time_window / measurement / threshold / direction / etc.) unset; downstream semantic is undetermined until filled. |
+| `dose_response_data_required` | blocking | point_estimate | Phase 13 — user asked for a dose-response curve but data spec (sampling points × n per point) hasn't been pinned. |
+| `unverified_proposal_edge_on_query_path` | informational | interpretation | The structural answer rests on edges flagged as ``annotations.source: llm_proposal``; reasoning replays an LLM assumption rather than evidence-backed graph. |
+| `iv_identification_assumption_required` | informational | interpretation | IV path used; renderer must surface IV1/IV2/IV3 + monotonicity (LATE) or linearity (2SLS ATE) caveats. |
+| `mediation_identification_assumption_required` | informational | interpretation | NDE/NIE assume sequential ignorability + no intermediate confounder + consistency; CDE has weaker assumption set. |
+| `transport_identification_assumption_required` | informational | interpretation | Phase 9 §T9.1 — S-admissibility + correct selection-node specification needed for the transferred estimate to be valid outside the source population. |
+| `llm_declared_ambiguity` | informational | interpretation | A1-emitted ``extensions.ambiguities[]`` entry — LLM flagged uncertainty the user should know about (mechanism vs existence, individual vs population, etc.). |
+| `answer_is_bounds_not_point_estimate` | informational | interpretation | Bounds layer (Phase 12 + iter 119) attached symbolic interval rather than a point — the answer IS bounds, not a missing point estimate. |
+| `low_confidence_input_data` | informational | interpretation | Composite confidence aggregator dropped below threshold — input theta values themselves are noisy. |
+| `front_door_identification_assumption_required` | informational | interpretation | Pearl front-door criterion premises (no direct edge X→Y; M is complete mediator; M and Y unconfounded given X). |
+| `counterfactual_identification_assumption_required` | informational | interpretation | Phase 5 §C — consistency / composition axioms needed for the counterfactual quantity. |
+| `graph_learned_from_data` | informational | interpretation | DAG was learned via Phase 8.1 discovery (PC / FCI / LiNGAM) — uncertainty in the structural identification claim. |
+| `unmeasured_confounder_risk` | informational | interpretation | DAG declares confounders but no bidirected edges — measured-covariate adjustment may have residual unmeasured-confounder bias (HRT-CVD / Card 1995 schooling / vitamin D-CVD pattern). Iter 5. |
+| `unattempted_layer_due_to_dispatch_conflict` | important | interpretation | Query specified multiple identification layers (e.g. mediator + target_population) but kernel dispatched only one; the other was silently skipped (mediation × transport must be sequential per Cole & Stuart 2010). Iter 19. |
+| `weak_iv_instrument` | informational | interpretation | Iter 120 — first-stage F-stat below Stock-Yogo (2005) threshold (10); IV estimate's bias toward OLS scales with 1/F and standard 2SLS asymptotic CIs underestimate uncertainty. |
+| `propensity_overlap_violation` | informational | interpretation | Iter 121 — fitted P(X\|Z) outside [0.05, 0.95] for >5% of sample; backdoor / g-formula extrapolates the outcome regression into off-support territory (Hernán & Robins ch.3 positivity). |
+| `collider_conditioning_opens_backdoor` | important | identification | Iter 122 — EffectQuery `given` contains a node where both X and Y are ancestors (collider). Conditioning OPENS the X→…→W←…←Y path per Pearl d-separation; the conditional effect is biased. F27 names the upstream NL pattern. |
+| `outcome_model_quasi_separation` | informational | interpretation | Iter 123 — fitted P(Y\|X,Z) saturated near 0/1 for >10% of sample; logistic logits blow up, plug-in g-formula extrapolates with near-singular gradient, CI underestimates uncertainty. |
+
+## Categories (cross-reference with code)
+
+**Phase 10 §10.3 initial 8** (classifier-driven, ``themis/output/data_gap_report.py``):
+``unidentifiable_no_admissible_set``, ``missing_distribution``,
+``missing_population_distribution``, ``missing_assumption``,
+``missing_iv_candidate``, ``missing_mediator_data``,
+``transport_target_distribution_unknown``,
+``ambiguous_variable_definition``.
+
+**Must-disclose channel** (auto-mirrored to ``result.explanation`` by
+``themis/runtime/scheduler.py._attach_structural_caveats``;
+``_MUST_DISCLOSE_GAP_KINDS`` set):
+``unverified_proposal_edge_on_query_path``,
+``iv_identification_assumption_required``,
+``mediation_identification_assumption_required``,
+``transport_identification_assumption_required``,
+``llm_declared_ambiguity``, ``answer_is_bounds_not_point_estimate``,
+``low_confidence_input_data``,
+``front_door_identification_assumption_required``,
+``counterfactual_identification_assumption_required``,
+``graph_learned_from_data``, ``unmeasured_confounder_risk``,
+``unattempted_layer_due_to_dispatch_conflict``,
+``collider_conditioning_opens_backdoor``.
+
+**Additional data-need** (NOT must-disclose; surface only via
+``data_gap_report``):
+``transport_source_conditional_unknown``,
+``dose_response_data_required``.
+
+**Estimator-runtime** (attached during ``themis.estimate`` dispatch
+NOT by the classifier; require fitted estimate to inspect):
+``weak_iv_instrument`` (post-IV first-stage F),
+``propensity_overlap_violation`` (post-backdoor logistic propensity
+fit), ``outcome_model_quasi_separation`` (post-backdoor logistic
+outcome fit).
+
+## Adding a new GapKind
+
+1. Add enum value to ``themis/types.py`` ``GapKind`` with comment
+   noting motivation / example trigger.
+2. Add to ``query_result.schema.json`` ``kind`` enum.
+3. Decide whether classifier-driven (write
+   ``_classify_<name>`` in ``themis/output/data_gap_report.py``,
+   wire into ``compute_data_gap_report``) or estimator-runtime
+   (write ``_attach_<name>_warning`` helper in
+   ``themis/estimation/dispatch.py``, wire into appropriate
+   estimator path).
+4. Add to ``themis/verifier/data_gap_rules.py`` registry with
+   provenance ref_kind set.
+5. If must-disclose: add to ``_MUST_DISCLOSE_GAP_KINDS`` in
+   ``themis/runtime/scheduler.py`` AND to mirrored-set table in
+   ``docs/prompts/response_rendering.md``.
+6. Add to Q0 INFORMATIONAL list in ``docs/prompts/gap_to_action.md``
+   (iter 136 sync pin auto-validates this for must-disclose +
+   estimator-runtime kinds).
+7. **Add a row to this reference table** (iter 139 sync pin
+   auto-validates).
+8. Bump ``COVERAGE_MAP.md`` 元基础设施 row's gap_kind count
+   (iter 107 sync pin auto-validates).
+9. Write tests covering the trigger.
+
+The 9 sync pins around GapKind (iter 25 / 26 / 37 / 56 / 89 / 107
+/ 132 / 136 / 139) catch most "added GapKind but forgot file X"
+drift automatically.

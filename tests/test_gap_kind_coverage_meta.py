@@ -64,6 +64,11 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   appear verbatim in the prompt's Q0 INFORMATIONAL list. iter 119-134
   added 4 new gap_kinds that drifted out of gap_to_action for ~16
   iters until iter 136 caught it.)
+- test_every_gap_kind_documented_in_reference (iter 139 — every
+  GapKind enum value must have a row in docs/GAP_KINDS_REFERENCE.md.
+  Single-source human-readable table for the 26 gap_kinds; previously
+  scattered across types.py docstrings, classifier descriptions in
+  data_gap_report.py, gap_to_action.md, response_rendering.md.)
 - test_estimation_init_docstring_inventories_all_exports (iter 111 —
   themis/estimation/__init__.py docstring described "Phase 7.1 scope"
   while the package had grown to include Phase 8.1 / 8.2 / 14
@@ -1450,6 +1455,31 @@ def test_subpackage_init_docstrings_inventory_all_exports(pkg_name):
     assert not missing, (
         f"themis/{pkg_name}/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring."
+    )
+
+
+def test_every_gap_kind_documented_in_reference():
+    """Iter 139 — docs/GAP_KINDS_REFERENCE.md is the single-source
+    human-readable table for the 26 gap_kinds. Previously this
+    information was scattered across types.py docstrings, the
+    classifier descriptions in data_gap_report.py, gap_to_action.md
+    Q0 list, and response_rendering.md mirrored-set table. Pin
+    asserts every GapKind enum value appears verbatim as a table
+    row in the reference doc.
+    """
+    from themis.types import GapKind
+
+    reference = (
+        REPO_ROOT / "docs" / "GAP_KINDS_REFERENCE.md"
+    ).read_text(encoding="utf-8")
+
+    missing = sorted(
+        k.value for k in GapKind
+        if f"`{k.value}`" not in reference
+    )
+    assert not missing, (
+        f"docs/GAP_KINDS_REFERENCE.md missing GapKind values: "
+        f"{missing}. Add a row to the table."
     )
 
 
