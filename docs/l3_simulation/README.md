@@ -125,3 +125,8 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
 - [Case 010 — IPCC: 人为 CO2 是否导致全球升温](case_010_co2_temperature_ipcc.md)
   （2026-05-07 iter 20，✅ match：第 10 例 capstone，气候科学域 cause
   query。L3 plateau condition 达成 — corpus 10/10，详见 wall.md plateau update。）
+- [Case 011 — Salt → blood pressure (DASH-Sodium / INTERSALT)](case_011_salt_blood_pressure.md)
+  （2026-05-07 iter 129，✅ match anti-finding：post-iter-128 状态对连续
+  治疗 + 测量误差经典案例的 6 gap_kinds 覆盖已足够；不需要新 gap_kind。
+  验证了 iter 119-128 features 在医学统计文献 documented limitation 上
+  的 coverage 充分。corpus 11/11。）

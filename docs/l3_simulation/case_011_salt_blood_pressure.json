@@ -1,0 +1,76 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "person"}]},
+  "extensions": {
+    "ambiguities": [
+      {
+        "kind": "measurement_quality",
+        "description": "sodium_intake_high comes from 24h dietary recall / food-frequency questionnaire — both have well-documented systematic underreporting (Hill et al 2014, Mente et al 2016). True intake from 24h urinary sodium is the gold standard but rare in observational cohorts."
+      }
+    ]
+  },
+  "statements": [
+    {"kind": "variable", "predicate": "sodium_intake_high", "domain": [true, false],
+     "threshold": ">=2300 mg/day vs <1500 mg/day (DASH-Sodium 2001 high vs low arms)",
+     "measurement": "24h urinary sodium (RCT) or food-frequency questionnaire (observational)",
+     "observability": "self-reported (observational) / controlled feeding (RCT)"},
+    {"kind": "variable", "predicate": "bp_systolic_high", "domain": [true, false],
+     "threshold": ">=140 mmHg systolic OR meaningful change from baseline (DASH endpoint)"},
+    {"kind": "variable", "predicate": "dietary_pattern_dash", "domain": [true, false],
+     "measurement": "DASH adherence score; in trial=randomized; observational=self-reported"},
+    {"kind": "variable", "predicate": "physical_activity_high", "domain": [true, false]},
+    {"kind": "variable", "predicate": "overall_diet_quality_high", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "sodium_intake_high", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "bp_systolic_high", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence", "evidence": "DASH-Sodium 2001 NEJM Sacks et al — RCT, n=412, 30-day controlled feeding"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "dietary_pattern_dash", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "bp_systolic_high", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence", "evidence": "DASH 1997 NEJM — DASH diet alone reduces SBP -5.5 mmHg vs control"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "overall_diet_quality_high", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "sodium_intake_high", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence", "evidence": "diet quality and sodium correlate (NHANES); higher-quality diets tend lower-sodium"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "overall_diet_quality_high", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "bp_systolic_high", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence", "evidence": "diet quality independently predicts BP"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "physical_activity_high", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "sodium_intake_high", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence", "evidence": "physically active people often eat more (caloric demand drives sodium)"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "physical_activity_high", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "bp_systolic_high", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence", "evidence": "physical activity lowers BP independently"}
+    },
+    {
+      "kind": "query",
+      "id": "q_salt_causes_bp",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "bp_systolic_high", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "sodium_intake_high", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}

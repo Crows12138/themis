@@ -147,6 +147,24 @@ CASES = [
          "front_door_identification_assumption_required",
          "unattempted_layer_due_to_dispatch_conflict"],
     ),
+    (
+        "case_011_salt_blood_pressure.json",
+        # iter 129 anti-finding: continuous treatment + measurement
+        # error case fully covered by existing 26 gap_kinds. Effect
+        # query with multiple confounders (overall_diet_quality,
+        # physical_activity); unmeasured_confounder_risk fires
+        # (no bidirected); llm_declared_ambiguity catches my
+        # measurement_quality declaration; bounds layer attaches
+        # manski_natural since theta absent.
+        ["missing_distribution",
+         "ambiguous_variable_definition",
+         "answer_is_bounds_not_point_estimate",
+         "llm_declared_ambiguity",
+         "unmeasured_confounder_risk"],
+        ["unattempted_layer_due_to_dispatch_conflict",
+         "iv_identification_assumption_required",
+         "front_door_identification_assumption_required"],
+    ),
 ]
 
 
