@@ -764,3 +764,47 @@ Lessons:
    independent" principle — but it WAS a bug in coverage. New
    capabilities need both runtime AND verifier extension; iter 175's
    sync pin pattern + iter 183's witness-set pin both address this.
+
+---
+
+#### 2026-05-07 iter 186-189 mini-arc — chain-mediator unlock via Bayes inversion
+
+iter 185 probe found the iter 167-173 + iter 181-183 unlocks DIDN'T
+extend to chain-mediator front-door (X→M1→M2→Y, X↔Y latent).
+Front-door demands P(Y|X, M2); auto-marginalization over M1 needs
+inner factor P(M1|X, M2) which user typically doesn't supply.
+
+iter 186: documented the gap as KNOWN LIMITATION in helper docstring,
+named the Bayes inversion formula needed:
+  P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X)
+
+iter 187: landed _try_derive_via_bayes_inversion as foundation
+helper (iter 171 pattern: helper-only, no wiring).
+
+iter 188: wired the helper into _try_derive_via_marginalization's
+inner-factor branch as a third fallback. Mirrored to verifier as
+_verifier_derive_via_bayes_inversion. Chain-mediator front-door
+NOW WORKS end-to-end through themis.run + themis.verify.
+
+iter 189: paired-implementation sync pin (iter 175 pattern). Asserts
+runtime + verifier Bayes helpers agree byte-for-byte to 1e-12 +
+match hand-computed reference 0.823529.
+
+iter 190 probe confirmed: 3-mediator chain (X→M1→M2→M3→Y, X↔Y)
+ALSO works without further changes — same recursion handles depth
+naturally.
+
+Mini-arc summary: 4 iters from "documented limitation" to "wired
++ tested + sync-pinned" closure. Each iter well-scoped. The pattern
+"foundation helper → wire → e2e test → sync pin" is now a worth-
+repeating template (also used in iter 171→172→175 and iter 167→
+168→170).
+
+Capability ladder for ADMG identification post-arc:
+- disjoint-Y c-component (iter 167-173)
+- single-mediator front-door variant (iter 181-183)
+- chain-mediator front-door variant (iter 186-189)
+- N-mediator chain via recursion (iter 190 probe, no pin needed)
+
+Test count trajectory: 1869 (iter 185) → 1875 (iter 189) +6 across
+4 iters. Real architectural progress, not filler.
