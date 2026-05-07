@@ -72,6 +72,12 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   bridge yet" prose despite mode (a) Ask landing — fixed in same
   commit but not pinned because web docstring describes endpoints
   rather than modules; no clean enumeration to pin against.)
+- test_prompt_header_word_counts_match_subsection_counts (iter 114 —
+  gap_to_action.md "## Three questions per gap" had 4 ### subsections
+  (Q0 pre-screen + Q1–Q3 walk) — header count drifted when Q0 was
+  added later. Pin scans every "## <number-word> <noun>" header in
+  docs/prompts/ and asserts the immediate ### subsection count
+  matches the spelled-out number.)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1122,6 +1128,60 @@ def test_estimation_init_docstring_inventories_all_exports():
         f"themis/estimation/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring to inventory new "
         "exports."
+    )
+
+
+def test_prompt_header_word_counts_match_subsection_counts():
+    """Iter 114 — drift class: prompt section header claims a count
+    in spelled-out form (e.g. "## Three questions per gap") but the
+    actual ### subsection count under it diverges. gap_to_action.md
+    said "Three" while having Q0 + Q1 + Q2 + Q3 = 4 subsections after
+    Q0 pre-screen was added later.
+
+    Scans every "## <number-word> <noun>" header in docs/prompts/
+    and asserts the immediate ### subsection count (until the next ##
+    or EOF) equals the spelled-out number. Headers without a leading
+    number-word are ignored.
+    """
+    import re
+
+    word_to_int = {
+        "one": 1, "two": 2, "three": 3, "four": 4,
+        "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    }
+
+    issues = []
+    for prompt_path in (REPO_ROOT / "docs" / "prompts").glob("*.md"):
+        text = prompt_path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            m = re.match(
+                r"^##\s+(?:The\s+)?(one|two|three|four|five|six|seven|eight|nine)\b",
+                line,
+                re.IGNORECASE,
+            )
+            if not m:
+                continue
+            claimed = word_to_int[m.group(1).lower()]
+            # Count ### subsections until the next ## (non-###) or EOF.
+            sub_count = 0
+            for j in range(i + 1, len(lines)):
+                nl = lines[j]
+                if re.match(r"^##\s+", nl) and not re.match(r"^###", nl):
+                    break
+                if re.match(r"^###\s+", nl):
+                    sub_count += 1
+            # Only assert when subsections exist; some headers describe
+            # things other than enumerated subsections.
+            if sub_count and sub_count != claimed:
+                issues.append(
+                    f"{prompt_path.name}: '{line.strip()}' claims "
+                    f"{claimed} but has {sub_count} ### subsections"
+                )
+
+    assert not issues, (
+        "Prompt header counts drifted from subsection counts:\n"
+        + "\n".join(f"  - {issue}" for issue in issues)
     )
 
 

@@ -26,10 +26,10 @@ Each turn, do exactly one of:
 - **Ask the user** (the gap is a choice they need to make, or autonomous
   fetch already failed)
 
-## Three questions per gap
+## Four checks per gap (Q0 pre-screen + Q1–Q3 walk)
 
 Walk `data_gap_report.gaps[]` (already sorted by severity). For each gap,
-ask:
+ask Q0 first; if it doesn't short-circuit, run the Q1–Q3 walk:
 
 ### Q0 (pre-screen). Is this a pure disclosure?
 
