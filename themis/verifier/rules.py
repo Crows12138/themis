@@ -1677,6 +1677,9 @@ def _evaluate_formula(
             # is preserved because we only consume theta entries +
             # canonical math (no shared state with runtime).
             derived = _verifier_derive_via_marginalization(key, theta)
+            if derived is None:
+                # Iter 193: mirror marginal-independence fallback.
+                derived = _verifier_marginal_independence_lookup(key, theta)
             if derived is not None:
                 return float(derived)
             raise _NonConcreteValue(
@@ -1794,6 +1797,11 @@ def _verifier_derive_via_marginalization(
                         inner_key, theta, _depth=_depth + 1,
                     )
                 if v_inner is None:
+                    # Iter 193: mirror marginal-independence lookup.
+                    v_inner = _verifier_marginal_independence_lookup(
+                        inner_key, theta,
+                    )
+                if v_inner is None:
                     ok = False
                     break
             inner_values[v] = v_inner
@@ -1802,6 +1810,36 @@ def _verifier_derive_via_marginalization(
         return sum(
             outer_values[v] * inner_values[v] for v in domain
         )
+    return None
+
+
+def _verifier_marginal_independence_lookup(
+    missing_key: ProbabilityKey,
+    theta,
+) -> float | None:
+    """Iter 193 — verifier mirror of runtime's marginal-independence
+    lookup. Pure theta lookup; preserves V0-V5 independence."""
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+    if not base_given:
+        return None
+    from itertools import combinations
+    for n_remove in range(1, len(base_given) + 1):
+        sorted_given = sorted(
+            base_given, key=lambda p: (p[0].predicate, str(p[1])),
+        )
+        for to_remove in combinations(sorted_given, n_remove):
+            reduced = frozenset(
+                p for p in base_given if p not in to_remove
+            )
+            reduced_key = ProbabilityKey(
+                target_atom=target_atom, target_value=target_value,
+                given=reduced,
+            )
+            v = theta.entries.get(reduced_key)
+            if v is not None:
+                return v
     return None
 
 

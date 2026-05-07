@@ -172,6 +172,12 @@ def _evaluate(
             # If theta has a richer joint family that lets us derive
             # this CPT via Σ_z P(Y|X,Z)·P(Z|X), use it.
             derived = _try_derive_via_marginalization(key, theta)
+            if derived is None:
+                # Iter 193: marginal-independence fallback. If the
+                # user supplied a marginal P(target|reduced_given),
+                # use it — they implicitly asserted independence
+                # from the extras.
+                derived = _try_marginal_independence_lookup(key, theta)
             if derived is not None:
                 return derived
             raise InsufficientTheta(
@@ -374,6 +380,60 @@ def can_derive_via_marginalization(
         if all_inner_present:
             return True
     return False
+
+
+def _try_marginal_independence_lookup(
+    missing_key: ProbabilityKey,
+    theta: Theta,
+) -> float | None:
+    """Iter 193 — last-resort fallback when P(Z|given) is missing AND
+    not derivable via marginalization or Bayes inversion. If theta
+    contains P(Z|reduced_given) for any strict subset of given, use
+    it — assumes the user-supplied marginal implicitly asserts
+    conditional independence (Z ⊥ extras | reduced_given).
+
+    Unlocks parallel multi-mediator front-door (X→M1→Y, X→M2→Y, X↔Y)
+    where user supplies P(M2|X), kernel demands P(M2|M1, X). The user
+    didn't supply P(M2|M1, X) because they took the parallel-paths
+    semantics for granted (M1 ⊥ M2 | X).
+
+    RISK: silently uses user-implied independence. If the user's
+    DAG has M1 → M2 (chain), they should have supplied P(M2|M1, X)
+    explicitly; using the marginal would be wrong. Themis trusts
+    the user's choice — its contract is "use what you give me",
+    not "audit your CPT contract for consistency".
+
+    Tries the LARGEST admissible subset first (most informative
+    conditioning) so that adding to theta tightens results.
+    """
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+    if not base_given:
+        return None
+    # Try removing one atom at a time, then two, etc. Largest subset
+    # = removing fewest atoms = most informative conditioning.
+    for n_remove in range(1, len(base_given) + 1):
+        # Iterate in deterministic order: pick atoms to remove by
+        # sorted predicate name for stability.
+        sorted_given = sorted(
+            base_given, key=lambda p: (p[0].predicate, str(p[1])),
+        )
+        # Try the n_remove smallest-predicate atoms removed first
+        # (deterministic).
+        from itertools import combinations
+        for to_remove in combinations(sorted_given, n_remove):
+            reduced = frozenset(
+                p for p in base_given if p not in to_remove
+            )
+            reduced_key = ProbabilityKey(
+                target_atom=target_atom, target_value=target_value,
+                given=reduced,
+            )
+            v = theta.entries.get(reduced_key)
+            if v is not None:
+                return v
+    return None
 
 
 def _try_derive_via_bayes_inversion(
@@ -582,6 +642,17 @@ def _try_derive_via_marginalization(
                     # supplied P(some_given_atom | given\\{a}, Z).
                     v_inner = _try_derive_via_bayes_inversion(
                         inner_key, theta, _depth=_depth + 1,
+                    )
+                if v_inner is None:
+                    # Iter 193: marginal-independence fallback. If
+                    # theta has P(Z=v | reduced_given) for some
+                    # strict subset of base_given, use it — assumes
+                    # the user-supplied marginal asserts Z ⊥ extras
+                    # | reduced_given. Unlocks parallel multi-mediator
+                    # front-door (X→M1→Y, X→M2→Y, X↔Y) where user
+                    # supplies P(M2|X), kernel demands P(M2|M1, X).
+                    v_inner = _try_marginal_independence_lookup(
+                        inner_key, theta,
                     )
                 if v_inner is None:
                     ok = False

@@ -109,6 +109,67 @@ def test_front_door_variant_e2e_returns_pearl_formula_value():
     themis.verify(ast, r)
 
 
+def test_parallel_multi_mediator_front_door_variant_e2e():
+    """Iter 193: parallel multi-mediator (X→M1→Y, X→M2→Y, X↔Y latent).
+    Front-door demands P(M2|M1, X) for chain-rule expansion of joint
+    P(M1, M2|X). User supplies marginal P(M2|X) (parallel-paths
+    semantics implied). iter 193 marginal-independence fallback uses
+    P(M2|X) for the demanded P(M2|M1, X), unlocking the case."""
+    import itertools
+    prob_stmts = [
+        _prob("x", True, [], 0.5),
+        _prob("x", False, [], 0.5),
+        _prob("m1", True, [("x", True)], 0.7),
+        _prob("m1", False, [("x", True)], 0.3),
+        _prob("m1", True, [("x", False)], 0.2),
+        _prob("m1", False, [("x", False)], 0.8),
+        _prob("m2", True, [("x", True)], 0.6),
+        _prob("m2", False, [("x", True)], 0.4),
+        _prob("m2", True, [("x", False)], 0.3),
+        _prob("m2", False, [("x", False)], 0.7),
+    ]
+    for x_v, m1_v, m2_v in itertools.product([True, False], repeat=3):
+        prob_stmts.append(
+            _prob(
+                "y", True,
+                [("x", x_v), ("m1", m1_v), ("m2", m2_v)], 0.5,
+            )
+        )
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m1", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m2", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("m1")},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("m2")},
+            {"kind": "cause", "from": _atom("m1"), "to": _atom("y")},
+            {"kind": "cause", "from": _atom("m2"), "to": _atom("y")},
+            {
+                "kind": "bidirected",
+                "left": _atom("x"), "right": _atom("y"),
+            },
+            *prob_stmts,
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "target": {"atom": _atom("y"), "value": True},
+                    "intervention": {"atom": _atom("x"), "value": True},
+                    "given": [],
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    r = out["results"][0]
+    assert r["status"] == "numerically_solved"
+    assert abs(r["numeric_result"]["value"] - 0.5) < 1e-9
+    themis.verify(ast, r)
+
+
 def test_chain_mediator_front_door_variant_e2e_via_bayes_inversion():
     """Iter 188: chain X→M1→M2→Y with X↔Y latent. Front-door demands
     P(Y|X, M2); user supplies the chain CPTs P(M2|X, M1) + P(M1|X)

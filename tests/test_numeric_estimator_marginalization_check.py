@@ -179,6 +179,31 @@ def test_bayes_inversion_resolves_chain_mediator_inner_factor():
     )
 
 
+def test_runtime_and_verifier_marginal_independence_agree():
+    """Iter 194 sync pin: runtime and verifier marginal-independence
+    lookups MUST produce identical values. Independent
+    implementations preserved per V0-V5; R7 needs agreement."""
+    from themis.runtime.numeric_estimator import (
+        _try_marginal_independence_lookup,
+    )
+    from themis.verifier.rules import (
+        _verifier_marginal_independence_lookup,
+    )
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    # Theta has marginal P(M2|X) but not P(M2|X, M1)
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    # Demand: P(M2=True | X=True, M1=True)
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+    runtime_val = _try_marginal_independence_lookup(missing, theta)
+    verifier_val = _verifier_marginal_independence_lookup(missing, theta)
+    assert runtime_val == 0.6
+    assert runtime_val == verifier_val
+
+
 def test_runtime_and_verifier_bayes_inversion_agree_byte_for_byte():
     """Iter 189 sync pin (parallel to iter 175): runtime
     _try_derive_via_bayes_inversion and verifier
