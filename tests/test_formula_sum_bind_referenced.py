@@ -410,3 +410,91 @@ def test_tian_disjoint_y_evaluates_to_correct_ate():
         f"{expected}. Pre-iter-145 this returned 0.9 "
         f"(P(y=T|x=T, z1=T, z2=T) — all sums collapsed to True-arm)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Numerical-eval pins for production formula paths (backdoor + front-door).
+# These are what most user queries actually hit; structural audit alone is
+# necessary but not sufficient — iter 147 proved that. Pin them with
+# concrete-CPT numerical comparison so any future refactor that breaks
+# the math is caught immediately.
+# ---------------------------------------------------------------------------
+
+
+def test_backdoor_single_z_evaluates_to_correct_ate():
+    """Σ_z P(Y|X=T, Z=z) · P(Z=z). Concrete CPTs:
+        P(Z=T)=0.4, P(Y=T|X=T,Z=T)=0.8, P(Y=T|X=T,Z=F)=0.3
+    Reference = 0.4·0.8 + 0.6·0.3 = 0.32 + 0.18 = 0.50."""
+    from themis.runtime.formula_builder import backdoor_formula
+    from themis.runtime.numeric_estimator import (
+        ProbabilityKey, Theta, estimate_formula,
+    )
+    from themis.types import ValuedAtom
+
+    y, x, z = _A("y"), _A("x"), _A("z")
+    f = backdoor_formula(
+        target=ValuedAtom(atom=y, value=None),
+        intervention=ValuedAtom(atom=x, value=True),
+        adjustment_set=(z,),
+    )
+    formula_y_true = _bind_target_value(f, y, True)
+
+    theta = Theta(entries={
+        ProbabilityKey(z, True, frozenset()): 0.4,
+        ProbabilityKey(z, False, frozenset()): 0.6,
+        ProbabilityKey(y, True, frozenset([(x, True), (z, True)])): 0.8,
+        ProbabilityKey(y, True, frozenset([(x, True), (z, False)])): 0.3,
+    })
+
+    actual = estimate_formula(formula_y_true, theta)
+    expected = 0.4 * 0.8 + 0.6 * 0.3
+    assert abs(actual - expected) < 1e-9, (
+        f"backdoor (1 Z) evaluated to {actual}, expected {expected}"
+    )
+
+
+def test_frontdoor_single_mediator_evaluates_to_correct_ate():
+    """Pearl front-door: Σ_m P(M=m|X=T) · Σ_x' P(Y|X=x', M=m) · P(X=x').
+    Concrete CPTs:
+        P(X=T)=0.5, P(M=T|X=T)=0.7, P(M=T|X=F)=0.2
+        P(Y=T|X=T,M=T)=0.9, P(Y=T|X=T,M=F)=0.4
+        P(Y=T|X=F,M=T)=0.6, P(Y=T|X=F,M=F)=0.1
+    Inner sums (per mediator m):
+        m=T: P(Y|X=T,M=T)·P(X=T) + P(Y|X=F,M=T)·P(X=F)
+           = 0.9·0.5 + 0.6·0.5 = 0.45 + 0.30 = 0.75
+        m=F: 0.4·0.5 + 0.1·0.5 = 0.20 + 0.05 = 0.25
+    Outer:
+        P(M=T|X=T)·0.75 + P(M=F|X=T)·0.25
+        = 0.7·0.75 + 0.3·0.25 = 0.525 + 0.075 = 0.6"""
+    from themis.runtime.formula_builder import front_door_formula
+    from themis.runtime.numeric_estimator import (
+        ProbabilityKey, Theta, estimate_formula,
+    )
+    from themis.types import ValuedAtom
+
+    y, x, m = _A("y"), _A("x"), _A("m")
+    f = front_door_formula(
+        target=ValuedAtom(atom=y, value=None),
+        intervention=ValuedAtom(atom=x, value=True),
+        mediators=(m,),
+    )
+    formula_y_true = _bind_target_value(f, y, True)
+
+    theta = Theta(entries={
+        ProbabilityKey(x, True, frozenset()): 0.5,
+        ProbabilityKey(x, False, frozenset()): 0.5,
+        ProbabilityKey(m, True, frozenset([(x, True)])): 0.7,
+        ProbabilityKey(m, False, frozenset([(x, True)])): 0.3,
+        ProbabilityKey(y, True, frozenset([(x, True), (m, True)])): 0.9,
+        ProbabilityKey(y, True, frozenset([(x, True), (m, False)])): 0.4,
+        ProbabilityKey(y, True, frozenset([(x, False), (m, True)])): 0.6,
+        ProbabilityKey(y, True, frozenset([(x, False), (m, False)])): 0.1,
+    })
+
+    actual = estimate_formula(formula_y_true, theta)
+    inner_t = 0.9 * 0.5 + 0.6 * 0.5  # m=T
+    inner_f = 0.4 * 0.5 + 0.1 * 0.5  # m=F
+    expected = 0.7 * inner_t + 0.3 * inner_f
+    assert abs(actual - expected) < 1e-9, (
+        f"front-door evaluated to {actual}, expected {expected}"
+    )
