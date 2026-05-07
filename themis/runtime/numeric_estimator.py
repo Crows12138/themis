@@ -276,3 +276,95 @@ def empty_theta() -> Theta:
     statements cannot yet be compiled into Theta entries (their
     target/given atoms have no values in the current schema)."""
     return Theta()
+
+
+# --------------------------------------------------- iter 171: derivable check
+
+def can_derive_via_marginalization(
+    missing_key: ProbabilityKey,
+    theta: Theta,
+    *,
+    extra_atoms: tuple[Atom, ...] = (),
+) -> bool:
+    """Iter 171 — foundation for iter 168's option (b) auto-marginalization.
+
+    Check whether ``missing_key`` could be derived by marginalizing
+    over additional atoms not in its conditioning set. For example,
+    if ``missing_key`` is P(Y|X) and theta contains every
+    P(Y|X, Z=v_z) for v_z ∈ domain(Z), the missing CPT can be
+    derived as Σ_z P(Y|X, Z=z) · P(Z=z|X).
+
+    This function only returns True when:
+    - For some atom Z (in ``extra_atoms`` or scanning theta keys),
+      every (target_atom, target_value, given ∪ {(Z, z)}) for z in
+      domain(Z) has a theta entry, AND
+    - Every P(Z=z|conditioning) needed for the inner factor exists
+      in theta.
+
+    Iter 171 is just the SCAN / detection. Iter 172+ will wire the
+    actual marginalization into _evaluate so the kernel auto-derives
+    instead of raising InsufficientTheta. Splitting detection from
+    derivation lets iter 171 be a pure helper that's testable in
+    isolation.
+
+    Returns False on the safe path; iter 172+ flips False → True
+    handling case-by-case.
+    """
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+
+    # Try each extra_atom as the marginalization variable. Scan first
+    # in extra_atoms, then in theta's known atoms (collected from
+    # entry keys' atoms).
+    candidates: list[Atom] = list(extra_atoms)
+    seen_in_extra = set(extra_atoms)
+    for key in theta.entries:
+        for ga, _gv in key.given:
+            if ga != target_atom and ga not in seen_in_extra:
+                candidates.append(ga)
+                seen_in_extra.add(ga)
+        if (
+            key.target_atom != target_atom
+            and key.target_atom not in seen_in_extra
+        ):
+            candidates.append(key.target_atom)
+            seen_in_extra.add(key.target_atom)
+
+    given_atoms = {ga for ga, _ in base_given}
+    for z in candidates:
+        if z == target_atom or z in given_atoms:
+            continue
+        domain = theta.domain_of(z)
+        if not domain:
+            continue
+        # Check: every (target_atom, target_value, base_given ∪ {(z, v)})
+        # exists for v in domain(z)?
+        all_outer_present = True
+        for v in domain:
+            extended_given = frozenset(base_given | {(z, v)})
+            outer_key = ProbabilityKey(
+                target_atom=target_atom,
+                target_value=target_value,
+                given=extended_given,
+            )
+            if outer_key not in theta.entries:
+                all_outer_present = False
+                break
+        if not all_outer_present:
+            continue
+        # Inner factor: P(Z=v | base_given) — must also exist for
+        # each v. Conservative: require entries with the SAME
+        # base_given conditioning. (More general: derive P(Z|cond)
+        # by chain rule. Iter 172+ may extend.)
+        all_inner_present = True
+        for v in domain:
+            inner_key = ProbabilityKey(
+                target_atom=z, target_value=v, given=base_given,
+            )
+            if inner_key not in theta.entries:
+                all_inner_present = False
+                break
+        if all_inner_present:
+            return True
+    return False

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-1859 passed / 143 skipped / 1 xfailed, warning-clean
+1864 passed / 143 skipped / 1 xfailed, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
