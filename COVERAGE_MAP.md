@@ -1,7 +1,10 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07（iter 200 verifier 端 d-sep guard 镜像补完，
-> R7 不再 silently 同意 runtime 的链式 DAG + marginal-only theta 错误数字）
+> 更新时间：2026-05-07（iter 202 d-sep guard 拒绝路径加结构化诊断 —
+> 用户现在能看到"Themis 看到了你的 marginal P(M2|X)，但图蕴含的独立性
+> 不成立，d-separation 拒绝"，符合 VISION 原则 5；iter 200 verifier 端
+> d-sep guard 镜像补完，R7 不再 silently 同意 runtime 的链式 DAG +
+> marginal-only theta 错误数字）
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。

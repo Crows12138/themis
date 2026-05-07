@@ -533,3 +533,175 @@ def test_iter_200_runtime_and_verifier_dsep_guard_agree():
     )
     assert rt_par == 0.6 and vf_par == 0.6
     assert rt_par == vf_par
+
+
+# ----------------------------------------------------------------------
+# Iter 202: d-sep guard refusal diagnostic — make user-facing message
+# explain WHY the marginal-independence fallback refused (closes the
+# VISION principle 5 gap iter 199-201 left in the diagnostic layer).
+# ----------------------------------------------------------------------
+
+
+def test_iter_202_runtime_diagnostic_explains_dsep_refusal():
+    """Iter 202: when d-sep guard refuses an existing-but-graph-
+    incompatible marginal, the diagnostic helper returns a structured
+    explanation naming the candidate and the violated independence."""
+    from themis.runtime.numeric_estimator import (
+        _diagnose_marginal_independence_refusal,
+    )
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m1), (m1, m2)])  # CHAIN — M1→M2
+    bi = frozenset()
+    theta = Theta(entries={
+        # Marginal-only — would be wrong to use as P(M2|X, M1)
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+
+    msg = _diagnose_marginal_independence_refusal(
+        missing, theta, graph=g, bidirected=bi,
+    )
+    assert msg is not None, (
+        "diagnostic must fire when d-sep guard refused an existing "
+        "marginal candidate"
+    )
+    # Must name the candidate (P(m2=...|x=...)) and the violated
+    # independence (M2 ⊥ {m1} | {x}).
+    assert "P(m2=True|x=True)" in msg or "P(m2=True|x=True)" in msg.replace(" ", "")
+    assert "m1" in msg
+    assert "d-separation" in msg or "d-sep" in msg
+
+
+def test_iter_202_runtime_diagnostic_silent_when_no_refusal():
+    """Iter 202: diagnostic returns None when no candidate was refused
+    — either no marginal in theta at all, or graph supports the
+    independence (parallel-mediator allows the fallback). The caller's
+    generic 'Theta 中缺条目' message is the right surface in those
+    cases."""
+    from themis.runtime.numeric_estimator import (
+        _diagnose_marginal_independence_refusal,
+    )
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    bi = frozenset()
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+
+    # No marginal in theta — nothing to refuse.
+    theta_empty = Theta(entries={})
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m1), (m1, m2)])
+    assert _diagnose_marginal_independence_refusal(
+        missing, theta_empty, graph=g, bidirected=bi,
+    ) is None
+
+    # Graph supports independence (parallel mediator) — guard wouldn't
+    # have refused, so no diagnostic.
+    theta_with = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+    })
+    g_par = nx.DiGraph()
+    g_par.add_edges_from([(x, m1), (x, m2)])
+    assert _diagnose_marginal_independence_refusal(
+        missing, theta_with, graph=g_par, bidirected=bi,
+    ) is None
+
+    # No graph → no guard → no diagnostic (caller's generic message
+    # is fine; iter 193 trust contract applies).
+    assert _diagnose_marginal_independence_refusal(
+        missing, theta_with, graph=None, bidirected=None,
+    ) is None
+
+
+def test_iter_202_evaluate_raises_with_enriched_reason():
+    """Iter 202: end-to-end through ``estimate_formula``: when the
+    chain DAG + marginal-only theta hits the d-sep refusal, the raised
+    InsufficientTheta carries a reason mentioning d-separation and the
+    extras atom — not just the bare 'Theta 中缺条目'."""
+    from themis.runtime.numeric_estimator import (
+        InsufficientTheta,
+        estimate_formula,
+    )
+    from themis.types import (
+        ProbabilityRefExpr,
+        ValuedAtom,
+    )
+    import networkx as nx
+    import pytest
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m1), (m1, m2)])
+    bi = frozenset()
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    # Ask for P(m2=True | x=True, m1=True).
+    expr = ProbabilityRefExpr(
+        target=ValuedAtom(atom=m2, value=True),
+        given=(
+            ValuedAtom(atom=x, value=True),
+            ValuedAtom(atom=m1, value=True),
+        ),
+    )
+
+    with pytest.raises(InsufficientTheta) as exc_info:
+        estimate_formula(expr, theta, graph=g, bidirected=bi)
+
+    reason = exc_info.value.reason
+    # Generic prefix preserved (no behaviour break).
+    assert "Theta 中缺条目" in reason
+    # Enrichment present.
+    assert "d-separation" in reason
+    assert "m1" in reason
+
+
+def test_iter_202_runtime_and_verifier_diagnostics_agree_on_refusal():
+    """Iter 202 sync pin (parallel to iter 175/189/194/200): runtime
+    and verifier diagnostic helpers must agree on whether a refusal
+    fired. The exact message text differs (Chinese vs English by
+    historical convention of each layer) but presence/absence must
+    match — V0-V5 independence requires both layers reach the same
+    structural conclusion about the same theta + graph."""
+    from themis.runtime.numeric_estimator import (
+        _diagnose_marginal_independence_refusal,
+    )
+    from themis.verifier.rules import (
+        _verifier_diagnose_marginal_independence_refusal,
+    )
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    bi = frozenset()
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+
+    # Chain DAG: both refuse → both produce diagnostic.
+    g_chain = nx.DiGraph()
+    g_chain.add_edges_from([(x, m1), (m1, m2)])
+    rt_chain = _diagnose_marginal_independence_refusal(
+        missing, theta, graph=g_chain, bidirected=bi,
+    )
+    vf_chain = _verifier_diagnose_marginal_independence_refusal(
+        missing, theta, graph=g_chain, bidirected=bi,
+    )
+    assert (rt_chain is not None) and (vf_chain is not None)
+
+    # Parallel DAG: both ALLOW (no refusal) → both return None.
+    g_par = nx.DiGraph()
+    g_par.add_edges_from([(x, m1), (x, m2)])
+    rt_par = _diagnose_marginal_independence_refusal(
+        missing, theta, graph=g_par, bidirected=bi,
+    )
+    vf_par = _verifier_diagnose_marginal_independence_refusal(
+        missing, theta, graph=g_par, bidirected=bi,
+    )
+    assert rt_par is None and vf_par is None

@@ -188,10 +188,20 @@ def _evaluate(
                 )
             if derived is not None:
                 return derived
-            raise InsufficientTheta(
-                key,
-                f"Theta 中缺条目 {format_probability_key(key)}",
+            # Iter 202: when the d-sep guard (iter 199) silently refused
+            # an existing-but-graph-incompatible marginal, enrich the
+            # reason so the user knows their supplied marginal does NOT
+            # match the declared graph — they need to either fix the
+            # graph or supply the demanded conditional, not just "more
+            # theta". Falls through to the generic message when no
+            # candidate was refused.
+            refusal = _diagnose_marginal_independence_refusal(
+                key, theta, graph=graph, bidirected=bidirected,
             )
+            base_msg = f"Theta 中缺条目 {format_probability_key(key)}"
+            if refusal is not None:
+                base_msg = f"{base_msg}；{refusal}"
+            raise InsufficientTheta(key, base_msg)
         return value
 
     if isinstance(expr, ProductExpr):
@@ -511,6 +521,85 @@ def _try_marginal_independence_lookup(
                     continue
             return v
     return None
+
+
+def _diagnose_marginal_independence_refusal(
+    missing_key: ProbabilityKey,
+    theta: Theta,
+    *,
+    graph,
+    bidirected,
+) -> str | None:
+    """Iter 202 — surface WHY the marginal-independence fallback refused.
+
+    The d-sep guard added in iter 199 silently returns ``None`` when a
+    candidate marginal exists in ``theta`` but the graph contradicts the
+    implied conditional independence (chain DAG + marginal-only theta is
+    the canonical case). The caller then raises ``InsufficientTheta``
+    with a generic "Theta 中缺条目 P(...)" message — true but unhelpful:
+    the user supplied data Themis CONSIDERED and REJECTED, and gets no
+    hint why their declared graph and supplied CPTs disagree.
+
+    This helper re-walks the same candidate-search loop as
+    ``_try_marginal_independence_lookup`` but returns a structured
+    explanation when a candidate was found AND refused by the d-sep
+    guard. It returns ``None`` when no candidate was present at all
+    (so the caller's existing message is appropriate) or when graph
+    info is missing (no guard fired, so no diagnostic to add).
+
+    Per VISION principle 5 ("数据缺口诊断 ≥ 数值估计 …… 显式告诉用户
+    缺什么数据"), the user benefits from knowing the marginal they
+    supplied doesn't match their declared graph — that is a different
+    fix than "supply more theta entries".
+    """
+    if graph is None or bidirected is None:
+        return None
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+    if not base_given:
+        return None
+    from itertools import combinations
+    from .structural_solver import m_separated
+
+    refused: list[tuple[ProbabilityKey, tuple[Atom, ...]]] = []
+    for n_remove in range(1, len(base_given) + 1):
+        sorted_given = sorted(
+            base_given, key=lambda p: (p[0].predicate, str(p[1])),
+        )
+        for to_remove in combinations(sorted_given, n_remove):
+            reduced = frozenset(
+                p for p in base_given if p not in to_remove
+            )
+            reduced_key = ProbabilityKey(
+                target_atom=target_atom, target_value=target_value,
+                given=reduced,
+            )
+            if theta.entries.get(reduced_key) is None:
+                continue
+            conditioning = tuple(a for a, _ in reduced)
+            extras_atoms = tuple(a for a, _ in to_remove)
+            all_separated = all(
+                m_separated(
+                    graph, bidirected,
+                    target_atom, extra, conditioning,
+                )
+                for extra in extras_atoms
+            )
+            if not all_separated:
+                refused.append((reduced_key, extras_atoms))
+    if not refused:
+        return None
+    # Pick the largest-subset (most informative) refused candidate to
+    # quote — same priority order as the lookup helper.
+    reduced_key, extras_atoms = refused[0]
+    extras_repr = ",".join(a.predicate for a in extras_atoms)
+    return (
+        f"theta 中存在 {format_probability_key(reduced_key)}，"
+        f"但声明的图蕴含 {target_atom.predicate} ⊥ {{{extras_repr}}} | "
+        f"{{{','.join(a.predicate for a, _ in reduced_key.given) or '∅'}}} "
+        f"不成立（d-separation 拒绝），故不能用边缘量替代条件量"
+    )
 
 
 def _try_derive_via_bayes_inversion(

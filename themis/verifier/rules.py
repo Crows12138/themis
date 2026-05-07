@@ -1699,10 +1699,21 @@ def _evaluate_formula(
                 )
             if derived is not None:
                 return float(derived)
-            raise _NonConcreteValue(
+            # Iter 202: enrich the refusal message with d-sep guard
+            # diagnostic when the marginal-independence fallback found
+            # a candidate but graph rejected it. Mirrors runtime so R7
+            # surfaces the same actionable hint to downstream consumers
+            # of verifier diagnostics.
+            base_msg = (
                 f"theta has no entry for P({expr.target.atom.predicate}="
                 f"{target_value})"
             )
+            refusal = _verifier_diagnose_marginal_independence_refusal(
+                key, theta, graph=graph, bidirected=bidirected,
+            )
+            if refusal is not None:
+                base_msg = f"{base_msg}; {refusal}"
+            raise _NonConcreteValue(base_msg)
         return float(value)
     if isinstance(expr, ProductExpr):
         result = 1.0
@@ -1892,6 +1903,70 @@ def _verifier_marginal_independence_lookup(
                 if not all_separated:
                     continue
             return v
+    return None
+
+
+def _verifier_diagnose_marginal_independence_refusal(
+    missing_key: ProbabilityKey,
+    theta,
+    *,
+    graph,
+    bidirected,
+) -> str | None:
+    """Iter 202 — verifier mirror of runtime's
+    ``_diagnose_marginal_independence_refusal``. Returns a structured
+    explanation when the d-sep guard refused an existing-but-graph-
+    incompatible marginal candidate; None otherwise. Preserves V0-V5
+    independence (this is its own re-derivation, not a runtime call).
+    """
+    if graph is None or bidirected is None:
+        return None
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+    if not base_given:
+        return None
+    from itertools import combinations
+    from ..runtime.structural_solver import m_separated
+
+    for n_remove in range(1, len(base_given) + 1):
+        sorted_given = sorted(
+            base_given, key=lambda p: (p[0].predicate, str(p[1])),
+        )
+        for to_remove in combinations(sorted_given, n_remove):
+            reduced = frozenset(
+                p for p in base_given if p not in to_remove
+            )
+            reduced_key = ProbabilityKey(
+                target_atom=target_atom, target_value=target_value,
+                given=reduced,
+            )
+            if theta.entries.get(reduced_key) is None:
+                continue
+            conditioning = tuple(a for a, _ in reduced)
+            extras_atoms = tuple(a for a, _ in to_remove)
+            all_separated = all(
+                m_separated(
+                    graph, bidirected,
+                    target_atom, extra, conditioning,
+                )
+                for extra in extras_atoms
+            )
+            if not all_separated:
+                extras_repr = ",".join(a.predicate for a in extras_atoms)
+                conditioning_repr = (
+                    ",".join(a.predicate for a, _ in reduced) or "∅"
+                )
+                target_pred = target_atom.predicate
+                return (
+                    f"verifier: theta has marginal "
+                    f"P({target_pred}={target_value}|"
+                    f"{conditioning_repr}) but declared graph implies "
+                    f"{target_pred} ⊥ {{{extras_repr}}} | "
+                    f"{{{conditioning_repr}}} does NOT hold "
+                    f"(d-separation refused); marginal cannot stand in "
+                    f"for the demanded conditional"
+                )
     return None
 
 

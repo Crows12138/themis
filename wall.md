@@ -933,3 +933,89 @@ sync pins all asserted "no graph" agreement; none pinned the
 d-sep-guard branch — that's why iter 199 could land without
 surfacing the verifier-side hole. iter 200's sync pin closes that
 class.
+
+---
+
+#### 2026-05-07 iter 202 — d-sep guard refusal carries a structured diagnostic (closes VISION-5 gap iter 199-201 left in the OUTPUT layer)
+
+iter 199-201 closed the silent-wrong NUMBER for chain-DAG + marginal-
+only theta: when the user-supplied marginal P(M2|X) doesn't fit the
+declared graph (M1→M2 makes M1 ⊥ M2 | X false), the d-sep guard now
+refuses to silently substitute it. Correctness half done.
+
+But the OUTPUT half was still impoverished. The refused path raised
+`InsufficientTheta(P(M2|X,M1), reason="Theta 中缺条目 P(m2=True|...)")`
+— literally true, but it doesn't tell the user that:
+
+1. Themis SAW the marginal P(M2|X) they supplied
+2. Themis CONSIDERED using it as a substitute
+3. Themis REFUSED because their declared graph (X→M1→M2) makes the
+   implied independence false
+
+Without those three facts the user just thinks "I need to fill in
+more theta." The actionable fix is different: their graph and their
+CPTs disagree — they should either drop the M1→M2 edge OR supply
+the chain CPT P(M2|X, M1). Generic "missing" message hides this.
+
+**Root cause**: `_try_marginal_independence_lookup` returns `None`
+indistinguishably for "no candidate present" vs "candidate present
+but refused by guard". The caller can't tell the two cases apart, so
+it raises the same generic message.
+
+**Structural fix** (not a string-tweak patch): added pure-function
+diagnostic helpers `_diagnose_marginal_independence_refusal` (runtime)
+and `_verifier_diagnose_marginal_independence_refusal` (verifier
+mirror). They re-walk the same candidate-search loop and return a
+structured explanation IF a candidate was found AND refused, None
+otherwise. Wired into the existing `InsufficientTheta` raise site
+(runtime) and `_NonConcreteValue` raise site (verifier) — both
+append the diagnostic to the base message when graph + bidirected
+were threaded and refusal happened.
+
+End-to-end demo. Pre-iter-202 user-facing reason for chain DAG +
+marginal-only theta:
+
+    Theta 中缺条目 P(m2=True|m1=True,x=True)
+
+Post-iter-202:
+
+    Theta 中缺条目 P(m2=True|m1=True,x=True)；theta 中存在
+    P(m2=True|x=True)，但声明的图蕴含 m2 ⊥ {m1} | {x} 不成立
+    （d-separation 拒绝），故不能用边缘量替代条件量
+
+The user can now act on the actual mismatch instead of being told
+they need "more data" they already supplied.
+
+Tests added (4 new, total 1883 → 1887):
+
+- `test_iter_202_runtime_diagnostic_explains_dsep_refusal`:
+  helper returns structured message naming the candidate and the
+  violated independence
+- `test_iter_202_runtime_diagnostic_silent_when_no_refusal`: helper
+  returns None when no refusal happened (parallel-mediator allow,
+  empty theta, no graph) — generic message stays right
+- `test_iter_202_evaluate_raises_with_enriched_reason`: e2e
+  through `estimate_formula`, asserts reason carries both the
+  generic prefix AND the d-separation enrichment
+- `test_iter_202_runtime_and_verifier_diagnostics_agree_on_refusal`:
+  sync pin (iter 175/189/194/200 pattern) — runtime and verifier
+  diagnostics fire/silent identically across chain vs parallel DAG
+
+Full suite 1887 passed / 143 skipped, warning-clean. No regression.
+
+Why this is the right next iter, not "more identification capability":
+The 50+ iter ADMG capability ladder (iter 167-201) gave us correctness
++ refusal safety. The first thing a real user hits with this stack
+is the refusal path — and they hit it WITHOUT understanding why.
+VISION principle 5 ("数据缺口诊断 ≥ 数值估计 …… 告诉用户缺什么数据
+才能算") is specifically about this. Each new identification capability
+at this point is a 7th, 8th front-door variant; making the first one
+that fails actionable is more valuable per iter than another one that
+might also fail invisibly.
+
+Lesson: a correctness fix on the COMPUTE layer doesn't automatically
+produce a usable DIAGNOSTIC. The two layers refuse for the same
+reason but the user only sees one of them — and that one is allowed
+to be richer than the compute layer needs. iter 199-201 closed
+"we don't lie"; iter 202 closes "we explain why we couldn't answer".
+Both halves needed.
