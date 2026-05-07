@@ -657,10 +657,13 @@ ambiguity disclosure block will surface that aspect — don't double-
 render. The IV section focuses on *what the answer is*; the ambiguity
 section focuses on *what could go wrong*.
 
-### Mediation decomposition (Phase 6.mediation)
+### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 
 When `extensions.mediation_decomposition` is present, the query asked
-for an effect decomposition through a mediator.
+for an effect decomposition through a mediator. The numeric path
+(``numeric_estimate.method ∈ {"mediation_linear_imai",
+"mediation_logit_imai"}``) wraps statsmodels' Imai 2010 algorithms
+1+2 for natural direct / indirect / total effects.
 
 Identifiability is a property of the graph: "可识别" means the graph
 permits decomposition under the declared assumptions, not that the
@@ -826,10 +829,107 @@ Plus the context-specific caveats:
 - 如果用户原始问题给了一个源人群数字（"RCT 说 X cm 下降"）→ 明确
   说 transport 不会输出"修正后的 X" —— 只会告诉你需要哪些数据来算
 
-### Sensitivity (E-value) — Phase 8.2
+### Transport numeric — Phase 9 §T9.2 / iter 128
 
-Fires when `numeric_estimate.sensitivity_analysis` is present (binary
-outcomes only). Surface as a **robustness statement**, not a p-value
+When `numeric_estimate.method == "transport_post_stratification"`,
+Themis ran the iter 128 numeric companion to §T9.1's structural
+identification. Method: post-stratification (Cole & Stuart 2010 §3) —
+``ATE_target = Σ_z P(z|target) · ATE_source(z)`` where each stratum
+ATE comes from observed source data and is reweighted by the target
+marginal supplied via ``program.extensions.target_marginal``.
+
+Field map: standard ``point`` / ``ci_lower`` / ``ci_upper`` /
+``ci_level`` / ``adjustment`` (the Z stratum variable, single-Z
+in v1). Plus the four assumptions in ``assumptions``:
+
+- ``s_admissibility_of_adjustment_set`` — Bareinboim-Pearl's
+  identification precondition; this is what §T9.1 already verified
+- ``no_treatment_effect_modification_outside_z_in_either_pop`` —
+  the post-stratification step assumes effect heterogeneity is
+  captured ENTIRELY by the Z stratum
+- ``consistency_of_potential_outcomes``
+- ``positivity_in_each_z_stratum_of_source`` — every Z value in the
+  target must appear in source data with both treatment arms
+
+Template:
+
+> 转移到 `<target_population>` 后的效应估计是 **`<point>` (95% CI
+> [`<ci_lower>`, `<ci_upper>`])**。计算用 Cole & Stuart 2010 §3
+> post-stratification：先在源人群按 `<adjustment>` 分层算每层
+> ATE_source(z)，再用目标人群的 P(`<adjustment>`) 边际加权求和。
+>
+> **关键假设**：(1) `<adjustment>` 是 S-admissible (Phase 9 §T9.1
+> 已验证)；(2) 效应异质性完全被 `<adjustment>` 捕获 —— 即同一
+> `<adjustment>` 子层内，源和目标人群的处理效应一致；(3) consistency；
+> (4) 源数据每个 `<adjustment>` 子层都有处理 / 对照样本（positivity）。
+>
+> 第 (2) 条是这个估计**不可被 §T9.1 验证**的假设：identification
+> 给出公式形态，post-stratification 把它落地为数字时引入了"effect
+> modification 不超出 Z"的额外承诺。如果用户怀疑还有其他效应修饰
+> 因素（年龄段 × 处理 × 子人群），点估计会偏。
+
+When ``adjustment`` has more than one variable (currently impossible
+since §T9.2 is single-Z scope), ``estimate_transport`` raises
+``NotImplementedError`` and dispatch leaves the structural
+identification result intact.
+
+### Dose-response curve — Phase 14
+
+When ``numeric_estimate.method`` matches one of ``dose_response_linear_dml``
+/ ``dose_response_causal_forest_dml`` / ``dose_response_linear_drlearner``,
+Themis fitted a dose-response curve over the user-supplied (or
+program-derived) sampling points. Method differences:
+
+- ``dose_response_linear_dml`` — EconML LinearDML; treats outcome
+  model as linear in confounders. Default for unflagged dose-response.
+- ``dose_response_causal_forest_dml`` — non-parametric forest;
+  opt-in via ``options={"model": "forest"}`` for heterogeneous
+  effects across covariate space.
+- ``dose_response_linear_drlearner`` — doubly-robust linear
+  meta-learner; opt-in via ``options={"model": "drlearner"}``;
+  more robust to outcome-model misspecification when propensity
+  is well-fit.
+
+Field map: ``sampling_points`` (T values evaluated; sorted ascending;
+first is reference), ``reference_point`` (smallest sampling_point;
+effect=0 by construction), ``dose_response_curve`` (list of {x,
+effect, ci_lower, ci_upper}), plus standard ``method`` /
+``assumptions`` / ``data_hash``.
+
+Template:
+
+> 在 `<treatment>` 取 `<reference_point>` 为参照下，目标 `<outcome>`
+> 的 dose-response 曲线（`<method>`）：
+>
+> | T = | 效应（vs 参照）| 95% CI |
+> |---|---|---|
+> | `<x_1>` | `<effect_1>` | [`<ci_lower_1>`, `<ci_upper_1>`] |
+> | ... | ... | ... |
+>
+> 假设：`<assumptions translated via glossary>`。曲线形状告诉你的不
+> 是单点效应而是 dose-response 形态 —— 是单调的吗？阈值在哪？平台
+> 在哪？把这些问题指回给用户。
+
+If ``estimator_fallback`` is present (binary treatment fell back to
+binary effect — Phase 14 slice a behaviour), surface the fallback
+rationale: "用户问 dose-response 但 `<treatment>` 是二值；改用 binary
+ATE 估计 ... 如果你想要 dose-response 形态的回答，需要把 `<treatment>`
+变成多级或连续值。"
+
+### Sensitivity (E-value) — Phase 8.2 / iter 124
+
+Fires when `numeric_estimate.sensitivity_analysis` is present. Two
+conversion paths to risk-ratio scale:
+
+- **Binary outcome** (Phase 8.2): RR via observed baseline rate.
+  ``baseline_rate`` is set; ``note`` describes "RR = (baseline +
+  ATE) / baseline".
+- **Continuous outcome** (iter 124, Chinn 2000): standardised mean
+  difference d = ATE / SD(Y), then RR ≈ exp(0.91 · d). ``baseline_rate``
+  is **null** on this path; ``note`` mentions "Chinn 2000" + the SMD
+  value + "approximation note: ... assumes within-group SDs ≈ equal".
+
+Surface either as a **robustness statement**, not a p-value
 substitute. The E-value answers: "how strong would an unmeasured
 confounder have to be — on both treatment and outcome — to explain
 this away?"
@@ -867,8 +967,18 @@ implied treated rate outside [0,1]):
 > 可以考虑把 outcome 二值化（按某阈值），或用其他敏感性方法
 > （如 Rosenbaum bounds）。
 
-For continuous outcomes the block is skipped — no E-value, no
-placeholder.
+For continuous outcomes (iter 124) the Chinn-converted E-value is
+attached automatically. ``baseline_rate=null`` is the signal — render
+with the SMD-approximation caveat:
+
+> 这个估计的 **E-value ≈ `<e_value>`**（连续 outcome；用 Chinn 2000
+> 的 SMD→RR 近似，d = ATE/SD ≈ `<smd from note>`）。意思和 binary
+> 路径一样：要让这个数推翻，需要一个未观测混杂在 `<treatment>` 和
+> `<outcome>` 上都至少有 `<e_value>` 倍的关联。
+>
+> **近似注意**：Chinn 转换假设组内 SD 大致相等且 outcome 大致 log-
+> normal —— 流行病学常用经验法则，不是紧界。如果 SD 在两组差异显著
+> 或 outcome 显著偏态，E-value 解读应保守。
 
 ### Schema mismatch
 

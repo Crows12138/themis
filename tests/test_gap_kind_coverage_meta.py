@@ -51,6 +51,13 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   invariant for future bounds solvers — current state is in sync but
   adding a frontdoor_partial / manski_tamer producer without prompt
   template would silently downgrade rendering)
+- test_numeric_estimate_method_enum_documented_in_prompt (iter 132 —
+  parallel to iter 110 but for numeric_estimate.method enum: every
+  value in query_result.schema.json's method enum must appear
+  verbatim in response_rendering.md. iter 128 added
+  transport_post_stratification + iter 124 extended sensitivity to
+  continuous outcome but neither was prompt-documented for 4 iters
+  — this pin catches that drift class going forward.)
 - test_estimation_init_docstring_inventories_all_exports (iter 111 —
   themis/estimation/__init__.py docstring described "Phase 7.1 scope"
   while the package had grown to include Phase 8.1 / 8.2 / 14
@@ -1437,6 +1444,74 @@ def test_subpackage_init_docstrings_inventory_all_exports(pkg_name):
     assert not missing, (
         f"themis/{pkg_name}/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring."
+    )
+
+
+def test_numeric_estimate_method_enum_documented_in_prompt():
+    """Iter 132 — parallel to iter 110's BoundsMethod producer pin
+    but for numeric_estimate.method values. Every method enum value
+    in query_result.schema.json must appear verbatim somewhere in
+    docs/prompts/response_rendering.md so the LLM consumer has
+    rendering guidance for that method.
+
+    Iter 124 extended sensitivity to continuous outcome and iter 128
+    added transport_post_stratification — both went 4 iterations
+    without prompt-side rendering guidance until iter 132 caught it.
+    This pin locks the "method ↔ prompt section" invariant going
+    forward.
+    """
+    import json
+
+    schema = json.loads(
+        (REPO_ROOT / "query_result.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    # Find the method enum within numeric_estimate's properties.
+    def _find_method_enum(node, depth=0):
+        """Walk schema looking for any 'method' property whose value
+        matches the numeric-estimate-style enum (contains
+        backdoor_linear / backdoor_logistic — distinguishes from
+        bounds.method which lists manski_natural etc.)."""
+        if isinstance(node, dict):
+            if (
+                node.get("type") == "object"
+                and isinstance(node.get("properties"), dict)
+            ):
+                method_def = node["properties"].get("method")
+                if (
+                    isinstance(method_def, dict)
+                    and isinstance(method_def.get("enum"), list)
+                    and "backdoor_linear" in method_def["enum"]
+                ):
+                    return method_def["enum"]
+            for v in node.values():
+                hit = _find_method_enum(v, depth + 1)
+                if hit is not None:
+                    return hit
+        elif isinstance(node, list):
+            for item in node:
+                hit = _find_method_enum(item, depth + 1)
+                if hit is not None:
+                    return hit
+        return None
+
+    method_enum = _find_method_enum(schema)
+    assert method_enum is not None, (
+        "Could not locate numeric_estimate.method enum in "
+        "query_result.schema.json"
+    )
+
+    prompt = (
+        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+    ).read_text(encoding="utf-8")
+
+    missing = [m for m in method_enum if m not in prompt]
+    assert not missing, (
+        f"numeric_estimate.method enum values not documented in "
+        f"response_rendering.md: {missing}. Add a section / mention "
+        "for each."
     )
 
 
