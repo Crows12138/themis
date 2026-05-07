@@ -253,3 +253,68 @@ iter 140 deliverable = honest documentation of attempted+failed
 attempt, not committing wrong code. wall.md retrospective form is
 genuinely new (no recent iter has been "I tried, here's why it
 didn't work" entry).
+
+---
+
+#### 2026-05-07 iter 143 update — iter 141 Line 7 shortcut RETRACTED
+
+iter 141 thought it had found a simpler shortcut: call
+`_build_q_factor(state, s=s_prime, keep=y, summed_x=frozenset())`
+to get Σ_X P(X)·P(Y|X,M) (front-door inner sum). Tests passed
+(`identifiable=True`, formula non-None, repr contains x/y/m
+tokens). Committed `7bec2f3` + `15853c2`.
+
+iter 143 instrumented the actual formula and traced its evaluation:
+
+```
+SumExpr(bind='t_m_me', over=M, body=ProductExpr(
+  P(m=None | x=value=True),    # outer Line 4 wrap, m bound externally — OK
+  SumExpr(bind='t_x_me', over=X, body=ProductExpr(
+    P(x=value=True | _),       # ← BUG: x is literal True, not VarRef('t_x_me')
+    P(y=None | x=value=True, m=value=True)  # ← BUG: x=True, m=True literals
+  ))
+))
+```
+
+`grep "VarRef" repr(formula)` returns nothing. Both inner sums are
+degenerate (body doesn't reference bind variable). Formula evaluates
+to:
+
+```
+P(x=True) · P(y|x=True)    (NOT front-door; Σ_X collapses; Σ_M
+                            collapses via tower over M)
+```
+
+Root cause: `_atom_to_target_va(state, atom)` always returns
+`value=state.x_value` when `atom ∈ state.x`, regardless of whether
+the call site wants atom as do-substituted or as a bind variable.
+The `summed_x` parameter to `_build_q_factor` only controls the
+sum-wrap set, NOT the per-atom value. For Line 6 calls this is
+fine because `summed_x = state.x` and atoms in `state.x` ARE
+do-substituted. For Line 7 shortcut where `summed_x = ∅`, atoms
+in `state.x` should be bind variables — but the helper hardcodes
+them.
+
+iter 141's "math finding" was wrong; it ignored the
+`_atom_to_target_va` substitution semantics. Tests passed because
+they only checked structural properties (identifiable, formula
+non-None, repr contains tokens) — exactly the "shallow tests" trap.
+
+iter 143 reverts:
+- `themis/runtime/c_factor.py` Line 7 → `return None` (no hedge)
+- `tests/test_tian_line_7_shortcut.py` deleted
+- `tests/test_tian_id.py` docstring + test name back to "punts
+  rather than lying"
+- `COVERAGE_MAP.md` ADMG row 88% → 85%, "Line 7 推迟" with
+  retraction note
+- `README.md` / `CORE_STATUS.md` test count 1830 → 1824
+
+Honest finding: real Line 7 implementation needs `_atom_to_target_va`
+parameterized by `do_atoms` (atoms to substitute) vs free atoms
+(those summed as bind variables) — not derived from `state.x` blind.
+Until that exists, Line 7 stays punted.
+
+Lesson for future Line 7 attempts: **trace the formula's evaluation
+semantics, not just structure**. Tests must pin (a) `VarRef` exists
+inside expected sum bodies, (b) numerical evaluation matches
+reference (DoWhy / hand calc) on a concrete CPT.

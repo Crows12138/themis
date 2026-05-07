@@ -295,51 +295,31 @@ def _id(state: _IdState) -> FormulaExpr | None:
         return _build_q_factor(state, s=S, keep=y, summed_x=x)
 
     # Line 7 of the Shpitser algorithm: S ⊊ S' for some c-component S'
-    # of G. ID(y, x ∩ S', Q[S'], G[S']) recursion.
+    # of G. ID(y, x ∩ S', Q[S'], G[S']) recursion needs symbolic
+    # substitution of "current P" with Q[S'].
     #
-    # Iter 141 — simplified shortcut implementation: when the
-    # recursion would terminate via Line 1 / Line 6 quickly inside
-    # G[S'] (the typical case for front-door-like DAGs), the answer
-    # is just Q[S'] marginalized to y:
-    #     Σ_{S' \ y} ∏_{V_i ∈ S'} P(V_i | predecessors_in_global_topo)
+    # Iter 141 attempted a "_build_q_factor(s=S', keep=y, summed_x=∅)
+    # shortcut" claim that this directly yields the front-door inner
+    # sum. Iter 143 traced the actual formula and found this is WRONG:
+    # `_atom_to_target_va(atom)` always returns `value=state.x_value`
+    # (literal True/False) when `atom ∈ state.x`, regardless of the
+    # `summed_x` parameter. So for the front-door variant the inner
+    # Σ_x body has `P(x=True) · P(y|x=True, m=True)` — both x and m
+    # hardcoded to literal True instead of the bind variables. The
+    # sum collapses degenerately:
+    #     formula = P(x=True) · P(y|x=True)   (NOT front-door)
+    # For real Line 7 implementation, _atom_to_target_va needs to
+    # learn about which atoms are bind-summed vs do-substituted in
+    # the current call site (parameterize, don't read state.x blind).
+    # Reverting iter 141 until that machinery exists. See wall.md
+    # iter 143 retraction note for full math trace.
     #
-    # This handles the front-door variant (X → M → Y, X ↔ Y latent)
-    # correctly: outer Line 4 multi-c-component branch fires on
-    # cc_minus_x = {{M}, {Y}}; sub-recursion for s_i = {Y} lands
-    # here and returns Σ_X P(X) · P(Y | X, M) — exactly the inner
-    # sum of Pearl's front-door formula. Outer wrapper composes:
-    # Σ_M P(M | X) · [Σ_X' P(X') · P(Y | X', M)].
-    #
-    # Iter 140's naive "recurse on G[S']" attempt was wrong because
-    # it reused the recursion shape without honoring Q[S']'s
-    # marginalization semantics. The shortcut does the
-    # marginalization directly via _build_q_factor, bypassing the
-    # symbolic-substitution machinery that a fully general Line 7
-    # implementation would need.
-    #
-    # Limitations of the shortcut:
-    #   - For complex Line 7 cases where x ∩ S' is non-trivial and
-    #     not ancestrally shrunk by Line 2 of the inner recursion,
-    #     the sub-recursion would itself need to trigger Lines 4/6/7
-    #     within G[S']. The shortcut returns the same formula
-    #     regardless, which may be incorrect in those cases.
-    #   - No real eval / L3 case currently hits even the simple
-    #     shortcut path — front-door variants typically take the
-    #     Line 4 / Line 6 path through ADMG-aware front-door
-    #     identification before reaching here. The shortcut is
-    #     defensive coverage for the case where ADMG front-door
-    #     fails but Line 7 can still identify.
-    for s_prime in cc_full:
-        if S < s_prime:
-            return _build_q_factor(
-                state, s=s_prime, keep=y, summed_x=frozenset(),
-            )
-
-    # No matching S' found — this case is genuinely unidentifiable
-    # (S is not a strict subset of any c-component of G). Per
-    # Shpitser-Pearl 2006 this shouldn't happen if Lines 5/6 already
-    # didn't fire, but defensive return for math robustness.
-    state.hedge = V
+    # No real eval / L3 case has hit Line 7 to date — front-door
+    # variants identify via the upstream ADMG-aware front-door path.
+    # Punt: return None WITHOUT setting hedge so scheduler treats it
+    # as needs_investigation rather than falsely claiming
+    # unidentifiability. Setting state.hedge here would lie because
+    # Line 7 cases are identifiable in principle, just not handled.
     return None
 
 

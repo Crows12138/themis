@@ -1,8 +1,13 @@
 """Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID algorithm.
 
 Covers the unit-level c_factor module + scheduler dispatch +
-verifier round-trip. Scope: Shpitser ID Lines 1-6 fully + Line 7
-simplified shortcut (iter 141, see test_tian_line_7_shortcut.py).
+verifier round-trip. Scope: Shpitser ID Lines 1-6. Line 7 (recursive
+symbolic substitution Q[S']) returns None and the scheduler falls
+through to needs_investigation — see the punt-case test below.
+Iter 141 attempted a `_build_q_factor` shortcut but iter 143 traced
+that the produced formula was mathematically wrong (atoms in
+`state.x` get hardcoded literal do-values, breaking inner sums) and
+reverted. See wall.md iter 143 retraction note.
 """
 from __future__ import annotations
 
@@ -63,12 +68,14 @@ def test_disjoint_y_component_identifiable_directly():
     assert r.formula is not None
 
 
-def test_line_7_case_identifies_via_shortcut():
-    """X → M → Y, X ↔ Y. Iter 141 Line 7 shortcut: Tian now identifies
-    via Q[S'] marginalization rather than punting. Front-door also
-    handles this case upstream — either path works; what MUST NOT
-    happen is identifiable=False with hedge=set (that would falsely
-    claim unidentifiability)."""
+def test_line_7_case_punts_rather_than_lying():
+    """X → M → Y, X ↔ Y. Front-door already handles this; Tian needs
+    Shpitser Line 7 (recursive symbolic substitution), which this
+    slice does not implement. Tian should return None — the scheduler
+    falls back to front-door upstream of Tian, so users still get
+    identification, just via the front-door path. What MUST NOT happen
+    is identifiable=False with hedge=set — that'd falsely claim
+    unidentifiability when the case is identifiable via Line 7."""
     x, m, y = _A("x"), _A("m"), _A("y")
     g = nx.DiGraph()
     g.add_edges_from([(x, m), (m, y)])
