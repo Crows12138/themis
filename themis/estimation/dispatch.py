@@ -203,6 +203,11 @@ def _estimate_effect_queries(
                 result, contract,
                 outcome=y_atom.predicate, treatment=x_atom.predicate,
             )
+            _attach_propensity_overlap_warning(
+                result, contract,
+                treatment=x_atom.predicate,
+                adjustment=adjustment_names,
+            )
             _finalise_numeric_result(result)
             continue
 
@@ -505,6 +510,133 @@ def _attach_e_value_if_binary(
 
 
 WEAK_IV_F_THRESHOLD = 10.0  # Stock & Yogo (2005), single-instrument
+
+PROPENSITY_OVERLAP_LOWER = 0.05
+PROPENSITY_OVERLAP_UPPER = 0.95
+PROPENSITY_OVERLAP_VIOLATION_FRACTION = 0.05  # 5% of sample outside bounds
+
+
+def _attach_propensity_overlap_warning(
+    result: dict, contract, treatment: str, adjustment: tuple[str, ...],
+) -> None:
+    """Iter 121 — fit a logistic propensity model P(X=1|Z) on the same
+    data the backdoor estimator used, count observations whose
+    estimated propensity falls outside [PROPENSITY_OVERLAP_LOWER,
+    PROPENSITY_OVERLAP_UPPER], and surface a
+    ``propensity_overlap_violation`` gap if more than
+    ``PROPENSITY_OVERLAP_VIOLATION_FRACTION`` of the sample is
+    out-of-support.
+
+    Skipped (no gap added):
+    - empty adjustment — there's nothing to overlap on
+    - propensity model fit fails (singular, sample too small) — None
+      means "could not assess"
+    - non-binary treatment — overlap diagnostic doesn't generalise
+      cleanly to multi-arm in v1
+
+    INFORMATIONAL severity, must-disclose channel — the backdoor
+    estimate is still attached; this just adds the caveat that part
+    of the estimate is extrapolation from the regression model.
+    """
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+
+    if not adjustment:
+        return
+    df = contract.data
+    if treatment not in df.columns:
+        return
+    if not pd.api.types.is_bool_dtype(df[treatment]):
+        return
+
+    try:
+        z = df[list(adjustment)].to_numpy(dtype=float)
+        x = df[treatment].to_numpy().astype(int)
+        if len(np.unique(x)) < 2:
+            return  # only one arm represented; weak_iv-equivalent edge case
+        clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+        clf.fit(z, x)
+        p_hat = clf.predict_proba(z)[:, 1]
+    except (ValueError, np.linalg.LinAlgError):
+        return
+
+    out_of_bounds = (
+        (p_hat < PROPENSITY_OVERLAP_LOWER)
+        | (p_hat > PROPENSITY_OVERLAP_UPPER)
+    )
+    fraction_outside = float(out_of_bounds.mean())
+    if fraction_outside <= PROPENSITY_OVERLAP_VIOLATION_FRACTION:
+        return
+
+    n_outside = int(out_of_bounds.sum())
+    p_min = float(p_hat.min())
+    p_max = float(p_hat.max())
+    n_total = int(len(p_hat))
+
+    gap_entry = {
+        "kind": "propensity_overlap_violation",
+        "severity": "informational",
+        "blocks": "interpretation",
+        "description": (
+            f"Estimated propensity P({treatment}=1 | "
+            f"{', '.join(adjustment)}) falls outside "
+            f"[{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}] "
+            f"for {n_outside}/{n_total} observations "
+            f"({fraction_outside:.1%}; min={p_min:.3f}, "
+            f"max={p_max:.3f}). Hernan & Robins ch.3 'positivity': "
+            "every confounder stratum should have both treated and "
+            "untreated units. The backdoor / g-formula estimate "
+            "extrapolates the outcome regression into the off-support "
+            "region — that part of the answer is not real causal "
+            "estimation, just model assumption."
+        ),
+        "required_data": None,
+        "alternative_paths": [
+            "trim the sample to the overlap region (e.g. drop "
+            "observations with propensity outside [0.05, 0.95]) and "
+            "re-estimate — the answer becomes ATE on the overlap "
+            "subset, not the full population",
+            "switch to a method robust to limited overlap (matching "
+            "with caliper, weighted ATT instead of ATE, "
+            "stratified-on-propensity estimator)",
+            "broaden the adjustment set so that the off-support "
+            "stratum is no longer the same — but only if a defensible "
+            "Z addition exists",
+            "report a bounds-only answer for the off-support region",
+        ],
+        "provenance": [{
+            "ref_kind": "verifier_check",
+            "ref_id": (
+                f"propensity_overlap:{treatment}|"
+                f"{','.join(adjustment)}"
+            ),
+        }],
+    }
+
+    report = result.get("data_gap_report")
+    if report is None:
+        report = {
+            "summary": "倾向得分 overlap 警告",
+            "gaps": [gap_entry],
+            "actionable_next_steps": [],
+        }
+        result["data_gap_report"] = report
+    else:
+        report.setdefault("gaps", []).append(gap_entry)
+
+    # Mirror to explanation — same posture as weak_iv_instrument.
+    headline = (
+        f"⚠ 倾向得分 P({treatment}=1|Z) 在 "
+        f"{n_outside}/{n_total} ({fraction_outside:.1%}) 样本上 "
+        f"超出 [{PROPENSITY_OVERLAP_LOWER}, {PROPENSITY_OVERLAP_UPPER}]"
+        "；后门估计在这部分依赖外推而非真实因果识别"
+    )
+    existing = result.get("explanation") or ""
+    if headline not in existing:
+        result["explanation"] = (
+            f"{headline}\n{existing}".strip() if existing else headline
+        )
 
 
 def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:

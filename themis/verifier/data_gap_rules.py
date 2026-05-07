@@ -302,6 +302,12 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # no derivation step exists because the trigger fires after the
     # numeric_estimate has been attached.
     "weak_iv_instrument": frozenset({"verifier_check"}),
+    # iter 121: estimator-time signal — propensity P(X=1|Z) bounded
+    # away from {0,1} for too few observations under backdoor
+    # adjustment. Provenance is a verifier_check ref naming the
+    # (treatment, adjustment) pair; same posture as weak_iv_instrument
+    # — runtime signal, no derivation step.
+    "propensity_overlap_violation": frozenset({"verifier_check"}),
 }
 
 

@@ -619,6 +619,18 @@ class GapKind(str, Enum):
     # estimation context — DoWhy/EconML report F sometimes but don't
     # auto-route it as a structured data-gap entry.
     WEAK_IV_INSTRUMENT = "weak_iv_instrument"
+    # iter 121: backdoor estimate (g-formula / outcome regression / IPW)
+    # was produced but the estimated propensity score P(X=1 | Z) is
+    # bounded away from {0,1} for too few observations. The "positivity"
+    # / "overlap" assumption (Hernan & Robins ch.3) requires every
+    # confounder stratum has both treated and untreated units;
+    # extrapolation outside the support is not real causal estimation.
+    # Threshold: > 5% of the sample falls outside [0.05, 0.95]
+    # estimated propensity. INFORMATIONAL must-disclose — the estimate
+    # is still computed, but the user must know how much of it relies
+    # on extrapolation. DoWhy/EconML can compute propensities but
+    # don't structure-route this as a gap.
+    PROPENSITY_OVERLAP_VIOLATION = "propensity_overlap_violation"
 
 
 class GapSeverity(str, Enum):
