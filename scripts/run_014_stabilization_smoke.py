@@ -512,6 +512,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_apply_patch_and_run",
         "themis_verify",
         "themis_verify_data_gap_report",
+        "themis_verify_bounds_result",  # iter 133
         "themis_estimate",
         "themis_discover",
         "themis_list_resources",

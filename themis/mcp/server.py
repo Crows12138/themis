@@ -6,6 +6,7 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_apply_patch_and_run(program, patches)`` → wraps :func:`themis.apply_patch_and_run`
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None)`` → wraps :func:`themis.estimate`; loads CSV from disk
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_list_resources()`` → returns the resource URI catalog
@@ -125,6 +126,25 @@ def build_server():
         """
         try:
             themis.verify_data_gap_report(result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.tool()
+    def themis_verify_bounds_result(
+        program: dict | str, result: dict,
+    ) -> dict:
+        """Iter 133 — independently audit a result's bounds_result.
+
+        Parallel to ``themis_verify_data_gap_report``: bounds typically
+        attach when point identification fails (status=needs_investigation)
+        and no derivation chain exists, so ``themis_verify`` rejects them
+        for missing derivation. This tool dispatches by
+        bounds_result.method to the iter 126/127/130 verifier trilogy
+        (manski_natural / manski_tamer_monotonicity / balke_pearl_iv).
+        """
+        try:
+            themis.verify_bounds_result(program, result)
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}

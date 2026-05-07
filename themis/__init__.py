@@ -10,6 +10,7 @@ Public entry points::
         estimate,
         verify,
         verify_data_gap_report,
+        verify_bounds_result,
     )
 
     # Pure symbolic kernel:
@@ -26,6 +27,10 @@ Public entry points::
 
     # T10-only data-gap audit, including diagnostic results with no derivation:
     verify_data_gap_report(out["results"][0])
+
+    # iter 133: bounds-result audit for derivation-less results
+    # (Phase 12 Manski natural / Balke-Pearl IV / iter 119 Manski-Tamer):
+    verify_bounds_result(program_json, out["results"][0])
 
 The kernel is JSON-in / JSON-out. Inputs conform to
 ``kernel_ast.schema.json``; outputs' ``results`` entries conform to
@@ -49,7 +54,8 @@ on ``themis`` directly to keep the public surface minimal)::
 input. ``estimate`` raises ``DataContractError`` (DataFrame fails
 column / dtype check) or ``EstimatorFailure`` (estimator hits an
 overlap / convergence / sample-size limit). ``verify`` /
-``verify_data_gap_report`` raise ``VerificationError``.
+``verify_data_gap_report`` / ``verify_bounds_result`` raise
+``VerificationError``.
 ``AdmgVerificationPending`` (re-exported below) is preserved for
 backward-compat from the v0.1 era; current ADMG verification is
 covered by the V0-V5 verifier and this exception is no longer raised
@@ -62,6 +68,7 @@ from .kernel import (
     estimate,
     run,
     verify,
+    verify_bounds_result,
     verify_data_gap_report,
 )
 
@@ -72,5 +79,6 @@ __all__ = [
     "estimate",
     "run",
     "verify",
+    "verify_bounds_result",
     "verify_data_gap_report",
 ]
