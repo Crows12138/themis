@@ -1,6 +1,6 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07（iter 145 fix Tian Lines 1-6 degenerate-sum bug）
+> 更新时间：2026-05-07（iter 168 validator loosen for ADMG c-factor CPTs）
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。
@@ -12,7 +12,7 @@
 | # | 板块 | 覆盖 | 现状 / 策略 |
 |---|---|---|---|
 | 1 | 可观测识别 | **75-80%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / 完整 ID (Shpitser) ✗ → Phase 6.complete-id（可选）|
-| 2 | ADMG / 潜变量 | **~86%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓**（hedge witness + c-factor 乘积形式，2026-05-06；**iter 145+147 修复 degenerate-sum bug**：split `_IdState.x` 与 `_IdState.do_atoms` + Line 4 outer-wrap None→VarRef rewrite。e2e via `themis.run` 仍受 semantic_validator `given⊆parents` 限制阻塞，iter 165 xfail-strict tracker `tests/test_tian_e2e_architectural_gap.py`，三种修复方案见 wall.md iter 150）/ Line 7 完整 ID* 推迟 |
+| 2 | ADMG / 潜变量 | **~87%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓**（hedge witness + c-factor 乘积形式，2026-05-06；**iter 145+147 修复 degenerate-sum bug** + **iter 167-168 验证器放松接受 ADMG topo predecessors**：admissible_given = parents ∪ directed_ancestors ∪ bidirected_siblings。e2e 阻塞已从 validator 移到 scheduler routing：disjoint-Y 仍 xfail-strict 因为 backdoor 被首选但缺 P(Y\|X)；iter 165 tracker + wall.md iter 168 记录两条后续路径）/ Line 7 完整 ID* 推迟 |
 | 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|
