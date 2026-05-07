@@ -51,6 +51,11 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   invariant for future bounds solvers — current state is in sync but
   adding a frontdoor_partial / manski_tamer producer without prompt
   template would silently downgrade rendering)
+- test_estimation_init_docstring_inventories_all_exports (iter 111 —
+  themis/estimation/__init__.py docstring described "Phase 7.1 scope"
+  while the package had grown to include Phase 8.1 / 8.2 / 14
+  exports; pin asserts every __all__ name appears in the docstring
+  body so future additions force docstring updates)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1076,6 +1081,31 @@ def test_kb_readme_gap_to_query_kind_table_matches_translator():
         "_GAP_TO_QUERY_KIND. Missing from README: "
         f"{sorted(actual_mapped_names - listed)}; extra in README: "
         f"{sorted(listed - actual_mapped_names)}"
+    )
+
+
+def test_estimation_init_docstring_inventories_all_exports():
+    """themis/estimation/__init__.py docstring should reference every
+    name in __all__. Iter 111 caught the docstring describing only
+    "Phase 7.1 scope" (data contract + backdoor) while __all__ also
+    exported Phase 8.1 discovery, Phase 8.2 sensitivity, and Phase 14
+    dose-response APIs.
+
+    Pin asserts every __all__ name (or its base form for *Result
+    dataclasses paired with verb functions) appears in the docstring,
+    so adding a new estimator forces a docstring update.
+    """
+    from themis import estimation
+
+    docstring = estimation.__doc__ or ""
+    missing = []
+    for name in estimation.__all__:
+        if name not in docstring:
+            missing.append(name)
+    assert not missing, (
+        f"themis/estimation/__init__.py docstring missing names from "
+        f"__all__: {missing}. Update the docstring to inventory new "
+        "exports."
     )
 
 

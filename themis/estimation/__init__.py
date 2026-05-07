@@ -1,13 +1,31 @@
-"""Phase 7 (M2) — numerical estimation layer.
+"""Numerical estimation layer (Phase 7 / 8.1 / 8.2 / 14).
 
-Public contract: pandas DataFrame in, point estimate + CI out. The
-kernel's existing JSON-in / JSON-out identification layer is not
-disturbed — data flows through a separate Python API
-(``themis.estimate``) so JSON callers that only need identification
-keep the v1.0 kernel surface verbatim.
+Public contract: pandas DataFrame in, point estimate / CI / sensitivity
+/ DAG-skeleton out. The kernel's existing JSON-in / JSON-out
+identification layer is not disturbed — data flows through a separate
+Python API (``themis.estimate``) so JSON callers that only need
+identification keep the v1.0 kernel surface verbatim.
 
-Phase 7.1 scope: data contract + backdoor ATE estimator. Front-door /
-IV / mediation estimators follow in 7.2 / 7.3 / 7.4.
+Landed scope:
+
+- Phase 7.1-7.4 — ATE estimators: ``estimate_backdoor_ate`` /
+  ``estimate_frontdoor_ate`` / ``estimate_iv_ate`` /
+  ``estimate_mediation`` returning ``BackdoorEstimate`` /
+  ``FrontdoorEstimate`` / ``IVEstimate`` / ``MediationEstimate``
+- Phase 8.1 — discovery: ``discover_graph`` (PC / FCI / LiNGAM via
+  causal-learn) returning ``DiscoveryResult`` +
+  ``discovery_to_kernel_ast`` adapter
+- Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
+  ``e_value_from_ate_binary`` returning ``EValueResult`` (VanderWeele
+  2017); auto-attached to binary-outcome ATE estimates by the
+  dispatcher
+- Phase 14 — dose-response curves via ``themis.estimate(...)`` with
+  ``dose_response_*`` method options (LinearDML / CausalForestDML /
+  DRLearner, opt-in)
+
+The data contract (``DataContract`` / ``DataContractError``) is shared
+by all estimators — same DataFrame validation, same SHA-256 hash
+threaded into derivation provenance.
 """
 from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .contract import DataContract, DataContractError
