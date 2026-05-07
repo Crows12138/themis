@@ -318,3 +318,58 @@ Lesson for future Line 7 attempts: **trace the formula's evaluation
 semantics, not just structure**. Tests must pin (a) `VarRef` exists
 inside expected sum bodies, (b) numerical evaluation matches
 reference (DoWhy / hand calc) on a concrete CPT.
+
+---
+
+#### 2026-05-07 iter 144 update — sweeping bug discovery via property test
+
+Acted on the iter 143 lesson: wrote a generic property test
+(`tests/test_formula_sum_bind_referenced.py`) — for every SumExpr
+in a formula, the body MUST reference the bind name via at least
+one VarRef. Otherwise the sum is degenerate.
+
+Self-tests (synthetic buggy + synthetic well-formed): pass.
+
+Applied to existing Tian Lines 1-6 paths (claimed working since
+2026-05-06): **both audit tests fail**.
+
+- `X → M → Y` (no bidirected): formula has Σ_M wrap with
+  BindDecl='t_m_me' but body's
+  `P(y=None | x=True, m=True)` has m hardcoded as literal True.
+  Σ_M collapses → formula = `P(y|x=True, m=True)` (wrong; should
+  marginalize over M to give `P(y|x=True)`).
+
+- `X → Z1, X → Z2, Z1 ↔ Z2, Z1 → Y, Z2 → Y` (the real Tian use
+  case — backdoor doesn't apply): Σ_Z1 Σ_Z2 wraps but body has
+  `P(y | x=True, z1=True, z2=True)` literals. Both inner sums
+  collapse → formula reduces to `P(y|x=T, z1=T, z2=T)` instead
+  of properly marginalizing.
+
+Same `_atom_to_target_va` root cause as iter 141. The bug has
+been latent in Lines 1-6 the whole time, masked because:
+- Backdoor / front-door / IV / ADMG-aware paths fire BEFORE Tian
+  for most queries
+- Existing Tian unit tests only assert `identifiable=True` and
+  `formula is not None`, never numerical evaluation
+
+Iter 144 deliverables:
+1. `find_degenerate_sums(formula)` helper — pure function, tested
+2. 2 self-tests (helper itself works on synthetic buggy + good)
+3. 2 audit tests on real Tian formulas, marked `xfail(strict=True)`
+   so future fix flips them to xpass and forces the marker removal
+4. wall.md retrospective (this entry)
+5. Test count 1824 → 1826 (2 xfailed not counted as passed)
+
+Future fix: parameterize `_atom_to_target_va(state, atom, *, do_atoms)`
+so the substitution happens only for atoms in `do_atoms` (the
+caller's effective intervention set), not for every atom in
+`state.x` (which gets enriched in Line 4 sub-recursion). Multiple
+call sites need updating to pass the right `do_atoms`. Not a 60s
+fix — but the property test is now infrastructure that makes the
+fix auditable.
+
+Lesson reinforced: **shallow tests = invisible bugs**. The Tian
+algorithm has been "working" for a year by passing identifiable=True
+checks while emitting incorrect formulas. The property-test layer
+is now the canary; future formula-emitting code (any new Phase, any
+new ID line) should add a degenerate-sum check.
