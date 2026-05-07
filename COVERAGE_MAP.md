@@ -16,7 +16,7 @@
 | 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|
-| 6 | 中介分析 | **~75%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）/ **Phase 7.5 CDE numeric ✓**（iter 125，sklearn plug-in g-formula at fixed M=m*；linear + logit）；多 mediator 链 → 后续 |
+| 6 | 中介分析 | **~80%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）/ **Phase 7.5 CDE numeric ✓**（iter 125，sklearn plug-in g-formula at fixed M=m*；linear + logit）/ **Phase 7.5+ CDE chain ✓**（iter 134，N-mediator 链式 CDE：X→M_1→...→M_n→Y 在每个 M_i 固定值上 plug-in，VanderWeele 2015 ch.5）；多 mediator 联合（非链式）/ NIE 链式分解 → 后续 |
 | 7 | 选择偏差 | **20-25%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ **`collider_conditioning_opens_backdoor` gap_kind ✓** (iter 122，EffectQuery `given` 中含 collider 时结构性诊断) / 选择节点结构 (selection_node) → Phase 9+ |
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
 | 9 | 转移性 / 泛化 | **35-40%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）/ **Phase 9 §T9.2 已落地（iter 128）**：post-stratification numeric (Cole & Stuart 2010 §3) — `estimate_transport` + dispatch path + bootstrap CI；多源 §T9.3 / 多变量 Z 联合 / latent S / IPSW (Westreich 2017) → 后续 |

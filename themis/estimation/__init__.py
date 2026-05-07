@@ -17,6 +17,10 @@ Landed scope:
   on a sklearn outcome model; complements the Imai NDE/NIE path
   with the policy-relevant "what if we forced M to this level?"
   contrast (VanderWeele 2015 ch.2.3.3).
+- Phase 7.5+ (iter 134) — Multi-mediator chain CDE:
+  ``estimate_cde_chain`` returning ``CDEChainEstimate``. Extends the
+  iter 125 single-M CDE to N mediators X→M_1→...→M_n→Y, fixing
+  each M_i at a chosen reference (VanderWeele 2015 ch.5).
 - Phase 9 §T9.2 (iter 128) — transport-numeric ATE via post-
   stratification (Cole & Stuart 2010 §3): ``estimate_transport``
   returning ``TransportEstimate``. Source data + target marginal
@@ -48,9 +52,11 @@ from .discovery import (
 )
 from .iv import IVEstimate, estimate_iv_ate
 from .mediation import (
+    CDEChainEstimate,
     CDEEstimate,
     MediationEstimate,
     estimate_cde,
+    estimate_cde_chain,
     estimate_mediation,
 )
 from .sensitivity import (
@@ -63,6 +69,7 @@ from .transport import TransportEstimate, estimate_transport
 
 __all__ = [
     "BackdoorEstimate",
+    "CDEChainEstimate",
     "CDEEstimate",
     "DataContract",
     "DataContractError",
@@ -79,6 +86,7 @@ __all__ = [
     "e_value_from_ate_continuous",
     "estimate_backdoor_ate",
     "estimate_cde",
+    "estimate_cde_chain",
     "estimate_frontdoor_ate",
     "estimate_iv_ate",
     "estimate_mediation",

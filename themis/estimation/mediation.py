@@ -347,6 +347,193 @@ def estimate_cde(
     )
 
 
+@dataclass(frozen=True)
+class CDEChainEstimate:
+    """Phase 7.5+ (iter 134) — Controlled Direct Effect for a chain of
+    N mediators X → M_1 → M_2 → ... → M_n → Y, fixing each M_i at
+    a chosen reference value m_i*.
+
+    CDE_chain(x, x', m1*, m2*, ..., mn*) =
+        E[Y | do(X=x), do(M_1=m1*), do(M_2=m2*), ..., do(M_n=mn*)]
+      - E[Y | do(X=x'), do(M_1=m1*), ..., do(M_n=mn*)]
+
+    Differences from single-M ``CDEEstimate`` (iter 125):
+    - ``mediators`` is a tuple of predicate names (chain order)
+    - ``mediator_values`` is a parallel tuple of reference values
+      (m_i* for each M_i)
+    - method is "cde_chain_linear" / "cde_chain_logit"
+
+    Same identification footing as single-M CDE per VanderWeele 2015
+    ch.5 chain extension: fits a single outcome model
+    ``Y ~ X + M_1 + ... + M_n + Z`` and plug-in evaluates at the
+    chain-fixed mediator values.
+    """
+
+    point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    ci_level: float
+    method: str                         # "cde_chain_linear" | "cde_chain_logit"
+    mediators: tuple[str, ...]          # chain order
+    mediator_values: tuple              # parallel to mediators
+    treatment_low: object
+    treatment_high: object
+    sample_size: int
+    data_hash: str
+    adjustment: tuple[str, ...]
+    treatment: str
+    outcome: str
+    assumptions: tuple[str, ...]
+
+
+def estimate_cde_chain(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    mediators: tuple[str, ...],
+    mediator_values: tuple,
+    adjustment: tuple[str, ...] = (),
+    treatment_low: object = False,
+    treatment_high: object = True,
+    model: str = "auto",
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+) -> CDEChainEstimate:
+    """Plug-in g-formula CDE for a chain of N mediators, each fixed
+    at a chosen value.
+
+    Steps:
+    1. Fit ``E[Y | X, M_1, ..., M_n, Z]`` with sklearn.
+    2. For each row i, predict at
+       (X=high, M_i=m_i* for each i, Z=Z_i) vs
+       (X=low, M_i=m_i* for each i, Z=Z_i).
+       Sample-mean difference is the CDE_chain.
+    3. Percentile bootstrap CI.
+
+    For N=1 this is exactly equivalent to ``estimate_cde``; the
+    separate function exists so callers signal chain semantics
+    explicitly and the audit trail records the chain-CDE assumption
+    set (which adds "no unmeasured confounder between successive
+    mediators given X and Z").
+
+    Raises ``ValueError`` when:
+    - ``mediators`` and ``mediator_values`` have different length
+    - ``mediators`` is empty (use ``estimate_backdoor_ate`` for the
+      no-mediator case)
+    """
+    from sklearn.linear_model import LinearRegression, LogisticRegression
+
+    if len(mediators) != len(mediator_values):
+        raise ValueError(
+            f"mediators ({len(mediators)}) and mediator_values "
+            f"({len(mediator_values)}) length mismatch"
+        )
+    if len(mediators) == 0:
+        raise ValueError(
+            "estimate_cde_chain requires at least one mediator; use "
+            "estimate_backdoor_ate for the no-mediator case"
+        )
+
+    required = {treatment, outcome, *mediators, *adjustment}
+    contract = validate_data(data, required_columns=required)
+    df = contract.data
+
+    is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
+    if model == "auto":
+        resolved = "logit" if is_bool_outcome else "linear"
+    else:
+        resolved = model
+
+    feature_cols = [treatment, *mediators, *adjustment]
+
+    def _fit_predict_diff(sample: pd.DataFrame) -> float:
+        X_full = sample[feature_cols].to_numpy(dtype=float)
+        y = sample[outcome].to_numpy()
+        if resolved == "logit":
+            y_int = y.astype(int)
+            if len(np.unique(y_int)) < 2:
+                raise ValueError("only one outcome value in this draw")
+            clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+            clf.fit(X_full, y_int)
+            X_high = X_full.copy()
+            X_low = X_full.copy()
+            # Substitute treatment column (index 0) and each mediator
+            # column (indices 1..len(mediators)).
+            X_high[:, 0] = float(treatment_high)
+            X_low[:, 0] = float(treatment_low)
+            for i, mv in enumerate(mediator_values):
+                X_high[:, 1 + i] = float(mv)
+                X_low[:, 1 + i] = float(mv)
+            p_high = clf.predict_proba(X_high)[:, 1]
+            p_low = clf.predict_proba(X_low)[:, 1]
+            return float(np.mean(p_high - p_low))
+        elif resolved == "linear":
+            reg = LinearRegression()
+            reg.fit(X_full, y.astype(float))
+            X_high = X_full.copy()
+            X_low = X_full.copy()
+            X_high[:, 0] = float(treatment_high)
+            X_low[:, 0] = float(treatment_low)
+            for i, mv in enumerate(mediator_values):
+                X_high[:, 1 + i] = float(mv)
+                X_low[:, 1 + i] = float(mv)
+            return float(np.mean(reg.predict(X_high) - reg.predict(X_low)))
+        else:
+            raise ValueError(f"unknown model {model!r}")
+
+    point = _fit_predict_diff(df)
+
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if ci_bootstrap > 0:
+        rng = np.random.default_rng(random_state)
+        n = len(df)
+        draws = np.empty(ci_bootstrap)
+        for i in range(ci_bootstrap):
+            idx = rng.integers(0, n, size=n)
+            try:
+                draws[i] = _fit_predict_diff(df.iloc[idx])
+            except (ValueError, np.linalg.LinAlgError):
+                draws[i] = np.nan
+        draws = draws[~np.isnan(draws)]
+        if len(draws) > 0:
+            alpha = (1 - ci_level) / 2
+            ci_lower = float(np.quantile(draws, alpha))
+            ci_upper = float(np.quantile(draws, 1 - alpha))
+
+    method = f"cde_chain_{resolved}"
+    assumptions = (
+        "no_unmeasured_confounder_x_y_given_chain_and_adjustment",
+        "no_unmeasured_confounder_between_successive_mediators",
+        "consistency_of_potential_outcomes",
+        "outcome_model_correctly_specified_at_chain_fixed_values",
+    )
+    if adjustment:
+        assumptions = assumptions + (
+            "adjustment_set_blocks_xy_and_my_chain_backdoors",
+        )
+
+    return CDEChainEstimate(
+        point=point,
+        ci_lower=ci_lower,
+        ci_upper=ci_upper,
+        ci_level=ci_level,
+        method=method,
+        mediators=tuple(mediators),
+        mediator_values=tuple(mediator_values),
+        treatment_low=treatment_low,
+        treatment_high=treatment_high,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        adjustment=tuple(adjustment),
+        treatment=treatment,
+        outcome=outcome,
+        assumptions=assumptions,
+    )
+
+
 def _assumptions_for(model: str, n_adj: int) -> tuple[str, ...]:
     common = (
         "sequential_ignorability_treatment_and_mediator",
