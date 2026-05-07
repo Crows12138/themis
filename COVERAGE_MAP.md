@@ -1,6 +1,6 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07（iter 168 validator loosen for ADMG c-factor CPTs）
+> 更新时间：2026-05-07（iter 188 Bayes inversion unlocks chain-mediator front-door variant）
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。
@@ -12,7 +12,7 @@
 | # | 板块 | 覆盖 | 现状 / 策略 |
 |---|---|---|---|
 | 1 | 可观测识别 | **75-80%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / 完整 ID (Shpitser) ✗ → Phase 6.complete-id（可选）|
-| 2 | ADMG / 潜变量 | **~89%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓ + e2e CLOSED (iter 173)**：iter 145+147 修复 degenerate-sum bug；iter 167-168 验证器放松（admissible_given = parents ∪ directed_ancestors ∪ bidirected_siblings）；iter 171-172 runtime 自动边缘化 Σ_z P(Y\|given,Z=z)·P(Z=z\|given) 递归 depth ≤ 3；iter 173 verifier 镜像（保持 V0-V5 独立）。disjoint-Y e2e 现在通过 themis.run + themis.verify 双向，return value=0.596 / Line 7 完整 ID* 推迟 |
+| 2 | ADMG / 潜变量 | **~91%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓ + 多种 e2e 解锁** (iter 167-189)：iter 145+147 修复 degenerate-sum bug；iter 167-168 验证器放松（admissible_given = parents ∪ directed_ancestors ∪ bidirected_siblings）；iter 171-172 runtime 自动边缘化 Σ_z P(Y\|given,Z=z)·P(Z=z\|given) 递归 depth ≤ 3；iter 173 verifier 镜像。**iter 187-188 加 Bayes 反转**：P(M1\|X,M2) = P(M2\|X,M1)·P(M1\|X)/P(M2\|X)，解锁链式 mediator front-door 变种；iter 190 N-mediator 链通过递归自然处理。capability ladder：disjoint-Y c-component / 单 mediator front-door 变种 / 链 mediator front-door 变种 / N-mediator 链。**残留 gap**：parallel multi-mediator (X→M1→Y, X→M2→Y, X↔Y) 需 joint-CPT primitive 或 marginal-independence detection / Line 7 完整 ID 推迟 |
 | 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|
