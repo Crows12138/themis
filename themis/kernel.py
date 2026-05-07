@@ -683,8 +683,9 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             framing_notes=result.get("framing_notes", []),
         )
 
-    # Iter 126/127: independent audit of bounds_result. Each producer
-    # has a dedicated verifier; balke_pearl_iv audit is a follow-up.
+    # Iter 126/127/130: independent audit of bounds_result. Each
+    # producer has a dedicated verifier; verifier trilogy now complete
+    # for the 3 implemented BoundsMethod values.
     bounds_result = result.get("bounds_result")
     if bounds_result is not None:
         method = bounds_result.get("method")
@@ -702,6 +703,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
                 verify_manski_natural_bounds_result,
             )
             verify_manski_natural_bounds_result(
+                bounds_result,
+                query_dict=_query_to_dict(query_stmt.query),
+            )
+        elif method == "balke_pearl_iv":
+            from .verifier.bounds_rules import (
+                verify_balke_pearl_iv_bounds_result,
+            )
+            verify_balke_pearl_iv_bounds_result(
                 bounds_result,
                 query_dict=_query_to_dict(query_stmt.query),
             )

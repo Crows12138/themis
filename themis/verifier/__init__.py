@@ -11,7 +11,8 @@ Public surface (re-exports from sub-modules):
   ``verify_identify`` / ``verify_effect_structural`` /
   ``verify_numeric`` / ``verify_numeric_estimate`` /
   ``verify_counterfactual``
-- Bounds-result verifiers (iter 126/127):
+- Bounds-result verifiers (iter 126/127/130) — trilogy complete for
+  the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
     iter 119 Manski-Tamer producer's symbolic expressions
     independently from program shape + the monotonicity declaration
@@ -20,6 +21,10 @@ Public surface (re-exports from sub-modules):
     Phase 12 Manski-natural producer's canonical assumption-free
     expressions; rejects non-empty assumption tuples (Manski natural
     is by definition the no-assumption baseline).
+  * ``verify_balke_pearl_iv_bounds_result`` (iter 130) audits the
+    canonical reference-shape lower/upper expressions, the
+    iv1/iv2/iv3 assumption tag set, and that target/treatment
+    predicates from the query appear in the expression.
 - ``VerificationContext`` — the (graph, query, theta) bundle that
   every verifier reads
 - Serialization round-trip: ``derivation_to_dict`` /
@@ -57,6 +62,7 @@ from .verify import (
     verify_numeric_estimate,
 )
 from .bounds_rules import (
+    verify_balke_pearl_iv_bounds_result,
     verify_manski_natural_bounds_result,
     verify_manski_tamer_bounds_result,
 )
@@ -76,6 +82,7 @@ __all__ = [
     "verify_cause",
     "verify_counterfactual",
     "verify_effect_structural",
+    "verify_balke_pearl_iv_bounds_result",
     "verify_identify",
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",

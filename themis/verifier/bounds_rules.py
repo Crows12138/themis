@@ -1,4 +1,4 @@
-"""Iter 126/127 — independent verification for ``bounds_result`` payloads.
+"""Iter 126/127/130 — independent verification for ``bounds_result`` payloads.
 
 Phase 12 (Manski natural, Balke-Pearl IV) and iter 119 (Manski-Tamer
 monotonicity) all produce ``bounds_result`` blocks via
@@ -12,26 +12,22 @@ program shape + query metadata + (for MTR) the
 import ``themis.output.bounds`` — same posture as T10 verifier
 independence (see ``data_gap_rules.py``).
 
-Current scope:
+Current scope (verifier trilogy complete for the 3 implemented
+BoundsMethod producers; the 4th enum value ``frontdoor_partial`` is
+aspirational with no producer yet):
 
-- ``verify_manski_tamer_bounds_result`` (iter 126) — the iter 119 MTR
-  producer. Re-derives which side tightens (lower vs upper) based on
-  monotonicity direction and intervention value, asserts the
-  ``lower_expression`` and ``upper_expression`` strings match the
-  canonical pattern.
-- ``verify_manski_natural_bounds_result`` (iter 127) — the original
-  Phase 12 ``manski_natural`` producer. Re-derives the canonical
-  ``P(Y | X) · P(X)`` lower / ``+ P(¬X)`` upper expressions from the
-  query and asserts equality. No assumption-tag check (Manski
-  natural is the assumption-free baseline).
-
-Out of scope (deliberate):
-
-- ``balke_pearl_iv`` verification — Balke-Pearl uses a compact
-  symbolic reference rather than spelling out the 16 linear
-  combinations, so re-derivation reduces to "method matches +
-  reference shape unchanged"; that's lower-value than the structural
-  audits above. Follow-up.
+- ``verify_manski_tamer_bounds_result`` (iter 126) — re-derives
+  which side tightens (lower vs upper) based on monotonicity
+  direction and intervention value.
+- ``verify_manski_natural_bounds_result`` (iter 127) — re-derives
+  the canonical ``P(Y | X) · P(X)`` lower / ``+ P(¬X)`` upper.
+- ``verify_balke_pearl_iv_bounds_result`` (iter 130) — checks the
+  canonical reference-shape lower/upper expressions, the iv1/iv2/iv3
+  assumption tag set, and that target/treatment predicates from the
+  query appear in the expression. Doesn't re-derive the 16 linear
+  combinations (the producer emits a compact reference rather than
+  spelling them out — auditing that reference's shape is a smaller
+  but real check).
 """
 from __future__ import annotations
 
@@ -269,6 +265,136 @@ def verify_manski_natural_bounds_result(
             f"Manski natural is the assumption-free baseline; "
             f"assumptions tuple must be empty, got {list(assumptions)!r}",
             step_index=None, rule="bounds_manski_natural",
+        )
+
+
+_BP_EXPECTED_ASSUMPTIONS = frozenset({
+    "iv1_relevance",
+    "iv2_exclusion_instrument_affects_outcome_only_via_treatment",
+    "iv3_independence_instrument_independent_of_unmeasured_confounders",
+})
+
+
+def verify_balke_pearl_iv_bounds_result(
+    bounds_result: dict,
+    *,
+    query_dict: dict,
+) -> None:
+    """Iter 130 — audit the Balke-Pearl IV bounds (Phase 12 producer).
+
+    Producer emits a compact symbolic reference rather than the 16
+    linear combinations spelled out:
+
+        lower = "max over 8 Balke-Pearl lower terms (linear combos of
+                 P({target}, {treatment} | {z}); see Balke-Pearl
+                 1997 §3)"
+        upper = "min over 8 Balke-Pearl upper terms (linear combos of
+                 P({target}, {treatment} | {z}); same observables as
+                 lower)"
+        assumptions = (iv1_relevance, iv2_exclusion_..., iv3_
+                       independence_...)
+
+    The verifier re-derives the canonical reference-shape and asserts:
+    - method == "balke_pearl_iv"
+    - lower / upper start with the canonical "max over 8" / "min over 8"
+      Balke-Pearl phrase
+    - lower / upper expressions reference the query's target and
+      treatment predicates
+    - assumption tuple contains exactly the iv1/iv2/iv3 tag set
+
+    The instrument predicate Z is not in the EffectQuery — dispatch
+    detects it from extensions.iv_identification or graph shape — so
+    the verifier doesn't re-derive Z. It does check that the
+    expression substring after the ``|`` clause has SOMETHING (any
+    non-empty predicate name), as a smoke test that producer didn't
+    forget the conditioning variable.
+
+    Does not check the 16 numeric linear combinations themselves —
+    those are deferred to a future numeric audit when a Balke-Pearl
+    numeric estimator lands. This is conservative-on-purpose: the
+    producer emits a reference, the verifier audits the reference's
+    structure.
+    """
+    if bounds_result.get("method") != "balke_pearl_iv":
+        raise VerificationError(
+            f"verify_balke_pearl_iv_bounds_result called with method "
+            f"{bounds_result.get('method')!r}; expected 'balke_pearl_iv'",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+
+    target = query_dict.get("target", {})
+    intervention = query_dict.get("intervention", {})
+    target_pred = target.get("atom", {}).get("predicate")
+    treatment_pred = intervention.get("atom", {}).get("predicate")
+
+    if not isinstance(target_pred, str) or not isinstance(treatment_pred, str):
+        raise VerificationError(
+            "Balke-Pearl IV bounds require string target / treatment "
+            "predicates in the query",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+
+    actual_lower = bounds_result.get("lower_expression") or ""
+    actual_upper = bounds_result.get("upper_expression") or ""
+
+    if not actual_lower.startswith("max over 8 Balke-Pearl lower terms"):
+        raise VerificationError(
+            f"Balke-Pearl IV lower_expression must start with the "
+            f"canonical 'max over 8 Balke-Pearl lower terms' phrase; "
+            f"got: {actual_lower!r}",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+    if not actual_upper.startswith("min over 8 Balke-Pearl upper terms"):
+        raise VerificationError(
+            f"Balke-Pearl IV upper_expression must start with the "
+            f"canonical 'min over 8 Balke-Pearl upper terms' phrase; "
+            f"got: {actual_upper!r}",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+
+    # Both expressions must reference the query's target + treatment
+    # predicates (the producer substitutes them into the expression).
+    for expr_name, expr in (("lower", actual_lower), ("upper", actual_upper)):
+        if target_pred not in expr:
+            raise VerificationError(
+                f"Balke-Pearl IV {expr_name}_expression must reference "
+                f"target predicate {target_pred!r}; got: {expr!r}",
+                step_index=None, rule="bounds_balke_pearl_iv",
+            )
+        if treatment_pred not in expr:
+            raise VerificationError(
+                f"Balke-Pearl IV {expr_name}_expression must reference "
+                f"treatment predicate {treatment_pred!r}; got: {expr!r}",
+                step_index=None, rule="bounds_balke_pearl_iv",
+            )
+
+    # The lower expression has the form
+    #   "... P(target, treatment | z); see ..."
+    # — extract the substring between "| " and ")" to confirm a
+    # non-empty conditioning variable name (smoke test for instrument).
+    import re
+    m = re.search(
+        r"P\(" + re.escape(target_pred) + r",\s*"
+        + re.escape(treatment_pred) + r"\s*\|\s*([^)]+?)\)",
+        actual_lower,
+    )
+    if m is None or not m.group(1).strip():
+        raise VerificationError(
+            f"Balke-Pearl IV lower_expression must reference an "
+            f"instrument variable in the form "
+            f"'P({target_pred}, {treatment_pred} | <z>)'; got: "
+            f"{actual_lower!r}",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+
+    actual_assumptions = frozenset(bounds_result.get("assumptions") or [])
+    if actual_assumptions != _BP_EXPECTED_ASSUMPTIONS:
+        missing = _BP_EXPECTED_ASSUMPTIONS - actual_assumptions
+        extra = actual_assumptions - _BP_EXPECTED_ASSUMPTIONS
+        raise VerificationError(
+            f"Balke-Pearl IV assumptions must be the iv1/iv2/iv3 set. "
+            f"Missing: {sorted(missing)!r}; extra: {sorted(extra)!r}",
+            step_index=None, rule="bounds_balke_pearl_iv",
         )
 
 
