@@ -14,19 +14,40 @@ E-value interpretation:
 - E → ∞ means the estimate is robust to unmeasured confounding.
 
 The formula assumes the estimate is on the risk-ratio scale.
-For ATE on a binary outcome (logistic backdoor / front-door /
-mediation logit paths), we convert via the observed baseline rate.
-For continuous outcomes the E-value is undefined here — we report
-``None`` and surface a note in the result.
 
-Reference: VanderWeele TJ, Ding P. "Sensitivity analysis in
-observational research: introducing the E-value." Annals of Internal
-Medicine. 2017;167(4):268-274.
+Two conversion paths to RR:
+
+- **Binary outcome** (``e_value_from_ate_binary``): convert ATE via
+  observed baseline rate. RR = (baseline + ATE) / baseline.
+- **Continuous outcome** (``e_value_from_ate_continuous``, iter 124):
+  convert ATE to standardised mean difference d = ATE / SD(Y), then
+  approximate RR ≈ exp(0.91 · d) per Chinn (2000) — the standard
+  conversion used in VanderWeele 2017 §3.3 for continuous outcomes.
+  Approximation assumes within-group SDs are similar and the outcome
+  is approximately log-normal; the ``note`` field in
+  ``EValueResult`` explains the assumption explicitly.
+
+References:
+- VanderWeele TJ, Ding P. "Sensitivity analysis in observational
+  research: introducing the E-value." Annals of Internal Medicine.
+  2017;167(4):268-274.
+- Chinn S. "A simple method for converting an odds ratio to effect
+  size for use in meta-analysis." Statistics in Medicine.
+  2000;19(22):3127-3131. (Provides the SMD ↔ log-OR conversion
+  d ≈ log(OR) / 1.81, equivalently OR ≈ exp(1.81 · d). For
+  rare-outcome / risk-ratio approximation: log(RR) ≈ 0.91 · d. The
+  factor 0.91 ≈ √3 / π is the same scaling used to map a logistic
+  effect size to a normal-scale SMD.)
 
 API:
 
-    from themis.estimation.sensitivity import e_value_for_risk_ratio
+    from themis.estimation.sensitivity import (
+        e_value_for_risk_ratio,
+        e_value_from_ate_binary,
+        e_value_from_ate_continuous,
+    )
     e = e_value_for_risk_ratio(rr=2.5)  # → 4.44
+    er = e_value_from_ate_continuous(ate=0.5, outcome_sd=2.0)
 """
 from __future__ import annotations
 
@@ -143,6 +164,118 @@ def e_value_from_ate_binary(
         baseline_rate=baseline_rate,
         note=note,
     )
+
+
+CHINN_SMD_TO_LOG_RR = 0.91
+
+
+def e_value_from_ate_continuous(
+    ate: float,
+    *,
+    outcome_sd: float,
+    ci_bound: float | None = None,
+) -> EValueResult:
+    """Iter 124 — E-value for an ATE on a continuous outcome via the
+    Chinn (2000) standardised-mean-difference → risk-ratio conversion.
+
+    Steps:
+    1. Standardise the effect: d = ATE / SD(Y).
+    2. Approximate risk-ratio scale: RR ≈ exp(0.91 · d).
+       The factor 0.91 maps a normal-scale SMD to a log-RR under the
+       standard logistic-to-normal scaling (≈ √3 / π).
+    3. Apply VanderWeele-Ding's E-value formula on RR.
+
+    Returns ``EValueResult`` whose ``baseline_rate`` field is None
+    (no baseline rate is meaningful here — the conversion is fully
+    standardisation-based) and whose ``note`` makes the approximation
+    explicit so renderers can disclose the assumption.
+
+    Skips with all-None when:
+    - outcome_sd is non-positive (cannot standardise — typically a
+      degenerate outcome with zero variance)
+    - ATE is non-finite
+
+    The CI bound (if supplied) is the bound closer to the null;
+    ``e_value_ci_bound`` is computed on it the same way.
+    """
+    import math as _math
+
+    if not _math.isfinite(ate):
+        return EValueResult(
+            e_value=None,
+            e_value_ci_bound=None,
+            risk_ratio=None,
+            baseline_rate=None,
+            note=(
+                f"ATE={ate} is not finite; E-value undefined. "
+                "Continuous-outcome path requires a finite point estimate."
+            ),
+        )
+    if outcome_sd <= 0 or not _math.isfinite(outcome_sd):
+        return EValueResult(
+            e_value=None,
+            e_value_ci_bound=None,
+            risk_ratio=None,
+            baseline_rate=None,
+            note=(
+                f"outcome SD {outcome_sd} is non-positive / non-finite; "
+                "Chinn 2000 SMD→RR conversion needs a meaningful "
+                "outcome scale. E-value undefined."
+            ),
+        )
+
+    smd = ate / outcome_sd
+    rr = _math.exp(CHINN_SMD_TO_LOG_RR * smd)
+    e_point = e_value_for_risk_ratio(rr)
+
+    e_ci = None
+    if ci_bound is not None and _math.isfinite(ci_bound):
+        smd_ci = ci_bound / outcome_sd
+        rr_ci = _math.exp(CHINN_SMD_TO_LOG_RR * smd_ci)
+        e_ci = e_value_for_risk_ratio(rr_ci)
+
+    note = _format_continuous_note(
+        e_point, e_ci, rr=rr, smd=smd, outcome_sd=outcome_sd,
+    )
+    return EValueResult(
+        e_value=e_point,
+        e_value_ci_bound=e_ci,
+        risk_ratio=rr,
+        baseline_rate=None,
+        note=note,
+    )
+
+
+def _format_continuous_note(
+    e_point: float,
+    e_ci: float | None,
+    *,
+    rr: float,
+    smd: float,
+    outcome_sd: float,
+) -> str:
+    parts = [
+        f"continuous outcome (SD={outcome_sd:.3g}): "
+        f"SMD d = {smd:+.3f}; "
+        f"RR ≈ exp(0.91·d) = {rr:.3f} (Chinn 2000 conversion)",
+        f"E-value on point estimate = {e_point:.2f}",
+    ]
+    if e_ci is not None:
+        parts.append(f"E-value on CI bound nearer the null = {e_ci:.2f}")
+    if e_point < 1.5:
+        parts.append("interpretation: very weak / 很脆弱")
+    elif e_point < 2.5:
+        parts.append("interpretation: moderate / 中等强度")
+    elif e_point < 5.0:
+        parts.append("interpretation: substantial / 比较稳健")
+    else:
+        parts.append("interpretation: very robust / 非常稳健")
+    parts.append(
+        "approximation note: Chinn factor 0.91 assumes within-group "
+        "SDs ≈ equal and roughly log-normal outcome. Off-the-shelf "
+        "rule-of-thumb in epi literature; not a tight bound."
+    )
+    return "; ".join(parts)
 
 
 def _format_note(

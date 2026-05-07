@@ -16,9 +16,10 @@ Landed scope:
   causal-learn) returning ``DiscoveryResult`` +
   ``discovery_to_kernel_ast`` adapter
 - Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
-  ``e_value_from_ate_binary`` returning ``EValueResult`` (VanderWeele
-  2017); auto-attached to binary-outcome ATE estimates by the
-  dispatcher
+  ``e_value_from_ate_binary`` / ``e_value_from_ate_continuous``
+  (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
+  (VanderWeele 2017); auto-attached to ATE estimates (binary OR
+  continuous outcome) by the dispatcher
 - Phase 14 — dose-response curves via ``themis.estimate(...)`` with
   ``dose_response_*`` method options (LinearDML / CausalForestDML /
   DRLearner, opt-in)
@@ -41,6 +42,7 @@ from .sensitivity import (
     EValueResult,
     e_value_for_risk_ratio,
     e_value_from_ate_binary,
+    e_value_from_ate_continuous,
 )
 
 __all__ = [
@@ -56,6 +58,7 @@ __all__ = [
     "discovery_to_kernel_ast",
     "e_value_for_risk_ratio",
     "e_value_from_ate_binary",
+    "e_value_from_ate_continuous",
     "estimate_backdoor_ate",
     "estimate_frontdoor_ate",
     "estimate_iv_ate",

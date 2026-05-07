@@ -57,9 +57,11 @@ def test_e_value_attached_for_backdoor_bool_outcome():
     assert "E-value" in sa["note"]
 
 
-def test_e_value_skipped_for_continuous_outcome():
-    """Backdoor on continuous Y should still produce numeric_estimate
-    but no sensitivity_analysis block (E-value undefined for non-binary)."""
+def test_e_value_attached_for_continuous_outcome_via_chinn():
+    """Iter 124: backdoor on continuous Y now attaches a Chinn-2000-
+    based E-value (SMD → RR ≈ exp(0.91·SMD), then VanderWeele-Ding
+    formula). baseline_rate is None on this path because the
+    conversion is fully standardisation-based."""
     rng = np.random.default_rng(0)
     n = 1000
     z = rng.standard_normal(n)
@@ -69,7 +71,14 @@ def test_e_value_skipped_for_continuous_outcome():
     out = themis.estimate(_confounded_bool_ast(), df, ci_bootstrap=0)
     est = out["results"][0]["numeric_estimate"]
     assert est["method"] == "backdoor_linear"
-    assert "sensitivity_analysis" not in est
+    sa = est.get("sensitivity_analysis")
+    assert sa is not None, (
+        "iter 124 wired Chinn E-value for continuous outcomes; "
+        "sensitivity_analysis must be present"
+    )
+    assert sa["e_value"] is not None
+    assert sa["baseline_rate"] is None
+    assert "Chinn" in sa["note"]
 
 
 # ============================================ front-door + bool outcome

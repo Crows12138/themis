@@ -294,7 +294,7 @@
         "outcome": { "type": "string" },
         "sensitivity_analysis": {
           "type": "object",
-          "description": "Phase 8.2: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present only when outcome is binary; otherwise estimator dispatch silently skips this block.",
+          "description": "Phase 8.2 + iter 124: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present for binary outcomes (RR via baseline rate) and continuous outcomes (RR ≈ exp(0.91·SMD) per Chinn 2000). Categorical / object-typed outcomes silently skip this block. baseline_rate is null on the continuous path because the conversion is fully standardisation-based.",
           "required": ["e_value", "e_value_ci_bound", "risk_ratio", "baseline_rate", "note"],
           "additionalProperties": false,
           "properties": {

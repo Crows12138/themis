@@ -460,18 +460,29 @@ def _prepend_proportion_mediated_headline(
 def _attach_e_value_if_binary(
     result: dict, contract, outcome: str, treatment: str,
 ) -> None:
-    """Phase 8.2: compute the E-value sensitivity for the result's
-    numeric estimate when the outcome is binary, and attach it under
+    """Phase 8.2 + iter 124 — compute the E-value sensitivity for the
+    result's numeric estimate and attach it under
     ``numeric_estimate.sensitivity_analysis``.
 
-    Skips quietly for non-binary outcomes (continuous Y has no
-    risk-ratio scale; future work could attach a different sensitivity
-    statistic). Mediation results carry a ``decomposition`` block
-    rather than a flat ``point`` — for those we attach the E-value to
-    the TE component (the most directly comparable summary).
+    Two paths:
+    - **Binary outcome**: VanderWeele-Ding 2017 — convert ATE to RR
+      via observed baseline rate.
+    - **Continuous outcome** (iter 124): Chinn 2000 — convert ATE to
+      SMD via outcome SD, then RR ≈ exp(0.91·SMD), then E-value.
+
+    Mediation results carry a ``decomposition`` block rather than a
+    flat ``point`` — for those we attach the E-value to the TE
+    component (the most directly comparable summary).
+
+    Function name kept for backward compatibility; the ``_if_binary``
+    suffix predates the continuous-outcome extension. Behaviour is now
+    "if outcome is dispatchable" (binary OR continuous with finite SD).
     """
     import pandas as pd
-    from .sensitivity import e_value_from_ate_binary
+    from .sensitivity import (
+        e_value_from_ate_binary,
+        e_value_from_ate_continuous,
+    )
 
     estimate = result.get("numeric_estimate")
     if estimate is None:
@@ -480,16 +491,12 @@ def _attach_e_value_if_binary(
     df = contract.data
     if outcome not in df.columns:
         return
-    if not pd.api.types.is_bool_dtype(df[outcome]):
-        return
 
-    treated_mask = df[treatment].to_numpy().astype(bool)
-    if treated_mask.all() or (~treated_mask).all():
-        return  # no untreated arm — can't compute baseline rate
-    baseline_rate = float(df.loc[~treated_mask, outcome].mean())
+    outcome_series = df[outcome]
+    is_binary = pd.api.types.is_bool_dtype(outcome_series)
+    is_numeric = pd.api.types.is_numeric_dtype(outcome_series) and not is_binary
 
     if "decomposition" in estimate:
-        # Mediation: use TE for the E-value summary.
         te = estimate["decomposition"]["te"]
         ate = te["point"]
         ci_bound = _closer_to_null(te["point"], te["ci_lower"], te["ci_upper"])
@@ -503,9 +510,24 @@ def _attach_e_value_if_binary(
             estimate.get("ci_upper"),
         )
 
-    e_result = e_value_from_ate_binary(
-        ate=ate, baseline_rate=baseline_rate, ci_bound=ci_bound,
-    )
+    if is_binary:
+        treated_mask = df[treatment].to_numpy().astype(bool)
+        if treated_mask.all() or (~treated_mask).all():
+            return  # no untreated arm — can't compute baseline rate
+        baseline_rate = float(df.loc[~treated_mask, outcome].mean())
+        e_result = e_value_from_ate_binary(
+            ate=ate, baseline_rate=baseline_rate, ci_bound=ci_bound,
+        )
+    elif is_numeric:
+        outcome_sd = float(outcome_series.std(ddof=1))
+        if outcome_sd <= 0 or not (outcome_sd == outcome_sd):  # NaN-safe
+            return
+        e_result = e_value_from_ate_continuous(
+            ate=ate, outcome_sd=outcome_sd, ci_bound=ci_bound,
+        )
+    else:
+        return  # categorical / object outcomes — out of scope this iter
+
     estimate["sensitivity_analysis"] = {
         "e_value": e_result.e_value,
         "e_value_ci_bound": e_result.e_value_ci_bound,
