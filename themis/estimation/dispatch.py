@@ -1032,6 +1032,7 @@ def _attach_precision_budget(numeric_estimate: dict) -> None:
         ci_lower=numeric_estimate.get("ci_lower"),
         ci_upper=numeric_estimate.get("ci_upper"),
         n=numeric_estimate.get("sample_size"),
+        point=numeric_estimate.get("point"),
     )
     if pb is not None:
         numeric_estimate["precision_budget"] = pb
@@ -1053,6 +1054,7 @@ def _attach_precision_budget_curve(numeric_estimate: dict) -> None:
             ci_lower=point.get("ci_lower"),
             ci_upper=point.get("ci_upper"),
             n=n,
+            point=point.get("effect"),
         )
         if pb is not None:
             point["precision_budget"] = pb
@@ -1074,17 +1076,27 @@ def _attach_precision_budget_decomposition(numeric_estimate: dict) -> None:
             ci_lower=comp.get("ci_lower"),
             ci_upper=comp.get("ci_upper"),
             n=n,
+            point=comp.get("point"),
         )
         if pb is not None:
             comp["precision_budget"] = pb
 
 
 def _compute_precision_budget(
-    *, ci_lower, ci_upper, n,
+    *, ci_lower, ci_upper, n, point=None,
 ) -> dict | None:
     """Shared core: compute precision_budget dict from raw CI bounds +
-    N. Returns None when inputs are not all valid (silent no-op
-    semantics; callers attach only when not None)."""
+    N (and optionally point estimate, for relative_width).
+
+    Returns None when inputs are not all valid (silent no-op
+    semantics; callers attach only when not None).
+
+    Iter 160: ``relative_width`` field added when ``point`` is
+    supplied and non-zero — equals half_width / |point|. The
+    response_rendering prompt's "surface when CI > 30% of point"
+    heuristic becomes a mechanical comparison instead of LLM
+    judgment. Omitted when point is None or ~0 (renderer falls back
+    to its own qualitative call)."""
     if ci_lower is None or ci_upper is None or n is None:
         return None
     try:
@@ -1101,11 +1113,21 @@ def _compute_precision_budget(
         current_ci_half_width=half_width,
         target_ci_half_width=target,
     )
-    return {
+    out: dict = {
         "current_ci_half_width": round(half_width, 6),
         "n_to_halve_ci": n_for_halve,
         "hint": hint,
     }
+    if point is not None:
+        try:
+            p = float(point)
+        except (TypeError, ValueError):
+            p = None
+        # Skip relative_width when point is ~0 (division blow-up,
+        # ratio not meaningful for null-effect estimates).
+        if p is not None and abs(p) > 1e-9 and math.isfinite(p):
+            out["relative_width"] = round(half_width / abs(p), 4)
+    return out
 
 
 def _build_numeric_derivation_dict(

@@ -585,10 +585,13 @@ It tells the user how much more N is needed to halve the current
   the reference-row whose CI is degenerate).
 
 **Rendering rule**: surface ONLY when the current CI is wide enough
-that "more data would help" is genuinely actionable — judgment call,
-but use the heuristic: if the CI half-width is more than ~30% of the
-point estimate's magnitude, attach the budget. If the user explicitly
-asks "how much data would I need to be sure?", surface it regardless.
+that "more data would help" is genuinely actionable. Iter 160 added
+``precision_budget.relative_width = half_width / |point|`` so the
+heuristic is mechanical: surface when ``relative_width > 0.3``.
+When ``relative_width`` is absent (point ~ 0), fall back to the
+qualitative call: surface if the user has asked about precision or
+if the CI brackets zero. If the user explicitly asks "how much data
+would I need to be sure?", surface regardless.
 
 **Surface format**:
 

@@ -96,6 +96,24 @@ def test_precision_budget_attached_when_ci_present():
     )
 
 
+def test_precision_budget_carries_relative_width_for_mechanical_surfacing():
+    """Iter 160: precision_budget.relative_width = half_width / |point|
+    lets the renderer's '>30% of point' heuristic be mechanical instead
+    of LLM judgment. true_ate=2.0 with N=500 → expect relative_width
+    well below 0.3 (CI tight relative to point of magnitude 2)."""
+    df = _linear_confounded_dgp(n=500, seed=0, true_ate=2.0)
+    out = themis.estimate(_confounded_ast(), df, ci_bootstrap=100, random_state=1)
+    pb = out["results"][0]["numeric_estimate"]["precision_budget"]
+    assert "relative_width" in pb, (
+        "relative_width missing — iter 160 mechanical-surface field "
+        "not wired"
+    )
+    # Sanity: with N=500 and a 2.0 ATE, bootstrap CI should be much
+    # tighter than 30% of point. Loose bracket, just confirm finiteness
+    # and order-of-magnitude correctness.
+    assert 0 < pb["relative_width"] < 1.0
+
+
 def test_empty_adjustment_when_no_confounder():
     """X → Y with no backdoor: ATE identifiable with empty adjustment."""
     ast = {
