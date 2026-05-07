@@ -393,6 +393,14 @@ def _try_derive_via_marginalization(
     marginalizes z2). Bounded recursion (default depth ≤ 3) to
     prevent runaway on pathological theta shapes.
 
+    PAIRED IMPLEMENTATION: see ``themis.verifier.rules.
+    _verifier_derive_via_marginalization`` (iter 173). The two are
+    independent (V0-V5 design goal) but MUST agree byte-for-byte on
+    every theta. iter 175 sync pin asserts this. If you modify this
+    helper, mirror the change to the verifier and re-run the sync
+    pin (``test_runtime_and_verifier_marginalization_agree_byte_
+    for_byte``).
+
     Conservative on derivation order: tries each candidate Z in
     order of appearance, picks the first that fully evaluates.
     Recursive marginalization chain rule for inner P(Z|given)
