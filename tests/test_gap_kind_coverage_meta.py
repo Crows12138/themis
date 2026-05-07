@@ -83,6 +83,14 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   semantics. Pin asserts each category's anchor keyword survives
   future prompt edits so LLMs don't naively render "recruit N more"
   without method-aware caveat.)
+- test_identification_formula_witness_set_synced_with_scheduler
+  (iter 183 sync pin — iter 182 hoisted IDENTIFICATION_FORMULA_RULES
+  to module level after iter 181 discovered front-door variant was
+  silently rejected by the verifier's hardcoded backdoor-only check.
+  Pin asserts the set membership exactly so a future identification
+  path that emits a symbolic formula must be added to BOTH the set
+  and this pin's expected literal — preventing the iter 182 silent-
+  rejection drift class.)
 - test_precision_budget_in_query_result_schema (iter 157 sync pin —
   iter 152→154 had a 2-iter silent schema violation: precision_budget
   emitted but query_result.schema.json with additionalProperties=false
@@ -350,6 +358,36 @@ def test_precision_budget_field_documented_in_rendering_prompt():
             f"to '{token}'. The renderer needs to know about all 3 "
             f"locations the field appears in across estimator shapes."
         )
+
+
+def test_identification_formula_witness_set_synced_with_scheduler():
+    """Iter 183 sync pin: themis.verifier.verify.IDENTIFICATION_FORMULA_RULES
+    must include every rule name the scheduler emits as a formula
+    witness (consumed by formula_evaluation). Pre-iter-182 only
+    backdoor was admitted; iter 182 added front-door after iter 181
+    discovered the gap. If scheduler adds a new identification path
+    that emits a symbolic formula (e.g. tian_c_formula), this pin
+    fails so the verifier set is updated alongside.
+
+    Today's emitters (verified via grep on themis/runtime/scheduler.py
+    rule= sites that produce FormulaExpr-typed output):
+    - backdoor_adjustment_formula
+    - front_door_adjustment_formula
+
+    transport_formula emits a STRING repr (not FormulaExpr) so it
+    isn't a formula_evaluation witness — excluded by design.
+    """
+    from themis.verifier.verify import IDENTIFICATION_FORMULA_RULES
+    expected = frozenset({
+        "backdoor_adjustment_formula",
+        "front_door_adjustment_formula",
+    })
+    assert IDENTIFICATION_FORMULA_RULES == expected, (
+        f"IDENTIFICATION_FORMULA_RULES drift: got "
+        f"{IDENTIFICATION_FORMULA_RULES}, expected {expected}. "
+        f"If a new identification path emits a symbolic formula, "
+        f"add it to the set in verify.py AND this pin's expected set."
+    )
 
 
 def test_precision_budget_method_specific_caveats_documented():

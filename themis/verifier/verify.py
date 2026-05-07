@@ -45,6 +45,22 @@ from .errors import (
 from .rules import dispatch_rule, known_rule
 
 
+# Iter 182/183: rules that may produce a formula referenced by
+# subsequent formula_evaluation steps. When the verifier checks an
+# effect query's formula_evaluation, the formula must equal the
+# output of one of these prior witness steps. Pre-iter-182 only
+# backdoor was accepted; iter 182 added front-door for the
+# bidirected-loosen case (iter 168). New identification paths that
+# emit symbolic formulas (not raw numeric estimates) need to be
+# added here — IV / mediation / dose-response use dataframe
+# estimators rather than formula_evaluation, so they're not in
+# this set today.
+IDENTIFICATION_FORMULA_RULES: frozenset[str] = frozenset({
+    "backdoor_adjustment_formula",
+    "front_door_adjustment_formula",
+})
+
+
 def _resolve_step_refs(
     inputs: dict,
     step_output_by_id: dict,
@@ -364,18 +380,8 @@ def _assert_numeric_query_binding(
                 step_index,
                 step.rule,
             )
-            # Iter 182: accept any identification-formula witness
-            # (backdoor / front-door). Pre-iter-182 only backdoor was
-            # checked; the front-door variant case (iter 181) emits
-            # front_door_adjustment_formula and was rejected here even
-            # though the kernel produced the correct value. ADMG /
-            # Tian / IV may need additional witness rules added later.
-            _IDENTIFICATION_FORMULA_RULES = frozenset({
-                "backdoor_adjustment_formula",
-                "front_door_adjustment_formula",
-            })
             matching_witness = any(
-                prev_step.rule in _IDENTIFICATION_FORMULA_RULES
+                prev_step.rule in IDENTIFICATION_FORMULA_RULES
                 and step_output_by_id.get(step_id) == formula
                 for step_id, prev_step in step_by_id.items()
             )
