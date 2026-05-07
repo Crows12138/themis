@@ -636,3 +636,40 @@ Two follow-on fixes (in updated xfail reason):
 iter 168 deliverable: validator loosen + xfail-strict reason
 updated to reflect the new (scheduler-side) gap. The next
 iter has a clear concrete fix path with two options.
+
+---
+
+#### 2026-05-07 iter 171-172 update — auto-marginalization in runtime
+
+Implemented iter 168 option (b): numeric_estimator now auto-derives
+missing CPTs by marginalization. When ``_evaluate`` hits a missing
+P(Y|given) lookup, it tries ``_try_derive_via_marginalization``
+which looks for an atom Z such that:
+- For every z in domain(Z), P(Y|given, Z=z) ∈ theta (or recursively
+  derivable, depth ≤ 3)
+- For every z, P(Z=z|given) ∈ theta (or recursively derivable)
+
+If found: returns Σ_z P(Y|given, Z=z) · P(Z=z|given). Bounded
+recursion handles disjoint-Y's two-deep marginalization
+(P(Y|X) → marginal over Z1 → marginal over Z2).
+
+iter 171: detection helper (can_derive_via_marginalization, +5 unit
+tests).
+iter 172: actual derivation + recursion (_try_derive_via_marginalization
+called from _evaluate's miss path).
+
+End-to-end on disjoint-Y test fixture: ``themis.run`` now returns
+``status='numerically_solved' value=0.596`` matching the hand-
+computed reference. iter 165 xfail-strict tracker STILL fails —
+now on the verifier side. ``themis.verify`` uses an INDEPENDENT
+evaluator (themis.verifier.rules._evaluate_formula) that doesn't
+have the marginalization fallback, so raises RuleCheckFailed.
+
+Iter 173 path: port the same fallback to the verifier's evaluator.
+Verifier independence is the design goal (V0-V5 audit) so this is
+a pure mirror, not a shared dependency.
+
+Three iters of architectural progress: 167 plumbing → 168 substantive
+loosen → 171-172 auto-marginalization → 173 verifier mirror.
+Validator-side gap CLOSED. Runtime-side gap CLOSED. Verifier-side
+gap remains; iter 173 wraps it.

@@ -57,18 +57,18 @@ def _prob(target: str, target_value, given: list, value: float) -> dict:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "Iter 168 fixed half: semantic_validator now accepts the "
-        "needed CPTs (parents ∪ directed-ancestors ∪ bidirected-"
-        "siblings of target). But scheduler now routes the disjoint-"
-        "Y query through backdoor (empty adjustment, since X has no "
-        "parents), which needs P(Y|X) — not supplied. The user's "
-        "P(Y|X, Z1, Z2) family is Tian-evaluable but not backdoor-"
-        "evaluable. Two follow-on options: (a) scheduler falls "
-        "through to Tian when the structurally-preferred path's "
-        "CPTs are absent but a downstream path's CPTs are present; "
-        "(b) numeric_estimator marginalizes Σ_{z1,z2} P(Y|X,z1,z2) "
-        "·P(z1,z2|X) automatically when P(Y|X) is the demand. "
-        "Either flips this xfail. wall.md iter 168 trace."
+        "Iter 167-168 loosened the validator. Iter 171-172 wired "
+        "auto-marginalization into runtime numeric_estimator: kernel "
+        "now produces status='numerically_solved' value=0.596 "
+        "(matches hand-computed reference). BUT themis.verify uses "
+        "an INDEPENDENT evaluator in themis.verifier.rules._evaluate"
+        "_formula that doesn't have the same fallback — verify "
+        "raises RuleCheckFailed('cannot evaluate P(y=True)'). Iter "
+        "173 needs to either (a) port _try_derive_via_marginalization "
+        "to the verifier's _evaluate_formula, or (b) make the "
+        "verifier accept derived intermediate values from the "
+        "runtime evaluator. (a) is safer (preserves verifier "
+        "independence). wall.md iter 172 trace."
     ),
 )
 def test_tian_disjoint_y_e2e_blocked_by_semantic_validator():

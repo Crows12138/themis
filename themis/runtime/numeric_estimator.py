@@ -168,6 +168,12 @@ def _evaluate(
         key = _probability_ref_key(expr, subs)
         value = theta.get(key)
         if value is None:
+            # Iter 172: try auto-marginalization before giving up.
+            # If theta has a richer joint family that lets us derive
+            # this CPT via Σ_z P(Y|X,Z)·P(Z|X), use it.
+            derived = _try_derive_via_marginalization(key, theta)
+            if derived is not None:
+                return derived
             raise InsufficientTheta(
                 key,
                 f"Theta 中缺条目 {format_probability_key(key)}",
@@ -368,3 +374,98 @@ def can_derive_via_marginalization(
         if all_inner_present:
             return True
     return False
+
+
+def _try_derive_via_marginalization(
+    missing_key: ProbabilityKey,
+    theta: Theta,
+    *,
+    _depth: int = 0,
+) -> float | None:
+    """Iter 172 — actual derivation. Returns the marginalized value
+    if possible, None otherwise.
+
+    Computes Σ_z P(target|given,Z=z) · P(Z=z|given) using theta
+    entries. Iter 172 extension: when the outer factor P(target|
+    given,Z=z) is itself missing, recursively try to derive IT via
+    marginalization (e.g. disjoint-Y needs P(Y|X) = Σ_{z1,z2} P(Y|X,
+    z1,z2)·P(z1,z2|X) — outer marginalizes z1, inner-of-outer
+    marginalizes z2). Bounded recursion (default depth ≤ 3) to
+    prevent runaway on pathological theta shapes.
+
+    Conservative on derivation order: tries each candidate Z in
+    order of appearance, picks the first that fully evaluates.
+    Recursive marginalization chain rule for inner P(Z|given)
+    factor is also attempted via theta lookup; iter 173+ may
+    extend to chain-rule expand the inner factor too.
+    """
+    if _depth > 3:
+        return None
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+
+    candidates: list[Atom] = []
+    seen: set[Atom] = set()
+    for key in theta.entries:
+        for ga, _gv in key.given:
+            if ga != target_atom and ga not in seen:
+                candidates.append(ga)
+                seen.add(ga)
+        if (
+            key.target_atom != target_atom
+            and key.target_atom not in seen
+        ):
+            candidates.append(key.target_atom)
+            seen.add(key.target_atom)
+
+    given_atoms = {ga for ga, _ in base_given}
+    for z in candidates:
+        if z == target_atom or z in given_atoms:
+            continue
+        domain = theta.domain_of(z)
+        if not domain:
+            continue
+        outer_values: dict = {}
+        ok = True
+        for v in domain:
+            extended_given = frozenset(base_given | {(z, v)})
+            outer_key = ProbabilityKey(
+                target_atom=target_atom,
+                target_value=target_value,
+                given=extended_given,
+            )
+            v_outer = theta.entries.get(outer_key)
+            if v_outer is None:
+                # Iter 172: try recursive derivation for this outer term
+                v_outer = _try_derive_via_marginalization(
+                    outer_key, theta, _depth=_depth + 1,
+                )
+                if v_outer is None:
+                    ok = False
+                    break
+            outer_values[v] = v_outer
+        if not ok:
+            continue
+        inner_values: dict = {}
+        ok = True
+        for v in domain:
+            inner_key = ProbabilityKey(
+                target_atom=z, target_value=v, given=base_given,
+            )
+            v_inner = theta.entries.get(inner_key)
+            if v_inner is None:
+                # Iter 172: also recurse for inner P(Z|given)
+                v_inner = _try_derive_via_marginalization(
+                    inner_key, theta, _depth=_depth + 1,
+                )
+                if v_inner is None:
+                    ok = False
+                    break
+            inner_values[v] = v_inner
+        if not ok:
+            continue
+        return sum(
+            outer_values[v] * inner_values[v] for v in domain
+        )
+    return None
