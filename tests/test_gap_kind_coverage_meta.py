@@ -69,6 +69,20 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   Single-source human-readable table for the 26 gap_kinds; previously
   scattered across types.py docstrings, classifier descriptions in
   data_gap_report.py, gap_to_action.md, response_rendering.md.)
+- test_precision_budget_field_documented_in_rendering_prompt (iter
+  157 sync pin — iter 151-155 wired numeric_estimate.precision_budget
+  into all 6 estimator paths; iter 156 added §Precision budget to
+  response_rendering.md. Pin asserts the field name + section heading
+  + 3 schema-shape tokens (decomposition / dose_response_curve /
+  n_to_halve_ci) all appear in the prompt so the LLM knows what to
+  surface. Catches future renames.)
+- test_precision_budget_in_query_result_schema (iter 157 sync pin —
+  iter 152→154 had a 2-iter silent schema violation: precision_budget
+  emitted but query_result.schema.json with additionalProperties=false
+  rejected it through verify(). Pin asserts $defs/precisionBudget
+  exists AND is referenced from ≥5 sites — top-level
+  numeric_estimate, each of nde/nie/te/proportion_mediated under
+  decomposition, plus dose_response_curve.items.)
 - test_estimation_init_docstring_inventories_all_exports (iter 111 —
   themis/estimation/__init__.py docstring described "Phase 7.1 scope"
   while the package had grown to include Phase 8.1 / 8.2 / 14
@@ -293,6 +307,64 @@ def test_must_disclose_kinds_documented_in_response_rendering_prompt():
         f"_MUST_DISCLOSE_GAP_KINDS members missing from "
         f"response_rendering.md prompt: {missing}. Add a row to the "
         f"mirrored-set table at docs/prompts/response_rendering.md."
+    )
+
+
+def test_precision_budget_field_documented_in_rendering_prompt():
+    """Iter 156 sync pin: when dispatch emits ``precision_budget`` on
+    numeric_estimate, response_rendering.md must document how the LLM
+    should surface it. Otherwise downstream LLMs read raw JSON without
+    knowing the field exists or when to mention it.
+
+    iter 151 added the helper, 152-155 wired it into all 6 estimator
+    paths, 156 documented it. This pin keeps the docs in lockstep:
+    if a future iter renames or removes the field without updating the
+    prompt, the test fails.
+    """
+    rendering_md = (
+        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+    ).read_text(encoding="utf-8")
+    # The renderer prompt must mention the field name verbatim AND
+    # the dedicated section heading (so the LLM finds it via TOC).
+    assert "`precision_budget`" in rendering_md, (
+        "response_rendering.md does not mention the `precision_budget` "
+        "field. Add the field-table row + §Precision budget section "
+        "(see iter 156)."
+    )
+    assert "Precision budget" in rendering_md, (
+        "response_rendering.md is missing the §Precision budget section."
+    )
+    # The §Precision budget section must reference all three locations
+    # — top-level (single-CI estimators), decomposition (mediation),
+    # and dose_response_curve (per-curve-point).
+    for token in ("decomposition", "dose_response_curve", "n_to_halve_ci"):
+        assert token in rendering_md, (
+            f"response_rendering.md §Precision budget missing reference "
+            f"to '{token}'. The renderer needs to know about all 3 "
+            f"locations the field appears in across estimator shapes."
+        )
+
+
+def test_precision_budget_in_query_result_schema():
+    """Iter 156 sync pin: query_result.schema.json must define
+    precisionBudget under $defs and reference it from numeric_estimate
+    + decomposition components + dose_response_curve. Drift here would
+    cause themis.verify() to reject results carrying the field (the
+    iter 152→154 silent-violation pattern)."""
+    schema_text = (
+        REPO_ROOT / "query_result.schema.json"
+    ).read_text(encoding="utf-8")
+    assert '"precisionBudget"' in schema_text, (
+        "query_result.schema.json missing $defs/precisionBudget. iter "
+        "151+152 added the helper + dispatch wire; the schema needs "
+        "to whitelist the field or themis.verify() will reject."
+    )
+    # Should be referenced at all three structural shapes
+    assert schema_text.count("#/$defs/precisionBudget") >= 5, (
+        "query_result.schema.json should reference precisionBudget "
+        "from numeric_estimate top-level + each of nde/nie/te/"
+        "proportion_mediated under decomposition + dose_response_curve "
+        "items (iter 152-155 wires)."
     )
 
 
