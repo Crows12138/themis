@@ -251,3 +251,102 @@ def test_frontdoor_two_mediators_no_degenerate_sums():
     f = front_door_formula(target, intv, (m1, m2))
     bad = find_degenerate_sums(f)
     assert bad == [], f"front-door (2 mediators) has degenerate sums: {bad}"
+
+
+# ---------------------------------------------------------------------------
+# Numerical evaluation pin: iter 145 fixed the Tian degenerate-sum bug;
+# this section evaluates real Tian formulas against a concrete Theta to
+# verify the math is RIGHT, not just the structure. Pre-iter-145 the
+# formula was structurally well-formed-looking but mathematically wrong;
+# only numerical eval against a known reference catches that class of bug.
+# ---------------------------------------------------------------------------
+
+
+def _bind_target_value(formula, target_atom, value):
+    """Walk formula and replace any ValuedAtom whose atom == target_atom
+    AND value is None with value=``value``. Used to bind the outermost
+    query target Y to a concrete value before numerical evaluation."""
+    from themis.types import (
+        ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, ValuedAtom,
+    )
+
+    def _bva(va):
+        if va.atom == target_atom and va.value is None:
+            return ValuedAtom(atom=va.atom, value=value)
+        return va
+
+    if isinstance(formula, ConstantExpr):
+        return formula
+    if isinstance(formula, ProbabilityRefExpr):
+        return ProbabilityRefExpr(
+            target=_bva(formula.target),
+            given=tuple(_bva(g) for g in formula.given),
+        )
+    if isinstance(formula, ProductExpr):
+        return ProductExpr(terms=tuple(
+            _bind_target_value(t, target_atom, value) for t in formula.terms
+        ))
+    if isinstance(formula, SumExpr):
+        return SumExpr(
+            bind=formula.bind,
+            over=formula.over,
+            body=_bind_target_value(formula.body, target_atom, value),
+        )
+    return formula
+
+
+def test_tian_pure_chain_evaluates_to_correct_ate():
+    """X → M → Y, no bidirected. Tian formula is
+    Σ_M P(M|X=True) · P(Y|X=True, M=m). Pre-iter-145 this evaluated
+    to P(Y|X=True, M=True) (degenerate sum collapsed); post-fix it
+    must marginalize M correctly to give the true ATE-style value.
+
+    Reference: with concrete CPTs P(M|X), P(Y|X,M), the answer is
+    Σ_m P(Y=True|X=True,M=m) · P(M=m|X=True). Numerical agreement
+    pins that the Σ_M binder actually iterates M's domain and the
+    body reads m from the bind variable."""
+    from themis.runtime.c_factor import identify_via_tian
+    from themis.runtime.numeric_estimator import (
+        ProbabilityKey, Theta, estimate_formula,
+    )
+
+    x, m, y = _A("x"), _A("m"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m), (m, y)])
+    r = identify_via_tian(g, frozenset(), x, y, x_value=True)
+    assert r.formula is not None and r.identifiable
+
+    # Bind Y target to True before numerical evaluation.
+    formula_y_true = _bind_target_value(r.formula, y, True)
+
+    # Concrete CPTs:
+    # P(M=True | X=True) = 0.7, P(M=False | X=True) = 0.3
+    # P(Y=True | X=True, M=True) = 0.8
+    # P(Y=True | X=True, M=False) = 0.4
+    theta = Theta(entries={
+        ProbabilityKey(
+            target_atom=m, target_value=True,
+            given=frozenset([(x, True)]),
+        ): 0.7,
+        ProbabilityKey(
+            target_atom=m, target_value=False,
+            given=frozenset([(x, True)]),
+        ): 0.3,
+        ProbabilityKey(
+            target_atom=y, target_value=True,
+            given=frozenset([(x, True), (m, True)]),
+        ): 0.8,
+        ProbabilityKey(
+            target_atom=y, target_value=True,
+            given=frozenset([(x, True), (m, False)]),
+        ): 0.4,
+    })
+
+    actual = estimate_formula(formula_y_true, theta)
+    # Reference: 0.7*0.8 + 0.3*0.4 = 0.56 + 0.12 = 0.68
+    expected = 0.7 * 0.8 + 0.3 * 0.4
+    assert abs(actual - expected) < 1e-9, (
+        f"Tian formula evaluated to {actual}, expected {expected}. "
+        f"Pre-iter-145 it would have given {0.8} (P(Y|X=T,M=T) — "
+        f"degenerate sum collapse to M=True term only)."
+    )

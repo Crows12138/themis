@@ -291,6 +291,19 @@ def _id(state: _IdState) -> FormulaExpr | None:
         # fresh name; use the bind names to rewrite the formula's
         # references to those atoms.
         sum_set = V - (y | x)
+        # Iter 147 second-half fix: each sub_formula was built with
+        # its OWN sub-state.y (e.g. {M} for the s_i={M} branch),
+        # which sets that atom's value=None in target slots — that
+        # convention works in isolation (caller binds the value
+        # externally). But here the outer Σ_M wrap binds the
+        # canonical bind name for M, so the sub-formula's
+        # value=None for M atoms must be rewritten to
+        # VarRef(canonical_bind_name(M)) for the bind to actually
+        # propagate. Without this rewrite, the evaluator hits
+        # value=None in the inner P(m|x=True) and raises
+        # InsufficientTheta — even though structurally the sum
+        # binder is referenced elsewhere in the body.
+        body = _bind_none_to_varref(body, sum_set)
         return _wrap_sum(state, body, sum_set)
 
     # Line 5: G has only one c-component → hedge → unidentifiable
@@ -449,6 +462,52 @@ def _atom_to_given_va(state: _IdState, atom: Atom) -> ValuedAtom:
 def _canonical_bind_name(atom: Atom) -> str:
     args = "_".join(a.name for a in atom.args)
     return f"t_{atom.predicate}_{args}" if args else f"t_{atom.predicate}"
+
+
+def _bind_none_to_varref(
+    formula: FormulaExpr,
+    atoms: frozenset[Atom],
+) -> FormulaExpr:
+    """Rewrite every ``ValuedAtom`` whose ``atom`` is in ``atoms`` and
+    whose ``value`` is None to use ``VarRef(_canonical_bind_name(atom))``.
+
+    Used by Line 4's outer wrap to fix up sub-recursion formulas: when
+    a sub_state was constructed with y={M}, its formula has M atoms
+    carrying value=None ("locally bound externally"). When the outer
+    Line 4 wraps with Σ_M binding the canonical name for M, those
+    None values must become VarRef references for the bind to
+    propagate through the evaluator's _resolve. Iter 147 fix: this
+    rewrite was missing pre-iter-147; iter 145 only fixed the do-atom
+    half of the substitution semantics.
+    """
+    from ..types import ConstantExpr
+
+    def _maybe_rewrite_va(va: ValuedAtom) -> ValuedAtom:
+        if va.atom in atoms and va.value is None:
+            return ValuedAtom(
+                atom=va.atom,
+                value=VarRef(name=_canonical_bind_name(va.atom)),
+            )
+        return va
+
+    if isinstance(formula, ConstantExpr):
+        return formula
+    if isinstance(formula, ProbabilityRefExpr):
+        return ProbabilityRefExpr(
+            target=_maybe_rewrite_va(formula.target),
+            given=tuple(_maybe_rewrite_va(g) for g in formula.given),
+        )
+    if isinstance(formula, ProductExpr):
+        return ProductExpr(terms=tuple(
+            _bind_none_to_varref(t, atoms) for t in formula.terms
+        ))
+    if isinstance(formula, SumExpr):
+        return SumExpr(
+            bind=formula.bind,
+            over=formula.over,
+            body=_bind_none_to_varref(formula.body, atoms),
+        )
+    return formula
 
 
 def _wrap_sum(
