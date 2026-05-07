@@ -108,6 +108,7 @@ def identify_via_tian(
         topo=full_topo,
         x_value=x_value,
         trail=[],
+        do_atoms=x_set,
     )
     formula = _id(state)
     if formula is None:
@@ -132,7 +133,18 @@ class _IdState:
     """Mutable state threaded through the recursion. Carries the full
     ADMG topo order so c-factor terms always reference the canonical
     predecessor sequence regardless of which subgraph ID is currently
-    operating on."""
+    operating on.
+
+    ``x`` is the algorithmic X for the current recursion level — it
+    grows in Line 3 (W join) and changes in Line 4 sub-recursion
+    (``x = V \\ s_i``). ``do_atoms`` is the ORIGINAL outer query's
+    intervention set, fixed across all recursion. Use ``do_atoms``
+    (not ``x``) for "should this atom be substituted with the do-value
+    literal in the formula?" — that question is about the user's
+    semantic intervention, not the algorithmic recursion variable.
+    Threading these separately is the iter 145 fix for the
+    degenerate-sum bug iter 144 exposed.
+    """
     V: frozenset[Atom]
     x: frozenset[Atom]
     y: frozenset[Atom]
@@ -141,6 +153,7 @@ class _IdState:
     topo: tuple[Atom, ...]
     x_value: object
     trail: list[tuple[frozenset[Atom], ...]]
+    do_atoms: frozenset[Atom] = frozenset()
     hedge: frozenset[Atom] | None = None
     # Counter for fresh-bind names.
     _bind_seq: int = 0
@@ -213,6 +226,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
             bidirected=sub_bi,
             topo=state.topo,
             x_value=state.x_value,
+            do_atoms=state.do_atoms,
             trail=state.trail,
         )
         result = _id(new_state)
@@ -233,6 +247,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
             bidirected=bidirected,
             topo=state.topo,
             x_value=state.x_value,
+            do_atoms=state.do_atoms,
             trail=state.trail,
         )
         result = _id(new_state)
@@ -257,6 +272,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 bidirected=bidirected,
                 topo=state.topo,
                 x_value=state.x_value,
+            do_atoms=state.do_atoms,
                 trail=state.trail,
             )
             sub = _id(sub_state)
@@ -406,12 +422,17 @@ def _build_marginal(
 def _atom_to_target_va(state: _IdState, atom: Atom) -> ValuedAtom:
     """ValuedAtom for a probability_ref `target`. Free target atoms
     (i.e. y_atom in the outermost call) carry value=None — bound by
-    the query. Intervention atoms carry the concrete do() value when
-    they appear as targets (rare). All other atoms get a VarRef whose
-    name matches the sum bind that will wrap them."""
+    the query. The user's TRUE intervention atoms (``state.do_atoms``,
+    fixed across recursion) carry the concrete do() value. All other
+    atoms — including ``state.x`` atoms that grew via Line 3 join or
+    Line 4 c-component split — get a VarRef whose name matches the
+    sum bind that will wrap them. The do_atoms / x split is the iter
+    145 fix; pre-iter-145 used ``state.x`` directly here, which made
+    Line 4 sub-recursion's enriched x atoms get hardcoded literal
+    values instead of bind references (degenerate-sum bug)."""
     if atom in state.y:
         return ValuedAtom(atom=atom, value=None)
-    if atom in state.x:
+    if atom in state.do_atoms:
         return ValuedAtom(atom=atom, value=state.x_value)
     # Will be wrapped in a sum — issue the canonical VarRef name
     # `t_<predicate>` (deterministic; the wrap step uses the same key).

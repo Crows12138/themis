@@ -22,27 +22,20 @@ This file plugs that gap with two layers:
    identification paths.
 
 Iter 144 DISCOVERY: the helper, applied to existing Tian Lines
-1-6 formulas (which the test suite has long claimed work), flags
+1-6 formulas (which the test suite had long claimed work), flagged
 degenerate sums in BOTH the pure-DAG chain AND the disjoint-
-Y-component cases. Root cause is the same as iter 141's bug:
-``_atom_to_target_va(atom)`` returns ``value=state.x_value``
+Y-component cases. Root cause was the same as iter 141's bug:
+``_atom_to_target_va(atom)`` returned ``value=state.x_value``
 literal whenever ``atom ∈ state.x``, and Line 4's multi-c-
-component sub-recursion enriches ``state.x = V \\ s_i`` so
-non-intervention atoms (M, Z1, Z2) get the literal do-value
+component sub-recursion enriched ``state.x = V \\ s_i`` so
+non-intervention atoms (M, Z1, Z2) got the literal do-value
 substituted instead of becoming bind variables.
 
-The bug is masked in production because:
-- Backdoor / front-door / IV / ADMG-aware paths fire BEFORE Tian
-  for most queries
-- Existing Tian tests only assert ``identifiable=True`` and
-  ``formula is not None``, never numerical evaluation
-
-The full fix needs ``_atom_to_target_va`` parameterized by a
-``do_atoms`` set (atoms to substitute) vs free atoms (those to
-get VarRef bind names). Reverting iter 141 retracted the wrong
-shortcut but did not address the underlying Lines 1-6 issue.
-Marking the audit tests xfail with this note so future iter has
-a clear starting point.
+Iter 145 FIX: split ``_IdState.x`` (algorithmic recursion variable,
+mutates) from ``_IdState.do_atoms`` (user's true intervention,
+fixed across recursion). ``_atom_to_target_va`` now substitutes
+literal values only for ``atom ∈ state.do_atoms``; algorithmic-x-
+only atoms get VarRef bind names. The audit tests below now pass.
 """
 from __future__ import annotations
 
@@ -170,17 +163,6 @@ def test_helper_passes_well_formed_sum():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Iter 144 discovery: existing Tian Line 4/6 path emits "
-        "degenerate Σ_M wrap (BindDecl='t_m_me' but body has "
-        "value=True literal for M instead of VarRef). Same "
-        "_atom_to_target_va bug as iter 141, masked because "
-        "scheduler routes most cases through backdoor/front-door "
-        "before Tian. Fix needs do_atoms parameterization."
-    ),
-    strict=True,
-)
 def test_tian_pure_dag_chain_no_degenerate_sums():
     """X → M → Y, no bidirected. Tian Line 6 path."""
     x, m, y = _A("x"), _A("m"), _A("y")
@@ -194,15 +176,6 @@ def test_tian_pure_dag_chain_no_degenerate_sums():
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Iter 144 discovery: same _atom_to_target_va bug as the "
-        "pure-chain case — Line 4 sub-recursion enriches state.x "
-        "with non-intervention atoms (Z1, Z2) which then get the "
-        "literal do-value instead of VarRef. See module docstring."
-    ),
-    strict=True,
-)
 def test_tian_disjoint_y_component_no_degenerate_sums():
     """X → Z1, X → Z2, Z1 ↔ Z2, Z1 → Y, Z2 → Y. Tian Line 4 + 6."""
     x, z1, z2, y = _A("x"), _A("z1"), _A("z2"), _A("y")

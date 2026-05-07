@@ -373,3 +373,50 @@ algorithm has been "working" for a year by passing identifiable=True
 checks while emitting incorrect formulas. The property-test layer
 is now the canary; future formula-emitting code (any new Phase, any
 new ID line) should add a degenerate-sum check.
+
+---
+
+#### 2026-05-07 iter 145 update — fix the Tian degenerate-sum bug
+
+iter 144 documented the fix path. iter 145 implemented it:
+
+- Added ``do_atoms: frozenset[Atom]`` field to ``_IdState``,
+  defaulting to ``frozenset()``. ``identify_via_tian`` initializes
+  it to the user's true intervention atoms (``x_set``).
+- All sub-recursion ``_IdState`` constructions (Line 2 ancestor
+  shrink, Line 3 W join, Line 4 sub-recursion) thread
+  ``do_atoms=state.do_atoms`` unchanged.
+- ``_atom_to_target_va`` checks ``atom in state.do_atoms`` instead
+  of ``atom in state.x``. Atoms that are in ``state.x`` only via
+  algorithmic recursion (not in the user's original do-set) now
+  get ``VarRef(name=_canonical_bind_name(atom))`` and the wrap
+  step's bind name matches.
+
+Result: both audit tests in ``test_formula_sum_bind_referenced.py``
+go from xfail to pass. All existing Tian unit tests still pass
+(structural assertions are unaffected). Test count 1826 + 2 xfailed
+→ 1828 passed.
+
+Verification: ran the disjoint-Y-component case manually and
+confirmed Σ_Z1 Σ_Z2 wraps now have body terms with
+``value=VarRef('t_z1_me')`` / ``value=VarRef('t_z2_me')`` — sums
+are no longer degenerate.
+
+Iter 141 → 145 arc: 4-iter sequence to honestly land a real fix.
+
+- iter 141: thought I had a Line 7 shortcut, shipped wrong code
+  (wrong tests passed because shallow)
+- iter 142: doc-sync update reflecting the (still-broken) shortcut
+- iter 143: traced formula evaluation, retracted iter 141 + 142,
+  documented "tests must pin VarRef + numerical eval" lesson
+- iter 144: built the property test that would have caught it,
+  applied to existing code, discovered same bug had been latent
+  in Tian Lines 1-6 the whole time, marked xfail with note
+- iter 145: implemented the do_atoms / x split fix, audit tests
+  flip to pass, no regressions
+
+Honest record of how a bad commit becomes a real fix when the
+infrastructure exists to catch it. The xfail-strict marker pattern
+in particular — file the bug as a strict-xfail with the fix path,
+then a future iter implements the fix and watches the marker
+flip — is now a worth-repeating pattern for known bugs.
