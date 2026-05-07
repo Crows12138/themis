@@ -18,8 +18,10 @@ mediation estimators behind the same dispatch switch.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
+from ..output.sample_size import estimate_n_for_target_ci_half_width
 from .contract import DataContract, validate_data
 
 
@@ -205,6 +207,7 @@ def _estimate_effect_queries(
                 "treatment": estimate.treatment,
                 "outcome": estimate.outcome,
             }
+            _attach_precision_budget(result["numeric_estimate"])
 
             result["derivation"] = _build_numeric_derivation_dict(
                 graph=graph,
@@ -1006,6 +1009,45 @@ def _finalise_numeric_result(result: dict) -> None:
     result["status"] = "numerically_solved"
     result["structural_result"] = {"value": True}
     result.pop("missing_information", None)
+
+
+def _attach_precision_budget(numeric_estimate: dict) -> None:
+    """Attach a ``precision_budget`` field to ``numeric_estimate`` that
+    tells the caller how much more N would be needed to halve the CI.
+
+    Aligns with VISION 2026-04-26 §"输出 (2)" requirement: "在子群 G
+    做 RCT n=N 能把 CI 收缩到 ±δ" — for the most common ask (halve
+    the CI), we always pre-compute. Caller can call
+    ``estimate_n_for_target_ci_half_width`` directly for other targets.
+
+    No-op when ci_lower / ci_upper / sample_size are not all present
+    and finite — defensive: estimators that skip bootstrap or have
+    NaN bounds shouldn't trigger a misleading hint.
+    """
+    ci_lower = numeric_estimate.get("ci_lower")
+    ci_upper = numeric_estimate.get("ci_upper")
+    n = numeric_estimate.get("sample_size")
+    if ci_lower is None or ci_upper is None or n is None:
+        return
+    try:
+        half_width = (float(ci_upper) - float(ci_lower)) / 2.0
+    except (TypeError, ValueError):
+        return
+    if half_width <= 0 or not math.isfinite(half_width):
+        return
+    if not isinstance(n, int) or n < 1:
+        return
+    target = half_width / 2.0
+    n_for_halve, hint = estimate_n_for_target_ci_half_width(
+        current_n=n,
+        current_ci_half_width=half_width,
+        target_ci_half_width=target,
+    )
+    numeric_estimate["precision_budget"] = {
+        "current_ci_half_width": round(half_width, 6),
+        "n_to_halve_ci": n_for_halve,
+        "hint": hint,
+    }
 
 
 def _build_numeric_derivation_dict(

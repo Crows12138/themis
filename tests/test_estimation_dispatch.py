@@ -78,6 +78,24 @@ def test_bootstrap_ci_populated_when_enabled():
     assert est["ci_lower"] <= est["point"] <= est["ci_upper"]
 
 
+def test_precision_budget_attached_when_ci_present():
+    """Iter 152: backdoor numeric_estimate carries a precision_budget
+    field with N-to-halve-CI hint. SE ∝ 1/√N → halving needs 4× N."""
+    df = _linear_confounded_dgp(n=500, seed=0, true_ate=2.0)
+    out = themis.estimate(_confounded_ast(), df, ci_bootstrap=100, random_state=1)
+    est = out["results"][0]["numeric_estimate"]
+    assert "precision_budget" in est
+    pb = est["precision_budget"]
+    assert "current_ci_half_width" in pb
+    assert "n_to_halve_ci" in pb
+    assert "hint" in pb
+    # Halving needs ≈4× N; current N=500 → expect n_to_halve in ~[1900, 2050]
+    # (round-up-50 grain). Loose bracket — exact integer depends on bootstrap.
+    assert 1900 <= pb["n_to_halve_ci"] <= 2050, (
+        f"n_to_halve_ci={pb['n_to_halve_ci']} out of expected ~4×N range"
+    )
+
+
 def test_empty_adjustment_when_no_confounder():
     """X → Y with no backdoor: ATE identifiable with empty adjustment."""
     ast = {
