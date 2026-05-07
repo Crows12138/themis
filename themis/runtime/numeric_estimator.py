@@ -401,6 +401,18 @@ def _try_derive_via_marginalization(
     pin (``test_runtime_and_verifier_marginalization_agree_byte_
     for_byte``).
 
+    KNOWN LIMITATION (iter 186 probe): the inner-factor lookup
+    requires P(Z=v | given) to exist directly in theta or be
+    recursively marginalizable. It does NOT do Bayesian inversion
+    — e.g. for a chain mediator graph X→M1→M2→Y with X↔Y latent,
+    the front-door fragment demands P(Y|X, M2) which would be
+    derivable as Σ_{m1} P(Y|X, M1=m1, M2)·P(M1=m1|X, M2). User
+    typically supplies P(M2|X, M1) and P(M1|X), so P(M1|X, M2)
+    needs Bayes: P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X).
+    Iter 172 punts on this; future iter that adds Bayesian inversion
+    to the inner-factor branch unlocks the chain-mediator front-
+    door variant. Mirror change to verifier helper.
+
     Conservative on derivation order: tries each candidate Z in
     order of appearance, picks the first that fully evaluates.
     Recursive marginalization chain rule for inner P(Z|given)
