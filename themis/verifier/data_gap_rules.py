@@ -315,6 +315,11 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # derivation step (fires on program shape regardless of result
     # status).
     "collider_conditioning_opens_backdoor": frozenset({"verifier_check"}),
+    # iter 123: estimator-time signal — backdoor logistic fitted but
+    # training-set fitted P(Y|X,Z) clusters near 0/1 (quasi-separation).
+    # Provenance is a verifier_check ref naming the
+    # (outcome, treatment, adjustment) trio.
+    "outcome_model_quasi_separation": frozenset({"verifier_check"}),
 }
 
 

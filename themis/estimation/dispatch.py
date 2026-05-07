@@ -208,6 +208,12 @@ def _estimate_effect_queries(
                 treatment=x_atom.predicate,
                 adjustment=adjustment_names,
             )
+            _attach_outcome_separation_warning(
+                result, contract,
+                treatment=x_atom.predicate,
+                outcome=y_atom.predicate,
+                adjustment=adjustment_names,
+            )
             _finalise_numeric_result(result)
             continue
 
@@ -514,6 +520,138 @@ WEAK_IV_F_THRESHOLD = 10.0  # Stock & Yogo (2005), single-instrument
 PROPENSITY_OVERLAP_LOWER = 0.05
 PROPENSITY_OVERLAP_UPPER = 0.95
 PROPENSITY_OVERLAP_VIOLATION_FRACTION = 0.05  # 5% of sample outside bounds
+
+OUTCOME_SATURATION_LOWER = 0.01
+OUTCOME_SATURATION_UPPER = 0.99
+OUTCOME_SATURATION_FRACTION = 0.10  # 10% of fitted P(Y|X,Z) outside bounds
+
+
+def _attach_outcome_separation_warning(
+    result: dict, contract, treatment: str, outcome: str,
+    adjustment: tuple[str, ...],
+) -> None:
+    """Iter 123 — fit a logistic outcome model E[Y|X,Z] on the same
+    data the backdoor estimator used, count fitted probabilities
+    saturated near 0/1, and surface
+    ``outcome_model_quasi_separation`` if more than
+    ``OUTCOME_SATURATION_FRACTION`` of the sample lies outside
+    [OUTCOME_SATURATION_LOWER, OUTCOME_SATURATION_UPPER].
+
+    Distinct from iter 121's ``propensity_overlap_violation`` —
+    that inspects the treatment-assignment model P(X=1|Z); this
+    inspects the outcome model P(Y=1|X,Z). Saturation of P(Y|X,Z)
+    is the classic quasi-separation signal: the logistic fit's
+    coefficients blow up, gradients near-singular, point estimate
+    of the contrast is fine on average but the CI underestimates
+    uncertainty and bias toward extreme outcomes is large.
+
+    Skipped (no gap added):
+    - non-binary outcome — only logistic outcome models can saturate
+      this way; continuous regressions surface different pathology
+    - logistic fit fails (singular, sample too small) — None means
+      'could not assess'
+    - empty adjustment AND single-arm treatment — not enough variation
+      to estimate
+    """
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+
+    df = contract.data
+    if outcome not in df.columns or treatment not in df.columns:
+        return
+    if not pd.api.types.is_bool_dtype(df[outcome]):
+        return
+    if not pd.api.types.is_bool_dtype(df[treatment]):
+        return
+
+    y = df[outcome].to_numpy().astype(int)
+    if len(np.unique(y)) < 2:
+        return  # only one outcome value — model can't fit
+
+    feature_cols = [treatment, *adjustment]
+    try:
+        feats = df[feature_cols].to_numpy(dtype=float)
+        clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+        clf.fit(feats, y)
+        p_hat = clf.predict_proba(feats)[:, 1]
+    except (ValueError, np.linalg.LinAlgError):
+        return
+
+    out_of_bounds = (
+        (p_hat < OUTCOME_SATURATION_LOWER)
+        | (p_hat > OUTCOME_SATURATION_UPPER)
+    )
+    fraction_outside = float(out_of_bounds.mean())
+    if fraction_outside <= OUTCOME_SATURATION_FRACTION:
+        return
+
+    n_outside = int(out_of_bounds.sum())
+    n_total = int(len(p_hat))
+    p_min = float(p_hat.min())
+    p_max = float(p_hat.max())
+
+    feature_names = ", ".join(feature_cols)
+    gap_entry = {
+        "kind": "outcome_model_quasi_separation",
+        "severity": "informational",
+        "blocks": "interpretation",
+        "description": (
+            f"Backdoor 后门 logistic 模型 P({outcome}=1 | "
+            f"{feature_names}) 的训练集预测概率在 "
+            f"{n_outside}/{n_total} ({fraction_outside:.1%}) 个观测上"
+            f"落在 [{OUTCOME_SATURATION_LOWER}, "
+            f"{OUTCOME_SATURATION_UPPER}] 之外（min={p_min:.3f}, "
+            f"max={p_max:.3f}）。这是 quasi-separation 信号——结果在"
+            f"某些 (treatment, confounder) 子层近乎确定，logistic "
+            f"系数已饱和。点估计仍能算出但 CI 偏窄、对极端结局的"
+            f"偏差放大。这是 outcome 模型的失败模式，跟 iter 121 "
+            f"`propensity_overlap_violation` 检查的 treatment "
+            f"assignment 模型互补。"
+        ),
+        "required_data": None,
+        "alternative_paths": [
+            "在饱和子层补样本（增加 rare-outcome 观测）—— Hosmer-"
+            "Lemeshow rule of thumb：每个参数至少 10 events",
+            "改用 Firth penalised logistic 或 exact logistic regression "
+            "（非 sklearn 默认 L2）— 它们对 separation 稳健",
+            "用 bootstrap CI 而不是 plug-in CI（已经在做，但 bootstrap "
+            "本身在 saturation 下也不够稳定，可能产生 NaN draws）",
+            "如果 treatment×confounder 组合稀疏到这种程度，考虑 "
+            "Bayesian 方法 + 弱信息 prior 而不是 frequentist 估计",
+        ],
+        "provenance": [{
+            "ref_kind": "verifier_check",
+            "ref_id": (
+                f"outcome_separation:{outcome}|{treatment}:"
+                f"{','.join(adjustment) if adjustment else '<none>'}"
+            ),
+        }],
+    }
+
+    report = result.get("data_gap_report")
+    if report is None:
+        report = {
+            "summary": "outcome 模型 quasi-separation 警告",
+            "gaps": [gap_entry],
+            "actionable_next_steps": [],
+        }
+        result["data_gap_report"] = report
+    else:
+        report.setdefault("gaps", []).append(gap_entry)
+
+    headline = (
+        f"⚠ outcome 回归 P({outcome}=1|{treatment},Z) 在 "
+        f"{n_outside}/{n_total} ({fraction_outside:.1%}) 样本上"
+        f"饱和到 [{OUTCOME_SATURATION_LOWER}, "
+        f"{OUTCOME_SATURATION_UPPER}] 之外；quasi-separation 信号，"
+        "logistic 拟合不稳定，CI 偏窄"
+    )
+    existing = result.get("explanation") or ""
+    if headline not in existing:
+        result["explanation"] = (
+            f"{headline}\n{existing}".strip() if existing else headline
+        )
 
 
 def _attach_propensity_overlap_warning(

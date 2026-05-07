@@ -646,6 +646,19 @@ class GapKind(str, Enum):
     # structurally. Selection-bias board (#7) is the lowest-coverage
     # active board — this gap_kind directly bumps it.
     COLLIDER_CONDITIONING_OPENS_BACKDOOR = "collider_conditioning_opens_backdoor"
+    # iter 123: backdoor logistic estimator was fitted but the training-
+    # set predicted probabilities cluster too heavily near 0 or 1 — the
+    # outcome model's logits saturate, signaling quasi-separation
+    # (outcome near-deterministic in some confounder stratum). The
+    # plug-in g-formula then extrapolates E[Y|X=x,Z=z] using a model
+    # with near-singular gradient; the point estimate is computed but
+    # the CI is misleadingly tight and the bias toward 0/1 is large.
+    # Trigger: > 10% of fitted P(Y|X,Z) falls outside [0.01, 0.99].
+    # INFORMATIONAL must-disclose — distinct from
+    # propensity_overlap_violation (iter 121) which inspects the
+    # treatment-assignment model P(X|Z), not the outcome model.
+    # Together they cover both halves of the doubly-robust intuition.
+    OUTCOME_MODEL_QUASI_SEPARATION = "outcome_model_quasi_separation"
 
 
 class GapSeverity(str, Enum):

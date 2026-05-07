@@ -66,6 +66,11 @@ to inspect):
   estimated P(X=1|Z) outside [0.05, 0.95]; appended by
   themis/estimation/dispatch.py._attach_propensity_overlap_warning
   after estimate_backdoor_ate when the adjustment set is non-empty.
+- outcome_model_quasi_separation (iter 123) — > 10% of fitted
+  P(Y|X,Z) falls outside [0.01, 0.99] (outcome regression saturates,
+  logit blows up); appended by
+  themis/estimation/dispatch.py._attach_outcome_separation_warning
+  after estimate_backdoor_ate with logistic outcome.
 """
 from __future__ import annotations
 
