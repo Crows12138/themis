@@ -19,6 +19,7 @@ from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
 from themis.types import (
     Atom,
+    BidirectedStatement,
     CauseStatement,
     ConstTerm,
     ProbabilityStatement,
@@ -115,6 +116,86 @@ def test_non_parent_in_given_is_rejected():
     graph = project(ground)
     with pytest.raises(SemanticError, match=r"not structural parents"):
         validate_against_graph(ground, graph)
+
+
+def test_iter_168_bidirected_sibling_accepted():
+    """Iter 168: P(Z2|X, Z1) where Z1 ↔ Z2 bidirected, X is parent of
+    Z2. Z1 isn't structural parent but IS bidirected sibling →
+    admissible. Tian's c-factor product needs this."""
+    x, z1, z2 = atom("x"), atom("z1"), atom("z2")
+    program = Program(
+        version="0.1",
+        objects=("alice",),
+        statements=(
+            CauseStatement(from_atom=x, to_atom=z1),
+            CauseStatement(from_atom=x, to_atom=z2),
+            BidirectedStatement(left=z1, right=z2),
+            ProbabilityStatement(
+                target=ValuedAtom(atom=z2, value=True),
+                given=(
+                    ValuedAtom(atom=x, value=True),
+                    ValuedAtom(atom=z1, value=True),
+                ),
+                value=0.5,
+            ),
+        ),
+    )
+    ground = instantiate(program)
+    graph = project(ground)
+    bidirected = frozenset({frozenset({z1, z2})})
+    # Should NOT raise
+    validate_against_graph(ground, graph, bidirected=bidirected)
+
+
+def test_iter_168_bidirected_sibling_symmetric_direction():
+    """Iter 170: bidirected is symmetric — P(Z1|X, Z2) must also be
+    admissible (the c-factor topo can put Z2 first then Z1)."""
+    x, z1, z2 = atom("x"), atom("z1"), atom("z2")
+    program = Program(
+        version="0.1",
+        objects=("alice",),
+        statements=(
+            CauseStatement(from_atom=x, to_atom=z1),
+            CauseStatement(from_atom=x, to_atom=z2),
+            BidirectedStatement(left=z1, right=z2),
+            ProbabilityStatement(
+                target=ValuedAtom(atom=z1, value=True),
+                given=(
+                    ValuedAtom(atom=x, value=True),
+                    ValuedAtom(atom=z2, value=True),
+                ),
+                value=0.5,
+            ),
+        ),
+    )
+    ground = instantiate(program)
+    graph = project(ground)
+    bidirected = frozenset({frozenset({z1, z2})})
+    validate_against_graph(ground, graph, bidirected=bidirected)
+
+
+def test_iter_168_descendant_still_rejected_even_with_bidirected_loosen():
+    """Iter 168 loosen MUST still reject descendants in given. Test
+    P(X|Y) where X → Y with NO bidirected — Y is descendant of X,
+    not ancestor; admissible = parents(X) = {} → reject. The
+    bidirected loosen shouldn't accidentally allow descendants."""
+    x, y = atom("x"), atom("y")
+    program = Program(
+        version="0.1",
+        objects=("alice",),
+        statements=(
+            CauseStatement(from_atom=x, to_atom=y),
+            ProbabilityStatement(
+                target=ValuedAtom(atom=x, value=True),
+                given=(ValuedAtom(atom=y, value=True),),
+                value=0.3,
+            ),
+        ),
+    )
+    ground = instantiate(program)
+    graph = project(ground)
+    with pytest.raises(SemanticError, match=r"y.*not structural parents"):
+        validate_against_graph(ground, graph, bidirected=frozenset())
 
 
 def test_rejection_message_includes_iter_158_actionable_hints():
