@@ -91,6 +91,11 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   while ConstantExpr was always a 6th node since v0.1. Pin asserts
   the 五/六/七 claim in the header matches the count of formula AST
   dataclass names actually present in themis/types.py.)
+- test_eval_set_readme_gold_query_kind_matches_enum (iter 117 —
+  docs/eval_set/README.md "Per-case JSON schema" example listed
+  only 5 gold_query_kind values (cause / assoc / effect / identify
+  / probability) while QueryKind enum has 6 (counterfactual added
+  Phase 5 §C). Same drift class as iter 106 in a different doc.)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1141,6 +1146,40 @@ def test_estimation_init_docstring_inventories_all_exports():
         f"themis/estimation/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring to inventory new "
         "exports."
+    )
+
+
+def test_eval_set_readme_gold_query_kind_matches_enum():
+    """docs/eval_set/README.md "Per-case JSON schema" example shows
+    a `gold_query_kind` value pipe-list. Iter 117 caught this listed
+    only 5 kinds (cause | assoc | effect | identify | probability)
+    while QueryKind enum has 6 — counterfactual landed via Phase 5
+    §C but the eval_set README never grew. Same drift class as
+    iter 106 (root README query-kind list) in a different doc.
+    """
+    import re
+
+    from themis.types import QueryKind
+
+    actual_kinds = {k.value for k in QueryKind}
+
+    readme = (
+        REPO_ROOT / "docs" / "eval_set" / "README.md"
+    ).read_text(encoding="utf-8")
+    m = re.search(
+        r'"gold_query_kind"\s*:\s*"([^"]+)"',
+        readme,
+    )
+    assert m, (
+        "docs/eval_set/README.md must show 'gold_query_kind: \"...\"' "
+        "in its Per-case JSON schema example for audit to detect drift"
+    )
+    listed = {tok.strip() for tok in m.group(1).split("|")}
+    assert listed == actual_kinds, (
+        f"docs/eval_set/README.md gold_query_kind list drifted from "
+        f"QueryKind enum. Missing from README: "
+        f"{sorted(actual_kinds - listed)}; extra in README: "
+        f"{sorted(listed - actual_kinds)}"
     )
 
 
