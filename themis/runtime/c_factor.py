@@ -296,12 +296,38 @@ def _id(state: _IdState) -> FormulaExpr | None:
 
     # Line 7 of the Shpitser algorithm: S ⊊ S' for some c-component S'
     # of G. The recursion needs symbolic substitution of the "current
-    # P" with ∏_{V_i ∈ S'} P(v_i | v_{<i}^{S'}) — the predecessor
-    # sequence is local to S', not the global ADMG topo. This slice
-    # does not implement that substitution: punt by returning None,
-    # which the scheduler treats as needs_investigation rather than
-    # claiming unidentifiable. Identifiable-via-Line-7 ADMGs (the
-    # "ID-Y descent" case) remain a documented gap.
+    # P" with Q[S'] = ∏_{V_i ∈ S'} P(v_i | v_{<i}^{(i)}) — and the
+    # SUBSTITUTED distribution is what the recursive ID call operates
+    # on, not the original P.
+    #
+    # Iter 140 attempted "naive recursion on G[S']" (just shrink
+    # graph + adjust x, y; reuse global predecessors) and traced
+    # against a front-door variant (X → M → Y, X ↔ Y latent
+    # confounder). The naive trace produces:
+    #     Σ_M P(M|X) · P(Y|X, M)
+    # which is back-door adjustment using (X, M) — INCORRECT for
+    # this DAG because the X ↔ Y latent confounder makes
+    # P(Y|X, M) ≠ P(Y|do(X), do(M)) in general. The correct
+    # front-door formula is:
+    #     Σ_M P(M|X) · Σ_{X'} P(Y|X', M) · P(X')
+    # which requires the inner recursion to "see" Q[S'] as the input
+    # distribution (so its Line 1 marginal averages over X' instead
+    # of conditioning on the original X).
+    #
+    # Implementing this correctly needs:
+    #   1. Tracking "current input distribution" symbolically (P vs
+    #      Q[S']-substituted) on _IdState
+    #   2. Updating _build_marginal to construct factors that respect
+    #      the substituted distribution's factorization (different
+    #      from the global topo product)
+    #   3. Re-walking the recursion's exit so the returned formula
+    #      is in terms of original P, not Q[S']
+    # This is ~150-300 LOC of careful symbolic machinery + risk of
+    # subtle math error on edge cases. Punt remains: scheduler
+    # treats None as needs_investigation rather than claiming
+    # unidentifiable. Identifiable-via-Line-7 ADMGs (the "ID-Y
+    # descent" case) remain a documented gap. No real eval / L3
+    # case has hit Line 7 to date.
     return None
 
 

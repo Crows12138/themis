@@ -213,3 +213,43 @@ iter 119 落地 **Manski-Tamer monotonicity bounds**：
 2. dtype mismatch gap_kind — 从 program 声明 vs estimator 要求推断
 3. IV strength gap_kind — F-stat threshold check
 4. SUTVA gap_kind — 从 program shape (network/spillover variable) 警告
+
+#### 2026-05-07 iter 140 update — Tian Line 7 honest attempt + math-risk confirmed
+
+iter 140 ended 13-iter streak of "skip Tian Line 7 due to math risk"
+with an honest attempt. Read c_factor.py thoroughly; designed naive
+"recurse on G[S']" implementation; **traced against simplest Line 7
+trigger (front-door variant, X→M→Y with X↔Y latent confounder)** —
+naive recursion produces:
+    Σ_M P(M|X) · P(Y|X, M)
+which is back-door adjustment with (X, M) as adjustment set —
+**INCORRECT** because the X↔Y latent confounder makes
+P(Y|X, M) ≠ P(Y|do(X), do(M)). Correct front-door formula:
+    Σ_M P(M|X) · Σ_{X'} P(Y|X', M) · P(X')
+
+Concrete math finding: Line 7 truly needs Q[S'] symbolic substitution
+that walks both G[S'] subgraph AND the substituted distribution's
+factorization (so the inner recursion's Line-1 marginal averages
+over X' instead of conditioning on original X). Naive "just shrink
+the graph" recursion does NOT capture the substitution semantics.
+
+Required for full correctness:
+1. Track "current input distribution" symbolically (P vs Q[S']-
+   substituted) on _IdState
+2. Update _build_marginal to construct factors that respect the
+   substituted distribution's factorization (different from global
+   topo product)
+3. Re-walk recursion's exit so the returned formula is in terms of
+   original P, not Q[S']
+
+Estimated 150-300 LOC of careful symbolic machinery + risk of
+subtle math error on edge cases. **Confirmed: 13 prior iter declines
+were not just "I don't want to" — Line 7 is genuinely subtle and
+does require dedicated focus.** Documented in c_factor.py Line 7
+punt comment so future contributor (or future me) starts from this
+trace instead of repeating the failed naive attempt.
+
+iter 140 deliverable = honest documentation of attempted+failed
+attempt, not committing wrong code. wall.md retrospective form is
+genuinely new (no recent iter has been "I tried, here's why it
+didn't work" entry).
