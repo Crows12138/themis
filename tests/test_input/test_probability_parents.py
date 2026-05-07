@@ -117,6 +117,35 @@ def test_non_parent_in_given_is_rejected():
         validate_against_graph(ground, graph)
 
 
+def test_rejection_message_includes_iter_158_actionable_hints():
+    """Iter 158: the rejection message lists three concrete fix paths
+    (add cause statement, drop given atoms, or note the Tian/ADMG
+    end-to-end gap from wall.md iter 150). Without these hints the
+    user only knows what's wrong, not what to do about it."""
+    x, y, z = atom("x"), atom("y"), atom("z")
+    program = Program(
+        version="0.1",
+        objects=("alice",),
+        statements=(
+            CauseStatement(from_atom=x, to_atom=y),
+            ProbabilityStatement(
+                target=ValuedAtom(atom=y, value=True),
+                given=(ValuedAtom(atom=z, value=True),),
+                value=0.3,
+            ),
+        ),
+    )
+    ground = instantiate(program)
+    graph = project(ground)
+    with pytest.raises(SemanticError) as excinfo:
+        validate_against_graph(ground, graph)
+    msg = str(excinfo.value)
+    # Three actionable hints must appear
+    assert "add the missing 'cause' statement" in msg
+    assert "drop" in msg and "marginalized CPT" in msg
+    assert "Tian" in msg and "iter 150" in msg
+
+
 def test_descendant_in_given_is_rejected():
     """P(x | y) when cause graph is x->y. parents(x) = {}, y is a child."""
     x, y = atom("x"), atom("y")

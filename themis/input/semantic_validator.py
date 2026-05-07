@@ -563,7 +563,18 @@ def _check_probability_parents(ground_statements, graph) -> None:
                 f"ground_statements[{idx}]: probability.given includes "
                 f"{extra_names} which are not structural parents of "
                 f"{target_atom.predicate} (parents={parent_names}). "
-                f"given must be a subset of parents(target)"
+                f"given must be a subset of parents(target). "
+                f"Fix options: (1) if {extra_names} truly are causes of "
+                f"{target_atom.predicate}, add the missing 'cause' "
+                f"statement(s) so they become structural parents; "
+                f"(2) drop {extra_names} from given and supply a "
+                f"marginalized CPT P({target_atom.predicate}|"
+                f"{parent_names}) instead; (3) if you're hand-rolling a "
+                f"Tian/ADMG c-factor product (which conditions on full "
+                f"topo predecessors, not just structural parents — see "
+                f"wall.md iter 150), the kernel doesn't yet support that "
+                f"end-to-end. Use themis.estimate(...) with raw data, "
+                f"or wait for joint-CPT support."
             )
 
 
