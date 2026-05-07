@@ -478,3 +478,65 @@ end-to-end pipeline can have OTHER places where the assumption
 "theta has every conditional you need" doesn't hold. The kernel's
 CPT contract was designed for backdoor (where ``given`` ⊆ parents
 always holds); ADMG identification breaks that assumption.
+
+---
+
+#### 2026-05-07 iter 151-163 retrospective — precision_budget arc closed
+
+Stepped out of the formula-correctness arc to a different VISION
+priority: output (2) item #4 — "在子群 G 做 RCT n=N 能把 CI 收缩到
+±δ". 13 iters, all 6 estimator paths now wire post-hoc precision
+budgeting end-to-end (helper → wire → schema → renderer doc → sync
+pins → method caveats → decision tree).
+
+Arc trajectory:
+- 151: math helper estimate_n_for_target_ci_half_width (SE ∝ 1/√N)
+- 152: wired backdoor (introduced silent schema violation)
+- 153: extended to IV / front-door / transport
+- 154: mediation per-component + caught/fixed iter 152 schema gap
+  via verify roundtrip
+- 155: dose-response per-curve-point — coverage complete
+- 156: response_rendering doc — without this LLMs wouldn't surface
+- 157: sync pins (rendering + schema) — regression guard
+- 158: actionable error message for probability.given violations
+  (closes UX gap from iter 150)
+- 159: sister property pin (find_unbound_varrefs)
+- 160: relative_width = half_width/|point| for mechanical surface
+  heuristic instead of LLM judgment
+- 161: method-specific caveats (IV/mediation/transport/dose-response
+  each have different "more N means" semantics)
+- 162: tightened halving template (4× is a fixed constant)
+- 163: 3-branch decision tree for surface rule, with crisp handling
+  of point≈0 case (CI-brackets-zero vs tight-non-null near zero)
+
+Key lessons reinforced:
+
+1. **Schema enforcement only fires through verify**, not run/estimate.
+   iter 152's silent schema violation lasted 2 iters until iter 154's
+   mediation verify-roundtrip exposed it. Schema-touching changes
+   need eager verify tests.
+
+2. **Mechanical fields beat LLM judgment for derivable rules**.
+   iter 156's "surface when CI > 30% of point" was LLM-computed;
+   iter 160 made it `relative_width` arithmetic. Reduces LLM error
+   on a math step LLMs sometimes get wrong.
+
+3. **Same value field, different semantics per method**. iter 161's
+   method-specific caveats: precision_budget hint is the same field,
+   but "more N" means compliers (IV) / joint M+Y rows (mediation) /
+   weak-stratum enrichment (transport) / per-point allocation
+   (dose-response) / straightforward (backdoor). Without these
+   caveats, naive LLM rendering would mislead study design.
+
+4. **Test infrastructure can saturate user value**. By iter 161-163
+   the value-per-iter dropped sharply — refinements rather than
+   bugs. The 144→150 arc had real bug discovery; the 151→160 arc
+   delivered a real VISION feature; 161-163 refined edge cases.
+   Honest stopping point: when remaining 60s work is sub-bikeshed,
+   the genuine remaining value (real LLM stress, Tian e2e fix,
+   KB integration, 板块 8/3 expansion) needs multi-iter scope and
+   shouldn't be smuggled through 60s ticks.
+
+Test count trajectory through the arc: 1822 → 1856 (+34 across
+13 iters; ~2.6 tests/iter average; weighted heavier in helper +
+audit + numerical-eval iters).
