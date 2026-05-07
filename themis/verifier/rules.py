@@ -1672,6 +1672,13 @@ def _evaluate_formula(
         )
         value = theta.entries.get(key)
         if value is None:
+            # Iter 173: mirror the runtime numeric_estimator's
+            # auto-marginalization fallback. Verifier independence
+            # is preserved because we only consume theta entries +
+            # canonical math (no shared state with runtime).
+            derived = _verifier_derive_via_marginalization(key, theta)
+            if derived is not None:
+                return float(derived)
             raise _NonConcreteValue(
                 f"theta has no entry for P({expr.target.atom.predicate}="
                 f"{target_value})"
@@ -1700,6 +1707,96 @@ def _resolve(value, subs: dict):
             raise _NonConcreteValue(f"unbound VarRef {value.name!r}")
         return subs[value.name]
     return value
+
+
+def _verifier_derive_via_marginalization(
+    missing_key: ProbabilityKey,
+    theta,
+    *,
+    _depth: int = 0,
+) -> float | None:
+    """Iter 173 — verifier-side mirror of runtime numeric_estimator's
+    auto-marginalization fallback. Pure function over theta; no shared
+    state with runtime, preserving V0-V5 independence.
+
+    Recursively derives P(target|given) = Σ_z P(target|given,Z=z) ·
+    P(Z=z|given) using theta entries (or recursive sub-derivations,
+    bounded depth ≤ 3). When evaluator hits a missing CPT, this
+    fallback tries derivation before raising _NonConcreteValue.
+
+    Mirrors themis.runtime.numeric_estimator._try_derive_via_
+    marginalization byte-for-byte semantics; the two implementations
+    must agree on every concrete value, which is what makes R7
+    meaningful.
+    """
+    if _depth > 3:
+        return None
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+
+    candidates = []
+    seen: set = set()
+    for key in theta.entries:
+        for ga, _gv in key.given:
+            if ga != target_atom and ga not in seen:
+                candidates.append(ga)
+                seen.add(ga)
+        if (
+            key.target_atom != target_atom
+            and key.target_atom not in seen
+        ):
+            candidates.append(key.target_atom)
+            seen.add(key.target_atom)
+
+    given_atoms = {ga for ga, _ in base_given}
+    for z in candidates:
+        if z == target_atom or z in given_atoms:
+            continue
+        domain = theta.domain_of(z)
+        if not domain:
+            continue
+        outer_values: dict = {}
+        ok = True
+        for v in domain:
+            extended_given = frozenset(base_given | {(z, v)})
+            outer_key = ProbabilityKey(
+                target_atom=target_atom,
+                target_value=target_value,
+                given=extended_given,
+            )
+            v_outer = theta.entries.get(outer_key)
+            if v_outer is None:
+                v_outer = _verifier_derive_via_marginalization(
+                    outer_key, theta, _depth=_depth + 1,
+                )
+                if v_outer is None:
+                    ok = False
+                    break
+            outer_values[v] = v_outer
+        if not ok:
+            continue
+        inner_values: dict = {}
+        ok = True
+        for v in domain:
+            inner_key = ProbabilityKey(
+                target_atom=z, target_value=v, given=base_given,
+            )
+            v_inner = theta.entries.get(inner_key)
+            if v_inner is None:
+                v_inner = _verifier_derive_via_marginalization(
+                    inner_key, theta, _depth=_depth + 1,
+                )
+                if v_inner is None:
+                    ok = False
+                    break
+            inner_values[v] = v_inner
+        if not ok:
+            continue
+        return sum(
+            outer_values[v] * inner_values[v] for v in domain
+        )
+    return None
 
 
 def _rule_formula_evaluation(

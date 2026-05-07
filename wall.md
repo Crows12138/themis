@@ -669,7 +669,37 @@ Iter 173 path: port the same fallback to the verifier's evaluator.
 Verifier independence is the design goal (V0-V5 audit) so this is
 a pure mirror, not a shared dependency.
 
-Three iters of architectural progress: 167 plumbing → 168 substantive
-loosen → 171-172 auto-marginalization → 173 verifier mirror.
-Validator-side gap CLOSED. Runtime-side gap CLOSED. Verifier-side
-gap remains; iter 173 wraps it.
+---
+
+#### 2026-05-07 iter 173 update — verifier mirror lands; gap CLOSED
+
+Ported _try_derive_via_marginalization to verifier as
+_verifier_derive_via_marginalization (byte-for-byte semantic mirror,
+pure theta + canonical math, no shared state — V0-V5 independence
+preserved). Evaluator's missing-CPT branch now tries derivation
+before raising _NonConcreteValue.
+
+iter 165 xfail-strict tracker → XPASS(strict) → marker removed →
+test renamed test_tian_disjoint_y_e2e_returns_correct_numeric →
+PASSING regression pin. Test count 1864 + 1 xfailed → 1865 passed.
+
+Architectural arc summary (iter 165→173, 9 iters):
+- 165: xfail-strict tracker filed
+- 167: plumbing — bidirected through validate_against_graph
+- 168: validator loosen (parents ∪ ancestors ∪ siblings)
+- 169: COVERAGE_MAP crosslink
+- 170: direct unit pins for iter 168 behavior
+- 171: detection helper can_derive_via_marginalization (+5 tests)
+- 172: runtime auto-marginalization (+ recursion ≤ 3)
+- 173: verifier mirror — gap CLOSED end-to-end
+
+Layers walked: validator → scheduler routing → runtime evaluator
+→ verifier evaluator. Each layer closed in turn. The xfail-strict
+pattern (iter 144→145 originally) proved its value again: a future-
+work tracker with strict=True forces commitment to flip the marker,
+not just hand-wave that the gap is "documented".
+
+Lesson: architectural multi-layer gaps DO yield to incremental
+60s iters when each layer's fix is well-scoped and the tracker
+keeps the goal in sight. Honest 9-iter progression beat the "this
+is too risky for 60s" intuition I had at iter 167.

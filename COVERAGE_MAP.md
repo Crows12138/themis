@@ -12,7 +12,7 @@
 | # | 板块 | 覆盖 | 现状 / 策略 |
 |---|---|---|---|
 | 1 | 可观测识别 | **75-80%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / 完整 ID (Shpitser) ✗ → Phase 6.complete-id（可选）|
-| 2 | ADMG / 潜变量 | **~87%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓**（hedge witness + c-factor 乘积形式，2026-05-06；**iter 145+147 修复 degenerate-sum bug** + **iter 167-168 验证器放松接受 ADMG topo predecessors**：admissible_given = parents ∪ directed_ancestors ∪ bidirected_siblings。e2e 阻塞已从 validator 移到 scheduler routing：disjoint-Y 仍 xfail-strict 因为 backdoor 被首选但缺 P(Y\|X)；iter 165 tracker + wall.md iter 168 记录两条后续路径）/ Line 7 完整 ID* 推迟 |
+| 2 | ADMG / 潜变量 | **~89%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓ + e2e CLOSED (iter 173)**：iter 145+147 修复 degenerate-sum bug；iter 167-168 验证器放松（admissible_given = parents ∪ directed_ancestors ∪ bidirected_siblings）；iter 171-172 runtime 自动边缘化 Σ_z P(Y\|given,Z=z)·P(Z=z\|given) 递归 depth ≤ 3；iter 173 verifier 镜像（保持 V0-V5 独立）。disjoint-Y e2e 现在通过 themis.run + themis.verify 双向，return value=0.596 / Line 7 完整 ID* 推迟 |
 | 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|

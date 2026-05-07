@@ -1,38 +1,28 @@
-"""Iter 165 — future-work tracker for the Tian e2e architectural gap
-documented in wall.md iter 150.
+"""Iter 165-173 — Tian e2e architectural gap CLOSED.
 
-The disjoint-Y c-component case is the canonical scenario where Tian
-is the scheduler's actual identification path (backdoor / front-door
-/ IV all fail because Z1 ↔ Z2 latent confounder makes Z1, Z2
-unobserved-confounded but jointly-conditional).
+Originally filed as iter 165 xfail-strict tracker for the iter 150
+documented gap (semantic_validator rejected ADMG c-factor CPTs).
+Closed across 4 iters of architectural progress:
 
-Tian product form gives:
-    Σ_{z1, z2} P(Y|X=T, z1, z2) · P(Z1=z1|X=T) · P(Z2=z2|X=T, Z1=z1)
+- iter 167-168: validator loosen — admissible_given = parents ∪
+  directed_ancestors ∪ bidirected_siblings (covers Tian's c-factor
+  topo predecessor set)
+- iter 171: detection helper can_derive_via_marginalization
+- iter 172: runtime numeric_estimator auto-marginalization (recursive,
+  depth ≤ 3) — kernel now produces status='numerically_solved' for
+  disjoint-Y
+- iter 173: mirror to verifier's _evaluate_formula (preserves V0-V5
+  independence — pure theta + canonical math, no shared state)
 
-Iter 145 + 147 fixed the formula (verified at unit level by
-test_formula_sum_bind_referenced.py); iter 148 pinned numerical
-correctness via direct identify_via_tian + estimate_formula.
+Test now passes as a regression pin. If any of the 4 layers regresses,
+this test fails immediately.
 
-But routing through `themis.run` with theta hits the
-semantic_validator's "given ⊆ parents(target)" rule. P(Z2|X=T, Z1)
-has Z1 as a non-structural-parent (bidirected sibling). The kernel
-rejects the fixture before identification runs.
+Disjoint-Y c-component case (X→Z1, X→Z2, Z1↔Z2, Z1→Y, Z2→Y) is the
+canonical scenario where Tian is the scheduler's actual identification
+path (backdoor / front-door / IV all fail). Hand-computed reference
+0.596 = 0.6·0.5·0.9 + 0.6·0.5·0.7 + 0.4·0.3·0.5 + 0.4·0.7·0.2.
 
-This test pins the gap as xfail-strict. When a future iter
-implements one of the three options (see wall.md iter 150):
-
-1. Loosen semantic validator for ADMG topo predecessors of target
-   atoms in the same c-component
-2. Reformulate Tian to use joint CPT primitives
-3. Accept the gap permanently
-
-…the marker flips: option 1/2 → xpass (remove marker, test passes);
-option 3 → keep xfail and update reason to point at the explicit
-"won't fix" decision.
-
-Closing iter 150's loose end with the iter 144→145 xfail-strict
-pattern: file the gap as a strict-xfail with the fix path, so future
-work has a concrete starting line.
+wall.md iter 165-173 documents the full architectural arc.
 """
 from __future__ import annotations
 
@@ -54,29 +44,11 @@ def _prob(target: str, target_value, given: list, value: float) -> dict:
     }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Iter 167-168 loosened the validator. Iter 171-172 wired "
-        "auto-marginalization into runtime numeric_estimator: kernel "
-        "now produces status='numerically_solved' value=0.596 "
-        "(matches hand-computed reference). BUT themis.verify uses "
-        "an INDEPENDENT evaluator in themis.verifier.rules._evaluate"
-        "_formula that doesn't have the same fallback — verify "
-        "raises RuleCheckFailed('cannot evaluate P(y=True)'). Iter "
-        "173 needs to either (a) port _try_derive_via_marginalization "
-        "to the verifier's _evaluate_formula, or (b) make the "
-        "verifier accept derived intermediate values from the "
-        "runtime evaluator. (a) is safer (preserves verifier "
-        "independence). wall.md iter 172 trace."
-    ),
-)
-def test_tian_disjoint_y_e2e_blocked_by_semantic_validator():
-    """Reference DGP matches test_tian_disjoint_y_evaluates_to_correct_ate
+def test_tian_disjoint_y_e2e_returns_correct_numeric():
+    """Iter 173: e2e gap closed across 4 architectural layers.
+    Reference DGP matches test_tian_disjoint_y_evaluates_to_correct_ate
     in test_formula_sum_bind_referenced.py. Hand-computed reference
-    is 0.596. The unit-level test proves Tian formula evaluates
-    correctly; this test pins that the e2e path through themis.run
-    is currently blocked by validator rejection of P(Z2|X, Z1)."""
+    is 0.596. themis.run + themis.verify roundtrip both succeed."""
     ast = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
