@@ -67,6 +67,7 @@ A reply is a small ladder, top to bottom:
    | `unmeasured_confounder_risk` | DAG has measured confounders but no bidirected — adjustment may leave residual unmeasured-confounder bias (HRT-CVD / Card 1995 schooling / vitamin D-CVD pattern) |
    | `unattempted_layer_due_to_dispatch_conflict` | Query specified multiple identification layers (e.g. both mediator and target_population) but kernel only dispatched one; the other was silently skipped (mediation × transport must be sequential per Cole & Stuart 2010 / VanderWeele 2016 §6.2) |
    | `collider_conditioning_opens_backdoor` | EffectQuery's `given` (conditioning subgroup) contains a node that is a collider — both intervention X and target Y are ancestors. Per Pearl d-separation, conditioning OPENS the X→…→W←…←Y path rather than blocking it; the returned conditional effect carries collider-induced bias |
+   | `graph_theta_independence_mismatch` | The user supplied a marginal CPT that the iter 199 d-separation guard would have used to substitute a missing conditional, but the declared graph does NOT entail the implied independence (chain DAG + marginal-only theta is the canonical case). The repair is structural — either drop the graph edge that creates the contradiction OR supply the demanded conditional — *not* "supply more theta" |
 
    When you see one of these kinds in `data_gap_report.gaps[]`, do
    NOT itemize it again as a separate bullet — the matching ⚠ line

@@ -1,9 +1,11 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07（iter 202 d-sep guard 拒绝路径加结构化诊断 —
-> 用户现在能看到"Themis 看到了你的 marginal P(M2|X)，但图蕴含的独立性
-> 不成立，d-separation 拒绝"，符合 VISION 原则 5；iter 200 verifier 端
-> d-sep guard 镜像补完，R7 不再 silently 同意 runtime 的链式 DAG +
+> 更新时间：2026-05-07（iter 203 把 iter 202 的 d-sep refusal 升格为
+> 一等 GapKind `graph_theta_independence_mismatch`：现在
+> data_gap_report.gaps[].kind 直接告诉下游 LLM/UI "图与 CPT 矛盾，
+> 修图或补条件量"，不再被 generic `missing_distribution` 误导成"补更多
+> 数据"；iter 202 d-sep guard 拒绝路径加结构化诊断；iter 200 verifier
+> 端 d-sep guard 镜像补完，R7 不再 silently 同意 runtime 的链式 DAG +
 > marginal-only theta 错误数字）
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
@@ -49,7 +51,7 @@
 | **T10 DataGapReport 独立 verifier**（byte-code scan 钉独立性，Phase 10）| **~100%** |
 | Derivation JSON + 审计字段 + `success` 字段（Phase 10 标失败 step） | **~100%** |
 | ambiguity kind 分类体系（loose-string；A1/A2/A5 prompts + eval_set fixtures 联合用例） | **~100%** |
-| **DataGapReport schema (26 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
+| **DataGapReport schema (27 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
 | Eval set (29 cases / F1-F26) + 真实 LLM 基线 | **~100%** |
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |

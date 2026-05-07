@@ -320,6 +320,18 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # Provenance is a verifier_check ref naming the
     # (outcome, treatment, adjustment) trio.
     "outcome_model_quasi_separation": frozenset({"verifier_check"}),
+    # iter 203: structural-input signal routed via the same
+    # investigation_request channel that carries MISSING_DISTRIBUTION,
+    # but the item.reason carries the iter 202 d-sep refusal signature
+    # ("d-separation 拒绝"). Same provenance shape as
+    # missing_distribution because both originate from the formula-
+    # evaluator's InsufficientTheta path; the classifier branches on
+    # the reason text. Marked must-disclose IMPORTANT — graph and CPT
+    # disagree, the user needs to fix one of them, not just supply more
+    # theta.
+    "graph_theta_independence_mismatch": frozenset(
+        {"investigation_request"}
+    ),
 }
 
 

@@ -523,6 +523,18 @@ def _try_marginal_independence_lookup(
     return None
 
 
+# iter 203: stable detection token that downstream classifiers
+# (themis.output.data_gap_report._classify_missing_distribution) use to
+# distinguish "graph and CPT disagree" from generic "missing theta".
+# String-match on InsufficientTheta.reason is the routing channel; this
+# constant is the contract anchor — change one, change the other (or
+# add a structured side-channel). Kept as a module-level constant so a
+# rename surfaces as a load-time symbol mismatch rather than a silent
+# string drift. Mirrored on the verifier side (verifier diagnostic uses
+# the same phrasing for the same reason — see iter 202 sync pin).
+DSEP_REFUSAL_SIGNATURE = "d-separation 拒绝"
+
+
 def _diagnose_marginal_independence_refusal(
     missing_key: ProbabilityKey,
     theta: Theta,
@@ -598,7 +610,7 @@ def _diagnose_marginal_independence_refusal(
         f"theta 中存在 {format_probability_key(reduced_key)}，"
         f"但声明的图蕴含 {target_atom.predicate} ⊥ {{{extras_repr}}} | "
         f"{{{','.join(a.predicate for a, _ in reduced_key.given) or '∅'}}} "
-        f"不成立（d-separation 拒绝），故不能用边缘量替代条件量"
+        f"不成立（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
     )
 
 

@@ -50,6 +50,7 @@ For the LLM-side rendering / decision rules see
 | `propensity_overlap_violation` | informational | interpretation | Iter 121 — fitted P(X\|Z) outside [0.05, 0.95] for >5% of sample; backdoor / g-formula extrapolates the outcome regression into off-support territory (Hernán & Robins ch.3 positivity). |
 | `collider_conditioning_opens_backdoor` | important | identification | Iter 122 — EffectQuery `given` contains a node where both X and Y are ancestors (collider). Conditioning OPENS the X→…→W←…←Y path per Pearl d-separation; the conditional effect is biased. F27 names the upstream NL pattern. |
 | `outcome_model_quasi_separation` | informational | interpretation | Iter 123 — fitted P(Y\|X,Z) saturated near 0/1 for >10% of sample; logistic logits blow up, plug-in g-formula extrapolates with near-singular gradient, CI underestimates uncertainty. |
+| `graph_theta_independence_mismatch` | important | point_estimate | Iter 203 — user supplied a marginal P(target\|S) that the iter 199 d-separation guard would have used to substitute the missing conditional, but the declared graph does NOT entail target ⊥ extras \| S (chain DAG + marginal-only theta is the canonical case). Repair is structural — drop the offending edge OR supply the demanded conditional — not "supply more theta". Routes via the same investigation-request channel as missing_distribution; classifier branches on the iter 202 d-sep refusal signature in item.reason. |
 
 ## Categories (cross-reference with code)
 
@@ -73,7 +74,8 @@ For the LLM-side rendering / decision rules see
 ``counterfactual_identification_assumption_required``,
 ``graph_learned_from_data``, ``unmeasured_confounder_risk``,
 ``unattempted_layer_due_to_dispatch_conflict``,
-``collider_conditioning_opens_backdoor``.
+``collider_conditioning_opens_backdoor``,
+``graph_theta_independence_mismatch``.
 
 **Additional data-need** (NOT must-disclose; surface only via
 ``data_gap_report``):

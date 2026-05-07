@@ -55,6 +55,16 @@ L3 simulation 2026-05-07 additions (iter 5 / iter 19):
 - unattempted_layer_due_to_dispatch_conflict — query has BOTH mediator and
   target_population set; only one extension populated. Discloses silent skip.
 
+iter 203 must-disclose addition:
+- graph_theta_independence_mismatch — the iter 199 d-separation guard
+  refused an existing-but-graph-incompatible marginal during formula
+  evaluation; the user's declared graph and supplied CPTs disagree.
+  Routed via the same investigation-request channel as missing_distribution
+  but the classifier branches on the iter 202 d-sep refusal signature in
+  item.reason and emits this dedicated kind so the structured channel
+  carries the right repair action ("fix graph or supply demanded
+  conditional"), not "supply more theta".
+
 Estimator-runtime gap_kinds (attached during themis.estimate dispatch,
 NOT by the classifier in this module — they require a fitted estimate
 to inspect):
@@ -1128,6 +1138,10 @@ def _classify_unidentifiable_from_request(
 def _classify_missing_distribution(
     requests: tuple[InvestigationRequest, ...],
 ) -> Iterable[DataGap]:
+    # iter 203: import locally to keep the data_gap_report module
+    # decoupled from runtime imports at load time (prevents cycles
+    # during pure-output imports).
+    from ..runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
     for req in requests:
         if req.group != "parameter":
             continue
@@ -1139,6 +1153,44 @@ def _classify_missing_distribution(
             display = target[len("parameter:"):] if target.startswith(
                 "parameter:"
             ) else target
+            # iter 203: when the iter 202 d-sep guard refused an
+            # existing-but-graph-incompatible marginal, the runtime
+            # encoded that in InsufficientTheta.reason → MissingItem.
+            # reason → InvestigationItem.reason. Route to the dedicated
+            # GRAPH_THETA_INDEPENDENCE_MISMATCH gap_kind so structured
+            # consumers get the actual repair action ("fix graph or
+            # supply demanded conditional") rather than the generic
+            # MISSING_DISTRIBUTION ("supply more theta") that would
+            # mislead any LLM/UI reading only gap.kind.
+            if (
+                item.reason is not None
+                and DSEP_REFUSAL_SIGNATURE in item.reason
+            ):
+                yield DataGap(
+                    kind=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+                    severity=GapSeverity.IMPORTANT,
+                    description=(
+                        f"声明的图与提供的 CPT 不一致：缺 {display}，"
+                        f"但 theta 中存在的边缘量被 d-separation 拒绝"
+                        f"（图蕴含的独立性不成立）"
+                    ),
+                    blocks=GapBlocks.POINT_ESTIMATE,
+                    if_provided=(
+                        "可给点估计（在解决图与 CPT 矛盾后）"
+                    ),
+                    alternative_paths=(
+                        f"补充所缺的条件量 {display}（接受图）",
+                        "或：删除引发独立性矛盾的边（改图，承认现有 CPT 已是真分布）",
+                        "接受 Balke-Pearl bounds 给区间答案",
+                    ),
+                    provenance=(
+                        GapProvenanceRef(
+                            ref_kind=GapRefKind.INVESTIGATION_REQUEST,
+                            ref_id=item.target,
+                        ),
+                    ),
+                )
+                continue
             signature = _distribution_signature(display)
             min_n, precision = _estimate_sample_size_for_distribution(
                 display, signature,
@@ -2079,6 +2131,11 @@ def _short_label_for(gap: DataGap) -> str:
         if gap.description.startswith(prefix):
             return gap.description[len(prefix):]
         return gap.description
+    if gap.kind == GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH:
+        # iter 203: actionable_next_steps wants a noun-phrase, not the
+        # full sentence. The repair is structural, so name the choice
+        # rather than the symptom.
+        return "图与 CPT 的不一致（修图或补条件量）"
     if gap.kind == GapKind.MISSING_POPULATION_DISTRIBUTION:
         return "目标人群分布"
     if gap.kind == GapKind.MISSING_ASSUMPTION:

@@ -1019,3 +1019,114 @@ reason but the user only sees one of them — and that one is allowed
 to be richer than the compute layer needs. iter 199-201 closed
 "we don't lie"; iter 202 closes "we explain why we couldn't answer".
 Both halves needed.
+
+---
+
+#### 2026-05-07 iter 203 — d-sep refusal becomes a first-class GapKind in DataGapReport (closes structured-output half iter 202 left open)
+
+iter 202 enriched ``InsufficientTheta.reason`` so the *renderer* explanation
+carries the d-sep refusal narrative. But the **structured channel** —
+``QueryResult.data_gap_report.gaps[].kind`` — was still classifying the
+same error as plain ``MISSING_DISTRIBUTION``: same enum value an LLM /
+UI consumer reading only ``gap.kind`` would see for "user supplied
+literally nothing on this CPT". Two completely different repair actions
+collapsed under one kind:
+
+- ``missing_distribution``: "fetch / supply more theta entries"
+- (the actually-needed)        : "fix graph OR supply demanded conditional"
+
+Any downstream agent following ``gap_to_action.md`` would fetch data
+that doesn't fix the contradiction. iter 202 sub-agent's NEXT
+recommendation explicitly named this gap; iter 203 lands it.
+
+**Structural fix** (not a string-classifier band-aid): added
+``GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH`` to the enum, schema,
+verifier registry, and must-disclose set. Routing detection lives
+in ``_classify_missing_distribution`` and branches on a new module-
+level constant ``DSEP_REFUSAL_SIGNATURE`` (``"d-separation 拒绝"``)
+exported by ``themis.runtime.numeric_estimator`` — same string the
+iter 202 diagnostic helper writes into ``InsufficientTheta.reason``.
+Constant is the contract anchor between the runtime writer and the
+output classifier; renaming one without the other surfaces as a
+load-time symbol mismatch rather than silent string drift.
+
+End-to-end demo. Pre-iter-203 chain DAG + marginal-only theta
+``data_gap_report.gaps[0]``:
+
+    {kind: "missing_distribution", severity: "blocking",
+     description: "缺概率分布 P(m2=true|m1=true,x=true)",
+     alternative_paths: ["接受 Balke-Pearl bounds 给区间答案"]}
+
+Post-iter-203:
+
+    {kind: "graph_theta_independence_mismatch", severity: "important",
+     description: "声明的图与提供的 CPT 不一致：缺 P(m2=true|m1=true,x=true)，
+                   但 theta 中存在的边缘量被 d-separation 拒绝...",
+     alternative_paths: ["补充所缺的条件量 P(...)（接受图）",
+                         "或：删除引发独立性矛盾的边（改图...）",
+                         "接受 Balke-Pearl bounds 给区间答案"]}
+
+The renderer also gets a ``⚠`` line in ``result.explanation`` because
+the new kind is in ``_MUST_DISCLOSE_GAP_KINDS`` — disclosure is
+structural, not LLM-discretionary.
+
+**Severity is IMPORTANT, not BLOCKING**, because BLOCKING reads as
+"you can't progress until you supply more data" — but the user already
+supplied two things that contradict; the action is to reconcile them,
+not to fetch a third.
+
+Tests added (5 new, total 1887 → 1893):
+
+- ``test_dsep_refusal_reason_routes_to_graph_theta_mismatch_not_
+  missing_distribution``: enriched reason → new kind, no double-emit
+- ``test_graph_theta_mismatch_severity_is_important_not_blocking``:
+  pin the severity choice
+- ``test_graph_theta_mismatch_alternative_paths_name_structural_
+  repairs``: pin both repair sides surface (drop edge / supply conditional)
+- ``test_regular_missing_distribution_still_fires_when_no_dsep_
+  refusal``: legacy path unchanged
+- ``test_graph_theta_mismatch_provenance_is_investigation_request``:
+  T10-3 ref_kind alignment
+
+Plus the parametrized meta tests (``test_gap_kind_has_test_coverage``,
+``test_gap_kind_enum_synced_with_schema``,
+``test_gap_kind_enum_synced_with_verifier_registry``,
+``test_must_disclose_kinds_documented_in_response_rendering_prompt``,
+``test_must_disclose_gap_kinds_documented_in_gap_to_action``,
+``test_every_gap_kind_documented_in_reference``,
+``test_coverage_map_gap_kind_count_matches_enum``) all newly assert
+the new value through their existing parametrize-by-enum harnesses.
+
+Files touched:
+- ``themis/types.py`` (+ enum value with motivation)
+- ``query_result.schema.json`` (+ enum entry)
+- ``themis/verifier/data_gap_rules.py`` (+ registry entry)
+- ``themis/output/data_gap_report.py`` (+ classifier branch + short
+  label + module docstring)
+- ``themis/runtime/numeric_estimator.py`` (+ exported
+  ``DSEP_REFUSAL_SIGNATURE`` constant; iter 202 helper rewritten to
+  reference it)
+- ``themis/runtime/scheduler.py`` (+ must-disclose set entry)
+- ``docs/GAP_KINDS_REFERENCE.md`` / ``docs/prompts/response_rendering.md``
+  / ``docs/prompts/gap_to_action.md`` (+ rows / Q-pre-screen guidance)
+- ``COVERAGE_MAP.md`` (gap_kind count 26 → 27)
+- ``tests/test_output/test_phase10_data_gap_generator.py`` (+ 5 tests)
+
+Why this is the right next iter, not "more identification capability":
+iter 202 closed the renderer half ("user reads correct reason"). iter
+203 closes the LLM/UI half ("agent reading structured JSON dispatches
+the correct repair action"). The structured channel is what
+``themis_run`` MCP tool returns, what downstream LLM agents pattern-
+match on, and what gap_to_action.md routes — leaving it stuck at
+``MISSING_DISTRIBUTION`` would silently break every consumer of the
+"AI for science" promise (correct gap routing) on this exact case.
+The ADMG capability ladder gave us correctness; iter 202 gave us
+explanation; iter 203 gives us correct downstream action — three layers
+of the same VISION-5 principle, each independently usable.
+
+Lesson: when a user-facing string explains *why* an answer was refused,
+audit whether any downstream **structured** consumer of the same
+result still routes the case under a generic kind. Free-text reason
+fields and structured kinds have different consumers; they need
+parallel updates or the structured layer silently lags one iter behind
+the human-facing layer.

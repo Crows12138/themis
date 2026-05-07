@@ -75,6 +75,16 @@ do NOT trigger fetch / ask user.
   conditioning on the collider (or, if the user really wants the
   subgroup effect, route through transport / stratified analysis
   instead of conditioning).
+- `graph_theta_independence_mismatch` (iter 203) → no fetch; the user's
+  declared graph and supplied CPTs **disagree** with each other. The
+  iter 199 d-separation guard refused to silently substitute an existing
+  marginal for the demanded conditional because the graph does NOT
+  entail the implied independence. Render with a clear *model-input
+  inconsistency* warning and recommend the structural choice: drop the
+  edge that creates the contradiction (the supplied marginal is then
+  consistent), OR supply the demanded conditional (the graph is then
+  consistent). "Fetch more data" is not a valid action — the contradiction
+  is between two things the user already supplied.
 
 `severity == "blocking"` always needs Q1-Q3.
 

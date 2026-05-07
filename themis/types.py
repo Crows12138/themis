@@ -690,6 +690,24 @@ class GapKind(str, Enum):
     # treatment-assignment model P(X|Z), not the outcome model.
     # Together they cover both halves of the doubly-robust intuition.
     OUTCOME_MODEL_QUASI_SEPARATION = "outcome_model_quasi_separation"
+    # iter 203: graph-CPT independence mismatch surfaced by the iter 199
+    # d-separation guard. The user supplied a marginal P(Y|S) for some
+    # subset S ⊂ given, the evaluator considered it as a substitute for
+    # the demanded conditional P(Y|given), and the guard refused because
+    # the declared graph does NOT entail Y ⊥ extras | S. iter 202 wrote
+    # this fact into the InsufficientTheta string reason — but the
+    # downstream DataGapReport layer still classified the resulting
+    # missing-information item as plain MISSING_DISTRIBUTION, telling the
+    # user (and any LLM consuming the structured output) "supply more
+    # theta entries". The actionable fix is different: their declared
+    # graph and their supplied CPTs disagree — either drop the offending
+    # edge OR supply the demanded conditional. Distinct gap_kind so the
+    # structured channel can route the correct repair action, not just
+    # the renderer's reason string. Must-disclose IMPORTANT severity —
+    # this is a real model-input inconsistency, not a data-shortage
+    # caveat. No external library does this routing — it depends on
+    # owning both the structural graph and the supplied CPT family.
+    GRAPH_THETA_INDEPENDENCE_MISMATCH = "graph_theta_independence_mismatch"
 
 
 class GapSeverity(str, Enum):

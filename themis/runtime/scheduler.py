@@ -2513,6 +2513,12 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     "unmeasured_confounder_risk",
     "unattempted_layer_due_to_dispatch_conflict",
     "collider_conditioning_opens_backdoor",
+    # iter 203: graph-CPT independence mismatch — must surface as a ⚠
+    # explanation line so the renderer can't silently drop the inconsist-
+    # ency under a generic "missing data" framing. The iter 202 reason
+    # already enriches the missing_information channel; this entry pins
+    # the structural caveat into result.explanation alongside it.
+    "graph_theta_independence_mismatch",
 })
 
 

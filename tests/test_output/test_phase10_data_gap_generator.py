@@ -647,6 +647,129 @@ def test_actionable_steps_include_alternative_path():
     assert any(s.startswith("或：") for s in report.actionable_next_steps)
 
 
+# ============================================ iter 203: graph-CPT mismatch
+
+
+def test_dsep_refusal_reason_routes_to_graph_theta_mismatch_not_missing_distribution():
+    """Iter 203 — when InvestigationItem.reason carries the iter 202
+    d-sep refusal signature, the classifier emits
+    `graph_theta_independence_mismatch` instead of generic
+    MISSING_DISTRIBUTION. Structured consumers (LLM / UI reading
+    gap.kind) get the correct repair action."""
+    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
+    enriched_reason = (
+        f"Theta 中缺条目 P(m2=True|m1=True,x=True)；theta 中存在 "
+        f"P(m2=True|x=True)，但声明的图蕴含 m2 ⊥ {{m1}} | {{x}} 不成立"
+        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
+    )
+    requests = (_param_request([
+        ("parameter:P(m2=true|m1=true,x=true)", enriched_reason),
+    ]),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    kinds = [g.kind for g in report.gaps]
+    assert GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH in kinds
+    assert GapKind.MISSING_DISTRIBUTION not in kinds
+
+
+def test_graph_theta_mismatch_severity_is_important_not_blocking():
+    """The mismatch is a model-input inconsistency, not a data shortage —
+    blocking would force users to "supply more data" they already
+    supplied. Important is correct."""
+    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
+    enriched_reason = (
+        f"Theta 中缺条目 P(y=true|x=true,z=true)；theta 中存在 "
+        f"P(y=true|x=true)，但声明的图蕴含 y ⊥ {{z}} | {{x}} 不成立"
+        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
+    )
+    requests = (_param_request([
+        ("parameter:P(y=true|x=true,z=true)", enriched_reason),
+    ]),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    g = next(
+        g for g in report.gaps
+        if g.kind == GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH
+    )
+    assert g.severity == GapSeverity.IMPORTANT
+
+
+def test_graph_theta_mismatch_alternative_paths_name_structural_repairs():
+    """Per the iter 202 lesson: the user's actionable fix is
+    structural — drop the offending edge OR supply the demanded
+    conditional. "Fetch more data" is NOT one of these. Pin: at least
+    two of the alternative_paths describe structural fixes."""
+    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
+    enriched_reason = (
+        f"Theta 中缺条目 P(m2=True|m1=True,x=True)；theta 中存在 "
+        f"P(m2=True|x=True)，但声明的图蕴含 m2 ⊥ {{m1}} | {{x}} 不成立"
+        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
+    )
+    requests = (_param_request([
+        ("parameter:P(m2=true|m1=true,x=true)", enriched_reason),
+    ]),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    g = next(
+        g for g in report.gaps
+        if g.kind == GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH
+    )
+    paths = " | ".join(g.alternative_paths)
+    # Either repair side must surface explicitly.
+    assert "条件量" in paths or "补充" in paths
+    assert "删除" in paths or "改图" in paths
+
+
+def test_regular_missing_distribution_still_fires_when_no_dsep_refusal():
+    """Sanity: items with empty / non-refusal reasons still route to
+    MISSING_DISTRIBUTION. This is the iter 202-untouched legacy path."""
+    requests = (_param_request([
+        ("parameter:P(y=true|x=true)", None),
+        ("parameter:P(z=true|x=true)", "Theta 中缺条目 P(z=True|x=True)"),
+    ]),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    kinds = [g.kind for g in report.gaps]
+    assert GapKind.MISSING_DISTRIBUTION in kinds
+    assert GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH not in kinds
+
+
+def test_graph_theta_mismatch_provenance_is_investigation_request():
+    """T10-3 needs provenance to match the registered ref_kind set."""
+    from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
+    enriched_reason = (
+        f"Theta 中缺条目 P(y=true|x=true,m=true)；theta 中存在 "
+        f"P(y=true|x=true)，但声明的图蕴含 y ⊥ {{m}} | {{x}} 不成立"
+        f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
+    )
+    requests = (_param_request([
+        ("parameter:P(y=true|x=true,m=true)", enriched_reason),
+    ]),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    g = next(
+        g for g in report.gaps
+        if g.kind == GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH
+    )
+    assert len(g.provenance) >= 1
+    assert g.provenance[0].ref_kind == GapRefKind.INVESTIGATION_REQUEST
+
+
 # ============================================ generator import isolation
 
 
