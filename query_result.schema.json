@@ -284,6 +284,10 @@
         "mediators": { "type": "array", "items": { "type": "string" } },
         "instrument": { "type": "string" },
         "conditioning": { "type": "array", "items": { "type": "string" } },
+        "first_stage_f_stat": {
+          "type": ["number", "null"],
+          "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold for single-instrument 2SLS / Wald. Null when computation was degenerate (e.g. n too small, instrument variance ~0)."
+        },
         "mediator": { "type": "string" },
         "n_rep": { "type": "integer", "minimum": 1 },
         "treatment": { "type": "string" },
@@ -842,7 +846,8 @@
             "counterfactual_identification_assumption_required",
             "graph_learned_from_data",
             "unmeasured_confounder_risk",
-            "unattempted_layer_due_to_dispatch_conflict"
+            "unattempted_layer_due_to_dispatch_conflict",
+            "weak_iv_instrument"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

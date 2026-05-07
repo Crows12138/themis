@@ -52,6 +52,14 @@ L3 simulation 2026-05-07 additions (iter 5 / iter 19):
   bias. Cross-domain examples (HRT-CVD / Card 1995 / vitamin D-CVD).
 - unattempted_layer_due_to_dispatch_conflict — query has BOTH mediator and
   target_population set; only one extension populated. Discloses silent skip.
+
+Estimator-runtime gap_kinds (attached during themis.estimate dispatch,
+NOT by the classifier in this module — they require a fitted estimate
+to inspect):
+- weak_iv_instrument (iter 120) — first-stage F-stat below Stock-Yogo
+  (2005) threshold; appended to data_gap_report by
+  themis/estimation/dispatch.py._attach_weak_iv_warning_if_low_f after
+  estimate_iv_ate returns.
 """
 from __future__ import annotations
 

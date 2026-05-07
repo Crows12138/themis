@@ -607,6 +607,18 @@ class GapKind(str, Enum):
     # dispatched layer is correct; not informational — silent skip
     # violates VISION's honest-about-what-wasn't-done principle).
     UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT = "unattempted_layer_due_to_dispatch_conflict"
+    # iter 120: IV estimate was produced but the first-stage F-statistic
+    # falls below the Stock-Yogo (2005) threshold (default 10), meaning
+    # the instrument has weak partial correlation with treatment after
+    # conditioning. Bias of the IV estimate toward OLS scales with 1/F;
+    # confidence intervals from standard 2SLS asymptotics are misleading.
+    # Surfaced as INFORMATIONAL must-disclose so the renderer cannot
+    # silently report the LATE/ATE estimate as if it were unconditionally
+    # reliable. Themis is uniquely positioned to surface this because
+    # it owns both the program-level identification claim AND the
+    # estimation context — DoWhy/EconML report F sometimes but don't
+    # auto-route it as a structured data-gap entry.
+    WEAK_IV_INSTRUMENT = "weak_iv_instrument"
 
 
 class GapSeverity(str, Enum):

@@ -296,6 +296,12 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # Trigger compares query fields against result.extensions; provenance
     # is a verifier_check ref pointing at the symbolic conflict locator.
     "unattempted_layer_due_to_dispatch_conflict": frozenset({"verifier_check"}),
+    # iter 120: estimator-time signal — first-stage F-stat from IV
+    # estimator falls below Stock-Yogo (2005) threshold. Provenance is
+    # a verifier_check ref naming the (instrument -> treatment) pair;
+    # no derivation step exists because the trigger fires after the
+    # numeric_estimate has been attached.
+    "weak_iv_instrument": frozenset({"verifier_check"}),
 }
 
 

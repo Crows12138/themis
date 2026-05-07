@@ -241,7 +241,7 @@ def _estimate_effect_queries(
                 # candidate's (Z, W) shape isn't supported in v1.
                 continue
 
-            result["numeric_estimate"] = {
+            iv_numeric_dict = {
                 "point": iv_estimate.point,
                 "ci_lower": iv_estimate.ci_lower,
                 "ci_upper": iv_estimate.ci_upper,
@@ -255,6 +255,9 @@ def _estimate_effect_queries(
                 "treatment": iv_estimate.treatment,
                 "outcome": iv_estimate.outcome,
             }
+            if iv_estimate.first_stage_f_stat is not None:
+                iv_numeric_dict["first_stage_f_stat"] = iv_estimate.first_stage_f_stat
+            result["numeric_estimate"] = iv_numeric_dict
             result["derivation"] = _build_iv_numeric_derivation_dict(
                 graph=graph,
                 x=x_atom, y=y_atom,
@@ -266,6 +269,7 @@ def _estimate_effect_queries(
                 result, contract,
                 outcome=y_atom.predicate, treatment=x_atom.predicate,
             )
+            _attach_weak_iv_warning_if_low_f(result, iv_estimate)
             _finalise_numeric_result(result)
             continue
 
@@ -498,6 +502,85 @@ def _attach_e_value_if_binary(
         "baseline_rate": e_result.baseline_rate,
         "note": e_result.note,
     }
+
+
+WEAK_IV_F_THRESHOLD = 10.0  # Stock & Yogo (2005), single-instrument
+
+
+def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
+    """Iter 120 — when the first-stage F-statistic is below the
+    Stock-Yogo (2005) threshold (10 by default for single-instrument
+    2SLS / Wald), attach a ``weak_iv_instrument`` gap so the renderer
+    can disclose that the IV estimate's bias toward OLS is non-trivial
+    and standard 2SLS asymptotics give misleading CIs.
+
+    INFORMATIONAL severity, must-disclose channel — the estimate is
+    still computed and surfaced; this just adds the caveat. F = None
+    (degenerate first stage / sample too small) is treated as
+    "could not assess" — no gap added rather than assuming weak.
+    """
+    f_stat = getattr(iv_estimate, "first_stage_f_stat", None)
+    if f_stat is None:
+        return
+    if f_stat >= WEAK_IV_F_THRESHOLD:
+        return
+
+    gap_entry = {
+        "kind": "weak_iv_instrument",
+        "severity": "informational",
+        "blocks": "interpretation",
+        "description": (
+            f"First-stage F = {f_stat:.2f} for instrument "
+            f"`{iv_estimate.instrument}` falls below the Stock-Yogo "
+            f"(2005) threshold of {WEAK_IV_F_THRESHOLD:.0f}. "
+            "The IV estimate's bias toward OLS scales with 1/F, "
+            "and standard 2SLS / Wald asymptotic CIs underestimate "
+            "uncertainty when the first stage is weak. Treat the "
+            "point estimate as a rough guide, not a tight identification."
+        ),
+        "required_data": None,
+        "alternative_paths": [
+            "find a stronger instrument (higher first-stage partial "
+            "correlation with treatment after conditioning)",
+            "report the LIML or Anderson-Rubin CI instead of 2SLS — "
+            "they are valid under weak-instrument asymptotics",
+            "fall back to a bounds-only answer (Manski natural / "
+            "Balke-Pearl IV are weak-instrument robust)",
+        ],
+        "provenance": [{
+            "ref_kind": "verifier_check",
+            "ref_id": (
+                f"weak_iv:{iv_estimate.instrument}->{iv_estimate.treatment}"
+            ),
+        }],
+    }
+
+    report = result.get("data_gap_report")
+    if report is None:
+        report = {
+            "summary": "弱工具变量警告",
+            "gaps": [gap_entry],
+            "actionable_next_steps": [],
+        }
+        result["data_gap_report"] = report
+    else:
+        report.setdefault("gaps", []).append(gap_entry)
+
+    # Mirror to explanation so the renderer can't silently drop the
+    # weak-IV caveat — same channel as scheduler._attach_structural_caveats
+    # uses for must-disclose kinds. Done here rather than in scheduler
+    # because weak_iv only becomes visible after the estimator runs.
+    headline = (
+        f"⚠ 工具变量 `{iv_estimate.instrument}` first-stage F = "
+        f"{f_stat:.2f} 低于 Stock-Yogo 弱工具阈值 "
+        f"{WEAK_IV_F_THRESHOLD:.0f}；IV 估计 bias 偏向 OLS、"
+        "标准 CI 不可靠"
+    )
+    existing = result.get("explanation") or ""
+    if headline not in existing:
+        result["explanation"] = (
+            f"{headline}\n{existing}".strip() if existing else headline
+        )
 
 
 def _closer_to_null(point, ci_lower, ci_upper):

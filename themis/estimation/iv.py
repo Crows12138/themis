@@ -49,6 +49,13 @@ class IVEstimate:
     conditioning: tuple[str, ...]
     treatment: str
     outcome: str
+    # iter 120: first-stage F-statistic for the instrument's effect on
+    # treatment after partialing out conditioning W. Stock & Yogo (2005)
+    # pin F < 10 as the canonical "weak instrument" threshold for a
+    # single-instrument 2SLS / Wald case. None when computation fails
+    # (degenerate first stage / sample too small) — downstream weak-IV
+    # detection treats None as "could not assess" rather than "strong".
+    first_stage_f_stat: float | None = None
 
 
 def estimate_iv_ate(
@@ -101,6 +108,10 @@ def estimate_iv_ate(
 
     method = f"iv_{resolved}"
 
+    f_stat = _first_stage_f_stat(
+        df, treatment=treatment, instrument=instrument, conditioning=conditioning,
+    )
+
     ci_lower: float | None = None
     ci_upper: float | None = None
     if ci_bootstrap > 0:
@@ -123,6 +134,7 @@ def estimate_iv_ate(
         conditioning=tuple(conditioning),
         treatment=treatment,
         outcome=outcome,
+        first_stage_f_stat=f_stat,
     )
 
 
@@ -191,6 +203,76 @@ def _two_sls_point(
     stage2.fit(stage2_X, y_arr)
     # The coefficient on X̂ (first column) is the IV estimate of the ATE
     return float(stage2.coef_[0])
+
+
+def _first_stage_f_stat(
+    df: pd.DataFrame,
+    *,
+    treatment: str,
+    instrument: str,
+    conditioning: tuple[str, ...],
+) -> float | None:
+    """Compute the first-stage F-statistic for the instrument's effect
+    on treatment, after partialing out conditioning W. Used downstream
+    by the weak-IV detector.
+
+    Single-instrument case: F = (β̂_Z / SE(β̂_Z))² from the OLS
+    regression  X = α + β·Z + γ'·W + ε.
+
+    Returns None when the regression is degenerate (n < 3 + len(W),
+    instrument variance ~0, or any sklearn-side numerical failure) —
+    downstream treats None as "could not assess" rather than "strong".
+    """
+    z_arr = df[instrument].to_numpy(dtype=float)
+    x_arr = df[treatment].to_numpy(dtype=float)
+    w_cols = list(conditioning)
+
+    n = len(df)
+    k_extra = 1 + len(w_cols)  # intercept + W columns
+    # Need at least one residual degree of freedom on top of the
+    # parameters we're fitting (intercept + Z + W).
+    if n - (k_extra + 1) < 1:
+        return None
+    if float(np.var(z_arr)) < 1e-12:
+        return None
+
+    if w_cols:
+        w_arr = df[w_cols].to_numpy(dtype=float)
+        design_with_z = np.hstack([z_arr.reshape(-1, 1), w_arr])
+        design_no_z = w_arr
+    else:
+        design_with_z = z_arr.reshape(-1, 1)
+        design_no_z = np.empty((n, 0))
+
+    try:
+        # SSR with Z (full first-stage model)
+        full = LinearRegression()
+        full.fit(design_with_z, x_arr)
+        resid_full = x_arr - full.predict(design_with_z)
+        ssr_full = float(np.sum(resid_full ** 2))
+
+        # SSR without Z (restricted: only intercept + W)
+        if design_no_z.shape[1] == 0:
+            mean_x = float(np.mean(x_arr))
+            ssr_restricted = float(np.sum((x_arr - mean_x) ** 2))
+        else:
+            restricted = LinearRegression()
+            restricted.fit(design_no_z, x_arr)
+            resid_r = x_arr - restricted.predict(design_no_z)
+            ssr_restricted = float(np.sum(resid_r ** 2))
+
+        # Single-restriction F = ((SSR_R - SSR_F) / 1) / (SSR_F / df_resid).
+        df_resid = n - (1 + 1 + len(w_cols))  # intercept + Z + W
+        if df_resid < 1 or ssr_full <= 0:
+            return None
+        numerator = (ssr_restricted - ssr_full)
+        if numerator < 0:
+            # Numerical noise; treat as zero.
+            numerator = 0.0
+        f = numerator / (ssr_full / df_resid)
+        return float(f)
+    except (np.linalg.LinAlgError, ValueError):
+        return None
 
 
 def _bootstrap_ci_iv(
