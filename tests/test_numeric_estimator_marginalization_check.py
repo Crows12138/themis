@@ -109,6 +109,51 @@ def test_returns_false_when_target_already_in_given():
     assert can_derive_via_marginalization(missing, theta) is False
 
 
+def test_runtime_and_verifier_marginalization_agree_byte_for_byte():
+    """Iter 175 sync pin: themis.runtime.numeric_estimator's
+    _try_derive_via_marginalization and themis.verifier.rules's
+    _verifier_derive_via_marginalization MUST produce identical
+    values on every theta. They are independent implementations
+    (V0-V5 design goal) but R7 verification only works if they
+    agree.
+
+    iter 172/173 introduced both as a paired set; this pin catches
+    silent drift if either is refactored without the other."""
+    from themis.runtime.numeric_estimator import (
+        _try_derive_via_marginalization,
+    )
+    from themis.verifier.rules import _verifier_derive_via_marginalization
+
+    x, y, z1, z2 = _A("x"), _A("y"), _A("z1"), _A("z2")
+
+    # Two-deep marginalization theta (matches disjoint-Y fixture)
+    theta = Theta(entries={
+        ProbabilityKey(z1, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(z1, False, frozenset([(x, True)])): 0.4,
+        ProbabilityKey(z2, True, frozenset([(x, True), (z1, True)])): 0.5,
+        ProbabilityKey(z2, False, frozenset([(x, True), (z1, True)])): 0.5,
+        ProbabilityKey(z2, True, frozenset([(x, True), (z1, False)])): 0.3,
+        ProbabilityKey(z2, False, frozenset([(x, True), (z1, False)])): 0.7,
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, True), (z2, True)])): 0.9,
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, True), (z2, False)])): 0.7,
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, False), (z2, True)])): 0.5,
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, False), (z2, False)])): 0.2,
+    })
+    missing = ProbabilityKey(
+        target_atom=y, target_value=True,
+        given=frozenset([(x, True)]),
+    )
+    runtime_val = _try_derive_via_marginalization(missing, theta)
+    verifier_val = _verifier_derive_via_marginalization(missing, theta)
+    assert runtime_val is not None and verifier_val is not None
+    assert abs(runtime_val - verifier_val) < 1e-12, (
+        f"Runtime and verifier marginalization helpers diverged: "
+        f"runtime={runtime_val} verifier={verifier_val}"
+    )
+    # Hand-computed reference from iter 148/172 fixture
+    assert abs(runtime_val - 0.596) < 1e-9
+
+
 def test_direct_lookup_wins_over_marginalization():
     """Iter 174 sanity pin: when theta has BOTH the direct CPT
     P(Y|X) AND the joint family P(Y|X,Z) + P(Z|X), the direct
