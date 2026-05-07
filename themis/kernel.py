@@ -1,13 +1,20 @@
 """Kernel entry point: JSON in, JSON out.
 
-``run`` is the single public entry that exercises the full pipeline:
-parse → validate → instantiate → project → dispatch → serialize.
-``apply_patch_and_run`` (slice A3) threads user-supplied fill-in
-bundles through the same pipeline so multi-turn follow-up rounds
-stay on the JSON boundary. ``verify`` closes the auditing loop:
-given the input program JSON and any one result JSON, it
-independently re-runs the verifier without the caller holding
-any typed kernel objects.
+Public entries (all JSON-in / JSON-out, no typed objects required):
+
+- ``run`` — single-turn full pipeline: parse → validate → instantiate
+  → project → dispatch → serialize.
+- ``apply_patch_and_run`` (slice A3) — threads user-supplied fill-in
+  bundles through the same pipeline so multi-turn follow-up rounds
+  stay on the JSON boundary.
+- ``estimate`` — DataFrame side channel (Phase 7+): pandas DataFrame
+  in, point estimate / CI / sensitivity out. Reuses the kernel's
+  identification result without disturbing the JSON contract.
+- ``verify`` — independent re-run of the V0–V5 verifier on a
+  ``(program, result)`` pair, without the caller holding any typed
+  kernel objects.
+- ``verify_data_gap_report`` — T10-only audit (Phase 10), valid even
+  for diagnostic results that carry no derivation.
 
 The kernel does not call an LLM, does not touch disk, and does not
 emit natural language. Any explanation or translation layer lives

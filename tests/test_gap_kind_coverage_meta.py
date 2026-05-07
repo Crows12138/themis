@@ -78,6 +78,13 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   added later. Pin scans every "## <number-word> <noun>" header in
   docs/prompts/ and asserts the immediate ### subsection count
   matches the spelled-out number.)
+- test_kernel_docstring_lists_all_public_entries (iter 115 —
+  themis/kernel.py docstring described only run / apply_patch_and_run
+  / verify (3 of 5 entries). estimate (Phase 7) and
+  verify_data_gap_report (Phase 10) had been there for phases but the
+  docstring was never updated. Pin asserts every name re-exported
+  from themis.kernel into themis.__all__ appears in kernel.py's
+  module docstring.)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1128,6 +1135,38 @@ def test_estimation_init_docstring_inventories_all_exports():
         f"themis/estimation/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring to inventory new "
         "exports."
+    )
+
+
+def test_kernel_docstring_lists_all_public_entries():
+    """themis/kernel.py module docstring should mention every public
+    entry function it defines (the ones re-exported via themis.__all__).
+    Iter 115 caught the docstring naming only ``run`` /
+    ``apply_patch_and_run`` / ``verify`` while ``estimate`` (Phase 7)
+    and ``verify_data_gap_report`` (Phase 10) had landed without
+    docstring updates.
+
+    Pin asserts every callable name in themis/__init__.py's __all__
+    that comes from .kernel appears in kernel.py's module docstring.
+    Excludes AdmgVerificationPending — it's an exception class, not
+    an entry function, and the docstring is structured around
+    pipeline behavior rather than exception inventory.
+    """
+    from themis import kernel as kernel_mod
+
+    docstring = kernel_mod.__doc__ or ""
+    # The 5 callables exposed via themis.run / etc.
+    expected = {
+        "run",
+        "apply_patch_and_run",
+        "estimate",
+        "verify",
+        "verify_data_gap_report",
+    }
+    missing = sorted(name for name in expected if name not in docstring)
+    assert not missing, (
+        f"themis/kernel.py module docstring missing public entries: "
+        f"{missing}. Update the docstring."
     )
 
 
