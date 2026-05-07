@@ -110,7 +110,9 @@ common shapes:
 | `missing_distribution` (marginal `P(...)`) | `MARGINAL_DISTRIBUTION` |
 | `missing_distribution` (conditional `P(...|...)`) | `CONDITIONAL_DISTRIBUTION` |
 | `missing_distribution` (joint `P(a,b)`) | `JOINT_DISTRIBUTION` |
+| `missing_population_distribution` | `TARGET_POPULATION_MARGINAL` |
 | `transport_target_distribution_unknown` | `TARGET_POPULATION_MARGINAL` |
+| `transport_source_conditional_unknown` | `STRATIFIED_SUBGROUP` |
 | `missing_iv_candidate` | `IV_CANDIDATE` |
 | `missing_mediator_data` | `MEDIATOR_DISTRIBUTION` |
 

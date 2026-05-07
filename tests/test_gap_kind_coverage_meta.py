@@ -36,6 +36,10 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   Phase 13 dose-response + iter 5/19 + later additions; same drift
   class as iter 105/106 — current-state inventory frozen at initial
   scope while the actual registry kept growing)
+- test_kb_readme_gap_to_query_kind_table_matches_translator (iter 108 —
+  themis/kb/README.md "Mapping gaps to query kinds" table missed
+  missing_population_distribution + transport_source_conditional_unknown
+  rows; drifted from _GAP_TO_QUERY_KIND in translator.py)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1017,6 +1021,50 @@ def test_coverage_map_gap_kind_count_matches_enum():
     assert quoted_ref_kinds == actual_ref_kinds, (
         f"COVERAGE_MAP says {quoted_ref_kinds} ref_kind but schema enum "
         f"has {actual_ref_kinds}. Update COVERAGE_MAP.md."
+    )
+
+
+def test_kb_readme_gap_to_query_kind_table_matches_translator():
+    """themis/kb/README.md has a "Mapping gaps to query kinds" table that
+    documents which gap_kinds the translator can route to a KB. Iter 108
+    found this table missing missing_population_distribution and
+    transport_source_conditional_unknown rows that were already in
+    `_GAP_TO_QUERY_KIND` in translator.py.
+
+    Pin extracts gap_kind names from the README table and compares to
+    the actual translator dict + the MISSING_DISTRIBUTION special case.
+    """
+    import re
+
+    from themis.kb.translator import _GAP_TO_QUERY_KIND
+    from themis.types import GapKind
+
+    actual_mapped_kinds = set(_GAP_TO_QUERY_KIND.keys())
+    actual_mapped_kinds.add(GapKind.MISSING_DISTRIBUTION)
+    actual_mapped_names = {k.value for k in actual_mapped_kinds}
+
+    readme = (
+        REPO_ROOT / "themis" / "kb" / "README.md"
+    ).read_text(encoding="utf-8")
+    section = re.search(
+        r"##\s*Mapping gaps to query kinds\s*\n(.*?)(?=\n##\s|\Z)",
+        readme,
+        re.DOTALL,
+    )
+    assert section, (
+        "themis/kb/README.md must have ## Mapping gaps to query kinds"
+    )
+    listed = set(re.findall(
+        r"^\|\s*`([a-z_]+)`",
+        section.group(1),
+        re.MULTILINE,
+    ))
+
+    assert listed == actual_mapped_names, (
+        "themis/kb/README.md gap mapping table drifted from "
+        "_GAP_TO_QUERY_KIND. Missing from README: "
+        f"{sorted(actual_mapped_names - listed)}; extra in README: "
+        f"{sorted(listed - actual_mapped_names)}"
     )
 
 
