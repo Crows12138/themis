@@ -179,6 +179,40 @@ def test_bayes_inversion_resolves_chain_mediator_inner_factor():
     )
 
 
+def test_runtime_and_verifier_bayes_inversion_agree_byte_for_byte():
+    """Iter 189 sync pin (parallel to iter 175): runtime
+    _try_derive_via_bayes_inversion and verifier
+    _verifier_derive_via_bayes_inversion MUST produce identical
+    values on every theta. Independent implementations (V0-V5
+    design goal) but R7 verification only works if they agree."""
+    from themis.runtime.numeric_estimator import (
+        _try_derive_via_bayes_inversion,
+    )
+    from themis.verifier.rules import (
+        _verifier_derive_via_bayes_inversion,
+    )
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    theta = Theta(entries={
+        ProbabilityKey(m1, True, frozenset([(x, True)])): 0.7,
+        ProbabilityKey(m1, False, frozenset([(x, True)])): 0.3,
+        ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True), (m1, True)])): 0.4,
+        ProbabilityKey(m2, True, frozenset([(x, True), (m1, False)])): 0.3,
+        ProbabilityKey(m2, False, frozenset([(x, True), (m1, False)])): 0.7,
+    })
+    missing = ProbabilityKey(m1, True, frozenset([(x, True), (m2, True)]))
+    runtime_val = _try_derive_via_bayes_inversion(missing, theta)
+    verifier_val = _verifier_derive_via_bayes_inversion(missing, theta)
+    assert runtime_val is not None and verifier_val is not None
+    assert abs(runtime_val - verifier_val) < 1e-12, (
+        f"Runtime and verifier Bayes inversion diverged: "
+        f"runtime={runtime_val} verifier={verifier_val}"
+    )
+    expected = 0.6 * 0.7 / (0.6 * 0.7 + 0.3 * 0.3)
+    assert abs(runtime_val - expected) < 1e-9
+
+
 def test_bayes_inversion_returns_none_when_flip_unavailable():
     """If P(A | reduced_given, target) is missing AND not derivable,
     Bayes can't help — returns None."""

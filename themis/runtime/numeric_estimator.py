@@ -405,10 +405,12 @@ def _try_derive_via_bayes_inversion(
         P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X)
     where P(M2|X) is itself marginalizable from supplied chain.
 
-    NOT YET WIRED into _evaluate or
-    _try_derive_via_marginalization. iter 187 is foundation work
-    (iter 171 pattern); iter 188+ wires when the helper is proven
-    in isolation.
+    Iter 188 wired this helper into _try_derive_via_marginalization's
+    inner-factor branch (after direct lookup + recursive marginalization
+    both fail). Mirror in verifier:
+    ``themis.verifier.rules._verifier_derive_via_bayes_inversion``.
+    iter 189 sync pin (test_runtime_and_verifier_bayes_inversion_
+    agree_byte_for_byte) asserts byte-for-byte agreement.
     """
     if _depth > 2:
         return None
