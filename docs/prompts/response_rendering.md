@@ -584,14 +584,25 @@ It tells the user how much more N is needed to halve the current
   `numeric_estimate.dose_response_curve[i].precision_budget` (skip
   the reference-row whose CI is degenerate).
 
-**Rendering rule**: surface ONLY when the current CI is wide enough
-that "more data would help" is genuinely actionable. Iter 160 added
-``precision_budget.relative_width = half_width / |point|`` so the
-heuristic is mechanical: surface when ``relative_width > 0.3``.
-When ``relative_width`` is absent (point ~ 0), fall back to the
-qualitative call: surface if the user has asked about precision or
-if the CI brackets zero. If the user explicitly asks "how much data
-would I need to be sure?", surface regardless.
+**Rendering rule** — three branches:
+
+1. **`relative_width` present and > 0.3**: surface. CI is wide
+   relative to the point. Tell the user what `n_to_halve_ci`
+   buys them.
+2. **`relative_width` present and ≤ 0.3**: don't surface unsolicited.
+   The estimate is precise enough that "more data" isn't the
+   bottleneck; recommending more N would be noise.
+3. **`relative_width` absent** (point ≈ 0, division undefined):
+   surface IFF the CI brackets zero (`ci_lower ≤ 0 ≤ ci_upper`).
+   When the effect is statistically null AND the user is reading
+   the result as "no effect", `n_to_halve_ci` is the right
+   diagnostic — it tells them whether more data could distinguish
+   true null from underpowered. If the CI is tight on one side of
+   zero (e.g. `ci_lower=0.01, ci_upper=0.03`), don't surface — the
+   non-null is already statistically clear.
+
+**Override**: if the user explicitly asks "how much data would I
+need to be sure?", surface regardless of branch.
 
 **Surface format**:
 
