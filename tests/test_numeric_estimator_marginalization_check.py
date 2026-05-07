@@ -146,6 +146,57 @@ def test_three_deep_marginalization_resolves():
     assert abs(val - 0.5) < 1e-9
 
 
+def test_bayes_inversion_resolves_chain_mediator_inner_factor():
+    """Iter 187: chain mediator front-door demands P(M1|X, M2)
+    which user typically doesn't supply. Bayes inversion derives it
+    from supplied P(M2|X, M1) + P(M1|X) (the chain factors):
+
+        P(M1|X, M2) = P(M2|X, M1) · P(M1|X) / P(M2|X)
+
+    where P(M2|X) is itself marginalizable from the supplied chain.
+    """
+    from themis.runtime.numeric_estimator import (
+        _try_derive_via_bayes_inversion,
+    )
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    theta = Theta(entries={
+        ProbabilityKey(m1, True, frozenset([(x, True)])): 0.7,
+        ProbabilityKey(m1, False, frozenset([(x, True)])): 0.3,
+        ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True), (m1, True)])): 0.4,
+        ProbabilityKey(m2, True, frozenset([(x, True), (m1, False)])): 0.3,
+        ProbabilityKey(m2, False, frozenset([(x, True), (m1, False)])): 0.7,
+    })
+    missing = ProbabilityKey(m1, True, frozenset([(x, True), (m2, True)]))
+    val = _try_derive_via_bayes_inversion(missing, theta)
+    # P(M2=T|X=T) = 0.6·0.7 + 0.3·0.3 = 0.51
+    # P(M1=T|X=T, M2=T) = 0.6·0.7 / 0.51 = 0.823529...
+    expected = 0.6 * 0.7 / (0.6 * 0.7 + 0.3 * 0.3)
+    assert val is not None
+    assert abs(val - expected) < 1e-9, (
+        f"Bayes inversion got {val}, expected {expected}"
+    )
+
+
+def test_bayes_inversion_returns_none_when_flip_unavailable():
+    """If P(A | reduced_given, target) is missing AND not derivable,
+    Bayes can't help — returns None."""
+    from themis.runtime.numeric_estimator import (
+        _try_derive_via_bayes_inversion,
+    )
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    # Sparse theta: only the inner P(M1|X)
+    theta = Theta(entries={
+        ProbabilityKey(m1, True, frozenset([(x, True)])): 0.7,
+        ProbabilityKey(m1, False, frozenset([(x, True)])): 0.3,
+    })
+    missing = ProbabilityKey(m1, True, frozenset([(x, True), (m2, True)]))
+    val = _try_derive_via_bayes_inversion(missing, theta)
+    assert val is None
+
+
 def test_runtime_and_verifier_marginalization_agree_byte_for_byte():
     """Iter 175 sync pin: themis.runtime.numeric_estimator's
     _try_derive_via_marginalization and themis.verifier.rules's

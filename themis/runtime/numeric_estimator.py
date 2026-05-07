@@ -376,6 +376,93 @@ def can_derive_via_marginalization(
     return False
 
 
+def _try_derive_via_bayes_inversion(
+    missing_key: ProbabilityKey,
+    theta: Theta,
+    *,
+    _depth: int = 0,
+) -> float | None:
+    """Iter 187 — Bayes inversion for the inner-factor derivation gap
+    iter 186 documented. Returns the inverted value if possible, None
+    otherwise.
+
+    For ``P(target=tv | given)`` missing: pick an atom A in given,
+    compute P(target=tv | given\\{A}) and the flip P(A=a |
+    given\\{A}, target=tv), and apply Bayes:
+
+        P(target | given) =
+            P(A=a | given\\{A}, target) · P(target | given\\{A})
+                / P(A=a | given\\{A})
+
+    Each of the three factors may itself need recursive marginalization
+    (via _try_derive_via_marginalization). Bounded depth ≤ 2 for the
+    Bayes recursion to prevent runaway.
+
+    Concrete unlocked case: chain mediator front-door (X→M1→M2→Y,
+    X↔Y latent). Front-door demands P(Y|X, M2). Auto-marginalization
+    over M1 needs the inner factor P(M1|X, M2) which user didn't
+    supply but Bayes inversion gives:
+        P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X)
+    where P(M2|X) is itself marginalizable from supplied chain.
+
+    NOT YET WIRED into _evaluate or
+    _try_derive_via_marginalization. iter 187 is foundation work
+    (iter 171 pattern); iter 188+ wires when the helper is proven
+    in isolation.
+    """
+    if _depth > 2:
+        return None
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+    if not base_given:
+        return None
+    for a_atom, a_value in base_given:
+        if a_atom == target_atom:
+            continue
+        reduced_given = frozenset(p for p in base_given if p[0] != a_atom)
+        # Numerator factor 1: P(A=a_value | reduced_given, target=target_value)
+        # — i.e. condition the original "target" appearance instead.
+        flip_given = reduced_given | {(target_atom, target_value)}
+        flip_key = ProbabilityKey(
+            target_atom=a_atom, target_value=a_value,
+            given=frozenset(flip_given),
+        )
+        flip_val = theta.entries.get(flip_key)
+        if flip_val is None:
+            flip_val = _try_derive_via_marginalization(
+                flip_key, theta, _depth=_depth + 1,
+            )
+        if flip_val is None:
+            continue
+        # Numerator factor 2: P(target=target_value | reduced_given)
+        target_key = ProbabilityKey(
+            target_atom=target_atom, target_value=target_value,
+            given=reduced_given,
+        )
+        target_marginal = theta.entries.get(target_key)
+        if target_marginal is None:
+            target_marginal = _try_derive_via_marginalization(
+                target_key, theta, _depth=_depth + 1,
+            )
+        if target_marginal is None:
+            continue
+        # Denominator: P(A=a_value | reduced_given)
+        denom_key = ProbabilityKey(
+            target_atom=a_atom, target_value=a_value,
+            given=reduced_given,
+        )
+        denom = theta.entries.get(denom_key)
+        if denom is None:
+            denom = _try_derive_via_marginalization(
+                denom_key, theta, _depth=_depth + 1,
+            )
+        if denom is None or denom == 0:
+            continue
+        return flip_val * target_marginal / denom
+    return None
+
+
 def _try_derive_via_marginalization(
     missing_key: ProbabilityKey,
     theta: Theta,
