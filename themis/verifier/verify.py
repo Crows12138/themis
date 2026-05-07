@@ -364,14 +364,26 @@ def _assert_numeric_query_binding(
                 step_index,
                 step.rule,
             )
+            # Iter 182: accept any identification-formula witness
+            # (backdoor / front-door). Pre-iter-182 only backdoor was
+            # checked; the front-door variant case (iter 181) emits
+            # front_door_adjustment_formula and was rejected here even
+            # though the kernel produced the correct value. ADMG /
+            # Tian / IV may need additional witness rules added later.
+            _IDENTIFICATION_FORMULA_RULES = frozenset({
+                "backdoor_adjustment_formula",
+                "front_door_adjustment_formula",
+            })
             matching_witness = any(
-                prev_step.rule == "backdoor_adjustment_formula"
+                prev_step.rule in _IDENTIFICATION_FORMULA_RULES
                 and step_output_by_id.get(step_id) == formula
                 for step_id, prev_step in step_by_id.items()
             )
             if not matching_witness:
                 raise VerificationError(
-                    "formula_evaluation.formula does not match any prior backdoor_adjustment_formula witness for this effect query",
+                    "formula_evaluation.formula does not match any prior "
+                    "identification-formula witness (backdoor / front-door) "
+                    "for this effect query",
                     step_index=step_index, rule=step.rule,
                 )
 

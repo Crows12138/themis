@@ -98,16 +98,12 @@ def test_front_door_variant_e2e_returns_pearl_formula_value():
     assert abs(actual - expected) < 1e-9, (
         f"Front-door variant e2e: got {actual}, expected {expected}"
     )
-    # Note: themis.verify currently rejects this fixture with a
-    # cryptic backdoor-witness mismatch error — verifier-side gap
-    # distinct from the iter 167-173 runtime path. The kernel
-    # produces the correct front-door answer (0.6); the verifier's
-    # effect-query rule expects a witness shape that doesn't yet
-    # cover the front-door-via-bidirected-loosen case. Filed as
-    # iter 181 finding; future iter ports the verifier coverage.
-    # For now, this test pins the runtime correctness only.
+    # Iter 182: verifier now accepts front_door_adjustment_formula
+    # as a valid identification-formula witness (was backdoor-only).
     derivation_rules = [
         s["rule"] for s in r["derivation"]["steps"]
     ]
     assert "front_door_adjustment_formula" in derivation_rules
     assert "identify_via_front_door" in derivation_rules
+    # Independent verifier replay must accept.
+    themis.verify(ast, r)

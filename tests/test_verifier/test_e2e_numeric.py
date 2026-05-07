@@ -163,5 +163,5 @@ def test_tampering_effect_formula_to_unrelated_expression_is_rejected():
         elif step.rule == "numeric_result":
             bad[i] = replace(step, output=NumericResult(value=0.4))
 
-    with pytest.raises(VerificationError, match="backdoor_adjustment_formula witness"):
+    with pytest.raises(VerificationError, match="identification-formula witness"):
         verify_numeric(tuple(bad), ctx, NumericResult(value=0.4))
