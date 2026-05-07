@@ -96,6 +96,15 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   only 5 gold_query_kind values (cause / assoc / effect / identify
   / probability) while QueryKind enum has 6 (counterfactual added
   Phase 5 §C). Same drift class as iter 106 in a different doc.)
+- test_data_gap_report_docstring_must_disclose_section_accurate
+  (iter 118 — themis/output/data_gap_report.py module docstring
+  categorized transport_source_conditional_unknown +
+  dose_response_data_required under "must-disclose channel" but
+  they are NOT in scheduler._MUST_DISCLOSE_GAP_KINDS — they're
+  data needs that surface only via data_gap_report, not auto-
+  mirrored to explanation. Restructured into a separate "data-need
+  gap_kinds" section. Pin asserts the docstring's must-disclose
+  list mirrors the actual scheduler set.)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1146,6 +1155,63 @@ def test_estimation_init_docstring_inventories_all_exports():
         f"themis/estimation/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring to inventory new "
         "exports."
+    )
+
+
+def test_data_gap_report_docstring_must_disclose_section_accurate():
+    """themis/output/data_gap_report.py module docstring inventories
+    gap_kinds by category. Iter 118 caught the "Phase 11+ structural
+    caveats (must-disclose channel)" section listing
+    transport_source_conditional_unknown and dose_response_data_required
+    while neither is actually in scheduler._MUST_DISCLOSE_GAP_KINDS —
+    they're data needs that surface only via data_gap_report.
+
+    Pin asserts every gap_kind named under the "must-disclose channel"
+    paragraph is actually in scheduler._MUST_DISCLOSE_GAP_KINDS, and
+    every must-disclose value appears somewhere in the docstring.
+    """
+    import re
+
+    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+    from themis.output import data_gap_report as dgr_mod
+
+    docstring = dgr_mod.__doc__ or ""
+
+    # Extract the "must-disclose channel" paragraph: header sentence
+    # mentioning must-disclose channel + 0..N prose continuation lines
+    # ending with the colon, followed by a contiguous run of bullets.
+    section = re.search(
+        r"must-disclose channel[^\n]*"
+        r"(?:\n(?!- )[^\n]*)*"  # prose continuation lines (no bullet)
+        r"\n((?:- [^\n]+\n(?:  [^\n]+\n)*)+)",  # bullet block
+        docstring,
+    )
+    assert section, (
+        "data_gap_report module docstring must have a "
+        "'must-disclose channel' section enumerated as bullet list"
+    )
+    paragraph = section.group(1)
+    listed = set(re.findall(r"^- (\w+)", paragraph, re.MULTILINE))
+
+    # Every name listed in the must-disclose paragraph must actually
+    # be in the scheduler's whitelist.
+    not_actually_must_disclose = listed - _MUST_DISCLOSE_GAP_KINDS
+    assert not not_actually_must_disclose, (
+        f"data_gap_report docstring's 'must-disclose channel' section "
+        f"lists gap_kinds that are NOT in scheduler._MUST_DISCLOSE_GAP_KINDS: "
+        f"{sorted(not_actually_must_disclose)}. Move them to a "
+        "different section."
+    )
+
+    # Every must-disclose value must appear somewhere in the full
+    # docstring (in any section). The L3 section covers the iter 5/19
+    # additions; this is just total-coverage hygiene.
+    not_documented = _MUST_DISCLOSE_GAP_KINDS - {
+        line for line in re.findall(r"\b([a-z_]+)\b", docstring)
+    }
+    assert not not_documented, (
+        f"_MUST_DISCLOSE_GAP_KINDS values missing from "
+        f"data_gap_report docstring: {sorted(not_documented)}"
     )
 
 

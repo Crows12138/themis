@@ -27,7 +27,8 @@ Phase 10 charter §2.2 (initial 8):
 8. ambiguous_variable_definition          — framing_notes non-empty
 
 Phase 11+ structural caveats (must-disclose channel; mirrored to
-``result.explanation`` by ``scheduler._attach_structural_caveats``):
+``result.explanation`` by ``scheduler._attach_structural_caveats`` —
+the canonical set lives in ``scheduler._MUST_DISCLOSE_GAP_KINDS``):
 - unverified_proposal_edge_on_query_path — Phase 11.x §C
 - iv_identification_assumption_required — Phase 6.iv
 - mediation_identification_assumption_required — Phase 6.mediation
@@ -39,6 +40,9 @@ Phase 11+ structural caveats (must-disclose channel; mirrored to
   fallback added iter 10 for needs_investigation + missing-theta case)
 - counterfactual_identification_assumption_required — Phase 5 §C
 - graph_learned_from_data — Phase 8.1 discovery
+
+Additional data-need gap_kinds (NOT must-disclose — these surface only
+via ``data_gap_report``, not auto-mirrored to ``explanation``):
 - transport_source_conditional_unknown — Phase 9 §T9.1 second data need
 - dose_response_data_required — Phase 13
 
