@@ -76,6 +76,13 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   + 3 schema-shape tokens (decomposition / dose_response_curve /
   n_to_halve_ci) all appear in the prompt so the LLM knows what to
   surface. Catches future renames.)
+- test_precision_budget_method_specific_caveats_documented (iter
+  177 sync pin — iter 161 added §Method-specific caveats inside
+  §Precision budget covering IV/mediation/frontdoor/transport/
+  dose-response/backdoor; each method has different "more N means"
+  semantics. Pin asserts each category's anchor keyword survives
+  future prompt edits so LLMs don't naively render "recruit N more"
+  without method-aware caveat.)
 - test_precision_budget_in_query_result_schema (iter 157 sync pin —
   iter 152→154 had a 2-iter silent schema violation: precision_budget
   emitted but query_result.schema.json with additionalProperties=false
@@ -343,6 +350,48 @@ def test_precision_budget_field_documented_in_rendering_prompt():
             f"to '{token}'. The renderer needs to know about all 3 "
             f"locations the field appears in across estimator shapes."
         )
+
+
+def test_precision_budget_method_specific_caveats_documented():
+    """Iter 177 sync pin: iter 161 added method-specific caveats to
+    response_rendering.md's §Precision budget for the 6 estimator
+    paths. Each method has different "more N" semantics:
+    - IV (wald/2sls): compliers, not all takers
+    - mediation_*: joint M+Y rows
+    - frontdoor_*: M+Y joint requirement
+    - transport_post_stratification: weakest stratum N
+    - dose_response_*: per-curve-point allocation
+    - backdoor_*: straightforward joint (X,Y,Z)
+
+    Without these caveats LLMs render "recruit N more" naively. Pin
+    asserts each method category's keyword appears in the §Precision
+    budget section; drift in the prompt fails the test before
+    deployment.
+    """
+    rendering_md = (
+        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+    ).read_text(encoding="utf-8")
+    # Anchor: §Method-specific caveats inside §Precision budget
+    assert "Method-specific caveats" in rendering_md
+    # Each method category must be referenced with its key term
+    method_keywords = {
+        "IV": ("iv_wald", "iv_2sls", "compliers"),
+        "mediation": ("mediation_*", "joint M+Y", "M and Y"),
+        "frontdoor": ("frontdoor_*", "M and Y on the same units",),
+        "transport": ("transport_post_stratification", "weakest", "stratum"),
+        "dose_response": ("dose_response_*", "per-curve-point", "per point"),
+        "backdoor": ("backdoor_*",),
+    }
+    missing = []
+    for category, keywords in method_keywords.items():
+        present = [kw for kw in keywords if kw in rendering_md]
+        if not present:
+            missing.append(category)
+    assert not missing, (
+        f"§Method-specific caveats missing references for "
+        f"{missing}. Iter 161 added them; future doc edits must "
+        f"preserve at least one keyword per method category."
+    )
 
 
 def test_precision_budget_in_query_result_schema():
