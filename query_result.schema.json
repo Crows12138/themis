@@ -331,6 +331,9 @@
             }
           }
         },
+        "precision_budget": {
+          "$ref": "#/$defs/precisionBudget"
+        },
         "decomposition": {
           "type": "object",
           "description": "Phase 7.4 mediation decomposition: point + CI for NDE, NIE, TE, plus the proportion of total effect mediated through M (NIE / TE).",
@@ -344,7 +347,8 @@
               "properties": {
                 "point": { "type": "number" },
                 "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" }
+                "ci_upper": { "type": "number" },
+                "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             },
             "nie": {
@@ -354,7 +358,8 @@
               "properties": {
                 "point": { "type": "number" },
                 "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" }
+                "ci_upper": { "type": "number" },
+                "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             },
             "te": {
@@ -364,7 +369,8 @@
               "properties": {
                 "point": { "type": "number" },
                 "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" }
+                "ci_upper": { "type": "number" },
+                "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             },
             "proportion_mediated": {
@@ -375,7 +381,8 @@
               "properties": {
                 "point": { "type": "number" },
                 "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" }
+                "ci_upper": { "type": "number" },
+                "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             }
           }
@@ -438,6 +445,17 @@
     }
   },
   "$defs": {
+    "precisionBudget": {
+      "type": "object",
+      "description": "Iter 151+152: post-hoc precision budgeting per VISION 2026-04-26 §'输出 (2)'. Tells the user how much more N is needed to halve the current 95% CI. SE ∝ 1/√N → N_new = N_old · (W_old/W_new)². Helper: themis.output.sample_size.estimate_n_for_target_ci_half_width.",
+      "additionalProperties": false,
+      "required": ["current_ci_half_width", "n_to_halve_ci", "hint"],
+      "properties": {
+        "current_ci_half_width": { "type": "number", "exclusiveMinimum": 0 },
+        "n_to_halve_ci": { "type": "integer", "minimum": 1 },
+        "hint": { "type": "string" }
+      }
+    },
     "framingNote": {
       "type": "object",
       "additionalProperties": false,

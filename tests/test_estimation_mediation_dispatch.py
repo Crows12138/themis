@@ -180,3 +180,21 @@ def test_mediation_estimate_verify_round_trips():
     # Status stays structurally_solved → routes to verify_effect_structural,
     # which audits the identify_via_mediation derivation. Must pass.
     themis.verify(ast, out["results"][0])
+
+
+def test_mediation_decomposition_carries_per_component_precision_budget():
+    """Iter 154: mediation numeric_estimate.decomposition has nde/nie/
+    te/proportion_mediated each with their own ci_lower/ci_upper. Each
+    component now carries a precision_budget sub-field."""
+    df = _clean_med_data(n=2000, seed=0)
+    out = themis.estimate(_clean_mediation_ast(), df, random_state=42)
+    decomp = out["results"][0]["numeric_estimate"]["decomposition"]
+    for comp_name in ("nde", "nie", "te", "proportion_mediated"):
+        comp = decomp[comp_name]
+        assert "precision_budget" in comp, (
+            f"decomposition.{comp_name} missing precision_budget"
+        )
+        pb = comp["precision_budget"]
+        assert "current_ci_half_width" in pb
+        assert "n_to_halve_ci" in pb
+        assert pb["n_to_halve_ci"] >= 1

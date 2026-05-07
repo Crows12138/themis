@@ -436,6 +436,7 @@ def _try_mediation_estimate(
             },
         },
     }
+    _attach_precision_budget_decomposition(result["numeric_estimate"])
     _attach_e_value_if_binary(
         result, contract,
         outcome=y_pred, treatment=x_pred,
@@ -1027,26 +1028,59 @@ def _attach_precision_budget(numeric_estimate: dict) -> None:
     and finite — defensive: estimators that skip bootstrap or have
     NaN bounds shouldn't trigger a misleading hint.
     """
-    ci_lower = numeric_estimate.get("ci_lower")
-    ci_upper = numeric_estimate.get("ci_upper")
+    pb = _compute_precision_budget(
+        ci_lower=numeric_estimate.get("ci_lower"),
+        ci_upper=numeric_estimate.get("ci_upper"),
+        n=numeric_estimate.get("sample_size"),
+    )
+    if pb is not None:
+        numeric_estimate["precision_budget"] = pb
+
+
+def _attach_precision_budget_decomposition(numeric_estimate: dict) -> None:
+    """Mediation variant: numeric_estimate has a ``decomposition`` dict
+    where each component (nde / nie / te / proportion_mediated) carries
+    its own ci_lower / ci_upper. Compute a precision_budget per
+    component using the SHARED top-level sample_size. Iter 154."""
+    decomp = numeric_estimate.get("decomposition")
     n = numeric_estimate.get("sample_size")
-    if ci_lower is None or ci_upper is None or n is None:
+    if not isinstance(decomp, dict) or n is None:
         return
+    for comp_name, comp in decomp.items():
+        if not isinstance(comp, dict):
+            continue
+        pb = _compute_precision_budget(
+            ci_lower=comp.get("ci_lower"),
+            ci_upper=comp.get("ci_upper"),
+            n=n,
+        )
+        if pb is not None:
+            comp["precision_budget"] = pb
+
+
+def _compute_precision_budget(
+    *, ci_lower, ci_upper, n,
+) -> dict | None:
+    """Shared core: compute precision_budget dict from raw CI bounds +
+    N. Returns None when inputs are not all valid (silent no-op
+    semantics; callers attach only when not None)."""
+    if ci_lower is None or ci_upper is None or n is None:
+        return None
     try:
         half_width = (float(ci_upper) - float(ci_lower)) / 2.0
     except (TypeError, ValueError):
-        return
+        return None
     if half_width <= 0 or not math.isfinite(half_width):
-        return
+        return None
     if not isinstance(n, int) or n < 1:
-        return
+        return None
     target = half_width / 2.0
     n_for_halve, hint = estimate_n_for_target_ci_half_width(
         current_n=n,
         current_ci_half_width=half_width,
         target_ci_half_width=target,
     )
-    numeric_estimate["precision_budget"] = {
+    return {
         "current_ci_half_width": round(half_width, 6),
         "n_to_halve_ci": n_for_halve,
         "hint": hint,
