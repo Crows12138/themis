@@ -607,6 +607,28 @@ Don't surface a precision_budget when the answer isn't a point
 estimate (e.g. structurally unidentifiable, bounds-only). The field
 won't be there in those cases anyway.
 
+**Method-specific caveats** — `n_to_halve_ci` is the formal SE
+scaling number, but what "more N" *means* depends on `method`:
+
+- `iv_wald` / `iv_2sls`: the estimand is LATE on **compliers** (or
+  the linear-2SLS analog). "More N" only buys precision if you
+  recruit more compliers — i.e. units whose treatment status is
+  actually moved by the instrument. Recruiting always-takers /
+  never-takers does nothing for SE on this estimand. Surface this
+  when the user is planning a study, not just when reading a result.
+- `mediation_*`: "more N" must include both M and Y measurements;
+  recruiting more rows with X but no M defeats the purpose.
+- `frontdoor_*`: more N must include both M and Y on the same units;
+  mediator-outcome chain is what drives precision.
+- `transport_post_stratification`: precision is bottlenecked by the
+  WORST stratum's source-N, not total N. Suggest enriching the
+  thinnest stratum, not blanket recruitment.
+- `dose_response_*`: each curve point has its own
+  `precision_budget`; "more N" needs to be allocated across sampling
+  points (typically equal per point).
+- `backdoor_*`: straightforward — "more N" means more rows of
+  (X, Y, Z) jointly. No subgroup caveat.
+
 ### From literature — outside the kernel (Phase 11.1)
 
 When a number comes from WebSearch / KB lookups (gap_to_action.md
