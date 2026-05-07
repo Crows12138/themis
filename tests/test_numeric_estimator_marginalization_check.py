@@ -109,6 +109,43 @@ def test_returns_false_when_target_already_in_given():
     assert can_derive_via_marginalization(missing, theta) is False
 
 
+def test_three_deep_marginalization_resolves():
+    """Iter 176: marginalization recurses through 3 levels (P(Y|X)
+    → P(Y|X,Z1) → P(Y|X,Z1,Z2) → P(Y|X,Z1,Z2,Z3) leaf-direct).
+    iter 172's depth ≤ 3 limit is generous enough for typical ADMG
+    c-component shapes; pin so future tweaks don't accidentally
+    block this case."""
+    from themis.runtime.numeric_estimator import (
+        _try_derive_via_marginalization,
+    )
+
+    import itertools
+
+    x, y = _A("x"), _A("y")
+    z1, z2, z3 = _A("z1"), _A("z2"), _A("z3")
+
+    theta_entries = {}
+    # Chain factors P(Z_i | X, Z_<i) — uniform
+    for i, z in enumerate([z1, z2, z3]):
+        prior = [z1, z2, z3][:i]
+        for vals in itertools.product([True, False], repeat=len(prior)):
+            g = frozenset([(x, True)] + list(zip(prior, vals)))
+            theta_entries[ProbabilityKey(z, True, g)] = 0.5
+            theta_entries[ProbabilityKey(z, False, g)] = 0.5
+    # P(Y=T | X, Z1, Z2, Z3) — all 8 combos uniform
+    for v1, v2, v3 in itertools.product([True, False], repeat=3):
+        g = frozenset([(x, True), (z1, v1), (z2, v2), (z3, v3)])
+        theta_entries[ProbabilityKey(y, True, g)] = 0.5
+    theta = Theta(entries=theta_entries)
+    missing = ProbabilityKey(
+        target_atom=y, target_value=True,
+        given=frozenset([(x, True)]),
+    )
+    val = _try_derive_via_marginalization(missing, theta)
+    assert val is not None, "3-deep marginalization should resolve"
+    assert abs(val - 0.5) < 1e-9
+
+
 def test_runtime_and_verifier_marginalization_agree_byte_for_byte():
     """Iter 175 sync pin: themis.runtime.numeric_estimator's
     _try_derive_via_marginalization and themis.verifier.rules's
