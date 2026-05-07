@@ -63,6 +63,15 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   "four public ... entry points" which was stale (now seven). One pin
   parametrized over the four packages forces docstring sync going
   forward.)
+- test_workflow_init_docstring_lists_all_submodules (iter 113 — for
+  packages without __all__ that explicitly enumerate their submodules
+  in the docstring (workflow listed only ``parameter_fill`` while
+  ``variable_framing`` had been there for phases). Pin asserts every
+  public .py module in themis/workflow/ is referenced in the
+  __init__.py docstring. Web __init__ also had stale "no NL → JSON
+  bridge yet" prose despite mode (a) Ask landing — fixed in same
+  commit but not pinned because web docstring describes endpoints
+  rather than modules; no clean enumeration to pin against.)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1113,6 +1122,33 @@ def test_estimation_init_docstring_inventories_all_exports():
         f"themis/estimation/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring to inventory new "
         "exports."
+    )
+
+
+def test_workflow_init_docstring_lists_all_submodules():
+    """themis/workflow/__init__.py docstring explicitly enumerates its
+    submodules (the "Modules:" bullet list). Iter 113 caught it
+    listing only ``parameter_fill`` while ``variable_framing`` had
+    been there for several phases.
+
+    Pin asserts every public .py module in themis/workflow/ (excluding
+    __init__.py and any _private.py) is referenced by basename in the
+    __init__.py docstring. If a new workflow module lands, the docstring
+    must grow to mention it.
+    """
+    pkg_dir = REPO_ROOT / "themis" / "workflow"
+    init_text = (pkg_dir / "__init__.py").read_text(encoding="utf-8")
+
+    submodules = []
+    for p in pkg_dir.glob("*.py"):
+        if p.name == "__init__.py" or p.name.startswith("_"):
+            continue
+        submodules.append(p.stem)
+
+    missing = [m for m in submodules if m not in init_text]
+    assert not missing, (
+        f"themis/workflow/__init__.py docstring missing module names: "
+        f"{missing}. Update the 'Modules:' list."
     )
 
 
