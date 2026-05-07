@@ -420,3 +420,61 @@ infrastructure exists to catch it. The xfail-strict marker pattern
 in particular — file the bug as a strict-xfail with the fix path,
 then a future iter implements the fix and watches the marker
 flip — is now a worth-repeating pattern for known bugs.
+
+---
+
+#### 2026-05-07 iter 150 update — Tian e2e architectural gap
+
+Tried to write an e2e numerical test (kernel_ast → themis.run →
+identify_via_tian → numeric_estimator → numerically_solved). The
+disjoint-Y case (X→Z1, X→Z2, Z1↔Z2, Z1→Y, Z2→Y) was the natural
+target — backdoor / front-door fail; Tian succeeds.
+
+semantic_validator REJECTED the test fixture:
+
+```
+ground_statements[11]: probability.given includes ['z1'] which are
+not structural parents of z2 (parents=['x']). given must be a
+subset of parents(target)
+```
+
+Root cause: Tian's c-factor product Q[S] = ∏ P(V_i | V_{<i}) uses
+the FULL TOPOLOGICAL PREDECESSOR set, not the structural-parent
+set. For the disjoint-Y graph with topo order [X, Z1, Z2, Y]:
+Q[{Z1,Z2}] = P(Z1|X) · P(Z2|X, Z1). The second factor conditions
+on Z1 even though Z2's structural parents are just {X} — Z1 ↔ Z2
+is bidirected (latent confounder), not a structural edge.
+
+The kernel's CPT model only accepts ``probability`` statements
+where ``given`` ⊆ structural_parents(target). Tian's formula needs
+non-structural conditional CPTs to evaluate. So:
+
+- Tian formula correctness pinned at unit level (iter 145, 147,
+  148): ✓ (`identify_via_tian` + `estimate_formula` agree)
+- e2e via `themis.run` with theta: ✗ — semantic validator blocks
+  the fixture
+
+This is a real architectural gap, not a bug. Either:
+1. Loosen semantic validator: when an ADMG has bidirected edges,
+   allow ``probability.given`` to include topo-predecessors that
+   aren't structural parents (Tian's product needs them).
+2. Reformulate Tian's output: factor Q[S] via the joint
+   P(S | parents(S)) and add a joint-CPT primitive to the kernel.
+3. Accept the gap: document that the Tian path can produce
+   structurally identified formulas but they're only numerically
+   evaluable when the user supplies the broader CPT family.
+
+Option 1 is least invasive — semantic validator already knows
+about bidirected edges (validates ADMG vs DAG distinctions
+elsewhere). Option 2 is bigger. Option 3 leaves the gap.
+
+iter 150 decided to NOT pick a fix in 60s; instead documented the
+gap here so a future iter can carry it through. The unit-level
+pins in test_formula_sum_bind_referenced.py remain authoritative
+for Tian formula correctness; only the e2e wiring is gapped.
+
+Lesson: even when iter 145+147 fixed the formula generation, the
+end-to-end pipeline can have OTHER places where the assumption
+"theta has every conditional you need" doesn't hold. The kernel's
+CPT contract was designed for backdoor (where ``given`` ⊆ parents
+always holds); ADMG identification breaks that assumption.
