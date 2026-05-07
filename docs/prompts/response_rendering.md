@@ -597,7 +597,7 @@ would I need to be sure?", surface regardless.
 
 > （目前样本 n=`<sample_size>`，95% CI ±`<half_width>`。如果你想把
 > CI 收紧一半（±`<half_width/2>`），SE 按 1/√N 缩放需要 ≈
-> **n=`<n_to_halve_ci>`**，约 `<ratio_factor>×` 现在的样本量。）
+> **n=`<n_to_halve_ci>`**——大约 4× 现有样本量。）
 
 Don't over-rely on the helper's own hint string — render in the
 user's domain language. Mention the SE 1/√N scaling once if the
