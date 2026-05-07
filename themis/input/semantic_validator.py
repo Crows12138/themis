@@ -536,7 +536,9 @@ GRAPH_LEVEL_CHECKS: frozenset[str] = frozenset(
 )
 
 
-def _check_probability_parents(ground_statements, graph) -> None:
+def _check_probability_parents(
+    ground_statements, graph, *, bidirected: "frozenset[frozenset]" = frozenset(),
+) -> None:
     """Every ground probability statement's ``given`` set must be a
     subset of the target atom's structural parents in ``G(M)``.
 
@@ -545,6 +547,13 @@ def _check_probability_parents(ground_statements, graph) -> None:
     into Theta silently admits statements that are not CPT entries and
     whose values cannot be consumed by identification formulas without
     contradiction.
+
+    Iter 167 attempted a bidirected-sibling loosen for ADMG Tian
+    c-factor support but the disjoint-Y case needs a richer rule
+    (topo-predecessors via bidirected closure, not just direct
+    siblings). Reverted; iter 165 xfail-strict tracker remains the
+    future-work pin. ``bidirected`` parameter kept on the function
+    signature so a future complete fix doesn't need plumbing churn.
     """
     for idx, stmt in enumerate(ground_statements):
         if not isinstance(stmt, ProbabilityStatement):
@@ -641,19 +650,32 @@ def validate_against_graph(
     ground_statements,
     graph,
     checks: frozenset[str] | None = None,
+    *,
+    bidirected: "frozenset[frozenset]" = frozenset(),
 ) -> None:
     """Run post-instantiation semantic checks that need the working graph.
 
     Call this after ``instantiation.instantiate`` +
     ``graph_projection.project``. ``checks`` defaults to
     ``GRAPH_LEVEL_CHECKS``. Raises SemanticError on violation.
+
+    ``bidirected`` (iter 167): the ADMG's bidirected edge set. When
+    provided, the probability_parents check loosens its
+    ``given ⊆ structural_parents`` rule to also accept bidirected
+    siblings of the target — needed for Tian's c-factor product
+    Q[S] = ∏ P(V_i | V_{<i}) which factors over topo predecessors
+    that may include latent-confounder-linked variables (see wall.md
+    iter 150 + iter 165 xfail-strict tracker).
     """
     checks = checks if checks is not None else GRAPH_LEVEL_CHECKS
     for name in checks:
         func = _GRAPH_CHECK_FUNCS.get(name)
         if func is None:
             raise SemanticError(f"unknown graph-level check: {name}")
-        func(ground_statements, graph)
+        if name == "probability_parents":
+            func(ground_statements, graph, bidirected=bidirected)
+        else:
+            func(ground_statements, graph)
 
 
 # ---------------------------------------------------------------------------

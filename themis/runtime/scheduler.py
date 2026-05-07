@@ -2877,11 +2877,11 @@ def dispatch_all(program: Program, graph: nx.DiGraph) -> tuple[QueryResult, ...]
     from .instantiation import instantiate
 
     ground = instantiate(program)
-    validate_against_graph(ground, graph)
+    bidirected = structural_solver.bidirected_from_ground(ground)
+    validate_against_graph(ground, graph, bidirected=bidirected)
     theta = theta_builder.build_theta(ground)
     prob_index = build_probability_source_index(ground)
     obs_index = build_observation_source_index(ground)
-    bidirected = structural_solver.bidirected_from_ground(ground)
 
     return tuple(
         dispatch(

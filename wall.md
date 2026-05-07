@@ -540,3 +540,51 @@ Key lessons reinforced:
 Test count trajectory through the arc: 1822 → 1856 (+34 across
 13 iters; ~2.6 tests/iter average; weighted heavier in helper +
 audit + numerical-eval iters).
+
+---
+
+#### 2026-05-07 iter 167 update — Tian e2e fix attempt (partial revert)
+
+Attempted iter 150 option 1: loosen ``probability_parents`` rule
+to also accept ``given`` atoms that are bidirected siblings of
+target. Threaded ``bidirected`` kwarg through
+``validate_against_graph`` from ``dispatch_all`` (already had it
+two lines below the call).
+
+Result on iter 165 xfail-strict tracker: STILL FAILS, but on a
+different probability statement than before:
+
+- Pre-iter-167: validator rejected ``P(Z2|X=T, Z1)`` because Z1
+  isn't Z2's structural parent (Z1 ↔ Z2 bidirected).
+- Post-iter-167-loosen: that statement now passes (Z1 IS Z2's
+  bidirected sibling). But the next probability statement
+  ``P(Y|X, Z1, Z2)`` STILL fails because X is neither Y's
+  structural parent nor Y's bidirected sibling — X is a
+  grandparent of Y through Z1, Z2.
+
+Root cause: Tian's c-factor product needs ``given`` to range over
+ALL topo-predecessors of target within the c-component closure,
+not just direct bidirected siblings. The disjoint-Y graph topo
+order is [X, Z1, Z2, Y]; Y's V_{<i} = {X, Z1, Z2} — full prefix.
+A complete fix needs:
+
+1. Compute c-component containing target_atom (already a
+   ``c_components`` helper)
+2. Build ancestor closure of that c-component in the directed
+   graph (call it the "extended scope")
+3. Topo-order that scope and let ``given`` ⊆ predecessors-of-
+   target-in-extended-topo
+
+This is correct but ~30-50 LOC of careful work. Out of 60s scope.
+
+Iter 167 deliverable:
+- Reverted the substantive loosen (kept rule strict)
+- KEPT the ``bidirected`` plumbing through validate_against_graph
+  (avoids future plumbing churn — the +24 LOC change is mostly
+  the kwarg threading)
+- Documented the richer rule needed in semantic_validator.py
+  docstring + this wall.md entry
+
+iter 165 xfail-strict tracker remains in place. Next iter's path
+forward is clear: implement the topo-predecessor-in-c-component-
+closure rule using existing structural_solver helpers.
