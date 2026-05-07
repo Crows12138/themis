@@ -540,7 +540,9 @@ def _check_probability_parents(
     ground_statements, graph, *, bidirected: "frozenset[frozenset]" = frozenset(),
 ) -> None:
     """Every ground probability statement's ``given`` set must be a
-    subset of the target atom's structural parents in ``G(M)``.
+    subset of the target atom's structural parents in ``G(M)`` —
+    OR (iter 168) any atom that reaches target via a directed or
+    bidirected path (admissible Tian c-factor topo-predecessors).
 
     A model parameter is a conditional on the target's parent set (or
     a marginal over a subset of them). Allowing arbitrary conditionals
@@ -548,23 +550,38 @@ def _check_probability_parents(
     whose values cannot be consumed by identification formulas without
     contradiction.
 
-    Iter 167 attempted a bidirected-sibling loosen for ADMG Tian
-    c-factor support but the disjoint-Y case needs a richer rule
-    (topo-predecessors via bidirected closure, not just direct
-    siblings). Reverted; iter 165 xfail-strict tracker remains the
-    future-work pin. ``bidirected`` parameter kept on the function
-    signature so a future complete fix doesn't need plumbing churn.
+    Iter 167 attempted a narrower bidirected-sibling-only loosen but
+    the disjoint-Y case revealed Tian's c-factor product needs the
+    full topo-predecessor closure (Y's V_{<Y} = {X, Z1, Z2} where X
+    is a grandparent through Z1↔Z2). Iter 168 implements the closure
+    via directed-or-bidirected reachability — atoms with any path to
+    target may appear in ``given``.
     """
+    import networkx as nx
     for idx, stmt in enumerate(ground_statements):
         if not isinstance(stmt, ProbabilityStatement):
             continue
         target_atom = stmt.target.atom
         if target_atom in graph:
             parents = set(graph.predecessors(target_atom))
+            ancestors = set(nx.ancestors(graph, target_atom))
         else:
             parents = set()
+            ancestors = set()
+        # Iter 168: admissible = parents ∪ directed-ancestors ∪
+        # bidirected-siblings. Tian's c-factor product factors over
+        # topo predecessors (which may include directed ancestors
+        # like X → Z1 → Y for P(Y|X,Z1) when iterating chain rule
+        # within a c-component) AND bidirected siblings (because
+        # topo within a c-component puts them in arbitrary order;
+        # validator can't know which order Tian will pick).
+        bidir_siblings: set = set()
+        for pair in bidirected:
+            if target_atom in pair:
+                bidir_siblings.update(a for a in pair if a != target_atom)
+        admissible = parents | ancestors | bidir_siblings
         given_atoms = {va.atom for va in stmt.given}
-        extra = given_atoms - parents
+        extra = given_atoms - admissible
         if extra:
             extra_names = sorted(a.predicate for a in extra)
             parent_names = sorted(a.predicate for a in parents)

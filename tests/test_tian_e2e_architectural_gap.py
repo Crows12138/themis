@@ -57,17 +57,18 @@ def _prob(target: str, target_value, given: list, value: float) -> dict:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "Iter 150 architectural gap: semantic_validator restricts "
-        "probability.given ⊆ structural_parents(target). Tian's "
-        "c-factor product Q[S]=∏ P(V_i|V_{<i}) needs full topo "
-        "predecessors which can include bidirected siblings (not "
-        "structural parents). Disjoint-Y case (X→Z1, X→Z2, Z1↔Z2, "
-        "Z1→Y, Z2→Y) requires P(Z2|X, Z1) where Z1 isn't Z2's "
-        "structural parent. Three fix options in wall.md iter 150; "
-        "this xfail-strict marker flips when any is chosen and "
-        "implemented. Unit-level Tian formula correctness pins are "
-        "in test_formula_sum_bind_referenced.py — they remain "
-        "authoritative; only the e2e wiring is gapped."
+        "Iter 168 fixed half: semantic_validator now accepts the "
+        "needed CPTs (parents ∪ directed-ancestors ∪ bidirected-"
+        "siblings of target). But scheduler now routes the disjoint-"
+        "Y query through backdoor (empty adjustment, since X has no "
+        "parents), which needs P(Y|X) — not supplied. The user's "
+        "P(Y|X, Z1, Z2) family is Tian-evaluable but not backdoor-"
+        "evaluable. Two follow-on options: (a) scheduler falls "
+        "through to Tian when the structurally-preferred path's "
+        "CPTs are absent but a downstream path's CPTs are present; "
+        "(b) numeric_estimator marginalizes Σ_{z1,z2} P(Y|X,z1,z2) "
+        "·P(z1,z2|X) automatically when P(Y|X) is the demand. "
+        "Either flips this xfail. wall.md iter 168 trace."
     ),
 )
 def test_tian_disjoint_y_e2e_blocked_by_semantic_validator():

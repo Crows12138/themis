@@ -588,3 +588,51 @@ Iter 167 deliverable:
 iter 165 xfail-strict tracker remains in place. Next iter's path
 forward is clear: implement the topo-predecessor-in-c-component-
 closure rule using existing structural_solver helpers.
+
+---
+
+#### 2026-05-07 iter 168 update — validator loosen lands; scheduler routing gap exposed
+
+Implemented the richer rule iter 167 documented:
+
+```
+admissible_given = parents(target)
+                 ∪ directed_ancestors(target)
+                 ∪ bidirected_siblings(target)
+```
+
+Disjoint-Y case CPTs now all pass validation:
+- P(Z1|X): parents ✓
+- P(Z2|X, Z1): X is parent, Z1 is bidirected sibling ✓
+- P(Y|X, Z1, Z2): Z1, Z2 are parents; X is directed ancestor ✓
+
+Existing test_non_parent_in_given_is_rejected still rejects
+correctly (unrelated atom is neither parent, ancestor, nor sibling).
+All 1856 tests still pass.
+
+But iter 165 xfail-strict tracker STILL xfails — for a different
+reason now. The disjoint-Y query routes through BACKDOOR
+identification (X has no parents → empty adjustment set →
+P(Y|do(X)) = P(Y|X)). Backdoor demands P(Y|X) which the user
+didn't supply (they supplied the joint P(Y|X, Z1, Z2) family).
+Status: needs_investigation with missing_information=
+[{name: 'parameter:P(y=True|x=True)'}].
+
+This is a SCHEDULER ROUTING GAP, not a validation gap:
+- The user's data is Tian-evaluable (Q[{Z1,Z2}] · Q[{Y}] product)
+- But scheduler picked backdoor (preferred path) without checking
+  if the user actually supplied the backdoor CPTs
+- Backdoor's missing P(Y|X) could be DERIVED via tower from the
+  supplied joint, but kernel doesn't auto-marginalize
+
+Two follow-on fixes (in updated xfail reason):
+(a) Scheduler fall-through: when preferred path's CPTs are absent
+    but a downstream path's CPTs are present, retry on the
+    downstream path
+(b) numeric_estimator auto-marginalization: when P(Y|X) is the
+    demand and the joint family is in theta, derive by Σ over
+    intermediates
+
+iter 168 deliverable: validator loosen + xfail-strict reason
+updated to reflect the new (scheduler-side) gap. The next
+iter has a clear concrete fix path with two options.
