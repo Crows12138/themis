@@ -490,17 +490,24 @@ def _try_derive_via_marginalization(
     pin (``test_runtime_and_verifier_marginalization_agree_byte_
     for_byte``).
 
-    KNOWN LIMITATION (iter 186 probe): the inner-factor lookup
-    requires P(Z=v | given) to exist directly in theta or be
-    recursively marginalizable. It does NOT do Bayesian inversion
-    — e.g. for a chain mediator graph X→M1→M2→Y with X↔Y latent,
-    the front-door fragment demands P(Y|X, M2) which would be
-    derivable as Σ_{m1} P(Y|X, M1=m1, M2)·P(M1=m1|X, M2). User
-    typically supplies P(M2|X, M1) and P(M1|X), so P(M1|X, M2)
-    needs Bayes: P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X).
-    Iter 172 punts on this; future iter that adds Bayesian inversion
-    to the inner-factor branch unlocks the chain-mediator front-
-    door variant. Mirror change to verifier helper.
+    HISTORICAL LIMITATION (iter 186, CLOSED iter 188): chain-mediator
+    front-door (X→M1→M2→Y, X↔Y) demands P(M1|X, M2) which user
+    didn't supply. Iter 187/188 added _try_derive_via_bayes_inversion
+    invoked from the inner-factor branch to derive it via
+    P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X). Closed end-to-end.
+
+    REMAINING LIMITATION (iter 191 probe): parallel multi-mediator
+    front-door (X→M1→Y, X→M2→Y, X↔Y) demands P(M2|M1, X) — chain-
+    rule decomposition of joint P(M1, M2|X). User typically supplies
+    marginal P(M1|X) + P(M2|X) (parallel independence implied).
+    Bayes inversion can't derive P(M2|M1, X) without P(M1|M2, X)
+    which is also missing → circular. Resolution paths:
+    (a) joint-CPT primitive: user supplies P(M1, M2|X) as one entry
+    (b) marginal-independence detection: kernel infers M1 ⊥ M2 | X
+        from graph structure (no edge between them) → P(M2|M1, X) =
+        P(M2|X)
+    Both are non-trivial features; out of scope for the iter 186-189
+    Bayes arc. Filed for future iter.
 
     Conservative on derivation order: tries each candidate Z in
     order of appearance, picks the first that fully evaluates.
