@@ -286,6 +286,7 @@ def _estimate_effect_queries(
             if iv_estimate.first_stage_f_stat is not None:
                 iv_numeric_dict["first_stage_f_stat"] = iv_estimate.first_stage_f_stat
             result["numeric_estimate"] = iv_numeric_dict
+            _attach_precision_budget(result["numeric_estimate"])
             result["derivation"] = _build_iv_numeric_derivation_dict(
                 graph=graph,
                 x=x_atom, y=y_atom,
@@ -336,6 +337,7 @@ def _estimate_effect_queries(
             "treatment": fd_estimate.treatment,
             "outcome": fd_estimate.outcome,
         }
+        _attach_precision_budget(result["numeric_estimate"])
 
         result["derivation"] = _build_frontdoor_numeric_derivation_dict(
             graph=graph,
@@ -632,6 +634,7 @@ def _try_transport_estimate(
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
     }
+    _attach_precision_budget(result["numeric_estimate"])
     # Flip status to numerically_solved while preserving the existing
     # transport derivation (Phase 9 §T9.1's s_admissibility_check /
     # transport_formula / identify_via_transport steps).
