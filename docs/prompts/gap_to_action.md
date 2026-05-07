@@ -37,10 +37,28 @@ ask Q0 first; if it doesn't short-circuit, run the Q1–Q3 walk:
 is already mirrored as a ⚠ line in `result.explanation`. **Do not fetch
 or ask** for these. Surface them in the reply (rephrased as natural
 prose) and move on. They name structural caveats the user must know to
-interpret the answer correctly (front-door / IV / mediation /
-counterfactual / transport assumption disclosures, bounds-not-point,
-unmeasured-confounder-risk, learned-from-data, low-confidence,
-unverified-proposal-edges). They are not data targets.
+interpret the answer correctly. The full list (kept in sync with
+``themis.runtime.scheduler._MUST_DISCLOSE_GAP_KINDS`` plus the
+estimator-runtime gap_kinds attached at dispatch time):
+
+- Identification-time disclosures: `front_door_identification_assumption_required` /
+  `iv_identification_assumption_required` /
+  `mediation_identification_assumption_required` /
+  `transport_identification_assumption_required` /
+  `counterfactual_identification_assumption_required`
+- Bounds-not-point: `answer_is_bounds_not_point_estimate`
+- Confidence: `low_confidence_input_data` / `unverified_proposal_edge_on_query_path`
+- Discovery: `graph_learned_from_data`
+- Ambiguity: `llm_declared_ambiguity`
+- DAG completeness: `unmeasured_confounder_risk` (iter 5)
+- Estimator-runtime (iter 120/121/123): `weak_iv_instrument` (Stock-Yogo
+  F < 10) / `propensity_overlap_violation` (Hernan positivity, > 5%
+  fitted P(X|Z) outside [0.05, 0.95]) / `outcome_model_quasi_separation`
+  (logistic outcome saturation, > 10% fitted P(Y|X,Z) outside
+  [0.01, 0.99])
+
+These are not data targets. Render their content in plain language but
+do NOT trigger fetch / ask user.
 
 `severity == "important"` gaps are usually actionable, but
 **check before fetching**:
@@ -50,6 +68,13 @@ unverified-proposal-edges). They are not data targets.
   is to **reformulate the query** (split into two sequential queries,
   or drop one of `mediator` / `target_population`) per the gap's
   `alternative_paths`. Surface in reply; advise reformulation.
+- `collider_conditioning_opens_backdoor` (iter 122) → no fetch; the
+  action is to **remove the collider from `given`**. The conditional
+  estimate is biased, not just caveated — render with a clear
+  identification-damage warning and recommend re-querying without
+  conditioning on the collider (or, if the user really wants the
+  subgroup effect, route through transport / stratified analysis
+  instead of conditioning).
 
 `severity == "blocking"` always needs Q1-Q3.
 

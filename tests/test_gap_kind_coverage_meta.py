@@ -58,6 +58,12 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   transport_post_stratification + iter 124 extended sensitivity to
   continuous outcome but neither was prompt-documented for 4 iters
   — this pin catches that drift class going forward.)
+- test_must_disclose_gap_kinds_documented_in_gap_to_action (iter 136
+  — parallel to iter 132 but for gap_to_action.md: every must-disclose
+  gap_kind + the iter 120/121/123 estimator-runtime gap_kinds must
+  appear verbatim in the prompt's Q0 INFORMATIONAL list. iter 119-134
+  added 4 new gap_kinds that drifted out of gap_to_action for ~16
+  iters until iter 136 caught it.)
 - test_estimation_init_docstring_inventories_all_exports (iter 111 —
   themis/estimation/__init__.py docstring described "Phase 7.1 scope"
   while the package had grown to include Phase 8.1 / 8.2 / 14
@@ -1444,6 +1450,40 @@ def test_subpackage_init_docstrings_inventory_all_exports(pkg_name):
     assert not missing, (
         f"themis/{pkg_name}/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring."
+    )
+
+
+def test_must_disclose_gap_kinds_documented_in_gap_to_action():
+    """Iter 136 — parallel to iter 132's response_rendering pin but
+    for gap_to_action.md: every must-disclose gap_kind PLUS the iter
+    120/121/123 estimator-runtime gap_kinds (which auto-mirror to
+    explanation but live outside _MUST_DISCLOSE_GAP_KINDS) must
+    appear verbatim in gap_to_action.md so the orchestrator agent
+    has explicit Q0-pre-screen guidance for each.
+
+    iter 119-134 added 4 new gap_kinds (collider, weak_iv,
+    propensity_overlap, outcome_separation) that drifted out of
+    gap_to_action for ~16 iters until this pin caught it.
+    """
+    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+
+    estimator_runtime_kinds = {
+        "weak_iv_instrument",            # iter 120
+        "propensity_overlap_violation",  # iter 121
+        "outcome_model_quasi_separation",  # iter 123
+    }
+    expected = set(_MUST_DISCLOSE_GAP_KINDS) | estimator_runtime_kinds
+
+    prompt = (
+        REPO_ROOT / "docs" / "prompts" / "gap_to_action.md"
+    ).read_text(encoding="utf-8")
+
+    missing = sorted(k for k in expected if k not in prompt)
+    assert not missing, (
+        f"gap_to_action.md missing gap_kinds: {missing}. "
+        "Every must-disclose + estimator-runtime gap_kind needs Q0 "
+        "pre-screen guidance — agents using this prompt have no "
+        "fallback rules for unmentioned kinds."
     )
 
 
