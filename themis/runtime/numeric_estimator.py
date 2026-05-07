@@ -397,14 +397,38 @@ def _try_marginal_independence_lookup(
     didn't supply P(M2|M1, X) because they took the parallel-paths
     semantics for granted (M1 ⊥ M2 | X).
 
-    RISK: silently uses user-implied independence. If the user's
-    DAG has M1 → M2 (chain), they should have supplied P(M2|M1, X)
-    explicitly; using the marginal would be wrong. Themis trusts
-    the user's choice — its contract is "use what you give me",
-    not "audit your CPT contract for consistency".
-
     Tries the LARGEST admissible subset first (most informative
     conditioning) so that adding to theta tightens results.
+
+    SAFETY ANALYSIS (iter 195 probe):
+
+    The fallback fires ONLY when direct lookup + marginalization +
+    Bayes inversion all fail. In practice this means:
+
+    - Parallel multi-mediator (X→M1→Y, X→M2→Y, X↔Y): user typically
+      supplies marginal P(M2|X) (independence implied by graph
+      structure — M1 ⊥ M2 | X by d-separation). Bayes inversion
+      can't help (P(M1|M2, X) needs P(M2|M1, X) which is what we're
+      deriving — circular). Fallback fires → CORRECT, since graph
+      structurally implies the independence.
+
+    - Chain X→M1→M2→Y with marginal-only theta (user wrote chain
+      causes but supplied marginal CPTs): if user had supplied chain
+      CPT P(M2|X, M1), Bayes inversion would handle the demand. If
+      they ONLY supplied marginal P(M2|X), this fallback would
+      silently use it — WRONG, since M1 → M2 makes them dependent
+      given X. iter 195 confirmed numerically: returns 0.586 when
+      true front-door answer would be different.
+
+    Themis trusts user-supplied theta per the iter 174 contract
+    ("use what you give me, don't audit my CPT contract"). The
+    risk-mitigated future fix would thread the graph through to
+    this helper and ONLY apply the fallback when d-separation
+    confirms Z ⊥ extras | reduced_given. Iter 196+ scope.
+
+    TL;DR: correct for parallel-paths cases (the unlock target);
+    risky for chain-DAGs with marginal-only theta (user mismatch
+    between declared graph and supplied CPTs).
     """
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
