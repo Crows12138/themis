@@ -160,6 +160,9 @@ def _evaluate(
     expr: FormulaExpr,
     theta: Theta,
     subs: Mapping[str, AtomValue],
+    *,
+    graph=None,
+    bidirected=None,
 ) -> float:
     if isinstance(expr, ConstantExpr):
         return float(expr.value)
@@ -171,13 +174,18 @@ def _evaluate(
             # Iter 172: try auto-marginalization before giving up.
             # If theta has a richer joint family that lets us derive
             # this CPT via Σ_z P(Y|X,Z)·P(Z|X), use it.
-            derived = _try_derive_via_marginalization(key, theta)
+            derived = _try_derive_via_marginalization(
+                key, theta, graph=graph, bidirected=bidirected,
+            )
             if derived is None:
-                # Iter 193: marginal-independence fallback. If the
-                # user supplied a marginal P(target|reduced_given),
-                # use it — they implicitly asserted independence
-                # from the extras.
-                derived = _try_marginal_independence_lookup(key, theta)
+                # Iter 193: marginal-independence fallback (iter 199
+                # extension: graph-aware d-separation guard when
+                # graph + bidirected available — closes iter 195's
+                # documented silent-wrong risk for chain DAG +
+                # marginal-only theta).
+                derived = _try_marginal_independence_lookup(
+                    key, theta, graph=graph, bidirected=bidirected,
+                )
             if derived is not None:
                 return derived
             raise InsufficientTheta(
@@ -189,7 +197,9 @@ def _evaluate(
     if isinstance(expr, ProductExpr):
         result = 1.0
         for term in expr.terms:
-            result *= _evaluate(term, theta, subs)
+            result *= _evaluate(
+                term, theta, subs, graph=graph, bidirected=bidirected,
+            )
         return result
 
     if isinstance(expr, SumExpr):
@@ -197,21 +207,37 @@ def _evaluate(
         for v in theta.domain_of(expr.over):
             new_subs = dict(subs)
             new_subs[expr.bind.name] = v
-            total += _evaluate(expr.body, theta, new_subs)
+            total += _evaluate(
+                expr.body, theta, new_subs,
+                graph=graph, bidirected=bidirected,
+            )
         return total
 
     raise TypeError(f"unknown formula node: {type(expr).__name__}")
 
 
-def estimate_formula(formula: FormulaExpr, theta: Theta) -> float:
+def estimate_formula(
+    formula: FormulaExpr,
+    theta: Theta,
+    *,
+    graph=None,
+    bidirected=None,
+) -> float:
     """Evaluate a formula AST to a numeric value using Theta.
 
     Raises ``InsufficientTheta`` with a structured missing-key payload
     if any conditional probability referenced by the formula is not
     present in Theta, or if the formula contains query-bound atoms
     whose concrete value has not been supplied.
+
+    Iter 199: optional ``graph`` + ``bidirected`` enable the
+    d-separation safety guard for the marginal-independence fallback.
+    When provided, the fallback only fires if d-separation between
+    target and "extras" given "reduced_given" actually holds — closing
+    iter 195's documented chain-DAG silent-wrong risk. Without graph,
+    falls back to iter 193's trust-the-user behavior (backward compat).
     """
-    return _evaluate(formula, theta, {})
+    return _evaluate(formula, theta, {}, graph=graph, bidirected=bidirected)
 
 
 def estimate_probability(
@@ -385,6 +411,9 @@ def can_derive_via_marginalization(
 def _try_marginal_independence_lookup(
     missing_key: ProbabilityKey,
     theta: Theta,
+    *,
+    graph=None,
+    bidirected=None,
 ) -> float | None:
     """Iter 193 — last-resort fallback when P(Z|given) is missing AND
     not derivable via marginalization or Bayes inversion. If theta
@@ -443,8 +472,6 @@ def _try_marginal_independence_lookup(
         sorted_given = sorted(
             base_given, key=lambda p: (p[0].predicate, str(p[1])),
         )
-        # Try the n_remove smallest-predicate atoms removed first
-        # (deterministic).
         from itertools import combinations
         for to_remove in combinations(sorted_given, n_remove):
             reduced = frozenset(
@@ -455,8 +482,34 @@ def _try_marginal_independence_lookup(
                 given=reduced,
             )
             v = theta.entries.get(reduced_key)
-            if v is not None:
-                return v
+            if v is None:
+                continue
+            # Iter 199: graph-aware safety guard (closes iter 195
+            # silent-wrong risk). When graph + bidirected provided,
+            # only return v if d-separation confirms target ⊥ extras
+            # | reduced — i.e. the user's marginal IS the right
+            # quantity for the demanded conditional. Without graph,
+            # trust user input (iter 193 contract).
+            if graph is not None and bidirected is not None:
+                from .structural_solver import m_separated
+                conditioning = tuple(a for a, _ in reduced)
+                extras_atoms = [a for a, _ in to_remove]
+                # target must be m-separated from EVERY extra atom
+                # given the reduced conditioning. Pairwise check is
+                # sufficient for joint d-sep in graph semantics.
+                all_separated = all(
+                    m_separated(
+                        graph, bidirected,
+                        target_atom, extra, conditioning,
+                    )
+                    for extra in extras_atoms
+                )
+                if not all_separated:
+                    # User-implied independence doesn't hold per
+                    # graph structure — refuse to silently return
+                    # the marginal. iter 195 chain-DAG case lands here.
+                    continue
+            return v
     return None
 
 
@@ -465,6 +518,8 @@ def _try_derive_via_bayes_inversion(
     theta: Theta,
     *,
     _depth: int = 0,
+    graph=None,
+    bidirected=None,
 ) -> float | None:
     """Iter 187 — Bayes inversion for the inner-factor derivation gap
     iter 186 documented. Returns the inverted value if possible, None
@@ -554,6 +609,8 @@ def _try_derive_via_marginalization(
     theta: Theta,
     *,
     _depth: int = 0,
+    graph=None,
+    bidirected=None,
 ) -> float | None:
     """Iter 172 — actual derivation. Returns the marginalized value
     if possible, None otherwise.
@@ -677,6 +734,7 @@ def _try_derive_via_marginalization(
                     # supplies P(M2|X), kernel demands P(M2|M1, X).
                     v_inner = _try_marginal_independence_lookup(
                         inner_key, theta,
+                        graph=graph, bidirected=bidirected,
                     )
                 if v_inner is None:
                     ok = False

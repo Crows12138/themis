@@ -1486,6 +1486,8 @@ def _try_numeric(
     *,
     structural_prefix: tuple[DerivationStep, ...] = (),
     evaluation_step_id: str = "s_eval",
+    graph=None,
+    bidirected=None,
 ) -> QueryResult:
     """Evaluate a formula with the current Theta; on InsufficientTheta
     surface a structured needs_investigation naming the missing
@@ -1501,9 +1503,15 @@ def _try_numeric(
     ``structural_prefix`` is empty for probability queries (no backdoor
     identification needed) and is the full R1..R5 chain for effect
     queries (proving the formula is what identification demands).
+
+    Iter 199: ``graph`` + ``bidirected`` enable the d-separation
+    safety guard for marginal-independence fallback in the evaluator.
+    See themis.runtime.numeric_estimator.estimate_formula for details.
     """
     try:
-        value = numeric_estimator.estimate_formula(formula, theta)
+        value = numeric_estimator.estimate_formula(
+            formula, theta, graph=graph, bidirected=bidirected,
+        )
     except InsufficientTheta as exc:
         missing = _missing_parameter_from_key(exc.missing_key, exc.reason)
         skeletons: dict = {}
@@ -1736,6 +1744,7 @@ def _dispatch_effect(
                     return _try_numeric(
                         stmt, formula, theta, QueryKind.EFFECT,
                         structural_prefix=structural_prefix,
+                        graph=graph, bidirected=bidirected,
                     )
             return QueryResult(
                 status=ResultStatus.NEEDS_INVESTIGATION,
@@ -1788,6 +1797,7 @@ def _dispatch_effect(
                 return _try_numeric(
                     stmt, formula, theta, QueryKind.EFFECT,
                     structural_prefix=structural_prefix,
+                    graph=graph, bidirected=bidirected,
                 )
 
         return QueryResult(
@@ -1830,6 +1840,7 @@ def _dispatch_effect(
     return _try_numeric(
         stmt, formula, theta, QueryKind.EFFECT,
         structural_prefix=structural_prefix,
+        graph=graph, bidirected=bidirected,
     )
 
 
@@ -1913,7 +1924,9 @@ def _dispatch_probability(
         q.target,
         q.given,
     )
-    return _try_numeric(stmt, formula, theta, QueryKind.PROBABILITY)
+    return _try_numeric(
+        stmt, formula, theta, QueryKind.PROBABILITY, graph=graph,
+    )
 
 
 def _attach_framing(
