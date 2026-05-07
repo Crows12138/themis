@@ -99,6 +99,44 @@ def find_degenerate_sums(formula: FormulaExpr) -> list[str]:
     return bad
 
 
+def find_unbound_varrefs(formula: FormulaExpr) -> list[str]:
+    """Return a list of ``VarRef.name`` values that appear in the
+    formula but are NOT bound by any enclosing SumExpr. Empty list =
+    formula is well-formed wrt variable scoping.
+
+    Iter 159 — sister property to find_degenerate_sums: degenerate
+    sums catch "binder declared, never used"; unbound varrefs catch
+    "varref used, never declared". Both are forms of formula
+    malformedness that would cause _evaluate to raise (degenerate)
+    or ValueError(unbound VarRef) at runtime. Catching them via
+    structural walk is much faster + cheaper than waiting for theta
+    evaluation to surface the issue.
+    """
+    bad: list[str] = []
+    _walk_for_unbound(formula, bound_names=frozenset(), out=bad)
+    return bad
+
+
+def _walk_for_unbound(
+    formula: FormulaExpr,
+    *,
+    bound_names: frozenset[str],
+    out: list[str],
+) -> None:
+    if isinstance(formula, ProbabilityRefExpr):
+        for va in (formula.target,) + formula.given:
+            if isinstance(va.value, VarRef) and va.value.name not in bound_names:
+                if va.value.name not in out:
+                    out.append(va.value.name)
+    elif isinstance(formula, ProductExpr):
+        for term in formula.terms:
+            _walk_for_unbound(term, bound_names=bound_names, out=out)
+    elif isinstance(formula, SumExpr):
+        new_bound = bound_names | {formula.bind.name}
+        _walk_for_unbound(formula.body, bound_names=new_bound, out=out)
+    # ConstantExpr: nothing to do
+
+
 def _walk_sums(formula: FormulaExpr, bad: list[str]) -> None:
     if isinstance(formula, SumExpr):
         body_refs: set[str] = set()
@@ -155,6 +193,132 @@ def test_helper_passes_well_formed_sum():
     from themis.types import BindDecl
     f = SumExpr(bind=BindDecl(name="t_x_me"), over=x, body=body)
     assert find_degenerate_sums(f) == []
+
+
+# ---------------------------------------------------------------------------
+# find_unbound_varrefs self-tests (iter 159)
+# ---------------------------------------------------------------------------
+
+
+def test_unbound_varref_helper_catches_free_varref():
+    """Hand-construct: P(x=VarRef('foo')) with no enclosing sum
+    binding 'foo'. Helper must flag 'foo'."""
+    x = _A("x")
+    f = ProbabilityRefExpr(
+        target=ValuedAtom(atom=x, value=VarRef(name="foo")),
+        given=(),
+    )
+    bad = find_unbound_varrefs(f)
+    assert bad == ["foo"]
+
+
+def test_unbound_varref_helper_passes_well_scoped():
+    """Σ_{foo over X} P(x=VarRef('foo')) — 'foo' is bound, no flag."""
+    from themis.types import BindDecl
+    x = _A("x")
+    body = ProbabilityRefExpr(
+        target=ValuedAtom(atom=x, value=VarRef(name="foo")),
+        given=(),
+    )
+    f = SumExpr(bind=BindDecl(name="foo"), over=x, body=body)
+    assert find_unbound_varrefs(f) == []
+
+
+def test_unbound_varref_helper_handles_nested_scope():
+    """Outer Σ_a, inner Σ_b. body uses VarRef('a') and VarRef('b') —
+    both bound by enclosing sums. Should not flag either."""
+    from themis.types import BindDecl
+    a, b = _A("a"), _A("b")
+    inner_body = ProductExpr(terms=(
+        ProbabilityRefExpr(
+            target=ValuedAtom(atom=a, value=VarRef(name="ta")),
+            given=(),
+        ),
+        ProbabilityRefExpr(
+            target=ValuedAtom(atom=b, value=VarRef(name="tb")),
+            given=(),
+        ),
+    ))
+    inner_sum = SumExpr(bind=BindDecl(name="tb"), over=b, body=inner_body)
+    outer_sum = SumExpr(bind=BindDecl(name="ta"), over=a, body=inner_sum)
+    assert find_unbound_varrefs(outer_sum) == []
+
+
+def test_unbound_varref_helper_catches_inner_free():
+    """Σ_a body. Body uses VarRef('a') (bound) AND VarRef('mystery')
+    (NOT bound). Only 'mystery' should be flagged."""
+    from themis.types import BindDecl
+    a, x = _A("a"), _A("x")
+    body = ProductExpr(terms=(
+        ProbabilityRefExpr(
+            target=ValuedAtom(atom=a, value=VarRef(name="ta")),
+            given=(),
+        ),
+        ProbabilityRefExpr(
+            target=ValuedAtom(atom=x, value=VarRef(name="mystery")),
+            given=(),
+        ),
+    ))
+    f = SumExpr(bind=BindDecl(name="ta"), over=a, body=body)
+    bad = find_unbound_varrefs(f)
+    assert bad == ["mystery"]
+
+
+# ---------------------------------------------------------------------------
+# Audit existing formula emitters: every production formula must
+# satisfy BOTH degenerate-sum AND unbound-varref invariants.
+# ---------------------------------------------------------------------------
+
+
+def test_tian_pure_chain_no_unbound_varrefs():
+    """Iter 159: post-iter-145+147 Tian pure-chain formula must be
+    fully scoped (in addition to having no degenerate sums per
+    test_tian_pure_dag_chain_no_degenerate_sums)."""
+    from themis.runtime.c_factor import identify_via_tian
+    x, m, y = _A("x"), _A("m"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m), (m, y)])
+    r = identify_via_tian(g, frozenset(), x, y, x_value=True)
+    assert r.formula is not None
+    assert find_unbound_varrefs(r.formula) == []
+
+
+def test_tian_disjoint_y_no_unbound_varrefs():
+    """Iter 159: post-iter-145+147 disjoint-Y formula must be fully
+    scoped (in addition to having no degenerate sums)."""
+    from themis.runtime.c_factor import identify_via_tian
+    x, z1, z2, y = _A("x"), _A("z1"), _A("z2"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, z1), (x, z2), (z1, y), (z2, y)])
+    bi = frozenset({frozenset({z1, z2})})
+    r = identify_via_tian(g, bi, x, y, x_value=True)
+    assert r.formula is not None
+    assert find_unbound_varrefs(r.formula) == []
+
+
+def test_backdoor_chain_rule_no_unbound_varrefs():
+    """Iter 159: backdoor with 2-Z chain-rule expansion must be
+    fully scoped."""
+    from themis.runtime.formula_builder import backdoor_formula
+    y, x, z1, z2 = _A("y"), _A("x"), _A("z1"), _A("z2")
+    f = backdoor_formula(
+        target=ValuedAtom(atom=y, value=None),
+        intervention=ValuedAtom(atom=x, value=True),
+        adjustment_set=(z1, z2),
+    )
+    assert find_unbound_varrefs(f) == []
+
+
+def test_frontdoor_two_mediators_no_unbound_varrefs():
+    """Iter 159: front-door 2-mediator must be fully scoped."""
+    from themis.runtime.formula_builder import front_door_formula
+    y, x, m1, m2 = _A("y"), _A("x"), _A("m1"), _A("m2")
+    f = front_door_formula(
+        target=ValuedAtom(atom=y, value=None),
+        intervention=ValuedAtom(atom=x, value=True),
+        mediators=(m1, m2),
+    )
+    assert find_unbound_varrefs(f) == []
 
 
 # ---------------------------------------------------------------------------
