@@ -40,6 +40,8 @@ the canonical set lives in ``scheduler._MUST_DISCLOSE_GAP_KINDS``):
   fallback added iter 10 for needs_investigation + missing-theta case)
 - counterfactual_identification_assumption_required — Phase 5 §C
 - graph_learned_from_data — Phase 8.1 discovery
+- collider_conditioning_opens_backdoor — iter 122 selection-bias
+  signal (board #7); fires when EffectQuery.given names a collider
 
 Additional data-need gap_kinds (NOT must-disclose — these surface only
 via ``data_gap_report``, not auto-mirrored to ``explanation``):
@@ -174,6 +176,9 @@ def compute_data_gap_report(
     ))
     must_disclose_gaps.extend(_classify_unattempted_layer_dispatch_conflict(
         stmt=stmt, extensions=extensions,
+    ))
+    must_disclose_gaps.extend(_classify_collider_conditioning_opens_backdoor(
+        program=program, stmt=stmt,
     ))
 
     # For cause / assoc / probability the only data-need-bearing channel
@@ -1533,6 +1538,118 @@ def _classify_dose_response_data(
             ),
         ),
     )
+
+
+def _classify_collider_conditioning_opens_backdoor(
+    *,
+    program,
+    stmt,
+) -> Iterable[DataGap]:
+    """Iter 122 — selection-bias board (#7) signal.
+
+    EffectQuery's ``given`` (conditioning subgroup) contains a node W
+    where both the intervention X and the target Y appear as ancestors
+    in the program-derived directed graph. Per Pearl d-separation,
+    conditioning on W (a collider on the X→...→W←...←Y path) OPENS
+    that path rather than blocks it; the conditional effect estimate
+    is NOT the conditional intervention effect on the requested
+    subgroup — it carries collider-induced bias.
+
+    Detection rule (predicate-level, robust to forall instantiation):
+    for each W in given.atoms, walk parents-of from W via cause edges
+    and collect the transitive closure (W's ancestor set). If both X
+    and Y are in W's ancestors, fire IMPORTANT severity gap.
+
+    Severity: IMPORTANT — not informational. The estimate is no
+    longer the requested causal contrast, just a confounded
+    conditional. Renderer must surface clearly so the user does NOT
+    interpret the result as the conditional ATE.
+    """
+    from ..types import EffectQuery
+
+    if program is None or stmt is None:
+        return
+    q = getattr(stmt, "query", None)
+    if not isinstance(q, EffectQuery):
+        return
+    given = getattr(q, "given", ())
+    if not given:
+        return
+
+    intervention_pred = q.intervention.atom.predicate
+    target_pred = q.target.atom.predicate
+
+    # Build parent-of map from cause edges (predicate-level — forall
+    # quantification doesn't change the predicate edge structure).
+    parents_of: dict[str, set[str]] = {}
+    for st in program.statements:
+        if isinstance(st, CauseStatement):
+            parents_of.setdefault(
+                st.to_atom.predicate, set()
+            ).add(st.from_atom.predicate)
+
+    def _ancestors(node: str) -> set[str]:
+        seen: set[str] = set()
+        stack = list(parents_of.get(node, set()))
+        while stack:
+            curr = stack.pop()
+            if curr in seen:
+                continue
+            seen.add(curr)
+            stack.extend(parents_of.get(curr, set()))
+        return seen
+
+    for given_item in given:
+        atom = getattr(given_item, "atom", given_item)
+        w_pred = getattr(atom, "predicate", None)
+        if w_pred is None:
+            continue
+        if w_pred in (intervention_pred, target_pred):
+            # Conditioning on the intervention or target itself is a
+            # different problem (degenerate query), not collider opening.
+            continue
+        ancs = _ancestors(w_pred)
+        if intervention_pred in ancs and target_pred in ancs:
+            yield DataGap(
+                kind=GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR,
+                severity=GapSeverity.IMPORTANT,
+                description=(
+                    f"`given` 中的条件节点 `{w_pred}` 是 collider —— "
+                    f"`{intervention_pred}` 和 `{target_pred}` 都是它"
+                    f"的祖先。Pearl d-separation：在 collider 上做条件"
+                    f"会**打开** `{intervention_pred}→...→{w_pred}←..."
+                    f"←{target_pred}` 这条路径而不是阻断它，给最终估计"
+                    f"引入 collider-induced bias / selection bias。当前"
+                    f"返回的不是 \"在 `{w_pred}` 子群上的因果效应\"，"
+                    f"而是被打开的非因果路径污染过的混合量。"
+                ),
+                blocks=GapBlocks.IDENTIFICATION,
+                if_provided=(
+                    f"从 `given` 移除 `{w_pred}` —— 如果你真的想问 "
+                    f"\"在 `{w_pred}` 子群上的效应\"，需要单独的 "
+                    f"transport / stratified analysis（先分层再估计），"
+                    f"不能直接做条件查询"
+                ),
+                alternative_paths=(
+                    f"不做这个条件，问 marginal 效应 P({target_pred} | "
+                    f"do({intervention_pred}))",
+                    f"如果 `{w_pred}` 不是真 collider（即只有 X 或只有 Y "
+                    f"是祖先），更新 DAG 把缺失的因果方向加进去 — "
+                    f"当前结构性结论会变",
+                    f"用 transport identification 路径处理 \"target "
+                    f"population restricted by {w_pred}\" 而不是用 "
+                    f"`given` 字段",
+                ),
+                provenance=(
+                    GapProvenanceRef(
+                        ref_kind=GapRefKind.VERIFIER_CHECK,
+                        ref_id=(
+                            f"collider:{w_pred}|"
+                            f"{intervention_pred}->{target_pred}"
+                        ),
+                    ),
+                ),
+            )
 
 
 def _classify_unattempted_layer_dispatch_conflict(

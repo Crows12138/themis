@@ -2499,6 +2499,7 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     "graph_learned_from_data",
     "unmeasured_confounder_risk",
     "unattempted_layer_due_to_dispatch_conflict",
+    "collider_conditioning_opens_backdoor",
 })
 
 

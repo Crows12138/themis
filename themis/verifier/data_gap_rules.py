@@ -308,6 +308,13 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # (treatment, adjustment) pair; same posture as weak_iv_instrument
     # — runtime signal, no derivation step.
     "propensity_overlap_violation": frozenset({"verifier_check"}),
+    # iter 122: structural signal — given (conditioning subgroup) in
+    # an EffectQuery contains a node where both X and Y are ancestors
+    # (collider). Provenance is a verifier_check ref naming the
+    # (collider, intervention -> target) trio; classifier-driven, no
+    # derivation step (fires on program shape regardless of result
+    # status).
+    "collider_conditioning_opens_backdoor": frozenset({"verifier_check"}),
 }
 
 

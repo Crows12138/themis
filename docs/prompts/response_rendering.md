@@ -66,6 +66,7 @@ A reply is a small ladder, top to bottom:
    | `graph_learned_from_data` | DAG learned by PC/FCI/LiNGAM |
    | `unmeasured_confounder_risk` | DAG has measured confounders but no bidirected — adjustment may leave residual unmeasured-confounder bias (HRT-CVD / Card 1995 schooling / vitamin D-CVD pattern) |
    | `unattempted_layer_due_to_dispatch_conflict` | Query specified multiple identification layers (e.g. both mediator and target_population) but kernel only dispatched one; the other was silently skipped (mediation × transport must be sequential per Cole & Stuart 2010 / VanderWeele 2016 §6.2) |
+   | `collider_conditioning_opens_backdoor` | EffectQuery's `given` (conditioning subgroup) contains a node that is a collider — both intervention X and target Y are ancestors. Per Pearl d-separation, conditioning OPENS the X→…→W←…←Y path rather than blocking it; the returned conditional effect carries collider-induced bias |
 
    When you see one of these kinds in `data_gap_report.gaps[]`, do
    NOT itemize it again as a separate bullet — the matching ⚠ line

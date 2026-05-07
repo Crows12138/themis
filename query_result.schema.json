@@ -848,7 +848,8 @@
             "unmeasured_confounder_risk",
             "unattempted_layer_due_to_dispatch_conflict",
             "weak_iv_instrument",
-            "propensity_overlap_violation"
+            "propensity_overlap_violation",
+            "collider_conditioning_opens_backdoor"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

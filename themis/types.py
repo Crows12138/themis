@@ -631,6 +631,21 @@ class GapKind(str, Enum):
     # on extrapolation. DoWhy/EconML can compute propensities but
     # don't structure-route this as a gap.
     PROPENSITY_OVERLAP_VIOLATION = "propensity_overlap_violation"
+    # iter 122: EffectQuery's `given` (conditioning subgroup) contains
+    # a node W where both intervention X and target Y are ancestors.
+    # Per Pearl d-separation, conditioning on W (a collider on the
+    # X→...→W←...←Y path) OPENS that path rather than blocks it,
+    # introducing selection / collider bias. The user thought they
+    # were stratifying on a sensible covariate; structurally they
+    # opened a non-causal path. Surfaced as IMPORTANT (not informational
+    # — this is real identification damage, not just a caveat) so the
+    # renderer cannot present the conditional effect as if it were
+    # the same identification target. DoWhy/EconML accept arbitrary
+    # adjustment / conditioning sets without flagging colliders;
+    # Themis owns the program-level graph and can detect this
+    # structurally. Selection-bias board (#7) is the lowest-coverage
+    # active board — this gap_kind directly bumps it.
+    COLLIDER_CONDITIONING_OPENS_BACKDOOR = "collider_conditioning_opens_backdoor"
 
 
 class GapSeverity(str, Enum):
