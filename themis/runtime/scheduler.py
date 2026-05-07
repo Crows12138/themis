@@ -2635,23 +2635,31 @@ def _attach_bounds_result(
 
 
 def _detect_monotonicity_for_query(program, query):
-    """Iter 119 — read MTR declaration from program.extensions.
+    """Iter 119 + 131 — resolve MTR declaration for an EffectQuery.
 
-    Shape:
-        program.extensions = {
-            "monotonicity": {
-                "target": "<target_predicate>",
-                "treatment": "<treatment_predicate>",
-                "direction": "non_decreasing" | "non_increasing",
-            }
-        }
+    Iter 131 added a first-class ``query.assumptions.monotonicity``
+    field; iter 119's ``program.extensions['monotonicity']`` side-
+    channel is kept as a backwards-compat fallback. Resolution order:
 
-    Returns the matching ``Monotonicity`` enum value when the
-    declaration's target+treatment pair matches the query, else None.
-    Multiple declarations can be expressed as a list under the same key.
+    1. **First-class field**: ``query.assumptions.monotonicity`` —
+       direct, no target/treatment matching needed (the assumption
+       is on this query's own intervention → target relationship).
+    2. **Extensions hack** (iter 119): walk
+       ``program.extensions['monotonicity']`` (dict or list of dicts)
+       and match by ``(target, treatment)`` pair to query's predicates.
+
+    Returns the matching ``Monotonicity`` enum value, else None.
     """
     from ..types import Monotonicity
 
+    # Iter 131: prefer first-class field.
+    query_assumptions = getattr(query, "assumptions", None)
+    if query_assumptions is not None:
+        mono = getattr(query_assumptions, "monotonicity", None)
+        if mono is not None:
+            return mono
+
+    # Iter 119 fallback: walk extensions side-channel.
     extensions = program.extensions or {}
     decls = extensions.get("monotonicity")
     if decls is None:

@@ -169,6 +169,13 @@ class EffectQuery:
     # population (transport identification path). None preserves
     # pre-transport semantics.
     target_population: str | None = None
+    # Iter 131: first-class assumption block parallel to
+    # CounterfactualQuery.assumptions. Currently carries optional
+    # monotonicity for the iter 119 Manski-Tamer bounds path; was
+    # previously read from program.extensions['monotonicity'] as a
+    # side-channel hack. The scheduler still falls back to extensions
+    # when query.assumptions.monotonicity is None for backwards compat.
+    assumptions: "EffectQueryAssumptions | None" = None
 
 
 @dataclass(frozen=True)
@@ -196,6 +203,30 @@ class Monotonicity(str, Enum):
 
 @dataclass(frozen=True)
 class CounterfactualAssumptions:
+    monotonicity: Monotonicity | None = None
+
+
+@dataclass(frozen=True)
+class EffectQueryAssumptions:
+    """Iter 131 — first-class assumption block on EffectQuery.
+
+    Parallel to ``CounterfactualAssumptions`` on CounterfactualQuery
+    — regularizes the way assumptions attach to query types.
+
+    Currently carries:
+    - ``monotonicity``: when set, EffectQuery's bounds layer (Phase
+      12 + iter 119 MTR) tightens one side of Manski natural to
+      the observed marginal under the declared direction. Iter 119
+      originally read this from ``program.extensions['monotonicity']``
+      as a side-channel hack; iter 131 promotes it to a first-class
+      query field. The extensions path remains supported for
+      backwards compat (scheduler falls back to extensions when
+      query.assumptions.monotonicity is None).
+
+    Future fields would land here as identification-time assumptions
+    proliferate (e.g. effect-modification declarations, no-mediator-
+    confounding for CDE).
+    """
     monotonicity: Monotonicity | None = None
 
 

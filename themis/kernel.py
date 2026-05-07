@@ -195,12 +195,23 @@ def _query_to_dict(q) -> dict:
             "given": [_atom_to_dict(a) for a in q.given],
         }
     if isinstance(q, EffectQuery):
-        return {
+        d: dict = {
             "kind": "effect",
             "target": _valued_atom_to_dict(q.target),
             "intervention": _intervention_to_dict(q.intervention),
             "given": [_valued_atom_to_dict(va) for va in q.given],
         }
+        # Iter 131: serialize first-class assumptions field if set.
+        # Backwards-compat: omit when None so old fixtures stay
+        # bit-identical.
+        if (
+            q.assumptions is not None
+            and q.assumptions.monotonicity is not None
+        ):
+            d["assumptions"] = {
+                "monotonicity": q.assumptions.monotonicity.value,
+            }
+        return d
     if isinstance(q, IdentifyQuery):
         return {
             "kind": "identify",

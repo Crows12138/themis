@@ -57,6 +57,7 @@ from ..types import (
     CauseStatement,
     ConstTerm,
     EffectQuery,
+    EffectQueryAssumptions,
     IdentifyQuery,
     Intervention,
     Monotonicity,
@@ -143,12 +144,24 @@ def _to_query(d: dict):
         )
     if k == "effect":
         mediator_raw = d.get("mediator")
+        # Iter 131: parse first-class assumptions field on EffectQuery
+        # (parallel to CounterfactualQuery.assumptions). Backwards-
+        # compat: scheduler still falls back to program.extensions
+        # when this is absent.
+        eq_assumptions_raw = d.get("assumptions")
+        eq_assumptions = None
+        if eq_assumptions_raw is not None:
+            mono = eq_assumptions_raw.get("monotonicity")
+            eq_assumptions = EffectQueryAssumptions(
+                monotonicity=Monotonicity(mono) if mono else None,
+            )
         return EffectQuery(
             target=_to_grounded(d["target"]),
             intervention=_to_intervention(d["intervention"]),
             given=tuple(_to_grounded(a) for a in d["given"]),
             mediator=_to_atom(mediator_raw) if mediator_raw is not None else None,
             target_population=d.get("target_population"),
+            assumptions=eq_assumptions,
         )
     if k == "identify":
         return IdentifyQuery(

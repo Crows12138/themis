@@ -365,6 +365,17 @@
         "target_population": {
           "$ref": "#/$defs/populationName",
           "description": "Phase 9 §T9.1: when present, the effect is wanted in this target population, not in the population the data was collected from. Triggers transport identification — requires at least one selectionNodeStatement to be meaningful."
+        },
+        "assumptions": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Iter 131: first-class assumption block parallel to CounterfactualQuery.assumptions. Optional. Currently carries optional `monotonicity` for the iter 119 Manski-Tamer bounds path; promoted from the iter 119 program.extensions['monotonicity'] side-channel hack to a query-level field. Scheduler still falls back to extensions when this is absent for backwards compat.",
+          "properties": {
+            "monotonicity": {
+              "enum": ["non_decreasing", "non_increasing"],
+              "description": "Direction of monotone treatment response (Manski 1997). When set, EffectQuery's bounds layer tightens one side of Manski natural to the observed marginal. Same semantic as CounterfactualQuery.assumptions.monotonicity."
+            }
+          }
         }
       }
     },

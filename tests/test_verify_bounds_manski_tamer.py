@@ -233,7 +233,7 @@ def test_rejects_missing_monotonicity_declaration():
     bounds = _expected_bounds_dict_treating_high_non_decreasing()
     program = {"version": "0.1"}  # no extensions
     query = _query_dict()
-    with pytest.raises(VerificationError, match="monotonicity\\s+missing"):
+    with pytest.raises(VerificationError, match="neither.*monotonicity.*provided"):
         verify_manski_tamer_bounds_result(
             bounds, program=program, query_dict=query,
         )

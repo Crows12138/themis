@@ -76,42 +76,51 @@ def verify_manski_tamer_bounds_result(
             step_index=None, rule="bounds_manski_tamer",
         )
 
-    extensions = program.get("extensions") or {}
-    decls = extensions.get("monotonicity")
-    if decls is None:
-        raise VerificationError(
-            "MTR bounds emitted but program.extensions.monotonicity "
-            "missing — producer should not have triggered",
-            step_index=None, rule="bounds_manski_tamer",
-        )
-    if isinstance(decls, dict):
-        decls = [decls]
-    if not isinstance(decls, list):
-        raise VerificationError(
-            "program.extensions.monotonicity must be a dict or list of "
-            "dicts; got " + type(decls).__name__,
-            step_index=None, rule="bounds_manski_tamer",
-        )
+    # Iter 131: prefer first-class query.assumptions.monotonicity;
+    # fall back to iter 119's program.extensions.monotonicity hack.
+    direction = None
+    query_assumptions = query_dict.get("assumptions")
+    if isinstance(query_assumptions, dict):
+        direction = query_assumptions.get("monotonicity")
 
-    matching = None
-    for d in decls:
-        if not isinstance(d, dict):
-            continue
-        if (
-            d.get("target") == target_pred
-            and d.get("treatment") == intervention_pred
-        ):
-            matching = d
-            break
-    if matching is None:
-        raise VerificationError(
-            f"no monotonicity declaration matches the query's "
-            f"(target={target_pred!r}, treatment={intervention_pred!r}) "
-            "pair — MTR bounds shouldn't have fired",
-            step_index=None, rule="bounds_manski_tamer",
-        )
+    if direction is None:
+        extensions = program.get("extensions") or {}
+        decls = extensions.get("monotonicity")
+        if decls is None:
+            raise VerificationError(
+                "MTR bounds emitted but neither "
+                "query.assumptions.monotonicity nor "
+                "program.extensions.monotonicity provided — "
+                "producer should not have triggered",
+                step_index=None, rule="bounds_manski_tamer",
+            )
+        if isinstance(decls, dict):
+            decls = [decls]
+        if not isinstance(decls, list):
+            raise VerificationError(
+                "program.extensions.monotonicity must be a dict or "
+                "list of dicts; got " + type(decls).__name__,
+                step_index=None, rule="bounds_manski_tamer",
+            )
+        matching = None
+        for d in decls:
+            if not isinstance(d, dict):
+                continue
+            if (
+                d.get("target") == target_pred
+                and d.get("treatment") == intervention_pred
+            ):
+                matching = d
+                break
+        if matching is None:
+            raise VerificationError(
+                f"no monotonicity declaration matches the query's "
+                f"(target={target_pred!r}, treatment={intervention_pred!r}) "
+                "pair — MTR bounds shouldn't have fired",
+                step_index=None, rule="bounds_manski_tamer",
+            )
+        direction = matching.get("direction")
 
-    direction = matching.get("direction")
     if direction not in ("non_decreasing", "non_increasing"):
         raise VerificationError(
             f"monotonicity direction must be 'non_decreasing' or "
