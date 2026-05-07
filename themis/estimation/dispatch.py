@@ -1037,6 +1037,27 @@ def _attach_precision_budget(numeric_estimate: dict) -> None:
         numeric_estimate["precision_budget"] = pb
 
 
+def _attach_precision_budget_curve(numeric_estimate: dict) -> None:
+    """Dose-response variant: numeric_estimate has a
+    ``dose_response_curve`` list where each point carries its own
+    ci_lower / ci_upper. Compute a precision_budget per point using
+    the SHARED top-level sample_size. Iter 155."""
+    curve = numeric_estimate.get("dose_response_curve")
+    n = numeric_estimate.get("sample_size")
+    if not isinstance(curve, list) or n is None:
+        return
+    for point in curve:
+        if not isinstance(point, dict):
+            continue
+        pb = _compute_precision_budget(
+            ci_lower=point.get("ci_lower"),
+            ci_upper=point.get("ci_upper"),
+            n=n,
+        )
+        if pb is not None:
+            point["precision_budget"] = pb
+
+
 def _attach_precision_budget_decomposition(numeric_estimate: dict) -> None:
     """Mediation variant: numeric_estimate has a ``decomposition`` dict
     where each component (nde / nie / te / proportion_mediated) carries
@@ -1482,6 +1503,7 @@ def _try_dose_response_estimate(
             for p in est.curve
         ],
     }
+    _attach_precision_budget_curve(result["numeric_estimate"])
     result["derivation"] = _build_numeric_derivation_dict(
         graph=graph, x=x, y=y, adjustment=chosen, given=frozenset(given),
         estimate=_LinearDMLAdapter(est),

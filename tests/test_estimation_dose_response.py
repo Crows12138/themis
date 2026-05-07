@@ -313,6 +313,28 @@ def test_verify_roundtrip_for_drlearner_result():
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_dose_response_curve_carries_per_point_precision_budget():
+    """Iter 155: each curve point with non-null CI bounds carries a
+    precision_budget sub-field telling user n_to_halve_ci. Reference
+    point (effect=0 by construction) typically has degenerate CI →
+    helper silently skips; non-reference points should have it."""
+    out = themis.estimate(
+        _dose_response_program(), _synth_data(), model="linear",
+    )
+    curve = out["results"][0]["numeric_estimate"]["dose_response_curve"]
+    pb_count = 0
+    for point in curve:
+        if point.get("ci_lower") is not None and point.get("ci_upper") is not None:
+            if point["ci_lower"] != point["ci_upper"]:
+                # Non-degenerate CI → expect precision_budget
+                assert "precision_budget" in point, (
+                    f"non-reference point x={point['x']} missing precision_budget"
+                )
+                pb_count += 1
+    assert pb_count >= 1, "expected at least one curve point with precision_budget"
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_uppercase_drlearner_is_honored_not_silently_demoted():
     """Round-2 subagent caught: model='DRLearner' (the natural casing
     matching EconML's class name LinearDRLearner) silently fell to

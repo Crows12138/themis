@@ -327,7 +327,8 @@
               "x": { "type": "number" },
               "effect": { "type": "number" },
               "ci_lower": { "type": ["number", "null"] },
-              "ci_upper": { "type": ["number", "null"] }
+              "ci_upper": { "type": ["number", "null"] },
+              "precision_budget": { "$ref": "#/$defs/precisionBudget" }
             }
           }
         },
