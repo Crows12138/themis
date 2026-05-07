@@ -17,6 +17,11 @@ Landed scope:
   on a sklearn outcome model; complements the Imai NDE/NIE path
   with the policy-relevant "what if we forced M to this level?"
   contrast (VanderWeele 2015 ch.2.3.3).
+- Phase 9 §T9.2 (iter 128) — transport-numeric ATE via post-
+  stratification (Cole & Stuart 2010 §3): ``estimate_transport``
+  returning ``TransportEstimate``. Source data + target marginal
+  P(Z) → reweighted ATE in target population. Single-Z scope; multi-
+  Z and IPSW (Westreich 2017) follow in §T9.3+.
 - Phase 8.1 — discovery: ``discover_graph`` (PC / FCI / LiNGAM via
   causal-learn) returning ``DiscoveryResult`` +
   ``discovery_to_kernel_ast`` adapter
@@ -54,6 +59,7 @@ from .sensitivity import (
     e_value_from_ate_binary,
     e_value_from_ate_continuous,
 )
+from .transport import TransportEstimate, estimate_transport
 
 __all__ = [
     "BackdoorEstimate",
@@ -65,6 +71,7 @@ __all__ = [
     "FrontdoorEstimate",
     "IVEstimate",
     "MediationEstimate",
+    "TransportEstimate",
     "discover_graph",
     "discovery_to_kernel_ast",
     "e_value_for_risk_ratio",
@@ -75,4 +82,5 @@ __all__ = [
     "estimate_frontdoor_ate",
     "estimate_iv_ate",
     "estimate_mediation",
+    "estimate_transport",
 ]

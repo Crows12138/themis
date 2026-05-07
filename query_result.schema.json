@@ -274,7 +274,8 @@
             "mediation_linear_imai", "mediation_logit_imai",
             "dose_response_linear_dml",
             "dose_response_causal_forest_dml",
-            "dose_response_linear_drlearner"
+            "dose_response_linear_drlearner",
+            "transport_post_stratification"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },

@@ -110,6 +110,20 @@ def _estimate_effect_queries(
             )
             continue
 
+        # Phase 9 §T9.2 (iter 128): transport queries — when the kernel
+        # already produced a transport_identification extension AND the
+        # program declares a target marginal, run post-stratification
+        # numeric transport. The identification result remains
+        # structurally_solved; we add a numeric_estimate block.
+        if q_stmt.query.target_population is not None:
+            _try_transport_estimate(
+                q_stmt, result, contract, program,
+                random_state=random_state,
+                ci_bootstrap=ci_bootstrap,
+                ci_level=0.95,
+            )
+            continue
+
         x_atom = q_stmt.query.intervention.atom
         y_atom = q_stmt.query.target.atom
         given_atoms = tuple(g.atom for g in q_stmt.query.given)
@@ -535,6 +549,102 @@ def _attach_e_value_if_binary(
         "baseline_rate": e_result.baseline_rate,
         "note": e_result.note,
     }
+
+
+def _try_transport_estimate(
+    q_stmt, result: dict, contract, program,
+    *, random_state: int, ci_bootstrap: int, ci_level: float,
+) -> None:
+    """Phase 9 §T9.2 (iter 128) — numeric transport via post-stratification.
+
+    Runs ``estimate_transport`` when:
+    1. result.extensions.transport_identification is present (Phase 9
+       §T9.1 already produced structural identification with adjustment_set)
+    2. program.extensions.target_marginal is supplied
+    3. data has the required columns
+
+    Mutates ``result`` in place: adds ``numeric_estimate`` with the
+    transport_post_stratification method. Status remains
+    structurally_solved unless the post-stratification numeric path
+    succeeds, in which case it flips to numerically_solved alongside
+    the structural derivation.
+
+    Failures (missing target_marginal / missing data column / empty
+    stratum) are silent — the structural transport result remains
+    valid; the numeric layer just doesn't attach.
+    """
+    from .transport import estimate_transport
+
+    transport_block = (result.get("extensions") or {}).get("transport_identification")
+    if not isinstance(transport_block, dict):
+        return
+    adjustment_atoms = transport_block.get("adjustment_set") or []
+    if not adjustment_atoms:
+        return
+    adjustment_names = tuple(
+        a.get("predicate") for a in adjustment_atoms if isinstance(a, dict)
+    )
+    if not all(adjustment_names) or len(adjustment_names) != 1:
+        # v1 single-Z scope; multi-Z is §T9.3+ follow-up.
+        return
+
+    program_extensions = _extract_program_extensions(program)
+    target_marginal = program_extensions.get("target_marginal")
+    if not isinstance(target_marginal, dict):
+        return
+
+    treatment = q_stmt.query.intervention.atom.predicate
+    outcome = q_stmt.query.target.atom.predicate
+
+    df = contract.data
+    if treatment not in df.columns or outcome not in df.columns:
+        return
+    if adjustment_names[0] not in df.columns:
+        return
+
+    try:
+        estimate = estimate_transport(
+            df,
+            treatment=treatment,
+            outcome=outcome,
+            adjustment=adjustment_names,
+            target_marginal=target_marginal,
+            ci_bootstrap=ci_bootstrap,
+            ci_level=ci_level,
+            random_state=random_state,
+        )
+    except (ValueError, NotImplementedError):
+        return
+
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.source_sample_size,
+        "data_hash": estimate.data_hash,
+        "adjustment": list(estimate.adjustment),
+        "treatment": estimate.treatment,
+        "outcome": estimate.outcome,
+    }
+    # Flip status to numerically_solved while preserving the existing
+    # transport derivation (Phase 9 §T9.1's s_admissibility_check /
+    # transport_formula / identify_via_transport steps).
+    result["status"] = "numerically_solved"
+
+
+def _extract_program_extensions(program) -> dict:
+    """program may be dict or string here — kernel.estimate accepts
+    both shapes; coerce to a dict so we can read .extensions safely."""
+    import json
+    if isinstance(program, (str, bytes)):
+        program = json.loads(program)
+    if not isinstance(program, dict):
+        return {}
+    ext = program.get("extensions")
+    return ext if isinstance(ext, dict) else {}
 
 
 WEAK_IV_F_THRESHOLD = 10.0  # Stock & Yogo (2005), single-instrument

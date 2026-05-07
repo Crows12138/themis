@@ -19,7 +19,7 @@
 | 6 | 中介分析 | **~75%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）/ **Phase 7.5 CDE numeric ✓**（iter 125，sklearn plug-in g-formula at fixed M=m*；linear + logit）；多 mediator 链 → 后续 |
 | 7 | 选择偏差 | **20-25%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ **`collider_conditioning_opens_backdoor` gap_kind ✓** (iter 122，EffectQuery `given` 中含 collider 时结构性诊断) / 选择节点结构 (selection_node) → Phase 9+ |
 | 8 | 测量误差 | **0%** | → Phase 9+（按需）|
-| 9 | 转移性 / 泛化 | **25-30%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）；只到结构层公式，数值估计 § T9.2 / 多源 §T9.3 / latent S → 后续 |
+| 9 | 转移性 / 泛化 | **35-40%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）/ **Phase 9 §T9.2 已落地（iter 128）**：post-stratification numeric (Cole & Stuart 2010 §3) — `estimate_transport` + dispatch path + bootstrap CI；多源 §T9.3 / 多变量 Z 联合 / latent S / IPSW (Westreich 2017) → 后续 |
 | 10 | 敏感性分析 | **~35%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在 binary 估计 + iter 124 Chinn 2000 SMD→RR 路径让连续 outcome 同样获得 E-value）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
 | 11 | 连续 / 数据驱动估计 | **~55-65%** | **Phase 7.1-7.4 + Phase 14 已落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI；dose-response estimator 支持 LinearDML / CausalForestDML opt-in / DRLearner）|
 | 12 | 因果发现 | **~40%** | **Phase 8.1 已落地**（PC/FCI/LiNGAM via causal-learn + kernel_ast suggestion path）；NOTEARS / RL discovery → Phase 9+ |
