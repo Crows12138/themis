@@ -1,6 +1,6 @@
 # NL-layer failure-mode taxonomy
 
-> Status: v2.5 (2026-05-07). 26 codes. Expanded when a real case
+> Status: v2.6 (2026-05-07). 27 codes. Expanded when a real case
 > exposes a mode the current set doesn't cover. F19 added with
 > Phase 6.iv (IV identification slice). F20 added with
 > Phase 6.mediation (NDE/NIE/CDE identifiability). F21 added with
@@ -673,3 +673,55 @@ F26 added 2026-04-26 from VISION 定位收紧 — Themis 重新定位为
 a contract violation; Phase 10 makes it impossible by structuring
 the gap report as a first-class output channel with independent
 T10 audit.
+
+F27 added 2026-05-07 iter 138 — naming the NL-layer pattern that
+iter 122 's structural fix (`collider_conditioning_opens_backdoor`
+gap_kind) addresses. The pattern: LLM / user puts a node into
+EffectQuery `given` that is a collider on the X→…←…←Y path,
+believing they're conditioning on a sensible covariate or
+"adjusting for" something. Per Pearl d-separation the conditioning
+OPENS the path rather than blocks it, biasing the conditional
+effect. Iter 122 made the structural detector + must-disclose
+gap_kind; F27 names the upstream NL pattern so eval_set fixtures
+can target it explicitly.
+
+## F27 — Collider conditioning in user-supplied `given`
+
+The user / LLM supplies a node `W` in `EffectQuery.given` thinking
+it's a confounder to adjust on or a subgroup to stratify by, but
+in the declared DAG `W` is actually a collider — both `X` (intervention)
+and `Y` (target) are ancestors of `W`. Per Pearl d-separation this
+**opens** the X→…→W←…←Y path rather than blocks it, biasing the
+conditional effect. The result is no longer the conditional ATE on
+the requested subgroup; it's a confounded mixture polluted by the
+non-causal path that conditioning unblocked.
+
+The system must:
+
+- Detect the pattern structurally from program shape (no data
+  required) — `themis/output/data_gap_report.py._classify_collider_
+  conditioning_opens_backdoor` walks the cause-edge ancestor map
+  and flags any `given` node where both X and Y are ancestors
+- Attach `collider_conditioning_opens_backdoor` gap_kind with
+  IMPORTANT severity and `blocks: identification` (NOT informational —
+  this is real identification damage, not just a caveat)
+- Auto-mirror to `result.explanation` as a ⚠ line via
+  `_MUST_DISCLOSE_GAP_KINDS` so the renderer cannot silently drop it
+- Render with explicit "remove the collider from `given`" guidance
+  per `docs/prompts/gap_to_action.md` (iter 136 added the IMPORTANT-
+  handling entry); do NOT trigger fetch / ask user
+
+**Typical trigger**: user asks "在女性中，运动对体重影响多大？" with
+gender as a confounder, but the DAG has gender ← exercise (e.g. women
+self-select into exercise programs in the data) and gender ← weight
+(women have different weight distribution). Conditioning on gender
+opens the exercise→gender←weight path. F27 names this NL framing
+failure even though Themis's structural fix (iter 122) makes it
+detectable mechanically.
+
+**Slice most relevant**: iter 122 collider_conditioning_opens_backdoor
+gap_kind (themis/types.py + classifier in data_gap_report.py +
+must-disclose set in scheduler.py + verifier registry +
+response_rendering.md mirrored-set table + gap_to_action.md IMPORTANT
+handling per iter 136). Bumps board 7 (selection bias) 15-20% →
+20-25%.

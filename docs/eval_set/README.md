@@ -1,7 +1,7 @@
 # Themis NL evaluation set
 
-> Status: v2.5 (2026-05-07). **29 cases across 26 failure modes
-> (F1–F26)**. Growth log:
+> Status: v2.6 (2026-05-07). **29 cases across 27 failure modes
+> (F1–F27)**. Growth log:
 > - v1: 20 cases / F1-F18
 > - v2.0: +case 21/22 with F19 (Phase 6.iv)
 > - v2.1: +case 23/24 with F20 (Phase 6.mediation)
