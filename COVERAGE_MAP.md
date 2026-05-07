@@ -1,6 +1,7 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07（iter 188 Bayes inversion unlocks chain-mediator front-door variant）
+> 更新时间：2026-05-07（iter 200 verifier 端 d-sep guard 镜像补完，
+> R7 不再 silently 同意 runtime 的链式 DAG + marginal-only theta 错误数字）
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。

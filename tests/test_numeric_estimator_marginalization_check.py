@@ -395,3 +395,141 @@ def test_direct_lookup_wins_over_marginalization():
     val = estimate_formula(expr, theta)
     # Direct value 0.5 wins; marginalization 0.64 is bypassed
     assert val == 0.5
+
+
+def test_iter_200_verifier_marginal_independence_lookup_with_graph_refuses():
+    """Iter 200: verifier-side d-sep guard mirror. Without the fix,
+    verifier helper accepted graph kwargs but call sites in
+    _evaluate_formula / _verifier_derive_via_marginalization passed
+    nothing, so the guard was dead code. This test pins that when
+    the verifier's helper IS called with a chain DAG + marginal
+    theta, it refuses (matches runtime iter 199 behavior)."""
+    from themis.verifier.rules import (
+        _verifier_marginal_independence_lookup,
+    )
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m1), (m1, m2)])
+    bi = frozenset()
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+
+    v_no = _verifier_marginal_independence_lookup(missing, theta)
+    assert v_no == 0.6
+    v_yes = _verifier_marginal_independence_lookup(
+        missing, theta, graph=g, bidirected=bi,
+    )
+    assert v_yes is None, (
+        "iter 200 verifier d-sep guard should refuse for chain DAG"
+    )
+
+
+def test_iter_200_verifier_evaluate_formula_threads_graph_to_lookup():
+    """Iter 200: _evaluate_formula propagates graph + bidirected to
+    _verifier_marginal_independence_lookup. Without threading the
+    verifier evaluator silently agreed with runtime's wrong number
+    on chain DAG + marginal-only theta (iter 195 silent-wrong risk
+    on the verifier side)."""
+    from themis.verifier.rules import _evaluate_formula, _NonConcreteValue
+    from themis.types import ProbabilityRefExpr, ValuedAtom
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m1), (m1, m2)])
+    bi = frozenset()
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    expr = ProbabilityRefExpr(
+        target=ValuedAtom(atom=m2, value=True),
+        given=(
+            ValuedAtom(atom=x, value=True),
+            ValuedAtom(atom=m1, value=True),
+        ),
+    )
+
+    # Without graph: threads through, helper finds marginal P(M2|X)=0.6
+    val_no_graph = _evaluate_formula(expr, theta, {})
+    assert val_no_graph == 0.6
+
+    # With chain-DAG graph: d-sep guard refuses, evaluator raises
+    import pytest
+    with pytest.raises(_NonConcreteValue):
+        _evaluate_formula(expr, theta, {}, graph=g, bidirected=bi)
+
+
+def test_iter_200_verifier_evaluate_formula_allows_parallel_mediator():
+    """Iter 200: positive case — when graph DOES support the implied
+    independence (parallel mediators with no edge between them),
+    the verifier evaluator returns the marginal as expected."""
+    from themis.verifier.rules import _evaluate_formula
+    from themis.types import ProbabilityRefExpr, ValuedAtom
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    g = nx.DiGraph()
+    # Parallel paths: X→M1, X→M2, no edge between M1 and M2.
+    g.add_edges_from([(x, m1), (x, m2)])
+    bi = frozenset()
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    expr = ProbabilityRefExpr(
+        target=ValuedAtom(atom=m2, value=True),
+        given=(
+            ValuedAtom(atom=x, value=True),
+            ValuedAtom(atom=m1, value=True),
+        ),
+    )
+    val = _evaluate_formula(expr, theta, {}, graph=g, bidirected=bi)
+    assert val == 0.6
+
+
+def test_iter_200_runtime_and_verifier_dsep_guard_agree():
+    """Iter 200 sync pin (extends iter 194): runtime + verifier
+    marginal-independence helpers must agree under the d-sep guard
+    too — both refuse the chain DAG, both allow the parallel one."""
+    from themis.runtime.numeric_estimator import (
+        _try_marginal_independence_lookup,
+    )
+    from themis.verifier.rules import (
+        _verifier_marginal_independence_lookup,
+    )
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    bi = frozenset()
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+
+    g_chain = nx.DiGraph()
+    g_chain.add_edges_from([(x, m1), (m1, m2)])
+    rt_chain = _try_marginal_independence_lookup(
+        missing, theta, graph=g_chain, bidirected=bi,
+    )
+    vf_chain = _verifier_marginal_independence_lookup(
+        missing, theta, graph=g_chain, bidirected=bi,
+    )
+    assert rt_chain is None and vf_chain is None
+
+    g_par = nx.DiGraph()
+    g_par.add_edges_from([(x, m1), (x, m2)])
+    rt_par = _try_marginal_independence_lookup(
+        missing, theta, graph=g_par, bidirected=bi,
+    )
+    vf_par = _verifier_marginal_independence_lookup(
+        missing, theta, graph=g_par, bidirected=bi,
+    )
+    assert rt_par == 0.6 and vf_par == 0.6
+    assert rt_par == vf_par

@@ -1651,12 +1651,23 @@ def _evaluate_formula(
     expr: FormulaExpr,
     theta: Theta,
     subs: dict,
+    *,
+    graph=None,
+    bidirected=None,
 ) -> float:
     """Verifier's independent recursive evaluator for FormulaExpr.
 
     Does NOT call ``themis.runtime.numeric_estimator.estimate_formula``.
     The two evaluators must agree on every concrete value — that
     agreement is what makes R7 meaningful.
+
+    ``graph`` / ``bidirected`` are threaded through to the marginal-
+    independence fallback so the iter 199 d-separation safety guard
+    fires on the verifier side too. Without them the guard would be
+    dead code on this path and the verifier would silently agree with
+    runtime's wrong answer for chain-DAG + marginal-only theta (iter
+    195 risk). Callers from ``_rule_formula_evaluation`` pass
+    ``ctx.graph`` / ``ctx.bidirected``.
     """
     if isinstance(expr, ConstantExpr):
         return float(expr.value)
@@ -1676,10 +1687,16 @@ def _evaluate_formula(
             # auto-marginalization fallback. Verifier independence
             # is preserved because we only consume theta entries +
             # canonical math (no shared state with runtime).
-            derived = _verifier_derive_via_marginalization(key, theta)
+            derived = _verifier_derive_via_marginalization(
+                key, theta, graph=graph, bidirected=bidirected,
+            )
             if derived is None:
                 # Iter 193: mirror marginal-independence fallback.
-                derived = _verifier_marginal_independence_lookup(key, theta)
+                # Iter 200: thread graph + bidirected so the iter 199
+                # d-sep guard fires on this path.
+                derived = _verifier_marginal_independence_lookup(
+                    key, theta, graph=graph, bidirected=bidirected,
+                )
             if derived is not None:
                 return float(derived)
             raise _NonConcreteValue(
@@ -1690,14 +1707,20 @@ def _evaluate_formula(
     if isinstance(expr, ProductExpr):
         result = 1.0
         for t in expr.terms:
-            result *= _evaluate_formula(t, theta, subs)
+            result *= _evaluate_formula(
+                t, theta, subs,
+                graph=graph, bidirected=bidirected,
+            )
         return result
     if isinstance(expr, SumExpr):
         total = 0.0
         for v in theta.domain_of(expr.over):
             new_subs = dict(subs)
             new_subs[expr.bind.name] = v
-            total += _evaluate_formula(expr.body, theta, new_subs)
+            total += _evaluate_formula(
+                expr.body, theta, new_subs,
+                graph=graph, bidirected=bidirected,
+            )
         return total
     raise _NonConcreteValue(f"unknown formula node: {type(expr).__name__}")
 
@@ -1717,6 +1740,8 @@ def _verifier_derive_via_marginalization(
     theta,
     *,
     _depth: int = 0,
+    graph=None,
+    bidirected=None,
 ) -> float | None:
     """Iter 173 — verifier-side mirror of runtime numeric_estimator's
     auto-marginalization fallback. Pure function over theta; no shared
@@ -1772,6 +1797,7 @@ def _verifier_derive_via_marginalization(
             if v_outer is None:
                 v_outer = _verifier_derive_via_marginalization(
                     outer_key, theta, _depth=_depth + 1,
+                    graph=graph, bidirected=bidirected,
                 )
                 if v_outer is None:
                     ok = False
@@ -1789,17 +1815,22 @@ def _verifier_derive_via_marginalization(
             if v_inner is None:
                 v_inner = _verifier_derive_via_marginalization(
                     inner_key, theta, _depth=_depth + 1,
+                    graph=graph, bidirected=bidirected,
                 )
                 if v_inner is None:
                     # Iter 188: mirror runtime's Bayes inversion
                     # fallback for the inner factor.
                     v_inner = _verifier_derive_via_bayes_inversion(
                         inner_key, theta, _depth=_depth + 1,
+                        graph=graph, bidirected=bidirected,
                     )
                 if v_inner is None:
                     # Iter 193: mirror marginal-independence lookup.
+                    # Iter 200: thread graph + bidirected so the
+                    # iter 199 d-sep guard fires here too.
                     v_inner = _verifier_marginal_independence_lookup(
                         inner_key, theta,
+                        graph=graph, bidirected=bidirected,
                     )
                 if v_inner is None:
                     ok = False
@@ -1869,10 +1900,18 @@ def _verifier_derive_via_bayes_inversion(
     theta,
     *,
     _depth: int = 0,
+    graph=None,
+    bidirected=None,
 ) -> float | None:
     """Iter 188 — verifier mirror of runtime's Bayes inversion helper.
     Pure function; preserves V0-V5 independence. Mirror change to
-    runtime's _try_derive_via_bayes_inversion when modifying."""
+    runtime's _try_derive_via_bayes_inversion when modifying.
+
+    Iter 200: ``graph`` / ``bidirected`` accepted and passed through
+    to recursive marginalization calls so the d-sep guard at the
+    leaf marginal-independence lookup fires correctly during deep
+    recursion, not just at the top level.
+    """
     if _depth > 2:
         return None
     target_atom = missing_key.target_atom
@@ -1893,6 +1932,7 @@ def _verifier_derive_via_bayes_inversion(
         if flip_val is None:
             flip_val = _verifier_derive_via_marginalization(
                 flip_key, theta, _depth=_depth + 1,
+                graph=graph, bidirected=bidirected,
             )
         if flip_val is None:
             continue
@@ -1904,6 +1944,7 @@ def _verifier_derive_via_bayes_inversion(
         if target_marginal is None:
             target_marginal = _verifier_derive_via_marginalization(
                 target_key, theta, _depth=_depth + 1,
+                graph=graph, bidirected=bidirected,
             )
         if target_marginal is None:
             continue
@@ -1915,6 +1956,7 @@ def _verifier_derive_via_bayes_inversion(
         if denom is None:
             denom = _verifier_derive_via_marginalization(
                 denom_key, theta, _depth=_depth + 1,
+                graph=graph, bidirected=bidirected,
             )
         if denom is None or denom == 0:
             continue
@@ -1948,7 +1990,10 @@ def _rule_formula_evaluation(
         )
 
     try:
-        recomputed = _evaluate_formula(formula, ctx.theta, {})
+        recomputed = _evaluate_formula(
+            formula, ctx.theta, {},
+            graph=ctx.graph, bidirected=ctx.bidirected,
+        )
     except _NonConcreteValue as e:
         raise RuleCheckFailed(
             f"formula_evaluation: cannot evaluate ({e})",

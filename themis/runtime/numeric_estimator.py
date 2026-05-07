@@ -573,6 +573,7 @@ def _try_derive_via_bayes_inversion(
         if flip_val is None:
             flip_val = _try_derive_via_marginalization(
                 flip_key, theta, _depth=_depth + 1,
+                graph=graph, bidirected=bidirected,
             )
         if flip_val is None:
             continue
@@ -585,6 +586,7 @@ def _try_derive_via_bayes_inversion(
         if target_marginal is None:
             target_marginal = _try_derive_via_marginalization(
                 target_key, theta, _depth=_depth + 1,
+                graph=graph, bidirected=bidirected,
             )
         if target_marginal is None:
             continue
@@ -597,6 +599,7 @@ def _try_derive_via_bayes_inversion(
         if denom is None:
             denom = _try_derive_via_marginalization(
                 denom_key, theta, _depth=_depth + 1,
+                graph=graph, bidirected=bidirected,
             )
         if denom is None or denom == 0:
             continue
@@ -694,9 +697,13 @@ def _try_derive_via_marginalization(
             )
             v_outer = theta.entries.get(outer_key)
             if v_outer is None:
-                # Iter 172: try recursive derivation for this outer term
+                # Iter 172: try recursive derivation for this outer term.
+                # Iter 200: thread graph + bidirected so the leaf d-sep
+                # guard (iter 199) fires during deep recursion, not just
+                # at the top call.
                 v_outer = _try_derive_via_marginalization(
                     outer_key, theta, _depth=_depth + 1,
+                    graph=graph, bidirected=bidirected,
                 )
                 if v_outer is None:
                     ok = False
@@ -715,14 +722,19 @@ def _try_derive_via_marginalization(
                 # Iter 172: also recurse for inner P(Z|given)
                 v_inner = _try_derive_via_marginalization(
                     inner_key, theta, _depth=_depth + 1,
+                    graph=graph, bidirected=bidirected,
                 )
                 if v_inner is None:
                     # Iter 188: try Bayes inversion for the inner
                     # factor — unlocks chain-mediator front-door
                     # cases where P(Z|given) needs flipping via
                     # supplied P(some_given_atom | given\\{a}, Z).
+                    # Iter 200: thread graph + bidirected so deep
+                    # recursion through Bayes also gets the d-sep
+                    # guard at the leaf marginal-indep lookup.
                     v_inner = _try_derive_via_bayes_inversion(
                         inner_key, theta, _depth=_depth + 1,
+                        graph=graph, bidirected=bidirected,
                     )
                 if v_inner is None:
                     # Iter 193: marginal-independence fallback. If

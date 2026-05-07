@@ -865,3 +865,71 @@ Lesson reinforced: iter 184's "probe what's unlocked" lesson keeps
 paying off. 5 mini-arcs since iter 173 closed the original
 disjoint-Y gap — each one widening capability. None of them were
 on the radar pre-iter-167.
+
+---
+
+#### 2026-05-07 iter 200 — verifier-side d-sep guard mirror closes iter 195 silent-wrong on R7
+
+iter 199 added the graph-aware d-separation guard to runtime's
+`_try_marginal_independence_lookup` (closing iter 195's documented
+silent-wrong risk for chain DAG + marginal-only theta). But the
+mirror was incomplete: verifier's `_verifier_marginal_independence_
+lookup` accepted the same `graph` / `bidirected` kwargs, yet **none
+of its call sites passed them** — `_evaluate_formula` (R7), the
+inner-factor branch of `_verifier_derive_via_marginalization`, and
+`_verifier_derive_via_bayes_inversion` all called the helper
+positionally. Result: verifier's safety guard was dead code; R7
+still silently agreed with runtime on the wrong number whenever
+runtime returned one (which iter 199 had already fixed at runtime,
+but R7 is supposed to RE-check, not just rubber-stamp). On the
+runtime side itself, the recursive marginalization + Bayes
+inversion paths also failed to thread `graph` through deep
+recursion, so the guard fired only at the top call.
+
+iter 200 closed both holes:
+
+1. Threaded `graph` / `bidirected` through verifier's `_evaluate_
+   formula`, `_verifier_derive_via_marginalization`, and
+   `_verifier_derive_via_bayes_inversion` to every recursive +
+   helper call site.
+2. Wired `_rule_formula_evaluation` (R7) to pass `ctx.graph` /
+   `ctx.bidirected`.
+3. Mirror-fixed runtime's `_try_derive_via_marginalization` and
+   `_try_derive_via_bayes_inversion` recursive call sites the same
+   way (so deep-recursion paths through these helpers also benefit
+   from the guard, not only the shallow fast path).
+4. Pinned 4 new tests:
+   - verifier helper refuses chain DAG when graph supplied (mirror
+     of iter 199's runtime test);
+   - verifier `_evaluate_formula` raises `_NonConcreteValue` for
+     chain DAG + marginal theta when graph + bidirected threaded;
+   - verifier `_evaluate_formula` allows the parallel-mediator
+     case (graph supports the implied independence);
+   - sync pin asserting runtime + verifier agree under the d-sep
+     guard for both directions (refuse chain, allow parallel).
+
+End-to-end demo: pre-fix R7 silently returned 0.6 for the chain-
+DAG fixture (matching runtime's pre-iter-199 silent-wrong);
+post-fix it raises `_NonConcreteValue: theta has no entry for
+P(m2=True)` — refuses to fabricate, per VISION principle 5
+("数据缺口诊断 ≥ 数值估计 …… 绝不为了'看起来能给数字'而编造").
+
+Test count 1877 → 1881 (+4). Full suite 1883 passed (eval-set
+included). No regression.
+
+Mini-arc deliverables (iter 200, single iter):
+- Spotted the asymmetric mirror gap by reading both helpers' call
+  graphs after seeing iter 199's runtime fix without a paired
+  verifier change.
+- Threaded graph + bidirected end-to-end on both layers.
+- Sync pin extended to cover the d-sep-guard branches, not only
+  the no-graph case (iter 194's coverage).
+
+Lesson: when a fix lands at one layer (runtime), search both
+helper bodies AND every call site on the mirror layer (verifier).
+Helper-signature additions don't propagate; only the runtime/
+verifier sync pin's coverage envelope catches it. iter 175/189/194
+sync pins all asserted "no graph" agreement; none pinned the
+d-sep-guard branch — that's why iter 199 could land without
+surfacing the verifier-side hole. iter 200's sync pin closes that
+class.
