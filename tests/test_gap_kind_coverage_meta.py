@@ -85,6 +85,12 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   docstring was never updated. Pin asserts every name re-exported
   from themis.kernel into themis.__all__ appears in kernel.py's
   module docstring.)
+- test_formula_ast_spec_node_count_matches_types (iter 116 —
+  formula_ast_spec_v0_1.md version pointer header claimed "5 core
+  nodes" listing Sum / Product / ProbabilityRef / BindDecl / VarRef
+  while ConstantExpr was always a 6th node since v0.1. Pin asserts
+  the 五/六/七 claim in the header matches the count of formula AST
+  dataclass names actually present in themis/types.py.)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1135,6 +1141,56 @@ def test_estimation_init_docstring_inventories_all_exports():
         f"themis/estimation/__init__.py docstring missing names from "
         f"__all__: {missing}. Update the docstring to inventory new "
         "exports."
+    )
+
+
+def test_formula_ast_spec_node_count_matches_types():
+    """formula_ast_spec_v0_1.md version-pointer header quotes a count
+    of formula AST node types. Iter 116 caught it claiming "5 core
+    nodes" (Sum / Product / ProbabilityRef / BindDecl / VarRef) while
+    ConstantExpr had always been a 6th node since v0.1.
+
+    Pin asserts the spelled-out Chinese number in the header
+    (五/六/七/八) equals the count of formula AST node dataclasses
+    actually present in themis/types.py: ConstantExpr / SumExpr /
+    ProductExpr / ProbabilityRefExpr / BindDecl / VarRef.
+    """
+    import re
+
+    header = (REPO_ROOT / "formula_ast_spec_v0_1.md").read_text(
+        encoding="utf-8"
+    )
+
+    # Find the quoted Chinese count.
+    chinese_to_int = {
+        "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+    }
+    m = re.search(r"共\s*\*?\*?\s*([三四五六七八九])\s*个\s*AST\s*节点", header)
+    assert m, (
+        "formula_ast_spec_v0_1.md must quote a count of AST node types "
+        "in the header in '共 N 个 AST 节点' form for audit to detect drift"
+    )
+    claimed = chinese_to_int[m.group(1)]
+
+    # Count actual formula AST node dataclasses in types.py.
+    expected_names = {
+        "ConstantExpr",
+        "SumExpr",
+        "ProductExpr",
+        "ProbabilityRefExpr",
+        "BindDecl",
+        "VarRef",
+    }
+    types_text = (REPO_ROOT / "themis" / "types.py").read_text(
+        encoding="utf-8"
+    )
+    found = {n for n in expected_names if f"class {n}" in types_text}
+    actual = len(found)
+
+    assert claimed == actual, (
+        f"formula_ast_spec_v0_1.md header claims {claimed} AST node "
+        f"types but themis/types.py defines {actual} of the expected "
+        f"set: {sorted(found)}. Update the header or the type set."
     )
 
 

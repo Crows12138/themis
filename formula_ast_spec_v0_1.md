@@ -4,10 +4,12 @@
 > AST 子语言规范。系统已演化到 0.15.0-dev，公式 AST 实际已扩展支持
 > 前门（Phase A6）/ ADMG c-factor（Phase 2.latent §S3.b.2，Tian-Pearl
 > Lines 1-6）/ Bareinboim transport / mediation NDE/NIE/CDE 公式形态
-> （详见 [`CORE_STATUS.md`](CORE_STATUS.md)）。本文件的 `Sum` /
-> `Product` / `ProbabilityRef` / `BindDecl` / `VarRef` 五个核心节点
-> 类型在所有扩展中**保持稳定**——新公式形态都是这五类的组合，没有
-> 引入新节点类型。schema 权威：[`query_result.schema.json`](query_result.schema.json)
+> （详见 [`CORE_STATUS.md`](CORE_STATUS.md)）。本文件 §2 定义的
+> 四个算子（`constant` / `probability_ref` / `product` / `sum`）
+> 加上两个绑定结构（`BindDecl` / `VarRef`，由 `sum.over` 引入）
+> 共 **六个 AST 节点类型** 在所有扩展中**保持稳定**——新公式形态
+> 都是这六类的组合，没有引入新节点类型。schema 权威：
+> [`query_result.schema.json`](query_result.schema.json)
 > 的 `formula` 子定义。
 
 本文件规范 `query_result.schema.json` 中 `formula` 字段使用的公式 AST。
