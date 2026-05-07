@@ -188,3 +188,66 @@ def test_tian_disjoint_y_component_no_degenerate_sums():
     assert bad == [], (
         f"Tian Line 4 multi-c-component formula has degenerate sums: {bad}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Audits for the other formula emitters: formula_builder.py
+# (backdoor / front-door). These have always built well-formed formulas
+# (no degenerate sums) — pinning that fact so any future refactor that
+# breaks bind-binding is caught immediately.
+# ---------------------------------------------------------------------------
+
+
+def test_backdoor_single_z_no_degenerate_sums():
+    """Σ_z P(Y|X=x, Z=z) · P(Z=z). Single binder, body must reference z."""
+    from themis.runtime.formula_builder import backdoor_formula
+    from themis.types import ValuedAtom
+
+    y, x, z = _A("y"), _A("x"), _A("z")
+    target = ValuedAtom(atom=y, value=None)
+    intv = ValuedAtom(atom=x, value=True)
+    f = backdoor_formula(target, intv, (z,))
+    bad = find_degenerate_sums(f)
+    assert bad == [], f"backdoor (1 Z) has degenerate sums: {bad}"
+
+
+def test_backdoor_chain_rule_two_z_no_degenerate_sums():
+    """Σ_z1 Σ_z2 P(Y|X, Z1, Z2) · P(Z1) · P(Z2|Z1). Chain rule
+    expansion — both binders must be referenced by body."""
+    from themis.runtime.formula_builder import backdoor_formula
+    from themis.types import ValuedAtom
+
+    y, x, z1, z2 = _A("y"), _A("x"), _A("z1"), _A("z2")
+    target = ValuedAtom(atom=y, value=None)
+    intv = ValuedAtom(atom=x, value=True)
+    f = backdoor_formula(target, intv, (z1, z2))
+    bad = find_degenerate_sums(f)
+    assert bad == [], f"backdoor (chain-rule 2 Z) has degenerate sums: {bad}"
+
+
+def test_frontdoor_single_mediator_no_degenerate_sums():
+    """Σ_m P(M=m|X) · Σ_x' P(Y|X=x', M=m) · P(X=x'). Two binders,
+    each must be referenced by body."""
+    from themis.runtime.formula_builder import front_door_formula
+    from themis.types import ValuedAtom
+
+    y, x, m = _A("y"), _A("x"), _A("m")
+    target = ValuedAtom(atom=y, value=None)
+    intv = ValuedAtom(atom=x, value=True)
+    f = front_door_formula(target, intv, (m,))
+    bad = find_degenerate_sums(f)
+    assert bad == [], f"front-door (1 mediator) has degenerate sums: {bad}"
+
+
+def test_frontdoor_two_mediators_no_degenerate_sums():
+    """Multi-mediator front-door (Phase 6.front-door-multi).
+    Σ_m1 Σ_m2 chain rule + Σ_x' inner. Three binders."""
+    from themis.runtime.formula_builder import front_door_formula
+    from themis.types import ValuedAtom
+
+    y, x, m1, m2 = _A("y"), _A("x"), _A("m1"), _A("m2")
+    target = ValuedAtom(atom=y, value=None)
+    intv = ValuedAtom(atom=x, value=True)
+    f = front_door_formula(target, intv, (m1, m2))
+    bad = find_degenerate_sums(f)
+    assert bad == [], f"front-door (2 mediators) has degenerate sums: {bad}"
