@@ -40,6 +40,10 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   themis/kb/README.md "Mapping gaps to query kinds" table missed
   missing_population_distribution + transport_source_conditional_unknown
   rows; drifted from _GAP_TO_QUERY_KIND in translator.py)
+- test_kb_readme_confidence_grade_ladder_matches_enum (iter 109 — KB
+  README claimed "five-level GRADE-style ladder" but KBConfidenceGrade
+  enum has 6 values; ladder text also listed 6 entries while saying
+  "five". Pin asserts the named values in the prose match the enum)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -1066,6 +1070,65 @@ def test_kb_readme_gap_to_query_kind_table_matches_translator():
         f"{sorted(actual_mapped_names - listed)}; extra in README: "
         f"{sorted(listed - actual_mapped_names)}"
     )
+
+
+def test_kb_readme_confidence_grade_ladder_matches_enum():
+    """themis/kb/README.md prose describes KBConfidenceGrade as a
+    GRADE-style ladder. Iter 109 caught it saying "five-level" while
+    listing 6 entries (5 graded + unknown sentinel). Pin asserts every
+    enum value appears in the prose ladder, and that the digit-word
+    matches the enum count.
+    """
+    import re
+
+    from themis.kb.schemas import KBConfidenceGrade
+
+    actual_values = {v.value for v in KBConfidenceGrade}
+    actual_count = len(actual_values)
+
+    readme = (
+        REPO_ROOT / "themis" / "kb" / "README.md"
+    ).read_text(encoding="utf-8")
+
+    # The "Confidence grading" section describes the ladder. Limit search
+    # to that section so unrelated mentions don't confuse the pin.
+    section = re.search(
+        r"##\s*Confidence grading\s*\n(.*?)(?=\n##\s|\Z)",
+        readme,
+        re.DOTALL,
+    )
+    assert section, (
+        "themis/kb/README.md must have ## Confidence grading"
+    )
+    body = section.group(1)
+
+    # Each value must be named verbatim somewhere in the section.
+    missing = sorted(v for v in actual_values if v not in body)
+    assert not missing, (
+        "themis/kb/README.md Confidence grading section missing "
+        f"enum values: {missing}"
+    )
+
+    # The "N-level" claim must match enum count - 1 (graded levels;
+    # unknown is the sentinel) OR equal enum count if the prose includes
+    # unknown explicitly.
+    word_to_int = {
+        "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8,
+    }
+    m = re.search(
+        r"(two|three|four|five|six|seven|eight)-level",
+        body,
+        re.IGNORECASE,
+    )
+    if m:
+        claimed = word_to_int[m.group(1).lower()]
+        assert claimed in (actual_count, actual_count - 1), (
+            f"KB README claims '{m.group(0)}' but KBConfidenceGrade "
+            f"has {actual_count} values "
+            f"({actual_count - 1} graded + 1 unknown sentinel). "
+            "Update the prose."
+        )
 
 
 def test_mcp_server_docstring_lists_all_tools_and_resources():

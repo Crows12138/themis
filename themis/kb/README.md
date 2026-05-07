@@ -122,10 +122,11 @@ the agent loop).
 
 ## Confidence grading
 
-`KBConfidenceGrade` is a coarse five-level GRADE-style ladder:
-RCT meta-analysis > single RCT > cohort > case-control > expert
-opinion > unknown. Set it from your KB's quality metadata when
-available; default to `unknown` when not.
+`KBConfidenceGrade` is a coarse five-level GRADE-style ladder plus an
+`unknown` sentinel — six enum values total:
+`rct_meta_analysis` > `single_rct` > `cohort` > `case_control` >
+`expert_opinion` > `unknown`. Set it from your KB's quality metadata
+when available; default to `unknown` when not.
 
 This grade is **not** Themis's confidence value (`annotations.
 confidence` ∈ [0, 1]). It's metadata for a future conflict-resolution
