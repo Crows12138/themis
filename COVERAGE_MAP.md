@@ -12,7 +12,7 @@
 | # | 板块 | 覆盖 | 现状 / 策略 |
 |---|---|---|---|
 | 1 | 可观测识别 | **75-80%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / 完整 ID (Shpitser) ✗ → Phase 6.complete-id（可选）|
-| 2 | ADMG / 潜变量 | **~86%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓**（hedge witness + c-factor 乘积形式，2026-05-06；**iter 145 修复 `_atom_to_target_va` 对 Line 4 enriched state.x 误硬编码 literal 的 degenerate-sum bug**：split `_IdState.x` 与 `_IdState.do_atoms`）/ Line 7 完整 ID* 推迟 |
+| 2 | ADMG / 潜变量 | **~86%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓**（hedge witness + c-factor 乘积形式，2026-05-06；**iter 145+147 修复 degenerate-sum bug**：split `_IdState.x` 与 `_IdState.do_atoms` + Line 4 outer-wrap None→VarRef rewrite。e2e via `themis.run` 仍受 semantic_validator `given⊆parents` 限制阻塞，iter 165 xfail-strict tracker `tests/test_tian_e2e_architectural_gap.py`，三种修复方案见 wall.md iter 150）/ Line 7 完整 ID* 推迟 |
 | 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|
