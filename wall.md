@@ -1235,3 +1235,153 @@ mining is what caught this — in-process synthetic tests can't
 randomly generate dispatch combinations, but a real authoritative
 case "user declares chain + supplies marginal + asks conditional"
 hits exactly the path no synthetic test thought to construct.
+
+---
+
+#### 2026-05-07 iter 205 — board #8 (measurement error) 0% break via L3 case 013 (MacMahon 1990 Lancet)
+
+L3 simulation methodology applied to board #8 ``测量误差`` which had
+been documented 0% in COVERAGE_MAP since project start. Mined
+**MacMahon S et al 1990 Lancet 335:765** — meta-analysis of 9
+prospective observational studies, 420,000 individuals, BP→CHD,
+explicitly headlined "**prospective observational studies corrected
+for the regression dilution bias**". Single-occasion office BP
+underestimates the BP-CHD slope by ~60% from within-person variation
+(MacMahon §Methods quote: *"single measurements ... bias the slope
+of the regression line toward zero — a phenomenon known as regression
+dilution bias"*).
+
+Encoded in case 013 with the variable schema's first-class
+``measurement`` field set to ``"single-occasion office sphygmomanometer
+reading at study entry"`` and **deliberately did NOT declare a
+measurement_quality ambiguity** in extensions (case 011's escape-
+hatch path). Pre-iter-205 Themis returned the standard 5-gap envelope
+(missing_distribution + 2 ambiguous_variable_definition + bounds +
+unmeasured_confounder_risk) but **no measurement-error signal at all**
+— even though the Pearl/Hernán/Fuller bias literature has documented
+this exact program shape for 35 years and the variable's own
+``measurement`` field literally says "single-occasion".
+
+**Root cause**: Themis variable schema's ``measurement`` and
+``observability`` fields are first-class (types.py
+VariableDeclaration), but no classifier ever read them. Every
+existing program-shape signal (unmeasured_confounder_risk,
+collider_conditioning_opens_backdoor, graph_learned_from_data) reads
+edge / annotation / extension structure but not variable-level
+measurement metadata. Board #8 sat at literal-zero coverage because
+nobody had built the bridge between "schema admits this field" and
+"classifier acts on its content".
+
+**Structural fix** (not a band-aid — adds a new first-class GapKind):
+``GapKind.MEASUREMENT_ERROR_CONCERN``, severity IMPORTANT (regression
+dilution + non-differential mis-classification are
+identification-impacting bias, not just informational caveat), wired
+into the must-disclose channel (so explanation gets a ⚠ line).
+Classifier ``_classify_measurement_error_concern`` walks the directed-
+ancestor closure of {intervention, target} and checks each
+VariableDeclaration on that closure for a ``measurement`` /
+``observability`` field whose lowercased value contains a documented
+noisy-measurement pattern (self-report / questionnaire / FFQ /
+24h recall / single-occasion / single visit / proxy / surrogate
+/ office reading + Chinese mirrors 自报告 / 问卷 / 单次 / 回忆 /
+代理). Suppression branch: when ``extensions.ambiguities[*].kind ==
+"measurement_quality"`` already declared (case 011 escape-hatch),
+classifier deliberately steps back to avoid double-disclosure with
+``llm_declared_ambiguity``. Provenance ref structurally names
+(variable, field, pattern) so downstream consumers can route the
+correct repair action without re-parsing the description.
+
+End-to-end demo. Pre-iter-205 (case 013):
+
+    status: needs_investigation
+    gap_kinds: [missing_distribution, ambiguous_variable_definition × 2,
+                answer_is_bounds_not_point_estimate,
+                unmeasured_confounder_risk]
+    explanation has NO measurement-error line
+
+Post-iter-205:
+
+    status: needs_investigation
+    gap_kinds: [missing_distribution, ambiguous_variable_definition × 2,
+                **measurement_error_concern** (important),
+                answer_is_bounds_not_point_estimate,
+                unmeasured_confounder_risk]
+    explanation: ⚠ 测量误差风险：识别路径上有变量声明了高噪声测量方式
+                 — bp_diastolic_high (measurement: 含 "single-occasion")。
+                 经典文献：MacMahon 1990 Lancet 单次门诊 BP 测量因
+                 within-person 变异导致 BP→CHD 斜率被 regression
+                 dilution 向 0 衰减约 60% ...
+    alternative_paths:
+      - 用 RCT / 实验性分配数据替代观察性主样本
+      - test-retest 子样本做 reliability + Carroll 2006 校准
+      - 在敏感性分析中报告 attenuation factor 范围（Rosner 1989）
+
+Tests added (15 new, total 1895 → 1910):
+
+- ``tests/test_measurement_error_concern.py`` 13 tests pinning
+  classifier behavior across (a) 4 trigger patterns × 2 fields ×
+  intervention/confounder; (b) 2 suppression paths (extensions +
+  cause query); (c) severity / provenance / explanation /
+  alternative_paths shape; (d) off-path variable ignored
+- L3 case 013 entry in ``CASES`` (parametrized regression): asserts
+  the full gap_kind set under the corpus harness
+- Plus 2 parametrized meta tests
+  (``test_gap_kind_has_test_coverage``,
+  ``test_gap_kind_enum_synced_with_schema``,
+  ``test_gap_kind_enum_synced_with_verifier_registry``,
+  ``test_must_disclose_kinds_documented_in_response_rendering_prompt``,
+  ``test_must_disclose_gap_kinds_documented_in_gap_to_action``,
+  ``test_every_gap_kind_documented_in_reference``,
+  ``test_coverage_map_gap_kind_count_matches_enum``) all newly
+  asserting the new value through the existing parametrize-by-enum
+  harnesses.
+
+Files touched:
+- ``themis/types.py`` (+ enum value with motivation)
+- ``query_result.schema.json`` (+ enum entry)
+- ``themis/verifier/data_gap_rules.py`` (+ registry entry)
+- ``themis/output/data_gap_report.py`` (+ classifier + ~30
+  documented-pattern allowlist + classifier-wiring + module
+  docstring update)
+- ``themis/runtime/scheduler.py`` (+ must-disclose set entry)
+- ``docs/GAP_KINDS_REFERENCE.md`` (+ table row, header 26 → 28,
+  must-disclose list)
+- ``docs/prompts/response_rendering.md`` (+ mirrored-set table row)
+- ``docs/prompts/gap_to_action.md`` (+ Q-pre-screen guidance —
+  the action is *higher-quality measurement on a sub-sample*, NOT
+  "go fetch more rows of the same noisy data")
+- ``COVERAGE_MAP.md`` (board #8 0% → 5-10% with explicit ❌ list of
+  what's NOT done; gap_kind count 27 → 28)
+- ``tests/test_l3_corpus_regression.py`` (+ case 013 CASES entry,
+  + corpus 12 → 13 docstring update)
+- ``tests/test_measurement_error_concern.py`` (new file, 13 tests)
+- ``docs/l3_simulation/case_013_macmahon_bp_chd_regression_dilution
+  .{json,md}`` (case file + audit trail with quoted MacMahon 1990 §
+  Methods + Hernán & Robins What If §9 quote + assessment)
+- ``docs/l3_simulation/README.md`` (+ case index entry)
+
+Why this is the right next iter, not "more identification capability":
+case 011's anti-finding (iter 129) was *correct for that input*
+because the user had declared ``measurement_quality`` via the
+``extensions.ambiguities`` escape-hatch — ``llm_declared_ambiguity``
+covered the surface. But case 011 explicitly punted on the **program-
+shape** path: *"如果 LLM 没声明，Themis 不会从 program shape 自动推断
+'sodium 是 self-reported → measurement error'"*. Case 013 hits exactly
+that punted path: a variable's ``measurement`` field structurally
+admits the noisy modality, but the upstream LLM didn't echo it into an
+ambiguity entry. Pre-iter-205 = silent miss; post-iter-205 = surfaced
+as IMPORTANT must-disclose with structural provenance. Two cases now
+cover both halves: case 011 (LLM-declared via extensions) +
+case 013 (structurally inferred from variable schema fields).
+
+Lesson: when a schema admits a field, somebody has to read it —
+**otherwise the field is theatre**. Themis's variable schema put
+``measurement`` and ``observability`` as first-class metadata 200+
+iters ago because Themis advertises itself as "data-gap diagnoser",
+but no classifier traversed those fields to actually surface a
+data-gap. The cleanest crack at board #8's 0% wasn't "build a
+measurement-error correction estimator" (that's Phase 9+ work needing
+test-retest reliability + SIMEX numerics); it was "use the schema
+fields you already advertise". Real-user-mining via case 013 was the
+forcing function — without an authoritative case quoting MacMahon's
+*"slope biased toward zero"*, this would still be 0%.

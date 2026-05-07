@@ -2536,6 +2536,11 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     # already enriches the missing_information channel; this entry pins
     # the structural caveat into result.explanation alongside it.
     "graph_theta_independence_mismatch",
+    # iter 205: measurement-error concern surfaced from variable
+    # measurement / observability metadata. Must surface as a ⚠ line
+    # so a reviewer reading only ``result.explanation`` sees the
+    # identification-impact warning before the headline number.
+    "measurement_error_concern",
 })
 
 

@@ -708,6 +708,28 @@ class GapKind(str, Enum):
     # caveat. No external library does this routing — it depends on
     # owning both the structural graph and the supplied CPT family.
     GRAPH_THETA_INDEPENDENCE_MISMATCH = "graph_theta_independence_mismatch"
+    # iter 205: measurement-error concern surfaced from program-shape
+    # alone (no LLM-declared ambiguity required). At least one variable
+    # on the identification path declares a ``measurement`` or
+    # ``observability`` field whose value names a textually documented
+    # noisy-measurement pattern — self-report / questionnaire / FFQ /
+    # 24h recall / single-occasion BP / proxy etc. Documented data
+    # limitation in MacMahon 1990 *Lancet* 335:765 (regression dilution
+    # bias from single-occasion BP measurement attenuating the BP-CHD
+    # association ~60%); Hernán & Robins *What If* §9 (classification
+    # error in self-reported smoking dilutes the smoking-CVD effect);
+    # Fuller 1987 *Measurement Error Models*. Themis is uniquely
+    # positioned to surface this because it owns the variable schema
+    # ((measurement, observability) are first-class fields a regression
+    # tool wouldn't see). Suppressed when extensions.ambiguities[*]
+    # already declared kind=='measurement_quality' (user/upstream LLM
+    # has already named it — case 011's escape-hatch path). Severity
+    # IMPORTANT: regression-dilution / non-differential mis-classification
+    # biases the estimate; this is identification-impacting, not just
+    # informational caveat. Board #8 (measurement error) was 0% before
+    # this kind landed. No external library structure-routes this from
+    # variable-level measurement metadata.
+    MEASUREMENT_ERROR_CONCERN = "measurement_error_concern"
 
 
 class GapSeverity(str, Enum):

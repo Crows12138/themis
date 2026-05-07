@@ -1,4 +1,4 @@
-# GapKind reference — single-source table for all 26 gap_kinds
+# GapKind reference — single-source table for all 28 gap_kinds
 
 > **Authoritative source**: ``themis.types.GapKind`` enum.
 > This document mirrors that enum for human reading.
@@ -51,6 +51,7 @@ For the LLM-side rendering / decision rules see
 | `collider_conditioning_opens_backdoor` | important | identification | Iter 122 — EffectQuery `given` contains a node where both X and Y are ancestors (collider). Conditioning OPENS the X→…→W←…←Y path per Pearl d-separation; the conditional effect is biased. F27 names the upstream NL pattern. |
 | `outcome_model_quasi_separation` | informational | interpretation | Iter 123 — fitted P(Y\|X,Z) saturated near 0/1 for >10% of sample; logistic logits blow up, plug-in g-formula extrapolates with near-singular gradient, CI underestimates uncertainty. |
 | `graph_theta_independence_mismatch` | important | point_estimate | Iter 203 — user supplied a marginal P(target\|S) that the iter 199 d-separation guard would have used to substitute the missing conditional, but the declared graph does NOT entail target ⊥ extras \| S (chain DAG + marginal-only theta is the canonical case). Repair is structural — drop the offending edge OR supply the demanded conditional — not "supply more theta". Routes via the same investigation-request channel as missing_distribution; classifier branches on the iter 202 d-sep refusal signature in item.reason. |
+| `measurement_error_concern` | important | identification | Iter 205 (board #8 unblock — measurement error was 0% before this kind) — at least one variable on the identification path declares a (`measurement` \| `observability`) field whose value names a documented noisy-measurement pattern (self-report / questionnaire / 24h recall / single-occasion BP / FFQ / proxy). Regression dilution / non-differential mis-classification attenuates the estimate (MacMahon 1990 *Lancet* 335:765 — single-occasion BP attenuates BP-CHD slope ~60%; Hernán & Robins *What If* §9; Fuller 1987 *Measurement Error Models*). Suppressed when extensions.ambiguities[*] already declared `measurement_quality` (case 011 escape-hatch path). L3 case 013. |
 
 ## Categories (cross-reference with code)
 
@@ -75,7 +76,8 @@ For the LLM-side rendering / decision rules see
 ``graph_learned_from_data``, ``unmeasured_confounder_risk``,
 ``unattempted_layer_due_to_dispatch_conflict``,
 ``collider_conditioning_opens_backdoor``,
-``graph_theta_independence_mismatch``.
+``graph_theta_independence_mismatch``,
+``measurement_error_concern``.
 
 **Additional data-need** (NOT must-disclose; surface only via
 ``data_gap_report``):

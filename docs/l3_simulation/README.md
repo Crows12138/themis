@@ -137,3 +137,11 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   的 d-sep guard dormant。chain DAG + marginal-only theta + probability
   query → 默默返回 marginal 值代替条件量。iter 204 修 + 加 sync pin。
   corpus 12/12。）
+- [Case 013 — MacMahon 1990 single-occasion BP → CHD (regression dilution)](case_013_macmahon_bp_chd_regression_dilution.md)
+  （2026-05-07 iter 205，✅ match real-finding：板块 8 (测量误差) 从 0%
+  破冰到 5-10%。variable.measurement 字段值含 "single-occasion" 但 Themis
+  pre-205 没有任何 classifier 读它；MacMahon 1990 *Lancet* 335:765 文献明
+  确把单次门诊 BP 测量当 regression dilution 经典案例 + ~60% 衰减。加新
+  `measurement_error_concern` GapKind + program-shape classifier，
+  suppression 兼容 case 011 (extensions.ambiguities[measurement_quality]
+  escape-hatch 路径)。corpus 13/13。）

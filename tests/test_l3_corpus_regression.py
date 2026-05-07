@@ -5,7 +5,7 @@ gap_kinds') after iter 1-16 mined 10 cases from authoritative sources.
 The file accumulated additional structural / preventive pins through
 iter 90 as the corpus grew and drift classes were caught.
 
-Cases corpus (12 total; 10/10 plateau achieved iter 20, then 011 + 012
+Cases corpus (13 total; 10/10 plateau achieved iter 20, then 011-013
 mined post-plateau as deliberate stress probes):
 - 001/002 backdoor (medicine) — measured confounders + no bidirected
 - 003 IV via Balke-Pearl bounds (econ) — Card 1995 schooling-earnings
@@ -17,10 +17,13 @@ mined post-plateau as deliberate stress probes):
 - 009 mediation × transport (silent dispatch finding → iter 19 fix)
 - 010 cause query (climate) — IPCC AR6 attribution
 - 011 continuous treatment + measurement error (DASH-Sodium/INTERSALT,
-  iter 129 anti-finding)
+  iter 129 anti-finding — extensions.ambiguities escape hatch path)
 - 012 chain DAG × marginal-only theta probability query (Pearl 1995/2009,
   iter 204 real-bug finding — d-sep guard wasn't engaged on
   probability dispatch path; bidirected threading fix)
+- 013 single-occasion BP → CHD (MacMahon 1990 Lancet, iter 205 real-
+  finding — board #8 0% break: variable.measurement structurally signals
+  regression-dilution; new measurement_error_concern gap_kind)
 
 Pins (chronological):
 - test_l3_case_emits_expected_gap_kinds (iter 17, parametrized) —
@@ -190,6 +193,29 @@ CASES = [
         ["missing_distribution",
          "unmeasured_confounder_risk",
          "front_door_identification_assumption_required"],
+    ),
+    (
+        "case_013_macmahon_bp_chd_regression_dilution.json",
+        # Iter 205 real-finding case: MacMahon 1990 Lancet 335:765 BP-CHD
+        # meta-analysis. Variable bp_diastolic_high.measurement names
+        # 'single-occasion office sphygmomanometer' — a documented
+        # regression-dilution source attenuating the BP-CHD slope ~60%.
+        # Pre-iter-205: gap_kind board #8 (measurement error) was 0% →
+        # Themis returned full envelope without ANY measurement-error
+        # signal. Post-iter-205: new measurement_error_concern gap_kind
+        # fires from program shape (variable.measurement contains
+        # 'single-occasion'), severity IMPORTANT, with provenance ref
+        # naming the offending (variable, field, pattern). NOT suppressed
+        # because extensions.ambiguities is empty (case 011 escape-hatch
+        # path is the suppression branch).
+        ["measurement_error_concern",
+         "missing_distribution",
+         "ambiguous_variable_definition",
+         "unmeasured_confounder_risk"],
+        ["graph_theta_independence_mismatch",
+         "weak_iv_instrument",
+         "front_door_identification_assumption_required",
+         "unattempted_layer_due_to_dispatch_conflict"],
     ),
 ]
 

@@ -1,0 +1,54 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "person"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "bp_diastolic_high", "domain": [true, false],
+     "threshold": ">=90 mmHg single-occasion office DBP",
+     "measurement": "single-occasion office sphygmomanometer reading at study entry",
+     "observability": "directly measured but with substantial within-person variation"},
+    {"kind": "variable", "predicate": "chd_event", "domain": [true, false],
+     "threshold": "fatal or non-fatal coronary heart disease event over 5-25 year follow-up"},
+    {"kind": "variable", "predicate": "age", "domain": [true, false]},
+    {"kind": "variable", "predicate": "smoking", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "bp_diastolic_high", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "chd_event", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence", "evidence": "MacMahon et al 1990 Lancet 335:765 — meta-analysis of 9 prospective observational studies, 420000 individuals"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "bp_diastolic_high", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "chd_event", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "smoking", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "chd_event", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "query",
+      "id": "q_bp_causes_chd",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "chd_event", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "bp_diastolic_high", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}

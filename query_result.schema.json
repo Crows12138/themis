@@ -872,7 +872,8 @@
             "propensity_overlap_violation",
             "collider_conditioning_opens_backdoor",
             "outcome_model_quasi_separation",
-            "graph_theta_independence_mismatch"
+            "graph_theta_independence_mismatch",
+            "measurement_error_concern"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

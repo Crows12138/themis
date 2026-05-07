@@ -332,6 +332,13 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "graph_theta_independence_mismatch": frozenset(
         {"investigation_request"}
     ),
+    # iter 205: program-shape signal — variable on the identification path
+    # declares a (measurement | observability) field whose value names a
+    # known noisy-measurement pattern (self-report / questionnaire /
+    # single-occasion / proxy / 24h recall etc.). Provenance is a
+    # verifier_check ref naming the (variable, field) pair; classifier-
+    # driven, no derivation step exists.
+    "measurement_error_concern": frozenset({"verifier_check"}),
 }
 
 

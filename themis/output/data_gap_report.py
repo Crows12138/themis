@@ -55,6 +55,18 @@ L3 simulation 2026-05-07 additions (iter 5 / iter 19):
 - unattempted_layer_due_to_dispatch_conflict — query has BOTH mediator and
   target_population set; only one extension populated. Discloses silent skip.
 
+iter 205 must-disclose addition (board #8 unblock):
+- measurement_error_concern — at least one variable on the
+  identification path declares a (measurement | observability) field
+  whose value names a documented noisy-measurement pattern
+  (self-report / questionnaire / 24h recall / single-occasion BP /
+  proxy / FFQ etc.). Suppressed when extensions.ambiguities[*]
+  already declared kind=='measurement_quality' (case 011 escape-hatch).
+  Surfaces measurement-error bias before data collection — the same
+  before-the-fact placement as unmeasured_confounder_risk. Severity
+  IMPORTANT (regression-dilution / non-differential mis-classification
+  are identification-impacting).
+
 iter 203 must-disclose addition:
 - graph_theta_independence_mismatch — the iter 199 d-separation guard
   refused an existing-but-graph-incompatible marginal during formula
@@ -188,6 +200,10 @@ def compute_data_gap_report(
     must_disclose_gaps.extend(_classify_graph_learned_from_data(program))
     must_disclose_gaps.extend(_classify_unmeasured_confounder_risk(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
+    ))
+    must_disclose_gaps.extend(_classify_measurement_error_concern(
+        program=program, query_kind=query_kind, stmt=stmt, status=status,
+        extensions=extensions,
     ))
     must_disclose_gaps.extend(_classify_unattempted_layer_dispatch_conflict(
         stmt=stmt, extensions=extensions,
@@ -990,6 +1006,222 @@ def _classify_unmeasured_confounder_risk(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
                 ref_id="program:confounder_pattern:no_bidirected",
             ),
+        ),
+    )
+
+
+# Patterns that, when they appear in a variable's ``measurement`` or
+# ``observability`` field, structurally signal a documented
+# noisy-measurement modality. These are exact substrings (lowercased
+# match) of the *measurement metadata*, not free-form description text —
+# the variable schema's ``measurement`` field is the contract anchor.
+# Adding a pattern here is the single point where the classifier learns
+# a new modality.
+#
+# Authoritative references behind each pattern:
+# - "self-report" / "self report" / "self-reported" / "questionnaire" /
+#   "ffq" / "24h recall" / "24-h recall" / "food-frequency":
+#   non-differential outcome / exposure misclassification literature
+#   (Hernán & Robins *What If* §9; Rothman/Greenland *Modern
+#   Epidemiology* ch.9). FFQ vs urinary recovery biomarker for sodium
+#   intake: Mente et al 2016 *Lancet* showing FFQ underestimation.
+# - "single-occasion" / "single occasion" / "single visit" /
+#   "single measurement" / "single reading" / "office reading":
+#   regression-dilution bias documented in MacMahon et al 1990
+#   *Lancet* 335:765 — single-occasion BP underestimates the BP-CHD
+#   slope by ~60% from within-person variation alone, independent of
+#   measurement device.
+# - "proxy" / "surrogate": classical errors-in-variables (Fuller 1987
+#   *Measurement Error Models*); attenuation toward null when the
+#   proxy is noisier than the construct.
+# - 中文 patterns mirror the English ones for upstream variable
+#   declarations that came in via the Chinese A1 path.
+_MEASUREMENT_ERROR_PATTERNS: tuple[str, ...] = (
+    "self-report",
+    "self report",
+    "self-reported",
+    "self reported",
+    "questionnaire",
+    "ffq",
+    "food-frequency",
+    "food frequency",
+    "24h recall",
+    "24-h recall",
+    "24 hour recall",
+    "24-hour recall",
+    "dietary recall",
+    "single-occasion",
+    "single occasion",
+    "single visit",
+    "single measurement",
+    "single reading",
+    "office reading",
+    "proxy",
+    "surrogate",
+    "自报告",
+    "自我报告",
+    "自报",
+    "回忆",
+    "问卷",
+    "单次",
+    "单次测量",
+    "代理",
+)
+
+
+def _classify_measurement_error_concern(
+    *,
+    program,
+    query_kind: QueryKind,
+    stmt,
+    status,
+    extensions: dict | None,
+) -> Iterable[DataGap]:
+    """At least one variable on the identification path declares a
+    ``measurement`` or ``observability`` field whose value names a
+    documented noisy-measurement pattern (self-report / questionnaire /
+    single-occasion / proxy / 24h recall …). Surfaces measurement
+    error as a structurally-detected concern *before* the user goes to
+    collect more data — the same story that makes
+    ``unmeasured_confounder_risk`` valuable, but for measurement
+    rather than confounding.
+
+    Documented data-limitation literature (board #8 was 0% before this
+    kind):
+    - MacMahon et al 1990 *Lancet* 335:765 — single-occasion BP
+      regression dilution, ~60% attenuation of BP-CHD slope.
+    - Hernán & Robins *What If* §9 — non-differential exposure /
+      outcome misclassification dilutes effect estimates.
+    - Mente et al 2016 *Lancet* — FFQ vs 24h urinary sodium
+      gold-standard comparison.
+    - Fuller 1987 *Measurement Error Models* — classical
+      errors-in-variables / attenuation theorem.
+
+    Severity IMPORTANT (not informational): regression-dilution and
+    non-differential mis-classification are identification-impacting
+    biases that distort the estimate's *magnitude*; users acting on
+    the result without knowing this would systematically under-fit
+    causal effects.
+
+    Suppressed when:
+    - query is not effect (the bias story is about effect-on-Y from X)
+    - status indicates identification failed (don't pile caveats on
+      already-failing branches)
+    - extensions.ambiguities[*] already declares
+      kind=='measurement_quality' (case 011 escape-hatch path — the
+      upstream LLM already named it; firing both would be redundant)
+
+    Trigger does not require the variable to be on a specific
+    minimal-adjustment-set path; classifier deliberately includes any
+    declared variable as long as it is the intervention, the target,
+    or a directed predecessor of either. That includes the canonical
+    case (X with self-reported measurement) AND confounder-on-the-
+    backdoor-path cases (Z with 24h-recall measurement) — the
+    bias story applies to both.
+    """
+    if program is None or stmt is None:
+        return
+    if query_kind != QueryKind.EFFECT:
+        return
+    if status not in (
+        ResultStatus.STRUCTURALLY_SOLVED,
+        ResultStatus.NUMERICALLY_SOLVED,
+        ResultStatus.NEEDS_INVESTIGATION,
+    ):
+        return
+    # Suppression: upstream LLM already declared a measurement_quality
+    # ambiguity (case 011 path). The escape-hatch entry covers the user-
+    # facing surface; firing this kind on top would double-disclose.
+    if extensions:
+        ambiguities = extensions.get("ambiguities") or ()
+        for amb in ambiguities:
+            if isinstance(amb, dict) and amb.get("kind") == "measurement_quality":
+                return
+    query_atom = getattr(stmt, "query", None)
+    intervention = getattr(query_atom, "intervention", None)
+    target = getattr(query_atom, "target", None)
+    if intervention is None or target is None:
+        return
+    intervention_pred = intervention.atom.predicate
+    target_pred = target.atom.predicate
+    # Build the directed-ancestor closure of {intervention, target} so
+    # confounders that funnel into either are included on the
+    # identification path (board #4 of MacMahon: BP — measured single-
+    # occasion — funnels into CHD via age & smoking).
+    parents_of: dict[str, set[str]] = {}
+    for st in program.statements:
+        if isinstance(st, CauseStatement):
+            parents_of.setdefault(
+                st.to_atom.predicate, set()
+            ).add(st.from_atom.predicate)
+    on_path: set[str] = {intervention_pred, target_pred}
+    frontier: list[str] = [intervention_pred, target_pred]
+    while frontier:
+        node = frontier.pop()
+        for parent in parents_of.get(node, ()):
+            if parent not in on_path:
+                on_path.add(parent)
+                frontier.append(parent)
+    flagged: list[tuple[str, str, str]] = []
+    for st in program.statements:
+        if not isinstance(st, VariableDeclaration):
+            continue
+        if st.predicate not in on_path:
+            continue
+        for field_name in ("measurement", "observability"):
+            field_value = getattr(st, field_name, None)
+            if not field_value:
+                continue
+            haystack = field_value.lower()
+            for needle in _MEASUREMENT_ERROR_PATTERNS:
+                if needle in haystack:
+                    flagged.append((st.predicate, field_name, needle))
+                    break
+            else:
+                continue
+            break  # one (variable, field) per variable is enough
+    if not flagged:
+        return
+    # Stable, deterministic listing for the description and provenance.
+    flagged.sort()
+    var_summary = ", ".join(
+        f"{pred} ({field}: 含 “{needle}”)"
+        for pred, field, needle in flagged
+    )
+    yield DataGap(
+        kind=GapKind.MEASUREMENT_ERROR_CONCERN,
+        severity=GapSeverity.IMPORTANT,
+        description=(
+            "测量误差风险：识别路径上有变量声明了高噪声测量方式 — "
+            f"{var_summary}。"
+            " 经典文献：MacMahon 1990 Lancet 单次门诊 BP 测量"
+            "因 within-person 变异导致 BP→CHD 斜率被 regression dilution "
+            "向 0 衰减约 60%；Hernán & Robins What If §9 自报告 / "
+            "问卷暴露的 non-differential mis-classification 同样使 "
+            "估计值低估真效应；Fuller 1987 Measurement Error Models "
+            "给出 attenuation theorem 的形式定义。Themis 仅做"
+            "**结构性识别 + 数据缺口诊断**，不做去衰减估计。"
+        ),
+        blocks=GapBlocks.IDENTIFICATION,
+        if_provided=(
+            "若拿到 (a) 重复测量子样本（test-retest reliability），可用"
+            " regression calibration / SIMEX 校准；或 (b) gold-standard "
+            "亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠），可在主样本上"
+            "做 measurement-error correction"
+        ),
+        alternative_paths=(
+            "用 RCT / 实验性分配数据（消除自报告偏差）替代观察性主样本",
+            "对涉及变量做 reliability 重测，按 Carroll et al 2006 "
+            "*Measurement Error in Nonlinear Models* 校准",
+            "在敏感性分析中报告 attenuation factor 范围（"
+            "Rosner et al 1989 regression calibration upper bound）",
+        ),
+        provenance=tuple(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id=f"program:variable:{pred}:{field}:contains:{needle}",
+            )
+            for pred, field, needle in flagged
         ),
     )
 

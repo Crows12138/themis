@@ -85,6 +85,20 @@ do NOT trigger fetch / ask user.
   consistent), OR supply the demanded conditional (the graph is then
   consistent). "Fetch more data" is not a valid action — the contradiction
   is between two things the user already supplied.
+- `measurement_error_concern` (iter 205) → no immediate Q1-Q3 fetch. A
+  variable on the identification path declares a noisy-measurement
+  modality (self-report / 24h recall / single-occasion BP / proxy /
+  questionnaire / FFQ). The estimate from the user's main sample will
+  be **attenuated** (regression dilution / non-differential
+  mis-classification per MacMahon 1990 *Lancet* / Hernán & Robins
+  *What If* §9 / Fuller 1987). The actionable repair is *additional
+  measurement quality* — surface the gap's `if_provided` and
+  `alternative_paths`: (a) a repeat-measurement sub-sample for
+  regression calibration, (b) a gold-standard sub-sample (ABPM for BP,
+  24h urinary sodium for sodium intake), or (c) RCT triangulation. Do
+  NOT phrase this as "go fetch the same data again" — the action is
+  *higher-quality measurement* on a sub-sample, not more rows of the
+  same noisy measurement.
 
 `severity == "blocking"` always needs Q1-Q3.
 
