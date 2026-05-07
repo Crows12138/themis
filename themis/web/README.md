@@ -10,8 +10,9 @@ NL-bridge "Ask" path (mode (a)) backed by Anthropic. Two modes:
   Anthropic to translate NL → kernel_ast, runs `themis.run`, then
   calls Anthropic again to render a Chinese reply. Requires API key.
 
-Both modes share endpoints (`/api/run` / `/api/verify` / `/api/examples`
-/ `/api/ask`); the UI surfaces them in the same page.
+Both modes share endpoints (`/api/run` / `/api/verify` /
+`/api/verify_bounds_result` (iter 137) / `/api/examples` / `/api/ask`);
+the UI surfaces them in the same page.
 
 ## Run
 

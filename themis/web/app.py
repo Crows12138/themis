@@ -88,6 +88,31 @@ def api_verify(req: VerifyRequest):
         )
 
 
+@app.post("/api/verify_bounds_result")
+def api_verify_bounds_result(req: VerifyRequest):
+    """Iter 137 — web parallel of iter 133's MCP themis_verify_bounds_result.
+
+    Wraps :func:`themis.verify_bounds_result` so paste-JSON / Ask
+    flows can audit MTR / Manski-natural / Balke-Pearl IV bounds
+    without going through the derivation-required ``/api/verify``
+    path. Bounds typically attach when status=needs_investigation
+    (no derivation chain), so /api/verify rejects them — this
+    endpoint is the bounds-only counterpart.
+    """
+    try:
+        themis.verify_bounds_result(req.program, req.result)
+        return {"ok": True}
+    except Exception as exc:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": type(exc).__name__,
+                "message": str(exc),
+            },
+        )
+
+
 @app.post("/api/ask")
 def api_ask(req: AskRequest):
     """End-to-end NL → kernel_ast → run → reply via the LLM bridge.

@@ -18,5 +18,6 @@ form supporting two modes:
   or a per-request key passed via the UI.
 
 Endpoints (defined in ``app.py``): ``/api/run`` / ``/api/verify`` /
-``/api/examples`` / ``/api/ask``.
+``/api/verify_bounds_result`` (iter 137) / ``/api/examples`` /
+``/api/ask``.
 """
