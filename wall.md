@@ -808,3 +808,60 @@ Capability ladder for ADMG identification post-arc:
 
 Test count trajectory: 1869 (iter 185) → 1875 (iter 189) +6 across
 4 iters. Real architectural progress, not filler.
+
+---
+
+#### 2026-05-07 iter 191-195 mini-arc — parallel multi-mediator unlock with safety probe
+
+Following the iter 186-189 chain-mediator unlock, iter 191 probed
+the next gap (parallel multi-mediator X→M1→Y, X→M2→Y, X↔Y) and
+documented two resolution paths:
+(a) joint-CPT primitive
+(b) marginal-independence detection
+
+iter 193 implemented option (b) as the simpler path:
+_try_marginal_independence_lookup as a 4th fallback in the
+helper-chain (after direct lookup, marginalization, Bayes
+inversion). When P(target|given) is missing AND no other path
+helps, look for P(target|reduced_given) for any strict subset.
+Largest-subset-first, deterministic. Wired at TWO sites: outer
+_evaluate AND inner-factor branch of marginalization. Mirrored to
+verifier.
+
+iter 194: paired-implementation sync pin (iter 175/189 pattern).
+
+iter 195 PROBE: tested correctness risk by constructing an
+inconsistent fixture — chain DAG (X→M1→M2→Y, X↔Y) with marginal-
+only theta. Confirmed numerically: kernel returns 0.586 silently,
+treating chain as parallel. WRONG.
+
+Safety analysis recorded in helper docstring:
+- CORRECT for parallel-paths cases (graph implies M1 ⊥ M2 | X via
+  d-separation; the unlock target).
+- RISKY for chain DAGs with marginal-only theta (user supplied
+  inconsistent input).
+
+Per iter 174 contract Themis trusts user-supplied theta; doesn't
+audit CPT-vs-graph consistency. Documented the future fix path
+(thread graph through helper, only apply fallback when
+d-separation confirms independence — iter 196+ scope).
+
+Mini-arc deliverables (iter 191-195):
+- 191: documented parallel multi-mediator gap + 2 resolution paths
+- 193: implemented option (b) with mirror
+- 194: paired-implementation sync pin
+- 195: probe + safety analysis docstring
+
+Test count 1875 → 1877.
+
+Capability ladder for ADMG identification post 5-arc series:
+- iter 167-173: disjoint-Y c-component
+- iter 181-183: single-mediator front-door variant
+- iter 186-189: chain-mediator front-door variant
+- iter 190 probe: N-mediator chain via recursion
+- iter 193-194: parallel multi-mediator front-door variant
+
+Lesson reinforced: iter 184's "probe what's unlocked" lesson keeps
+paying off. 5 mini-arcs since iter 173 closed the original
+disjoint-Y gap — each one widening capability. None of them were
+on the radar pre-iter-167.
