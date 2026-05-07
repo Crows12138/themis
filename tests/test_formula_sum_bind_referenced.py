@@ -350,3 +350,63 @@ def test_tian_pure_chain_evaluates_to_correct_ate():
         f"Pre-iter-145 it would have given {0.8} (P(Y|X=T,M=T) — "
         f"degenerate sum collapse to M=True term only)."
     )
+
+
+def test_tian_disjoint_y_evaluates_to_correct_ate():
+    """X → Z1, X → Z2, Z1 ↔ Z2, Z1 → Y, Z2 → Y. This is the canonical
+    case where Tian is the scheduler's actual path (backdoor / front-
+    door / IV all fail because Z1 ↔ Z2 latent confounder makes Z1, Z2
+    unobserved-confounded but they are observed-jointly-conditional).
+
+    Tian product form gives:
+        Σ_{z1, z2} P(Y|X=T, z1, z2) · P(Z1=z1|X=T) · P(Z2=z2|X=T, Z1=z1)
+
+    Reference computed by hand. Iter 145 + 147 fixes mean both Σ_Z1
+    and Σ_Z2 binders propagate correctly into all body factors.
+    Pre-iter-145 this would have returned a constant
+    P(y=T|x=T, z1=T, z2=T) (all sums degenerate)."""
+    from themis.runtime.c_factor import identify_via_tian
+    from themis.runtime.numeric_estimator import (
+        ProbabilityKey, Theta, estimate_formula,
+    )
+
+    x, z1, z2, y = _A("x"), _A("z1"), _A("z2"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, z1), (x, z2), (z1, y), (z2, y)])
+    bi = frozenset({frozenset({z1, z2})})
+    r = identify_via_tian(g, bi, x, y, x_value=True)
+    assert r.formula is not None and r.identifiable
+
+    formula_y_true = _bind_target_value(r.formula, y, True)
+
+    theta = Theta(entries={
+        # P(Z1 | X=T)
+        ProbabilityKey(z1, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(z1, False, frozenset([(x, True)])): 0.4,
+        # P(Z2 | X=T, Z1)
+        ProbabilityKey(z2, True, frozenset([(x, True), (z1, True)])): 0.5,
+        ProbabilityKey(z2, False, frozenset([(x, True), (z1, True)])): 0.5,
+        ProbabilityKey(z2, True, frozenset([(x, True), (z1, False)])): 0.3,
+        ProbabilityKey(z2, False, frozenset([(x, True), (z1, False)])): 0.7,
+        # P(Y=T | X=T, Z1, Z2)
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, True), (z2, True)])): 0.9,
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, True), (z2, False)])): 0.7,
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, False), (z2, True)])): 0.5,
+        ProbabilityKey(y, True, frozenset([(x, True), (z1, False), (z2, False)])): 0.2,
+    })
+
+    actual = estimate_formula(formula_y_true, theta)
+    # Reference (computed by hand):
+    # 0.6*0.5*0.9 + 0.6*0.5*0.7 + 0.4*0.3*0.5 + 0.4*0.7*0.2
+    # = 0.27 + 0.21 + 0.06 + 0.056 = 0.596
+    expected = (
+        0.6 * 0.5 * 0.9
+        + 0.6 * 0.5 * 0.7
+        + 0.4 * 0.3 * 0.5
+        + 0.4 * 0.7 * 0.2
+    )
+    assert abs(actual - expected) < 1e-9, (
+        f"Tian disjoint-Y formula evaluated to {actual}, expected "
+        f"{expected}. Pre-iter-145 this returned 0.9 "
+        f"(P(y=T|x=T, z1=T, z2=T) — all sums collapsed to True-arm)."
+    )
