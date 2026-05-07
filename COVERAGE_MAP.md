@@ -1,6 +1,6 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07
+> 更新时间：2026-05-07（iter 141 Tian Line 7 shortcut）
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
 > 成一个 slice 同步更新。配套 [VISION.md](VISION.md) "扩展愿景" 段 +
 > [ROADMAP.md](ROADMAP.md) Phase 6+。
@@ -12,7 +12,7 @@
 | # | 板块 | 覆盖 | 现状 / 策略 |
 |---|---|---|---|
 | 1 | 可观测识别 | **75-80%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / 完整 ID (Shpitser) ✗ → Phase 6.complete-id（可选）|
-| 2 | ADMG / 潜变量 | **~85%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓**（hedge witness + c-factor 乘积形式，2026-05-06）/ Line 7 完整 ID* 推迟 |
+| 2 | ADMG / 潜变量 | **~88%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓**（hedge witness + c-factor 乘积形式，2026-05-06）/ **Line 7 简化 shortcut ✓**（iter 141，front-door 类 ADMG 经 `_build_q_factor(s=S', keep=y, summed_x=∅)` 给 Σ_X P(X)·P(Y\|X,M)，外层 Line 4 wraps；非平凡 x ∩ S' 的复杂 Line 7 仍需符号 Q[S'] 替换机器，待真实压力触发）|
 | 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|

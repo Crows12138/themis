@@ -1,9 +1,8 @@
 """Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID algorithm.
 
 Covers the unit-level c_factor module + scheduler dispatch +
-verifier round-trip. Scope: Shpitser ID Lines 1-6. Line 7 (recursive
-symbolic substitution) returns None and the scheduler falls through
-to needs_investigation — see the punt-case test below.
+verifier round-trip. Scope: Shpitser ID Lines 1-6 fully + Line 7
+simplified shortcut (iter 141, see test_tian_line_7_shortcut.py).
 """
 from __future__ import annotations
 
@@ -64,24 +63,21 @@ def test_disjoint_y_component_identifiable_directly():
     assert r.formula is not None
 
 
-def test_line_7_case_punts_rather_than_lying():
-    """X → M → Y, X ↔ Y. Front-door already handles this; Tian needs
-    Shpitser Line 7 (recursive symbolic substitution), which this
-    slice does not implement. Tian should return None — the scheduler
-    falls back to front-door upstream of Tian, so users still get
-    identification, just via the front-door path."""
+def test_line_7_case_identifies_via_shortcut():
+    """X → M → Y, X ↔ Y. Iter 141 Line 7 shortcut: Tian now identifies
+    via Q[S'] marginalization rather than punting. Front-door also
+    handles this case upstream — either path works; what MUST NOT
+    happen is identifiable=False with hedge=set (that would falsely
+    claim unidentifiability)."""
     x, m, y = _A("x"), _A("m"), _A("y")
     g = nx.DiGraph()
     g.add_edges_from([(x, m), (m, y)])
     bi = frozenset({frozenset({x, y})})
     r = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
-    # Either identifiable=True (if a 1-6 path threads it) or False with
-    # hedge=None (Line 7 punt). What MUST NOT happen is identifiable=False
-    # with hedge=set — that'd falsely claim unidentifiability.
     if not r.identifiable:
         assert r.hedge is None, (
-            "Line 7 punt must NOT carry a hedge — that would falsely "
-            "claim unidentifiability when the case is identifiable via Line 7"
+            "Line 7 path must NOT carry a hedge — that would falsely "
+            "claim unidentifiability when the case is identifiable"
         )
 
 
