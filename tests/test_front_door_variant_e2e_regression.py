@@ -107,3 +107,71 @@ def test_front_door_variant_e2e_returns_pearl_formula_value():
     assert "identify_via_front_door" in derivation_rules
     # Independent verifier replay must accept.
     themis.verify(ast, r)
+
+
+def test_chain_mediator_front_door_variant_e2e_via_bayes_inversion():
+    """Iter 188: chain X→M1→M2→Y with X↔Y latent. Front-door demands
+    P(Y|X, M2); user supplies the chain CPTs P(M2|X, M1) + P(M1|X)
+    + P(Y|X, M1, M2). iter 187/188 Bayes inversion derives the
+    inner factor P(M1|X, M2) from supplied chain, enabling the
+    full marginalization.
+
+    Uniform 0.5 fixture → expected 0.5 (all sums collapse). Pinning
+    that the derivation completes + verifier accepts."""
+    import itertools
+
+    prob_stmts = [
+        _prob("x", True, [], 0.5),
+        _prob("x", False, [], 0.5),
+        _prob("m1", True, [("x", True)], 0.7),
+        _prob("m1", False, [("x", True)], 0.3),
+        _prob("m1", True, [("x", False)], 0.2),
+        _prob("m1", False, [("x", False)], 0.8),
+    ]
+    for x_v, m1_v in itertools.product([True, False], repeat=2):
+        prob_stmts.append(
+            _prob("m2", True, [("x", x_v), ("m1", m1_v)], 0.5)
+        )
+        prob_stmts.append(
+            _prob("m2", False, [("x", x_v), ("m1", m1_v)], 0.5)
+        )
+    for x_v, m1_v, m2_v in itertools.product([True, False], repeat=3):
+        prob_stmts.append(
+            _prob(
+                "y", True,
+                [("x", x_v), ("m1", m1_v), ("m2", m2_v)], 0.5,
+            )
+        )
+
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m1", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m2", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("m1")},
+            {"kind": "cause", "from": _atom("m1"), "to": _atom("m2")},
+            {"kind": "cause", "from": _atom("m2"), "to": _atom("y")},
+            {
+                "kind": "bidirected",
+                "left": _atom("x"), "right": _atom("y"),
+            },
+            *prob_stmts,
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "target": {"atom": _atom("y"), "value": True},
+                    "intervention": {"atom": _atom("x"), "value": True},
+                    "given": [],
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    r = out["results"][0]
+    assert r["status"] == "numerically_solved"
+    assert abs(r["numeric_result"]["value"] - 0.5) < 1e-9
+    themis.verify(ast, r)

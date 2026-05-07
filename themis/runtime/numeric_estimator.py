@@ -567,6 +567,14 @@ def _try_derive_via_marginalization(
                     inner_key, theta, _depth=_depth + 1,
                 )
                 if v_inner is None:
+                    # Iter 188: try Bayes inversion for the inner
+                    # factor — unlocks chain-mediator front-door
+                    # cases where P(Z|given) needs flipping via
+                    # supplied P(some_given_atom | given\\{a}, Z).
+                    v_inner = _try_derive_via_bayes_inversion(
+                        inner_key, theta, _depth=_depth + 1,
+                    )
+                if v_inner is None:
                     ok = False
                     break
             inner_values[v] = v_inner

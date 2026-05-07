@@ -1788,6 +1788,12 @@ def _verifier_derive_via_marginalization(
                     inner_key, theta, _depth=_depth + 1,
                 )
                 if v_inner is None:
+                    # Iter 188: mirror runtime's Bayes inversion
+                    # fallback for the inner factor.
+                    v_inner = _verifier_derive_via_bayes_inversion(
+                        inner_key, theta, _depth=_depth + 1,
+                    )
+                if v_inner is None:
                     ok = False
                     break
             inner_values[v] = v_inner
@@ -1796,6 +1802,64 @@ def _verifier_derive_via_marginalization(
         return sum(
             outer_values[v] * inner_values[v] for v in domain
         )
+    return None
+
+
+def _verifier_derive_via_bayes_inversion(
+    missing_key: ProbabilityKey,
+    theta,
+    *,
+    _depth: int = 0,
+) -> float | None:
+    """Iter 188 — verifier mirror of runtime's Bayes inversion helper.
+    Pure function; preserves V0-V5 independence. Mirror change to
+    runtime's _try_derive_via_bayes_inversion when modifying."""
+    if _depth > 2:
+        return None
+    target_atom = missing_key.target_atom
+    target_value = missing_key.target_value
+    base_given = missing_key.given
+    if not base_given:
+        return None
+    for a_atom, a_value in base_given:
+        if a_atom == target_atom:
+            continue
+        reduced_given = frozenset(p for p in base_given if p[0] != a_atom)
+        flip_given = reduced_given | {(target_atom, target_value)}
+        flip_key = ProbabilityKey(
+            target_atom=a_atom, target_value=a_value,
+            given=frozenset(flip_given),
+        )
+        flip_val = theta.entries.get(flip_key)
+        if flip_val is None:
+            flip_val = _verifier_derive_via_marginalization(
+                flip_key, theta, _depth=_depth + 1,
+            )
+        if flip_val is None:
+            continue
+        target_key = ProbabilityKey(
+            target_atom=target_atom, target_value=target_value,
+            given=reduced_given,
+        )
+        target_marginal = theta.entries.get(target_key)
+        if target_marginal is None:
+            target_marginal = _verifier_derive_via_marginalization(
+                target_key, theta, _depth=_depth + 1,
+            )
+        if target_marginal is None:
+            continue
+        denom_key = ProbabilityKey(
+            target_atom=a_atom, target_value=a_value,
+            given=reduced_given,
+        )
+        denom = theta.entries.get(denom_key)
+        if denom is None:
+            denom = _verifier_derive_via_marginalization(
+                denom_key, theta, _depth=_depth + 1,
+            )
+        if denom is None or denom == 0:
+            continue
+        return flip_val * target_marginal / denom
     return None
 
 
