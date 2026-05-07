@@ -1816,9 +1816,16 @@ def _verifier_derive_via_marginalization(
 def _verifier_marginal_independence_lookup(
     missing_key: ProbabilityKey,
     theta,
+    *,
+    graph=None,
+    bidirected=None,
 ) -> float | None:
     """Iter 193 — verifier mirror of runtime's marginal-independence
-    lookup. Pure theta lookup; preserves V0-V5 independence."""
+    lookup. Pure theta lookup; preserves V0-V5 independence.
+
+    Iter 199: graph-aware d-separation guard mirroring runtime. When
+    graph + bidirected supplied, only return value if target ⊥ extras
+    | reduced_given holds structurally."""
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
@@ -1838,8 +1845,22 @@ def _verifier_marginal_independence_lookup(
                 given=reduced,
             )
             v = theta.entries.get(reduced_key)
-            if v is not None:
-                return v
+            if v is None:
+                continue
+            if graph is not None and bidirected is not None:
+                from ..runtime.structural_solver import m_separated
+                conditioning = tuple(a for a, _ in reduced)
+                extras_atoms = [a for a, _ in to_remove]
+                all_separated = all(
+                    m_separated(
+                        graph, bidirected,
+                        target_atom, extra, conditioning,
+                    )
+                    for extra in extras_atoms
+                )
+                if not all_separated:
+                    continue
+            return v
     return None
 
 

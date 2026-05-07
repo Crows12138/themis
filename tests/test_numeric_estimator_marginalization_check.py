@@ -179,6 +179,66 @@ def test_bayes_inversion_resolves_chain_mediator_inner_factor():
     )
 
 
+def test_iter_199_dsep_guard_refuses_when_independence_violated():
+    """Iter 199: marginal-independence fallback with graph-aware
+    d-separation guard refuses when target ⊥ extras | reduced
+    doesn't hold. Closes iter 195's documented silent-wrong risk
+    for chain DAG (X→M1→M2 with M1 → M2 making them dependent)."""
+    from themis.runtime.numeric_estimator import (
+        _try_marginal_independence_lookup,
+    )
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m1), (m1, m2)])  # CHAIN — M1→M2
+    bi = frozenset()  # No bidirected
+    theta = Theta(entries={
+        # Marginal-only P(M2|X) — user didn't supply chain CPT P(M2|X, M1)
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+
+    # Without graph: trust user (iter 193 contract)
+    v_nograph = _try_marginal_independence_lookup(missing, theta)
+    assert v_nograph == 0.6
+
+    # With graph: refuse (M1 → M2 means NOT independent given X)
+    v_withgraph = _try_marginal_independence_lookup(
+        missing, theta, graph=g, bidirected=bi,
+    )
+    assert v_withgraph is None, (
+        "iter 199 d-sep guard should refuse for chain DAG"
+    )
+
+
+def test_iter_199_dsep_guard_allows_when_independence_holds():
+    """Iter 199: when target ⊥ extras | reduced DOES hold (parallel
+    multi-mediator case), the guard lets the marginal pass through."""
+    from themis.runtime.numeric_estimator import (
+        _try_marginal_independence_lookup,
+    )
+    import networkx as nx
+
+    x, m1, m2 = _A("x"), _A("m1"), _A("m2")
+    g = nx.DiGraph()
+    # Parallel: X→M1, X→M2, NO edge M1↔M2 (or M1→M2)
+    g.add_edges_from([(x, m1), (x, m2)])
+    bi = frozenset()
+    theta = Theta(entries={
+        ProbabilityKey(m2, True, frozenset([(x, True)])): 0.6,
+        ProbabilityKey(m2, False, frozenset([(x, True)])): 0.4,
+    })
+    missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
+    # Both M1 and M2 are children of X, no edge between them →
+    # M1 ⊥ M2 | X by d-separation. Guard should allow.
+    v = _try_marginal_independence_lookup(
+        missing, theta, graph=g, bidirected=bi,
+    )
+    assert v == 0.6
+
+
 def test_runtime_and_verifier_marginal_independence_agree():
     """Iter 194 sync pin: runtime and verifier marginal-independence
     lookups MUST produce identical values. Independent
