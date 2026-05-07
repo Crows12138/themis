@@ -683,6 +683,25 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             framing_notes=result.get("framing_notes", []),
         )
 
+    # Iter 126: independent audit of bounds_result for MTR producer
+    # (iter 119). Re-derives the expected lower/upper expressions from
+    # program shape + monotonicity declaration; raises VerificationError
+    # on mismatch. manski_natural / balke_pearl_iv verification is a
+    # follow-up; until then those bounds are unaudited.
+    bounds_result = result.get("bounds_result")
+    if (
+        bounds_result is not None
+        and bounds_result.get("method") == "manski_tamer_monotonicity"
+    ):
+        from .verifier.bounds_rules import (
+            verify_manski_tamer_bounds_result,
+        )
+        verify_manski_tamer_bounds_result(
+            bounds_result,
+            program=ast,
+            query_dict=_query_to_dict(query_stmt.query),
+        )
+
 
 def verify_data_gap_report(result: dict) -> None:
     """Independently audit the ``data_gap_report`` inside one result.

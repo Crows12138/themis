@@ -11,6 +11,11 @@ Public surface (re-exports from sub-modules):
   ``verify_identify`` / ``verify_effect_structural`` /
   ``verify_numeric`` / ``verify_numeric_estimate`` /
   ``verify_counterfactual``
+- Bounds-result verifiers (iter 126):
+  ``verify_manski_tamer_bounds_result`` re-derives the iter 119
+  Manski-Tamer producer's symbolic expressions independently from
+  program shape + the monotonicity declaration in
+  ``program.extensions``
 - ``VerificationContext`` — the (graph, query, theta) bundle that
   every verifier reads
 - Serialization round-trip: ``derivation_to_dict`` /
@@ -47,6 +52,7 @@ from .verify import (
     verify_numeric,
     verify_numeric_estimate,
 )
+from .bounds_rules import verify_manski_tamer_bounds_result
 
 __all__ = [
     "DerivationSerializationError",
@@ -64,6 +70,7 @@ __all__ = [
     "verify_counterfactual",
     "verify_effect_structural",
     "verify_identify",
+    "verify_manski_tamer_bounds_result",
     "verify_numeric",
     "verify_numeric_estimate",
 ]
