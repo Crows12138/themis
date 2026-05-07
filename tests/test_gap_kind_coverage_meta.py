@@ -31,6 +31,11 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
 - test_readme_query_kind_list_matches_enum (iter 106 — README "当前能力"
   section listed 5 kinds while QueryKind enum has 6; counterfactual
   was added by Phase 5 §C but README claim never updated)
+- test_coverage_map_gap_kind_count_matches_enum (iter 107 — COVERAGE_MAP
+  元基础设施 row claimed "8 gap_kind" but GapKind grew to 22 via
+  Phase 13 dose-response + iter 5/19 + later additions; same drift
+  class as iter 105/106 — current-state inventory frozen at initial
+  scope while the actual registry kept growing)
 - test_readme_subpackage_list_matches_actual
 - test_status_docs_have_update_timestamp
 
@@ -937,6 +942,81 @@ def test_readme_query_kind_list_matches_enum():
         f"README query-kind list drifted from QueryKind enum. "
         f"Missing from README: {sorted(actual_kinds - listed)}; "
         f"extra in README: {sorted(listed - actual_kinds)}"
+    )
+
+
+def test_coverage_map_gap_kind_count_matches_enum():
+    """COVERAGE_MAP.md 元基础设施 row quotes 'DataGapReport schema
+    (N gap_kind / M severity / K ref_kind, ...)'. Iter 107 caught
+    that this claimed N=8 (initial Phase 10 scope) while GapKind
+    enum had grown to 22 via Phase 13 + iter 5/19 + later additions.
+
+    Pin parses the row and asserts N == len(GapKind), M == len(GapSeverity),
+    K == len(ref_kind enum from query_result.schema.json).
+
+    CORE_STATUS.md / PHASE_10_DATA_GAP_REPORT_CHARTER.md retain '8'
+    intentionally — those describe S.10.1 historical scope, not
+    current state — so they're NOT pinned by this test.
+    """
+    import json
+    import re
+
+    from themis.types import GapKind
+    from themis.output.data_gap_report import GapSeverity
+
+    actual_gap_kinds = len(list(GapKind))
+    actual_severities = len(list(GapSeverity))
+
+    schema = json.loads(
+        (REPO_ROOT / "query_result.schema.json").read_text(encoding="utf-8")
+    )
+
+    def _find_ref_kind_enum(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k == "ref_kind" and isinstance(v, dict) and "enum" in v:
+                    return v["enum"]
+                hit = _find_ref_kind_enum(v)
+                if hit is not None:
+                    return hit
+        elif isinstance(node, list):
+            for item in node:
+                hit = _find_ref_kind_enum(item)
+                if hit is not None:
+                    return hit
+        return None
+
+    ref_kind_enum = _find_ref_kind_enum(schema)
+    assert ref_kind_enum is not None, (
+        "query_result.schema.json must define a ref_kind enum"
+    )
+    actual_ref_kinds = len(ref_kind_enum)
+
+    coverage = (
+        REPO_ROOT / "COVERAGE_MAP.md"
+    ).read_text(encoding="utf-8")
+    m = re.search(
+        r"DataGapReport schema\s*\(\s*(\d+)\s+gap_kind\s*/\s*(\d+)\s+severity\s*/\s*(\d+)\s+ref_kind",
+        coverage,
+    )
+    assert m, (
+        "COVERAGE_MAP.md must quote 'DataGapReport schema (N gap_kind / "
+        "M severity / K ref_kind, ...)' for audit to detect drift"
+    )
+    quoted_kinds = int(m.group(1))
+    quoted_severities = int(m.group(2))
+    quoted_ref_kinds = int(m.group(3))
+    assert quoted_kinds == actual_gap_kinds, (
+        f"COVERAGE_MAP says {quoted_kinds} gap_kind but GapKind enum "
+        f"has {actual_gap_kinds}. Update COVERAGE_MAP.md."
+    )
+    assert quoted_severities == actual_severities, (
+        f"COVERAGE_MAP says {quoted_severities} severity but GapSeverity "
+        f"enum has {actual_severities}. Update COVERAGE_MAP.md."
+    )
+    assert quoted_ref_kinds == actual_ref_kinds, (
+        f"COVERAGE_MAP says {quoted_ref_kinds} ref_kind but schema enum "
+        f"has {actual_ref_kinds}. Update COVERAGE_MAP.md."
     )
 
 
