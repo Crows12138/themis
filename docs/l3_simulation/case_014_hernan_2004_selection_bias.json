@@ -1,0 +1,51 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "subj"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "azt", "domain": [true, false]},
+    {"kind": "variable", "predicate": "aids_death", "domain": [true, false]},
+    {"kind": "variable", "predicate": "selected", "domain": [true, false],
+     "measurement": "study eligibility / follow-up enrollment indicator at clinic visit"},
+    {
+      "kind": "cause",
+      "from": {"predicate": "azt", "args": [{"type": "const", "name": "subj"}]},
+      "to":   {"predicate": "aids_death", "args": [{"type": "const", "name": "subj"}]},
+      "annotations": {"source": "biology"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "azt", "args": [{"type": "const", "name": "subj"}]},
+      "to":   {"predicate": "selected", "args": [{"type": "const", "name": "subj"}]},
+      "annotations": {"source": "study_design",
+        "evidence": "AZT users more likely to remain in active follow-up (Hernán et al 2004 §4)"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "aids_death", "args": [{"type": "const", "name": "subj"}]},
+      "to":   {"predicate": "selected", "args": [{"type": "const", "name": "subj"}]},
+      "annotations": {"source": "study_design",
+        "evidence": "subjects who died can no longer be selected for follow-up — terminal-event-driven sample restriction"}
+    },
+    {
+      "kind": "observation",
+      "atom": {"predicate": "selected", "args": [{"type": "const", "name": "subj"}]},
+      "value": true
+    },
+    {
+      "kind": "query",
+      "id": "q_azt_aids_death",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "aids_death", "args": [{"type": "const", "name": "subj"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "azt", "args": [{"type": "const", "name": "subj"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}

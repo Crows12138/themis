@@ -339,6 +339,14 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # verifier_check ref naming the (variable, field) pair; classifier-
     # driven, no derivation step exists.
     "measurement_error_concern": frozenset({"verifier_check"}),
+    # iter 206: structural signal — an ObservationStatement on node W
+    # (encoding implicit sample restriction to W=observed-value) where
+    # both intervention X and target Y are directed ancestors of W.
+    # Provenance is a verifier_check ref naming the
+    # (observed_node, intervention -> target) trio; classifier-driven,
+    # no derivation step. Hernán-Hernández-Díaz-Robins 2004 selection
+    # bias structural pattern.
+    "selection_on_collider_opens_path": frozenset({"verifier_check"}),
 }
 
 

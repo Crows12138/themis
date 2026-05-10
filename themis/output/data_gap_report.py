@@ -67,6 +67,19 @@ iter 205 must-disclose addition (board #8 unblock):
   IMPORTANT (regression-dilution / non-differential mis-classification
   are identification-impacting).
 
+iter 206 must-disclose addition (board #7 — selection bias second
+shape, complementing iter 122 collider_conditioning_opens_backdoor):
+- selection_on_collider_opens_path — an ObservationStatement on node W
+  encodes implicit sample restriction to W=value, AND W has both
+  intervention X and target Y as directed ancestors. Conditioning on
+  W (which the data-generating process does, by virtue of the sample
+  being restricted) opens X→…→W←…←Y; the marginal estimate from the
+  restricted sample carries selection-induced bias. Hernán-Hernández-
+  Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to
+  Selection Bias" Figure 3-style. Distinct from iter 122's kind which
+  fires on EffectQuery.given (explicit conditioning) — this fires on
+  observation statements (implicit sample-restriction conditioning).
+
 iter 203 must-disclose addition:
 - graph_theta_independence_mismatch — the iter 199 d-separation guard
   refused an existing-but-graph-incompatible marginal during formula
@@ -117,6 +130,7 @@ from ..types import (
     GapRequiredData,
     GapSeverity,
     InvestigationRequest,
+    ObservationStatement,
     QueryKind,
     RequiredDataType,
     ResultStatus,
@@ -209,6 +223,9 @@ def compute_data_gap_report(
         stmt=stmt, extensions=extensions,
     ))
     must_disclose_gaps.extend(_classify_collider_conditioning_opens_backdoor(
+        program=program, stmt=stmt,
+    ))
+    must_disclose_gaps.extend(_classify_selection_on_collider_opens_path(
         program=program, stmt=stmt,
     ))
 
@@ -1934,6 +1951,167 @@ def _classify_collider_conditioning_opens_backdoor(
                         ref_kind=GapRefKind.VERIFIER_CHECK,
                         ref_id=(
                             f"collider:{w_pred}|"
+                            f"{intervention_pred}->{target_pred}"
+                        ),
+                    ),
+                ),
+            )
+
+
+def _classify_selection_on_collider_opens_path(
+    *,
+    program,
+    stmt,
+) -> Iterable[DataGap]:
+    """Iter 206 — selection-bias board (#7) second shape.
+
+    Distinct from ``_classify_collider_conditioning_opens_backdoor``
+    which fires on **explicit** conditioning via ``EffectQuery.given``.
+    This classifier fires on **implicit sample restriction** encoded as
+    an ``ObservationStatement(W, value)``: the data the user is about to
+    estimate from is restricted to subjects with W=value, and the
+    declared DAG has both intervention X and target Y as directed
+    ancestors of W. Per Pearl d-separation conditioning on W (which the
+    sample restriction *implicitly does*) opens X→…→W←…←Y; the marginal
+    estimate from the restricted sample carries selection-induced bias.
+
+    Canonical case: Hernán-Hernández-Díaz-Robins 2004 *Epidemiology*
+    15:615 "A Structural Approach to Selection Bias" — Figure 3-style
+    HIV/AZT → AIDS-death cohort where eligibility for follow-up
+    (W = "selected") is itself caused by both treatment and outcome.
+    The "structural approach" framing is exactly: name the W node,
+    surface that the sample restriction is conditioning on a collider.
+
+    Detection rule (predicate-level):
+    - For each ObservationStatement in the program, let W = its atom's
+      predicate.
+    - Build the parents-of map from CauseStatement edges.
+    - Walk the directed-ancestor closure of W.
+    - If both intervention X and target Y are in W's ancestor closure,
+      fire IMPORTANT severity gap.
+    - Skip the cause-self / target-self degenerate cases (W ∈ {X, Y}).
+
+    Severity: IMPORTANT — selection on a collider biases the marginal
+    estimate identifiably; this is identification damage, not just a
+    caveat.
+
+    No external library does this routing (DoWhy/EconML accept the
+    user-supplied dataset and confounder set; they don't inspect for
+    implicit sample-restriction colliders). Themis is uniquely
+    positioned because it owns both the program-level DAG and the
+    ObservationStatement structure.
+    """
+    from ..types import EffectQuery
+
+    if program is None or stmt is None:
+        return
+    q = getattr(stmt, "query", None)
+    if not isinstance(q, EffectQuery):
+        return
+
+    intervention_pred = q.intervention.atom.predicate
+    target_pred = q.target.atom.predicate
+
+    # Gather ObservationStatement-restricted predicates.
+    observed_preds: list[tuple[str, object]] = []
+    for st in program.statements:
+        if isinstance(st, ObservationStatement):
+            w_pred = st.atom.predicate
+            if w_pred in (intervention_pred, target_pred):
+                # Observing the intervention itself or the target
+                # itself isn't selection-on-collider — it's just a
+                # different (degenerate) query.
+                continue
+            observed_preds.append((w_pred, st.value))
+
+    if not observed_preds:
+        return
+
+    # Build parents-of map for ancestor walk.
+    parents_of: dict[str, set[str]] = {}
+    for st in program.statements:
+        if isinstance(st, CauseStatement):
+            parents_of.setdefault(
+                st.to_atom.predicate, set()
+            ).add(st.from_atom.predicate)
+
+    def _ancestors_excluding(node: str, blocked: str) -> set[str]:
+        """Directed-ancestor closure of ``node`` with paths through
+        ``blocked`` removed (``blocked`` itself is treated as non-
+        traversable). Used to verify there is a directed path from
+        an ancestor candidate to ``node`` that does NOT go through
+        the other candidate — Hernán 2004 §3 'common effect' requires
+        the two ancestor sources to be structurally separate, not just
+        a chain X→Y→W where Y trivially makes X an ancestor."""
+        seen: set[str] = set()
+        stack = [
+            p for p in parents_of.get(node, set()) if p != blocked
+        ]
+        while stack:
+            curr = stack.pop()
+            if curr in seen or curr == blocked:
+                continue
+            seen.add(curr)
+            stack.extend(
+                p for p in parents_of.get(curr, set()) if p != blocked
+            )
+        return seen
+
+    for w_pred, w_value in observed_preds:
+        # Hernán 2004 §3: W is a 'common effect' of X and Y iff there is
+        # a directed path X→…→W not going through Y *and* a directed path
+        # Y→…→W not going through X. Pure X→Y→W chain gives X as
+        # ancestor only via Y, which is overcontrol bias on a mediator,
+        # not selection bias on a collider — different identification
+        # problem with different repair (don't fire this kind).
+        ancs_via_not_target = _ancestors_excluding(w_pred, target_pred)
+        ancs_via_not_intervention = _ancestors_excluding(
+            w_pred, intervention_pred
+        )
+        if (
+            intervention_pred in ancs_via_not_target
+            and target_pred in ancs_via_not_intervention
+        ):
+            yield DataGap(
+                kind=GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
+                severity=GapSeverity.IMPORTANT,
+                description=(
+                    f"样本被结构性限制为 `{w_pred}={w_value}` 的受试者"
+                    f"（program 里有 ObservationStatement 编码了这个限制）"
+                    f"，但声明的 DAG 里 `{intervention_pred}` 和 "
+                    f"`{target_pred}` 都是 `{w_pred}` 的祖先 —— `{w_pred}` "
+                    f"是 collider。Pearl d-separation：用『仅 "
+                    f"{w_pred}={w_value} 的子样本』估计 P({target_pred} | "
+                    f"do({intervention_pred})) 等于在 collider 上做条件，"
+                    f"会**打开** `{intervention_pred}→...→{w_pred}←..."
+                    f"←{target_pred}` 这条非因果路径，给估计引入 selection-"
+                    f"induced bias。Hernán-Hernández-Díaz-Robins 2004 "
+                    f"*Epidemiology* 15:615 \"A Structural Approach to "
+                    f"Selection Bias\" 的标准结构。"
+                ),
+                blocks=GapBlocks.IDENTIFICATION,
+                if_provided=(
+                    f"补充未被 `{w_pred}` 限制的对照样本（覆盖 "
+                    f"{w_pred}=¬{w_value} 的受试者），把全样本作为分析"
+                    f"对象 —— 而不是只用 `{w_pred}={w_value}` 子样本"
+                ),
+                alternative_paths=(
+                    f"用 inverse-probability-of-selection weighting "
+                    f"(Hernán et al 2004 §5)：对每个保留样本按 "
+                    f"1/P({w_pred}={w_value} | X, Y) 加权重抽以"
+                    f"近似全样本",
+                    f"如果 `{w_pred}` 实际并非由 `{intervention_pred}` 和 "
+                    f"`{target_pred}` 共同决定，更新 DAG 删除其中一条"
+                    f"祖先边 —— 当前结构性结论会随之改变",
+                    f"用 `selection_node` (Phase 9 §T9.1) 把 `{w_pred}` "
+                    f"声明为 transport 选择节点而不是观察节点，并通过 "
+                    f"transport identification 路径处理跨人群泛化",
+                ),
+                provenance=(
+                    GapProvenanceRef(
+                        ref_kind=GapRefKind.VERIFIER_CHECK,
+                        ref_id=(
+                            f"selection_observation:{w_pred}|"
                             f"{intervention_pred}->{target_pred}"
                         ),
                     ),

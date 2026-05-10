@@ -1385,3 +1385,115 @@ test-retest reliability + SIMEX numerics); it was "use the schema
 fields you already advertise". Real-user-mining via case 013 was the
 forcing function — without an authoritative case quoting MacMahon's
 *"slope biased toward zero"*, this would still be 0%.
+
+---
+
+#### 2026-05-10 iter 206 — board #7 (selection bias) second shape via L3 case 014 (Hernán-Hernández-Díaz-Robins 2004 *Epidemiology*)
+
+L3 simulation methodology applied to board #7 ``选择偏差`` second
+structural shape. Iter 122's ``collider_conditioning_opens_backdoor``
+covers EffectQuery.given containing a collider — *explicit*
+conditioning. The complementary structural pattern, *implicit sample
+restriction*, was uncovered.
+
+Mined **Hernán MA, Hernández-Díaz S, Robins JM 2004 *Epidemiology*
+15(5):615-25** "A Structural Approach to Selection Bias" — modern
+canonical reference. §3 defines selection bias as *"conditioning on a
+common effect (or its descendant) of two variables, one of which is
+either the exposure or a cause of the exposure, and the other is
+either the outcome or a cause of the outcome."* §4 walks through
+differential loss to follow-up: indicator C depends on both exposure
+E and outcome D; estimating E→D on those with C=0 inverts the standard
+adjustment intuition because even a fully-adjusted backdoor cannot
+close the new path E→C←D opened by conditioning on C=0. §5 prescribes
+inverse probability of selection weighting (IPSW) as the structural
+repair.
+
+Encoded in case 014 as the canonical HIV/AZT → AIDS-death cohort:
+``azt → aids_death``, ``azt → selected``, ``aids_death → selected``
+(so ``selected`` is a V-collider on the X→Y path), plus an
+``ObservationStatement(selected, True)`` encoding the implicit sample
+restriction. ``EffectQuery.given`` is empty — the case deliberately
+walks the *implicit* path, not the iter 122 explicit one.
+
+**Pre-iter-206 result**: status ``needs_investigation``, gaps =
+{missing_distribution, ambiguous_variable_definition × 2,
+answer_is_bounds_not_point_estimate}. **No** selection-bias signal
+at all. The DAG had ``azt → selected ← aids_death`` (V-collider) AND
+an ObservationStatement implicitly conditioning on it. Themis saw
+both signals separately but had no classifier connecting them.
+
+**Root cause**: iter 122 wired the collider check to
+``EffectQuery.given`` only. Implicit sample-restriction encoded as
+``ObservationStatement`` was never inspected for collider geometry.
+The two access paths to the same V-structure are different program
+shapes — explicit conditioning vs implicit data restriction — with
+different repairs (move out of given vs supplement / IPSW the
+sample). Without a separate classifier reading ObservationStatement,
+the implicit path was a structural blind spot.
+
+**Structural fix**: ``GapKind.SELECTION_ON_COLLIDER_OPENS_PATH``,
+severity IMPORTANT, wired into the must-disclose channel. Classifier
+``_classify_selection_on_collider_opens_path`` walks each
+ObservationStatement's predicate W, then verifies the V-collider
+condition with Hernán 2004 §3 precision: requires a directed path
+X→…→W *not* through Y *and* a directed path Y→…→W *not* through X.
+A pure chain X→Y→W (mediator overcontrol) does NOT fire — different
+identification problem with different repair. Provenance ref
+structurally names ``selection_observation:{W}|{X}->{Y}`` so the
+downstream channel routes the right action.
+
+End-to-end demo. Pre-iter-206 (case 014):
+
+    status: needs_investigation
+    gap_kinds: [missing_distribution, ambiguous_variable_definition × 2,
+                answer_is_bounds_not_point_estimate]
+    explanation has NO selection-bias line
+
+Post-iter-206:
+
+    status: needs_investigation
+    gap_kinds: [missing_distribution, ambiguous_variable_definition × 2,
+                **selection_on_collider_opens_path** (important),
+                answer_is_bounds_not_point_estimate]
+    explanation: ⚠ 样本被结构性限制为 selected=True 的受试者...
+                 selected 是 collider...Hernán-Hernández-Díaz-Robins
+                 2004 *Epidemiology* 15:615 的标准结构
+    alternative_paths:
+      - inverse-probability-of-selection weighting (Hernán 2004 §5)
+      - 修 DAG（如果 selected 实际并非由 azt 和 aids_death 共同决定）
+      - 把 selected 重新声明为 selection_node 走 transport identification
+
+Tests added (12 new, total 1910 → 1924):
+
+- ``tests/test_selection_on_collider_opens_path.py`` 12 tests pinning
+  classifier behavior across (a) canonical Hernán 2004 trigger;
+  (b) 2 negative paths (only X-ancestor / only Y-ancestor);
+  (c) 3 suppression paths (no observation / observation on X /
+  observation on Y); (d) severity / provenance / alternative_paths
+  shape; (e) must-disclose explanation line; (f) mutual-exclusion
+  with iter 122 kind on same shape; (g) e2e on case_014 JSON
+- L3 case 014 entry in ``CASES``: asserts
+  selection_on_collider_opens_path fires AND
+  collider_conditioning_opens_backdoor does NOT (mutual-exclusion
+  pin per access-path discrimination)
+
+Why this is the right next iter, not "fix iter 122 to also read
+ObservationStatement": iter 122's kind name + description are
+specific to *explicit* conditioning via ``EffectQuery.given``. Repair
+is "remove from given or transport." For implicit sample restriction
+the repair is structurally different — the given list is empty; the
+restriction lives in the data itself, fixable only by recovering the
+unrestricted sample, IPSW, or re-routing as transport. Conflating the
+two would make the structured channel route the wrong action.
+Sibling kinds for the two access paths to the same V-collider
+geometry, with deliberately distinct repair language.
+
+Lesson: when the schema admits two structurally-equivalent ways to
+encode the same problem (condition explicitly via given OR restrict
+implicitly via observation), classifiers must traverse both. Themis's
+ObservationStatement is a first-class atom 200+ iters old, but no
+classifier ever asked "does this observation sit on a V-collider?".
+Same lesson as iter 205 measurement / observability fields — a schema
+field that no classifier reads is structural theatre, not capability.
+Real-user-mining via case 014 was the forcing function.

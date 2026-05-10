@@ -2541,6 +2541,13 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     # so a reviewer reading only ``result.explanation`` sees the
     # identification-impact warning before the headline number.
     "measurement_error_concern",
+    # iter 206: implicit selection on a collider — distinct shape from
+    # explicit collider conditioning (which fires on EffectQuery.given).
+    # Sample restriction via ObservationStatement(W, value) opens the
+    # X→…→W←…←Y non-causal path. Must surface so a reviewer reading
+    # only the explanation sees the selection-bias warning before the
+    # headline conditional.
+    "selection_on_collider_opens_path",
 })
 
 

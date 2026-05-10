@@ -145,3 +145,14 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   `measurement_error_concern` GapKind + program-shape classifier，
   suppression 兼容 case 011 (extensions.ambiguities[measurement_quality]
   escape-hatch 路径)。corpus 13/13。）
+- [Case 014 — Hernán-Hernández-Díaz-Robins 2004 selection bias (HIV/AZT → AIDS death)](case_014_hernan_2004_selection_bias.md)
+  （2026-05-10 iter 206，✅ match real-finding：板块 7 (选择偏差) 从
+  20-25% 到 25-30%，覆盖第二条结构形状。iter 122 加的
+  `collider_conditioning_opens_backdoor` 只覆盖 explicit
+  EffectQuery.given 路径；implicit 路径（ObservationStatement(W, value)
+  编码样本限制 + W 是 X/Y 共同后代的 collider）从未被检测。Hernán et al
+  2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias"
+  Figure 3-style HIV/AZT → AIDS-death + loss-to-follow-up 经典编码触发。
+  加新 `selection_on_collider_opens_path` GapKind + program-shape
+  classifier，与 iter 122 严格互补。与 SelectionNode (Phase 9 §T9.1
+  transport) 边界明确。corpus 14/14。）

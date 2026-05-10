@@ -5,7 +5,7 @@ gap_kinds') after iter 1-16 mined 10 cases from authoritative sources.
 The file accumulated additional structural / preventive pins through
 iter 90 as the corpus grew and drift classes were caught.
 
-Cases corpus (13 total; 10/10 plateau achieved iter 20, then 011-013
+Cases corpus (14 total; 10/10 plateau achieved iter 20, then 011-014
 mined post-plateau as deliberate stress probes):
 - 001/002 backdoor (medicine) — measured confounders + no bidirected
 - 003 IV via Balke-Pearl bounds (econ) — Card 1995 schooling-earnings
@@ -24,6 +24,13 @@ mined post-plateau as deliberate stress probes):
 - 013 single-occasion BP → CHD (MacMahon 1990 Lancet, iter 205 real-
   finding — board #8 0% break: variable.measurement structurally signals
   regression-dilution; new measurement_error_concern gap_kind)
+- 014 selection bias / loss-to-follow-up via implicit sample
+  restriction (Hernán-Hernández-Díaz-Robins 2004 Epidemiology 15:615
+  "A Structural Approach to Selection Bias", iter 206 real-finding —
+  board #7 second shape: ObservationStatement(W, value) + W is
+  collider on X→Y triggers selection_on_collider_opens_path; distinct
+  from iter 122's collider_conditioning_opens_backdoor which fires on
+  EffectQuery.given)
 
 Pins (chronological):
 - test_l3_case_emits_expected_gap_kinds (iter 17, parametrized) —
@@ -215,6 +222,35 @@ CASES = [
         ["graph_theta_independence_mismatch",
          "weak_iv_instrument",
          "front_door_identification_assumption_required",
+         "unattempted_layer_due_to_dispatch_conflict"],
+    ),
+    (
+        "case_014_hernan_2004_selection_bias.json",
+        # Iter 206 real-finding case: Hernán-Hernández-Díaz-Robins 2004
+        # Epidemiology 15:615 "A Structural Approach to Selection Bias"
+        # — HIV/AZT → AIDS-death cohort with loss-to-follow-up indicator
+        # `selected` caused by both AZT (treatment-driven retention) and
+        # AIDS-death (terminal-event-driven sample loss). The program
+        # encodes implicit sample restriction via
+        # ObservationStatement(selected, True). Pre-iter-206: board #7
+        # selection bias was only covered by iter 122's
+        # collider_conditioning_opens_backdoor, which fires on
+        # EffectQuery.given (explicit conditioning) — not on
+        # ObservationStatement (implicit sample restriction). So Themis
+        # returned the full envelope with NO selection-bias signal.
+        # Post-iter-206: new selection_on_collider_opens_path gap_kind
+        # fires from program shape (ObservationStatement on a node that
+        # has both intervention and target as ancestors). Severity
+        # IMPORTANT. Distinct kind from the iter 122 explicit one — the
+        # negative assertion below pins this discrimination so a future
+        # implementation merging both paths into one kind would fail.
+        ["selection_on_collider_opens_path",
+         "missing_distribution",
+         "ambiguous_variable_definition"],
+        ["collider_conditioning_opens_backdoor",
+         "graph_theta_independence_mismatch",
+         "weak_iv_instrument",
+         "transport_target_distribution_unknown",
          "unattempted_layer_due_to_dispatch_conflict"],
     ),
 ]

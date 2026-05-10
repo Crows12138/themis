@@ -99,6 +99,21 @@ do NOT trigger fetch / ask user.
   NOT phrase this as "go fetch the same data again" — the action is
   *higher-quality measurement* on a sub-sample, not more rows of the
   same noisy measurement.
+- `selection_on_collider_opens_path` (iter 206) → no immediate Q1-Q3
+  fetch from the *current* sample. The program declares
+  `ObservationStatement(W, value)` (an implicit sample restriction)
+  AND the DAG places intervention X and target Y as joint ancestors of
+  W. Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615
+  "A Structural Approach to Selection Bias" — the restricted sample
+  inherits a non-causal X→…→W←…←Y path that all confounder adjustment
+  in the world will not close. Surface the gap's `if_provided`
+  (recover the unrestricted sample) and `alternative_paths`
+  (inverse-probability-of-selection weighting per Hernán et al 2004
+  §5; OR re-declare W as a `selection_node` and route via transport;
+  OR revise the DAG if W is *not* genuinely caused by both X and Y).
+  Do NOT phrase the repair as "add a covariate" — selection on a
+  collider isn't fixable by stratification on the same restricted
+  sample.
 
 `severity == "blocking"` always needs Q1-Q3.
 

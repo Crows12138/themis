@@ -730,6 +730,32 @@ class GapKind(str, Enum):
     # this kind landed. No external library structure-routes this from
     # variable-level measurement metadata.
     MEASUREMENT_ERROR_CONCERN = "measurement_error_concern"
+    # iter 206: selection-bias board (#7) — distinct from
+    # COLLIDER_CONDITIONING_OPENS_BACKDOOR which fires on EffectQuery
+    # `given` containing a collider that the user explicitly conditions
+    # on. This kind fires on the structurally-different *implicit
+    # selection* case: an ObservationStatement on some node W (i.e. the
+    # study sample is restricted to subjects with W=value), where W has
+    # both X (intervention) and Y (target) as directed ancestors. The
+    # restriction conditions on a collider implicitly — the data
+    # generating process the user is about to estimate from is
+    # P(Y|X, W=w_observed), not P(Y|X), and that conditioning OPENS
+    # a non-causal X→…→W←…←Y path per Pearl d-separation. Canonical
+    # documented case: Hernán, Hernández-Díaz & Robins 2004
+    # *Epidemiology* 15:615 "A Structural Approach to Selection Bias"
+    # — Figure 3-style HIV/AZT → AIDS-death study where eligibility for
+    # follow-up is itself a function of both treatment and outcome.
+    # Severity IMPORTANT — this is identification damage (the marginal
+    # effect estimate from the restricted sample is contaminated by a
+    # collider-induced association), NOT just a caveat. Distinct from
+    # SelectionNode (Phase 9 §T9.1, transport diagram for
+    # heterogeneous source populations) — selection-on-collider is
+    # bias *within* a single sample restricted by a downstream
+    # collider, not transport across populations. No external library
+    # surfaces this from program shape; DoWhy/EconML accept the
+    # restricted dataset and adjust on user-named confounders without
+    # noticing the implicit V-structure on the sample-restriction node.
+    SELECTION_ON_COLLIDER_OPENS_PATH = "selection_on_collider_opens_path"
 
 
 class GapSeverity(str, Enum):

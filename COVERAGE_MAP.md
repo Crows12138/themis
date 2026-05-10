@@ -33,7 +33,7 @@
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|
 | 6 | 中介分析 | **~80%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）/ **Phase 7.5 CDE numeric ✓**（iter 125，sklearn plug-in g-formula at fixed M=m*；linear + logit）/ **Phase 7.5+ CDE chain ✓**（iter 134，N-mediator 链式 CDE：X→M_1→...→M_n→Y 在每个 M_i 固定值上 plug-in，VanderWeele 2015 ch.5）；多 mediator 联合（非链式）/ NIE 链式分解 → 后续 |
-| 7 | 选择偏差 | **20-25%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ **`collider_conditioning_opens_backdoor` gap_kind ✓** (iter 122，EffectQuery `given` 中含 collider 时结构性诊断) / 选择节点结构 (selection_node) → Phase 9+ |
+| 7 | 选择偏差 | **25-30%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ **`collider_conditioning_opens_backdoor` gap_kind ✓** (iter 122，EffectQuery `given` 中含 collider 时结构性诊断) / **`selection_on_collider_opens_path` gap_kind ✓** (iter 206，**ObservationStatement(W, value) 编码隐式样本限制 + W 是 X/Y 共同后代时 surface Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 经典结构**；与 iter 122 的 explicit-given 互补 —— 两条路径都覆盖) / 选择节点结构 (selection_node 已存在仅用于 transport) / IPSW selection-weight 数值估计 → Phase 9+ |
 | 8 | 测量误差 | **5-10%** | **iter 205 first crack**：`measurement_error_concern` gap_kind 从程序结构（变量 `measurement` / `observability` 字段值含 self-report / 24h recall / single-occasion BP / questionnaire / FFQ / proxy 等已 documented 的高噪声模态）surfacing 测量误差风险，文献依据 MacMahon 1990 Lancet (regression dilution) / Hernán & Robins What If §9 (mis-classification) / Fuller 1987。未做：去衰减估计 (regression calibration / SIMEX) / differential mis-classification → Phase 9+ |
 | 9 | 转移性 / 泛化 | **35-40%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）/ **Phase 9 §T9.2 已落地（iter 128）**：post-stratification numeric (Cole & Stuart 2010 §3) — `estimate_transport` + dispatch path + bootstrap CI；多源 §T9.3 / 多变量 Z 联合 / latent S / IPSW (Westreich 2017) → 后续 |
 | 10 | 敏感性分析 | **~35%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在 binary 估计 + iter 124 Chinn 2000 SMD→RR 路径让连续 outcome 同样获得 E-value）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
@@ -61,7 +61,7 @@
 | **T10 DataGapReport 独立 verifier**（byte-code scan 钉独立性，Phase 10）| **~100%** |
 | Derivation JSON + 审计字段 + `success` 字段（Phase 10 标失败 step） | **~100%** |
 | ambiguity kind 分类体系（loose-string；A1/A2/A5 prompts + eval_set fixtures 联合用例） | **~100%** |
-| **DataGapReport schema (28 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
+| **DataGapReport schema (29 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
 | Eval set (29 cases / F1-F26) + 真实 LLM 基线 | **~100%** |
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |
