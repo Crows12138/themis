@@ -27,24 +27,30 @@ estimand definition itself).
 
 Key invariants pinned here:
 - fires when intervention has state_vs_event="state" AND no time_window
-- does NOT fire when state_vs_event is unset (silence is
-  ambiguous_variable_definition territory, not contradiction)
-- does NOT fire when state_vs_event="event" (well-defined acute
-  exposure)
+  (explicit contradiction shape — original iter 207 trigger)
+- ALSO fires when neither state_vs_event NOR time_window is declared
+  (silence shape — default-on prophylactic added 2026-05 after Q3
+  retest analysis showed explicit-only trigger put the "spot the
+  methodology trap" burden back on the LLM)
+- does NOT fire when state_vs_event="event" (explicit acute-exposure
+  opt-out)
 - does NOT fire when time_window is set (the inconsistency is closed)
 - does NOT fire on non-EFFECT queries (consistency-violation story is
   about do(.))
 - does NOT fire when intervention predicate has no VariableDeclaration
-  at all (no schema admittance, no dead-schema theatre to cite)
+  at all (no schema admittance to flag inferred state on)
 - does NOT fire when extensions.ambiguities[*] declares an
   ``ill_defined_intervention`` / ``well_defined_intervention`` kind
   (case 011-style escape hatch)
-- severity is IMPORTANT (consistency violation is identification
-  damage at the estimand level)
+- severity is IMPORTANT for both shapes (the methodological concern
+  is identical regardless of how it was detected)
+- description and provenance ref_id differ between explicit and
+  inferred: explicit uses ``intervention_state_without_time_window:X``,
+  inferred uses ``intervention_state_inferred:X`` — renderers can
+  soften wording on the inferred path if desired
 - alternative_paths name re-spec / event-encoding / mediation-split /
   RCT / opt-in mixed estimand options — none of which is "fetch more
   data" (the gap is question definition, not row count)
-- provenance ref structurally names the offending intervention
 - must-disclose ⚠ line lands in result.explanation
 - distinct from ambiguous_variable_definition / measurement_error_concern
 """
@@ -139,13 +145,78 @@ def test_fires_on_state_without_time_window():
     assert "ill_defined_intervention_versions" in _gap_kinds(out)
 
 
-def test_does_not_fire_when_state_vs_event_unset():
-    """state_vs_event=None means the user never said anything about
-    state-vs-event. That's silence — ambiguous_variable_definition's
-    territory, not iter 207's (which fires on a *contradiction* between
-    two declared fields)."""
+def test_fires_on_state_vs_event_unset_too():
+    """state_vs_event=None means the LLM didn't declare state-vs-event.
+    Combined with absent time_window, this is the 'silence' shape:
+    an intervention atom in an EFFECT query without any time / state
+    framing. Default-on prophylactic — fires the same GapKind as the
+    explicit-state shape so the methodology concern surfaces even when
+    the LLM didn't think to flag it. (Original iter 207 design treated
+    this as 'silence ≠ contradiction' and stayed quiet — but Q3 retest
+    2026-05 showed that put 'spot the methodology trap' back on the
+    LLM, defeating Themis's positioning. Distinguish via provenance
+    ref_id, not via fire/no-fire.)"""
     out = run(_make_program(state_vs_event=None, time_window=None))
-    assert "ill_defined_intervention_versions" not in _gap_kinds(out)
+    assert "ill_defined_intervention_versions" in _gap_kinds(out)
+
+
+def test_inferred_path_provenance_distinguishable_from_explicit():
+    """Both the 'state explicit + no time_window' and the 'both fields
+    absent' shapes fire the same GapKind, but the provenance ref_id
+    distinguishes them so a renderer can soften wording on the
+    inferred path:
+    - explicit:  intervention_state_without_time_window:<predicate>
+    - inferred:  intervention_state_inferred:<predicate>
+    This pins the audit-trail invariant so downstream consumers can
+    rely on the ref_id prefix to route inferred-vs-explicit handling
+    without re-parsing description text."""
+    out_inferred = run(_make_program(
+        state_vs_event=None, time_window=None,
+    ))
+    out_explicit = run(_make_program(
+        state_vs_event="state", time_window=None,
+    ))
+    gap_inferred = _gap_by_kind(out_inferred,
+                                "ill_defined_intervention_versions")
+    gap_explicit = _gap_by_kind(out_explicit,
+                                "ill_defined_intervention_versions")
+    assert gap_inferred is not None
+    assert gap_explicit is not None
+    refs_inferred = [r["ref_id"] for r in gap_inferred["provenance"]]
+    refs_explicit = [r["ref_id"] for r in gap_explicit["provenance"]]
+    assert any("state_inferred:x" in r for r in refs_inferred), \
+        refs_inferred
+    assert any(
+        "state_without_time_window:x" in r for r in refs_explicit
+    ), refs_explicit
+
+
+def test_inferred_path_severity_matches_explicit():
+    """The methodological concern is identical whether detected via
+    explicit state declaration or inferred from silence. Severity must
+    be IMPORTANT on both paths — softer severity on the inferred
+    branch would risk renderers dropping the warning."""
+    out_inferred = run(_make_program(
+        state_vs_event=None, time_window=None,
+    ))
+    gap = _gap_by_kind(out_inferred, "ill_defined_intervention_versions")
+    assert gap is not None
+    assert gap["severity"] == "important"
+
+
+def test_inferred_path_description_signals_opt_out_route():
+    """The inferred-path description must tell the user how to silence
+    the warning (declare state_vs_event='event' or time_window).
+    Without this guidance the warning is unactionable for the case
+    where the LLM actually meant an event-like intervention."""
+    out = run(_make_program(state_vs_event=None, time_window=None))
+    gap = _gap_by_kind(out, "ill_defined_intervention_versions")
+    assert gap is not None
+    description = gap["description"]
+    # opt-out route 1: declare state_vs_event="event"
+    assert "event" in description
+    # opt-out route 2: declare time_window
+    assert "time_window" in description
 
 
 def test_does_not_fire_when_event_type():

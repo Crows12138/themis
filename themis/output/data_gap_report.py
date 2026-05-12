@@ -2153,14 +2153,25 @@ def _classify_ill_defined_intervention_versions(
 ) -> Iterable[DataGap]:
     """Iter 207 — well-defined-intervention prerequisite (boards #1 / #11).
 
-    Trigger: EffectQuery's intervention atom names a predicate whose
-    VariableDeclaration declares ``state_vs_event = "state"`` AND no
-    ``time_window`` is set on the same declaration. The schema admits
-    both fields; reading ``state_vs_event`` 's VALUE (not just "is it
-    set?") is the new behavior — pre-iter-207 was dead-schema theatre,
-    same pattern as iter 205 (measurement value) and iter 206
-    (ObservationStatement). The state-without-duration combination is
-    the canonical Hernán & Taubman 2008 ill-defined-intervention shape.
+    Trigger: EffectQuery's intervention atom names a declared predicate
+    on which ``time_window`` is absent AND ``state_vs_event`` is either
+    explicit ``"state"`` (the contradiction shape: persistent attribute
+    with no duration) OR also absent (the silence shape: NL-derived
+    program where neither field was set — the most common shape for
+    LLM-emitted kernel_ast since both fields are optional). Both shapes
+    map to the same Hernán & Taubman 2008 ill-defined-intervention
+    methodological concern; only the description and provenance ref_id
+    distinguish them so a renderer can soften wording if desired.
+
+    Default-on prophylactic rationale: when an LLM emits a kernel_ast
+    naturally, it rarely declares ``state_vs_event``. Requiring the
+    explicit ``"state"`` value before firing put the burden of "spot
+    the methodology trap" back on the LLM — the very thing Themis is
+    supposed to catch. So absent ``state_vs_event`` is treated as
+    "plausibly state-like, please confirm". The opt-out is cheap and
+    explicit: declare ``state_vs_event="event"`` (or add
+    ``time_window``) on the intervention predicate's
+    VariableDeclaration. See 2026-05 Q3 retest analysis.
 
     Authoritative source: Hernán MA, Taubman SL 2008 *Int J Obesity*
     32(Suppl 3):S8-S14 "Does obesity shorten life? The importance of
@@ -2176,11 +2187,10 @@ def _classify_ill_defined_intervention_versions(
     silently violated.
 
     Distinct from ``ambiguous_variable_definition``: that kind fires
-    when fields are absent ("you didn't say"); this fires on
-    contradictorily-set fields ("you said state, but no duration —
-    state vs what acute reference?"). The schema admits both
-    state_vs_event and time_window precisely so the inconsistency can
-    be surfaced.
+    on each individual missing framing field (threshold / observability
+    / direction / baseline) — generic "you didn't say". This kind
+    fires on the *structural* well-defined-intervention concern with a
+    named-paper anchor and methodology-specific repair options.
 
     Suppressed when:
     - query is not effect (consistency-violation story is about the
@@ -2192,9 +2202,10 @@ def _classify_ill_defined_intervention_versions(
       — escape-hatch path mirroring case 011's measurement_quality
       suppression
     - the intervention predicate has no VariableDeclaration at all
-      (no schema admittance → nothing to call dead-schema theatre on)
-    - state_vs_event is not the literal string "state"
-    - time_window is set (the inconsistency is closed)
+      (no schema admittance → nothing to flag the inferred state on)
+    - state_vs_event is the literal string "event" (explicit acute
+      exposure declaration; the LLM has signaled this is well-defined)
+    - time_window is set (duration closes the version-ambiguity gap)
 
     Severity IMPORTANT — consistency violation biases the estimand
     DEFINITION (different interventions → different estimands), not
@@ -2241,14 +2252,44 @@ def _classify_ill_defined_intervention_versions(
         return
     state_value = getattr(decl, "state_vs_event", None)
     time_window = getattr(decl, "time_window", None)
-    if state_value != "state":
-        return
+    # time_window declared → version-ambiguity closed by duration.
     if time_window:
         return
-    yield DataGap(
-        kind=GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
-        severity=GapSeverity.IMPORTANT,
-        description=(
+    # state_vs_event explicitly "event" → LLM signaled well-defined
+    # acute exposure (one-shot dose / discrete trigger). Trust the
+    # opt-out and skip.
+    if state_value == "event":
+        return
+    # Remaining: state_value == "state" (explicit contradiction) or
+    # state_value is None (silence on both fields → inferred state-
+    # like). Both fire the same GapKind; description and provenance
+    # ref_id differ so a renderer can adjust tone.
+    inferred = state_value is None
+    if inferred:
+        description = (
+            f"intervention 既未声明 `state_vs_event` 也未声明 "
+            f"`time_window`：变量 `{intervention_pred}` 在 EffectQuery 的"
+            f" do(.) 位置出现，但没有时间维度信息——按可能为 state-like"
+            f"（持久性属性而非离散事件）默认警告。这是 Hernán & Taubman "
+            f"2008 *IJO* 32(S3):S8-S14 \"Does obesity shorten life? The "
+            f"importance of well-defined interventions to answer causal "
+            f"questions\" 的 ill-defined intervention 结构 —— 同一"
+            f"个 `{intervention_pred}` 状态值可以由多种结构上不同的"
+            f"操纵路径实现（举例：obese 状态可以由长期高热量摄入 / 久坐"
+            f"/ 代谢疾病 / 产后体重保留等不同 mechanism 实现），不同"
+            f"操纵路径会带来**不同**的反事实结果，因此 do("
+            f"{intervention_pred}=state) 没有唯一定义；consistency "
+            f"assumption（Hernán & Robins *What If* §3.4）会被沉默地违反，"
+            f"返回的 \"effect\" 实际上是多个估计量的混合。要关掉此警告："
+            f"(a) 如果 `{intervention_pred}` 是 event-like (一次性给药 / "
+            f"离散事件)，显式声明 `state_vs_event=\"event\"`；(b) 如果"
+            f"是 state-like 但有明确持续时间，加 `time_window`；(c) 在 "
+            f"extensions.ambiguities 里 opt-in `ill_defined_intervention`"
+            f" 接受多估计量混合。"
+        )
+        ref_id = f"intervention_state_inferred:{intervention_pred}"
+    else:
+        description = (
             f"intervention 是状态不是事件、且没有指定时间窗：变量 "
             f"`{intervention_pred}` 声明了 `state_vs_event=\"state\"`"
             f"（持久性属性，不是离散事件），但同一变量没有声明 "
@@ -2264,7 +2305,12 @@ def _classify_ill_defined_intervention_versions(
             f"assumption（Hernán & Robins *What If* §3.4）被沉默地违反，"
             f"返回的 \"effect\" 实际上是多个估计量的混合。Themis 仅"
             f"surface 此问题，无法替你选具体的干预定义。"
-        ),
+        )
+        ref_id = f"intervention_state_without_time_window:{intervention_pred}"
+    yield DataGap(
+        kind=GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
+        severity=GapSeverity.IMPORTANT,
+        description=description,
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=(
             f"在 `{intervention_pred}` 的 VariableDeclaration 上加 "
@@ -2290,10 +2336,7 @@ def _classify_ill_defined_intervention_versions(
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id=(
-                    f"intervention_state_without_time_window:"
-                    f"{intervention_pred}"
-                ),
+                ref_id=ref_id,
             ),
         ),
     )
