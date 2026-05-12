@@ -1497,3 +1497,179 @@ classifier ever asked "does this observation sit on a V-collider?".
 Same lesson as iter 205 measurement / observability fields — a schema
 field that no classifier reads is structural theatre, not capability.
 Real-user-mining via case 014 was the forcing function.
+
+---
+
+#### 2026-05-12 reverse benchmark + iter 207 trigger UX bug fix
+
+A different methodology from the iter 205 / 206 / 207 "L3 case mining"
+arc. Instead of mining one authoritative source and tightening Themis
+against it, this iter ran **Themis vs Vanilla LLM** on the same three
+NL questions to test the *product claim* that Themis-augmented LLM
+output is honestly better than vanilla LLM output. Two surprises came
+out, one of them a real UX bug in iter 207's day-old GapKind trigger.
+
+Methodology. Three NL causal questions (paralleling case 011 / case 014
+/ case 015 in structure):
+
+- Q1 (clean backdoor + missing parameter): *"我每天跑步 30 分钟，
+  3 个月之后腰围会减小多少？"*
+- Q2 (collider / Berkson selection): *"我注意到在医院里，高血压患者
+  中吸烟的人癌症发病率反而比不吸烟的低。是不是吸烟其实保护癌症？"*
+- Q3 (Hernán-Taubman ill-defined intervention): *"降低肥胖能不能
+  降低心脏病风险？"*
+
+Each question spawned twice via the Agent tool (sub-agents = fresh
+Claude contexts, simulating "an unfamiliar LLM agent picks up the
+project cold"):
+
+- **Vanilla arm**: prompt told the agent to answer from training-data
+  knowledge, **with all tools disabled**. Measures the LLM's
+  unaugmented cognition. Three fresh agents, one per question.
+- **Themis arm (v0)**: agent given a 1-page prompt + MCP access to
+  the ``themis_*`` tool family. Three fresh agents.
+- **Themis arm (v1)**: same but with a redesigned prompt addressing
+  three root-cause friction points observed in v0 (see below).
+
+Plus a Q3 retest in the Themis-v1 arm after MCP restart, to verify
+that the just-committed iter 207 GapKind would actually fire on the
+canonical Hernán-Taubman case.
+
+End-to-end findings, three at a time:
+
+**Finding 1 — Themis arm wins on the load-bearing product claim**:
+*Themis-augmented agents never fabricate effect sizes; vanilla
+agents do so on every question.* Q1 vanilla produced "2-5 cm" and
+"5-8 cm" range estimates (self-eval: pattern-matched from fitness
+content, no specific study). Q2 vanilla quoted "lung cancer RR
+15-30x" (self-eval: from impression, did not verify). Q3 vanilla
+asserted "~20% MACE reduction" referencing SELECT trial (self-eval:
+specific percentage unverified). Themis-augmented agents on the
+same three questions produced zero confabulated numbers — the
+kernel returned ``needs_investigation`` + ``data_gap_report`` and
+the agent mirrored the verdict honestly.
+
+**Finding 2 — Themis arm does NOT win on "spotting textbook
+methodology traps"**. Strong base models often catch these
+unaugmented. Q2 vanilla correctly identified collider /
+Berkson's paradox. Q3 vanilla, while waffling on the obesity-CHD
+question, self-flagged in its own self-evaluation: *"本质上是
+ill-defined intervention 的问题"*. The earlier "Themis catches
+the methodology trap LLM would miss" framing was over-broad.
+What Themis does better is *make the trap formal and auditable* —
+DAG, Manski bounds expression, named GapKind from a real paper,
+mediator-vs-confounder decomposition, derivation chain, no
+free-text "vibes" answers.
+
+**Finding 3 — Prompt v0 → v1 root-cause diff worked**. Three
+shared failure modes in v0:
+
+(A) Verify misuse: 3/3 agents called ``themis_verify`` on a
+   ``needs_investigation`` result (no ``derivation`` field, no
+   numeric output to audit). The tool returned ``ok: false``
+   correctly. Root cause: prompt step 4 was phrased as an
+   unconditional procedural step ("verify any number before
+   passing it on"), so agents executed it whether or not a
+   number existed.
+(B) Schema fumbling: 2/3 agents had their first ``themis_run``
+   JSON rejected by schema validation. Root cause: prompt
+   mentioned ``themis_list_resources`` as an optional aside;
+   kernel_ast is strictly schema-validated and "optional" was
+   the wrong tone.
+(C) Scope ambiguity: Q3 v0 agent built a population-ATE program
+   for what the NL phrasing ("我/降低") implied was an individual
+   counterfactual. Root cause: prompt step 1 listed "treatment /
+   outcome / confounder / mediator / collider" as the framing
+   inventory; scope (individual vs subgroup vs population) was
+   missing.
+
+v1 made three structural changes: (A) moved verify from step-4
+procedural to a red-line conditional rule; (B) reframed
+``themis_list_resources`` from optional to "do this first"; (C)
+added scope as the first variable to identify in step 1. Result:
+0/3 verify misuse, 2/3 schema first-try success, 3/3 scope
+identified (Q1 v1 actively offered the user a three-way choice
+between individual / subgroup / population).
+
+The kernel UX bug. Q3 in the Themis-v1 arm failed to trigger
+the ``ill_defined_intervention_versions`` GapKind that iter 207
+had specifically added 24 hours earlier for exactly this Hernán-
+Taubman case. MCP-server staleness was the first explanation
+(long-running process, didn't reload), so the user restarted
+MCP and the agent reran Q3.
+
+After restart, ``ill_defined_intervention_versions`` did fire —
+*but only after the agent had read the kernel source to discover
+that the trigger required* ``state_vs_event="state"`` *to be
+declared explicitly on the intervention's VariableDeclaration*.
+The agent's first attempt didn't declare it, kernel stayed
+silent, agent grepped, found the magic field, declared it,
+reran — only then did the GapKind fire.
+
+This is the inverse of what iter 207 was meant to do. The whole
+point was to catch the methodological trap **the LLM wouldn't
+think to flag itself**. Requiring the LLM to *first* declare
+``state_vs_event="state"`` puts "spot the methodology trap"
+back on the LLM — a real production agent emitting NL-derived
+``kernel_ast`` will rarely declare ``state_vs_event`` at all
+(it's optional schema). The trigger was unreachable on the most
+common LLM shape.
+
+Structural fix (commit ``f22f79e``). Broaden the trigger:
+
+    if time_window:           return  # duration closes ambiguity
+    if state_value == "event": return  # explicit acute opt-out
+    # remaining: explicit "state" (contradiction) or None (silence)
+    inferred = state_value is None
+
+Both branches yield the same GapKind at IMPORTANT severity; the
+description text and ``provenance.ref_id`` distinguish them so a
+renderer can soften wording on the inferred path:
+
+    explicit: intervention_state_without_time_window:<predicate>
+    inferred: intervention_state_inferred:<predicate>
+
+Inferred-path description actively tells the LLM how to opt out:
+declare ``state_vs_event="event"`` (if event-like) or add
+``time_window`` (if state-like but bounded). Cheap to silence
+when wrong, automatic to fire when right.
+
+Tests added (3 net, total 1940 → 1943 after backfill):
+
+- ``test_fires_on_state_vs_event_unset_too`` (replaces the
+  inverted-assertion ``test_does_not_fire_when_state_vs_event_unset``)
+- ``test_inferred_path_provenance_distinguishable_from_explicit``
+- ``test_inferred_path_severity_matches_explicit``
+- ``test_inferred_path_description_signals_opt_out_route``
+
+Why not just "fix the prompt to teach LLM to declare
+state_vs_event": that would be the textbook表象 fix per the
+CLAUDE.md guidance — push responsibility back onto the LLM via a
+prompt rule. The 根因 is that the kernel's check was opt-in
+when it should have been opt-out. Optional-schema-field defaults
+must align with the methodological prior: state-like interventions
+are *plausibly* ill-defined; the LLM proves otherwise by
+declaring ``event`` or ``time_window``.
+
+L3 corpus also got case_015 markdown + CASES entry + README
+backfill in commit ``fd094a3``. Three pre-existing test failures
+fixed (the iter 207 commit had shipped the JSON without its
+companion documentation / regression entry).
+
+Lesson (different from the L3 mining arc lessons). Reverse
+benchmarking — comparing LLM-alone vs LLM+Themis on the same
+real-NL questions — is a different methodology from L3 case
+mining, and it surfaces different gaps. L3 mining finds **what
+Themis should detect**; reverse benchmarking finds **whether
+Themis is reachable by an LLM in production**. Iter 207 passed
+the L3 test (case_015 fired the kind under the test fixture's
+explicit declaration) but failed the reverse-benchmark test
+(real NL-derived agents won't declare the magic field). Both
+tests are needed; neither subsumes the other.
+
+A second lesson: when adding a "catch what LLM would miss" check,
+verify that the trigger is reachable from the LLM's natural
+output shape, not just from a hand-crafted test fixture. Default-
+on prophylactic with cheap opt-out beats opt-in with magic-field
+requirement, every time, for product-direction Themis where the
+calling agent is itself an LLM.
