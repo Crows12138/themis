@@ -874,7 +874,8 @@
             "outcome_model_quasi_separation",
             "graph_theta_independence_mismatch",
             "measurement_error_concern",
-            "selection_on_collider_opens_path"
+            "selection_on_collider_opens_path",
+            "ill_defined_intervention_versions"
           ],
           "description": "Categorical gap kind. Enum extends as new boards (measurement error, g-methods, L3b nested counterfactuals) come online."
         },

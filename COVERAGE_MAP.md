@@ -1,6 +1,17 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-07（iter 205 板块 #8 测量误差 0% → 5-10% 首次破冰：
+> 更新时间：2026-05-10（iter 207 dead-schema 第三 crack：
+> `ill_defined_intervention_versions` 把 `state_vs_event="state"` +
+> 无 `time_window` 的 intervention 暴露为 Hernán & Taubman 2008 *IJO*
+> "Does obesity shorten life?" 的 well-defined-intervention prerequisite
+> 违反 — schema 200+ iters 前就 admit 这两个字段，但 pre-207 没有任何
+> classifier 读 state_vs_event 的 VALUE。L3 case 015 (obesity → 5yr
+> mortality) 真测确认 silent miss → 加 GapKind + classifier。boards
+> #1/#11 cross-cutting：不增加单一板块覆盖率，但首次让 schema 中的
+> consistency-assumption-relevant 字段在 runtime 起作用。这是 iter
+> 205 (measurement) + iter 206 (ObservationStatement) 之后第三例同型
+> dead-schema-theatre fix；总数 30 GapKind。
+> 2026-05-07（iter 205 板块 #8 测量误差 0% → 5-10% 首次破冰：
 > 加 `measurement_error_concern` gap_kind，从程序结构（变量 measurement /
 > observability 字段值含 self-report / single-occasion BP / 24h recall / FFQ /
 > questionnaire / proxy 等 documented 模态）surfacing 测量误差风险。L3 case
@@ -61,7 +72,7 @@
 | **T10 DataGapReport 独立 verifier**（byte-code scan 钉独立性，Phase 10）| **~100%** |
 | Derivation JSON + 审计字段 + `success` 字段（Phase 10 标失败 step） | **~100%** |
 | ambiguity kind 分类体系（loose-string；A1/A2/A5 prompts + eval_set fixtures 联合用例） | **~100%** |
-| **DataGapReport schema (29 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
+| **DataGapReport schema (30 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
 | Eval set (29 cases / F1-F26) + 真实 LLM 基线 | **~100%** |
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |

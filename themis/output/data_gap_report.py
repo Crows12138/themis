@@ -80,6 +80,26 @@ shape, complementing iter 122 collider_conditioning_opens_backdoor):
   fires on EffectQuery.given (explicit conditioning) — this fires on
   observation statements (implicit sample-restriction conditioning).
 
+iter 207 must-disclose addition (board #1 / #11 — well-defined
+intervention prerequisite; third dead-schema-theatre find of the
+2026-05 mini-arc):
+- ill_defined_intervention_versions — the EffectQuery's intervention
+  predicate declares ``state_vs_event = "state"`` without a
+  ``time_window`` on the same VariableDeclaration. Per Hernán &
+  Taubman 2008 *IJO* 32(S3):S8 "Does obesity shorten life? The
+  importance of well-defined interventions to answer causal questions"
+  — when the exposure is a habitual / persistent attribute, multiple
+  structurally-different interventions producing the same state value
+  can entail DIFFERENT counterfactual outcomes (gastric-banding
+  obesity loss vs lifestyle obesity loss). do(X=state) without naming
+  the manipulation route silently violates the consistency assumption
+  (Hernán & Robins *What If* §3.4). Suppressed when extensions has
+  declared an ``ill_defined_intervention`` / ``well_defined_intervention``
+  ambiguity (case 011-style escape hatch). Pre-iter-207, the variable
+  schema's ``state_vs_event`` field admitted "state" / "event" as
+  values but no classifier ever read the VALUE — same dead-schema
+  pattern as iter 205 (measurement) + iter 206 (ObservationStatement).
+
 iter 203 must-disclose addition:
 - graph_theta_independence_mismatch — the iter 199 d-separation guard
   refused an existing-but-graph-incompatible marginal during formula
@@ -227,6 +247,10 @@ def compute_data_gap_report(
     ))
     must_disclose_gaps.extend(_classify_selection_on_collider_opens_path(
         program=program, stmt=stmt,
+    ))
+    must_disclose_gaps.extend(_classify_ill_defined_intervention_versions(
+        program=program, query_kind=query_kind, stmt=stmt, status=status,
+        extensions=extensions,
     ))
 
     # For cause / assoc / probability the only data-need-bearing channel
@@ -2117,6 +2141,162 @@ def _classify_selection_on_collider_opens_path(
                     ),
                 ),
             )
+
+
+def _classify_ill_defined_intervention_versions(
+    *,
+    program,
+    query_kind: QueryKind,
+    stmt,
+    status,
+    extensions: dict | None,
+) -> Iterable[DataGap]:
+    """Iter 207 — well-defined-intervention prerequisite (boards #1 / #11).
+
+    Trigger: EffectQuery's intervention atom names a predicate whose
+    VariableDeclaration declares ``state_vs_event = "state"`` AND no
+    ``time_window`` is set on the same declaration. The schema admits
+    both fields; reading ``state_vs_event`` 's VALUE (not just "is it
+    set?") is the new behavior — pre-iter-207 was dead-schema theatre,
+    same pattern as iter 205 (measurement value) and iter 206
+    (ObservationStatement). The state-without-duration combination is
+    the canonical Hernán & Taubman 2008 ill-defined-intervention shape.
+
+    Authoritative source: Hernán MA, Taubman SL 2008 *Int J Obesity*
+    32(Suppl 3):S8-S14 "Does obesity shorten life? The importance of
+    well-defined interventions to answer causal questions" — argues
+    that when the exposure is a habitual / persistent attribute (BMI,
+    obesity, smoking-status-as-attribute), multiple structurally-
+    different interventions can produce the same state value (e.g.
+    weight loss via gastric banding vs lifestyle vs smoking cessation
+    vs metabolic disease) and entail DIFFERENT counterfactual
+    mortality outcomes — the same observed state value does NOT pin
+    a unique counterfactual, so do(X=state) is not well defined. The
+    consistency assumption (Hernán & Robins *What If* §3.4) is
+    silently violated.
+
+    Distinct from ``ambiguous_variable_definition``: that kind fires
+    when fields are absent ("you didn't say"); this fires on
+    contradictorily-set fields ("you said state, but no duration —
+    state vs what acute reference?"). The schema admits both
+    state_vs_event and time_window precisely so the inconsistency can
+    be surfaced.
+
+    Suppressed when:
+    - query is not effect (consistency-violation story is about the
+      do(.) operator)
+    - status indicates identification failed (don't pile caveats on
+      already-failing branches)
+    - extensions.ambiguities[*] declares
+      kind in {"ill_defined_intervention", "well_defined_intervention"}
+      — escape-hatch path mirroring case 011's measurement_quality
+      suppression
+    - the intervention predicate has no VariableDeclaration at all
+      (no schema admittance → nothing to call dead-schema theatre on)
+    - state_vs_event is not the literal string "state"
+    - time_window is set (the inconsistency is closed)
+
+    Severity IMPORTANT — consistency violation biases the estimand
+    DEFINITION (different interventions → different estimands), not
+    the estimate of a single estimand. Different from
+    measurement_error_concern (which biases the estimate of a
+    well-defined estimand).
+    """
+    if program is None or stmt is None:
+        return
+    if query_kind != QueryKind.EFFECT:
+        return
+    if status not in (
+        ResultStatus.STRUCTURALLY_SOLVED,
+        ResultStatus.NUMERICALLY_SOLVED,
+        ResultStatus.NEEDS_INVESTIGATION,
+    ):
+        return
+    # Suppression: upstream LLM has already named this concern.
+    if extensions:
+        ambiguities = extensions.get("ambiguities") or ()
+        for amb in ambiguities:
+            if not isinstance(amb, dict):
+                continue
+            kind = amb.get("kind")
+            if kind in (
+                "ill_defined_intervention",
+                "well_defined_intervention",
+            ):
+                return
+    query_atom = getattr(stmt, "query", None)
+    intervention = getattr(query_atom, "intervention", None)
+    if intervention is None:
+        return
+    intervention_pred = intervention.atom.predicate
+    decl: VariableDeclaration | None = None
+    for st in program.statements:
+        if (
+            isinstance(st, VariableDeclaration)
+            and st.predicate == intervention_pred
+        ):
+            decl = st
+            break
+    if decl is None:
+        return
+    state_value = getattr(decl, "state_vs_event", None)
+    time_window = getattr(decl, "time_window", None)
+    if state_value != "state":
+        return
+    if time_window:
+        return
+    yield DataGap(
+        kind=GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
+        severity=GapSeverity.IMPORTANT,
+        description=(
+            f"intervention 是状态不是事件、且没有指定时间窗：变量 "
+            f"`{intervention_pred}` 声明了 `state_vs_event=\"state\"`"
+            f"（持久性属性，不是离散事件），但同一变量没有声明 "
+            f"`time_window`。这是 Hernán & Taubman 2008 *IJO* "
+            f"32(S3):S8-S14 \"Does obesity shorten life? The importance"
+            f" of well-defined interventions to answer causal "
+            f"questions\" 的经典 ill-defined intervention 结构 —— 同一"
+            f"个 `{intervention_pred}` 状态值可以由多种结构上不同的"
+            f"操纵路径实现（举例：obese 状态可以由长期高热量摄入 / 久坐"
+            f"/ 代谢疾病 / 产后体重保留等不同 mechanism 实现），不同"
+            f"操纵路径会带来**不同**的反事实结果，因此 do("
+            f"{intervention_pred}=state) 没有唯一定义；consistency "
+            f"assumption（Hernán & Robins *What If* §3.4）被沉默地违反，"
+            f"返回的 \"effect\" 实际上是多个估计量的混合。Themis 仅"
+            f"surface 此问题，无法替你选具体的干预定义。"
+        ),
+        blocks=GapBlocks.IDENTIFICATION,
+        if_provided=(
+            f"在 `{intervention_pred}` 的 VariableDeclaration 上加 "
+            f"`time_window`（说明 \"持续多长时间被视为该状态\"，例如"
+            f" \"≥6 个月 BMI≥30\"），并在 program.extensions.ambiguities"
+            f" 里加 `ill_defined_intervention` 条目，说明你打算把哪一种"
+            f"具体的 manipulation（lifestyle / 药物 / 手术 / RCT 随机化）"
+            f"作为 do(.) 的 well-defined intervention 等价物"
+        ),
+        alternative_paths=(
+            f"把 `{intervention_pred}` 重新声明为一个具体的事件类变量"
+            f"（state_vs_event=\"event\"），比如\"参加为期 12 周的减重"
+            f"项目\"，这样 do(.) 操作有明确目标",
+            f"把 `{intervention_pred}` 拆成两个变量：一个事件类的"
+            f"intervention（如 prescribed_weight_loss_program）+ 一个"
+            f"中间状态（如 bmi_after_12w），用 mediation 路径处理",
+            f"用 RCT / 实验性数据替代观察性主样本 —— 实验里 do(.) 的"
+            f"\"compared with what\" 由随机化协议明确定义",
+            f"在 extensions.ambiguities 里以 `ill_defined_intervention` "
+            f"kind 显式声明本题接受多 intervention 的混合估计量 —— "
+            f"Themis 会停发本警告并在渲染时把 caveat 显式化",
+        ),
+        provenance=(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id=(
+                    f"intervention_state_without_time_window:"
+                    f"{intervention_pred}"
+                ),
+            ),
+        ),
+    )
 
 
 def _classify_unattempted_layer_dispatch_conflict(

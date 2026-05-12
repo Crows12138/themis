@@ -114,6 +114,26 @@ do NOT trigger fetch / ask user.
   Do NOT phrase the repair as "add a covariate" — selection on a
   collider isn't fixable by stratification on the same restricted
   sample.
+- `ill_defined_intervention_versions` (iter 207) → no fetch action at
+  all. The intervention predicate is declared a `state_vs_event="state"`
+  with no `time_window`, encoding a habitual / persistent attribute
+  rather than a discrete act. Hernán & Taubman 2008 *Int J Obesity*
+  32(S3):S8 "Does obesity shorten life? The importance of well-defined
+  interventions to answer causal questions" — multiple structurally
+  different manipulations (lifestyle / surgery / metabolic disease /
+  postpartum) can produce the same state value yet entail DIFFERENT
+  counterfactual outcomes; do(X=state) is therefore not well defined
+  and the consistency assumption (Hernán & Robins *What If* §3.4) is
+  silently violated. Surface the gap's `if_provided` (declare a
+  `time_window` AND name the manipulation route in
+  extensions.ambiguities) and `alternative_paths` (re-encode as an
+  event-type intervention; OR split into a manipulation+state pair
+  and route via mediation; OR use RCT data; OR opt in to multi-
+  intervention mixed estimand via the `ill_defined_intervention`
+  ambiguity escape hatch). Do NOT phrase the repair as "go fetch more
+  data" — no amount of additional rows resolves an under-defined
+  estimand. The action is *re-specification of the question*, not
+  data collection.
 
 `severity == "blocking"` always needs Q1-Q3.
 

@@ -1,0 +1,55 @@
+{
+  "version": "0.1",
+  "domain": {"objects": [{"kind": "object", "name": "person"}]},
+  "statements": [
+    {"kind": "variable", "predicate": "obese", "domain": [true, false],
+     "threshold": "BMI >= 30 kg/m^2",
+     "measurement": "single-occasion BMI from height/weight at baseline",
+     "state_vs_event": "state"},
+    {"kind": "variable", "predicate": "death_5yr", "domain": [true, false],
+     "threshold": "all-cause mortality within 5 years of baseline"},
+    {"kind": "variable", "predicate": "age", "domain": [true, false]},
+    {"kind": "variable", "predicate": "smoking", "domain": [true, false]},
+    {
+      "kind": "cause",
+      "from": {"predicate": "obese", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "death_5yr", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "evidence",
+        "evidence": "Hernán & Taubman 2008 IJO 32(S3):S8-S14 — observational obesity-mortality association"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "obese", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "age", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "death_5yr", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "cause",
+      "from": {"predicate": "smoking", "args": [{"type": "const", "name": "person"}]},
+      "to":   {"predicate": "death_5yr", "args": [{"type": "const", "name": "person"}]},
+      "annotations": {"source": "common_knowledge"}
+    },
+    {
+      "kind": "query",
+      "id": "q_obesity_causes_death",
+      "query": {
+        "kind": "effect",
+        "target": {
+          "atom": {"predicate": "death_5yr", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "intervention": {
+          "atom": {"predicate": "obese", "args": [{"type": "const", "name": "person"}]},
+          "value": true
+        },
+        "given": []
+      }
+    }
+  ]
+}

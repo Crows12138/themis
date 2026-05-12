@@ -2548,6 +2548,14 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     # only the explanation sees the selection-bias warning before the
     # headline conditional.
     "selection_on_collider_opens_path",
+    # iter 207: ill-defined intervention from intervention's variable
+    # declaring state_vs_event="state" without time_window. Must surface
+    # so a reviewer sees the well-defined-intervention concern (Hernán
+    # & Taubman 2008) before the headline number — different
+    # interventions producing the same state value entail different
+    # counterfactual outcomes; do(X=state) without naming the
+    # manipulation route is silently violating consistency.
+    "ill_defined_intervention_versions",
 })
 
 

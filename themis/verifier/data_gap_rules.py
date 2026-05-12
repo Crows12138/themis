@@ -347,6 +347,19 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # no derivation step. Hernán-Hernández-Díaz-Robins 2004 selection
     # bias structural pattern.
     "selection_on_collider_opens_path": frozenset({"verifier_check"}),
+    # iter 207: program-shape signal — intervention atom names a
+    # predicate whose VariableDeclaration declares
+    # ``state_vs_event = "state"`` while no ``time_window`` is declared
+    # on the same predicate. The schema admits both fields; pre-iter-207
+    # no classifier read state_vs_event's VALUE (dead-schema theatre).
+    # Provenance is a verifier_check ref naming the offending
+    # (intervention_predicate, "state without time_window") pair;
+    # classifier-driven, no derivation step. Authoritative source:
+    # Hernán & Taubman 2008 IJO 32(S3):S8-S14 "Does obesity shorten
+    # life? The importance of well-defined interventions to answer
+    # causal questions"; consistency assumption framing in Hernán &
+    # Robins What If §3.4.
+    "ill_defined_intervention_versions": frozenset({"verifier_check"}),
 }
 
 

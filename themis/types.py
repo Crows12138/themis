@@ -756,6 +756,38 @@ class GapKind(str, Enum):
     # restricted dataset and adjust on user-named confounders without
     # noticing the implicit V-structure on the sample-restriction node.
     SELECTION_ON_COLLIDER_OPENS_PATH = "selection_on_collider_opens_path"
+    # iter 207 (board #1 / #11 — well-defined-intervention prerequisite):
+    # the EffectQuery's intervention atom names a predicate whose
+    # VariableDeclaration declares ``state_vs_event = "state"`` (the
+    # variable is a habitual / persistent attribute, not a discrete
+    # event), AND no ``time_window`` is declared on the same predicate.
+    # Per Hernán & Taubman 2008 *Int J Obesity* 32(S3):S8 "Does obesity
+    # shorten life? The importance of well-defined interventions to
+    # answer causal questions": when the exposure is an attribute-state
+    # rather than a single act, multiple structurally-different
+    # interventions can produce the same state value (e.g. "be obese"
+    # achievable via overeating / lack of exercise / metabolic disease
+    # / postpartum) yet entail DIFFERENT counterfactual outcomes.
+    # do(state=value) without a manipulation route is therefore
+    # under-defined; the consistency assumption (Hernán & Robins
+    # *What If* §3.4) is silently violated. Distinct shape from
+    # ``ambiguous_variable_definition`` (which fires on absent fields,
+    # i.e. "you didn't say anything") — this fires on a CONTRADICTION
+    # between two declared fields ("state but no duration"), where the
+    # variable schema itself admits the inconsistency. Severity
+    # IMPORTANT: violating consistency biases the estimand definition,
+    # not the estimate of a well-defined estimand. Suppressed when the
+    # user / upstream LLM has already declared
+    # extensions.ambiguities[*].kind == "ill_defined_intervention" or
+    # "well_defined_intervention" — escape-hatch for users who have
+    # already named the issue at the A1 layer, mirroring case 011's
+    # measurement_quality suppression. No external library structure-
+    # routes this from variable-level state_vs_event metadata — Themis
+    # advertises ``state_vs_event`` as a first-class slice-#41 field
+    # but pre-iter-207 no classifier read its VALUE (dead-schema
+    # theatre — same lesson as iter 205 measurement field, iter 206
+    # ObservationStatement).
+    ILL_DEFINED_INTERVENTION_VERSIONS = "ill_defined_intervention_versions"
 
 
 class GapSeverity(str, Enum):
