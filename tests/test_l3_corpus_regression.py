@@ -253,6 +253,39 @@ CASES = [
          "transport_target_distribution_unknown",
          "unattempted_layer_due_to_dispatch_conflict"],
     ),
+    (
+        "case_015_hernan_taubman_2008_obesity_well_defined.json",
+        # Iter 207 real-finding case: Hernán-Taubman 2008 IJO 32(S3):S8
+        # "Does obesity shorten life? The importance of well-defined
+        # interventions to answer causal questions" — obesity → 5yr
+        # mortality with state_vs_event="state" declared on the obese
+        # predicate but no time_window, plus the 'compound treatment'
+        # methodology critique that the same obese state value can be
+        # reached by structurally-different manipulations (gastric
+        # surgery / diet / GLP-1 / metabolic disease) which entail
+        # DIFFERENT counterfactual outcomes. Pre-iter-207: board #8
+        # well-defined-intervention prerequisite was at 0% — the
+        # state_vs_event schema field admitted "state"/"event" values
+        # 200+ iters but no classifier read the VALUE (dead-schema
+        # theatre #3, after iter 205 measurement + iter 206 Observation
+        # Statement). Post-iter-207: ill_defined_intervention_versions
+        # fires on the state-without-time_window shape with Hernán &
+        # Taubman 2008 anchor + four named repair options (event-
+        # encoding / mediation split / RCT / opt-in mixed estimand).
+        # 2026-05 retest extended trigger to also fire when both
+        # state_vs_event and time_window are absent (inferred state-
+        # like shape — the most common LLM-emitted form).
+        ["ill_defined_intervention_versions",
+         "missing_distribution",
+         "ambiguous_variable_definition",
+         "unmeasured_confounder_risk"],
+        ["collider_conditioning_opens_backdoor",
+         "selection_on_collider_opens_path",
+         "graph_theta_independence_mismatch",
+         "weak_iv_instrument",
+         "transport_target_distribution_unknown",
+         "unattempted_layer_due_to_dispatch_conflict"],
+    ),
 ]
 
 

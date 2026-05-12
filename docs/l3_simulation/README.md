@@ -156,3 +156,17 @@ surface 新的系统性 disagreement）→ L3 simulation 进入 plateau，回交
   加新 `selection_on_collider_opens_path` GapKind + program-shape
   classifier，与 iter 122 严格互补。与 SelectionNode (Phase 9 §T9.1
   transport) 边界明确。corpus 14/14。）
+- [Case 015 — Hernán-Taubman 2008 well-defined intervention (obesity → 5yr mortality)](case_015_hernan_taubman_2008_obesity_well_defined.md)
+  （2026-05-11 iter 207 + 2026-05-12 retest，✅ match real-finding：板块 8
+  (well-defined intervention prerequisite) 从 0% 破冰到 5-10%。variable
+  schema 的 `state_vs_event` 字段 200+ iters 前就 admit "state"/"event"
+  values 但 pre-iter-207 从未有 classifier 读它的 VALUE —— dead-schema
+  theatre 第三次浮出（iter 205 measurement / iter 206 ObservationStatement
+  / iter 207 state_vs_event）。Hernán & Taubman 2008 *IJO* 32(S3):S8-S14
+  "Does obesity shorten life? The importance of well-defined interventions
+  to answer causal questions" 经典 obesity → mortality 触发新
+  `ill_defined_intervention_versions` GapKind + classifier。2026-05-12
+  retest 扩展 trigger：absent state_vs_event + absent time_window 也触发
+  （inferred state-like 形状 — NL-derived program 的常见形态），同
+  IMPORTANT 严重度，provenance ref_id 区分 explicit vs inferred。
+  corpus 15/15。）
