@@ -35,7 +35,7 @@ from themis.types import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-QR_SCHEMA = json.loads((REPO / "query_result.schema.json").read_text(encoding="utf-8"))
+QR_SCHEMA = json.loads((REPO / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8"))
 
 
 def _qr_validator():

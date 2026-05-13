@@ -124,6 +124,8 @@ themis/
   workflow/     parameter / variable framing fill-back workflows
   upstream/     NL bridge helpers: program builder and narrative merge
   estimation/   backdoor, front-door, IV, mediation, sensitivity, discovery, dose-response
+  schemas/      JSON schemas for kernel_ast / query_result / derivation / atom / kb_*
+  prompts/      agent-facing prompts + few-shot examples (gap_to_action / response_rendering / etc.)
   kb/           KB adapter contract, translator, cache, reference proxy
   mcp/          FastMCP wrapper for tools/resources
   web/          local FastAPI UI: mode (b) paste-JSON + mode (a) LLM bridge
@@ -138,8 +140,8 @@ themis/
 另外这些 repo-level 资产也是临界路径：
 - `benchmarks/agent_integration/` — 反差 benchmark + agent prompt v1（外部 agent 接入参考）
 - `docs/l3_simulation/` — 15 个真案例 corpus（kernel 侧 regression pin）
-- `docs/prompts/gap_to_action.md` — GapKind → action 翻译，agent prompt 引用
-- `docs/prompts/response_rendering.md` — 弱消费者用的可剥离渲染脚手架
+- `themis/prompts/gap_to_action.md` — GapKind → action 翻译，agent prompt 引用
+- `themis/prompts/response_rendering.md` — 弱消费者用的可剥离渲染脚手架
 
 **Deferred / parity / demo / superseded（非临界路径）**：
 
@@ -149,10 +151,10 @@ themis/
 | `themis/oracle/` | development-only QA | pgmpy / ananke parity adapter，跑 differential testing 用；非用户特性 |
 | `themis/kb/` | contract slot only | KB adapter contract + reference proxy；具体 PrimeKG/SemMedDB 实现走 sibling repo（Themis 主仓不发请求） |
 | `themis/upstream/` | Phase 4 deferred | narrative_merge + program_builder，配 NL 上游建模用，Phase 4 当前 0% |
-| `docs/prompts/narrative_to_*.md` | Phase 4 deferred | 同上 |
-| `docs/prompts/nl_to_kernel_ast.md` | superseded for agent flow | 早期 chat-user A1 prompt；agent flow 用 `benchmarks/.../agent_prompt_v1.md` |
-| `docs/prompts/kb_lookup.md` | frozen with kb/ | 配 KB adapter 用 |
-| `docs/prompts/reply_to_framing_patch.md` | A3 multi-turn | `apply_patch_and_run` 多轮 prompt，valid 但 agent prompt 未引用 |
+| `themis/prompts/narrative_to_*.md` | Phase 4 deferred | 同上 |
+| `themis/prompts/nl_to_kernel_ast.md` | superseded for agent flow | 早期 chat-user A1 prompt；agent flow 用 `benchmarks/.../agent_prompt_v1.md` |
+| `themis/prompts/kb_lookup.md` | frozen with kb/ | 配 KB adapter 用 |
+| `themis/prompts/reply_to_framing_patch.md` | A3 multi-turn | `apply_patch_and_run` 多轮 prompt，valid 但 agent prompt 未引用 |
 
 ---
 

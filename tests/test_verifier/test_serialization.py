@@ -45,7 +45,7 @@ from themis.verifier import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "test_e2e" / "fixtures"
-DERIVATION_SCHEMA_PATH = PROJECT_ROOT / "derivation.schema.json"
+DERIVATION_SCHEMA_PATH = PROJECT_ROOT / "themis" / "schemas" / "derivation.schema.json"
 
 
 def _load_derivation_schema():

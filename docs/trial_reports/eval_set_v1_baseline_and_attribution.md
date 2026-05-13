@@ -14,7 +14,7 @@ which failure modes dominate so the next slice can be empirical.
 
 - **No real LLM calls.** The baseline below uses author-simulated
   A1 / A5 output — i.e., what I'd expect a good LLM following
-  `docs/prompts/nl_to_kernel_ast.md` + `narrative_to_variables.md`
+  `themis/prompts/nl_to_kernel_ast.md` + `narrative_to_variables.md`
   to produce. This biases toward "optimistic A1 behavior": real
   LLM drift (phrasing choices, intent mis-classification,
   hallucinated extras) is not captured here.

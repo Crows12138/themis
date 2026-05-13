@@ -84,7 +84,7 @@ prompt 把决策权完全建立在 `data_gap_report.kind` 这个结构化语义�
 
 ## 2. S.11.1 设计（已落地）
 
-### 2.1 新 prompt 文件 `docs/prompts/gap_to_action.md`
+### 2.1 新 prompt 文件 `themis/prompts/gap_to_action.md`
 
 包含：
 
@@ -175,7 +175,7 @@ S.11.2+ 是把那一行的 "WebSearch" 升级成结构化 KG 查询，提高数�
 
 ### S.11.1（已完成）
 
-- ✅ `docs/prompts/gap_to_action.md` 落地
+- ✅ `themis/prompts/gap_to_action.md` 落地
 - ✅ MCP server 注册新 prompt
 - ✅ test_mcp_server 加断言
 - ✅ 全部测试通过

@@ -45,8 +45,8 @@ from themis.verifier import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DERIVATION_SCHEMA_PATH = PROJECT_ROOT / "derivation.schema.json"
-CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "verification_context.schema.json"
+DERIVATION_SCHEMA_PATH = PROJECT_ROOT / "themis" / "schemas" / "derivation.schema.json"
+CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "themis" / "schemas" / "verification_context.schema.json"
 
 
 def _timed_atom(pred: str, t: int, obj: str = "me") -> dict:

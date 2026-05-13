@@ -33,7 +33,7 @@ from themis.types import (
 from themis.verifier import VerificationContext, context_from_dict, context_to_dict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "verification_context.schema.json"
+CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "themis" / "schemas" / "verification_context.schema.json"
 
 
 def _validate_schema(payload: dict, path: Path) -> None:

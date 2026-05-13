@@ -517,7 +517,7 @@ def test_apply_edge_refusals_removes_exact_question_side_direct_edge():
     edge_extraction = json.loads(
         (
             REPO_ROOT
-            / "docs"
+            / "themis"
             / "prompts"
             / "examples"
             / "narrative_edges_ice_cream_drowning.json"
@@ -581,7 +581,7 @@ def test_merge_narrative_ambiguities_into_program_preserves_prompt_decision():
     edge_extraction = json.loads(
         (
             REPO_ROOT
-            / "docs"
+            / "themis"
             / "prompts"
             / "examples"
             / "narrative_edges_coffee_alertness.json"
@@ -620,7 +620,7 @@ def test_compose_program_applies_narrative_refusal_before_kernel_run():
     edge_extraction = json.loads(
         (
             REPO_ROOT
-            / "docs"
+            / "themis"
             / "prompts"
             / "examples"
             / "narrative_edges_ice_cream_drowning.json"

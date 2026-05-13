@@ -183,7 +183,7 @@ class WebSearchProxyAdapter(KBAdapter):
 
 - 新 resource：`themis://schemas/kb_query.json`
 - 新 resource：`themis://schemas/kb_result.json`
-- 新 prompt：`docs/prompts/kb_lookup.md` —— 教 LLM 怎么用结构化
+- 新 prompt：`themis/prompts/kb_lookup.md` —— 教 LLM 怎么用结构化
   KBQuery 替代自由 WebSearch 字符串，以及怎么把返回的 KBResult 喂回
   `apply_patch_and_run`
 

@@ -26,7 +26,7 @@ import themis
 _HERE = Path(__file__).parent
 _STATIC = _HERE / "static"
 _REPO_ROOT = _HERE.parent.parent
-_EXAMPLES_DIR = _REPO_ROOT / "docs" / "prompts" / "examples"
+_EXAMPLES_DIR = _REPO_ROOT / "themis" / "prompts" / "examples"
 
 
 app = FastAPI(title="Themis Web UI", version="0.1")

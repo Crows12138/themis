@@ -68,7 +68,7 @@ from themis.verifier import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "test_e2e" / "fixtures"
-CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "verification_context.schema.json"
+CONTEXT_SCHEMA_PATH = PROJECT_ROOT / "themis" / "schemas" / "verification_context.schema.json"
 
 
 def _validate_context_schema(payload):

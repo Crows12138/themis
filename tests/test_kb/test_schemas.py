@@ -27,8 +27,8 @@ from themis.kb.schemas import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-KB_QUERY_SCHEMA = json.loads((REPO_ROOT / "kb_query.schema.json").read_text("utf-8"))
-KB_RESULT_SCHEMA = json.loads((REPO_ROOT / "kb_result.schema.json").read_text("utf-8"))
+KB_QUERY_SCHEMA = json.loads((REPO_ROOT / "themis" / "schemas" / "kb_query.schema.json").read_text("utf-8"))
+KB_RESULT_SCHEMA = json.loads((REPO_ROOT / "themis" / "schemas" / "kb_result.schema.json").read_text("utf-8"))
 
 
 def _result_validator():

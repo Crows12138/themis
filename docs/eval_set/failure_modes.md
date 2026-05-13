@@ -616,7 +616,7 @@ The system must:
 - Independently verify the report via T10-1 / T10-2 / T10-3
   (`themis/verifier/data_gap_rules.py`) so a generator bug cannot
   silently drop a gap
-- Render the gap section per `docs/prompts/response_rendering.md`
+- Render the gap section per `themis/prompts/response_rendering.md`
   §"Data gap report rendering" — placement rules depend on whether
   any gap is `blocking`
 
@@ -708,7 +708,7 @@ The system must:
 - Auto-mirror to `result.explanation` as a ⚠ line via
   `_MUST_DISCLOSE_GAP_KINDS` so the renderer cannot silently drop it
 - Render with explicit "remove the collider from `given`" guidance
-  per `docs/prompts/gap_to_action.md` (iter 136 added the IMPORTANT-
+  per `themis/prompts/gap_to_action.md` (iter 136 added the IMPORTANT-
   handling entry); do NOT trigger fetch / ask user
 
 **Typical trigger**: user asks "在女性中，运动对体重影响多大？" with

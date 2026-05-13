@@ -26,7 +26,7 @@ from themis import run
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLES_DIR = REPO_ROOT / "docs" / "prompts" / "examples"
+EXAMPLES_DIR = REPO_ROOT / "themis" / "prompts" / "examples"
 
 
 def _kernel_ast_examples() -> list[Path]:

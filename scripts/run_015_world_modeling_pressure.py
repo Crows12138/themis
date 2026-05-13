@@ -48,7 +48,7 @@ from themis.upstream import (
 )
 
 
-EXAMPLES_DIR = ROOT / "docs" / "prompts" / "examples"
+EXAMPLES_DIR = ROOT / "themis" / "prompts" / "examples"
 
 FRAMING_FIELDS = (
     "time_window",

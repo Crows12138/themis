@@ -4,7 +4,7 @@ Date: 2026-04-21
 
 ## Setup
 
-Fresh Claude sub-agents given `docs/prompts/nl_to_kernel_ast.md` +
+Fresh Claude sub-agents given `themis/prompts/nl_to_kernel_ast.md` +
 three few-shot examples, asked to produce a canonical kernel_ast
 JSON for one new Chinese NL question each. Four domain-varied
 questions:

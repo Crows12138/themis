@@ -25,8 +25,8 @@ import re
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
-_PROMPT_NL_TO_AST = _REPO_ROOT / "docs" / "prompts" / "nl_to_kernel_ast.md"
-_PROMPT_RENDER = _REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+_PROMPT_NL_TO_AST = _REPO_ROOT / "themis" / "prompts" / "nl_to_kernel_ast.md"
+_PROMPT_RENDER = _REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
 
 _DEFAULT_MODEL = os.environ.get("THEMIS_LLM_MODEL", "claude-sonnet-4-6")
 

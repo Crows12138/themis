@@ -198,7 +198,7 @@ iter 119 落地 **Manski-Tamer monotonicity bounds**：
   （或 dict 列表），匹配查询的 target+treatment pair。**没有改 kernel
   surface**——不加 EffectQuery 字段、不加 schema 必填 enum、走现有
   extensions 通道。
-- `docs/prompts/response_rendering.md`: 加 `#### manski_tamer_monotonicity`
+- `themis/prompts/response_rendering.md`: 加 `#### manski_tamer_monotonicity`
   渲染模板（iter 110 pin 要求 producer 必须有 template）。
 - 测试：12 个单元测试 (`test_phase12_bounds_manski_tamer.py`) +
   7 个 dispatch 集成测试 (`test_bounds_manski_tamer_dispatch.py`)
@@ -1107,8 +1107,8 @@ Files touched:
   ``DSEP_REFUSAL_SIGNATURE`` constant; iter 202 helper rewritten to
   reference it)
 - ``themis/runtime/scheduler.py`` (+ must-disclose set entry)
-- ``docs/GAP_KINDS_REFERENCE.md`` / ``docs/prompts/response_rendering.md``
-  / ``docs/prompts/gap_to_action.md`` (+ rows / Q-pre-screen guidance)
+- ``docs/GAP_KINDS_REFERENCE.md`` / ``themis/prompts/response_rendering.md``
+  / ``themis/prompts/gap_to_action.md`` (+ rows / Q-pre-screen guidance)
 - ``COVERAGE_MAP.md`` (gap_kind count 26 → 27)
 - ``tests/test_output/test_phase10_data_gap_generator.py`` (+ 5 tests)
 
@@ -1346,8 +1346,8 @@ Files touched:
 - ``themis/runtime/scheduler.py`` (+ must-disclose set entry)
 - ``docs/GAP_KINDS_REFERENCE.md`` (+ table row, header 26 → 28,
   must-disclose list)
-- ``docs/prompts/response_rendering.md`` (+ mirrored-set table row)
-- ``docs/prompts/gap_to_action.md`` (+ Q-pre-screen guidance —
+- ``themis/prompts/response_rendering.md`` (+ mirrored-set table row)
+- ``themis/prompts/gap_to_action.md`` (+ Q-pre-screen guidance —
   the action is *higher-quality measurement on a sub-sample*, NOT
   "go fetch more rows of the same noisy data")
 - ``COVERAGE_MAP.md`` (board #8 0% → 5-10% with explicit ❌ list of

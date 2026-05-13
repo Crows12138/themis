@@ -19,9 +19,9 @@ from themis.types import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-QR_SCHEMA = json.loads((REPO / "query_result.schema.json").read_text("utf-8"))
-DV_SCHEMA = json.loads((REPO / "derivation.schema.json").read_text("utf-8"))
-ATOM_SCHEMA = json.loads((REPO / "atom.schema.json").read_text("utf-8"))
+QR_SCHEMA = json.loads((REPO / "themis" / "schemas" / "query_result.schema.json").read_text("utf-8"))
+DV_SCHEMA = json.loads((REPO / "themis" / "schemas" / "derivation.schema.json").read_text("utf-8"))
+ATOM_SCHEMA = json.loads((REPO / "themis" / "schemas" / "atom.schema.json").read_text("utf-8"))
 
 
 def _validator():

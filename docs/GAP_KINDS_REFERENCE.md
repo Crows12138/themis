@@ -17,8 +17,8 @@ envelope inspection), the **estimator-runtime hooks** in
 auto-mirrors selected kinds to ``result.explanation`` as ⚠ lines.
 
 For the LLM-side rendering / decision rules see
-``docs/prompts/response_rendering.md`` (mirrored-set table) and
-``docs/prompts/gap_to_action.md`` (Q0 INFORMATIONAL pre-screen).
+``themis/prompts/response_rendering.md`` (mirrored-set table) and
+``themis/prompts/gap_to_action.md`` (Q0 INFORMATIONAL pre-screen).
 
 ## Table
 
@@ -110,8 +110,8 @@ outcome fit).
    provenance ref_kind set.
 5. If must-disclose: add to ``_MUST_DISCLOSE_GAP_KINDS`` in
    ``themis/runtime/scheduler.py`` AND to mirrored-set table in
-   ``docs/prompts/response_rendering.md``.
-6. Add to Q0 INFORMATIONAL list in ``docs/prompts/gap_to_action.md``
+   ``themis/prompts/response_rendering.md``.
+6. Add to Q0 INFORMATIONAL list in ``themis/prompts/gap_to_action.md``
    (iter 136 sync pin auto-validates this for must-disclose +
    estimator-runtime kinds).
 7. **Add a row to this reference table** (iter 139 sync pin

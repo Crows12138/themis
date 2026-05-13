@@ -40,16 +40,23 @@ import themis
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PROMPTS_DIR = REPO_ROOT / "docs" / "prompts"
+# Schemas + prompts now live inside the package so they ship with the
+# wheel. PACKAGE_ROOT resolves to .../themis/ in both git-clone and
+# pip-installed modes. REPO_ROOT is still used for CSV path resolution
+# (themis_estimate's csv_path argument is interpreted relative to where
+# the MCP server was launched, which is the project root).
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+PROMPTS_DIR = PACKAGE_ROOT / "prompts"
+SCHEMAS_DIR = PACKAGE_ROOT / "schemas"
 SCHEMAS = {
-    "kernel_ast.schema.json": REPO_ROOT / "kernel_ast.schema.json",
-    "query_result.schema.json": REPO_ROOT / "query_result.schema.json",
-    "derivation.schema.json": REPO_ROOT / "derivation.schema.json",
+    "kernel_ast.schema.json": SCHEMAS_DIR / "kernel_ast.schema.json",
+    "query_result.schema.json": SCHEMAS_DIR / "query_result.schema.json",
+    "derivation.schema.json": SCHEMAS_DIR / "derivation.schema.json",
     # Phase 11.2 — KB adapter contract: clients implement adapters that
     # speak this query/result shape, then translate via
     # themis.kb.translator into apply_patch_and_run patches.
-    "kb_query.schema.json": REPO_ROOT / "kb_query.schema.json",
-    "kb_result.schema.json": REPO_ROOT / "kb_result.schema.json",
+    "kb_query.schema.json": SCHEMAS_DIR / "kb_query.schema.json",
+    "kb_result.schema.json": SCHEMAS_DIR / "kb_result.schema.json",
 }
 PROMPT_FILES = (
     "nl_to_kernel_ast.md",

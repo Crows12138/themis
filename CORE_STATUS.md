@@ -930,7 +930,7 @@ T10-1 provenance ref ✓; T10-2 失败 step + 参数 request 全覆盖 ✓; T10-
 
 ## Phase 11.1 prompt-only 闭环 (2026-04-26 → 2026-04-27, S.11.1.1-3)
 
-新增 `docs/prompts/gap_to_action.md` —— LLM 拿到 `data_gap_report` 后
+新增 `themis/prompts/gap_to_action.md` —— LLM 拿到 `data_gap_report` 后
 按三个原则（结构可修？数据 vs 用户选？dtype 匹配？）自主决策下一步动
 作（autonomous fetch / ask user / 终止），不再编造。MCP 注册 + 子 agent
 真测找到并修了 transport 对偶 gap、prompt 的 schema 不匹配漏洞、
@@ -1200,7 +1200,7 @@ Y@t=0`（因果反向跑）会被 kernel 静默接受。这是一个真实的语
   structural_result / numeric_result / bounds / data_gap_report /
   derivation）渲染成比 raw JSON 易读的形式
 - POST `/api/run` / POST `/api/verify` / GET `/api/examples`（从
-  `docs/prompts/examples/` 加载 worked NL→kernel_ast pairs）
+  `themis/prompts/examples/` 加载 worked NL→kernel_ast pairs）
 - localhost-bound 默认；`--host 0.0.0.0` 局域网共享
 
 **Mode (a) — LLM bridge**（commit `dfdf1c7`）：

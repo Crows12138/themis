@@ -246,7 +246,7 @@ def test_gap_kind_enum_synced_with_schema():
     schema validation in opaque ways."""
     import json
     schema = json.loads(
-        (REPO_ROOT / "query_result.schema.json").read_text(encoding="utf-8")
+        (REPO_ROOT / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8")
     )
     schema_kinds = set(schema["$defs"]["dataGap"]["properties"]["kind"]["enum"])
     enum_kinds = {k.value for k in GapKind}
@@ -310,7 +310,7 @@ def test_must_disclose_kinds_documented_in_response_rendering_prompt():
     """
     from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
     rendering_md = (
-        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+        REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
     ).read_text(encoding="utf-8")
     missing = []
     for kind in _MUST_DISCLOSE_GAP_KINDS:
@@ -337,7 +337,7 @@ def test_precision_budget_field_documented_in_rendering_prompt():
     prompt, the test fails.
     """
     rendering_md = (
-        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+        REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
     ).read_text(encoding="utf-8")
     # The renderer prompt must mention the field name verbatim AND
     # the dedicated section heading (so the LLM finds it via TOC).
@@ -407,7 +407,7 @@ def test_precision_budget_method_specific_caveats_documented():
     deployment.
     """
     rendering_md = (
-        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+        REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
     ).read_text(encoding="utf-8")
     # Anchor: §Method-specific caveats inside §Precision budget
     assert "Method-specific caveats" in rendering_md
@@ -439,7 +439,7 @@ def test_precision_budget_in_query_result_schema():
     cause themis.verify() to reject results carrying the field (the
     iter 152→154 silent-violation pattern)."""
     schema_text = (
-        REPO_ROOT / "query_result.schema.json"
+        REPO_ROOT / "themis" / "schemas" / "query_result.schema.json"
     ).read_text(encoding="utf-8")
     assert '"precisionBudget"' in schema_text, (
         "query_result.schema.json missing $defs/precisionBudget. iter "
@@ -1214,7 +1214,7 @@ def test_coverage_map_gap_kind_count_matches_enum():
     actual_severities = len(list(GapSeverity))
 
     schema = json.loads(
-        (REPO_ROOT / "query_result.schema.json").read_text(encoding="utf-8")
+        (REPO_ROOT / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8")
     )
 
     def _find_ref_kind_enum(node):
@@ -1528,7 +1528,7 @@ def test_prompt_header_word_counts_match_subsection_counts():
     }
 
     issues = []
-    for prompt_path in (REPO_ROOT / "docs" / "prompts").glob("*.md"):
+    for prompt_path in (REPO_ROOT / "themis" / "prompts").glob("*.md"):
         text = prompt_path.read_text(encoding="utf-8")
         lines = text.splitlines()
         for i, line in enumerate(lines):
@@ -1664,7 +1664,7 @@ def test_must_disclose_gap_kinds_documented_in_gap_to_action():
     expected = set(_MUST_DISCLOSE_GAP_KINDS) | estimator_runtime_kinds
 
     prompt = (
-        REPO_ROOT / "docs" / "prompts" / "gap_to_action.md"
+        REPO_ROOT / "themis" / "prompts" / "gap_to_action.md"
     ).read_text(encoding="utf-8")
 
     missing = sorted(k for k in expected if k not in prompt)
@@ -1692,7 +1692,7 @@ def test_numeric_estimate_method_enum_documented_in_prompt():
     import json
 
     schema = json.loads(
-        (REPO_ROOT / "query_result.schema.json").read_text(
+        (REPO_ROOT / "themis" / "schemas" / "query_result.schema.json").read_text(
             encoding="utf-8"
         )
     )
@@ -1733,7 +1733,7 @@ def test_numeric_estimate_method_enum_documented_in_prompt():
     )
 
     prompt = (
-        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+        REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
     ).read_text(encoding="utf-8")
 
     missing = [m for m in method_enum if m not in prompt]
@@ -1777,7 +1777,7 @@ def test_bounds_method_producers_have_rendering_template():
     produced_values = {name_to_value[n] for n in produced}
 
     prompt = (
-        REPO_ROOT / "docs" / "prompts" / "response_rendering.md"
+        REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
     ).read_text(encoding="utf-8")
 
     # "#### `<method_value>`" anchored at line start.

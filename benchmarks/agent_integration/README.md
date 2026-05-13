@@ -176,6 +176,6 @@ kernel and prompt versions.
   methodology: "what should Themis detect" given a fixture program)
 - `wall.md` 2026-05-12 entry — retrospective on the first run of
   this benchmark and the kernel UX bug it surfaced
-- `docs/prompts/nl_to_kernel_ast.md` — older prompt for the
+- `themis/prompts/nl_to_kernel_ast.md` — older prompt for the
   NL→kernel_ast direction; this benchmark's `agent_prompt_v1.md`
   is the agent-loop version that supersedes it

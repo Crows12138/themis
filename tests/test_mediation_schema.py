@@ -19,8 +19,8 @@ import themis
 
 
 _REPO_ROOT = Path(__file__).parent.parent
-_RESULT_SCHEMA_PATH = _REPO_ROOT / "query_result.schema.json"
-_DERIVATION_SCHEMA_PATH = _REPO_ROOT / "derivation.schema.json"
+_RESULT_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "query_result.schema.json"
+_DERIVATION_SCHEMA_PATH = _REPO_ROOT / "themis" / "schemas" / "derivation.schema.json"
 
 
 def _load_validator():

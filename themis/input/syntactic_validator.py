@@ -22,8 +22,12 @@ class SyntacticError(Exception):
 
 
 def _default_schema_dir() -> Path:
-    # project_root/themis/input/syntactic_validator.py -> project_root
-    return Path(__file__).resolve().parents[2]
+    # themis/input/syntactic_validator.py -> themis/schemas/
+    # Schemas live inside the package so they ship with the wheel
+    # (`pip install themis-causal` puts themis/schemas/ alongside the
+    # rest of the package; importing from a git clone resolves to the
+    # same path because parent.parent / "schemas" works in both modes).
+    return Path(__file__).resolve().parent.parent / "schemas"
 
 
 @lru_cache(maxsize=4)

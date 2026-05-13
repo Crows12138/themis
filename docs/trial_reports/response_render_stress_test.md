@@ -5,7 +5,7 @@ Date: 2026-04-25
 ## Setup
 
 Four blind sub-agents (isolated conversations, only access to
-`docs/prompts/response_rendering.md` + one per-case input file)
+`themis/prompts/response_rendering.md` + one per-case input file)
 rendered the Themis JSON outputs of cases 25-28 into Chinese
 replies. Inputs assembled in `docs/eval_set/render_run_v1/` —
 each contains `narrative + question + program + result`. No

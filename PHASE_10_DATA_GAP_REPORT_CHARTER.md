@@ -227,7 +227,7 @@ V0-V5 同款 forbidden imports check）。
 
 ### 2.5 渲染层
 
-`docs/prompts/response_rendering.md` 加新节 "Data gap report rendering"：
+`themis/prompts/response_rendering.md` 加新节 "Data gap report rendering"：
 
 中文模板按 gap_kind 分支：
 
