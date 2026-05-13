@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "themis-causal"
+version = "0.1.0"
+description = "Causal-reasoning backbone for LLM agents — no fabricated effect sizes, structured audit trail, GapKind diagnostics"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Crows12138", email = "ucapxux@ucl.ac.uk" },
+]
+keywords = [
+    "causal-inference",
+    "llm",
+    "agent",
+    "mcp",
+    "do-calculus",
+    "data-gap-diagnosis",
+    "audit",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+# Core runtime deps used by themis/{kernel,runtime,verifier,output,
+# input,workflow,estimation,mcp}. Non-core subpackages (web, oracle,
+# discovery) declare their needs as extras below — default install
+# stays lean.
+dependencies = [
+    "mcp>=1.0",
+    "pydantic>=2.0",
+    "jsonschema>=4.0",
+    "referencing>=0.30",
+    "networkx>=3.0",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "statsmodels>=0.14",
+    "scikit-learn>=1.3",
+]
+
+[project.optional-dependencies]
+# Local FastAPI UI (themis/web/) — deprecated chat-user path, kept
+# as a demo; not on the LLM-agent-backbone critical path.
+web = ["fastapi>=0.110", "uvicorn>=0.27"]
+# pgmpy parity adapter (themis/oracle/) — dev-only QA, used to cross-
+# check Themis identification against an established library.
+oracle = ["pgmpy>=0.1.24"]
+# Causal-discovery from CSV (themis/estimation/discovery.py wraps
+# causal-learn algorithms PC / FCI / LiNGAM).
+discovery = ["causal-learn>=0.1.4"]
+# Test runner + extras for CI / contributors.
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+]
+
+[project.scripts]
+# Console entry point for the MCP server. After `pip install themis-causal`,
+# users can invoke `themis-mcp` directly instead of `python -m themis.mcp.server`.
+themis-mcp = "themis.mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/Crows12138/themis"
+Repository = "https://github.com/Crows12138/themis"
+Issues = "https://github.com/Crows12138/themis/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["themis*"]
+exclude = ["tests*", "docs*", "benchmarks*", "scripts*"]
+
+# Ship the JSON schemas (themis/schemas/) and prompt markdown +
+# examples (themis/prompts/) inside the wheel. Without this, installed
+# users hit FileNotFoundError when themis.input.syntactic_validator
+# tries to load kernel_ast.schema.json or themis.mcp.server tries to
+# resolve a themis://prompts/X.md resource URI.
+[tool.setuptools.package-data]
+themis = [
+    "schemas/*.json",
+    "prompts/*.md",
+    "prompts/examples/*.json",
+]
