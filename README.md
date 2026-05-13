@@ -27,26 +27,28 @@ Themis 是给生产环境 LLM agent 用的**因果推理 backbone**。当 agent 
 
 ## Quick start (临界路径)
 
-> 当前 PyPI packaging 未发布。下面是从源码接入的方式；packaging 是 roadmap 第一条。
+> 当前 PyPI 发布**还未完成**——下面是从源码本地安装。`pip install themis-causal` 一旦上传 PyPI 也能跑（核心依赖 + console script 都在 pyproject.toml 里配好了）。
 
-### 1. 把 Themis MCP 接到 Claude Code
+### 1. 安装 + 把 Themis MCP 接到 Claude Code
 
 ```bash
-git clone <repo>
+git clone https://github.com/Crows12138/themis.git
 cd themis
-# 当前没有 pyproject.toml / requirements.txt（roadmap 第 1 条）。手动安装
-# 运行时依赖：pandas / numpy / pydantic / fastmcp 是主要的；缺什么按报错补。
+pip install -e .              # 装核心依赖 + 注册 themis-mcp 命令
+# 可选 extras：
+# pip install -e .[discovery]  # causal-learn (themis_discover)
+# pip install -e .[web]        # FastAPI demo UI (themis/web/)
+# pip install -e .[oracle]     # pgmpy parity adapter (themis/oracle/)
 
 # Claude Code MCP 配置（项目级 .mcp.json）：
 # {
 #   "mcpServers": {
 #     "themis": {
-#       "command": "python",
-#       "args": ["-m", "themis.mcp.server"],
-#       "cwd": "/path/to/themis"
+#       "command": "themis-mcp"
 #     }
 #   }
 # }
+# （或者 "command": "python", "args": ["-m", "themis.mcp.server"]）
 ```
 
 重启 Claude Code 会话；agent 上下文里现在能看到 `mcp__themis__*` 工具。
@@ -179,8 +181,8 @@ themis/
 
 ## Roadmap shortlist（按对 thesis 价值排序）
 
-1. **`pip install themis`** — `pyproject.toml` + PyPI publish；当前是"clone repo + 手装 deps"
-2. **Claude Skill 包装** — `agent_prompt_v1.md` codify 成 `~/.claude/skills/themis-causal-check/SKILL.md`，自动 discoverable
+1. **PyPI publish** — `pyproject.toml` + LICENSE + 本地 `pip install -e .` 都跑通了；剩下 TestPyPI 沙箱试跑 → 正式 PyPI publish 这两步还没做
+2. **Claude Skill 包装** — `benchmarks/agent_integration/agent_prompt_v1.md` codify 成 `~/.claude/skills/themis-causal-check/SKILL.md`，自动 discoverable
 3. **真用户测试** — sub-agent benchmark 是 proxy；找不熟项目的 AI 工程师真跑一遍
 4. **MCP `themis_read_resource`** — 修 `themis://` URI 没 fetcher 的 friction 根因
 5. **反差 benchmark 扩到 N=20-30 题** + Arm B (tool-available, no prompt) 测 discoverability
