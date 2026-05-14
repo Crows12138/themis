@@ -1,11 +1,29 @@
 ---
 name: themis-causal-check
-description: Use when the user asks a causal question — "X cause Y?", "effect of X on Y?", "if X hadn't happened, would Y change?", policy / treatment attribution, counterfactual reasoning, or any question whose answer hinges on a causal claim. Routes the claim through Themis MCP (`themis_run`, `themis_verify`, `themis_apply_patch_and_run`, etc.) to structurally validate it, surface data gaps as named `GapKind`s, give Manski-style bounds when point identification fails, and refuse to fabricate effect sizes. Requires the `themis-causal` MCP server installed (`pip install themis-causal` + add to MCP config).
+description: ALWAYS invoke for any quantitative causal claim — "X cause Y?", "effect of X on Y?", "if X hadn't happened, would Y change?", policy / treatment attribution, counterfactual reasoning, "is it true that X improves Y by N%?", or any natural-language question whose honest answer hinges on a causal claim. Invoke EVEN WHEN the user hasn't provided a DAG, data, or formal variable definitions — that's the expected starting state. YOUR job is to propose the DAG, variables, and query from common knowledge, then hand the kernel_ast to `mcp__themis__themis_run` and mirror the kernel's verdict (`needs_investigation` / `data_gap_report` / bounds / numeric) in your reply. Do NOT pre-filter on "this question feels conversational" — conversational phrasing of a causal claim is exactly when the safety property matters (it's when LLMs are most likely to fabricate effect sizes). Requires the `themis-causal` MCP server installed (`pip install themis-causal` + add to MCP config).
 ---
 
 # Themis causal-check workflow
 
 When a user asks a causal-flavored question, **don't answer from training-data pattern matching**. Hand the claim to Themis kernel via MCP.
+
+## When this skill fires — read carefully
+
+This skill fires on **any quantitative causal claim**, including conversational / casual phrasings. Examples:
+
+- "Does X cause Y?" → fires
+- "Will X improve Y?" → fires
+- "My friend drinks two coffees a day — will his productivity go up?" → fires (causal claim under casual register)
+- "I run 30 min daily — how much will my waist shrink in 3 months?" → fires
+- "Does lowering obesity reduce heart disease risk?" → fires
+
+**The "no DAG / no data / casual phrasing" objection is wrong**. Themis is designed for exactly this state — the LLM has common-knowledge access to a plausible DAG, the kernel runs identification on that proposed DAG and reports honestly what's identifiable + what's missing. This is the LLM-proposal workflow (Themis slice A2 design point). **Don't refuse to invoke because "the user didn't give structured input"** — the structured input IS your output.
+
+The only times this skill should NOT fire:
+- The question is purely descriptive ("what is X?") with no causal claim
+- The question is mathematical / definitional (no real-world causation involved)
+- The user explicitly says "skip Themis, just answer from your knowledge"
+- An earlier turn has already routed this exact question through Themis and we're in follow-up
 
 ## When this fires
 
