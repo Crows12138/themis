@@ -44,6 +44,12 @@ Any question matching:
 
 2. **First call** `mcp__themis__themis_list_resources` to fetch the `kernel_ast` schema URI, **then** read the schema and construct your JSON. `kernel_ast` is strictly schema-validated; writing it from memory will almost always get rejected on the first try.
 
+   **Theta encoding — structural vs observational**: probability statements default to `provenance: "structural"` — the `given` must be a subset of the target's structural parents in the DAG. This is the right encoding when the user supplies CPTs aligned with the model's causal direction.
+
+   When the user has supplied **empirical observational conditionals** that condition on non-parents (e.g. CLadder-style collider questions: "for students who are accepted AND non-talented, P(hard-working)=0.94" — `accepted` is a descendant of `effort` in the DAG), mark those statements with `provenance: "observational"`. This relaxes the parent-subset check; the kernel stores the entries for direct lookup by associational/probability queries. Identification algorithms (backdoor / front-door) request structural-parent-aligned keys, so they won't accidentally use observational entries.
+
+   You only supply K-1 of K domain values for a (target, given) group — the kernel auto-completes the K-th via the probability axiom (∑ = 1). Don't waste verbosity supplying `P(X=true)=0.43` AND `P(X=false)=0.57`; one is enough.
+
 3. **Call** `mcp__themis__themis_run` with the kernel_ast.
 
 4. **Read the result envelope**:

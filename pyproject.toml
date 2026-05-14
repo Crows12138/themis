@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "themis-causal"
-version = "0.1.2"
+version = "0.1.3"
 description = "Causal-reasoning backbone for LLM agents — no fabricated effect sizes, structured audit trail, GapKind diagnostics"
 readme = "README.en.md"
 license = { text = "MIT" }
