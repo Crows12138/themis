@@ -1,5 +1,7 @@
 # Themis — 给 LLM agent 的因果推理 backbone
 
+> *中文 README · [English README](README.en.md)*
+
 Themis 是给生产环境 LLM agent 用的**因果推理 backbone**。当 agent 收到"X 会不会导致 Y"/"干预 X 对 Y 的效应是多少"/"如果当初 X 没发生，Y 会怎样"这类问题时，让 agent 把变量、图、查询拉成 JSON 交 Themis 验证——结果是不会被编造、可被审计、可被引用的因果输出。
 
 **核心保证**：
@@ -128,6 +130,7 @@ themis/
   estimation/   backdoor, front-door, IV, mediation, sensitivity, discovery, dose-response
   schemas/      JSON schemas for kernel_ast / query_result / derivation / atom / kb_*
   prompts/      agent-facing prompts + few-shot examples (gap_to_action / response_rendering / etc.)
+  claude_skills/ Claude Code Skill bundles (e.g. themis-causal-check), shipped with the wheel
   kb/           KB adapter contract, translator, cache, reference proxy
   mcp/          FastMCP wrapper for tools/resources
   web/          local FastAPI UI: mode (b) paste-JSON + mode (a) LLM bridge
