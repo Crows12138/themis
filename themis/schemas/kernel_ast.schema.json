@@ -216,7 +216,7 @@
         },
         "given": {
           "type": "array",
-          "description": "Model conditioning set for the target, each entry a groundedAtom at a specific value. In v0.1 this should align with the target's structural parent set, or a subset of it.",
+          "description": "Model conditioning set for the target, each entry a groundedAtom at a specific value. When provenance is 'structural' (default) this must be a subset of the target's structural parent set (∪ ancestors ∪ bidirected siblings, per iter 168). When provenance is 'observational' (relaxed mode, iter 2026-05-14) given can contain any atoms — useful when the supplied value is an empirical/joint-derived observational conditional (e.g. P(effort | accepted, talent) where accepted is a descendant of effort in the DAG, as in CLadder collider-shape questions).",
           "items": {
             "$ref": "atom.schema.json#/$defs/groundedAtom"
           }
@@ -226,6 +226,11 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Model-world conditional probability value, not an empirical sample frequency."
+        },
+        "provenance": {
+          "type": "string",
+          "enum": ["structural", "observational"],
+          "description": "Whether this is a structural CPT (DAG-parent-aligned, used by backdoor/front-door/identification algorithms) or an observational conditional (an empirical/joint-derived quantity, used only for direct lookups in associational/probability queries). Default 'structural' keeps the strict parent-subset validation. 'observational' lets given contain non-parent atoms — needed for CLadder-shape collider/exp_away questions where the supplied empirical data is conditional on descendants of the target. Identification algorithms will not request observational keys (they request structural shapes), so observational entries are safe additions: they only fire on direct lookups whose shape matches exactly. Iter 2026-05-14 finding (Q6772 collider conditioning)."
         },
         "population": {
           "$ref": "#/$defs/populationName",

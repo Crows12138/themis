@@ -229,6 +229,7 @@ def _to_statement(d: dict):
             value=d["value"],
             forall=tuple(d.get("forall", ())),
             population=d.get("population"),
+            provenance=d.get("provenance", "structural"),
             annotations=_to_annotation(d.get("annotations")),
         )
     if k == "observation":
@@ -560,6 +561,18 @@ def _check_probability_parents(
     import networkx as nx
     for idx, stmt in enumerate(ground_statements):
         if not isinstance(stmt, ProbabilityStatement):
+            continue
+        # Iter 2026-05-14 (CLadder Q6772 collider-conditioning fix):
+        # observational provenance means this entry is an empirical /
+        # joint-derived conditional, not a structural CPT. Skip the
+        # parent-subset enforcement — given can contain descendants
+        # or other non-parent atoms. Safe because identification
+        # algorithms (backdoor, front-door, ID) request structural-
+        # parent-aligned keys; observational keys won't match those
+        # shapes, so identification naturally won't use them. Direct
+        # lookups in associational / probability queries will find
+        # observational entries via exact (target, given) match.
+        if stmt.provenance == "observational":
             continue
         target_atom = stmt.target.atom
         if target_atom in graph:

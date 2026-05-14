@@ -132,6 +132,17 @@ class ProbabilityStatement:
     value: float
     forall: tuple[str, ...] = ()
     population: str | None = None  # Phase 9 §T9.1: source population label
+    # Iter 2026-05-14 (CLadder Q6772 collider-conditioning finding):
+    # whether this is a structural CPT (DAG parent-aligned, default —
+    # keeps strict parent-subset validation, used by identification
+    # algorithms) or an observational conditional (empirical/joint-
+    # derived quantity, relaxed validation, used only for direct
+    # lookups in associational/probability queries). Identification
+    # never requests observational keys because their shape doesn't
+    # match parent-aligned formula keys, so adding observational
+    # entries doesn't break identification — it just unlocks direct-
+    # lookup queries against empirical data.
+    provenance: str = "structural"
     annotations: Annotation | None = None
 
 
