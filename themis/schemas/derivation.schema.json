@@ -153,6 +153,10 @@
         "given": {
           "type": "array",
           "items": { "$ref": "#/$defs/valued_atom" }
+        },
+        "population": {
+          "type": "string",
+          "description": "Fix 3+4 (charter FIX_3_4_CHARTER_llm_mediated_transport.md): optional population label routing this lookup to a specific theta partition. Absent = default / source population. Used by transport_formula to differentiate P(...|do, source) from P*(z, target) in the same tree."
         }
       }
     },

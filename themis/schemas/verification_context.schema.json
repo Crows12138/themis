@@ -219,6 +219,10 @@
               "value": { "$ref": "#/$defs/atom_value" }
             }
           }
+        },
+        "population": {
+          "type": "string",
+          "description": "Fix 3+4: optional population label routing this key to a specific theta partition. Absent = default / source population."
         }
       }
     },

@@ -60,11 +60,28 @@ class ProbabilityKey:
     The target and given values must be concrete literals. VarRefs
     and None-valued atoms must be substituted away before building
     a key.
+
+    Fix 3+4 (charter FIX_3_4_CHARTER_llm_mediated_transport.md):
+    ``population`` routes the lookup to a specific population's theta
+    partition. None = default / source population — backward-compat
+    with all single-population programs (existing ProbabilityRefExpr
+    has population=None default, so its key has population=None and
+    hits the same entries as before). Non-None values are used by
+    transport_formula to differentiate P(...|do, source) from
+    P*(z|target) within one Theta.
+
+    Fallback derivations (marginalisation / Bayes inversion / marginal-
+    independence lookup) are isolated PER POPULATION: a missing key
+    with population=p only consumes entries with the same population.
+    Cross-population fallback would silently substitute target data for
+    source data (or vice versa) without any user audit — a contract
+    violation under Themis's "kernel doesn't fabricate" promise.
     """
 
     target_atom: Atom
     target_value: AtomValue
     given: frozenset[tuple[Atom, AtomValue]]
+    population: str | None = None
 
 
 @dataclass
@@ -104,7 +121,12 @@ def format_probability_key(key: ProbabilityKey) -> str:
     body = f"{key.target_atom.predicate}={key.target_value}"
     if given_repr:
         body = f"{body}|{given_repr}"
-    return f"P({body})"
+    # Fix 3+4: surface population in the rendered key when non-default.
+    # Backward-compat: population=None renders identically to pre-fix
+    # so existing fixtures / pinning tests don't drift.
+    if key.population is None:
+        return f"P({body})"
+    return f"P_{key.population}({body})"
 
 
 class InsufficientTheta(Exception):
@@ -153,6 +175,7 @@ def _probability_ref_key(
         target_atom=node.target.atom,
         target_value=target_value,
         given=given_pairs,
+        population=node.population,
     )
 
 
@@ -361,13 +384,19 @@ def can_derive_via_marginalization(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    # Fix 3+4: fallback derivations stay within the missing key's
+    # population — never substitute target data for source data
+    # (or vice versa) silently.
+    pop = missing_key.population
 
     # Try each extra_atom as the marginalization variable. Scan first
     # in extra_atoms, then in theta's known atoms (collected from
-    # entry keys' atoms).
+    # entry keys' atoms) — restricted to same-population entries.
     candidates: list[Atom] = list(extra_atoms)
     seen_in_extra = set(extra_atoms)
     for key in theta.entries:
+        if key.population != pop:
+            continue
         for ga, _gv in key.given:
             if ga != target_atom and ga not in seen_in_extra:
                 candidates.append(ga)
@@ -395,6 +424,7 @@ def can_derive_via_marginalization(
                 target_atom=target_atom,
                 target_value=target_value,
                 given=extended_given,
+                population=pop,
             )
             if outer_key not in theta.entries:
                 all_outer_present = False
@@ -409,6 +439,7 @@ def can_derive_via_marginalization(
         for v in domain:
             inner_key = ProbabilityKey(
                 target_atom=z, target_value=v, given=base_given,
+                population=pop,
             )
             if inner_key not in theta.entries:
                 all_inner_present = False
@@ -472,6 +503,7 @@ def _try_marginal_independence_lookup(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4: same-population isolation
     if not base_given:
         return None
     # Try removing one atom at a time, then two, etc. Largest subset
@@ -489,7 +521,7 @@ def _try_marginal_independence_lookup(
             )
             reduced_key = ProbabilityKey(
                 target_atom=target_atom, target_value=target_value,
-                given=reduced,
+                given=reduced, population=pop,
             )
             v = theta.entries.get(reduced_key)
             if v is None:
@@ -569,6 +601,7 @@ def _diagnose_marginal_independence_refusal(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4
     if not base_given:
         return None
     from itertools import combinations
@@ -585,7 +618,7 @@ def _diagnose_marginal_independence_refusal(
             )
             reduced_key = ProbabilityKey(
                 target_atom=target_atom, target_value=target_value,
-                given=reduced,
+                given=reduced, population=pop,
             )
             if theta.entries.get(reduced_key) is None:
                 continue
@@ -657,6 +690,7 @@ def _try_derive_via_bayes_inversion(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4
     if not base_given:
         return None
     for a_atom, a_value in base_given:
@@ -668,7 +702,7 @@ def _try_derive_via_bayes_inversion(
         flip_given = reduced_given | {(target_atom, target_value)}
         flip_key = ProbabilityKey(
             target_atom=a_atom, target_value=a_value,
-            given=frozenset(flip_given),
+            given=frozenset(flip_given), population=pop,
         )
         flip_val = theta.entries.get(flip_key)
         if flip_val is None:
@@ -681,7 +715,7 @@ def _try_derive_via_bayes_inversion(
         # Numerator factor 2: P(target=target_value | reduced_given)
         target_key = ProbabilityKey(
             target_atom=target_atom, target_value=target_value,
-            given=reduced_given,
+            given=reduced_given, population=pop,
         )
         target_marginal = theta.entries.get(target_key)
         if target_marginal is None:
@@ -694,7 +728,7 @@ def _try_derive_via_bayes_inversion(
         # Denominator: P(A=a_value | reduced_given)
         denom_key = ProbabilityKey(
             target_atom=a_atom, target_value=a_value,
-            given=reduced_given,
+            given=reduced_given, population=pop,
         )
         denom = theta.entries.get(denom_key)
         if denom is None:
@@ -765,10 +799,16 @@ def _try_derive_via_marginalization(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4: same-population isolation
 
     candidates: list[Atom] = []
     seen: set[Atom] = set()
     for key in theta.entries:
+        # Only consider atoms present in the same population's entries
+        # as candidate marginalisation axes — never derive source via
+        # target data (or vice versa).
+        if key.population != pop:
+            continue
         for ga, _gv in key.given:
             if ga != target_atom and ga not in seen:
                 candidates.append(ga)
@@ -795,6 +835,7 @@ def _try_derive_via_marginalization(
                 target_atom=target_atom,
                 target_value=target_value,
                 given=extended_given,
+                population=pop,
             )
             v_outer = theta.entries.get(outer_key)
             if v_outer is None:
@@ -817,6 +858,7 @@ def _try_derive_via_marginalization(
         for v in domain:
             inner_key = ProbabilityKey(
                 target_atom=z, target_value=v, given=base_given,
+                population=pop,
             )
             v_inner = theta.entries.get(inner_key)
             if v_inner is None:

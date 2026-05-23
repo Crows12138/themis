@@ -254,11 +254,17 @@ def _formula_to_dict(expr: FormulaExpr) -> dict:
     if isinstance(expr, ConstantExpr):
         return {"kind": "constant", "value": expr.value}
     if isinstance(expr, ProbabilityRefExpr):
-        return {
+        d_pr: dict = {
             "kind": "probability_ref",
             "target": _valued_atom_to_dict(expr.target),
             "given": [_valued_atom_to_dict(g) for g in expr.given],
         }
+        # Fix 3+4: only emit population when set, so existing fixtures
+        # (single-population formulas with population=None) serialize
+        # identically to pre-fix and don't churn pinning tests.
+        if expr.population is not None:
+            d_pr["population"] = expr.population
+        return d_pr
     if isinstance(expr, ProductExpr):
         return {
             "kind": "product",
@@ -540,7 +546,13 @@ def _decode_probability_ref(d: dict) -> ProbabilityRefExpr:
     if not isinstance(given_raw, list):
         raise DerivationSerializationError("probability_ref.given must be a list")
     given = tuple(_decode_valued_atom(g) for g in given_raw)
-    return ProbabilityRefExpr(target=target, given=given)
+    # Fix 3+4: optional population field. Missing = None (back-compat).
+    population = d.get("population")
+    if population is not None and not isinstance(population, str):
+        raise DerivationSerializationError(
+            "probability_ref.population must be a string when present"
+        )
+    return ProbabilityRefExpr(target=target, given=given, population=population)
 
 
 def _decode_product(d: dict) -> ProductExpr:
@@ -740,7 +752,7 @@ def _probability_key_to_dict(key: ProbabilityKey) -> dict:
             str(pair[1]),
         ),
     )
-    return {
+    d: dict = {
         "kind": "probability_key",
         "target_atom": _atom_to_dict(key.target_atom),
         "target_value": key.target_value,
@@ -749,6 +761,11 @@ def _probability_key_to_dict(key: ProbabilityKey) -> dict:
             for (a, v) in ordered
         ],
     }
+    # Fix 3+4: only emit population when set, so existing single-
+    # population theta serialisations stay identical to pre-fix.
+    if key.population is not None:
+        d["population"] = key.population
+    return d
 
 
 def _theta_to_dict(theta: Theta) -> dict:
@@ -993,10 +1010,17 @@ def _decode_probability_key(d: dict) -> ProbabilityKey:
             )
         given_pairs_list.append((_decode_atom(pair["atom"]), pair["value"]))
     given_pairs = frozenset(given_pairs_list)
+    # Fix 3+4: optional population. Missing key = None (back-compat).
+    population = d.get("population")
+    if population is not None and not isinstance(population, str):
+        raise DerivationSerializationError(
+            "probability_key.population must be a string when present"
+        )
     return ProbabilityKey(
         target_atom=_decode_atom(d["target_atom"]),
         target_value=d["target_value"],
         given=given_pairs,
+        population=population,
     )
 
 

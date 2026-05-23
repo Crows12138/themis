@@ -49,10 +49,17 @@ class ConflictingThetaEntry(ValueError):
 
 
 def _key_of(stmt: ProbabilityStatement) -> ProbabilityKey:
+    # Fix 3+4: stmt.population (Phase 9 field) is now part of the
+    # canonical key. Two statements P(X=x | given) with different
+    # population labels are NO LONGER treated as conflicting entries —
+    # they belong to different theta partitions. Single-population
+    # programs (population=None on all statements) behave identically
+    # to pre-fix.
     return ProbabilityKey(
         target_atom=stmt.target.atom,
         target_value=stmt.target.value,
         given=frozenset((va.atom, va.value) for va in stmt.given),
+        population=stmt.population,
     )
 
 
@@ -149,17 +156,21 @@ def _complete_partial_distributions(
     would be negative or > 1). Silently clamping would mask a real
     bug in the supplied program.
     """
-    # Group entries by (target_atom, frozenset given)
+    # Group entries by (target_atom, frozenset given, population).
+    # Fix 3+4: completion is per-population — P(X=true | given, pop=source)
+    # = 0.43 implies P(X=false | given, pop=source) = 0.57 INSIDE
+    # population=source, NOT across populations. Two populations'
+    # K-1 entries on the same (target, given) shape are independent.
     groups: dict[
-        tuple[Atom, frozenset[tuple[Atom, AtomValue]]],
+        tuple[Atom, frozenset[tuple[Atom, AtomValue]], str | None],
         dict[AtomValue, float],
     ] = {}
     for key, value in entries.items():
-        group_key = (key.target_atom, key.given)
+        group_key = (key.target_atom, key.given, key.population)
         groups.setdefault(group_key, {})[key.target_value] = value
 
     completed = dict(entries)
-    for (target_atom, given), value_map in groups.items():
+    for (target_atom, given, pop), value_map in groups.items():
         # Declared domain wins; if target_atom isn't in final_domains
         # (which only includes atoms seen somewhere), default to the
         # boolean fallback consistent with Theta.domain_of.
@@ -192,6 +203,7 @@ def _complete_partial_distributions(
             target_atom=target_atom,
             target_value=missing_value,
             given=given,
+            population=pop,
         )
         completed[new_key] = complement
     return completed

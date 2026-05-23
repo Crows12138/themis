@@ -349,6 +349,16 @@ class ConstantExpr:
 class ProbabilityRefExpr:
     target: ValuedAtom
     given: tuple[ValuedAtom, ...]
+    # Fix 3+4 (charter FIX_3_4_CHARTER_llm_mediated_transport.md):
+    # routes the lookup to a specific population's theta partition.
+    # None = default / source population — backward-compat for all
+    # existing single-population formulas (backdoor / front-door /
+    # mediation / probability builders never set this, so their
+    # ProbRefs hit ProbabilityKey entries with population == None).
+    # Non-None values are used by the transport_formula builder to
+    # tag P*(z) terms as the target-population marginal vs the
+    # source-population interventional conditional in the same tree.
+    population: str | None = None
 
 
 @dataclass(frozen=True)
