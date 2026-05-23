@@ -1984,6 +1984,11 @@ def _evaluate_formula(
             target_atom=expr.target.atom,
             target_value=target_value,
             given=given_pairs,
+            # Fix 3+4: thread population from the ProbRef so transport
+            # formulas (P(...source) vs P*(...target)) route to the
+            # right theta partition. None default = pre-fix behaviour
+            # for all single-population formulas.
+            population=expr.population,
         )
         value = theta.entries.get(key)
         if value is None:
@@ -2077,10 +2082,13 @@ def _verifier_derive_via_marginalization(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4: same-population isolation
 
     candidates = []
     seen: set = set()
     for key in theta.entries:
+        if key.population != pop:
+            continue
         for ga, _gv in key.given:
             if ga != target_atom and ga not in seen:
                 candidates.append(ga)
@@ -2107,6 +2115,7 @@ def _verifier_derive_via_marginalization(
                 target_atom=target_atom,
                 target_value=target_value,
                 given=extended_given,
+                population=pop,
             )
             v_outer = theta.entries.get(outer_key)
             if v_outer is None:
@@ -2125,6 +2134,7 @@ def _verifier_derive_via_marginalization(
         for v in domain:
             inner_key = ProbabilityKey(
                 target_atom=z, target_value=v, given=base_given,
+                population=pop,
             )
             v_inner = theta.entries.get(inner_key)
             if v_inner is None:
@@ -2175,6 +2185,7 @@ def _verifier_marginal_independence_lookup(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4
     if not base_given:
         return None
     from itertools import combinations
@@ -2188,7 +2199,7 @@ def _verifier_marginal_independence_lookup(
             )
             reduced_key = ProbabilityKey(
                 target_atom=target_atom, target_value=target_value,
-                given=reduced,
+                given=reduced, population=pop,
             )
             v = theta.entries.get(reduced_key)
             if v is None:
@@ -2228,6 +2239,7 @@ def _verifier_diagnose_marginal_independence_refusal(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4
     if not base_given:
         return None
     from itertools import combinations
@@ -2243,7 +2255,7 @@ def _verifier_diagnose_marginal_independence_refusal(
             )
             reduced_key = ProbabilityKey(
                 target_atom=target_atom, target_value=target_value,
-                given=reduced,
+                given=reduced, population=pop,
             )
             if theta.entries.get(reduced_key) is None:
                 continue
@@ -2296,6 +2308,7 @@ def _verifier_derive_via_bayes_inversion(
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
     base_given = missing_key.given
+    pop = missing_key.population  # Fix 3+4
     if not base_given:
         return None
     for a_atom, a_value in base_given:
@@ -2305,7 +2318,7 @@ def _verifier_derive_via_bayes_inversion(
         flip_given = reduced_given | {(target_atom, target_value)}
         flip_key = ProbabilityKey(
             target_atom=a_atom, target_value=a_value,
-            given=frozenset(flip_given),
+            given=frozenset(flip_given), population=pop,
         )
         flip_val = theta.entries.get(flip_key)
         if flip_val is None:
@@ -2317,7 +2330,7 @@ def _verifier_derive_via_bayes_inversion(
             continue
         target_key = ProbabilityKey(
             target_atom=target_atom, target_value=target_value,
-            given=reduced_given,
+            given=reduced_given, population=pop,
         )
         target_marginal = theta.entries.get(target_key)
         if target_marginal is None:
@@ -2329,7 +2342,7 @@ def _verifier_derive_via_bayes_inversion(
             continue
         denom_key = ProbabilityKey(
             target_atom=a_atom, target_value=a_value,
-            given=reduced_given,
+            given=reduced_given, population=pop,
         )
         denom = theta.entries.get(denom_key)
         if denom is None:
@@ -3844,6 +3857,199 @@ def _rule_transport_formula(
         )
 
 
+# ----- Fix 3+4 §T9.2 (v0.1.5) — transport numeric verifier rule -----
+
+def _verifier_build_transport_formula(
+    target: ValuedAtom,
+    intervention: ValuedAtom,
+    adjustment_set: tuple[Atom, ...],
+    source_population: str,
+    target_population: str,
+    observed: tuple[ValuedAtom, ...],
+) -> FormulaExpr:
+    """Verifier-side independent reconstruction of the Bareinboim
+    transport g-formula. Does NOT call formula_builder.
+
+    Shape (identical to the runtime builder spec but written
+    independently — that's the paired-implementation discipline)::
+
+        adjustment_set = ():
+            P(target | intervention, observed, population=source)
+        adjustment_set = (Z1, ..., Zk):
+            Σ_{z1} ... Σ_{zk}
+              P(target | intervention, Z1=z1, ..., observed, population=source)
+              · ∏_i P*(Zi=zi | Z_{<i}, observed, population=target)
+    """
+    if not adjustment_set:
+        return ProbabilityRefExpr(
+            target=target,
+            given=(intervention,) + observed,
+            population=source_population,
+        )
+
+    # Independent bind-name scheme (different prefix from runtime's
+    # `z_` / mediation verifier's `v_` to make co-naming accidental
+    # rather than implicit — drift becomes visible at the verifier
+    # boundary if the two implementations ever diverge structurally).
+    def bind_for(atom: Atom, taken: set) -> BindDecl:
+        args = "_".join(t.name for t in atom.args)
+        base = f"vt_{atom.predicate}_{args}" if args else f"vt_{atom.predicate}"
+        if base not in taken:
+            return BindDecl(name=base)
+        i = 2
+        while f"{base}_{i}" in taken:
+            i += 1
+        return BindDecl(name=f"{base}_{i}")
+
+    taken: set = set()
+    z_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for z_atom in adjustment_set:
+        b = bind_for(z_atom, taken)
+        taken.add(b.name)
+        z_va = ValuedAtom(atom=z_atom, value=VarRef(name=b.name))
+        z_binds.append((z_atom, b, z_va))
+    z_valueds = tuple(vv for (_, _, vv) in z_binds)
+
+    source_factor = ProbabilityRefExpr(
+        target=target,
+        given=(intervention,) + z_valueds + observed,
+        population=source_population,
+    )
+    target_factors: list[ProbabilityRefExpr] = []
+    for i, (_, _, z_va) in enumerate(z_binds):
+        prior = z_valueds[:i]
+        target_factors.append(
+            ProbabilityRefExpr(
+                target=z_va,
+                given=prior + observed,
+                population=target_population,
+            )
+        )
+
+    body: FormulaExpr = ProductExpr(terms=(source_factor, *target_factors))
+    for z_atom, b, _ in reversed(z_binds):
+        body = SumExpr(bind=b, over=z_atom, body=body)
+    return body
+
+
+def _formula_shape_equal(a: FormulaExpr, b: FormulaExpr) -> bool:
+    """Structural equality on FormulaExpr that's tolerant of bind-name
+    differences. Runtime and verifier use different bind prefixes
+    (``z_`` vs ``vt_``) so dataclass equality (which compares bind
+    names byte-for-byte) would over-strict reject the verifier rebuild.
+
+    Walks both trees in lock-step; SumExpr bind names are unified via
+    a substitution map so two trees structurally identical modulo
+    bind-renaming compare equal. Inner ProbRef populations,
+    target/given shape, and constant values must match exactly."""
+    return _shape_walk(a, b, {}, {})
+
+
+def _shape_walk(
+    a: FormulaExpr, b: FormulaExpr,
+    a_to_b_binds: dict, b_to_a_binds: dict,
+) -> bool:
+    if isinstance(a, ConstantExpr) and isinstance(b, ConstantExpr):
+        return a.value == b.value
+    if isinstance(a, ProbabilityRefExpr) and isinstance(b, ProbabilityRefExpr):
+        if a.population != b.population:
+            return False
+        if a.target.atom != b.target.atom:
+            return False
+        if not _value_shape_equal(a.target.value, b.target.value, a_to_b_binds, b_to_a_binds):
+            return False
+        if len(a.given) != len(b.given):
+            return False
+        for ga, gb in zip(a.given, b.given):
+            if ga.atom != gb.atom:
+                return False
+            if not _value_shape_equal(ga.value, gb.value, a_to_b_binds, b_to_a_binds):
+                return False
+        return True
+    if isinstance(a, ProductExpr) and isinstance(b, ProductExpr):
+        if len(a.terms) != len(b.terms):
+            return False
+        return all(
+            _shape_walk(ta, tb, a_to_b_binds, b_to_a_binds)
+            for ta, tb in zip(a.terms, b.terms)
+        )
+    if isinstance(a, SumExpr) and isinstance(b, SumExpr):
+        if a.over != b.over:
+            return False
+        # Unify bind names: a.bind.name <-> b.bind.name within scope of this sum.
+        new_a_to_b = dict(a_to_b_binds)
+        new_b_to_a = dict(b_to_a_binds)
+        new_a_to_b[a.bind.name] = b.bind.name
+        new_b_to_a[b.bind.name] = a.bind.name
+        return _shape_walk(a.body, b.body, new_a_to_b, new_b_to_a)
+    return False
+
+
+def _value_shape_equal(va, vb, a_to_b_binds: dict, b_to_a_binds: dict) -> bool:
+    if isinstance(va, VarRef) and isinstance(vb, VarRef):
+        return a_to_b_binds.get(va.name) == vb.name
+    return va == vb
+
+
+def _rule_transport_formula_ast(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify Fix 3+4 §T9.2 transport_formula_ast step.
+
+    Independently rebuilds the transport g-formula from inputs
+    (target, intervention, adjustment_set, source_population,
+    target_population, observed) and compares to claimed_output
+    structurally — modulo bind-name renaming, since the two
+    implementations use different fresh-name prefixes (``z_`` vs
+    ``vt_``).
+    """
+    target = _require(inputs, "target", step_index, "transport_formula_ast")
+    intervention = _require(
+        inputs, "intervention", step_index, "transport_formula_ast"
+    )
+    adjustment_set_raw = inputs.get("adjustment_set", ())
+    adjustment_set = tuple(adjustment_set_raw)
+    src_pop = inputs.get("source_population")
+    tgt_pop = inputs.get("target_population")
+    observed_raw = inputs.get("observed", ())
+    observed = tuple(observed_raw) if observed_raw else ()
+
+    if not isinstance(target, ValuedAtom):
+        raise RuleCheckFailed(
+            "transport_formula_ast: target must be a ValuedAtom",
+            step_index=step_index, rule="transport_formula_ast",
+        )
+    if not isinstance(intervention, ValuedAtom):
+        raise RuleCheckFailed(
+            "transport_formula_ast: intervention must be a ValuedAtom",
+            step_index=step_index, rule="transport_formula_ast",
+        )
+    if not isinstance(src_pop, str) or not src_pop:
+        raise RuleCheckFailed(
+            "transport_formula_ast: source_population must be a non-empty string",
+            step_index=step_index, rule="transport_formula_ast",
+        )
+    if not isinstance(tgt_pop, str) or not tgt_pop:
+        raise RuleCheckFailed(
+            "transport_formula_ast: target_population must be a non-empty string",
+            step_index=step_index, rule="transport_formula_ast",
+        )
+
+    expected = _verifier_build_transport_formula(
+        target, intervention, adjustment_set, src_pop, tgt_pop, observed,
+    )
+    if not _formula_shape_equal(expected, claimed_output):
+        raise RuleCheckFailed(
+            "transport_formula_ast: claimed FormulaExpr does not match "
+            "verifier-independent reconstruction (structural shape modulo "
+            "bind-renaming)",
+            step_index=step_index, rule="transport_formula_ast",
+        )
+
+
 def _rule_identify_via_transport(
     ctx: VerificationContext,
     inputs: dict,
@@ -4135,6 +4341,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 9 §T9.1.4 — independent transport audit
     "s_admissibility_check": _rule_s_admissibility_check,
     "transport_formula": _rule_transport_formula,
+    # Fix 3+4 §T9.2 (v0.1.5) — transport numeric FormulaExpr witness
+    "transport_formula_ast": _rule_transport_formula_ast,
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
     "tian_c_decomposition": _rule_tian_c_decomposition,
 }

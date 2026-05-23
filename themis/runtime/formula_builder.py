@@ -321,6 +321,95 @@ def mediation_controlled_outcome_formula(
     return body
 
 
+def transport_formula(
+    target: ValuedAtom,
+    intervention: ValuedAtom,
+    adjustment_set: tuple[Atom, ...],
+    *,
+    source_population: str = "source",
+    target_population: str = "target",
+    observed: tuple[ValuedAtom, ...] = (),
+) -> FormulaExpr:
+    """Build Bareinboim-Pearl single-source transport g-formula
+    (Fix 3+4, charter FIX_3_4_CHARTER_llm_mediated_transport.md).
+
+    Computes::
+
+        P*(Y=y | do(X=x)) = Σ_z P(Y=y | X=x, Z=z, source)
+                                · ∏_i P*(Zi=zi | Z_{<i}, target)
+
+    where:
+
+    - ``adjustment_set`` Z satisfies Bareinboim Theorem 1
+      S-admissibility AND the source-population back-door criterion
+      (the standard joint condition where the inner factor reduces
+      from ``P(Y | do(X), Z)`` to ``P(Y | X, Z)`` without further
+      adjustment). Caller (``scheduler._dispatch_transport``)
+      enforces this via ``transport.identify_via_transport``.
+    - Source factor ``P(Y | X, Z, source)`` is tagged
+      ``population=source_population`` so the evaluator routes it to
+      source theta entries (declared by user / supplied by literature).
+    - Target factors ``P*(Zi=zi | ..., target)`` are tagged
+      ``population=target_population`` so they route to target theta
+      entries — typically LLM-proposed priors under Fix 3 in real
+      deployment.
+    - Empty ``adjustment_set`` reduces to ``P(Y | X, source)`` flat —
+      the trivial-transportability case where source and target
+      effects coincide.
+
+    Empty observed currently; the q.given clause on EffectQuery doesn't
+    conventionally appear in transport's textbook form. If a real case
+    surfaces needing observed, extend symmetrically to
+    ``backdoor_formula``.
+    """
+    if len(adjustment_set) == 0:
+        # Trivial: transport reduces to direct source observational
+        # conditional (no Z to marginalise over, no target-marginal
+        # needed). Bareinboim Theorem 1 still requires the diagram
+        # check that S doesn't open a back-door from X to Y, but that
+        # check is structural-layer (transport.identify_via_transport).
+        return ProbabilityRefExpr(
+            target=target,
+            given=(intervention,) + observed,
+            population=source_population,
+        )
+
+    taken: set[str] = set()
+    z_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for z_atom in adjustment_set:
+        bind = fresh_bind_name(z_atom, frozenset(taken))
+        taken.add(bind.name)
+        z_va = ValuedAtom(atom=z_atom, value=VarRef(name=bind.name))
+        z_binds.append((z_atom, bind, z_va))
+    z_valueds = tuple(vv for (_, _, vv) in z_binds)
+
+    # Source factor: P(Y | X, Z, observed) — single conditional in source.
+    source_factor = ProbabilityRefExpr(
+        target=target,
+        given=(intervention,) + z_valueds + observed,
+        population=source_population,
+    )
+
+    # Target factors: chain-rule decomposition of P*(Z1, ..., Zk),
+    # mirroring backdoor_formula's joint-W treatment but with each
+    # term tagged population=target.
+    target_factors: list[ProbabilityRefExpr] = []
+    for i, (_, _, z_va) in enumerate(z_binds):
+        prior = z_valueds[:i]
+        target_factors.append(
+            ProbabilityRefExpr(
+                target=z_va,
+                given=prior + observed,
+                population=target_population,
+            )
+        )
+
+    body: FormulaExpr = ProductExpr(terms=(source_factor, *target_factors))
+    for z_atom, bind, _ in reversed(z_binds):
+        body = SumExpr(bind=bind, over=z_atom, body=body)
+    return body
+
+
 # ---------------------------------------------------------------------------
 # Read-only walkers — used by explainer / differential, never by builders.
 # ---------------------------------------------------------------------------

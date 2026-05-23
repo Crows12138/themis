@@ -58,6 +58,13 @@ from .rules import dispatch_rule, known_rule
 IDENTIFICATION_FORMULA_RULES: frozenset[str] = frozenset({
     "backdoor_adjustment_formula",
     "front_door_adjustment_formula",
+    # Fix 3+4 §T9.2 (v0.1.5): transport's FormulaExpr witness step,
+    # parallel to backdoor / front-door identification-formula rules.
+    # The existing transport_formula step (s_t9_2, string output) stays
+    # for human-readable rendering; transport_formula_ast is the
+    # machine-verifiable FormulaExpr that formula_evaluation matches
+    # against in verify_numeric's witness check.
+    "transport_formula_ast",
 })
 
 
@@ -681,12 +688,14 @@ def verify_numeric(
                 "identify_via_backdoor",
                 "identify_via_front_door",
                 "identify_via_mediation",
+                "identify_via_transport",  # Fix 3+4 §T9.2 numeric
             )
             for step in derivation
         ):
             raise VerificationError(
                 "effect derivation is missing an identify_via_backdoor, "
-                "identify_via_front_door, or identify_via_mediation witness",
+                "identify_via_front_door, identify_via_mediation, or "
+                "identify_via_transport witness",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
 

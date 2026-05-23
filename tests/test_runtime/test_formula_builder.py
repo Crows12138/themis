@@ -7,6 +7,7 @@ from themis.runtime.formula_builder import (
     backdoor_formula,
     mediation_controlled_outcome_formula,
     mediation_potential_outcome_formula,
+    transport_formula,
 )
 from themis.runtime.numeric_estimator import (
     ProbabilityKey,
@@ -256,6 +257,197 @@ def test_mediation_controlled_outcome_is_wellformed():
             adjustment_set=ws[:n_w],
         )
         validate_formula(f)
+
+
+# ---------------------------------------------------------------------------
+# Transport builder — Fix 3+4 (charter FIX_3_4_CHARTER)
+# ---------------------------------------------------------------------------
+
+
+def test_transport_empty_adjustment_returns_flat_source_conditional():
+    """Trivial transportability case: P*(Y|do(X)) = P(Y|X, source)."""
+    y, x = a("y"), a("x")
+    f = transport_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        adjustment_set=(),
+    )
+    assert isinstance(f, ProbabilityRefExpr)
+    assert f.target.atom == y and f.target.value is True
+    assert len(f.given) == 1 and f.given[0].atom == x
+    assert f.population == "source"
+
+
+def test_transport_single_adjustment_tags_source_and_target():
+    """Single Z: SumExpr wrapping ProductExpr(source_factor, target_factor)."""
+    y, x, z = a("y"), a("x"), a("z")
+    f = transport_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        adjustment_set=(z,),
+    )
+    assert isinstance(f, SumExpr) and f.over == z
+    product = f.body
+    assert isinstance(product, ProductExpr)
+    assert len(product.terms) == 2
+
+    src, tgt = product.terms
+    # Source factor: P(Y | X, Z, source)
+    assert src.population == "source"
+    assert src.target.atom == y
+    assert len(src.given) == 2  # X + Z
+    # Target factor: P*(Z, target)
+    assert tgt.population == "target"
+    assert tgt.target.atom == z
+    assert tgt.given == ()
+
+
+def test_transport_two_adjustments_chain_rule_target_side():
+    """|Z|=2: target side decomposes via chain rule P*(Z1) · P*(Z2|Z1).
+    Source side stays a single joint P(Y | X, Z1, Z2, source)."""
+    y, x, z1, z2 = a("y"), a("x"), a("z1"), a("z2")
+    f = transport_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        adjustment_set=(z1, z2),
+    )
+    # Outer over Z1, inner over Z2
+    assert isinstance(f, SumExpr) and f.over == z1
+    inner = f.body
+    assert isinstance(inner, SumExpr) and inner.over == z2
+
+    product = inner.body
+    assert isinstance(product, ProductExpr)
+    # 1 source factor + 2 target chain-rule factors
+    assert len(product.terms) == 3
+
+    src, t1, t2 = product.terms
+    assert src.population == "source"
+    assert len(src.given) == 3  # X, Z1, Z2
+    assert t1.population == "target" and t1.target.atom == z1 and t1.given == ()
+    # P*(Z2 | Z1, target) — chain-rule conditioning
+    assert t2.population == "target" and t2.target.atom == z2
+    assert len(t2.given) == 1 and t2.given[0].atom == z1
+
+
+def test_transport_custom_population_labels():
+    """Caller can override default 'source' / 'target' labels (useful
+    when multiple target populations are in play in the same program)."""
+    y, x, z = a("y"), a("x"), a("z")
+    f = transport_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        adjustment_set=(z,),
+        source_population="boston_rct",
+        target_population="rural_india",
+    )
+    src, tgt = f.body.terms
+    assert src.population == "boston_rct"
+    assert tgt.population == "rural_india"
+
+
+def test_transport_formula_is_wellformed():
+    """All transport formula variants must pass validate_formula."""
+    y, x = a("y"), a("x")
+    zs = tuple(a(f"z{i}") for i in range(3))
+    for n_z in range(0, 4):
+        f = transport_formula(
+            target=va(y, value=True),
+            intervention=va(x, value=True),
+            adjustment_set=zs[:n_z],
+        )
+        validate_formula(f)
+
+
+def test_transport_evaluates_correctly_single_adjustment():
+    """End-to-end: build transport formula + populate two-population
+    theta + estimate_formula returns correct sum.
+
+    Source: P(Y=1 | X=1, Z=0) = 0.6, P(Y=1 | X=1, Z=1) = 0.4
+    Target: P*(Z=0) = 0.3, P*(Z=1) = 0.7
+    Expected: 0.6 · 0.3 + 0.4 · 0.7 = 0.18 + 0.28 = 0.46
+    """
+    y, x, z = a("y"), a("x"), a("z")
+    f = transport_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        adjustment_set=(z,),
+    )
+
+    def key_pop(target_atom, target_value, given_pairs, pop):
+        return ProbabilityKey(
+            target_atom=target_atom,
+            target_value=target_value,
+            given=frozenset(given_pairs),
+            population=pop,
+        )
+
+    theta = Theta(
+        entries={
+            # Source: P(Y | X, Z)
+            key_pop(y, True, [(x, True), (z, False)], "source"): 0.6,
+            key_pop(y, True, [(x, True), (z, True)],  "source"): 0.4,
+            # Target: P*(Z)
+            key_pop(z, False, [], "target"): 0.3,
+            key_pop(z, True,  [], "target"): 0.7,
+        },
+        domains={
+            y: (True, False),
+            x: (True, False),
+            z: (True, False),
+        },
+    )
+
+    result = estimate_formula(f, theta)
+    expected = 0.6 * 0.3 + 0.4 * 0.7
+    assert abs(result - expected) < 1e-9, (
+        f"transport eval expected {expected}, got {result}"
+    )
+
+
+def test_transport_evaluation_isolates_populations():
+    """A theta with same (Z=False) marginal in source AND target with
+    different values must NOT cross-contaminate: source's Z marginal
+    (if present) is irrelevant to transport, only target's P*(Z) is
+    consumed for the outer factor; vice versa for the source-side
+    conditional."""
+    y, x, z = a("y"), a("x"), a("z")
+    f = transport_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        adjustment_set=(z,),
+    )
+
+    def key_pop(target_atom, target_value, given_pairs, pop):
+        return ProbabilityKey(
+            target_atom=target_atom,
+            target_value=target_value,
+            given=frozenset(given_pairs),
+            population=pop,
+        )
+
+    theta = Theta(
+        entries={
+            # Source: P(Y | X, Z) — what we need
+            key_pop(y, True, [(x, True), (z, False)], "source"): 0.6,
+            key_pop(y, True, [(x, True), (z, True)],  "source"): 0.4,
+            # Source: also has P(Z) marginal — but transport must NOT use
+            # this for the outer; should use target's instead.
+            key_pop(z, False, [], "source"): 0.9,
+            key_pop(z, True,  [], "source"): 0.1,
+            # Target: P*(Z) — what we need for outer
+            key_pop(z, False, [], "target"): 0.3,
+            key_pop(z, True,  [], "target"): 0.7,
+        },
+        domains={y: (True, False), x: (True, False), z: (True, False)},
+    )
+
+    result = estimate_formula(f, theta)
+    # Must equal target-marginal-based sum (0.46), NOT source-marginal-based (0.58).
+    expected_target_based = 0.6 * 0.3 + 0.4 * 0.7  # = 0.46
+    expected_source_based = 0.6 * 0.9 + 0.4 * 0.1  # = 0.58  (wrong if leaked)
+    assert abs(result - expected_target_based) < 1e-9
+    assert abs(result - expected_source_based) > 0.1
 
 
 def test_q1358_nie_evaluates_to_0_11():

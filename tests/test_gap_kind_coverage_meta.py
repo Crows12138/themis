@@ -373,14 +373,18 @@ def test_identification_formula_witness_set_synced_with_scheduler():
     rule= sites that produce FormulaExpr-typed output):
     - backdoor_adjustment_formula
     - front_door_adjustment_formula
+    - transport_formula_ast (Fix 3+4 §T9.2)
 
-    transport_formula emits a STRING repr (not FormulaExpr) so it
-    isn't a formula_evaluation witness — excluded by design.
+    transport_formula (string repr step, separate from
+    transport_formula_ast) emits a STRING repr (not FormulaExpr) and
+    stays excluded — it's the human-readable rendering witness, not
+    the machine-evaluable one.
     """
     from themis.verifier.verify import IDENTIFICATION_FORMULA_RULES
     expected = frozenset({
         "backdoor_adjustment_formula",
         "front_door_adjustment_formula",
+        "transport_formula_ast",
     })
     assert IDENTIFICATION_FORMULA_RULES == expected, (
         f"IDENTIFICATION_FORMULA_RULES drift: got "

@@ -1811,15 +1811,32 @@ def _dispatch_transport(
     stmt: QueryStatement,
     graph: nx.DiGraph,
     q: EffectQuery,
+    theta: Theta,
     selection_nodes: "tuple[Statement, ...]",
 ) -> QueryResult:
-    """Phase 9 §T9.1.3: Bareinboim-Pearl single-source transport identification.
+    """Phase 9 §T9.1.3 + Fix 3+4 §T9.2 (v0.1.5): Bareinboim-Pearl
+    single-source transport identification + numeric evaluation.
 
-    Returns a structural-only QueryResult (no numeric estimation in
-    §T9.1 — that's §T9.2). Identifiable case → ``structurally_solved``
-    with structural_result.value=True and a `transport_identification`
-    extension. Unidentifiable → ``needs_investigation`` with a
-    structure-group missing item naming the failure reason.
+    Identifiable case:
+      - Builds the transport g-formula
+        ``Σ_z P(Y|X,Z,source) · ∏ P*(Z|...,target)`` via
+        ``formula_builder.transport_formula`` and tries to evaluate
+        against the supplied two-population ``theta`` (population-
+        partitioned per Fix 3+4 infrastructure slice, commit 3f2ece6).
+      - If theta has both populations' entries sufficiently → status
+        upgrades to ``numerically_solved``, derivation appends the
+        canonical ``formula_evaluation`` + ``numeric_result`` pair
+        (matching the mediation Fix 1 pattern).
+      - If theta is short of either source's ``P(Y|X,Z)`` or target's
+        ``P*(Z)`` → stays ``structurally_solved`` with an
+        investigation_request naming the specific missing population
+        key. In real deployment the agent then either supplies user
+        data OR proposes ``population=target_xxx`` ``provenance=
+        llm_prior`` priors (Fix 3 mechanic, charter §3.2).
+
+    Unidentifiable case (structural) → ``needs_investigation`` with a
+    structure-group missing item naming the failure reason. Identical
+    to pre-fix behaviour.
     """
     from . import transport as _transport
 
@@ -1904,13 +1921,113 @@ def _dispatch_transport(
         ),
     )
 
+    # Fix 3+4 §T9.2 numeric branch: try to evaluate the transport
+    # formula against the two-population theta. Source factor uses
+    # population=src_pop (from SelectionNode.source_population);
+    # target factors use population=q.target_population. Identical
+    # population strings here and on the supplied ProbabilityStatements
+    # are the contract — mismatch surfaces as InsufficientTheta with
+    # the specific missing key including its population tag.
+    # EffectQuery.intervention is Intervention (atom + value); transport_
+    # formula wants a ValuedAtom for the source X conditional. Construct
+    # the ValuedAtom from the intervention pair.
+    intervention_va = ValuedAtom(
+        atom=q.intervention.atom, value=q.intervention.value,
+    )
+    transport_formula_expr = formula_builder.transport_formula(
+        target=q.target,
+        intervention=intervention_va,
+        adjustment_set=tuple(result.adjustment_set),
+        source_population=src_pop or "source",
+        target_population=q.target_population or "target",
+        observed=q.given,
+    )
+    validate_formula(transport_formula_expr)
+
+    try:
+        value = numeric_estimator.estimate_formula(
+            transport_formula_expr, theta,
+            graph=graph, bidirected=None,
+        )
+    except InsufficientTheta as ite:
+        # Stay structurally_solved; surface the specific missing
+        # (target or source) probability key via investigation request
+        # so the agent (Fix 3 path) can propose an llm_prior patch.
+        missing = _missing_parameter_from_key(
+            ite.missing_key, ite.reason,
+        )
+        skeletons: dict = {}
+        if ite.missing_key is not None:
+            skeletons[missing.name] = _skeleton_for_parameter(ite.missing_key)
+        requests = investigation_pusher.push(
+            (missing,), skeletons=skeletons,
+        )
+        return QueryResult(
+            status=ResultStatus.STRUCTURALLY_SOLVED,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            structural_result=StructuralResult(value=True),
+            formula=transport_formula_expr,
+            derivation=derivation_steps,
+            missing_information=(missing,),
+            investigation_requests=requests,
+            extensions={"transport_identification": transport_block},
+        )
+
+    # Numeric success: append (transport_formula_ast, formula_evaluation,
+    # numeric_result) to the existing 3-step structural prefix. The
+    # transport_formula_ast step carries the FormulaExpr (parallel to
+    # backdoor_adjustment_formula / front_door_adjustment_formula) so
+    # verify_numeric's formula-witness check has a step to match
+    # formula_evaluation against. The existing s_t9_2 (transport_formula
+    # with string output) stays — string repr is human-readable extension
+    # metadata; the AST is the machine-verifiable derivation witness.
+    ast_step_id = "s_t9_ast"
+    eval_step_id = "s_t9_eval"
+    numeric_result_obj = NumericResult(value=value)
+    derivation_steps = derivation_steps + (
+        DerivationStep(
+            rule="transport_formula_ast",
+            inputs={
+                "target": q.target,
+                "intervention": intervention_va,
+                "adjustment_set": tuple(result.adjustment_set),
+                "source_population": src_pop or "source",
+                "target_population": q.target_population or "target",
+                "observed": q.given,
+            },
+            output=transport_formula_expr,
+            step_id=ast_step_id,
+        ),
+        DerivationStep(
+            rule="formula_evaluation",
+            inputs={"formula": transport_formula_expr},
+            output=value,
+            step_id=eval_step_id,
+        ),
+        DerivationStep(
+            rule="numeric_result",
+            inputs={"evaluation": StepRef(step_id=eval_step_id)},
+            output=numeric_result_obj,
+            step_id="s_t9_final_num",
+        ),
+    )
+    transport_block_with_numeric = dict(transport_block)
+    transport_block_with_numeric["numeric"] = {
+        "value": value,
+        "source_population": src_pop,
+        "target_population": q.target_population,
+    }
+
     return QueryResult(
-        status=ResultStatus.STRUCTURALLY_SOLVED,
+        status=ResultStatus.NUMERICALLY_SOLVED,
         query_kind=QueryKind.EFFECT,
         query_id=stmt.id,
         structural_result=StructuralResult(value=True),
+        numeric_result=numeric_result_obj,
+        formula=transport_formula_expr,
         derivation=derivation_steps,
-        extensions={"transport_identification": transport_block},
+        extensions={"transport_identification": transport_block_with_numeric},
     )
 
 
@@ -1949,10 +2066,11 @@ def _dispatch_effect(
 
     # Phase 9 §T9.1.3: when the query declares a target_population,
     # short-circuit into transport identification (Bareinboim 2014).
-    # Returns structural identification only — no numeric estimation
-    # in §T9.1 (deferred to §T9.2).
+    # Fix 3+4 (v0.1.5) closed §T9.2 — transport now evaluates against
+    # theta when source+target entries are sufficient, producing a
+    # numeric_result instead of structurally_solved-only.
     if getattr(q, "target_population", None) is not None:
-        return _dispatch_transport(stmt, graph, q, selection_nodes)
+        return _dispatch_transport(stmt, graph, q, theta, selection_nodes)
 
     # Phase 6.mediation: when the query declares a mediator, short-
     # circuit into mediation identification (NDE/NIE/CDE decomposition)
