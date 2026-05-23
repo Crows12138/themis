@@ -40,6 +40,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_verify_bounds_result",  # iter 133
         "themis_estimate",
         "themis_discover",
+        "themis_submit_verdict",  # v0.1.5 Fix 2A
         "themis_list_resources",
     }
 
@@ -245,3 +246,65 @@ def test_new_gap_kinds_round_trip_through_mcp(
     assert verify_out.get("ok") is True, (
         f"{case_file}: themis_verify_data_gap_report should accept; got {verify_out}"
     )
+
+
+# ============================================ v0.1.5 Fix 2A — submit_verdict
+
+
+def test_submit_verdict_accepts_yes(app):
+    """Happy path: the agent commits 'yes' through the typed channel."""
+    out = _call_tool(app, "themis_submit_verdict", {
+        "verdict": "yes",
+        "question": "Does running cause weight loss in adults?",
+        "justification": "Backdoor-adjusted ATE = 0.18 (95% CI 0.12-0.24)",
+        "kernel_query_id": "q1",
+    })
+    assert out["ok"] is True
+    assert out["verdict"] == "yes"
+    assert "running cause weight loss" in out["question_excerpt"]
+    assert out["kernel_query_id"] == "q1"
+
+
+def test_submit_verdict_accepts_no(app):
+    out = _call_tool(app, "themis_submit_verdict", {
+        "verdict": "no",
+        "question": "Does medication negatively affect heart through BP?",
+    })
+    assert out["verdict"] == "no"
+
+
+def test_submit_verdict_accepts_needs_more_info(app):
+    """The third allowed value — for when the kernel returned
+    needs_investigation or bounds-only and the agent can't commit."""
+    out = _call_tool(app, "themis_submit_verdict", {
+        "verdict": "needs_more_info",
+        "question": "Does X cause Y?",
+        "justification": "Kernel returned needs_investigation: missing P(Y|X,W)",
+    })
+    assert out["verdict"] == "needs_more_info"
+
+
+def test_submit_verdict_rejects_freeform_verdict(app):
+    """The schema's whole point: anything outside the three allowed
+    values must fail loudly. FastMCP surfaces the ValueError as a
+    ToolError exception across the protocol boundary (matching how
+    JSON-schema enum violations surface to MCP clients) rather than a
+    success response — verifying the failure mode, not silent accept."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError, match="verdict must be one of"):
+        asyncio.run(app.call_tool("themis_submit_verdict", {
+            "verdict": "probably_yes",
+            "question": "Q",
+        }))
+
+
+def test_submit_verdict_excerpt_truncates_long_questions(app):
+    """Audit-trail field has a 200-char cap so the response stays
+    bounded regardless of input verbosity."""
+    long_q = "X" * 1000
+    out = _call_tool(app, "themis_submit_verdict", {
+        "verdict": "yes",
+        "question": long_q,
+    })
+    assert len(out["question_excerpt"]) == 200

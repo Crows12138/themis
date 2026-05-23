@@ -9,6 +9,10 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None)`` → wraps :func:`themis.estimate`; loads CSV from disk
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
+- ``themis_submit_verdict(verdict, question, ...)`` → Fix 2A (v0.1.5):
+  schema-validated yes/no/needs_more_info commitment channel. Removes
+  token-level reliability risk when downstream consumers (benchmark
+  scoring, agent pipelines, audit logs) need a binary verdict.
 - ``themis_list_resources()`` → returns the resource URI catalog
 
 Resources (read by the client to drive NL↔JSON):
@@ -227,6 +231,62 @@ def build_server():
             bool_predicates=tuple(bool_predicates or ()),
             query=query,
         )
+
+    @app.tool()
+    def themis_submit_verdict(
+        verdict: str,
+        question: str,
+        justification: str | None = None,
+        kernel_query_id: str | None = None,
+    ) -> dict:
+        """v0.1.5 Fix 2A — commit a binary verdict through a typed channel.
+
+        Use AFTER ``themis_run`` when the user's question expects a
+        binary answer (e.g. "does X cause Y?", "is the effect positive?",
+        "if X hadn't happened, would Y differ?"). The verdict travels in
+        a schema-validated tool argument, not in free text, so a
+        token-level decoding artifact at the end of your reply cannot
+        corrupt the answer downstream consumers (benchmark scoring,
+        agent pipelines, audit logs) actually read.
+
+        ``verdict`` must be one of ``"yes"`` / ``"no"`` /
+        ``"needs_more_info"``. Any other value is rejected — there is
+        no "almost yes" or "probably no" channel; if the kernel didn't
+        give you enough to commit, return ``needs_more_info`` and use
+        the free-text reply to explain what's missing.
+
+        ``question``: the original NL question, copied verbatim (or
+        first ~200 chars) so a downstream auditor can match the verdict
+        to the asked thing without re-reading the full transcript.
+
+        ``justification``: optional NL explanation, primarily for the
+        audit trail. The user-facing explanation belongs in your reply,
+        not here.
+
+        ``kernel_query_id``: optional ``query_id`` from a prior
+        ``themis_run`` result whose evidence backs this verdict. Lets
+        downstream consumers cross-reference the typed answer to the
+        structural / numeric evidence.
+
+        For open-ended / numeric / "what is the effect" questions, do
+        NOT call this tool — there is no binary verdict to commit.
+        Reply in natural language directly.
+
+        Returns an acknowledgment echoing the committed verdict. The
+        MCP transcript itself is the persistent record.
+        """
+        allowed = ("yes", "no", "needs_more_info")
+        if verdict not in allowed:
+            raise ValueError(
+                f"verdict must be one of {list(allowed)}, got {verdict!r}"
+            )
+        return {
+            "ok": True,
+            "verdict": verdict,
+            "question_excerpt": (question or "")[:200],
+            "justification": justification,
+            "kernel_query_id": kernel_query_id,
+        }
 
     @app.tool()
     def themis_list_resources() -> dict:

@@ -6,14 +6,15 @@ the kernel without copy-pasting prompts and inputs by hand.
 
 ## Architecture
 
-The server exposes two surfaces (current count: 8 tools + 12 resources;
+The server exposes two surfaces (current count: 9 tools + 12 resources;
 test_mcp_server.py + iter 59 sync pin lock both):
 
 - **Tools** — the public JSON-in/JSON-out kernel entry points:
   `themis_run`, `themis_apply_patch_and_run`, `themis_verify`,
   `themis_verify_data_gap_report` (Phase 10),
   `themis_verify_bounds_result` (iter 133), `themis_estimate`
-  (Phase 7+14), `themis_discover` (Phase 8.1) — plus
+  (Phase 7+14), `themis_discover` (Phase 8.1),
+  `themis_submit_verdict` (v0.1.5 Fix 2A) — plus
   `themis_list_resources` catalog helper.
 - **Resources** — the prompt files (`nl_to_kernel_ast.md`,
   `response_rendering.md`, `narrative_to_variables.md`,
@@ -65,6 +66,7 @@ prefixed `mcp__themis__`.
 | `themis_verify_bounds_result` | `themis.verify_bounds_result(program, result)` | Iter 133 — bounds-result audit (MN/MTR/BP-IV) for derivation-less results |
 | `themis_estimate` | `themis.estimate(program, df)` | Loads CSV from `csv_path` (Phase 7+14) |
 | `themis_discover` | `themis.estimation.discovery.discover_*` | Phase 8.1 — PC / GES skeletons from CSV |
+| `themis_submit_verdict` | n/a (agent-side commitment) | v0.1.5 Fix 2A — schema-validated `yes`/`no`/`needs_more_info` commitment channel so binary verdicts survive token-level decoding artifacts |
 | `themis_list_resources` | n/a | Returns the resource URI catalog |
 
 ## Resource catalog

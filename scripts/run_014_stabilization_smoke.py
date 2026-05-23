@@ -515,6 +515,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_verify_bounds_result",  # iter 133
         "themis_estimate",
         "themis_discover",
+        "themis_submit_verdict",  # v0.1.5 Fix 2A
         "themis_list_resources",
     }
     _require(tool_names == expected_tools, "MCP tool catalog drifted")

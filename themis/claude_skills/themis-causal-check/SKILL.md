@@ -62,6 +62,8 @@ Any question matching:
 
 5. **Mirror the kernel's verdict in your final answer**. If the kernel said "not identifiable", you say "not identifiable" — never substitute a plausible-sounding fabrication. If it said "needs P(target | intervention, confounders) — not provided", you say exactly that and ask the user to supply it or accept the bounds.
 
+6. **When the user's question has a binary answer**, also commit that answer through `mcp__themis__themis_submit_verdict` (verdict: `yes` / `no` / `needs_more_info`). The free-text reply explains it to the user; the structured verdict is what downstream tooling (benchmark scoring, agent pipelines, audit logs) actually reads. A binary commitment in your free text is unreliable — token-level decoding can corrupt the last word even when your reasoning was correct. Open-ended / numeric / "what is the effect" questions do not have a binary verdict; skip the tool for those.
+
 ## Hard rules
 
 - **Don't fabricate effect sizes**. If the kernel didn't return a number, you don't have a number. Pattern-matching "RR ≈ 2.3 for X→Y" from training corpus is a violation.
