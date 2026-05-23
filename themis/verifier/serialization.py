@@ -125,6 +125,21 @@ def _value_to_json(v: Any) -> Any:
         }
     if isinstance(v, tuple):
         return _tuple_to_dict(v)
+    if isinstance(v, dict):
+        # Generic tagged-dict serialization for rules whose output is a
+        # multi-quantity structured payload (e.g. mediation's TE / NDE /
+        # NIE / CDE-per-m bundle). Keys must be strings (JSON limitation);
+        # values recurse through _value_to_json so nested dicts / atoms /
+        # tuples all work. Round-trips via "dict" decoder below.
+        for k in v:
+            if not isinstance(k, str):
+                raise DerivationSerializationError(
+                    f"dict keys must be strings (got {type(k).__name__})"
+                )
+        return {
+            "kind": "dict",
+            "items": {k: _value_to_json(val) for k, val in v.items()},
+        }
 
     raise DerivationSerializationError(
         f"don't know how to serialize {type(v).__name__}"
@@ -579,6 +594,13 @@ def _decode_atom_paths(d: dict) -> tuple:
     )
 
 
+def _decode_dict(d: dict) -> dict:
+    items = d.get("items", {})
+    if not isinstance(items, dict):
+        raise DerivationSerializationError("dict.items must be a dict")
+    return {k: _value_from_json(v) for k, v in items.items()}
+
+
 _DECODE_BY_KIND = {
     "atom":               _decode_atom,
     "valued_atom":        _decode_valued_atom,
@@ -595,6 +617,7 @@ _DECODE_BY_KIND = {
     "atom_tuple":         _decode_atom_tuple,
     "valued_atom_tuple":  _decode_valued_atom_tuple,
     "atom_paths":         _decode_atom_paths,
+    "dict":               _decode_dict,
 }
 
 

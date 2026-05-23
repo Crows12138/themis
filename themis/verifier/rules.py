@@ -1070,6 +1070,310 @@ def _rule_identify_via_mediation(
         )
 
 
+# ----- Phase 6.mediation Fix 1 (v0.1.4) — numeric evaluation rule -----
+
+def _verifier_mediation_bind_for(atom: "Atom", taken: set) -> "BindDecl":
+    """Verifier-side fresh bind-name generator. Uses a ``v_`` prefix to
+    stay distinct from runtime's ``z_`` scheme — bind names don't have
+    to byte-match between the two implementations (they only need to be
+    unique within one formula tree)."""
+    args = "_".join(t.name for t in atom.args)
+    base = f"v_{atom.predicate}_{args}" if args else f"v_{atom.predicate}"
+    if base not in taken:
+        return BindDecl(name=base)
+    i = 2
+    while f"{base}_{i}" in taken:
+        i += 1
+    return BindDecl(name=f"{base}_{i}")
+
+
+def _verifier_build_mediation_potential_outcome_formula(
+    target: ValuedAtom,
+    intervention_outer: ValuedAtom,
+    intervention_inner: ValuedAtom,
+    mediator: Atom,
+    adjustment_set: tuple[Atom, ...],
+    observed: tuple[ValuedAtom, ...],
+) -> FormulaExpr:
+    """Verifier-side independent reconstruction of the mediation
+    potential-outcome g-formula. Does NOT call ``formula_builder``.
+
+    Shape (Pearl 2001 + g-formula expansion)::
+
+        E[Y(X=x_outer, M = M(X=x_inner))]
+          = Σ_w  Σ_m  P(Y | X=x_outer, M=m, W=w)
+                    · P(M=m | X=x_inner, W=w)
+                    · ∏_i P(Wi=wi | W_{<i})
+
+    The chain-rule factoring of P(W) and the cross-world M conditional
+    are the two pieces a buggy runtime might get wrong; this
+    independent rebuild lets the verifier detect either failure mode.
+    """
+    taken: set = set()
+    w_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for w_atom in adjustment_set:
+        b = _verifier_mediation_bind_for(w_atom, taken)
+        taken.add(b.name)
+        w_va = ValuedAtom(atom=w_atom, value=VarRef(name=b.name))
+        w_binds.append((w_atom, b, w_va))
+    w_valueds = tuple(vv for (_, _, vv) in w_binds)
+
+    m_bind = _verifier_mediation_bind_for(mediator, taken)
+    m_va = ValuedAtom(atom=mediator, value=VarRef(name=m_bind.name))
+
+    y_cond = ProbabilityRefExpr(
+        target=target,
+        given=(intervention_outer, m_va) + w_valueds + observed,
+    )
+    m_cond = ProbabilityRefExpr(
+        target=m_va,
+        given=(intervention_inner,) + w_valueds + observed,
+    )
+    w_factors: list[ProbabilityRefExpr] = []
+    for i, (_, _, w_va) in enumerate(w_binds):
+        prior = w_valueds[:i]
+        w_factors.append(ProbabilityRefExpr(target=w_va, given=prior + observed))
+
+    body: FormulaExpr = ProductExpr(terms=(y_cond, m_cond, *w_factors))
+    body = SumExpr(bind=m_bind, over=mediator, body=body)
+    for w_atom, b, _ in reversed(w_binds):
+        body = SumExpr(bind=b, over=w_atom, body=body)
+    return body
+
+
+def _verifier_build_mediation_controlled_outcome_formula(
+    target: ValuedAtom,
+    intervention: ValuedAtom,
+    mediator: ValuedAtom,
+    adjustment_set: tuple[Atom, ...],
+    observed: tuple[ValuedAtom, ...],
+) -> FormulaExpr:
+    """Verifier-side independent reconstruction of the CDE g-formula.
+    Does NOT call ``formula_builder``.
+
+    Shape::
+
+        E[Y | do(X=x, M=m)]
+          = Σ_w  P(Y | X=x, M=m, W=w) · ∏_i P(Wi=wi | W_{<i})
+
+    When ``adjustment_set`` is empty, reduces to a single
+    ``P(Y | X=x, M=m, observed)`` conditional.
+    """
+    if not adjustment_set:
+        return ProbabilityRefExpr(
+            target=target,
+            given=(intervention, mediator) + observed,
+        )
+
+    taken: set = set()
+    w_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for w_atom in adjustment_set:
+        b = _verifier_mediation_bind_for(w_atom, taken)
+        taken.add(b.name)
+        w_va = ValuedAtom(atom=w_atom, value=VarRef(name=b.name))
+        w_binds.append((w_atom, b, w_va))
+    w_valueds = tuple(vv for (_, _, vv) in w_binds)
+
+    y_cond = ProbabilityRefExpr(
+        target=target,
+        given=(intervention, mediator) + w_valueds + observed,
+    )
+    w_factors: list[ProbabilityRefExpr] = []
+    for i, (_, _, w_va) in enumerate(w_binds):
+        prior = w_valueds[:i]
+        w_factors.append(ProbabilityRefExpr(target=w_va, given=prior + observed))
+
+    body: FormulaExpr = ProductExpr(terms=(y_cond, *w_factors))
+    for w_atom, b, _ in reversed(w_binds):
+        body = SumExpr(bind=b, over=w_atom, body=body)
+    return body
+
+
+def _rule_mediation_numeric_evaluate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify the bundled v0.1.4 mediation numeric evaluation step.
+
+    Independently rebuilds the potential-outcome and/or CDE g-formulas
+    from inputs + Pearl 2001 / g-formula specification, evaluates each
+    against ``ctx.theta`` using the verifier's own
+    ``_evaluate_formula``, recomputes the derived TE / NDE-at-control /
+    NIE-at-treated / CDE-per-mediator-value quantities, and compares
+    each component of ``claimed_output`` within ``_NUMERIC_TOL``.
+
+    ``nde_nie_adjustment`` and ``cde_adjustment`` are optional inputs —
+    their presence signals which branch the runtime ran. A
+    ``nde_nie_status`` / ``cde_status`` entry in ``claimed_output``
+    signals the runtime aborted that branch with InsufficientTheta; the
+    verifier accepts the abort without recomputing (the abort itself is
+    a valid outcome; the message is metadata for downstream consumers).
+    """
+    target = _require(inputs, "target", step_index, "mediation_numeric_evaluate")
+    if not isinstance(target, ValuedAtom):
+        raise RuleCheckFailed(
+            "mediation_numeric_evaluate: target must be a ValuedAtom",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
+    treated_va = _require(
+        inputs, "intervention_treated", step_index, "mediation_numeric_evaluate"
+    )
+    control_va = _require(
+        inputs, "intervention_control", step_index, "mediation_numeric_evaluate"
+    )
+    mediator = _require_atom(
+        inputs, "mediator", step_index, "mediation_numeric_evaluate"
+    )
+    observed_raw = inputs.get("observed", ())
+    observed: tuple[ValuedAtom, ...] = tuple(observed_raw) if observed_raw else ()
+
+    nde_nie_adj = inputs.get("nde_nie_adjustment")
+    cde_adj = inputs.get("cde_adjustment")
+
+    if not isinstance(claimed_output, dict):
+        raise RuleCheckFailed(
+            "mediation_numeric_evaluate output must be a dict",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
+
+    theta = getattr(ctx, "theta", None)
+    if theta is None:
+        raise RuleCheckFailed(
+            "mediation_numeric_evaluate requires theta in VerificationContext",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
+
+    graph = getattr(ctx, "graph", None)
+    bidirected = getattr(ctx, "bidirected", None)
+
+    # ---- NDE/NIE branch ----
+    if nde_nie_adj is not None and "nde_nie_status" not in claimed_output:
+        nde_w = tuple(nde_nie_adj)
+        f_treated = _verifier_build_mediation_potential_outcome_formula(
+            target, treated_va, treated_va, mediator, nde_w, observed,
+        )
+        f_control = _verifier_build_mediation_potential_outcome_formula(
+            target, control_va, control_va, mediator, nde_w, observed,
+        )
+        # Both cross-world potentials — one per Pearl decomposition.
+        f_cross_to = _verifier_build_mediation_potential_outcome_formula(
+            target, treated_va, control_va, mediator, nde_w, observed,
+        )
+        f_cross_co = _verifier_build_mediation_potential_outcome_formula(
+            target, control_va, treated_va, mediator, nde_w, observed,
+        )
+        try:
+            e_y_treated = _evaluate_formula(
+                f_treated, theta, {}, graph=graph, bidirected=bidirected
+            )
+            e_y_control = _evaluate_formula(
+                f_control, theta, {}, graph=graph, bidirected=bidirected
+            )
+            e_y_cross_to = _evaluate_formula(
+                f_cross_to, theta, {}, graph=graph, bidirected=bidirected
+            )
+            e_y_cross_co = _evaluate_formula(
+                f_cross_co, theta, {}, graph=graph, bidirected=bidirected
+            )
+        except _NonConcreteValue as e:
+            raise RuleCheckFailed(
+                f"mediation_numeric_evaluate: NDE/NIE re-evaluation failed: {e}",
+                step_index=step_index, rule="mediation_numeric_evaluate",
+            )
+
+        recomputed = {
+            "e_y_treated":             e_y_treated,
+            "e_y_control":             e_y_control,
+            "e_y_cross_world":         e_y_cross_to,   # back-compat alias
+            "e_y_cross_treated_outer": e_y_cross_to,
+            "e_y_cross_control_outer": e_y_cross_co,
+            "te":                      e_y_treated - e_y_control,
+            "nde_at_control":          e_y_cross_to - e_y_control,
+            "nie_at_treated":          e_y_treated - e_y_cross_to,
+            "nde_at_treated":          e_y_treated - e_y_cross_co,
+            "nie_at_control":          e_y_cross_co - e_y_control,
+        }
+        for key, expected in recomputed.items():
+            if key not in claimed_output:
+                raise RuleCheckFailed(
+                    f"mediation_numeric_evaluate: claimed_output missing {key!r}",
+                    step_index=step_index, rule="mediation_numeric_evaluate",
+                )
+            claimed = claimed_output[key]
+            if not isinstance(claimed, (int, float)):
+                raise RuleCheckFailed(
+                    f"mediation_numeric_evaluate: {key} must be numeric, "
+                    f"got {type(claimed).__name__}",
+                    step_index=step_index, rule="mediation_numeric_evaluate",
+                )
+            if abs(float(claimed) - expected) > _NUMERIC_TOL:
+                raise RuleCheckFailed(
+                    f"mediation_numeric_evaluate: {key} mismatch — claimed "
+                    f"{claimed!r}, recomputed {expected!r}",
+                    step_index=step_index, rule="mediation_numeric_evaluate",
+                )
+
+    # ---- CDE branch ----
+    if cde_adj is not None and "cde_status" not in claimed_output:
+        if "cde" not in claimed_output:
+            raise RuleCheckFailed(
+                "mediation_numeric_evaluate: cde_adjustment supplied but no "
+                "'cde' block in output",
+                step_index=step_index, rule="mediation_numeric_evaluate",
+            )
+        claimed_cde = claimed_output["cde"]
+        if not isinstance(claimed_cde, dict):
+            raise RuleCheckFailed(
+                "mediation_numeric_evaluate: 'cde' must be a dict",
+                step_index=step_index, rule="mediation_numeric_evaluate",
+            )
+        cde_w = tuple(cde_adj)
+        for m_val in theta.domain_of(mediator):
+            m_va = ValuedAtom(atom=mediator, value=m_val)
+            f_t = _verifier_build_mediation_controlled_outcome_formula(
+                target, treated_va, m_va, cde_w, observed,
+            )
+            f_c = _verifier_build_mediation_controlled_outcome_formula(
+                target, control_va, m_va, cde_w, observed,
+            )
+            try:
+                v_t = _evaluate_formula(
+                    f_t, theta, {}, graph=graph, bidirected=bidirected
+                )
+                v_c = _evaluate_formula(
+                    f_c, theta, {}, graph=graph, bidirected=bidirected
+                )
+            except _NonConcreteValue as e:
+                raise RuleCheckFailed(
+                    f"mediation_numeric_evaluate: CDE re-evaluation failed "
+                    f"for mediator={m_val!r}: {e}",
+                    step_index=step_index, rule="mediation_numeric_evaluate",
+                )
+            recomputed_cde = v_t - v_c
+            m_key = str(m_val)
+            if m_key not in claimed_cde:
+                raise RuleCheckFailed(
+                    f"mediation_numeric_evaluate: cde missing mediator value "
+                    f"{m_key!r}",
+                    step_index=step_index, rule="mediation_numeric_evaluate",
+                )
+            claimed_v = claimed_cde[m_key]
+            if not isinstance(claimed_v, (int, float)):
+                raise RuleCheckFailed(
+                    f"mediation_numeric_evaluate: cde[{m_key!r}] must be "
+                    f"numeric, got {type(claimed_v).__name__}",
+                    step_index=step_index, rule="mediation_numeric_evaluate",
+                )
+            if abs(float(claimed_v) - recomputed_cde) > _NUMERIC_TOL:
+                raise RuleCheckFailed(
+                    f"mediation_numeric_evaluate: cde[{m_key!r}] mismatch — "
+                    f"claimed {claimed_v!r}, recomputed {recomputed_cde!r}",
+                    step_index=step_index, rule="mediation_numeric_evaluate",
+                )
+
+
 def _verifier_directed_descendants(graph, node) -> frozenset:
     """BFS forward along directed edges to collect descendants.
 
@@ -2120,12 +2424,28 @@ def _rule_numeric_result(
             f"numeric_result: referenced step {evaluation_ref.step_id!r} missing",
             step_index=step_index, rule="numeric_result",
         )
-    if eval_step.rule not in ("formula_evaluation", "probability_ref_lookup"):
+    if eval_step.rule not in (
+        "formula_evaluation",
+        "probability_ref_lookup",
+        "mediation_numeric_evaluate",
+    ):
         raise RuleCheckFailed(
-            f"numeric_result: evaluation must reference a formula_evaluation "
-            f"or probability_ref_lookup step, got {eval_step.rule!r}",
+            f"numeric_result: evaluation must reference a formula_evaluation, "
+            f"probability_ref_lookup, or mediation_numeric_evaluate step, "
+            f"got {eval_step.rule!r}",
             step_index=step_index, rule="numeric_result",
         )
+    # v0.1.4 Fix 1: when the evaluation source is the bundled mediation
+    # rule, extract `te` from its dict output as the canonical numeric
+    # answer for the EffectQuery's total-effect closure.
+    if eval_step.rule == "mediation_numeric_evaluate":
+        if not isinstance(eval_out, dict) or "te" not in eval_out:
+            raise RuleCheckFailed(
+                "numeric_result: mediation_numeric_evaluate output must be a "
+                "dict containing 'te' (total effect) for numeric closure",
+                step_index=step_index, rule="numeric_result",
+            )
+        eval_out = eval_out["te"]
     if not isinstance(eval_out, (int, float)):
         raise RuleCheckFailed(
             "numeric_result: referenced evaluation output must be a number",
@@ -3810,6 +4130,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 6.mediation S.M.3
     "mediation_nde_nie_check": _rule_mediation_nde_nie_check,
     "mediation_cde_check": _rule_mediation_cde_check,
+    # Phase 6.mediation Fix 1 (v0.1.4) — numeric evaluation
+    "mediation_numeric_evaluate": _rule_mediation_numeric_evaluate,
     # Phase 9 §T9.1.4 — independent transport audit
     "s_admissibility_check": _rule_s_admissibility_check,
     "transport_formula": _rule_transport_formula,

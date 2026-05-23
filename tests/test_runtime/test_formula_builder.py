@@ -3,7 +3,16 @@ focus on multi-variable joint adjustment via chain-rule factoring."""
 from __future__ import annotations
 
 from themis.input.semantic_validator import validate_formula
-from themis.runtime.formula_builder import backdoor_formula
+from themis.runtime.formula_builder import (
+    backdoor_formula,
+    mediation_controlled_outcome_formula,
+    mediation_potential_outcome_formula,
+)
+from themis.runtime.numeric_estimator import (
+    ProbabilityKey,
+    Theta,
+    estimate_formula,
+)
 from themis.types import (
     Atom,
     ConstTerm,
@@ -109,3 +118,201 @@ def test_multivar_formula_is_wellformed():
         adjustment_set=zs,
     )
     validate_formula(f)
+
+
+# ---------------------------------------------------------------------------
+# Mediation builders — Phase 6.mediation numeric extension (v0.1.4 Fix 1)
+# ---------------------------------------------------------------------------
+
+
+def test_mediation_potential_outcome_no_w_natural_case_structure():
+    """Natural potential outcome E[Y(X=x)] under mediator marginalisation
+    with empty W: SumExpr(over=M, body=ProductExpr(P(Y|X,M), P(M|X)))."""
+    y, x, m = a("y"), a("x"), a("m")
+    f = mediation_potential_outcome_formula(
+        target=va(y, value=True),
+        intervention_outer=va(x, value=True),
+        intervention_inner=va(x, value=True),
+        mediator=m,
+    )
+    assert isinstance(f, SumExpr)
+    assert f.over == m
+    assert isinstance(f.body, ProductExpr)
+    assert len(f.body.terms) == 2
+
+    y_cond, m_cond = f.body.terms
+    # P(Y=true | X=true, M=VarRef)
+    assert y_cond.target.atom == y and y_cond.target.value is True
+    assert len(y_cond.given) == 2
+    assert y_cond.given[0].atom == x and y_cond.given[0].value is True
+    assert y_cond.given[1].atom == m and isinstance(y_cond.given[1].value, VarRef)
+    # P(M=VarRef | X=true)
+    assert m_cond.target.atom == m and isinstance(m_cond.target.value, VarRef)
+    assert len(m_cond.given) == 1
+    assert m_cond.given[0].atom == x and m_cond.given[0].value is True
+
+
+def test_mediation_potential_outcome_cross_world_uses_distinct_x_values():
+    """Cross-world E[Y(X=x_outer, M(X=x_inner))]: the M conditional's X
+    binding differs from the Y conditional's X binding."""
+    y, x, m = a("y"), a("x"), a("m")
+    f = mediation_potential_outcome_formula(
+        target=va(y, value=True),
+        intervention_outer=va(x, value=False),  # E[Y | X=0, ...]
+        intervention_inner=va(x, value=True),   # M(X=1)
+        mediator=m,
+    )
+    assert isinstance(f, SumExpr)
+    y_cond, m_cond = f.body.terms
+
+    # Y conditional uses X = False (outer)
+    assert y_cond.given[0].atom == x and y_cond.given[0].value is False
+    # M conditional uses X = True (inner) — the cross-world ingredient
+    assert m_cond.given[0].atom == x and m_cond.given[0].value is True
+
+
+def test_mediation_potential_outcome_with_single_w_wraps_in_outer_sum():
+    """Single W adjustment: outermost SumExpr binds W, inner SumExpr binds
+    M, innermost ProductExpr has 3 terms (P(Y|...), P(M|...), P(W))."""
+    y, x, m, w = a("y"), a("x"), a("m"), a("w")
+    f = mediation_potential_outcome_formula(
+        target=va(y, value=True),
+        intervention_outer=va(x, value=True),
+        intervention_inner=va(x, value=True),
+        mediator=m,
+        adjustment_set=(w,),
+    )
+    assert isinstance(f, SumExpr) and f.over == w
+    inner = f.body
+    assert isinstance(inner, SumExpr) and inner.over == m
+    product = inner.body
+    assert isinstance(product, ProductExpr)
+    assert len(product.terms) == 3   # P(Y|...), P(M|...), P(W)
+
+
+def test_mediation_potential_outcome_is_wellformed():
+    """The natural / cross-world / multi-W variants must all pass
+    validate_formula."""
+    y, x, m = a("y"), a("x"), a("m")
+    ws = tuple(a(f"w{i}") for i in range(3))
+
+    for outer_v, inner_v in [(True, True), (True, False), (False, True)]:
+        for n_w in range(0, 4):
+            f = mediation_potential_outcome_formula(
+                target=va(y, value=True),
+                intervention_outer=va(x, value=outer_v),
+                intervention_inner=va(x, value=inner_v),
+                mediator=m,
+                adjustment_set=ws[:n_w],
+            )
+            validate_formula(f)
+
+
+def test_mediation_controlled_outcome_no_w_returns_flat_conditional():
+    """CDE with empty W: P(Y=y | X=x, M=m), no sum needed."""
+    y, x, m = a("y"), a("x"), a("m")
+    f = mediation_controlled_outcome_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        mediator=va(m, value=False),
+    )
+    assert isinstance(f, ProbabilityRefExpr)
+    assert f.target.atom == y and f.target.value is True
+    assert len(f.given) == 2
+    assert f.given[0].atom == x and f.given[0].value is True
+    assert f.given[1].atom == m and f.given[1].value is False
+
+
+def test_mediation_controlled_outcome_with_single_w():
+    """CDE with W=(w,): SumExpr over w wrapping P(Y|X,M,W) · P(W)."""
+    y, x, m, w = a("y"), a("x"), a("m"), a("w")
+    f = mediation_controlled_outcome_formula(
+        target=va(y, value=True),
+        intervention=va(x, value=True),
+        mediator=va(m, value=False),
+        adjustment_set=(w,),
+    )
+    assert isinstance(f, SumExpr) and f.over == w
+    product = f.body
+    assert isinstance(product, ProductExpr)
+    assert len(product.terms) == 2
+
+    y_cond, w_factor = product.terms
+    assert y_cond.target.atom == y
+    assert len(y_cond.given) == 3   # X, M, W
+    assert w_factor.target.atom == w
+    assert w_factor.given == ()
+
+
+def test_mediation_controlled_outcome_is_wellformed():
+    """Empty / single / multi-W CDE forms all well-formed."""
+    y, x, m = a("y"), a("x"), a("m")
+    ws = tuple(a(f"w{i}") for i in range(3))
+    for n_w in range(0, 4):
+        f = mediation_controlled_outcome_formula(
+            target=va(y, value=True),
+            intervention=va(x, value=True),
+            mediator=va(m, value=False),
+            adjustment_set=ws[:n_w],
+        )
+        validate_formula(f)
+
+
+def test_q1358_nie_evaluates_to_0_11():
+    """Q1358 (CLadder mediation): X=medication, M=blood_pressure, Y=heart.
+    NIE@X=0 = E[Y(X=0, M(X=1))] − E[Y(X=0, M(X=0))]
+    Expected: 0.11 (matches CLadder ground truth).
+    Validates the full builder → numeric_estimator integration.
+    """
+    y, x, m = a("y"), a("x"), a("m")
+
+    # Build the cross-world potential E[Y(X=0, M(X=1))]
+    f_cross = mediation_potential_outcome_formula(
+        target=va(y, value=True),
+        intervention_outer=va(x, value=False),
+        intervention_inner=va(x, value=True),
+        mediator=m,
+    )
+    # Build the natural potential E[Y(X=0)] = E[Y(X=0, M(X=0))]
+    f_natural = mediation_potential_outcome_formula(
+        target=va(y, value=True),
+        intervention_outer=va(x, value=False),
+        intervention_inner=va(x, value=False),
+        mediator=m,
+    )
+
+    # CLadder Q1358 parameters
+    def key(target_atom, target_value, given_pairs):
+        return ProbabilityKey(
+            target_atom=target_atom,
+            target_value=target_value,
+            given=frozenset(given_pairs),
+        )
+
+    theta = Theta(
+        entries={
+            key(y, True, [(x, False), (m, False)]): 0.71,
+            key(y, True, [(x, False), (m, True)]):  0.46,
+            key(y, True, [(x, True),  (m, False)]): 0.81,
+            key(y, True, [(x, True),  (m, True)]):  0.33,
+            key(m, True, [(x, False)]): 0.75,
+            key(m, False, [(x, False)]): 0.25,
+            key(m, True, [(x, True)]):  0.31,
+            key(m, False, [(x, True)]):  0.69,
+        },
+        domains={
+            y: (True, False),
+            x: (True, False),
+            m: (True, False),
+        },
+    )
+
+    e_y0_m_at_x1 = estimate_formula(f_cross, theta)
+    e_y0          = estimate_formula(f_natural, theta)
+    nie_at_0 = e_y0_m_at_x1 - e_y0
+
+    assert abs(nie_at_0 - 0.11) < 0.005, (
+        f"NIE@X=0 should be 0.11 (CLadder ground truth), "
+        f"got {nie_at_0:.4f} (E[Y(0, M(1))]={e_y0_m_at_x1:.4f}, "
+        f"E[Y(0)]={e_y0:.4f})"
+    )

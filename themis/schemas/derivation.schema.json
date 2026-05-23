@@ -239,6 +239,19 @@
         }
       }
     },
+    "dict": {
+      "type": "object",
+      "description": "Generic tagged-dict carrying a structured multi-quantity payload. Keys are strings; values recurse to the value shape (primitive or tagged). Used by rules whose output is genuinely multi-component — e.g. mediation_numeric_evaluate which returns TE / NDE-at-control / NIE-at-treated plus an optional CDE-per-mediator-value sub-dict. Verifier re-runs and compares the whole payload.",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "dict" },
+        "items": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        }
+      }
+    },
     "formula": {
       "oneOf": [
         { "$ref": "#/$defs/constant" },
@@ -263,7 +276,8 @@
         { "$ref": "#/$defs/atom_set" },
         { "$ref": "#/$defs/atom_tuple" },
         { "$ref": "#/$defs/valued_atom_tuple" },
-        { "$ref": "#/$defs/atom_paths" }
+        { "$ref": "#/$defs/atom_paths" },
+        { "$ref": "#/$defs/dict" }
       ]
     },
     "value": {

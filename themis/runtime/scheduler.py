@@ -698,20 +698,36 @@ def _dispatch_mediation(
     stmt: QueryStatement,
     graph: nx.DiGraph,
     q: EffectQuery,
+    theta: Theta,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
 ) -> QueryResult:
-    """Phase 6.mediation — identification-layer dispatch for NDE/NIE/CDE.
+    """Phase 6.mediation — identification + numeric-evaluation dispatch.
 
     Invoked from ``_dispatch_effect`` when ``q.mediator`` is set. Runs
     Pearl's four-condition check for NDE/NIE and the backdoor-based
     C1/C2 check for CDE via ``structural_solver.mediation_sets``, then
-    packages the result as a STRUCTURALLY_SOLVED QueryResult with
-    ``extensions.mediation_decomposition``.
+    packages the result with ``extensions.mediation_decomposition``.
 
-    No numeric formula is emitted at this layer — mediation estimation
-    (via g-formula / Imai et al. sensitivity analysis) belongs to
-    Phase 7. See PHASE_6_MEDIATION_CHARTER.md §3.3.
+    v0.1.4 Fix 1 extension: when the treatment is boolean and at least
+    one identification strategy succeeds, the kernel additionally
+    evaluates the relevant g-formulas against ``theta`` and produces:
+
+    - For NDE/NIE: E[Y(treated)], E[Y(control)], E[Y(treated, M(control))],
+      and the derived TE / NDE-at-control / NIE-at-treated.
+    - For CDE: per-mediator-value CDE(m) = E[Y|do(X=treated, M=m)] −
+      E[Y|do(X=control, M=m)].
+
+    Numeric values surface in ``extensions.mediation_decomposition.numeric``.
+    When TE is computed, ``numeric_result.value`` carries it and status
+    upgrades to NUMERICALLY_SOLVED; otherwise stays STRUCTURALLY_SOLVED
+    (still carries any partial CDE numbers in extensions).
+
+    Falls back to structural-only when treatment is non-boolean (non-MVP)
+    or when theta is incomplete (recorded as ``status: insufficient_theta``
+    in the numeric block with the specific missing key).
+
+    See PHASE_6_MEDIATION_CHARTER.md §3.3.
     """
     x = q.intervention.atom
     y = q.target.atom
@@ -838,17 +854,254 @@ def _dispatch_mediation(
         value=mediation.nde_nie.identifiable or mediation.cde.identifiable
     )
 
-    # Emit STRUCTURALLY_SOLVED regardless of which strategies succeed —
-    # the identifiability of each is captured in extensions. Downstream
-    # NL layer reads strategy + failed_condition to frame the answer.
+    # v0.1.4 Fix 1: numeric evaluation against theta.
+    # MVP gate: boolean treatment only — sufficient for CLadder-style
+    # mediation questions and for the canonical Pearl 2001 case study.
+    # Non-boolean treatments stay STRUCTURALLY_SOLVED (extension point
+    # for future: contrast-specifying assumptions on EffectQuery).
+    status = ResultStatus.STRUCTURALLY_SOLVED
+    numeric_result: NumericResult | None = None
+
+    x_treated_value = q.intervention.value
+    if isinstance(x_treated_value, bool) and (
+        mediation.nde_nie.identifiable or mediation.cde.identifiable
+    ):
+        x_control_value = not x_treated_value
+        nde_nie_adj = (
+            tuple(sorted(mediation.nde_nie.adjustment, key=_atom_to_str))
+            if mediation.nde_nie.identifiable else None
+        )
+        cde_adj = (
+            tuple(sorted(mediation.cde.adjustment, key=_atom_to_str))
+            if mediation.cde.identifiable else None
+        )
+        numeric_block, numeric_step = _evaluate_mediation_numerically(
+            target=q.target,
+            x_atom=x,
+            x_treated=x_treated_value,
+            x_control=x_control_value,
+            mediator=m,
+            theta=theta,
+            nde_nie_adj=nde_nie_adj,
+            cde_adj=cde_adj,
+            observed=q.given,
+            step_id="s4",
+        )
+        if numeric_block is not None:
+            extensions["mediation_decomposition"]["numeric"] = numeric_block
+            te = numeric_block.get("te")
+            if te is not None and numeric_step is not None:
+                # Only attach numeric steps to the derivation when the
+                # total-effect closure succeeded — that's the canonical
+                # "numeric_result terminates a numeric effect derivation"
+                # invariant the verifier enforces. Partial cases (e.g.
+                # CDE-only, or NDE/NIE InsufficientTheta) still surface
+                # in extensions for the renderer but stay
+                # STRUCTURALLY_SOLVED with the original 3-step
+                # identification derivation as the verifier trail.
+                status = ResultStatus.NUMERICALLY_SOLVED
+                numeric_result = NumericResult(value=te)
+                derivation = derivation + (
+                    numeric_step,
+                    DerivationStep(
+                        rule="numeric_result",
+                        inputs={"evaluation": StepRef(step_id=numeric_step.step_id)},
+                        output=numeric_result,
+                        step_id="s5",
+                    ),
+                )
+
     return QueryResult(
-        status=ResultStatus.STRUCTURALLY_SOLVED,
+        status=status,
         query_kind=QueryKind.EFFECT,
         query_id=stmt.id,
         structural_result=structural_result,
+        numeric_result=numeric_result,
         derivation=derivation,
         extensions=extensions,
     )
+
+
+def _evaluate_mediation_numerically(
+    *,
+    target: ValuedAtom,
+    x_atom: Atom,
+    x_treated: bool,
+    x_control: bool,
+    mediator: Atom,
+    theta: Theta,
+    nde_nie_adj: "tuple[Atom, ...] | None",
+    cde_adj: "tuple[Atom, ...] | None",
+    observed: tuple[ValuedAtom, ...],
+    step_id: str,
+) -> "tuple[dict | None, DerivationStep | None]":
+    """v0.1.4 Fix 1 helper — evaluate mediation g-formulas against theta.
+
+    Two independent branches:
+
+    1. NDE/NIE (when ``nde_nie_adj is not None``): build the natural
+       and cross-world potential-outcome formulas via
+       ``formula_builder.mediation_potential_outcome_formula``, evaluate
+       three of them — E[Y(treated)], E[Y(control)], E[Y(treated,
+       M(control))] — and derive TE / NDE-at-control / NIE-at-treated.
+    2. CDE (when ``cde_adj is not None``): for each mediator value in
+       ``theta.domain_of(mediator)`` build two controlled-outcome
+       formulas via
+       ``formula_builder.mediation_controlled_outcome_formula`` and
+       subtract to produce CDE(m).
+
+    Each branch's failure (InsufficientTheta on any constituent formula
+    evaluation) is independent — a partial result records whichever
+    branch succeeded plus an ``insufficient_theta`` note on the branch
+    that failed. Returns ``(None, None)`` only if no branch was even
+    attempted (both adjustments None — caller's gate should prevent
+    that).
+    """
+    treated_va = ValuedAtom(atom=x_atom, value=x_treated)
+    control_va = ValuedAtom(atom=x_atom, value=x_control)
+
+    numeric: dict = {}
+
+    if nde_nie_adj is not None:
+        try:
+            f_treated = formula_builder.mediation_potential_outcome_formula(
+                target=target,
+                intervention_outer=treated_va,
+                intervention_inner=treated_va,
+                mediator=mediator,
+                adjustment_set=nde_nie_adj,
+                observed=observed,
+            )
+            f_control = formula_builder.mediation_potential_outcome_formula(
+                target=target,
+                intervention_outer=control_va,
+                intervention_inner=control_va,
+                mediator=mediator,
+                adjustment_set=nde_nie_adj,
+                observed=observed,
+            )
+            # Two cross-world potentials — one per Pearl decomposition.
+            # Both are needed because the choice of "reference treatment"
+            # for NDE/NIE is ambiguous in general (interactions make the
+            # two decompositions disagree), and CLadder asks both forms.
+            f_cross_treated_outer = formula_builder.mediation_potential_outcome_formula(
+                target=target,
+                intervention_outer=treated_va,
+                intervention_inner=control_va,
+                mediator=mediator,
+                adjustment_set=nde_nie_adj,
+                observed=observed,
+            )
+            f_cross_control_outer = formula_builder.mediation_potential_outcome_formula(
+                target=target,
+                intervention_outer=control_va,
+                intervention_inner=treated_va,
+                mediator=mediator,
+                adjustment_set=nde_nie_adj,
+                observed=observed,
+            )
+            e_y_treated = numeric_estimator.estimate_formula(f_treated, theta)
+            e_y_control = numeric_estimator.estimate_formula(f_control, theta)
+            e_y_cross_treated_outer = numeric_estimator.estimate_formula(
+                f_cross_treated_outer, theta
+            )
+            e_y_cross_control_outer = numeric_estimator.estimate_formula(
+                f_cross_control_outer, theta
+            )
+            numeric["e_y_treated"] = e_y_treated
+            numeric["e_y_control"] = e_y_control
+            # Two cross-world quantities; ``e_y_cross_world`` is the
+            # backwards-compat alias for the treated-outer form (the only
+            # one present in pre-v0.1.4-rc internal sketches). Renderers
+            # should prefer the explicit ``e_y_cross_treated_outer`` /
+            # ``e_y_cross_control_outer`` keys.
+            numeric["e_y_cross_world"] = e_y_cross_treated_outer
+            numeric["e_y_cross_treated_outer"] = e_y_cross_treated_outer
+            numeric["e_y_cross_control_outer"] = e_y_cross_control_outer
+            numeric["te"] = e_y_treated - e_y_control
+            # Pearl decomposition (treated reference): TE = NDE_at_control + NIE_at_treated.
+            numeric["nde_at_control"] = e_y_cross_treated_outer - e_y_control
+            numeric["nie_at_treated"] = e_y_treated - e_y_cross_treated_outer
+            # Pearl decomposition (control reference): TE = NDE_at_treated + NIE_at_control.
+            numeric["nde_at_treated"] = e_y_treated - e_y_cross_control_outer
+            numeric["nie_at_control"] = e_y_cross_control_outer - e_y_control
+        except InsufficientTheta as ite:
+            numeric["nde_nie_status"] = {
+                "status": "insufficient_theta",
+                "missing_key": (
+                    format_probability_key(ite.missing_key)
+                    if ite.missing_key else None
+                ),
+                "reason": ite.reason,
+            }
+
+    if cde_adj is not None:
+        mediator_domain = theta.domain_of(mediator)
+        cde_per_m: dict = {}
+        cde_failure = None
+        for m_val in mediator_domain:
+            m_va = ValuedAtom(atom=mediator, value=m_val)
+            try:
+                f_treated_m = formula_builder.mediation_controlled_outcome_formula(
+                    target=target,
+                    intervention=treated_va,
+                    mediator=m_va,
+                    adjustment_set=cde_adj,
+                    observed=observed,
+                )
+                f_control_m = formula_builder.mediation_controlled_outcome_formula(
+                    target=target,
+                    intervention=control_va,
+                    mediator=m_va,
+                    adjustment_set=cde_adj,
+                    observed=observed,
+                )
+                cde_treated = numeric_estimator.estimate_formula(f_treated_m, theta)
+                cde_control = numeric_estimator.estimate_formula(f_control_m, theta)
+                cde_per_m[str(m_val)] = cde_treated - cde_control
+            except InsufficientTheta as ite:
+                cde_failure = {
+                    "status": "insufficient_theta",
+                    "mediator_value": str(m_val),
+                    "missing_key": (
+                        format_probability_key(ite.missing_key)
+                        if ite.missing_key else None
+                    ),
+                    "reason": ite.reason,
+                }
+                break
+        if cde_per_m:
+            numeric["cde"] = cde_per_m
+        if cde_failure is not None:
+            numeric["cde_status"] = cde_failure
+
+    if not numeric:
+        return None, None
+
+    # Only include adjustments that were used. Serializer would choke
+    # on None values; the absence of a key tells the verifier that
+    # strategy didn't run. Mediator domain is derived by the verifier
+    # from its own ctx.theta rather than being shipped in inputs (saves
+    # a serialization shape and avoids drift if theta domains evolve).
+    inputs: dict = {
+        "target": target,
+        "intervention_treated": treated_va,
+        "intervention_control": control_va,
+        "mediator": mediator,
+        "observed": observed,
+    }
+    if nde_nie_adj is not None:
+        inputs["nde_nie_adjustment"] = nde_nie_adj
+    if cde_adj is not None:
+        inputs["cde_adjustment"] = cde_adj
+
+    step = DerivationStep(
+        rule="mediation_numeric_evaluate",
+        inputs=inputs,
+        output=numeric,
+        step_id=step_id,
+    )
+    return numeric, step
 
 
 def _build_effect_frontdoor_structural_prefix(
@@ -1703,10 +1956,15 @@ def _dispatch_effect(
 
     # Phase 6.mediation: when the query declares a mediator, short-
     # circuit into mediation identification (NDE/NIE/CDE decomposition)
-    # instead of computing the plain total-effect formula. Identification-
-    # only at this layer; numeric decomposition lands in Phase 7.
+    # instead of computing the plain total-effect formula. v0.1.4 Fix 1
+    # extends this path with numeric evaluation against theta — when the
+    # treatment is boolean and theta is sufficient, the kernel computes
+    # TE / NDE / NIE / CDE end-to-end rather than emitting structural-
+    # only identification and leaving numeric assembly to callers.
     if q.mediator is not None:
-        return _dispatch_mediation(stmt, graph, q, bidirected=bidirected)
+        return _dispatch_mediation(
+            stmt, graph, q, theta, bidirected=bidirected,
+        )
 
     # Phase 2.latent S3.b.1: ADMG-aware backdoor first, front-door
     # second, c-factor pending S3.b.2.

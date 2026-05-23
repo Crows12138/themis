@@ -463,7 +463,10 @@ def test_r8_rejects_reference_to_non_evaluation_step():
         ),
     )
     ctx = VerificationContext(graph=graph, query=query, theta=theta)
-    with pytest.raises(RuleCheckFailed, match="formula_evaluation or probability_ref_lookup"):
+    # v0.1.4 Fix 1 broadened the allowed evaluation-source list to also
+    # accept mediation_numeric_evaluate; loosen the regex to just match
+    # the leading rule name rather than the exact "X or Y" phrasing.
+    with pytest.raises(RuleCheckFailed, match="formula_evaluation"):
         verify_numeric(deriv, ctx, NumericResult(value=1.0))
 
 

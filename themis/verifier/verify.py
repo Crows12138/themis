@@ -667,18 +667,26 @@ def verify_numeric(
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
         evaluation_step = step_by_id.get(evaluation_ref.step_id)
-        if evaluation_step is None or evaluation_step.rule != "formula_evaluation":
+        if evaluation_step is None or evaluation_step.rule not in (
+            "formula_evaluation",
+            "mediation_numeric_evaluate",
+        ):
             raise VerificationError(
-                "effect derivation must end in formula_evaluation -> numeric_result",
+                "effect derivation must end in formula_evaluation -> "
+                "numeric_result or mediation_numeric_evaluate -> numeric_result",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
         if not any(
-            step.rule in ("identify_via_backdoor", "identify_via_front_door")
+            step.rule in (
+                "identify_via_backdoor",
+                "identify_via_front_door",
+                "identify_via_mediation",
+            )
             for step in derivation
         ):
             raise VerificationError(
-                "effect derivation is missing an identify_via_backdoor or "
-                "identify_via_front_door witness",
+                "effect derivation is missing an identify_via_backdoor, "
+                "identify_via_front_door, or identify_via_mediation witness",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
 

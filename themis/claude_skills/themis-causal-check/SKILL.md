@@ -50,6 +50,8 @@ Any question matching:
 
    You only supply K-1 of K domain values for a (target, given) group — the kernel auto-completes the K-th via the probability axiom (∑ = 1). Don't waste verbosity supplying `P(X=true)=0.43` AND `P(X=false)=0.57`; one is enough.
 
+   **Mediation queries** (NDE / NIE / CDE / "X affects Y through M?"): set `mediator` on the `effect` query with a boolean treatment. When theta is complete the kernel computes TE / both Pearl decompositions (`nde_at_control` + `nie_at_treated`, AND `nde_at_treated` + `nie_at_control`) plus per-mediator-value `cde`, all in `extensions.mediation_decomposition.numeric`. `numeric_result.value` holds the TE; pick the specific NDE/NIE form your question asks about by reading the named keys. Don't pattern-match "NIE" to one number — the two decompositions disagree in general.
+
 3. **Call** `mcp__themis__themis_run` with the kernel_ast.
 
 4. **Read the result envelope**:

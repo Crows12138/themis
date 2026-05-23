@@ -107,6 +107,44 @@
                   "items": { "type": "string" }
                 }
               }
+            },
+            "numeric": {
+              "type": "object",
+              "description": "v0.1.4 Fix 1: numeric mediation evaluation against theta. Boolean-treatment MVP. NDE/NIE branch (when nde_nie is identifiable) reports E[Y(treated)], E[Y(control)], E[Y(treated, M(control))] and the derived TE / NDE-at-control / NIE-at-treated. CDE branch (when cde is identifiable) reports per-mediator-value CDE values. Each branch's failure is recorded as nde_nie_status / cde_status with an insufficient_theta diagnostic.",
+              "additionalProperties": true,
+              "properties": {
+                "e_y_treated":              { "type": "number" },
+                "e_y_control":              { "type": "number" },
+                "e_y_cross_world":          { "type": "number", "description": "Back-compat alias for e_y_cross_treated_outer." },
+                "e_y_cross_treated_outer":  { "type": "number", "description": "E[Y(X=treated, M = M(X=control))] — cross-world potential with treated outer arm." },
+                "e_y_cross_control_outer":  { "type": "number", "description": "E[Y(X=control, M = M(X=treated))] — cross-world potential with control outer arm. Needed for the alternative Pearl decomposition TE = NDE_at_treated + NIE_at_control." },
+                "te":                       { "type": "number" },
+                "nde_at_control":           { "type": "number" },
+                "nie_at_treated":           { "type": "number" },
+                "nde_at_treated":           { "type": "number", "description": "Pearl decomposition with control reference. TE = NDE_at_treated + NIE_at_control." },
+                "nie_at_control":           { "type": "number", "description": "Pearl decomposition with control reference. Counterpart of nie_at_treated." },
+                "cde": {
+                  "type": "object",
+                  "additionalProperties": { "type": "number" }
+                },
+                "nde_nie_status": {
+                  "type": "object",
+                  "properties": {
+                    "status":      { "type": "string" },
+                    "missing_key": { "type": ["string", "null"] },
+                    "reason":      { "type": "string" }
+                  }
+                },
+                "cde_status": {
+                  "type": "object",
+                  "properties": {
+                    "status":         { "type": "string" },
+                    "mediator_value": { "type": "string" },
+                    "missing_key":    { "type": ["string", "null"] },
+                    "reason":         { "type": "string" }
+                  }
+                }
+              }
             }
           }
         }

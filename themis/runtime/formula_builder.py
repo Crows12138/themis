@@ -196,6 +196,131 @@ def front_door_formula(
     return body
 
 
+def mediation_potential_outcome_formula(
+    target: ValuedAtom,
+    intervention_outer: ValuedAtom,
+    intervention_inner: ValuedAtom,
+    mediator: Atom,
+    adjustment_set: tuple[Atom, ...] = (),
+    observed: tuple[ValuedAtom, ...] = (),
+) -> FormulaExpr:
+    """Build the g-formula for a (possibly cross-world) potential
+    outcome with mediator marginalization.
+
+    Computes::
+
+        E[Y(X=x_outer, M = M(X=x_inner)) | observed]
+          = Σ_w  Σ_m
+                P(Y=y | X=x_outer, M=m, W=w, observed)
+              · P(M=m   | X=x_inner, W=w, observed)
+              · ∏_i P(Wi=wi | W_{<i}, observed)
+
+    The cross-world case (``intervention_outer.value != intervention_inner.value``)
+    is the natural-direct/indirect-effect primitive: NDE = E[Y(1, M(0))]
+    − E[Y(0)], NIE = E[Y(1)] − E[Y(1, M(0))]. When the two interventions
+    agree, this collapses to the standard potential outcome E[Y(X=x)]
+    expressed via mediator-marginalised g-formula.
+
+    ``adjustment_set`` must align with the NDE/NIE identification's W
+    per ``structural_solver.mediation_sets(...).nde_nie.adjustment``
+    — typically empty in textbook three-node mediation graphs.
+
+    Caller passes ``adjustment_set`` in topological order so the chain-
+    rule factors of P(W1, ..., Wk) align with structural parent
+    relationships (same convention as ``backdoor_formula``).
+    """
+    taken: set[str] = set()
+    w_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for w_atom in adjustment_set:
+        bind = fresh_bind_name(w_atom, frozenset(taken))
+        taken.add(bind.name)
+        w_va = ValuedAtom(atom=w_atom, value=VarRef(name=bind.name))
+        w_binds.append((w_atom, bind, w_va))
+    w_valueds = tuple(vv for (_, _, vv) in w_binds)
+
+    m_bind = fresh_bind_name(mediator, frozenset(taken))
+    m_va = ValuedAtom(atom=mediator, value=VarRef(name=m_bind.name))
+
+    y_conditional = _conditional(
+        target,
+        (intervention_outer, m_va) + w_valueds + observed,
+    )
+    m_conditional = _conditional(
+        m_va,
+        (intervention_inner,) + w_valueds + observed,
+    )
+    w_factors: list[ProbabilityRefExpr] = []
+    for i, (_, _, w_va) in enumerate(w_binds):
+        prior = w_valueds[:i]
+        w_factors.append(_conditional(w_va, prior + observed))
+
+    body: FormulaExpr = ProductExpr(
+        terms=(y_conditional, m_conditional, *w_factors)
+    )
+
+    body = SumExpr(bind=m_bind, over=mediator, body=body)
+    for w_atom, bind, _ in reversed(w_binds):
+        body = SumExpr(bind=bind, over=w_atom, body=body)
+
+    return body
+
+
+def mediation_controlled_outcome_formula(
+    target: ValuedAtom,
+    intervention: ValuedAtom,
+    mediator: ValuedAtom,
+    adjustment_set: tuple[Atom, ...] = (),
+    observed: tuple[ValuedAtom, ...] = (),
+) -> FormulaExpr:
+    """Build the g-formula for a controlled potential outcome.
+
+    Computes::
+
+        E[Y | do(X=x, M=m), observed]
+          = Σ_w  P(Y=y | X=x, M=m, W=w, observed)
+                · ∏_i P(Wi=wi | W_{<i}, observed)
+
+    Used by mediation CDE: CDE(m) = E[Y|do(X=1, M=m)] − E[Y|do(X=0, M=m)].
+    Both X and M are intervened on (do-calculus rule 2 along the
+    X → M → Y path is licensed by the structural CDE identification).
+    Unlike ``mediation_potential_outcome_formula`` there is no inner
+    mediator sum because M is fixed by the do.
+
+    ``adjustment_set`` must align with the CDE identification's W per
+    ``structural_solver.mediation_sets(...).cde.adjustment``.
+
+    When ``adjustment_set`` is empty the formula reduces to a single
+    conditional ``P(Y=y | X=x, M=m, observed)``.
+    """
+    if len(adjustment_set) == 0:
+        return _conditional(target, (intervention, mediator) + observed)
+
+    taken: set[str] = set()
+    w_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for w_atom in adjustment_set:
+        bind = fresh_bind_name(w_atom, frozenset(taken))
+        taken.add(bind.name)
+        w_va = ValuedAtom(atom=w_atom, value=VarRef(name=bind.name))
+        w_binds.append((w_atom, bind, w_va))
+    w_valueds = tuple(vv for (_, _, vv) in w_binds)
+
+    y_conditional = _conditional(
+        target,
+        (intervention, mediator) + w_valueds + observed,
+    )
+    w_factors: list[ProbabilityRefExpr] = []
+    for i, (_, _, w_va) in enumerate(w_binds):
+        prior = w_valueds[:i]
+        w_factors.append(_conditional(w_va, prior + observed))
+
+    body: FormulaExpr = ProductExpr(terms=(y_conditional, *w_factors))
+
+    for w_atom, bind, _ in reversed(w_binds):
+        body = SumExpr(bind=bind, over=w_atom, body=body)
+
+    return body
+
+
 # ---------------------------------------------------------------------------
 # Read-only walkers — used by explainer / differential, never by builders.
 # ---------------------------------------------------------------------------
