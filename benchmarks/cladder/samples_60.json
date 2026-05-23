@@ -1,0 +1,482 @@
+[
+  {
+    "id": 25262,
+    "rung": 1,
+    "query_type": "marginal",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Zuph has a direct effect on rixq and xevu. Rixq has a direct effect on xevu. The overall probability of rixq is 74%. For those who are not rixq, the probability of xevu is 70%. For those who are rixq, the probability of xevu is 17%. Is xevu more likely than not xevu overall?",
+    "label": "no"
+  },
+  {
+    "id": 19127,
+    "rung": 1,
+    "query_type": "correlation",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Pre-conditions has a direct effect on having a brother and disease. Having a brother has a direct effect on disease. The overall probability of having a brother is 53%. The probability of not having a brother and recovering from the disease is 9%. The probability of having a brother and recovering from the disease is 32%. Is the chance of recovering from the disease smaller when observing having a brother?",
+    "label": "no"
+  },
+  {
+    "id": 16706,
+    "rung": 1,
+    "query_type": "exp_away",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Ability to speak english has a direct effect on fame. Talent has a direct effect on fame. The overall probability of speaking english is 89%. For people who do not speak english and are not famous, the probability of talent is 99%. For people who do not speak english and are famous, the probability of talent is 97%. For people who speak english and are not famous, the probability of talent is 99%. For people who speak english and are famous, the probability of talent is 57%. If we look at people who are famous, does the chance of talent decrease when speaking english?",
+    "label": "yes"
+  },
+  {
+    "id": 4218,
+    "rung": 1,
+    "query_type": "marginal",
+    "graph_id": "frontdoor",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Gender has a direct effect on smoking and lung cancer. Smoking has a direct effect on tar deposit. Tar deposit has a direct effect on lung cancer. Gender is unobserved. The overall probability of smoking is 72%. For nonsmokers, the probability of lung cancer is 40%. For smokers, the probability of lung cancer is 53%. Is lung cancer more likely than absence of lung cancer overall?",
+    "label": "yes"
+  },
+  {
+    "id": 13364,
+    "rung": 1,
+    "query_type": "correlation",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Liking spicy food has a direct effect on parents' social status and child's intelligence. Other unobserved factors has a direct effect on parents' social status and child's intelligence. Parents' social status has a direct effect on child's intelligence. Other unobserved factors is unobserved. The overall probability of liking spicy food is 51%. The probability of not liking spicy food and intelligent child is 18%. The probability of liking spicy food and intelligent child is 34%. Is the chance of intelligent child larger when observing liking spicy food?",
+    "label": "yes"
+  },
+  {
+    "id": 25672,
+    "rung": 1,
+    "query_type": "exp_away",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Kwox has a direct effect on swoq. Kwoz has a direct effect on swoq. The overall probability of kwox is 55%. For those who are not kwox and are not swoq, the probability of kwoz is 6%. For those who are not kwox and are swoq, the probability of kwoz is 18%. For those who are kwox and are not swoq, the probability of kwoz is 9%. For those who are kwox and are swoq, the probability of kwoz is 0%. If we look at those who are swoq, does the chance of kwoz decrease when kwox?",
+    "label": "yes"
+  },
+  {
+    "id": 821,
+    "rung": 1,
+    "query_type": "marginal",
+    "graph_id": "fork",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Alice waking up has a direct effect on Alice arriving to school. Traffic has a direct effect on Alice arriving to school. The overall probability of waking up late is 38%. For days when Alice wakes up on time, the probability of arriving to school on time is 81%. For days when Alice wakes up late, the probability of arriving to school on time is 48%. Is arriving to school on time more likely than arriving to school late overall?",
+    "label": "yes"
+  },
+  {
+    "id": 10581,
+    "rung": 1,
+    "query_type": "correlation",
+    "graph_id": "fork",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Liking spicy food has a direct effect on room. The candle has a direct effect on room. The overall probability of liking spicy food is 25%. The probability of not liking spicy food and dark room is 22%. The probability of liking spicy food and dark room is 16%. Is the chance of dark room larger when observing liking spicy food?",
+    "label": "yes"
+  },
+  {
+    "id": 16743,
+    "rung": 1,
+    "query_type": "exp_away",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Ability to speak english has a direct effect on fame. Talent has a direct effect on fame. The overall probability of speaking english is 91%. For people who do not speak english and are not famous, the probability of talent is 97%. For people who do not speak english and are famous, the probability of talent is 91%. For people who speak english and are not famous, the probability of talent is 97%. For people who speak english and are famous, the probability of talent is 82%. If we look at people who are famous, does the chance of talent increase when speaking english?",
+    "label": "no"
+  },
+  {
+    "id": 28631,
+    "rung": 1,
+    "query_type": "marginal",
+    "graph_id": "diamondcut",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Wibl has a direct effect on vubr and zuph. Zuph has a direct effect on uvzi. Vubr has a direct effect on uvzi. The overall probability of zuph is 60%. For those who are not zuph, the probability of uvzi is 51%. For those who are zuph, the probability of uvzi is 89%. Is uvzi more likely than not uvzi overall?",
+    "label": "yes"
+  },
+  {
+    "id": 23384,
+    "rung": 1,
+    "query_type": "correlation",
+    "graph_id": "diamondcut",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Yupt has a direct effect on qwiu and jyka. Jyka has a direct effect on kwox. Qwiu has a direct effect on kwox. The overall probability of jyka is 33%. The probability of not jyka and kwox is 45%. The probability of jyka and kwox is 20%. Is the chance of kwox larger when observing jyka?",
+    "label": "no"
+  },
+  {
+    "id": 17905,
+    "rung": 1,
+    "query_type": "exp_away",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Liking spicy food has a direct effect on relationship status. Appearance has a direct effect on relationship status. The overall probability of liking spicy food is 80%. For people who do not like spicy food and single people, the probability of attractive appearance is 93%. For people who do not like spicy food and in a relationship, the probability of attractive appearance is 73%. For people who like spicy food and single people, the probability of attractive appearance is 90%. For people who like spicy food and in a relationship, the probability of attractive appearance is 56%. If we look at people in a relationship, does the chance of attractive appearance increase when liking spicy food?",
+    "label": "no"
+  },
+  {
+    "id": 11294,
+    "rung": 1,
+    "query_type": "marginal",
+    "graph_id": "fork",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Solar eclipse has a direct effect on Alice arriving to school. Traffic has a direct effect on Alice arriving to school. The overall probability of solar eclipse is 61%. For situations where there is no solar eclipse, the probability of arriving to school on time is 60%. For situations where there is a solar eclipse, the probability of arriving to school on time is 22%. Is arriving to school on time more likely than arriving to school late overall?",
+    "label": "no"
+  },
+  {
+    "id": 5181,
+    "rung": 1,
+    "query_type": "correlation",
+    "graph_id": "diamondcut",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: CEO has a direct effect on director and manager. Manager has a direct effect on employee. Director has a direct effect on employee. The overall probability of manager signing the termination letter is 25%. The probability of manager not signing the termination letter and employee being fired is 55%. The probability of manager signing the termination letter and employee being fired is 9%. Is the chance of employee being fired smaller when observing manager signing the termination letter?",
+    "label": "yes"
+  },
+  {
+    "id": 7429,
+    "rung": 1,
+    "query_type": "exp_away",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Respiratory issues has a direct effect on hospitalization status. Broken bones has a direct effect on hospitalization status. The overall probability of respiratory issues is 96%. For people with no respiratory issues and non-hospitalized individuals, the probability of broken bones is 96%. For people with no respiratory issues and hospitalized individuals, the probability of broken bones is 61%. For people with respiratory issues and non-hospitalized individuals, the probability of broken bones is 94%. For people with respiratory issues and hospitalized individuals, the probability of broken bones is 74%. If we look at hospitalized individuals, does the chance of broken bones decrease when respiratory issues?",
+    "label": "no"
+  },
+  {
+    "id": 9423,
+    "rung": 1,
+    "query_type": "marginal",
+    "graph_id": "IV",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Unobserved confounders has a direct effect on maternal smoking status and infant's birth weight. Cigarette tax has a direct effect on maternal smoking status. Maternal smoking status has a direct effect on infant's birth weight. Unobserved confounders is unobserved. The overall probability of smoking mother is 31%. For infants with nonsmoking mothers, the probability of normal infant birth weight is 30%. For infants with smoking mothers, the probability of normal infant birth weight is 58%. Is normal infant birth weight less likely than low infant birth weight overall?",
+    "label": "yes"
+  },
+  {
+    "id": 15881,
+    "rung": 1,
+    "query_type": "correlation",
+    "graph_id": "fork",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Ability to speak english has a direct effect on the forest. The smoker has a direct effect on the forest. The overall probability of speaking english is 95%. The probability of not speaking english and the forest on fire is 4%. The probability of speaking english and the forest on fire is 52%. Is the chance of the forest on fire smaller when observing speaking english?",
+    "label": "yes"
+  },
+  {
+    "id": 27414,
+    "rung": 1,
+    "query_type": "exp_away",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Jyka has a direct effect on yupt. Kwox has a direct effect on yupt. The overall probability of jyka is 67%. For those who are not jyka and are not yupt, the probability of kwox is 51%. For those who are not jyka and are yupt, the probability of kwox is 12%. For those who are jyka and are not yupt, the probability of kwox is 13%. For those who are jyka and are yupt, the probability of kwox is 64%. If we look at those who are yupt, does the chance of kwox decrease when jyka?",
+    "label": "no"
+  },
+  {
+    "id": 8696,
+    "rung": 1,
+    "query_type": "marginal",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Pre-conditions has a direct effect on vaccination and disease. Vaccination has a direct effect on disease. The overall probability of getting the vaccine is 52%. For people refusing the vaccine, the probability of recovering from the disease is 24%. For people getting the vaccine, the probability of recovering from the disease is 65%. Is recovering from the disease more likely than dying from the disease overall?",
+    "label": "no"
+  },
+  {
+    "id": 19725,
+    "rung": 1,
+    "query_type": "correlation",
+    "graph_id": "chain",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Having a sister has a direct effect on tar deposit. Tar deposit has a direct effect on lung cancer. The overall probability of having a sister is 95%. The probability of not having a sister and lung cancer is 4%. The probability of having a sister and lung cancer is 48%. Is the chance of lung cancer smaller when observing having a sister?",
+    "label": "yes"
+  },
+  {
+    "id": 4506,
+    "rung": 2,
+    "query_type": "ate",
+    "graph_id": "chain",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Smoking has a direct effect on tar deposit. Tar deposit has a direct effect on lung cancer. For nonsmokers, the probability of lung cancer is 68%. For smokers, the probability of lung cancer is 79%. Will smoking increase the chance of lung cancer?",
+    "label": "yes"
+  },
+  {
+    "id": 29569,
+    "rung": 2,
+    "query_type": "backadj",
+    "graph_id": "fork",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Zuph has a direct effect on glimx. Jyka has a direct effect on glimx. Method 1: We look at how zuph correlates with glimx case by case according to jyka. Method 2: We look directly at how zuph correlates with glimx in general. To understand how zuph affects glimx, is it more correct to use the Method 1 than Method 2?",
+    "label": "no"
+  },
+  {
+    "id": 1968,
+    "rung": 2,
+    "query_type": "collider_bias",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Talent has a direct effect on elite institution admission status. Effort has a direct effect on elite institution admission status. For students accepted to elite institutions, the correlation between talent and being hard-working is -0.01. If we look at students accepted to elite institutions, does it mean that talent does not affect being hard-working?",
+    "label": "yes"
+  },
+  {
+    "id": 11072,
+    "rung": 2,
+    "query_type": "ate",
+    "graph_id": "fork",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Liking spicy food has a direct effect on the forest. The smoker has a direct effect on the forest. For people who do not like spicy food, the probability of the forest on fire is 38%. For people who like spicy food, the probability of the forest on fire is 78%. Will liking spicy food decrease the chance of the forest on fire?",
+    "label": "no"
+  },
+  {
+    "id": 22073,
+    "rung": 2,
+    "query_type": "backadj",
+    "graph_id": "diamondcut",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Tijv has a direct effect on tijw and xevo. Xevo has a direct effect on gyzp. Tijw has a direct effect on gyzp. Method 1: We look at how xevo correlates with gyzp case by case according to tijw. Method 2: We look directly at how xevo correlates with gyzp in general. To understand how xevo affects gyzp, is it more correct to use the Method 1 than Method 2?",
+    "label": "yes"
+  },
+  {
+    "id": 6345,
+    "rung": 2,
+    "query_type": "collider_bias",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Appearance has a direct effect on fame. Talent has a direct effect on fame. For people who are famous, the correlation between attractive appearance and talent is -0.06. If we look at people who are famous, does it mean that attractive appearance affects talent?",
+    "label": "no"
+  },
+  {
+    "id": 28343,
+    "rung": 2,
+    "query_type": "ate",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Wibl has a direct effect on zuph and uvzi. Zuph has a direct effect on uvzi. For those who are not wibl and are not zuph, the probability of uvzi is 11%. For those who are not wibl and are zuph, the probability of uvzi is 40%. For those who are wibl and are not zuph, the probability of uvzi is 93%. For those who are wibl and are zuph, the probability of uvzi is 5%. The overall probability of wibl is 76%. Will zuph decrease the chance of uvzi?",
+    "label": "yes"
+  },
+  {
+    "id": 24686,
+    "rung": 2,
+    "query_type": "backadj",
+    "graph_id": "diamondcut",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Hwax has a direct effect on kraz and pexu. Pexu has a direct effect on rukz. Kraz has a direct effect on rukz. Method 1: We look directly at how pexu correlates with rukz in general. Method 2: We look at this correlation case by case according to kraz. To understand how pexu affects rukz, is it more correct to use the Method 1 than Method 2?",
+    "label": "no"
+  },
+  {
+    "id": 7444,
+    "rung": 2,
+    "query_type": "collider_bias",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Respiratory issues has a direct effect on hospitalization status. Broken bones has a direct effect on hospitalization status. For hospitalized individuals, the correlation between respiratory issues and broken bones is -0.25. If we look at hospitalized individuals, does it mean that respiratory issues affects broken bones?",
+    "label": "no"
+  },
+  {
+    "id": 28596,
+    "rung": 2,
+    "query_type": "ate",
+    "graph_id": "diamond",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Zuph has a direct effect on vubr and wibl. Wibl has a direct effect on uvzi. Vubr has a direct effect on uvzi. For those who are not zuph, the probability of uvzi is 22%. For those who are zuph, the probability of uvzi is 29%. Will zuph increase the chance of uvzi?",
+    "label": "yes"
+  },
+  {
+    "id": 1802,
+    "rung": 2,
+    "query_type": "backadj",
+    "graph_id": "chain",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Education level has a direct effect on skill. Skill has a direct effect on salary. Method 1: We look directly at how education level correlates with salary in general. Method 2: We look at this correlation case by case according to skill. To understand how education level affects salary, is it more correct to use the Method 1 than Method 2?",
+    "label": "yes"
+  },
+  {
+    "id": 1951,
+    "rung": 2,
+    "query_type": "collider_bias",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Talent has a direct effect on elite institution admission status. Effort has a direct effect on elite institution admission status. For students accepted to elite institutions, the correlation between talent and being hard-working is -0.07. If we look at students accepted to elite institutions, does it mean that talent affects being hard-working?",
+    "label": "no"
+  },
+  {
+    "id": 15595,
+    "rung": 2,
+    "query_type": "ate",
+    "graph_id": "diamond",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Having visited England has a direct effect on the private and the corporal. The corporal has a direct effect on prisoner. The private has a direct effect on prisoner. For people who have not visited England, the probability of the prisoner's death is 34%. For people who have visited England, the probability of the prisoner's death is 73%. Will having visited England increase the chance of the prisoner's death?",
+    "label": "yes"
+  },
+  {
+    "id": 23761,
+    "rung": 2,
+    "query_type": "backadj",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Yupt has a direct effect on zupj and muvq. Xyfo has a direct effect on zupj and muvq. Zupj has a direct effect on muvq. Xyfo is unobserved. Method 1: We look directly at how yupt correlates with muvq in general. Method 2: We look at this correlation case by case according to zupj. To understand how yupt affects muvq, is it more correct to use the Method 1 than Method 2?",
+    "label": "yes"
+  },
+  {
+    "id": 7552,
+    "rung": 2,
+    "query_type": "collider_bias",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Personality has a direct effect on relationship status. Appearance has a direct effect on relationship status. For people in a relationship, the correlation between kindness and attractive appearance is -0.07. If we look at people in a relationship, does it mean that kindness affects attractive appearance?",
+    "label": "no"
+  },
+  {
+    "id": 6896,
+    "rung": 2,
+    "query_type": "ate",
+    "graph_id": "mediation",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Encouragement level has a direct effect on studying habit and exam score. Studying habit has a direct effect on exam score. For students who are not encouraged, the probability of high exam score is 54%. For students who are encouraged, the probability of high exam score is 45%. Will encouragement increase the chance of high exam score?",
+    "label": "no"
+  },
+  {
+    "id": 1788,
+    "rung": 2,
+    "query_type": "backadj",
+    "graph_id": "chain",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Education level has a direct effect on skill. Skill has a direct effect on salary. Method 1: We look directly at how education level correlates with salary in general. Method 2: We look at this correlation case by case according to skill. To understand how education level affects salary, is it more correct to use the Method 1 than Method 2?",
+    "label": "yes"
+  },
+  {
+    "id": 6259,
+    "rung": 2,
+    "query_type": "collider_bias",
+    "graph_id": "collision",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Appearance has a direct effect on fame. Talent has a direct effect on fame. For people who are famous, the correlation between attractive appearance and talent is -0.20. If we look at people who are famous, does it mean that attractive appearance affects talent?",
+    "label": "no"
+  },
+  {
+    "id": 28024,
+    "rung": 2,
+    "query_type": "ate",
+    "graph_id": "IV",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Xyfo has a direct effect on yupt and muvq. Zupj has a direct effect on yupt. Yupt has a direct effect on muvq. Xyfo is unobserved. For those who are not zupj, the probability of muvq is 27%. For those who are zupj, the probability of muvq is 29%. For those who are not zupj, the probability of yupt is 48%. For those who are zupj, the probability of yupt is 44%. Will yupt increase the chance of muvq?",
+    "label": "no"
+  },
+  {
+    "id": 26130,
+    "rung": 2,
+    "query_type": "backadj",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Tijv has a direct effect on xevo and gyzp. Xevo has a direct effect on gyzp. Method 1: We look at how xevo correlates with gyzp case by case according to tijv. Method 2: We look directly at how xevo correlates with gyzp in general. To understand how xevo affects gyzp, is it more correct to use the Method 1 than Method 2?",
+    "label": "yes"
+  },
+  {
+    "id": 14838,
+    "rung": 3,
+    "query_type": "nde",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Listening to jazz has a direct effect on smoking and lung cancer. Pollution has a direct effect on smoking and lung cancer. Smoking has a direct effect on lung cancer. Pollution is unobserved. For people who do not listen to jazz and nonsmokers, the probability of lung cancer is 35%. For people who do not listen to jazz and smokers, the probability of lung cancer is 71%. For people who listen to jazz and nonsmokers, the probability of lung cancer is 35%. For people who listen to jazz and smokers, the probability of lung cancer is 66%. For people who do not listen to jazz and with low pollution, the probability of smoking is 29%. For people who do not listen to jazz and with high pollution, the probability of smoking is 58%. For people who listen to jazz and with low pollution, the probability of smoking is 64%. For people who listen to jazz and with high pollution, the probability of smoking is 84%. The overall probability of high pollution is 56%. If we disregard the mediation effect through smoking, would listening to jazz positively affect lung cancer?",
+    "label": "no"
+  },
+  {
+    "id": 18384,
+    "rung": 3,
+    "query_type": "nie",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Playing card games has a direct effect on diabetes and lifespan. Smoking has a direct effect on diabetes and lifespan. Diabetes has a direct effect on lifespan. Smoking is unobserved. For people who do not play card games and without diabetes, the probability of long lifespan is 56%. For people who do not play card games and with diabetes, the probability of long lifespan is 91%. For people who play card games and without diabetes, the probability of long lifespan is 55%. For people who play card games and with diabetes, the probability of long lifespan is 84%. For people who do not play card games and nonsmokers, the probability of having diabetes is 77%. For people who do not play card games and smokers, the probability of having diabetes is 88%. For people who play card games and nonsmokers, the probability of having diabetes is 45%. For people who play card games and smokers, the probability of having diabetes is 28%. The overall probability of smoker is 91%. Does playing card games negatively affect lifespan through diabetes?",
+    "label": "yes"
+  },
+  {
+    "id": 5173,
+    "rung": 3,
+    "query_type": "ett",
+    "graph_id": "diamondcut",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: CEO has a direct effect on director and manager. Manager has a direct effect on employee. Director has a direct effect on employee. For managers who don't sign termination letters and directors who don't sign termination letters, the probability of employee being fired is 86%. For managers who don't sign termination letters and directors who sign termination letters, the probability of employee being fired is 47%. For managers who sign termination letters and directors who don't sign termination letters, the probability of employee being fired is 37%. For managers who sign termination letters and directors who sign termination letters, the probability of employee being fired is 6%. For managers who don't sign termination letters, the probability of director signing the termination letter is 40%. For managers who sign termination letters, the probability of director signing the termination letter is 52%. For managers who sign termination letters, would it be more likely to see employee being fired if the manager had signed the termination letter?",
+    "label": "yes"
+  },
+  {
+    "id": 20157,
+    "rung": 3,
+    "query_type": "det-counterfactual",
+    "graph_id": "chain",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Education level has a direct effect on skill. Skill has a direct effect on black hair. We know that college degree or higher causes low skill level, and we know that high skill level causes black hair. Would the employee has blond hair if high school degree or lower instead of college degree or higher?",
+    "label": "no"
+  },
+  {
+    "id": 18325,
+    "rung": 3,
+    "query_type": "nde",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Playing card games has a direct effect on diabetes and lifespan. Smoking has a direct effect on diabetes and lifespan. Diabetes has a direct effect on lifespan. Smoking is unobserved. For people who do not play card games and without diabetes, the probability of long lifespan is 43%. For people who do not play card games and with diabetes, the probability of long lifespan is 72%. For people who play card games and without diabetes, the probability of long lifespan is 74%. For people who play card games and with diabetes, the probability of long lifespan is 93%. For people who do not play card games and nonsmokers, the probability of having diabetes is 79%. For people who do not play card games and smokers, the probability of having diabetes is 50%. For people who play card games and nonsmokers, the probability of having diabetes is 52%. For people who play card games and smokers, the probability of having diabetes is 20%. The overall probability of smoker is 85%. If we disregard the mediation effect through diabetes, would playing card games positively affect lifespan?",
+    "label": "yes"
+  },
+  {
+    "id": 18562,
+    "rung": 3,
+    "query_type": "nie",
+    "graph_id": "chain",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Eating citrus has a direct effect on vitmain C. Vitmain C has a direct effect on curly hair. For patients not consuming citrus, the probability of curly hair is 65%. For patients consuming citrus, the probability of curly hair is 34%. Does eating citrus positively affect curly hair through vitmain C?",
+    "label": "no"
+  },
+  {
+    "id": 9007,
+    "rung": 3,
+    "query_type": "ett",
+    "graph_id": "frontdoor",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Gender has a direct effect on smoking and lung cancer. Smoking has a direct effect on tar deposit. Tar deposit has a direct effect on lung cancer. Gender is unobserved. For nonsmokers and with no tar deposit, the probability of lung cancer is 62%. For nonsmokers and with high tar deposit, the probability of lung cancer is 28%. For smokers and with no tar deposit, the probability of lung cancer is 61%. For smokers and with high tar deposit, the probability of lung cancer is 27%. For nonsmokers, the probability of high tar deposit is 97%. For smokers, the probability of high tar deposit is 45%. For smokers, would it be more likely to see lung cancer if the person had been a nonsmoker?",
+    "label": "no"
+  },
+  {
+    "id": 10067,
+    "rung": 3,
+    "query_type": "det-counterfactual",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Gender has a direct effect on treatment and recovery. Treatment has a direct effect on recovery. We know that male gender causes receives treatment. male gender or receives treatment causes recovery. We observed the patient is male. Would the patient doesn't recover if receives treatment instead of receives no treatment?",
+    "label": "no"
+  },
+  {
+    "id": 18002,
+    "rung": 3,
+    "query_type": "nde",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Parents' intelligence has a direct effect on parents' social status and lactose intolerance. Other unobserved factors has a direct effect on parents' social status and lactose intolerance. Parents' social status has a direct effect on lactose intolerance. Other unobserved factors is unobserved. For children with unintelligent parents and with low parental social status, the probability of being lactose intolerant is 83%. For children with unintelligent parents and with high parental social status, the probability of being lactose intolerant is 55%. For children with intelligent parents and with low parental social status, the probability of being lactose intolerant is 52%. For children with intelligent parents and with high parental social status, the probability of being lactose intolerant is 24%. For children with unintelligent parents and confounder inactive, the probability of high parental social status is 71%. For children with unintelligent parents and confounder active, the probability of high parental social status is 56%. For children with intelligent parents and confounder inactive, the probability of high parental social status is 29%. For children with intelligent parents and confounder active, the probability of high parental social status is 47%. The overall probability of confounder active is 42%. If we disregard the mediation effect through parents' social status, would parents' intelligence negatively affect lactose intolerance?",
+    "label": "yes"
+  },
+  {
+    "id": 1358,
+    "rung": 3,
+    "query_type": "nie",
+    "graph_id": "mediation",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Medication has a direct effect on blood pressure and heart condition. Blood pressure has a direct effect on heart condition. For people not taking any medication and with low blood pressure, the probability of healthy heart is 71%. For people not taking any medication and with high blood pressure, the probability of healthy heart is 46%. For people taking medication and with low blood pressure, the probability of healthy heart is 81%. For people taking medication and with high blood pressure, the probability of healthy heart is 33%. For people not taking any medication, the probability of high blood pressure is 75%. For people taking medication, the probability of high blood pressure is 31%. Does medication negatively affect heart condition through blood pressure?",
+    "label": "no"
+  },
+  {
+    "id": 13990,
+    "rung": 3,
+    "query_type": "ett",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Gender has a direct effect on having a brother and recovery. Having a brother has a direct effect on recovery. For patients who are not male and do not have a brother, the probability of recovery is 6%. For patients who are not male and have a brother, the probability of recovery is 20%. For patients who are male and do not have a brother, the probability of recovery is 71%. For patients who are male and have a brother, the probability of recovery is 88%. The overall probability of male gender is 60%. For patients who have a brother, would it be less likely to see recovery if the patient did not have a brother?",
+    "label": "yes"
+  },
+  {
+    "id": 30510,
+    "rung": 3,
+    "query_type": "det-counterfactual",
+    "graph_id": "frontdoor",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Xyfo has a direct effect on yupt and muvq. Yupt has a direct effect on zupj. Zupj has a direct effect on muvq. Xyfo is unobserved. We know that xyfo causes yupt. yupt causes zupj. xyfo or zupj causes muvq. We observed an individual is not xyfo. Would an individual is muvq if yupt instead of not yupt?",
+    "label": "yes"
+  },
+  {
+    "id": 4093,
+    "rung": 3,
+    "query_type": "nde",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Maternal smoking status has a direct effect on infant's birth weight and infant mortality. Health condition has a direct effect on infant's birth weight and infant mortality. Infant's birth weight has a direct effect on infant mortality. Health condition is unobserved. For infants with nonsmoking mothers and low infant birth weight, the probability of high infant mortality is 64%. For infants with nonsmoking mothers and normal infant birth weight, the probability of high infant mortality is 35%. For infants with smoking mothers and low infant birth weight, the probability of high infant mortality is 64%. For infants with smoking mothers and normal infant birth weight, the probability of high infant mortality is 28%. For infants with nonsmoking mothers and with poor health, the probability of normal infant birth weight is 46%. For infants with nonsmoking mothers and with good health, the probability of normal infant birth weight is 80%. For infants with smoking mothers and with poor health, the probability of normal infant birth weight is 24%. For infants with smoking mothers and with good health, the probability of normal infant birth weight is 58%. The overall probability of good health is 42%. If we disregard the mediation effect through infant's birth weight, would maternal smoking status positively affect infant mortality?",
+    "label": "no"
+  },
+  {
+    "id": 10874,
+    "rung": 3,
+    "query_type": "nie",
+    "graph_id": "diamond",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Having a sister has a direct effect on the private and the corporal. The corporal has a direct effect on prisoner. The private has a direct effect on prisoner. For people who do not have a sister, the probability of the prisoner's death is 36%. For people who have a sister, the probability of the prisoner's death is 52%. Does having a sister positively affect prisoner through the corporal and the private?",
+    "label": "yes"
+  },
+  {
+    "id": 15494,
+    "rung": 3,
+    "query_type": "ett",
+    "graph_id": "diamondcut",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: CEO has a direct effect on director and manager. Manager has a direct effect on foot size. Director has a direct effect on foot size. For managers who don't sign termination letters and directors who don't sign termination letters, the probability of large feet is 81%. For managers who don't sign termination letters and directors who sign termination letters, the probability of large feet is 46%. For managers who sign termination letters and directors who don't sign termination letters, the probability of large feet is 49%. For managers who sign termination letters and directors who sign termination letters, the probability of large feet is 10%. For managers who don't sign termination letters, the probability of director signing the termination letter is 15%. For managers who sign termination letters, the probability of director signing the termination letter is 39%. For managers who sign termination letters, would it be less likely to see large feet if the manager had signed the termination letter?",
+    "label": "no"
+  },
+  {
+    "id": 30217,
+    "rung": 3,
+    "query_type": "det-counterfactual",
+    "graph_id": "frontdoor",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Gyzp has a direct effect on jyka and lirg. Jyka has a direct effect on hwax. Hwax has a direct effect on lirg. Gyzp is unobserved. We know that gyzp causes jyka. jyka causes not hwax. gyzp and hwax causes lirg. We observed an individual is not gyzp. Would an individual is not lirg if jyka instead of not jyka?",
+    "label": "yes"
+  },
+  {
+    "id": 8915,
+    "rung": 3,
+    "query_type": "nde",
+    "graph_id": "arrowhead",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Maternal smoking status has a direct effect on infant's birth weight and infant mortality. Health condition has a direct effect on infant's birth weight and infant mortality. Infant's birth weight has a direct effect on infant mortality. Health condition is unobserved. For infants with nonsmoking mothers and low infant birth weight, the probability of high infant mortality is 46%. For infants with nonsmoking mothers and normal infant birth weight, the probability of high infant mortality is 71%. For infants with smoking mothers and low infant birth weight, the probability of high infant mortality is 18%. For infants with smoking mothers and normal infant birth weight, the probability of high infant mortality is 46%. For infants with nonsmoking mothers and with poor health, the probability of normal infant birth weight is 59%. For infants with nonsmoking mothers and with good health, the probability of normal infant birth weight is 19%. For infants with smoking mothers and with poor health, the probability of normal infant birth weight is 83%. For infants with smoking mothers and with good health, the probability of normal infant birth weight is 44%. The overall probability of good health is 18%. If we disregard the mediation effect through infant's birth weight, would maternal smoking status negatively affect infant mortality?",
+    "label": "yes"
+  },
+  {
+    "id": 21876,
+    "rung": 3,
+    "query_type": "nie",
+    "graph_id": "frontdoor",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Tijw has a direct effect on xevo and gyzp. Xevo has a direct effect on tijv. Tijv has a direct effect on gyzp. Tijw is unobserved. For those who are not xevo, the probability of tijv is 53%. For those who are xevo, the probability of tijv is 52%. For those who are not xevo and are not tijv, the probability of gyzp is 54%. For those who are not xevo and are tijv, the probability of gyzp is 61%. For those who are xevo and are not tijv, the probability of gyzp is 55%. For those who are xevo and are tijv, the probability of gyzp is 61%. The overall probability of xevo is 54%. Does xevo positively affect gyzp through tijv?",
+    "label": "no"
+  },
+  {
+    "id": 23998,
+    "rung": 3,
+    "query_type": "ett",
+    "graph_id": "mediation",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Zuph has a direct effect on wibl and uvzi. Wibl has a direct effect on uvzi. For those who are not zuph, the probability of uvzi is 37%. For those who are zuph, the probability of uvzi is 90%. For those who are zuph, would it be less likely to see uvzi if the individual was not zuph?",
+    "label": "yes"
+  },
+  {
+    "id": 10112,
+    "rung": 3,
+    "query_type": "det-counterfactual",
+    "graph_id": "confounding",
+    "prompt": "Imagine a self-contained, hypothetical world with only the following conditions, and without any unmentioned factors or causal relationships: Age has a direct effect on hospital costs and recovery. Hospital costs has a direct effect on recovery. We know that old age causes high hospital bill. old age or high hospital bill causes recovery. We observed the patient is old. Would the patient recovers if low hospital bill instead of high hospital bill?",
+    "label": "yes"
+  }
+]
