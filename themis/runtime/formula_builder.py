@@ -13,6 +13,7 @@ from __future__ import annotations
 from ..types import (
     Atom,
     BindDecl,
+    ConstantExpr,
     FormulaExpr,
     ProbabilityRefExpr,
     ProductExpr,
@@ -408,6 +409,64 @@ def transport_formula(
     for z_atom, bind, _ in reversed(z_binds):
         body = SumExpr(bind=bind, over=z_atom, body=body)
     return body
+
+
+def bind_target_value(
+    formula: FormulaExpr,
+    target_atom: Atom,
+    target_value,
+) -> FormulaExpr:
+    """Walk a formula tree and bind ``target_atom``'s currently-``None``
+    target values to ``target_value``.
+
+    Used by the Tian-in-effect path (Fix 5, v0.1.5): Shpitser-Pearl ID
+    returns a FormulaExpr where the outermost Y target has
+    ``value=None`` so the IdentifyQuery caller (which has no value)
+    can use it. For EffectQuery the target has a concrete value
+    (``q.target.value``) that the evaluator needs bound before it can
+    look up ``P(Y=y | ...)`` in theta.
+
+    Only binds ProbRefs where ``target.atom == target_atom`` AND
+    ``target.value is None``. ProbRefs with VarRef values (bound by
+    enclosing SumExpr) are left alone — those are inner sum-bound
+    variables, not the outer query target. ProbRefs with literal
+    values are also left alone.
+
+    Returns a new tree; the input is not mutated (FormulaExpr is
+    frozen).
+    """
+    if isinstance(formula, ConstantExpr):
+        return formula
+    if isinstance(formula, ProbabilityRefExpr):
+        if (
+            formula.target.atom == target_atom
+            and formula.target.value is None
+        ):
+            new_target = ValuedAtom(
+                atom=formula.target.atom, value=target_value,
+            )
+            return ProbabilityRefExpr(
+                target=new_target,
+                given=formula.given,
+                population=formula.population,
+            )
+        return formula
+    if isinstance(formula, ProductExpr):
+        return ProductExpr(
+            terms=tuple(
+                bind_target_value(t, target_atom, target_value)
+                for t in formula.terms
+            )
+        )
+    if isinstance(formula, SumExpr):
+        return SumExpr(
+            bind=formula.bind,
+            over=formula.over,
+            body=bind_target_value(formula.body, target_atom, target_value),
+        )
+    raise TypeError(
+        f"unknown FormulaExpr node: {type(formula).__name__}"
+    )
 
 
 # ---------------------------------------------------------------------------

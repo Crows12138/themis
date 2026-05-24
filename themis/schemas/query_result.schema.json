@@ -37,6 +37,22 @@
               "type": "integer",
               "minimum": 1,
               "description": "Total number of valid (Z, W) IV candidates found by structural search. The chosen one is always the subset-minimal and lexicographically first; this count reports how many alternatives exist."
+            },
+            "late_caveat": {
+              "type": "string",
+              "description": "Fix 6 (v0.1.5, audit follow-up): present only on numerically-resolved IV results. Mandatory disclosure that the kernel-emitted value is LATE (average effect among compliers — the subpopulation whose treatment shifts with the instrument), NOT the population ATE. Conflating LATE with ATE is a known IV-deployment pitfall; renderer / agent MUST surface this caveat before stating the number."
+            },
+            "numeric": {
+              "type": "object",
+              "description": "Fix 6: Wald LATE numeric breakdown. Present only on numerically-resolved IV results. Exposes the 4 component conditionals + derived LATE so downstream consumers can sanity-check.",
+              "additionalProperties": true,
+              "properties": {
+                "p_y_given_z_treated": { "type": "number" },
+                "p_y_given_z_control": { "type": "number" },
+                "p_x_given_z_treated": { "type": "number" },
+                "p_x_given_z_control": { "type": "number" },
+                "late":                { "type": "number" }
+              }
             }
           }
         },

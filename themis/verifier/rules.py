@@ -797,6 +797,133 @@ def _rule_iv_criterion_check(
         )
 
 
+# ----- Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE rule -----
+
+def _rule_iv_wald_numeric_evaluate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify the bundled IV Wald LATE numeric step (Fix 6).
+
+    Inputs:
+      - ``target``: ValuedAtom (Y=y)
+      - ``intervention_treated``: ValuedAtom (X=x_treated)
+      - ``instrument_treated``: ValuedAtom (Z=z_treated)
+      - ``instrument_control``: ValuedAtom (Z=z_control)
+      - ``monotonicity``: string label (just metadata; semantic check
+        lives at scheduler dispatch time, not here)
+
+    Output dict must contain:
+      - p_y_given_z_treated, p_y_given_z_control,
+        p_x_given_z_treated, p_x_given_z_control, late
+
+    The verifier independently re-looks-up each of the 4 theta entries
+    and re-computes Wald LATE = (numerator) / (denominator). Compares
+    every component within 1e-9 (paired-implementation pin).
+    """
+    target = _require(inputs, "target", step_index, "iv_wald_numeric_evaluate")
+    treated = _require(
+        inputs, "intervention_treated", step_index, "iv_wald_numeric_evaluate",
+    )
+    z_treated = _require(
+        inputs, "instrument_treated", step_index, "iv_wald_numeric_evaluate",
+    )
+    z_control = _require(
+        inputs, "instrument_control", step_index, "iv_wald_numeric_evaluate",
+    )
+
+    for name, va in (
+        ("target", target),
+        ("intervention_treated", treated),
+        ("instrument_treated", z_treated),
+        ("instrument_control", z_control),
+    ):
+        if not isinstance(va, ValuedAtom):
+            raise RuleCheckFailed(
+                f"iv_wald_numeric_evaluate: {name} must be a ValuedAtom",
+                step_index=step_index, rule="iv_wald_numeric_evaluate",
+            )
+
+    if not isinstance(claimed_output, dict):
+        raise RuleCheckFailed(
+            "iv_wald_numeric_evaluate output must be a dict",
+            step_index=step_index, rule="iv_wald_numeric_evaluate",
+        )
+
+    theta = getattr(ctx, "theta", None)
+    if theta is None:
+        raise RuleCheckFailed(
+            "iv_wald_numeric_evaluate requires theta in ctx",
+            step_index=step_index, rule="iv_wald_numeric_evaluate",
+        )
+
+    # Independent 4-lookup + arithmetic recompute.
+    def lookup(target_atom, target_val, given_pairs):
+        key = ProbabilityKey(
+            target_atom=target_atom,
+            target_value=target_val,
+            given=frozenset(given_pairs),
+        )
+        return theta.entries.get(key)
+
+    y_atom, y_val = target.atom, target.value
+    x_atom, x_val = treated.atom, treated.value
+    z_atom = z_treated.atom
+
+    expected = {
+        "p_y_given_z_treated": lookup(
+            y_atom, y_val, [(z_atom, z_treated.value)],
+        ),
+        "p_y_given_z_control": lookup(
+            y_atom, y_val, [(z_atom, z_control.value)],
+        ),
+        "p_x_given_z_treated": lookup(
+            x_atom, x_val, [(z_atom, z_treated.value)],
+        ),
+        "p_x_given_z_control": lookup(
+            x_atom, x_val, [(z_atom, z_control.value)],
+        ),
+    }
+    for k, v in expected.items():
+        if v is None:
+            raise RuleCheckFailed(
+                f"iv_wald_numeric_evaluate: verifier theta lookup failed for {k}",
+                step_index=step_index, rule="iv_wald_numeric_evaluate",
+            )
+
+    denom = expected["p_x_given_z_treated"] - expected["p_x_given_z_control"]
+    if abs(denom) < 1e-12:
+        raise RuleCheckFailed(
+            "iv_wald_numeric_evaluate: denominator (instrument shift on X) "
+            "≈ 0; Wald undefined",
+            step_index=step_index, rule="iv_wald_numeric_evaluate",
+        )
+    expected["late"] = (
+        expected["p_y_given_z_treated"] - expected["p_y_given_z_control"]
+    ) / denom
+
+    for key, val in expected.items():
+        if key not in claimed_output:
+            raise RuleCheckFailed(
+                f"iv_wald_numeric_evaluate: claimed_output missing {key!r}",
+                step_index=step_index, rule="iv_wald_numeric_evaluate",
+            )
+        claimed_v = claimed_output[key]
+        if not isinstance(claimed_v, (int, float)):
+            raise RuleCheckFailed(
+                f"iv_wald_numeric_evaluate: {key} must be numeric",
+                step_index=step_index, rule="iv_wald_numeric_evaluate",
+            )
+        if abs(float(claimed_v) - val) > _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"iv_wald_numeric_evaluate: {key} mismatch — claimed "
+                f"{claimed_v!r}, recomputed {val!r}",
+                step_index=step_index, rule="iv_wald_numeric_evaluate",
+            )
+
+
 def _rule_identify_via_iv(
     ctx: VerificationContext,
     inputs: dict,
@@ -2441,11 +2568,12 @@ def _rule_numeric_result(
         "formula_evaluation",
         "probability_ref_lookup",
         "mediation_numeric_evaluate",
+        "iv_wald_numeric_evaluate",
     ):
         raise RuleCheckFailed(
             f"numeric_result: evaluation must reference a formula_evaluation, "
-            f"probability_ref_lookup, or mediation_numeric_evaluate step, "
-            f"got {eval_step.rule!r}",
+            f"probability_ref_lookup, mediation_numeric_evaluate, or "
+            f"iv_wald_numeric_evaluate step, got {eval_step.rule!r}",
             step_index=step_index, rule="numeric_result",
         )
     # v0.1.4 Fix 1: when the evaluation source is the bundled mediation
@@ -2459,6 +2587,17 @@ def _rule_numeric_result(
                 step_index=step_index, rule="numeric_result",
             )
         eval_out = eval_out["te"]
+    # Fix 6 (audit follow-up): IV Wald path extracts `late` from the
+    # bundled numeric step's output. Caller's NumericResult.value must
+    # equal LATE; semantic caveat (LATE ≠ ATE) is in extensions.
+    if eval_step.rule == "iv_wald_numeric_evaluate":
+        if not isinstance(eval_out, dict) or "late" not in eval_out:
+            raise RuleCheckFailed(
+                "numeric_result: iv_wald_numeric_evaluate output must be a "
+                "dict containing 'late'",
+                step_index=step_index, rule="numeric_result",
+            )
+        eval_out = eval_out["late"]
     if not isinstance(eval_out, (int, float)):
         raise RuleCheckFailed(
             "numeric_result: referenced evaluation output must be a number",
@@ -4050,6 +4189,126 @@ def _rule_transport_formula_ast(
         )
 
 
+# ----- Fix 5 (v0.1.5, audit follow-up) — Tian-in-effect verifier rule -----
+
+def _rule_tian_formula_ast(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify the bound (target-value-applied) Tian formula step
+    emitted by the Fix 5 Tian-in-effect dispatch.
+
+    Inputs:
+      - ``target``: ValuedAtom (the query target with concrete value)
+      - ``intervention``: ValuedAtom (the do(X=x) value)
+      - ``unbound_formula``: FormulaExpr — the original c_factor output
+        (with target.value=None on the outer Y ProbRef)
+
+    Output:
+      FormulaExpr — the unbound_formula walked + target.atom rebound
+      to target.value. The verifier re-runs the same binding walker
+      independently and compares structurally (modulo identity since
+      both sides walk the same input tree the same way).
+
+    Independence note: byte-for-byte re-running of the Shpitser-Pearl
+    ID algorithm to regenerate unbound_formula is intentionally out of
+    scope here — the preceding ``tian_c_decomposition`` step already
+    verifies the c-component partition that ID picked, and the
+    ``identify_via_tian`` step confirms aggregation. The
+    formula_evaluation step that follows re-evaluates the bound
+    formula against theta. So we have three independent checks on the
+    Tian path; ``tian_formula_ast`` adds a fourth that pins down the
+    target-value substitution.
+    """
+    target = _require(inputs, "target", step_index, "tian_formula_ast")
+    if not isinstance(target, ValuedAtom):
+        raise RuleCheckFailed(
+            "tian_formula_ast: target must be a ValuedAtom",
+            step_index=step_index, rule="tian_formula_ast",
+        )
+    intervention = _require(
+        inputs, "intervention", step_index, "tian_formula_ast",
+    )
+    if not isinstance(intervention, ValuedAtom):
+        raise RuleCheckFailed(
+            "tian_formula_ast: intervention must be a ValuedAtom",
+            step_index=step_index, rule="tian_formula_ast",
+        )
+    unbound = _require(
+        inputs, "unbound_formula", step_index, "tian_formula_ast",
+    )
+    if not isinstance(unbound, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+        raise RuleCheckFailed(
+            "tian_formula_ast: unbound_formula must be a FormulaExpr",
+            step_index=step_index, rule="tian_formula_ast",
+        )
+
+    # Independent binding walker — same recursion as runtime's
+    # formula_builder.bind_target_value but written here so the
+    # verifier doesn't import the runtime helper.
+    expected = _verifier_bind_target_value(
+        unbound, target.atom, target.value,
+    )
+
+    if not isinstance(claimed_output, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+        raise RuleCheckFailed(
+            "tian_formula_ast: claimed output must be a FormulaExpr",
+            step_index=step_index, rule="tian_formula_ast",
+        )
+    if expected != claimed_output:
+        raise RuleCheckFailed(
+            "tian_formula_ast: claimed bound formula does not match "
+            "verifier's independent re-bind of unbound_formula at "
+            "target_atom = target.value",
+            step_index=step_index, rule="tian_formula_ast",
+        )
+
+
+def _verifier_bind_target_value(
+    formula,
+    target_atom: Atom,
+    target_value,
+):
+    """Verifier-side independent re-implementation of formula_builder.
+    bind_target_value. Walks the tree, binds Y target.value where it's
+    None. No runtime imports."""
+    if isinstance(formula, ConstantExpr):
+        return formula
+    if isinstance(formula, ProbabilityRefExpr):
+        if (
+            formula.target.atom == target_atom
+            and formula.target.value is None
+        ):
+            return ProbabilityRefExpr(
+                target=ValuedAtom(
+                    atom=formula.target.atom, value=target_value,
+                ),
+                given=formula.given,
+                population=formula.population,
+            )
+        return formula
+    if isinstance(formula, ProductExpr):
+        return ProductExpr(
+            terms=tuple(
+                _verifier_bind_target_value(t, target_atom, target_value)
+                for t in formula.terms
+            )
+        )
+    if isinstance(formula, SumExpr):
+        return SumExpr(
+            bind=formula.bind,
+            over=formula.over,
+            body=_verifier_bind_target_value(
+                formula.body, target_atom, target_value,
+            ),
+        )
+    raise TypeError(
+        f"unknown FormulaExpr node: {type(formula).__name__}"
+    )
+
+
 def _rule_identify_via_transport(
     ctx: VerificationContext,
     inputs: dict,
@@ -4333,6 +4592,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
+    # Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE numeric
+    "iv_wald_numeric_evaluate": _rule_iv_wald_numeric_evaluate,
     # Phase 6.mediation S.M.3
     "mediation_nde_nie_check": _rule_mediation_nde_nie_check,
     "mediation_cde_check": _rule_mediation_cde_check,
@@ -4343,6 +4604,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "transport_formula": _rule_transport_formula,
     # Fix 3+4 §T9.2 (v0.1.5) — transport numeric FormulaExpr witness
     "transport_formula_ast": _rule_transport_formula_ast,
+    # Fix 5 (v0.1.5, audit follow-up) — Tian-in-effect bound formula
+    "tian_formula_ast": _rule_tian_formula_ast,
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
     "tian_c_decomposition": _rule_tian_c_decomposition,
 }

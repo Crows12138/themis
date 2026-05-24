@@ -65,6 +65,14 @@ IDENTIFICATION_FORMULA_RULES: frozenset[str] = frozenset({
     # machine-verifiable FormulaExpr that formula_evaluation matches
     # against in verify_numeric's witness check.
     "transport_formula_ast",
+    # Fix 5 (v0.1.5, audit follow-up): Tian-in-effect FormulaExpr
+    # witness — bound (target-value-bound) version of the formula
+    # that c_factor.identify_via_tian produced. Parallels
+    # transport_formula_ast: existing identify_via_tian step still
+    # carries the unbound formula in inputs for the identify path;
+    # tian_formula_ast emits the q.target.value-bound version that
+    # formula_evaluation matches against for the effect path.
+    "tian_formula_ast",
 })
 
 
@@ -677,10 +685,13 @@ def verify_numeric(
         if evaluation_step is None or evaluation_step.rule not in (
             "formula_evaluation",
             "mediation_numeric_evaluate",
+            "iv_wald_numeric_evaluate",  # Fix 6 audit follow-up
         ):
             raise VerificationError(
                 "effect derivation must end in formula_evaluation -> "
-                "numeric_result or mediation_numeric_evaluate -> numeric_result",
+                "numeric_result, mediation_numeric_evaluate -> "
+                "numeric_result, or iv_wald_numeric_evaluate -> "
+                "numeric_result",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
         if not any(
@@ -689,13 +700,16 @@ def verify_numeric(
                 "identify_via_front_door",
                 "identify_via_mediation",
                 "identify_via_transport",  # Fix 3+4 §T9.2 numeric
+                "identify_via_tian",       # Fix 5 audit follow-up
+                "identify_via_iv",         # Fix 6 audit follow-up
             )
             for step in derivation
         ):
             raise VerificationError(
                 "effect derivation is missing an identify_via_backdoor, "
-                "identify_via_front_door, identify_via_mediation, or "
-                "identify_via_transport witness",
+                "identify_via_front_door, identify_via_mediation, "
+                "identify_via_transport, identify_via_tian, or "
+                "identify_via_iv witness",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
 

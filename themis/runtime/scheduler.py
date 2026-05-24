@@ -2031,6 +2031,181 @@ def _dispatch_transport(
     )
 
 
+def _try_iv_wald_in_effect(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: EffectQuery,
+    x: Atom,
+    y: Atom,
+    theta: Theta,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> "QueryResult | None":
+    """Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald LATE.
+
+    Wald estimator (binary treatment + binary instrument, under
+    monotonicity)::
+
+        LATE = (E[Y|Z=1] - E[Y|Z=0]) / (E[X=1|Z=1] - E[X=1|Z=0])
+
+    Returns None when:
+    - no valid instrument found (caller falls through to next strategy)
+    - theta lacks any of the 4 required entries (returns None too;
+      caller falls through — IV-numeric is opportunistic, doesn't
+      block; if instrument exists but data is short, downstream gap
+      report surfaces the missing keys when caller hits final
+      needs_investigation)
+
+    Semantic caveat surfaced via ``extensions.iv_identification.late_caveat``:
+    LATE is the average effect AMONG COMPLIERS (the subpopulation
+    whose treatment is shifted by the instrument), NOT the population
+    ATE. Don't conflate.
+
+    Wald demands boolean treatment + boolean instrument; non-boolean
+    falls through to None and the next strategy gets a try.
+    """
+    # MVP gate: boolean treatment, boolean instrument
+    x_treated = q.intervention.value
+    if not isinstance(x_treated, bool):
+        return None
+    x_control = not x_treated
+
+    iv_candidates = structural_solver.iv_sets(
+        graph, x, y, bidirected=bidirected,
+    )
+    if not iv_candidates:
+        return None
+
+    chosen = iv_candidates[0]
+    z = chosen.instrument
+    # MVP: boolean instrument
+    z_domain = theta.domain_of(z)
+    if z_domain != (True, False) and set(z_domain) != {True, False}:
+        return None
+    z_treated, z_control = True, False
+
+    # 4 theta lookups: P(Y=y_val|Z=z_*), P(X=x_*|Z=z_*).
+    # For W (conditioning), the Wald formula generalises to
+    # P(...|Z=z, W=w) summed over P(W=w). MVP: skip W (require empty
+    # conditioning) — extension hook for later.
+    if chosen.conditioning:
+        return None
+
+    def _lookup(target_atom: Atom, target_val, given_pairs):
+        key = numeric_estimator.ProbabilityKey(
+            target_atom=target_atom,
+            target_value=target_val,
+            given=frozenset(given_pairs),
+        )
+        return theta.entries.get(key)
+
+    p_y_given_z1 = _lookup(y, q.target.value, [(z, z_treated)])
+    p_y_given_z0 = _lookup(y, q.target.value, [(z, z_control)])
+    p_x_given_z1 = _lookup(x, x_treated, [(z, z_treated)])
+    p_x_given_z0 = _lookup(x, x_treated, [(z, z_control)])
+
+    if None in (p_y_given_z1, p_y_given_z0, p_x_given_z1, p_x_given_z0):
+        return None  # Opportunistic: let next strategy / final
+        # needs_investigation surface the missing keys.
+
+    denom = p_x_given_z1 - p_x_given_z0
+    if abs(denom) < 1e-12:
+        # Wald undefined when instrument doesn't shift treatment.
+        return None
+
+    late = (p_y_given_z1 - p_y_given_z0) / denom
+
+    # Derivation: existing iv_criterion_check + identify_via_iv (from
+    # identify path) + new iv_wald_numeric_evaluate bundled step.
+    treated_va = ValuedAtom(atom=x, value=x_treated)
+    z_treated_va = ValuedAtom(atom=z, value=z_treated)
+    z_control_va = ValuedAtom(atom=z, value=z_control)
+
+    iv_id_step = DerivationStep(
+        rule="iv_criterion_check",
+        inputs={
+            "graph": graph,
+            "x": x,
+            "y": y,
+            "instrument": z,
+            "conditioning": chosen.conditioning,
+        },
+        output=True,
+        step_id="s_iv_check",
+    )
+    iv_choose_step = DerivationStep(
+        rule="identify_via_iv",
+        inputs={"criterion": StepRef(step_id="s_iv_check")},
+        output=StructuralResult(value=True),
+        step_id="s_iv_id",
+    )
+    iv_numeric_step = DerivationStep(
+        rule="iv_wald_numeric_evaluate",
+        inputs={
+            "target": q.target,
+            "intervention_treated": treated_va,
+            "instrument_treated": z_treated_va,
+            "instrument_control": z_control_va,
+            "monotonicity": q.assumptions.monotonicity.value,
+        },
+        output={
+            "p_y_given_z_treated": p_y_given_z1,
+            "p_y_given_z_control": p_y_given_z0,
+            "p_x_given_z_treated": p_x_given_z1,
+            "p_x_given_z_control": p_x_given_z0,
+            "late": late,
+        },
+        step_id="s_iv_numeric",
+    )
+    numeric_result_obj = NumericResult(value=late)
+    final_step = DerivationStep(
+        rule="numeric_result",
+        inputs={"evaluation": StepRef(step_id="s_iv_numeric")},
+        output=numeric_result_obj,
+        step_id="s_iv_final",
+    )
+
+    extensions = {
+        "iv_identification": {
+            "strategy": "iv",
+            "instrument": _atom_to_str(z),
+            "conditioning": sorted(
+                _atom_to_str(a) for a in chosen.conditioning
+            ),
+            "required_assumption": (
+                f"monotonicity ({q.assumptions.monotonicity.value}) — "
+                f"Wald LATE estimator"
+            ),
+            "alternatives_count": len(iv_candidates),
+            "late_caveat": (
+                "LATE = E[Y(X=treated) − Y(X=control) | complier]; "
+                "this is the average effect AMONG COMPLIERS (the "
+                "subpopulation whose treatment is shifted by the "
+                "instrument), NOT the population ATE. Conflating LATE "
+                "with ATE is a known IV-deployment pitfall — surface "
+                "this caveat to the user before stating the answer."
+            ),
+            "numeric": {
+                "p_y_given_z_treated": p_y_given_z1,
+                "p_y_given_z_control": p_y_given_z0,
+                "p_x_given_z_treated": p_x_given_z1,
+                "p_x_given_z_control": p_x_given_z0,
+                "late": late,
+            },
+        }
+    }
+
+    return QueryResult(
+        status=ResultStatus.NUMERICALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        query_id=stmt.id,
+        structural_result=StructuralResult(value=True),
+        numeric_result=numeric_result_obj,
+        derivation=(iv_id_step, iv_choose_step, iv_numeric_step, final_step),
+        extensions=extensions,
+    )
+
+
 def _dispatch_effect(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -2122,6 +2297,90 @@ def _dispatch_effect(
                         structural_prefix=structural_prefix,
                         graph=graph, bidirected=bidirected,
                     )
+            # Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald
+            # LATE under monotonicity. Requires the query's
+            # EffectQueryAssumptions.monotonicity to be set; without
+            # it the kernel can't pick an estimator (Wald vs 2SLS vs
+            # bounds differ semantically) and stays at the next
+            # fallback. The numeric is the COMPLIER LATE, not the
+            # population ATE — extension metadata flags this so the
+            # render layer can disclose.
+            mono = (
+                q.assumptions.monotonicity
+                if q.assumptions is not None else None
+            )
+            if mono is not None:
+                iv_result = _try_iv_wald_in_effect(
+                    stmt, graph, q, x, y_atom, theta,
+                    bidirected=bidirected,
+                )
+                if iv_result is not None:
+                    return iv_result
+
+            # Fix 5 (v0.1.5, audit follow-up): Tian-in-effect — last-
+            # resort identification via Shpitser-Pearl ID before giving
+            # up. Identify path already does this (line 299-311); effect
+            # path used to drop straight to needs_investigation with the
+            # "S3.b.2 lands later" comment. Lands now.
+            from . import c_factor as _c_factor
+            tian = _c_factor.identify_via_tian(
+                graph, bidirected, x, y_atom, q.intervention.value,
+            )
+            if tian.identifiable:
+                # Bind q.target.value into the Tian formula's outer Y
+                # ProbRefs (c_factor leaves them None for the
+                # IdentifyQuery caller). Without this, the evaluator
+                # raises InsufficientTheta on query-bound atoms.
+                bound_formula = formula_builder.bind_target_value(
+                    tian.formula, y_atom, q.target.value,
+                )
+                validate_formula(bound_formula)
+                # Reuse the identify-side derivation prefix
+                # (tian_c_decomposition + identify_via_tian), then
+                # add tian_formula_ast + formula_evaluation +
+                # numeric_result via _try_numeric. Same shape as
+                # transport (Fix 4 §T9.2).
+                structural_prefix = (
+                    DerivationStep(
+                        rule="tian_c_decomposition",
+                        inputs={
+                            "graph": graph,
+                            "x": x,
+                            "y": y_atom,
+                        },
+                        output=True,
+                        step_id="s_tian_decomp",
+                    ),
+                    DerivationStep(
+                        rule="identify_via_tian",
+                        inputs={
+                            "decomposition": StepRef(
+                                step_id="s_tian_decomp",
+                            ),
+                            "formula": tian.formula,
+                        },
+                        output=StructuralResult(value=True),
+                        step_id="s_tian_id",
+                    ),
+                    DerivationStep(
+                        rule="tian_formula_ast",
+                        inputs={
+                            "target": q.target,
+                            "intervention": ValuedAtom(
+                                atom=x, value=q.intervention.value,
+                            ),
+                            "unbound_formula": tian.formula,
+                        },
+                        output=bound_formula,
+                        step_id="s_tian_ast",
+                    ),
+                )
+                return _try_numeric(
+                    stmt, bound_formula, theta, QueryKind.EFFECT,
+                    structural_prefix=structural_prefix,
+                    graph=graph, bidirected=bidirected,
+                )
+
             return QueryResult(
                 status=ResultStatus.NEEDS_INVESTIGATION,
                 query_kind=QueryKind.EFFECT,
@@ -2134,8 +2393,9 @@ def _dispatch_effect(
                         reason=(
                             "Phase 2.latent S3.b.1: this ADMG effect "
                             "query is reachable neither by ADMG-aware "
-                            "backdoor nor front-door. Tian c-factor "
-                            "lands in S3.b.2; see "
+                            "backdoor nor front-door nor Tian / Shpitser "
+                            "ID (latter checked since Fix 5 v0.1.5). "
+                            "If a Line-7 case is at play see "
                             "PHASE_2_LATENT_CHARTER.md §7."
                         ),
                     ),

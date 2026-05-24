@@ -385,6 +385,9 @@ def test_identification_formula_witness_set_synced_with_scheduler():
         "backdoor_adjustment_formula",
         "front_door_adjustment_formula",
         "transport_formula_ast",
+        # Fix 5 (v0.1.5, audit follow-up): Tian-in-effect bound
+        # formula step. Parallel to transport_formula_ast.
+        "tian_formula_ast",
     })
     assert IDENTIFICATION_FORMULA_RULES == expected, (
         f"IDENTIFICATION_FORMULA_RULES drift: got "
