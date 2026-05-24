@@ -44,7 +44,7 @@ import json
 from .input.parser import parse_json
 from .input.semantic_validator import validate_program
 from .input.syntactic_validator import validate_ast, validate_result
-from .output.result_orchestrator import to_dict
+from .output.result_orchestrator import build_llm_proposed_review, to_dict
 from .runtime.graph_projection import project
 from .runtime.instantiation import instantiate
 from .runtime.scheduler import dispatch_all
@@ -145,7 +145,18 @@ def _to_ast(program: dict | str | bytes) -> dict:
 def _run_typed(prog) -> dict:
     graph = project(instantiate(prog))
     results = dispatch_all(prog, graph)
-    return {"results": [to_dict(r) for r in results]}
+    result_dicts = [to_dict(r) for r in results]
+    # Fix 3+4 §3.2 (v0.1.5): aggregate LLM-proposed elements (edges +
+    # probability priors) into a single review surface per result, so
+    # the agent's reply is forced to lead with audit disclosure. Only
+    # attaches when at least one llm-tagged element exists — keeps
+    # single-population non-LLM-prior fixtures byte-identical.
+    review = build_llm_proposed_review(prog)
+    if review is not None:
+        for rd in result_dicts:
+            ext = rd.setdefault("extensions", {})
+            ext["llm_proposed_review"] = review
+    return {"results": result_dicts}
 
 
 # ---------------------------------------------------------- Program -> AST
@@ -308,6 +319,18 @@ def _statement_to_dict(s) -> dict:
         }
         if s.forall:
             d["forall"] = list(s.forall)
+        # Fix 3+4 (v0.1.5): population (Phase 9) and provenance
+        # (Gap B / Fix 3+4) MUST round-trip through
+        # _program_to_ast_dict, otherwise apply_patch_and_run's
+        # merged_program loses these fields and themis.verify (which
+        # re-parses the merged program) builds a different theta
+        # than the runtime did. Pre-fix this was silently OK because
+        # nothing read either field through the round-trip; Fix 4
+        # transport surfaced it as a verify failure.
+        if s.population is not None:
+            d["population"] = s.population
+        if s.provenance != "structural":
+            d["provenance"] = s.provenance
         ann = _annotation_to_dict(s.annotations)
         if ann is not None:
             d["annotations"] = ann

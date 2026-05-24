@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from ..types import (
     Atom,
+    CauseStatement,
     ConstantExpr,
     ConstTerm,
     DataGap,
@@ -25,7 +26,9 @@ from ..types import (
     FormulaExpr,
     NumericResult,
     ProbabilityRefExpr,
+    ProbabilityStatement,
     ProductExpr,
+    Program,
     QueryResult,
     StructuralResult,
     SumExpr,
@@ -275,3 +278,122 @@ def from_dict(payload: dict) -> QueryResult:
     together with the fixtures that need round-trip.
     """
     raise NotImplementedError("from_dict is not part of the v0.1 surface")
+
+
+# ---------------------------------------------------------------------------
+# Fix 3+4 §3.2 — LLM-proposed review surface aggregator (v0.1.5)
+# ---------------------------------------------------------------------------
+
+
+def _atom_repr(atom: Atom) -> str:
+    """Short rendered form of an atom for review-surface display."""
+    args = ",".join(a.name for a in atom.args)
+    return f"{atom.predicate}({args})" if args else atom.predicate
+
+
+def _probability_statement_key_repr(stmt: ProbabilityStatement) -> str:
+    """Render a ProbabilityStatement as a P(...|...) key string for
+    the review surface. Mirrors the runtime's format_probability_key
+    shape but doesn't go through ProbabilityKey (we want the original
+    statement's surface, not a canonicalised key)."""
+    target_part = (
+        f"{_atom_repr(stmt.target.atom)}={stmt.target.value}"
+    )
+    if stmt.given:
+        given_part = ",".join(
+            f"{_atom_repr(va.atom)}={va.value}" for va in stmt.given
+        )
+        body = f"{target_part}|{given_part}"
+    else:
+        body = target_part
+    prefix = "P" if stmt.population is None else f"P_{stmt.population}"
+    return f"{prefix}({body})"
+
+
+def build_llm_proposed_review(program: "Program") -> dict | None:
+    """Walk the program's statements and collect every LLM-proposed
+    element (cause edges + probability priors) into a single audit
+    surface that the user must see before trusting the result.
+
+    Two collection criteria:
+
+    - **Edges** (``CauseStatement``): ``annotations.source`` contains
+      "llm" (case-insensitive substring match). Picks up
+      ``"llm_proposal"`` (A2 convention) and any variant. Edges
+      sourced from evidence (PubMed, KB, user) are excluded — they
+      are not LLM-proposed.
+    - **Probability priors** (``ProbabilityStatement``):
+      ``provenance == "llm_prior"``. Includes the prior value, the
+      target/given key, the population label, and the reason
+      (``annotations.source``, validated non-empty by F3.1
+      ``llm_prior_requires_source``).
+
+    Returns ``None`` when neither category found any entries —
+    in that case there's nothing to disclose, and the absence of
+    the field keeps single-population non-LLM-prior fixtures byte-
+    identical to pre-Fix-3+4 serialisations.
+
+    Summary text gives the user a single sentence to ground the
+    audit: "N edges + M probability priors come from LLM common
+    knowledge. Themis's math is correct, but the answer hinges on
+    these priors being reasonable — please review before using."
+
+    Caller (``kernel._run_typed``) attaches this dict to each result's
+    ``extensions.llm_proposed_review``. The review is program-wide so
+    multi-query programs see the same review on every result.
+
+    Charter: FIX_3_4_CHARTER_llm_mediated_transport.md §3.2.
+    """
+    edges: list[dict] = []
+    probabilities: list[dict] = []
+
+    for stmt in program.statements:
+        if isinstance(stmt, CauseStatement):
+            if stmt.annotations is None:
+                continue
+            source = stmt.annotations.source or ""
+            if "llm" not in source.lower():
+                continue
+            edges.append({
+                "from": _atom_repr(stmt.from_atom),
+                "to": _atom_repr(stmt.to_atom),
+                "source": source,
+            })
+        elif isinstance(stmt, ProbabilityStatement):
+            if stmt.provenance != "llm_prior":
+                continue
+            reason = (
+                stmt.annotations.source
+                if stmt.annotations is not None else ""
+            ) or ""
+            entry: dict = {
+                "key": _probability_statement_key_repr(stmt),
+                "value": stmt.value,
+                "reason": reason,
+            }
+            if stmt.population is not None:
+                entry["population"] = stmt.population
+            probabilities.append(entry)
+
+    if not edges and not probabilities:
+        return None
+
+    n_edges = len(edges)
+    n_probs = len(probabilities)
+    parts: list[str] = []
+    if n_edges:
+        parts.append(f"{n_edges} 条边")
+    if n_probs:
+        parts.append(f"{n_probs} 个概率参数")
+    composition = " + ".join(parts)
+    summary = (
+        f"{composition}来自 LLM 常识 prior。"
+        f"Themis 数学计算正确，但答案依赖这些 prior 的合理性 —— "
+        f"请审核后再使用。"
+    )
+
+    return {
+        "edges": edges,
+        "probabilities": probabilities,
+        "summary": summary,
+    }

@@ -141,12 +141,15 @@ def test_instantiation_preserves_annotations_across_forall_expansion():
 
 def test_themis_run_accepts_annotated_cause_and_reasons_identically():
     """Annotations are inert to reasoning — status, structural_result,
-    and derivation are identical with vs without the annotation. Both
-    ``data_gap_report`` and ``explanation`` deliberately differ: the
-    proposal-edge disclosure is the whole point of provenance, and the
-    explanation channel is the kernel-side guarantee that the disclosure
-    surfaces even when the renderer skips ``data_gap_report``. Covered
-    separately in test_unverified_proposal_edge_*."""
+    and derivation are identical with vs without the annotation.
+    ``data_gap_report``, ``explanation``, and (Fix 3+4 v0.1.5)
+    ``extensions.llm_proposed_review`` deliberately differ: the
+    proposal-edge disclosure is the whole point of provenance, and
+    the audit channels are the kernel-side guarantee that the
+    disclosure surfaces. Covered separately in
+    test_unverified_proposal_edge_* (data_gap_report) and
+    test_llm_proposed_review_* (Fix 3+4 review surface).
+    """
     ast_with = _ast_with_annotated_cause(source="llm_proposal")
     ast_plain = _ast_with_annotated_cause()
     del ast_plain["statements"][2]["annotations"]
@@ -155,13 +158,22 @@ def test_themis_run_accepts_annotated_cause_and_reasons_identically():
     r_plain = themis.run(ast_plain)["results"][0]
 
     # Reasoning fields must match exactly — no rule reads annotations.
+    # extensions is EXCLUDED here because Fix 3+4 §3.2 adds
+    # llm_proposed_review when the source contains "llm" (the whole
+    # point of provenance disclosure). Other extension sub-fields are
+    # checked individually below to keep the rest of the contract.
     for field in ("status", "query_kind", "query_id", "structural_result",
                   "derivation", "missing_information",
                   "investigation_requests", "framing_notes",
-                  "extensions", "confidence", "numeric_result"):
+                  "confidence", "numeric_result"):
         assert r_with.get(field) == r_plain.get(field), field
     assert r_with["query_kind"] == "cause"
     assert r_with["status"] == "structurally_solved"
+
+    # Fix 3+4 §3.2: the annotated-llm version surfaces the review;
+    # the plain version doesn't (no llm-tagged elements to disclose).
+    assert "llm_proposed_review" in (r_with.get("extensions") or {})
+    assert "llm_proposed_review" not in (r_plain.get("extensions") or {})
 
 
 def test_instantiation_lifts_annotation_from_forall_cause_into_every_ground_copy():

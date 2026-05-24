@@ -44,6 +44,45 @@
           "type": "string",
           "description": "Phase 5 §C: error reason when a counterfactual query is outside the supported fragment (e.g. non-boolean domain)."
         },
+        "llm_proposed_review": {
+          "type": "object",
+          "description": "Fix 3+4 §3.2 (v0.1.5): aggregated audit surface listing every LLM-proposed element in the program (cause edges tagged annotations.source containing 'llm' + probability statements with provenance='llm_prior'). Attached only when at least one such element exists, so single-population non-LLM-prior runs serialise byte-identically to pre-fix. The Skill v3 contract requires the agent's reply to lead with this list before stating any numeric answer.",
+          "required": ["edges", "probabilities", "summary"],
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "type": "array",
+              "description": "LLM-proposed causal edges. Each entry has from / to atom strings + the verbatim source string (e.g. 'llm_proposal').",
+              "items": {
+                "type": "object",
+                "required": ["from", "to", "source"],
+                "properties": {
+                  "from":   { "type": "string" },
+                  "to":     { "type": "string" },
+                  "source": { "type": "string" }
+                }
+              }
+            },
+            "probabilities": {
+              "type": "array",
+              "description": "LLM-proposed probability priors. Each entry has the canonical P(...|...) key, the proposed value, the one-sentence reason (validated non-empty by llm_prior_requires_source), and optional population label.",
+              "items": {
+                "type": "object",
+                "required": ["key", "value", "reason"],
+                "properties": {
+                  "key":        { "type": "string" },
+                  "value":      { "type": "number" },
+                  "reason":     { "type": "string" },
+                  "population": { "type": "string" }
+                }
+              }
+            },
+            "summary": {
+              "type": "string",
+              "description": "One-sentence human-readable summary the agent must surface in its reply before stating the answer. Counts N edges + M probabilities and reminds the user to audit before trusting the result."
+            }
+          }
+        },
         "mediation_decomposition": {
           "type": "object",
           "description": "Phase 6.mediation: decomposition metadata emitted for effect queries that carry a mediator atom. Reports structural identifiability of NDE/NIE and CDE separately; the chosen strategy picks the strongest identifiable form.",

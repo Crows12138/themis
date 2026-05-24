@@ -229,8 +229,8 @@
         },
         "provenance": {
           "type": "string",
-          "enum": ["structural", "observational"],
-          "description": "Whether this is a structural CPT (DAG-parent-aligned, used by backdoor/front-door/identification algorithms) or an observational conditional (an empirical/joint-derived quantity, used only for direct lookups in associational/probability queries). Default 'structural' keeps the strict parent-subset validation. 'observational' lets given contain non-parent atoms — needed for CLadder-shape collider/exp_away questions where the supplied empirical data is conditional on descendants of the target. Identification algorithms will not request observational keys (they request structural shapes), so observational entries are safe additions: they only fire on direct lookups whose shape matches exactly. Iter 2026-05-14 finding (Q6772 collider conditioning)."
+          "enum": ["structural", "observational", "llm_prior"],
+          "description": "Source category for this probability entry. 'structural' (default) = user-stated CPT, strict parent-subset validation. 'observational' = empirical conditional that may condition on non-parents (CLadder Q6772 Berkson-style); validation relaxed, consumed only by direct lookup queries. 'llm_prior' (Fix 3+4, v0.1.5) = LLM-proposed prior from common knowledge when InsufficientTheta on the first run; strict parent-subset validation applies AND annotations.source is REQUIRED non-empty (a one-sentence reason that surfaces in extensions.llm_proposed_review for end-user audit before trusting the answer). Bounded fallback only — LLM must not proactively supply llm_prior on the first turn; charter FIX_3_4_CHARTER_llm_mediated_transport.md §1.4."
         },
         "population": {
           "$ref": "#/$defs/populationName",

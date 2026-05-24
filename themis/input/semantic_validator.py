@@ -84,6 +84,12 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "bidirected_runtime_gate",
         "transport_runtime_gate",
         "temporal_monotonicity",
+        # Fix 3+4 (v0.1.5): llm_prior provenance demands a non-empty
+        # annotations.source so the audit-trail review surface
+        # (extensions.llm_proposed_review) has a reason string per
+        # entry. Empty / null source on llm_prior would let LLM
+        # silently launder fabricated numbers without disclosure.
+        "llm_prior_requires_source",
     }
 )
 
@@ -515,6 +521,40 @@ def _check_temporal_monotonicity(program: Program) -> None:
             )
 
 
+def _check_llm_prior_requires_source(program: Program) -> None:
+    """Fix 3+4 §3.1 (v0.1.5): every probability statement tagged
+    ``provenance == "llm_prior"`` must carry a non-empty
+    ``annotations.source`` string. The source field is the audit-trail
+    reason that surfaces in ``extensions.llm_proposed_review``; if it's
+    empty / null / whitespace, the end user has no way to evaluate
+    whether the LLM-proposed number is reasonable. Empty source on
+    llm_prior would let the LLM silently launder fabricated values
+    without disclosure — a direct violation of Themis's "kernel
+    doesn't fabricate" contract.
+
+    Charter requires the source to be a one-sentence reason; we
+    enforce non-empty here (semantic minimum), the Skill enforces
+    "useful sentence" (prompt minimum).
+    """
+    for idx, stmt in enumerate(program.statements):
+        if not isinstance(stmt, ProbabilityStatement):
+            continue
+        if stmt.provenance != "llm_prior":
+            continue
+        ann = stmt.annotations
+        source = ann.source if ann is not None else None
+        if source is None or not source.strip():
+            raise SemanticError(
+                f"statements[{idx}]: probabilityStatement with "
+                f"provenance='llm_prior' requires a non-empty "
+                f"annotations.source (a one-sentence reason that will "
+                f"appear in extensions.llm_proposed_review for end-user "
+                f"audit). LLM-proposed priors without a stated reason "
+                f"are silent fabrication — Themis refuses to launder "
+                f"them through the audit channel. Fix 3+4 charter §3.1."
+            )
+
+
 _CHECK_FUNCS = {
     "objects": _check_objects,
     "forall_usage": _check_forall_usage,
@@ -525,6 +565,7 @@ _CHECK_FUNCS = {
     "bidirected_runtime_gate": _check_bidirected_runtime_gate,
     "transport_runtime_gate": _check_transport_runtime_gate,
     "temporal_monotonicity": _check_temporal_monotonicity,
+    "llm_prior_requires_source": _check_llm_prior_requires_source,
 }
 
 

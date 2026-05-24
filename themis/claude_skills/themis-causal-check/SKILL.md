@@ -64,6 +64,38 @@ Any question matching:
 
 6. **When the user's question has a binary answer**, also commit that answer through `mcp__themis__themis_submit_verdict` (verdict: `yes` / `no` / `needs_more_info`). The free-text reply explains it to the user; the structured verdict is what downstream tooling (benchmark scoring, agent pipelines, audit logs) actually reads. A binary commitment in your free text is unreliable — token-level decoding can corrupt the last word even when your reasoning was correct. Open-ended / numeric / "what is the effect" questions do not have a binary verdict; skip the tool for those.
 
+## Cross-population questions and LLM-proposed priors (Fix 3+4)
+
+Real-world causal questions are almost always cross-population: the user is asking about themselves, their friend, or some named stratum that isn't the source/literature population. Themis distinguishes two paths.
+
+### Path A — CATE (preferred when source data is stratified)
+
+When the user's covariates (age, comorbidity, location, etc.) are already partitioned in the source data, route through standard `EffectQuery` with the user's covariates in `given`. The kernel runs backdoor / front-door on the matching sub-population. No transport, no LLM-prior. **Use this whenever you can.**
+
+### Path B — Transport with LLM-proposed target priors (fallback)
+
+When the user's stratum is outside the source data (different country / age / comorbidity combo not in source), construct a transport program: `SelectionNode` for each shifted mechanism, `target_population` on the `EffectQuery`. The first `themis_run` call will identify the formula structurally but report `InsufficientTheta` for missing target-population marginals.
+
+At that point, you MAY propose those marginals from common knowledge via a second-turn `themis_apply_patch_and_run` patch bundle. Each LLM-proposed probability statement MUST carry:
+
+- `provenance: "llm_prior"` — explicit marker, not optional
+- `population: "<target_name>"` — matching the SelectionNode's `target_population`
+- `annotations.source: "<one-sentence reason>"` — REQUIRED non-empty. Validator rejects empty / null source on llm_prior. The reason will be shown to the user verbatim — write a real sentence (e.g. "common knowledge: rural Indian cohort age distribution from WHO 2020 estimate"), not "因为" or "guess".
+
+### Disclosure protocol (when you used Path B)
+
+The second-turn result will include `extensions.llm_proposed_review` listing every LLM-proposed element with its reason. Your reply MUST:
+
+1. **Open with the review list** — verbatim summary of what you proposed and why. Not buried in footnotes, not labelled "caveat" — it IS the answer's premise.
+2. **State the stratum-as-approximation disclaimer**: "This is the expected effect for the stratum the user belongs to (group average), not an individual-level prediction. Within-stratum individual differences are not in this estimate."
+3. **Then state the numeric answer** with its derivation.
+
+vanilla LLMs silently elide step 1 and 2 — they pretend to make individual predictions on numbers they're essentially guessing. Themis's product differentiator is explicit stratum-and-prior disclosure. **Do not skip these steps to seem more natural.**
+
+### Bounded fallback only
+
+LLM-proposed priors are a SECOND-TURN fallback after `InsufficientTheta`. Do NOT proactively supply `llm_prior` probability statements on the first turn — kernel must always have the chance to identify "you actually need this number" before you propose. User-supplied numbers always take priority over LLM priors.
+
 ## Hard rules
 
 - **Don't fabricate effect sizes**. If the kernel didn't return a number, you don't have a number. Pattern-matching "RR ≈ 2.3 for X→Y" from training corpus is a violation.

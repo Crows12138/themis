@@ -132,16 +132,28 @@ class ProbabilityStatement:
     value: float
     forall: tuple[str, ...] = ()
     population: str | None = None  # Phase 9 §T9.1: source population label
-    # Iter 2026-05-14 (CLadder Q6772 collider-conditioning finding):
-    # whether this is a structural CPT (DAG parent-aligned, default —
-    # keeps strict parent-subset validation, used by identification
-    # algorithms) or an observational conditional (empirical/joint-
-    # derived quantity, relaxed validation, used only for direct
-    # lookups in associational/probability queries). Identification
-    # never requests observational keys because their shape doesn't
-    # match parent-aligned formula keys, so adding observational
-    # entries doesn't break identification — it just unlocks direct-
-    # lookup queries against empirical data.
+    # Provenance of this probability entry; three accepted values:
+    #
+    # - ``"structural"`` (default, 2026-05-14): user-stated CPT entry,
+    #   DAG parent-aligned. Strict parent-subset validation applies.
+    # - ``"observational"`` (Gap B, v0.1.3): empirical / joint-derived
+    #   conditional that may condition on descendants or non-parents
+    #   (e.g. CLadder Q6772 Berkson-style "for accepted-AND-non-
+    #   talented students, P(hard-working)=0.94"). Parent-subset
+    #   validation is RELAXED — identification never requests
+    #   observational keys (their shape doesn't match parent-aligned
+    #   formula keys), so the entry is consumed only by direct lookup
+    #   in associational / probability queries.
+    # - ``"llm_prior"`` (Fix 3+4, v0.1.5): LLM-proposed prior from
+    #   common knowledge when the user didn't supply a number AND
+    #   the kernel reported InsufficientTheta. Strict parent-subset
+    #   validation applies (it IS a CPT in the model's shape — the
+    #   only difference from structural is sourcing). ``annotations.source``
+    #   is REQUIRED non-empty for llm_prior — a one-sentence reason
+    #   that surfaces in ``extensions.llm_proposed_review`` for the
+    #   end user to audit before trusting the answer. Bounded fallback
+    #   mode only (not opportunistic) — see charter
+    #   FIX_3_4_CHARTER_llm_mediated_transport.md §1.4.
     provenance: str = "structural"
     annotations: Annotation | None = None
 
