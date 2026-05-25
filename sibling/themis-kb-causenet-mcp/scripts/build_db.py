@@ -1,4 +1,4 @@
-"""Phase B — Build SQLite DB from causenet-precision.jsonl.bz2.
+"""Phase B — Build SQLite DB(s) from CauseNet JSONL.bz2 input.
 
 CauseNet relation shape (per Phase A inspection):
 
@@ -32,11 +32,20 @@ DB schema:
 The edges table is the fast lookup. The sources table is the evidence trail
 for "kb_verified — here are the Wikipedia sentences supporting it".
 
+Two DBs by convention (tiered confidence — see server.py):
+    causenet-precision.jsonl.bz2 → causenet-precision.sqlite (~600MB,
+        83% precision, high-confidence tier)
+    causenet-full.jsonl.bz2 → causenet-full.sqlite (~5-8GB, lower
+        precision, broader coverage tier)
+
 Idempotent: drops and rebuilds. Run via:
-    python scripts/build_db.py
+    python scripts/build_db.py                 # default: precision
+    python scripts/build_db.py --variant full  # full 11M version
+    python scripts/build_db.py --variant both  # both
 """
 from __future__ import annotations
 
+import argparse
 import bz2
 import json
 import sqlite3
@@ -44,8 +53,17 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / "data"
-JSONL_BZ2 = DATA / "causenet-precision.jsonl.bz2"
-DB_PATH = DATA / "causenet.sqlite"
+
+VARIANTS = {
+    "precision": {
+        "jsonl_bz2": DATA / "causenet-precision.jsonl.bz2",
+        "db_path": DATA / "causenet-precision.sqlite",
+    },
+    "full": {
+        "jsonl_bz2": DATA / "causenet-full.jsonl.bz2",
+        "db_path": DATA / "causenet-full.sqlite",
+    },
+}
 
 
 SCHEMA_SQL = """
@@ -72,7 +90,8 @@ CREATE INDEX sources_edge_idx ON sources(cause, effect);
 """
 
 
-def build(jsonl_bz2: Path = JSONL_BZ2, db_path: Path = DB_PATH) -> None:
+def build(jsonl_bz2: Path, db_path: Path) -> None:
+    print(f"Building {db_path.name} from {jsonl_bz2.name} ...")
     if not jsonl_bz2.exists():
         raise SystemExit(
             f"Missing data file: {jsonl_bz2}\n"
@@ -150,4 +169,15 @@ def build(jsonl_bz2: Path = JSONL_BZ2, db_path: Path = DB_PATH) -> None:
 
 
 if __name__ == "__main__":
-    build()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--variant", choices=["precision", "full", "both"],
+        default="precision",
+    )
+    args = parser.parse_args()
+    variants_to_build = (
+        ["precision", "full"] if args.variant == "both" else [args.variant]
+    )
+    for v in variants_to_build:
+        cfg = VARIANTS[v]
+        build(cfg["jsonl_bz2"], cfg["db_path"])

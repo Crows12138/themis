@@ -1,8 +1,8 @@
 # Data files — downloaded artifacts, not source-controlled
 data/causenet-*.jsonl
 data/causenet-*.jsonl.bz2
-data/causenet.sqlite
-data/causenet.sqlite-journal
+data/causenet*.sqlite
+data/causenet*.sqlite-journal
 
 # Python build artifacts
 __pycache__/

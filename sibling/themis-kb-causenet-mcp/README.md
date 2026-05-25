@@ -17,7 +17,7 @@ Solo-dev convenience. Maintaining two separate git repos for one developer's pro
 
 When that happens, this directory becomes the root of its own repo and is removed from `因果性ai/`'s git.
 
-## Architecture
+## Architecture — tiered-confidence routing
 
 ```
 Themis kernel (themis/kb/contract.py KBAdapter)
@@ -30,10 +30,29 @@ themis/kb/adapters/causenet_mcp_adapter.py
        │
 causenet_mcp.server (this package)
        ↑
-       │  SQLite query
-       │
-data/causenet.sqlite  (built from data/causenet-precision.jsonl.bz2)
+       ├── Tier 1: data/causenet-precision.sqlite (197K relations, ~83%)
+       │              ↓ miss
+       └── Tier 2: data/causenet-full.sqlite      (~11M relations, ~60-70%)
+                      ↓ miss
+                   verdict=not_found
 ```
+
+Two-tier design (per `decided_at_tier` pattern from Auto-Research's
+cascade verifier):
+
+- **Tier 1 (precision)** — query first. ~83% extraction precision per
+  Heindorf 2020. Confident hits labelled `confidence_tier=high_confidence`.
+- **Tier 2 (full)** — fallback when precision misses. ~11M relations
+  but lower precision (~60-70% estimated; no formal number published).
+  Hits labelled `confidence_tier=extracted`. Themis-side adapter surfaces
+  this caveat in `extensions.llm_proposed_review` so users see which
+  tier validated each edge.
+- **Not found** in either tier → `confidence_tier=not_found`. Honest
+  "no support" — NOT "false", just unsupported by CauseNet.
+
+Either DB is optional — if user only built precision, server runs
+precision-only (smaller deployment). If only full, runs full-only
+(with a warning since precision is the high-confidence path).
 
 ## Status
 

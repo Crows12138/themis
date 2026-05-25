@@ -57,12 +57,14 @@ def test_tool_catalog(app):
 
 
 def test_query_edge_supported_returns_evidence(app):
-    """smoking → lung_cancer is a canonical hit. Must return supported
-    with at least 1 evidence sentence and the KB provenance block."""
+    """smoking → lung_cancer is a canonical hit in precision tier.
+    Must return supported with at least 1 evidence sentence, the KB
+    provenance block, and confidence_tier=high_confidence (precision)."""
     out = _call_tool(app, "causenet_query_edge", {
         "cause": "smoking", "effect": "lung_cancer",
     })
     assert out["verdict"] == "supported"
+    assert out["confidence_tier"] == "high_confidence"
     assert out["num_sources"] >= 1
     assert len(out["evidence_sample"]) >= 1
     sample = out["evidence_sample"][0]
@@ -70,20 +72,24 @@ def test_query_edge_supported_returns_evidence(app):
     assert "path_pattern" in sample
     prov = out["kb_provenance"]
     assert prov["kg"] == "CauseNet"
+    assert prov["tier"] == "precision-1.0"
     assert prov["kg_precision_estimate"] == 0.83
 
 
 def test_query_edge_not_found_returns_zero(app):
     """An obviously-absent edge returns verdict=not_found cleanly,
-    no crash."""
+    no crash. confidence_tier is 'not_found' (NOT high_confidence/extracted)."""
     out = _call_tool(app, "causenet_query_edge", {
         "cause": "purple_unicorn", "effect": "tuesday",
     })
     assert out["verdict"] == "not_found"
+    assert out["confidence_tier"] == "not_found"
     assert out["num_sources"] == 0
     assert out["evidence_sample"] == []
-    # Provenance is still emitted so the caller knows WHICH KB said no.
+    # Provenance is still emitted so caller knows WHICH KB said no.
     assert out["kb_provenance"]["kg"] == "CauseNet"
+    # Not-found responses do NOT claim a precision estimate.
+    assert "kg_precision_estimate" not in out["kb_provenance"]
 
 
 def test_query_edge_normalizes_input(app):
@@ -103,16 +109,21 @@ def test_query_edge_normalizes_input(app):
 
 def test_neighbors_effects_of_smoking_includes_known_diseases(app):
     """`smoking` should have at least some plausible downstream
-    effects in CauseNet (lung_cancer, addiction, etc. — exact set
-    depends on CauseNet content; smoke-test for non-emptiness)."""
+    effects in CauseNet. Each result must be labelled with
+    confidence_tier (high_confidence or extracted)."""
     out = _call_tool(app, "causenet_neighbors", {
         "concept": "smoking", "direction": "effects_of", "limit": 10,
     })
     assert out["direction"] == "effects_of"
     assert len(out["results"]) >= 1
-    # Results must be sorted by num_sources descending
-    n_sources = [r["num_sources"] for r in out["results"]]
-    assert n_sources == sorted(n_sources, reverse=True)
+    for r in out["results"]:
+        assert r["confidence_tier"] in ("high_confidence", "extracted")
+    # Within high_confidence tier (precision DB), results sorted by
+    # num_sources descending.
+    hc = [r["num_sources"] for r in out["results"]
+          if r["confidence_tier"] == "high_confidence"]
+    if hc:
+        assert hc == sorted(hc, reverse=True)
 
 
 def test_neighbors_causes_of_cancer_returns_results(app):
