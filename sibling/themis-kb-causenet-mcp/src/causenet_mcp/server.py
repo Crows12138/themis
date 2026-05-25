@@ -5,8 +5,18 @@ Tools (JSON in / JSON out, parallel to Themis's own MCP surface):
 - ``causenet_query_edge(cause, effect)`` — does CauseNet support
   cause → effect? Returns verdict + supporting evidence count + sample
   Wikipedia sentences.
+- ``causenet_query_edge_aggregated(cause, effect)`` — same as above,
+  but instead of a small evidence sample, returns aggregated source
+  distributions (title / path_pattern / type) over ALL sources for
+  the edge. Lets the caller spot homonym / sense-mismatch issues
+  structurally — Wikipedia titles already encode disambiguation, so
+  surfacing the title distribution is the no-LLM way to verify a
+  string-match isn't a semantic mismatch.
 - ``causenet_neighbors(concept, direction, limit)`` — list effects of
   concept (direction="effects_of") OR causes of concept ("causes_of").
+- ``causenet_neighbors_among(atoms)`` — given a SET of concept atoms,
+  return ALL KB edges between any pair of them. Used by the Themis
+  adapter's "did the LLM miss any edges?" suggestion surface.
 - ``causenet_search_concept(prefix, limit)`` — autocomplete-style
   prefix match over concept space (useful when caller doesn't know the
   exact CauseNet concept string for an atom).
@@ -225,6 +235,131 @@ def build_server(
             "kb_provenance": _provenance_block(tier="union"),
         }
 
+    def _aggregate_one(conn, c, e):
+        """Internal: aggregate ALL sources of one edge by title /
+        path_pattern / source_type. Returns None if edge absent."""
+        row = conn.execute(
+            "SELECT num_sources FROM edges WHERE cause = ? AND effect = ?",
+            (c, e),
+        ).fetchone()
+        if row is None:
+            return None
+        title_rows = conn.execute(
+            "SELECT source_title AS k, COUNT(*) AS n FROM sources "
+            "WHERE cause = ? AND effect = ? "
+            "GROUP BY source_title ORDER BY n DESC, k ASC",
+            (c, e),
+        ).fetchall()
+        pattern_rows = conn.execute(
+            "SELECT path_pattern AS k, COUNT(*) AS n FROM sources "
+            "WHERE cause = ? AND effect = ? "
+            "GROUP BY path_pattern ORDER BY n DESC, k ASC",
+            (c, e),
+        ).fetchall()
+        type_rows = conn.execute(
+            "SELECT source_type AS k, COUNT(*) AS n FROM sources "
+            "WHERE cause = ? AND effect = ? "
+            "GROUP BY source_type ORDER BY n DESC, k ASC",
+            (c, e),
+        ).fetchall()
+        unique_pages = conn.execute(
+            "SELECT COUNT(DISTINCT source_id) AS n FROM sources "
+            "WHERE cause = ? AND effect = ?",
+            (c, e),
+        ).fetchone()
+        return {
+            "num_sources": row["num_sources"],
+            "unique_source_count": unique_pages["n"] if unique_pages else 0,
+            "title_rows": title_rows,
+            "pattern_rows": pattern_rows,
+            "type_rows": type_rows,
+        }
+
+    @app.tool()
+    def causenet_query_edge_aggregated(
+        cause: str,
+        effect: str,
+        title_top_n: int = 10,
+        pattern_top_n: int = 5,
+    ) -> dict:
+        """Same edge query as ``causenet_query_edge`` but returns
+        AGGREGATE source distributions instead of a sentence sample.
+
+        Surfaces three Top-N distributions over ALL sources of the edge:
+
+        - ``source_title_distribution`` — Wikipedia article titles where
+          the (cause, effect) pair was extracted. Critical signal: titles
+          encode Wikipedia's word-sense disambiguation work, so a Top-N
+          dominated by one cluster ("River bank", "Bank erosion", ...)
+          tells the caller this edge is the "river bank" sense, not
+          "financial bank". Mixed clusters → genuine homonym ambiguity.
+        - ``path_pattern_distribution`` — linguistic patterns ("X causes
+          Y", "X leads to Y") that triggered extraction. Single-pattern
+          domination is a fragility signal; pattern diversity strengthens.
+        - ``source_type_distribution`` — wikipedia_sentence vs.
+          clueweb_sentence. Wikipedia is generally cleaner.
+
+        ``unique_source_count`` is the distinct page count (not sentence
+        count) — guards against one wordy article inflating num_sources.
+
+        Returns same envelope as query_edge except evidence_sample is
+        replaced by the three distributions + unique_source_count.
+
+        Caller (Themis-side adapter) consumes these distributions
+        STRUCTURALLY — no LLM judging — to compose the
+        ``extensions.kb_verification_report.semantic_alignment`` signal.
+        """
+        c = _normalize_concept(cause)
+        e = _normalize_concept(effect)
+        title_n = max(1, min(title_top_n, 50))
+        pattern_n = max(1, min(pattern_top_n, 20))
+
+        def _format(agg, tier_label, tier_const):
+            return {
+                "verdict": "supported",
+                "confidence_tier": tier_const,
+                "cause": c,
+                "effect": e,
+                "num_sources": agg["num_sources"],
+                "unique_source_count": agg["unique_source_count"],
+                "source_title_distribution": [
+                    {"title": r["k"], "count": r["n"]}
+                    for r in agg["title_rows"][:title_n]
+                ],
+                "path_pattern_distribution": [
+                    {"pattern": r["k"], "count": r["n"]}
+                    for r in agg["pattern_rows"][:pattern_n]
+                ],
+                "source_type_distribution": [
+                    {"source_type": r["k"], "count": r["n"]}
+                    for r in agg["type_rows"]
+                ],
+                "kb_provenance": _provenance_block(tier=tier_label),
+            }
+
+        if precision_conn is not None:
+            agg = _aggregate_one(precision_conn, c, e)
+            if agg is not None:
+                return _format(agg, "precision-1.0", TIER_HIGH_CONFIDENCE)
+
+        if full_conn is not None:
+            agg = _aggregate_one(full_conn, c, e)
+            if agg is not None:
+                return _format(agg, "full", TIER_EXTRACTED)
+
+        return {
+            "verdict": "not_found",
+            "confidence_tier": TIER_NOT_FOUND,
+            "cause": c,
+            "effect": e,
+            "num_sources": 0,
+            "unique_source_count": 0,
+            "source_title_distribution": [],
+            "path_pattern_distribution": [],
+            "source_type_distribution": [],
+            "kb_provenance": _provenance_block(tier="union"),
+        }
+
     def _neighbors_one(conn, c, direction, lim):
         sql = (
             "SELECT effect AS other, num_sources FROM edges "
@@ -294,6 +429,95 @@ def build_server(
             "concept": c,
             "direction": direction,
             "results": results,
+            "kb_provenance": _provenance_block(tier="union"),
+        }
+
+    def _among_one(conn, atoms_list, cap):
+        """Internal: find all edges where BOTH endpoints are in atoms_list."""
+        # SQLite IN with named placeholders is awkward at scale; build
+        # parameterized list manually. atoms_list is already small (typical
+        # DAG has < 20 atoms), so no need to chunk.
+        if not atoms_list:
+            return []
+        placeholders = ",".join("?" * len(atoms_list))
+        sql = (
+            f"SELECT cause, effect, num_sources FROM edges "
+            f"WHERE cause IN ({placeholders}) AND effect IN ({placeholders}) "
+            f"ORDER BY num_sources DESC LIMIT ?"
+        )
+        return conn.execute(sql, list(atoms_list) + list(atoms_list) + [cap]).fetchall()
+
+    @app.tool()
+    def causenet_neighbors_among(
+        atoms: list[str],
+        limit: int = 100,
+    ) -> dict:
+        """Given a set of concept atoms, return all KB edges whose
+        BOTH endpoints are in the set.
+
+        Used by the Themis-side adapter to surface "the LLM proposed
+        these atoms in its DAG, but it didn't propose these KB-known
+        edges between them — should they be added?" suggestions. The
+        adapter's caller then decides whether to revise the DAG.
+
+        Precision-tier edges listed first (high_confidence), then full-
+        tier edges (extracted). Dedupe by (cause, effect) pair — if an
+        edge appears in both tiers, the high_confidence label wins.
+
+        Returns:
+
+            {
+              "atoms":   [<normalized atom>, ...],
+              "edges":   [
+                {"cause": "...", "effect": "...",
+                 "num_sources": <int>, "confidence_tier": "..."}, ...
+              ],
+              "kb_provenance": {...}
+            }
+
+        Edge cap = ``limit`` (default 100, max 500) — typical DAG has
+        ~10 atoms so the natural upper bound is ~100 directed pairs,
+        but most are absent from KB so the actual return is usually
+        much smaller.
+        """
+        normalized_atoms = sorted({_normalize_concept(a) for a in atoms})
+        lim = max(1, min(limit, 500))
+
+        seen: set[tuple[str, str]] = set()
+        edges: list[dict] = []
+
+        if precision_conn is not None and normalized_atoms:
+            for r in _among_one(precision_conn, normalized_atoms, lim):
+                key = (r["cause"], r["effect"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append({
+                    "cause": r["cause"],
+                    "effect": r["effect"],
+                    "num_sources": r["num_sources"],
+                    "confidence_tier": TIER_HIGH_CONFIDENCE,
+                })
+
+        if full_conn is not None and normalized_atoms and len(edges) < lim:
+            remaining = lim - len(edges)
+            for r in _among_one(full_conn, normalized_atoms, remaining * 2):
+                key = (r["cause"], r["effect"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append({
+                    "cause": r["cause"],
+                    "effect": r["effect"],
+                    "num_sources": r["num_sources"],
+                    "confidence_tier": TIER_EXTRACTED,
+                })
+                if len(edges) >= lim:
+                    break
+
+        return {
+            "atoms": normalized_atoms,
+            "edges": edges,
             "kb_provenance": _provenance_block(tier="union"),
         }
 
