@@ -142,7 +142,7 @@ def _to_ast(program: dict | str | bytes) -> dict:
     )
 
 
-def _run_typed(prog) -> dict:
+def _run_typed(prog, kb_adapter=None) -> dict:
     graph = project(instantiate(prog))
     results = dispatch_all(prog, graph)
     result_dicts = [to_dict(r) for r in results]
@@ -156,6 +156,21 @@ def _run_typed(prog) -> dict:
         for rd in result_dicts:
             ext = rd.setdefault("extensions", {})
             ext["llm_proposed_review"] = review
+    # Phase D/E: KB edge verification. Opt-in (caller passes an adapter);
+    # absent adapter → byte-identical to pre-D output. When attached, the
+    # report carries per-edge structural verdicts + KB-known edges the
+    # LLM may have missed. The adapter is duck-typed (Causenet, future
+    # Wikidata, custom RAG, ...) — kernel never imports the concrete class.
+    if kb_adapter is not None:
+        from .kb.enrich import build_kb_verification_report
+        kb_report = build_kb_verification_report(prog, kb_adapter)
+        # Only attach if there's something to show — empty edges +
+        # empty suggestions means the program had no LLM-proposed atoms
+        # at all (e.g. all evidence-backed), so the surface is pure noise.
+        if kb_report["per_edge_verification"] or kb_report["suggested_missing_edges"]:
+            for rd in result_dicts:
+                ext = rd.setdefault("extensions", {})
+                ext["kb_verification_report"] = kb_report
     return {"results": result_dicts}
 
 
@@ -371,12 +386,19 @@ def _program_to_ast_dict(prog: Program) -> dict:
     return ast
 
 
-def run(program: dict | str | bytes) -> dict:
+def run(program: dict | str | bytes, *, kb_adapter=None) -> dict:
     """Run the kernel end to end.
 
     ``program`` is either a parsed AST dict (e.g. from ``json.loads``
     or constructed programmatically) or a JSON string / bytes payload
     conforming to ``kernel_ast.schema.json``.
+
+    ``kb_adapter`` (optional, kw-only): an edge-verification adapter
+    (e.g. ``themis.kb.adapters.causenet_mcp_adapter.CausenetMCPAdapter``).
+    When supplied, every LLM-proposed edge in the program is verified
+    against the KB and the result is attached as
+    ``results[*].extensions.kb_verification_report``. Absent → byte-
+    identical to pre-D output.
 
     Returns ``{"results": [<query_result_dict>, ...], "program":
     <kernel_ast dict>}``. ``results[*]`` conforms to
@@ -394,7 +416,7 @@ def run(program: dict | str | bytes) -> dict:
     ast = _to_ast(program)
     ast = validate_ast(ast)
     prog = validate_program(ast)
-    out = _run_typed(prog)
+    out = _run_typed(prog, kb_adapter=kb_adapter)
     out["program"] = _program_to_ast_dict(prog)
     return out
 
@@ -432,6 +454,8 @@ def estimate(program: dict | str | bytes, data, **options) -> dict:
 def apply_patch_and_run(
     program: dict | str | bytes,
     patches: list[dict] | dict,
+    *,
+    kb_adapter=None,
 ) -> dict:
     """Apply fill-in patch bundles to a program and re-run the kernel.
 
@@ -483,7 +507,7 @@ def apply_patch_and_run(
         else:  # PARAMETER_BUNDLE_KIND — _normalize guarantees one of the two
             prog = merge_skeleton_bundle(prog, patch)
 
-    out = _run_typed(prog)
+    out = _run_typed(prog, kb_adapter=kb_adapter)
     out["merged_program"] = _program_to_ast_dict(prog)
     return out
 
