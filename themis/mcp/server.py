@@ -79,15 +79,68 @@ PROMPT_FILES = (
 )
 
 
-def build_server():
+def _try_load_kb_adapter():
+    """Try to load the sibling CauseNet adapter for edge verification.
+
+    Returns the adapter or None if unavailable. Looked up (first match wins):
+
+    1. Sibling repo at ``../sibling/themis-kb-causenet-mcp/src`` relative
+       to this package — the in-tree dev layout.
+    2. Installed ``causenet_mcp`` package already on ``sys.path``.
+
+    Gracefully returns None on any import or data error so the kernel
+    runs unmodified when KB is unavailable (e.g. bare clone without
+    sibling, or sibling SQLite DBs not yet built).
+    """
+    import sys
+
+    sibling_src = REPO_ROOT / "sibling" / "themis-kb-causenet-mcp" / "src"
+    if sibling_src.is_dir() and str(sibling_src) not in sys.path:
+        sys.path.insert(0, str(sibling_src))
+
+    try:
+        from causenet_mcp import build_server as build_causenet_server  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+
+    try:
+        causenet_app = build_causenet_server()
+    except FileNotFoundError:
+        # SQLite DBs not built yet — sibling exists but data missing
+        return None
+
+    from themis.kb.adapters.causenet_mcp_adapter import (
+        CausenetMCPAdapter,
+        make_inprocess_caller,
+    )
+    return CausenetMCPAdapter(
+        make_inprocess_caller(causenet_app),
+        use_wordnet=False,  # deterministic; nltk wordnet optional, not pulled in
+    )
+
+
+def build_server(*, kb_adapter: Any = None, auto_load_kb: bool = True):
     """Construct and return the configured FastMCP server.
 
     Kept as a function (not module-level instantiation) so tests can
     spin up an isolated instance without side effects.
+
+    ``kb_adapter`` — optional edge-verification adapter (e.g.
+    ``CausenetMCPAdapter``). When provided OR auto-loaded, every
+    ``themis_run`` / ``themis_apply_patch_and_run`` attaches an
+    ``extensions.kb_verification_report`` to its result envelope.
+
+    ``auto_load_kb`` — when True (default) and no ``kb_adapter`` was
+    explicitly passed, ``_try_load_kb_adapter()`` is called once at
+    server construction. Set False in tests that don't want the
+    multi-GB SQLite load.
     """
     from mcp.server.fastmcp import FastMCP
 
     app = FastMCP("themis")
+
+    if kb_adapter is None and auto_load_kb:
+        kb_adapter = _try_load_kb_adapter()
 
     # ============================================ tools
 
@@ -98,8 +151,14 @@ def build_server():
         ``program``: either a ``dict`` matching ``kernel_ast.schema.json``
         or a JSON string. Returns the full ``themis.run`` envelope
         (``{"results": [...], "derivation": {...}, ...}``).
+
+        When this server was constructed with a KB edge-verification
+        adapter (auto-loaded from the sibling CauseNet package by
+        default), every LLM-proposed edge is verified against the KB
+        and the result is attached as
+        ``results[*].extensions.kb_verification_report``.
         """
-        return themis.run(program)
+        return themis.run(program, kb_adapter=kb_adapter)
 
     @app.tool()
     def themis_apply_patch_and_run(
@@ -109,9 +168,10 @@ def build_server():
 
         Multi-turn closed loop (slice A3): the client gathers user
         replies as patch bundles, applies them to the original program,
-        and gets a refreshed result envelope back.
+        and gets a refreshed result envelope back. Same KB verification
+        attachment as ``themis_run``.
         """
-        return themis.apply_patch_and_run(program, patches)
+        return themis.apply_patch_and_run(program, patches, kb_adapter=kb_adapter)
 
     @app.tool()
     def themis_verify(program: dict | str, result: dict) -> dict:

@@ -304,10 +304,16 @@ def make_inprocess_caller(app) -> ToolCallable:
     Useful for unit tests and trusted same-host deployments where the
     extra subprocess of stdio MCP is unwanted. ``app`` is whatever
     ``causenet_mcp.build_server()`` returned.
+
+    Event-loop-safe: when called from inside an already-running loop
+    (e.g. when this adapter is invoked as a tool inside Themis's own
+    MCP server — themis_run → kernel → kb_adapter → causenet_mcp.tool —
+    that whole stack runs under FastMCP's event loop), we cannot call
+    ``asyncio.run`` directly. Fall back to a fresh-thread + fresh-loop
+    pattern in that case.
     """
 
-    def _call(name: str, args: dict) -> dict:
-        blocks = asyncio.run(app.call_tool(name, args))
+    def _extract_text(blocks, name: str) -> dict:
         for block in blocks:
             text = getattr(block, "text", None)
             if text:
@@ -315,5 +321,21 @@ def make_inprocess_caller(app) -> ToolCallable:
         raise AssertionError(
             f"no text content in MCP tool result for {name!r}: {blocks!r}"
         )
+
+    def _call(name: str, args: dict) -> dict:
+        coro_factory = lambda: app.call_tool(name, args)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No loop running — fast path: asyncio.run creates one.
+            blocks = asyncio.run(coro_factory())
+            return _extract_text(blocks, name)
+        # A loop is already running on this thread; running another
+        # `asyncio.run` would error. Punt to a worker thread.
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(lambda: asyncio.run(coro_factory()))
+            blocks = future.result()
+        return _extract_text(blocks, name)
 
     return _call

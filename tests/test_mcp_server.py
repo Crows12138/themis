@@ -24,7 +24,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def app():
-    return build_server()
+    # auto_load_kb=False keeps the test suite from loading the multi-GB
+    # CauseNet SQLite on every fixture build. KB integration is tested
+    # separately in test_kb/test_mcp_kb_integration.py.
+    return build_server(auto_load_kb=False)
 
 
 # ============================================ wiring
