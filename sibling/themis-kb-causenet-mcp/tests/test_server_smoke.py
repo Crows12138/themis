@@ -48,9 +48,7 @@ def test_tool_catalog(app):
     tool_names = {t.name for t in asyncio.run(app.list_tools())}
     assert tool_names == {
         "causenet_query_edge",
-        "causenet_query_edge_aggregated",
         "causenet_neighbors",
-        "causenet_neighbors_among",
         "causenet_search_concept",
     }
 
@@ -135,123 +133,6 @@ def test_neighbors_causes_of_cancer_returns_results(app):
     })
     assert out["direction"] == "causes_of"
     assert len(out["results"]) >= 1
-
-
-# ============================================ query_edge_aggregated
-
-
-def test_query_edge_aggregated_supported_returns_distributions(app):
-    """smoking → lung_cancer in precision tier — aggregated form must
-    return source_title / path_pattern / source_type distributions."""
-    out = _call_tool(app, "causenet_query_edge_aggregated", {
-        "cause": "smoking", "effect": "lung_cancer",
-    })
-    assert out["verdict"] == "supported"
-    assert out["confidence_tier"] == "high_confidence"
-    assert out["num_sources"] >= 1
-    assert out["unique_source_count"] >= 1
-    # All three distributions must be non-empty when num_sources >= 1
-    assert len(out["source_title_distribution"]) >= 1
-    assert len(out["path_pattern_distribution"]) >= 1
-    assert len(out["source_type_distribution"]) >= 1
-    # Distribution entry shape
-    title_entry = out["source_title_distribution"][0]
-    assert "title" in title_entry
-    assert "count" in title_entry
-    assert title_entry["count"] >= 1
-    pattern_entry = out["path_pattern_distribution"][0]
-    assert "pattern" in pattern_entry
-    assert "count" in pattern_entry
-    type_entry = out["source_type_distribution"][0]
-    assert "source_type" in type_entry
-    assert "count" in type_entry
-
-
-def test_query_edge_aggregated_titles_sorted_descending(app):
-    """Title distribution must be sorted by count descending — Top-N
-    semantics depend on this for callers reading just the head."""
-    out = _call_tool(app, "causenet_query_edge_aggregated", {
-        "cause": "smoking", "effect": "lung_cancer",
-    })
-    counts = [e["count"] for e in out["source_title_distribution"]]
-    assert counts == sorted(counts, reverse=True)
-
-
-def test_query_edge_aggregated_not_found_empty_distributions(app):
-    """Absent edge: distributions are empty lists (not omitted), counts zero."""
-    out = _call_tool(app, "causenet_query_edge_aggregated", {
-        "cause": "purple_unicorn", "effect": "tuesday",
-    })
-    assert out["verdict"] == "not_found"
-    assert out["num_sources"] == 0
-    assert out["unique_source_count"] == 0
-    assert out["source_title_distribution"] == []
-    assert out["path_pattern_distribution"] == []
-    assert out["source_type_distribution"] == []
-
-
-def test_query_edge_aggregated_unique_count_lt_or_eq_total(app):
-    """unique_source_count counts DISTINCT pages — must be ≤ num_sources
-    (which counts sentence-level extractions, can have many per page)."""
-    out = _call_tool(app, "causenet_query_edge_aggregated", {
-        "cause": "smoking", "effect": "lung_cancer",
-    })
-    assert out["unique_source_count"] <= out["num_sources"]
-
-
-# ============================================ neighbors_among
-
-
-def test_neighbors_among_returns_edges_within_set(app):
-    """Given atoms {smoking, lung_cancer, cancer}, KB should return at
-    least smoking→lung_cancer and possibly other intra-set edges."""
-    out = _call_tool(app, "causenet_neighbors_among", {
-        "atoms": ["smoking", "lung_cancer", "cancer"],
-    })
-    assert "atoms" in out
-    assert "edges" in out
-    # smoking → lung_cancer is canonical, must be in the set
-    pairs = {(e["cause"], e["effect"]) for e in out["edges"]}
-    assert ("smoking", "lung_cancer") in pairs
-
-
-def test_neighbors_among_endpoints_strictly_within_set(app):
-    """Every returned edge's BOTH endpoints must be in the input set —
-    no leakage to concepts outside the atoms list."""
-    atoms = ["smoking", "lung_cancer", "cancer", "exercise"]
-    out = _call_tool(app, "causenet_neighbors_among", {"atoms": atoms})
-    normalized = set(out["atoms"])
-    for e in out["edges"]:
-        assert e["cause"] in normalized
-        assert e["effect"] in normalized
-
-
-def test_neighbors_among_empty_input_returns_empty(app):
-    """Empty atom list → empty edges, no crash."""
-    out = _call_tool(app, "causenet_neighbors_among", {"atoms": []})
-    assert out["atoms"] == []
-    assert out["edges"] == []
-
-
-def test_neighbors_among_normalizes_atoms(app):
-    """User-side casing / spacing on input must not affect lookup."""
-    out_clean = _call_tool(app, "causenet_neighbors_among", {
-        "atoms": ["smoking", "lung_cancer"],
-    })
-    out_dirty = _call_tool(app, "causenet_neighbors_among", {
-        "atoms": ["  SMOKING  ", "Lung Cancer"],
-    })
-    assert {(e["cause"], e["effect"]) for e in out_clean["edges"]} == \
-           {(e["cause"], e["effect"]) for e in out_dirty["edges"]}
-
-
-def test_neighbors_among_each_edge_has_tier(app):
-    """Tier label must be on every edge so caller can weight by confidence."""
-    out = _call_tool(app, "causenet_neighbors_among", {
-        "atoms": ["smoking", "lung_cancer", "cancer"],
-    })
-    for e in out["edges"]:
-        assert e["confidence_tier"] in ("high_confidence", "extracted")
 
 
 # ============================================ search_concept
