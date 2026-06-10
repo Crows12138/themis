@@ -69,6 +69,29 @@ def test_effect_query_with_data_returns_numeric_estimate():
     assert est["sample_size"] == 1000
 
 
+def test_backdoor_estimate_attaches_assumption_ledger():
+    """Binary/linear backdoor estimate surfaces the same assumption ledger
+    as dose-response: identification assumptions (invalidating) + the
+    outcome-model functional form (distorting), severity-sorted. (The
+    user's point: binary has an applicable version too — it was just not
+    wired before.)"""
+    df = _linear_confounded_dgp(n=1000, seed=0, true_ate=2.0)
+    out = themis.estimate(_confounded_ast(), df, ci_bootstrap=0)
+    ext = out["results"][0]["extensions"]
+    # mechanism_audit: the outcome regression form
+    assert ext["mechanism_audit"]["mechanisms"][0]["form"] == "linear"
+    # assumption_ledger: identification + functional_form, severity-sorted
+    entries = ext["assumption_ledger"]["assumptions"]
+    layers = [e["layer"] for e in entries]
+    assert "identification" in layers
+    assert "functional_form" in layers
+    idx_id = min(i for i, e in enumerate(entries) if e["layer"] == "identification")
+    idx_form = next(i for i, e in enumerate(entries) if e["layer"] == "functional_form")
+    assert entries[idx_id]["severity"] == "invalidating"
+    assert entries[idx_form]["severity"] == "distorting"
+    assert idx_id < idx_form
+
+
 def test_bootstrap_ci_populated_when_enabled():
     df = _linear_confounded_dgp(n=500, seed=0, true_ate=2.0)
     out = themis.estimate(_confounded_ast(), df, ci_bootstrap=100, random_state=1)

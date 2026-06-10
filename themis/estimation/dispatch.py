@@ -207,6 +207,23 @@ def _estimate_effect_queries(
                 "treatment": estimate.treatment,
                 "outcome": estimate.outcome,
             }
+            from ..output.result_orchestrator import (
+                build_assumption_ledger,
+                build_mechanism_audit,
+            )
+            ext = result.setdefault("extensions", {})
+            ext["mechanism_audit"] = build_mechanism_audit(
+                target=estimate.outcome,
+                form=estimate.form,
+                method=estimate.method,
+                assumption=estimate.model_assumption,
+                provenance="default",
+            )
+            ledger = build_assumption_ledger(
+                result, identification_specs=estimate.identification_assumptions,
+            )
+            if ledger is not None:
+                ext["assumption_ledger"] = ledger
             _attach_precision_budget(result["numeric_estimate"])
 
             result["derivation"] = _build_numeric_derivation_dict(
@@ -1525,6 +1542,23 @@ def _try_dose_response_estimate(
             for p in est.curve
         ],
     }
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=est.outcome,
+        form=est.form,
+        method=est.method,
+        assumption=est.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=est.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
     _attach_precision_budget_curve(result["numeric_estimate"])
     result["derivation"] = _build_numeric_derivation_dict(
         graph=graph, x=x, y=y, adjustment=chosen, given=frozenset(given),

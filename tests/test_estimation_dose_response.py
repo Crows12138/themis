@@ -101,6 +101,85 @@ def test_dose_response_assumptions_name_linearity():
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_dose_response_attaches_mechanism_audit():
+    """Slice C: the functional form is surfaced as a first-class,
+    provenance-tagged mechanism-audit element (parity with the edge /
+    theta llm-proposed review), not just buried in ``assumptions[0]``."""
+    out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
+    result = out["results"][0]
+    audit = result["extensions"]["mechanism_audit"]
+    mech = audit["mechanisms"][0]
+    assert mech["form"] == "linear"
+    assert mech["provenance"] == "default"
+    assert mech["target"] == "engagement"
+    assert mech["method"] == "dose_response_linear_dml"
+    # the shape assumption text is carried, and the summary frames it as
+    # a load-bearing assumption the user must audit before trusting it
+    assert mech["assumption"]
+    assert "审核" in audit["summary"]
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_dose_response_assumption_ledger_ranks_confounding_above_form():
+    """Ledger slice: every load-bearing assumption (identification,
+    LLM-proposed edge, functional form) aggregates into one
+    severity-sorted ledger. The invalidating 'no unmeasured confounding'
+    must rank above the merely-distorting functional form — fixing the
+    prominence inversion that mechanism_audit alone introduced."""
+    out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
+    result = out["results"][0]
+    ledger = result["extensions"]["assumption_ledger"]
+    entries = ledger["assumptions"]
+    layers = [e["layer"] for e in entries]
+    # all three layers present: identification + the LLM-proposed edge + form
+    assert "identification" in layers
+    assert "structural_edge" in layers
+    assert "functional_form" in layers
+    # sorted by severity — the first entry is invalidating
+    assert entries[0]["severity"] == "invalidating"
+    # no-confounding (identification) ranks above the functional form
+    idx_conf = next(i for i, e in enumerate(entries) if e["layer"] == "identification")
+    idx_form = next(i for i, e in enumerate(entries) if e["layer"] == "functional_form")
+    assert idx_conf < idx_form
+    # the LLM-proposed edge is surfaced as load-bearing, provenance kept
+    edge = next(e for e in entries if e["layer"] == "structural_edge")
+    assert edge["provenance"] == "llm_proposal"
+    assert edge["severity"] == "invalidating"
+    # functional form is present but only distorting (ranks below)
+    form_entry = next(e for e in entries if e["layer"] == "functional_form")
+    assert form_entry["severity"] == "distorting"
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_dose_response_ledger_excludes_non_load_bearing_edge():
+    """The ledger sources structural edges from the load-bearing analysis
+    (data_gap_report), not the flat proposed-edge list — so a proposed
+    edge the answer never traverses does NOT show up as invalidating.
+    That was the false alarm the flat list produced."""
+    prog = _dose_response_program()
+    # an extra LLM-proposed edge disconnected from the query path
+    prog["statements"][0:0] = [
+        {"kind": "variable", "predicate": "coffee"},
+        {"kind": "variable", "predicate": "sleep_quality"},
+        {"kind": "cause", "from": _atom("coffee"), "to": _atom("sleep_quality"),
+         "annotations": {"source": "llm_proposal"}},
+    ]
+    # the disconnected vars need data columns to clear the data contract,
+    # but they stay off the raise_amount -> engagement query path
+    data = _synth_data()
+    rng = np.random.default_rng(11)
+    data["coffee"] = rng.normal(size=len(data))
+    data["sleep_quality"] = rng.normal(size=len(data))
+    out = themis.estimate(prog, data, model="linear")
+    ledger = out["results"][0]["extensions"]["assumption_ledger"]
+    claims = " ".join(e["claim"] for e in ledger["assumptions"])
+    # the on-path edge is still surfaced as load-bearing ...
+    assert "raise_amount" in claims and "engagement" in claims
+    # ... but the off-path proposed edge never enters the ledger
+    assert "coffee" not in claims and "sleep_quality" not in claims
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_dose_response_status_flips_to_numerically_solved():
     out = themis.estimate(_dose_response_program(), _synth_data(), model="linear")
     assert out["results"][0]["status"] == "numerically_solved"

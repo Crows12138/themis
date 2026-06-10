@@ -397,3 +397,191 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
         "probabilities": probabilities,
         "summary": summary,
     }
+
+
+# ---------------------------------------------------------------------------
+# Mechanism-audit surface (slice C) — functional-form assumption parity
+# ---------------------------------------------------------------------------
+
+
+def build_mechanism_audit(
+    *,
+    target: str,
+    form: str,
+    method: str,
+    assumption: str,
+    provenance: str = "default",
+) -> dict:
+    """Aggregate a numeric estimate's functional-form (mechanism)
+    assumption into an audit surface mirroring ``build_llm_proposed_review``.
+
+    The third leg of the SCM triad: structure (``CauseStatement`` edges)
+    and parameters (``ProbabilityStatement`` theta) already flow through
+    propose -> annotate -> audit; the functional form a continuous
+    estimator assumes (linear / forest / drlearner) did not. This pulls
+    that assumption out of the flat ``assumptions`` list into a labelled,
+    provenance-tagged element so the renderer can disclose it as a
+    load-bearing choice the user must audit — the curve's *shape* is an
+    assumption, not a measured quantity.
+
+    ``provenance`` is ``"default"`` here (the estimator auto-selected the
+    family by sample size). A later slice promotes user / LLM-proposed
+    forms to first-class declarations; this builder already carries the
+    field so that extension is purely additive.
+
+    Caller (``estimation.dispatch._try_dose_response_estimate``) attaches
+    the returned dict to ``result.extensions.mechanism_audit``.
+    """
+    mechanism = {
+        "target": target,
+        "form": form,
+        "method": method,
+        "provenance": provenance,
+        "assumption": assumption,
+    }
+    origin = (
+        "系统按样本量自动选择"
+        if provenance == "default"
+        else f"来源：{provenance}"
+    )
+    summary = (
+        f"这个数字依赖一个假设的函数形式（{form}，{origin}）—— 它是模型"
+        f"假设，不是数据测得。Themis 在该假设下的估计是对的，但这个形式"
+        f"本身是否合理需要你审核。"
+    )
+    return {"mechanisms": [mechanism], "summary": summary}
+
+
+# ---------------------------------------------------------------------------
+# Assumption ledger — one severity-ranked view over the scattered channels
+# ---------------------------------------------------------------------------
+
+# Severity ordering drives the ledger sort. The axis is "if this
+# assumption is false, how does the conclusion die":
+#   invalidating  — the number is not a causal effect at all
+#   distorting    — shape / magnitude skewed, the average often survives
+#   confidence_only — only the confidence is affected
+_SEVERITY_RANK = {"invalidating": 0, "distorting": 1, "confidence_only": 2}
+
+
+def build_assumption_ledger(
+    result: dict, *, identification_specs: tuple = (),
+) -> dict | None:
+    """Aggregate every load-bearing assumption scattered across the
+    result envelope into ONE severity-ranked ledger.
+
+    A VIEW, not a rewrite. It reads the existing channels —
+    ``data_gap_report`` (which proposal edges are actually load-bearing,
+    i.e. on the answer path — that analysis already ran there),
+    ``extensions.llm_proposed_review`` (LLM theta priors),
+    ``extensions.mechanism_audit`` (functional form), and the
+    ``identification_specs`` argument (identification assumptions
+    structured at source by the estimator, passed directly so the
+    schema-validated ``numeric_estimate`` block stays untouched) — and
+    re-presents them as
+    first-class entries. The source channels stay untouched; this is the
+    single place provenance + severity are assigned, so an assumption's
+    prominence tracks how load-bearing it is instead of which channel it
+    happened to land in.
+
+    Severity by category:
+
+    - identification (no unmeasured confounding, overlap) -> invalidating
+    - proposal edge ACTUALLY on the answer path -> invalidating (a
+      proposed-but-unused edge is not load-bearing, so it never enters
+      the ledger — no false alarm)
+    - functional form (curve shape) -> distorting
+    - LLM theta prior -> distorting
+
+    Each entry carries ``claim`` / ``layer`` / ``provenance`` /
+    ``severity`` / ``testable`` (identification assumptions are
+    untestable by design; a form can be probed by switching estimators;
+    an edge needs evidence). Returns ``None`` when nothing is assumed.
+
+    Caller (``estimation.dispatch._try_dose_response_estimate``) attaches
+    the result to ``result.extensions.assumption_ledger``; the renderer
+    leads with it instead of the individual channels.
+    """
+    extensions = result.get("extensions") or {}
+    entries: list[dict] = []
+
+    # 1) identification assumptions — structured at source by the
+    #    estimator, passed directly (not via schema-validated numeric_estimate)
+    for spec in identification_specs or ():
+        entries.append({
+            "claim": spec.get("claim", ""),
+            "layer": spec.get("layer", "identification"),
+            "provenance": "inherent",
+            "severity": spec.get("severity", "invalidating"),
+            "testable": bool(spec.get("testable", False)),
+        })
+
+    # 2a) structural edges — ONLY the load-bearing ones. The authoritative
+    #     load-bearing analysis already ran in the data_gap_report
+    #     generator (supporting_paths + DAG-walk), which emits one
+    #     UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH gap per proposal edge the
+    #     answer actually traverses. Sourcing from there — not from the
+    #     full ``llm_proposed_review`` edge list — means a proposed-but-
+    #     unused edge no longer shows up as "invalidating": that was the
+    #     false alarm the flat edge list produced. Covers LLM- and
+    #     discovery-proposed edges alike (the gap description names which).
+    report = result.get("data_gap_report") or {}
+    for gap in report.get("gaps") or []:
+        if gap.get("kind") != "unverified_proposal_edge_on_query_path":
+            continue
+        desc = gap.get("description", "")
+        provenance = "discovery" if "发现算法" in desc else "llm_proposal"
+        entries.append({
+            "claim": desc,
+            "layer": "structural_edge",
+            "provenance": provenance,
+            "severity": "invalidating",
+            "testable": True,
+        })
+
+    # 2b) LLM theta priors — used in the numeric computation when present,
+    #     so they stay in the ledger (magnitude-affecting -> distorting).
+    review = extensions.get("llm_proposed_review") or {}
+    for prob in review.get("probabilities") or []:
+        entries.append({
+            "claim": f"{prob.get('key')} = {prob.get('value')}（LLM 常识 prior）",
+            "layer": "parameter",
+            "provenance": "llm_prior",
+            "severity": "distorting",
+            "testable": True,
+        })
+
+    # 3) functional form (curve shape)
+    mech = extensions.get("mechanism_audit") or {}
+    for m in mech.get("mechanisms") or []:
+        entries.append({
+            "claim": (
+                f"{m.get('target')} 的函数形式为 {m.get('form')}"
+                f"（{m.get('assumption', '')}）"
+            ),
+            "layer": "functional_form",
+            "provenance": m.get("provenance", "estimator_default"),
+            "severity": "distorting",
+            "testable": True,
+        })
+
+    if not entries:
+        return None
+
+    entries.sort(key=lambda e: _SEVERITY_RANK.get(e["severity"], 9))
+
+    n_inval = sum(1 for e in entries if e["severity"] == "invalidating")
+    n_other = len(entries) - n_inval
+    parts: list[str] = []
+    if n_inval:
+        parts.append(f"{n_inval} 条一旦不成立、整条因果结论作废")
+    if n_other:
+        parts.append(f"{n_other} 条影响形状 / 量级或置信度")
+    summary = (
+        f"这个结论依赖 {len(entries)} 条假设："
+        + "；".join(parts)
+        + "。下面按严重度从高到低列出 —— Themis 的计算在这些假设下是对的，"
+        "但假设本身的真假需要你逐条审核。"
+    )
+
+    return {"assumptions": entries, "summary": summary}

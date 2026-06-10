@@ -44,7 +44,11 @@ import json
 from .input.parser import parse_json
 from .input.semantic_validator import validate_program
 from .input.syntactic_validator import validate_ast, validate_result
-from .output.result_orchestrator import build_llm_proposed_review, to_dict
+from .output.result_orchestrator import (
+    build_assumption_ledger,
+    build_llm_proposed_review,
+    to_dict,
+)
 from .runtime.graph_projection import project
 from .runtime.instantiation import instantiate
 from .runtime.scheduler import dispatch_all
@@ -156,6 +160,18 @@ def _run_typed(prog) -> dict:
         for rd in result_dicts:
             ext = rd.setdefault("extensions", {})
             ext["llm_proposed_review"] = review
+    # Assumption ledger — unified, severity-ranked view over the
+    # per-result assumption channels (load-bearing proposal edges from
+    # ``data_gap_report`` + LLM theta priors on the structural-query
+    # path). The estimate path re-builds a fuller ledger downstream (it
+    # adds functional-form + identification entries) and overwrites this
+    # one; here the pure-run path gets the same unified surface instead
+    # of having its assumptions scattered. Per-result: each carries its
+    # own ``data_gap_report``.
+    for rd in result_dicts:
+        ledger = build_assumption_ledger(rd)
+        if ledger is not None:
+            rd.setdefault("extensions", {})["assumption_ledger"] = ledger
     return {"results": result_dicts}
 
 

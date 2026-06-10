@@ -55,6 +55,12 @@ class BackdoorEstimate:
     adjustment: tuple[str, ...]
     treatment: str
     outcome: str
+    # Mechanism (functional form = outcome regression model) + structured
+    # identification assumptions, surfaced for the assumption-ledger
+    # (parity with the dose-response estimator).
+    model_assumption: str = ""
+    form: str = ""
+    identification_assumptions: tuple[dict, ...] = ()
 
 
 def estimate_backdoor_ate(
@@ -118,6 +124,27 @@ def estimate_backdoor_ate(
         )
 
     assumptions = _assumptions_for(resolved, len(adjustment))
+    # Structured for the assumption-ledger: identification assumptions
+    # (invalidating) separated from the functional-form choice (the
+    # outcome regression model -> mechanism_audit, distorting).
+    identification_assumptions = (
+        {"claim": "给定调整集无未观测混杂（条件可交换性）",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+        {"claim": "重叠 / positivity：每个调整集层内处理组与对照组都有样本",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+        {"claim": "一致性：干预定义明确，potential outcomes 良定义",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+    )
+    if len(adjustment) == 0:
+        identification_assumptions += (
+            {"claim": "无条件可交换性：处理近似边际随机化（无需调整）",
+             "layer": "identification", "severity": "invalidating", "testable": False},
+        )
+    model_assumption = (
+        "outcome 用 logistic 回归建模（假设给定调整集 logit 线性）"
+        if resolved == "logistic"
+        else "outcome 用 linear 回归建模（假设给定调整集线性）"
+    )
     return BackdoorEstimate(
         point=float(point),
         ci_lower=float(ci_lower) if ci_lower is not None else None,
@@ -130,6 +157,9 @@ def estimate_backdoor_ate(
         adjustment=tuple(adjustment),
         treatment=treatment,
         outcome=outcome,
+        model_assumption=model_assumption,
+        form=resolved,
+        identification_assumptions=identification_assumptions,
     )
 
 

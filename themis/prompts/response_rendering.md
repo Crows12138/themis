@@ -113,7 +113,7 @@ Fields in roughly the order you'll consult them:
 | `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
 | `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |
 | `bounds_result` | Phase 12: symbolic bounds when point identification failed. Method + lower/upper expressions + assumptions. See §"Bounds rendering" |
-| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification` |
+| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification`, `mechanism_audit`; **`assumption_ledger`** (unified, severity-ranked lead surface — render first when present) |
 | `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
 | `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
 
@@ -985,6 +985,30 @@ Template:
 > 假设：`<assumptions translated via glossary>`。曲线形状告诉你的不
 > 是单点效应而是 dose-response 形态 —— 是单调的吗？阈值在哪？平台
 > 在哪？把这些问题指回给用户。
+
+When `extensions.assumption_ledger` is present it is the **single lead
+surface** for everything the answer takes on faith — render its
+`assumptions[]` before the table, top-down in the given order (already
+sorted by severity, so `invalidating` entries come first). Lead with
+the `invalidating` ones: if any is false the number is not a causal
+effect at all — that outranks any `distorting` shape concern. Each
+entry carries `layer` / `provenance` / `severity` / `testable`; name
+the provenance (识别层固有 / 上游 LLM 提的边 / LLM prior / 估计器默认
+形式) so the user knows whom to challenge, and say which are testable
+(form → switch estimator; edge → needs evidence) vs untestable by
+design (identification). The ledger already folds in the LLM-proposed
+edges, theta priors, and functional form, so do NOT separately
+re-render `llm_proposed_review` / `mechanism_audit` when the ledger is
+present — that double-counts.
+
+When the ledger is absent but `extensions.mechanism_audit` is present,
+fall back to surfacing it directly: its `summary` leads the numeric
+reply. The functional form (`mechanisms[].form`) is the curve's *shape*
+assumption — the estimate is correct *given* that form, but the form
+itself was assumed (`provenance: default` = auto-selected by sample
+size), not measured. Disclose it as load-bearing, then ask whether the
+assumed shape fits — never present the curve as if its shape were
+established by the data alone.
 
 If ``estimator_fallback`` is present (binary treatment fell back to
 binary effect — Phase 14 slice a behaviour), surface the fallback

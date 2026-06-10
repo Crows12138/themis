@@ -109,6 +109,18 @@ class DoseResponseEstimate:
     sampling_points: tuple[float, ...]
     reference_point: float
     curve: tuple[CurvePoint, ...]
+    # Mechanism (functional-form) surfaced explicitly so the audit layer
+    # can treat it as a first-class, provenance-tagged assumption rather
+    # than digging it out of ``assumptions[0]`` by positional convention.
+    # ``form`` is the resolved estimator family (linear / forest /
+    # drlearner); ``model_assumption`` is the human-readable shape
+    # assumption. Mechanism-audit slice (C).
+    model_assumption: str = ""
+    form: str = ""
+    # Identification assumptions structured at source (no unmeasured
+    # confounding, overlap) so the assumption-ledger can rank them by
+    # severity. Each entry: {claim, layer, severity, testable}.
+    identification_assumptions: tuple[dict, ...] = ()
 
 
 def estimate_dose_response(
@@ -192,11 +204,20 @@ def estimate_dose_response(
             backend=resolved,
         ) from exc
 
+    identification_assumptions = (
+        {"claim": "无未观测混杂（given W）", "layer": "identification",
+         "severity": "invalidating", "testable": False},
+        {"claim": (f"重叠假设：所有 W 上 T 都有支持（采样点限于观测域内："
+                   f"{points[0]:g}–{points[-1]:g}）"),
+         "layer": "identification", "severity": "invalidating",
+         "testable": False},
+    )
+    # ``assumptions`` (flat strings) stays the legacy surface, derived
+    # from the structured specs so there is one source of truth: form
+    # first (it has its own mechanism_audit channel), then identification.
     assumptions = (
         model_assumption,
-        "无未观测混杂（given W）",
-        f"重叠假设：所有 W 上 T 都有支持（采样点限于观测域内："
-        f"{points[0]:g}–{points[-1]:g}）",
+        *(s["claim"] for s in identification_assumptions),
     )
 
     return DoseResponseEstimate(
@@ -211,6 +232,9 @@ def estimate_dose_response(
         sampling_points=tuple(float(p) for p in points),
         reference_point=reference,
         curve=tuple(curve_points),
+        model_assumption=model_assumption,
+        form=resolved,
+        identification_assumptions=identification_assumptions,
     )
 
 
