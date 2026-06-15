@@ -280,6 +280,7 @@ def compute_data_gap_report(
     gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
     gaps.extend(_classify_dose_response_data(program, stmt, derivation))
 
+    gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
     gaps.sort(key=_gap_sort_key)
     summary = _make_summary(gaps)
     actionable = _make_actionable_steps(gaps)
@@ -288,6 +289,63 @@ def compute_data_gap_report(
         gaps=tuple(gaps),
         actionable_next_steps=tuple(actionable),
     )
+
+
+_FIND_IV_ADVICE = "找一个满足 IV 条件的工具变量"
+
+
+def _rewrite_iv_aware_alternatives(
+    gaps: list[DataGap],
+    bounds_result,
+) -> list[DataGap]:
+    """Instrument-aware repair of the static unidentifiable advice.
+
+    When IV bounds were already computed from a declared instrument
+    (``bounds_result.method == balke_pearl_iv``), the boilerplate "go
+    find an instrument satisfying the IV conditions" alternative on an
+    ``unidentifiable_no_admissible_set`` gap is self-contradictory — the
+    interval that same gap points at LITERALLY came from that instrument.
+    Replace only that one line with the honest next step: an instrument
+    is already in hand; tightening the interval to a POINT estimate needs
+    an extra assumption (monotonicity -> LATE / linearity -> 2SLS). The
+    other alternatives (measure the confounder, run an RCT) are untouched.
+
+    Detected purely from ``bounds_result`` — no graph walk, no extension
+    stamping, so it cannot fire a spurious second gap. Real-usage probe,
+    2026-06-15.
+    """
+    from dataclasses import replace
+
+    method = getattr(bounds_result, "method", None)
+    method_value = getattr(method, "value", method)
+    if method_value != "balke_pearl_iv":
+        return gaps
+    out: list[DataGap] = []
+    for g in gaps:
+        if (
+            g.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET
+            and _FIND_IV_ADVICE in g.alternative_paths
+        ):
+            out.append(replace(
+                g,
+                alternative_paths=tuple(
+                    (
+                        # NB: deliberately avoids the tokens in scheduler's
+                        # _BOUNDS_HINT_TOKENS ("bounds" / "Manski" /
+                        # "Balke-Pearl bounds") so _reconcile_alt_paths_with
+                        # _bounds keeps this as a distinct constructive
+                        # alternative instead of collapsing it into the
+                        # generic "已计算 bounds" pointer.
+                        "工具变量已声明并已用于给出区间；要把区间收紧成点"
+                        "估计，需补一个额外假设：monotonicity（→ LATE/Wald）"
+                        "或 linearity（→ 2SLS/ATE）"
+                    ) if a == _FIND_IV_ADVICE else a
+                    for a in g.alternative_paths
+                ),
+            ))
+        else:
+            out.append(g)
+    return out
 
 
 def _classify_unverified_proposal_edges(

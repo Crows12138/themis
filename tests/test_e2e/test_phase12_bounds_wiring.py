@@ -144,6 +144,45 @@ def test_iv_shape_program_triggers_balke_pearl():
     assert "z" in bounds["upper_expression"]
 
 
+def test_iv_bounds_drop_self_contradictory_find_instrument_advice():
+    """Real-usage probe 2026-06-15 — when Balke-Pearl IV bounds were
+    computed from a declared instrument, the unidentifiable gap must NOT
+    still advise "go find an instrument satisfying the IV conditions":
+    the interval it points at LITERALLY came from that instrument. The
+    boilerplate is replaced by the honest constructive next step (declare
+    monotonicity / linearity to tighten the interval to a point estimate).
+    """
+    result = themis.run(_program(with_iv=True))["results"][0]
+    assert result["bounds_result"]["method"] == "balke_pearl_iv"
+    gap = next(
+        g for g in result["data_gap_report"]["gaps"]
+        if g["kind"] == "unidentifiable_no_admissible_set"
+    )
+    alts = gap["alternative_paths"]
+    assert not any("找一个满足 IV 条件的工具变量" in a for a in alts), (
+        "self-contradictory 'find an instrument' advice survived even "
+        "though Balke-Pearl bounds came from a declared instrument"
+    )
+    # The constructive replacement names the assumption that unlocks a
+    # point estimate, and survives scheduler's bounds-hint reconcile pass.
+    assert any("monotonicity" in a and "linearity" in a for a in alts)
+
+
+def test_no_iv_unidentifiable_keeps_find_instrument_advice():
+    """Contrast to the test above: with NO instrument (plain bow arc,
+    Manski bounds), 'find an instrument' is still legitimate advice and
+    must be preserved — the rewrite is gated on balke_pearl_iv."""
+    result = themis.run(_program())["results"][0]
+    assert result["bounds_result"]["method"] != "balke_pearl_iv"
+    gap = next(
+        g for g in result["data_gap_report"]["gaps"]
+        if g["kind"] == "unidentifiable_no_admissible_set"
+    )
+    assert any(
+        "找一个满足 IV 条件的工具变量" in a for a in gap["alternative_paths"]
+    )
+
+
 def test_admg_unidentifiable_emits_unidentifiable_gap():
     """Phase 12 §S.12.6 patch: ADMG-blocked effect queries emit
     `unidentifiable_no_admissible_set` gap_kind via the structure-group
