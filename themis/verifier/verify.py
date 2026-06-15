@@ -274,6 +274,22 @@ def _assert_query_binding(
                 step_index=step_index, rule=step.rule,
             )
 
+    # Phase 15B: Tian / IDC are the primary point-ID path. Their
+    # decomposition / Rule-2-exchange steps declare the (x, y) they reason
+    # about; require it to match the active query so a derivation built for
+    # one (X, Y) cannot be replayed against another query on the same graph.
+    if step.rule in ("tian_c_decomposition", "idc_rule2_exchange"):
+        if step.inputs.get("x") != q.intervention.atom:
+            raise VerificationError(
+                f"{step.rule}.x does not match verification context query",
+                step_index=step_index, rule=step.rule,
+            )
+        if step.inputs.get("y") != q_target_atom:
+            raise VerificationError(
+                f"{step.rule}.y does not match verification context query",
+                step_index=step_index, rule=step.rule,
+            )
+
 
 def _assert_cause_query_binding(
     step: DerivationStep,

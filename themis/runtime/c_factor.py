@@ -397,13 +397,59 @@ def _atomset_key(s: frozenset[Atom]) -> tuple:
 
 
 def _atom_predecessors(state: _IdState, v: Atom) -> tuple[Atom, ...]:
-    """Atoms strictly before `v` in the ADMG-wide topological order."""
+    """Predecessors of `v` for its c-factor term: atoms strictly before
+    `v` in the ADMG-wide topological order AND inside the current scope
+    ``state.V``.
+
+    The full-graph topo (``state.topo``) is kept only for a CONSISTENT
+    ordering across recursive calls; the conditioning set ``v^{(i-1)}`` of
+    a c-factor ``P(v | v^{(i-1)})`` is over the CURRENT problem's vertex
+    set ``V``, not the whole original graph. Without the ``in state.V``
+    filter, an ancestral shrink (Line 2) that drops irrelevant nodes still
+    leaks them into the conditioning as free, unbound VarRefs — e.g.
+    P(health | do(exercise)) in a graph that also contains an unrelated
+    stress→smokes→cancer triangle conditioned health on stress/smokes/
+    cancer, producing ``free VarRef`` that validate_formula rejects.
+    """
     out: list[Atom] = []
     for u in state.topo:
         if u == v:
             break
-        out.append(u)
+        if u in state.V:
+            out.append(u)
     return tuple(out)
+
+
+def _relevant_conditioning(
+    state: _IdState,
+    v: Atom,
+    prior_atoms: tuple[Atom, ...],
+) -> tuple[Atom, ...]:
+    """Reduce a c-factor's conditioning ``P(v | prior_atoms)`` to v's
+    Markov pillow: drop every predecessor ``p`` that ``v`` is m-separated
+    from given the rest. By the ADMG ordered local Markov property this
+    leaves the value unchanged (``P(v | rest, p) = P(v | rest)`` whenever
+    ``v ⊥ p | rest``), and m-separation is ADMG-aware so a predecessor in
+    ``v``'s bidirected district is never dropped.
+
+    Why this is load-bearing, not cosmetic: Line 3 folds variables that
+    are non-ancestors of Y in G_{X̄} into the intervention set ``x`` — they
+    carry NO do-value, so if they survive into a c-factor's conditioning
+    (as topo-predecessors) they become unbound free VarRefs that
+    validate_formula rejects. The classic trigger is an irrelevant
+    upstream variable, e.g. Z→X in a W-confounded P(Y|do(X)): Z is an
+    ancestor of Y only through the now-severed X, so Y ⊥ Z | parents and
+    Z is correctly dropped here.
+    """
+    if not prior_atoms:
+        return prior_atoms
+    prior_set = frozenset(prior_atoms)
+    kept: list[Atom] = []
+    for p in prior_atoms:
+        rest = tuple(prior_set - {p})
+        if is_m_connected(state.graph, state.bidirected, v, p, rest):
+            kept.append(p)
+    return tuple(kept)
 
 
 def _build_q_factor(
@@ -427,7 +473,8 @@ def _build_q_factor(
         if v not in s:
             continue
         v_va = _atom_to_target_va(state, v)
-        prior_atoms = _atom_predecessors(state, v)
+        prior_atoms = _relevant_conditioning(
+            state, v, _atom_predecessors(state, v))
         prior_vas = tuple(_atom_to_given_va(state, p) for p in prior_atoms)
         factors.append(ProbabilityRefExpr(target=v_va, given=prior_vas))
 
@@ -453,7 +500,8 @@ def _build_marginal(
         if v not in scope:
             continue
         v_va = _atom_to_target_va(state, v)
-        prior_atoms = _atom_predecessors(state, v)
+        prior_atoms = _relevant_conditioning(
+            state, v, _atom_predecessors(state, v))
         prior_vas = tuple(_atom_to_given_va(state, p) for p in prior_atoms)
         factors.append(ProbabilityRefExpr(target=v_va, given=prior_vas))
 

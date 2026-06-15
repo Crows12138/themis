@@ -116,11 +116,29 @@ Given `(graph, bidirected, x, y, given, claimed_formula, claimed_verdict)`:
   **Expect the backbone to surface latent bugs in existing methods —
   that is the payoff, not a setback.**
 
-**Phase B (deferred, user decision pending):** collapse the redundant
-scheduler builders into "run ID/IDC → recognize & label the pattern",
-making the pretty formulas pure renderings. Higher churn (~19 test
-files, user-facing formula change); only after the backbone has proven
-itself.
+**Phase B (in progress) — collapse the scheduler onto the ID engine.**
+`_dispatch_identify` is restructured to *"run ID/IDC → recognize pattern
+→ escalate"*:
+
+- the **engine** (`identify_via_tian` for empty given, `identify_via_idc`
+  for conditional) decides identifiability and provides the **canonical
+  c-factor formula** for ALL point-ID queries — pure-DAG and ADMG alike;
+- the per-method pretty-formula builders (`backdoor_formula`,
+  `front_door_formula`) are **retired**. Decision (2026-06-15, user):
+  *the formula is a machine artifact and need not be pretty — what
+  humans read is the GRAPH.* So the user-facing formula is the canonical
+  c-factor, and the identification's human value moves to **graph-level
+  annotations**: the recognized pattern (backdoor / front-door /
+  c_factor), the adjustment / mediator set ("control for W"), and — when
+  unidentifiable — the hedge witness ("X and Y trapped in this
+  c-component"). See [[feedback_graph_is_human_surface]].
+- **IV / bounds remain the escalation layer**, fired only when the
+  engine reports the query is not (nonparametrically) identifiable.
+
+Churn (~19 test files: terminal rule names backdoor/front_door → tian/
+idc, formula-shape assertions → c-factor) is accepted — the Phase-A
+semantic backbone numerically validates every rerouted formula, so a
+reroute that changes a formula cannot silently break correctness.
 
 ## Risks
 

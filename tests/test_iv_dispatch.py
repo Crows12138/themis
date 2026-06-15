@@ -138,10 +138,12 @@ def test_frontdoor_still_preferred_over_iv():
     result = out["results"][0]
     assert result["status"] == "structurally_solved"
     assert result["structural_result"]["value"] is True
-    # Front-door should fire, NOT IV
+    # Phase 15B: the ID engine identifies it; IV (the escalation layer)
+    # must NOT fire, and the structure is recognized as front-door.
     assert "iv_identification" not in (result.get("extensions") or {})
     rules = [step["rule"] for step in result["derivation"]["steps"]]
-    assert any("front" in r for r in rules)
+    assert "identify_via_iv" not in rules
+    assert result["extensions"]["identification"]["pattern"] == "front_door"
 
 
 def test_unidentifiable_when_all_three_fail_admg():

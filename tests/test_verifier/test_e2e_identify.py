@@ -77,8 +77,14 @@ def test_verifier_accepts_every_positive_identify_derivation(fixture):
 
 @pytest.mark.parametrize("fixture", IDENTIFY_FIXTURES, ids=lambda p: p.name)
 def test_tampering_criterion_output_is_rejected(fixture):
-    """Flipping the backdoor_criterion step's output to False makes
-    R5 fail (criterion didn't prove True)."""
+    """Flipping the engine's decomposition / exchange step output to False
+    must be rejected (the rule checks the step proved True). Phase 15B:
+    the point-ID engine is Tian / IDC, so the load-bearing first step is
+    tian_c_decomposition / idc_rule2_exchange (backdoor_criterion on the
+    legacy path)."""
+    _GATE_RULES = (
+        "tian_c_decomposition", "idc_rule2_exchange", "backdoor_criterion",
+    )
     _, graph, results, stmt_by_id = _run_and_verify(fixture)
     for r in results:
         if (
@@ -90,12 +96,15 @@ def test_tampering_criterion_output_is_rejected(fixture):
         ctx = VerificationContext(
             graph=graph, query=stmt_by_id[r.query_id].query
         )
-        # Find the backdoor_criterion step and flip its output.
+        # Find the engine's gate step and flip its output to False.
         bad = list(r.derivation)
+        tampered = False
         for i, step in enumerate(bad):
-            if step.rule == "backdoor_criterion":
+            if step.rule in _GATE_RULES:
                 bad[i] = replace(step, output=False)
+                tampered = True
                 break
+        assert tampered, f"{r.query_id}: no gate step to tamper"
         with pytest.raises(VerificationError):
             verify_identify(tuple(bad), ctx, r.structural_result)
 

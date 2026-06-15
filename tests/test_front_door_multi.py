@@ -146,14 +146,16 @@ def test_scheduler_picks_multi_mediator_front_door():
     out = themis.run(ast)
     result = out["results"][0]
 
-    # Should identify via front-door with two mediators
+    # Phase 15B: identified by the ID engine; recognized as a front-door
+    # pattern whose mediator set carries both mediators.
     assert result["status"] == "structurally_solved"
     assert result["structural_result"]["value"] is True
 
     rules = [step["rule"] for step in result["derivation"]["steps"]]
-    assert "front_door_criterion" in rules
-    assert "front_door_adjustment_formula" in rules
-    assert "identify_via_front_door" in rules
+    assert "identify_via_tian" in rules
+    ident = result["extensions"]["identification"]
+    assert ident["pattern"] == "front_door"
+    assert len(ident["mediator_set"]) >= 2
 
 
 def test_themis_verify_accepts_multi_mediator_result():

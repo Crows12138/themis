@@ -258,174 +258,122 @@ def _dispatch_identify(
             ),
         )
 
-    # Phase 2.latent S3.b.1: ADMG programs first try the ADMG-aware
-    # backdoor (minimal_adjustment_sets with bidirected); if that
-    # returns nothing, S3.a's ADMG-aware front-door is the next
-    # fallback. Out-of-reach ADMG cases become needs_investigation
-    # pointing at S3.b.2 (c-factor) for follow-up.
-    if bidirected:
-        admg_adjustment_sets = structural_solver.minimal_adjustment_sets(
-            graph, x, y, given=q.given, bidirected=bidirected
+    # ───────────────────────── Phase 15B — ID/IDC is the engine.
+    # The complete Shpitser-Pearl algorithm decides identifiability and
+    # provides the canonical c-factor formula for EVERY point-ID query —
+    # pure-DAG and ADMG alike. backdoor / front-door are no longer
+    # independent solvers; they are recognized as graph-level PATTERNS
+    # (the human surface — "control for W"), attached as an annotation,
+    # while the formula itself is the machine-facing c-factor. IV is the
+    # assumption-laden ESCALATION, fired only when the engine reports the
+    # query is not nonparametrically identifiable. See
+    # PHASE_15_ID_FOUNDATION_CHARTER.md.
+    from . import c_factor
+    if q.given:
+        engine = c_factor.identify_via_idc(
+            graph, bidirected, x, y, q.given, q.intervention.value,
         )
-        if admg_adjustment_sets:
-            # Adjustment set exists in ADMG — reuse the backdoor
-            # derivation builder below (same formula shape).
-            adjustment_sets = admg_adjustment_sets
-        else:
-            if not q.given:
-                front = structural_solver.front_door_sets(
-                    graph, x, y, bidirected=bidirected
-                )
-                if front:
-                    return _build_identify_via_frontdoor(stmt, graph, q, front)
-                # Phase 6.iv: IV fallback when ADMG backdoor + front-door
-                # both fail. This is the classic IV scenario — X ↔ Y
-                # bidirected (unobserved confounder), and some Z → X with
-                # Z independent of Y in G[\bar{X}].
-                iv = structural_solver.iv_sets(
-                    graph, x, y, bidirected=bidirected
-                )
-                if iv:
-                    return _build_identify_via_iv(
-                        stmt, graph, q, iv, bidirected=bidirected
-                    )
-                # Tian / Shpitser ID — last resort before
-                # needs_investigation. Handles c-factor-identifiable
-                # ADMGs that backdoor/front-door/IV miss. Returns
-                # None when the case requires Shpitser Line 7
-                # symbolic substitution (not implemented in this
-                # slice); scheduler then falls through to
-                # needs_investigation.
-                from . import c_factor
-                tian = c_factor.identify_via_tian(
-                    graph, bidirected, x, y, q.intervention.value,
-                )
-                if tian.identifiable:
-                    return _build_identify_via_tian(stmt, graph, q, tian)
-                if tian.hedge is not None:
-                    # Shpitser Line 5 produced a hedge — definitive
-                    # unidentifiability witness. Return as
-                    # structurally_solved with value=False.
-                    return _build_identify_unidentifiable_via_tian(
-                        stmt, graph, q, tian,
-                    )
-            else:
-                # Non-empty given: conditional identification
-                # P(Y | do(X), Z) via Shpitser-Pearl IDC. The front-door
-                # / IV / plain-Tian fallbacks above all assume an empty
-                # conditioning set; IDC is the complete algorithm for the
-                # conditional shape — a do-calculus Rule-2 exchange loop
-                # over Z, then the normalized ID ratio. Fires only after
-                # the ADMG-aware backdoor-with-given (above) found no
-                # admissible adjustment.
-                from . import c_factor
-                idc = c_factor.identify_via_idc(
-                    graph, bidirected, x, y, q.given, q.intervention.value,
-                )
-                if idc.identifiable:
-                    return _build_identify_via_idc(stmt, graph, q, idc)
-            return QueryResult(
-                status=ResultStatus.NEEDS_INVESTIGATION,
-                query_kind=QueryKind.IDENTIFY,
-                query_id=stmt.id,
-                missing_information=(
-                    MissingItem(
-                        kind=MissingKind.STRUCTURE,
-                        name="query:identify_admg",
-                        priority=Priority.HIGH,
-                        reason=(
-                            "Phase 2.latent S3.b.1: this ADMG identify "
-                            "query is reachable neither by ADMG-aware "
-                            "backdoor, front-door, IV, plain Tian "
-                            "(Lines 1-7), nor conditional IDC."
-                        ),
-                    ),
-                ),
-            )
     else:
-        adjustment_sets = structural_solver.minimal_adjustment_sets(
-            graph, x, y, given=q.given
+        engine = c_factor.identify_via_tian(
+            graph, bidirected, x, y, q.intervention.value,
         )
 
-    if not adjustment_sets:
-        # Back-door unavailable — try the front-door criterion
-        # (A6 fragment). Only fires when q.given is empty, since the
-        # front-door formula shape does not currently extend to a
-        # conditioning observed set.
-        if not q.given:
-            front = structural_solver.front_door_sets(graph, x, y)
-            if front:
-                return _build_identify_via_frontdoor(stmt, graph, q, front)
-            # Phase 6.iv: IV fallback. Fires when backdoor + front-door
-            # both unavailable and some Z satisfies Pearl's IV criterion.
-            iv = structural_solver.iv_sets(graph, x, y)
-            if iv:
-                return _build_identify_via_iv(stmt, graph, q, iv)
+    if engine.identifiable:
+        return _build_identify_via_engine(stmt, graph, q, bidirected, engine)
 
-        # No valid adjustment at all. Report unidentifiable.
-        result = StructuralResult(value=False)
-        return QueryResult(
-            status=ResultStatus.STRUCTURALLY_SOLVED,
-            query_kind=QueryKind.IDENTIFY,
-            query_id=stmt.id,
-            structural_result=result,
-            derivation=(
-                DerivationStep(
-                    rule="unidentifiable_via_backdoor",
-                    inputs={
-                        "graph": graph,
-                        "x": x,
-                        "y": y,
-                        "given": frozenset(q.given),
-                    },
-                    output=result,
-                    step_id="s1",
-                ),
-            ),
-        )
+    if engine.hedge is not None and not q.given:
+        # Shpitser Line-5 hedge — a definitive, witnessed unidentifiability
+        # (the hedge witness verifier covers the unconditional shape).
+        return _build_identify_unidentifiable_via_tian(stmt, graph, q, engine)
 
-    chosen = min(adjustment_sets, key=len)
+    # Engine declined without a definitive hedge (a Line-7 punt / the IV
+    # regime). Escalate to the assumption layer: an instrumental variable
+    # identifies P(Y|do(X)) only UNDER an extra assumption (monotonicity →
+    # LATE, linearity → Wald) — correctly outside nonparametric ID.
+    if not q.given:
+        iv = structural_solver.iv_sets(graph, x, y, bidirected=bidirected)
+        if iv:
+            return _build_identify_via_iv(
+                stmt, graph, q, iv, bidirected=bidirected,
+            )
 
-    # Topological order within the chosen set so chain-rule factors
-    # in the joint P(Z1,...,Zk|W) align with structural parenthood.
-    topo = [n for n in nx.topological_sort(graph) if n in chosen]
-
-    target_va = ValuedAtom(atom=y, value=None)
-    intervention_va = ValuedAtom(atom=x, value=q.intervention.value)
-    observed_vas = tuple(ValuedAtom(atom=g, value=None) for g in q.given)
-
-    formula = formula_builder.backdoor_formula(
-        target=target_va,
-        intervention=intervention_va,
-        adjustment_set=tuple(topo),
-        observed=observed_vas,
-    )
-
-    # Defensive sanity check: every formula we emit must be well-formed.
-    validate_formula(formula)
-
-    structural_result = StructuralResult(value=True)
-    derivation = _build_identify_derivation(
-        graph=graph,
-        x=x,
-        y=y,
-        z=tuple(topo),
-        given=q.given,
-        target_va=target_va,
-        intervention_va=intervention_va,
-        observed_vas=observed_vas,
-        formula=formula,
-        structural_result=structural_result,
-    )
-
+    # Neither the complete nonparametric algorithm nor the IV escalation
+    # reaches it — a genuine structural gap.
     return QueryResult(
-        status=ResultStatus.STRUCTURALLY_SOLVED,
+        status=ResultStatus.NEEDS_INVESTIGATION,
         query_kind=QueryKind.IDENTIFY,
         query_id=stmt.id,
-        structural_result=structural_result,
-        formula=formula,
-        derivation=derivation,
+        missing_information=(
+            MissingItem(
+                kind=MissingKind.STRUCTURE,
+                name="query:identify_unreachable",
+                priority=Priority.HIGH,
+                reason=(
+                    "Not identifiable by the complete ID/IDC algorithm "
+                    "(no c-factor witness), and no instrumental-variable "
+                    "escalation applies."
+                ),
+            ),
+        ),
     )
+
+
+def _build_identify_via_engine(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: IdentifyQuery,
+    bidirected: "frozenset[frozenset[Atom]]",
+    engine,
+) -> QueryResult:
+    """Wrap an ID/IDC engine success (Phase 15B). The canonical c-factor
+    formula is the machine artifact; the graph-level identification
+    pattern (the recognized backdoor / front-door structure + its
+    adjustment / mediator set) is attached as the human-facing
+    annotation under ``extensions["identification"]``."""
+    from dataclasses import replace as _replace
+
+    if hasattr(engine, "is_fraction"):  # IdcResult (conditional)
+        result = _build_identify_via_idc(stmt, graph, q, engine)
+    else:  # TianResult (unconditional)
+        result = _build_identify_via_tian(stmt, graph, q, engine)
+
+    annotation = _recognize_identification_pattern(graph, bidirected, q)
+    ext = dict(result.extensions or {})
+    ext["identification"] = annotation
+    return _replace(result, extensions=ext)
+
+
+def _recognize_identification_pattern(
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]",
+    q: IdentifyQuery,
+) -> dict:
+    """Recognize the identification PATTERN for the graph-level annotation:
+    which classic structure the graph exhibits and the set a human reads
+    off it ("control for W" / "the mediator is M"). The emitted formula is
+    the canonical c-factor regardless — this only labels it for the human.
+    """
+    x = q.intervention.atom
+    y = q.target
+    bi = bidirected or None
+    adjustment = structural_solver.minimal_adjustment_sets(
+        graph, x, y, given=q.given, bidirected=bi,
+    )
+    if adjustment:
+        chosen = min(adjustment, key=len)
+        return {
+            "pattern": "backdoor",
+            "adjustment_set": sorted(_atom_to_str(a) for a in chosen),
+        }
+    if not q.given:
+        front = structural_solver.front_door_sets(graph, x, y, bidirected=bi)
+        if front:
+            chosen = min(front, key=len)
+            return {
+                "pattern": "front_door",
+                "mediator_set": sorted(_atom_to_str(a) for a in chosen),
+            }
+    return {"pattern": "c_factor"}
 
 
 def _build_frontdoor_derivation(

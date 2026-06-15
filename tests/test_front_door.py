@@ -207,10 +207,10 @@ def _minimal_front_door_ast() -> dict:
 
 
 def test_end_to_end_identify_uses_backdoor_when_available():
-    """Sanity: in the minimal X -> Z -> Y graph, back-door adjustment
-    set is empty (X has no parents), so back-door fires and the
-    derivation ends in identify_via_backdoor — NOT front-door."""
-    from themis.input.parser import parse_json
+    """Phase 15B: in the minimal X -> Z -> Y graph the ID engine (tian)
+    identifies the effect; the back-door structure (empty adjustment, X
+    has no parents) survives as the recognized pattern, not as a separate
+    solver, and front-door is NOT the recognized pattern."""
     from themis.input.semantic_validator import validate_program
     from themis.input.syntactic_validator import validate_ast
     from themis.runtime.graph_projection import project
@@ -223,7 +223,8 @@ def test_end_to_end_identify_uses_backdoor_when_available():
     results = dispatch_all(prog, project(instantiate(prog)))
     r = results[0]
     assert r.status.value == "structurally_solved"
-    assert r.derivation[-1].rule == "identify_via_backdoor"
+    assert r.derivation[-1].rule == "identify_via_tian"
+    assert r.extensions["identification"]["pattern"] == "backdoor"
 
 
 def test_end_to_end_identify_falls_back_to_front_door_when_backdoor_blocked():

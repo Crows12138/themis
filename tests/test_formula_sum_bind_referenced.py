@@ -461,14 +461,14 @@ def _bind_target_value(formula, target_atom, value):
 
 def test_tian_pure_chain_evaluates_to_correct_ate():
     """X → M → Y, no bidirected. Tian formula is
-    Σ_M P(M|X=True) · P(Y|X=True, M=m). Pre-iter-145 this evaluated
-    to P(Y|X=True, M=True) (degenerate sum collapsed); post-fix it
-    must marginalize M correctly to give the true ATE-style value.
+    Σ_M P(M|X=True) · P(Y|M=m). Phase 15B: the c-factor conditioning is
+    reduced to Y's Markov pillow — X drops from P(Y|X,M) because Y ⊥ X | M
+    in a pure chain, so the demanded CPT is the parent-aligned P(Y|M).
+    The Σ_M binder must still iterate M (not collapse) to give the ATE.
 
-    Reference: with concrete CPTs P(M|X), P(Y|X,M), the answer is
-    Σ_m P(Y=True|X=True,M=m) · P(M=m|X=True). Numerical agreement
-    pins that the Σ_M binder actually iterates M's domain and the
-    body reads m from the bind variable."""
+    Reference: with concrete CPTs P(M|X), P(Y|M), the answer is
+    Σ_m P(Y=True|M=m) · P(M=m|X=True) (numerically identical to the
+    pre-reduction P(Y|X=T,M=m) since Y ⊥ X | M)."""
     from themis.runtime.c_factor import identify_via_tian
     from themis.runtime.numeric_estimator import (
         ProbabilityKey, Theta, estimate_formula,
@@ -483,10 +483,9 @@ def test_tian_pure_chain_evaluates_to_correct_ate():
     # Bind Y target to True before numerical evaluation.
     formula_y_true = _bind_target_value(r.formula, y, True)
 
-    # Concrete CPTs:
+    # Concrete CPTs (P(Y|M) is parent-aligned — X reduced out):
     # P(M=True | X=True) = 0.7, P(M=False | X=True) = 0.3
-    # P(Y=True | X=True, M=True) = 0.8
-    # P(Y=True | X=True, M=False) = 0.4
+    # P(Y=True | M=True) = 0.8, P(Y=True | M=False) = 0.4
     theta = Theta(entries={
         ProbabilityKey(
             target_atom=m, target_value=True,
@@ -498,11 +497,11 @@ def test_tian_pure_chain_evaluates_to_correct_ate():
         ): 0.3,
         ProbabilityKey(
             target_atom=y, target_value=True,
-            given=frozenset([(x, True), (m, True)]),
+            given=frozenset([(m, True)]),
         ): 0.8,
         ProbabilityKey(
             target_atom=y, target_value=True,
-            given=frozenset([(x, True), (m, False)]),
+            given=frozenset([(m, False)]),
         ): 0.4,
     })
 
@@ -522,13 +521,13 @@ def test_tian_disjoint_y_evaluates_to_correct_ate():
     door / IV all fail because Z1 ↔ Z2 latent confounder makes Z1, Z2
     unobserved-confounded but they are observed-jointly-conditional).
 
-    Tian product form gives:
-        Σ_{z1, z2} P(Y|X=T, z1, z2) · P(Z1=z1|X=T) · P(Z2=z2|X=T, Z1=z1)
+    Tian product form gives (Phase 15B: X reduced out of Y's c-factor
+    because Y ⊥ X | Z1, Z2 — Y's parents are the Z's):
+        Σ_{z1, z2} P(Y|z1, z2) · P(Z1=z1|X=T) · P(Z2=z2|X=T, Z1=z1)
 
-    Reference computed by hand. Iter 145 + 147 fixes mean both Σ_Z1
-    and Σ_Z2 binders propagate correctly into all body factors.
-    Pre-iter-145 this would have returned a constant
-    P(y=T|x=T, z1=T, z2=T) (all sums degenerate)."""
+    Reference computed by hand. Both Σ_Z1 and Σ_Z2 binders propagate
+    correctly into all body factors. Pre-iter-145 this would have
+    returned a constant P(y=T|z1=T, z2=T) (all sums degenerate)."""
     from themis.runtime.c_factor import identify_via_tian
     from themis.runtime.numeric_estimator import (
         ProbabilityKey, Theta, estimate_formula,
@@ -552,11 +551,11 @@ def test_tian_disjoint_y_evaluates_to_correct_ate():
         ProbabilityKey(z2, False, frozenset([(x, True), (z1, True)])): 0.5,
         ProbabilityKey(z2, True, frozenset([(x, True), (z1, False)])): 0.3,
         ProbabilityKey(z2, False, frozenset([(x, True), (z1, False)])): 0.7,
-        # P(Y=T | X=T, Z1, Z2)
-        ProbabilityKey(y, True, frozenset([(x, True), (z1, True), (z2, True)])): 0.9,
-        ProbabilityKey(y, True, frozenset([(x, True), (z1, True), (z2, False)])): 0.7,
-        ProbabilityKey(y, True, frozenset([(x, True), (z1, False), (z2, True)])): 0.5,
-        ProbabilityKey(y, True, frozenset([(x, True), (z1, False), (z2, False)])): 0.2,
+        # P(Y=T | Z1, Z2) — X reduced out (Y ⊥ X | Z1, Z2)
+        ProbabilityKey(y, True, frozenset([(z1, True), (z2, True)])): 0.9,
+        ProbabilityKey(y, True, frozenset([(z1, True), (z2, False)])): 0.7,
+        ProbabilityKey(y, True, frozenset([(z1, False), (z2, True)])): 0.5,
+        ProbabilityKey(y, True, frozenset([(z1, False), (z2, False)])): 0.2,
     })
 
     actual = estimate_formula(formula_y_true, theta)

@@ -468,10 +468,12 @@ def test_e2e_idc_conditional_routes_and_verifies():
     themis.verify(ast, r)
 
 
-def test_e2e_backdoor_still_wins_when_available():
-    """Pure DAG with a confounder: backdoor is tried first and succeeds.
-    Tian must NOT preempt — the kernel takes the simplest available
-    identification path."""
+def test_e2e_backdoor_recognized_as_pattern_on_id_engine():
+    """Phase 15B: a confounded pure DAG (W→X, W→Y, X→Y) is identified by
+    the ID ENGINE (tian), not a separate backdoor solver. The backdoor
+    structure survives only as a GRAPH-LEVEL annotation — pattern
+    'backdoor', adjustment_set {W} — which is the human-facing surface.
+    The formula itself is the canonical c-factor."""
     ast = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -496,9 +498,17 @@ def test_e2e_backdoor_still_wins_when_available():
     out = themis.run(ast)
     r = out["results"][0]
     assert r["status"] == "structurally_solved"
+    assert r["structural_result"]["value"] is True
     rules = [s["rule"] for s in r["derivation"]["steps"]]
-    assert "identify_via_backdoor" in rules
-    assert "tian_c_decomposition" not in rules
+    # The engine — not a backdoor solver — produced the identification.
+    assert "identify_via_tian" in rules
+    assert "identify_via_backdoor" not in rules
+    # The backdoor structure is surfaced as a graph-level annotation.
+    ident = r["extensions"]["identification"]
+    assert ident["pattern"] == "backdoor"
+    assert ident["adjustment_set"] == ["w(me)"]
+    # Independent verification (incl. the semantic backbone) accepts.
+    themis.verify(ast, r)
 
 
 # ============================================ verifier rule unit tests

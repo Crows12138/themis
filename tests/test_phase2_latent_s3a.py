@@ -73,11 +73,11 @@ def test_hidden_u_identify_succeeds_via_admg_front_door():
     r = out["results"][0]
     assert r["status"] == "structurally_solved"
     assert r["structural_result"]["value"] is True
-    # The derivation reuses the existing identify_via_front_door rule
-    # family (S3.a explicitly does not mint new theorem family names).
-    # Concretely: the terminal step's rule is the same one A6 minted.
+    # Phase 15B: identified by the ID engine (tian); the front-door
+    # structure is the recognized graph-level pattern.
     rules = [s["rule"] for s in r["derivation"]["steps"]]
-    assert "identify_via_front_door" in rules
+    assert "identify_via_tian" in rules
+    assert r["extensions"]["identification"]["pattern"] == "front_door"
 
 
 def test_hidden_u_effect_succeeds_and_reaches_front_door_formula():

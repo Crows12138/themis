@@ -119,26 +119,24 @@ def test_cause_result_json_carries_derivation():
 
 
 def test_identify_result_json_carries_backdoor_derivation():
+    """Phase 15B: the ID engine (tian) produces the identification; the
+    derivation is the c-decomposition + identify_via_tian, and the
+    back-door strategy is surfaced as the recognized pattern."""
     r = _run(_minimal_identify_program())[0]
     assert "derivation" in r
-    steps = r["derivation"]["steps"]
-    assert [s["rule"] for s in steps] == [
-        "graph_is_dag",
-        "backdoor_criterion",
-        "backdoor_adjustment_formula",
-        "identify_via_backdoor",
-    ]
+    steps = [s["rule"] for s in r["derivation"]["steps"]]
+    assert steps == ["tian_c_decomposition", "identify_via_tian"]
+    assert r["extensions"]["identification"]["pattern"] == "backdoor"
 
 
 def test_identify_json_distinguishes_backdoor_from_front_door():
-    """The original gap that motivated this slice: LLM consumers need
-    to tell identification strategies apart. Back-door is the only
-    path that fires in a DAG with no confounders, so the final rule
-    must be backdoor — if we later wire a front-door test case, the
-    same field distinguishes them."""
+    """The original gap that motivated this slice: LLM consumers need to
+    tell identification strategies apart. Phase 15B moves that distinction
+    from the derivation rule name to the graph-level identification
+    pattern, which names backdoor vs front_door vs c_factor."""
     r = _run(_minimal_identify_program())[0]
-    final = r["derivation"]["steps"][-1]["rule"]
-    assert final in ("identify_via_backdoor", "identify_via_front_door")
+    pattern = r["extensions"]["identification"]["pattern"]
+    assert pattern in ("backdoor", "front_door", "c_factor")
 
 
 def test_counterfactual_result_json_carries_derivation():

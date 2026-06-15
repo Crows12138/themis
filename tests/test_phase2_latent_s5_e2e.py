@@ -62,8 +62,9 @@ def test_case_front_door_with_hidden_u_runs_and_verifies():
     r = out["results"][0]
     assert r["status"] == "structurally_solved"
     rules = [s["rule"] for s in r["derivation"]["steps"]]
-    assert "identify_via_front_door" in rules
-    # S4: independent verifier accepts (no AdmgVerificationPending).
+    assert "identify_via_tian" in rules
+    assert r["extensions"]["identification"]["pattern"] == "front_door"
+    # S4 + Phase 15B semantic backbone: independent verifier accepts.
     assert themis.verify(ast, r) is None
 
 
@@ -85,7 +86,8 @@ def test_case_admg_aware_backdoor_runs_and_verifies():
     r = out["results"][0]
     assert r["status"] == "structurally_solved"
     rules = [s["rule"] for s in r["derivation"]["steps"]]
-    assert "identify_via_backdoor" in rules
+    assert "identify_via_tian" in rules
+    assert r["extensions"]["identification"]["pattern"] == "backdoor"
     assert themis.verify(ast, r) is None
 
 

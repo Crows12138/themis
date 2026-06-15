@@ -147,10 +147,11 @@ def test_s3b1_promotes_case_that_was_s3a_needs_investigation():
     r = out["results"][0]
     assert r["status"] == "structurally_solved"
     assert r["structural_result"]["value"] is True
-    # Reuse the existing identify_via_backdoor rule family (S3.b.1
-    # explicitly does not mint a new theorem family — that lands in S4).
+    # Phase 15B: the ID engine (tian) identifies it; the ADMG-aware
+    # backdoor structure is the recognized graph-level pattern.
     rules = [s["rule"] for s in r["derivation"]["steps"]]
-    assert "identify_via_backdoor" in rules
+    assert "identify_via_tian" in rules
+    assert r["extensions"]["identification"]["pattern"] == "backdoor"
 
 
 def test_s3b1_backdoor_effect_reaches_formula_stage():
@@ -246,7 +247,8 @@ def test_s3a_front_door_still_triggered_when_backdoor_fails():
     r = out["results"][0]
     assert r["status"] == "structurally_solved"
     rules = [s["rule"] for s in r["derivation"]["steps"]]
-    assert "identify_via_front_door" in rules
+    assert "identify_via_tian" in rules
+    assert r["extensions"]["identification"]["pattern"] == "front_door"
 
 
 # ===================================== verifier compat patch still holds
