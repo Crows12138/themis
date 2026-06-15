@@ -248,6 +248,16 @@ def front_door_sets(
                 continue
             if satisfies(z):
                 minimal.append(z)
+    # Deterministic order. `candidates` derives from a set intersection
+    # (descendants ∩ ancestors), whose iteration order is hash-seeded and
+    # so varies across processes. That made the returned tuple — and hence
+    # the scheduler's `min(front, key=len)` mediator choice — NON-
+    # deterministic: the same chain program (x→m1→m2→y, x↔y has the two
+    # singleton front-door sets {m1} and {m2}) demanded P(m1|x) on one run
+    # and P(m2|x) on the next. Sort by (size, predicate tuple) so callers
+    # get a reproducible set and `min(..., key=len)` breaks ties stably.
+    # Real-usage probe, 2026-06-15.
+    minimal.sort(key=lambda z: (len(z), tuple(sorted(a.predicate for a in z))))
     return tuple(minimal)
 
 

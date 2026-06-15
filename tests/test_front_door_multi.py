@@ -40,6 +40,36 @@ def _atom(pred: str) -> Atom:
     return Atom(predicate=pred, args=(ConstTerm(name="me"),))
 
 
+# ============================================ deterministic order
+
+
+def test_front_door_sets_deterministic_order_on_chain():
+    """Real-usage probe 2026-06-15 — front_door_sets MUST be deterministic.
+
+    The chain x→m1→m2→y with x↔y has two singleton front-door sets, {m1}
+    and {m2}. Before the fix the returned order derived from a hash-seeded
+    set intersection (descendants ∩ ancestors), so the scheduler's
+    ``min(front, key=len)`` mediator choice flipped between processes — the
+    SAME program demanded ``P(m1|x)`` on one run and ``P(m2|x)`` on the
+    next. A kernel that returns different answers for identical input is
+    broken. Pin the (size, predicate) sort: {m1} before {m2}.
+    """
+    import networkx as nx
+
+    from themis.runtime import structural_solver
+
+    x, m1, m2, y = _atom("x"), _atom("m1"), _atom("m2"), _atom("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m1), (m1, m2), (m2, y)])
+    bidir = frozenset({frozenset({x, y})})
+
+    sets = structural_solver.front_door_sets(g, x, y, bidirected=bidir)
+    # Both singletons are valid; the contract is the deterministic order.
+    assert sets == (frozenset({m1}), frozenset({m2}))
+    # Idempotent across repeated calls within the process too.
+    assert structural_solver.front_door_sets(g, x, y, bidirected=bidir) == sets
+
+
 # ============================================ formula shape
 
 
