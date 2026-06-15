@@ -113,6 +113,55 @@ def test_line_7_front_door_variant_now_identifies():
     )
 
 
+def test_napkin_does_not_crash_and_degrades_gracefully():
+    """Regression (real-usage stress test, 2026-06-15): Pearl's napkin
+    graph W→Z→X→Y with W↔X, W↔Y is a nested-ID (Line-7) case the
+    c-factor construction does not yet express as the required ratio — it
+    builds a formula with a free, unbound sum variable. That malformed
+    estimand must NEVER reach the public API as a crash: identify_via_tian
+    self-checks well-formedness and PUNTS (identifiable=False), so the
+    scheduler degrades cleanly (here to the IV escalation) instead of
+    letting validate_formula's SemanticError escape themis.run."""
+    w, z, x, y = _A("w"), _A("z"), _A("x"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(w, z), (z, x), (x, y)])
+    bi = frozenset({frozenset({w, x}), frozenset({w, y})})
+
+    # Engine self-check: punts rather than emitting the malformed formula.
+    t = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
+    assert t.identifiable is False
+    assert t.formula is None
+
+    # Public API: no crash; a clean envelope.
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "w", "domain": [True, False]},
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom_dict("w"), "to": _atom_dict("z")},
+            {"kind": "cause", "from": _atom_dict("z"), "to": _atom_dict("x")},
+            {"kind": "cause", "from": _atom_dict("x"), "to": _atom_dict("y")},
+            {"kind": "bidirected", "left": _atom_dict("w"), "right": _atom_dict("x")},
+            {"kind": "bidirected", "left": _atom_dict("w"), "right": _atom_dict("y")},
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "identify",
+                    "target": _atom_dict("y"),
+                    "intervention": {"atom": _atom_dict("x"), "value": True},
+                    "given": [],
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)  # must not raise
+    r = out["results"][0]
+    assert r["status"] in ("structurally_solved", "needs_investigation")
+
+
 # ============================================ unit: identify_via_idc
 
 

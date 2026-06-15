@@ -337,7 +337,7 @@ def _build_identify_via_engine(
     else:  # TianResult (unconditional)
         result = _build_identify_via_tian(stmt, graph, q, engine)
 
-    annotation = _recognize_identification_pattern(graph, bidirected, q)
+    annotation = _recognize_identification_pattern(graph, bidirected, q, engine)
     ext = dict(result.extensions or {})
     ext["identification"] = annotation
     return _replace(result, extensions=ext)
@@ -347,6 +347,7 @@ def _recognize_identification_pattern(
     graph: nx.DiGraph,
     bidirected: "frozenset[frozenset[Atom]]",
     q: IdentifyQuery,
+    engine=None,
 ) -> dict:
     """Recognize the identification PATTERN for the graph-level annotation:
     which classic structure the graph exhibits and the set a human reads
@@ -356,24 +357,38 @@ def _recognize_identification_pattern(
     x = q.intervention.atom
     y = q.target
     bi = bidirected or None
+    annotation: dict
     adjustment = structural_solver.minimal_adjustment_sets(
         graph, x, y, given=q.given, bidirected=bi,
     )
     if adjustment:
         chosen = min(adjustment, key=len)
-        return {
+        annotation = {
             "pattern": "backdoor",
             "adjustment_set": sorted(_atom_to_str(a) for a in chosen),
         }
-    if not q.given:
+    elif not q.given and structural_solver.front_door_sets(
+        graph, x, y, bidirected=bi
+    ):
         front = structural_solver.front_door_sets(graph, x, y, bidirected=bi)
-        if front:
-            chosen = min(front, key=len)
-            return {
-                "pattern": "front_door",
-                "mediator_set": sorted(_atom_to_str(a) for a in chosen),
-            }
-    return {"pattern": "c_factor"}
+        chosen = min(front, key=len)
+        annotation = {
+            "pattern": "front_door",
+            "mediator_set": sorted(_atom_to_str(a) for a in chosen),
+        }
+    else:
+        annotation = {"pattern": "c_factor"}
+
+    # Conditional estimand P(Y | do(X), Z): the conditioning is PART of
+    # the question (e.g. conditioning on a collider) and the formula is
+    # the IDC ratio — not a plain "adjust and done". Surface it so the
+    # human-facing one-liner isn't lossy: "backdoor, control for {a}"
+    # alone would silently drop the Z-conditioning.
+    if q.given:
+        annotation["conditioned_on"] = sorted(_atom_to_str(a) for a in q.given)
+        if getattr(engine, "is_fraction", False):
+            annotation["estimand"] = "conditional_idc_ratio"
+    return annotation
 
 
 def _build_frontdoor_derivation(
@@ -679,18 +694,32 @@ def _build_identify_via_iv(
         ),
     )
 
+    instrument_label = _atom_to_str(chosen.instrument)
+    conditioning_labels = sorted(_atom_to_str(a) for a in chosen.conditioning)
     extensions = {
         "iv_identification": {
             "strategy": "iv",
-            "instrument": _atom_to_str(chosen.instrument),
-            "conditioning": sorted(
-                _atom_to_str(a) for a in chosen.conditioning
-            ),
+            "instrument": instrument_label,
+            "conditioning": conditioning_labels,
             "required_assumption": (
                 "monotonicity (for LATE/Wald) OR linearity (for 2SLS/ATE)"
             ),
             "alternatives_count": len(iv_candidates),
-        }
+        },
+        # Unified graph-level annotation (the human surface), parallel to
+        # the backdoor / front-door / c_factor patterns the engine emits.
+        # IV is the assumption-laden escalation: the pattern names the
+        # instrument and flags that point identification needs an extra
+        # assumption — so a renderer keying off extensions["identification"]
+        # has a complete story for IV too.
+        "identification": {
+            "pattern": "instrumental_variable",
+            "instrument": instrument_label,
+            "conditioning": conditioning_labels,
+            "required_assumption": (
+                "monotonicity (for LATE/Wald) OR linearity (for 2SLS/ATE)"
+            ),
+        },
     }
 
     return QueryResult(

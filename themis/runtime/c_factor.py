@@ -127,6 +127,21 @@ def identify_via_tian(
             witness_trail=tuple(state.trail),
             hedge=state.hedge,
         )
+    if not _formula_is_well_formed(formula):
+        # The recursion claimed identifiable but produced a malformed
+        # estimand — a free, unbound sum variable. This happens on
+        # nested-ID / Line-7 cases the c-factor construction does not yet
+        # express as the required ratio (the canonical example is Pearl's
+        # napkin graph W→Z→X→Y, W↔X, W↔Y). PUNT rather than emit a wrong
+        # formula or let validate_formula crash the public API: the
+        # scheduler degrades to needs_investigation, which is honest
+        # ("not yet expressible") instead of false or fatal.
+        return TianResult(
+            identifiable=False,
+            formula=None,
+            witness_trail=tuple(state.trail),
+            hedge=None,
+        )
     return TianResult(
         identifiable=True,
         formula=formula,
@@ -208,6 +223,22 @@ def _restrict_bidirected(
     scope: frozenset[Atom],
 ) -> BidirectedEdgeSet:
     return frozenset(p for p in bidirected if p <= scope)
+
+
+def _formula_is_well_formed(formula: FormulaExpr) -> bool:
+    """True iff ``formula`` passes the kernel formula grammar — in
+    particular, every ``VarRef`` is bound by an enclosing ``SumExpr``.
+    Used as a self-check so the ID/IDC engines never emit a malformed
+    estimand (a free, unbound sum variable from an unhandled nested-ID
+    case); they punt to needs_investigation instead. Imported locally to
+    avoid a runtime↔input import cycle."""
+    from ..input.semantic_validator import validate_formula, SemanticError
+
+    try:
+        validate_formula(formula)
+        return True
+    except SemanticError:
+        return False
 
 
 def _id(state: _IdState) -> FormulaExpr | None:
@@ -711,6 +742,8 @@ def identify_via_idc(
     if not z_rem:
         # Every conditioned Z exchanged away — the conditional collapses
         # to the plain interventional P(Y | do(X')). No fraction.
+        if not _formula_is_well_formed(num_formula):
+            return IdcResult(identifiable=False, formula=None, hedge=None)
         return IdcResult(
             identifiable=True,
             formula=num_formula,
@@ -731,9 +764,12 @@ def identify_via_idc(
         den_formula, x_atom=x_atom, x_value=x_value, free_targets=free_targets,
     )
 
+    formula = FractionExpr(numerator=num_formula, denominator=den_formula)
+    if not _formula_is_well_formed(formula):
+        return IdcResult(identifiable=False, formula=None, hedge=None)
     return IdcResult(
         identifiable=True,
-        formula=FractionExpr(numerator=num_formula, denominator=den_formula),
+        formula=formula,
         exchanged=exchanged,
         remaining_z=z_rem,
         is_fraction=True,
