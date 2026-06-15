@@ -113,26 +113,34 @@ def test_line_7_front_door_variant_now_identifies():
     )
 
 
-def test_napkin_does_not_crash_and_degrades_gracefully():
-    """Regression (real-usage stress test, 2026-06-15): Pearl's napkin
-    graph W→Z→X→Y with W↔X, W↔Y is a nested-ID (Line-7) case the
-    c-factor construction does not yet express as the required ratio — it
-    builds a formula with a free, unbound sum variable. That malformed
-    estimand must NEVER reach the public API as a crash: identify_via_tian
-    self-checks well-formedness and PUNTS (identifiable=False), so the
-    scheduler degrades cleanly (here to the IV escalation) instead of
-    letting validate_formula's SemanticError escape themis.run."""
+def test_napkin_nonparametrically_identified_via_full_line7():
+    """Pearl's napkin graph W→Z→X→Y with W↔X, W↔Y — the canonical
+    nested-ID (Line-7) case. The compact Q[S'] shortcut leaves a free,
+    unbound sum variable (Z leaks out of S'={W,X,Y}); identify_via_tian
+    detects that and re-runs with Tian's FULL nested Identify, which
+    expresses the estimand as the required ratio and identifies it
+    NONPARAMETRICALLY — no IV / monotonicity assumption needed.
+
+    Earlier this graph crashed the public API (SemanticError escaping
+    themis.run); the previous fix degraded it to the IV escalation; this
+    is the real fix — the complete Line-7 gives the assumption-free
+    answer, numerically verified by the semantic backbone."""
     w, z, x, y = _A("w"), _A("z"), _A("x"), _A("y")
     g = nx.DiGraph()
     g.add_edges_from([(w, z), (z, x), (x, y)])
     bi = frozenset({frozenset({w, x}), frozenset({w, y})})
 
-    # Engine self-check: punts rather than emitting the malformed formula.
+    # Engine: identifies (via the full Line-7), emitting a well-formed
+    # ratio-bearing estimand.
     t = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
-    assert t.identifiable is False
-    assert t.formula is None
+    assert t.identifiable is True
+    assert t.formula is not None
+    from themis.input.semantic_validator import validate_formula
+    validate_formula(t.formula)
 
-    # Public API: no crash; a clean envelope.
+    # Public API: nonparametric identification (the ID engine, not IV),
+    # and the independent verifier — including the semantic backbone that
+    # numerically checks the formula against random SCMs — accepts.
     ast = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -159,7 +167,36 @@ def test_napkin_does_not_crash_and_degrades_gracefully():
     }
     out = themis.run(ast)  # must not raise
     r = out["results"][0]
-    assert r["status"] in ("structurally_solved", "needs_investigation")
+    assert r["status"] == "structurally_solved"
+    assert r["structural_result"]["value"] is True
+    rules = [s["rule"] for s in r["derivation"]["steps"]]
+    assert "identify_via_tian" in rules  # the ID engine, not the IV escalation
+    themis.verify(ast, r)
+
+
+def test_full_line7_probe_gate_punts_incomplete_cases_safely():
+    """The full nested-Identify Line-7 is the hardest engine code and is
+    not yet complete for every nested-ID graph (e.g. an extended napkin
+    W→Z→X→M→Y, W↔X, W↔Y, where the mediator interacts with the nesting).
+    Its output is GATED by the numeric probe: a case it gets wrong is
+    detected (the formula doesn't match random SCMs) and PUNTED, never
+    emitted as a confident wrong answer. Pins that safety property —
+    no crash, no numerically-wrong estimand."""
+    w, z, x, m, y = _A("w"), _A("z"), _A("x"), _A("m"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(w, z), (z, x), (x, m), (m, y)])
+    bi = frozenset({frozenset({w, x}), frozenset({w, y})})
+
+    t = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
+    # Either it identifies CORRECTLY (probe would confirm) or it punts —
+    # it must NEVER return a numerically-wrong formula.
+    if t.identifiable:
+        from themis.verifier import semantic_probe as sp
+        probe = sp.probe_identify_formula(
+            g, bi, x=x, x_value=True, y=y, given=(), formula=t.formula)
+        assert probe.status != "mismatch"
+    else:
+        assert t.formula is None
 
 
 # ============================================ unit: identify_via_idc

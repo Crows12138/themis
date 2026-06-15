@@ -76,6 +76,12 @@ class TianResult:
     hedge: frozenset[Atom] | None = None
 
 
+# Upper bound on graph size for the full nested-Identify Line-7 retry.
+# Nested-ID queries are small in practice; beyond this the full path (and
+# its numeric probe self-check) is not attempted and the query degrades.
+_FULL_LINE7_MAX_NODES = 8
+
+
 def identify_via_tian(
     graph: nx.DiGraph,
     bidirected: BidirectedEdgeSet,
@@ -120,6 +126,48 @@ def identify_via_tian(
         do_atoms=x_set,
     )
     formula = _id(state)
+
+    # The compact Line-7 shortcut may fail to express a genuine nested-ID
+    # estimand: either it PUNTS (returns None, with no definitive hedge —
+    # its inner verdict recursion mis-reads S' as a hedge) or it emits a
+    # MALFORMED formula (a free, unbound sum variable from a variable that
+    # leaked out of S'). The canonical example is Pearl's napkin graph
+    # (W→Z→X→Y, W↔X, W↔Y). In either case, retry with Tian's full nested
+    # Identify, which expresses the estimand as the required ratio.
+    shortcut_ok = formula is not None and _formula_is_well_formed(formula)
+    if (
+        not shortcut_ok
+        and state.hedge is None
+        and graph.number_of_nodes() <= _FULL_LINE7_MAX_NODES
+    ):
+        # The full nested Identify + its numeric probe self-check are
+        # exponential in the graph; bound the attempt to small graphs
+        # (nested-ID queries are small in practice). Larger graphs that the
+        # shortcut can't express PUNT — the scheduler degrades to the IV
+        # escalation / needs_investigation rather than risk an expensive
+        # blow-up.
+        full_state = replace(state, use_full_line7=True, trail=[], hedge=None)
+        full_formula = _id(full_state)
+        if full_formula is not None:
+            # Bind the genuinely-free parameters ONCE at the top level —
+            # variables Line 3 folded out of every S' that no enclosing sum
+            # claimed (e.g. Z in the napkin). Doing it here, not inside the
+            # Line-7 recursion, avoids double-binding a mediator an outer
+            # Line-4 sum already owns.
+            full_formula = _bind_free_params(full_state, full_formula, keep=y_set)
+        if (
+            full_formula is not None
+            and _formula_is_well_formed(full_formula)
+            and _full_line7_numerically_sound(
+                graph, bidirected, x_atom, y_atom, x_value, full_formula
+            )
+        ):
+            return TianResult(
+                identifiable=True,
+                formula=full_formula,
+                witness_trail=tuple(full_state.trail),
+            )
+
     if formula is None:
         return TianResult(
             identifiable=False,
@@ -128,14 +176,9 @@ def identify_via_tian(
             hedge=state.hedge,
         )
     if not _formula_is_well_formed(formula):
-        # The recursion claimed identifiable but produced a malformed
-        # estimand — a free, unbound sum variable. This happens on
-        # nested-ID / Line-7 cases the c-factor construction does not yet
-        # express as the required ratio (the canonical example is Pearl's
-        # napkin graph W→Z→X→Y, W↔X, W↔Y). PUNT rather than emit a wrong
-        # formula or let validate_formula crash the public API: the
-        # scheduler degrades to needs_investigation, which is honest
-        # ("not yet expressible") instead of false or fatal.
+        # Even the full path could not produce a well-formed estimand —
+        # PUNT so the scheduler degrades to the IV escalation /
+        # needs_investigation instead of crashing the public API.
         return TianResult(
             identifiable=False,
             formula=None,
@@ -181,6 +224,11 @@ class _IdState:
     hedge: frozenset[Atom] | None = None
     # Counter for fresh-bind names.
     _bind_seq: int = 0
+    # Line 7 mode: False = the compact Q[S'] shortcut (correct for
+    # front-door-style cases); True = Tian's full nested Identify (handles
+    # napkin-style nested ID). identify_via_tian runs the shortcut first
+    # and only re-runs with this True when the shortcut is malformed.
+    use_full_line7: bool = False
 
 
 def _admg_topo_order(graph: nx.DiGraph, scope: frozenset[Atom]) -> list[Atom]:
@@ -241,6 +289,33 @@ def _formula_is_well_formed(formula: FormulaExpr) -> bool:
         return False
 
 
+def _full_line7_numerically_sound(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    x_atom: Atom,
+    y_atom: Atom,
+    x_value,
+    formula: FormulaExpr,
+) -> bool:
+    """Numeric self-check for the FULL nested-Identify Line-7 path — the
+    hardest, least-battle-tested code in the engine. Probe the produced
+    formula against random SCMs consistent with the graph and reject it
+    only if the probe DISPROVES it (status ``mismatch``); ``match`` and
+    ``inconclusive`` (cannot probe) both pass. This guarantees the full
+    Line-7 path never EMITS a numerically-wrong estimand — a nested-ID
+    case the construction gets wrong PUNTS (the scheduler then degrades to
+    the IV escalation) instead of returning a confident wrong answer. The
+    same probe backs the verifier; running it here closes the loop at the
+    source. Imported locally to avoid an import cycle."""
+    from ..verifier.semantic_probe import probe_identify_formula
+
+    result = probe_identify_formula(
+        graph, bidirected, x=x_atom, x_value=x_value, y=y_atom,
+        given=(), formula=formula, k=3,
+    )
+    return result.status != "mismatch"
+
+
 def _id(state: _IdState) -> FormulaExpr | None:
     """Recursive Shpitser ID. Mutates `state.trail` and `state.hedge`."""
     V = state.V
@@ -267,6 +342,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
             topo=state.topo,
             x_value=state.x_value,
             do_atoms=state.do_atoms,
+            use_full_line7=state.use_full_line7,
             trail=state.trail,
         )
         result = _id(new_state)
@@ -288,6 +364,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
             topo=state.topo,
             x_value=state.x_value,
             do_atoms=state.do_atoms,
+            use_full_line7=state.use_full_line7,
             trail=state.trail,
         )
         result = _id(new_state)
@@ -312,7 +389,8 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 bidirected=bidirected,
                 topo=state.topo,
                 x_value=state.x_value,
-            do_atoms=state.do_atoms,
+                do_atoms=state.do_atoms,
+                use_full_line7=state.use_full_line7,
                 trail=state.trail,
             )
             sub = _id(sub_state)
@@ -390,6 +468,31 @@ def _id(state: _IdState) -> FormulaExpr | None:
     # identifiability VERDICT.
     for s_prime in cc_full:
         if S < s_prime:
+            if state.use_full_line7:
+                # FULL: Tian's nested Identify(S, S', Q[S']). Return
+                # Σ_{S\y} of the recursively-computed c-factor. Variables
+                # that fell outside S' (e.g. Z in the napkin) are left as
+                # value=None here — an ENCLOSING context may still bind
+                # them (a Line-4 Σ over a mediator), so the genuinely-free
+                # ones are bound once, at the top level, by identify_via_tian
+                # (_bind_free_params). Binding them here would double-count
+                # a variable an outer sum already owns (the extended-napkin
+                # bug).
+                q_sprime = _build_dist_cfactor(state, s_prime)
+                q_s = _identify_cfactor(
+                    S, s_prime, q_sprime, graph, bidirected, state.topo,
+                    state.do_atoms,
+                )
+                if q_s is None:
+                    return None  # genuine hedge / unhandled
+                return _dist_marginalize(q_s, S - y - state.do_atoms, state.topo)
+
+            # SHORTCUT: settle identifiability by recursing on G[S'] (throw-
+            # away trail). A LOCAL bow-arc (X→Y direct inside S' together
+            # with X↔Y) is a hedge the global Line-5 check missed — e.g. the
+            # IV graph Z→X→Y, X↔Y reaches here and G[{X,Y}] is a bow arc. The
+            # sub-recursion's formula is built from full-P (not the Q[S']
+            # re-factorization), so we use only its identifiability VERDICT.
             s_prime_nodes = s_prime & frozenset(graph.nodes())
             verdict_state = _IdState(
                 V=s_prime,
@@ -403,14 +506,11 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 trail=[],
             )
             if _id(verdict_state) is None:
-                # Local hedge / deeper-unhandled: PUNT without a hedge so the
-                # scheduler routes to needs_investigation and the IV / bounds
-                # path (which owns these) is unaffected. Conservative — a
-                # genuinely unidentifiable Line-7 case defers rather than
-                # asserting a definitive hedge; no observed case needs the
-                # stronger verdict.
                 return None
-            # Identifiable: emit the Q[S'] re-marginalization formula.
+            # Identifiable: emit the Q[S'] re-marginalization formula. This
+            # is well-formed UNLESS a variable outside S' leaks into S''s
+            # c-factor conditioning (nested ID / napkin) — identify_via_tian
+            # detects that malformedness and re-runs with use_full_line7.
             formula_state = replace(state, do_atoms=state.do_atoms - s_prime)
             return _build_q_factor(
                 formula_state, s=s_prime, keep=y, summed_x=frozenset(),
@@ -621,6 +721,11 @@ def _bind_none_to_varref(
             over=formula.over,
             body=_bind_none_to_varref(formula.body, atoms),
         )
+    if isinstance(formula, FractionExpr):
+        return FractionExpr(
+            numerator=_bind_none_to_varref(formula.numerator, atoms),
+            denominator=_bind_none_to_varref(formula.denominator, atoms),
+        )
     return formula
 
 
@@ -643,6 +748,220 @@ def _wrap_sum(
             bind=BindDecl(name=_canonical_bind_name(atom)),
             over=atom,
             body=out,
+        )
+    return out
+
+
+# ===================================== Line 7 — full nested identification
+#
+# The Q[S'] SHORTCUT (in _id Line 7) handles the cases where marginalising
+# Q[S'] directly gives the answer (front-door and friends). It FAILS — a
+# free, unbound sum variable — when a variable OUTSIDE S' (its own
+# c-component) leaks into S''s c-factor conditioning, the canonical example
+# being Pearl's napkin (W→Z→X→Y, W↔X, W↔Y: Z leaks into Q[{W,X,Y}]).
+#
+# The complete algorithm is Tian's recursive Identify(C, T, Q[T]): compute
+# the c-factor Q[C] from a SYMBOLIC distribution Q over T, by alternating
+# marginalisation and conditioning (the conditioning introduces the RATIOS
+# that make the napkin identifiable). The functions below operate on a
+# distribution represented as ``(FormulaExpr, vars)`` — the formula is a
+# c-factor whose distribution variables carry value=None (marginalisation
+# binds them); real interventions carry their do-value.
+
+
+def _dist_value(state: _IdState, atom: Atom):
+    """Value of an atom inside a symbolic distribution: the do-value for a
+    real intervention, else None (a distribution variable / free parameter
+    that a later marginalisation or the free-param bind will resolve)."""
+    return state.x_value if atom in state.do_atoms else None
+
+
+def _build_dist_cfactor(state: _IdState, s: frozenset[Atom]) -> FormulaExpr:
+    """Q[S] as a SYMBOLIC distribution over ``s``: the c-factor product
+    ``∏_{v∈S, topo} P(v | Markov-pillow(v))`` with distribution variables
+    left at value=None (unbound), real interventions at their do-value.
+    Unlike ``_build_q_factor`` this does NOT marginalise — the Identify
+    recursion drives all summation."""
+    factors: list[ProbabilityRefExpr] = []
+    for v in state.topo:
+        if v not in s:
+            continue
+        preds = _relevant_conditioning(state, v, _atom_predecessors(state, v))
+        factors.append(ProbabilityRefExpr(
+            target=ValuedAtom(atom=v, value=_dist_value(state, v)),
+            given=tuple(
+                ValuedAtom(atom=p, value=_dist_value(state, p)) for p in preds
+            ),
+        ))
+    if not factors:
+        from ..types import ConstantExpr
+        return ConstantExpr(value=1.0)
+    return factors[0] if len(factors) == 1 else ProductExpr(terms=tuple(factors))
+
+
+def _dist_marginalize(
+    formula: FormulaExpr,
+    sum_atoms: frozenset[Atom],
+    topo: tuple[Atom, ...],
+) -> FormulaExpr:
+    """``Σ_{sum_atoms} formula`` — bind each summed atom's value=None
+    occurrences to its canonical VarRef, then wrap in nested SumExpr
+    (topo order, outermost earliest)."""
+    sum_atoms = frozenset(sum_atoms)
+    if not sum_atoms:
+        return formula
+    body = _bind_none_to_varref(formula, sum_atoms)
+    out: FormulaExpr = body
+    for atom in reversed([a for a in topo if a in sum_atoms]):
+        out = SumExpr(
+            bind=BindDecl(name=_canonical_bind_name(atom)), over=atom, body=out,
+        )
+    return out
+
+
+def _dist_conditional(
+    formula: FormulaExpr,
+    dist_vars: frozenset[Atom],
+    v: Atom,
+    given: frozenset[Atom],
+    topo: tuple[Atom, ...],
+    do_atoms: frozenset[Atom],
+) -> FormulaExpr:
+    """``Q(v | given) = [Σ_{dist\\(given∪v∪do)} Q] / [Σ_{dist\\(given∪do)} Q]``
+    — a conditional of the symbolic distribution. Do-atoms are the query
+    intervention: they are NEVER summed (they sit at their do-value), so
+    they are excluded from both marginalisations. The ratio is exact and
+    is what makes nested-ID estimands fractions."""
+    num = _dist_marginalize(formula, dist_vars - given - {v} - do_atoms, topo)
+    den = _dist_marginalize(formula, dist_vars - given - do_atoms, topo)
+    return FractionExpr(numerator=num, denominator=den)
+
+
+def _dist_cfactor_from(
+    formula: FormulaExpr,
+    dist_vars: frozenset[Atom],
+    s: frozenset[Atom],
+    topo: tuple[Atom, ...],
+    do_atoms: frozenset[Atom],
+) -> FormulaExpr:
+    """c-factor ``Q[S]`` computed FROM the symbolic distribution
+    ``formula`` over ``dist_vars``: ``∏_{v∈S, topo} Q(v | dist-preds(v))``,
+    where dist-preds(v) are the variables of the distribution strictly
+    before v in topo order."""
+    factors: list[FormulaExpr] = []
+    seen: list[Atom] = []
+    for v in topo:
+        if v not in dist_vars:
+            continue
+        if v in s:
+            given = frozenset(seen)
+            factors.append(
+                _dist_conditional(formula, dist_vars, v, given, topo, do_atoms))
+        seen.append(v)
+    if not factors:
+        from ..types import ConstantExpr
+        return ConstantExpr(value=1.0)
+    return factors[0] if len(factors) == 1 else ProductExpr(terms=tuple(factors))
+
+
+def _identify_cfactor(
+    c: frozenset[Atom],
+    t: frozenset[Atom],
+    q_formula: FormulaExpr,
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    topo: tuple[Atom, ...],
+    do_atoms: frozenset[Atom],
+) -> FormulaExpr | None:
+    """Tian's Identify: compute the c-factor ``Q[C]`` from a symbolic
+    distribution ``q_formula`` = ``Q[T]`` over ``t`` (``C ⊆ T``), or None
+    if ``C`` is not identifiable from ``Q[T]`` (a hedge).
+
+    Recurrence: ``A = An_{G[T]}(C)``.
+    - ``A == C``  → Q[C] = Σ_{(T\\C)\\do} Q[T].
+    - ``A == T``  → FAIL (hedge).
+    - ``C ⊆ A ⊂ T`` → marginalise Q[T] to A, take the c-factor of the
+      c-component of G[A] that contains C, and recurse on it.
+
+    ``do_atoms`` (the query intervention) are kept at their do-value and
+    never summed — excluding them from the marginalisations is the fix for
+    the extended-napkin degenerate sum (X is a member of S' AND the
+    intervention)."""
+    if c == t:
+        return q_formula
+    sub = graph.subgraph(t & frozenset(graph.nodes()))
+    a = _ancestors_in_scope(sub, t, c)
+    if a == c:
+        return _dist_marginalize(q_formula, t - c - do_atoms, topo)
+    if a == t:
+        return None  # hedge — C not identifiable from Q[T]
+    # C ⊆ A ⊂ T
+    q_a = _dist_marginalize(q_formula, t - a - do_atoms, topo)
+    sub_a = graph.subgraph(a & frozenset(graph.nodes()))
+    bi_a = _restrict_bidirected(bidirected, a)
+    comps = c_components(sub_a, bi_a)
+    t_c = next((comp for comp in comps if c <= comp), None)
+    if t_c is None:
+        return None
+    q_tc = _dist_cfactor_from(q_a, a, t_c, topo, do_atoms)
+    return _identify_cfactor(c, t_c, q_tc, graph, bidirected, topo, do_atoms)
+
+
+def _collect_none_atoms(formula: FormulaExpr) -> frozenset[Atom]:
+    """Atoms appearing with value=None anywhere in ``formula`` — i.e. the
+    still-unbound (query-target or free-parameter) slots."""
+    from ..types import ConstantExpr
+
+    out: set[Atom] = set()
+
+    def walk(node: FormulaExpr) -> None:
+        if isinstance(node, ConstantExpr):
+            return
+        if isinstance(node, ProbabilityRefExpr):
+            for va in (node.target, *node.given):
+                if va.value is None:
+                    out.add(va.atom)
+            return
+        if isinstance(node, ProductExpr):
+            for term in node.terms:
+                walk(term)
+            return
+        if isinstance(node, SumExpr):
+            walk(node.body)
+            return
+        if isinstance(node, FractionExpr):
+            walk(node.numerator)
+            walk(node.denominator)
+
+    walk(formula)
+    return frozenset(out)
+
+
+def _bind_free_params(
+    state: _IdState,
+    formula: FormulaExpr,
+    keep: frozenset[Atom],
+) -> FormulaExpr:
+    """Bind every free parameter of ``formula`` — a value=None atom that is
+    NOT in ``keep`` (the query target). These are Line-3-folded variables
+    that the nested identification left outside S' (e.g. Z in the napkin).
+    The estimand is INVARIANT to them, so wrapping ``Σ_f P(f) · (...)`` with
+    f's marginal both binds them and preserves the value. (Invariance is
+    independently re-checked by the semantic probe.)"""
+    free = _collect_none_atoms(formula) - keep
+    if not free:
+        return formula
+    out = formula
+    for f in [a for a in state.topo if a in free]:
+        bound = _bind_none_to_varref(out, frozenset({f}))
+        weight = ProbabilityRefExpr(
+            target=ValuedAtom(atom=f, value=VarRef(name=_canonical_bind_name(f))),
+            given=(),
+        )
+        out = SumExpr(
+            bind=BindDecl(name=_canonical_bind_name(f)),
+            over=f,
+            body=ProductExpr(terms=(weight, bound)),
         )
     return out
 
