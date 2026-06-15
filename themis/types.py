@@ -390,7 +390,20 @@ class SumExpr:
     body: "FormulaExpr"
 
 
-FormulaExpr = Union[ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr]
+@dataclass(frozen=True)
+class FractionExpr:
+    """A ratio of two formulas — the only FormulaExpr node that introduces
+    division. Needed by conditional identification (IDC):
+    ``P(Y|do(X),Z) = P_x(Y,Z) / P_x(Z)`` where numerator and denominator
+    are each an ID result. The evaluator divides; a zero denominator is a
+    positivity violation and raises."""
+    numerator: "FormulaExpr"
+    denominator: "FormulaExpr"
+
+
+FormulaExpr = Union[
+    ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr
+]
 
 
 # ---------------------------------------------------------------------------

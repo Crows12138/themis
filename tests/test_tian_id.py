@@ -68,24 +68,49 @@ def test_disjoint_y_component_identifiable_directly():
     assert r.formula is not None
 
 
-def test_line_7_case_punts_rather_than_lying():
-    """X → M → Y, X ↔ Y. Front-door already handles this; Tian needs
-    Shpitser Line 7 (recursive symbolic substitution), which this
-    slice does not implement. Tian should return None — the scheduler
-    falls back to front-door upstream of Tian, so users still get
-    identification, just via the front-door path. What MUST NOT happen
-    is identifiable=False with hedge=set — that'd falsely claim
-    unidentifiability when the case is identifiable via Line 7."""
+def test_line_7_front_door_variant_now_identifies():
+    """X → M → Y, X ↔ Y. Shpitser Line 7 (S={Y} ⊊ S'={X,Y}).
+    identify_via_tian now reproduces the front-door formula
+    Σ_m P(m|do x) · Σ_x' P(x') P(y|x',m) instead of punting. The crucial
+    detail pinned here: the inner P(y|x',m) conditions on the SUMMED x'
+    (a VarRef bound by Σ_x'), NOT the literal do-value — that literal
+    collapse was the iter-143 retraction bug."""
+    from themis.types import SumExpr, ProductExpr, ProbabilityRefExpr, VarRef
     x, m, y = _A("x"), _A("m"), _A("y")
     g = nx.DiGraph()
     g.add_edges_from([(x, m), (m, y)])
     bi = frozenset({frozenset({x, y})})
     r = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
-    if not r.identifiable:
-        assert r.hedge is None, (
-            "Line 7 path must NOT carry a hedge — that would falsely "
-            "claim unidentifiability when the case is identifiable"
-        )
+    assert r.identifiable is True
+    assert r.hedge is None
+
+    # outer Σ_m
+    f = r.formula
+    assert isinstance(f, SumExpr) and f.over == m
+    body = f.body
+    assert isinstance(body, ProductExpr) and len(body.terms) == 2
+
+    # term 1: P(m | x=True) — X at the literal do-value
+    mref = next(
+        t for t in body.terms
+        if isinstance(t, ProbabilityRefExpr) and t.target.atom == m
+    )
+    assert any(gv.atom == x and gv.value is True for gv in mref.given)
+
+    # term 2: inner Σ_x' of P(x') · P(y | x', m)
+    inner = next(t for t in body.terms if isinstance(t, SumExpr))
+    assert inner.over == x
+    assert isinstance(inner.body, ProductExpr)
+    yref = next(
+        t for t in inner.body.terms
+        if isinstance(t, ProbabilityRefExpr) and t.target.atom == y
+    )
+    # y conditions on the SUMMED x' (a VarRef), not the literal True
+    xref_in_y = next(gv for gv in yref.given if gv.atom == x)
+    assert isinstance(xref_in_y.value, VarRef), (
+        "inner x' must be a bound sum variable, not the literal do-value "
+        "(the iter-143 degenerate-collapse bug)"
+    )
 
 
 # ============================================ end-to-end: scheduler

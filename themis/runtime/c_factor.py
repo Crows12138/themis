@@ -29,7 +29,7 @@ identifiability and matches what verifier replay re-checks.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import networkx as nx
 
@@ -323,32 +323,58 @@ def _id(state: _IdState) -> FormulaExpr | None:
     if S in cc_full:
         return _build_q_factor(state, s=S, keep=y, summed_x=x)
 
-    # Line 7 of the Shpitser algorithm: S ⊊ S' for some c-component S'
-    # of G. ID(y, x ∩ S', Q[S'], G[S']) recursion needs symbolic
-    # substitution of "current P" with Q[S'].
+    # Line 7 of the Shpitser-Pearl algorithm: the single c-component S of
+    # G\X is a STRICT subset of a c-component S' of the full G. The
+    # algorithm recurses ID(y, x∩S', Q[S'], G[S']). For the kernel's
+    # single-intervention / single-target scope the recursion always
+    # re-marginalizes the intervention atoms that fall inside S' — an
+    # intervention that stayed a parent of Y inside G[S'] would put X and
+    # Y in one c-component (a bow-arc hedge), already caught at Line 5.
+    # So the result is Q[S'] (the c-factor product over S' in topo order)
+    # marginalized to keep Y, with those interventions turned from do(...)
+    # literals into BOUND SUM variables — i.e. dropped from do_atoms so
+    # ``_atom_to_target_va`` issues a VarRef rather than the literal
+    # x_value. That re-marginalization Σ_{x'} P(x')·P(y | x', ...) is
+    # exactly the front-door inner sum.
     #
-    # Iter 141 attempted a "_build_q_factor(s=S', keep=y, summed_x=∅)
-    # shortcut" claim that this directly yields the front-door inner
-    # sum. Iter 143 traced the actual formula and found this is WRONG:
-    # `_atom_to_target_va(atom)` always returns `value=state.x_value`
-    # (literal True/False) when `atom ∈ state.x`, regardless of the
-    # `summed_x` parameter. So for the front-door variant the inner
-    # Σ_x body has `P(x=True) · P(y|x=True, m=True)` — both x and m
-    # hardcoded to literal True instead of the bind variables. The
-    # sum collapses degenerately:
-    #     formula = P(x=True) · P(y|x=True)   (NOT front-door)
-    # For real Line 7 implementation, _atom_to_target_va needs to
-    # learn about which atoms are bind-summed vs do-substituted in
-    # the current call site (parameterize, don't read state.x blind).
-    # Reverting iter 141 until that machinery exists. See wall.md
-    # iter 143 retraction note for full math trace.
-    #
-    # No real eval / L3 case has hit Line 7 to date — front-door
-    # variants identify via the upstream ADMG-aware front-door path.
-    # Punt: return None WITHOUT setting hedge so scheduler treats it
-    # as needs_investigation rather than falsely claiming
-    # unidentifiability. Setting state.hedge here would lie because
-    # Line 7 cases are identifiable in principle, just not handled.
+    # Iter 141 tried this same Q[S'] shortcut but left the intervention in
+    # do_atoms, so x collapsed to the literal do-value (the iter-143
+    # retraction). Dropping it from do_atoms is the missing piece that
+    # retraction asked for: decide do-vs-sum per call site, do not read a
+    # fixed do_atoms blind.
+    # Settle identifiability by recursing on G[S'] (throwaway trail): a
+    # LOCAL bow-arc (X→Y direct inside S' together with X↔Y) is a hedge the
+    # global Line-5 check missed — e.g. the IV graph Z→X→Y, X↔Y reaches
+    # here and G[{X,Y}] is a bow arc. The sub-recursion's formula is built
+    # from full-P (not the Q[S'] re-factorization), so we use only its
+    # identifiability VERDICT.
+    for s_prime in cc_full:
+        if S < s_prime:
+            s_prime_nodes = s_prime & frozenset(graph.nodes())
+            verdict_state = _IdState(
+                V=s_prime,
+                x=x & s_prime,
+                y=y,
+                graph=graph.subgraph(s_prime_nodes),
+                bidirected=_restrict_bidirected(bidirected, s_prime),
+                topo=state.topo,
+                x_value=state.x_value,
+                do_atoms=state.do_atoms,
+                trail=[],
+            )
+            if _id(verdict_state) is None:
+                # Local hedge / deeper-unhandled: PUNT without a hedge so the
+                # scheduler routes to needs_investigation and the IV / bounds
+                # path (which owns these) is unaffected. Conservative — a
+                # genuinely unidentifiable Line-7 case defers rather than
+                # asserting a definitive hedge; no observed case needs the
+                # stronger verdict.
+                return None
+            # Identifiable: emit the Q[S'] re-marginalization formula.
+            formula_state = replace(state, do_atoms=state.do_atoms - s_prime)
+            return _build_q_factor(
+                formula_state, s=s_prime, keep=y, summed_x=frozenset(),
+            )
     return None
 
 

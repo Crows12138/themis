@@ -41,6 +41,7 @@ from ..types import (
     Atom,
     ConstantExpr,
     FormulaExpr,
+    FractionExpr,
     ProbabilityRefExpr,
     ProductExpr,
     SumExpr,
@@ -246,6 +247,20 @@ def _evaluate(
             )
         return total
 
+    if isinstance(expr, FractionExpr):
+        num = _evaluate(
+            expr.numerator, theta, subs, graph=graph, bidirected=bidirected,
+        )
+        den = _evaluate(
+            expr.denominator, theta, subs, graph=graph, bidirected=bidirected,
+        )
+        if den == 0.0:
+            raise ValueError(
+                "fraction denominator evaluated to 0 — positivity violation "
+                "(the conditioning event P_x(z) has zero probability)"
+            )
+        return num / den
+
     raise TypeError(f"unknown formula node: {type(expr).__name__}")
 
 
@@ -336,6 +351,10 @@ def _collect_keys(
             new_subs = dict(subs)
             new_subs[expr.bind.name] = v
             _collect_keys(expr.body, theta, new_subs, keys)
+        return
+    if isinstance(expr, FractionExpr):
+        _collect_keys(expr.numerator, theta, subs, keys)
+        _collect_keys(expr.denominator, theta, subs, keys)
         return
     raise TypeError(f"unknown formula node: {type(expr).__name__}")
 

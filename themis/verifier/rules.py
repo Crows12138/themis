@@ -29,6 +29,7 @@ from ..types import (
     ConstantExpr,
     CounterfactualQuery,
     FormulaExpr,
+    FractionExpr,
     IdentifyQuery,
     NumericInterval,
     NumericResult,
@@ -4121,6 +4122,13 @@ def _shape_walk(
         new_a_to_b[a.bind.name] = b.bind.name
         new_b_to_a[b.bind.name] = a.bind.name
         return _shape_walk(a.body, b.body, new_a_to_b, new_b_to_a)
+    if isinstance(a, FractionExpr) and isinstance(b, FractionExpr):
+        return (
+            _shape_walk(a.numerator, b.numerator, a_to_b_binds, b_to_a_binds)
+            and _shape_walk(
+                a.denominator, b.denominator, a_to_b_binds, b_to_a_binds
+            )
+        )
     return False
 
 

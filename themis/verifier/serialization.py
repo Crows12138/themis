@@ -44,6 +44,7 @@ from ..types import (
     ConstTerm,
     DerivationStep,
     FormulaExpr,
+    FractionExpr,
     NumericInterval,
     NumericResult,
     ProbabilityRefExpr,
@@ -116,7 +117,7 @@ def _value_to_json(v: Any) -> Any:
         return _structural_result_to_dict(v)
     if isinstance(v, NumericResult):
         return _numeric_result_to_dict(v)
-    if isinstance(v, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+    if isinstance(v, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)):
         return _formula_to_dict(v)
     if isinstance(v, frozenset):
         return {
@@ -276,6 +277,12 @@ def _formula_to_dict(expr: FormulaExpr) -> dict:
             "bind": {"name": expr.bind.name},
             "over": _atom_to_dict(expr.over),
             "body": _formula_to_dict(expr.body),
+        }
+    if isinstance(expr, FractionExpr):
+        return {
+            "kind": "fraction",
+            "numerator": _formula_to_dict(expr.numerator),
+            "denominator": _formula_to_dict(expr.denominator),
         }
     raise DerivationSerializationError(
         f"unknown formula node: {type(expr).__name__}"

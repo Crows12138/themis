@@ -24,6 +24,7 @@ from ..types import (
     DataGap,
     DataGapReport,
     FormulaExpr,
+    FractionExpr,
     NumericResult,
     ProbabilityRefExpr,
     ProbabilityStatement,
@@ -107,6 +108,12 @@ def _formula_to_dict(expr: FormulaExpr) -> dict:
             "bind": {"name": expr.bind.name},
             "over": _atom_to_dict(expr.over),
             "body": _formula_to_dict(expr.body),
+        }
+    if isinstance(expr, FractionExpr):
+        return {
+            "kind": "fraction",
+            "numerator": _formula_to_dict(expr.numerator),
+            "denominator": _formula_to_dict(expr.denominator),
         }
     raise TypeError(f"unknown formula node: {type(expr).__name__}")
 

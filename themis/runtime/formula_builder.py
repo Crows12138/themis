@@ -15,6 +15,7 @@ from ..types import (
     BindDecl,
     ConstantExpr,
     FormulaExpr,
+    FractionExpr,
     ProbabilityRefExpr,
     ProductExpr,
     SumExpr,
@@ -463,6 +464,15 @@ def bind_target_value(
             bind=formula.bind,
             over=formula.over,
             body=bind_target_value(formula.body, target_atom, target_value),
+        )
+    if isinstance(formula, FractionExpr):
+        return FractionExpr(
+            numerator=bind_target_value(
+                formula.numerator, target_atom, target_value,
+            ),
+            denominator=bind_target_value(
+                formula.denominator, target_atom, target_value,
+            ),
         )
     raise TypeError(
         f"unknown FormulaExpr node: {type(formula).__name__}"
