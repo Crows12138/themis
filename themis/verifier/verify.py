@@ -26,6 +26,7 @@ from ..types import (
     CounterfactualQuery,
     DerivationStep,
     EffectQuery,
+    FractionExpr,
     IdentifyQuery,
     NumericResult,
     ProbabilityRefExpr,
@@ -43,6 +44,38 @@ from .errors import (
     VerificationError,
 )
 from .rules import dispatch_rule, known_rule
+from .semantic_probe import probe_identify_formula
+
+
+# Phase 15 — nonparametric point-identification terminal rules. For these
+# the claimed formula MUST equal the true do-quantity in every model
+# consistent with the graph, so the semantic backbone applies. IV
+# (assumption-laden), bounds (interval), mediation / transport (different
+# estimands) are the escalation layer and are deliberately NOT listed.
+_NONPARAM_POINT_ID_RULES = (
+    "identify_via_backdoor",
+    "identify_via_front_door",
+    "identify_via_tian",
+    "identify_via_idc",
+)
+
+
+def _extract_identify_formula(derivation: tuple[DerivationStep, ...]):
+    """Pull the claimed identification formula out of the terminal step.
+
+    Tian / IDC carry it inline in the step inputs; backdoor / front-door
+    reference a formula step whose OUTPUT is the formula. Returns None
+    when no formula is recoverable (the caller then skips the probe)."""
+    _FORMULA = (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)
+    last = derivation[-1]
+    inline = last.inputs.get("formula")
+    if isinstance(inline, _FORMULA):
+        return inline
+    if isinstance(inline, StepRef):
+        by_id = {s.step_id: s.output for s in derivation}
+        candidate = by_id.get(inline.step_id)
+        return candidate if isinstance(candidate, _FORMULA) else None
+    return None
 
 
 # Iter 182/183: rules that may produce a formula referenced by
@@ -565,6 +598,30 @@ def verify_identify(
             f"got {derivation[-1].rule!r}",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
+
+    # Phase 15 — semantic backbone. The per-method rules above prove the
+    # METHOD was applied; they do not prove the FORMULA computes the true
+    # interventional quantity (Phase 14 shipped a numerically-wrong IDC
+    # fraction that passed every structural check). For nonparametric
+    # point identification, probe the formula against random SCMs
+    # consistent with the graph and reject a numeric mismatch.
+    if claimed_result.value is True and derivation[-1].rule in _NONPARAM_POINT_ID_RULES:
+        formula = _extract_identify_formula(derivation)
+        if formula is not None:
+            q = context.query
+            domains = context.theta.domains if context.theta is not None else {}
+            probe = probe_identify_formula(
+                context.graph, context.bidirected,
+                x=q.intervention.atom, x_value=q.intervention.value,
+                y=q.target, given=q.given, formula=formula, domains=domains,
+            )
+            if probe.status == "mismatch":
+                raise VerificationError(
+                    "identify formula fails semantic verification: it does "
+                    "not compute the true interventional quantity in a model "
+                    f"consistent with the graph. {probe.detail}",
+                    step_index=len(derivation) - 1, rule=derivation[-1].rule,
+                )
 
 
 def verify_numeric_estimate(
