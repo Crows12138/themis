@@ -66,17 +66,23 @@ def _simplify_once(expr):
     if isinstance(expr, (ConstantExpr, ProbabilityRefExpr)):
         return expr
     if isinstance(expr, FractionExpr):
-        return FractionExpr(
-            numerator=_simplify_once(expr.numerator),
-            denominator=_simplify_once(expr.denominator),
-        )
+        num = _simplify_once(expr.numerator)
+        den = _simplify_once(expr.denominator)
+        return _cancel_fraction(num, den)
     if isinstance(expr, ProductExpr):
         return _flatten_product(
             tuple(_simplify_once(t) for t in expr.terms)
         )
     if isinstance(expr, SumExpr):
         body = _simplify_once(expr.body)
-        return _collapse_sum(expr.bind, expr.over, body)
+        collapsed = _collapse_sum(expr.bind, expr.over, body)
+        # _collapse_sum returns the sum unchanged when the sum-to-one rule
+        # does not apply. In that case try to pull summation-independent
+        # factors out (extract), which can expose a further collapse on a
+        # subsequent pass.
+        if collapsed != SumExpr(bind=expr.bind, over=expr.over, body=body):
+            return collapsed
+        return _extract_from_sum(expr.bind, expr.over, body)
     return expr
 
 
@@ -129,6 +135,72 @@ def _collapse_sum(bind, over, body):
         return SumExpr(bind=bind, over=over, body=body)
 
     return SumExpr(bind=bind, over=over, body=body)
+
+
+def _extract_from_sum(bind, over, body):
+    """Pull summation-independent factors out of a sum (JMLR Alg 5):
+
+        Σ_v (∏_indep · ∏_dep)  =  ∏_indep · Σ_v ∏_dep
+
+    where ``∏_indep`` are the factors not mentioning ``v``. Value-
+    preserving (the extracted factors are constants w.r.t. the sum). Only
+    fires when both partitions are non-empty — pulling out ALL factors
+    would leave ``Σ_v 1 = |dom(v)|``, which is NOT the original value, so a
+    degenerate sum (body free of ``v``) is left untouched."""
+    v = bind.name
+    if not isinstance(body, ProductExpr):
+        return SumExpr(bind=bind, over=over, body=body)
+    indep = tuple(f for f in body.terms if v not in _free_names(f))
+    dep = tuple(f for f in body.terms if v in _free_names(f))
+    if not indep or not dep:
+        return SumExpr(bind=bind, over=over, body=body)
+    inner = SumExpr(bind=bind, over=over, body=_flatten_product(dep))
+    return _flatten_product(indep + (inner,))
+
+
+def _cancel_fraction(num, den):
+    """Cancel common factors between numerator and denominator (the cheap
+    half of JMLR Alg 6 ``q-simplify``):  ``(P·X) / (P·Y) = X / Y``.
+
+    Only TOP-LEVEL plain-conditional multiplicands are cancelled — never a
+    factor that lives inside a sum (the sum couples it to the summed
+    variable, so it is not a free multiplicand) and never a sum/fraction
+    factor (those need the equality-of-sub-expression reasoning of the
+    full q-simplify, deferred). Structural equality of the frozen
+    ``ProbabilityRefExpr`` guarantees identical atoms + values, and since a
+    top-level factor's free VarRefs are bound by the same outer scope in
+    both num and den, the cancellation is value-preserving."""
+    num_factors = list(_top_factors(num))
+    den_factors = list(_top_factors(den))
+    cancelled = False
+    for df in list(den_factors):
+        if isinstance(df, ProbabilityRefExpr) and df in num_factors:
+            num_factors.remove(df)
+            den_factors.remove(df)
+            cancelled = True
+    if not cancelled:
+        return FractionExpr(numerator=num, denominator=den)
+    new_num = _factors_to_expr(num_factors)
+    new_den = _factors_to_expr(den_factors)
+    if isinstance(new_den, ConstantExpr) and new_den.value == 1.0:
+        return new_num
+    return FractionExpr(numerator=new_num, denominator=new_den)
+
+
+def _top_factors(expr):
+    """The top-level multiplicands of ``expr``: a product's terms, or the
+    expression itself as a single factor."""
+    if isinstance(expr, ProductExpr):
+        return expr.terms
+    return (expr,)
+
+
+def _factors_to_expr(factors):
+    if not factors:
+        return ConstantExpr(value=1.0)
+    if len(factors) == 1:
+        return factors[0]
+    return ProductExpr(terms=tuple(factors))
 
 
 def _is_distribution_over(factor, v: str) -> bool:

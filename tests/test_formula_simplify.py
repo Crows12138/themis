@@ -38,6 +38,7 @@ def _atom(p: str) -> Atom:
 
 
 V, X, Y, W = _atom("v"), _atom("x"), _atom("y"), _atom("w")
+A, B, C, D, E, F = (_atom(p) for p in ("a", "b", "c", "d", "e", "f"))
 
 
 def _p(target_atom, target_val, given_pairs):
@@ -98,6 +99,72 @@ def test_idempotent():
 
 
 # ============================================ numeric value-preservation
+
+
+def _frac(num, den):
+    from themis.types import FractionExpr
+    return FractionExpr(numerator=num, denominator=den)
+
+
+# ============================================ slice 2: extract
+
+
+def test_extract_pulls_independent_factor_out_of_sum():
+    # Σ_v [ P(z|w) · P(y|v) · P(v|x) ]  →  P(z|w) · Σ_v[ P(y|v) · P(v|x) ]
+    # (inner does NOT collapse: P(y|v) conditions on the summed v.)
+    pz = _p(_atom("z"), True, [(W, True)])
+    pyv = _p(Y, True, [(V, VarRef("v"))])
+    pvx = _p(V, VarRef("v"), [(X, True)])
+    expr = _sum("v", V, ProductExpr(terms=(pz, pyv, pvx)))
+    out = simplify_formula(expr)
+    assert out == ProductExpr(terms=(
+        pz, _sum("v", V, ProductExpr(terms=(pyv, pvx))),
+    ))
+
+
+def test_extract_then_collapse_compose():
+    # Σ_v [ P(z|w) · P(v|x) ]  →  extract P(z|w) is unnecessary: sum-to-one
+    # already collapses since v ∉ free(P(z|w)). Result = P(z|w).
+    pz = _p(_atom("z"), True, [(W, True)])
+    expr = _sum("v", V, ProductExpr(terms=(pz, _p(V, VarRef("v"), [(X, True)]))))
+    assert simplify_formula(expr) == pz
+
+
+# ============================================ slice 2: fraction cancellation
+
+
+def test_fraction_cancels_shared_factor_to_numerator():
+    # [P(a|b)·P(c|d)] / [P(c|d)]  →  P(a|b)
+    pab = _p(A, True, [(B, True)])
+    pcd = _p(C, True, [(D, True)])
+    expr = _frac(ProductExpr(terms=(pab, pcd)), pcd)
+    assert simplify_formula(expr) == pab
+
+
+def test_fraction_cancels_one_factor_keeps_remainder():
+    # [P(a|b)·P(c|d)] / [P(c|d)·P(e|f)]  →  P(a|b) / P(e|f)
+    pab = _p(A, True, [(B, True)])
+    pcd = _p(C, True, [(D, True)])
+    pef = _p(E, True, [(F, True)])
+    expr = _frac(ProductExpr(terms=(pab, pcd)), ProductExpr(terms=(pcd, pef)))
+    assert simplify_formula(expr) == _frac(pab, pef)
+
+
+def test_fraction_no_shared_factor_is_unchanged():
+    pab = _p(A, True, [(B, True)])
+    pcd = _p(C, True, [(D, True)])
+    expr = _frac(pab, pcd)
+    assert simplify_formula(expr) == expr
+
+
+def test_fraction_inner_sum_collapses_then_cancels():
+    # [P(a|b) · Σ_v P(v|x)] / [P(a|b)]  →  (Σ→1) [P(a|b)·1]/[P(a|b)] → 1
+    pab = _p(A, True, [(B, True)])
+    expr = _frac(
+        ProductExpr(terms=(pab, _sum("v", V, _p(V, VarRef("v"), [(X, True)])))),
+        pab,
+    )
+    assert simplify_formula(expr) == ConstantExpr(value=1.0)
 
 
 def _normalized_boolean_theta(needed_targets, seed) -> Theta:
@@ -172,3 +239,49 @@ def test_value_preserved_when_no_collapse():
         a = _evaluate(expr, theta, {})
         b = _evaluate(simplified, theta, {})
         assert abs(a - b) < 1e-12
+
+
+def test_value_preserved_extract():
+    Z = _atom("z")
+    pz = _p(Z, True, [(W, True)])
+    pyv = _p(Y, True, [(V, VarRef("v"))])
+    pvx = _p(V, VarRef("v"), [(X, True)])
+    expr = _sum("v", V, ProductExpr(terms=(pz, pyv, pvx)))
+    simplified = simplify_formula(expr)
+    assert simplified != expr  # extract restructured it
+
+    for seed in range(20):
+        theta = _normalized_boolean_theta(
+            {
+                (Z, frozenset({(W, True)})),
+                (Y, frozenset({(V, True)})),
+                (Y, frozenset({(V, False)})),
+                (V, frozenset({(X, True)})),
+            },
+            seed,
+        )
+        a = _evaluate(expr, theta, {})
+        b = _evaluate(simplified, theta, {})
+        assert abs(a - b) < 1e-12, f"seed {seed}: {a} != {b}"
+
+
+def test_value_preserved_fraction_cancellation():
+    pab = _p(A, True, [(B, True)])
+    pcd = _p(C, True, [(D, True)])
+    pef = _p(E, True, [(F, True)])
+    expr = _frac(ProductExpr(terms=(pab, pcd)), ProductExpr(terms=(pcd, pef)))
+    simplified = simplify_formula(expr)
+    assert simplified == _frac(pab, pef)
+
+    for seed in range(20):
+        theta = _normalized_boolean_theta(
+            {
+                (A, frozenset({(B, True)})),
+                (C, frozenset({(D, True)})),
+                (E, frozenset({(F, True)})),
+            },
+            seed,
+        )
+        a = _evaluate(expr, theta, {})
+        b = _evaluate(simplified, theta, {})
+        assert abs(a - b) < 1e-12, f"seed {seed}: {a} != {b}"

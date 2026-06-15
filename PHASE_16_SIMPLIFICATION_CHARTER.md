@@ -1,8 +1,8 @@
 # Phase 16 — Formula-simplification subsystem (unlocks complete Line-7 ID)
 
-> 状态：slice 1（sum-to-one canceller）已落地、语义保值已证、全量绿。
-> slice 2-4 待做。这是 Phase 15 明确 defer 的"彻底做全完整通用 nested-ID"
-> 的真实门槛——不是 bug，是一个子系统。
+> 状态：slice 1（sum-to-one）+ slice 2（extract + fraction 约分）已落地、
+> 语义保值已证、全量绿。slice 3-4 待做。这是 Phase 15 明确 defer 的"彻底
+> 做全完整通用 nested-ID"的真实门槛——不是 bug，是一个子系统。
 
 ## 根因（为什么需要它）
 
@@ -60,8 +60,12 @@ Shpitser-Pearl sum-of-products，所以走 causaleffect 路线（bolt-on 化简�
   `tests/test_formula_simplify.py`：结构测试（该触发/不该触发）+ **数值保值测试**
   （归一化 theta 下 `eval(原)==eval(简化)`，多随机 seed）。**保值是后续把它接进
   构造的许可证**。
-- **slice 2 —— fraction q-simplify + extract。** 比值的公共因子相消（仅 sumset
-  空时）；`extract`：把不含求和变量的因子提到 sum 外。仍零图。给 IDC 比值用。
+- **slice 2（已落，本 charter 同批）—— extract + fraction 约分。**
+  `_extract_from_sum`：`Σ_v(∏indep·∏dep)=∏indep·Σ_v∏dep`，把不含求和变量的因子提到
+  sum 外（只在两边都非空时，否则 `Σ_v 1=|dom|` 不保值）。`_cancel_fraction`：
+  `(P·X)/(P·Y)=X/Y`，只消 num/den 的**顶层 plain-conditional 因子**（结构相等、
+  不下钻进 sum——sum 把因子耦合到求和变量，不是自由 multiplicand）。仍零图。
+  数值保值已证（extract + cancellation 各多 seed）。给 IDC 比值用。
 - **slice 3 —— 图感知 `simplify`（Alg 1/2/3）。** `join`/`insert`/`factorize`，
   需 ADMG 上的 d-分离 oracle（Themis 已有 `m_separated`）。完备层；当要消的因子
   不是 leading term 时用。
