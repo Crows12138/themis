@@ -1,8 +1,9 @@
 # Phase 15 — Identification on a theoretical foundation
 
-> 状态：进行中 — Phase A（语义验证骨干）已落地并接入 verify_identify，全量绿；
-> 覆盖 backdoor / front-door / Tian / IDC 四类非参数点识别。Phase B（scheduler
-> 求解器塌缩为「跑 ID/IDC + 命名图案」）待用户决定后再做。
+> 状态：完成 — Phase A（语义验证骨干）已接入 verify_identify；Phase B（scheduler
+> 塌缩为「跑 ID/IDC 引擎 → 认图案标注 → 升级 IV」，公式统一 c-factor 规范式、
+> 图案降为图层标注）已落地，并修了两个真 `_id` 自由-VarRef bug。全量绿（2051
+> passed，5 个既有失败与本阶段无关）。覆盖 backdoor / front-door / Tian / IDC。
 >
 > From *empirical-grade* (a pile of method-specific solvers + structural
 > checkers) to *theory-grade* (one complete algorithm is the arbiter of
