@@ -214,6 +214,24 @@ def test_extended_napkin_nested_id_unlocked():
     assert probe2.status == "match"
 
 
+def test_parallel_multi_mediator_nested_id():
+    """Parallel multi-mediator X→M→Y, X→N→Y with X↔Y — a documented
+    residual gap (COVERAGE_MAP board 2: "needs joint-CPT primitive"). The
+    do-agnostic Identify handles it through the same c-factor machinery:
+    no single mediator blocks both X→Y paths, but the c-component algebra
+    identifies the joint effect. Semantic-probe confirmed."""
+    x, m, n, y = _A("x"), _A("m"), _A("n"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(x, m), (m, y), (x, n), (n, y)])
+    bi = frozenset({frozenset({x, y})})
+    t = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
+    assert t.identifiable is True
+    from themis.verifier import semantic_probe as sp
+    probe = sp.probe_identify_formula(
+        g, bi, x=x, x_value=True, y=y, given=(), formula=t.formula)
+    assert probe.status == "match", f"probe rejected: {probe.detail}"
+
+
 def test_full_line7_probe_gate_punts_incomplete_cases_safely():
     """The full nested-Identify Line-7 is the hardest engine code and is
     not yet complete for every nested-ID graph (e.g. an extended napkin
