@@ -1,8 +1,19 @@
 # Phase 16 — Formula-simplification subsystem (unlocks complete Line-7 ID)
 
-> 状态：slice 1（sum-to-one）+ slice 2（extract + fraction 约分）已落地、
-> 语义保值已证、全量绿。slice 3-4 待做。这是 Phase 15 明确 defer 的"彻底
-> 做全完整通用 nested-ID"的真实门槛——不是 bug，是一个子系统。
+> 状态：**slice 1+2+4 已落地，完整通用 nested-ID 已解锁**（`314c1de`）。
+> slice 1（sum-to-one）+ slice 2（extract + fraction 约分）= 便宜代数层；
+> slice 4 = do-无关的 Tian Identify（消除器在此兑现价值）。slice 3（图感知
+> 完备层）尚未需要——便宜层 + do-无关构造已让 napkin / 多 mediator 扩展
+> napkin 全部非参数识别（探针验）。全量绿。
+>
+> **关键修正（slice 4 真相，2026-06-16）**：上轮以为"消除器对当前构造是
+> no-op"——那是因为旧构造把干预 X 钉成 do 值、回避了 c-factor 比值。真正的
+> bug 是 **`_identify_cfactor` 把 do 值塞进 Identify 内部边缘化**（`- do_atoms`），
+> 让 X-head 的比值 `Q[H^(i)]/Q[H^(i-1)]` 退化成 1（X 在 S' 末位时蒙对=napkin，
+> X 在内部时错=任何 mediator）。修法=让 Identify **do-无关**（Tian Lemma 4 /
+> Shpitser c-identify：纯 c-factor、不知道哪个是干预），do 值只在边界由
+> `_bind_do_value` 施加。**do-无关构造恰好产出消除器要治的比值**——所以消除器
+> 不是 no-op，是这个修复的前提。Phase 16 没白做。
 
 ## 根因（为什么需要它）
 
@@ -66,33 +77,29 @@ Shpitser-Pearl sum-of-products，所以走 causaleffect 路线（bolt-on 化简�
   `(P·X)/(P·Y)=X/Y`，只消 num/den 的**顶层 plain-conditional 因子**（结构相等、
   不下钻进 sum——sum 把因子耦合到求和变量，不是自由 multiplicand）。仍零图。
   数值保值已证（extract + cancellation 各多 seed）。给 IDC 比值用。
-- **slice 3 —— 图感知 `simplify`（Alg 1/2/3）。** `join`/`insert`/`factorize`，
-  需 ADMG 上的 d-分离 oracle（Themis 已有 `m_separated`）。完备层；当要消的因子
-  不是 leading term 时用。
-- **slice 4 —— eagerly 接进 nested-ID 构造。** 在构造里每步后 `simplify_formula`。
-  **2026-06-15 试做并测量，得出一个纠正前提的发现，未提交（接错地方、no-op）：**
-  - 把 simplify eagerly 插进**当前** `c_factor._dist_marginalize`/`_dist_conditional`
-    后测量：napkin / extended-napkin / front-door 三个 case，simplify **从不减小任何
-    公式（完全 no-op）**，且 napkin 仍工作、extended-napkin 仍 punt。
-  - **关键纠正**：记忆里说的"指数爆炸"是**已 revert 的 `_id_symbolic`（完整符号 ID）**
-    的事；**当前 master 的 `_identify_cfactor`（Tian 子程序）根本不爆**——extended napkin
-    0.03s 干净构造，问题是构造出的公式**数值错**（探针抓住 → punt → IV）。即当前构造的
-    拦路虎是**构造正确性**，不是爆炸。
-  - **所以 canceller 接进当前构造是 no-op**（当前构造没有它要解决的爆炸问题，错公式也
-    不匹配 sum-to-one 前提）。**已 revert 这次 wiring**（不留 no-op 死代码）。
-  - **canceller 的真正用武之地 = 重新尝试 `_id_symbolic`**（那个确实爆、当初因没消除器
-    才 revert 的）。把 simplify eagerly 套上去 re-attempt 才是真 slice 4。
-  - **但这是大风险步骤（重引已 revert 代码），且 VISION 明确说"完整 ID 可选"。**
-    当前状态（napkin 对、更难的安全 punt 到 IV）符合 VISION。**re-attempt `_id_symbolic`
-    属低 VISION 价值 + 高风险 —— 触发前应明确立项，别顺手做。**
+- **slice 4（已落 `314c1de`）—— do-无关的 Tian Identify + eager simplify。**
+  不是当初设想的"re-attempt `_id_symbolic`"——根因更简单：旧 `_identify_cfactor` 把
+  干预 do 值塞进 Identify 内部边缘化（`- do_atoms`），让 X-head 的 c-factor 比值
+  `Q[H^(i)]/Q[H^(i-1)]` 退化成 1（X 在 S' 末位蒙对=napkin，内部就错=任何 mediator）。
+  - **修法**：Identify 做 **do-无关**（`_build_dist_cfactor` + `_identify_cfactor` 传
+    `do_atoms=∅`，X 当普通 value=None 变量）；c-factor 比值正常形成、由 `simplify_formula`
+    eagerly 化简（接在 `_dist_marginalize`/`_dist_conditional`）；do 值只在**边界**由新的
+    `_bind_do_value` 施加（把 X 的自由出现设成 x_value），再 `Σ_{S\Y}`。仍被 X 困在 sum
+    里的 do-atom 留给探针 gate → 滑落只会 punt 不会发错数。
+  - **结果**:extended napkin(1 + 2 mediator)非参数识别、探针 match;napkin / IV bow-arc
+    不变。这就是消除器兑现价值的地方——do-无关构造恰好产出它要治的比值。
+  - **成本**:full Line-7 + 探针的 case 现在产出更大公式 → 全量 71s→225s(3x,被 8 节点
+    门限有界、无 hang、无病态单点)。若成问题再单独做探针/化简性能优化。
+- **slice 3 —— 图感知 `simplify`（Alg 1/2/3，`join`/`insert`/`factorize`，需 d-分离）。
+  尚未需要**：便宜层 + do-无关构造已覆盖 napkin / 多 mediator 扩展。真撞到便宜层搞不定
+  的图（要消的因子不是 leading term）再上。
 
-## 结论（2026-06-15）
+## 结论（2026-06-16）
 
-slices 1+2（便宜代数层：sum-to-one + extract + fraction 约分）**已落、已证保值、已提交**
-（`caed681`/`4b79f3e`），是一个**正确、独立、待命**的资产。但它**当前没有消费者**：当前
-nested-ID 构造不爆炸，所以接它是 no-op。它的价值在"若将来 re-attempt 完整符号 ID
-`_id_symbolic`"时兑现——而那是 VISION-optional 的大工程。**Phase 16 到此是一个干净的
-暂停点**：canceller 建好待命，是否动用取决于是否立项做完整通用 nested-ID。
+**完整通用 nested-ID 已解锁**（`314c1de`）。slices 1+2 的便宜代数层不是待命资产了——
+它是 slice 4（do-无关 Identify）的**前提**，在那里兑现价值。Tian Lemma 4 的 c-factor 比值
+现在正常形成并被化简，napkin / 多 mediator 扩展 napkin 全部非参数识别、探针验。剩下的
+图感知完备层（slice 3）按真实压力触发。
 
 ## 不变量 / 纪律
 
