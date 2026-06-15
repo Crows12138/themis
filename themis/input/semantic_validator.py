@@ -794,6 +794,7 @@ def validate_formula(formula) -> None:
     """
     from ..types import (
         ConstantExpr,
+        FractionExpr,
         ProbabilityRefExpr,
         ProductExpr,
         SumExpr,
@@ -812,6 +813,14 @@ def validate_formula(formula) -> None:
         if isinstance(node, ProductExpr):
             for t in node.terms:
                 check(t, bound)
+            return
+        if isinstance(node, FractionExpr):
+            # Numerator and denominator are independent sub-formulas; a
+            # sum binder on one side does NOT scope into the other, so
+            # each is checked under the SAME inherited `bound` (IDC never
+            # binds a name spanning the ratio bar).
+            check(node.numerator, bound)
+            check(node.denominator, bound)
             return
         if isinstance(node, SumExpr):
             for arg in node.over.args:

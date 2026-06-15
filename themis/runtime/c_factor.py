@@ -1,25 +1,33 @@
-"""Tian / Shpitser ID algorithm for ADMG identification.
+"""Tian / Shpitser ID + IDC algorithms for ADMG identification.
 
 Phase 2.latent ext §S3.b.2 — kicks in when ADMG-aware backdoor /
 front-door / IV all fail. Implements Shpitser & Pearl 2006's complete
-ID algorithm (which subsumes Tian 2002), restricted to the kernel's
-identify-query shape: single intervention, single target, empty given.
+ID algorithm (which subsumes Tian 2002) plus IDC (the conditional
+extension, "Identification of Conditional Interventional
+Distributions").
 
-Three return shapes:
+``identify_via_tian`` covers the unconditional shape ``P(Y | do(X))``
+— single intervention, single target, empty given — across all seven
+lines of the recursion (ancestral shrink, descendant exclusion,
+c-component split, hedge witness, Q[S] product, and the Line-7 S ⊊ S'
+re-marginalization). Return shapes:
 
-- `(FormulaExpr, ...)` — query identifiable; witness is a c-factor
-  product. Lines 1-6 of the recursion (ancestral shrink, descendant
-  exclusion, c-component split, hedge witness, Q[S] product form).
-- `(None, "hedge")` — query is provably unidentifiable; witness is the
-  hedge graph (Lines 1-5).
-- `None` (no second value) — **Line 7 deferred**: the recursion needs
-  symbolic substitution under a Q[S'] re-factorization (S ⊊ S' for
-  some c-component S' of G), which this slice does not implement.
-  Scheduler treats this as `needs_investigation` rather than falsely
-  claiming unidentifiable. Identifiable-via-Line-7 ADMGs (the "ID-Y
-  descent" case) are a documented capability gap; no real eval case
-  has triggered Line 7 yet, so the deferral has not blocked any
-  observed user query.
+- ``identifiable=True`` with a ``formula`` — c-factor product witness.
+- ``identifiable=False`` with a ``hedge`` — Shpitser Line-5 witness of
+  provable unidentifiability.
+- ``identifiable=False`` with no hedge — a Line-7 sub-case the verdict
+  recursion could not settle without asserting a definitive hedge;
+  scheduler routes to ``needs_investigation``.
+
+``identify_via_idc`` covers the conditional shape
+``P(Y | do(X), Z)`` (non-empty ``given``). It runs the do-calculus
+Rule-2 exchange loop — moving each conditioned ``Z`` into the do-set
+when ``Y ⊥ Z | X, (rest)`` holds in the mutilated graph
+``G_{X̄, Z_}`` — then returns the normalized ratio
+``ID(Y ∪ Z_rem, X') / ID(Z_rem, X')`` as a ``FractionExpr`` (or the
+bare numerator when every Z exchanges away and no conditioning
+remains). The two sub-problems reuse the same ID recursion; only the
+value decoration differs (see ``_apply_idc_values``).
 
 Output formula uses the c-factor product form for Q[S] (S a c-component
 of the full ADMG): each variable in S contributes
@@ -37,13 +45,14 @@ from ..types import (
     Atom,
     BindDecl,
     FormulaExpr,
+    FractionExpr,
     ProbabilityRefExpr,
     ProductExpr,
     SumExpr,
     ValuedAtom,
     VarRef,
 )
-from .structural_solver import BidirectedEdgeSet, c_components
+from .structural_solver import BidirectedEdgeSet, c_components, is_m_connected
 
 
 @dataclass(frozen=True)
@@ -557,3 +566,295 @@ def _wrap_sum(
             body=out,
         )
     return out
+
+
+# ============================================ IDC (conditional ID)
+
+
+# Sentinel do-value used while the set-valued ID recursion builds the
+# IDC sub-formulas. The real per-atom values (X's do-value, and the
+# value=None query-bound holes for Y and Z) are stamped afterwards by
+# ``_apply_idc_values`` — the structural recursion is value-blind, so
+# any placeholder works.
+_IDC_VALUE_SENTINEL = object()
+
+
+@dataclass(frozen=True)
+class IdcResult:
+    """Result of conditional identification P(Y | do(X), Z) via IDC.
+
+    ``exchanged`` are the Z atoms that the Rule-2 loop moved into the
+    do-set; ``remaining_z`` are the Z atoms that stayed conditioned. When
+    ``remaining_z`` is empty the formula is the bare interventional
+    numerator (no division needed — every conditioned Z became
+    irrelevant after the intervention); otherwise it is a
+    ``FractionExpr``. Both sets are recorded so the verifier can replay
+    the exchange independently.
+    """
+    identifiable: bool
+    formula: FormulaExpr | None
+    exchanged: frozenset[Atom] = frozenset()
+    remaining_z: frozenset[Atom] = frozenset()
+    is_fraction: bool = False
+    hedge: frozenset[Atom] | None = None
+
+
+def identify_via_idc(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    x_atom: Atom,
+    y_atom: Atom,
+    z_atoms,
+    x_value,
+) -> IdcResult:
+    """Shpitser-Pearl IDC: identify the conditional interventional
+    distribution ``P(Y | do(X), Z)``.
+
+    Two phases:
+
+    1. **Rule-2 exchange.** For each conditioned ``Z`` test whether
+       ``Y ⊥ Z | X', (Z_set \\ {Z})`` holds in the mutilated ADMG
+       ``G_{X'̄, Z_}`` (directed edges into the current do-set X' and
+       bidirected edges at X' removed; directed edges out of Z removed).
+       If so, conditioning on Z is equivalent to intervening on it (do-
+       calculus Rule 2), so Z moves from the conditioning set into the
+       do-set. Loop to a fixed point.
+    2. **Normalize.** With X' the grown do-set and Z_rem the survivors,
+       ``P(Y | do(X), Z) = ID(Y ∪ Z_rem, X') / ID(Z_rem, X')`` — the
+       ratio of two ordinary (unconditional) interventional
+       distributions, each handed to the ID recursion. When Z_rem is
+       empty the denominator is 1 and the result is the bare numerator
+       ``ID(Y, X')``.
+
+    The intervention value is threaded onto X only; Y and Z are
+    structural query-bound holes (value=None), matching the kernel's
+    identify-query convention (target / given carry no values).
+    """
+    V = frozenset(graph.nodes()) | {a for pair in bidirected for a in pair}
+    z_set = frozenset(z_atoms)
+    y_set = frozenset({y_atom})
+
+    if x_atom not in V or y_atom not in V:
+        return IdcResult(identifiable=False, formula=None)
+    if x_atom == y_atom or x_atom in z_set or y_atom in z_set:
+        return IdcResult(identifiable=False, formula=None)
+    if not (z_set <= V):
+        return IdcResult(identifiable=False, formula=None)
+
+    full_topo = tuple(_admg_topo_order(graph, V))
+
+    do_set, z_rem = _rule2_exchange(graph, bidirected, x_atom, y_set, z_set)
+    exchanged = do_set - {x_atom}
+    # Free (value=None) targets: Y plus every conditioned Z (whether it
+    # ended up exchanged into the do-set or stayed in Z_rem — in both
+    # roles its value is the query-bound z, never X's do-value).
+    free_targets = y_set | z_set
+
+    # Numerator: ID(Y ∪ Z_rem, X').
+    num_formula, _trail, num_hedge = _id_set_structural(
+        graph, bidirected, full_topo, V, x_set=do_set, y_set=y_set | z_rem,
+    )
+    if num_formula is None:
+        return IdcResult(identifiable=False, formula=None, hedge=num_hedge)
+    num_formula = _apply_idc_values(
+        num_formula, x_atom=x_atom, x_value=x_value, free_targets=free_targets,
+    )
+
+    if not z_rem:
+        # Every conditioned Z exchanged away — the conditional collapses
+        # to the plain interventional P(Y | do(X')). No fraction.
+        return IdcResult(
+            identifiable=True,
+            formula=num_formula,
+            exchanged=exchanged,
+            remaining_z=frozenset(),
+            is_fraction=False,
+        )
+
+    # Denominator: ID(Z_rem, X') = Σ_Y of the numerator, recomputed as
+    # its own ID problem (Y is marginalized — it is neither a target nor
+    # in the do-set, so the recursion sums it out).
+    den_formula, _dtrail, den_hedge = _id_set_structural(
+        graph, bidirected, full_topo, V, x_set=do_set, y_set=z_rem,
+    )
+    if den_formula is None:
+        return IdcResult(identifiable=False, formula=None, hedge=den_hedge)
+    den_formula = _apply_idc_values(
+        den_formula, x_atom=x_atom, x_value=x_value, free_targets=free_targets,
+    )
+
+    return IdcResult(
+        identifiable=True,
+        formula=FractionExpr(numerator=num_formula, denominator=den_formula),
+        exchanged=exchanged,
+        remaining_z=z_rem,
+        is_fraction=True,
+    )
+
+
+def _atom_sort_key(a: Atom) -> tuple:
+    return (a.predicate, tuple(t.name for t in a.args))
+
+
+def _mutilate_for_rule2(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    do_set: frozenset[Atom],
+    underline: Atom,
+) -> tuple[nx.DiGraph, BidirectedEdgeSet]:
+    """Build the do-calculus Rule-2 mutilated ADMG ``G_{do_set̄, underline_}``.
+
+    - ``G_{X̄}`` (intervention on every node in ``do_set``): remove
+      directed edges *into* those nodes AND bidirected edges incident to
+      them. Cutting the bidirected edge is the ADMG-correct reading of
+      intervention: a bidirected X↔W stands for a latent L→X, L→W, and
+      ``do(X)`` severs L→X, dissolving the edge.
+    - ``G_{Z_}`` (the underlined observed node): remove directed edges
+      *out of* ``underline``. Its bidirected edges represent arrows
+      *into* it (from a latent), so they are NOT removed.
+    """
+    g = graph.copy()
+    for node in do_set:
+        if node in g:
+            g.remove_edges_from(list(g.in_edges(node)))
+    if underline in g:
+        g.remove_edges_from(list(g.out_edges(underline)))
+    bi = frozenset(p for p in bidirected if p.isdisjoint(do_set))
+    return g, bi
+
+
+def _rule2_exchange(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    x_atom: Atom,
+    y_set: frozenset[Atom],
+    z_set: frozenset[Atom],
+) -> tuple[frozenset[Atom], frozenset[Atom]]:
+    """Run the IDC Rule-2 loop. Returns ``(do_set, z_remaining)``.
+
+    Starts with ``do_set = {X}`` and the full conditioning set. Each
+    round, the first ``Z`` (deterministic order) for which the whole
+    target set ``Y`` is m-separated from ``Z`` given ``do_set ∪ (Z_set
+    \\ {Z})`` in ``G_{do_set̄, Z_}`` is moved into the do-set. Repeats
+    until no further exchange is possible.
+    """
+    do_set = frozenset({x_atom})
+    cond_z = frozenset(z_set)
+
+    changed = True
+    while changed and cond_z:
+        changed = False
+        for zi in sorted(cond_z, key=_atom_sort_key):
+            rest = cond_z - {zi}
+            mg, mbi = _mutilate_for_rule2(graph, bidirected, do_set, zi)
+            conditioning = tuple(do_set | rest)
+            separated = all(
+                not is_m_connected(mg, mbi, yj, zi, conditioning)
+                for yj in y_set
+            )
+            if separated:
+                do_set = do_set | {zi}
+                cond_z = rest
+                changed = True
+                break
+
+    return do_set, cond_z
+
+
+def _id_set_structural(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    full_topo: tuple[Atom, ...],
+    V: frozenset[Atom],
+    *,
+    x_set: frozenset[Atom],
+    y_set: frozenset[Atom],
+) -> tuple[FormulaExpr | None, tuple, frozenset[Atom] | None]:
+    """Run the ID recursion for an arbitrary (set-valued) intervention
+    ``x_set`` and target ``y_set``, returning ``(formula, trail, hedge)``.
+
+    The recursion is value-blind, so do-atoms get the sentinel value;
+    the caller stamps real values via ``_apply_idc_values``. This is the
+    same ``_id`` the single-target ``identify_via_tian`` drives — the
+    recursion already operates on frozensets, so no algorithmic change
+    is needed for IDC's set-valued sub-problems.
+    """
+    state = _IdState(
+        V=V,
+        x=x_set,
+        y=y_set,
+        graph=graph,
+        bidirected=bidirected,
+        topo=full_topo,
+        x_value=_IDC_VALUE_SENTINEL,
+        do_atoms=x_set,
+        trail=[],
+    )
+    formula = _id(state)
+    return formula, tuple(state.trail), state.hedge
+
+
+def _apply_idc_values(
+    formula: FormulaExpr,
+    *,
+    x_atom: Atom,
+    x_value,
+    free_targets: frozenset[Atom],
+) -> FormulaExpr:
+    """Stamp IDC value semantics onto a structurally-built formula.
+
+    Resolution is driven by the MARKER the ID recursion left on each
+    ``ValuedAtom``, not by atom identity — this is the load-bearing
+    distinction. The recursion can reintroduce the intervention variable
+    as a SUMMED re-marginalization variable inside a c-factor (the inner
+    ``Σ_x'`` of a front-door-style witness), tagging it ``VarRef``;
+    that occurrence must stay bound by its sum, NOT be overwritten with
+    the literal do-value. Reading atom identity alone (X → do-value
+    everywhere) collapses that inner sum — the iter-143 degenerate-sum
+    bug, in the set-valued IDC path.
+
+    - sentinel  → a genuine do-atom literal slot: the real intervention
+      ``x_atom`` gets the concrete do-value; an exchanged Z (also in the
+      do-set) becomes a query-bound hole (None).
+    - free target (Y or any conditioned Z) → None, regardless of whether
+      the recursion left it None or VarRef-marked it (a sub-recursion may
+      tag a kept target with an unbound VarRef; it is query-bound here).
+    - anything else → left untouched: a genuinely summed ``VarRef`` (the
+      inner ``x'``, a mediator ``m``) bound by its enclosing ``SumExpr``.
+    """
+    def fix(va: ValuedAtom) -> ValuedAtom:
+        if va.value is _IDC_VALUE_SENTINEL:
+            new_value = x_value if va.atom == x_atom else None
+            return ValuedAtom(atom=va.atom, value=new_value)
+        if va.atom in free_targets:
+            return va if va.value is None else ValuedAtom(atom=va.atom, value=None)
+        return va
+
+    return _map_valued_atoms(formula, fix)
+
+
+def _map_valued_atoms(formula: FormulaExpr, fn) -> FormulaExpr:
+    """Structure-preserving map over every ``ValuedAtom`` in a formula."""
+    from ..types import ConstantExpr
+
+    if isinstance(formula, ConstantExpr):
+        return formula
+    if isinstance(formula, ProbabilityRefExpr):
+        return ProbabilityRefExpr(
+            target=fn(formula.target),
+            given=tuple(fn(g) for g in formula.given),
+        )
+    if isinstance(formula, ProductExpr):
+        return ProductExpr(terms=tuple(_map_valued_atoms(t, fn) for t in formula.terms))
+    if isinstance(formula, SumExpr):
+        return SumExpr(
+            bind=formula.bind,
+            over=formula.over,
+            body=_map_valued_atoms(formula.body, fn),
+        )
+    if isinstance(formula, FractionExpr):
+        return FractionExpr(
+            numerator=_map_valued_atoms(formula.numerator, fn),
+            denominator=_map_valued_atoms(formula.denominator, fn),
+        )
+    return formula

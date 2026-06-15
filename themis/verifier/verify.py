@@ -552,6 +552,7 @@ def verify_identify(
             "identify_via_front_door",
             "identify_via_iv",
             "identify_via_tian",
+            "identify_via_idc",
         )
     else:
         expected_finals = (

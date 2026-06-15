@@ -256,12 +256,24 @@
         }
       }
     },
+    "fraction": {
+      "type": "object",
+      "description": "A ratio of two formulas. Introduced by conditional identification (IDC): P(Y|do(X),Z) = ID(Y∪Z_rem, X') / ID(Z_rem, X'). The only formula node that introduces division.",
+      "additionalProperties": false,
+      "required": ["kind", "numerator", "denominator"],
+      "properties": {
+        "kind": { "const": "fraction" },
+        "numerator": { "$ref": "#/$defs/formula" },
+        "denominator": { "$ref": "#/$defs/formula" }
+      }
+    },
     "formula": {
       "oneOf": [
         { "$ref": "#/$defs/constant" },
         { "$ref": "#/$defs/probability_ref" },
         { "$ref": "#/$defs/product" },
-        { "$ref": "#/$defs/sum" }
+        { "$ref": "#/$defs/sum" },
+        { "$ref": "#/$defs/fraction" }
       ]
     },
     "tagged": {
@@ -277,6 +289,7 @@
         { "$ref": "#/$defs/probability_ref" },
         { "$ref": "#/$defs/product" },
         { "$ref": "#/$defs/sum" },
+        { "$ref": "#/$defs/fraction" },
         { "$ref": "#/$defs/atom_set" },
         { "$ref": "#/$defs/atom_tuple" },
         { "$ref": "#/$defs/valued_atom_tuple" },

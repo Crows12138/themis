@@ -212,6 +212,12 @@ def _term_to_dict(term: Term) -> dict:
 
 
 def _valued_atom_to_dict(va: ValuedAtom) -> dict:
+    # NOTE: the derivation schema's valued_atom REQUIRES `value` and its
+    # primitive type admits null, so a query-bound hole (value=None) is
+    # serialized as an explicit ``"value": null`` here — deliberately
+    # DIFFERENT from result_orchestrator._valued_atom_to_dict, which omits
+    # the key because the query_result top-level formula schema forbids
+    # null. The two formula positions are governed by different schemas.
     return {
         "kind": "valued_atom",
         "atom": _atom_to_dict(va.atom),
@@ -567,7 +573,7 @@ def _decode_product(d: dict) -> ProductExpr:
     if not isinstance(terms_raw, list):
         raise DerivationSerializationError("product.terms must be a list")
     terms = tuple(_value_from_json(t) for t in terms_raw)
-    if not all(isinstance(term, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)) for term in terms):
+    if not all(isinstance(term, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)) for term in terms):
         raise DerivationSerializationError("product.terms must contain only FormulaExpr values")
     return ProductExpr(terms=terms)
 
@@ -586,9 +592,24 @@ def _decode_sum(d: dict) -> SumExpr:
     if "body" not in d:
         raise DerivationSerializationError("sum.body is required")
     body = _value_from_json(d["body"])
-    if not isinstance(body, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+    if not isinstance(body, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)):
         raise DerivationSerializationError("sum.body must be a FormulaExpr")
     return SumExpr(bind=bind, over=over, body=body)
+
+
+def _decode_fraction(d: dict) -> FractionExpr:
+    if "numerator" not in d or "denominator" not in d:
+        raise DerivationSerializationError(
+            "fraction requires numerator and denominator"
+        )
+    numerator = _value_from_json(d["numerator"])
+    denominator = _value_from_json(d["denominator"])
+    _FORMULA_NODES = (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)
+    if not isinstance(numerator, _FORMULA_NODES) or not isinstance(denominator, _FORMULA_NODES):
+        raise DerivationSerializationError(
+            "fraction.numerator and .denominator must be FormulaExpr values"
+        )
+    return FractionExpr(numerator=numerator, denominator=denominator)
 
 
 def _decode_atom_set(d: dict) -> frozenset:
@@ -632,6 +653,7 @@ _DECODE_BY_KIND = {
     "probability_ref":    _decode_probability_ref,
     "product":            _decode_product,
     "sum":                _decode_sum,
+    "fraction":           _decode_fraction,
     "atom_set":           _decode_atom_set,
     "atom_tuple":         _decode_atom_tuple,
     "valued_atom_tuple":  _decode_valued_atom_tuple,

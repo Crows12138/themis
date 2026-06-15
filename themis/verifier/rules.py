@@ -4570,6 +4570,186 @@ def _rule_tian_hedge_witness(
         )
 
 
+# ---------------------------------------------------------------------------
+# IDC (conditional identification, P(Y | do(X), Z)) verifier rules.
+#
+# The runtime path is c_factor.identify_via_idc; see that module for the
+# algorithm. The verifier's independent checks (in _rule_identify_via_idc):
+#   1. the formula validates against the kernel formula grammar;
+#   2. the do-calculus Rule-2 exchange is re-derived FROM SCRATCH here
+#      (its own mutilation + loop, sharing only the trusted is_m_connected
+#      m-separation primitive) — this is the IDC-specific, load-bearing
+#      claim, so it is checked without calling the runtime's exchange;
+#   3. the formula's SHAPE is consistent with that independent replay —
+#      a FractionExpr iff conditioning survived, the bare numerator iff
+#      every Z exchanged away.
+#
+# Scope, stated plainly (no overclaim): this rule independently verifies
+# the IDC-specific REDUCTION — the Rule-2 exchange and the resulting
+# numerator/denominator shape — plus formula well-formedness. It does NOT
+# independently re-derive the underlying (unconditional) identifiability
+# of the two ID sub-problems; that rests on the same c-factor machinery
+# the Tian path uses. A precise, set-valued, non-circular re-check of ID
+# identifiability (without mirroring the recursion) is deferred — the
+# naive "x and y share a c-component of An(Y)" test is NOT a sound hedge
+# detector (it false-flags front-door graphs), so no such floor is
+# asserted here rather than asserting a wrong one.
+
+
+def _idc_atom_sort_key(a) -> tuple:
+    return (a.predicate, tuple(t.name for t in a.args))
+
+
+def _idc_mutilate_rule2(graph, bidirected, do_set, underline):
+    """G_{do_set̄, underline_}: remove directed edges into do_set, the
+    bidirected edges at do_set, and directed edges out of underline.
+
+    INVARIANT: this convention must stay identical to
+    ``c_factor._mutilate_for_rule2`` — they are deliberately separate
+    implementations so the verifier does not depend on the runtime's
+    exchange code, but a divergence here is a verifier bug.
+    """
+    g = graph.copy()
+    for node in do_set:
+        if node in g:
+            g.remove_edges_from(list(g.in_edges(node)))
+    if underline in g:
+        g.remove_edges_from(list(g.out_edges(underline)))
+    bi = frozenset(p for p in bidirected if p.isdisjoint(do_set))
+    return g, bi
+
+
+def _idc_replay_exchange(graph, bidirected, x, y_set, z_set):
+    """Independently re-run the IDC Rule-2 loop. Returns (do_set, z_rem)."""
+    from ..runtime.structural_solver import is_m_connected
+
+    do_set = frozenset({x})
+    cond_z = frozenset(z_set)
+    changed = True
+    while changed and cond_z:
+        changed = False
+        for zi in sorted(cond_z, key=_idc_atom_sort_key):
+            rest = cond_z - {zi}
+            mg, mbi = _idc_mutilate_rule2(graph, bidirected, do_set, zi)
+            conditioning = tuple(do_set | rest)
+            if all(
+                not is_m_connected(mg, mbi, yj, zi, conditioning)
+                for yj in y_set
+            ):
+                do_set = do_set | {zi}
+                cond_z = rest
+                changed = True
+                break
+    return do_set, cond_z
+
+
+def _rule_idc_rule2_exchange(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Declarative step: 'we ran the IDC Rule-2 exchange on ctx.graph'.
+    The exchange is actually replayed in identify_via_idc; here we only
+    validate the inputs are well-formed (parallel to
+    tian_c_decomposition)."""
+    graph = _require(inputs, "graph", step_index, "idc_rule2_exchange")
+    _assert_same_graph(graph, ctx.graph, step_index, "idc_rule2_exchange")
+    x = _require_atom(inputs, "x", step_index, "idc_rule2_exchange")
+    y = _require_atom(inputs, "y", step_index, "idc_rule2_exchange")
+    if x == y:
+        raise RuleCheckFailed(
+            "idc_rule2_exchange: x and y must differ",
+            step_index=step_index, rule="idc_rule2_exchange",
+        )
+    if claimed_output is not True:
+        raise RuleCheckFailed(
+            f"idc_rule2_exchange output must be True, got {claimed_output!r}",
+            step_index=step_index, rule="idc_rule2_exchange",
+        )
+
+
+def _rule_identify_via_idc(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict,
+    step_output_by_id: dict,
+) -> None:
+    """Verifier-side independent check of a conditional identification
+    P(Y | do(X), Z). See the section header above for the proof posture.
+    """
+    from ..input.semantic_validator import validate_formula
+
+    exchange_ref = _require(
+        inputs, "exchange", step_index, "identify_via_idc",
+    )
+    formula = _require(inputs, "formula", step_index, "identify_via_idc")
+
+    if not isinstance(exchange_ref, StepRef):
+        raise UnknownRuleInputError(
+            "identify_via_idc.exchange must be a StepRef",
+            step_index=step_index, rule="identify_via_idc",
+        )
+    exchange_step = step_by_id.get(exchange_ref.step_id)
+    if exchange_step is None or exchange_step.rule != "idc_rule2_exchange":
+        raise RuleCheckFailed(
+            "identify_via_idc.exchange must reference an idc_rule2_exchange "
+            f"step, got {getattr(exchange_step, 'rule', None)!r}",
+            step_index=step_index, rule="identify_via_idc",
+        )
+
+    q = ctx.query
+    if not isinstance(q, IdentifyQuery):
+        raise RuleCheckFailed(
+            "identify_via_idc requires IdentifyQuery context",
+            step_index=step_index, rule="identify_via_idc",
+        )
+    if not q.given:
+        raise RuleCheckFailed(
+            "identify_via_idc requires a non-empty conditioning set "
+            "(given); empty-given identification is plain ID, not IDC",
+            step_index=step_index, rule="identify_via_idc",
+        )
+    x = q.intervention.atom
+    y = q.target
+    z_set = frozenset(q.given)
+
+    try:
+        validate_formula(formula)
+    except Exception as exc:
+        raise RuleCheckFailed(
+            f"identify_via_idc formula does not validate: {exc}",
+            step_index=step_index, rule="identify_via_idc",
+        ) from exc
+
+    # (2) Independently re-derive the Rule-2 exchange.
+    do_set, z_rem = _idc_replay_exchange(
+        ctx.graph, ctx.bidirected, x, frozenset({y}), z_set,
+    )
+
+    # (3) The formula's shape must agree with the independent replay:
+    # a FractionExpr iff conditioning survived, the bare numerator iff
+    # every Z exchanged away. Catches a runtime that emitted the wrong
+    # estimand shape for the exchange it actually performed.
+    from ..types import FractionExpr
+    is_fraction = isinstance(formula, FractionExpr)
+    if bool(z_rem) != is_fraction:
+        raise RuleCheckFailed(
+            "identify_via_idc: formula shape inconsistent with the "
+            f"replayed exchange — z_remaining={'non-empty' if z_rem else '∅'} "
+            f"but formula is {'a fraction' if is_fraction else 'not a fraction'}",
+            step_index=step_index, rule="identify_via_idc",
+        )
+
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "identify_via_idc must claim StructuralResult(value=True)",
+            step_index=step_index, rule="identify_via_idc",
+        )
+
+
 # rule name -> handler. Each handler has the signature
 #   (ctx, inputs, claimed_output, step_index, **maybe step_output_by_id) -> None
 # Handlers raise VerificationError subclasses to reject.
@@ -4616,6 +4796,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "tian_formula_ast": _rule_tian_formula_ast,
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
     "tian_c_decomposition": _rule_tian_c_decomposition,
+    # IDC — conditional identification P(Y | do(X), Z)
+    "idc_rule2_exchange": _rule_idc_rule2_exchange,
 }
 _STEP_REF_RULES = {
     "identify_via_backdoor",
@@ -4634,6 +4816,8 @@ _STEP_REF_RULES = {
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
     "identify_via_tian",
     "tian_hedge_witness",
+    # IDC — conditional identification P(Y | do(X), Z)
+    "identify_via_idc",
 }
 
 
@@ -4702,6 +4886,11 @@ def dispatch_rule(
         return
     if rule_name == "tian_hedge_witness":
         _rule_tian_hedge_witness(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_idc":
+        _rule_identify_via_idc(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return
