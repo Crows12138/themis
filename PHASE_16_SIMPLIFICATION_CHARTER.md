@@ -69,10 +69,30 @@ Shpitser-Pearl sum-of-products，所以走 causaleffect 路线（bolt-on 化简�
 - **slice 3 —— 图感知 `simplify`（Alg 1/2/3）。** `join`/`insert`/`factorize`，
   需 ADMG 上的 d-分离 oracle（Themis 已有 `m_separated`）。完备层；当要消的因子
   不是 leading term 时用。
-- **slice 4 —— eagerly 接进 Line-7 构造。** 在 `c_factor` 的 nested-ID 构造里
-  每步后 `simplify_formula`，防止中间表达式爆炸。**全程用语义探针验**，只发探针
-  确认过的公式，其余 punt。这是真正解锁"完整通用 nested-ID"的一步——也是上次
-  爆炸的地方，所以放在 canceller 证明之后、稳着做。
+- **slice 4 —— eagerly 接进 nested-ID 构造。** 在构造里每步后 `simplify_formula`。
+  **2026-06-15 试做并测量，得出一个纠正前提的发现，未提交（接错地方、no-op）：**
+  - 把 simplify eagerly 插进**当前** `c_factor._dist_marginalize`/`_dist_conditional`
+    后测量：napkin / extended-napkin / front-door 三个 case，simplify **从不减小任何
+    公式（完全 no-op）**，且 napkin 仍工作、extended-napkin 仍 punt。
+  - **关键纠正**：记忆里说的"指数爆炸"是**已 revert 的 `_id_symbolic`（完整符号 ID）**
+    的事；**当前 master 的 `_identify_cfactor`（Tian 子程序）根本不爆**——extended napkin
+    0.03s 干净构造，问题是构造出的公式**数值错**（探针抓住 → punt → IV）。即当前构造的
+    拦路虎是**构造正确性**，不是爆炸。
+  - **所以 canceller 接进当前构造是 no-op**（当前构造没有它要解决的爆炸问题，错公式也
+    不匹配 sum-to-one 前提）。**已 revert 这次 wiring**（不留 no-op 死代码）。
+  - **canceller 的真正用武之地 = 重新尝试 `_id_symbolic`**（那个确实爆、当初因没消除器
+    才 revert 的）。把 simplify eagerly 套上去 re-attempt 才是真 slice 4。
+  - **但这是大风险步骤（重引已 revert 代码），且 VISION 明确说"完整 ID 可选"。**
+    当前状态（napkin 对、更难的安全 punt 到 IV）符合 VISION。**re-attempt `_id_symbolic`
+    属低 VISION 价值 + 高风险 —— 触发前应明确立项，别顺手做。**
+
+## 结论（2026-06-15）
+
+slices 1+2（便宜代数层：sum-to-one + extract + fraction 约分）**已落、已证保值、已提交**
+（`caed681`/`4b79f3e`），是一个**正确、独立、待命**的资产。但它**当前没有消费者**：当前
+nested-ID 构造不爆炸，所以接它是 no-op。它的价值在"若将来 re-attempt 完整符号 ID
+`_id_symbolic`"时兑现——而那是 VISION-optional 的大工程。**Phase 16 到此是一个干净的
+暂停点**：canceller 建好待命，是否动用取决于是否立项做完整通用 nested-ID。
 
 ## 不变量 / 纪律
 
