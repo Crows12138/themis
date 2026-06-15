@@ -80,6 +80,60 @@ def test_undeclared_var_in_cause_is_rejected() -> None:
         validate_program(ast)
 
 
+def _const(pred: str) -> dict:
+    return {"predicate": pred, "args": [{"type": "const", "name": "me"}]}
+
+
+def test_bidirected_only_query_atom_names_m_bias() -> None:
+    """A `given` atom appearing ONLY in bidirected edges (no directed
+    role) never enters V. Real-usage probe 2026-06-15: the message must
+    name the bidirected-only / M-bias situation rather than the
+    misleading 'no cause edge introduces them', which reads as 'you
+    forgot to declare it' even though the user clearly declared m."""
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "cause", "from": _const("x"), "to": _const("y")},
+            {"kind": "bidirected", "left": _const("x"), "right": _const("m")},
+            {"kind": "bidirected", "left": _const("m"), "right": _const("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "target": {"atom": _const("y"), "value": True},
+                "intervention": {"atom": _const("x"), "value": True},
+                "given": [{"atom": _const("m"), "value": True}]}},
+        ],
+    }
+    # The query-atoms-in-V check runs over the instantiated graph in the
+    # run path (validate_against_graph), so drive it via themis.run.
+    import themis
+
+    with pytest.raises(SemanticError, match="bidirected"):
+        themis.run(ast)
+
+
+def test_truly_undeclared_query_atom_keeps_original_message() -> None:
+    """Contrast to the M-bias case: an atom in NO statement at all keeps
+    the original 'no cause edge introduces them' message — the bidirected
+    refinement is gated on the atom actually being a bidirected endpoint."""
+    import themis
+
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "cause", "from": _const("x"), "to": _const("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "target": {"atom": _const("y"), "value": True},
+                "intervention": {"atom": _const("x"), "value": True},
+                "given": [{"atom": _const("w"), "value": True}]}},
+        ],
+    }
+    with pytest.raises(SemanticError, match="no cause edge introduces them"):
+        themis.run(ast)
+
+
 def test_duplicate_variable_declaration_is_rejected() -> None:
     """Slice A0 follow-up: a predicate may have at most one
     variableDeclaration. Two declarations used to silently overwrite

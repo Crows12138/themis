@@ -704,6 +704,34 @@ def _check_query_atoms_in_V(ground_statements, graph) -> None:
         missing = [a for a in atoms if a not in graph]
         if missing:
             names = sorted({a.predicate for a in missing})
+            # A missing atom that DOES appear in a bidirected edge is a
+            # different, more confusing situation than a truly undeclared
+            # one: the user declared it, but only as a latent-confounding
+            # endpoint with no directed causal role, so it never entered
+            # the variable set V (built from cause edges). Name that
+            # precisely — the canonical case is conditioning on an M-bias
+            # collider — instead of the misleading "no cause edge
+            # introduces them", which reads as "you forgot to declare it".
+            bidir_atoms = {
+                a
+                for s in ground_statements
+                if isinstance(s, BidirectedStatement)
+                for a in (s.left, s.right)
+            }
+            bidir_only = sorted({
+                a.predicate for a in missing if a in bidir_atoms
+            })
+            if bidir_only:
+                raise SemanticError(
+                    f"ground_statements[{idx}] ({stmt.id}): query references "
+                    f"atom(s) {bidir_only} that appear ONLY in bidirected "
+                    f"(latent-confounding) edges and so are not in the "
+                    f"variable set V — a bidirected endpoint has no directed "
+                    f"causal role. Conditioning on a purely latent-confounded "
+                    f"node (the M-bias structure) is not supported; give the "
+                    f"node a directed (cause) edge if it has an observed "
+                    f"causal role."
+                )
             raise SemanticError(
                 f"ground_statements[{idx}] ({stmt.id}): query references "
                 f"atom(s) {names} that are not in the instantiated "
