@@ -1,9 +1,11 @@
 # Phase 15 — Identification on a theoretical foundation
 
-> 状态：完成 — Phase A（语义验证骨干）已接入 verify_identify；Phase B（scheduler
-> 塌缩为「跑 ID/IDC 引擎 → 认图案标注 → 升级 IV」，公式统一 c-factor 规范式、
-> 图案降为图层标注）已落地，并修了两个真 `_id` 自由-VarRef bug。全量绿（2051
-> passed，5 个既有失败与本阶段无关）。覆盖 backdoor / front-door / Tian / IDC。
+> 状态：A+B 完成；Line 7（嵌套 ID）napkin 类完成，完整通用版待化简子系统。
+> Phase A（语义验证骨干）已接入 verify_identify；Phase B（scheduler 塌缩为
+> 「跑 ID/IDC 引擎 → 认图案标注 → 升级 IV」，公式统一 c-factor、图案降为图层
+> 标注）已落地，修了两个真 `_id` 自由-VarRef bug。Pearl napkin 等 nested-ID
+> 已非参数识别（f75508d）。**下一步大工程：公式化简子系统**（见文末「Line 7
+> 与化简」）。全量绿。覆盖 backdoor / front-door / Tian / IDC。
 >
 > From *empirical-grade* (a pile of method-specific solvers + structural
 > checkers) to *theory-grade* (one complete algorithm is the arbiter of
@@ -153,3 +155,48 @@ reroute that changes a formula cannot silently break correctness.
   identification path (that would be circular). It builds its own SCM
   and computes the true do-quantity by direct SCM intervention — fully
   independent of how the formula was derived.
+
+## Line 7 (nested ID) and the simplification subsystem
+
+The complete ID algorithm's hardest line is Line 7: when the c-component
+S of G[V\X] is a strict subset of a c-component S' of G, the answer is
+the recursive ID over the *substituted* distribution Q[S'], which
+introduces RATIOS. The canonical example is Pearl's **napkin**
+(W→Z→X→Y, W↔X, W↔Y).
+
+**Status (2026-06-15).** A compact Q[S'] shortcut covers front-door-style
+Line-7 cases. It leaves a free, unbound sum variable on genuine nested ID
+(napkin: Z leaks out of S'). A real-usage stress test (independent agent
+over the MCP) surfaced this as a public-API crash, then as an IV
+degradation. The napkin is now **nonparametrically identified** via a
+contained Tian-Identify subroutine, numerically verified by the semantic
+backbone (f75508d). Mediator-bearing nested ID (extended napkin
+W→Z→X→M→Y) is **safely punted** by the probe gate — never a wrong answer.
+
+**The wall — why "complete general nested ID" is a SUBSYSTEM, not a bug.**
+A full symbolic ID (`_id_symbolic`, running every line over the
+observational joint as a symbolic distribution) was implemented and is
+mathematically CORRECT (napkin probes match). But the *naive* symbolic ID
+has **no algebraic simplification pass**, so its estimands explode
+EXPONENTIALLY *during construction*: the extended napkin (5 nodes) reaches
+depth in the thousands and overflows the stack of every recursive walk
+(stamp / validate / probe); even the napkin's symbolic formula is complex
+enough to intermittently destabilise the probe. It was reverted — the
+exploration never touched master (the probe + validate_formula double net
++ "build → probe → revert-if-bad" kept the committed state green).
+
+**The required next undertaking.** Complete, general nested ID needs a
+formula-simplification subsystem, done as a dedicated round:
+
+1. Represent the distribution as a **structured factor set** (not a flat
+   FormulaExpr) and marginalise by **variable elimination** — sum out one
+   variable at a time, multiplying only the factors that contain it.
+2. The load-bearing simplifications: **sum-to-one** (`Σ_v P(v|·) = 1`
+   when v appears in a single factor → drop it), **ratio cancellation**,
+   and **pushing sums inward**. These keep intermediate estimands small.
+3. **Read the references first, do NOT reconstruct from memory:**
+   `causaleffect` (R, Tikka & Karvanen) and `ananke` (Python, Shpitser's
+   group) both centre an aggressive simplification of the Probability
+   expression — that is the part to study and port.
+4. Validate throughout with the semantic probe; ship only probe-confirmed
+   formulas, punt the rest.
