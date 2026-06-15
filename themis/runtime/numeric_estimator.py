@@ -635,6 +635,19 @@ def _diagnose_marginal_independence_refusal(
             reduced = frozenset(
                 p for p in base_given if p not in to_remove
             )
+            # A bare marginal P(Y) (empty conditioning) asserts NO
+            # conditional independence: supplying a base rate is never a
+            # claim that Y ⊥ {X,Z}. So its d-sep refusal is not a
+            # graph-vs-CPT contradiction — it is plain missing data. Skip
+            # it here → the caller falls through to the generic message →
+            # the classifier emits MISSING_DISTRIBUTION (blocking, names
+            # the demanded conditional P(Y|X,Z)) instead of a downgraded,
+            # backwards "your graph contradicts your CPT, delete an edge"
+            # mismatch. The iter-204 mismatch case keeps a non-empty
+            # conditioning set (P(C|S) for demanded P(C|S,T)) and is
+            # untouched. Real-usage probe, 2026-06-15.
+            if not reduced:
+                continue
             reduced_key = ProbabilityKey(
                 target_atom=target_atom, target_value=target_value,
                 given=reduced, population=pop,

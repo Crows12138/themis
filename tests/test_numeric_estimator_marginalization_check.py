@@ -820,3 +820,69 @@ def test_iter_204_probability_dispatch_threads_bidirected_for_dsep_guard():
         "iter 204: when the d-sep refusal signature is present, the "
         "generic missing_distribution must be suppressed (per iter 203)"
     )
+
+
+def test_bare_marginal_is_missing_distribution_not_graph_mismatch():
+    """Real-usage probe 2026-06-15 — a supplied bare marginal P(Y) must
+    NOT be diagnosed as a graph-vs-CPT contradiction.
+
+    A real user asks for the causal effect of coffee on depression with a
+    textbook confounder (stress → coffee, stress → depression,
+    coffee → depression) and supplies only the outcome BASE RATE
+    P(depression)=0.25 — entirely consistent with the DAG. The backdoor
+    formula demands P(depression|coffee,stress); the bare marginal cannot
+    substitute (correct), but supplying a marginal is NEVER a claim that
+    depression ⊥ {coffee,stress}, so it is not a graph-CPT mismatch.
+
+    Pre-fix, the d-sep refusal diagnostic fired on the empty-conditioning
+    candidate and routed to graph_theta_independence_mismatch (important)
+    whose headline remedy was "delete the confounding edge" — backwards
+    advice that would validate the naive unadjusted estimate. The fix
+    skips empty-conditioning candidates so this lands on the honest
+    missing_distribution (blocking): "supply P(Y|X,Z), adjust for the
+    confounder". Contrast test_iter_204_… above, where the refused
+    candidate P(C|S) keeps a NON-empty conditioning set and correctly
+    stays a mismatch.
+    """
+    import themis
+
+    def atom(p, name="me"):
+        return {"predicate": p, "args": [{"type": "const", "name": name}]}
+
+    def cause(s, d):
+        return {"kind": "cause", "from": atom(s), "to": atom(d)}
+
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            cause("stress", "coffee"),
+            cause("stress", "depression"),
+            cause("coffee", "depression"),
+            {"kind": "probability",
+             "target": {"atom": atom("depression"), "value": True},
+             "given": [], "value": 0.25},
+            {"kind": "query", "id": "q",
+             "query": {"kind": "effect",
+                       "target": {"atom": atom("depression"), "value": True},
+                       "intervention": {"atom": atom("coffee"), "value": True},
+                       "given": []}},
+        ],
+    }
+
+    out = themis.run(ast)
+    res = out["results"][0]
+    kinds = {g["kind"] for g in res["data_gap_report"]["gaps"]}
+
+    assert "graph_theta_independence_mismatch" not in kinds, (
+        "a bare marginal P(Y) was mis-diagnosed as a graph-CPT "
+        "contradiction — empty conditioning is not an independence claim"
+    )
+    blocking = next(
+        g for g in res["data_gap_report"]["gaps"]
+        if g["kind"] == "missing_distribution"
+    )
+    assert blocking["severity"] == "blocking"
+    assert blocking["blocks"] == "point_estimate"
+    # The honest gap names the confounder-adjusted conditional to collect.
+    assert "stress" in blocking["description"]

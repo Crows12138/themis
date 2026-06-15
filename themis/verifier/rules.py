@@ -2381,6 +2381,12 @@ def _verifier_diagnose_marginal_independence_refusal(
             reduced = frozenset(
                 p for p in base_given if p not in to_remove
             )
+            # Sync with runtime _diagnose_marginal_independence_refusal:
+            # a bare marginal (empty conditioning) is not an independence
+            # claim, so its d-sep refusal is missing data, not a
+            # graph-CPT mismatch. Skip so both diagnostics agree.
+            if not reduced:
+                continue
             reduced_key = ProbabilityKey(
                 target_atom=target_atom, target_value=target_value,
                 given=reduced, population=pop,
