@@ -52,6 +52,7 @@ from ..types import (
     ValuedAtom,
     VarRef,
 )
+from .formula_simplify import simplify_formula
 from .structural_solver import BidirectedEdgeSet, c_components, is_m_connected
 
 
@@ -478,14 +479,30 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 # (_bind_free_params). Binding them here would double-count
                 # a variable an outer sum already owns (the extended-napkin
                 # bug).
-                q_sprime = _build_dist_cfactor(state, s_prime)
+                # Identify is do-AGNOSTIC (Tian Lemma 4 / Shpitser
+                # c-identify): build Q[S'] and run the c-factor recursion
+                # with NO do-awareness — the intervention is an ordinary
+                # distribution variable, summed/conditioned by the c-factor
+                # algebra. Threading the do-value into the inner sums (the
+                # old `- do_atoms`) degenerated the X-head ratio Q[H^(i)]/
+                # Q[H^(i-1)] to 1 — coincidentally right for the napkin (X
+                # terminal in S') but wrong when X is interior to S' (the
+                # extended napkin: it dropped the c-factor ratio entirely).
+                dist_state = replace(state, do_atoms=frozenset())
+                q_sprime = _build_dist_cfactor(dist_state, s_prime)
                 q_s = _identify_cfactor(
                     S, s_prime, q_sprime, graph, bidirected, state.topo,
-                    state.do_atoms,
+                    frozenset(),
                 )
                 if q_s is None:
                     return None  # genuine hedge / unhandled
-                return _dist_marginalize(q_s, S - y - state.do_atoms, state.topo)
+                # Apply do(X=x_value) HERE, after the c-factor ratios have
+                # formed and been cancelled, then marginalize the remaining
+                # S-variables to keep Y. X ∉ S, so it appears only in
+                # conditionings; _bind_do_value sets its free occurrences to
+                # the do-value (a still-summed X is left for the probe gate).
+                q_s = _bind_do_value(q_s, state.do_atoms, state.x_value)
+                return _dist_marginalize(q_s, S - y, state.topo)
 
             # SHORTCUT: settle identifiability by recursing on G[S'] (throw-
             # away trail). A LOCAL bow-arc (X→Y direct inside S' together
@@ -729,6 +746,54 @@ def _bind_none_to_varref(
     return formula
 
 
+def _bind_do_value(
+    formula: FormulaExpr,
+    do_atoms: frozenset[Atom],
+    x_value,
+) -> FormulaExpr:
+    """Apply ``do(X = x_value)`` at the Identify boundary: set every
+    value=None occurrence of a do-atom to its literal do-value.
+
+    Tian's Identify / Shpitser's c-identify compute a PURE c-factor — the
+    subroutine is do-AGNOSTIC, treating the intervention as an ordinary
+    distribution variable (Tian-Pearl R-290-L Lemma 4; causaleffect
+    ``compute.c.factor`` takes no do/x argument). The intervention enters
+    only HERE, after the c-factor ratios have formed and been cancelled by
+    ``simplify_formula``. A do-atom still bound by an inner sum
+    (value=VarRef, not None) is left untouched: if simplification could not
+    cancel that sum the estimand is malformed and the probe gate punts it,
+    so a slip can never emit a wrong number."""
+    from ..types import ConstantExpr
+
+    def rw(va: ValuedAtom) -> ValuedAtom:
+        if va.atom in do_atoms and va.value is None:
+            return ValuedAtom(atom=va.atom, value=x_value)
+        return va
+
+    if isinstance(formula, ConstantExpr):
+        return formula
+    if isinstance(formula, ProbabilityRefExpr):
+        return ProbabilityRefExpr(
+            target=rw(formula.target),
+            given=tuple(rw(g) for g in formula.given),
+        )
+    if isinstance(formula, ProductExpr):
+        return ProductExpr(terms=tuple(
+            _bind_do_value(t, do_atoms, x_value) for t in formula.terms
+        ))
+    if isinstance(formula, SumExpr):
+        return SumExpr(
+            bind=formula.bind, over=formula.over,
+            body=_bind_do_value(formula.body, do_atoms, x_value),
+        )
+    if isinstance(formula, FractionExpr):
+        return FractionExpr(
+            numerator=_bind_do_value(formula.numerator, do_atoms, x_value),
+            denominator=_bind_do_value(formula.denominator, do_atoms, x_value),
+        )
+    return formula
+
+
 def _wrap_sum(
     state: _IdState,
     body: FormulaExpr,
@@ -816,7 +881,13 @@ def _dist_marginalize(
         out = SumExpr(
             bind=BindDecl(name=_canonical_bind_name(atom)), over=atom, body=out,
         )
-    return out
+    # Simplify EAGERLY, between construction steps (Phase 16). The
+    # do-agnostic Identify forms c-factor ratios (Lemma 4) whose summed
+    # variables telescope by the sum-to-one identity; cancelling them as
+    # they are built keeps every intermediate estimand bounded through the
+    # nested recursion. Proven value-preserving; the full Line-7 path is
+    # probe-gated regardless.
+    return simplify_formula(out)
 
 
 def _dist_conditional(
@@ -834,7 +905,12 @@ def _dist_conditional(
     is what makes nested-ID estimands fractions."""
     num = _dist_marginalize(formula, dist_vars - given - {v} - do_atoms, topo)
     den = _dist_marginalize(formula, dist_vars - given - do_atoms, topo)
-    return FractionExpr(numerator=num, denominator=den)
+    # Cancel the shared factors of the c-factor ratio Q[H^(i)]/Q[H^(i-1)]
+    # (Lemma 4): numerator and denominator are marginalizations of the same
+    # Q differing only by whether v is summed, so they share a long common
+    # factor. Eager simplify keeps the ratio from compounding through the
+    # recursion. do_atoms is empty on the do-agnostic Identify path.
+    return simplify_formula(FractionExpr(numerator=num, denominator=den))
 
 
 def _dist_cfactor_from(

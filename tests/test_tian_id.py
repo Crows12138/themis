@@ -174,6 +174,46 @@ def test_napkin_nonparametrically_identified_via_full_line7():
     themis.verify(ast, r)
 
 
+def test_extended_napkin_nested_id_unlocked():
+    """Extended napkin W→Z→X→M→Y, W↔X, W↔Y — a mediator-bearing nested-ID
+    (Line 7) case where the intervention X is INTERIOR to its c-component
+    S'={W,X,Y} (not terminal as in the plain napkin). The Identify
+    subroutine is do-AGNOSTIC (Tian-Pearl R-290-L Lemma 4 / Shpitser
+    c-identify): X is summed/conditioned as a normal c-factor variable and
+    the do-value is applied only at the boundary. Previously the kernel
+    threaded the do-value into the Identify sums, degenerating the X-head
+    c-factor ratio Q[H^(i)]/Q[H^(i-1)] to 1 — coincidentally right for the
+    plain napkin, wrong here — so the case PUNTED to the IV escalation. The
+    do-agnostic fix + eager simplification identifies it nonparametrically;
+    the semantic backbone confirms the number."""
+    w, z, x, m, y = _A("w"), _A("z"), _A("x"), _A("m"), _A("y")
+    g = nx.DiGraph()
+    g.add_edges_from([(w, z), (z, x), (x, m), (m, y)])
+    bi = frozenset({frozenset({w, x}), frozenset({w, y})})
+
+    t = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
+    assert t.identifiable is True, "extended napkin should now identify"
+    assert t.formula is not None
+    from themis.input.semantic_validator import validate_formula
+    validate_formula(t.formula)
+    # Numerically correct against random SCMs, not merely well-formed.
+    from themis.verifier import semantic_probe as sp
+    probe = sp.probe_identify_formula(
+        g, bi, x=x, x_value=True, y=y, given=(), formula=t.formula)
+    assert probe.status == "match", f"probe rejected: {probe.detail}"
+
+    # A second mediator (W→Z→X→M→N→Y) must also identify — the fix
+    # generalizes along the mediator chain, it is not a one-off.
+    n = _A("n")
+    g2 = nx.DiGraph()
+    g2.add_edges_from([(w, z), (z, x), (x, m), (m, n), (n, y)])
+    t2 = c_factor.identify_via_tian(g2, bi, x, y, x_value=True)
+    assert t2.identifiable is True
+    probe2 = sp.probe_identify_formula(
+        g2, bi, x=x, x_value=True, y=y, given=(), formula=t2.formula)
+    assert probe2.status == "match"
+
+
 def test_full_line7_probe_gate_punts_incomplete_cases_safely():
     """The full nested-Identify Line-7 is the hardest engine code and is
     not yet complete for every nested-ID graph (e.g. an extended napkin
