@@ -1052,15 +1052,31 @@ def _finalise_numeric_result(result: dict) -> None:
 def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
     """A point estimate was computed from the supplied data. The gap
     report was built by the identification pass BEFORE the data arrived,
-    so it still advertises ``missing_distribution: blocking`` and
-    ``answer_is_bounds_not_point_estimate`` — both now false. Drop those
-    gaps, drop the parameter ``investigation_requests`` they cite (so the
-    auditor's T10-2 completeness check doesn't then demand a gap for data
-    we already have — keeping the dual surfaces consistent), set the tier
-    to ``point``, and recompute the one-line summary.
+    so it may still advertise ``missing_distribution: blocking`` and
+    ``answer_is_bounds_not_point_estimate`` — both now false for a genuine
+    non-parametric point. Drop those gaps, drop the parameter
+    ``investigation_requests`` they cite (so the auditor's T10-2
+    completeness check doesn't then demand a gap for data we already have
+    — keeping the dual surfaces consistent), set the tier to ``point``,
+    and recompute the one-line summary.
     """
-    # Drop the satisfied parameter investigation_requests first (the
-    # data was supplied), keeping framing / structure requests.
+    report = result.get("data_gap_report")
+    if not isinstance(report, dict):
+        return
+    # Gate: when non-parametric point identification FAILED (the
+    # ``unidentifiable_no_admissible_set`` gap is present), the attached
+    # number is an under-assumption estimate — an IV LATE under
+    # monotonicity, say — and the honest non-parametric answer is still
+    # the interval. Do NOT claim tier='point' or drop the bounds framing;
+    # leave the identification-time report, whose 'interval' tier +
+    # assumption caveat are correct. Reconciling here would make tier
+    # contradict the retained unidentifiable gap.
+    gap_kinds = {g.get("kind") for g in report.get("gaps", [])}
+    if "unidentifiable_no_admissible_set" in gap_kinds:
+        return
+
+    # Drop the satisfied parameter investigation_requests (data supplied),
+    # keeping framing / structure requests.
     requests = result.get("investigation_requests")
     if isinstance(requests, list):
         kept = [r for r in requests if r.get("group") != "parameter"]
@@ -1069,9 +1085,6 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
         else:
             result.pop("investigation_requests", None)
 
-    report = result.get("data_gap_report")
-    if not isinstance(report, dict):
-        return
     gaps = [
         g for g in report.get("gaps", [])
         if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS

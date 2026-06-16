@@ -338,3 +338,52 @@ def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
     )
     # Dual-surface: the kernel's own auditor accepts the reconciled report.
     themis.verify_data_gap_report(result)
+
+
+def test_iv_estimate_keeps_interval_tier_not_point():
+    """The post-numeric-solve reconciliation must NOT claim answer_tier=
+    'point' for an IV estimate: non-parametric point ID failed (the
+    unidentifiable gap is retained), the IV Wald number rests on
+    monotonicity, and the honest non-parametric answer is the interval.
+    Setting tier='point' here would contradict the retained unidentifiable
+    gap. Regression for the gate added after the reconciliation landed."""
+    import json
+
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+            }},
+        ],
+    }
+    rng = np.random.default_rng(5)
+    n = 4000
+    z = rng.random(n) < 0.5
+    u = rng.random(n) < 0.5  # latent confounder behind x<->y
+    x = rng.random(n) < np.clip(0.2 + 0.5 * z + 0.3 * u, 0, 1)
+    y = rng.random(n) < np.clip(0.2 + 0.4 * x + 0.3 * u, 0, 1)
+    df = pd.DataFrame({"z": z, "x": x, "y": y})
+    result = json.loads(
+        json.dumps(themis.estimate(ast, df, ci_bootstrap=0)["results"][0])
+    )
+    assert result["status"] == "numerically_solved"
+    assert result["numeric_estimate"]["method"] == "iv_wald"
+    report = result["data_gap_report"]
+    kinds = {g["kind"] for g in report["gaps"]}
+    # Non-parametric point ID failed → gap retained, tier honest.
+    assert "unidentifiable_no_admissible_set" in kinds
+    assert report["answer_tier"] == "interval"
+    # The bounds-framing caveat stays (the non-parametric answer is bounds).
+    assert "answer_is_bounds_not_point_estimate" in kinds
+    themis.verify_data_gap_report(result)
