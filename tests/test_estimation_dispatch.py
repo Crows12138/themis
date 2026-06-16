@@ -486,3 +486,20 @@ def test_transport_positivity_violation_surfaces_structured_failure():
     assert failure["estimator"] == "transport_post_stratification"
     assert failure["failure_type"] == "overlap_insufficient"
     assert "no observations" in failure["reason"]
+
+
+def test_transport_marginal_with_json_string_keys_produces_number():
+    """JSON object keys are always strings, so a target marginal supplied
+    via the documented JSON-in path arrives as {"true":.7,"false":.3} while
+    estimate_transport keys strata on bool. The dispatch coerces the keys
+    so the JSON-string and in-process paths produce the same number, rather
+    than silently/loudly failing on the JSON path. Real-usage probe 2026-06-16."""
+    import json
+
+    prog = _transport_program({"true": 0.7, "false": 0.3})  # string keys
+    out = themis.estimate(json.dumps(prog), _transport_source(seed=0),
+                          ci_bootstrap=0)  # program as a JSON STRING
+    res = out["results"][0]
+    assert res["status"] == "numerically_solved"
+    assert res.get("estimator_failure") is None
+    assert res["numeric_estimate"]["point"] == pytest.approx(0.41, abs=0.05)

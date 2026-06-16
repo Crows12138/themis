@@ -615,6 +615,7 @@ def _try_transport_estimate(
     target_marginal = program_extensions.get("target_marginal")
     if not isinstance(target_marginal, dict):
         return
+    target_marginal = _coerce_target_marginal_keys(target_marginal)
 
     treatment = q_stmt.query.intervention.atom.predicate
     outcome = q_stmt.query.target.atom.predicate
@@ -680,6 +681,31 @@ def _try_transport_estimate(
     # identify_via_transport) is preserved — the verifier accepts that
     # terminal for a transport-numeric result.
     _finalise_numeric_result(result)
+
+
+def _coerce_target_marginal_keys(target_marginal: dict) -> dict:
+    """Normalise the stratum-weight keys of a target marginal to bool.
+
+    JSON object keys are always strings, so a target marginal supplied via
+    a JSON program arrives as ``{"true": .7, "false": .3}`` while
+    ``estimate_transport`` keys the stratum weights on bool ``{True: .7,
+    False: .3}``. Without this, the JSON path raised "marginal must sum to
+    1" (the bool lookups missed) and produced no number. Coerce string
+    boolean keys back to bool so the JSON and in-process paths behave
+    identically; already-bool and non-boolean keys pass through unchanged.
+    """
+    marginal = target_marginal.get("marginal")
+    if not isinstance(marginal, dict):
+        return target_marginal
+    coerced: dict = {}
+    for k, v in marginal.items():
+        if isinstance(k, bool):
+            coerced[k] = v
+        elif isinstance(k, str) and k.strip().lower() in ("true", "false"):
+            coerced[k.strip().lower() == "true"] = v
+        else:
+            coerced[k] = v
+    return {**target_marginal, "marginal": coerced}
 
 
 def _extract_program_extensions(program) -> dict:
