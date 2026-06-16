@@ -144,6 +144,125 @@ def test_iv_shape_program_triggers_balke_pearl():
     assert "z" in bounds["upper_expression"]
 
 
+# ============================================ answer_tier (salience axis)
+#
+# answer_tier states the strongest answer explicitly, orthogonal to gap
+# severity, so a consumer is not misled into reading a blocking
+# "unidentifiable" gap as a dead end when an informative interval is in
+# hand. Real-usage probe 2026-06-16.
+
+
+def _tier(envelope):
+    return envelope["results"][0]["data_gap_report"]["answer_tier"]
+
+
+def test_answer_tier_interval_when_unidentifiable_with_iv_bounds():
+    """Point ID blocked + informative Balke-Pearl interval → 'interval',
+    even though the top gap is severity=blocking."""
+    env = themis.run(_program(with_iv=True))
+    assert _tier(env) == "interval"
+    # The one-line summary leads with answer availability, not the
+    # blocking gap, so a prose renderer is not inverted.
+    assert env["results"][0]["data_gap_report"]["summary"].startswith(
+        "可得区间估计"
+    )
+
+
+def test_answer_tier_interval_when_unidentifiable_with_manski_bounds():
+    """No IV, point ID blocked, Manski natural interval → 'interval'."""
+    env = themis.run(_program())
+    assert _tier(env) == "interval"
+
+
+def test_answer_tier_point_when_identifiable_even_with_manski_floor():
+    """A point-identifiable effect (empty backdoor set) is 'point' even
+    though the scheduler also attaches an assumption-free Manski floor —
+    bounds presence must NOT be read as point-blocked."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "x",
+                         "args": [{"type": "const", "name": "me"}]},
+                "to": {"predicate": "y",
+                       "args": [{"type": "const", "name": "me"}]},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "intervention": {
+                        "atom": {"predicate": "x",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                    "target": {
+                        "atom": {"predicate": "y",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                    "given": [],
+                },
+            },
+        ],
+    }
+    result = themis.run(program)["results"][0]
+    # No unidentifiable gap → point identifiable (data may still be missing).
+    assert not any(
+        g["kind"] == "unidentifiable_no_admissible_set"
+        for g in result["data_gap_report"]["gaps"]
+    )
+    assert result["data_gap_report"]["answer_tier"] == "point"
+
+
+def test_answer_tier_none_for_counterfactual_needs_assumption():
+    """A counterfactual that stops at NEEDS_ASSUMPTION (no bounds) yields
+    neither a point nor an interval → 'none'."""
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "study", "domain": [True, False]},
+            {"kind": "variable", "predicate": "job", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": {"predicate": "study",
+                         "args": [{"type": "const", "name": "me"}]},
+                "to": {"predicate": "job",
+                       "args": [{"type": "const", "name": "me"}]},
+            },
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "counterfactual",
+                    "observed": {
+                        "atom": {"predicate": "study",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": False,
+                    },
+                    "counterfactual_intervention": {
+                        "atom": {"predicate": "study",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                    "counterfactual_target": {
+                        "atom": {"predicate": "job",
+                                 "args": [{"type": "const", "name": "me"}]},
+                        "value": True,
+                    },
+                },
+            },
+        ],
+    }
+    result = themis.run(program)["results"][0]
+    assert result["status"] == "needs_assumption"
+    assert result["data_gap_report"]["answer_tier"] == "none"
+
+
 def test_iv_bounds_drop_self_contradictory_find_instrument_advice():
     """Real-usage probe 2026-06-15 — when Balke-Pearl IV bounds were
     computed from a declared instrument, the unidentifiable gap must NOT

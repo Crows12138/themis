@@ -137,6 +137,7 @@ from .sample_size import (
     is_binary_outcome_distribution,
 )
 from ..types import (
+    AnswerTier,
     BidirectedStatement,
     CauseStatement,
     DataGap,
@@ -282,13 +283,70 @@ def compute_data_gap_report(
 
     gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
     gaps.sort(key=_gap_sort_key)
-    summary = _make_summary(gaps)
+    answer_tier = _compute_answer_tier(query_kind, gaps, bounds_result, status)
+    summary = _make_summary(gaps, answer_tier)
     actionable = _make_actionable_steps(gaps)
     return DataGapReport(
         summary=summary,
         gaps=tuple(gaps),
         actionable_next_steps=tuple(actionable),
+        answer_tier=answer_tier,
     )
+
+
+# Query kinds for which "what answer can I still return" is meaningful:
+# point / interval / none. Cause / assoc / probability are not estimand
+# queries — they leave answer_tier None.
+_ESTIMAND_QUERY_KINDS: frozenset[QueryKind] = frozenset({
+    QueryKind.EFFECT,
+    QueryKind.IDENTIFY,
+    QueryKind.COUNTERFACTUAL,
+})
+
+
+def _compute_answer_tier(
+    query_kind: QueryKind,
+    gaps: list[DataGap],
+    bounds_result,
+    status: ResultStatus,
+) -> AnswerTier | None:
+    """The strongest answer available, orthogonal to gap severity.
+
+    Two steps. First, is the POINT estimand blocked? — keyed on the
+    authoritative "point ID failed" signals, NOT on bounds presence:
+    bounds are attached to EVERY needs_investigation binary/discrete
+    effect as an assumption-free floor (scheduler ``_attach_bounds_result``,
+    Manski always-available), so a point-IDENTIFIED-but-missing-θ effect
+    (e.g. clean backdoor) carries Manski bounds too. The real "point
+    blocked" signals are:
+    - the ``unidentifiable_no_admissible_set`` gap (effect point ID
+      failed), or
+    - a counterfactual that stopped at NEEDS_ASSUMPTION (needs an
+      untestable assumption) or COUNTERFACTUAL_BOUNDED (only an interval).
+    If not blocked, a point estimand is in hand — solved, or
+    identifiable-but-missing-θ (a data gap, still a point).
+
+    Second, when blocked, an INFORMATIVE ``bounds_result`` makes it an
+    INTERVAL; otherwise (no bounds, or trivial [0,1]) NONE.
+    """
+    if query_kind not in _ESTIMAND_QUERY_KINDS:
+        return None
+    point_blocked = (
+        status in (
+            ResultStatus.NEEDS_ASSUMPTION,
+            ResultStatus.COUNTERFACTUAL_BOUNDED,
+        )
+        or any(
+            g.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET for g in gaps
+        )
+    )
+    if not point_blocked:
+        return AnswerTier.POINT
+    if bounds_result is not None and not getattr(
+        bounds_result, "width_when_uninformative", False
+    ):
+        return AnswerTier.INTERVAL
+    return AnswerTier.NONE
 
 
 _FIND_IV_ADVICE = "找一个满足 IV 条件的工具变量"
@@ -2777,7 +2835,9 @@ def _gap_sort_key(gap: DataGap) -> tuple[int, str]:
     return (_SEVERITY_ORDER[gap.severity], gap.kind.value)
 
 
-def _make_summary(gaps: list[DataGap]) -> str:
+def _make_summary(
+    gaps: list[DataGap], answer_tier: AnswerTier | None = None
+) -> str:
     if not gaps:
         return ""
     head = gaps[0]
@@ -2785,8 +2845,18 @@ def _make_summary(gaps: list[DataGap]) -> str:
         1 for g in gaps if g.severity == GapSeverity.BLOCKING
     )
     if blocking_count <= 1:
-        return head.description
-    return f"{head.description}（共 {blocking_count} 个 blocking 缺口）"
+        base = head.description
+    else:
+        base = f"{head.description}（共 {blocking_count} 个 blocking 缺口）"
+    # Lead the one-line summary with answer availability so a prose
+    # renderer is not misled into showing a blocking gap as "no answer"
+    # when an interval is in hand. POINT / None leave the summary as the
+    # most-blocking-gap description (no inversion to correct).
+    if answer_tier == AnswerTier.INTERVAL:
+        return f"可得区间估计（点识别被阻断，但有信息性 bounds）：{base}"
+    if answer_tier == AnswerTier.NONE:
+        return f"图+数据无法给出点或区间估计（需补假设或更强数据）：{base}"
+    return base
 
 
 def _make_actionable_steps(gaps: list[DataGap]) -> list[str]:

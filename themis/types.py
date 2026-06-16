@@ -916,14 +916,36 @@ class DataGap:
     alternative_paths: tuple[str, ...] = ()
 
 
+class AnswerTier(str, Enum):
+    """The strongest answer the kernel can hand back for an estimand query
+    (effect / identify / counterfactual), stated explicitly so consumers
+    do not have to infer it from gap-severity ordering.
+
+    This axis is ORTHOGONAL to gap severity: severity says "how blocking
+    is this gap to its own goal"; answer_tier says "what can I still
+    return". For an unidentifiable effect with informative IV / Manski
+    bounds, the top gap is severity=blocking (point ID truly failed) yet
+    answer_tier=INTERVAL — the consumer has a usable interval, not a dead
+    end. Without this field that good news is buried under a blocking gap.
+    """
+    POINT = "point"        # point estimand identified (possibly pending θ)
+    INTERVAL = "interval"  # point ID blocked, informative bounds available
+    NONE = "none"          # neither — needs an assumption / stronger data
+
+
 @dataclass(frozen=True)
 class DataGapReport:
     """Phase 10 top-level summary of what data / assumptions / structural
     changes are still needed. Gaps are sorted by severity (blocking >
-    important > informational), then by derivation order."""
+    important > informational), then by derivation order.
+
+    ``answer_tier`` (set for estimand queries; None for cause / assoc /
+    probability) names the strongest answer available, orthogonal to the
+    gaps' severities — see ``AnswerTier``."""
     summary: str
     gaps: tuple[DataGap, ...]
     actionable_next_steps: tuple[str, ...] = ()
+    answer_tier: "AnswerTier | None" = None
 
 
 @dataclass(frozen=True)

@@ -951,6 +951,10 @@
           "type": "array",
           "description": "User-facing suggestions in order of impact. Each entry is a complete sentence in Chinese; rendering layer reads these as-is.",
           "items": { "type": "string" }
+        },
+        "answer_tier": {
+          "enum": ["point", "interval", "none"],
+          "description": "The strongest answer available for an estimand query (effect / identify / counterfactual), stated explicitly so consumers do not infer it from gap-severity ordering. Orthogonal to gap severity: an unidentifiable effect with informative IV / Manski bounds has a blocking gap yet answer_tier='interval'. point = point estimand identified (possibly pending θ); interval = point ID blocked but informative bounds available; none = neither (needs an assumption / stronger data). Absent for cause / assoc / probability queries."
         }
       }
     },
