@@ -15,7 +15,7 @@ export function BuildWorkspace() {
       const env = await runProgram(program)
       const r = env.results?.[0]
       const q = (program.statements as { query?: { kind?: string } }[] | undefined)?.find((s) => s.query)?.query
-      if (r) setPayload({ asked: `因果图 · ${q?.kind ?? 'effect'} 查询`, result: r })
+      if (r) setPayload({ asked: `因果图 · ${q?.kind ?? 'effect'} 查询`, result: r, program })
     } catch (e) {
       setError((e as Error).message)
     } finally {

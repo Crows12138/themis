@@ -51,6 +51,7 @@ paths work in the production build.
 | Endpoint | Body | Returns |
 |---|---|---|
 | `POST /api/run` | `{program}` | run envelope (or 400 `{error, message}`) |
+| `POST /api/clarify` | `{program, picks}` | merged run envelope — fill framing gaps and re-run (apply_patch_and_run) |
 | `POST /api/estimate` | `{program, rows}` | run envelope with `numeric_estimate` |
 | `POST /api/verify` | `{program, result}` | `{ok}` (result must carry a derivation) |
 | `POST /api/verify_bounds_result` | `{program, result}` | `{ok}` (bounds-only audit) |

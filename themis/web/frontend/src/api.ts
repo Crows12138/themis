@@ -44,6 +44,19 @@ export function estimate(program: Record<string, unknown>, rows: Record<string, 
   return post<Envelope>('/api/estimate', { program, rows })
 }
 
+export interface ClarifyPick {
+  predicate: string
+  fields: Record<string, string>
+}
+
+export interface MergedEnvelope extends Envelope {
+  merged_program?: Record<string, unknown>
+}
+
+export function clarify(program: Record<string, unknown>, picks: ClarifyPick[]): Promise<MergedEnvelope> {
+  return post<MergedEnvelope>('/api/clarify', { program, picks })
+}
+
 export function ask(nl: string, apiKey?: string): Promise<AskResponse> {
   return post<AskResponse>('/api/ask', { nl, api_key: apiKey || undefined })
 }

@@ -85,3 +85,42 @@ export function fmtNum(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—'
   return Number.isInteger(n) ? String(n) : n.toFixed(3)
 }
+
+// ---- framing gap filling (补缺口) ----
+
+export const FRAMING_FIELDS: { key: string; label: string; placeholder: string; def: string }[] = [
+  { key: 'time_window', label: '时间窗', placeholder: '如「≥6 个月」', def: '未指定（默认：研究随访期）' },
+  { key: 'measurement', label: '测量方式', placeholder: '如「自报告」/「仪器」', def: '未指定（默认：标准测量）' },
+  { key: 'threshold', label: '阈值/切点', placeholder: '如「BMI≥30」', def: '未指定（默认：任意可测变化）' },
+  { key: 'observability', label: '可观测性', placeholder: 'observable / self-reported / latent', def: 'observable' },
+  { key: 'direction', label: '方向', placeholder: 'up / down / mixed', def: 'up' },
+  { key: 'baseline', label: '基线', placeholder: '如「当前状态」', def: '未指定（默认：当前状态）' },
+  { key: 'state_vs_event', label: '状态/事件', placeholder: 'state / event', def: 'state' },
+]
+
+const _FIELD_NAMES = new Set(FRAMING_FIELDS.map((f) => f.key))
+const FRAMING_GAP_KINDS = new Set(['ambiguous_variable_definition', 'ill_defined_intervention_versions'])
+
+function pickVar(desc: string): string | null {
+  const re = /[`「]([A-Za-z_]\w*)[`」]/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(desc))) {
+    if (!_FIELD_NAMES.has(m[1])) return m[1]
+  }
+  return null
+}
+
+/** Variables that carry a framing (操作化未定义) gap — one per variable. */
+export function framingVariables(gaps: { kind: string; description: string }[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const g of gaps) {
+    if (!FRAMING_GAP_KINDS.has(g.kind)) continue
+    const v = pickVar(g.description)
+    if (v && !seen.has(v)) {
+      seen.add(v)
+      out.push(v)
+    }
+  }
+  return out
+}

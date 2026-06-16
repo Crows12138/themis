@@ -45,7 +45,7 @@ export function EstimateWorkspace() {
     try {
       const env = await estimate(program, data.rows)
       const r = env.results?.[0]
-      if (r) setPayload({ asked: `${data.name} · ${data.rows.length} 行`, result: r })
+      if (r) setPayload({ asked: `${data.name} · ${data.rows.length} 行`, result: r, program })
       else setError('估计没有返回结果。')
     } catch (e) {
       setError((e as Error).message)

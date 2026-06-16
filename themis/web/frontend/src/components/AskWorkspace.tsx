@@ -30,7 +30,7 @@ export function AskWorkspace({ onNeedKey }: { onNeedKey: () => void }) {
     try {
       const res = await ask(nl, getApiKey())
       const r = first(res.envelope)
-      if (r) setPayload({ asked: nl, result: r, reply: res.reply })
+      if (r) setPayload({ asked: nl, result: r, reply: res.reply, program: res.kernel_ast })
     } catch (e) {
       const ke = e as KernelError
       setError({
@@ -50,7 +50,7 @@ export function AskWorkspace({ onNeedKey }: { onNeedKey: () => void }) {
     setError(null)
     try {
       const r = first(await runProgram(ex.program))
-      if (r) setPayload({ asked: ex.nl_input ?? ex.name, result: r })
+      if (r) setPayload({ asked: ex.nl_input ?? ex.name, result: r, program: ex.program })
     } catch (e) {
       setError({ title: '内核出错', msg: (e as Error).message })
     } finally {

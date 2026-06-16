@@ -52,6 +52,44 @@ class EstimateRequest(BaseModel):
     rows: list[dict]
 
 
+class ClarifyRequest(BaseModel):
+    program: dict
+    picks: list[dict]  # [{"predicate": str, "fields": {...7 framing fields...}}]
+
+
+# The 7 operationalization fields that, filled, clear an
+# ambiguous_variable_definition gap (ported from Themis_Demo).
+_FILL_FIELDS = ("time_window", "measurement", "threshold", "observability",
+                "direction", "baseline", "state_vs_event")
+_FILL_DEFAULTS = {
+    "time_window": "未指定（默认：研究随访期）",
+    "measurement": "未指定（默认：标准测量）",
+    "threshold": "未指定（默认：任意可测变化）",
+    "observability": "observable",
+    "direction": "up",
+    "baseline": "未指定（默认：当前状态）",
+    "state_vs_event": "state",
+}
+
+
+def _complete_framing_fields(d: dict) -> dict:
+    """Ensure all 7 fields have non-empty values (fill blanks with sane
+    defaults) so the patch deterministically clears the gap."""
+    out = dict(_FILL_DEFAULTS)
+    for k in _FILL_FIELDS:
+        v = (d or {}).get(k)
+        if isinstance(v, str) and v.strip():
+            out[k] = v.strip()
+    return out
+
+
+def _var_domain(program: dict, predicate: str):
+    for s in program.get("statements", []):
+        if s.get("kind") == "variable" and s.get("predicate") == predicate:
+            return s.get("domain")
+    return None
+
+
 @app.get("/")
 def index():
     # Prefer the built React product (frontend/dist) when present; fall
@@ -236,6 +274,39 @@ def api_estimate(req: EstimateRequest):
         return JSONResponse(status_code=400, content={
             "error": type(exc).__name__,
             "message": str(exc),
+        })
+
+
+@app.post("/api/clarify")
+def api_clarify(req: ClarifyRequest):
+    """Fill framing gaps and re-run. Builds a deterministic
+    framing_skeleton_bundle from the user's picks (the 7 operationalization
+    fields per variable, blanks defaulted) and calls
+    ``themis.apply_patch_and_run`` — the multi-turn 补缺口 loop. No LLM.
+
+    Returns the run-shaped envelope of the merged program (so the UI can
+    show the new verdict + whatever gaps remain), plus ``merged_program``.
+    """
+    patches = []
+    for p in req.picks or []:
+        pred = p.get("predicate")
+        if not pred:
+            continue
+        fields = _complete_framing_fields(p.get("fields") or {})
+        dom = _var_domain(req.program, pred)
+        fields["domain"] = dom if dom is not None else [True, False]
+        patches.append({"kind": "variable_patch", "predicate": pred, "fields": fields})
+    if not patches:
+        return JSONResponse(status_code=400, content={
+            "error": "NoPatches", "message": "没有可应用的澄清。",
+        })
+    bundle = {"version": "0.1", "kind": "framing_skeleton_bundle", "patches": patches}
+    try:
+        out = themis.apply_patch_and_run(req.program, [bundle])
+        return out
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "error": type(exc).__name__, "message": str(exc),
         })
 
 
