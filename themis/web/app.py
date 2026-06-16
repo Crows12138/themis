@@ -25,6 +25,7 @@ import themis
 
 _HERE = Path(__file__).parent
 _STATIC = _HERE / "static"
+_FRONTEND_DIST = _HERE / "frontend" / "dist"
 _REPO_ROOT = _HERE.parent.parent
 _EXAMPLES_DIR = _REPO_ROOT / "themis" / "prompts" / "examples"
 
@@ -46,10 +47,25 @@ class AskRequest(BaseModel):
     api_key: str | None = None
 
 
+class EstimateRequest(BaseModel):
+    program: dict
+    rows: list[dict]
+
+
 @app.get("/")
 def index():
+    # Prefer the built React product (frontend/dist) when present; fall
+    # back to the legacy single-page static UI for dev without a build.
+    dist_index = _FRONTEND_DIST / "index.html"
+    if dist_index.exists():
+        return FileResponse(dist_index)
     return FileResponse(_STATIC / "index.html")
 
+
+# Built product assets (Vite emits /assets/*). Mounted only when a build
+# exists so the dev-without-build path keeps working.
+if (_FRONTEND_DIST / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets")), name="assets")
 
 app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
@@ -179,6 +195,48 @@ def api_ask(req: AskRequest):
         "envelope": envelope,
         "reply": reply,
     }
+
+
+@app.post("/api/estimate")
+def api_estimate(req: EstimateRequest):
+    """DataFrame-backed numeric estimation: build a DataFrame from the
+    uploaded rows and run ``themis.estimate`` against the program.
+
+    Returns the run-shaped envelope (with ``numeric_estimate`` populated
+    on effect-query results) or a 400 with a structured error so the UI
+    can show why estimation refused (contract failure / overlap / etc.).
+    """
+    import pandas as pd
+
+    if not req.rows:
+        return JSONResponse(status_code=400, content={
+            "error": "EmptyData", "message": "上传的数据没有任何行。",
+        })
+    try:
+        df = pd.DataFrame(req.rows)
+        # CSV cells arrive as strings / dynamic-typed numbers. Coerce
+        # bool-ish object columns to real bool so the estimator contract
+        # (which rejects free-form strings) accepts them.
+        _bool_map = {"true": True, "1": True, "yes": True, "t": True,
+                     "false": False, "0": False, "no": False, "f": False}
+        for col in df.columns:
+            if df[col].dtype == object:
+                low = df[col].astype(str).str.strip().str.lower()
+                if low.isin(_bool_map).all():
+                    df[col] = low.map(_bool_map)
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "error": type(exc).__name__, "message": f"无法解析数据：{exc}",
+        })
+
+    try:
+        out = themis.estimate(req.program, df)
+        return out
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "error": type(exc).__name__,
+            "message": str(exc),
+        })
 
 
 @app.get("/api/examples")

@@ -1,76 +1,83 @@
-# Themis Web UI (local)
+# Themis Web (local product)
 
-Minimal browser UI for `themis.run` / `themis.verify` plus an optional
-NL-bridge "Ask" path (mode (a)) backed by Anthropic. Two modes:
+A local web product over the Themis kernel — a React/Vite single-page app
+backed by a FastAPI server that calls `themis.run` / `themis.verify` /
+`themis.estimate` in-process. Three workspaces:
 
-- **Mode (b) paste-JSON** — paste kernel_ast → `themis.run` → render
-  explanation, ⚠ caveats, data-gap report, and derivation rules in a
-  more readable form than raw JSON. No LLM, no key needed.
-- **Mode (a) Ask** — type a Chinese question, the LLM bridge calls
-  Anthropic to translate NL → kernel_ast, runs `themis.run`, then
-  calls Anthropic again to render a Chinese reply. Requires API key.
+- **问一问 (Ask)** — type a Chinese causal question; the LLM bridge
+  translates it to a kernel_ast, runs it, and renders an honest verdict
+  (answer_tier point/interval/none, data-gap report, reply). Needs an
+  Anthropic API key. Worked examples run with no key.
+- **建因果图 (Build)** — draw a causal DAG (cause + latent-confounding
+  edges), pick a query (effect / identify / counterfactual), and get the
+  kernel's verdict: identifiable? what data is still missing?
+- **数据估计 (Estimate)** — draw a DAG, upload a CSV (one column per
+  variable), and get a real numeric estimate via `themis.estimate` — or
+  an honest refusal (residual confounding / no overlap / too few rows).
 
-Both modes share endpoints (`/api/run` / `/api/verify` /
-`/api/verify_bounds_result` (iter 137) / `/api/examples` / `/api/ask`);
-the UI surfaces them in the same page.
+No auth, no persistence. Localhost by default.
 
-## Run
-
-```
-python -m themis.web
-```
-
-opens `http://127.0.0.1:8000`.
-
-## Flags
+## Run (production build)
 
 ```
-python -m themis.web --port 8001                # different port
-python -m themis.web --host 0.0.0.0             # share on local wifi
-python -m themis.web --reload                   # dev: auto-reload code
+cd themis/web/frontend
+pnpm install
+pnpm build            # emits frontend/dist
+cd ../../..
+python -m themis.web  # serves the built product at http://127.0.0.1:8000
 ```
 
-For public deployment (Railway / Fly / Render etc.), point the
-platform at `themis.web.app:app` — same code, no changes.
+`python -m themis.web` serves `frontend/dist` at `/` when it exists, and
+falls back to the legacy single-page `static/index.html` if there is no
+build.
 
-## What it does
+Flags: `--port 8001`, `--host 0.0.0.0` (share on LAN), `--reload` (dev).
 
-- **Ask** — type a Chinese question, the LLM bridge calls Anthropic
-  with the canonical `nl_to_kernel_ast.md` prompt, runs the emitted
-  kernel_ast, then calls Anthropic again with `response_rendering.md`
-  to produce a Chinese reply. Two LLM calls per question.
-- **Run JSON** — paste kernel_ast directly → `themis.run` → render
-  envelope. No LLM involved. Useful for debugging / tweaking
-  generated AST.
-- **Verify** — POST `(program, result)` → `themis.verify`. Works
-  when the last result carries a derivation (cause / assoc /
-  identify / structurally-solved effect / counterfactual that
-  reached bounds). Other shapes return a structured error message.
-- **Examples** — load worked NL→kernel_ast pairs from
-  `docs/prompts/examples/`.
+## Develop (hot reload)
 
-## API key
+Run the backend and the Vite dev server side by side:
 
-The Ask path needs an Anthropic API key. Resolution order:
+```
+python -m themis.web                       # backend + /api on :8000
+cd themis/web/frontend && pnpm dev         # Vite on :5173, proxies /api -> :8000
+```
 
-1. The "API key" link in the header — paste your key into the modal.
-   Stored in browser `localStorage`, sent per-request, **not
-   persisted server-side**.
-2. `ANTHROPIC_API_KEY` environment variable on the server.
+Open http://127.0.0.1:5173 — edits hot-reload. The Vite proxy forwards
+`/api/*` to the backend, so there is no CORS in dev and the same relative
+paths work in the production build.
 
-If neither is set, Ask returns 400 with a clear message. Run JSON
-and Verify don't need a key.
+## API
 
-Override the model via `THEMIS_LLM_MODEL` (default
-`claude-sonnet-4-6`).
+| Endpoint | Body | Returns |
+|---|---|---|
+| `POST /api/run` | `{program}` | run envelope (or 400 `{error, message}`) |
+| `POST /api/estimate` | `{program, rows}` | run envelope with `numeric_estimate` |
+| `POST /api/verify` | `{program, result}` | `{ok}` (result must carry a derivation) |
+| `POST /api/verify_bounds_result` | `{program, result}` | `{ok}` (bounds-only audit) |
+| `POST /api/ask` | `{nl, api_key?}` | `{nl, kernel_ast, envelope, reply}` |
+| `GET /api/examples` | — | `[{name, nl_input, program}]` |
 
-## What it doesn't do
+## API key (Ask only)
 
-- No data upload for `themis.estimate` (DataFrame paths). Add when
-  there's a real-case driver.
-- No streaming for the Ask response — you wait for the full reply
-  to land. Add when latency on long replies starts hurting.
-- No auth / rate limiting / multi-user state. Localhost only by
-  default; if you bind 0.0.0.0 or deploy publicly, add an auth
-  layer first — the API key field gives users their own quota
-  but doesn't restrict who can hit your server.
+Resolution order:
+1. The "API Key" button in the header — paste your key into the panel
+   (stored in browser `localStorage`, sent per-request, not persisted
+   server-side).
+2. `ANTHROPIC_API_KEY` env var on the server.
+
+Run JSON / Build / Estimate / examples need no key. Override the model
+via `THEMIS_LLM_MODEL` (default `claude-sonnet-4-6`).
+
+## Stack
+
+- **Backend** `app.py` — FastAPI; thin JSON wrappers over the in-process
+  kernel. `__main__.py` launches uvicorn.
+- **Frontend** `frontend/` — React + Vite + TypeScript; `@xyflow/react`
+  for the DAG editor, `papaparse` for CSV. Built into `frontend/dist`,
+  which the backend serves. Design context in `/.impeccable.md`.
+
+## Not yet
+
+- No deploy config / auth / multi-user (localhost product for now).
+- Estimate requires the graph's variable names to match the CSV column
+  names by hand (no column-mapping UI yet).
