@@ -13,12 +13,14 @@ export interface ResultPayload {
   result: QueryResult
   reply?: string
   program?: Record<string, unknown>
+  naive?: number | null
 }
 
 export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }: { payload: ResultPayload; onReset: () => void; resetLabel?: string }) {
   const [result, setResult] = useState<QueryResult>(payload.result)
   const [program, setProgram] = useState<Record<string, unknown> | undefined>(payload.program)
   const [reply, setReply] = useState<string | undefined>(payload.reply)
+  const [naive, setNaive] = useState<number | null | undefined>(payload.naive)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,6 +28,7 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
     setResult(payload.result)
     setProgram(payload.program)
     setReply(payload.reply)
+    setNaive(payload.naive)
     setError(null)
   }, [payload])
 
@@ -43,6 +46,7 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
         setResult(r)
         setProgram((env.merged_program as Record<string, unknown>) ?? program)
         setReply(undefined)
+        setNaive(undefined)
       }
     } catch (e) {
       setError((e as Error).message)
@@ -61,6 +65,7 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
         setResult(r)
         setProgram(prog)
         setReply(undefined)
+        setNaive(undefined)
       } else setError('这个程序没有返回结果。')
     } catch (e) {
       setError((e as Error).message)
@@ -79,7 +84,7 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
 
       {program ? <DagView program={program} /> : null}
 
-      <Verdict result={result} />
+      <Verdict result={result} naive={naive} />
 
       {reply ? (
         <section className="reply">

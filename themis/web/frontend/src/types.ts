@@ -40,12 +40,34 @@ export interface BoundsResult {
   notes?: string
 }
 
+export interface Sensitivity {
+  e_value?: number
+  e_value_ci_bound?: number
+  risk_ratio?: number
+  baseline_rate?: number
+  note?: string
+}
+
 export interface NumericEstimate {
   point: number
   ci_lower?: number | null
   ci_upper?: number | null
   ci_level?: number
   method?: string
+  adjustment?: string[]
+  sample_size?: number
+  sensitivity_analysis?: Sensitivity
+}
+
+export interface LedgerEntry {
+  claim: string
+  layer?: string
+  severity?: string
+  testable?: boolean
+}
+export interface AssumptionLedger {
+  assumptions?: LedgerEntry[]
+  summary?: string
 }
 
 export interface StructuralResult {
@@ -59,10 +81,12 @@ export interface QueryResult {
   query_id?: string
   explanation?: string
   structural_result?: StructuralResult
+  formula?: unknown
   data_gap_report?: DataGapReport
   bounds_result?: BoundsResult
   numeric_estimate?: NumericEstimate
   estimator_failure?: { estimator?: string; failure_type?: string; reason?: string }
+  extensions?: { assumption_ledger?: AssumptionLedger } & Record<string, unknown>
 }
 
 export interface Envelope {

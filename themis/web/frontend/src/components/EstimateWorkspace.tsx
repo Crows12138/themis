@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
 import { estimate } from '../api'
+import { BIOMED_PROGRAM, biomedSampleRows, naiveDiff, queryXY } from '../lib/biomed'
 import { DagBuilder } from './DagBuilder'
 import { ResultView, type ResultPayload } from './ResultView'
 
@@ -45,7 +46,26 @@ export function EstimateWorkspace() {
     try {
       const env = await estimate(program, data.rows)
       const r = env.results?.[0]
-      if (r) setPayload({ asked: `${data.name} · ${data.rows.length} 行`, result: r, program })
+      const { x, y } = queryXY(program)
+      const naive = x && y ? naiveDiff(data.rows, x, y) : null
+      if (r) setPayload({ asked: `${data.name} · ${data.rows.length} 行`, result: r, program, naive })
+      else setError('估计没有返回结果。')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runBuiltin() {
+    setBusy(true)
+    setError(null)
+    try {
+      const rows = biomedSampleRows()
+      const naive = naiveDiff(rows, 'targeted_drug', 'tumor_response')
+      const env = await estimate(BIOMED_PROGRAM, rows)
+      const r = env.results?.[0]
+      if (r) setPayload({ asked: '内置示例 · 靶向药 → 肿瘤反应（疾病严重程度是混杂）', result: r, program: BIOMED_PROGRAM, naive })
       else setError('估计没有返回结果。')
     } catch (e) {
       setError((e as Error).message)
@@ -67,6 +87,9 @@ export function EstimateWorkspace() {
           <p className="build__lede">
             画出因果图、上传一份 CSV(<b>每一列是一个变量,列名要和图里的变量名一致</b>),Themis 会在数据上跑识别 + 估计——给出真实数值,或者诚实地告诉你为什么估不了(混杂没测全 / 数据没重叠 / 样本太小)。
           </p>
+          <button className="btn demo__go" onClick={runBuiltin} disabled={busy}>
+            {busy ? '运行中…' : '▶ 一键看核心对比:靶向药 + 混杂(内置示例)'}
+          </button>
         </div>
       }
       banner={

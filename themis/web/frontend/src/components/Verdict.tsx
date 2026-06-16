@@ -1,19 +1,22 @@
 import type { QueryResult } from '../types'
 import { TIER_META, statusLabel, fmtNum, structuralReadout, cleanPathNode } from '../lib/verdict'
+import { fmtFormula } from '../lib/formula'
 
 const SEGS = [0, 1, 2]
 
-export function Verdict({ result }: { result: QueryResult }) {
+export function Verdict({ result, naive }: { result: QueryResult; naive?: number | null }) {
   const report = result.data_gap_report
   const tier = report?.answer_tier
   const summary = report?.summary?.trim()
   const num = result.numeric_estimate
   const bounds = result.bounds_result
   const struct = result.structural_result
-  // For cause / assoc queries the kernel's answer IS the structural
-  // result (yes/no + supporting paths); they carry no answer_tier.
   const sr = !tier && struct ? structuralReadout(result.query_kind, struct.value) : null
   const paths = struct?.supporting_paths?.filter((p) => p.length > 0) ?? []
+  const formula = result.formula ? fmtFormula(result.formula) : null
+  const sens = num?.sensitivity_analysis
+  const ledger = result.extensions?.assumption_ledger
+  const showCompare = num != null && naive != null
 
   return (
     <section className="verdict" aria-label="判决">
@@ -50,7 +53,7 @@ export function Verdict({ result }: { result: QueryResult }) {
         </div>
       </div>
 
-      {num || bounds || result.estimator_failure || paths.length ? (
+      {paths.length || formula || num || bounds || result.estimator_failure || ledger ? (
         <div className="verdict__body">
           {paths.length ? (
             <div className="figure">
@@ -70,15 +73,52 @@ export function Verdict({ result }: { result: QueryResult }) {
             </div>
           ) : null}
 
-          {num ? (
+          {formula ? (
+            <div className="figure">
+              <span className="figure__cap">识别公式</span>
+              <span className="formula mono">{formula}</span>
+            </div>
+          ) : null}
+
+          {showCompare ? (
+            <div className="compare">
+              <div className="compare__col compare__col--bad">
+                <span className="compare__tag">✕ 未调整 · 粗相关</span>
+                <span className="compare__num mono">{fmtNum(naive)}</span>
+                <span className="compare__note">直接对比两组——被混杂带偏</span>
+              </div>
+              <div className="compare__col compare__col--good">
+                <span className="compare__tag">✓ Themis 调整后</span>
+                <span className="compare__num mono">{fmtNum(num!.point)}</span>
+                <span className="compare__note">
+                  {num!.ci_lower != null && num!.ci_upper != null
+                    ? `${Math.round((num!.ci_level ?? 0.95) * 100)}% CI [${fmtNum(num!.ci_lower)}, ${fmtNum(num!.ci_upper)}]`
+                    : ''}
+                  {num!.adjustment?.length ? ` · 调整 {${num!.adjustment.join(', ')}}` : ''}
+                </span>
+              </div>
+              <p className="compare__lesson">两个数明显不同 —— 混杂在作怪。这就是为什么要做因果调整,而不是直接对比。</p>
+            </div>
+          ) : num ? (
             <div className="figure">
               <span className="figure__cap">数值估计{num.method ? ` · ${num.method}` : ''}</span>
               <span className="figure__point mono">{fmtNum(num.point)}</span>
               {num.ci_lower != null && num.ci_upper != null ? (
                 <span className="figure__ci mono">
                   {Math.round((num.ci_level ?? 0.95) * 100)}% CI · [{fmtNum(num.ci_lower)}, {fmtNum(num.ci_upper)}]
+                  {num.adjustment?.length ? ` · 调整 {${num.adjustment.join(', ')}}` : ''}
                 </span>
               ) : null}
+            </div>
+          ) : null}
+
+          {sens?.e_value != null ? (
+            <div className="boundsexpr">
+              <div className="boundsexpr__row">
+                <span className="boundsexpr__k">E-value</span>
+                <span className="boundsexpr__v">{fmtNum(sens.e_value)}{sens.e_value_ci_bound != null ? ` · CI 界 ${fmtNum(sens.e_value_ci_bound)}` : ''}</span>
+              </div>
+              <p className="boundsexpr__note">敏感性:未测混杂要同时把处理与结局的风险比拉到 ≥ {fmtNum(sens.e_value)} 才能解释掉这个效应。越大越稳健。</p>
             </div>
           ) : null}
 
@@ -111,6 +151,21 @@ export function Verdict({ result }: { result: QueryResult }) {
                 <span className="boundsexpr__v">{result.estimator_failure.failure_type}</span>
               </div>
               <p className="boundsexpr__note">{result.estimator_failure.reason}</p>
+            </div>
+          ) : null}
+
+          {ledger?.assumptions?.length ? (
+            <div className="ledger">
+              <span className="figure__cap">假设台账{ledger.summary ? ` · ${ledger.summary}` : ''}</span>
+              <ul className="ledger__list">
+                {ledger.assumptions.map((a, i) => (
+                  <li className="ledger__item" key={i}>
+                    <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>{a.severity ?? ''}</span>
+                    <span className="ledger__claim">{a.claim}</span>
+                    {a.testable === false ? <span className="ledger__tag">不可检验</span> : null}
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
         </div>
