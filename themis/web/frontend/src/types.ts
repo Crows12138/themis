@@ -48,11 +48,17 @@ export interface NumericEstimate {
   method?: string
 }
 
+export interface StructuralResult {
+  value: boolean
+  supporting_paths?: string[][]
+}
+
 export interface QueryResult {
   status: string
   query_kind: string
   query_id?: string
   explanation?: string
+  structural_result?: StructuralResult
   data_gap_report?: DataGapReport
   bounds_result?: BoundsResult
   numeric_estimate?: NumericEstimate

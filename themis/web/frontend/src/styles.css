@@ -243,6 +243,11 @@ button { font-family: inherit; cursor: pointer; }
 .figure__cap { font-size: var(--text-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
 .figure__point { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 600; color: var(--ink); }
 .figure__ci { font-size: var(--text-sm); color: var(--ink-soft); }
+.pathlist { display: flex; flex-direction: column; gap: var(--space-xs); }
+.pathchain { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs); }
+.pathchain__seg { display: inline-flex; align-items: center; gap: var(--space-2xs); }
+.pathnode { font-size: var(--text-sm); color: var(--ink); background: var(--surface-sunk); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); padding: 2px var(--space-xs); }
+.pathchain__arrow { color: var(--ink-faint); font-family: var(--font-mono); }
 .boundsexpr { background: var(--surface-sunk); border: 1px solid var(--line-soft); border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg); display: grid; gap: var(--space-xs); }
 .boundsexpr__row { display: grid; grid-template-columns: 3.2rem 1fr; align-items: baseline; gap: var(--space-md); }
 .boundsexpr__k { font-size: var(--text-xs); color: var(--ink-faint); letter-spacing: 0.08em; text-transform: uppercase; }

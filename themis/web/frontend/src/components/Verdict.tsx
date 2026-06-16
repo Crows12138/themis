@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, fmtNum } from '../lib/verdict'
+import { TIER_META, statusLabel, fmtNum, structuralReadout, cleanPathNode } from '../lib/verdict'
 
 const SEGS = [0, 1, 2]
 
@@ -9,6 +9,11 @@ export function Verdict({ result }: { result: QueryResult }) {
   const summary = report?.summary?.trim()
   const num = result.numeric_estimate
   const bounds = result.bounds_result
+  const struct = result.structural_result
+  // For cause / assoc queries the kernel's answer IS the structural
+  // result (yes/no + supporting paths); they carry no answer_tier.
+  const sr = !tier && struct ? structuralReadout(result.query_kind, struct.value) : null
+  const paths = struct?.supporting_paths?.filter((p) => p.length > 0) ?? []
 
   return (
     <section className="verdict" aria-label="判决">
@@ -26,6 +31,14 @@ export function Verdict({ result }: { result: QueryResult }) {
             </span>
             <span className="readout__gloss">{TIER_META[tier].gloss}</span>
           </div>
+        ) : sr ? (
+          <div className={`readout readout--${sr.tone}`}>
+            <span className="readout__cap">结论</span>
+            <span className="readout__value">
+              <span className="readout__tier">{sr.label}</span>
+            </span>
+            {sr.gloss ? <span className="readout__gloss">{sr.gloss}</span> : null}
+          </div>
         ) : null}
 
         <div className="verdict__status">
@@ -37,8 +50,26 @@ export function Verdict({ result }: { result: QueryResult }) {
         </div>
       </div>
 
-      {num || bounds || result.estimator_failure ? (
+      {num || bounds || result.estimator_failure || paths.length ? (
         <div className="verdict__body">
+          {paths.length ? (
+            <div className="figure">
+              <span className="figure__cap">{result.query_kind === 'cause' ? '因果路径' : '支持路径'}</span>
+              <div className="pathlist">
+                {paths.map((p, i) => (
+                  <div className="pathchain" key={i}>
+                    {p.map((node, j) => (
+                      <span className="pathchain__seg" key={j}>
+                        <span className="pathnode mono">{cleanPathNode(node)}</span>
+                        {j < p.length - 1 ? <span className="pathchain__arrow" aria-hidden>→</span> : null}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {num ? (
             <div className="figure">
               <span className="figure__cap">数值估计{num.method ? ` · ${num.method}` : ''}</span>

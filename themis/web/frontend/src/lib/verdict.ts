@@ -63,6 +63,24 @@ export function gapTitle(kind: string): string {
   return GAP_TITLE[kind] ?? kind.replace(/_/g, ' ')
 }
 
+// Structural-result verdict for cause / assoc / identify queries — the
+// yes/no answer the kernel actually returns (value + supporting_paths).
+export function structuralReadout(
+  queryKind: string,
+  value: boolean,
+): { label: string; gloss: string; tone: 'point' | 'none' } {
+  if (queryKind === 'cause') return value ? { label: '是', gloss: '存在因果关系', tone: 'point' } : { label: '否', gloss: '没有因果关系', tone: 'none' }
+  if (queryKind === 'assoc') return value ? { label: '有关联', gloss: '两者存在统计关联', tone: 'point' } : { label: '无关联', gloss: '两者没有统计关联', tone: 'none' }
+  if (queryKind === 'identify') return value ? { label: '可识别', gloss: '图 + 数据足以识别' , tone: 'point' } : { label: '不可识别', gloss: '需要更强假设', tone: 'none' }
+  return value ? { label: '成立', gloss: '', tone: 'point' } : { label: '不成立', gloss: '', tone: 'none' }
+}
+
+// "stays_up_late(me)@t-1" -> "stays_up_late@t-1" (drop the object args,
+// keep the temporal annotation that carries causal-order meaning).
+export function cleanPathNode(s: string): string {
+  return s.replace(/\([^)]*\)/g, '')
+}
+
 export function fmtNum(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—'
   return Number.isInteger(n) ? String(n) : n.toFixed(3)
