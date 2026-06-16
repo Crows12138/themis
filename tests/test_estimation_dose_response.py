@@ -186,6 +186,26 @@ def test_dose_response_status_flips_to_numerically_solved():
 
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
+def test_dose_response_drops_stale_data_required_gap_after_curve():
+    """Once the curve is computed via EconML, the dose_response_data_required
+    gap ("Themis 不算曲线（用 EconML / …）") is stale and self-contradictory —
+    the reconciliation must drop it so it doesn't ship as blocking next to
+    the curve. Real-usage probe 2026-06-16."""
+    import json
+
+    res = json.loads(json.dumps(
+        themis.estimate(_dose_response_program(), _synth_data(slope=0.5),
+                        model="linear")["results"][0]
+    ))
+    assert res["status"] == "numerically_solved"
+    report = res["data_gap_report"]
+    kinds = {g["kind"] for g in report["gaps"]}
+    assert "dose_response_data_required" not in kinds
+    assert report["answer_tier"] == "point"
+    themis.verify_data_gap_report(res)
+
+
+@pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_dose_response_uses_declared_domain_when_available():
     """When the treatment has a numeric domain, curve uses those exact
     points (not quantiles)."""

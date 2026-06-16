@@ -671,6 +671,14 @@ def verify_numeric_estimate(
         "numeric_backdoor_estimate",
         "numeric_frontdoor_estimate",
         "numeric_iv_estimate",
+        # Transport-numeric (Cole-Stuart post-stratification) is a
+        # structural transport identification with a numeric value
+        # attached — its derivation legitimately ends in the structural
+        # identify_via_transport terminal (the same one verify_effect_
+        # structural accepts), not a re-derived numeric terminal. Audit it
+        # at the relaxed numeric level rather than crashing on the
+        # numerically_solved flip.
+        "identify_via_transport",
     )
     if derivation[-1].rule not in allowed_finals:
         raise VerificationError(

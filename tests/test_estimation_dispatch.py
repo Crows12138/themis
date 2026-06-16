@@ -387,3 +387,102 @@ def test_iv_estimate_keeps_interval_tier_not_point():
     # The bounds-framing caveat stays (the non-parametric answer is bounds).
     assert "answer_is_bounds_not_point_estimate" in kinds
     themis.verify_data_gap_report(result)
+
+
+# ============================================ transport numeric path
+
+
+def _transport_program(marginal):
+    """z->x->y with a selection node on z between trial and user, and the
+    target marginal P*(z) in program.extensions (bool keys)."""
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "extensions": {"target_marginal": {"predicate": "z", "marginal": marginal}},
+        "statements": [
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("y")},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "selection_node", "id": "s_z", "affects": _atom("z"),
+             "source_population": "trial", "target_population": "user"},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+                "target_population": "user",
+            }},
+        ],
+    }
+
+
+def _transport_source(n=4000, seed=0, ate_z_true=0.5, ate_z_false=0.2):
+    rng = np.random.default_rng(seed)
+    z = rng.random(n) < 0.5
+    x = rng.random(n) < 0.5
+    y = (0.3 + x.astype(float) * np.where(z, ate_z_true, ate_z_false)
+         + rng.normal(scale=0.1, size=n))
+    return pd.DataFrame({"z": z, "x": x, "y": y})
+
+
+def test_transport_numeric_result_passes_own_verifier():
+    """A numerically_solved transport result must NOT crash themis.verify.
+    Its derivation legitimately ends in the structural identify_via_transport
+    terminal (post-stratification adds a number, not a new terminal); the
+    numeric verifier now accepts that terminal. Real-usage probe 2026-06-16."""
+    prog = _transport_program({True: 0.7, False: 0.3})
+    out = themis.estimate(prog, _transport_source(seed=0), ci_bootstrap=0)
+    res = out["results"][0]
+    assert res["status"] == "numerically_solved"
+    assert res["numeric_estimate"]["point"] == pytest.approx(0.41, abs=0.05)
+    themis.verify(prog, res)  # was VerificationError before
+
+
+def test_transport_numeric_reconciles_gap_report():
+    """Transport must run the post-numeric reconciliation like backdoor:
+    after a point is computed, the structural-pass transport data-need gaps
+    (missing_distribution / transport_source_conditional_unknown /
+    transport_target_distribution_unknown) are no longer true and must not
+    ship as blocking next to the number."""
+    import json
+
+    prog = _transport_program({True: 0.7, False: 0.3})
+    res = json.loads(json.dumps(
+        themis.estimate(prog, _transport_source(seed=1), ci_bootstrap=0)["results"][0]
+    ))
+    assert res["status"] == "numerically_solved"
+    report = res["data_gap_report"]
+    blocking = {g["kind"] for g in report["gaps"] if g["severity"] == "blocking"}
+    assert blocking == set()
+    assert report["answer_tier"] == "point"
+    themis.verify_data_gap_report(res)
+
+
+def test_transport_positivity_violation_surfaces_structured_failure():
+    """Target marginal demands a stratum the source has zero support for.
+    The estimator's refusal must surface as a structured estimator_failure,
+    NOT be silently swallowed (which is indistinguishable from 'no target
+    supplied'). VISION red line: pathological data must be disclosed."""
+    import json
+
+    rng = np.random.default_rng(0)
+    n = 4000
+    # Source has ONLY z=False; target demands z=True with weight 0.5.
+    df = pd.DataFrame({
+        "z": np.zeros(n, dtype=bool),
+        "x": rng.random(n) < 0.5,
+        "y": 0.3 + (rng.random(n) < 0.5).astype(float) * 0.2 + rng.normal(scale=0.1, size=n),
+    })
+    res = json.loads(json.dumps(
+        themis.estimate(_transport_program({True: 0.5, False: 0.5}), df,
+                        ci_bootstrap=0)["results"][0]
+    ))
+    assert res.get("numeric_estimate") is None
+    failure = res.get("estimator_failure")
+    assert failure is not None
+    assert failure["estimator"] == "transport_post_stratification"
+    assert failure["failure_type"] == "overlap_insufficient"
+    assert "no observations" in failure["reason"]

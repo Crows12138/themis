@@ -636,7 +636,27 @@ def _try_transport_estimate(
             ci_level=ci_level,
             random_state=random_state,
         )
-    except (ValueError, NotImplementedError):
+    except (ValueError, NotImplementedError) as exc:
+        # Surface the refusal as a structured estimator_failure instead of
+        # silently dropping it. The common case is a positivity violation
+        # — the target marginal demands a stratum the source has zero
+        # support for — which is exactly the "pathological data without
+        # disclosure" failure VISION forbids. Mirrors the dose-response
+        # path: the consumer must tell "refused for a good reason" from
+        # "didn't try".
+        msg = str(exc)
+        failure_type = (
+            "not_implemented"
+            if isinstance(exc, NotImplementedError)
+            else "overlap_insufficient"
+            if "no observations" in msg
+            else "invalid_input"
+        )
+        result["estimator_failure"] = {
+            "estimator": "transport_post_stratification",
+            "failure_type": failure_type,
+            "reason": msg,
+        }
         return
 
     result["numeric_estimate"] = {
@@ -653,10 +673,13 @@ def _try_transport_estimate(
         "outcome": estimate.outcome,
     }
     _attach_precision_budget(result["numeric_estimate"])
-    # Flip status to numerically_solved while preserving the existing
-    # transport derivation (Phase 9 §T9.1's s_admissibility_check /
-    # transport_formula / identify_via_transport steps).
-    result["status"] = "numerically_solved"
+    # Flip status to numerically_solved AND reconcile the gap report so it
+    # no longer ships the pre-data transport data-need gaps next to the
+    # computed number (mirrors backdoor / front-door). The structural
+    # transport derivation (s_admissibility_check / transport_formula /
+    # identify_via_transport) is preserved — the verifier accepts that
+    # terminal for a transport-numeric result.
+    _finalise_numeric_result(result)
 
 
 def _extract_program_extensions(program) -> dict:
@@ -1032,6 +1055,15 @@ def _closer_to_null(point, ci_lower, ci_upper):
 _NUMERIC_SATISFIED_GAP_KINDS: frozenset[str] = frozenset({
     "missing_distribution",
     "answer_is_bounds_not_point_estimate",
+    # Transport post-stratification consumed both the source stratum
+    # conditionals (from the DataFrame) and the target marginal P*(Z)
+    # (from program.extensions) — the two transport data-need gaps the
+    # structural pass raised are now satisfied.
+    "transport_source_conditional_unknown",
+    "transport_target_distribution_unknown",
+    # The dose-response curve was computed from the supplied data; the
+    # "Themis 不算曲线（用 EconML / …）" gap is stale once the curve exists.
+    "dose_response_data_required",
 })
 
 
