@@ -1021,15 +1021,78 @@ def _closer_to_null(point, ci_lower, ci_upper):
     return ci_upper if ci_upper <= 0 else None
 
 
+# Gap kinds the supplied DataFrame + computed point estimate make stale.
+# Both directly contradict a numerically_solved point result:
+#   - missing_distribution: the θ it asks for was supplied via the df.
+#   - answer_is_bounds_not_point_estimate: a point was computed, so the
+#     bounds are no longer THE answer.
+# Structural caveats (ambiguous_variable, unmeasured_confounder_risk,
+# ill_defined_intervention, ...) and estimator-time gaps (weak_iv,
+# propensity_overlap, outcome_separation) are NOT dropped — still true.
+_NUMERIC_SATISFIED_GAP_KINDS: frozenset[str] = frozenset({
+    "missing_distribution",
+    "answer_is_bounds_not_point_estimate",
+})
+
+
 def _finalise_numeric_result(result: dict) -> None:
     """Flip result status to numerically_solved, set a truthy
-    structural_result, and drop stale missing_information entries.
+    structural_result, drop stale missing_information entries, and
+    reconcile the data_gap_report so it no longer contradicts the
+    attached point estimate.
 
     Shared between backdoor (7.1) and front-door (7.2) numeric paths.
     """
     result["status"] = "numerically_solved"
     result["structural_result"] = {"value": True}
     result.pop("missing_information", None)
+    _reconcile_gap_report_after_numeric_solve(result)
+
+
+def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
+    """A point estimate was computed from the supplied data. The gap
+    report was built by the identification pass BEFORE the data arrived,
+    so it still advertises ``missing_distribution: blocking`` and
+    ``answer_is_bounds_not_point_estimate`` — both now false. Drop those
+    gaps, drop the parameter ``investigation_requests`` they cite (so the
+    auditor's T10-2 completeness check doesn't then demand a gap for data
+    we already have — keeping the dual surfaces consistent), set the tier
+    to ``point``, and recompute the one-line summary.
+    """
+    # Drop the satisfied parameter investigation_requests first (the
+    # data was supplied), keeping framing / structure requests.
+    requests = result.get("investigation_requests")
+    if isinstance(requests, list):
+        kept = [r for r in requests if r.get("group") != "parameter"]
+        if kept:
+            result["investigation_requests"] = kept
+        else:
+            result.pop("investigation_requests", None)
+
+    report = result.get("data_gap_report")
+    if not isinstance(report, dict):
+        return
+    gaps = [
+        g for g in report.get("gaps", [])
+        if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
+    ]
+    report["gaps"] = gaps
+    report["answer_tier"] = "point"
+    report["summary"] = _summary_from_gap_dicts(gaps)
+
+
+def _summary_from_gap_dicts(gaps: list[dict]) -> str:
+    """Mirror ``output.data_gap_report._make_summary`` on already-sorted
+    serialized gaps. Tier is ``point`` here, so no interval/none lead
+    clause applies — just the most-blocking gap's description."""
+    if not gaps:
+        return ""
+    head = gaps[0]
+    blocking = sum(1 for g in gaps if g.get("severity") == "blocking")
+    base = head.get("description", "")
+    if blocking > 1:
+        return f"{base}（共 {blocking} 个 blocking 缺口）"
+    return base
 
 
 def _attach_precision_budget(numeric_estimate: dict) -> None:

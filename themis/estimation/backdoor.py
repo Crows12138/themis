@@ -35,6 +35,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
+from .dose_response import EstimatorFailure
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -96,6 +97,27 @@ def estimate_backdoor_ate(
     required = {treatment, outcome, *adjustment}
     contract = validate_data(data, required_columns=required)
     df = contract.data
+
+    # Positivity / overlap precondition. A backdoor ATE is a contrast
+    # between the treated and control arms; if the treatment column has a
+    # single observed level there is NO contrast in the data. The g-formula
+    # would then predict the absent arm by extrapolating a zero-variance
+    # regressor and return a falsely-precise "effect" (e.g. 0.05 ± 0.01
+    # from data where X is never False). Refuse rather than fabricate —
+    # this is the maximal positivity violation, the "overlap limit" the
+    # public ``estimate`` contract documents EstimatorFailure for.
+    observed_levels = df[treatment].dropna().unique()
+    if len(observed_levels) < 2:
+        raise EstimatorFailure(
+            "overlap_insufficient",
+            f"treatment {treatment!r} has a single observed level "
+            f"({observed_levels.tolist()}) in the data — positivity is "
+            f"maximally violated and there is no treatment contrast to "
+            f"estimate. A backdoor ATE needs both treated and control "
+            f"units; supply data with variation in {treatment!r}, or use a "
+            f"design (RCT / IV) that creates the contrast.",
+            treatment=treatment,
+        )
 
     outcome_series = df[outcome]
     is_bool_outcome = pd.api.types.is_bool_dtype(outcome_series)

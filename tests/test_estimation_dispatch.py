@@ -282,3 +282,59 @@ def test_identify_query_returns_unchanged():
     result = out["results"][0]
     assert result["status"] == "structurally_solved"
     assert "numeric_estimate" not in result
+
+
+# ============================================ positivity / honesty
+
+
+def test_single_arm_treatment_refuses_rather_than_fabricates():
+    """VISION red line: data with a single observed treatment level has
+    ZERO treatment contrast. The g-formula would extrapolate the absent
+    arm and return a falsely-precise number. The estimator must refuse —
+    EstimatorFailure(overlap_insufficient) — not fabricate. Real-usage
+    probe 2026-06-16."""
+    from themis.estimation.dose_response import EstimatorFailure
+
+    rng = np.random.default_rng(22)
+    n = 2000
+    df = pd.DataFrame({
+        "x": np.ones(n, dtype=bool),   # single arm — never False
+        "z": rng.standard_normal(n),
+        "y": rng.random(n) < 0.6,
+    })
+    with pytest.raises(EstimatorFailure) as exc:
+        themis.estimate(_confounded_ast(), df, ci_bootstrap=0)
+    assert exc.value.failure_type == "overlap_insufficient"
+    assert "single observed level" in str(exc.value)
+
+
+def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
+    """After a point estimate is computed from the supplied data, the gap
+    report must not still advertise the data as missing. The
+    ``missing_distribution: blocking`` and ``answer_is_bounds_not_point_
+    estimate`` gaps are dropped, the parameter investigation_requests they
+    cite are dropped (so the kernel's own T10 auditor stays satisfied),
+    answer_tier becomes 'point', and the summary is recomputed. Real-usage
+    probe 2026-06-16."""
+    import json
+
+    df = _linear_confounded_dgp(n=1500, seed=3, true_ate=2.0)
+    result = json.loads(
+        json.dumps(themis.estimate(_confounded_ast(), df, ci_bootstrap=0)["results"][0])
+    )
+    assert result["status"] == "numerically_solved"
+    report = result["data_gap_report"]
+    kinds = {g["kind"] for g in report["gaps"]}
+    # The two gaps that contradict a computed point are gone.
+    assert "missing_distribution" not in kinds
+    assert "answer_is_bounds_not_point_estimate" not in kinds
+    # Tier reflects the computed point; summary no longer says "missing P(...)".
+    assert report["answer_tier"] == "point"
+    assert "缺概率分布" not in report["summary"]
+    # No leftover parameter investigation_requests citing satisfied θ.
+    assert all(
+        ir.get("group") != "parameter"
+        for ir in result.get("investigation_requests", [])
+    )
+    # Dual-surface: the kernel's own auditor accepts the reconciled report.
+    themis.verify_data_gap_report(result)
