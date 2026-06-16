@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
 import { estimate } from '../api'
-import { BIOMED_PROGRAM, biomedSampleRows, naiveDiff, queryXY } from '../lib/biomed'
+import { BIOMED_PROGRAM, biomedSampleRows, naiveDiff, queryXY, rowsToCsv } from '../lib/biomed'
 import { DagBuilder } from './DagBuilder'
 import { ResultView, type ResultPayload } from './ResultView'
 
@@ -74,6 +74,16 @@ export function EstimateWorkspace() {
     }
   }
 
+  function downloadSample() {
+    const csv = rowsToCsv(biomedSampleRows())
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'themis_biomed_sample.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (payload) return <ResultView payload={payload} onReset={() => setPayload(null)} resetLabel="← 回到画布与数据" />
 
   return (
@@ -95,6 +105,11 @@ export function EstimateWorkspace() {
       banner={
         <>
           <UploadZone data={data} onFile={onFile} onClear={() => setData(null)} />
+          {!data ? (
+            <p className="upload__sample">
+              没有数据? <button className="linklike" onClick={downloadSample}>下载示例 CSV(靶向药+混杂)</button> 试试上传流程。
+            </p>
+          ) : null}
           {error ? <div className="errbox" role="alert"><p className="errbox__msg">{error}</p></div> : null}
         </>
       }

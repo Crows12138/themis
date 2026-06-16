@@ -13,6 +13,7 @@ for this slice. Bind to localhost; if you want to share, change
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -21,6 +22,18 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import themis
+
+# Route the LLM calls (Ask / render) through the local oauth-fingerprint
+# proxy by default, so the web product needs NO API key (the proxy rebuilds
+# the OAuth fingerprint and does the real auth — same as Themis_Demo). The
+# anthropic SDK reads ANTHROPIC_BASE_URL from env; api_key="x" is just a
+# placeholder. setdefault respects anything the operator already set, so a
+# real ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL in the environment wins.
+os.environ.setdefault(
+    "ANTHROPIC_BASE_URL",
+    os.environ.get("THEMIS_WEB_PROXY", "http://127.0.0.1:7777"),
+)
+os.environ.setdefault("ANTHROPIC_API_KEY", "x")
 
 
 _HERE = Path(__file__).parent
@@ -55,6 +68,12 @@ class EstimateRequest(BaseModel):
 class ClarifyRequest(BaseModel):
     program: dict
     picks: list[dict]  # [{"predicate": str, "fields": {...7 framing fields...}}]
+
+
+class RenderRequest(BaseModel):
+    program: dict
+    nl: str | None = None
+    api_key: str | None = None
 
 
 # The 7 operationalization fields that, filled, clear an
@@ -176,40 +195,34 @@ def api_ask(req: AskRequest):
     network error) returns 400 with ``{stage, error, message}`` so the
     UI can pinpoint where in the pipeline things broke.
     """
-    from .llm_bridge import LLMBridgeError, ask
     import themis
+    from .llm_bridge import LLMBridgeError, nl_to_kernel_ast, render_reply
 
-    # Pipeline stages so the UI can report "LLM stage failed" vs
-    # "kernel stage failed". Wrapping each stage individually rather
-    # than calling ask() so we can attribute errors precisely.
-    try:
-        from .llm_bridge import nl_to_kernel_ast, render_reply
-        kernel_ast = nl_to_kernel_ast(req.nl, api_key=req.api_key)
-    except LLMBridgeError as exc:
+    key = req.api_key or "x"
+    # Retry nl→ast→run up to 3 times for transient LLM / network failures
+    # (mirrors Themis_Demo). The systematic `args`-on-variable slip is fixed
+    # at the root by the bridge's few-shot examples — no sanitizing here.
+    kernel_ast = envelope = None
+    last: Exception | None = None
+    for _ in range(3):
+        try:
+            a = nl_to_kernel_ast(req.nl, api_key=key)
+            envelope = themis.run(a)
+            kernel_ast = a
+            break
+        except Exception as exc:  # noqa: BLE001 — retry on any bridge/kernel error
+            last = exc
+    if kernel_ast is None:
+        is_bridge = isinstance(last, LLMBridgeError)
         return JSONResponse(status_code=400, content={
-            "stage": "nl_to_kernel_ast",
-            "error": "LLMBridgeError",
-            "message": str(exc),
-        })
-    except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "stage": "nl_to_kernel_ast",
-            "error": type(exc).__name__,
-            "message": str(exc),
-        })
-
-    try:
-        envelope = themis.run(kernel_ast)
-    except Exception as exc:
-        return JSONResponse(status_code=400, content={
-            "stage": "themis_run",
-            "error": type(exc).__name__,
-            "message": str(exc),
-            "kernel_ast": kernel_ast,
+            "stage": "nl_to_kernel_ast" if is_bridge else "themis_run",
+            "error": "LLMBridgeError" if is_bridge else type(last).__name__,
+            "message": f"生成/校验因果图失败(已重试 3 次):{type(last).__name__}: {str(last)[:200]}",
+            "need_key": "key" in str(last).lower(),
         })
 
     try:
-        reply = render_reply(envelope, nl=req.nl, api_key=req.api_key)
+        reply = render_reply(envelope, nl=req.nl, api_key=req.api_key or "x")
     except LLMBridgeError as exc:
         return JSONResponse(status_code=400, content={
             "stage": "render_reply",
@@ -304,6 +317,26 @@ def api_clarify(req: ClarifyRequest):
     try:
         out = themis.apply_patch_and_run(req.program, [bundle])
         return out
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "error": type(exc).__name__, "message": str(exc),
+        })
+
+
+@app.post("/api/render")
+def api_render(req: RenderRequest):
+    """On-demand LLM 大白话 reading of a result. The structured verdict is
+    instant; this is the optional translation layer (needs an API key)."""
+    try:
+        from .llm_bridge import render_reply
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "error": "LLMBridgeUnavailable", "message": f"无法加载 LLM 桥接：{exc}",
+        })
+    try:
+        envelope = themis.run(req.program)
+        reply = render_reply(envelope, nl=req.nl, api_key=req.api_key or "x")
+        return {"reply": reply}
     except Exception as exc:
         return JSONResponse(status_code=400, content={
             "error": type(exc).__name__, "message": str(exc),

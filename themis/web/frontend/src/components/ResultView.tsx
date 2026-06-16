@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
-import { clarify, runProgram, type ClarifyPick } from '../api'
+import { clarify, getApiKey, render, runProgram, type ClarifyPick } from '../api'
 import { framingVariables } from '../lib/verdict'
 import { Verdict } from './Verdict'
 import { GapReport } from './GapReport'
@@ -55,6 +55,21 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
     }
   }
 
+  const [rendering, setRendering] = useState(false)
+  async function doRender() {
+    if (!program || rendering) return
+    setRendering(true)
+    setError(null)
+    try {
+      const { reply: txt } = await render(program, payload.asked, getApiKey())
+      setReply(txt)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setRendering(false)
+    }
+  }
+
   async function doRunJson(prog: Record<string, unknown>) {
     setBusy(true)
     setError(null)
@@ -94,6 +109,12 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
           </div>
           <p className="reply__body">{reply}</p>
         </section>
+      ) : program ? (
+        <div className="renderrow">
+          <button className="btn btn--ghost" onClick={doRender} disabled={rendering}>
+            {rendering ? '解读中…' : '用大白话解读这份判决'}
+          </button>
+        </div>
       ) : null}
 
       {program && fvars.length > 0 ? <FramingFill vars={fvars} busy={busy} onSubmit={doClarify} /> : null}

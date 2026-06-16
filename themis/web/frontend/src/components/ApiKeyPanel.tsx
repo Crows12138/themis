@@ -11,9 +11,9 @@ export function ApiKeyPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="keypanel" role="dialog" aria-label="Anthropic API key">
-      <h4>Anthropic API Key</h4>
+      <h4>Anthropic API Key（可选）</h4>
       <p>
-        Ask 模式需要它把你的问题翻成因果图、再渲染回答。只存在你浏览器本地,按请求发送,服务端不留存。
+        默认 Ask / 解读走<b>本机代理</b>,无需 key。若代理没在跑、或你想用自己的额度,在这里填一个覆盖——只存你浏览器本地,按请求发送,服务端不留存。
       </p>
       <div className="keypanel__row">
         <input

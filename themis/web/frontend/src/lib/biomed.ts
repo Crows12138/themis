@@ -55,6 +55,12 @@ export function biomedSampleRows(n = 4000): Record<string, unknown>[] {
   return rows
 }
 
+export function rowsToCsv(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return ''
+  const cols = Object.keys(rows[0])
+  return [cols.join(','), ...rows.map((r) => cols.map((c) => String(r[c])).join(','))].join('\n')
+}
+
 // Naive crude correlation: mean(Y | X=1) - mean(Y | X=0).
 export function naiveDiff(rows: Record<string, unknown>[], x: string, y: string): number | null {
   let s1 = 0, n1 = 0, s0 = 0, n0 = 0

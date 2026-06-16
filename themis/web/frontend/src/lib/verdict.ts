@@ -20,6 +20,17 @@ export function statusLabel(status: string): string {
   return STATUS_LABEL[status] ?? status
 }
 
+const STATUS_BLURB: Record<string, string> = {
+  needs_investigation: '结构上可识别(给出识别公式),但缺数据——内核拒绝编数字,并列出还缺什么。',
+  structurally_solved: '因果结构本身成立;是否有数值取决于是否提供数据。',
+  needs_assumption: '当前信息下无法回答,需要你显式补一个假设(认识论选择,内核不替你拍板)。',
+  numerically_solved: '提供了数据,内核完成识别并算出了数值。',
+  counterfactual_bounded: '反事实只能给区间,要点估计需补单调性等假设。',
+}
+export function statusBlurb(status: string): string | undefined {
+  return STATUS_BLURB[status]
+}
+
 const SEVERITY_LABEL: Record<string, string> = {
   blocking: '阻断',
   important: '重要',

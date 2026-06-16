@@ -20,11 +20,6 @@ export function AskWorkspace({ onNeedKey }: { onNeedKey: () => void }) {
   async function submitAsk() {
     const nl = q.trim()
     if (!nl || busy) return
-    if (!getApiKey()) {
-      onNeedKey()
-      setError({ title: '需要 API Key', msg: 'Ask 模式要调用 Anthropic 把问题翻成因果图。或者直接试下方的现成案例(不需要 key)。', needKey: true })
-      return
-    }
     setBusy('ask')
     setError(null)
     try {
@@ -113,7 +108,7 @@ export function AskWorkspace({ onNeedKey }: { onNeedKey: () => void }) {
         </div>
         <div className="ask__meta">
           <span className="ask__hint">
-            <kbd>⌘</kbd> + <kbd>Enter</kbd> 发送 · Ask 需要 API key
+            <kbd>⌘</kbd> + <kbd>Enter</kbd> 发送 · Ask 默认走本机代理,无需 key
           </span>
         </div>
       </div>

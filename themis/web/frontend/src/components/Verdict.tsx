@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, fmtNum, structuralReadout, cleanPathNode } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 
 const SEGS = [0, 1, 2]
@@ -50,6 +50,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
             <span className="mono">{result.status}</span>
           </span>
           {summary ? <p className="verdict__summary">{summary}</p> : null}
+          {statusBlurb(result.status) ? <p className="verdict__blurb">{statusBlurb(result.status)}</p> : null}
         </div>
       </div>
 

@@ -57,6 +57,10 @@ export function clarify(program: Record<string, unknown>, picks: ClarifyPick[]):
   return post<MergedEnvelope>('/api/clarify', { program, picks })
 }
 
+export function render(program: Record<string, unknown>, nl: string, apiKey?: string): Promise<{ reply: string }> {
+  return post<{ reply: string }>('/api/render', { program, nl, api_key: apiKey || undefined })
+}
+
 export function ask(nl: string, apiKey?: string): Promise<AskResponse> {
   return post<AskResponse>('/api/ask', { nl, api_key: apiKey || undefined })
 }
