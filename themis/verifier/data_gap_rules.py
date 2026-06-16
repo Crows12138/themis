@@ -284,7 +284,13 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
         {"derivation_step", "verifier_check"}
     ),
     "counterfactual_identification_assumption_required": frozenset(
-        {"derivation_step"}
+        # derivation_step when a counterfactual derivation step (twin
+        # network / monotone bounds / consistency) is recorded; verifier_
+        # check ("counterfactual_status" / "counterfactual_query_kind")
+        # when the query is NEEDS_ASSUMPTION / counterfactual-kind and
+        # carries no derivation chain to cite. Same status-derived
+        # fallback shape as front_door_identification_assumption_required.
+        {"derivation_step", "verifier_check"}
     ),
     "graph_learned_from_data": frozenset({"verifier_check"}),
     # Program-shape signal: declared confounder pattern (Z->X & Z->Y) with no

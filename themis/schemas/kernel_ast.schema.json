@@ -162,7 +162,7 @@
     },
     "bidirectedStatement": {
       "type": "object",
-      "description": "Phase 2.latent S1. An undirected 'bidirected' edge between two observed atoms, semantically declaring the existence of at least one unobserved common cause (semi-Markov representation). The kind is accepted by the schema but cannot yet be dispatched by the runtime — programs containing bidirectedStatement raise SemanticError until Phase 2.latent S2+ lands m-separation + c-component support. See PHASE_2_LATENT_CHARTER.md.",
+      "description": "Phase 2.latent S1. An undirected 'bidirected' edge between two observed atoms, semantically declaring the existence of at least one unobserved common cause (semi-Markov representation). The runtime dispatches bidirected edges through the ADMG-aware identification path (m-separation + c-component / Tian-Shpitser ID), with IV / Balke-Pearl / Manski bounds as the escape layer when non-parametric point identification fails. See PHASE_2_LATENT_CHARTER.md.",
       "additionalProperties": false,
       "required": [
         "kind",

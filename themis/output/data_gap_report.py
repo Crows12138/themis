@@ -897,14 +897,25 @@ def _classify_counterfactual_assumptions(
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.DERIVATION_STEP,
+                ref_id=triggering.step_id or triggering.rule,
+            )
+            if triggering
+            else GapProvenanceRef(
+                # The common counterfactual case is NEEDS_ASSUMPTION /
+                # counterfactual-query-kind, which carries no derivation
+                # chain — so there is no derivation step to cite. The
+                # trigger is the query/status shape; cite it as a
+                # verifier_check, which T10-1 accepts as free-form and
+                # does NOT require to resolve against the derivation chain
+                # (mirrors _classify_front_door_assumptions' program-shape
+                # fallback). Citing a DERIVATION_STEP here produced a
+                # dangling provenance that the kernel's own T10-1 auditor
+                # rejected on every derivation-less counterfactual result.
+                ref_kind=GapRefKind.VERIFIER_CHECK,
                 ref_id=(
-                    (triggering.step_id or triggering.rule)
-                    if triggering
-                    else (
-                        "counterfactual_status"
-                        if is_counterfactual_status
-                        else "counterfactual_query_kind"
-                    )
+                    "counterfactual_status"
+                    if is_counterfactual_status
+                    else "counterfactual_query_kind"
                 ),
             ),
         ),

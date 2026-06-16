@@ -479,6 +479,54 @@ def test_counterfactual_query_kind_alone_fires_assumption_caveat_e2e():
     assert "consistency" in explanation
 
 
+def test_derivation_less_counterfactual_gap_report_passes_own_auditor():
+    """Dual-surface invariant: a NEEDS_ASSUMPTION counterfactual carries
+    no derivation chain, so its counterfactual caveat must cite a
+    verifier_check (status-derived) provenance — NOT a synthetic
+    derivation_step. Citing a derivation_step produced a report the
+    kernel's OWN T10-1 auditor rejected as dangling provenance (and the
+    T10-3 kind→ref-kind contract must allow the verifier_check variant,
+    mirroring front_door). Regression: real-usage probe 2026-06-16."""
+    import json
+
+    ast = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "study", "domain": [True, False]},
+            {"kind": "variable", "predicate": "job", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("study"), "to": _atom("job")},
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "counterfactual",
+                    "observed": {"atom": _atom("study"), "value": False},
+                    "counterfactual_intervention": {
+                        "atom": _atom("study"), "value": True,
+                    },
+                    "counterfactual_target": {
+                        "atom": _atom("job"), "value": True,
+                    },
+                },
+            },
+        ],
+    }
+    out = themis.run(ast)
+    # Round-trip through JSON to mirror the MCP consumer path (the probe
+    # surfaced this via the serialized envelope).
+    result = json.loads(json.dumps(out["results"][0]))
+    assert result["status"] == "needs_assumption"
+    # Precondition that made the old code dangle: no derivation chain.
+    assert "derivation" not in result
+    cf_gap = next(
+        g for g in result["data_gap_report"]["gaps"]
+        if g["kind"] == "counterfactual_identification_assumption_required"
+    )
+    assert cf_gap["provenance"][0]["ref_kind"] == "verifier_check"
+    # The kernel must accept its own report (was VerificationError before).
+    themis.verify_data_gap_report(result)
+
+
 def test_counterfactual_atoms_feed_proposal_edge_path_walk():
     """Bug 7 regression: counterfactual queries must feed their own
     atoms into the unverified-proposal-edge path walker. Without this,
