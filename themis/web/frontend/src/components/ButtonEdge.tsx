@@ -5,6 +5,7 @@ import {
   getBezierPath,
   useInternalNode,
   useReactFlow,
+  useStore,
   Position,
   type EdgeProps,
   type ConnectionLineComponentProps,
@@ -31,18 +32,53 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
   const targetNode = useInternalNode(target)
   const hovered = useContext(EdgeHoverContext)
   const { deleteElements } = useReactFlow()
+  // How many edges connect this same pair, and where this one ranks — so
+  // parallel edges (e.g. a cause X→Y alongside a confounder X↔Y) bow apart
+  // instead of stacking on the exact same border-to-border line.
+  const parallel = useStore((s) => {
+    let n = 0
+    let idx = 0
+    for (const e of s.edges) {
+      const same = (e.source === source && e.target === target) || (e.source === target && e.target === source)
+      if (!same) continue
+      if (e.id === id) idx = n
+      n++
+    }
+    return { n, idx }
+  })
 
   if (!sourceNode || !targetNode) return null
 
   const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(sourceNode, targetNode)
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX: sx,
-    sourceY: sy,
-    sourcePosition: sourcePos,
-    targetX: tx,
-    targetY: ty,
-    targetPosition: targetPos,
-  })
+  let edgePath: string
+  let labelX: number
+  let labelY: number
+  if (parallel.n > 1) {
+    // Bow each parallel edge to its own side of the straight line. A canonical
+    // perpendicular (signed by the sorted node pair) keeps siblings in one frame
+    // so they fan out symmetrically regardless of each edge's source/target order.
+    const off = (parallel.idx - (parallel.n - 1) / 2) * 26
+    let px = -(ty - sy)
+    let py = tx - sx
+    const len = Math.hypot(px, py) || 1
+    px /= len
+    py /= len
+    if ((source ?? '') > (target ?? '')) { px = -px; py = -py }
+    const cx = (sx + tx) / 2 + px * off
+    const cy = (sy + ty) / 2 + py * off
+    edgePath = `M ${sx},${sy} Q ${cx},${cy} ${tx},${ty}`
+    labelX = (sx + 2 * cx + tx) / 4
+    labelY = (sy + 2 * cy + ty) / 4
+  } else {
+    ;[edgePath, labelX, labelY] = getBezierPath({
+      sourceX: sx,
+      sourceY: sy,
+      sourcePosition: sourcePos,
+      targetX: tx,
+      targetY: ty,
+      targetPosition: targetPos,
+    })
+  }
   const show = selected || hovered === id
 
   return (
