@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
   Controls,
+  ConnectionMode,
   Handle,
   Position,
   MarkerType,
@@ -14,6 +15,7 @@ import {
   type Edge,
   type Connection,
   type NodeProps,
+  type OnConnectStart,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { graphToProgram, programToFlow } from '../lib/graph'
@@ -27,7 +29,13 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
   const { deleteElements } = useReactFlow()
   return (
     <div className={`gnode ${selected ? 'gnode--selected' : ''}`}>
-      <Handle type="target" position={Position.Left} className="gnode__h" />
+      {/* Each side carries both a target and a source handle (source rendered
+          last → on top, so a drag can always START from either side). With
+          ConnectionMode.Loose this lets you connect any node to any node from
+          whichever side is closest; direction is decided by drag order, not by
+          which handle type you happened to grab. */}
+      <Handle id="tl" type="target" position={Position.Left} className="gnode__h" />
+      <Handle id="sl" type="source" position={Position.Left} className="gnode__h" />
       {data.editing ? (
         <input
           className="gnode__input nodrag mono"
@@ -40,7 +48,8 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
       ) : (
         <span className="gnode__label mono">{data.label}</span>
       )}
-      <Handle type="source" position={Position.Right} className="gnode__h" />
+      <Handle id="tr" type="target" position={Position.Right} className="gnode__h" />
+      <Handle id="sr" type="source" position={Position.Right} className="gnode__h" />
       <button
         className="gnode__del nodrag nopan"
         onClick={(e) => { e.stopPropagation(); deleteElements({ nodes: [{ id }] }) }}
@@ -84,6 +93,10 @@ export function ResultGraph({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null)
+  // The node a connection drag started on — the cause. Captured here because
+  // React Flow normalises onConnect's source/target by handle TYPE, which would
+  // otherwise let handle layout (not drag order) decide the arrow direction.
+  const connectFrom = useRef<string | null>(null)
 
   const rename = useCallback(
     (id: string, label: string) =>
@@ -118,14 +131,28 @@ export function ResultGraph({
     })
   }, [rename, setNodes])
 
+  const onConnectStart = useCallback<OnConnectStart>((_, p) => { connectFrom.current = p.nodeId ?? null }, [])
+
   const onConnect = useCallback(
     (c: Connection) => {
-      if (c.source === c.target) return
+      // Direction = drag order: the node you started on causes the one you
+      // dropped on, whichever handles/sides were involved.
+      const start = connectFrom.current
+      connectFrom.current = null
+      let from = c.source, to = c.target
+      if (start && (start === c.source || start === c.target)) {
+        from = start
+        to = start === c.source ? c.target : c.source
+      }
+      if (!from || !to || from === to) return
       const bidir = edgeType === 'bidirected'
       setEdges((es) =>
         addEdge(
           {
-            ...c,
+            source: from,
+            target: to,
+            sourceHandle: 'sr',
+            targetHandle: 'tl',
             id: `e${++_seq}`,
             type: 'button',
             data: { kind: bidir ? 'bidirected' : 'cause' },
@@ -144,7 +171,7 @@ export function ResultGraph({
     <div className="dagview">
       <div className="dagview__head">
         <span className="dagview__cap">因果图 · 可改</span>
-        <span className="dagview__tip">拖变量右侧的点到另一个变量画边 · 悬停边/点出现「×」删除 · 改完点「重跑」看判决怎么变</span>
+        <span className="dagview__tip">从一个变量拖到另一个画边(方向跟手:先拖谁谁是「因」) · 悬停边/点现「×」删除 · 改完「重跑」看判决怎么变</span>
       </div>
 
       <div className="dagview__bar">
@@ -170,6 +197,8 @@ export function ResultGraph({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            connectionMode={ConnectionMode.Loose}
             onEdgeMouseEnter={(_, e) => setHoveredEdge(e.id)}
             onEdgeMouseLeave={() => setHoveredEdge(null)}
             deleteKeyCode={DELETE_KEYS}

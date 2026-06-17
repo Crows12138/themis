@@ -57,10 +57,14 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
   const edges: Edge[] = [
     // Colour/weight live in CSS (.rf-edge--*) not inline `style`, so the
     // .selected / :hover states can layer over them without !important.
+    // Anchor every edge cause-right (sr) → effect-left (tl) so re-seeded edges
+    // render consistently regardless of which handles were used to draw them.
     ...causes.map((c, i) => ({
       id: `c${i}`,
       source: c.from,
       target: c.to,
+      sourceHandle: 'sr',
+      targetHandle: 'tl',
       type: 'button',
       data: { kind: 'cause' },
       className: 'rf-edge rf-edge--cause',
@@ -70,6 +74,8 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
       id: `b${i}`,
       source: b.a,
       target: b.b,
+      sourceHandle: 'sr',
+      targetHandle: 'tl',
       type: 'button',
       data: { kind: 'bidirected' },
       className: 'rf-edge rf-edge--bidir',
