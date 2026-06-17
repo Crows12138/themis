@@ -19,11 +19,11 @@ import { graphToProgram, programToFlow } from '../lib/graph'
 
 type NData = { label: string; editing?: boolean; rename?: (id: string, label: string) => void }
 
-/** One node type: a read-only label, or an editable input when data.editing. */
+/** A clean label for an existing variable; an input for a freshly-added one. */
 function GraphNode({ id, data }: NodeProps<Node<NData>>) {
   return (
     <div className="gnode">
-      <Handle type="target" position={Position.Left} className="gnode__h" isConnectable={!!data.editing} />
+      <Handle type="target" position={Position.Left} className="gnode__h" />
       {data.editing ? (
         <input
           className="gnode__input nodrag mono"
@@ -31,11 +31,12 @@ function GraphNode({ id, data }: NodeProps<Node<NData>>) {
           spellCheck={false}
           onChange={(e) => data.rename?.(id, e.target.value.replace(/[^a-zA-Z0-9_]/g, '_'))}
           aria-label="变量名"
+          autoFocus
         />
       ) : (
         <span className="gnode__label mono">{data.label}</span>
       )}
-      <Handle type="source" position={Position.Right} className="gnode__h" isConnectable={!!data.editing} />
+      <Handle type="source" position={Position.Right} className="gnode__h" />
     </div>
   )
 }
@@ -45,15 +46,16 @@ const NAME_POOL = ['x', 'y', 'z', 'm', 'n', 'w', 'u', 'v', 'p', 'q', 'r', 's']
 let _seq = 0
 
 /**
- * The causal graph that produced this result — read-only by default, editable
- * on demand. Editing (add a variable, draw / delete an edge) re-runs the kernel
- * on the spot via `onRerun`, so you can watch the verdict change when you, say,
- * delete an LLM-proposed edge or add a confounder. "还原原图" re-runs the
- * original program.
+ * The causal graph that produced this result — directly editable, no mode to
+ * toggle. Draw a cause / latent-confounder edge, select-and-delete, or add a
+ * variable, then "用改后的图重跑" re-runs the kernel so you can watch the
+ * verdict change when you, say, delete an LLM-proposed edge or add a confounder.
+ * "还原原图" re-runs the original program.
  *
- * One stateful React Flow throughout (read-only just disables interaction).
- * Selection is read off React Flow's own `selected` flags — no onSelectionChange
- * callback, which in a controlled graph loops setState until React bails (#185).
+ * Existing variables stay read-only labels (renaming one the query references
+ * would break it — do that in the JSON editor); newly-added nodes get an input
+ * to name them. Selection is read off React Flow's own `selected` flags, never
+ * an onSelectionChange callback (which loops setState in a controlled graph).
  */
 export function ResultGraph({
   program,
@@ -66,7 +68,6 @@ export function ResultGraph({
   busy: boolean
   onRerun: (prog: Record<string, unknown>) => void
 }) {
-  const [editing, setEditing] = useState(false)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NData>>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
@@ -77,22 +78,16 @@ export function ResultGraph({
     [setNodes],
   )
 
-  // Seed (or re-seed) the canvas from the program in read-only mode. Runs on
-  // mount and whenever the displayed program changes (after a re-run), so a
-  // re-run always drops back to the clean view. `seed` is also the "取消" path.
+  // Seed (or re-seed) the canvas from the program. Runs on mount and whenever
+  // the displayed program changes (after a re-run), so a re-run snaps the
+  // canvas back to the structure that produced the new verdict.
   const seed = useCallback(() => {
     const { nodes: sn, edges: se } = programToFlow(program)
     setNodes(sn.map((n) => ({ ...n, type: 'plain', data: { label: (n.data as { label: string }).label, editing: false, rename } })))
     setEdges(se)
-    setEditing(false)
   }, [program, rename, setNodes, setEdges])
 
   useEffect(() => { seed() }, [seed])
-
-  function enterEdit() {
-    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, editing: true } })))
-    setEditing(true)
-  }
 
   const addVariable = useCallback(() => {
     setNodes((ns) => {
@@ -144,52 +139,41 @@ export function ResultGraph({
   return (
     <div className="dagview">
       <div className="dagview__head">
-        <span className="dagview__cap">{editing ? '因果图 · 编辑中' : '因果图'}</span>
-        {editing ? (
-          <span className="dagview__tip">从变量右侧的点拖到另一个变量画边 · 选中边/点后删除 · 改完点「重跑」看判决怎么变</span>
-        ) : (
-          <button className="dagview__edit" onClick={enterEdit}>✎ 编辑因果图</button>
-        )}
+        <span className="dagview__cap">因果图 · 可改</span>
+        <span className="dagview__tip">从变量右侧的点拖到另一个变量画边 · 选中边/点后删除 · 改完点「重跑」看判决怎么变</span>
       </div>
 
-      {editing ? (
-        <div className="dagview__bar">
-          <button className="btn btn--ghost" onClick={addVariable}>＋ 加变量</button>
-          <div className="seg">
-            <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
-            <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
-          </div>
-          <button className="btn btn--ghost" onClick={deleteSelected} disabled={selCount === 0}>
-            删除选中{selCount ? `（${selCount}）` : ''}
-          </button>
-          <span className="dagview__spacer" />
-          <button className="btn btn--ghost" onClick={seed} disabled={busy}>取消</button>
-          <button className="btn btn--ghost" onClick={() => onRerun(original)} disabled={busy} title="回到最初的因果图重跑">还原原图</button>
-          <button className="btn" onClick={() => onRerun(graphToProgram(program, nodes, edges))} disabled={busy}>
-            {busy ? '重跑中…' : '用改后的图重跑 →'}
-          </button>
+      <div className="dagview__bar">
+        <button className="btn btn--ghost" onClick={addVariable}>＋ 加变量</button>
+        <div className="seg">
+          <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
+          <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
         </div>
-      ) : null}
+        <button className="btn btn--ghost" onClick={deleteSelected} disabled={selCount === 0}>
+          删除选中{selCount ? `（${selCount}）` : ''}
+        </button>
+        <span className="dagview__spacer" />
+        <button className="btn btn--ghost" onClick={() => onRerun(original)} disabled={busy} title="回到最初的因果图重跑">还原原图</button>
+        <button className="btn" onClick={() => onRerun(graphToProgram(program, nodes, edges))} disabled={busy}>
+          {busy ? '重跑中…' : '用改后的图重跑 →'}
+        </button>
+      </div>
 
-      <div className={`dagview__canvas ${editing ? 'dagview__canvas--edit' : ''}`}>
+      <div className="dagview__canvas dagview__canvas--edit">
         <ReactFlow
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={editing ? onConnect : undefined}
+          onConnect={onConnect}
           fitView
           fitViewOptions={{ padding: 0.25 }}
-          nodesConnectable={editing}
-          nodesDraggable={editing}
-          elementsSelectable={editing}
-          panOnDrag={editing}
-          zoomOnScroll={editing}
+          zoomOnScroll={false}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={18} color="var(--line-soft)" />
-          {editing ? <Controls showInteractive={false} /> : null}
+          <Controls showInteractive={false} />
         </ReactFlow>
       </div>
     </div>

@@ -440,7 +440,7 @@ button { font-family: inherit; cursor: pointer; }
 .dagview__bar .btn { font-size: var(--text-xs); padding: var(--space-2xs) var(--space-sm); }
 .dagview__spacer { flex: 1; min-width: var(--space-md); }
 .dagview__canvas { height: 220px; margin-top: var(--space-xs); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); transition: height 0.2s var(--ease-out); }
-.dagview__canvas--edit { height: 380px; border-color: var(--line-strong); }
+.dagview__canvas--edit { height: 320px; border-color: var(--line-strong); }
 .gnode { background: var(--surface-raise); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2xs) var(--space-sm); box-shadow: var(--shadow-soft); }
 .gnode__label { font-size: var(--text-sm); color: var(--ink); }
 .gnode__input { border: none; outline: none; background: transparent; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink); width: 92px; text-align: center; }
