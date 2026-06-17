@@ -49,7 +49,7 @@
   --text-lg: 1.375rem;
   --text-xl: 1.875rem;
   --text-2xl: 2.5rem;
-  --text-hero: clamp(2.3rem, 5.5vw, 3.9rem);
+  --text-hero: clamp(1.9rem, 3.2vw, 2.7rem);
 
   /* ---- 4pt spacing ---- */
   --space-2xs: 4px;
@@ -141,8 +141,18 @@ button { font-family: inherit; cursor: pointer; }
 .stage { flex: 1; width: 100%; max-width: min(1500px, 94vw); margin: 0 auto; padding: clamp(var(--space-xl), 6vh, var(--space-3xl)) clamp(var(--space-md), 4vw, var(--space-3xl)) var(--space-4xl); }
 .stage--wide { max-width: min(1760px, 96vw); }
 
+/* landing is small enough to live on one screen: center it in the
+   stage's flex:1 region (between masthead and footer) and drop the long-page
+   bottom padding. `safe center` falls back to top-align (and normal scroll)
+   on short viewports instead of clipping the top. Only the landing — the
+   result / build / estimate views are meant to scroll. */
+.stage:has(.landing) {
+  display: flex; flex-direction: column; justify-content: safe center;
+  padding-top: var(--space-md); padding-bottom: var(--space-md);
+}
+
 /* landing: hero + ask on the left, the three-tier explainer on the right */
-.landing { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.85fr); gap: clamp(var(--space-2xl), 5vw, var(--space-4xl)); align-items: start; }
+.landing { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.85fr); gap: clamp(var(--space-2xl), 5vw, var(--space-4xl)); align-items: center; }
 .landing__main { min-width: 0; }
 
 .sidepanel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-xl); position: sticky; top: calc(64px + var(--space-lg)); }
@@ -156,15 +166,15 @@ button { font-family: inherit; cursor: pointer; }
 .tierrow__gloss { font-size: var(--text-sm); color: var(--ink-soft); line-height: 1.5; }
 .sidepanel__foot { margin-top: var(--space-lg); padding-top: var(--space-lg); border-top: 1px solid var(--line-soft); font-size: var(--text-sm); color: var(--ink-faint); line-height: 1.55; }
 
-.intro { max-width: 40ch; }
+.intro { max-width: 44ch; }
 .intro__eyebrow { font-size: var(--text-xs); letter-spacing: 0.16em; text-transform: uppercase; color: var(--tier-none); font-weight: 600; margin-bottom: var(--space-md); }
 .intro__title { font-size: var(--text-hero); font-weight: 500; color: var(--ink); }
 .intro__title em { font-style: normal; color: var(--ink-soft); }
-.intro__lede { margin-top: var(--space-lg); font-size: var(--text-md); color: var(--ink-soft); line-height: 1.65; max-width: 56ch; }
+.intro__lede { margin-top: var(--space-md); font-size: var(--text-md); color: var(--ink-soft); line-height: 1.6; max-width: 56ch; }
 .intro__lede strong { color: var(--ink); font-weight: 600; }
 
 /* ---- ask bar ---- */
-.ask { margin-top: var(--space-2xl); }
+.ask { margin-top: var(--space-xl); }
 .ask__field {
   display: flex; align-items: flex-end; gap: var(--space-sm);
   background: var(--surface-raise); border: 1px solid var(--line-strong);
@@ -191,7 +201,7 @@ button { font-family: inherit; cursor: pointer; }
 .ask__hint kbd { font-family: var(--font-mono); font-size: 0.7rem; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--ink-soft); }
 
 /* ---- example chips ---- */
-.examples { margin-top: var(--space-xl); }
+.examples { margin-top: var(--space-lg); }
 .examples__label { font-size: var(--text-xs); color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-sm); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 .chip {
