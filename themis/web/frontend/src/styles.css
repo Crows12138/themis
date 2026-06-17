@@ -450,6 +450,7 @@ button { font-family: inherit; cursor: pointer; }
 .dagview__bar { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-sm); }
 .dagview__bar .btn { font-size: var(--text-xs); padding: var(--space-2xs) var(--space-sm); }
 .edgehint { font-size: var(--text-xs); color: var(--ink-faint); }
+.edgehint--warn { color: var(--tier-none); font-weight: 600; }
 .dagview__spacer { flex: 1; min-width: var(--space-md); }
 .dagview__canvas { height: 220px; margin-top: var(--space-xs); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); transition: height 0.2s var(--ease-out); }
 .dagview__canvas--edit { height: 320px; border-color: var(--line-strong); }

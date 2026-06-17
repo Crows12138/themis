@@ -15,7 +15,7 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { programToBuilder } from '../lib/graph'
+import { programToBuilder, reaches } from '../lib/graph'
 
 type VarData = { label: string; rename: (id: string, label: string) => void }
 
@@ -127,6 +127,14 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
     (c: Connection) => {
       if (c.source === c.target) return
       const bidir = edgeType === 'bidirected'
+      // A causal DAG can't contain a cycle: refuse a cause edge that would close
+      // one. Use ↔ (潜混杂) for a non-directional / mutual relationship.
+      if (!bidir && c.source && c.target && reaches(edges, c.target, c.source)) {
+        const lbl = (id: string | null | undefined) => nodes.find((n) => n.id === id)?.data.label ?? id
+        setError(`画不了:「${lbl(c.source)} → ${lbl(c.target)}」会和已有的边形成回路——因果图不能有环。要表达双向关联,用「潜混杂 ↔」。`)
+        return
+      }
+      setError(null)
       setEdges((es) =>
         addEdge(
           {
@@ -141,7 +149,7 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
         ),
       )
     },
-    [edgeType, setEdges],
+    [edgeType, edges, nodes, setEdges],
   )
 
   const labelOf = useMemo(() => {

@@ -18,7 +18,7 @@ import {
   type OnConnectStart,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { graphToProgram, programToFlow } from '../lib/graph'
+import { graphToProgram, programToFlow, reaches } from '../lib/graph'
 import { ButtonEdge, EdgeHoverContext, FloatingConnectionLine } from './ButtonEdge'
 
 type NData = { label: string; editing?: boolean; rename?: (id: string, label: string) => void }
@@ -93,6 +93,7 @@ export function ResultGraph({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
   // The node a connection drag started on — the cause. Captured here because
   // React Flow normalises onConnect's source/target by handle TYPE, which would
   // otherwise let handle layout (not drag order) decide the arrow direction.
@@ -155,6 +156,13 @@ export function ResultGraph({
       }
       if (!from || !to || from === to) return
       const bidir = edgeType === 'bidirected'
+      // A causal DAG can't have a cycle: block a cause edge that would close one
+      // (drawing B→A when A→…→B already exists). ↔ confounder links are fine.
+      if (!bidir && reaches(edges, to, from)) {
+        setNote(`画不了:已经有「${to} → … → ${from}」,再加「${from} → ${to}」会形成回路——因果图不能有环。要表达双向关联,用「潜混杂 ↔」。`)
+        return
+      }
+      setNote(null)
       setEdges((es) =>
         addEdge(
           {
@@ -171,7 +179,7 @@ export function ResultGraph({
         ),
       )
     },
-    [edgeType, setEdges],
+    [edgeType, edges, setEdges],
   )
 
   return (
@@ -187,10 +195,11 @@ export function ResultGraph({
           <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
           <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
         </div>
-        <span className="edgehint">
-          {edgeType === 'cause'
-            ? '接下来画的边 ＝ 实线箭头：先拖的是「因」、后接的是「果」'
-            : '接下来画的边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）'}
+        <span className={`edgehint ${note ? 'edgehint--warn' : ''}`}>
+          {note ??
+            (edgeType === 'cause'
+              ? '接下来画的边 ＝ 实线箭头：先拖的是「因」、后接的是「果」'
+              : '接下来画的边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）')}
         </span>
         <span className="dagview__spacer" />
         <button className="btn btn--ghost" onClick={restore} disabled={busy} title="回到最初的因果图重跑">还原原图</button>

@@ -132,6 +132,31 @@ export function graphToProgram(
   return { ...base, statements: [...varStmts, ...edgeStmts, ...other] }
 }
 
+/** Directed reachability over CAUSE edges only (bidirected ↔ links impose no
+ *  direction). Used to stop a drawn edge from closing a cycle — a causal DAG
+ *  can't have A→B and B→A. */
+export function reaches(
+  edges: { source?: string | null; target?: string | null; data?: { kind?: string } }[],
+  start: string,
+  goal: string,
+): boolean {
+  const adj = new Map<string, string[]>()
+  for (const e of edges) {
+    if ((e.data?.kind ?? 'cause') !== 'cause' || !e.source || !e.target) continue
+    ;(adj.get(e.source) ?? adj.set(e.source, []).get(e.source)!).push(e.target)
+  }
+  const seen = new Set<string>()
+  const stack = [start]
+  while (stack.length) {
+    const n = stack.pop() as string
+    if (n === goal) return true
+    if (seen.has(n)) continue
+    seen.add(n)
+    for (const m of adj.get(n) ?? []) stack.push(m)
+  }
+  return false
+}
+
 const atomPred = (a: AnyStmt | undefined): string =>
   (a?.atom?.predicate ?? a?.predicate ?? '') as string
 
