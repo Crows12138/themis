@@ -9,6 +9,7 @@ import {
   addEdge,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   type Node,
   type Edge,
   type Connection,
@@ -16,13 +17,16 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { graphToProgram, programToFlow } from '../lib/graph'
+import { ButtonEdge, EdgeHoverContext } from './ButtonEdge'
 
 type NData = { label: string; editing?: boolean; rename?: (id: string, label: string) => void }
 
-/** A clean label for an existing variable; an input for a freshly-added one. */
-function GraphNode({ id, data }: NodeProps<Node<NData>>) {
+/** A variable node: read-only label (or an input for a freshly-added one),
+ *  with a delete "×" that reveals on hover / selection. */
+function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
+  const { deleteElements } = useReactFlow()
   return (
-    <div className="gnode">
+    <div className={`gnode ${selected ? 'gnode--selected' : ''}`}>
       <Handle type="target" position={Position.Left} className="gnode__h" />
       {data.editing ? (
         <input
@@ -37,25 +41,33 @@ function GraphNode({ id, data }: NodeProps<Node<NData>>) {
         <span className="gnode__label mono">{data.label}</span>
       )}
       <Handle type="source" position={Position.Right} className="gnode__h" />
+      <button
+        className="gnode__del nodrag nopan"
+        onClick={(e) => { e.stopPropagation(); deleteElements({ nodes: [{ id }] }) }}
+        title="删除这个变量"
+        aria-label="删除这个变量"
+      >
+        ×
+      </button>
     </div>
   )
 }
 
 const nodeTypes = { plain: GraphNode }
+const edgeTypes = { button: ButtonEdge }
 const NAME_POOL = ['x', 'y', 'z', 'm', 'n', 'w', 'u', 'v', 'p', 'q', 'r', 's']
+const DELETE_KEYS = ['Backspace', 'Delete']
 let _seq = 0
 
 /**
  * The causal graph that produced this result — directly editable, no mode to
- * toggle. Draw a cause / latent-confounder edge, select-and-delete, or add a
- * variable, then "用改后的图重跑" re-runs the kernel so you can watch the
- * verdict change when you, say, delete an LLM-proposed edge or add a confounder.
- * "还原原图" re-runs the original program.
+ * toggle. Draw a cause / latent-confounder edge, hover an edge or node to get a
+ * "×" and delete it, or add a variable; then "用改后的图重跑" re-runs the kernel
+ * so you can watch the verdict change. "还原原图" re-runs the original program.
  *
  * Existing variables stay read-only labels (renaming one the query references
- * would break it — do that in the JSON editor); newly-added nodes get an input
- * to name them. Selection is read off React Flow's own `selected` flags, never
- * an onSelectionChange callback (which loops setState in a controlled graph).
+ * would break the kernel — do that in the JSON editor); newly-added nodes get
+ * an input to name them.
  */
 export function ResultGraph({
   program,
@@ -71,6 +83,7 @@ export function ResultGraph({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NData>>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
+  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null)
 
   const rename = useCallback(
     (id: string, label: string) =>
@@ -114,6 +127,7 @@ export function ResultGraph({
           {
             ...c,
             id: `e${++_seq}`,
+            type: 'button',
             data: { kind: bidir ? 'bidirected' : 'cause' },
             className: bidir ? 'rf-edge rf-edge--bidir' : 'rf-edge rf-edge--cause',
             markerEnd: { type: MarkerType.ArrowClosed, color: bidir ? '#a23b2c' : '#5a6a6f' },
@@ -126,19 +140,11 @@ export function ResultGraph({
     [edgeType, setEdges],
   )
 
-  function deleteSelected() {
-    const dropNodes = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
-    setEdges((es) => es.filter((e) => !e.selected && !dropNodes.has(e.source) && !dropNodes.has(e.target)))
-    setNodes((ns) => ns.filter((n) => !n.selected))
-  }
-
-  const selCount = nodes.filter((n) => n.selected).length + edges.filter((e) => e.selected).length
-
   return (
     <div className="dagview">
       <div className="dagview__head">
         <span className="dagview__cap">因果图 · 可改</span>
-        <span className="dagview__tip">从变量右侧的点拖到另一个变量画边 · 选中边/点后删除 · 改完点「重跑」看判决怎么变</span>
+        <span className="dagview__tip">拖变量右侧的点到另一个变量画边 · 悬停边/点出现「×」删除 · 改完点「重跑」看判决怎么变</span>
       </div>
 
       <div className="dagview__bar">
@@ -147,9 +153,6 @@ export function ResultGraph({
           <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
           <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
         </div>
-        <button className="btn btn--ghost" onClick={deleteSelected} disabled={selCount === 0}>
-          删除选中{selCount ? `（${selCount}）` : ''}
-        </button>
         <span className="dagview__spacer" />
         <button className="btn btn--ghost" onClick={() => onRerun(original)} disabled={busy} title="回到最初的因果图重跑">还原原图</button>
         <button className="btn" onClick={() => onRerun(graphToProgram(program, nodes, edges))} disabled={busy}>
@@ -158,21 +161,27 @@ export function ResultGraph({
       </div>
 
       <div className="dagview__canvas dagview__canvas--edit">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          fitView
-          fitViewOptions={{ padding: 0.25 }}
-          zoomOnScroll={false}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background gap={18} color="var(--line-soft)" />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+        <EdgeHoverContext.Provider value={hoveredEdge}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onEdgeMouseEnter={(_, e) => setHoveredEdge(e.id)}
+            onEdgeMouseLeave={() => setHoveredEdge(null)}
+            deleteKeyCode={DELETE_KEYS}
+            fitView
+            fitViewOptions={{ padding: 0.25 }}
+            zoomOnScroll={false}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background gap={18} color="var(--line-soft)" />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </EdgeHoverContext.Provider>
       </div>
     </div>
   )

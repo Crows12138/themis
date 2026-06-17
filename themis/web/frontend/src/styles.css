@@ -441,7 +441,7 @@ button { font-family: inherit; cursor: pointer; }
 .dagview__spacer { flex: 1; min-width: var(--space-md); }
 .dagview__canvas { height: 220px; margin-top: var(--space-xs); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); transition: height 0.2s var(--ease-out); }
 .dagview__canvas--edit { height: 320px; border-color: var(--line-strong); }
-.gnode { background: var(--surface-raise); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2xs) var(--space-sm); box-shadow: var(--shadow-soft); }
+.gnode { position: relative; background: var(--surface-raise); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2xs) var(--space-sm); box-shadow: var(--shadow-soft); }
 .gnode__label { font-size: var(--text-sm); color: var(--ink); }
 .gnode__input { border: none; outline: none; background: transparent; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink); width: 92px; text-align: center; }
 .gnode__h { width: 6px; height: 6px; background: var(--ink-ghost); border: none; }
@@ -461,6 +461,31 @@ button { font-family: inherit; cursor: pointer; }
   border-color: var(--accent);
   box-shadow: 0 0 0 2px oklch(0.46 0.045 222 / 0.3), var(--shadow-soft);
 }
+
+/* inline delete controls — on the element itself, not a detached toolbar */
+.edgedel, .gnode__del {
+  position: absolute;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--surface-raise); color: var(--tier-none);
+  border: 1px solid var(--line-strong);
+  line-height: 1; cursor: pointer; padding: 0;
+  box-shadow: var(--shadow-soft); pointer-events: all;
+  transition: background 0.12s, color 0.12s, transform 0.1s;
+}
+.edgedel:hover, .gnode__del:hover { background: var(--tier-none); color: var(--paper); }
+.edgedel:active, .gnode__del:active { transform: scale(0.92); }
+.edgedel:active { transform: translate(-50%, -50%) scale(0.92); }
+
+/* edge "×": portaled to the edge midpoint by EdgeLabelRenderer */
+.edgedel { width: 20px; height: 20px; font-size: 15px; }
+
+/* node "×": top-right corner, revealed on hover / selection */
+.gnode__del {
+  top: -9px; right: -9px; width: 18px; height: 18px; font-size: 13px;
+  opacity: 0; transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.gnode:hover .gnode__del, .gnode--selected .gnode__del { opacity: 1; }
 
 /* ---- result: 补缺口 ---- */
 .framing { margin-top: var(--space-xl); background: var(--tier-point-bg); border: 1px solid color-mix(in oklch, var(--tier-point) 22%, var(--line)); border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-xl); }
