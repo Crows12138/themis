@@ -15,14 +15,19 @@ interface Stmt {
 export function programToFlow(program: Record<string, unknown> | undefined): { nodes: Node[]; edges: Edge[] } {
   const stmts = (program?.statements as Stmt[] | undefined) ?? []
   const vars: string[] = []
-  const causes: { from: string; to: string }[] = []
+  const causes: { from: string; to: string; proposed?: boolean }[] = []
   const bidir: { a: string; b: string }[] = []
   for (const s of stmts) {
     if (s.kind === 'variable' && s.predicate) vars.push(s.predicate)
-    else if (s.kind === 'cause' && s.from?.predicate && s.to?.predicate) causes.push({ from: s.from.predicate, to: s.to.predicate })
+    else if (s.kind === 'cause' && s.from?.predicate && s.to?.predicate)
+      causes.push({ from: s.from.predicate, to: s.to.predicate, proposed: (s as AnyStmt).annotations?.source === 'llm_proposal' })
     else if (s.kind === 'bidirected' && s.left?.predicate && s.right?.predicate) bidir.push({ a: s.left.predicate, b: s.right.predicate })
   }
   if (vars.length === 0) return { nodes: [], edges: [] }
+
+  // Project the query roles onto the graph: which variable is the intervention
+  // (干预 X) and which is the outcome (结果 Y).
+  const { qx, qy } = parseQuery(program)
 
   // Auto-layout with dagre (left-to-right). Only the directed cause edges drive
   // ranking; bidirected (latent-confounder) links don't impose a direction.
@@ -43,7 +48,7 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
     return {
       id: v,
       position: { x: (p?.x ?? 0) - width / 2, y: (p?.y ?? 0) - height / 2 },
-      data: { label: v },
+      data: { label: v, role: v === qx ? 'treatment' : v === qy ? 'outcome' : undefined },
       type: 'plain',
       // Seed a size so edges anchor on the first frame, before React Flow's
       // ResizeObserver measures the node (a cold mount otherwise paints no edges).
@@ -62,8 +67,10 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
       source: c.from,
       target: c.to,
       type: 'button',
-      data: { kind: 'cause' },
-      className: 'rf-edge rf-edge--cause',
+      data: { kind: 'cause', proposed: !!c.proposed },
+      // proposed = an LLM-guessed edge, not data-backed or user-drawn → rendered
+      // faint so the user can see which arrows are still just hypotheses.
+      className: c.proposed ? 'rf-edge rf-edge--cause rf-edge--proposed' : 'rf-edge rf-edge--cause',
       markerEnd: { type: MarkerType.ArrowClosed, color: '#5a6a6f' },
     })),
     ...bidir.map((b, i) => ({
@@ -93,7 +100,7 @@ const CANON_KINDS = ['variable', 'cause', 'bidirected']
 export function graphToProgram(
   base: Record<string, unknown>,
   nodes: { id: string; data: { label: string } }[],
-  edges: { source?: string | null; target?: string | null; data?: { kind?: string } }[],
+  edges: { source?: string | null; target?: string | null; data?: { kind?: string; proposed?: boolean } }[],
 ): Record<string, unknown> {
   const stmts = ((base?.statements as AnyStmt[]) ?? [])
   // Harvest a canonical atom per predicate from the base so re-emitted edges
@@ -124,9 +131,10 @@ export function graphToProgram(
   const edgeStmts = edges.map((e) => {
     const a = labelById.get(e.source ?? '') ?? ''
     const b = labelById.get(e.target ?? '') ?? ''
-    return e.data?.kind === 'bidirected'
-      ? { kind: 'bidirected', left: mkAtom(a), right: mkAtom(b) }
-      : { kind: 'cause', from: mkAtom(a), to: mkAtom(b) }
+    if (e.data?.kind === 'bidirected') return { kind: 'bidirected', left: mkAtom(a), right: mkAtom(b) }
+    // Keep the llm_proposal mark so an unverified edge stays flagged through a
+    // re-run; only an edge the user actually drew (no mark) reads as confirmed.
+    return { kind: 'cause', from: mkAtom(a), to: mkAtom(b), ...(e.data?.proposed ? { annotations: { source: 'llm_proposal' } } : {}) }
   })
   const other = stmts.filter((s) => !CANON_KINDS.includes(s.kind))
   return { ...base, statements: [...varStmts, ...edgeStmts, ...other] }

@@ -29,14 +29,19 @@ import '@xyflow/react/dist/style.css'
 import { programToFlow, reaches } from '../lib/graph'
 import { ButtonEdge, EdgeHoverContext, FloatingConnectionLine } from './ButtonEdge'
 
-type NData = { label: string; editing?: boolean; rename?: (id: string, label: string) => void }
+type Role = 'treatment' | 'outcome'
+type NData = { label: string; editing?: boolean; role?: Role; rename?: (id: string, label: string) => void }
 
-/** A variable node: a read-only label or an input (data.editing), with a delete
- *  "×" that reveals on hover / selection. */
+/** A variable node: a read-only label or an input (data.editing), tagged with
+ *  its query role (干预 / 结果) when it has one, with a delete "×" that reveals
+ *  on hover / selection. */
 function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
   const { deleteElements } = useReactFlow()
   return (
-    <div className={`gnode ${selected ? 'gnode--selected' : ''}`}>
+    <div className={`gnode ${selected ? 'gnode--selected' : ''} ${data.role ? `gnode--${data.role}` : ''}`}>
+      {data.role ? (
+        <span className={`gnode__role gnode__role--${data.role}`}>{data.role === 'treatment' ? '干预' : '结果'}</span>
+      ) : null}
       {/* Both a target and a source handle on each side (source last → on top, so
           a drag can always START from either side). With ConnectionMode.Loose
           this lets you connect any node to any node from whichever side is
@@ -128,7 +133,10 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
   const seedFrom = useCallback(
     (prog: Record<string, unknown>) => {
       const { nodes: sn, edges: se } = programToFlow(prog)
-      setNodes(sn.map((n) => ({ ...n, type: 'plain', data: { label: (n.data as { label: string }).label, editing: seedEditable, rename } })))
+      setNodes(sn.map((n) => {
+        const d = n.data as { label: string; role?: Role }
+        return { ...n, type: 'plain', data: { label: d.label, editing: seedEditable, role: d.role, rename } }
+      }))
       setEdges(se)
       setNote(null)
     },
@@ -262,6 +270,14 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
           </ReactFlow>
         </EdgeHoverContext.Provider>
       </div>
+
+      {nodes.some((n) => n.data.role) || edges.some((e) => (e.className ?? '').includes('rf-edge--proposed')) ? (
+        <p className="dagview__legend">
+          <span className="gnode__role gnode__role--treatment">干预</span>你问的「因」
+          <span className="gnode__role gnode__role--outcome">结果</span>你问的「果」
+          <span className="legend__faint">⸺</span>淡色箭头 ＝ AI 提的假设（未验证），你画 / 确认的边是实色
+        </p>
+      ) : null}
     </>
   )
 })

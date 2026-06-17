@@ -477,6 +477,19 @@ button { font-family: inherit; cursor: pointer; }
 }
 .gnode:hover .gnode__del, .gnode--selected .gnode__del { opacity: 1; }
 
+/* causal-role annotation projected from the verdict onto the graph */
+.gnode--treatment { border-color: var(--accent); }
+.gnode--outcome { border-color: var(--tier-point); }
+.gnode__role { position: absolute; top: -10px; left: 7px; z-index: 3; font-size: 0.62rem; font-weight: 600; line-height: 1; padding: 2px 5px; border-radius: 999px; pointer-events: none; white-space: nowrap; }
+.gnode__role--treatment { background: var(--accent); color: var(--paper); }
+.gnode__role--outcome { background: var(--tier-point); color: var(--paper); }
+/* an edge the LLM proposed but nothing has verified — drawn faint */
+.dagview__canvas .react-flow__edge.rf-edge--proposed { opacity: 0.5; }
+/* legend */
+.dagview__legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-sm); margin-top: var(--space-sm); font-size: var(--text-xs); color: var(--ink-faint); }
+.dagview__legend .gnode__role { position: static; margin-right: var(--space-2xs); }
+.legend__faint { color: var(--ink-ghost); font-family: var(--font-mono); }
+
 /* ---- result: 补缺口 ---- */
 .framing { margin-top: var(--space-xl); background: var(--tier-point-bg); border: 1px solid color-mix(in oklch, var(--tier-point) 22%, var(--line)); border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-xl); }
 .framing__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md); }
