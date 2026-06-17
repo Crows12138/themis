@@ -1,50 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  Handle,
-  Position,
-  MarkerType,
-  addEdge,
-  useNodesState,
-  useEdgesState,
-  type Node,
-  type Edge,
-  type Connection,
-  type NodeProps,
-} from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
-import { programToBuilder, reaches } from '../lib/graph'
-
-type VarData = { label: string; rename: (id: string, label: string) => void }
-
-const NAME_POOL = ['x', 'y', 'z', 'm', 'n', 'w', 'u', 'v', 'p', 'q', 'r', 's']
-
-function VariableNode({ id, data }: NodeProps<Node<VarData>>) {
-  return (
-    <div className="vnode">
-      <Handle type="target" position={Position.Left} className="vnode__handle" />
-      <input
-        className="vnode__input nodrag"
-        value={data.label}
-        spellCheck={false}
-        onChange={(e) => data.rename(id, e.target.value.replace(/[^a-zA-Z0-9_]/g, '_'))}
-        aria-label="变量名"
-      />
-      <Handle type="source" position={Position.Right} className="vnode__handle" />
-    </div>
-  )
-}
-
-const nodeTypes = { variable: VariableNode }
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { parseQuery } from '../lib/graph'
+import { CausalCanvas, type CausalCanvasHandle } from './CausalCanvas'
 
 function atom(pred: string) {
   return { predicate: pred, args: [{ type: 'const', name: 'me' }] }
 }
-
-let _seq = 0
-const nextId = () => `dag${++_seq}`
 
 export interface DagBuilderProps {
   submitLabel: string
@@ -52,125 +12,49 @@ export interface DagBuilderProps {
   busy?: boolean
   banner?: ReactNode
   intro?: ReactNode
-  /** Carry an existing graph into the canvas (from a result handoff) instead of
-   *  starting blank — nodes, edges and the query are pre-filled. */
+  /** Carry an existing graph into the canvas (from a result handoff) — the
+   *  canvas pre-fills the nodes/edges, this shell pre-fills the query. */
   initialProgram?: Record<string, unknown>
 }
 
+/**
+ * Build a causal graph by hand (or seeded from a handoff) and hand it to the
+ * kernel. A thin shell over the shared CausalCanvas: it adds the query bar
+ * (干预 / 结果 / 查询类型) and serializes the canvas + query into a kernel_ast.
+ */
 export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initialProgram }: DagBuilderProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<VarData>>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
-  const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
+  const ref = useRef<CausalCanvasHandle>(null)
+  const [varNames, setVarNames] = useState<string[]>([])
   const [qx, setQx] = useState('')
   const [qy, setQy] = useState('')
   const [qkind, setQkind] = useState<'effect' | 'identify' | 'counterfactual'>('effect')
   const [error, setError] = useState<string | null>(null)
 
-  const rename = useCallback(
-    (id: string, label: string) => setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n))),
-    [setNodes],
-  )
-
-  // Hydrate once from a handed-off program (the workspace remounts on each
-  // handoff, so a mount-time fill is exactly one fresh seed).
-  const hydrated = useRef(false)
+  // Pre-fill the query from a handed-off program (the graph is seeded by the
+  // canvas). initialProgram is set once per mount, so this runs once.
   useEffect(() => {
-    if (hydrated.current || !initialProgram) return
-    hydrated.current = true
-    const b = programToBuilder(initialProgram)
-    if (b.nodes.length < 1) return
-    setNodes(b.nodes.map((n) => ({
-      id: n.id,
-      type: 'variable',
-      position: n.position,
-      data: { label: n.label, rename },
-      // seed a size so the hydrated edges anchor before React Flow measures
-      initialWidth: Math.max(96, n.label.length * 8.5 + 44),
-      initialHeight: 38,
-    } as Node<VarData>)))
-    setEdges(
-      b.edges.map((e, i) => {
-        const bidir = e.kind === 'bidirected'
-        return {
-          id: `seed-${i}`,
-          source: e.source,
-          target: e.target,
-          data: { kind: e.kind },
-          style: bidir ? { stroke: '#a23b2c', strokeWidth: 1.6, strokeDasharray: '5 4' } : { stroke: '#5a6a6f', strokeWidth: 1.6 },
-          markerEnd: bidir ? undefined : { type: MarkerType.ArrowClosed, color: '#5a6a6f' },
-          markerStart: bidir ? { type: MarkerType.ArrowClosed, color: '#a23b2c' } : undefined,
-        } as Edge
-      }),
-    )
-    setQx(b.qx)
-    setQy(b.qy)
-    setQkind(b.qkind)
-  }, [initialProgram, rename, setNodes, setEdges])
-
-  const addVariable = useCallback(() => {
-    setNodes((ns) => {
-      const used = new Set(ns.map((n) => n.data.label))
-      const name = NAME_POOL.find((c) => !used.has(c)) ?? `v${ns.length + 1}`
-      return [
-        ...ns,
-        {
-          id: nextId(),
-          type: 'variable',
-          position: { x: 60 + (ns.length % 4) * 210, y: 50 + Math.floor(ns.length / 4) * 130 },
-          data: { label: name, rename },
-        } as Node<VarData>,
-      ]
-    })
-  }, [rename, setNodes])
-
-  const onConnect = useCallback(
-    (c: Connection) => {
-      if (c.source === c.target) return
-      const bidir = edgeType === 'bidirected'
-      // A causal DAG can't contain a cycle: refuse a cause edge that would close
-      // one. Use ↔ (潜混杂) for a non-directional / mutual relationship.
-      if (!bidir && c.source && c.target && reaches(edges, c.target, c.source)) {
-        const lbl = (id: string | null | undefined) => nodes.find((n) => n.id === id)?.data.label ?? id
-        setError(`画不了:「${lbl(c.source)} → ${lbl(c.target)}」会和已有的边形成回路——因果图不能有环。要表达双向关联,用「潜混杂 ↔」。`)
-        return
-      }
-      setError(null)
-      setEdges((es) =>
-        addEdge(
-          {
-            ...c,
-            id: `${c.source}-${bidir ? '↔' : '→'}-${c.target}-${es.length}`,
-            data: { kind: bidir ? 'bidirected' : 'cause' },
-            style: bidir ? { stroke: '#a23b2c', strokeWidth: 1.6, strokeDasharray: '5 4' } : { stroke: '#5a6a6f', strokeWidth: 1.6 },
-            markerEnd: bidir ? undefined : { type: MarkerType.ArrowClosed, color: '#5a6a6f' },
-            markerStart: bidir ? { type: MarkerType.ArrowClosed, color: '#a23b2c' } : undefined,
-          },
-          es,
-        ),
-      )
-    },
-    [edgeType, edges, nodes, setEdges],
-  )
-
-  const labelOf = useMemo(() => {
-    const map = new Map(nodes.map((n) => [n.id, n.data.label]))
-    return (id: string) => map.get(id) ?? id
-  }, [nodes])
-
-  const varNames = useMemo(() => nodes.map((n) => n.data.label), [nodes])
+    if (!initialProgram) return
+    const q = parseQuery(initialProgram)
+    setQx(q.qx)
+    setQy(q.qy)
+    setQkind(q.qkind)
+  }, [initialProgram])
 
   function serialize(): Record<string, unknown> | string {
-    const names = nodes.map((n) => n.data.label.trim())
+    const ns = ref.current?.getNodes() ?? []
+    const es = ref.current?.getEdges() ?? []
+    const names = ns.map((n) => (n.data.label as string).trim())
     if (names.length < 2) return '至少需要两个变量'
     if (new Set(names).size !== names.length) return '变量名有重复——每个变量名要唯一'
     if (names.some((n) => !n)) return '有变量名是空的'
     if (!qx || !qy) return '请在下方选择「干预 X」和「结果 Y」'
     if (qx === qy) return '干预和结果不能是同一个变量'
 
+    const labelOf = new Map(ns.map((n) => [n.id, (n.data.label as string).trim()]))
     const statements: Record<string, unknown>[] = names.map((n) => ({ kind: 'variable', predicate: n, domain: [true, false] }))
-    for (const e of edges) {
-      const a = labelOf(e.source!)
-      const b = labelOf(e.target!)
+    for (const e of es) {
+      const a = labelOf.get(e.source) ?? e.source
+      const b = labelOf.get(e.target) ?? e.target
       if ((e.data as { kind?: string })?.kind === 'bidirected') statements.push({ kind: 'bidirected', left: atom(a), right: atom(b) })
       else statements.push({ kind: 'cause', from: atom(a), to: atom(b) })
     }
@@ -199,36 +83,26 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
     <div className="build">
       {intro}
 
-      <div className="build__toolbar">
-        <button className="btn" onClick={addVariable}>＋ 加变量</button>
-        <div className="seg">
-          <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
-          <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
-        </div>
-        <span className="build__tip">
-          {edgeType === 'cause'
-            ? '从一个变量拖到另一个画边 ＝ 实线箭头：先拖的是「因」、后接的是「果」'
-            : '从一个变量拖到另一个画边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）'}
-        </span>
-        {nodes.length > 0 ? (
-          <button className="btn btn--ghost" onClick={() => { setNodes([]); setEdges([]); setQx(''); setQy('') }}>清空</button>
-        ) : null}
-      </div>
+      <CausalCanvas
+        ref={ref}
+        seedProgram={initialProgram}
+        seedEditable
+        height={440}
+        onVarsChange={setVarNames}
+        emptyHint={
+          <>
+            <p>空画布</p>
+            <button className="linklike" onClick={() => ref.current?.addVariable()}>加第一个变量</button>
+          </>
+        }
+        toolbarExtra={
+          varNames.length > 0 ? (
+            <button className="btn btn--ghost" onClick={() => { ref.current?.clear(); setQx(''); setQy('') }}>清空</button>
+          ) : null
+        }
+      />
 
       {banner}
-
-      <div className="canvas">
-        {nodes.length === 0 ? (
-          <div className="canvas__empty">
-            <p>空画布</p>
-            <button className="linklike" onClick={addVariable}>加第一个变量</button>
-          </div>
-        ) : null}
-        <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} nodeTypes={nodeTypes} fitView proOptions={{ hideAttribution: true }}>
-          <Background gap={20} color="var(--line)" />
-          <Controls showInteractive={false} />
-        </ReactFlow>
-      </div>
 
       <div className="querybar">
         <span className="querybar__q">查询</span>
