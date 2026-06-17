@@ -115,9 +115,7 @@ export function ResultGraph({
             ...c,
             id: `e${++_seq}`,
             data: { kind: bidir ? 'bidirected' : 'cause' },
-            style: bidir
-              ? { stroke: '#a23b2c', strokeWidth: 1.6, strokeDasharray: '5 4' }
-              : { stroke: '#5a6a6f', strokeWidth: 1.6 },
+            className: bidir ? 'rf-edge rf-edge--bidir' : 'rf-edge rf-edge--cause',
             markerEnd: { type: MarkerType.ArrowClosed, color: bidir ? '#a23b2c' : '#5a6a6f' },
             markerStart: bidir ? { type: MarkerType.ArrowClosed, color: '#a23b2c' } : undefined,
           },

@@ -55,12 +55,14 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
   })
 
   const edges: Edge[] = [
+    // Colour/weight live in CSS (.rf-edge--*) not inline `style`, so the
+    // .selected / :hover states can layer over them without !important.
     ...causes.map((c, i) => ({
       id: `c${i}`,
       source: c.from,
       target: c.to,
       data: { kind: 'cause' },
-      style: { stroke: '#5a6a6f', strokeWidth: 1.6 },
+      className: 'rf-edge rf-edge--cause',
       markerEnd: { type: MarkerType.ArrowClosed, color: '#5a6a6f' },
     })),
     ...bidir.map((b, i) => ({
@@ -68,7 +70,7 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
       source: b.a,
       target: b.b,
       data: { kind: 'bidirected' },
-      style: { stroke: '#a23b2c', strokeWidth: 1.6, strokeDasharray: '5 4' },
+      className: 'rf-edge rf-edge--bidir',
       markerStart: { type: MarkerType.ArrowClosed, color: '#a23b2c' },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#a23b2c' },
     })),
