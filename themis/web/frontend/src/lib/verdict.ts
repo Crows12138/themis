@@ -135,3 +135,28 @@ export function framingVariables(gaps: { kind: string; description: string }[]):
   }
   return out
 }
+
+// The text fields whose default value ("未指定（默认：…）") a user would never
+// type — so a variable carrying one was operationalised by the blank-fill
+// default, not confirmed by the user. (Categorical defaults like up/observable
+// equal real choices, so they can't be told apart and aren't flagged.)
+const _MARKER_DEFAULTS = FRAMING_FIELDS.filter((f) => f.def.includes('未指定'))
+
+/**
+ * Variables whose operationalization is an unconfirmed blank-fill default.
+ * Clearing a framing gap by leaving the fields blank is convenient but means
+ * the answer rests on default definitions the user never confirmed — this lets
+ * the result surface that honestly instead of hiding it in the merged JSON.
+ */
+export function framingDefaultsInProgram(
+  program: Record<string, unknown> | undefined,
+): { predicate: string; fields: string[] }[] {
+  const stmts = (program?.statements as Record<string, unknown>[] | undefined) ?? []
+  const out: { predicate: string; fields: string[] }[] = []
+  for (const s of stmts) {
+    if (s.kind !== 'variable' || typeof s.predicate !== 'string') continue
+    const fields = _MARKER_DEFAULTS.filter((f) => s[f.key] === f.def).map((f) => f.label)
+    if (fields.length) out.push({ predicate: s.predicate, fields })
+  }
+  return out
+}

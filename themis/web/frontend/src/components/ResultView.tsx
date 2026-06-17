@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
 import { clarify, getApiKey, render, runProgram, type ClarifyPick } from '../api'
-import { framingVariables } from '../lib/verdict'
+import { framingVariables, framingDefaultsInProgram } from '../lib/verdict'
 import { Verdict } from './Verdict'
 import { GapReport } from './GapReport'
 import { ResultGraph } from './ResultGraph'
@@ -34,6 +34,7 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
 
   const gaps = result.data_gap_report?.gaps ?? []
   const fvars = program ? framingVariables(gaps) : []
+  const defaultedVars = program ? framingDefaultsInProgram(program) : []
 
   async function doClarify(picks: ClarifyPick[]) {
     if (!program) return
@@ -100,6 +101,21 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
       {program ? <ResultGraph program={program} original={payload.program ?? program} busy={busy} onRerun={doRunJson} /> : null}
 
       <Verdict result={result} naive={naive} />
+
+      {defaultedVars.length > 0 ? (
+        <section className="assume" role="note" aria-label="操作化采用默认">
+          <p className="assume__title">⚠ 这个答案用的是默认操作化，你没确认过</p>
+          <p className="assume__body">
+            {defaultedVars.map((d) => (
+              <span key={d.predicate} className="assume__var">
+                <b className="mono">{d.predicate}</b> 的 {d.fields.join('、')} 是系统按默认补的；
+              </span>
+            ))}
+            也就是说，结论假设了「标准测量、研究随访期、任意可测变化、当前状态为基线」这套定义。<b>如果你心里的口径不同，这个答案未必适用。</b>
+            想换成你自己的定义：在下方「查看 / 编辑因果图 JSON」里改这些字段后重跑，或重新提问时把口径说清楚。
+          </p>
+        </section>
+      ) : null}
 
       {reply ? (
         <section className="reply">

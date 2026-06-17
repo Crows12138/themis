@@ -291,6 +291,13 @@ button { font-family: inherit; cursor: pointer; }
 
 .demo__go { margin-top: var(--space-lg); }
 
+/* defaulted-operationalization caveat — surfaced in the verdict, not buried in
+   the merged JSON. A caution (ochre), full tinted surface, no side stripe. */
+.assume { margin-top: var(--space-lg); background: var(--tier-interval-bg); border: 1px solid color-mix(in oklch, var(--tier-interval) 28%, var(--line)); border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg); }
+.assume__title { font-weight: 600; color: oklch(0.46 0.09 73); font-size: var(--text-sm); margin-bottom: var(--space-2xs); }
+.assume__body { font-size: var(--text-sm); color: var(--ink-soft); line-height: 1.6; max-width: var(--measure); }
+.assume__body b { color: var(--ink); font-weight: 600; }
+
 /* ============================================================ reply */
 
 .renderrow { margin-top: var(--space-lg); }
