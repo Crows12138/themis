@@ -212,7 +212,6 @@ export function ResultGraph({
             deleteKeyCode={DELETE_KEYS}
             fitView
             fitViewOptions={{ padding: 0.25 }}
-            zoomOnScroll={false}
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={18} color="var(--line-soft)" />
