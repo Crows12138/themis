@@ -131,3 +131,48 @@ export function graphToProgram(
   const other = stmts.filter((s) => !CANON_KINDS.includes(s.kind))
   return { ...base, statements: [...varStmts, ...edgeStmts, ...other] }
 }
+
+const atomPred = (a: AnyStmt | undefined): string =>
+  (a?.atom?.predicate ?? a?.predicate ?? '') as string
+
+/** Pull the (intervention, target, kind) out of a program's query statement,
+ *  tolerating the effect / identify / counterfactual shapes. */
+export function parseQuery(program: Record<string, unknown> | undefined): {
+  qx: string
+  qy: string
+  qkind: 'effect' | 'identify' | 'counterfactual'
+} {
+  const stmts = (program?.statements as AnyStmt[] | undefined) ?? []
+  const q = stmts.find((s) => s.kind === 'query' && s.query)?.query as AnyStmt | undefined
+  if (!q) return { qx: '', qy: '', qkind: 'effect' }
+  const qkind = q.kind === 'identify' || q.kind === 'counterfactual' ? q.kind : 'effect'
+  if (qkind === 'counterfactual') {
+    return { qx: atomPred(q.counterfactual_intervention) || atomPred(q.observed), qy: atomPred(q.counterfactual_target), qkind }
+  }
+  return { qx: atomPred(q.intervention), qy: atomPred(q.target), qkind }
+}
+
+/** Hydrate a hand-editable builder (nodes / edges / query) from a kernel_ast,
+ *  so a result's graph can be carried into the Build / Estimate canvas instead
+ *  of redrawn. Positions come from the same dagre layout as the read-only view. */
+export function programToBuilder(program: Record<string, unknown> | undefined): {
+  nodes: { id: string; label: string; position: { x: number; y: number } }[]
+  edges: { source: string; target: string; kind: 'cause' | 'bidirected' }[]
+  qx: string
+  qy: string
+  qkind: 'effect' | 'identify' | 'counterfactual'
+} {
+  const { nodes, edges } = programToFlow(program)
+  const q = parseQuery(program)
+  return {
+    nodes: nodes.map((n) => ({ id: n.id, label: (n.data as { label: string }).label, position: n.position })),
+    edges: edges.map((e) => ({
+      source: e.source as string,
+      target: e.target as string,
+      kind: (e.data as { kind?: string })?.kind === 'bidirected' ? 'bidirected' : 'cause',
+    })),
+    qx: q.qx,
+    qy: q.qy,
+    qkind: q.qkind,
+  }
+}

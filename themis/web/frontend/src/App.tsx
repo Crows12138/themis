@@ -11,6 +11,19 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace>('ask')
   const [showKey, setShowKey] = useState(false)
   const [hasKey, setHasKey] = useState(!!getApiKey())
+  // A graph handed from a result into another workspace's canvas. Consumed by
+  // the matching workspace; cleared when the user navigates by hand.
+  const [pending, setPending] = useState<{ target: Workspace; program: Record<string, unknown> } | null>(null)
+
+  function sendTo(target: Workspace, program: Record<string, unknown>) {
+    setPending({ target, program })
+    setWorkspace(target)
+  }
+  function navTo(target: Workspace) {
+    setPending(null)
+    setWorkspace(target)
+  }
+  const seedProgram = pending && pending.target === workspace ? pending.program : undefined
 
   return (
     <div className="app">
@@ -28,13 +41,13 @@ export default function App() {
         </a>
 
         <nav className="nav" aria-label="工作区">
-          <button className="nav__item" aria-current={workspace === 'ask'} onClick={() => setWorkspace('ask')}>
+          <button className="nav__item" aria-current={workspace === 'ask'} onClick={() => navTo('ask')}>
             问一问
           </button>
-          <button className="nav__item" aria-current={workspace === 'build'} onClick={() => setWorkspace('build')}>
+          <button className="nav__item" aria-current={workspace === 'build'} onClick={() => navTo('build')}>
             建因果图
           </button>
-          <button className="nav__item" aria-current={workspace === 'estimate'} onClick={() => setWorkspace('estimate')}>
+          <button className="nav__item" aria-current={workspace === 'estimate'} onClick={() => navTo('estimate')}>
             数据估计
           </button>
         </nav>
@@ -56,11 +69,11 @@ export default function App() {
 
       <main className={`stage ${workspace !== 'ask' ? 'stage--wide' : ''}`}>
         {workspace === 'ask' ? (
-          <AskWorkspace onNeedKey={() => setShowKey(true)} />
+          <AskWorkspace onNeedKey={() => setShowKey(true)} onSendTo={sendTo} />
         ) : workspace === 'build' ? (
-          <BuildWorkspace />
+          <BuildWorkspace initialProgram={seedProgram} onSendTo={sendTo} />
         ) : (
-          <EstimateWorkspace />
+          <EstimateWorkspace initialProgram={seedProgram} onSendTo={sendTo} />
         )}
       </main>
 

@@ -11,7 +11,13 @@ interface Dataset {
   columns: string[]
 }
 
-export function EstimateWorkspace() {
+export function EstimateWorkspace({
+  initialProgram,
+  onSendTo,
+}: {
+  initialProgram?: Record<string, unknown>
+  onSendTo?: (target: 'ask' | 'build' | 'estimate', program: Record<string, unknown>) => void
+} = {}) {
   const [data, setData] = useState<Dataset | null>(null)
   const [busy, setBusy] = useState(false)
   const [payload, setPayload] = useState<ResultPayload | null>(null)
@@ -84,13 +90,14 @@ export function EstimateWorkspace() {
     URL.revokeObjectURL(url)
   }
 
-  if (payload) return <ResultView payload={payload} onReset={() => setPayload(null)} resetLabel="← 回到画布与数据" />
+  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel="← 回到画布与数据" />
 
   return (
     <DagBuilder
       submitLabel={data ? '用数据估计 →' : '先上传数据'}
       onSubmit={runEstimate}
       busy={busy}
+      initialProgram={initialProgram}
       intro={
         <div className="build__intro">
           <h2 className="build__title">用数据估计因果效应</h2>

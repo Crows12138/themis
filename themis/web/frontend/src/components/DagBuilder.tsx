@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ReactFlow,
   Background,
@@ -15,6 +15,7 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { programToBuilder } from '../lib/graph'
 
 type VarData = { label: string; rename: (id: string, label: string) => void }
 
@@ -51,9 +52,12 @@ export interface DagBuilderProps {
   busy?: boolean
   banner?: ReactNode
   intro?: ReactNode
+  /** Carry an existing graph into the canvas (from a result handoff) instead of
+   *  starting blank — nodes, edges and the query are pre-filled. */
+  initialProgram?: Record<string, unknown>
 }
 
-export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro }: DagBuilderProps) {
+export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initialProgram }: DagBuilderProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<VarData>>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
@@ -66,6 +70,42 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro }: DagBu
     (id: string, label: string) => setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n))),
     [setNodes],
   )
+
+  // Hydrate once from a handed-off program (the workspace remounts on each
+  // handoff, so a mount-time fill is exactly one fresh seed).
+  const hydrated = useRef(false)
+  useEffect(() => {
+    if (hydrated.current || !initialProgram) return
+    hydrated.current = true
+    const b = programToBuilder(initialProgram)
+    if (b.nodes.length < 1) return
+    setNodes(b.nodes.map((n) => ({
+      id: n.id,
+      type: 'variable',
+      position: n.position,
+      data: { label: n.label, rename },
+      // seed a size so the hydrated edges anchor before React Flow measures
+      initialWidth: Math.max(96, n.label.length * 8.5 + 44),
+      initialHeight: 38,
+    } as Node<VarData>)))
+    setEdges(
+      b.edges.map((e, i) => {
+        const bidir = e.kind === 'bidirected'
+        return {
+          id: `seed-${i}`,
+          source: e.source,
+          target: e.target,
+          data: { kind: e.kind },
+          style: bidir ? { stroke: '#a23b2c', strokeWidth: 1.6, strokeDasharray: '5 4' } : { stroke: '#5a6a6f', strokeWidth: 1.6 },
+          markerEnd: bidir ? undefined : { type: MarkerType.ArrowClosed, color: '#5a6a6f' },
+          markerStart: bidir ? { type: MarkerType.ArrowClosed, color: '#a23b2c' } : undefined,
+        } as Edge
+      }),
+    )
+    setQx(b.qx)
+    setQy(b.qy)
+    setQkind(b.qkind)
+  }, [initialProgram, rename, setNodes, setEdges])
 
   const addVariable = useCallback(() => {
     setNodes((ns) => {

@@ -3,7 +3,13 @@ import { ask, fetchExamples, getApiKey, KernelError, runProgram } from '../api'
 import type { Envelope, ExampleItem, QueryResult } from '../types'
 import { ResultView, type ResultPayload } from './ResultView'
 
-export function AskWorkspace({ onNeedKey }: { onNeedKey: () => void }) {
+export function AskWorkspace({
+  onNeedKey,
+  onSendTo,
+}: {
+  onNeedKey: () => void
+  onSendTo?: (target: 'ask' | 'build' | 'estimate', program: Record<string, unknown>) => void
+}) {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState<false | 'ask' | string>(false)
   const [payload, setPayload] = useState<ResultPayload | null>(null)
@@ -64,6 +70,7 @@ export function AskWorkspace({ onNeedKey }: { onNeedKey: () => void }) {
     return (
       <ResultView
         payload={payload}
+        onSendTo={onSendTo}
         onReset={() => {
           setPayload(null)
           setError(null)

@@ -16,7 +16,19 @@ export interface ResultPayload {
   naive?: number | null
 }
 
-export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }: { payload: ResultPayload; onReset: () => void; resetLabel?: string }) {
+type Workspace = 'ask' | 'build' | 'estimate'
+
+export function ResultView({
+  payload,
+  onReset,
+  resetLabel = '← 再问一个',
+  onSendTo,
+}: {
+  payload: ResultPayload
+  onReset: () => void
+  resetLabel?: string
+  onSendTo?: (target: Workspace, program: Record<string, unknown>) => void
+}) {
   const [result, setResult] = useState<QueryResult>(payload.result)
   const [program, setProgram] = useState<Record<string, unknown> | undefined>(payload.program)
   const [reply, setReply] = useState<string | undefined>(payload.reply)
@@ -141,7 +153,17 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
 
       {error ? <div className="errbox" role="alert"><p className="errbox__msg">{error}</p></div> : null}
 
-      <div className="ask__meta" style={{ marginTop: 'var(--space-2xl)' }}>
+      {program && onSendTo ? (
+        <div className="handoff">
+          <span className="handoff__cap">把这张图带去 →</span>
+          {!(result as unknown as Record<string, unknown>).numeric_estimate ? (
+            <button className="btn btn--ghost" onClick={() => onSendTo('estimate', program)}>上传数据做数值估计</button>
+          ) : null}
+          <button className="btn btn--ghost" onClick={() => onSendTo('build', program)}>在画布上重画 / 改结构</button>
+        </div>
+      ) : null}
+
+      <div className="ask__meta" style={{ marginTop: 'var(--space-xl)' }}>
         <button className="linklike" onClick={onReset}>{resetLabel}</button>
       </div>
     </div>

@@ -298,6 +298,10 @@ button { font-family: inherit; cursor: pointer; }
 .assume__body { font-size: var(--text-sm); color: var(--ink-soft); line-height: 1.6; max-width: var(--measure); }
 .assume__body b { color: var(--ink); font-weight: 600; }
 
+/* hand the current graph to another workspace — closes the ask→estimate→build loop */
+.handoff { margin-top: var(--space-xl); display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); padding-top: var(--space-lg); border-top: 1px solid var(--line-soft); }
+.handoff__cap { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-faint); }
+
 /* ============================================================ reply */
 
 .renderrow { margin-top: var(--space-lg); }

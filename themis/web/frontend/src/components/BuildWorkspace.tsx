@@ -3,7 +3,13 @@ import { runProgram } from '../api'
 import { DagBuilder } from './DagBuilder'
 import { ResultView, type ResultPayload } from './ResultView'
 
-export function BuildWorkspace() {
+export function BuildWorkspace({
+  initialProgram,
+  onSendTo,
+}: {
+  initialProgram?: Record<string, unknown>
+  onSendTo?: (target: 'ask' | 'build' | 'estimate', program: Record<string, unknown>) => void
+} = {}) {
   const [busy, setBusy] = useState(false)
   const [payload, setPayload] = useState<ResultPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -23,13 +29,14 @@ export function BuildWorkspace() {
     }
   }
 
-  if (payload) return <ResultView payload={payload} onReset={() => setPayload(null)} resetLabel="← 回到画布" />
+  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel="← 回到画布" />
 
   return (
     <DagBuilder
       submitLabel="交给内核 →"
       onSubmit={run}
       busy={busy}
+      initialProgram={initialProgram}
       intro={
         <div className="build__intro">
           <h2 className="build__title">画出你的因果图</h2>
