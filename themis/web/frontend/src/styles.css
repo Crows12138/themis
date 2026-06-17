@@ -395,7 +395,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .seg { display: inline-flex; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px; }
 .seg__btn { border: none; background: transparent; color: var(--ink-soft); font-size: var(--text-sm); padding: var(--space-2xs) var(--space-sm); border-radius: 5px; transition: background 0.15s, color 0.15s; }
-.seg__btn--on { background: var(--surface-raise); color: var(--ink); box-shadow: var(--shadow-soft); }
+.seg__btn--on { background: var(--surface-raise); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-soft); }
 
 .canvas { position: relative; height: 460px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); }
 .canvas__empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-xs); color: var(--ink-faint); z-index: 4; pointer-events: none; }
@@ -449,6 +449,7 @@ button { font-family: inherit; cursor: pointer; }
 .dagview__tip { font-size: var(--text-xs); color: var(--ink-faint); text-align: right; }
 .dagview__bar { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-sm); }
 .dagview__bar .btn { font-size: var(--text-xs); padding: var(--space-2xs) var(--space-sm); }
+.edgehint { font-size: var(--text-xs); color: var(--ink-faint); }
 .dagview__spacer { flex: 1; min-width: var(--space-md); }
 .dagview__canvas { height: 220px; margin-top: var(--space-xs); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); transition: height 0.2s var(--ease-out); }
 .dagview__canvas--edit { height: 320px; border-color: var(--line-strong); }

@@ -187,6 +187,11 @@ export function ResultGraph({
           <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
           <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
         </div>
+        <span className="edgehint">
+          {edgeType === 'cause'
+            ? '接下来画的边 ＝ 实线箭头：先拖的是「因」、后接的是「果」'
+            : '接下来画的边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）'}
+        </span>
         <span className="dagview__spacer" />
         <button className="btn btn--ghost" onClick={restore} disabled={busy} title="回到最初的因果图重跑">还原原图</button>
         <button className="btn" onClick={() => onRerun(graphToProgram(program, nodes, edges))} disabled={busy}>

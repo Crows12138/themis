@@ -197,7 +197,11 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
           <button className={`seg__btn ${edgeType === 'cause' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('cause')}>因果 →</button>
           <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
         </div>
-        <span className="build__tip">从变量右侧的点拉到另一个变量,连成一条边</span>
+        <span className="build__tip">
+          {edgeType === 'cause'
+            ? '从一个变量拖到另一个画边 ＝ 实线箭头：先拖的是「因」、后接的是「果」'
+            : '从一个变量拖到另一个画边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）'}
+        </span>
         {nodes.length > 0 ? (
           <button className="btn btn--ghost" onClick={() => { setNodes([]); setEdges([]); setQx(''); setQy('') }}>清空</button>
         ) : null}
