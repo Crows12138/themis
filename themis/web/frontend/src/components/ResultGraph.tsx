@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { graphToProgram, programToFlow } from '../lib/graph'
-import { ButtonEdge, EdgeHoverContext } from './ButtonEdge'
+import { ButtonEdge, EdgeHoverContext, FloatingConnectionLine } from './ButtonEdge'
 
 type NData = { label: string; editing?: boolean; rename?: (id: string, label: string) => void }
 
@@ -107,13 +107,22 @@ export function ResultGraph({
   // Seed (or re-seed) the canvas from the program. Runs on mount and whenever
   // the displayed program changes (after a re-run), so a re-run snaps the
   // canvas back to the structure that produced the new verdict.
-  const seed = useCallback(() => {
-    const { nodes: sn, edges: se } = programToFlow(program)
+  const seedFrom = useCallback((prog: Record<string, unknown>) => {
+    const { nodes: sn, edges: se } = programToFlow(prog)
     setNodes(sn.map((n) => ({ ...n, type: 'plain', data: { label: (n.data as { label: string }).label, editing: false, rename } })))
     setEdges(se)
-  }, [program, rename, setNodes, setEdges])
+  }, [rename, setNodes, setEdges])
 
-  useEffect(() => { seed() }, [seed])
+  useEffect(() => { seedFrom(program) }, [program, seedFrom])
+
+  // 还原原图: re-seed the canvas from the original graph immediately AND re-run
+  // it. The explicit re-seed matters — if `program` is already === `original`
+  // by reference (no re-run happened), onRerun alone wouldn't change state, so
+  // the effect wouldn't fire and manual canvas edits would survive the restore.
+  const restore = useCallback(() => {
+    seedFrom(original)
+    onRerun(original)
+  }, [seedFrom, original, onRerun])
 
   const addVariable = useCallback(() => {
     setNodes((ns) => {
@@ -151,8 +160,6 @@ export function ResultGraph({
           {
             source: from,
             target: to,
-            sourceHandle: 'sr',
-            targetHandle: 'tl',
             id: `e${++_seq}`,
             type: 'button',
             data: { kind: bidir ? 'bidirected' : 'cause' },
@@ -181,7 +188,7 @@ export function ResultGraph({
           <button className={`seg__btn ${edgeType === 'bidirected' ? 'seg__btn--on' : ''}`} onClick={() => setEdgeType('bidirected')}>潜混杂 ↔</button>
         </div>
         <span className="dagview__spacer" />
-        <button className="btn btn--ghost" onClick={() => onRerun(original)} disabled={busy} title="回到最初的因果图重跑">还原原图</button>
+        <button className="btn btn--ghost" onClick={restore} disabled={busy} title="回到最初的因果图重跑">还原原图</button>
         <button className="btn" onClick={() => onRerun(graphToProgram(program, nodes, edges))} disabled={busy}>
           {busy ? '重跑中…' : '用改后的图重跑 →'}
         </button>
@@ -199,6 +206,7 @@ export function ResultGraph({
             onConnect={onConnect}
             onConnectStart={onConnectStart}
             connectionMode={ConnectionMode.Loose}
+            connectionLineComponent={FloatingConnectionLine}
             onEdgeMouseEnter={(_, e) => setHoveredEdge(e.id)}
             onEdgeMouseLeave={() => setHoveredEdge(null)}
             deleteKeyCode={DELETE_KEYS}
