@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { getApiKey } from './api'
 import { ApiKeyPanel } from './components/ApiKeyPanel'
 import { AskWorkspace } from './components/AskWorkspace'
 import { BuildWorkspace } from './components/BuildWorkspace'
@@ -9,8 +8,10 @@ type Workspace = 'ask' | 'build' | 'estimate'
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace>('ask')
+  // The API key is optional — Ask / render default to the local proxy. The panel
+  // only opens on demand (an LLM call failing because the proxy is unreachable),
+  // so there's no persistent key button cluttering the masthead.
   const [showKey, setShowKey] = useState(false)
-  const [hasKey, setHasKey] = useState(!!getApiKey())
   // A graph handed from a result into another workspace's canvas. Consumed by
   // the matching workspace; cleared when the user navigates by hand.
   const [pending, setPending] = useState<{ target: Workspace; program: Record<string, unknown> } | null>(null)
@@ -51,21 +52,9 @@ export default function App() {
             数据估计
           </button>
         </nav>
-
-        <button className="keybtn" onClick={() => setShowKey((v) => !v)}>
-          <span className={`keybtn__dot ${hasKey ? 'keybtn__dot--on' : ''}`} aria-hidden />
-          API Key
-        </button>
       </header>
 
-      {showKey ? (
-        <ApiKeyPanel
-          onClose={() => {
-            setShowKey(false)
-            setHasKey(!!getApiKey())
-          }}
-        />
-      ) : null}
+      {showKey ? <ApiKeyPanel onClose={() => setShowKey(false)} /> : null}
 
       <main className={`stage ${workspace !== 'ask' ? 'stage--wide' : ''}`}>
         {workspace === 'ask' ? (

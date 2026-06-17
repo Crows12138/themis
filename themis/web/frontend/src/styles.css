@@ -126,16 +126,6 @@ button { font-family: inherit; cursor: pointer; }
 .nav__item:disabled { color: var(--ink-ghost); cursor: not-allowed; }
 .nav__soon { font-size: 0.62rem; color: var(--ink-ghost); margin-left: 4px; letter-spacing: 0.04em; }
 
-.keybtn {
-  display: inline-flex; align-items: center; gap: var(--space-2xs);
-  border: 1px solid var(--line); background: var(--surface-raise); color: var(--ink-soft);
-  font-size: var(--text-sm); padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-sm);
-  transition: border-color 0.15s, color 0.15s;
-}
-.keybtn:hover { border-color: var(--line-strong); color: var(--ink); }
-.keybtn__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-ghost); }
-.keybtn__dot--on { background: var(--tier-point); }
-
 /* ============================================================ stage */
 
 .stage { flex: 1; width: 100%; max-width: min(1500px, 94vw); margin: 0 auto; padding: clamp(var(--space-xl), 6vh, var(--space-3xl)) clamp(var(--space-md), 4vw, var(--space-3xl)) var(--space-4xl); }
