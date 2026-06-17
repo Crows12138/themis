@@ -1,5 +1,6 @@
 import type { Node, Edge } from '@xyflow/react'
 import { MarkerType } from '@xyflow/react'
+import dagre from '@dagrejs/dagre'
 
 interface Stmt {
   kind?: string
@@ -23,34 +24,31 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
   }
   if (vars.length === 0) return { nodes: [], edges: [] }
 
-  // layered x by longest-path depth from sources; y by order within layer.
-  const depth = new Map<string, number>(vars.map((v) => [v, 0]))
-  for (let pass = 0; pass < vars.length; pass++) {
-    let changed = false
-    for (const c of causes) {
-      const d = (depth.get(c.from) ?? 0) + 1
-      if (d > (depth.get(c.to) ?? 0)) {
-        depth.set(c.to, d)
-        changed = true
-      }
-    }
-    if (!changed) break
-  }
-  const perLayer = new Map<number, number>()
+  // Auto-layout with dagre (left-to-right). Only the directed cause edges drive
+  // ranking; bidirected (latent-confounder) links don't impose a direction.
+  // dagre reserves space for edges that skip a rank, so a confounder's two
+  // arrows don't collapse onto the treatment→outcome line — nodes stagger
+  // vertically instead of being strung out in one flat row.
+  const dimOf = (v: string) => ({ width: Math.max(96, v.length * 8.5 + 32), height: 34 })
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'LR', nodesep: 48, ranksep: 96, marginx: 12, marginy: 12 })
+  for (const v of vars) g.setNode(v, dimOf(v))
+  for (const c of causes) if (g.hasNode(c.from) && g.hasNode(c.to)) g.setEdge(c.from, c.to)
+  dagre.layout(g)
+
   const nodes: Node[] = vars.map((v) => {
-    const d = depth.get(v) ?? 0
-    const row = perLayer.get(d) ?? 0
-    perLayer.set(d, row + 1)
+    const { width, height } = dimOf(v)
+    const p = g.node(v) as { x: number; y: number } | undefined // dagre returns the node CENTER
     return {
       id: v,
-      position: { x: d * 210, y: row * 96 },
+      position: { x: (p?.x ?? 0) - width / 2, y: (p?.y ?? 0) - height / 2 },
       data: { label: v },
       type: 'plain',
-      // Seed a size so edges anchor on the very first frame, before React Flow's
-      // ResizeObserver has measured the node — otherwise a cold mount paints
-      // nodes with no edges. Real measurement refines this immediately after.
-      initialWidth: Math.max(96, v.length * 8.5 + 32),
-      initialHeight: 34,
+      // Seed a size so edges anchor on the first frame, before React Flow's
+      // ResizeObserver measures the node (a cold mount otherwise paints no edges).
+      initialWidth: width,
+      initialHeight: height,
     }
   })
 
