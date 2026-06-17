@@ -16,6 +16,10 @@ import { getEdgeParams } from '../lib/floatingEdge'
  *  button reveal on hover without re-mapping every edge's data on each move. */
 export const EdgeHoverContext = createContext<string | null>(null)
 
+/** Edge ids on the causal path (X→…→Y). Members render thicker — the route the
+ *  effect travels — recomputed live as the graph is edited. */
+export const PathContext = createContext<Set<string>>(new Set())
+
 /**
  * A floating edge that carries its own delete button.
  *
@@ -31,6 +35,7 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
   const hovered = useContext(EdgeHoverContext)
+  const onPath = useContext(PathContext).has(id)
   const { deleteElements } = useReactFlow()
   // How many edges connect this same pair, and where this one ranks — so
   // parallel edges (e.g. a cause X→Y alongside a confounder X↔Y) bow apart
@@ -83,7 +88,7 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} markerStart={markerStart} markerEnd={markerEnd} />
+      <BaseEdge id={id} path={edgePath} markerStart={markerStart} markerEnd={markerEnd} style={onPath ? { strokeWidth: 3 } : undefined} />
       {show ? (
         <EdgeLabelRenderer>
           <button

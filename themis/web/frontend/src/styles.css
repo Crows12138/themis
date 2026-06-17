@@ -489,6 +489,7 @@ button { font-family: inherit; cursor: pointer; }
 .dagview__legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-sm); margin-top: var(--space-sm); font-size: var(--text-xs); color: var(--ink-faint); }
 .dagview__legend .gnode__role { position: static; margin-right: var(--space-2xs); }
 .legend__faint { color: var(--ink-ghost); font-family: var(--font-mono); }
+.legend__path { display: inline-block; width: 16px; height: 3px; border-radius: 2px; background: var(--ink-soft); vertical-align: middle; margin-right: var(--space-2xs); }
 
 /* ---- result: 补缺口 ---- */
 .framing { margin-top: var(--space-xl); background: var(--tier-point-bg); border: 1px solid color-mix(in oklch, var(--tier-point) 22%, var(--line)); border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-xl); }

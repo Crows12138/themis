@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -26,8 +27,8 @@ import {
   type OnConnectStart,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { programToFlow, reaches } from '../lib/graph'
-import { ButtonEdge, EdgeHoverContext, FloatingConnectionLine } from './ButtonEdge'
+import { pathEdgeIds, programToFlow, reaches } from '../lib/graph'
+import { ButtonEdge, EdgeHoverContext, FloatingConnectionLine, PathContext } from './ButtonEdge'
 
 type Role = 'treatment' | 'outcome'
 type NData = { label: string; editing?: boolean; role?: Role; rename?: (id: string, label: string) => void }
@@ -226,6 +227,12 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
     [edgeType, edges, nodes, setEdges],
   )
 
+  // The causal path X→…→Y, recomputed live so the route the effect travels
+  // thickens (and re-thickens) as you rewire the graph.
+  const xId = nodes.find((n) => n.data.role === 'treatment')?.id
+  const yId = nodes.find((n) => n.data.role === 'outcome')?.id
+  const pathIds = useMemo(() => (xId && yId ? pathEdgeIds(edges, xId, yId) : new Set<string>()), [edges, xId, yId])
+
   return (
     <>
       <div className="dagview__bar">
@@ -247,6 +254,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
         {label ? <span className="dagview__label">{label}</span> : null}
         {nodes.length === 0 && emptyHint ? <div className="canvas__empty">{emptyHint}</div> : null}
         <EdgeHoverContext.Provider value={hoveredEdge}>
+         <PathContext.Provider value={pathIds}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -268,6 +276,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
             <Background gap={18} color="var(--line-soft)" />
             <Controls showInteractive={false} />
           </ReactFlow>
+         </PathContext.Provider>
         </EdgeHoverContext.Provider>
       </div>
 
@@ -275,6 +284,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
         <p className="dagview__legend">
           <span className="gnode__role gnode__role--treatment">干预</span>你问的「因」
           <span className="gnode__role gnode__role--outcome">结果</span>你问的「果」
+          {pathIds.size > 0 ? <><span className="legend__path" aria-hidden />粗线 ＝ 因果路径</> : null}
           <span className="legend__faint">⸺</span>淡色箭头 ＝ AI 提的假设（未验证），你画 / 确认的边是实色
         </p>
       ) : null}

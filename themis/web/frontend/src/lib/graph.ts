@@ -165,6 +165,40 @@ export function reaches(
   return false
 }
 
+/** Edge ids that lie on SOME directed cause path from x to y — i.e. the route
+ *  the effect travels. An edge a→b is on a path iff x can reach a and b can
+ *  reach y (over cause edges). Used to thicken the causal path on the graph. */
+export function pathEdgeIds(
+  edges: { id?: string; source?: string | null; target?: string | null; data?: { kind?: string } }[],
+  x: string,
+  y: string,
+): Set<string> {
+  const fwd = new Map<string, string[]>()
+  const bwd = new Map<string, string[]>()
+  for (const e of edges) {
+    if ((e.data?.kind ?? 'cause') !== 'cause' || !e.source || !e.target) continue
+    ;(fwd.get(e.source) ?? fwd.set(e.source, []).get(e.source)!).push(e.target)
+    ;(bwd.get(e.target) ?? bwd.set(e.target, []).get(e.target)!).push(e.source)
+  }
+  const bfs = (start: string, adj: Map<string, string[]>) => {
+    const seen = new Set([start])
+    const st = [start]
+    while (st.length) {
+      const n = st.pop() as string
+      for (const m of adj.get(n) ?? []) if (!seen.has(m)) { seen.add(m); st.push(m) }
+    }
+    return seen
+  }
+  const fromX = bfs(x, fwd)
+  const toY = bfs(y, bwd)
+  const ids = new Set<string>()
+  for (const e of edges) {
+    if ((e.data?.kind ?? 'cause') !== 'cause' || !e.source || !e.target || !e.id) continue
+    if (fromX.has(e.source) && toY.has(e.target)) ids.add(e.id)
+  }
+  return ids
+}
+
 const atomPred = (a: AnyStmt | undefined): string =>
   (a?.atom?.predicate ?? a?.predicate ?? '') as string
 
