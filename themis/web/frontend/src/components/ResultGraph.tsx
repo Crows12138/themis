@@ -184,10 +184,6 @@ export function ResultGraph({
 
   return (
     <div className="dagview">
-      <div className="dagview__head">
-        <span className="dagview__cap">因果图</span>
-      </div>
-
       <div className="dagview__bar">
         <button className="btn btn--ghost" onClick={addVariable}>＋ 加变量</button>
         <div className="seg">
@@ -208,6 +204,7 @@ export function ResultGraph({
       </div>
 
       <div className="dagview__canvas dagview__canvas--edit">
+        <span className="dagview__label">因果图</span>
         <EdgeHoverContext.Provider value={hoveredEdge}>
           <ReactFlow
             nodes={nodes}
