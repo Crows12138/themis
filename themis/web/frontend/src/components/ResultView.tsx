@@ -4,7 +4,7 @@ import { clarify, getApiKey, render, runProgram, type ClarifyPick } from '../api
 import { framingVariables } from '../lib/verdict'
 import { Verdict } from './Verdict'
 import { GapReport } from './GapReport'
-import { DagView } from './DagView'
+import { ResultGraph } from './ResultGraph'
 import { FramingFill } from './FramingFill'
 import { JsonEditor } from './JsonEditor'
 
@@ -97,7 +97,7 @@ export function ResultView({ payload, onReset, resetLabel = '← 再问一个' }
         </p>
       ) : null}
 
-      {program ? <DagView program={program} /> : null}
+      {program ? <ResultGraph program={program} original={payload.program ?? program} busy={busy} onRerun={doRunJson} /> : null}
 
       <Verdict result={result} naive={naive} />
 

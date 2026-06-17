@@ -113,10 +113,14 @@ def _var_domain(program: dict, predicate: str):
 def index():
     # Prefer the built React product (frontend/dist) when present; fall
     # back to the legacy single-page static UI for dev without a build.
+    #
+    # index.html must always revalidate: it references content-hashed asset
+    # filenames (index-<hash>.js), so a browser that caches a stale index.html
+    # would keep loading an old bundle after a rebuild. The hashed /assets/*
+    # files never change for a given name and may be cached freely.
     dist_index = _FRONTEND_DIST / "index.html"
-    if dist_index.exists():
-        return FileResponse(dist_index)
-    return FileResponse(_STATIC / "index.html")
+    target = dist_index if dist_index.exists() else (_STATIC / "index.html")
+    return FileResponse(target, headers={"Cache-Control": "no-cache"})
 
 
 # Built product assets (Vite emits /assets/*). Mounted only when a build
