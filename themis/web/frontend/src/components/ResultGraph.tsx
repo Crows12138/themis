@@ -185,8 +185,7 @@ export function ResultGraph({
   return (
     <div className="dagview">
       <div className="dagview__head">
-        <span className="dagview__cap">因果图 · 可改</span>
-        <span className="dagview__tip">从一个变量拖到另一个画边(方向跟手:先拖谁谁是「因」) · 悬停边/点现「×」删除 · 改完「重跑」看判决怎么变</span>
+        <span className="dagview__cap">因果图</span>
       </div>
 
       <div className="dagview__bar">
