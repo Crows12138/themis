@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -27,8 +26,8 @@ import {
   type OnConnectStart,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { pathEdgeIds, programToFlow, reaches, type NodeRole } from '../lib/graph'
-import { ButtonEdge, FloatingConnectionLine, PathContext } from './ButtonEdge'
+import { programToFlow, reaches, type NodeRole } from '../lib/graph'
+import { ButtonEdge, FloatingConnectionLine } from './ButtonEdge'
 
 type NData = { label: string; editing?: boolean; role?: NodeRole; rename?: (id: string, label: string) => void }
 
@@ -242,11 +241,6 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
     [edgeType, edges, nodes, setEdges],
   )
 
-  // The causal path X→…→Y, recomputed live so the route the effect travels
-  // thickens (and re-thickens) as you rewire the graph.
-  const xId = nodes.find((n) => n.data.role === 'exposure')?.id
-  const yId = nodes.find((n) => n.data.role === 'outcome')?.id
-  const pathIds = useMemo(() => (xId && yId ? pathEdgeIds(edges, xId, yId) : new Set<string>()), [edges, xId, yId])
   const present = new Set(nodes.map((n) => n.data.role).filter(Boolean) as NodeRole[])
   const presentRoles = ROLE_ORDER.filter((r) => present.has(r))
   const hasProposed = edges.some((e) => (e.className ?? '').includes('rf-edge--proposed'))
@@ -271,30 +265,28 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
       <div className="dagview__canvas dagview__canvas--edit" style={{ height }}>
         {label ? <span className="dagview__label">{label}</span> : null}
         {nodes.length === 0 && emptyHint ? <div className="canvas__empty">{emptyHint}</div> : null}
-        <PathContext.Provider value={pathIds}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onConnectStart={onConnectStart}
-            connectionMode={ConnectionMode.Loose}
-            connectionLineComponent={FloatingConnectionLine}
-            deleteKeyCode={DELETE_KEYS}
-            fitView
-            fitViewOptions={{ padding: 0.25 }}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background gap={18} color="var(--line-soft)" />
-            <Controls showInteractive={false} />
-          </ReactFlow>
-        </PathContext.Provider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onConnectStart={onConnectStart}
+          connectionMode={ConnectionMode.Loose}
+          connectionLineComponent={FloatingConnectionLine}
+          deleteKeyCode={DELETE_KEYS}
+          fitView
+          fitViewOptions={{ padding: 0.25 }}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={18} color="var(--line-soft)" />
+          <Controls showInteractive={false} />
+        </ReactFlow>
       </div>
 
-      {presentRoles.length || pathIds.size > 0 || hasProposed ? (
+      {presentRoles.length || hasProposed ? (
         <div className="dagview__legend">
           {presentRoles.map((r) => (
             <span className="legend__item" key={r}>
@@ -302,9 +294,6 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
               {ROLE_META[r].gloss}
             </span>
           ))}
-          {pathIds.size > 0 ? (
-            <span className="legend__item"><span className="legend__path" aria-hidden />粗线 ＝ 因果路径（暴露→…→结局 的通路）；其余实线同样是因果边，只是不在这条通路上</span>
-          ) : null}
           {hasProposed ? (
             <span className="legend__item"><span className="legend__q" aria-hidden>?</span>带 ? 的边 ＝ AI 提议（未验证）—— 点边选中后可 ✓ 确认（用户断言）或 × 删除</span>
           ) : null}
