@@ -477,18 +477,28 @@ button { font-family: inherit; cursor: pointer; }
 }
 .gnode:hover .gnode__del, .gnode--selected .gnode__del { opacity: 1; }
 
-/* causal-role annotation projected from the verdict onto the graph */
-.gnode--treatment { border-color: var(--accent); }
+/* causal-role annotation projected from the verdict onto the graph. Colour
+   groups by adjustment meaning: exposure/outcome carry the query; 混杂 (red) is
+   adjusted; 中介/对撞 (ochre) must not be conditioned for a total effect;
+   工具/他因 (grey) are auxiliary. */
+.gnode__role { position: absolute; top: -10px; left: 7px; z-index: 3; font-size: 0.62rem; font-weight: 600; line-height: 1; padding: 2px 5px; border-radius: 999px; pointer-events: none; white-space: nowrap; color: var(--paper); background: var(--ink-faint); }
+.gnode__role--exposure { background: var(--accent); }
+.gnode__role--outcome { background: var(--tier-point); }
+.gnode__role--confounder { background: var(--tier-none); }
+.gnode__role--mediator, .gnode__role--collider { background: var(--tier-interval); }
+.gnode__role--instrument, .gnode__role--causeY { background: var(--ink-faint); }
+.gnode--exposure { border-color: var(--accent); }
 .gnode--outcome { border-color: var(--tier-point); }
-.gnode__role { position: absolute; top: -10px; left: 7px; z-index: 3; font-size: 0.62rem; font-weight: 600; line-height: 1; padding: 2px 5px; border-radius: 999px; pointer-events: none; white-space: nowrap; }
-.gnode__role--treatment { background: var(--accent); color: var(--paper); }
-.gnode__role--outcome { background: var(--tier-point); color: var(--paper); }
+.gnode--confounder { border-color: var(--tier-none); }
+.gnode--mediator, .gnode--collider { border-color: var(--tier-interval); }
+.gnode--instrument, .gnode--causeY { border-color: var(--ink-ghost); }
 /* an edge the LLM proposed but nothing has verified — marked with a "?" at its
    midpoint (replaced by the delete × on hover); an edge you drew has no mark */
 .edgeq { position: absolute; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--surface-raise); color: var(--sev-important); border: 1px solid var(--sev-important); font-size: 11px; font-weight: 700; line-height: 1; pointer-events: none; box-shadow: var(--shadow-soft); }
 /* legend */
 .dagview__legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-sm); margin-top: var(--space-sm); font-size: var(--text-xs); color: var(--ink-faint); }
 .dagview__legend .gnode__role { position: static; margin-right: var(--space-2xs); }
+.legend__item { display: inline-flex; align-items: center; gap: var(--space-2xs); }
 .legend__faint { color: var(--ink-ghost); font-family: var(--font-mono); }
 .legend__path { display: inline-block; width: 16px; height: 3px; border-radius: 2px; background: var(--ink-soft); vertical-align: middle; margin-right: var(--space-2xs); }
 .legend__q { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--surface-raise); color: var(--sev-important); border: 1px solid var(--sev-important); font-size: 10px; font-weight: 700; margin-right: var(--space-2xs); vertical-align: middle; }

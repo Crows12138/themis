@@ -25,9 +25,10 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
   }
   if (vars.length === 0) return { nodes: [], edges: [] }
 
-  // Project the query roles onto the graph: which variable is the intervention
-  // (干预 X) and which is the outcome (结果 Y).
+  // Classify every node by its structural role relative to the query (exposure,
+  // outcome, confounder, mediator, collider, instrument candidate, other cause).
   const { qx, qy } = parseQuery(program)
+  const roleMap = classifyNodes(causes, vars, qx, qy)
 
   // Auto-layout with dagre (left-to-right). Only the directed cause edges drive
   // ranking; bidirected (latent-confounder) links don't impose a direction.
@@ -48,7 +49,7 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
     return {
       id: v,
       position: { x: (p?.x ?? 0) - width / 2, y: (p?.y ?? 0) - height / 2 },
-      data: { label: v, role: v === qx ? 'treatment' : v === qy ? 'outcome' : undefined },
+      data: { label: v, role: roleMap.get(v) },
       type: 'plain',
       // Seed a size so edges anchor on the first frame, before React Flow's
       // ResizeObserver measures the node (a cold mount otherwise paints no edges).
@@ -197,6 +198,80 @@ export function pathEdgeIds(
     if (fromX.has(e.source) && toY.has(e.target)) ids.add(e.id)
   }
   return ids
+}
+
+export type NodeRole = 'exposure' | 'outcome' | 'confounder' | 'mediator' | 'collider' | 'instrument' | 'causeY'
+
+/**
+ * Classify every variable by its textbook structural role relative to the query
+ * (x = exposure, y = outcome), over the directed cause graph:
+ *   mediator   — on a directed x→…→y path   (descendant of x ∧ ancestor of y)
+ *   confounder — back-door common cause      (ancestor of x ∧ reaches y NOT through x)
+ *   collider   — two arrowheads meet         (in-degree ≥ 2)
+ *   instrument — upstream of x, reaches y only via x (ancestor of x, not a back-door) — a CANDIDATE
+ *   causeY     — other cause of y            (ancestor of y, unrelated to x)
+ * The confounder/instrument split is the whole subtlety: BOTH are ancestors of x
+ * that reach y, but a confounder reaches y by a path avoiding x (the back-door
+ * that biases the estimate) while an instrument reaches y ONLY through x. So we
+ * test "reaches y without passing through x", not plain "ancestor of y".
+ * These structural roles are node-intrinsic facts. Whether a confounder must be
+ * adjusted, or an instrument is *valid*, is a derived/assumption-laden question,
+ * not encoded here.
+ */
+export function classifyNodes(
+  causes: { from: string; to: string }[],
+  vars: string[],
+  x: string,
+  y: string,
+): Map<string, NodeRole> {
+  const out = new Map<string, NodeRole>()
+  if (!x || !y) return out
+  const succ = new Map<string, string[]>()
+  const pred = new Map<string, string[]>()
+  for (const c of causes) {
+    ;(succ.get(c.from) ?? succ.set(c.from, []).get(c.from)!).push(c.to)
+    ;(pred.get(c.to) ?? pred.set(c.to, []).get(c.to)!).push(c.from)
+  }
+  const reach = (start: string, adj: Map<string, string[]>) => {
+    const seen = new Set<string>()
+    const st = [...(adj.get(start) ?? [])]
+    while (st.length) {
+      const n = st.pop() as string
+      if (seen.has(n)) continue
+      seen.add(n)
+      for (const m of adj.get(n) ?? []) st.push(m)
+    }
+    return seen
+  }
+  const descX = reach(x, succ)
+  const ancX = reach(x, pred)
+  const ancY = reach(y, pred)
+  // Nodes that reach y by a directed path that does NOT pass through x: a
+  // backward walk from y over predecessors that never traverses x. This is what
+  // separates a back-door confounder from an instrument (whose only route to y
+  // is through x, so it drops out here).
+  const ancYnotX = (() => {
+    const seen = new Set<string>()
+    const st = (pred.get(y) ?? []).filter((n) => n !== x)
+    while (st.length) {
+      const n = st.pop() as string
+      if (seen.has(n) || n === x) continue
+      seen.add(n)
+      for (const m of pred.get(n) ?? []) if (m !== x) st.push(m)
+    }
+    return seen
+  })()
+  for (const v of vars) {
+    if (v === x) { out.set(v, 'exposure'); continue }
+    if (v === y) { out.set(v, 'outcome'); continue }
+    const inDeg = (pred.get(v) ?? []).length
+    if (descX.has(v) && ancY.has(v)) out.set(v, 'mediator')
+    else if (ancX.has(v) && ancYnotX.has(v)) out.set(v, 'confounder')
+    else if (inDeg >= 2) out.set(v, 'collider')
+    else if (ancX.has(v)) out.set(v, 'instrument')
+    else if (ancY.has(v)) out.set(v, 'causeY')
+  }
+  return out
 }
 
 const atomPred = (a: AnyStmt | undefined): string =>
