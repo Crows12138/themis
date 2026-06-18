@@ -303,7 +303,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
             </span>
           ))}
           {pathIds.size > 0 ? (
-            <span className="legend__item"><span className="legend__path" aria-hidden />粗线 ＝ 因果路径</span>
+            <span className="legend__item"><span className="legend__path" aria-hidden />粗线 ＝ 因果路径（暴露→…→结局 的通路）；其余实线同样是因果边，只是不在这条通路上</span>
           ) : null}
           {hasProposed ? (
             <span className="legend__item"><span className="legend__q" aria-hidden>?</span>带 ? 的边 ＝ AI 提议（未验证）—— 点边选中后可 ✓ 确认（用户断言）或 × 删除</span>
