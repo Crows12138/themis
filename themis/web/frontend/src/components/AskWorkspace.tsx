@@ -104,7 +104,11 @@ export function AskWorkspace({
             value={q}
             onInput={autosize}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitAsk()
+              // Enter sends; Shift+Enter keeps the newline (multi-line still possible).
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                submitAsk()
+              }
             }}
           />
           <button className="ask__send" onClick={submitAsk} disabled={busy === 'ask' || !q.trim()} aria-label="提问">
@@ -112,11 +116,6 @@ export function AskWorkspace({
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
           </button>
-        </div>
-        <div className="ask__meta">
-          <span className="ask__hint">
-            <kbd>⌘</kbd> + <kbd>Enter</kbd> 发送 · Ask 默认走本机代理,无需 key
-          </span>
         </div>
       </div>
 

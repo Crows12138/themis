@@ -187,8 +187,6 @@ button { font-family: inherit; cursor: pointer; }
 .ask__send:active { transform: translateY(1px); }
 .ask__send:disabled { background: var(--ink-ghost); cursor: not-allowed; }
 .ask__meta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); margin-top: var(--space-sm); padding: 0 var(--space-2xs); }
-.ask__hint { font-size: var(--text-xs); color: var(--ink-faint); }
-.ask__hint kbd { font-family: var(--font-mono); font-size: 0.7rem; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--ink-soft); }
 
 /* ---- example chips ---- */
 .examples { margin-top: var(--space-lg); }
