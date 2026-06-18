@@ -69,6 +69,7 @@ const GAP_TITLE: Record<string, string> = {
   selection_on_collider_opens_path: '样本选择打开了偏倚路径',
   ill_defined_intervention_versions: '干预没定义清楚',
   graph_theta_independence_mismatch: '图与提供的分布不一致',
+  dichotomized_continuous_measure: '连续变量被二分了',
 }
 export function gapTitle(kind: string): string {
   return GAP_TITLE[kind] ?? kind.replace(/_/g, ' ')

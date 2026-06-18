@@ -42,6 +42,9 @@ the canonical set lives in ``scheduler._MUST_DISCLOSE_GAP_KINDS``):
 - graph_learned_from_data — Phase 8.1 discovery
 - collider_conditioning_opens_backdoor — iter 122 selection-bias
   signal (board #7); fires when EffectQuery.given names a collider
+- dichotomized_continuous_measure — 2026-06-18 (boards #11/#1); fires
+  when a path variable declares a non-empty ``threshold`` (a continuous
+  measure dichotomized at a cutpoint)
 
 Additional data-need gap_kinds (NOT must-disclose — these surface only
 via ``data_gap_report``, not auto-mirrored to ``explanation``):
@@ -250,6 +253,10 @@ def compute_data_gap_report(
         program=program, stmt=stmt,
     ))
     must_disclose_gaps.extend(_classify_ill_defined_intervention_versions(
+        program=program, query_kind=query_kind, stmt=stmt, status=status,
+        extensions=extensions,
+    ))
+    must_disclose_gaps.extend(_classify_dichotomized_continuous_measure(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
         extensions=extensions,
     ))
@@ -1390,6 +1397,147 @@ def _classify_measurement_error_concern(
                 ref_id=f"program:variable:{pred}:{field}:contains:{needle}",
             )
             for pred, field, needle in flagged
+        ),
+    )
+
+
+def _classify_dichotomized_continuous_measure(
+    *,
+    program,
+    query_kind: QueryKind,
+    stmt,
+    status,
+    extensions: dict | None,
+) -> Iterable[DataGap]:
+    """At least one variable on the identification path declares a
+    non-empty ``threshold`` field. The variable schema documents
+    ``threshold`` as "Cutoff that turns a continuous measurement into
+    this predicate's value, e.g. >=3cm" — so its presence is the
+    structural fingerprint that a continuous quantity was DICHOTOMIZED
+    at a cutpoint. Surfaces the dichotomization's implications *before*
+    the user collects / analyses data — the same before-the-fact
+    placement as ``measurement_error_concern`` and
+    ``unmeasured_confounder_risk``, but for cutpoint coarsening rather
+    than measurement noise or unmeasured confounding.
+
+    Documented data-limitation literature:
+    - Royston, Altman & Sauerbrei 2006 *Stat Med* 25:127 "Dichotomizing
+      continuous predictors in multiple regression: a bad idea" — power
+      loss + residual confounding + cutpoint dependence.
+    - Altman et al 1994 *JNCI* 86:829 — data-driven "optimal" cutpoint
+      search inflates type-I error.
+    - Becher 1992 *Stat Med* 11:1747 — residual confounding from coarse
+      categorisation of a continuous confounder.
+
+    Severity INFORMATIONAL: a declared cutpoint does NOT break
+    identification (unlike measurement_error's regression dilution or
+    ill_defined's undefined estimand); it is a known, bounded modeling
+    choice whose harms (efficiency loss / cutpoint sensitivity /
+    within-category residual confounding) inform interpretation and have
+    a concrete continuous alternative — Themis's own dose-response path
+    (Phase 13/14). Must-disclose nonetheless (mirrored to the ⚠ line) so
+    a reviewer reading only ``result.explanation`` sees the operational-
+    isation caveat.
+
+    Same path-closure as ``_classify_measurement_error_concern``: a
+    variable counts when it is the intervention, the target, or a
+    directed ancestor of either (a dichotomized confounder funnelling
+    into X or Y is exactly the residual-confounding case Becher warns
+    about).
+
+    Suppressed when:
+    - query is not effect (the bias story is about estimating X→Y)
+    - status indicates identification failed (don't pile caveats on
+      already-failing branches)
+    - extensions.ambiguities[*] already declares a dichotomization /
+      arbitrary-cutpoint ambiguity (the upstream LLM named it — escape
+      hatch mirroring case 011's measurement_quality suppression)
+    """
+    if program is None or stmt is None:
+        return
+    if query_kind != QueryKind.EFFECT:
+        return
+    if status not in (
+        ResultStatus.STRUCTURALLY_SOLVED,
+        ResultStatus.NUMERICALLY_SOLVED,
+        ResultStatus.NEEDS_INVESTIGATION,
+    ):
+        return
+    if extensions:
+        for amb in extensions.get("ambiguities") or ():
+            if isinstance(amb, dict) and amb.get("kind") in (
+                "dichotomization", "arbitrary_cutpoint",
+                "continuous_dichotomized",
+            ):
+                return
+    query_atom = getattr(stmt, "query", None)
+    intervention = getattr(query_atom, "intervention", None)
+    target = getattr(query_atom, "target", None)
+    if intervention is None or target is None:
+        return
+    intervention_pred = intervention.atom.predicate
+    target_pred = target.atom.predicate
+    parents_of: dict[str, set[str]] = {}
+    for st in program.statements:
+        if isinstance(st, CauseStatement):
+            parents_of.setdefault(
+                st.to_atom.predicate, set()
+            ).add(st.from_atom.predicate)
+    on_path: set[str] = {intervention_pred, target_pred}
+    frontier: list[str] = [intervention_pred, target_pred]
+    while frontier:
+        node = frontier.pop()
+        for parent in parents_of.get(node, ()):
+            if parent not in on_path:
+                on_path.add(parent)
+                frontier.append(parent)
+    flagged: list[tuple[str, str]] = []
+    for st in program.statements:
+        if not isinstance(st, VariableDeclaration):
+            continue
+        if st.predicate not in on_path:
+            continue
+        cut = getattr(st, "threshold", None)
+        if cut:
+            flagged.append((st.predicate, cut))
+    if not flagged:
+        return
+    flagged.sort()
+    var_summary = ", ".join(
+        f"{pred} (threshold: “{cut}”)" for pred, cut in flagged
+    )
+    yield DataGap(
+        kind=GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
+        severity=GapSeverity.INFORMATIONAL,
+        description=(
+            "二分化（dichotomization）：识别路径上有连续测量被在某个 cutpoint "
+            f"切成二值 — {var_summary}。把连续量在阈值处二分会（1）丢失 "
+            "dose-response 信息、降低统计效率（Royston, Altman & Sauerbrei "
+            "2006 *Stat Med* 25:127 “Dichotomizing continuous predictors in "
+            "multiple regression: a bad idea”）；（2）结果对切点敏感，数据驱动"
+            "的“最优切点”搜索还会抬高假阳性（Altman et al 1994 *JNCI* 86:829）；"
+            "（3）若被二分的是 confounder，类内残余混杂使调整不充分（Becher "
+            "1992 *Stat Med* 11:1747）。Themis 支持把变量保留为连续并做 "
+            "dose-response 估计（Phase 13/14）。"
+        ),
+        blocks=GapBlocks.INTERPRETATION,
+        if_provided=(
+            "若能拿到未二分的连续原始测量，可改走 dose-response 估计"
+            "（LinearDML / DRLearner，Themis Phase 13/14），保留剂量-反应曲线"
+            "并避免任意切点"
+        ),
+        alternative_paths=(
+            "保留连续变量，用 dose-response 估计代替二分（Themis Phase 13/14）",
+            "若必须二分，报告对 cutpoint 的敏感性分析（多个切点下结论是否稳定）",
+            "对被二分的 confounder，改用更细分层或样条以减少类内残余混杂"
+            "（Becher 1992）",
+        ),
+        provenance=tuple(
+            GapProvenanceRef(
+                ref_kind=GapRefKind.VERIFIER_CHECK,
+                ref_id=f"program:variable:{pred}:threshold:{cut}",
+            )
+            for pred, cut in flagged
         ),
     )
 

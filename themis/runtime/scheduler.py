@@ -3230,6 +3230,13 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     # counterfactual outcomes; do(X=state) without naming the
     # manipulation route is silently violating consistency.
     "ill_defined_intervention_versions",
+    # 2026-06-18: dichotomization — a path variable's ``threshold`` field
+    # marks a continuous measure cut at a cutpoint. Must surface so a
+    # reviewer sees the operationalisation caveat (efficiency loss /
+    # cutpoint sensitivity / within-category residual confounding;
+    # Royston-Altman-Sauerbrei 2006) before the headline number, with the
+    # dose-response (Phase 13/14) alternative.
+    "dichotomized_continuous_measure",
 })
 
 

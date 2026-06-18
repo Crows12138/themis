@@ -134,6 +134,24 @@ do NOT trigger fetch / ask user.
   data" — no amount of additional rows resolves an under-defined
   estimand. The action is *re-specification of the question*, not
   data collection.
+- `dichotomized_continuous_measure` (2026-06-18) → NOT a fetch action.
+  A variable on the identification path declares a non-empty `threshold`
+  (the schema field that turns a continuous measurement into a binary
+  predicate, e.g. `>=3cm`), i.e. a continuous quantity was dichotomized
+  at a cutpoint. Royston, Altman & Sauerbrei 2006 *Stat Med* 25:127
+  "Dichotomizing continuous predictors in multiple regression: a bad
+  idea" — dichotomizing loses dose-response information + statistical
+  efficiency, makes results sensitive to an often-arbitrary cutpoint
+  (Altman et al 1994 *JNCI* 86:829), and leaves within-category residual
+  confounding when the dichotomized variable is a confounder (Becher
+  1992 *Stat Med* 11:1747). Surface the gap's `if_provided` (recover the
+  un-dichotomized continuous measure) and `alternative_paths` (keep the
+  variable continuous and run dose-response — Themis Phase 13/14; OR
+  report a cutpoint sensitivity analysis; OR use finer strata / splines
+  for a dichotomized confounder). The repair is a *modeling /
+  operationalisation choice* (keep it continuous), not "go fetch more
+  rows" — though obtaining the original continuous values IS the enabling
+  data step when only the binarised column is in hand.
 
 `severity == "blocking"` always needs Q1-Q3.
 

@@ -834,6 +834,35 @@ class GapKind(str, Enum):
     # theatre — same lesson as iter 205 measurement field, iter 206
     # ObservationStatement).
     ILL_DEFINED_INTERVENTION_VERSIONS = "ill_defined_intervention_versions"
+    # 2026-06-18 (boards #11 / #1 — dichotomization; fourth dead-schema-
+    # theatre find of the same lineage as iter 205 measurement / 206
+    # ObservationStatement / 207 state_vs_event): a VariableDeclaration on
+    # the identification path declares a non-empty ``threshold`` field —
+    # the schema documents this as "Cutoff that turns a continuous
+    # measurement into this predicate's value, e.g. >=3cm", i.e. a
+    # continuous quantity was DICHOTOMIZED at a cutpoint. Pre-this-kind,
+    # ``threshold``'s value was read by no classifier: its ABSENCE drove
+    # ``ambiguous_variable_definition`` (you didn't operationalize), but
+    # its PRESENCE — the structural fingerprint of dichotomization —
+    # produced zero signal. Dichotomizing a continuous measure (1) discards
+    # dose-response information and loses statistical efficiency
+    # (Royston, Altman & Sauerbrei 2006 *Stat Med* 25:127 "Dichotomizing
+    # continuous predictors in multiple regression: a bad idea"), (2) makes
+    # results sensitive to an often-arbitrary cutpoint (data-driven
+    # "optimal" cutpoints inflate type-I error; Altman et al 1994 *JNCI*),
+    # and (3) when the dichotomized variable is a confounder, leaves
+    # within-category RESIDUAL CONFOUNDING so the adjustment is incomplete
+    # (Becher 1992 *Stat Med* 11:1747). Severity INFORMATIONAL — unlike
+    # measurement_error (systematic regression-dilution) or ill_defined
+    # (estimand undefined), a declared cutpoint is a known, bounded modeling
+    # choice that does not break identification; the caveat informs
+    # interpretation and points at Themis's own dose-response path (Phase
+    # 13/14) as the continuous alternative. Must-disclose. Suppressed when
+    # extensions.ambiguities[*].kind names the dichotomization explicitly
+    # (escape hatch mirroring case 011's measurement_quality). No external
+    # library structure-routes this from a variable-level threshold field —
+    # Themis owns the variable schema where ``threshold`` is first-class.
+    DICHOTOMIZED_CONTINUOUS_MEASURE = "dichotomized_continuous_measure"
 
 
 class GapSeverity(str, Enum):

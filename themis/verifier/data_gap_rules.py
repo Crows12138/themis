@@ -366,6 +366,12 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # causal questions"; consistency assumption framing in Hernán &
     # Robins What If §3.4.
     "ill_defined_intervention_versions": frozenset({"verifier_check"}),
+    # 2026-06-18 dichotomization: a path variable's ``threshold`` field
+    # encodes a continuous measure cut at a cutpoint. Provenance cites the
+    # program variable + threshold value as a verifier_check (no derivation
+    # step — program-shape detection like measurement_error / ill_defined).
+    # Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127.
+    "dichotomized_continuous_measure": frozenset({"verifier_check"}),
 }
 
 

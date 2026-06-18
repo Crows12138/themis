@@ -1,6 +1,19 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-05-10（iter 207 dead-schema 第三 crack：
+> 更新时间：2026-06-18（dead-schema 第四 crack：
+> `dichotomized_continuous_measure` 把变量的 `threshold` 字段
+> （schema 文档为"turns a continuous measurement into this predicate's
+> value, e.g. >=3cm"）的 PRESENCE 暴露为连续量在 cutpoint 处被二分。
+> 此前 `threshold` 只有 ABSENCE 被读（驱动 `ambiguous_variable_definition`），
+> PRESENCE — 二分化的结构指纹 — 零信号。in-process 场景扫验证 silent
+> miss → 加 GapKind + classifier。二分化丢 dose-response 信息 / 效率
+> （Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127）、对切点敏感
+> （Altman et al 1994 *JNCI*）、被二分 confounder 留类内残余混杂
+> （Becher 1992）；INFORMATIONAL，指向 Themis 自有 dose-response 路径
+> （Phase 13/14）。boards #11/#1 cross-cutting，与 iter 205 measurement /
+> 206 ObservationStatement / 207 state_vs_event 同型，第四例
+> dead-schema-theatre fix；总数 31 GapKind。
+> 2026-05-10（iter 207 dead-schema 第三 crack：
 > `ill_defined_intervention_versions` 把 `state_vs_event="state"` +
 > 无 `time_window` 的 intervention 暴露为 Hernán & Taubman 2008 *IJO*
 > "Does obesity shorten life?" 的 well-defined-intervention prerequisite
@@ -72,7 +85,7 @@
 | **T10 DataGapReport 独立 verifier**（byte-code scan 钉独立性，Phase 10）| **~100%** |
 | Derivation JSON + 审计字段 + `success` 字段（Phase 10 标失败 step） | **~100%** |
 | ambiguity kind 分类体系（loose-string；A1/A2/A5 prompts + eval_set fixtures 联合用例） | **~100%** |
-| **DataGapReport schema (30 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
+| **DataGapReport schema (31 gap_kind / 3 severity / 4 ref_kind, Phase 10+13+iter expansions)** | **~100%** |
 | Eval set (29 cases / F1-F26) + 真实 LLM 基线 | **~100%** |
 | `investigation_request` 报缺 + fill-back | **~100%** |
 | Schema 层（atom / kernel_ast / query_result / derivation） | **~100%** |
