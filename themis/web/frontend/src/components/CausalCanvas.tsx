@@ -41,7 +41,7 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
   return (
     <div className={`gnode ${selected ? 'gnode--selected' : ''} ${data.role ? `gnode--${data.role}` : ''}`}>
       {data.role ? (
-        <span className={`gnode__role gnode__role--${data.role}`}>{data.role === 'treatment' ? '干预' : '结果'}</span>
+        <span className={`gnode__role gnode__role--${data.role}`}>{data.role === 'treatment' ? '因' : '果'}</span>
       ) : null}
       {/* Both a target and a source handle on each side (source last → on top, so
           a drag can always START from either side). With ConnectionMode.Loose
@@ -282,10 +282,10 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
 
       {nodes.some((n) => n.data.role) || edges.some((e) => (e.className ?? '').includes('rf-edge--proposed')) ? (
         <p className="dagview__legend">
-          <span className="gnode__role gnode__role--treatment">干预</span>你问的「因」
-          <span className="gnode__role gnode__role--outcome">结果</span>你问的「果」
+          <span className="gnode__role gnode__role--treatment">因</span>你问的因
+          <span className="gnode__role gnode__role--outcome">果</span>你问的果
           {pathIds.size > 0 ? <><span className="legend__path" aria-hidden />粗线 ＝ 因果路径</> : null}
-          <span className="legend__faint">⸺</span>淡色箭头 ＝ AI 提的假设（未验证），你画 / 确认的边是实色
+          <span className="legend__q" aria-hidden>?</span>带 ? 的边 ＝ AI 提的假设（未验证），你画 / 确认的边没有
         </p>
       ) : null}
     </>

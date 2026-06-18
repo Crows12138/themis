@@ -31,7 +31,7 @@ export const PathContext = createContext<Set<string>>(new Set())
  * "×" at the edge midpoint that reveals on hover/selection and removes exactly
  * that edge via deleteElements (flows through controlled onEdgesChange).
  */
-export function ButtonEdge({ id, source, target, markerStart, markerEnd, selected }: EdgeProps) {
+export function ButtonEdge({ id, source, target, markerStart, markerEnd, selected, data }: EdgeProps) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
   const hovered = useContext(EdgeHoverContext)
@@ -85,6 +85,7 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
     })
   }
   const show = selected || hovered === id
+  const proposed = !!(data as { proposed?: boolean } | undefined)?.proposed
 
   return (
     <>
@@ -103,6 +104,18 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
           >
             ×
           </button>
+        </EdgeLabelRenderer>
+      ) : proposed ? (
+        // An unverified LLM-proposed edge wears a "?" until you hover it (then
+        // the delete × takes over) — a clear mark, vs an edge you drew yourself.
+        <EdgeLabelRenderer>
+          <span
+            className="edgeq nodrag nopan"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            title="AI 提议的假设，未验证"
+          >
+            ?
+          </span>
         </EdgeLabelRenderer>
       ) : null}
     </>
