@@ -470,6 +470,21 @@ button { font-family: inherit; cursor: pointer; }
 /* edge "×": portaled to the edge midpoint by EdgeLabelRenderer */
 .edgedel { width: 20px; height: 20px; font-size: 15px; }
 
+/* selected edge's inline actions, grouped at the midpoint: ✓ certify (proposed
+   edges only) + × delete. ✓ promotes an llm_proposal edge to a user-asserted
+   one (clears the "?" + the unverified-proposal gap). */
+.edgeacts { position: absolute; display: flex; gap: 5px; pointer-events: all; }
+.edgeacts .edgedel { position: static; }
+.edgeacts .edgedel:active, .edgeok:active { transform: scale(0.92); }
+.edgeok {
+  display: grid; place-items: center; width: 20px; height: 20px;
+  border-radius: 50%; font-size: 13px; line-height: 1; cursor: pointer; padding: 0;
+  background: var(--surface-raise); color: var(--tier-point);
+  border: 1px solid var(--line-strong); box-shadow: var(--shadow-soft);
+  pointer-events: all; transition: background 0.12s, color 0.12s, transform 0.1s;
+}
+.edgeok:hover { background: var(--tier-point); color: var(--paper); }
+
 /* node "×": top-right corner, revealed on hover / selection */
 .gnode__del {
   top: -9px; right: -9px; width: 18px; height: 18px; font-size: 13px;

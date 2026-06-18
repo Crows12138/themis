@@ -12,10 +12,6 @@ import {
 } from '@xyflow/react'
 import { getEdgeParams } from '../lib/floatingEdge'
 
-/** Which edge the pointer is currently over (null = none). Lets the delete
- *  button reveal on hover without re-mapping every edge's data on each move. */
-export const EdgeHoverContext = createContext<string | null>(null)
-
 /** Edge ids on the causal path (X→…→Y). Members render thicker — the route the
  *  effect travels — recomputed live as the graph is edited. */
 export const PathContext = createContext<Set<string>>(new Set())
@@ -27,16 +23,19 @@ export const PathContext = createContext<Set<string>>(new Set())
  * arrow connects border-to-border and reads straight in any direction — a
  * right-to-left cause no longer loops around to a fixed handle.
  *
- * Delete: the React Flow canonical pattern (BaseEdge + EdgeLabelRenderer) puts a
- * "×" at the edge midpoint that reveals on hover/selection and removes exactly
- * that edge via deleteElements (flows through controlled onEdgesChange).
+ * Actions: click the edge to select it (deliberate — not a casual hover), which
+ * reveals inline controls at its midpoint: "×" deletes it; "✓" (proposed edges
+ * only) certifies it as a USER ASSERTION — clears the llm_proposal mark so the
+ * unverified-proposal gap stops firing. The ✓ is intentionally the *only*
+ * promotion you can click: vouching by domain knowledge is a click, but
+ * "data-backed" can't be clicked into existence — it's earned by a separate
+ * data-checking query, not asserted here.
  */
 export function ButtonEdge({ id, source, target, markerStart, markerEnd, selected, data }: EdgeProps) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
-  const hovered = useContext(EdgeHoverContext)
   const onPath = useContext(PathContext).has(id)
-  const { deleteElements } = useReactFlow()
+  const { deleteElements, setEdges } = useReactFlow()
   // How many edges connect this same pair, and where this one ranks — so
   // parallel edges (e.g. a cause X→Y alongside a confounder X↔Y) bow apart
   // instead of stacking on the exact same border-to-border line.
@@ -84,35 +83,59 @@ export function ButtonEdge({ id, source, target, markerStart, markerEnd, selecte
       targetPosition: targetPos,
     })
   }
-  const show = selected || hovered === id
+  const show = selected
   const proposed = !!(data as { proposed?: boolean } | undefined)?.proposed
+
+  // Certify = promote an llm_proposal edge to a plain user-asserted edge:
+  // drop the proposed mark + faint styling, deselect. On the next run the edge
+  // carries no llm_proposal annotation, so the unverified-proposal gap clears.
+  const certify = () =>
+    setEdges((es) =>
+      es.map((e) =>
+        e.id === id
+          ? { ...e, selected: false, data: { ...(e.data ?? {}), proposed: false }, className: 'rf-edge rf-edge--cause' }
+          : e,
+      ),
+    )
 
   return (
     <>
       <BaseEdge id={id} path={edgePath} markerStart={markerStart} markerEnd={markerEnd} style={onPath ? { strokeWidth: 3 } : undefined} />
       {show ? (
+        // Selected edge: inline ✓ (certify, proposed only) + × (delete), grouped.
         <EdgeLabelRenderer>
-          <button
-            className="edgedel nodrag nopan"
+          <div
+            className="edgeacts nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            onClick={(e) => {
-              e.stopPropagation()
-              deleteElements({ edges: [{ id }] })
-            }}
-            title="删除这条边"
-            aria-label="删除这条边"
           >
-            ×
-          </button>
+            {proposed ? (
+              <button
+                className="edgeok"
+                onClick={(e) => { e.stopPropagation(); certify() }}
+                title="确认这条边（用户断言）—— 清除“未验证”标记；数据支撑是另一个验证功能"
+                aria-label="确认这条边（用户断言）"
+              >
+                ✓
+              </button>
+            ) : null}
+            <button
+              className="edgedel"
+              onClick={(e) => { e.stopPropagation(); deleteElements({ edges: [{ id }] }) }}
+              title="删除这条边"
+              aria-label="删除这条边"
+            >
+              ×
+            </button>
+          </div>
         </EdgeLabelRenderer>
       ) : proposed ? (
-        // An unverified LLM-proposed edge wears a "?" until you hover it (then
-        // the delete × takes over) — a clear mark, vs an edge you drew yourself.
+        // An unverified LLM-proposed edge wears a "?" until you click it (then
+        // ✓ certify / × delete take over) — a clear mark, vs an edge you drew.
         <EdgeLabelRenderer>
           <span
             className="edgeq nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            title="AI 提议的假设，未验证"
+            title="AI 提议的假设，未验证 —— 点这条边可确认（用户断言）或删除"
           >
             ?
           </span>

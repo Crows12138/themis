@@ -28,7 +28,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { pathEdgeIds, programToFlow, reaches, type NodeRole } from '../lib/graph'
-import { ButtonEdge, EdgeHoverContext, FloatingConnectionLine, PathContext } from './ButtonEdge'
+import { ButtonEdge, FloatingConnectionLine, PathContext } from './ButtonEdge'
 
 type NData = { label: string; editing?: boolean; role?: NodeRole; rename?: (id: string, label: string) => void }
 
@@ -137,7 +137,6 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NData>>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [edgeType, setEdgeType] = useState<'cause' | 'bidirected'>('cause')
-  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const connectFrom = useRef<string | null>(null)
 
@@ -272,8 +271,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
       <div className="dagview__canvas dagview__canvas--edit" style={{ height }}>
         {label ? <span className="dagview__label">{label}</span> : null}
         {nodes.length === 0 && emptyHint ? <div className="canvas__empty">{emptyHint}</div> : null}
-        <EdgeHoverContext.Provider value={hoveredEdge}>
-         <PathContext.Provider value={pathIds}>
+        <PathContext.Provider value={pathIds}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -285,8 +283,6 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
             onConnectStart={onConnectStart}
             connectionMode={ConnectionMode.Loose}
             connectionLineComponent={FloatingConnectionLine}
-            onEdgeMouseEnter={(_, e) => setHoveredEdge(e.id)}
-            onEdgeMouseLeave={() => setHoveredEdge(null)}
             deleteKeyCode={DELETE_KEYS}
             fitView
             fitViewOptions={{ padding: 0.25 }}
@@ -295,8 +291,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
             <Background gap={18} color="var(--line-soft)" />
             <Controls showInteractive={false} />
           </ReactFlow>
-         </PathContext.Provider>
-        </EdgeHoverContext.Provider>
+        </PathContext.Provider>
       </div>
 
       {presentRoles.length || pathIds.size > 0 || hasProposed ? (
@@ -311,7 +306,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
             <span className="legend__item"><span className="legend__path" aria-hidden />粗线 ＝ 因果路径</span>
           ) : null}
           {hasProposed ? (
-            <span className="legend__item"><span className="legend__q" aria-hidden>?</span>带 ? 的边 ＝ AI 提议（未验证）</span>
+            <span className="legend__item"><span className="legend__q" aria-hidden>?</span>带 ? 的边 ＝ AI 提议（未验证）—— 点边选中后可 ✓ 确认（用户断言）或 × 删除</span>
           ) : null}
         </div>
       ) : null}
