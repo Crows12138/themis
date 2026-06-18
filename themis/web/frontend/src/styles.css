@@ -128,7 +128,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ============================================================ stage */
 
-.stage { flex: 1; width: 100%; max-width: min(1500px, 94vw); margin: 0 auto; padding: clamp(var(--space-xl), 6vh, var(--space-3xl)) clamp(var(--space-md), 4vw, var(--space-3xl)) var(--space-4xl); }
+.stage { flex: 1; width: 100%; max-width: min(1500px, 94vw); margin: 0 auto; padding: clamp(var(--space-md), 3vh, var(--space-xl)) clamp(var(--space-md), 4vw, var(--space-3xl)) var(--space-4xl); }
 .stage--wide { max-width: min(1760px, 96vw); }
 
 /* landing is small enough to live on one screen: center it in the
@@ -205,7 +205,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ============================================================ verdict */
 
-.result { margin-top: var(--space-2xl); animation: rise 0.5s var(--ease-out) both; }
+.result { margin-top: var(--space-md); animation: rise 0.5s var(--ease-out) both; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 .askedline { font-size: var(--text-sm); color: var(--ink-faint); margin-bottom: var(--space-md); }
