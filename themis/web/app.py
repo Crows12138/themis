@@ -208,21 +208,32 @@ def api_ask(req: AskRequest):
     # at the root by the bridge's few-shot examples — no sanitizing here.
     kernel_ast = envelope = None
     last: Exception | None = None
+    last_ast: dict | None = None
+    last_stage = "nl_to_kernel_ast"
     for _ in range(3):
+        last_stage = "nl_to_kernel_ast"
         try:
             a = nl_to_kernel_ast(req.nl, api_key=key)
+            last_ast = a
+            last_stage = "themis_run"  # NL→AST done; a failure now is the kernel's
             envelope = themis.run(a)
             kernel_ast = a
             break
         except Exception as exc:  # noqa: BLE001 — retry on any bridge/kernel error
             last = exc
     if kernel_ast is None:
-        is_bridge = isinstance(last, LLMBridgeError)
+        # Attribute the failure to where it actually happened, by position —
+        # NOT by exception type. A transport error during the LLM call (proxy
+        # down) is an nl_to_kernel_ast failure even though it is not an
+        # LLMBridgeError; the old `is_bridge` heuristic mislabeled it themis_run.
         return JSONResponse(status_code=400, content={
-            "stage": "nl_to_kernel_ast" if is_bridge else "themis_run",
-            "error": "LLMBridgeError" if is_bridge else type(last).__name__,
+            "stage": last_stage,
+            "error": type(last).__name__,
             "message": f"生成/校验因果图失败(已重试 3 次):{type(last).__name__}: {str(last)[:200]}",
             "need_key": "key" in str(last).lower(),
+            # The kernel-rejected AST (None if NL→AST itself failed) so the UI
+            # can show the broken graph — mirrors the render_reply error body.
+            "kernel_ast": last_ast,
         })
 
     try:
