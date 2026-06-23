@@ -215,16 +215,22 @@ def test_api_ask_attributes_themis_run_failure(monkeypatch):
     assert body["kernel_ast"] == {"version": "0.1"}
 
 
-def test_api_ask_proxy_down_returns_5xx(monkeypatch):
-    """No key + proxy unreachable: the bridge surfaces the connection error
-    via the standard ``nl_to_kernel_ast`` stage attribution. We point at a
-    deliberately closed port to simulate the proxy being down."""
+def test_api_ask_transport_failure_blamed_on_nl_stage(monkeypatch):
+    """A transport failure during the LLM call (proxy unreachable) is
+    attributed to the nl_to_kernel_ast stage — not themis_run — so the UI
+    can render where it broke. Mock the client so the test is deterministic
+    and never opens a real socket: an earlier env-based version pointed at a
+    closed port, which fast-refused in isolation but hung under full-suite
+    connection-pool / ephemeral-port pressure."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("OAUTH_PROXY_URL", "http://127.0.0.1:1")  # closed
+
+    def boom(**kw):
+        raise ConnectionError("proxy unreachable")
+
+    fake_client = SimpleNamespace(messages=SimpleNamespace(create=boom))
+    monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
+
     r = client.post("/api/ask", json={"nl": "x"})
-    # Either 400 (bridge error) or 500 (uncaught) is acceptable; the
-    # important contract is that ``stage`` is set so the UI can render.
-    assert r.status_code >= 400
+    assert r.status_code == 400
     body = r.json()
-    if "stage" in body:
-        assert body["stage"] == "nl_to_kernel_ast"
+    assert body["stage"] == "nl_to_kernel_ast"
