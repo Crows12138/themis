@@ -77,13 +77,21 @@ def test_narrative_only_predicate_lands_as_new_declaration():
 
     decls = {s["predicate"] for s in merged["statements"]
              if s.get("kind") == "variable"}
-    assert decls == {"running", "belly_fat_loss", "waist_reduced"}
+    # exercise_waist now carries a self-selection confounder
+    # (dietary_self_discipline, C→X + C→Y); the narrative adds waist_reduced.
+    assert decls == {
+        "running", "belly_fat_loss", "dietary_self_discipline", "waist_reduced",
+    }
 
-    # Edge and query survive the merge unchanged.
+    # The question's edges survive the merge unchanged (3: the direct edge +
+    # the two confounder edges); the narrative added a variable, no edges.
     causes = [s for s in merged["statements"] if s.get("kind") == "cause"]
-    assert len(causes) == 1
-    assert causes[0]["from"]["predicate"] == "running"
-    assert causes[0]["to"]["predicate"] == "belly_fat_loss"
+    assert len(causes) == 3
+    assert any(
+        c["from"]["predicate"] == "running"
+        and c["to"]["predicate"] == "belly_fat_loss"
+        for c in causes
+    )
 
     queries = [s for s in merged["statements"] if s.get("kind") == "query"]
     assert len(queries) == 1

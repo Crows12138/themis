@@ -2,15 +2,19 @@
   "nl_input": "我每天跑步，肚子上的肉会瘦下来吗",
   "reasoning": {
     "intent": "effect",
-    "intent_reason": "'每天' is an intervention marker; the user is asking about the effect of habitually running, not whether a causal pathway exists in principle",
+    "intent_reason": "'每天' is an intervention marker; the user asks about the effect of habitually running, not whether a causal pathway exists in principle",
     "predicates": [
       {"name": "running", "role": "intervention", "translation": "跑步"},
-      {"name": "belly_fat_loss", "role": "target", "translation": "肚子上的肉变瘦"}
+      {"name": "belly_fat_loss", "role": "target", "translation": "肚子上的肉变瘦"},
+      {"name": "dietary_self_discipline", "role": "confounder", "translation": "饮食自律 / 自控力"}
     ],
     "edges": [
-      {"from": "running", "to": "belly_fat_loss", "source": "common_knowledge"}
+      {"from": "running", "to": "belly_fat_loss", "source": "llm_proposal", "note": "real calorie-burn mechanism"},
+      {"from": "dietary_self_discipline", "to": "running", "source": "llm_proposal"},
+      {"from": "dietary_self_discipline", "to": "belly_fat_loss", "source": "llm_proposal"}
     ],
-    "framing_left_blank": "All four framing fields (time_window, measurement, threshold, observability) are deliberately unset for both predicates — the user did not specify a time window, what 'thinner' means operationally, or how it is measured. Themis will surface these gaps in the DEFINE_VARIABLE investigation request."
+    "confounder_note": "Running is a self-selected behavior (§3 structural-unit-library, unit 1: observed confounder). A latent disposition — dietary self-discipline / self-control — makes a person both more likely to run AND more likely to eat in a way that loses belly fat. So even though running has a real direct mechanism, the edge is confounded; a real mechanism does NOT exempt it. Emit the direct edge AND the confounder (C→X, C→Y, all llm_proposal). Identification then routes through backdoor adjustment over dietary_self_discipline and the kernel flags its missing data — the honest answer, not a bare P(belly_fat_loss | running).",
+    "framing_left_blank": "All framing fields (time_window, measurement, threshold, observability) stay unset for the predicates the user named — the user did not specify a time window, what 'thinner' means operationally, or how it is measured. Themis surfaces these via the DEFINE_VARIABLE channel."
   },
   "kernel_ast": {
     "version": "0.1",
@@ -18,9 +22,22 @@
     "statements": [
       {"kind": "variable", "predicate": "running", "domain": [true, false]},
       {"kind": "variable", "predicate": "belly_fat_loss", "domain": [true, false]},
+      {"kind": "variable", "predicate": "dietary_self_discipline", "domain": [true, false]},
       {
         "kind": "cause",
         "from": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "dietary_self_discipline", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "dietary_self_discipline", "args": [{"type": "const", "name": "me"}]},
         "to":   {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]},
         "annotations": {"source": "llm_proposal"}
       },

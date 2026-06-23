@@ -83,6 +83,16 @@ def test_example_flags_every_declared_predicate_for_framing(example_path):
         s["predicate"] for s in ast["statements"]
         if s.get("kind") == "variable"
     }
+    # A self-selection confounder is an llm_proposal structural device, not a
+    # variable the user named: the kernel surfaces its data need through the
+    # data-gap channel (missing adjustment data / unmeasured_confounder_risk),
+    # NOT the framing channel. So framing-flagging covers the declared
+    # predicates MINUS those confounders.
+    confounders = {
+        p["name"] for p in payload.get("reasoning", {}).get("predicates", [])
+        if p.get("role") == "confounder"
+    }
+    expected = declared - confounders
     out = themis.run(ast)
     r = out["results"][0]
     define_reqs = [
@@ -97,9 +107,10 @@ def test_example_flags_every_declared_predicate_for_framing(example_path):
         f"{example_path.name}: prompt example did not surface framing gaps "
         f"through either define_variable or framing_notes"
     )
-    assert flagged == declared, (
-        f"{example_path.name}: declared predicates {declared} do not "
-        f"match flagged set {flagged}"
+    assert flagged == expected, (
+        f"{example_path.name}: framing-flagged set {flagged} should match "
+        f"declared-minus-confounders {expected} (confounders surface via the "
+        f"data-gap channel, not framing)"
     )
 
 

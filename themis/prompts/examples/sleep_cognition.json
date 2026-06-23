@@ -2,15 +2,19 @@
   "nl_input": "经常熬夜会变笨吗",
   "reasoning": {
     "intent": "effect",
-    "intent_reason": "'经常' is a habitual-intervention marker similar to '每天'; user is asking the effect of sustained staying-up-late, not the abstract causal pathway",
+    "intent_reason": "'经常' is a habitual-intervention marker similar to '每天'; user asks the effect of sustained staying-up-late, not the abstract causal pathway",
     "predicates": [
       {"name": "staying_up_late", "role": "intervention", "translation": "熬夜"},
-      {"name": "cognitive_decline", "role": "target", "translation": "变笨 / 认知下降"}
+      {"name": "cognitive_decline", "role": "target", "translation": "变笨 / 认知下降"},
+      {"name": "work_stress", "role": "confounder", "translation": "工作 / 学业压力"}
     ],
     "edges": [
-      {"from": "staying_up_late", "to": "cognitive_decline", "source": "common_knowledge"}
+      {"from": "staying_up_late", "to": "cognitive_decline", "source": "llm_proposal", "note": "real sleep-deprivation mechanism"},
+      {"from": "work_stress", "to": "staying_up_late", "source": "llm_proposal"},
+      {"from": "work_stress", "to": "cognitive_decline", "source": "llm_proposal"}
     ],
-    "framing_left_blank": "The user gave no time scale ('occasionally' vs 'every night for a year'?), no definition of 'cognitive decline' (working memory? reaction time? self-report?), and no measurement method. All four framing fields stay unset so A0/F1 flags them."
+    "confounder_note": "Staying up late is a self-selected behavior (§3 unit 1: observed confounder). A latent driver — work/study stress or workload — makes a person both more likely to stay up late (deadlines, overwork) AND directly impairs cognition (chronic stress harms memory/attention independent of sleep). So staying_up_late→cognitive_decline is confounded by work_stress even though sleep deprivation has a real direct mechanism. Emit the direct edge AND the confounder (C→X, C→Y, all llm_proposal); identification routes through backdoor adjustment over work_stress and the kernel flags its missing data — not a bare P(cognitive_decline | staying_up_late).",
+    "framing_left_blank": "The user gave no time scale ('occasionally' vs 'every night for a year'?), no definition of 'cognitive decline' (working memory? reaction time? self-report?), and no measurement method. The framing fields stay unset so A0/F1 flags them."
   },
   "kernel_ast": {
     "version": "0.1",
@@ -18,9 +22,22 @@
     "statements": [
       {"kind": "variable", "predicate": "staying_up_late", "domain": [true, false]},
       {"kind": "variable", "predicate": "cognitive_decline", "domain": [true, false]},
+      {"kind": "variable", "predicate": "work_stress", "domain": [true, false]},
       {
         "kind": "cause",
         "from": {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "work_stress", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "work_stress", "args": [{"type": "const", "name": "me"}]},
         "to":   {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]},
         "annotations": {"source": "llm_proposal"}
       },

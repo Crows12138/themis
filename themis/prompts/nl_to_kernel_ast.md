@@ -349,6 +349,76 @@ Edges connect predicates the user mentioned. Intermediate variables
 enter the graph only when the user names them, or as the explicit
 mediator/instrument of the §3 mediation / front-door / IV shapes.
 
+#### Structural unit library — recognize the shape, then emit it
+
+Most questions are one or more of these units. Units 1–8 are the
+kernel's identification paths; 9–11 are modeling-hazard units (emit the
+right shape + an ambiguity flag, no special kernel path). This is the
+index — the detailed subsections below expand each. All edges are
+`llm_proposal` unless noted.
+
+1. **Observed confounder (backdoor).** A real `X→Y` mechanism does not
+   rule out confounding (detailed just below). *Trigger*: a measurable
+   common cause plausibly drives both; ALWAYS suspect it for
+   **self-selected behavior** (exercise/diet/sleep/study/adherence),
+   where a disposition (self-discipline, health-consciousness, SES,
+   severity) drives both X and Y. *Shape*: `X→Y` (if real mechanism) +
+   `C→X`, `C→Y`. *Query*: `effect(Y|do X)`. *Kernel*: backdoor-adjusts
+   over C, flags missing C data. One plausible C, not a pile.
+
+2. **Latent confounder (bidirected).** *Trigger*: user asserts an
+   unobserved common cause ("测不了 / 未观测共因 / 遗传同时影响"), no
+   data attached. *Shape*: `X↔Y` bidirected, no direct `X→Y`. *Kernel*:
+   ADMG / front-door / IV / sensitivity. NEVER bidirected if data is
+   attached (DataContractError) — downgrade to an observed C.
+
+3. **Front-door.** *Trigger*: `X→M→Y` AND an unobserved X–Y common
+   cause. *Shape*: `X→M`, `M→Y`, `X↔Y`; no direct `X→Y`, no U variable.
+   *Query*: `effect(Y|do X)`. *Kernel*: front-door identification.
+
+4. **Instrumental variable (IV).** *Trigger*: 工具变量 / 自然实验 /
+   外生变化; Z affects X but not Y directly. *Shape*: `Z→X`, `X↔Y` (if a
+   latent X–Y confounder); NO `Z→Y`. *Query*: `identify P(Y|do X)`.
+   *Ambiguity*: `iv_validity`. *Kernel*: IV.
+
+5. **Mediation decomposition.** *Trigger*: "有多少通过 M / 直接间接各
+   占多少 / 排除 M 后". *Shape*: `X→M`, `M→Y` (+`X→Y` if a separate
+   direct path). *Query*: `effect(Y|do X)` with `mediator=M`.
+   *Ambiguity*: `mediation_intermediate_confounder` on M4. *Kernel*:
+   mediation.
+
+6. **Transport.** *Trigger*: the evidence's source population differs
+   from the user (年龄/性别/人种/体重). *Shape*: one `selection_node`
+   per shifting variable + edges shifting-var→Y. *Query*: `effect` with
+   `target_population: "user"`. *Kernel*: transport.
+
+7. **Counterfactual.** *Trigger*: contrary-to-fact past ("如果当初 / 要
+   是没"). *Shape*: `X→Y`. *Query*: `kind: counterfactual` (observed +
+   cf_intervention + cf_target). *Kernel*: Layer-3; returns
+   `needs_assumption` asking monotonicity (the correct answer, not a
+   degraded one).
+
+8. **Temporal lag.** *Trigger*: 昨晚X今早Y / 前一天…第二天. *Shape*:
+   `X→Y` with `time_index` -1 / 0 on the atoms. *Kernel*: t-1→t. No
+   `temporal` ambiguity for a clean single lag.
+
+9. **Collider / selection bias** *(hazard unit)*. *Trigger*: data
+   conditioned on a subpopulation (住院/入学/幸存) read causally.
+   *Shape*: `X→S`, `Y→S` (S is the collider). **Never** put S in an
+   adjustment set — conditioning on a collider opens a spurious path.
+   *Ambiguity*: `selection_bias`.
+
+10. **Reciprocal causation** *(hazard unit)*. *Trigger*: user names both
+    directions as plausible. Commit to ONE direction (the first NL
+    clause); flag the other. **Never** emit both (cycle); **never**
+    bidirected (that is for latent common cause). *Ambiguity*:
+    `reciprocal_causation` (see §5a).
+
+11. **Spurious direct edge** *(hazard unit, must-not-infer)*. *Trigger*:
+    surface correlation (seasonal / group-level) with no real mechanism
+    (ice cream → drowning). *Shape*: common cause `C→X`, `C→Y`; NO
+    direct `X→Y`. *Ambiguity*: `confounder_refusal`.
+
 #### The confounding decision: assertion / worry / in-data
 
 Before emitting `X → Y` as a direct edge, ask: is there a plausible
@@ -416,6 +486,43 @@ citable anchor is not enough — bias toward the confounder structure.
 For judgment calls between the two, add an
 `extensions.ambiguities[kind=confounder_refusal]` entry so the user
 can challenge.
+
+#### Direct mechanism and confounding are not either/or — they coexist
+
+A real `X → Y` mechanism does **not** rule out confounding, and the
+two preceding subsections must not be read as a binary ("either I have
+a citable direct edge, or I drop it for a confounder structure"). The
+most common everyday case is **both at once**: when X is a **behavior
+the person chooses to do** (exercise, diet, sleep, studying, medication
+adherence), a latent disposition (self-discipline, health-consciousness,
+socioeconomic status, disease severity) usually drives *both* the choice
+to do X *and* the outcome Y. That disposition is a **confounder, not a
+mechanism detail** — so being able to name a real mechanism for `X → Y`
+does not exempt you from it. The only thing that does is random
+assignment (an RCT breaks the self-selection).
+
+Default for a self-selected behavioral treatment: emit the direct
+`X → Y` edge **and** one self-selection confounder (`C → X` plus
+`C → Y`, both `llm_proposal`). Pick the single most plausible latent
+driver, not a pile. This routes identification through backdoor
+adjustment and makes the kernel diagnose the missing confounder data —
+the honest answer, instead of the naive `P(Y|X)`.
+
+Canonical example — self-selected behavior (must NOT collapse to a bare
+edge):
+
+NL: "我每天跑步，肚子上的肉会瘦下来吗"
+
+- vars: `running`, `belly_fat_loss`, `dietary_self_discipline`
+- edges (all `llm_proposal`): `running → belly_fat_loss` (real
+  calorie-burn mechanism); `dietary_self_discipline → running` and
+  `dietary_self_discipline → belly_fat_loss` (the disciplined are both
+  more likely to run AND to eat in a way that loses belly fat)
+- query: `effect(belly_fat_loss | do(running))`
+- result: backdoor adjustment over `dietary_self_discipline`, and the
+  kernel flags its missing data. A bare `running → belly_fat_loss` is
+  the naive `P(Y|X)` — that is the failure this subsection exists to
+  prevent.
 
 #### Special structures the kernel knows about
 

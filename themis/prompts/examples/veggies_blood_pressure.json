@@ -2,15 +2,19 @@
   "nl_input": "多吃青菜能降血压吗",
   "reasoning": {
     "intent": "effect",
-    "intent_reason": "'多吃' signals an intervention; the user is asking about the effect of increased vegetable intake on blood pressure",
+    "intent_reason": "'多吃' signals an intervention; the user asks about the effect of increased vegetable intake on blood pressure",
     "predicates": [
       {"name": "eating_more_vegetables", "role": "intervention", "translation": "多吃青菜"},
-      {"name": "blood_pressure_lowered", "role": "target", "translation": "血压降下来"}
+      {"name": "blood_pressure_lowered", "role": "target", "translation": "血压降下来"},
+      {"name": "health_consciousness", "role": "confounder", "translation": "健康意识"}
     ],
     "edges": [
-      {"from": "eating_more_vegetables", "to": "blood_pressure_lowered", "source": "common_knowledge"}
+      {"from": "eating_more_vegetables", "to": "blood_pressure_lowered", "source": "llm_proposal", "note": "real nutritional mechanism (potassium/fiber)"},
+      {"from": "health_consciousness", "to": "eating_more_vegetables", "source": "llm_proposal"},
+      {"from": "health_consciousness", "to": "blood_pressure_lowered", "source": "llm_proposal"}
     ],
-    "framing_left_blank": "No time window ('after a week? after a year?'), no intake threshold (what counts as 'more'?), no BP measurement standard (systolic vs diastolic? which cutoff?). A0/F1 will flag all four framing fields for both predicates."
+    "confounder_note": "Eating more vegetables is a self-selected behavior (§3 unit 1: observed confounder). A latent disposition — health-consciousness — makes a person both more likely to eat vegetables AND more likely to do the OTHER blood-pressure-lowering things (less salt, more exercise, weight control, medication adherence). So the vegetable→BP edge is confounded even though it has a real nutritional mechanism. Emit the direct edge AND the confounder (C→X, C→Y, all llm_proposal); identification routes through backdoor adjustment over health_consciousness and the kernel flags its missing data — not a bare P(blood_pressure_lowered | eating_more_vegetables).",
+    "framing_left_blank": "No time window ('after a week? after a year?'), no intake threshold (what counts as 'more'?), no BP measurement standard (systolic vs diastolic? which cutoff?). A0/F1 flags the framing fields on the predicates the user named."
   },
   "kernel_ast": {
     "version": "0.1",
@@ -18,9 +22,22 @@
     "statements": [
       {"kind": "variable", "predicate": "eating_more_vegetables", "domain": [true, false]},
       {"kind": "variable", "predicate": "blood_pressure_lowered", "domain": [true, false]},
+      {"kind": "variable", "predicate": "health_consciousness", "domain": [true, false]},
       {
         "kind": "cause",
         "from": {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "health_consciousness", "args": [{"type": "const", "name": "me"}]},
+        "to":   {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
+        "annotations": {"source": "llm_proposal"}
+      },
+      {
+        "kind": "cause",
+        "from": {"predicate": "health_consciousness", "args": [{"type": "const", "name": "me"}]},
         "to":   {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]},
         "annotations": {"source": "llm_proposal"}
       },
