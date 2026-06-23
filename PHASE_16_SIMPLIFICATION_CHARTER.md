@@ -59,7 +59,7 @@ fixing 算子 Φ / `Q[·]` factor 表示，**根本不展开成 sum-of-products*
 Shpitser-Pearl sum-of-products，所以走 causaleffect 路线（bolt-on 化简）侵入最小；
 若反复撞完备性墙，ananke 路线是结构性的替代，但那是另一个大工程。
 
-研究存档（subagent 落在 `C:\Users\12916\`，可能不持久——核心内容已抄进本文）：
+研究存档（subagent 落在用户主目录下，可能不持久——核心内容已抄进本文）：
 `jmlr_simplify.txt` / `jss_causaleffect.txt` / `simplify_expr_extracted.R` /
 `ananke_one_line.py`。
 

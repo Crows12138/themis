@@ -751,7 +751,9 @@ def test_themis_py_files_have_module_docstrings():
     import ast
     violations = []
     for p in sorted((REPO_ROOT / "themis").rglob("*.py")):
-        if "__pycache__" in p.parts:
+        # node_modules holds pnpm-vendored deps (e.g. flatted/python/*.py),
+        # not Themis source — out of scope for this audit.
+        if "__pycache__" in p.parts or "node_modules" in p.parts:
             continue
         if p.name == "__init__.py" and p.stat().st_size < 50:
             continue
@@ -785,6 +787,10 @@ def test_all_committed_json_files_parse_cleanly():
                for part in p.parts):
             continue
         if "node_modules" in p.parts:
+            continue
+        # tsconfig*.json are JSONC by spec — TypeScript permits // and /* */
+        # comments + trailing commas, so they are not strict JSON.
+        if p.name.startswith("tsconfig"):
             continue
         try:
             json.loads(p.read_text(encoding="utf-8"))
@@ -977,6 +983,11 @@ def test_no_windows_absolute_paths_in_committed_files():
         for p in REPO_ROOT.rglob(ext):
             # Skip hidden dirs (e.g. .git, .venv) and this self-test
             if any(part.startswith(".") for part in p.parts):
+                continue
+            # node_modules = vendored deps; Themis_Demo = the reference-demo
+            # scratch the web product was extracted from — neither is the
+            # shipping Themis source this portability audit governs.
+            if any(part in ("node_modules", "Themis_Demo") for part in p.parts):
                 continue
             if p.resolve() == Path(__file__).resolve():
                 continue
