@@ -47,3 +47,6 @@ Thumbs.db
 .env.local
 *.key
 *.pem
+
+# Downloaded reference PDFs (freely available; cited by URL in tests) — not committed
+references/
