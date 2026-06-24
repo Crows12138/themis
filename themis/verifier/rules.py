@@ -4500,13 +4500,28 @@ def _rule_identify_via_tian(
             step_index=step_index, rule="identify_via_tian",
         ) from exc
 
-    cc_full = c_components(ctx.graph, ctx.bidirected)
-    nodes_minus_x = frozenset(ctx.graph.nodes()) - {x}
-    sub = ctx.graph.subgraph(nodes_minus_x)
-    bi_minus_x = frozenset(p for p in ctx.bidirected if p <= nodes_minus_x)
+    # Shpitser ID Line 2 (ancestor restriction): identifiability of
+    # P(y | do(x)) depends only on An(Y)_G. Nodes that are not directed
+    # ancestors of Y — e.g. the latent-flanked collider Z in M-bias
+    # (X→Y, X↔Z, Z↔Y) — drop out BEFORE the c-component test. The runtime's
+    # ID engine performs this restriction; omitting it here made Line 6 reject
+    # M-bias, a textbook IDENTIFIABLE graph whose only back-door path is
+    # collider-blocked. Restricting to An(Y) is a SOUND step of the algorithm
+    # (the restricted graph has the same identifiability), so it can only
+    # remove false rejects — it never lets an unidentifiable claim through:
+    # the bow arc (X→Y, X↔Y) still has y in the {x,y} c-component after
+    # restriction and is correctly rejected.
+    an_y = nx.ancestors(ctx.graph, y) | {y}
+    g_an = ctx.graph.subgraph(an_y)
+    bi_an = frozenset(p for p in ctx.bidirected if p <= an_y)
+
+    cc_full = c_components(g_an, bi_an)
+    nodes_minus_x = frozenset(an_y) - {x}
+    sub = g_an.subgraph(nodes_minus_x)
+    bi_minus_x = frozenset(p for p in bi_an if p <= nodes_minus_x)
     cc_minus_x = c_components(sub, bi_minus_x)
 
-    # Y's c-component in G[V\X] must be a c-component of G.
+    # Y's c-component in G[An(Y)\X] must be a c-component of G[An(Y)].
     y_cc_minus_x = next((c for c in cc_minus_x if y in c), None)
     if y_cc_minus_x is None:
         raise RuleCheckFailed(
