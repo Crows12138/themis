@@ -277,7 +277,7 @@ def compute_data_gap_report(
     gaps.extend(
         _classify_unidentifiable_from_request(investigation_requests)
     )
-    gaps.extend(_classify_missing_distribution(investigation_requests))
+    gaps.extend(_classify_missing_distribution(investigation_requests, query_kind))
     gaps.extend(_classify_missing_population_distribution(extensions))
     gaps.extend(_classify_missing_assumption(
         status, derivation, investigation_requests
@@ -1685,6 +1685,7 @@ def _classify_unidentifiable_from_request(
 
 def _classify_missing_distribution(
     requests: tuple[InvestigationRequest, ...],
+    query_kind: QueryKind,
 ) -> Iterable[DataGap]:
     # iter 203: import locally to keep the data_gap_report module
     # decoupled from runtime imports at load time (prevents cycles
@@ -1743,6 +1744,21 @@ def _classify_missing_distribution(
             min_n, precision = _estimate_sample_size_for_distribution(
                 display, signature,
             )
+            if query_kind in _ESTIMAND_QUERY_KINDS:
+                # effect / identify / counterfactual: an interval bound is a
+                # genuine fallback. This is a magic token that
+                # scheduler._reconcile_alt_paths_with_bounds rewrites to the
+                # actual computed bounds_result.
+                alt_paths = ("接受 Balke-Pearl bounds 给区间答案",)
+            else:
+                # probability asks for a plain observational conditional —
+                # point-estimable, with NO bounds substitute (Balke-Pearl is
+                # for interventional / IV / counterfactual quantities, not for
+                # P(y|x)). Suggesting bounds here is nonsensical.
+                alt_paths = (
+                    f"直接收集 {display} 的数据 —— 观察性条件量是点可估的，"
+                    f"没有 bounds 替代路径",
+                )
             yield DataGap(
                 kind=GapKind.MISSING_DISTRIBUTION,
                 severity=GapSeverity.BLOCKING,
@@ -1759,9 +1775,7 @@ def _classify_missing_distribution(
                     precision_target=precision,
                 ),
                 if_provided="可给点估计",
-                alternative_paths=(
-                    "接受 Balke-Pearl bounds 给区间答案",
-                ),
+                alternative_paths=alt_paths,
                 provenance=(
                     GapProvenanceRef(
                         ref_kind=GapRefKind.INVESTIGATION_REQUEST,
