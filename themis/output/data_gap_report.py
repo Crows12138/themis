@@ -2550,9 +2550,8 @@ def _classify_ill_defined_intervention_versions(
             f"importance of well-defined interventions to answer causal "
             f"questions\" 的 ill-defined intervention 结构 —— 同一"
             f"个 `{intervention_pred}` 状态值可以由多种结构上不同的"
-            f"操纵路径实现（举例：obese 状态可以由长期高热量摄入 / 久坐"
-            f"/ 代谢疾病 / 产后体重保留等不同 mechanism 实现），不同"
-            f"操纵路径会带来**不同**的反事实结果，因此 do("
+            f"操纵方式达到，而这些不同的操纵会带来**不同**的反事实"
+            f"结果，因此 do("
             f"{intervention_pred}=state) 没有唯一定义；consistency "
             f"assumption（Hernán & Robins *What If* §3.4）会被沉默地违反，"
             f"返回的 \"effect\" 实际上是多个估计量的混合。要关掉此警告："
@@ -2573,9 +2572,8 @@ def _classify_ill_defined_intervention_versions(
             f" of well-defined interventions to answer causal "
             f"questions\" 的经典 ill-defined intervention 结构 —— 同一"
             f"个 `{intervention_pred}` 状态值可以由多种结构上不同的"
-            f"操纵路径实现（举例：obese 状态可以由长期高热量摄入 / 久坐"
-            f"/ 代谢疾病 / 产后体重保留等不同 mechanism 实现），不同"
-            f"操纵路径会带来**不同**的反事实结果，因此 do("
+            f"操纵方式达到，而这些不同的操纵会带来**不同**的反事实"
+            f"结果，因此 do("
             f"{intervention_pred}=state) 没有唯一定义；consistency "
             f"assumption（Hernán & Robins *What If* §3.4）被沉默地违反，"
             f"返回的 \"effect\" 实际上是多个估计量的混合。Themis 仅"
@@ -2589,19 +2587,19 @@ def _classify_ill_defined_intervention_versions(
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=(
             f"在 `{intervention_pred}` 的 VariableDeclaration 上加 "
-            f"`time_window`（说明 \"持续多长时间被视为该状态\"，例如"
-            f" \"≥6 个月 BMI≥30\"），并在 program.extensions.ambiguities"
-            f" 里加 `ill_defined_intervention` 条目，说明你打算把哪一种"
-            f"具体的 manipulation（lifestyle / 药物 / 手术 / RCT 随机化）"
+            f"`time_window`（说明 \"持续多长时间 / 在哪个时点被视为该"
+            f"状态\"），并在 program.extensions.ambiguities 里加 "
+            f"`ill_defined_intervention` 条目，说明你打算把哪一种具体的"
+            f" manipulation（如生活方式 / 用药 / 手术 / RCT 随机化）"
             f"作为 do(.) 的 well-defined intervention 等价物"
         ),
         alternative_paths=(
             f"把 `{intervention_pred}` 重新声明为一个具体的事件类变量"
-            f"（state_vs_event=\"event\"），比如\"参加为期 12 周的减重"
-            f"项目\"，这样 do(.) 操作有明确目标",
+            f"（state_vs_event=\"event\"）—— 一个有明确操纵动作的一次性"
+            f"事件，这样 do(.) 有明确目标",
             f"把 `{intervention_pred}` 拆成两个变量：一个事件类的"
-            f"intervention（如 prescribed_weight_loss_program）+ 一个"
-            f"中间状态（如 bmi_after_12w），用 mediation 路径处理",
+            f"intervention（具体的操纵动作）+ 一个由它导致的中间状态，"
+            f"用 mediation 路径处理",
             f"用 RCT / 实验性数据替代观察性主样本 —— 实验里 do(.) 的"
             f"\"compared with what\" 由随机化协议明确定义",
             f"在 extensions.ambiguities 里以 `ill_defined_intervention` "
