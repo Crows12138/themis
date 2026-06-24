@@ -1804,19 +1804,39 @@ def _try_numeric(
             formula, theta, graph=graph, bidirected=bidirected,
         )
     except InsufficientTheta as exc:
-        missing = _missing_parameter_from_key(exc.missing_key, exc.reason)
+        # Surface ALL distinct distributions the estimand still needs, not just
+        # the first gap the fail-fast evaluator hit — so the data-gap report is
+        # honest about the complete data requirement (front-door needs three
+        # factors, back-door two). collect_missing_keys re-runs the SAME
+        # resolution path (fallbacks included) so a derivable factor is never
+        # reported missing.
+        missing_keys = numeric_estimator.collect_missing_keys(
+            formula, theta, graph=graph, bidirected=bidirected,
+        )
         skeletons: dict = {}
-        if exc.missing_key is not None:
-            skeletons[missing.name] = _skeleton_for_parameter(exc.missing_key)
+        if missing_keys:
+            missing_items: tuple[MissingItem, ...] = tuple(
+                _missing_parameter_from_key(key, exc.reason)
+                for key in missing_keys
+            )
+            for item, key in zip(missing_items, missing_keys):
+                skeletons[item.name] = _skeleton_for_parameter(key)
+        else:
+            # No concrete key collected (e.g. a value-less query-bound atom):
+            # keep the single original gap.
+            single = _missing_parameter_from_key(exc.missing_key, exc.reason)
+            missing_items = (single,)
+            if exc.missing_key is not None:
+                skeletons[single.name] = _skeleton_for_parameter(exc.missing_key)
         requests = investigation_pusher.push(
-            (missing,), skeletons=skeletons
+            missing_items, skeletons=skeletons
         )
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=kind,
             query_id=stmt.id,
             formula=formula,
-            missing_information=(missing,),
+            missing_information=missing_items,
             investigation_requests=requests,
         )
 

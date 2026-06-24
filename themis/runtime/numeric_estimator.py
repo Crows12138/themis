@@ -180,6 +180,13 @@ def _probability_ref_key(
     )
 
 
+# Placeholder substituted for a missing probability_ref when _evaluate runs in
+# collect mode (``missing_sink`` set): the numeric result is discarded, we only
+# want the full set of unresolvable keys, so any finite value keeps the walk
+# going past a gap instead of aborting at the first one.
+_COLLECT_PLACEHOLDER = 0.5
+
+
 def _evaluate(
     expr: FormulaExpr,
     theta: Theta,
@@ -187,6 +194,7 @@ def _evaluate(
     *,
     graph=None,
     bidirected=None,
+    missing_sink: "list[ProbabilityKey] | None" = None,
 ) -> float:
     if isinstance(expr, ConstantExpr):
         return float(expr.value)
@@ -225,6 +233,9 @@ def _evaluate(
             base_msg = f"Theta 中缺条目 {format_probability_key(key)}"
             if refusal is not None:
                 base_msg = f"{base_msg}；{refusal}"
+            if missing_sink is not None:
+                missing_sink.append(key)
+                return _COLLECT_PLACEHOLDER
             raise InsufficientTheta(key, base_msg)
         return value
 
@@ -233,6 +244,7 @@ def _evaluate(
         for term in expr.terms:
             result *= _evaluate(
                 term, theta, subs, graph=graph, bidirected=bidirected,
+                missing_sink=missing_sink,
             )
         return result
 
@@ -244,17 +256,24 @@ def _evaluate(
             total += _evaluate(
                 expr.body, theta, new_subs,
                 graph=graph, bidirected=bidirected,
+                missing_sink=missing_sink,
             )
         return total
 
     if isinstance(expr, FractionExpr):
         num = _evaluate(
             expr.numerator, theta, subs, graph=graph, bidirected=bidirected,
+            missing_sink=missing_sink,
         )
         den = _evaluate(
             expr.denominator, theta, subs, graph=graph, bidirected=bidirected,
+            missing_sink=missing_sink,
         )
         if den == 0.0:
+            if missing_sink is not None:
+                # collect mode: a placeholder/partial denominator can be 0;
+                # we are gathering keys, not computing a real value.
+                return 0.0
             raise ValueError(
                 "fraction denominator evaluated to 0 — positivity violation "
                 "(the conditioning event P_x(z) has zero probability)"
@@ -286,6 +305,39 @@ def estimate_formula(
     falls back to iter 193's trust-the-user behavior (backward compat).
     """
     return _evaluate(formula, theta, {}, graph=graph, bidirected=bidirected)
+
+
+def collect_missing_keys(
+    formula: FormulaExpr,
+    theta: Theta,
+    *,
+    graph=None,
+    bidirected=None,
+) -> tuple[ProbabilityKey, ...]:
+    """Walk the formula like ``estimate_formula`` but, instead of aborting at
+    the first unresolvable ``probability_ref``, gather EVERY one the evaluator
+    cannot resolve (after its marginalization / independence fallbacks run, so
+    a derivable factor is never reported missing) and return the distinct cells,
+    in first-seen order.
+
+    This is what lets the data-gap report name ALL the data a multi-factor
+    estimand still needs (front-door touches three CPTs, back-door two), not
+    only the first gap the fail-fast ``estimate_formula`` happened to hit. Keys
+    stay cell-precise so a partially-filled CPT reports exactly the missing
+    entry, not the whole table.
+    """
+    sink: list[ProbabilityKey] = []
+    _evaluate(
+        formula, theta, {}, graph=graph, bidirected=bidirected, missing_sink=sink,
+    )
+    seen: set = set()
+    out: list[ProbabilityKey] = []
+    for key in sink:
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return tuple(out)
 
 
 def estimate_probability(
