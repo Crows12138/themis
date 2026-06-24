@@ -121,10 +121,10 @@ def test_merged_program_runs_and_gap_list_matches_merge():
     # state_vs_event. Those three should be the only remaining gaps.
     assert gaps.get("running") == {"direction", "baseline", "state_vs_event"}
 
-    # ``belly_fat_loss`` stayed bare — all seven A0-reportable fields
-    # surface as gaps.
+    # ``belly_fat_loss`` stayed bare — the reportable fields surface as
+    # gaps (threshold is conditional / continuous-only, so 6 not 7).
     assert gaps.get("belly_fat_loss") == {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
 
@@ -153,10 +153,11 @@ def test_define_variable_request_drops_fully_framed_predicate():
     null_fields = {k for k, v in run_fields.items() if v is None}
     assert null_fields == {"direction", "baseline", "state_vs_event"}
 
-    # ``belly_fat_loss`` all seven still null.
+    # ``belly_fat_loss`` still bare — 6 reportable fields null (threshold
+    # is conditional / continuous-only, not nagged on a bare predicate).
     belly_fields = items_by_target["belly_fat_loss"]["skeleton"]["fields"]
     belly_nulls = {k for k, v in belly_fields.items() if v is None}
     assert belly_nulls == {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }

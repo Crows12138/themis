@@ -60,6 +60,12 @@ FRAMING_FIELDS = (
     "state_vs_event",
 )
 
+# ``threshold`` is a continuous-cutpoint field — A0 surfaces it as a gap only
+# for variables that look continuous (a declared unit / numeric measurement).
+# A bare binary predicate isn't nagged for a cutpoint it can't have, so its
+# framing-gap set is the six non-threshold fields.
+BARE_PREDICATE_GAPS = tuple(f for f in FRAMING_FIELDS if f != "threshold")
+
 
 @dataclass(frozen=True)
 class PressureResult:
@@ -185,8 +191,8 @@ def pressure_exercise_waist_variable_merge() -> PressureResult:
         "narrative should shrink running framing gaps to the three #41 fields",
     )
     _require(
-        set(gaps["belly_fat_loss"]) == set(FRAMING_FIELDS),
-        "belly_fat_loss should remain fully underframed",
+        set(gaps["belly_fat_loss"]) == set(BARE_PREDICATE_GAPS),
+        "belly_fat_loss should remain fully underframed (bare binary: 6 gaps, no threshold)",
     )
     _require(
         "missing_distribution" in _data_gap_kinds(result),
@@ -310,11 +316,11 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
         "link diagnostic should rank the morphological late-sleep match first",
     )
     _require(
-        set(gaps["stays_up_late"]) == set(FRAMING_FIELDS),
+        set(gaps["stays_up_late"]) == set(BARE_PREDICATE_GAPS),
         "question-side stays_up_late should remain unframed because the narrative used staying_up_late",
     )
     _require(
-        set(gaps["feels_tired_next_morning"]) == set(FRAMING_FIELDS),
+        set(gaps["feels_tired_next_morning"]) == set(BARE_PREDICATE_GAPS),
         "question-side outcome should remain unframed because the narrative used cognitive_slowness",
     )
     linked_gaps = _framing_gaps(linked_result)
@@ -332,12 +338,12 @@ def pressure_late_sleep_predicate_drift() -> PressureResult:
         == {
             "time_window",
             "measurement",
-            "threshold",
             "direction",
             "baseline",
             "state_vs_event",
         },
-        "confirmed link should transfer outcome observability onto query predicate",
+        "confirmed link transfers outcome observability; measurement stays null "
+        "so the subjective outcome is not nagged for a continuous threshold",
     )
 
     return PressureResult(

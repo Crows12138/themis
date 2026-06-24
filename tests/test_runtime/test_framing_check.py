@@ -49,7 +49,9 @@ def test_no_declarations_emits_no_notes():
 
 def test_partial_declaration_reports_unset_fields():
     """A predicate declared with only domain emits a note listing the
-    other reportable fields (post-#41: 7 of them)."""
+    other reportable fields. ``threshold`` is conditional (continuous
+    quantities only) — a bare predicate with no continuous measurement
+    isn't nagged for a cutpoint it can't have, so 6 fields, not 7."""
     stmt = _effect_query("waist_reduced", "exercise_regular")
     program = _program(
         VariableDeclaration(
@@ -61,9 +63,31 @@ def test_partial_declaration_reports_unset_fields():
     assert len(notes) == 1
     assert notes[0].predicate == "waist_reduced"
     assert set(notes[0].missing) == {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
+
+
+def test_threshold_reported_only_for_continuous_predicate():
+    """``threshold`` is a continuous-cutpoint field — reported as a gap
+    only when the variable looks continuous (a declared `unit`, or a
+    `measurement` naming a numeric quantity). A binary event measured
+    "是/否" is not nagged for a cutpoint; a continuous one is."""
+    stmt = _effect_query("y", "x")
+    continuous = _program(
+        VariableDeclaration(
+            predicate="y", domain=(True, False), measurement="收缩压 mmHg",
+        ),
+        stmt,
+    )
+    assert "threshold" in check_framing(continuous, stmt)[0].missing
+    binary = _program(
+        VariableDeclaration(
+            predicate="y", domain=(True, False), measurement="是否发生(是/否)",
+        ),
+        stmt,
+    )
+    assert "threshold" not in check_framing(binary, stmt)[0].missing
 
 
 def test_fully_declared_predicate_emits_no_note():

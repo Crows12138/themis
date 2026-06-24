@@ -67,7 +67,7 @@ def test_framing_notes_flag_underspecified_outcome():
     notes = {n.predicate: set(n.missing) for n in r.framing_notes}
     assert "waist_reduced" in notes
     assert notes["waist_reduced"] == {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
     assert "exercise_regular" not in notes
@@ -100,7 +100,7 @@ def test_result_round_trips_through_schema():
     assert len(notes) == 1
     assert notes[0]["predicate"] == "waist_reduced"
     assert set(notes[0]["missing"]) == {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
 

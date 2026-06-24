@@ -129,9 +129,43 @@ def _declarations_by_predicate(
     return idx
 
 
+# `threshold` is a continuous-cutpoint field — operationalization-relevant
+# only for a continuous / numeric variable (something a cutpoint could
+# dichotomize), not for a genuinely binary / categorical predicate. Same
+# conditional-applicability rationale that keeps ``unit`` out of the reportable
+# set ("not all predicates have a physical unit"): not all predicates have a
+# continuous cutpoint.
+_CONTINUOUS_MEASUREMENT_CUES: tuple[str, ...] = (
+    "mmhg", "kg", "cm", "mm", "mg", "ml", "mol", "bmi", "%", "score",
+    "岁", "分", "毫米", "厘米", "千克", "浓度", "水平", "区间", "范围",
+    "连续", "≥", "≤", ">", "<",
+)
+
+
+def _looks_continuous(decl: VariableDeclaration) -> bool:
+    """Whether the variable is plausibly a continuous / numeric quantity, so a
+    ``threshold`` (cutpoint) is meaningful. Signals: a declared physical
+    ``unit``, or a ``measurement`` naming a numeric quantity (a digit, a common
+    unit, or a range / comparison). A genuinely binary event measured "是/否"
+    has none of these — so we don't nag it for a cutpoint it can't have."""
+    if getattr(decl, "unit", None):
+        return True
+    m = (getattr(decl, "measurement", None) or "").lower()
+    if not m:
+        return False
+    if any(ch.isdigit() for ch in m):
+        return True
+    return any(cue in m for cue in _CONTINUOUS_MEASUREMENT_CUES)
+
+
 def _gaps(decl: VariableDeclaration) -> tuple[str, ...]:
     missing: list[str] = []
+    continuous = _looks_continuous(decl)
     for field in _REPORTABLE_FIELDS:
+        # threshold only applies to continuous variables (see above); skip it
+        # for binary / categorical predicates so it isn't a phantom gap.
+        if field == "threshold" and not continuous:
+            continue
         if getattr(decl, field) is None:
             missing.append(field)
     return tuple(missing)

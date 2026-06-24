@@ -142,8 +142,11 @@ def test_reply_example_closes_expected_gaps(example_path):
         for note in r.get("framing_notes", [])
     }
 
+    # threshold is excluded: its gap-presence is conditional (continuous
+    # variables only), not purely null-driven, so the "still-null ⇒ stays a
+    # gap" equivalence this test relies on doesn't hold for it.
     reportable = {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
     for patch in payload["filled_bundle"]["patches"]:

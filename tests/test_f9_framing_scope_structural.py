@@ -52,7 +52,9 @@ def test_cause_query_does_not_emit_define_variable():
     # advisory framing_notes still emitted (informational channel)
     notes = r.get("framing_notes", [])
     assert len(notes) == 2
-    assert all(len(n["missing"]) == 7 for n in notes)
+    # threshold is conditional (continuous-only); smoking / lung_cancer are
+    # binary, so 6 reportable fields each, not 7.
+    assert all(len(n["missing"]) == 6 for n in notes)
     # but no DEFINE_VARIABLE investigation on a structural query
     assert _define_variable_requests(r) == []
 
@@ -134,7 +136,7 @@ def test_cause_query_framing_notes_list_unfilled_fields():
     r = themis.run(ast)["results"][0]
     notes_by_pred = {n["predicate"]: set(n["missing"]) for n in r["framing_notes"]}
     expected_fields = {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
     assert notes_by_pred["smoking"] == expected_fields

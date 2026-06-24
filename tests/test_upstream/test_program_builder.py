@@ -90,13 +90,13 @@ def test_effect_program_dispatches_and_surfaces_define_variable_request():
     assert len(define_requests) == 1
     targets = {item.target for item in define_requests[0].items}
     assert targets == {"running", "belly_fat_loss"}
-    # Every flagged predicate is missing exactly the seven framing
-    # fields (post-#41): the four original + direction / baseline /
-    # state_vs_event.
+    # Every flagged predicate is missing the reportable framing fields.
+    # threshold is conditional (continuous-only); running / belly_fat_loss
+    # are bare predicates with no continuous measurement, so 6 not 7.
     for item in define_requests[0].items:
         fields = set(item.skeleton["fields"].keys())
         assert fields == {
-            "time_window", "measurement", "threshold", "observability",
+            "time_window", "measurement", "observability",
             "direction", "baseline", "state_vs_event",
         }
 

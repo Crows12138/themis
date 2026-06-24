@@ -132,7 +132,7 @@ def test_run_surfaces_define_variable_in_json_output():
     for item in define_reqs[0]["items"]:
         fields = set(item["skeleton"]["fields"].keys())
         assert fields == {
-            "time_window", "measurement", "threshold", "observability",
+            "time_window", "measurement", "observability",
             "direction", "baseline", "state_vs_event",
         }
 

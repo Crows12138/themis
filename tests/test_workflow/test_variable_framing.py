@@ -99,7 +99,7 @@ def test_extract_emits_one_patch_per_declared_predicate_with_gaps():
     )
     note = FramingNote(
         predicate="y",
-        missing=("time_window", "measurement", "threshold", "observability"),
+        missing=("time_window", "measurement", "observability"),
     )
     bundle = extract_framing_skeleton(program, [_synthetic_result((note,))])
 
@@ -113,7 +113,7 @@ def test_extract_emits_one_patch_per_declared_predicate_with_gaps():
     assert patch["existing"] == {"domain": [True, False]}
     # fields exposes only the gap fields, all null
     assert set(patch["fields"].keys()) == {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
     }
     assert all(v is None for v in patch["fields"].values())
 
@@ -442,12 +442,15 @@ def test_end_to_end_partial_fill_shrinks_without_value_drift():
 
     bundle = extract_framing_skeleton(program, before_results)
     patch = bundle["patches"][0]
-    # Only fill two of the four gaps.
+    # Fill two of the gaps, leave the rest null. We deliberately fill
+    # non-continuous fields (time_window / observability) so the partial
+    # fill is a *strict* shrink. Filling a continuous ``measurement`` (e.g.
+    # "waist cm") would legitimately OPEN a new threshold gap — a cutpoint
+    # only becomes meaningful once the variable is numeric — which is correct
+    # behavior but would violate the strict-subset premise this test pins.
     patch["fields"] = {
         "time_window": "12w",
-        "measurement": "waist cm",
-        "threshold": None,
-        "observability": None,
+        "observability": "self-reported",
     }
 
     merged = merge_variable_declaration(program, bundle)
@@ -496,7 +499,7 @@ def test_scheduler_surfaces_define_variable_request_when_framing_gap_exists():
     assert item.skeleton["predicate"] == "waist_reduced"
     assert item.skeleton["existing"] == {"domain": [True, False]}
     assert set(item.skeleton["fields"].keys()) == {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
     assert all(v is None for v in item.skeleton["fields"].values())

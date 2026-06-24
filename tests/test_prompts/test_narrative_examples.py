@@ -157,7 +157,7 @@ def test_narrative_example_surfaces_blank_fields_as_framing_gaps(example_path):
     }
 
     reportable = {
-        "time_window", "measurement", "threshold", "observability",
+        "time_window", "measurement", "observability",
         "direction", "baseline", "state_vs_event",
     }
     for item in reasoning.get("identified_variables", []):
