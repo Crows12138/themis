@@ -236,21 +236,30 @@ def _build_expected_backdoor_formula(
     intervention: ValuedAtom,
     adjustment_set: tuple[Atom, ...],
     observed: tuple[ValuedAtom, ...],
+    *,
+    include_intervention: bool = True,
 ) -> FormulaExpr:
     """Independent reimplementation of the backdoor adjustment formula
     as specified by Pearl. This is the verifier's own statement of the
     theorem — it does NOT call ``formula_builder``.
 
+    ``include_intervention`` mirrors the producer-independent rule that X
+    belongs in the main conditional only when it has a directed path to Y;
+    with no such path, ``target ⊥ intervention`` given Z so the conditional
+    drops X. The caller derives the flag from the graph itself.
+
     Shape:
 
-        Z = () → P(Y=y | X=x, observed)
+        Z = () → P(Y=y | X=x, observed)        [include_intervention]
+                 P(Y=y | observed)             [not include_intervention]
         Z = (Z1,...,Zk) →
             Σ_{z1} ... Σ_{zk}
               P(Y=y | X=x, Z1=z1,...,Zk=zk, observed)
               · Π_i P(Zi=zi | Z1=z1,...,Z_{i-1}=z_{i-1}, observed)
     """
+    cond_prefix = (intervention,) if include_intervention else ()
     if len(adjustment_set) == 0:
-        return ProbabilityRefExpr(target=target, given=(intervention,) + observed)
+        return ProbabilityRefExpr(target=target, given=cond_prefix + observed)
 
     # Bind names — use a deterministic scheme so the same (predicate,
     # args) yields the same bind name each time the verifier runs.
@@ -275,7 +284,7 @@ def _build_expected_backdoor_formula(
 
     conditional = ProbabilityRefExpr(
         target=target,
-        given=(intervention,) + z_valueds + observed,
+        given=cond_prefix + z_valueds + observed,
     )
     factors: list[ProbabilityRefExpr] = []
     for i, (_, _, z_va) in enumerate(binds):
@@ -324,7 +333,24 @@ def _rule_backdoor_adjustment_formula(
             step_index=step_index, rule="backdoor_adjustment_formula",
         )
 
-    expected = _build_expected_backdoor_formula(target, intervention, z_tuple, observed)
+    # Independent soundness mirror (the verifier reasons from the graph itself,
+    # not from the producer): the intervention belongs in the main conditional
+    # only when X has a directed path to Y. With no such path, given Z the
+    # target is independent of X so P(Y|X,Z)=P(Y|Z); a formula that still
+    # conditions on a non-cause X would name an un-supplyable estimand.
+    graph = ctx.graph
+    x_atom, y_atom = intervention.atom, target.atom
+    x_is_cause = (
+        graph is not None
+        and x_atom in graph
+        and y_atom in graph
+        and x_atom != y_atom
+        and nx.has_path(graph, x_atom, y_atom)
+    )
+    expected = _build_expected_backdoor_formula(
+        target, intervention, z_tuple, observed,
+        include_intervention=x_is_cause,
+    )
     if expected != claimed_output:
         raise RuleCheckFailed(
             f"backdoor_adjustment_formula output does not match the "

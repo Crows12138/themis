@@ -2495,11 +2495,19 @@ def _dispatch_effect(
     # so the formula is numerically resolvable once Theta has the
     # referenced conditionals.
     intervention_va = ValuedAtom(atom=x, value=q.intervention.value)
+    # When X has no directed path to Y it is not a cause of Y, so given the
+    # back-door-blocking adjustment set Y ⊥ X and P(Y|X,Z) = P(Y|Z). Keeping X
+    # in the conditional would be spurious AND un-supplyable (X is not a parent
+    # of Y, so the validator rejects P(Y|X,...)). Drop it so the estimand — and
+    # the data-gap report derived from it — names a distribution the user can
+    # actually provide.
+    x_is_cause = structural_solver.has_directed_path(graph, x, y_atom)
     formula = formula_builder.backdoor_formula(
         target=q.target,
         intervention=intervention_va,
         adjustment_set=tuple(topo),
         observed=q.given,
+        include_intervention=x_is_cause,
     )
     validate_formula(formula)
     structural_prefix = _build_effect_structural_prefix(

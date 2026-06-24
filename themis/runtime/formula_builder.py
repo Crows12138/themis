@@ -58,6 +58,8 @@ def backdoor_formula(
     intervention: ValuedAtom,
     adjustment_set: tuple[Atom, ...],
     observed: tuple[ValuedAtom, ...] = (),
+    *,
+    include_intervention: bool = True,
 ) -> FormulaExpr:
     """Build the standard back-door adjustment formula.
 
@@ -66,8 +68,17 @@ def backdoor_formula(
     chain-rule factors of the joint P(Z1,...,Zk | observed) align with
     the structural parent relationships.
 
+    ``include_intervention`` controls whether the intervention atom
+    appears inside the main conditional. It must be False exactly when
+    the intervention has no directed path to the target: then, given the
+    back-door-blocking ``adjustment_set``, ``target ⊥ intervention`` so
+    ``P(Y|X,Z) = P(Y|Z)`` — keeping X in the conditional would be both
+    spurious and un-supplyable (X is not a parent of Y, so the validator
+    rejects ``P(Y|X,...)``). The caller, which has the DAG, decides.
+
     adjustment_set = ():
-        P(target | intervention, observed)
+        P(target | intervention, observed)       [include_intervention]
+        P(target | observed)                      [not include_intervention]
 
     adjustment_set = (Z,):
         ∑_z  P(target | intervention, Z=z, observed)
@@ -84,8 +95,10 @@ def backdoor_formula(
         terms inside the innermost product; no joint-target primitive
         is introduced, keeping the v0.1 formula AST unchanged.
     """
+    cond_prefix = (intervention,) if include_intervention else ()
+
     if len(adjustment_set) == 0:
-        return _conditional(target, (intervention,) + observed)
+        return _conditional(target, cond_prefix + observed)
 
     # Allocate fresh bind names and build one ValuedAtom per Z atom.
     taken: set[str] = set()
@@ -99,7 +112,7 @@ def backdoor_formula(
     z_valueds = tuple(vv for (_, _, vv) in binds)
 
     # Main conditional: P(target | intervention, Z1=z1, ..., Zk=zk, observed)
-    conditional = _conditional(target, (intervention,) + z_valueds + observed)
+    conditional = _conditional(target, cond_prefix + z_valueds + observed)
 
     # Chain-rule factors for P(Z1,...,Zk | observed):
     #   P(Zi=zi | Z1=z1, ..., Z_{i-1}=z_{i-1}, observed)
