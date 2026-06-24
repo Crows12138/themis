@@ -182,6 +182,84 @@ def test_identify_verdict_matches_textbook(case):
         )
 
 
+# ===================================================== d-separation conformance
+# What If (Hernán-Robins), Chapter 6, Fine Point 6.1 (d-separation rules). Each
+# case is an assoc query; the book states whether A and Y are (conditionally)
+# associated. Themis's structural assoc verdict (m-connected=True) must match.
+DSEP_CASES = [
+    # (name, nodes, directed (a,b), bidirected (a,b), left, right, given, assoc)
+    # --- Chapter 6, Fine Point 6.1 (d-separation rules) ---
+    ("fig6.4_collider_marginal", ["a", "l", "y"], [("a", "l"), ("y", "l")], [],
+     "a", "y", [], False),   # collider L blocks the only path
+    ("fig6.4_collider_given_L", ["a", "l", "y"], [("a", "l"), ("y", "l")], [],
+     "a", "y", ["l"], True),  # conditioning on the collider OPENS the path
+    ("fig6.3_confounding_marginal", ["l", "a", "y"], [("l", "a"), ("l", "y")], [],
+     "a", "y", [], True),    # open path A<-L->Y
+    ("fig6.3_confounding_given_L", ["l", "a", "y"], [("l", "a"), ("l", "y")], [],
+     "a", "y", ["l"], False),  # L (non-collider) blocks
+    ("fig6.5_mediator_marginal", ["a", "b", "y"], [("a", "b"), ("b", "y")], [],
+     "a", "y", [], True),
+    ("fig6.5_mediator_given_B", ["a", "b", "y"], [("a", "b"), ("b", "y")], [],
+     "a", "y", ["b"], False),  # mediator (non-collider) blocks
+    ("fig6.8_collider_descendant_given_C", ["a", "l", "y", "c"],
+     [("a", "l"), ("y", "l"), ("l", "c")], [], "a", "y", ["c"], True),  # desc of collider opens
+    # --- Chapter 8 (selection bias = conditioning on a collider) ---
+    ("fig8.1_selection_collider_given_C", ["a", "c", "y"],
+     [("a", "c"), ("y", "c")], [], "a", "y", ["c"], True),   # under null: opens
+    ("fig8.1_selection_marginal", ["a", "c", "y"],
+     [("a", "c"), ("y", "c")], [], "a", "y", [], False),
+    ("fig8.2_selection_descendant_given_S", ["a", "c", "y", "s"],
+     [("a", "c"), ("y", "c"), ("c", "s")], [], "a", "y", ["s"], True),
+    # Fig 8.3: collider C of A and L, with L<->Y (latent U common cause of L,Y);
+    # no A->Y. Conditioning on C opens A->C<-L<->Y (selection on a collider of
+    # treatment and a *cause* of the outcome).
+    ("fig8.3_selection_latent_given_C", ["a", "c", "l", "y"],
+     [("a", "c"), ("l", "c")], [("l", "y")], "a", "y", ["c"], True),
+    ("fig8.3_selection_latent_marginal", ["a", "c", "l", "y"],
+     [("a", "c"), ("l", "c")], [("l", "y")], "a", "y", [], False),
+]
+
+
+@pytest.mark.parametrize(
+    "case", DSEP_CASES, ids=lambda c: c[0],
+)
+def test_dseparation_verdict_matches_textbook(case):
+    name, nodes, edges, biedges, left, right, given, associated = case
+    program = _program(
+        nodes,
+        [_cause(a, b) for a, b in edges] + [_bi(a, b) for a, b in biedges],
+        {"kind": "query", "id": "q", "query": {
+            "kind": "assoc", "left": _atom(left), "right": _atom(right),
+            "given": [_atom(g) for g in given]}},
+    )
+    r = themis.run(program)["results"][0]
+    val = (r.get("structural_result") or {}).get("value")
+    assert val is associated, (
+        f"{name}: Themis assoc={val}, What If (Fine Point 6.1 / Ch 8) says "
+        f"associated={associated}"
+    )
+
+
+def test_effect_conditioning_on_collider_flags_selection_bias():
+    """What If Ch 8: conditioning an effect estimate on a collider C (common
+    effect of A and Y) induces selection bias. Themis must surface a
+    collider/selection gap, not silently return a biased estimand."""
+    program = _program(
+        ["a", "c", "y"],
+        [_cause("a", "y"), _cause("a", "c"), _cause("y", "c")],
+        {"kind": "query", "id": "q", "query": {
+            "kind": "effect",
+            "target": {"atom": _atom("y"), "value": True},
+            "intervention": {"atom": _atom("a"), "value": True},
+            "given": [{"atom": _atom("c"), "value": True}]}},
+    )
+    r = themis.run(program)["results"][0]
+    kinds = [g["kind"] for g in (r.get("data_gap_report") or {}).get("gaps", [])]
+    assert any("collider" in k or "selection" in k for k in kinds), (
+        f"conditioning on collider C should flag selection bias; got {kinds}"
+    )
+
+
 @pytest.mark.parametrize(
     "case", [c for c in CONFORMANCE_CASES if c.get("effect_factors")], ids=_ids,
 )
