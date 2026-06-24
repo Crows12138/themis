@@ -3264,15 +3264,21 @@ def _rule_m_separation_witness(
     z = _require_atom_set(inputs, "z", step_index, "m_separation_witness")
 
     connected = _verifier_is_m_connected(graph, bidir, x, y, z)
-    recomputed = not connected
     if isinstance(claimed_output, StructuralResult):
         claimed_bool = claimed_output.value
     else:
         claimed_bool = bool(claimed_output)
-    if recomputed != claimed_bool:
+    # The assoc StructuralResult.value is the ASSOCIATION truth (True =
+    # m-connected) — the SAME convention m_connection_witness verifies. The
+    # separation witness must therefore compare the recomputed connectivity
+    # DIRECTLY against the claim, not its negation. The earlier `not connected`
+    # flip compared separation-truth against association-truth and so rejected
+    # every correct "not associated" verdict whose blocking node is a collider
+    # formed by bidirected edges (textbook M-bias A<->L<->Y, What If Fig 7.4).
+    if connected != claimed_bool:
         raise RuleCheckFailed(
             f"m_separation_witness claimed {claimed_output!r}, recomputed "
-            f"{recomputed!r} for x={x.predicate}, y={y.predicate}, "
+            f"m-connected={connected!r} for x={x.predicate}, y={y.predicate}, "
             f"|z|={len(z)}, |bidir|={len(bidir)}",
             step_index=step_index, rule="m_separation_witness",
         )

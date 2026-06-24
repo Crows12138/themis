@@ -217,6 +217,15 @@ DSEP_CASES = [
      [("a", "c"), ("l", "c")], [("l", "y")], "a", "y", ["c"], True),
     ("fig8.3_selection_latent_marginal", ["a", "c", "l", "y"],
      [("a", "c"), ("l", "c")], [("l", "y")], "a", "y", [], False),
+    # --- Chapter 7 Fig 7.4: pure M-bias with the two confounding arms as
+    # latent common causes (bidirected). A<->L<->Y, L a collider. Marginally
+    # A and Y are independent (book: marginal exchangeability holds); the
+    # verifier must ACCEPT this "not associated" verdict (the m-separation
+    # witness runs through a bidirected collider).
+    ("fig7.4_mbias_bidirected_marginal", ["a", "l", "y"], [],
+     [("a", "l"), ("l", "y")], "a", "y", [], False),
+    ("fig7.4_mbias_bidirected_given_L", ["a", "l", "y"], [],
+     [("a", "l"), ("l", "y")], "a", "y", ["l"], True),  # conditioning opens
 ]
 
 
@@ -232,12 +241,17 @@ def test_dseparation_verdict_matches_textbook(case):
             "kind": "assoc", "left": _atom(left), "right": _atom(right),
             "given": [_atom(g) for g in given]}},
     )
-    r = themis.run(program)["results"][0]
+    out = themis.run(program)
+    r = out["results"][0]
     val = (r.get("structural_result") or {}).get("value")
     assert val is associated, (
         f"{name}: Themis assoc={val}, What If (Fine Point 6.1 / Ch 8) says "
         f"associated={associated}"
     )
+    # The independent verifier must accept the (correct) structural verdict —
+    # including "not associated" verdicts whose blocking node is a bidirected
+    # collider (the m_separation_witness path).
+    themis.verify(program, r)
 
 
 def test_effect_conditioning_on_collider_flags_selection_bias():

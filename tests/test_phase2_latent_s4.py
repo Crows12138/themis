@@ -19,7 +19,13 @@ from __future__ import annotations
 import pytest
 
 import themis
-from themis.types import Atom, ConstTerm, IdentifyQuery, Intervention
+from themis.types import (
+    Atom,
+    ConstTerm,
+    IdentifyQuery,
+    Intervention,
+    StructuralResult,
+)
 from themis.verifier import VerificationContext, VerificationError
 from themis.verifier.rules import (
     _verifier_is_m_connected,
@@ -217,7 +223,10 @@ def test_verify_rejects_tampered_m_separation_witness():
         graph=g, query=query, theta=None, bidirected=bidir,
     )
 
-    # X → Y directly + X ↔ Y — clearly m-connected.
+    # X → Y directly + X ↔ Y — clearly m-connected. The step output is the
+    # assoc StructuralResult (association-truth, value=connected), same
+    # convention m_connection_witness and the scheduler use; value=False claims
+    # "not associated / separated", which is false here, so the rule must reject.
     with pytest.raises(VerificationError):
         dispatch_rule(
             "m_separation_witness",
@@ -229,7 +238,7 @@ def test_verify_rejects_tampered_m_separation_witness():
                 "y": _a("y"),
                 "z": frozenset(),
             },
-            claimed_output=True,  # claims separated — false
+            claimed_output=StructuralResult(value=False),  # claims separated — false
             step_index=0,
             step_by_id={},
             step_output_by_id={},
@@ -252,7 +261,8 @@ def test_verify_accepts_correct_m_separation_witness():
     )
     ctx = VerificationContext(graph=g, query=query, theta=None, bidirected=bidir)
 
-    # X → M → Y: conditioning on M m-separates X and Y.
+    # X → M → Y: conditioning on M m-separates X and Y, so the assoc result is
+    # "not associated" — StructuralResult(value=False) — which the rule accepts.
     dispatch_rule(
         "m_separation_witness",
         ctx,
@@ -261,7 +271,7 @@ def test_verify_accepts_correct_m_separation_witness():
             "x": _a("x"), "y": _a("y"),
             "z": frozenset({_a("m")}),
         },
-        claimed_output=True,
+        claimed_output=StructuralResult(value=False),
         step_index=0,
         step_by_id={},
         step_output_by_id={},
