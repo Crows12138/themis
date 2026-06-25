@@ -1863,6 +1863,53 @@ def _derive_interventional_risks(
     return None, gap
 
 
+def _causation_observational_joint(
+    graph: nx.DiGraph,
+    theta: Theta,
+    x_atom: Atom,
+    y_atom: Atom,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> "tuple[dict[tuple[bool, bool], float] | None, tuple[MissingItem, ...], dict]":
+    """Recover the four P(X=x, Y=y) cells from theta.
+
+    Graph-faithful ancestral BN factorization first — this handles
+    measured confounders (Z→X, Z→Y, X→Y), where the X/Y marginals
+    P(X) / P(Y|X) are NOT directly in theta and must be obtained by
+    summing over Z. Local P(X)·P(Y|X) chain-rule fallback second: the
+    confounded-but-experimental case (drug example) supplies those
+    marginals directly, and the ancestral factorization conservatively
+    bails when a bidirected bow arc touches the ancestry of {X, Y}.
+    """
+    joint, missing, skeletons = (
+        _counterfactual_joint_xy_via_ancestral_factorization(
+            graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
+        )
+    )
+    if joint is not None or missing:
+        return joint, tuple(missing), skeletons
+
+    missing_items: list[MissingItem] = []
+    skel: dict = {}
+    cells: dict[tuple[bool, bool], float] = {}
+    for x_val in (True, False):
+        for y_val in (True, False):
+            try:
+                cells[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
+                    theta, x_atom=x_atom, x_val=x_val,
+                    y_atom=y_atom, y_val=y_val,
+                )
+            except InsufficientTheta as exc:
+                item = _missing_parameter_from_key(exc.missing_key, exc.reason)
+                if item.name not in {m.name for m in missing_items}:
+                    missing_items.append(item)
+                    if exc.missing_key is not None:
+                        skel[item.name] = _skeleton_for_parameter(exc.missing_key)
+    if missing_items:
+        return None, tuple(missing_items), skel
+    return cells, (), {}
+
+
 def _dispatch_causation(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -1923,23 +1970,9 @@ def _dispatch_causation(
             )
 
     # 3. Observational joint P(X, Y) — four cells from theta.
-    joint: dict[tuple[bool, bool], float] = {}
-    joint_missing: list[MissingItem] = []
-    joint_skeletons: dict = {}
-    for x_val in (True, False):
-        for y_val in (True, False):
-            try:
-                joint[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
-                    theta, x_atom=x_atom, x_val=x_val, y_atom=y_atom, y_val=y_val,
-                )
-            except InsufficientTheta as exc:
-                item = _missing_parameter_from_key(exc.missing_key, exc.reason)
-                if item.name not in {m.name for m in joint_missing}:
-                    joint_missing.append(item)
-                    if exc.missing_key is not None:
-                        joint_skeletons[item.name] = _skeleton_for_parameter(
-                            exc.missing_key
-                        )
+    joint, joint_missing, joint_skeletons = _causation_observational_joint(
+        graph, theta, x_atom, y_atom, bidirected=bidirected,
+    )
     if joint_missing:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,

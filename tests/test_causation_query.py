@@ -63,6 +63,60 @@ def test_exogenous_monotonic_derives_risks_and_matches_analytic():
     kernel.verify(prog, r)  # independent audit accepts
 
 
+def test_measured_confounder_derives_risks_via_backdoor():
+    """Z→X, Z→Y, X→Y: do(X) is confounded but identifiable via backdoor
+    on the measured Z. The observational joint needs ancestral BN
+    factorization (P(X)/P(Y|X) marginals aren't directly in theta), and
+    the interventional risks come from the g-formula over Z. Regression:
+    an earlier joint-recovery that only did local P(X)·P(Y|X) chain-rule
+    failed this whole family with a spurious data gap."""
+    Z = {"predicate": "sick", "args": [{"type": "const", "name": "p"}]}
+    prog = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "statements": [
+            {"kind": "cause", "from": Z, "to": X},
+            {"kind": "cause", "from": Z, "to": Y},
+            {"kind": "cause", "from": X, "to": Y},
+            {"kind": "probability", "target": {"atom": Z, "value": True},
+             "given": [], "value": 0.5},
+            {"kind": "probability", "target": {"atom": X, "value": True},
+             "given": [{"atom": Z, "value": True}], "value": 0.8},
+            {"kind": "probability", "target": {"atom": X, "value": True},
+             "given": [{"atom": Z, "value": False}], "value": 0.2},
+            {"kind": "probability", "target": {"atom": Y, "value": True},
+             "given": [{"atom": X, "value": True}, {"atom": Z, "value": True}],
+             "value": 0.6},
+            {"kind": "probability", "target": {"atom": Y, "value": True},
+             "given": [{"atom": X, "value": True}, {"atom": Z, "value": False}],
+             "value": 0.3},
+            {"kind": "probability", "target": {"atom": Y, "value": True},
+             "given": [{"atom": X, "value": False}, {"atom": Z, "value": True}],
+             "value": 0.5},
+            {"kind": "probability", "target": {"atom": Y, "value": True},
+             "given": [{"atom": X, "value": False}, {"atom": Z, "value": False}],
+             "value": 0.1},
+            {"kind": "query", "id": "q1",
+             "query": {"kind": "causation", "cause": X, "effect": Y,
+                       "monotonic": True}},
+        ],
+    }
+    r = kernel.run(prog)["results"][0]
+    assert r["status"] == "counterfactual_solved"
+    c = r["extensions"]["causation"]
+    assert c["interventional_risk_provenance"] == "derived_identification"
+    # Backdoor g-formula: P(Y=1|do(X=1))=Σ_z P(Y=1|X=1,z)P(z)=0.45; do(X=0)=0.30.
+    assert abs(c["p_y_do_x1"] - 0.45) < 1e-9
+    assert abs(c["p_y_do_x0"] - 0.30) < 1e-9
+    # Joint via ancestral factorization (summing over Z).
+    assert abs(c["observational_joint"]["p_x1_y1"] - 0.27) < 1e-9
+    # Monotone points.
+    assert abs(c["pns"]["point"] - 0.15) < 1e-9
+    assert abs(c["pn"]["point"] - (0.06 / 0.27)) < 1e-9
+    assert abs(c["ps"]["point"] - (0.09 / 0.41)) < 1e-9
+    kernel.verify(prog, r)
+
+
 def test_non_monotonic_returns_bounds_not_points():
     prog = _prog({"kind": "causation", "cause": X, "effect": Y})
     r = kernel.run(prog)["results"][0]

@@ -4026,12 +4026,24 @@ def _rule_probabilities_of_causation_tian_pearl(
             )
 
     # 2. Recompute the joint from theta independently — must match declared.
+    #    Ancestral BN factorization first (measured confounders), local
+    #    chain-rule fallback second; mirrors the producer's recovery.
+    recomputed_joint = _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
+        ctx.graph, ctx.theta,
+        x_atom=x_atom, y_atom=y_atom, bidirected=ctx.bidirected,
+        step_index=step_index, rule=rule,
+    )
+    if recomputed_joint is None:
+        recomputed_joint = {
+            (xv, yv): _counterfactual_joint_cell_for_verifier(
+                ctx.theta,
+                x_atom=x_atom, x_val=xv, y_atom=y_atom, y_val=yv,
+                step_index=step_index, rule=rule,
+            )
+            for xv in (False, True) for yv in (False, True)
+        }
     for (xv, yv), declared in declared_cells.items():
-        recomputed = _counterfactual_joint_cell_for_verifier(
-            ctx.theta,
-            x_atom=x_atom, x_val=xv, y_atom=y_atom, y_val=yv,
-            step_index=step_index, rule=rule,
-        )
+        recomputed = recomputed_joint[(xv, yv)]
         if abs(declared - recomputed) > _NUMERIC_TOL:
             raise RuleCheckFailed(
                 f"{rule}: declared joint cell ({xv}, {yv})={declared} != "
