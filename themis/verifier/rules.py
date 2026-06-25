@@ -4068,6 +4068,26 @@ def _rule_probabilities_of_causation_tian_pearl(
                 step_index=step_index, rule=rule,
             )
         exp_lo, exp_hi, exp_pt = expected[qty]
+        # Invariant (matches the codebase convention for other interval
+        # quantities): a valid PN/PS/PNS interval has lower <= upper, and any
+        # point lies within it. An inverted interval (lower > upper) is the
+        # signature of infeasible inputs — interventional risks that
+        # contradict the observational joint; refuse to certify it.
+        if exp_lo > exp_hi + _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"{rule}: {qty} interval is inverted (lower {exp_lo} > upper "
+                f"{exp_hi}) — the interventional risks are infeasible w.r.t. "
+                f"the observational joint",
+                step_index=step_index, rule=rule,
+            )
+        if exp_pt is not None and not (
+            exp_lo - _NUMERIC_TOL <= exp_pt <= exp_hi + _NUMERIC_TOL
+        ):
+            raise RuleCheckFailed(
+                f"{rule}: {qty} point {exp_pt} lies outside its bounds "
+                f"[{exp_lo}, {exp_hi}] — inputs are infeasible",
+                step_index=step_index, rule=rule,
+            )
         if (
             abs(float(claimed_q.get("lower")) - exp_lo) > _NUMERIC_TOL
             or abs(float(claimed_q.get("upper")) - exp_hi) > _NUMERIC_TOL
@@ -4158,11 +4178,20 @@ def _rule_scm_abduction_action_prediction(
             step_index=step_index, rule=rule,
         )
 
-    relevant = set(nx.ancestors(graph, y_atom)) | {y_atom}
+    # Relevant set on the MUTILATED graph (do(X) severs X's in-edges) —
+    # must match the producer, or a correct counterfactual whose factual
+    # unit omits an intervention-severed upstream variable would be
+    # wrongly rejected.
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(graph.in_edges(x_atom)))
+    relevant = set(nx.ancestors(mutilated, y_atom)) | {y_atom}
 
-    # Rebuild the structural equations from edge coefficients.
+    # Rebuild the structural equations from edge coefficients; skip the
+    # intervened variable (its equation is replaced, no U_X abducted).
     equations: dict = {}
     for v in relevant:
+        if v == x_atom:
+            continue
         terms: list[tuple] = []
         for p in graph.predecessors(v):
             src = graph.edges[p, v].get("source")

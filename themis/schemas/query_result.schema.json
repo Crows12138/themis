@@ -531,6 +531,13 @@
             "cde_mediator_reference": {},
             "reference": { "type": "string" }
           }
+        },
+        "four_way_unavailable": {
+          "type": "object",
+          "description": "Present instead of four_way_decomposition when the difference-scale four-way is invalid for the data shape (continuous mediator under a nonlinear/logit outcome). `reason` explains why.",
+          "additionalProperties": false,
+          "required": ["reason"],
+          "properties": { "reason": { "type": "string" } }
         }
       }
     },

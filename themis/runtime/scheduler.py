@@ -2004,6 +2004,49 @@ def _dispatch_causation(
         p_y_do_x1, p_y_do_x0 = risks
         risk_provenance = "derived_identification"
 
+    # 4b. Feasibility: the interventional risks must be consistent with the
+    # observational joint. By consistency P(y_x) = P(x, y) + P(y_x, x') with
+    # P(y_x, x') ∈ [0, P(x')], so P(y_x) ∈ [P(x,y), P(x,y)+P(x')] (and the
+    # mirror for P(y_{x'})). Infeasible user-supplied experimental risks
+    # otherwise make the Tian-Pearl bounds invert (lower > upper) — an empty
+    # interval that silently signals the two data sources contradict. Derived
+    # risks are always feasible; the check still guards them defensively.
+    p_x1 = joint[(True, True)] + joint[(True, False)]
+    p_x0 = joint[(False, True)] + joint[(False, False)]
+    _TOL = 1e-9
+    infeasible: list[str] = []
+    lo1, hi1 = joint[(True, True)], joint[(True, True)] + p_x0
+    if not (lo1 - _TOL <= p_y_do_x1 <= hi1 + _TOL):
+        infeasible.append(
+            f"P(Y=1|do(X=1))={p_y_do_x1:.6g} must lie in "
+            f"[P(X=1,Y=1), P(X=1,Y=1)+P(X=0)] = [{lo1:.6g}, {hi1:.6g}]"
+        )
+    lo0, hi0 = joint[(False, True)], joint[(False, True)] + p_x1
+    if not (lo0 - _TOL <= p_y_do_x0 <= hi0 + _TOL):
+        infeasible.append(
+            f"P(Y=1|do(X=0))={p_y_do_x0:.6g} must lie in "
+            f"[P(X=0,Y=1), P(X=0,Y=1)+P(X=1)] = [{lo0:.6g}, {hi0:.6g}]"
+        )
+    if infeasible:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.CAUSATION,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.ASSUMPTION,
+                    name="causation:interventional_risks_infeasible",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "the interventional risks contradict the observational "
+                        "joint (consistency constraint), so no SCM produces "
+                        "both — PN/PS/PNS are undefined. "
+                        + "; ".join(infeasible)
+                    ),
+                ),
+            ),
+        )
+
     # 5. Tian-Pearl PN / PS / PNS.
     poc = probabilities_of_causation(
         p_x1_y1=joint[(True, True)], p_x1_y0=joint[(True, False)],
@@ -2125,18 +2168,27 @@ def _dispatch_scm_counterfactual(
             ),
         )
 
-    # Relevant set: the ancestors of the target plus the target itself
-    # (parent-closed). The intervention variable, if not among them, has
-    # no path to the target and the counterfactual equals the factual.
-    relevant = set(nx.ancestors(graph, y_atom)) | {y_atom}
+    # Relevant set on the MUTILATED graph: do(X) severs every edge INTO X
+    # (Pearl's action step), so a variable that reached the target solely
+    # through X is no longer relevant — its observation and incoming
+    # coefficients must NOT be demanded. Computing ancestors on the
+    # original graph over-demands exactly that severed upstream.
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(graph.in_edges(x_atom)))
+    relevant = set(nx.ancestors(mutilated, y_atom)) | {y_atom}
 
     obs_map = _scm_observation_map(program)
     missing: list[MissingItem] = []
 
     # Build the structural equations from edge coefficients; flag any
-    # edge on the relevant subgraph that lacks a declared coefficient.
+    # edge on the relevant subgraph that lacks a declared coefficient. The
+    # intervened variable is skipped — its equation is replaced by the
+    # constant, so we never abduct its exogenous term and its incoming
+    # edges/parents are irrelevant.
     equations: dict = {}
     for v in relevant:
+        if v == x_atom:
+            continue
         terms: list[tuple] = []
         for p in graph.predecessors(v):
             src = graph.edges[p, v].get("source")

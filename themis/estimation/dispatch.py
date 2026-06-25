@@ -456,8 +456,12 @@ def _try_mediation_estimate(
     # VanderWeele 2014 four-way split (CDE + INTref + INTmed + PIE) of the
     # same total effect. Surfaced alongside NDE/NIE so the renderer can
     # report "how much is neither / only interaction / both / only
-    # mediation". PNDE=CDE+INTref and TNIE=INTmed+PIE reconcile exactly
-    # with the nde/nie above (same fitted models).
+    # mediation". PNDE=CDE+INTref and TNIE=INTmed+PIE reconcile EXACTLY
+    # with the nde/nie above on the LINEAR outcome path; on the logit path
+    # they differ slightly because the existing nde/nie use a Monte-Carlo
+    # Normal approximation over the mediator while the four-way uses the
+    # exact m∈{0,1} cell means. None (with a reason) when the difference-
+    # scale decomposition is invalid (continuous mediator + logit outcome).
     fw = med_estimate.four_way
     if fw is not None:
         def _comp(c) -> dict:
@@ -481,6 +485,10 @@ def _try_mediation_estimate(
                 "VanderWeele 2014 (Explanation in Causal Inference Ch.14); "
                 "TE = CDE + INTref + INTmed + PIE"
             ),
+        }
+    elif med_estimate.four_way_unavailable_reason is not None:
+        result["numeric_estimate"]["four_way_unavailable"] = {
+            "reason": med_estimate.four_way_unavailable_reason,
         }
     _attach_precision_budget_decomposition(result["numeric_estimate"])
     _attach_e_value_if_binary(

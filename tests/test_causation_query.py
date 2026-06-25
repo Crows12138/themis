@@ -172,6 +172,33 @@ def test_confounded_without_experimental_risks_is_a_gap():
     assert "causation:interventional_risk_unavailable" in names
 
 
+def test_infeasible_experimental_risks_is_a_gap():
+    """Regression (stress-test find): user-supplied experimental risks that
+    contradict the observational joint (P(y_x) outside [P(x,y), P(x,y)+P(x')])
+    must be reported as a gap, not silently turned into an inverted
+    [lower>upper] PN/PS/PNS interval."""
+    prog = _prog(
+        {"kind": "causation", "cause": X, "effect": Y,
+         "experimental_risk_treated": 1.0, "experimental_risk_control": 0.0},
+        bidirected=True, p_x1=0.5, py_x1=0.5, py_x0=0.5,
+    )
+    r = kernel.run(prog)["results"][0]
+    assert r["status"] == "needs_investigation"
+    assert any(m["name"] == "causation:interventional_risks_infeasible"
+               for m in r["missing_information"])
+
+
+def test_verify_rejects_inverted_bounds_from_tampered_risk(solved):
+    """The verifier independently recomputes the Tian-Pearl bounds from the
+    declared inputs; an interventional risk tampered to an infeasible value
+    inverts the bounds, which the lower<=upper invariant must reject."""
+    prog, r = solved
+    rT = copy.deepcopy(r)
+    rT["derivation"]["steps"][-1]["inputs"]["p_y_do_x1"] = 1.0  # infeasible
+    with pytest.raises(Exception):
+        kernel.verify(prog, rT)
+
+
 def test_non_binary_cause_is_outside_language():
     Xc = {"predicate": "dose", "args": [{"type": "const", "name": "p"}]}
     prog = {

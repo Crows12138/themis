@@ -118,10 +118,13 @@ class MediationEstimate:
     outcome: str
     n_rep: int
     # VanderWeele 2014 four-way split of the same total effect. Computed
-    # from the same fitted (interaction-aware) models; None only if the
-    # decomposition could not be formed (it always can for the supported
-    # binary-treatment scope, so this stays populated in practice).
+    # from the same fitted (interaction-aware) models. None when the
+    # difference-scale decomposition is INVALID for this data shape — a
+    # continuous mediator under a nonlinear (logit) outcome, where the
+    # m∈{0,1} plug-in extrapolates and the components no longer sum to the
+    # total effect. ``four_way_unavailable_reason`` says why when None.
     four_way: "FourWayDecomposition | None" = None
+    four_way_unavailable_reason: str | None = None
 
 
 def estimate_mediation(
@@ -252,21 +255,41 @@ def estimate_mediation(
             q0=_em(0.0), q1=_em(1.0),
         )
 
+    # The difference-scale four-way decomposition evaluates the outcome
+    # model at the mediator grid m∈{0,1}. That is exact for a BINARY
+    # mediator (any outcome) and for a LINEAR outcome (any mediator, the
+    # m=0/1 slope is the true per-unit effect), but for a CONTINUOUS
+    # mediator under a NONLINEAR (logit) outcome it extrapolates off the
+    # mediator's support — the components no longer sum to the total
+    # effect (VanderWeele's ratio-scale decomposition, 14.5, is the right
+    # tool there and is deferred). Gate it rather than emit wrong numbers.
+    mediator_is_binary = set(
+        np.unique(fit_df[mediator].to_numpy())
+    ) <= {0.0, 1.0}
+    four_way_valid = mediator_is_binary or resolved == "linear"
+    four_way_unavailable_reason = None if four_way_valid else (
+        "four-way decomposition skipped: a continuous mediator under a "
+        "nonlinear (logit) outcome needs the ratio-scale decomposition "
+        "(VanderWeele 2015 §14.5), not the difference-scale m∈{0,1} "
+        "plug-in (which would extrapolate off the mediator's support)"
+    )
+
     om_point, mm_point = _fit(fit_df)
     nde_p, nie_p = _nde_nie(om_point, mm_point, fit_df)
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
 
-    fw_point = four_way_decomposition(
-        **_four_way_inputs(om_point, mm_point, fit_df)
+    fw_point = (
+        four_way_decomposition(**_four_way_inputs(om_point, mm_point, fit_df))
+        if four_way_valid else None
     )
     fw_pm_p = (
         (fw_point.intmed + fw_point.pie) / fw_point.te
-        if fw_point.te != 0 else float("nan")
+        if fw_point is not None and fw_point.te != 0 else float("nan")
     )
     fw_pi_p = (
         (fw_point.intref + fw_point.intmed) / fw_point.te
-        if fw_point.te != 0 else float("nan")
+        if fw_point is not None and fw_point.te != 0 else float("nan")
     )
 
     # Bootstrap CIs: resample rows with replacement, refit both models,
@@ -289,8 +312,9 @@ def estimate_mediation(
         try:
             om_b, mm_b = _fit(bframe)
             nb, ib = _nde_nie(om_b, mm_b, bframe)
-            fwb = four_way_decomposition(
-                **_four_way_inputs(om_b, mm_b, bframe)
+            fwb = (
+                four_way_decomposition(**_four_way_inputs(om_b, mm_b, bframe))
+                if four_way_valid else None
             )
         except Exception:
             continue
@@ -299,17 +323,18 @@ def estimate_mediation(
         nie_s.append(ib)
         te_s.append(tb)
         pm_s.append(ib / tb if tb != 0 else float("nan"))
-        cde_s.append(fwb.cde)
-        intref_s.append(fwb.intref)
-        intmed_s.append(fwb.intmed)
-        pie_s.append(fwb.pie)
-        fwte_s.append(fwb.te)
-        fw_pm_s.append(
-            (fwb.intmed + fwb.pie) / fwb.te if fwb.te != 0 else float("nan")
-        )
-        fw_pi_s.append(
-            (fwb.intref + fwb.intmed) / fwb.te if fwb.te != 0 else float("nan")
-        )
+        if fwb is not None:
+            cde_s.append(fwb.cde)
+            intref_s.append(fwb.intref)
+            intmed_s.append(fwb.intmed)
+            pie_s.append(fwb.pie)
+            fwte_s.append(fwb.te)
+            fw_pm_s.append(
+                (fwb.intmed + fwb.pie) / fwb.te if fwb.te != 0 else float("nan")
+            )
+            fw_pi_s.append(
+                (fwb.intref + fwb.intmed) / fwb.te if fwb.te != 0 else float("nan")
+            )
 
     half = (1.0 - ci_level) / 2.0
 
@@ -331,7 +356,7 @@ def estimate_mediation(
         lo, hi = _ci(samples, point)
         return ComponentEstimate(point=point, ci_lower=lo, ci_upper=hi)
 
-    four_way = FourWayDecomposition(
+    four_way = None if fw_point is None else FourWayDecomposition(
         cde=_comp(cde_s, fw_point.cde),
         intref=_comp(intref_s, fw_point.intref),
         intmed=_comp(intmed_s, fw_point.intmed),
@@ -363,6 +388,7 @@ def estimate_mediation(
         outcome=outcome,
         n_rep=n_rep,
         four_way=four_way,
+        four_way_unavailable_reason=four_way_unavailable_reason,
     )
 
 

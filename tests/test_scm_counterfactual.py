@@ -117,6 +117,58 @@ def test_missing_observation_is_a_gap():
                for m in r["missing_information"])
 
 
+# ============================================ mutilation (stress-test find)
+
+
+def _atom(p):
+    return {"predicate": p, "args": [{"type": "const", "name": "u"}]}
+
+
+def test_intervention_severed_upstream_is_not_demanded():
+    """Regression: do(X) severs edges INTO X, so a variable Z that reaches
+    the target only through X is irrelevant and must NOT be demanded. Z→X→Y,
+    do(X=10): Uy=20−3·5=5, Y=3·10+5=35, independent of Z (unobserved)."""
+    prog = {
+        "version": "0.1", "domain": {"objects": [{"kind": "object", "name": "u"}]},
+        "statements": [
+            {"kind": "cause", "from": _atom("Z"), "to": _atom("X"), "coefficient": 2.0},
+            {"kind": "cause", "from": _atom("X"), "to": _atom("Y"), "coefficient": 3.0},
+            {"kind": "observation", "atom": _atom("X"), "value": 5.0},
+            {"kind": "observation", "atom": _atom("Y"), "value": 20.0},
+            {"kind": "query", "id": "q1", "query": {
+                "kind": "scm_counterfactual",
+                "intervention": {"atom": _atom("X"), "value": 10.0},
+                "target": _atom("Y")}},
+        ],
+    }
+    r = kernel.run(prog)["results"][0]
+    assert r["status"] == "counterfactual_solved"
+    assert abs(r["numeric_result"]["value"] - 35.0) < 1e-9
+    kernel.verify(prog, r)   # verifier must also mutilate → accept
+
+
+def test_upstream_with_second_live_path_is_still_demanded():
+    """Boundary: if Z also has Z→Y (a path NOT through X), do(X) does not
+    sever it, so Z stays relevant and must be demanded."""
+    prog = {
+        "version": "0.1", "domain": {"objects": [{"kind": "object", "name": "u"}]},
+        "statements": [
+            {"kind": "cause", "from": _atom("Z"), "to": _atom("X"), "coefficient": 2.0},
+            {"kind": "cause", "from": _atom("Z"), "to": _atom("Y"), "coefficient": 1.5},
+            {"kind": "cause", "from": _atom("X"), "to": _atom("Y"), "coefficient": 3.0},
+            {"kind": "observation", "atom": _atom("X"), "value": 5.0},
+            {"kind": "observation", "atom": _atom("Y"), "value": 20.0},
+            {"kind": "query", "id": "q1", "query": {
+                "kind": "scm_counterfactual",
+                "intervention": {"atom": _atom("X"), "value": 10.0},
+                "target": _atom("Y")}},
+        ],
+    }
+    r = kernel.run(prog)["results"][0]
+    assert r["status"] == "needs_investigation"
+    assert any(m["name"] == "observation:Z(u)" for m in r["missing_information"])
+
+
 # ============================================ verifier independence (tamper)
 
 

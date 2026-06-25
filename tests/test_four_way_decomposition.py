@@ -102,6 +102,39 @@ def test_estimator_recovers_known_components():
     assert abs(fw4.additive_interaction_point - 2.0) < 0.08
 
 
+def test_continuous_mediator_logit_outcome_is_gated_not_wrong():
+    """Regression (stress-test find): a continuous mediator under a logit
+    outcome makes the m∈{0,1} plug-in extrapolate off the mediator's
+    support — four_way.te would NOT equal the total effect. The estimator
+    must skip it (four_way None + a reason) rather than emit wrong numbers."""
+    rng = np.random.default_rng(21)
+    n = 30000
+    A = rng.integers(0, 2, n).astype(float)
+    M = 2.0 + 3.0 * A + rng.standard_normal(n)         # continuous, off [0,1]
+    lin = -3.0 + 0.5 * A + 0.6 * M + 0.3 * A * M
+    Y = (rng.random(n) < 1 / (1 + np.exp(-lin))).astype(bool)
+    est = estimate_mediation(pd.DataFrame({"A": A, "M": M, "Y": Y}),
+                             treatment="A", outcome="Y", mediator="M",
+                             n_rep=10, random_state=1)
+    assert est.four_way is None
+    assert est.four_way_unavailable_reason is not None
+
+
+def test_continuous_mediator_linear_outcome_is_valid():
+    """The same continuous mediator under a LINEAR outcome IS valid — the
+    m=0/1 slope is the exact per-unit effect, so te matches te_point."""
+    rng = np.random.default_rng(5)
+    n = 30000
+    A = rng.integers(0, 2, n).astype(float)
+    M = 2.0 + 3.0 * A + rng.standard_normal(n)
+    Y = 0.5 * A + 0.6 * M + 0.3 * A * M + rng.standard_normal(n) * 0.5
+    est = estimate_mediation(pd.DataFrame({"A": A, "M": M, "Y": Y}),
+                             treatment="A", outcome="Y", mediator="M",
+                             n_rep=10, random_state=1)
+    assert est.four_way is not None
+    assert abs(est.four_way.te.point - est.te_point) < 1e-6
+
+
 def test_estimator_bridge_to_nde_nie_is_exact():
     """The four-way components must aggregate back to the independently
     computed NDE/NIE: PNDE=CDE+INTref == nde_point, TNIE=INTmed+PIE ==
