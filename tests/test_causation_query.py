@@ -261,6 +261,18 @@ def test_verify_rejects_tampered_headline(solved):
         kernel.verify(prog, rT)
 
 
+def test_verify_rejects_extensions_only_tamper(solved):
+    """Regression (stress-test find): PS/PNS surface to a reader only via
+    extensions.causation (the headline is just PN). Tampering that display
+    copy while leaving the audited derivation intact must NOT pass —
+    verify cross-checks extensions against the verified envelope."""
+    prog, r = solved
+    rT = copy.deepcopy(r)
+    rT["extensions"]["causation"]["ps"]["point"] = 0.99   # derivation untouched
+    with pytest.raises(Exception):
+        kernel.verify(prog, rT)
+
+
 def test_verify_rejects_phantom_point_when_non_monotonic(solved):
     """Flipping monotonic to False while keeping a point must be caught —
     the quantity is not point-identified without monotonicity."""

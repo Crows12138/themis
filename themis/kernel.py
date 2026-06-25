@@ -624,6 +624,66 @@ def _decode_numeric_result_json(d: dict) -> NumericResult:
     )
 
 
+def _verify_causation_extensions_match(result: dict, derivation) -> None:
+    """Assert ``result.extensions.causation`` agrees with the derivation
+    envelope (the dict output of the single
+    ``probabilities_of_causation_tian_pearl`` step) that
+    ``verify_causation`` already audited. PS/PNS surface to a reader only
+    via extensions, so a tamper there must not pass silently.
+
+    Skips quietly when extensions carry no causation block (nothing to
+    cross-check). Raises ``VerificationError`` on any numeric divergence.
+    """
+    ext = (result.get("extensions") or {}).get("causation")
+    if ext is None:
+        return
+    env = derivation[-1].output
+    if not isinstance(env, dict):
+        raise VerificationError(
+            "causation derivation envelope is not a dict; cannot cross-check "
+            "extensions",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    tol = 1e-9
+
+    def _num_eq(a, b) -> bool:
+        return a is not None and b is not None and abs(float(a) - float(b)) <= tol
+
+    def _fail() -> None:
+        raise VerificationError(
+            "extensions.causation does not match the verified derivation "
+            "envelope (display copy diverges from the audited answer)",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+    for q in ("pn", "ps", "pns"):
+        a, b = ext.get(q), env.get(q)
+        if not isinstance(a, dict) or not isinstance(b, dict):
+            _fail()
+        if not _num_eq(a.get("lower"), b.get("lower")):
+            _fail()
+        if not _num_eq(a.get("upper"), b.get("upper")):
+            _fail()
+        if ("point" in a) != ("point" in b):
+            _fail()
+        if "point" in a and not _num_eq(a.get("point"), b.get("point")):
+            _fail()
+    for k in ("p_y_do_x1", "p_y_do_x0"):
+        if not _num_eq(ext.get(k), env.get(k)):
+            _fail()
+    if bool(ext.get("monotonic")) != bool(env.get("monotonic")):
+        _fail()
+    if ext.get("interventional_risk_provenance") != env.get(
+        "interventional_risk_provenance"
+    ):
+        _fail()
+    ja = ext.get("observational_joint") or {}
+    jb = env.get("observational_joint") or {}
+    for k in ("p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"):
+        if not _num_eq(ja.get(k), jb.get(k)):
+            _fail()
+
+
 def verify(program: dict | str | bytes, result: dict) -> None:
     """Independently re-verify one result against its source program.
 
@@ -767,6 +827,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             )
         claimed = _decode_numeric_result_json(result["numeric_result"])
         verify_causation(derivation, ctx, claimed)
+        # The consumer-facing extensions.causation copy carries PS/PNS,
+        # which are answer-grade numbers a reader sees only there (the
+        # headline numeric_result is just PN). Cross-check it against the
+        # derivation envelope that verify_causation just independently
+        # audited, so a tamper of the display copy alone cannot pass.
+        _verify_causation_extensions_match(result, derivation)
     elif kind == "scm_counterfactual":
         if "numeric_result" not in result:
             raise ValueError(
