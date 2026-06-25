@@ -281,6 +281,54 @@ def test_dseparation_verdict_matches_textbook(case):
     themis.verify(program, r)
 
 
+def test_heart_transplant_standardization_matches_book():
+    """NUMERIC conformance — What If §2.3, the heart-transplant standardization.
+    Data (Table 2.2): Pr[L=1]=0.6; within each L stratum the death risk is the
+    same for treated and untreated (Pr[Y=1|L=0,A]=1/4, Pr[Y=1|L=1,A]=2/3), so
+    there is no causal effect. The book standardizes to
+    Pr[Y^{a=1}=1] = Pr[Y^{a=0}=1] = 1/4·0.4 + 2/3·0.6 = 0.5. Themis's back-door
+    g-formula must compute exactly that — testing the NUMERIC engine, not just
+    structural identification."""
+    def _p(tp, tv, given, val):
+        return {"kind": "probability",
+                "target": {"atom": _atom(tp), "value": tv},
+                "given": [{"atom": _atom(g), "value": v} for g, v in given],
+                "value": val}
+
+    def _heart(a_value):
+        return {
+            "version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "me"}]},
+            "statements": [
+                _var("l"), _var("a"), _var("y"),
+                _cause("l", "a"), _cause("l", "y"), _cause("a", "y"),
+                _p("l", True, [], 0.6), _p("l", False, [], 0.4),
+                _p("y", True, [("a", True), ("l", False)], 0.25),
+                _p("y", False, [("a", True), ("l", False)], 0.75),
+                _p("y", True, [("a", False), ("l", False)], 0.25),
+                _p("y", False, [("a", False), ("l", False)], 0.75),
+                _p("y", True, [("a", True), ("l", True)], 2 / 3),
+                _p("y", False, [("a", True), ("l", True)], 1 / 3),
+                _p("y", True, [("a", False), ("l", True)], 2 / 3),
+                _p("y", False, [("a", False), ("l", True)], 1 / 3),
+                {"kind": "query", "id": "q", "query": {
+                    "kind": "effect",
+                    "target": {"atom": _atom("y"), "value": True},
+                    "intervention": {"atom": _atom("a"), "value": a_value},
+                    "given": []}},
+            ],
+        }
+
+    for a_value in (True, False):
+        prog = _heart(a_value)
+        r = themis.run(prog)["results"][0]
+        assert r["status"] == "numerically_solved", r["status"]
+        assert abs(r["numeric_result"]["value"] - 0.5) < 1e-9, (
+            f"do(A={a_value}): Themis={r['numeric_result']['value']}, book=0.5"
+        )
+        themis.verify(prog, r)
+
+
 def test_causal_and_surrogate_instruments_both_identify():
     """What If Ch 16 §16.1 (Fig 16.1 causal instrument, Fig 16.2 surrogate
     instrument): 'Both causal and surrogate instruments can be used for IV
