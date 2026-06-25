@@ -281,21 +281,27 @@ def _dispatch_identify(
     if engine.identifiable:
         return _build_identify_via_engine(stmt, graph, q, bidirected, engine)
 
-    if engine.hedge is not None and not q.given:
-        # Shpitser Line-5 hedge — a definitive, witnessed unidentifiability
-        # (the hedge witness verifier covers the unconditional shape).
-        return _build_identify_unidentifiable_via_tian(stmt, graph, q, engine)
-
-    # Engine declined without a definitive hedge (a Line-7 punt / the IV
-    # regime). Escalate to the assumption layer: an instrumental variable
-    # identifies P(Y|do(X)) only UNDER an extra assumption (monotonicity →
-    # LATE, linearity → Wald) — correctly outside nonparametric ID.
+    # Not nonparametrically point-identified — either a Shpitser Line-5 hedge
+    # or a Line-7 punt. The instrumental-variable layer is the assumption-laden
+    # ESCAPE from non-point-identifiability and applies in BOTH regimes: a valid
+    # instrument identifies P(Y|do(X)) under an extra assumption (monotonicity →
+    # LATE, linearity → Wald). Consult it before reporting a bare unidentifiable
+    # verdict, so a SURROGATE instrument (whose engine returns a definitive
+    # {x,y} hedge — What If Fig 16.2) is treated the same as a CAUSAL instrument
+    # (whose engine punts at Line-7 — Fig 16.1). iv_sets only returns instruments
+    # that satisfy the IV conditions, so the bow arc (no instrument) still falls
+    # through to the hedge verdict below.
     if not q.given:
         iv = structural_solver.iv_sets(graph, x, y, bidirected=bidirected)
         if iv:
             return _build_identify_via_iv(
                 stmt, graph, q, iv, bidirected=bidirected,
             )
+
+    if engine.hedge is not None and not q.given:
+        # Shpitser Line-5 hedge — a definitive, witnessed unidentifiability
+        # (the hedge witness verifier covers the unconditional shape).
+        return _build_identify_unidentifiable_via_tian(stmt, graph, q, engine)
 
     # Neither the complete nonparametric algorithm nor the IV escalation
     # reaches it — a genuine structural gap.

@@ -254,6 +254,31 @@ def test_dseparation_verdict_matches_textbook(case):
     themis.verify(program, r)
 
 
+def test_causal_and_surrogate_instruments_both_identify():
+    """What If Ch 16 §16.1 (Fig 16.1 causal instrument, Fig 16.2 surrogate
+    instrument): 'Both causal and surrogate instruments can be used for IV
+    estimation.' Themis must treat them the same — both IV-identified under
+    the instrumental assumption — not one IV and the other unidentifiable."""
+    causal = _program(  # Fig 16.1: Z->A, A->Y, A<->Y (latent A-Y confounder)
+        ["z", "a", "y"],
+        [_cause("z", "a"), _cause("a", "y"), _bi("a", "y")],
+        _identify("y", "a"),
+    )
+    surrogate = _program(  # Fig 16.2: A->Y, Z<->A (shared latent), A<->Y
+        ["z", "a", "y"],
+        [_cause("a", "y"), _bi("z", "a"), _bi("a", "y")],
+        _identify("y", "a"),
+    )
+    for name, prog in [("causal", causal), ("surrogate", surrogate)]:
+        r = themis.run(prog)["results"][0]
+        assert r["structural_result"]["value"] is True, f"{name} should identify"
+        ident = (r.get("extensions") or {}).get("identification") or {}
+        assert ident.get("pattern") == "instrumental_variable", (
+            f"{name}: pattern={ident.get('pattern')}, expected instrumental_variable"
+        )
+        themis.verify(prog, r)
+
+
 def test_effect_conditioning_on_collider_flags_selection_bias():
     """What If Ch 8: conditioning an effect estimate on a collider C (common
     effect of A and Y) induces selection bias. Themis must surface a
