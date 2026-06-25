@@ -67,6 +67,7 @@ from ..types import (
     QueryResult,
     QueryStatement,
     ResultStatus,
+    SCMCounterfactualQuery,
     StepRef,
     StructuralResult,
     ValuedAtom,
@@ -100,6 +101,7 @@ _QUERY_KIND_OF: dict[type, QueryKind] = {
     ProbabilityQuery: QueryKind.PROBABILITY,
     CounterfactualQuery: QueryKind.COUNTERFACTUAL,
     CausationQuery: QueryKind.CAUSATION,
+    SCMCounterfactualQuery: QueryKind.SCM_COUNTERFACTUAL,
 }
 
 
@@ -2069,6 +2071,174 @@ def _dispatch_causation(
     )
 
 
+def _scm_observation_map(program: Program) -> dict:
+    """Collect the unit's numeric factual values from the program's
+    ObservationStatements — Pearl's evidence E=e. Non-numeric
+    observations are skipped (a linear SCM is over real-valued nodes)."""
+    from ..types import ObservationStatement
+    obs: dict = {}
+    for s in program.statements:
+        if isinstance(s, ObservationStatement):
+            try:
+                obs[s.atom] = float(s.value)
+            except (TypeError, ValueError):
+                continue
+    return obs
+
+
+def _dispatch_scm_counterfactual(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    program: Program,
+) -> QueryResult:
+    """Deterministic linear-SCM counterfactual point (Pearl Primer §4.2:
+    abduction–action–prediction).
+
+    Builds the linear SCM from the path coefficients declared on the
+    cause edges, takes the unit's factual values from the program's
+    ObservationStatements, and computes the exact counterfactual value
+    the target would have taken under the intervention. Surfaces a
+    structured gap when the SCM is under-specified (an edge on the path
+    lacks a coefficient) or the unit is under-observed (a relevant
+    variable was not measured — abduction cannot recover its U).
+    """
+    from . import scm_counterfactual as scm
+
+    q: SCMCounterfactualQuery = stmt.query  # type: ignore[assignment]
+    x_atom = q.intervention.atom
+    y_atom = q.target
+
+    missing_atoms = [a for a in (x_atom, y_atom) if a not in graph]
+    if missing_atoms:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.SCM_COUNTERFACTUAL,
+            query_id=stmt.id,
+            missing_information=tuple(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"atom:{_atom_to_str(a)}",
+                    priority=Priority.HIGH,
+                    reason="scm_counterfactual query atom is not in the variable set V",
+                )
+                for a in missing_atoms
+            ),
+        )
+
+    # Relevant set: the ancestors of the target plus the target itself
+    # (parent-closed). The intervention variable, if not among them, has
+    # no path to the target and the counterfactual equals the factual.
+    relevant = set(nx.ancestors(graph, y_atom)) | {y_atom}
+
+    obs_map = _scm_observation_map(program)
+    missing: list[MissingItem] = []
+
+    # Build the structural equations from edge coefficients; flag any
+    # edge on the relevant subgraph that lacks a declared coefficient.
+    equations: dict = {}
+    for v in relevant:
+        terms: list[tuple] = []
+        for p in graph.predecessors(v):
+            src = graph.edges[p, v].get("source")
+            coef = getattr(src, "coefficient", None) if src is not None else None
+            if coef is None:
+                missing.append(MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"coefficient:{_atom_to_str(p)}->{_atom_to_str(v)}",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "linear-SCM counterfactual needs the path coefficient "
+                        f"on edge {_atom_to_str(p)} -> {_atom_to_str(v)}"
+                    ),
+                ))
+            else:
+                terms.append((p, float(coef)))
+        equations[v] = tuple(terms)
+
+    # The unit must be fully observed over the relevant set (abduction).
+    for v in relevant:
+        if v not in obs_map:
+            missing.append(MissingItem(
+                kind=MissingKind.OBSERVATION,
+                name=f"observation:{_atom_to_str(v)}",
+                priority=Priority.HIGH,
+                reason=(
+                    "deterministic counterfactual needs this variable observed "
+                    "for the unit so abduction can recover its exogenous term"
+                ),
+            ))
+
+    if missing:
+        # Deduplicate by name, keep order.
+        seen: set[str] = set()
+        deduped: list[MissingItem] = []
+        for m in missing:
+            if m.name not in seen:
+                seen.add(m.name)
+                deduped.append(m)
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.SCM_COUNTERFACTUAL,
+            query_id=stmt.id,
+            missing_information=tuple(deduped),
+            investigation_requests=investigation_pusher.push(tuple(deduped)),
+        )
+
+    topo = tuple(n for n in nx.topological_sort(graph) if n in relevant)
+    observed = {v: obs_map[v] for v in relevant}
+
+    result = scm.linear_scm_counterfactual(
+        equations=equations,
+        observed=observed,
+        intervention_var=x_atom,
+        intervention_value=float(q.intervention.value),
+        target=y_atom,
+        topo_order=topo,
+    )
+
+    numeric_result = NumericResult(value=result.target_value)
+    extensions = {
+        "scm_counterfactual": {
+            "target": _atom_to_str(y_atom),
+            "target_value": result.target_value,
+            "intervention": {
+                "variable": _atom_to_str(x_atom),
+                "value": float(q.intervention.value),
+            },
+            "abducted_noise": {
+                _atom_to_str(a): v for a, v in result.noise.items()
+            },
+            "counterfactual_values": {
+                _atom_to_str(a): v for a, v in result.cf_values.items()
+            },
+            "reference": (
+                "Pearl, Glymour & Jewell (2016) Primer §4.2 "
+                "abduction-action-prediction"
+            ),
+        }
+    }
+    derivation = (
+        DerivationStep(
+            rule="scm_abduction_action_prediction",
+            inputs={
+                "target": y_atom,
+                "intervention_var": x_atom,
+                "intervention_value": float(q.intervention.value),
+            },
+            output=numeric_result,
+            step_id="s1",
+        ),
+    )
+    return QueryResult(
+        status=ResultStatus.COUNTERFACTUAL_SOLVED,
+        query_kind=QueryKind.SCM_COUNTERFACTUAL,
+        query_id=stmt.id,
+        numeric_result=numeric_result,
+        derivation=derivation,
+        extensions=extensions,
+    )
+
+
 def _try_numeric(
     stmt: QueryStatement,
     formula,
@@ -3424,6 +3594,8 @@ def dispatch(
             stmt, graph, theta,
             bidirected=bidirected, selection_nodes=sel_nodes,
         )
+    elif isinstance(q, SCMCounterfactualQuery):
+        result = _dispatch_scm_counterfactual(stmt, graph, program)
     else:
         # Truly unknown type: fail loudly. The schema layer should
         # have already rejected it; reaching here is a programmer bug.

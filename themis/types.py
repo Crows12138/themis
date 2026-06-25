@@ -63,6 +63,14 @@ class CauseStatement:
     # inspect this field; it's pure metadata so the LLM / auditor can
     # distinguish evidence-backed edges from llm-proposed hypotheses.
     annotations: Annotation | None = None
+    # Linear-SCM path coefficient on this edge (the α in
+    # child = ... + α·from_atom + ...). Optional metadata: qualitative
+    # DAG reasoning (cause / identify / backdoor) never inspects it; it
+    # is consumed ONLY by the linear-SCM counterfactual point computation
+    # (scm_counterfactual query, Pearl Primer §4). A fully-specified
+    # linear SCM is one where every edge on the path to the target
+    # carries a coefficient.
+    coefficient: float | None = None
 
 
 @dataclass(frozen=True)
@@ -292,6 +300,29 @@ class CausationQuery:
     experimental_risk_control: float | None = None    # P(Y=1 | do(X=0))
 
 
+@dataclass(frozen=True)
+class SCMCounterfactualQuery:
+    """Deterministic counterfactual point on a fully-specified linear SCM
+    (Pearl, Glymour & Jewell *Primer* §4.2: abduction–action–prediction).
+
+    Given a linear SCM (each edge carries a path ``coefficient``) and a
+    fully-observed unit (the factual values supplied as
+    ObservationStatements — Pearl's evidence E=e), computes the exact
+    value the ``target`` would have taken had ``intervention`` been
+    imposed on that same unit:
+
+      (i)   Abduction:  recover each exogenous U_V = v_obs − Σ α·parent_obs
+      (ii)  Action:     replace the intervened variable's equation with the constant
+      (iii) Prediction: propagate the recovered U forward through the modified SCM
+
+    Unlike ``CounterfactualQuery`` (binary, monotone, returns Balke-Pearl
+    BOUNDS), this returns an exact POINT — the regime where the structural
+    mechanisms, not just the DAG, are known.
+    """
+    intervention: Intervention
+    target: Atom
+
+
 Query = Union[
     CauseQuery,
     AssocQuery,
@@ -300,6 +331,7 @@ Query = Union[
     ProbabilityQuery,
     CounterfactualQuery,
     CausationQuery,
+    SCMCounterfactualQuery,
 ]
 
 
@@ -459,6 +491,7 @@ class QueryKind(str, Enum):
     PROBABILITY = "probability"
     COUNTERFACTUAL = "counterfactual"
     CAUSATION = "causation"
+    SCM_COUNTERFACTUAL = "scm_counterfactual"
 
 
 @dataclass(frozen=True)

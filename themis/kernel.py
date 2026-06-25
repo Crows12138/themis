@@ -73,6 +73,7 @@ from .types import (
     ProbabilityStatement,
     Program,
     QueryStatement,
+    SCMCounterfactualQuery,
     SelectionNode,
     StructuralResult,
     Term,
@@ -88,6 +89,7 @@ from .verifier import (
     verify_causation,
     verify_cause,
     verify_counterfactual,
+    verify_scm_counterfactual,
     verify_effect_structural,
     verify_identify,
     verify_numeric,
@@ -292,6 +294,12 @@ def _query_to_dict(q) -> dict:
         if q.experimental_risk_control is not None:
             d["experimental_risk_control"] = q.experimental_risk_control
         return d
+    if isinstance(q, SCMCounterfactualQuery):
+        return {
+            "kind": "scm_counterfactual",
+            "intervention": _intervention_to_dict(q.intervention),
+            "target": _atom_to_dict(q.target),
+        }
     raise TypeError(f"unknown query: {type(q).__name__}")
 
 
@@ -307,6 +315,8 @@ def _statement_to_dict(s) -> dict:
         ann = _annotation_to_dict(s.annotations)
         if ann is not None:
             d["annotations"] = ann
+        if s.coefficient is not None:
+            d["coefficient"] = s.coefficient
         return d
     if isinstance(s, BidirectedStatement):
         d: dict = {
@@ -687,6 +697,18 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     from .types import SelectionNode as _SN
     selection_nodes = tuple(s for s in prog.statements if isinstance(s, _SN))
 
+    # Linear-SCM counterfactual: the unit's observed factual values
+    # (Pearl's evidence E=e) are a verifier premise — the abduction step
+    # solves U from them. Numeric observations only (a linear SCM is over
+    # real-valued nodes).
+    scm_observations: dict = {}
+    for s in prog.statements:
+        if isinstance(s, ObservationStatement):
+            try:
+                scm_observations[s.atom] = float(s.value)
+            except (TypeError, ValueError):
+                continue
+
     derivation = derivation_from_dict(derivation_json)
     ctx = VerificationContext(
         graph=graph,
@@ -694,6 +716,7 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         theta=theta,
         bidirected=bidirected,
         selection_nodes=selection_nodes,
+        observations=scm_observations or None,
     )
 
     kind = result.get("query_kind")
@@ -744,6 +767,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             )
         claimed = _decode_numeric_result_json(result["numeric_result"])
         verify_causation(derivation, ctx, claimed)
+    elif kind == "scm_counterfactual":
+        if "numeric_result" not in result:
+            raise ValueError(
+                "verify(): scm_counterfactual result must carry a numeric_result"
+            )
+        claimed = _decode_numeric_result_json(result["numeric_result"])
+        verify_scm_counterfactual(derivation, ctx, claimed)
     else:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"

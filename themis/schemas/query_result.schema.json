@@ -60,6 +60,18 @@
           "type": "string",
           "description": "Phase 5 §C: error reason when a counterfactual query is outside the supported fragment (e.g. non-boolean domain)."
         },
+        "scm_counterfactual": {
+          "type": "object",
+          "description": "Deterministic linear-SCM counterfactual (Pearl Primer §4.2). Carries the abducted exogenous values (abducted_noise), the post-intervention values of every relevant variable (counterfactual_values), and the target's counterfactual point (target_value).",
+          "additionalProperties": true,
+          "properties": {
+            "target": { "type": "string" },
+            "target_value": { "type": "number" },
+            "intervention": { "type": "object" },
+            "abducted_noise": { "type": "object", "additionalProperties": { "type": "number" } },
+            "counterfactual_values": { "type": "object", "additionalProperties": { "type": "number" } }
+          }
+        },
         "causation": {
           "type": "object",
           "description": "Probabilities of causation (Tian & Pearl 2000) for a causation query. PN/PS/PNS assumption-free bounds, plus point values when monotonic. Carries the observational joint cells and the two interventional risks (with their provenance) that fed the Tian-Pearl formulas.",
@@ -245,7 +257,8 @@
         "identify",
         "probability",
         "counterfactual",
-        "causation"
+        "causation",
+        "scm_counterfactual"
       ]
     },
     "structural_result": {

@@ -115,6 +115,10 @@
         "annotations": {
           "$ref": "#/$defs/annotation",
           "description": "Slice A2: provenance / confidence metadata for this edge, e.g. {\"source\": \"llm_proposal\"} for a hypothesis edge, {\"source\": \"PubMed:...\"} for an evidence-backed edge. Reasoning rules do not read this."
+        },
+        "coefficient": {
+          "type": "number",
+          "description": "Linear-SCM path coefficient α on this edge (child = ... + α·from + ...). Optional metadata consumed ONLY by the scm_counterfactual query (Pearl Primer §4.2 abduction-action-prediction); qualitative DAG reasoning never reads it. A fully-specified linear SCM carries a coefficient on every edge along the path to the target."
         }
       }
     },
@@ -529,6 +533,29 @@
         }
       }
     },
+    "scmCounterfactualQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Deterministic counterfactual point on a fully-specified linear SCM (Pearl Primer §4.2: abduction-action-prediction). Each cause edge on the path to the target must carry a `coefficient`; the unit's factual values come from observation statements (Pearl's evidence E=e). Returns the exact value `target` would have taken under `intervention` for that unit — a POINT, not a Balke-Pearl bound.",
+      "required": [
+        "kind",
+        "intervention",
+        "target"
+      ],
+      "properties": {
+        "kind": {
+          "const": "scm_counterfactual"
+        },
+        "intervention": {
+          "$ref": "#/$defs/intervention",
+          "description": "do(X=x): the variable to fix and the value to fix it at."
+        },
+        "target": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The variable whose counterfactual value is computed."
+        }
+      }
+    },
     "query": {
       "oneOf": [
         {
@@ -551,6 +578,9 @@
         },
         {
           "$ref": "#/$defs/causationQuery"
+        },
+        {
+          "$ref": "#/$defs/scmCounterfactualQuery"
         }
       ]
     },

@@ -68,6 +68,7 @@ from ..types import (
     Program,
     RelativeTimeIndex,
     QueryStatement,
+    SCMCounterfactualQuery,
     Term,
     ValuedAtom,
     VariableDeclaration,
@@ -210,6 +211,11 @@ def _to_query(d: dict):
             experimental_risk_treated=d.get("experimental_risk_treated"),
             experimental_risk_control=d.get("experimental_risk_control"),
         )
+    if k == "scm_counterfactual":
+        return SCMCounterfactualQuery(
+            intervention=_to_intervention(d["intervention"]),
+            target=_to_atom(d["target"]),
+        )
     raise SemanticError(f"unknown query kind: {k}")
 
 
@@ -221,6 +227,7 @@ def _to_statement(d: dict):
             to_atom=_to_atom(d["to"]),
             forall=tuple(d.get("forall", ())),
             annotations=_to_annotation(d.get("annotations")),
+            coefficient=d.get("coefficient"),
         )
     if k == "bidirected":
         return BidirectedStatement(
@@ -316,6 +323,8 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
             )
         if isinstance(q, CausationQuery):
             return (q.cause, q.effect)
+        if isinstance(q, SCMCounterfactualQuery):
+            return (q.intervention.atom, q.target)
     return ()
 
 
@@ -696,6 +705,8 @@ def _query_structural_atoms(q) -> tuple[Atom, ...]:
         )
     if isinstance(q, CausationQuery):
         return (q.cause, q.effect)
+    if isinstance(q, SCMCounterfactualQuery):
+        return (q.intervention.atom, q.target)
     return ()
 
 

@@ -60,6 +60,7 @@ def _instantiate_one(stmt, subst: dict[str, str]):
             to_atom=_subst_atom(stmt.to_atom, subst),
             forall=(),
             annotations=stmt.annotations,
+            coefficient=stmt.coefficient,
         )
     if isinstance(stmt, BidirectedStatement):
         return BidirectedStatement(

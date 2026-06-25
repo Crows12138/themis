@@ -20,11 +20,13 @@ from ..runtime.numeric_estimator import Theta
 from ..types import (
     Atom,
     AssocQuery,
+    CausationQuery,
     CounterfactualQuery,
     CauseQuery,
     EffectQuery,
     IdentifyQuery,
     ProbabilityQuery,
+    SCMCounterfactualQuery,
 )
 
 
@@ -35,6 +37,8 @@ VerifiableQuery = Union[
     EffectQuery,
     ProbabilityQuery,
     CounterfactualQuery,
+    CausationQuery,
+    SCMCounterfactualQuery,
 ]
 
 
@@ -55,3 +59,9 @@ class VerificationContext:
     # paths bit-identically. T9-1 / T9-2 rules read this to re-derive
     # S-admissibility independently of runtime/transport.py.
     selection_nodes: tuple = ()
+    # Linear-SCM counterfactual (Pearl Primer §4): the unit's observed
+    # factual values (Atom -> float), i.e. the evidence E=e the abduction
+    # step solves the exogenous U from. None on every non-SCM path. The
+    # scm_abduction_action_prediction rule reads this to re-run the
+    # three-step computation independently of runtime/scm_counterfactual.
+    observations: dict | None = None

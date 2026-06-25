@@ -325,6 +325,25 @@ def _explain_causation_zh(result: QueryResult) -> str:
     )
 
 
+def _explain_scm_counterfactual_zh(result: QueryResult) -> str:
+    """Render a deterministic linear-SCM counterfactual point (Pearl
+    Primer §4.2). Reads ``extensions.scm_counterfactual``; re-runs nothing."""
+    if result.status is ResultStatus.NEEDS_INVESTIGATION:
+        gap = _describe_needs_investigation(result)
+        base = "线性 SCM 反事实点暂时算不出（结构方程或单元观测不全）。"
+        return f"{base}{gap}" if gap else base
+    sc = (result.extensions or {}).get("scm_counterfactual")
+    if not sc:
+        return "线性 SCM 反事实查询：结果未分类。"
+    iv = sc.get("intervention", {})
+    return (
+        f"在已知线性结构方程下,对这个单元做 do({iv.get('variable')}="
+        f"{_format_number(iv.get('value'))}),"
+        f"{sc.get('target')} 的反事实值 = {_format_number(sc.get('target_value'))}"
+        f"(Pearl 三步法:溯因-干预-预测)。"
+    )
+
+
 def _with_confidence_suffix(text: str, result: QueryResult) -> str:
     """Append a confidence clause when the result carries one.
 
@@ -391,6 +410,8 @@ def explain(
         text = _explain_counterfactual_zh(result)
     elif result.query_kind == QueryKind.CAUSATION:
         text = _explain_causation_zh(result)
+    elif result.query_kind == QueryKind.SCM_COUNTERFACTUAL:
+        text = _explain_scm_counterfactual_zh(result)
     else:
         raise NotImplementedError(
             f"explainer for {result.query_kind.value} not implemented yet"

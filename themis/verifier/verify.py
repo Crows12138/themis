@@ -34,6 +34,7 @@ from ..types import (
     ProbabilityRefExpr,
     ProbabilityQuery,
     ProductExpr,
+    SCMCounterfactualQuery,
     SumExpr,
     StepRef,
     StructuralResult,
@@ -984,5 +985,59 @@ def verify_causation(
     if not _numeric_result_matches(claimed_result, expected):
         raise VerificationError(
             "causation headline (PN) does not match the verified envelope",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
+def _assert_scm_query_binding(
+    step: DerivationStep,
+    context: VerificationContext,
+    step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+) -> None:
+    """SCM-counterfactual derivations have a single rule whose binding to
+    the query/graph/observations is rechecked inside the rule."""
+    return None
+
+
+def verify_scm_counterfactual(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: NumericResult,
+) -> None:
+    """Verify a deterministic linear-SCM counterfactual derivation.
+
+    The single ``scm_abduction_action_prediction`` rule independently
+    re-runs Pearl's three-step computation from the structural
+    coefficients on the graph + the unit's observations and checks the
+    claimed point. Here we also pin the terminal rule and confirm the
+    last step's output equals the claimed numeric result.
+    """
+    if not isinstance(context.query, SCMCounterfactualQuery):
+        raise VerificationError(
+            "verify_scm_counterfactual requires a SCMCounterfactualQuery "
+            "in the context",
+            step_index=None, rule=None,
+        )
+    if context.observations is None:
+        raise VerificationError(
+            "verify_scm_counterfactual requires the unit's observations in "
+            "the context",
+            step_index=None, rule=None,
+        )
+
+    _walk(derivation, context, _assert_scm_query_binding)
+
+    if derivation[-1].rule != "scm_abduction_action_prediction":
+        raise VerificationError(
+            "scm_counterfactual derivation must end in "
+            "'scm_abduction_action_prediction'",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )

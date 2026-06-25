@@ -12,7 +12,10 @@ Public surface (re-exports from sub-modules):
   ``verify_numeric`` / ``verify_numeric_estimate`` /
   ``verify_counterfactual`` / ``verify_causation`` (PN/PS/PNS,
   Tian-Pearl 2000 — independently re-derives the observational joint
-  from theta and the Tian-Pearl bounds/points)
+  from theta and the Tian-Pearl bounds/points) /
+  ``verify_scm_counterfactual`` (linear-SCM point, Pearl Primer §4.2 —
+  independently re-runs abduction-action-prediction from the edge
+  coefficients + the unit's observations)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -63,6 +66,7 @@ from .verify import (
     verify_identify,
     verify_numeric,
     verify_numeric_estimate,
+    verify_scm_counterfactual,
 )
 from .bounds_rules import (
     verify_balke_pearl_iv_bounds_result,
@@ -92,4 +96,5 @@ __all__ = [
     "verify_manski_tamer_bounds_result",
     "verify_numeric",
     "verify_numeric_estimate",
+    "verify_scm_counterfactual",
 ]

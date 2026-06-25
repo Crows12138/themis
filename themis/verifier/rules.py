@@ -29,6 +29,7 @@ from ..types import (
     CausationQuery,
     ConstantExpr,
     CounterfactualQuery,
+    SCMCounterfactualQuery,
     FormulaExpr,
     FractionExpr,
     IdentifyQuery,
@@ -4113,6 +4114,101 @@ def _rule_probabilities_of_causation_tian_pearl(
         )
 
 
+def _rule_scm_abduction_action_prediction(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Independent audit of a deterministic linear-SCM counterfactual
+    (Pearl Primer §4.2 abduction–action–prediction).
+
+    Re-runs the entire three-step computation from the verification
+    context — the structural coefficients on ``ctx.graph``'s edges and
+    the unit's observed values in ``ctx.observations`` — deliberately
+    NOT importing ``runtime.scm_counterfactual``. The verifier carries
+    the theorem; the producer merely claims to satisfy it. Catches a
+    wrong coefficient read, a botched abduction, a mis-propagated
+    prediction, or a tampered output.
+    """
+    rule = "scm_abduction_action_prediction"
+    q = ctx.query
+    if not isinstance(q, SCMCounterfactualQuery):
+        raise RuleCheckFailed(
+            f"{rule} requires a SCMCounterfactualQuery context",
+            step_index=step_index, rule=rule,
+        )
+    if ctx.observations is None:
+        raise RuleCheckFailed(
+            f"{rule} requires the unit's observations in context",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(claimed_output, NumericResult):
+        raise RuleCheckFailed(
+            f"{rule} output must be a NumericResult",
+            step_index=step_index, rule=rule,
+        )
+
+    graph = ctx.graph
+    x_atom = q.intervention.atom
+    y_atom = q.target
+    if x_atom not in graph or y_atom not in graph:
+        raise RuleCheckFailed(
+            f"{rule}: query atoms are not in the graph",
+            step_index=step_index, rule=rule,
+        )
+
+    relevant = set(nx.ancestors(graph, y_atom)) | {y_atom}
+
+    # Rebuild the structural equations from edge coefficients.
+    equations: dict = {}
+    for v in relevant:
+        terms: list[tuple] = []
+        for p in graph.predecessors(v):
+            src = graph.edges[p, v].get("source")
+            coef = getattr(src, "coefficient", None) if src is not None else None
+            if coef is None:
+                raise RuleCheckFailed(
+                    f"{rule}: edge into {v.predicate} lacks a path coefficient "
+                    f"— SCM is under-specified, cannot verify a point",
+                    step_index=step_index, rule=rule,
+                )
+            terms.append((p, float(coef)))
+        equations[v] = tuple(terms)
+
+    obs = ctx.observations
+    for v in relevant:
+        if v not in obs:
+            raise RuleCheckFailed(
+                f"{rule}: variable {v.predicate} is not observed for the unit "
+                f"— abduction cannot recover its exogenous term",
+                step_index=step_index, rule=rule,
+            )
+
+    # (i) Abduction.
+    noise = {
+        v: obs[v] - sum(coef * obs[p] for p, coef in terms)
+        for v, terms in equations.items()
+    }
+    # (ii) Action + (iii) Prediction.
+    topo = [n for n in nx.topological_sort(graph) if n in relevant]
+    iv_val = float(q.intervention.value)
+    cf: dict = {}
+    for v in topo:
+        if v == x_atom:
+            cf[v] = iv_val
+        else:
+            cf[v] = noise[v] + sum(coef * cf[p] for p, coef in equations[v])
+    expected = cf[y_atom]
+
+    if claimed_output.value is None or abs(float(claimed_output.value) - expected) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"{rule}: claimed counterfactual {claimed_output.value} != "
+            f"independently recomputed {expected}",
+            step_index=step_index, rule=rule,
+        )
+
+
 # ============================================ Phase 9 §T9.1.4: T9-1, T9-2
 
 # Verifier-side selection diagram + S-admissibility re-derivation. NO
@@ -5068,6 +5164,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
     # Probabilities of causation — PN / PS / PNS (Tian & Pearl 2000)
     "probabilities_of_causation_tian_pearl": _rule_probabilities_of_causation_tian_pearl,
+    # Linear-SCM counterfactual point (Pearl Primer §4.2)
+    "scm_abduction_action_prediction": _rule_scm_abduction_action_prediction,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
     # Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE numeric
