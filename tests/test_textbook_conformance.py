@@ -279,23 +279,40 @@ def test_causal_and_surrogate_instruments_both_identify():
         themis.verify(prog, r)
 
 
-def test_effect_conditioning_on_collider_flags_selection_bias():
-    """What If Ch 8: conditioning an effect estimate on a collider C (common
-    effect of A and Y) induces selection bias. Themis must surface a
-    collider/selection gap, not silently return a biased estimand."""
+@pytest.mark.parametrize("name,nodes,edges,biedges,collider", [
+    # What If Ch 8 Fig 8.1: direct collider C (common effect of A and Y).
+    ("fig8.1_direct_collider", ["a", "c", "y"],
+     [("a", "y"), ("a", "c"), ("y", "c")], [], "c"),
+    # What If Ch 7 Fig 7.4: M-bias collider L whose two arms are latent common
+    # causes (bidirected). The directed-ancestor test missed this; the
+    # m-separation detector catches it.
+    ("fig7.4_mbias_bidirected_collider", ["a", "l", "y"],
+     [("a", "y")], [("a", "l"), ("l", "y")], "l"),
+    # What If Ch 8 Fig 8.2: conditioning on S, a DESCENDANT of the collider C.
+    ("fig8.2_collider_descendant", ["a", "c", "y", "s"],
+     [("a", "y"), ("a", "c"), ("y", "c"), ("c", "s")], [], "s"),
+], ids=lambda v: v if isinstance(v, str) else "")
+def test_effect_conditioning_on_collider_flags_selection_bias(
+    name, nodes, edges, biedges, collider,
+):
+    """What If Ch 7-8: conditioning an effect estimate on a collider (or its
+    descendant) — whether the arms are direct edges or latent common causes —
+    induces selection bias. Themis must surface a collider/selection gap, not
+    silently return a biased estimand."""
     program = _program(
-        ["a", "c", "y"],
-        [_cause("a", "y"), _cause("a", "c"), _cause("y", "c")],
+        nodes,
+        [_cause(a, b) for a, b in edges] + [_bi(a, b) for a, b in biedges],
         {"kind": "query", "id": "q", "query": {
             "kind": "effect",
             "target": {"atom": _atom("y"), "value": True},
             "intervention": {"atom": _atom("a"), "value": True},
-            "given": [{"atom": _atom("c"), "value": True}]}},
+            "given": [{"atom": _atom(collider), "value": True}]}},
     )
     r = themis.run(program)["results"][0]
     kinds = [g["kind"] for g in (r.get("data_gap_report") or {}).get("gaps", [])]
     assert any("collider" in k or "selection" in k for k in kinds), (
-        f"conditioning on collider C should flag selection bias; got {kinds}"
+        f"{name}: conditioning on collider {collider} should flag selection "
+        f"bias; got {kinds}"
     )
 
 

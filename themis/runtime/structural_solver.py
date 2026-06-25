@@ -942,6 +942,70 @@ def is_m_connected(
     return False
 
 
+def conditioned_collider_opens_path(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    left: Atom,
+    right: Atom,
+    conditioning: "frozenset[Atom] | tuple[Atom, ...]",
+    collider: Atom,
+) -> bool:
+    """True iff some OPEN m-path between ``left`` and ``right`` (given
+    ``conditioning``) stays open because ``collider`` activates a collider on
+    it — i.e. ``collider`` IS a collider on the path, or a conditioned
+    descendant of one. This is the selection-bias / collider-conditioning
+    signal: conditioning on ``collider`` opens a (non-causal) path between the
+    intervention and the outcome, so a conditional effect estimate carries
+    collider-induced bias.
+
+    Unlike a directed-ancestor test, this sees colliders whose arms are
+    bidirected (latent common causes) — e.g. M-bias ``X<->W<->Y`` (What If
+    Fig 7.4) — and colliders activated through a conditioned descendant
+    (Fig 8.2), not only the direct ``X->W<-Y`` shape (Fig 8.1).
+    """
+    if left == right or collider == left or collider == right:
+        return False
+    mg = _build_admg_path_graph(graph, bidirected)
+    if left not in mg or right not in mg:
+        return False
+    c_set = frozenset(conditioning)
+    if collider not in c_set:
+        return False
+
+    for edge_path in nx.all_simple_edge_paths(mg, left, right):
+        nodes: list[Atom] = [left]
+        for u, w, _k in edge_path:
+            nodes.append(w if nodes[-1] == u else u)
+
+        open_path = True
+        collider_activated_by_target = False
+        for i in range(1, len(nodes) - 1):
+            v = nodes[i]
+            ahead_from_prev = _has_arrowhead_at(mg, edge_path[i - 1], v)
+            ahead_from_next = _has_arrowhead_at(mg, edge_path[i], v)
+            is_collider = ahead_from_prev and ahead_from_next
+            if is_collider:
+                descendants = nx.descendants(graph, v) if v in graph else set()
+                activated = {v} | descendants
+                if activated.isdisjoint(c_set):
+                    open_path = False
+                    break
+                # Does conditioning on `collider` specifically activate this
+                # collider v (v is the collider itself, or `collider` is a
+                # conditioned descendant of v)?
+                if collider == v or collider in descendants:
+                    collider_activated_by_target = True
+            else:
+                if v in c_set:
+                    open_path = False
+                    break
+
+        if open_path and collider_activated_by_target:
+            return True
+
+    return False
+
+
 def m_separated(
     graph: nx.DiGraph,
     bidirected: BidirectedEdgeSet,

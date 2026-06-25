@@ -2198,25 +2198,35 @@ def _classify_collider_conditioning_opens_backdoor(
     intervention_pred = q.intervention.atom.predicate
     target_pred = q.target.atom.predicate
 
-    # Build parent-of map from cause edges (predicate-level — forall
-    # quantification doesn't change the predicate edge structure).
-    parents_of: dict[str, set[str]] = {}
+    # Build the predicate-level ADMG (directed cause edges + bidirected
+    # latent-confounding edges; forall quantification doesn't change the
+    # predicate edge structure) and detect a conditioned collider via
+    # m-separation — NOT a directed-ancestor test. This catches M-bias
+    # colliders whose arms are latent common causes (bidirected, X<->W<->Y —
+    # What If Fig 7.4) and colliders activated through a conditioned descendant
+    # (Fig 8.2), not only the direct X->W<-Y shape (Fig 8.1).
+    import networkx as nx
+
+    from ..runtime.structural_solver import conditioned_collider_opens_path
+    from ..types import BidirectedStatement
+
+    g = nx.DiGraph()
+    bi_pairs: set = set()
     for st in program.statements:
         if isinstance(st, CauseStatement):
-            parents_of.setdefault(
-                st.to_atom.predicate, set()
-            ).add(st.from_atom.predicate)
-
-    def _ancestors(node: str) -> set[str]:
-        seen: set[str] = set()
-        stack = list(parents_of.get(node, set()))
-        while stack:
-            curr = stack.pop()
-            if curr in seen:
-                continue
-            seen.add(curr)
-            stack.extend(parents_of.get(curr, set()))
-        return seen
+            g.add_edge(st.from_atom.predicate, st.to_atom.predicate)
+        elif isinstance(st, BidirectedStatement):
+            la, ra = st.left.predicate, st.right.predicate
+            g.add_node(la)
+            g.add_node(ra)
+            bi_pairs.add(frozenset({la, ra}))
+    bidirected = frozenset(bi_pairs)
+    given_preds = frozenset(
+        p for p in (
+            getattr(getattr(gi, "atom", gi), "predicate", None) for gi in given
+        )
+        if p is not None
+    )
 
     for given_item in given:
         atom = getattr(given_item, "atom", given_item)
@@ -2227,18 +2237,19 @@ def _classify_collider_conditioning_opens_backdoor(
             # Conditioning on the intervention or target itself is a
             # different problem (degenerate query), not collider opening.
             continue
-        ancs = _ancestors(w_pred)
-        if intervention_pred in ancs and target_pred in ancs:
+        if conditioned_collider_opens_path(
+            g, bidirected, intervention_pred, target_pred, given_preds, w_pred,
+        ):
             yield DataGap(
                 kind=GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR,
                 severity=GapSeverity.IMPORTANT,
                 description=(
-                    f"`given` 中的条件节点 `{w_pred}` 是 collider —— "
-                    f"`{intervention_pred}` 和 `{target_pred}` 都是它"
-                    f"的祖先。Pearl d-separation：在 collider 上做条件"
-                    f"会**打开** `{intervention_pred}→...→{w_pred}←..."
-                    f"←{target_pred}` 这条路径而不是阻断它，给最终估计"
-                    f"引入 collider-induced bias / selection bias。当前"
+                    f"`given` 中的条件节点 `{w_pred}` 是 collider —— 在 "
+                    f"`{intervention_pred}` 与 `{target_pred}` 之间存在一条"
+                    f"以 `{w_pred}` 为对撞点的路径（两条臂可经潜在/双向边，"
+                    f"即 M-bias）。Pearl d-separation：在 collider（或其后代）"
+                    f"上做条件会**打开**这条非因果路径而不是阻断它，给最终"
+                    f"估计引入 collider-induced bias / selection bias。当前"
                     f"返回的不是 \"在 `{w_pred}` 子群上的因果效应\"，"
                     f"而是被打开的非因果路径污染过的混合量。"
                 ),
