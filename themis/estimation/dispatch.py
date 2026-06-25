@@ -453,6 +453,35 @@ def _try_mediation_estimate(
             },
         },
     }
+    # VanderWeele 2014 four-way split (CDE + INTref + INTmed + PIE) of the
+    # same total effect. Surfaced alongside NDE/NIE so the renderer can
+    # report "how much is neither / only interaction / both / only
+    # mediation". PNDE=CDE+INTref and TNIE=INTmed+PIE reconcile exactly
+    # with the nde/nie above (same fitted models).
+    fw = med_estimate.four_way
+    if fw is not None:
+        def _comp(c) -> dict:
+            return {
+                "point": c.point,
+                "ci_lower": c.ci_lower,
+                "ci_upper": c.ci_upper,
+            }
+        result["numeric_estimate"]["four_way_decomposition"] = {
+            "cde": _comp(fw.cde),
+            "intref": _comp(fw.intref),
+            "intmed": _comp(fw.intmed),
+            "pie": _comp(fw.pie),
+            "te": _comp(fw.te),
+            "prop_mediated": _comp(fw.prop_mediated),
+            "prop_interaction": _comp(fw.prop_interaction),
+            "additive_interaction": fw.additive_interaction_point,
+            "scale": fw.scale,
+            "cde_mediator_reference": fw.cde_mediator_reference,
+            "reference": (
+                "VanderWeele 2014 (Explanation in Causal Inference Ch.14); "
+                "TE = CDE + INTref + INTmed + PIE"
+            ),
+        }
     _attach_precision_budget_decomposition(result["numeric_estimate"])
     _attach_e_value_if_binary(
         result, contract,

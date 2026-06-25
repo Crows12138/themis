@@ -499,6 +499,25 @@
               }
             }
           }
+        },
+        "four_way_decomposition": {
+          "type": "object",
+          "description": "VanderWeele 2014 four-way decomposition (Explanation in Causal Inference Ch.14): TE = CDE + INTref + INTmed + PIE, splitting the total effect into the portion due to neither mediation nor interaction (CDE), only interaction (INTref), both (INTmed), and only mediation (PIE). PNDE=CDE+INTref and TNIE=INTmed+PIE reconcile with the nde/nie in `decomposition`. Risk-difference scale; CDE fixes the mediator at reference 0.",
+          "required": ["cde", "intref", "intmed", "pie", "te", "prop_mediated", "prop_interaction"],
+          "additionalProperties": false,
+          "properties": {
+            "cde": { "$ref": "#/$defs/componentEstimate" },
+            "intref": { "$ref": "#/$defs/componentEstimate" },
+            "intmed": { "$ref": "#/$defs/componentEstimate" },
+            "pie": { "$ref": "#/$defs/componentEstimate" },
+            "te": { "$ref": "#/$defs/componentEstimate" },
+            "prop_mediated": { "$ref": "#/$defs/componentEstimate" },
+            "prop_interaction": { "$ref": "#/$defs/componentEstimate" },
+            "additive_interaction": { "type": "number" },
+            "scale": { "type": "string" },
+            "cde_mediator_reference": {},
+            "reference": { "type": "string" }
+          }
         }
       }
     },
@@ -558,6 +577,17 @@
     }
   },
   "$defs": {
+    "componentEstimate": {
+      "type": "object",
+      "description": "A decomposition component: point estimate + bootstrap percentile CI (used by the four-way decomposition).",
+      "required": ["point", "ci_lower", "ci_upper"],
+      "additionalProperties": false,
+      "properties": {
+        "point": { "type": "number" },
+        "ci_lower": { "type": "number" },
+        "ci_upper": { "type": "number" }
+      }
+    },
     "precisionBudget": {
       "type": "object",
       "description": "Iter 151+152: post-hoc precision budgeting per VISION 2026-04-26 §'输出 (2)'. Tells the user how much more N is needed to halve the current 95% CI. SE ∝ 1/√N → N_new = N_old · (W_old/W_new)². Helper: themis.output.sample_size.estimate_n_for_target_ci_half_width. Iter 160 added relative_width = half_width / |point| so the renderer's '>30% of point' surface heuristic is mechanical instead of LLM judgment; omitted when point is ~0.",

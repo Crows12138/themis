@@ -42,6 +42,44 @@ import pandas as pd
 import statsmodels.api as sm
 
 from .contract import validate_data
+from .four_way import four_way_decomposition
+
+
+@dataclass(frozen=True)
+class ComponentEstimate:
+    """A single decomposition component: point estimate + percentile CI."""
+
+    point: float
+    ci_lower: float
+    ci_upper: float
+
+
+@dataclass(frozen=True)
+class FourWayDecomposition:
+    """VanderWeele 2014 four-way decomposition of the total effect into
+    CDE + INTref + INTmed + PIE (unification of mediation and interaction).
+
+    Each component carries a bootstrap percentile CI. ``prop_mediated``
+    = (INTmed+PIE)/TE and ``prop_interaction`` = (INTref+INTmed)/TE are
+    the two headline attribution proportions (Ch. 14.2). ``scale`` is
+    the risk-difference scale; ``cde_mediator_reference`` records that
+    the controlled direct effect fixes M at 0 and the mediator contrast
+    is the M=0→1 unit change (exact for binary M; the M=0/1 evaluation
+    linearizes the mediator effect for a continuous M under a nonlinear
+    outcome model).
+    """
+
+    cde: ComponentEstimate
+    intref: ComponentEstimate
+    intmed: ComponentEstimate
+    pie: ComponentEstimate
+    te: ComponentEstimate
+    prop_mediated: ComponentEstimate
+    prop_interaction: ComponentEstimate
+    additive_interaction_point: float
+    ci_level: float
+    scale: str
+    cde_mediator_reference: object
 
 
 @dataclass(frozen=True)
@@ -79,6 +117,11 @@ class MediationEstimate:
     treatment: str
     outcome: str
     n_rep: int
+    # VanderWeele 2014 four-way split of the same total effect. Computed
+    # from the same fitted (interaction-aware) models; None only if the
+    # decomposition could not be formed (it always can for the supported
+    # binary-treatment scope, so this stays populated in practice).
+    four_way: "FourWayDecomposition | None" = None
 
 
 def estimate_mediation(
@@ -186,10 +229,45 @@ def estimate_mediation(
         nie = float(np.mean(_EY(1.0, m1, frame) - _EY(1.0, m0, frame)))
         return nde, nie
 
+    def _four_way_inputs(om, mm, frame: pd.DataFrame) -> dict:
+        # Standardized conditional outcome means p_am = E[Y|A=a,M=m] and
+        # mediator means q_a = E[M|A=a], averaged over the sample's
+        # covariates (g-formula standardization). For a linear outcome
+        # these reproduce VanderWeele's regression form (14.4) exactly;
+        # for binary M they are the empirical 14.1b quantities.
+        def _ey(a: float, m: float) -> float:
+            d = frame.copy()
+            d[treatment] = a
+            d[mediator] = m
+            return float(np.mean(np.asarray(om.predict(d))))
+
+        def _em(a: float) -> float:
+            d = frame.copy()
+            d[treatment] = a
+            return float(np.mean(np.asarray(mm.predict(d))))
+
+        return dict(
+            p00=_ey(0.0, 0.0), p01=_ey(0.0, 1.0),
+            p10=_ey(1.0, 0.0), p11=_ey(1.0, 1.0),
+            q0=_em(0.0), q1=_em(1.0),
+        )
+
     om_point, mm_point = _fit(fit_df)
     nde_p, nie_p = _nde_nie(om_point, mm_point, fit_df)
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
+
+    fw_point = four_way_decomposition(
+        **_four_way_inputs(om_point, mm_point, fit_df)
+    )
+    fw_pm_p = (
+        (fw_point.intmed + fw_point.pie) / fw_point.te
+        if fw_point.te != 0 else float("nan")
+    )
+    fw_pi_p = (
+        (fw_point.intref + fw_point.intmed) / fw_point.te
+        if fw_point.te != 0 else float("nan")
+    )
 
     # Bootstrap CIs: resample rows with replacement, refit both models,
     # recompute the natural effects.
@@ -198,12 +276,22 @@ def estimate_mediation(
     nie_s: list[float] = []
     te_s: list[float] = []
     pm_s: list[float] = []
+    cde_s: list[float] = []
+    intref_s: list[float] = []
+    intmed_s: list[float] = []
+    pie_s: list[float] = []
+    fwte_s: list[float] = []
+    fw_pm_s: list[float] = []
+    fw_pi_s: list[float] = []
     for _ in range(n_rep):
         idx = rng.integers(0, n_rows, n_rows)
         bframe = fit_df.iloc[idx].reset_index(drop=True)
         try:
             om_b, mm_b = _fit(bframe)
             nb, ib = _nde_nie(om_b, mm_b, bframe)
+            fwb = four_way_decomposition(
+                **_four_way_inputs(om_b, mm_b, bframe)
+            )
         except Exception:
             continue
         tb = nb + ib
@@ -211,6 +299,17 @@ def estimate_mediation(
         nie_s.append(ib)
         te_s.append(tb)
         pm_s.append(ib / tb if tb != 0 else float("nan"))
+        cde_s.append(fwb.cde)
+        intref_s.append(fwb.intref)
+        intmed_s.append(fwb.intmed)
+        pie_s.append(fwb.pie)
+        fwte_s.append(fwb.te)
+        fw_pm_s.append(
+            (fwb.intmed + fwb.pie) / fwb.te if fwb.te != 0 else float("nan")
+        )
+        fw_pi_s.append(
+            (fwb.intref + fwb.intmed) / fwb.te if fwb.te != 0 else float("nan")
+        )
 
     half = (1.0 - ci_level) / 2.0
 
@@ -227,6 +326,24 @@ def estimate_mediation(
     nie_lo, nie_hi = _ci(nie_s, nie_p)
     te_lo, te_hi = _ci(te_s, te_p)
     pm_lo, pm_hi = _ci(pm_s, pm_p)
+
+    def _comp(samples: list[float], point: float) -> ComponentEstimate:
+        lo, hi = _ci(samples, point)
+        return ComponentEstimate(point=point, ci_lower=lo, ci_upper=hi)
+
+    four_way = FourWayDecomposition(
+        cde=_comp(cde_s, fw_point.cde),
+        intref=_comp(intref_s, fw_point.intref),
+        intmed=_comp(intmed_s, fw_point.intmed),
+        pie=_comp(pie_s, fw_point.pie),
+        te=_comp(fwte_s, fw_point.te),
+        prop_mediated=_comp(fw_pm_s, fw_pm_p),
+        prop_interaction=_comp(fw_pi_s, fw_pi_p),
+        additive_interaction_point=fw_point.additive_interaction,
+        ci_level=ci_level,
+        scale="risk_difference",
+        cde_mediator_reference=0,
+    )
 
     return MediationEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
@@ -245,6 +362,7 @@ def estimate_mediation(
         treatment=treatment,
         outcome=outcome,
         n_rep=n_rep,
+        four_way=four_way,
     )
 
 
