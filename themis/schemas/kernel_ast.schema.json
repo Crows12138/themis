@@ -490,6 +490,45 @@
         }
       }
     },
+    "causationQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Probabilities of causation (Tian & Pearl 2000): PN (necessity), PS (sufficiency), PNS. cause (X) and effect (Y) are binary atoms. The observational joint P(X,Y) is recovered from theta; the two interventional risks P(Y=1|do(X=1/0)) are derived via effect identification, OR supplied directly via experimental_risk_treated/control for the confounded-but-experimentally-measured case (Tian-Pearl's drug example).",
+      "required": [
+        "kind",
+        "cause",
+        "effect"
+      ],
+      "properties": {
+        "kind": {
+          "const": "causation"
+        },
+        "cause": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "Binary cause atom X. PN/PS/PNS are defined for binary X."
+        },
+        "effect": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "Binary effect atom Y. PN/PS/PNS are defined for binary Y."
+        },
+        "monotonic": {
+          "type": "boolean",
+          "description": "When true, asserts Y is monotonic in X (X never prevents Y), which point-identifies all three quantities (Tian-Pearl Thm 3). When false/absent, only assumption-free bounds are returned."
+        },
+        "experimental_risk_treated": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Optional directly-supplied P(Y=1 | do(X=1)) from a randomized experiment. Use when the effect of X on Y is NOT identifiable from observational data alone (confounded) but an RCT measured the interventional risk separately (Tian-Pearl drug example). When absent, the risk is derived from theta via effect identification."
+        },
+        "experimental_risk_control": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Optional directly-supplied P(Y=1 | do(X=0)). Counterpart to experimental_risk_treated; supply both or neither."
+        }
+      }
+    },
     "query": {
       "oneOf": [
         {
@@ -509,6 +548,9 @@
         },
         {
           "$ref": "#/$defs/counterfactualQuery"
+        },
+        {
+          "$ref": "#/$defs/causationQuery"
         }
       ]
     },

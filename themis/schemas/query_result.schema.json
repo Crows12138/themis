@@ -60,6 +60,24 @@
           "type": "string",
           "description": "Phase 5 §C: error reason when a counterfactual query is outside the supported fragment (e.g. non-boolean domain)."
         },
+        "causation": {
+          "type": "object",
+          "description": "Probabilities of causation (Tian & Pearl 2000) for a causation query. PN/PS/PNS assumption-free bounds, plus point values when monotonic. Carries the observational joint cells and the two interventional risks (with their provenance) that fed the Tian-Pearl formulas.",
+          "additionalProperties": true,
+          "properties": {
+            "pn": { "type": "object", "description": "Probability of necessity: lower/upper bounds and (when monotonic) point." },
+            "ps": { "type": "object", "description": "Probability of sufficiency: lower/upper bounds and (when monotonic) point." },
+            "pns": { "type": "object", "description": "Probability of necessity and sufficiency: lower/upper bounds and (when monotonic) point." },
+            "monotonic": { "type": "boolean" },
+            "interventional_risk_provenance": {
+              "enum": ["derived_identification", "user_experimental"],
+              "description": "Whether P(Y=1|do(X)) was derived from theta via effect identification, or supplied directly as randomized-experiment data (confounded case, e.g. Tian-Pearl drug example)."
+            },
+            "p_y_do_x1": { "type": "number" },
+            "p_y_do_x0": { "type": "number" },
+            "observational_joint": { "type": "object", "description": "The four P(X=x, Y=y) cells recovered from theta." }
+          }
+        },
         "llm_proposed_review": {
           "type": "object",
           "description": "Fix 3+4 §3.2 (v0.1.5): aggregated audit surface listing every LLM-proposed element in the program (cause edges tagged annotations.source containing 'llm' + probability statements with provenance='llm_prior'). Attached only when at least one such element exists, so single-population non-LLM-prior runs serialise byte-identically to pre-fix. The Skill v3 contract requires the agent's reply to lead with this list before stating any numeric answer.",
@@ -226,7 +244,8 @@
         "effect",
         "identify",
         "probability",
-        "counterfactual"
+        "counterfactual",
+        "causation"
       ]
     },
     "structural_result": {

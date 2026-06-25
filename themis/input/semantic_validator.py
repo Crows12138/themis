@@ -51,6 +51,7 @@ from ..types import (
     Atom,
     BidirectedStatement,
     SelectionNode,
+    CausationQuery,
     CounterfactualAssumptions,
     CounterfactualQuery,
     CauseQuery,
@@ -201,6 +202,14 @@ def _to_query(d: dict):
             assumptions=assumptions,
             factual_target_known=d.get("factual_target_known"),
         )
+    if k == "causation":
+        return CausationQuery(
+            cause=_to_atom(d["cause"]),
+            effect=_to_atom(d["effect"]),
+            monotonic=bool(d.get("monotonic", False)),
+            experimental_risk_treated=d.get("experimental_risk_treated"),
+            experimental_risk_control=d.get("experimental_risk_control"),
+        )
     raise SemanticError(f"unknown query kind: {k}")
 
 
@@ -305,6 +314,8 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
                 q.counterfactual_intervention.atom,
                 _as_atom(q.counterfactual_target),
             )
+        if isinstance(q, CausationQuery):
+            return (q.cause, q.effect)
     return ()
 
 
@@ -683,6 +694,8 @@ def _query_structural_atoms(q) -> tuple[Atom, ...]:
             q.counterfactual_intervention.atom,
             q.counterfactual_target.atom,
         )
+    if isinstance(q, CausationQuery):
+        return (q.cause, q.effect)
     return ()
 
 

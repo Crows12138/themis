@@ -21,6 +21,7 @@ from typing import Callable
 
 from ..types import (
     AssocQuery,
+    CausationQuery,
     CauseQuery,
     ConstantExpr,
     CounterfactualQuery,
@@ -28,6 +29,7 @@ from ..types import (
     EffectQuery,
     FractionExpr,
     IdentifyQuery,
+    NumericInterval,
     NumericResult,
     ProbabilityRefExpr,
     ProbabilityQuery,
@@ -43,7 +45,7 @@ from .errors import (
     StepRefError,
     VerificationError,
 )
-from .rules import dispatch_rule, known_rule
+from .rules import _numeric_result_matches, dispatch_rule, known_rule
 from .semantic_probe import probe_identify_formula
 
 
@@ -912,5 +914,75 @@ def verify_counterfactual(
     if final != claimed_result:
         raise VerificationError(
             "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
+def _assert_causation_query_binding(
+    step: DerivationStep,
+    context: VerificationContext,
+    step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+) -> None:
+    """Causation derivations have a single rule whose cause/effect binding
+    is rechecked inside the rule against ``ctx.query`` (parallel to the
+    counterfactual asserter)."""
+    return None
+
+
+def verify_causation(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: NumericResult,
+) -> None:
+    """Verify a probabilities-of-causation (PN/PS/PNS) derivation.
+
+    The single ``probabilities_of_causation_tian_pearl`` rule
+    independently re-checks the observational joint (from theta) and
+    re-derives the Tian-Pearl bounds/points, auditing the whole envelope.
+    Here we additionally cross-check that the claimed headline
+    ``numeric_result`` (the PN quantity) is consistent with the verified
+    envelope — point under monotonicity, interval otherwise.
+    """
+    if not isinstance(context.query, CausationQuery):
+        raise VerificationError(
+            "verify_causation requires a CausationQuery in the context",
+            step_index=None, rule=None,
+        )
+    if context.theta is None:
+        raise VerificationError(
+            "verify_causation requires a non-None theta in the context",
+            step_index=None, rule=None,
+        )
+
+    _walk(derivation, context, _assert_causation_query_binding)
+
+    if derivation[-1].rule != "probabilities_of_causation_tian_pearl":
+        raise VerificationError(
+            "causation derivation must end in "
+            "'probabilities_of_causation_tian_pearl'",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+    envelope = derivation[-1].output
+    pn = envelope.get("pn") if isinstance(envelope, dict) else None
+    if not isinstance(pn, dict):
+        raise VerificationError(
+            "causation envelope is missing the pn block",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if pn.get("point") is not None:
+        expected = NumericResult(value=float(pn["point"]))
+    else:
+        expected = NumericResult(
+            value=None,
+            interval=NumericInterval(
+                low=float(pn["lower"]), high=float(pn["upper"]),
+            ),
+        )
+    if not _numeric_result_matches(claimed_result, expected):
+        raise VerificationError(
+            "causation headline (PN) does not match the verified envelope",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )

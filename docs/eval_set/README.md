@@ -78,7 +78,7 @@ intuitive.
   "gold_answerability": "answerable | needs_framing | needs_data |
                          needs_structural_info | unanswerable",
 
-  "gold_query_kind": "cause | assoc | effect | identify | probability | counterfactual"
+  "gold_query_kind": "cause | assoc | effect | identify | probability | counterfactual | causation"
 }
 ```
 

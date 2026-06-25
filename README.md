@@ -106,8 +106,8 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 在已知或候选模型上，Themis 可以：
 
-- 运行结构查询：`cause / assoc / identify / effect / probability / counterfactual`
-- 处理已显式立项的 fragment：front-door、窄 ADMG、窄 temporal、窄 counterfactual、IV、mediation、transport
+- 运行结构查询：`cause / assoc / identify / effect / probability / counterfactual / causation`
+- 处理已显式立项的 fragment：front-door、窄 ADMG、窄 temporal、窄 counterfactual、IV、mediation、transport、probabilities of causation（PN/PS/PNS, Tian-Pearl 2000）
 - 输出严格推导链，并通过独立 verifier 复核
 - 在有数据时通过 `themis.estimate(...)` 给出 backdoor / front-door / IV / mediation / dose-response 估计
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设

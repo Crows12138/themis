@@ -44,12 +44,14 @@ from ..input.semantic_validator import validate_against_graph, validate_formula
 from ..types import (
     AssocQuery,
     Atom,
+    CausationQuery,
     CauseQuery,
     ConfidenceSource,
     CounterfactualQuery,
     DerivationStep,
     EffectQuery,
     IdentifyQuery,
+    Intervention,
     InvestigationAction,
     InvestigationItem,
     InvestigationRequest,
@@ -97,6 +99,7 @@ _QUERY_KIND_OF: dict[type, QueryKind] = {
     IdentifyQuery: QueryKind.IDENTIFY,
     ProbabilityQuery: QueryKind.PROBABILITY,
     CounterfactualQuery: QueryKind.COUNTERFACTUAL,
+    CausationQuery: QueryKind.CAUSATION,
 }
 
 
@@ -1775,6 +1778,264 @@ def _dispatch_counterfactual(
     )
 
 
+def _poc_quantity(lower: float, upper: float, point: "float | None") -> dict:
+    """Serialize one probability-of-causation quantity (PN / PS / PNS).
+
+    ``point`` is omitted when the quantity is not point-identified (no
+    monotonicity) — its absence is itself information for the renderer.
+    """
+    d: dict = {"lower": lower, "upper": upper}
+    if point is not None:
+        d["point"] = point
+    return d
+
+
+def _derive_interventional_risks(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    x_atom: Atom,
+    y_atom: Atom,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    selection_nodes: "tuple[Statement, ...]" = (),
+) -> "tuple[tuple[float, float] | None, QueryResult | None]":
+    """Derive P(Y=1 | do(X=1)) and P(Y=1 | do(X=0)) by running the
+    existing effect identification twice.
+
+    Reuses ``_dispatch_effect`` — so the interventional risks inherit the
+    full backdoor / front-door / Tian / IV identification cascade for
+    free. Returns ``((p1, p0), None)`` on success, or ``(None, gap)``
+    where ``gap`` is a causation-kind ``needs_investigation`` result
+    carrying the merged missing-information and a pointer to the
+    experimental-risk escape hatch.
+    """
+    risks: list[float] = []
+    merged_missing: list[MissingItem] = []
+    merged_requests: list[InvestigationRequest] = []
+    for x_val in (True, False):
+        internal = QueryStatement(
+            id=f"{stmt.id}::do_x{'1' if x_val else '0'}",
+            query=EffectQuery(
+                target=ValuedAtom(atom=y_atom, value=True),
+                intervention=Intervention(atom=x_atom, value=x_val),
+                given=(),
+            ),
+        )
+        sub = _dispatch_effect(
+            internal, graph, theta,
+            bidirected=bidirected, selection_nodes=selection_nodes,
+        )
+        if (
+            sub.status == ResultStatus.NUMERICALLY_SOLVED
+            and sub.numeric_result is not None
+            and sub.numeric_result.value is not None
+        ):
+            risks.append(float(sub.numeric_result.value))
+        else:
+            for item in sub.missing_information:
+                if item.name not in {m.name for m in merged_missing}:
+                    merged_missing.append(item)
+            merged_requests.extend(sub.investigation_requests)
+    if len(risks) == 2:
+        return (risks[0], risks[1]), None
+
+    # At least one interventional risk could not be obtained — the effect
+    # of X on Y is not identifiable from theta (confounding / missing CPT).
+    escape = MissingItem(
+        kind=MissingKind.ASSUMPTION,
+        name="causation:interventional_risk_unavailable",
+        priority=Priority.HIGH,
+        reason=(
+            "P(Y=1|do(X)) could not be derived (effect not identifiable from "
+            "the supplied data). Supply experimental_risk_treated / "
+            "experimental_risk_control from a randomized experiment, or add "
+            "the data needed to identify the effect."
+        ),
+    )
+    gap = QueryResult(
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        query_kind=QueryKind.CAUSATION,
+        query_id=stmt.id,
+        missing_information=tuple(merged_missing) + (escape,),
+        investigation_requests=tuple(merged_requests),
+    )
+    return None, gap
+
+
+def _dispatch_causation(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    selection_nodes: "tuple[Statement, ...]" = (),
+) -> QueryResult:
+    """Probabilities of causation — PN / PS / PNS (Tian & Pearl 2000).
+
+    Recovers the observational joint P(X, Y) from theta, obtains the two
+    interventional risks P(Y=1 | do(X=1/0)) — either user-supplied
+    (randomized-experiment data, the confounded drug-example case) or
+    DERIVED by running the effect identification twice — and feeds both
+    into ``probabilities_of_causation`` (the Tian-Pearl core, verified
+    against the published drug example). Returns the assumption-free
+    bounds, plus point values when the query declares ``monotonic``.
+    """
+    from .probabilities_of_causation import probabilities_of_causation
+
+    q: CausationQuery = stmt.query  # type: ignore[assignment]
+    x_atom = q.cause
+    y_atom = q.effect
+
+    # 1. Both atoms must be in G(M).
+    missing_atoms = [a for a in (x_atom, y_atom) if a not in graph]
+    if missing_atoms:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.CAUSATION,
+            query_id=stmt.id,
+            missing_information=tuple(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"atom:{_atom_to_str(a)}",
+                    priority=Priority.HIGH,
+                    reason="causation query atom is not in the instantiated variable set V",
+                )
+                for a in missing_atoms
+            ),
+        )
+
+    # 2. PN/PS/PNS are defined for BINARY cause and effect only.
+    for atom, role in ((x_atom, "cause"), (y_atom, "effect")):
+        domain = set(theta.domain_of(atom))
+        if not domain or not domain <= {False, True}:
+            return QueryResult(
+                status=ResultStatus.OUTSIDE_LANGUAGE,
+                query_kind=QueryKind.CAUSATION,
+                query_id=stmt.id,
+                extensions={
+                    "causation_error": (
+                        f"probabilities of causation require a binary {role} "
+                        f"({atom.predicate}); got domain "
+                        f"{sorted(domain, key=str) or 'unknown'}"
+                    )
+                },
+            )
+
+    # 3. Observational joint P(X, Y) — four cells from theta.
+    joint: dict[tuple[bool, bool], float] = {}
+    joint_missing: list[MissingItem] = []
+    joint_skeletons: dict = {}
+    for x_val in (True, False):
+        for y_val in (True, False):
+            try:
+                joint[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
+                    theta, x_atom=x_atom, x_val=x_val, y_atom=y_atom, y_val=y_val,
+                )
+            except InsufficientTheta as exc:
+                item = _missing_parameter_from_key(exc.missing_key, exc.reason)
+                if item.name not in {m.name for m in joint_missing}:
+                    joint_missing.append(item)
+                    if exc.missing_key is not None:
+                        joint_skeletons[item.name] = _skeleton_for_parameter(
+                            exc.missing_key
+                        )
+    if joint_missing:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.CAUSATION,
+            query_id=stmt.id,
+            missing_information=tuple(joint_missing),
+            investigation_requests=investigation_pusher.push(
+                tuple(joint_missing), skeletons=joint_skeletons,
+            ),
+        )
+
+    # 4. Interventional risks P(Y=1 | do(X=1/0)).
+    if (
+        q.experimental_risk_treated is not None
+        and q.experimental_risk_control is not None
+    ):
+        p_y_do_x1 = float(q.experimental_risk_treated)
+        p_y_do_x0 = float(q.experimental_risk_control)
+        risk_provenance = "user_experimental"
+    else:
+        risks, gap = _derive_interventional_risks(
+            stmt, graph, theta, x_atom, y_atom,
+            bidirected=bidirected, selection_nodes=selection_nodes,
+        )
+        if gap is not None:
+            return gap
+        p_y_do_x1, p_y_do_x0 = risks
+        risk_provenance = "derived_identification"
+
+    # 5. Tian-Pearl PN / PS / PNS.
+    poc = probabilities_of_causation(
+        p_x1_y1=joint[(True, True)], p_x1_y0=joint[(True, False)],
+        p_x0_y1=joint[(False, True)], p_x0_y0=joint[(False, False)],
+        p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0,
+        monotonic=q.monotonic,
+    )
+
+    # 6. Package. The derivation step's output and extensions.causation
+    # carry the SAME envelope so the verifier can re-check the whole
+    # PN/PS/PNS structure (not just the PN headline) from one place.
+    envelope = {
+        "monotonic": q.monotonic,
+        "interventional_risk_provenance": risk_provenance,
+        "p_y_do_x1": p_y_do_x1,
+        "p_y_do_x0": p_y_do_x0,
+        "observational_joint": {
+            "p_x1_y1": joint[(True, True)], "p_x1_y0": joint[(True, False)],
+            "p_x0_y1": joint[(False, True)], "p_x0_y0": joint[(False, False)],
+        },
+        "pn": _poc_quantity(poc.pn_lower, poc.pn_upper, poc.pn_point),
+        "ps": _poc_quantity(poc.ps_lower, poc.ps_upper, poc.ps_point),
+        "pns": _poc_quantity(poc.pns_lower, poc.pns_upper, poc.pns_point),
+    }
+
+    # Headline = PN (necessity / liability): the canonical attribution
+    # quantity. Point under monotonicity, interval otherwise.
+    if poc.pn_point is not None:
+        numeric_result = NumericResult(value=poc.pn_point)
+        status = ResultStatus.COUNTERFACTUAL_SOLVED
+    else:
+        numeric_result = NumericResult(
+            value=None,
+            interval=NumericInterval(low=poc.pn_lower, high=poc.pn_upper),
+        )
+        status = ResultStatus.COUNTERFACTUAL_BOUNDED
+
+    derivation = (
+        DerivationStep(
+            rule="probabilities_of_causation_tian_pearl",
+            inputs={
+                "cause": x_atom,
+                "effect": y_atom,
+                "p_x1_y1": joint[(True, True)],
+                "p_x1_y0": joint[(True, False)],
+                "p_x0_y1": joint[(False, True)],
+                "p_x0_y0": joint[(False, False)],
+                "p_y_do_x1": p_y_do_x1,
+                "p_y_do_x0": p_y_do_x0,
+                "monotonic": q.monotonic,
+                "interventional_risk_provenance": risk_provenance,
+            },
+            output=envelope,
+            step_id="s1",
+        ),
+    )
+
+    return QueryResult(
+        status=status,
+        query_kind=QueryKind.CAUSATION,
+        query_id=stmt.id,
+        numeric_result=numeric_result,
+        derivation=derivation,
+        extensions={"causation": envelope},
+    )
+
+
 def _try_numeric(
     stmt: QueryStatement,
     formula,
@@ -3122,6 +3383,13 @@ def dispatch(
     elif isinstance(q, CounterfactualQuery):
         result = _dispatch_counterfactual(
             stmt, graph, theta, bidirected=bidirected
+        )
+    elif isinstance(q, CausationQuery):
+        from ..types import SelectionNode as _SN
+        sel_nodes = tuple(s for s in program.statements if isinstance(s, _SN))
+        result = _dispatch_causation(
+            stmt, graph, theta,
+            bidirected=bidirected, selection_nodes=sel_nodes,
         )
     else:
         # Truly unknown type: fail loudly. The schema layer should

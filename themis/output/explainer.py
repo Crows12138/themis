@@ -283,6 +283,48 @@ def _explain_counterfactual_zh(result: QueryResult) -> str:
     return "反事实查询：结果未分类。"
 
 
+def _explain_causation_zh(result: QueryResult) -> str:
+    """Render PN / PS / PNS (probabilities of causation, Tian-Pearl 2000).
+
+    Reads the ``extensions.causation`` envelope the scheduler attached;
+    re-runs no reasoning. PN (necessity / 归因) is the headline; PS
+    (sufficiency) and PNS round out the picture.
+    """
+    if result.status is ResultStatus.OUTSIDE_LANGUAGE:
+        err = (result.extensions or {}).get("causation_error")
+        return f"因果概率查询超出当前语言范围：{err}" if err else (
+            "因果概率查询超出当前语言范围。"
+        )
+    if result.status is ResultStatus.NEEDS_INVESTIGATION:
+        gap = _describe_needs_investigation(result)
+        base = "因果概率（PN/PS/PNS）暂时算不出。"
+        return f"{base}{gap}" if gap else base
+
+    c = (result.extensions or {}).get("causation")
+    if not c:
+        return "因果概率查询：结果未分类。"
+
+    def _q(block: dict) -> str:
+        if "point" in block:
+            return f"{_format_number(block['point'])}（点识别）"
+        return (
+            f"[{_format_number(block['lower'])}, "
+            f"{_format_number(block['upper'])}]（界）"
+        )
+
+    prov = (
+        "干预风险由识别推导得到"
+        if c.get("interventional_risk_provenance") == "derived_identification"
+        else "干预风险由随机实验数据直接给出"
+    )
+    return (
+        f"因果归因概率（Tian-Pearl 2000，{prov}）："
+        f"必要性 PN = {_q(c['pn'])}；"
+        f"充分性 PS = {_q(c['ps'])}；"
+        f"必要且充分 PNS = {_q(c['pns'])}。"
+    )
+
+
 def _with_confidence_suffix(text: str, result: QueryResult) -> str:
     """Append a confidence clause when the result carries one.
 
@@ -347,6 +389,8 @@ def explain(
         text = _explain_probability_zh(result, stmt)
     elif result.query_kind == QueryKind.COUNTERFACTUAL:
         text = _explain_counterfactual_zh(result)
+    elif result.query_kind == QueryKind.CAUSATION:
+        text = _explain_causation_zh(result)
     else:
         raise NotImplementedError(
             f"explainer for {result.query_kind.value} not implemented yet"

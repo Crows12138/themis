@@ -10,7 +10,9 @@ Public surface (re-exports from sub-modules):
 - Per-query-kind verifiers: ``verify_cause`` / ``verify_assoc`` /
   ``verify_identify`` / ``verify_effect_structural`` /
   ``verify_numeric`` / ``verify_numeric_estimate`` /
-  ``verify_counterfactual``
+  ``verify_counterfactual`` / ``verify_causation`` (PN/PS/PNS,
+  Tian-Pearl 2000 — independently re-derives the observational joint
+  from theta and the Tian-Pearl bounds/points)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -54,6 +56,7 @@ from .serialization import (
 )
 from .verify import (
     verify_assoc,
+    verify_causation,
     verify_cause,
     verify_counterfactual,
     verify_effect_structural,
@@ -79,6 +82,7 @@ __all__ = [
     "derivation_from_dict",
     "derivation_to_dict",
     "verify_assoc",
+    "verify_causation",
     "verify_cause",
     "verify_counterfactual",
     "verify_effect_structural",

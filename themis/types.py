@@ -262,6 +262,36 @@ class CounterfactualQuery:
     factual_target_known: AtomValue | None = None
 
 
+@dataclass(frozen=True)
+class CausationQuery:
+    """Probabilities of causation (Tian & Pearl 2000) — the binary
+    counterfactual-attribution query Themis previously could not answer:
+
+    - PN  (necessity)   = P(Y_{x'}=0 | X=1, Y=1) — "given both happened,
+                          would Y have NOT happened without X?" (liability)
+    - PS  (sufficiency) = P(Y_{x}=1 | X=0, Y=0) — "given neither happened,
+                          WOULD Y have happened had X?" (prevention)
+    - PNS (both)         = P(Y_{x}=1, Y_{x'}=0)
+
+    ``cause`` (X) and ``effect`` (Y) are binary atoms. The observational
+    joint P(X, Y) is recovered from theta; the two interventional risks
+    P(Y=1|do(X=1/0)) are either DERIVED via the existing effect
+    identification machinery, or — for the confounded-but-experimentally-
+    measured case (Tian-Pearl's drug example, where do(X) is not
+    identifiable from observation alone) — supplied directly via
+    ``experimental_risk_treated`` / ``experimental_risk_control``.
+
+    ``monotonic=True`` asserts Y is monotonic in X (X never prevents Y),
+    which point-identifies all three (Tian-Pearl Thm 3); otherwise only
+    assumption-free bounds are returned.
+    """
+    cause: Atom
+    effect: Atom
+    monotonic: bool = False
+    experimental_risk_treated: float | None = None   # P(Y=1 | do(X=1))
+    experimental_risk_control: float | None = None    # P(Y=1 | do(X=0))
+
+
 Query = Union[
     CauseQuery,
     AssocQuery,
@@ -269,6 +299,7 @@ Query = Union[
     IdentifyQuery,
     ProbabilityQuery,
     CounterfactualQuery,
+    CausationQuery,
 ]
 
 
@@ -427,6 +458,7 @@ class QueryKind(str, Enum):
     IDENTIFY = "identify"
     PROBABILITY = "probability"
     COUNTERFACTUAL = "counterfactual"
+    CAUSATION = "causation"
 
 
 @dataclass(frozen=True)

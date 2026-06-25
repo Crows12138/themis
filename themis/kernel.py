@@ -58,6 +58,7 @@ from .types import (
     AssocQuery,
     Atom,
     BidirectedStatement,
+    CausationQuery,
     CounterfactualQuery,
     CauseQuery,
     CauseStatement,
@@ -84,6 +85,7 @@ from .verifier import (
     VerificationError,
     derivation_from_dict,
     verify_assoc,
+    verify_causation,
     verify_cause,
     verify_counterfactual,
     verify_effect_structural,
@@ -276,6 +278,19 @@ def _query_to_dict(q) -> dict:
             }
         if q.factual_target_known is not None:
             d["factual_target_known"] = q.factual_target_known
+        return d
+    if isinstance(q, CausationQuery):
+        d = {
+            "kind": "causation",
+            "cause": _atom_to_dict(q.cause),
+            "effect": _atom_to_dict(q.effect),
+        }
+        if q.monotonic:
+            d["monotonic"] = q.monotonic
+        if q.experimental_risk_treated is not None:
+            d["experimental_risk_treated"] = q.experimental_risk_treated
+        if q.experimental_risk_control is not None:
+            d["experimental_risk_control"] = q.experimental_risk_control
         return d
     raise TypeError(f"unknown query: {type(q).__name__}")
 
@@ -722,6 +737,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             )
         claimed = _decode_numeric_result_json(result["numeric_result"])
         verify_counterfactual(derivation, ctx, claimed)
+    elif kind == "causation":
+        if "numeric_result" not in result:
+            raise ValueError(
+                "verify(): causation result must carry a numeric_result"
+            )
+        claimed = _decode_numeric_result_json(result["numeric_result"])
+        verify_causation(derivation, ctx, claimed)
     else:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"

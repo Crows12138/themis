@@ -26,6 +26,7 @@ from ..runtime.numeric_estimator import ProbabilityKey, Theta
 from ..types import (
     Atom,
     BindDecl,
+    CausationQuery,
     ConstantExpr,
     CounterfactualQuery,
     FormulaExpr,
@@ -3897,6 +3898,209 @@ def _rule_counterfactual_bounds_binary_monotone(
         )
 
 
+def _tian_pearl_poc_for_verifier(
+    *,
+    p_x1_y1: float, p_x1_y0: float, p_x0_y1: float, p_x0_y0: float,
+    p_y_do_x1: float, p_y_do_x0: float, monotonic: bool,
+) -> dict:
+    """The verifier's own transcription of the Tian & Pearl (2000)
+    PN/PS/PNS theorem — bounds (eqs 24-26) + monotone points (eqs 40-42).
+
+    Deliberately re-implemented here rather than importing
+    ``runtime.probabilities_of_causation`` (the verifier carries the
+    theorem; the producer merely claims to satisfy it). Returns a dict
+    ``{quantity: (lower, upper, point_or_None)}``.
+    """
+    def clamp(v: float) -> float:
+        return 0.0 if v < 0.0 else 1.0 if v > 1.0 else v
+
+    pyx = p_y_do_x1
+    pyx_ = p_y_do_x0
+    py = p_x1_y1 + p_x0_y1
+    pxy = p_x1_y1
+    px_y_ = p_x0_y0
+    py_prime_x_ = 1.0 - pyx_
+
+    pns_lower = clamp(max(0.0, pyx - pyx_, py - pyx_, pyx - py))
+    pns_upper = clamp(min(
+        pyx, py_prime_x_, p_x1_y1 + p_x0_y0,
+        pyx - pyx_ + p_x1_y0 + p_x0_y1,
+    ))
+    if pxy > 0.0:
+        pn_lower = clamp(max(0.0, (py - pyx_) / pxy))
+        pn_upper = clamp(min(1.0, (py_prime_x_ - px_y_) / pxy))
+    else:
+        pn_lower, pn_upper = 0.0, 1.0
+    if px_y_ > 0.0:
+        ps_lower = clamp(max(0.0, (pyx - py) / px_y_))
+        ps_upper = clamp(min(1.0, (pyx - pxy) / px_y_))
+    else:
+        ps_lower, ps_upper = 0.0, 1.0
+
+    pns_pt = pn_pt = ps_pt = None
+    if monotonic:
+        pns_pt = clamp(pyx - pyx_)
+        pn_pt = clamp((py - pyx_) / pxy) if pxy > 0.0 else None
+        ps_pt = clamp((pyx - py) / px_y_) if px_y_ > 0.0 else None
+
+    return {
+        "pn": (pn_lower, pn_upper, pn_pt),
+        "ps": (ps_lower, ps_upper, ps_pt),
+        "pns": (pns_lower, pns_upper, pns_pt),
+    }
+
+
+def _rule_probabilities_of_causation_tian_pearl(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Independent audit of a PN/PS/PNS (causation) result.
+
+    Three independent re-checks, each catching a distinct producer bug:
+
+    1. The four observational joint cells declared in the step are
+       recomputed from ``ctx.theta`` (verifier-local chain-rule recovery)
+       and must match — catches a mis-wired joint.
+    2. The Tian-Pearl bounds/points are re-derived from the declared
+       joint + interventional risks via the verifier's own transcription
+       and must match the claimed envelope — catches a formula/packaging
+       bug.
+    3. The interventional risks must be well-formed probabilities, and
+       the envelope must echo the declared risks / monotonic flag /
+       provenance.
+
+    Scope boundary (deliberate, documented): when the interventional
+    risks were ``derived_identification`` they were produced by the
+    effect-identification subsystem, which has its OWN independent
+    verifier (``verify`` on an effect query). This rule does not re-run
+    that cascade; it audits the joint recovery, the Tian-Pearl theorem
+    application, and internal consistency. The risks are validated as
+    probabilities but not re-identified here.
+    """
+    rule = "probabilities_of_causation_tian_pearl"
+    if not isinstance(ctx.query, CausationQuery):
+        raise RuleCheckFailed(
+            f"{rule} requires a CausationQuery context",
+            step_index=step_index, rule=rule,
+        )
+    if ctx.theta is None:
+        raise RuleCheckFailed(
+            f"{rule} requires theta in context",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(claimed_output, dict):
+        raise RuleCheckFailed(
+            f"{rule} output must be the causation envelope dict",
+            step_index=step_index, rule=rule,
+        )
+
+    x_atom = _require_atom(inputs, "cause", step_index, rule)
+    y_atom = _require_atom(inputs, "effect", step_index, rule)
+    if x_atom != ctx.query.cause or y_atom != ctx.query.effect:
+        raise RuleCheckFailed(
+            f"{rule}: cause/effect inputs do not bind to the query atoms",
+            step_index=step_index, rule=rule,
+        )
+
+    declared_cells = {
+        (True, True): float(_require(inputs, "p_x1_y1", step_index, rule)),
+        (True, False): float(_require(inputs, "p_x1_y0", step_index, rule)),
+        (False, True): float(_require(inputs, "p_x0_y1", step_index, rule)),
+        (False, False): float(_require(inputs, "p_x0_y0", step_index, rule)),
+    }
+    p_y_do_x1 = float(_require(inputs, "p_y_do_x1", step_index, rule))
+    p_y_do_x0 = float(_require(inputs, "p_y_do_x0", step_index, rule))
+    monotonic = bool(_require(inputs, "monotonic", step_index, rule))
+    provenance = _require(
+        inputs, "interventional_risk_provenance", step_index, rule
+    )
+
+    # 1. Interventional risks must be probabilities.
+    for label, v in (("p_y_do_x1", p_y_do_x1), ("p_y_do_x0", p_y_do_x0)):
+        if not (0.0 <= v <= 1.0):
+            raise RuleCheckFailed(
+                f"{rule}: {label}={v} is not a probability in [0, 1]",
+                step_index=step_index, rule=rule,
+            )
+
+    # 2. Recompute the joint from theta independently — must match declared.
+    for (xv, yv), declared in declared_cells.items():
+        recomputed = _counterfactual_joint_cell_for_verifier(
+            ctx.theta,
+            x_atom=x_atom, x_val=xv, y_atom=y_atom, y_val=yv,
+            step_index=step_index, rule=rule,
+        )
+        if abs(declared - recomputed) > _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"{rule}: declared joint cell ({xv}, {yv})={declared} != "
+                f"theta-recovered {recomputed}",
+                step_index=step_index, rule=rule,
+            )
+
+    # 3. Re-derive PN/PS/PNS via the verifier's own Tian-Pearl transcription.
+    expected = _tian_pearl_poc_for_verifier(
+        p_x1_y1=declared_cells[(True, True)],
+        p_x1_y0=declared_cells[(True, False)],
+        p_x0_y1=declared_cells[(False, True)],
+        p_x0_y0=declared_cells[(False, False)],
+        p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0, monotonic=monotonic,
+    )
+    for qty in ("pn", "ps", "pns"):
+        claimed_q = claimed_output.get(qty)
+        if not isinstance(claimed_q, dict):
+            raise RuleCheckFailed(
+                f"{rule}: envelope is missing the {qty} block",
+                step_index=step_index, rule=rule,
+            )
+        exp_lo, exp_hi, exp_pt = expected[qty]
+        if (
+            abs(float(claimed_q.get("lower")) - exp_lo) > _NUMERIC_TOL
+            or abs(float(claimed_q.get("upper")) - exp_hi) > _NUMERIC_TOL
+        ):
+            raise RuleCheckFailed(
+                f"{rule}: {qty} bounds [{claimed_q.get('lower')}, "
+                f"{claimed_q.get('upper')}] != recomputed [{exp_lo}, {exp_hi}]",
+                step_index=step_index, rule=rule,
+            )
+        claimed_pt = claimed_q.get("point")
+        if exp_pt is None:
+            if claimed_pt is not None:
+                raise RuleCheckFailed(
+                    f"{rule}: {qty} claims a point ({claimed_pt}) but the "
+                    f"quantity is not point-identified without monotonicity",
+                    step_index=step_index, rule=rule,
+                )
+        else:
+            if claimed_pt is None or abs(float(claimed_pt) - exp_pt) > _NUMERIC_TOL:
+                raise RuleCheckFailed(
+                    f"{rule}: {qty} point {claimed_pt} != recomputed {exp_pt}",
+                    step_index=step_index, rule=rule,
+                )
+
+    # 4. Envelope must echo the declared risks / flag / provenance.
+    if (
+        abs(float(claimed_output.get("p_y_do_x1")) - p_y_do_x1) > _NUMERIC_TOL
+        or abs(float(claimed_output.get("p_y_do_x0")) - p_y_do_x0) > _NUMERIC_TOL
+    ):
+        raise RuleCheckFailed(
+            f"{rule}: envelope interventional risks disagree with the "
+            f"declared step inputs",
+            step_index=step_index, rule=rule,
+        )
+    if bool(claimed_output.get("monotonic")) != monotonic:
+        raise RuleCheckFailed(
+            f"{rule}: envelope monotonic flag disagrees with the declared input",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.get("interventional_risk_provenance") != provenance:
+        raise RuleCheckFailed(
+            f"{rule}: envelope provenance disagrees with the declared input",
+            step_index=step_index, rule=rule,
+        )
+
+
 # ============================================ Phase 9 §T9.1.4: T9-1, T9-2
 
 # Verifier-side selection diagram + S-admissibility re-derivation. NO
@@ -4850,6 +5054,8 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "T3_unroll_acyclic": _rule_t3_unroll_acyclic,
     # Phase 5 §C
     "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
+    # Probabilities of causation — PN / PS / PNS (Tian & Pearl 2000)
+    "probabilities_of_causation_tian_pearl": _rule_probabilities_of_causation_tian_pearl,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
     # Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE numeric
