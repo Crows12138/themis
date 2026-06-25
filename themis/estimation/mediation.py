@@ -40,7 +40,6 @@ import numpy as np
 import pandas as pd
 
 import statsmodels.api as sm
-from statsmodels.stats.mediation import Mediation
 
 from .contract import validate_data
 
@@ -117,56 +116,117 @@ def estimate_mediation(
     adj_term = " + ".join(adjustment) if adjustment else ""
     sep = " + " if adj_term else ""
 
-    # Outcome model: Y ~ X + M [+ adjustment]
-    outcome_formula = f"{outcome} ~ {treatment} + {mediator}{sep}{adj_term}"
+    # Outcome model: Y ~ X + M + X:M [+ adjustment]. The exposure-mediator
+    # interaction is INCLUDED so the natural-effect decomposition is correct
+    # under interaction. Omitting it silently collapses NDE/NIE to the
+    # Baron-Kenny estimates (θ1, θ2·β1), which VanderWeele (2015, §2.2) shows
+    # are biased whenever an interaction is present. statsmodels' Mediation does
+    # NOT propagate an interaction term to the counterfactual exposure (it sets
+    # the X column but leaves the stale X:M product), so we compute the natural
+    # effects ourselves with a g-formula that re-predicts the outcome on rebuilt
+    # design rows — patsy then recomputes X:M at the counterfactual exposure.
+    interaction = f"{treatment}:{mediator}"
+    outcome_formula = (
+        f"{outcome} ~ {treatment} + {mediator} + {interaction}{sep}{adj_term}"
+    )
     if resolved == "logit":
-        outcome_model = sm.Logit.from_formula(outcome_formula, data=fit_df)
+        is_logit = True
         method = "mediation_logit_imai"
     elif resolved == "linear":
-        outcome_model = sm.OLS.from_formula(outcome_formula, data=fit_df)
+        is_logit = False
         method = "mediation_linear_imai"
     else:
         raise ValueError(f"unknown model {model!r}")
 
-    # Mediator model: M ~ X [+ adjustment]
-    # statsmodels.stats.mediation has a known incompatibility where
-    # BinaryModel.get_distribution rejects the 'scale' kwarg that
-    # Mediation.fit passes. Workaround: always use OLS on the mediator;
-    # for bool mediators this is a linear-probability first stage, which
-    # is a widely-accepted approximation in the Imai framework when the
-    # treatment effect on the mediator is not near the [0,1] boundary.
+    # Mediator model: M ~ X [+ adjustment]. Always OLS; for a bool mediator this
+    # is a linear-probability first stage (a standard Imai-framework
+    # approximation when the treatment effect on M is away from the [0,1] edge).
     mediator_formula = f"{mediator} ~ {treatment}{sep}{adj_term}"
-    mediator_model = sm.OLS.from_formula(mediator_formula, data=fit_df)
 
-    # statsmodels uses numpy's default RNG; seed it for reproducibility
     rng = np.random.default_rng(random_state)
-    # Monkey-patching global np.random isn't ideal, but statsmodels'
-    # Mediation.fit() draws from np.random internally. Use np.random.seed
-    # for compatibility with the legacy RandomState path statsmodels uses.
-    np.random.seed(random_state)
+    n_sim = 100  # Monte-Carlo mediator draws for the nonlinear (logit) g-formula
 
-    med_result = Mediation(
-        outcome_model, mediator_model, treatment, mediator,
-    ).fit(n_rep=n_rep)
+    def _fit(frame: pd.DataFrame):
+        if is_logit:
+            om = sm.Logit.from_formula(outcome_formula, data=frame).fit(disp=0)
+        else:
+            om = sm.OLS.from_formula(outcome_formula, data=frame).fit()
+        mm = sm.OLS.from_formula(mediator_formula, data=frame).fit()
+        return om, mm
 
-    summary = med_result.summary()
+    def _nde_nie(om, mm, frame: pd.DataFrame) -> tuple[float, float]:
+        # NDE = E[Y_{1,M0} - Y_{0,M0}], NIE = E[Y_{1,M1} - Y_{1,M0}], where
+        # M_x ~ (mediator model | X = x). The outcome is predicted on rebuilt
+        # rows so the X:M interaction is re-evaluated at the counterfactual X.
+        def _mean_M(xval: float):
+            d = frame.copy()
+            d[treatment] = xval
+            return np.asarray(mm.predict(d))
 
-    def _row(name: str) -> tuple[float, float, float]:
-        row = summary.loc[name]
-        return (
-            float(row["Estimate"]),
-            float(row["Lower CI bound"]),
-            float(row["Upper CI bound"]),
-        )
+        def _EY(xval: float, m_values, base: pd.DataFrame):
+            d = base.copy()
+            d[treatment] = xval
+            d[mediator] = m_values
+            return np.asarray(om.predict(d))
 
-    # ACME (average) = NIE; ADE (average) = NDE
-    nie_p, nie_lo, nie_hi = _row("ACME (average)")
-    nde_p, nde_lo, nde_hi = _row("ADE (average)")
-    te_p, te_lo, te_hi = _row("Total effect")
-    # Imai's bootstrap also computes a CI for the NIE/TE ratio — use it
-    # rather than re-doing point/point (which would lose the CI). The
-    # row is "Prop. mediated (average)".
-    pm_p, pm_lo, pm_hi = _row("Prop. mediated (average)")
+        if is_logit:
+            # Nonlinear outcome: integrate over M's distribution by Monte Carlo.
+            sd = float(np.std(np.asarray(mm.resid), ddof=1))
+            mu0, mu1 = _mean_M(0.0), _mean_M(1.0)
+            k = len(frame)
+            big = pd.concat([frame] * n_sim, ignore_index=True)
+            m0 = np.tile(mu0, n_sim) + rng.standard_normal(n_sim * k) * sd
+            m1 = np.tile(mu1, n_sim) + rng.standard_normal(n_sim * k) * sd
+            nde = float(np.mean(_EY(1.0, m0, big) - _EY(0.0, m0, big)))
+            nie = float(np.mean(_EY(1.0, m1, big) - _EY(1.0, m0, big)))
+            return nde, nie
+        # Linear outcome: E[Y|X,M] is linear in M, so plugging in E[M|X] is exact.
+        m0, m1 = _mean_M(0.0), _mean_M(1.0)
+        nde = float(np.mean(_EY(1.0, m0, frame) - _EY(0.0, m0, frame)))
+        nie = float(np.mean(_EY(1.0, m1, frame) - _EY(1.0, m0, frame)))
+        return nde, nie
+
+    om_point, mm_point = _fit(fit_df)
+    nde_p, nie_p = _nde_nie(om_point, mm_point, fit_df)
+    te_p = nde_p + nie_p
+    pm_p = nie_p / te_p if te_p != 0 else float("nan")
+
+    # Bootstrap CIs: resample rows with replacement, refit both models,
+    # recompute the natural effects.
+    n_rows = len(fit_df)
+    nde_s: list[float] = []
+    nie_s: list[float] = []
+    te_s: list[float] = []
+    pm_s: list[float] = []
+    for _ in range(n_rep):
+        idx = rng.integers(0, n_rows, n_rows)
+        bframe = fit_df.iloc[idx].reset_index(drop=True)
+        try:
+            om_b, mm_b = _fit(bframe)
+            nb, ib = _nde_nie(om_b, mm_b, bframe)
+        except Exception:
+            continue
+        tb = nb + ib
+        nde_s.append(nb)
+        nie_s.append(ib)
+        te_s.append(tb)
+        pm_s.append(ib / tb if tb != 0 else float("nan"))
+
+    half = (1.0 - ci_level) / 2.0
+
+    def _ci(samples: list[float], point: float) -> tuple[float, float]:
+        arr = np.array([s for s in samples if np.isfinite(s)], dtype=float)
+        if arr.size < 2:
+            return point, point
+        lo = float(np.quantile(arr, half))
+        hi = float(np.quantile(arr, 1.0 - half))
+        # Guarantee the interval brackets the point estimate.
+        return min(lo, point), max(hi, point)
+
+    nde_lo, nde_hi = _ci(nde_s, nde_p)
+    nie_lo, nie_hi = _ci(nie_s, nie_p)
+    te_lo, te_hi = _ci(te_s, te_p)
+    pm_lo, pm_hi = _ci(pm_s, pm_p)
 
     return MediationEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,

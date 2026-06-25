@@ -59,6 +59,27 @@ def test_ci_bounds_present_and_ordered():
     assert est.te_ci_lower <= est.te_point <= est.te_ci_upper
 
 
+def test_exposure_mediator_interaction_recovers_correct_nde_nie():
+    """Regression: with an exposure-mediator interaction the natural-effect
+    decomposition must carry the θ3 terms (VanderWeele 2015 §2.2), not collapse
+    to the biased Baron-Kenny estimates. DGP: M = X + noise; Y = 0.5·X + 0.5·M
+    + 2·X·M + noise → true NDE = θ1 + θ3·β0 = 0.5; true NIE = (θ2+θ3)·β1 = 2.5.
+    Before the fix Themis returned NDE≈1.5 / NIE≈1.5 (omitting the interaction).
+    """
+    rng = np.random.default_rng(0)
+    n = 20000
+    x = rng.integers(0, 2, n).astype(float)
+    m = 1.0 * x + rng.standard_normal(n) * 0.5
+    y = 0.5 * x + 0.5 * m + 2.0 * x * m + rng.standard_normal(n) * 0.5
+    df = pd.DataFrame({"x": x, "m": m, "y": y})
+    est = estimate_mediation(
+        df, treatment="x", outcome="y", mediator="m", n_rep=40, random_state=1,
+    )
+    assert abs(est.nde_point - 0.5) < 0.1, est.nde_point   # not the biased ~1.5
+    assert abs(est.nie_point - 2.5) < 0.1, est.nie_point   # not the biased ~1.5
+    assert abs(est.te_point - 3.0) < 0.1, est.te_point
+
+
 # ============================================ logit path
 
 
