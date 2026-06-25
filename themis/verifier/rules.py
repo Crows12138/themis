@@ -4608,11 +4608,21 @@ def _rule_tian_hedge_witness(
     bi_ancestors = frozenset(p for p in ctx.bidirected if p <= frozenset(ancestors))
     cc = c_components(sub, bi_ancestors)
     x_cc = next((c for c in cc if x in c), None)
-    y_cc = next((c for c in cc if y in c), None)
-    if x_cc is None or y_cc is None or x_cc != y_cc:
+    # Tian-Pearl (2002a) Thm 9 / Tian-Shpitser (2009): for a single intervention
+    # X on a single target Y, P(Y|do(X)) is UNidentifiable iff a bidirected path
+    # connects X to one of its CHILDREN within G[An(Y)] — i.e. X shares its
+    # c-component of G[An(Y)] with a child of X. The earlier check compared X to
+    # Y, which only recognises the bow-arc hedge and so wrongly rejected correct
+    # unidentifiability whenever the hedge sits on a descendant of X
+    # (What If Fig 9.17: A->L->Y, A->Y, A<->L — Y is in its own c-component, but
+    # the hedge is on the A<->L bow with L a child of A).
+    x_children = set(sub.successors(x)) if x in sub else set()
+    hedge_present = x_cc is not None and any(child in x_cc for child in x_children)
+    if not hedge_present:
         raise RuleCheckFailed(
-            "tian_hedge_witness: x and y are not in the same c-component "
-            "of G[An(Y)] — runtime claim of unidentifiability is unsound",
+            "tian_hedge_witness: no bidirected path connects x to a child of x "
+            "in G[An(Y)] (Tian-Pearl 2002a Thm 9) — runtime claim of "
+            "unidentifiability is unsound",
             step_index=step_index, rule="tian_hedge_witness",
         )
 

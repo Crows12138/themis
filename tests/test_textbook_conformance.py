@@ -135,6 +135,33 @@ CONFORMANCE_CASES = [
         ),
         "identifiable": False,
     },
+    {
+        "name": "fig9.17_descendant_of_treatment_unidentifiable",
+        "source": "What If Fine Point 9.6: 'the effect of A on Y is not "
+                  "identifiable if Figure 9.17 is the true causal diagram "
+                  "because L is a descendant of A' (Tian-Pearl 2002a Thm 9)",
+        # A→L, L→Y, A→Y, A↔L (latent U common cause of A and L). The hedge sits
+        # on the A↔L bow with L a CHILD of A — Y is in its own c-component, so
+        # the old verifier wrongly rejected this correct unidentifiability.
+        "program": _program(
+            ["a", "l", "y"],
+            [_cause("a", "l"), _cause("l", "y"), _cause("a", "y"), _bi("a", "l")],
+            _identify("y", "a"),
+        ),
+        "identifiable": False,
+    },
+    {
+        "name": "fig7.11_unmeasured_confounding_unidentifiable",
+        "source": "What If ch.7 Fine Point 7.4 (cannot ensure ATE identified "
+                  "from (L,A,Y)); Tian-Pearl 2002a Thm 9",
+        # A→L, L→Y, A↔L. Same descendant-of-treatment hedge, no direct A→Y.
+        "program": _program(
+            ["a", "l", "y"],
+            [_cause("a", "l"), _cause("l", "y"), _bi("a", "l")],
+            _identify("y", "a"),
+        ),
+        "identifiable": False,
+    },
 ]
 
 
