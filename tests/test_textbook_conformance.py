@@ -253,6 +253,13 @@ DSEP_CASES = [
      [("a", "l"), ("l", "y")], "a", "y", [], False),
     ("fig7.4_mbias_bidirected_given_L", ["a", "l", "y"], [],
      [("a", "l"), ("l", "y")], "a", "y", ["l"], True),  # conditioning opens
+    # --- Primer Ch 2: d-connection with TWO open paths. The verifier compared
+    # the supporting-path set order-sensitively and wrongly rejected these;
+    # run + verify must both accept.
+    ("primer_two_open_paths_direct_plus_mediated", ["x", "y", "z"],
+     [("x", "y"), ("x", "z"), ("z", "y")], [], "x", "y", [], True),
+    ("primer_two_open_paths_collider_opened", ["x", "y", "z", "w"],
+     [("x", "w"), ("w", "y"), ("x", "z"), ("y", "z")], [], "x", "y", ["z"], True),
 ]
 
 

@@ -3090,23 +3090,32 @@ def _rule_d_connected_via_open_path(
                 step_index=step_index, rule="d_connected_via_open_path",
             )
 
+    # The SET of open paths is the semantic content; its order is not
+    # meaningful. The producer sorts output.supporting_paths for a canonical
+    # render but stores inputs.paths in raw traversal order, while
+    # _all_open_paths_for_verifier returns its own traversal order — so compare
+    # as SETS. (The earlier order-sensitive equality rejected every correct
+    # multi-open-path d-connection, e.g. X->Y together with X->Z->Y, merely
+    # because the two sides enumerated the same paths in a different order.)
     expected_paths = _all_open_paths_for_verifier(graph, x, y, conditioning)
-    if tuple(paths) != expected_paths:
+    if set(paths) != set(expected_paths):
         raise RuleCheckFailed(
             "d_connected_via_open_path.paths does not equal the full open-path set",
             step_index=step_index, rule="d_connected_via_open_path",
         )
 
-    expected_supporting = tuple(
-        tuple(_atom_label_verifier(a) for a in path) for path in expected_paths
-    )
-    expected = StructuralResult(
-        value=True, supporting_paths=expected_supporting,
-    )
-    if claimed_output != expected:
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
         raise RuleCheckFailed(
-            "d_connected_via_open_path: claimed output does not match the "
-            "StructuralResult implied by the witness paths",
+            "d_connected_via_open_path must claim StructuralResult(value=True)",
+            step_index=step_index, rule="d_connected_via_open_path",
+        )
+    expected_supporting = {
+        tuple(_atom_label_verifier(a) for a in path) for path in expected_paths
+    }
+    if set(claimed_output.supporting_paths or ()) != expected_supporting:
+        raise RuleCheckFailed(
+            "d_connected_via_open_path: claimed supporting_paths do not match "
+            "the open-path set implied by the witnesses",
             step_index=step_index, rule="d_connected_via_open_path",
         )
 
