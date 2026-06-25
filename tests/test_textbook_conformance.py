@@ -329,6 +329,59 @@ def test_heart_transplant_standardization_matches_book():
         themis.verify(prog, r)
 
 
+def test_simpsons_paradox_causal_reverses_associational():
+    """NUMERIC conformance — Pearl's Simpson's-paradox drug example (Causality;
+    Primer Table 1.1). Gender Z confounds drug A and recovery Y (Z->A, Z->Y,
+    A->Y). Within BOTH strata the drug helps, but the naive aggregate makes it
+    look harmful. Themis must reproduce the REVERSAL: the back-door g-formula
+    (adjusting for gender) favours the drug, while the naive P(Y|A) favours no
+    drug. Data are widely-reproduced facts, cited to Pearl."""
+    def _p(tp, tv, given, val):
+        return {"kind": "probability",
+                "target": {"atom": _atom(tp), "value": tv},
+                "given": [{"atom": _atom(g), "value": v} for g, v in given],
+                "value": val}
+    pz = 357 / 700  # P(male)
+    recover = {(True, True): 81 / 87, (False, True): 234 / 270,
+               (True, False): 192 / 263, (False, False): 55 / 80}  # (drug, male)
+
+    def _build(drug, kind):
+        st = [_var("z"), _var("a"), _var("y"),
+              _cause("z", "a"), _cause("z", "y"), _cause("a", "y"),
+              _p("z", True, [], pz), _p("z", False, [], 1 - pz),
+              _p("a", True, [("z", True)], 87 / 357), _p("a", False, [("z", True)], 270 / 357),
+              _p("a", True, [("z", False)], 263 / 343), _p("a", False, [("z", False)], 80 / 343)]
+        for (a, z), pr in recover.items():
+            st += [_p("y", True, [("a", a), ("z", z)], pr),
+                   _p("y", False, [("a", a), ("z", z)], 1 - pr)]
+        if kind == "effect":
+            q = {"kind": "effect",
+                 "target": {"atom": _atom("y"), "value": True},
+                 "intervention": {"atom": _atom("a"), "value": drug}, "given": []}
+        else:
+            q = {"kind": "probability", "target": {"atom": _atom("y"), "value": True},
+                 "given": [{"atom": _atom("a"), "value": drug}]}
+        st.append({"kind": "query", "id": "q", "query": q})
+        return {"version": "0.1",
+                "domain": {"objects": [{"kind": "object", "name": "me"}]},
+                "statements": st}
+
+    def _val(drug, kind):
+        prog = _build(drug, kind)
+        r = themis.run(prog)["results"][0]
+        themis.verify(prog, r)
+        return r["numeric_result"]["value"]
+
+    causal_drug, causal_no = _val(True, "effect"), _val(False, "effect")
+    assoc_drug, assoc_no = _val(True, "probability"), _val(False, "probability")
+
+    assert abs(causal_drug - 0.8325) < 1e-3 and abs(causal_no - 0.7789) < 1e-3
+    assert abs(assoc_drug - 0.78) < 1e-3 and abs(assoc_no - 0.8257) < 1e-3
+    # the paradox: causal favours the drug, associational favours no drug.
+    assert causal_drug > causal_no
+    assert assoc_drug < assoc_no
+
+
 def test_effect_modification_by_sex_matches_book():
     """NUMERIC conformance — What If Table 4.1 (effect modification by sex V).
     A->Y and V->Y with V ⟂ A; the stratum-specific causal effects differ:
