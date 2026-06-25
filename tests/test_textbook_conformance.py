@@ -329,6 +329,45 @@ def test_heart_transplant_standardization_matches_book():
         themis.verify(prog, r)
 
 
+def test_effect_modification_by_sex_matches_book():
+    """NUMERIC conformance — What If Table 4.1 (effect modification by sex V).
+    A->Y and V->Y with V ⟂ A; the stratum-specific causal effects differ:
+    women (V=1) Pr[Y^{a=1}|V=1]=0.6, Pr[Y^{a=0}|V=1]=0.4 (CRR 1.5); men (V=0)
+    0.4 / 0.6 (CRR 2/3). Tests Themis's CONDITIONAL effect P(Y|do(A),V=v), a
+    different path from the marginal g-formula."""
+    def _p(tp, tv, given, val):
+        return {"kind": "probability",
+                "target": {"atom": _atom(tp), "value": tv},
+                "given": [{"atom": _atom(g), "value": v} for g, v in given],
+                "value": val}
+    # (A, V) -> Pr[Y=1], read off Table 4.1's counterfactual columns.
+    cpt = {(True, True): 0.6, (False, True): 0.4, (True, False): 0.4, (False, False): 0.6}
+
+    def _conditional_effect(a_value, v_value):
+        stmts = [_var("v"), _var("a"), _var("y"), _cause("v", "y"), _cause("a", "y"),
+                 _p("v", True, [], 0.5), _p("v", False, [], 0.5)]
+        for (a, v), pr in cpt.items():
+            stmts += [_p("y", True, [("a", a), ("v", v)], pr),
+                      _p("y", False, [("a", a), ("v", v)], 1 - pr)]
+        stmts.append({"kind": "query", "id": "q", "query": {
+            "kind": "effect",
+            "target": {"atom": _atom("y"), "value": True},
+            "intervention": {"atom": _atom("a"), "value": a_value},
+            "given": [{"atom": _atom("v"), "value": v_value}]}})
+        prog = {"version": "0.1",
+                "domain": {"objects": [{"kind": "object", "name": "me"}]},
+                "statements": stmts}
+        r = themis.run(prog)["results"][0]
+        themis.verify(prog, r)
+        return r["numeric_result"]["value"]
+
+    # women V=1: effect present (CRR 1.5); men V=0: effect reversed (CRR 2/3).
+    assert abs(_conditional_effect(True, True) - 0.6) < 1e-9
+    assert abs(_conditional_effect(False, True) - 0.4) < 1e-9
+    assert abs(_conditional_effect(True, False) - 0.4) < 1e-9
+    assert abs(_conditional_effect(False, False) - 0.6) < 1e-9
+
+
 def test_causal_and_surrogate_instruments_both_identify():
     """What If Ch 16 §16.1 (Fig 16.1 causal instrument, Fig 16.2 surrogate
     instrument): 'Both causal and surrogate instruments can be used for IV
