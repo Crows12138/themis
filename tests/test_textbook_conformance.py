@@ -336,6 +336,53 @@ def test_heart_transplant_standardization_matches_book():
         themis.verify(prog, r)
 
 
+def test_front_door_numeric_matches_primer():
+    """NUMERIC conformance — Primer §3.4 (Table 3.1, Eq 3.15), the front-door
+    smoking->tar->cancer estimand with latent genotype confounding (X<->Y).
+    Exercises the front-door functional Σ_z P(z|x)Σ_x' P(y|x',z)P(x') — a
+    distinct path from the back-door g-formula. The book's numbers:
+    P(cancer|do(smoke))=0.5475 > P(cancer|do(nosmoke))=0.5025 (smoking
+    increases cancer), reversing the misleading naive association."""
+    def _p(tp, tv, given, val):
+        return {"kind": "probability",
+                "target": {"atom": _atom(tp), "value": tv},
+                "given": [{"atom": _atom(g), "value": v} for g, v in given],
+                "value": val}
+    pz = {True: 0.95, False: 0.05}                       # P(tar=1|smoking)
+    py = {(True, True): 0.15, (True, False): 0.10,       # P(cancer=1|smoking,tar)
+          (False, True): 0.95, (False, False): 0.90}
+
+    def _build(smoke):
+        st = [_var("smoking"), _var("tar"), _var("cancer"),
+              _cause("smoking", "tar"), _cause("tar", "cancer"),
+              _bi("smoking", "cancer"),
+              _p("smoking", True, [], 0.5), _p("smoking", False, [], 0.5)]
+        for s in (True, False):
+            st += [_p("tar", True, [("smoking", s)], pz[s]),
+                   _p("tar", False, [("smoking", s)], 1 - pz[s])]
+        for (s, t), pr in py.items():
+            st += [_p("cancer", True, [("smoking", s), ("tar", t)], pr),
+                   _p("cancer", False, [("smoking", s), ("tar", t)], 1 - pr)]
+        st.append({"kind": "query", "id": "q", "query": {
+            "kind": "effect",
+            "target": {"atom": _atom("cancer"), "value": True},
+            "intervention": {"atom": _atom("smoking"), "value": smoke},
+            "given": []}})
+        return {"version": "0.1",
+                "domain": {"objects": [{"kind": "object", "name": "me"}]},
+                "statements": st}
+
+    def _val(smoke):
+        prog = _build(smoke)
+        r = themis.run(prog)["results"][0]
+        themis.verify(prog, r)
+        return r["numeric_result"]["value"]
+
+    assert abs(_val(True) - 0.5475) < 1e-9
+    assert abs(_val(False) - 0.5025) < 1e-9
+    assert _val(True) > _val(False)  # smoking increases cancer (front-door)
+
+
 def test_simpsons_paradox_causal_reverses_associational():
     """NUMERIC conformance — Pearl's Simpson's-paradox drug example (Causality;
     Primer Table 1.1). Gender Z confounds drug A and recovery Y (Z->A, Z->Y,
