@@ -277,6 +277,31 @@ def _assert_query_binding(
                 step_index=step_index, rule=step.rule,
             )
 
+    # Joint (treatment-set) back-door: the criterion step declares the
+    # whole treatment vector + target + given it reasons about. Bind them
+    # to the active EffectQuery so a joint proof for one (treatments, Y,
+    # given) cannot be replayed against another query on the same graph.
+    if step.rule == "joint_backdoor_criterion" and isinstance(q, EffectQuery):
+        expected_treatments = frozenset(
+            (q.intervention.atom, *(iv.atom for iv in q.extra_interventions))
+        )
+        if frozenset(step.inputs.get("treatments", frozenset())) != expected_treatments:
+            raise VerificationError(
+                "joint_backdoor_criterion.treatments does not match the "
+                "effect query's joint treatment vector",
+                step_index=step_index, rule=step.rule,
+            )
+        if step.inputs.get("y") != q_target_atom:
+            raise VerificationError(
+                "joint_backdoor_criterion.y does not match effect query target",
+                step_index=step_index, rule=step.rule,
+            )
+        if frozenset(step.inputs.get("given", frozenset())) != q_given_atoms:
+            raise VerificationError(
+                "joint_backdoor_criterion.given does not match effect query given",
+                step_index=step_index, rule=step.rule,
+            )
+
     # Phase 15B: Tian / IDC are the primary point-ID path. Their
     # decomposition / Rule-2-exchange steps declare the (x, y) they reason
     # about; require it to match the active query so a derivation built for
@@ -674,6 +699,9 @@ def verify_numeric_estimate(
         "numeric_backdoor_estimate",
         "numeric_frontdoor_estimate",
         "numeric_iv_estimate",
+        # Joint (treatment-set) back-door data estimate — joint contrast
+        # + treatment×treatment interaction via the joint g-formula.
+        "numeric_joint_backdoor_estimate",
         # Transport-numeric (Cole-Stuart post-stratification) is a
         # structural transport identification with a numeric value
         # attached — its derivation legitimately ends in the structural
@@ -717,10 +745,15 @@ def verify_effect_structural(
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
     last_rule = derivation[-1].rule
-    if last_rule not in ("identify_via_mediation", "identify_via_transport"):
+    if last_rule not in (
+        "identify_via_mediation",
+        "identify_via_transport",
+        "identify_via_joint_backdoor",
+    ):
         raise VerificationError(
-            "structural effect derivation must end in identify_via_mediation "
-            "or identify_via_transport; got " + repr(last_rule),
+            "structural effect derivation must end in identify_via_mediation, "
+            "identify_via_transport, or identify_via_joint_backdoor; got "
+            + repr(last_rule),
             step_index=len(derivation) - 1, rule=last_rule,
         )
 

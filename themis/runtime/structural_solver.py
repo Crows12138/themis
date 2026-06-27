@@ -536,6 +536,153 @@ def minimal_adjustment_sets(
 
 
 # =====================================================================
+# Joint interventions: generalized (treatment-SET) back-door / adjustment
+# criterion for do(A=a, B=b, ...).
+#
+# Reference: the complete adjustment criterion (van der Zander, Liśkiewicz
+# & Textor 2014; Perković, Textor, Kalisch & Maathuis 2018, "Complete
+# graphical characterization of adjustment sets") — itself the set
+# generalization of Pearl's back-door criterion (Causality 2nd ed §3.3).
+#
+# A set Z is a valid adjustment set for the treatment SET X relative to Y
+# iff
+#   (i)  Z ∩ forbidden(X, Y) = ∅, where forbidden = X ∪ cn(X, Y) ∪
+#        De(cn(X, Y)) — X itself plus every node on a *proper causal
+#        path* from X to Y and all their descendants (the post-treatment
+#        / mediator region you must not adjust on), and
+#   (ii) Z d-separates X from Y in the *proper back-door graph* G_pbd,
+#        which deletes from G the first edge X_i → V of every proper
+#        causal path X_i → ... → Y.
+# When Z satisfies (i)+(ii), Σ_z P(Y | X=x, Z=z) P(z) = P(Y | do(x)) for
+# the whole treatment vector — exactly the joint g-formula the estimator
+# plugs into.
+# =====================================================================
+
+
+def _proper_causal_path_nodes(
+    graph: nx.DiGraph, treatments: frozenset[Atom], y: Atom,
+) -> tuple[set[Atom], set[tuple[Atom, Atom]]]:
+    """Return (cn_nodes, first_edges) for the treatment SET.
+
+    - ``cn_nodes``: every node lying on a *proper* causal path from some
+      treatment to Y — a directed path whose only treatment node is its
+      start. Excludes the treatments themselves; includes Y.
+    - ``first_edges``: the set of first edges ``(x, v)`` of those proper
+      causal paths, to be removed when building the proper back-door
+      graph.
+    """
+    cn_nodes: set[Atom] = set()
+    first_edges: set[tuple[Atom, Atom]] = set()
+    for x in treatments:
+        if x not in graph or y not in graph or x == y:
+            continue
+        for raw in nx.all_simple_paths(graph, x, y):
+            path = tuple(raw)
+            # Proper: the path touches the treatment set only at its start.
+            if set(path[1:]) & treatments:
+                continue
+            cn_nodes.update(path[1:])  # nodes after x, up to and incl. Y
+            first_edges.add((path[0], path[1]))
+    return cn_nodes, first_edges
+
+
+def _set_d_connected(
+    graph: nx.DiGraph,
+    sources: frozenset[Atom],
+    dst: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """True iff some node in ``sources`` has an open path to ``dst`` given
+    ``conditioning`` (set d-connection). Paths may pass through other
+    source nodes — they are ordinary intermediate nodes, NOT implicitly
+    conditioned."""
+    for s in sources:
+        if s not in graph or dst not in graph or s == dst:
+            continue
+        for path in _iter_undirected_simple_paths(graph, s, dst):
+            if _path_is_open(graph, tuple(path), conditioning):
+                return True
+    return False
+
+
+def minimal_adjustment_sets_joint(
+    graph: nx.DiGraph,
+    treatments: "tuple[Atom, ...] | frozenset[Atom]",
+    y: Atom,
+    given: tuple[Atom, ...] = (),
+    bidirected: "BidirectedEdgeSet | None" = None,
+) -> tuple[frozenset[Atom], ...]:
+    """Subset-minimal joint adjustment sets for the treatment SET.
+
+    Generalizes :func:`minimal_adjustment_sets` from a single treatment
+    to a set of simultaneously-intervened treatments do(A=a, B=b, ...).
+    Each returned ``Z`` (disjoint from ``given``) makes ``Z ∪ given`` a
+    valid adjustment set for ``(treatments, y)`` under the complete
+    adjustment criterion described in the section header.
+
+    Returns ``()`` when the treatments / y are malformed (outside the
+    graph, overlapping, y among treatments, or ``given`` lands in the
+    forbidden region). Returns ``(frozenset(),)`` when ``given`` alone
+    already blocks all proper non-causal paths.
+
+    v1 scope: directed DAGs only. ``bidirected`` non-empty raises
+    ``NotImplementedError`` — joint ADMG (latent-confounded) adjustment
+    is a follow-up; the caller falls back / surfaces the limitation.
+    """
+    from itertools import combinations
+
+    if bidirected:
+        raise NotImplementedError(
+            "joint adjustment with bidirected (latent) edges is out of "
+            "v1 scope; only directed-DAG joint back-door is supported"
+        )
+
+    x_set = frozenset(treatments)
+    if not x_set or y in x_set:
+        return ()
+    if any(t not in graph for t in x_set) or y not in graph:
+        return ()
+
+    given_set = frozenset(given)
+    if given_set & (x_set | {y}):
+        return ()
+
+    cn_nodes, first_edges = _proper_causal_path_nodes(graph, x_set, y)
+
+    # (i) forbidden region: X ∪ proper-causal-path nodes ∪ their descendants.
+    forbidden: set[Atom] = set(x_set) | set(cn_nodes)
+    for node in cn_nodes:
+        forbidden |= nx.descendants(graph, node)
+    # given must avoid the forbidden region too — it is part of the
+    # conditioning set the criterion validates.
+    if given_set & forbidden:
+        return ()
+
+    # (ii) proper back-door graph: delete the first edge of each proper
+    # causal path.
+    g_pbd = graph.copy()
+    g_pbd.remove_edges_from(first_edges)
+
+    def blocks_all(z: frozenset[Atom]) -> bool:
+        return not _set_d_connected(g_pbd, x_set, y, z | given_set)
+
+    candidates = [
+        n for n in graph.nodes
+        if n not in forbidden and n not in given_set and n != y
+    ]
+
+    minimal: list[frozenset[Atom]] = []
+    for size in range(len(candidates) + 1):
+        for combo in combinations(candidates, size):
+            z = frozenset(combo)
+            if any(existing < z for existing in minimal):
+                continue
+            if blocks_all(z):
+                minimal.append(z)
+    return tuple(minimal)
+
+
+# =====================================================================
 # Phase 6.mediation: NDE/NIE/CDE identification (see
 # PHASE_6_MEDIATION_CHARTER.md)
 # =====================================================================

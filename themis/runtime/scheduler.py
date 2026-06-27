@@ -2786,6 +2786,168 @@ def _try_iv_wald_in_effect(
     )
 
 
+def _dispatch_joint_effect(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: EffectQuery,
+    x: Atom,
+    y_atom: Atom,
+    extra_atoms: tuple[Atom, ...],
+    observed_atoms: tuple[Atom, ...],
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    """Joint multi-treatment effect identification: do(A=a, B=b, ...).
+
+    Identifies the joint interventional contrast via the generalized
+    (treatment-set) back-door criterion
+    (``structural_solver.minimal_adjustment_sets_joint``) and emits a
+    structurally-solved result. The data-based numeric joint contrast +
+    treatment×treatment interaction is attached later by the estimation
+    dispatch (``themis.estimate``); identification here is data-free.
+
+    Out-of-scope combinations are refused explicitly:
+    - ``mediator`` / ``target_population`` set together with a joint
+      intervention (mediation / transport decompose a single X→Y effect;
+      a joint decomposition is a separate, unbuilt operation).
+    - bidirected (latent) edges — joint ADMG adjustment is a follow-up.
+    """
+    treatments = (x, *extra_atoms)
+
+    if q.mediator is not None or q.target_population is not None:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="joint:unsupported_layer_combination",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "joint multi-treatment interventions cannot be "
+                        "combined with mediation / transport in v1; these "
+                        "decompose a single-treatment effect and a joint "
+                        "decomposition is a separate operation"
+                    ),
+                ),
+            ),
+        )
+
+    # Duplicate treatment atoms (same predicate intervened twice) are a
+    # malformed joint vector.
+    if len(set(treatments)) != len(treatments):
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            structural_result=StructuralResult(value=False),
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="joint:duplicate_treatment",
+                    priority=Priority.HIGH,
+                    reason="the joint treatment vector repeats an atom",
+                ),
+            ),
+        )
+
+    try:
+        joint_sets = structural_solver.minimal_adjustment_sets_joint(
+            graph, treatments, y_atom,
+            given=observed_atoms, bidirected=bidirected or None,
+        )
+    except NotImplementedError:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="joint:bidirected_out_of_scope",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "joint adjustment with bidirected / latent edges is "
+                        "out of v1 scope (directed-DAG joint back-door only)"
+                    ),
+                ),
+            ),
+        )
+
+    if not joint_sets:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            structural_result=StructuralResult(value=False),
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="identification:joint_not_identifiable",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "no valid joint (treatment-set) back-door adjustment "
+                        "set blocks all proper non-causal paths from the "
+                        "treatment vector to the target"
+                    ),
+                ),
+            ),
+        )
+
+    chosen = min(joint_sets, key=len)
+    treatments_set = frozenset(treatments)
+    given_set = frozenset(observed_atoms)
+    structural_result = StructuralResult(value=True)
+
+    derivation = (
+        DerivationStep(
+            rule="graph_is_dag",
+            inputs={"graph": graph},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="joint_backdoor_criterion",
+            inputs={
+                "graph": graph,
+                "treatments": treatments_set,
+                "y": y_atom,
+                "z": chosen,
+                "given": given_set,
+            },
+            output=True,
+            step_id="s2",
+        ),
+        DerivationStep(
+            rule="identify_via_joint_backdoor",
+            inputs={"criterion": StepRef(step_id="s2")},
+            output=structural_result,
+            step_id="s3",
+        ),
+    )
+
+    annotation = {
+        "pattern": "joint_backdoor",
+        "treatments": sorted(_atom_to_str(t) for t in treatments),
+        "adjustment_set": sorted(_atom_to_str(a) for a in chosen),
+        "interaction": "difference_scale",
+    }
+    if observed_atoms:
+        annotation["conditioned_on"] = sorted(
+            _atom_to_str(a) for a in observed_atoms
+        )
+
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        query_id=stmt.id,
+        structural_result=structural_result,
+        derivation=derivation,
+        extensions={"joint_identification": annotation},
+    )
+
+
 def _dispatch_effect(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -2797,9 +2959,10 @@ def _dispatch_effect(
     x = q.intervention.atom
     y_atom = q.target.atom
     observed_atoms = tuple(g.atom for g in q.given)
+    extra_atoms = tuple(iv.atom for iv in q.extra_interventions)
 
     missing_atoms = [
-        a for a in (x, y_atom, *observed_atoms) if a not in graph
+        a for a in (x, y_atom, *extra_atoms, *observed_atoms) if a not in graph
     ]
     if q.mediator is not None and q.mediator not in graph:
         missing_atoms.append(q.mediator)
@@ -2817,6 +2980,19 @@ def _dispatch_effect(
                 )
                 for a in missing_atoms
             ),
+        )
+
+    # Joint interventions: do(A=a, B=b, ...) over a treatment SET.
+    # Short-circuit into the generalized (treatment-set) back-door
+    # identification before any single-treatment path. v1 scope: not
+    # combined with mediator / target_population (those decompose a
+    # single X→Y effect — a joint multi-treatment decomposition is a
+    # separate, unbuilt operation), so refuse that combination explicitly
+    # rather than silently honoring only one layer.
+    if q.extra_interventions:
+        return _dispatch_joint_effect(
+            stmt, graph, q, x, y_atom, extra_atoms, observed_atoms,
+            bidirected=bidirected,
         )
 
     # Phase 9 §T9.1.3: when the query declares a target_population,

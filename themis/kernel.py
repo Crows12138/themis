@@ -239,6 +239,12 @@ def _query_to_dict(q) -> dict:
             "intervention": _intervention_to_dict(q.intervention),
             "given": [_valued_atom_to_dict(va) for va in q.given],
         }
+        # Joint interventions: emit only when present so single-treatment
+        # programs round-trip byte-identically.
+        if q.extra_interventions:
+            d["extra_interventions"] = [
+                _intervention_to_dict(iv) for iv in q.extra_interventions
+            ]
         # Iter 131: serialize first-class assumptions field if set.
         # Backwards-compat: omit when None so old fixtures stay
         # bit-identical.

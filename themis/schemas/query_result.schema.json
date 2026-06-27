@@ -397,6 +397,7 @@
             "frontdoor_linear", "frontdoor_logistic",
             "iv_wald", "iv_2sls",
             "mediation_linear_imai", "mediation_logit_imai",
+            "joint_backdoor_linear", "joint_backdoor_logistic",
             "dose_response_linear_dml",
             "dose_response_causal_forest_dml",
             "dose_response_linear_drlearner",
@@ -417,6 +418,38 @@
         "mediator": { "type": "string" },
         "n_rep": { "type": "integer", "minimum": 1 },
         "treatment": { "type": "string" },
+        "treatments": {
+          "type": "array",
+          "description": "Joint interventions: the full treatment vector {A, B, ...} intervened on simultaneously. Present only for joint_backdoor_* methods.",
+          "items": { "type": "string" }
+        },
+        "joint_effect": {
+          "type": "object",
+          "description": "Joint interventions: the joint g-formula contrast E[Y|do(treated)] − E[Y|do(control)] over the treatment vector, with the cells it was taken between. Present only for joint_backdoor_* methods.",
+          "required": ["point", "treated", "control"],
+          "additionalProperties": false,
+          "properties": {
+            "point": { "type": "number" },
+            "ci_lower": { "type": ["number", "null"] },
+            "ci_upper": { "type": ["number", "null"] },
+            "treated": { "type": "object", "additionalProperties": { "type": "boolean" } },
+            "control": { "type": "object", "additionalProperties": { "type": "boolean" } },
+            "precision_budget": { "$ref": "#/$defs/precisionBudget" }
+          }
+        },
+        "interaction": {
+          "type": "object",
+          "description": "Joint interventions: the treatment×treatment causal interaction on the additive (difference) scale — [do(1,1)−do(1,0)] − [do(0,1)−do(0,0)] (VanderWeele 2015 ch.14). Present only for joint_backdoor_* methods.",
+          "required": ["point", "scale"],
+          "additionalProperties": false,
+          "properties": {
+            "point": { "type": "number" },
+            "ci_lower": { "type": ["number", "null"] },
+            "ci_upper": { "type": ["number", "null"] },
+            "scale": { "type": "string", "enum": ["difference"] },
+            "precision_budget": { "$ref": "#/$defs/precisionBudget" }
+          }
+        },
         "outcome": { "type": "string" },
         "sensitivity_analysis": {
           "type": "object",

@@ -163,9 +163,11 @@ def _to_query(d: dict):
             eq_assumptions = EffectQueryAssumptions(
                 monotonicity=Monotonicity(mono) if mono else None,
             )
+        extra_raw = d.get("extra_interventions") or ()
         return EffectQuery(
             target=_to_grounded(d["target"]),
             intervention=_to_intervention(d["intervention"]),
+            extra_interventions=tuple(_to_intervention(iv) for iv in extra_raw),
             given=tuple(_to_grounded(a) for a in d["given"]),
             mediator=_to_atom(mediator_raw) if mediator_raw is not None else None,
             target_population=d.get("target_population"),
@@ -309,6 +311,7 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
             return (
                 _as_atom(q.target),
                 q.intervention.atom,
+                *(iv.atom for iv in q.extra_interventions),
                 *(_as_atom(g) for g in q.given),
             )
         if isinstance(q, IdentifyQuery):
@@ -695,6 +698,7 @@ def _query_structural_atoms(q) -> tuple[Atom, ...]:
         return (
             q.target.atom,
             q.intervention.atom,
+            *(iv.atom for iv in q.extra_interventions),
             *(g.atom for g in q.given),
         )
     if isinstance(q, CounterfactualQuery):

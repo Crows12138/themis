@@ -77,7 +77,12 @@ def _query_atoms(q) -> tuple[Atom, ...]:
     if isinstance(q, IdentifyQuery):
         return (q.target, q.intervention.atom, *q.given)
     if isinstance(q, EffectQuery):
-        return (q.target.atom, q.intervention.atom, *(g.atom for g in q.given))
+        return (
+            q.target.atom,
+            q.intervention.atom,
+            *(iv.atom for iv in q.extra_interventions),
+            *(g.atom for g in q.given),
+        )
     if isinstance(q, CounterfactualQuery):
         return (
             q.observed.atom,

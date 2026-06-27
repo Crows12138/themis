@@ -17,6 +17,12 @@ Landed scope:
   on a sklearn outcome model; complements the Imai NDE/NIE path
   with the policy-relevant "what if we forced M to this level?"
   contrast (VanderWeele 2015 ch.2.3.3).
+- Joint interventions — ``estimate_joint_effect`` returning
+  ``JointEffectEstimate``: the joint g-formula contrast
+  E[Y|do(A=a,B=b)] − E[Y|do(A=a',B=b')] over a SET of binary treatments
+  plus the additive-scale treatment×treatment interaction
+  (Hernán & Robins 2020 ch.13; VanderWeele 2015 ch.14). Identified via
+  the generalized (treatment-set) back-door criterion.
 - Phase 7.5+ (iter 134) — Multi-mediator chain CDE:
   ``estimate_cde_chain`` returning ``CDEChainEstimate``. Extends the
   iter 125 single-M CDE to N mediators X→M_1→...→M_n→Y, fixing
@@ -51,6 +57,7 @@ from .discovery import (
     discovery_to_kernel_ast,
 )
 from .iv import IVEstimate, estimate_iv_ate
+from .joint import JointEffectEstimate, estimate_joint_effect
 from .mediation import (
     CDEChainEstimate,
     CDEEstimate,
@@ -77,6 +84,7 @@ __all__ = [
     "EValueResult",
     "FrontdoorEstimate",
     "IVEstimate",
+    "JointEffectEstimate",
     "MediationEstimate",
     "TransportEstimate",
     "discover_graph",
@@ -89,6 +97,7 @@ __all__ = [
     "estimate_cde_chain",
     "estimate_frontdoor_ate",
     "estimate_iv_ate",
+    "estimate_joint_effect",
     "estimate_mediation",
     "estimate_transport",
 ]

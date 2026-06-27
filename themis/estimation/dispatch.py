@@ -142,6 +142,17 @@ def _estimate_effect_queries(
         if q_stmt is None:
             continue
         dose_response_triggered = q_stmt.id in dose_response_query_ids
+        # Joint interventions: do(A=a, B=b, ...) over a treatment SET —
+        # route to the joint g-formula estimator (joint contrast +
+        # treatment×treatment interaction). Takes precedence over the
+        # single-treatment / mediation / transport branches.
+        if q_stmt.query.extra_interventions:
+            _try_joint_estimate(
+                q_stmt, result, contract, graph, bidirected,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                model=model,
+            )
+            continue
         # Phase 7.4: mediation queries route to the Imai-via-statsmodels
         # estimator, gated on the identification layer's strategy result.
         if q_stmt.query.mediator is not None:
@@ -553,6 +564,183 @@ def _try_mediation_estimate(
     # mediation derivation (mediation_*_check + identify_via_mediation)
     # already passes verify_effect_structural. Flipping to
     # numerically_solved would break that round-trip.
+
+
+def _try_joint_estimate(
+    q_stmt, result: dict, contract, graph, bidirected,
+    *, random_state: int, ci_bootstrap: int, model: str,
+) -> None:
+    """Joint multi-treatment effect estimate: do(A=a, B=b, ...).
+
+    Re-derives the joint (treatment-set) back-door adjustment set, fits
+    the joint g-formula (outcome regression with the A:B interaction),
+    and attaches a ``numeric_estimate`` with a ``joint_effect`` block AND
+    an ``interaction`` block (additive scale). Mirrors the backdoor
+    numeric path: status flips to numerically_solved with an independent
+    joint derivation the verifier re-checks.
+
+    Silent no-op (leaves the structural result untouched) when:
+    - bidirected (latent) edges are present — joint ADMG is out of scope;
+    - no joint adjustment set exists;
+    - a treatment is non-binary (v1 scope);
+    - the joint estimator refuses (EstimatorFailure → estimator_failure
+      block, mirroring transport / dose-response).
+    """
+    from ..runtime import structural_solver
+    from .dose_response import EstimatorFailure
+    from .joint import estimate_joint_effect
+
+    q = q_stmt.query
+    x_atom = q.intervention.atom
+    y_atom = q.target.atom
+    extra_atoms = tuple(iv.atom for iv in q.extra_interventions)
+    treatment_atoms = (x_atom, *extra_atoms)
+    given_atoms = tuple(g.atom for g in q.given)
+
+    # v1 scope: exactly two binary treatments, no mediator / transport.
+    if q.mediator is not None or q.target_population is not None:
+        return
+    if len(set(treatment_atoms)) != 2:
+        return
+
+    try:
+        joint_sets = structural_solver.minimal_adjustment_sets_joint(
+            graph, treatment_atoms, y_atom,
+            given=given_atoms, bidirected=bidirected or None,
+        )
+    except NotImplementedError:
+        return
+    if not joint_sets:
+        return
+
+    chosen = min(joint_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+    treatment_names = tuple(t.predicate for t in treatment_atoms)
+    outcome_name = y_atom.predicate
+
+    df = contract.data
+    if any(t not in df.columns for t in treatment_names):
+        return
+    if outcome_name not in df.columns:
+        return
+    if not all(_is_binary_treatment(df, t) for t in treatment_names):
+        return
+
+    # Treated cell = the query's intervention values; control cell = the
+    # binary baseline (all-False / 0). Joint contrast is do(treated) −
+    # do(control).
+    iv_value_by_pred = {x_atom.predicate: q.intervention.value}
+    for iv in q.extra_interventions:
+        iv_value_by_pred[iv.atom.predicate] = iv.value
+    treated_values = {t: iv_value_by_pred[t] for t in treatment_names}
+    control_values = {t: False for t in treatment_names}
+
+    try:
+        estimate = estimate_joint_effect(
+            df,
+            treatments=treatment_names,
+            outcome=outcome_name,
+            adjustment=adjustment_names,
+            treated_values=treated_values,
+            control_values=control_values,
+            ci_bootstrap=ci_bootstrap,
+            random_state=random_state,
+            model=model,  # type: ignore[arg-type]
+        )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": "joint_backdoor",
+            "failure_type": exc.failure_type,
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, NotImplementedError):
+        return
+
+    result["numeric_estimate"] = {
+        "method": estimate.method,
+        "ci_level": estimate.ci_level,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "adjustment": list(estimate.adjustment),
+        "treatments": list(estimate.treatments),
+        "treatment": x_atom.predicate,   # primary; schema-required slot
+        "outcome": estimate.outcome,
+        "joint_effect": {
+            "point": estimate.joint_point,
+            "ci_lower": estimate.joint_ci_lower,
+            "ci_upper": estimate.joint_ci_upper,
+            "treated": {k: bool(v) for k, v in estimate.treated},
+            "control": {k: bool(v) for k, v in estimate.control},
+        },
+        "interaction": {
+            "point": estimate.interaction_point,
+            "ci_lower": estimate.interaction_ci_lower,
+            "ci_upper": estimate.interaction_ci_upper,
+            "scale": "difference",
+        },
+    }
+
+    result["derivation"] = _build_joint_numeric_derivation_dict(
+        graph=graph,
+        treatments=treatment_atoms,
+        y=y_atom,
+        adjustment=chosen,
+        given=frozenset(given_atoms),
+        estimate=estimate,
+    )
+    _finalise_numeric_result(result)
+
+
+def _build_joint_numeric_derivation_dict(
+    *, graph, treatments, y, adjustment, given, estimate,
+):
+    """Two-step derivation for a data-based joint effect estimate:
+
+        s1: joint_backdoor_criterion (structural witness, treatment set)
+        s2: numeric_joint_backdoor_estimate (metadata audit — no re-fit)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    treatments_set = frozenset(treatments)
+    steps = (
+        DerivationStep(
+            rule="joint_backdoor_criterion",
+            inputs={
+                "graph": graph,
+                "treatments": treatments_set,
+                "y": y,
+                "z": frozenset(adjustment),
+                "given": given,
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_joint_backdoor_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "treatments": treatments_set,
+                "outcome": y,
+                "adjustment": frozenset(adjustment),
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "joint_point": estimate.joint_point,
+                "joint_ci_lower": estimate.joint_ci_lower,
+                "joint_ci_upper": estimate.joint_ci_upper,
+                "interaction_point": estimate.interaction_point,
+                "interaction_ci_lower": estimate.interaction_ci_lower,
+                "interaction_ci_upper": estimate.interaction_ci_upper,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
 
 
 def _prepend_proportion_mediated_headline(

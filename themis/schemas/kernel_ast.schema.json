@@ -364,6 +364,13 @@
         "intervention": {
           "$ref": "#/$defs/intervention"
         },
+        "extra_interventions": {
+          "type": "array",
+          "description": "Joint interventions: when present and non-empty, the query asks for the JOINT effect of intervening on the primary `intervention` AND every entry here simultaneously — do(A=a, B=b, ...). The primary intervention plus these extras form the joint treatment vector. Identification uses the generalized (treatment-set) back-door criterion; estimation uses the joint g-formula including the treatment×treatment interaction. Omitting the field (or supplying an empty array) preserves single-treatment total-effect semantics byte-for-byte. v1 scope: binary treatments, no directed edge between treatments, not combined with mediator / target_population.",
+          "items": {
+            "$ref": "#/$defs/intervention"
+          }
+        },
         "given": {
           "type": "array",
           "description": "Observed condition set applied together with the intervention, each at a specific value.",

@@ -191,6 +191,21 @@ class EffectQuery:
     target: "ValuedAtom"
     intervention: Intervention
     given: tuple["ValuedAtom", ...]
+    # Joint interventions: when non-empty, the query asks for the JOINT
+    # effect of intervening on the primary ``intervention`` AND every
+    # Intervention in ``extra_interventions`` simultaneously —
+    # do(A=a, B=b, ...). The primary intervention plus the extras form
+    # the joint treatment vector {A, B, ...}. Identification uses the
+    # generalized (treatment-set) back-door criterion; estimation uses
+    # the joint g-formula including the treatment×treatment interaction
+    # (see themis/estimation/joint.py). DEFAULT empty tuple ⇒ every
+    # existing single-treatment program is byte-identical: the field is
+    # omitted from serialization when empty, no identification /
+    # estimation / verifier path changes, and the AST round-trips
+    # exactly as before. v1 scope: binary treatments, no directed edge
+    # between treatments, no mediator / target_population combined with
+    # joint.
+    extra_interventions: tuple[Intervention, ...] = ()
     # Phase 6.mediation: when set, the query asks for a mediation
     # decomposition (NDE/NIE/CDE) through this mediator atom rather
     # than a plain total effect. Default None preserves pre-mediation

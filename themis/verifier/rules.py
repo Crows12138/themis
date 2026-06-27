@@ -439,6 +439,307 @@ def _rule_identify_via_backdoor(
         )
 
 
+# ============================================== joint (treatment-set) back-door
+#
+# Independent re-derivation of the generalized adjustment criterion for a
+# treatment SET (van der Zander/Liśkiewicz/Textor 2014; Perković et al.
+# 2018). This duplicates the structural-solver logic on purpose — if the
+# producer and the verifier disagree on whether Z is a valid joint
+# adjustment set, the derivation is rejected.
+
+
+def _verifier_proper_causal_paths(
+    graph: nx.DiGraph, treatments: frozenset[Atom], y: Atom,
+) -> tuple[set[Atom], set[tuple[Atom, Atom]]]:
+    """Return (cn_nodes, first_edges) for proper causal paths from the
+    treatment set to Y. A proper causal path touches the treatment set
+    only at its start. Independent reimplementation."""
+    cn_nodes: set[Atom] = set()
+    first_edges: set[tuple[Atom, Atom]] = set()
+    for x in treatments:
+        if x not in graph or y not in graph or x == y:
+            continue
+        for raw in nx.all_simple_paths(graph, x, y):
+            path = tuple(raw)
+            if set(path[1:]) & treatments:
+                continue
+            cn_nodes.update(path[1:])
+            first_edges.add((path[0], path[1]))
+    return cn_nodes, first_edges
+
+
+def _verifier_set_d_connected(
+    graph: nx.DiGraph,
+    sources: frozenset[Atom],
+    dst: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """True iff some source has an open path to dst given conditioning."""
+    for s in sources:
+        if s not in graph or dst not in graph or s == dst:
+            continue
+        for raw in _undirected_paths(graph, s, dst):
+            if _path_is_open(graph, tuple(raw), conditioning):
+                return True
+    return False
+
+
+def _rule_joint_backdoor_criterion(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Z ∪ given is a valid JOINT adjustment set for the treatment SET
+    relative to Y iff:
+
+    (i)  (Z ∪ given) ∩ forbidden = ∅, where forbidden = treatments ∪
+         (nodes on proper causal paths) ∪ (their descendants), and
+    (ii) Z ∪ given d-separates the treatment set from Y in the proper
+         back-door graph (G with the first edge of every proper causal
+         path removed).
+
+    inputs:
+        graph, treatments (atom set), y (atom), z (atom set),
+        given (atom set, optional)
+    output:
+        True iff (i) ∧ (ii).
+
+    v1 scope: directed DAGs. A non-empty bidirected context is rejected
+    (joint ADMG adjustment is unbuilt) so the verifier never silently
+    accepts a latent-confounded joint claim.
+    """
+    graph = _require(inputs, "graph", step_index, "joint_backdoor_criterion")
+    _assert_same_graph(graph, ctx.graph, step_index, "joint_backdoor_criterion")
+    treatments = _require_atom_set(
+        inputs, "treatments", step_index, "joint_backdoor_criterion",
+    )
+    y = _require_atom(inputs, "y", step_index, "joint_backdoor_criterion")
+    z = _require_atom_set(inputs, "z", step_index, "joint_backdoor_criterion")
+    given = _require_atom_set(
+        inputs, "given", step_index, "joint_backdoor_criterion",
+        allow_missing=True,
+    )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    if bidir:
+        raise RuleCheckFailed(
+            "joint_backdoor_criterion: bidirected (latent) context is out "
+            "of v1 scope — joint ADMG adjustment is not supported",
+            step_index=step_index, rule="joint_backdoor_criterion",
+        )
+
+    if not treatments or y in treatments or y not in graph:
+        recomputed = False
+    elif any(t not in graph for t in treatments):
+        recomputed = False
+    else:
+        conditioning = z | given
+        cn_nodes, first_edges = _verifier_proper_causal_paths(
+            graph, treatments, y,
+        )
+        forbidden: set[Atom] = set(treatments) | set(cn_nodes)
+        for node in cn_nodes:
+            forbidden |= nx.descendants(graph, node)
+        leg_i = conditioning.isdisjoint(forbidden)
+        if leg_i:
+            g_pbd = graph.copy()
+            g_pbd.remove_edges_from(first_edges)
+            leg_ii = not _verifier_set_d_connected(
+                g_pbd, treatments, y, conditioning,
+            )
+            recomputed = leg_ii
+        else:
+            recomputed = False
+
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"joint_backdoor_criterion claimed {claimed_output!r}, "
+            f"recomputed {recomputed!r}",
+            step_index=step_index, rule="joint_backdoor_criterion",
+        )
+
+
+def _rule_identify_via_joint_backdoor(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Combine a proven ``joint_backdoor_criterion`` step into the claimed
+    StructuralResult(value=True). Mirrors ``identify_via_backdoor`` but the
+    joint path's identifying formula is the joint g-formula, which the
+    data-based estimator evaluates numerically — so the structural
+    terminal only certifies the criterion, not a symbolic formula tree."""
+    criterion_ref = _require(
+        inputs, "criterion", step_index, "identify_via_joint_backdoor",
+    )
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "identify_via_joint_backdoor.criterion must be a StepRef",
+            step_index=step_index, rule="identify_via_joint_backdoor",
+        )
+    criterion_out = step_output_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_out is None or criterion_step is None:
+        raise RuleCheckFailed(
+            "identify_via_joint_backdoor: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule="identify_via_joint_backdoor",
+        )
+    if criterion_step.rule != "joint_backdoor_criterion":
+        raise RuleCheckFailed(
+            "identify_via_joint_backdoor.criterion must reference a "
+            "joint_backdoor_criterion step",
+            step_index=step_index, rule="identify_via_joint_backdoor",
+        )
+    if criterion_out is not True:
+        raise RuleCheckFailed(
+            "identify_via_joint_backdoor: criterion step did not prove True "
+            f"(got {criterion_out!r})",
+            step_index=step_index, rule="identify_via_joint_backdoor",
+        )
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "identify_via_joint_backdoor must claim StructuralResult(value=True)",
+            step_index=step_index, rule="identify_via_joint_backdoor",
+        )
+
+
+def _rule_numeric_joint_backdoor_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Relaxed metadata audit for a data-based JOINT effect estimate
+    (mirrors ``numeric_backdoor_estimate``). Audits self-consistency of
+    the joint_effect + interaction block without re-training:
+
+    - ``method`` in the joint enum
+    - joint point / interaction point are numbers, each inside its CI
+      when present
+    - ``data_hash`` is a SHA-256 hex digest; ``sample_size`` >= 10
+    - ``adjustment`` disjoint from the treatment vector and outcome
+    - referenced ``criterion`` is a ``joint_backdoor_criterion`` whose
+      treatment set + z-set match this step's treatments + adjustment
+    """
+    criterion_ref = _require(
+        inputs, "criterion", step_index, "numeric_joint_backdoor_estimate",
+    )
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_joint_backdoor_estimate.criterion must be a StepRef",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+    treatments = _require_atom_set(
+        inputs, "treatments", step_index, "numeric_joint_backdoor_estimate",
+    )
+    outcome = _require_atom(
+        inputs, "outcome", step_index, "numeric_joint_backdoor_estimate",
+    )
+    adjustment = _require_atom_set(
+        inputs, "adjustment", step_index, "numeric_joint_backdoor_estimate",
+    )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+
+    if method not in _NUMERIC_JOINT_METHODS:
+        raise RuleCheckFailed(
+            f"numeric_joint_backdoor_estimate.method must be one of "
+            f"{sorted(_NUMERIC_JOINT_METHODS)}; got {method!r}",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN \
+            or not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"numeric_joint_backdoor_estimate.data_hash must be a "
+            f"{_SHA256_HEX_LEN}-char lowercase SHA-256 hex string",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"numeric_joint_backdoor_estimate.sample_size must be an int "
+            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+
+    for label in ("joint_point", "interaction_point"):
+        val = inputs.get(label)
+        if not isinstance(val, (int, float)) or isinstance(val, bool):
+            raise RuleCheckFailed(
+                f"numeric_joint_backdoor_estimate.{label} must be a number; "
+                f"got {val!r}",
+                step_index=step_index, rule="numeric_joint_backdoor_estimate",
+            )
+
+    for point_key, lo_key, hi_key in (
+        ("joint_point", "joint_ci_lower", "joint_ci_upper"),
+        ("interaction_point", "interaction_ci_lower", "interaction_ci_upper"),
+    ):
+        lo = inputs.get(lo_key)
+        hi = inputs.get(hi_key)
+        if lo is None and hi is None:
+            continue
+        if lo is None or hi is None:
+            raise RuleCheckFailed(
+                f"numeric_joint_backdoor_estimate: {lo_key} and {hi_key} "
+                "must both be present or both absent",
+                step_index=step_index, rule="numeric_joint_backdoor_estimate",
+            )
+        if not (lo <= inputs[point_key] <= hi):
+            raise RuleCheckFailed(
+                f"numeric_joint_backdoor_estimate: {point_key} "
+                f"{inputs[point_key]} outside [{lo}, {hi}]",
+                step_index=step_index, rule="numeric_joint_backdoor_estimate",
+            )
+
+    if adjustment & (treatments | {outcome}):
+        raise RuleCheckFailed(
+            "numeric_joint_backdoor_estimate.adjustment must be disjoint "
+            "from the treatment vector and outcome",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None or criterion_step.rule != "joint_backdoor_criterion":
+        raise RuleCheckFailed(
+            "numeric_joint_backdoor_estimate.criterion must reference a "
+            "joint_backdoor_criterion step",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+    crit_treatments = criterion_step.inputs.get("treatments")
+    crit_z = criterion_step.inputs.get("z")
+    if frozenset(crit_treatments or frozenset()) != frozenset(treatments):
+        raise RuleCheckFailed(
+            "numeric_joint_backdoor_estimate.treatments must equal the "
+            "referenced joint_backdoor_criterion treatment set",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+    if frozenset(crit_z or frozenset()) != frozenset(adjustment):
+        raise RuleCheckFailed(
+            "numeric_joint_backdoor_estimate.adjustment must equal the "
+            "referenced joint_backdoor_criterion z-set",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "numeric_joint_backdoor_estimate output must be "
+            "StructuralResult(value=True)",
+            step_index=step_index, rule="numeric_joint_backdoor_estimate",
+        )
+
+
 # ========================================================== A6 front-door
 
 def _path_is_open_for_front_door(
@@ -1573,6 +1874,11 @@ _NUMERIC_FRONTDOOR_METHODS = frozenset({
 })
 
 _NUMERIC_IV_METHODS = frozenset({"iv_wald", "iv_2sls"})
+
+_NUMERIC_JOINT_METHODS = frozenset({
+    "joint_backdoor_linear",
+    "joint_backdoor_logistic",
+})
 
 _SHA256_HEX_LEN = 64
 _MIN_NUMERIC_SAMPLE_SIZE = 10
@@ -5173,6 +5479,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "d_separation_check": _rule_d_separation_check,
     "backdoor_criterion": _rule_backdoor_criterion,
     "backdoor_adjustment_formula": _rule_backdoor_adjustment_formula,
+    # Joint (treatment-set) back-door — independent re-derivation of the
+    # generalized adjustment criterion for do(A=a, B=b, ...).
+    "joint_backdoor_criterion": _rule_joint_backdoor_criterion,
     "front_door_criterion": _rule_front_door_criterion,
     "front_door_adjustment_formula": _rule_front_door_adjustment_formula,
     "probability_ref_lookup": _rule_probability_ref_lookup,
@@ -5224,6 +5533,9 @@ _STEP_REF_RULES = {
     "numeric_result",
     # Phase 7.1 S.N.4
     "numeric_backdoor_estimate",
+    # Joint (treatment-set) back-door identification + numeric estimate
+    "identify_via_joint_backdoor",
+    "numeric_joint_backdoor_estimate",
     # Phase 7.2 S.FDN.3
     "numeric_frontdoor_estimate",
     # Phase 7.3 S.IVN.3
@@ -5308,6 +5620,16 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_idc":
         _rule_identify_via_idc(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_joint_backdoor":
+        _rule_identify_via_joint_backdoor(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_joint_backdoor_estimate":
+        _rule_numeric_joint_backdoor_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

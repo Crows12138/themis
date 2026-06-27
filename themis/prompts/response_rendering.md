@@ -512,6 +512,7 @@ df)`, not from symbolic Theta.
 | `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale | "把 M 固定在 m 时 X 对 Y 的直接效应是 X.X 个单位" |
 | `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale | "经过 M 这条路径贡献的部分是 X.X（NIE）" |
 | `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases | (covered there) |
+| `joint_backdoor_linear` / `joint_backdoor_logistic` | JOINT effect of intervening on the whole treatment vector at once — see §"Joint interventions" | "同时把 A、B 都设为 1（相对都为 0）让 Y 变化 X.X" |
 
 **Backdoor template**:
 
@@ -544,6 +545,28 @@ df)`, not from symbolic Theta.
 
 **IV template** is in §"IV identification" below — it covers both the
 structural and the numeric (`iv_wald` / `iv_2sls`) paths.
+
+### Joint interventions (`joint_backdoor_linear` / `joint_backdoor_logistic`)
+
+When the query intervened on a SET of treatments simultaneously
+(`do(A=a, B=b, ...)`), `numeric_estimate` carries a `joint_effect` block
+(the joint contrast over the whole treatment vector, with the `treated`
+/ `control` cells it was taken between) AND an `interaction` block (the
+additive-scale treatment×treatment interaction, `scale: "difference"`).
+This is NOT two single-treatment effects — the joint contrast and the
+interaction cannot be reconstructed from separate single-treatment
+queries (a single-treatment ATE averages over the other treatment's
+natural distribution; the joint contrast fixes both).
+
+> 同时干预 `<treatments>`（联合后门识别，调整集 = `<adjustment>`）：
+>
+> - 联合效应 = **`<joint_effect.point>`**（把 `<treated>` 相对
+>   `<control>` 一起设定时 `<outcome>` 的变化），
+>   `<ci_level>` 区间 [`<joint_effect.ci_lower>`, `<joint_effect.ci_upper>`]
+> - 交互作用（加法尺度）= **`<interaction.point>`** —— 两个处理的效应
+>   是否可叠加：>0 协同、<0 拮抗、≈0 可加
+>
+> 关键假设：联合可交换性 / 每个处理组合都有重叠 / 一致性。
 
 #### Assumption glossary (`assumptions[]` translation)
 
