@@ -133,6 +133,7 @@ def estimate_dose_response(
     ci_level: float = 0.95,
     random_state: int = 42,
     model: ModelChoice = "auto",
+    cluster: str | None = None,
 ) -> DoseResponseEstimate:
     """Fit a DML estimator and predict a dose-response curve at
     ``sampling_points``.
@@ -219,6 +220,16 @@ def estimate_dose_response(
         model_assumption,
         *(s["claim"] for s in identification_assumptions),
     )
+    # The dose-response CI comes from EconML's DML asymptotic interval,
+    # NOT a row/cluster percentile bootstrap, so a pairs cluster
+    # bootstrap is not a drop-in here. ``cluster`` is accepted for API
+    # uniformity with the other estimators; when set we disclose that
+    # the interval is not cluster-robust (it may be anti-conservative
+    # under within-cluster dependence) rather than silently ignore it.
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_not_cluster_robust_econml_dml_interval_ignores_{cluster}",
+        )
 
     return DoseResponseEstimate(
         method=method,

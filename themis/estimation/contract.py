@@ -62,12 +62,22 @@ def validate_data(
     required_columns: Iterable[str],
     bool_columns: Iterable[str] = (),
     continuous_columns: Iterable[str] = (),
+    presence_columns: Iterable[str] = (),
 ) -> DataContract:
     """Validate ``data`` against the contract and return a DataContract.
 
     ``required_columns`` must all be present; ``bool_columns`` and
     ``continuous_columns`` are enforced on dtype. A column not listed
     in either typed set is accepted as-is provided it's numeric or bool.
+
+    ``presence_columns`` (e.g. a cluster / block id) are a different
+    category: they must be present and non-null, but they are a
+    *variance concern*, not a causal-model variable. They are carried
+    through into ``contract.data`` UNCOERCED (so string / categorical
+    cluster ids survive), are NOT subjected to the numeric/bool dtype
+    rule, and are EXCLUDED from ``data_hash`` — so the hash (and hence
+    the reproducibility fingerprint) is identical whether or not a
+    cluster column is supplied.
 
     Raises DataContractError on any violation that would prevent
     estimation. Emits non-fatal warnings (returned via ``contract.warnings``)
@@ -81,9 +91,12 @@ def validate_data(
     required = set(required_columns)
     bool_set = set(bool_columns)
     cont_set = set(continuous_columns)
+    # A presence column that is also a model variable is already covered
+    # by the model rules — drop it from the presence-only set.
+    presence = set(presence_columns) - required
     present = set(data.columns)
 
-    missing = required - present
+    missing = (required | presence) - present
     if missing:
         raise DataContractError(
             f"data missing required columns: {sorted(missing)}"
@@ -102,6 +115,16 @@ def validate_data(
             f"sample size {sample_size} is below the recommended "
             f"threshold ({_WARN_SAMPLE_SIZE}); CI will be wide"
         )
+
+    # Presence-only columns: existence + non-null, but no dtype coercion
+    # and no hash contribution. Validated up front so a null cluster id
+    # fails loudly rather than forming a silent degenerate cluster.
+    for col in presence:
+        if data[col].isna().any():
+            raise DataContractError(
+                f"presence column {col!r} contains NaN; every row must "
+                f"carry a value (e.g. a cluster id) for it to be usable"
+            )
 
     # Normalise: coerce bool columns to bool dtype, continuous to float64
     normalised = data.copy()
@@ -134,13 +157,24 @@ def validate_data(
                     f"neither bool-like nor numeric"
                 )
 
-    # Restrict to required columns in canonical order for the hash
+    # Restrict to required columns in canonical order for the hash. The
+    # hash covers ONLY model columns, so adding a presence (cluster)
+    # column leaves the fingerprint unchanged.
     columns = tuple(sorted(required))
     subset = normalised[list(columns)]
     data_hash = _hash_frame(subset)
 
+    # The returned frame additionally carries presence-only columns
+    # (uncoerced) so downstream estimators can read e.g. the cluster id.
+    # Presence columns are appended after the canonical model columns.
+    if presence:
+        extra = sorted(presence)
+        data_view = normalised[list(columns) + extra]
+    else:
+        data_view = subset
+
     return DataContract(
-        data=subset,
+        data=data_view,
         data_hash=data_hash,
         sample_size=sample_size,
         warnings=tuple(warnings),

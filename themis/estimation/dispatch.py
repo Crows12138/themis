@@ -32,17 +32,37 @@ def estimate_program(
     random_state: int = 42,
     ci_bootstrap: int = 500,
     model: str = "auto",
+    cluster: str | None = None,
 ) -> dict:
-    """See ``themis.estimate`` for the full contract."""
+    """See ``themis.estimate`` for the full contract.
+
+    ``cluster`` names a column carrying a cluster / block id (families,
+    repeated measures, schools). When supplied — either as this kwarg or
+    via the program AST's ``options.cluster`` — every estimator's
+    bootstrap CI resamples whole clusters (pairs cluster bootstrap)
+    instead of i.i.d. rows. The cluster column is a variance concern, so
+    it is added to the data contract as a presence-only column (required
+    to exist + be non-null) but never enters the causal model or the
+    data hash.
+    """
     from ..kernel import run as _run
 
     identification_output = _run(program)
+
+    cluster = _resolve_cluster_option(program, cluster)
 
     required_columns = _collect_required_columns(program)
     if not required_columns:
         return identification_output
 
-    contract = validate_data(data, required_columns=required_columns)
+    presence_columns = (
+        {cluster} if cluster and cluster not in required_columns else set()
+    )
+    contract = validate_data(
+        data,
+        required_columns=required_columns,
+        presence_columns=presence_columns,
+    )
 
     for result in identification_output.get("results", []):
         result.setdefault("estimation_context", {}).update({
@@ -57,9 +77,27 @@ def estimate_program(
     _estimate_effect_queries(
         program, identification_output, contract,
         random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
+        cluster=cluster,
     )
 
     return identification_output
+
+
+def _resolve_cluster_option(
+    program: dict | str | bytes, cluster: str | None,
+) -> str | None:
+    """Resolve the cluster column from the explicit kwarg (precedence)
+    or the program AST's ``options.cluster``. Returns None when neither
+    is set."""
+    if cluster is not None:
+        return cluster
+    ast = _ensure_dict(program)
+    options = ast.get("options")
+    if isinstance(options, dict):
+        opt_cluster = options.get("cluster")
+        if isinstance(opt_cluster, str) and opt_cluster:
+            return opt_cluster
+    return None
 
 
 def _estimate_effect_queries(
@@ -70,6 +108,7 @@ def _estimate_effect_queries(
     random_state: int,
     ci_bootstrap: int,
     model: str,
+    cluster: str | None = None,
 ) -> None:
     """For each effect query result, attach a numeric_estimate when a
     supported identification strategy is available. Mutates ``output``
@@ -108,7 +147,7 @@ def _estimate_effect_queries(
         if q_stmt.query.mediator is not None:
             _try_mediation_estimate(
                 q_stmt, result, contract, graph, bidirected,
-                random_state=random_state,
+                random_state=random_state, cluster=cluster,
             )
             continue
 
@@ -123,6 +162,7 @@ def _estimate_effect_queries(
                 random_state=random_state,
                 ci_bootstrap=ci_bootstrap,
                 ci_level=0.95,
+                cluster=cluster,
             )
             continue
 
@@ -176,6 +216,7 @@ def _estimate_effect_queries(
                 random_state=random_state,
                 model=dr_model,
                 graph=graph, x=x_atom, y=y_atom, chosen=chosen, given=given_atoms,
+                cluster=cluster,
             ):
                 continue
             # Estimator unavailable / failed structurally — fall through
@@ -192,6 +233,7 @@ def _estimate_effect_queries(
                 ci_bootstrap=ci_bootstrap,
                 random_state=random_state,
                 model=model,  # type: ignore[arg-type]
+                cluster=cluster,
             )
 
             result["numeric_estimate"] = {
@@ -207,6 +249,7 @@ def _estimate_effect_queries(
                 "treatment": estimate.treatment,
                 "outcome": estimate.outcome,
             }
+            _attach_bootstrap_meta(result["numeric_estimate"], cluster)
             from ..output.result_orchestrator import (
                 build_assumption_ledger,
                 build_mechanism_audit,
@@ -280,6 +323,7 @@ def _estimate_effect_queries(
                     ),
                     ci_bootstrap=ci_bootstrap,
                     random_state=random_state,
+                    cluster=cluster,
                 )
             except (ValueError, NotImplementedError):
                 # e.g. Wald denom is zero on this data, or the chosen
@@ -303,6 +347,7 @@ def _estimate_effect_queries(
             if iv_estimate.first_stage_f_stat is not None:
                 iv_numeric_dict["first_stage_f_stat"] = iv_estimate.first_stage_f_stat
             result["numeric_estimate"] = iv_numeric_dict
+            _attach_bootstrap_meta(result["numeric_estimate"], cluster)
             _attach_precision_budget(result["numeric_estimate"])
             result["derivation"] = _build_iv_numeric_derivation_dict(
                 graph=graph,
@@ -335,6 +380,7 @@ def _estimate_effect_queries(
                 ci_bootstrap=ci_bootstrap,
                 random_state=random_state,
                 model=model,  # type: ignore[arg-type]
+                cluster=cluster,
             )
         except NotImplementedError:
             # e.g. continuous mediator in the current v1 restriction —
@@ -354,6 +400,7 @@ def _estimate_effect_queries(
             "treatment": fd_estimate.treatment,
             "outcome": fd_estimate.outcome,
         }
+        _attach_bootstrap_meta(result["numeric_estimate"], cluster)
         _attach_precision_budget(result["numeric_estimate"])
 
         result["derivation"] = _build_frontdoor_numeric_derivation_dict(
@@ -371,6 +418,7 @@ def _estimate_effect_queries(
 
 def _try_mediation_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
+    cluster: str | None = None,
 ) -> None:
     """Phase 7.4 — attach a mediation numeric estimate when the
     identification layer has cleared NDE/NIE for the requested mediator.
@@ -415,6 +463,7 @@ def _try_mediation_estimate(
             mediator=m_pred,
             adjustment=adjustment,
             random_state=random_state,
+            cluster=cluster,
         )
     except (ValueError, NotImplementedError):
         return
@@ -490,6 +539,7 @@ def _try_mediation_estimate(
         result["numeric_estimate"]["four_way_unavailable"] = {
             "reason": med_estimate.four_way_unavailable_reason,
         }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget_decomposition(result["numeric_estimate"])
     _attach_e_value_if_binary(
         result, contract,
@@ -614,6 +664,7 @@ def _attach_e_value_if_binary(
 def _try_transport_estimate(
     q_stmt, result: dict, contract, program,
     *, random_state: int, ci_bootstrap: int, ci_level: float,
+    cluster: str | None = None,
 ) -> None:
     """Phase 9 §T9.2 (iter 128) — numeric transport via post-stratification.
 
@@ -673,6 +724,7 @@ def _try_transport_estimate(
             ci_bootstrap=ci_bootstrap,
             ci_level=ci_level,
             random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
     except (ValueError, NotImplementedError) as exc:
         # Surface the refusal as a structured estimator_failure instead of
@@ -710,6 +762,7 @@ def _try_transport_estimate(
         "treatment": estimate.treatment,
         "outcome": estimate.outcome,
     }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
     # Flip status to numerically_solved AND reconcile the gap report so it
     # no longer ships the pre-data transport data-need gaps next to the
@@ -1203,6 +1256,23 @@ def _summary_from_gap_dicts(gaps: list[dict]) -> str:
     return base
 
 
+def _attach_bootstrap_meta(numeric_estimate: dict, cluster: str | None) -> None:
+    """Record the bootstrap resampling kind on a numeric_estimate.
+
+    Only attached when a cluster column is in play — leaving it off the
+    i.i.d. path keeps cluster=None output byte-identical (the absence of
+    the block means the default i.i.d. bootstrap). When clustered,
+    records ``{"kind": "cluster", "cluster_column": ...}`` so a consumer
+    can tell the CI was widened to be cluster-robust.
+    """
+    if cluster is None:
+        return
+    numeric_estimate["bootstrap"] = {
+        "kind": "cluster",
+        "cluster_column": cluster,
+    }
+
+
 def _attach_precision_budget(numeric_estimate: dict) -> None:
     """Attach a ``precision_budget`` field to ``numeric_estimate`` that
     tells the caller how much more N would be needed to halve the CI.
@@ -1640,6 +1710,7 @@ def _try_dose_response_estimate(
     treatment, outcome, adjustment,
     sampling_points, random_state, model,
     graph, x, y, chosen, given,
+    cluster: str | None = None,
 ) -> bool:
     """Fit the dose-response curve and attach to ``result``. Returns
     True when an estimate was attached (success OR structured-error),
@@ -1663,6 +1734,7 @@ def _try_dose_response_estimate(
             sampling_points=sampling_points,
             random_state=random_state,
             model=model,
+            cluster=cluster,
         )
     except EstimatorDependencyMissing as exc:
         result["estimator_dependency_missing"] = {

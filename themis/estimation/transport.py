@@ -42,6 +42,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
+from .resample import cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,7 @@ class TransportEstimate:
     source_sample_size: int
     data_hash: str
     assumptions: tuple[str, ...]
+    cluster: str | None = None
 
 
 def estimate_transport(
@@ -72,6 +74,7 @@ def estimate_transport(
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> TransportEstimate:
     """Post-stratification transport-numeric ATE.
 
@@ -119,7 +122,15 @@ def estimate_transport(
         )
 
     required = {treatment, outcome, z_pred}
-    contract = validate_data(source_data, required_columns=required)
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(source_data, cluster, expected_n=len(source_data))
+        if cluster is not None
+        else None
+    )
+    contract = validate_data(
+        source_data, required_columns=required, presence_columns=presence,
+    )
     df = contract.data
 
     def _ate_in_stratum(sample: pd.DataFrame, z_value) -> float:
@@ -153,7 +164,7 @@ def estimate_transport(
         n = len(df)
         draws = np.empty(ci_bootstrap)
         for i in range(ci_bootstrap):
-            idx = rng.integers(0, n, size=n)
+            idx = resample_indices(n, rng, groups=groups)
             try:
                 draws[i] = _transport_point(df.iloc[idx])
             except ValueError:
@@ -163,6 +174,17 @@ def estimate_transport(
             alpha = (1 - ci_level) / 2
             ci_lower = float(np.quantile(draws, alpha))
             ci_upper = float(np.quantile(draws, 1 - alpha))
+
+    assumptions = (
+        "s_admissibility_of_adjustment_set",
+        "no_treatment_effect_modification_outside_z_in_either_pop",
+        "consistency_of_potential_outcomes",
+        "positivity_in_each_z_stratum_of_source",
+    )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
 
     return TransportEstimate(
         point=point,
@@ -176,10 +198,6 @@ def estimate_transport(
         target_marginal=dict(target_marginal),
         source_sample_size=contract.sample_size,
         data_hash=contract.data_hash,
-        assumptions=(
-            "s_admissibility_of_adjustment_set",
-            "no_treatment_effect_modification_outside_z_in_either_pop",
-            "consistency_of_potential_outcomes",
-            "positivity_in_each_z_stratum_of_source",
-        ),
+        assumptions=assumptions,
+        cluster=cluster,
     )

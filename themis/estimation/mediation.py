@@ -43,6 +43,7 @@ import statsmodels.api as sm
 
 from .contract import validate_data
 from .four_way import four_way_decomposition
+from .resample import cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -125,6 +126,10 @@ class MediationEstimate:
     # total effect. ``four_way_unavailable_reason`` says why when None.
     four_way: "FourWayDecomposition | None" = None
     four_way_unavailable_reason: str | None = None
+    # Variance concern, not a model node: when set, the bootstrap
+    # resampled whole clusters (pairs cluster bootstrap) instead of
+    # i.i.d. rows. None → ordinary i.i.d. bootstrap.
+    cluster: str | None = None
 
 
 def estimate_mediation(
@@ -138,12 +143,28 @@ def estimate_mediation(
     n_rep: int = 200,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> MediationEstimate:
     """Compute NDE / NIE / TE via the Imai et al. 2010 algorithm as
     implemented in statsmodels. See module docstring for scope.
+
+    ``cluster`` (optional column name) switches the bootstrap from
+    i.i.d. rows to a pairs cluster bootstrap (whole clusters resampled
+    with replacement) — the right variance under within-cluster
+    dependence. ``None`` reproduces the i.i.d. CI byte-for-byte. The
+    cluster column is NOT part of the causal model. The four-way
+    components share the same resampled frames, so they inherit the
+    cluster-robust CI automatically.
     """
     required = {treatment, outcome, mediator, *adjustment}
-    contract = validate_data(data, required_columns=required)
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None else None
+    )
+    contract = validate_data(
+        data, required_columns=required,
+        presence_columns=(cluster,) if cluster is not None else (),
+    )
     df = contract.data
 
     outcome_series = df[outcome]
@@ -307,7 +328,7 @@ def estimate_mediation(
     fw_pm_s: list[float] = []
     fw_pi_s: list[float] = []
     for _ in range(n_rep):
-        idx = rng.integers(0, n_rows, n_rows)
+        idx = resample_indices(n_rows, rng, groups=groups)
         bframe = fit_df.iloc[idx].reset_index(drop=True)
         try:
             om_b, mm_b = _fit(bframe)
@@ -379,7 +400,10 @@ def estimate_mediation(
         proportion_mediated_ci_upper=pm_hi,
         ci_level=ci_level,
         method=method,
-        assumptions=_assumptions_for(resolved, len(adjustment)),
+        assumptions=_assumptions_for(resolved, len(adjustment)) + (
+            (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+            if cluster is not None else ()
+        ),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         adjustment=tuple(adjustment),
@@ -389,6 +413,7 @@ def estimate_mediation(
         n_rep=n_rep,
         four_way=four_way,
         four_way_unavailable_reason=four_way_unavailable_reason,
+        cluster=cluster,
     )
 
 

@@ -36,6 +36,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
 from .dose_response import EstimatorFailure
+from .resample import cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -62,6 +63,10 @@ class BackdoorEstimate:
     model_assumption: str = ""
     form: str = ""
     identification_assumptions: tuple[dict, ...] = ()
+    # Variance concern, not a model node: when set, the bootstrap CI was
+    # computed by resampling whole clusters (pairs cluster bootstrap)
+    # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
+    cluster: str | None = None
 
 
 def estimate_backdoor_ate(
@@ -74,6 +79,7 @@ def estimate_backdoor_ate(
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> BackdoorEstimate:
     """Backdoor-adjusted ATE via outcome regression + bootstrap CI.
 
@@ -89,13 +95,29 @@ def estimate_backdoor_ate(
     ci_bootstrap: number of bootstrap resamples; 0 skips CI.
     ci_level: two-sided confidence level (default 0.95).
     random_state: deterministic seed.
+    cluster: optional column naming a cluster / block id. When set, the
+        bootstrap resamples whole clusters with replacement (pairs
+        cluster bootstrap) instead of i.i.d. rows — the right variance
+        under within-cluster dependence. ``None`` reproduces the i.i.d.
+        bootstrap byte-for-byte. The cluster column is NOT part of the
+        causal model and does not enter the design or the data hash.
 
     Returns
     -------
     BackdoorEstimate with point / ci_lower / ci_upper / method / etc.
     """
     required = {treatment, outcome, *adjustment}
-    contract = validate_data(data, required_columns=required)
+    presence = (cluster,) if cluster is not None else ()
+    # Pull cluster labels from the raw frame (uncoerced) before the
+    # contract subsets to model columns; positionally aligned with df.
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None
+        else None
+    )
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
     df = contract.data
 
     # Positivity / overlap precondition. A backdoor ATE is a contrast
@@ -143,9 +165,14 @@ def estimate_backdoor_ate(
             df, treatment, outcome, adjustment,
             model=resolved, ci_bootstrap=ci_bootstrap,
             ci_level=ci_level, random_state=random_state,
+            groups=groups,
         )
 
     assumptions = _assumptions_for(resolved, len(adjustment))
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
     # Structured for the assumption-ledger: identification assumptions
     # (invalidating) separated from the functional-form choice (the
     # outcome regression model -> mechanism_audit, distorting).
@@ -182,6 +209,7 @@ def estimate_backdoor_ate(
         model_assumption=model_assumption,
         form=resolved,
         identification_assumptions=identification_assumptions,
+        cluster=cluster,
     )
 
 
@@ -253,13 +281,19 @@ def _bootstrap_ci(
     ci_bootstrap: int,
     ci_level: float,
     random_state: int,
+    groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
-    """Non-parametric percentile bootstrap CI on the ATE."""
+    """Non-parametric percentile bootstrap CI on the ATE.
+
+    ``groups`` (cluster labels aligned to ``df``) switches the draw from
+    i.i.d. rows to a pairs cluster bootstrap; ``None`` keeps the i.i.d.
+    draw byte-for-byte.
+    """
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates = np.empty(ci_bootstrap)
     for i in range(ci_bootstrap):
-        idx = rng.integers(0, n, size=n)
+        idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         X_b, y_b = _design(sample, treatment, outcome, adjustment)
         estimates[i] = _point_estimate(

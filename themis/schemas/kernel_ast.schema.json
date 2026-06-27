@@ -24,6 +24,10 @@
         "strict_framing": {
           "type": "boolean",
           "description": "When true, effect / probability queries whose referenced predicates still have A0 framing gaps flip to needs_investigation before numeric evaluation. The F1 DEFINE_VARIABLE channel still fires with the same skeletons so the fill-back loop is unchanged — only the numeric path is gated."
+        },
+        "cluster": {
+          "type": "string",
+          "description": "Name of a data column carrying a cluster / block id (families, repeated measures, schools). Consumed only by the numeric estimation path (themis.estimate): every estimator's bootstrap CI then resamples whole clusters (pairs cluster bootstrap) instead of i.i.d. rows — the correct variance under within-cluster dependence. The column is a variance concern, not a causal-model node: it never appears as a variable/edge in the DAG and is excluded from the data hash. Identification (themis.run) ignores it."
         }
       }
     },

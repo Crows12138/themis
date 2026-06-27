@@ -42,6 +42,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
+from .resample import cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -60,6 +61,7 @@ class FrontdoorEstimate:
     mediators: tuple[str, ...]
     treatment: str
     outcome: str
+    cluster: str | None = None
 
 
 def estimate_frontdoor_ate(
@@ -72,18 +74,30 @@ def estimate_frontdoor_ate(
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> FrontdoorEstimate:
     """Front-door-adjusted ATE via plug-in Pearl Eq 3.29 + bootstrap CI.
 
     See module docstring for the formula + assumptions. Mediators
     must be passed in topological order (matching the scheduler's
     ``front_door_sets`` output).
+
+    ``cluster`` (optional column name) switches the bootstrap CI to a
+    pairs cluster bootstrap; ``None`` reproduces the i.i.d. bootstrap.
     """
     if not mediators:
         raise ValueError("estimate_frontdoor_ate requires >=1 mediator")
 
     required = {treatment, outcome, *mediators}
-    contract = validate_data(data, required_columns=required)
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None
+        else None
+    )
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
     df = contract.data
 
     outcome_series = df[outcome]
@@ -105,6 +119,13 @@ def estimate_frontdoor_ate(
             df, treatment, outcome, mediators,
             model=resolved, ci_bootstrap=ci_bootstrap,
             ci_level=ci_level, random_state=random_state,
+            groups=groups,
+        )
+
+    assumptions = _assumptions_for(resolved, len(mediators))
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
 
     return FrontdoorEstimate(
@@ -113,12 +134,13 @@ def estimate_frontdoor_ate(
         ci_upper=float(ci_upper) if ci_upper is not None else None,
         ci_level=ci_level,
         method=method,
-        assumptions=_assumptions_for(resolved, len(mediators)),
+        assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         mediators=tuple(mediators),
         treatment=treatment,
         outcome=outcome,
+        cluster=cluster,
     )
 
 
@@ -237,12 +259,13 @@ def _bootstrap_ci_frontdoor(
     ci_bootstrap: int,
     ci_level: float,
     random_state: int,
+    groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates = np.empty(ci_bootstrap)
     for i in range(ci_bootstrap):
-        idx = rng.integers(0, n, size=n)
+        idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         estimates[i] = _point_estimate_frontdoor(
             sample, treatment, outcome, mediators, model=model,

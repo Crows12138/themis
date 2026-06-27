@@ -460,6 +460,16 @@
         "precision_budget": {
           "$ref": "#/$defs/precisionBudget"
         },
+        "bootstrap": {
+          "type": "object",
+          "description": "Cluster-bootstrap metadata. Present only when a cluster / block column was supplied (options.cluster): the percentile CI then resamples whole clusters (Cameron-Gelbach-Miller pairs cluster bootstrap) instead of i.i.d. rows, which is the correct variance under within-cluster dependence. Absent ⇒ the default i.i.d. bootstrap.",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["iid", "cluster"] },
+            "cluster_column": { "type": ["string", "null"] }
+          }
+        },
         "decomposition": {
           "type": "object",
           "description": "Phase 7.4 mediation decomposition: point + CI for NDE, NIE, TE, plus the proportion of total effect mediated through M (NIE / TE).",

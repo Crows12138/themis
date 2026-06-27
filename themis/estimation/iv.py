@@ -30,6 +30,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 
 from .contract import validate_data
+from .resample import cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "wald", "2sls"]
@@ -49,6 +50,7 @@ class IVEstimate:
     conditioning: tuple[str, ...]
     treatment: str
     outcome: str
+    cluster: str | None = None
     # iter 120: first-stage F-statistic for the instrument's effect on
     # treatment after partialing out conditioning W. Stock & Yogo (2005)
     # pin F < 10 as the canonical "weak instrument" threshold for a
@@ -69,10 +71,23 @@ def estimate_iv_ate(
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> IVEstimate:
-    """Instrumental-variable ATE via Wald (binary) or 2SLS (linear)."""
+    """Instrumental-variable ATE via Wald (binary) or 2SLS (linear).
+
+    ``cluster`` (optional column name) switches the bootstrap CI to a
+    pairs cluster bootstrap; ``None`` reproduces the i.i.d. bootstrap.
+    """
     required = {treatment, outcome, instrument, *conditioning}
-    contract = validate_data(data, required_columns=required)
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None
+        else None
+    )
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
     df = contract.data
 
     z_series = df[instrument]
@@ -119,6 +134,13 @@ def estimate_iv_ate(
             df, treatment, outcome, instrument, conditioning,
             model=resolved, ci_bootstrap=ci_bootstrap,
             ci_level=ci_level, random_state=random_state,
+            groups=groups,
+        )
+
+    assumptions = _assumptions_for(resolved, len(conditioning))
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
 
     return IVEstimate(
@@ -127,13 +149,14 @@ def estimate_iv_ate(
         ci_upper=float(ci_upper) if ci_upper is not None else None,
         ci_level=ci_level,
         method=method,
-        assumptions=_assumptions_for(resolved, len(conditioning)),
+        assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         instrument=instrument,
         conditioning=tuple(conditioning),
         treatment=treatment,
         outcome=outcome,
+        cluster=cluster,
         first_stage_f_stat=f_stat,
     )
 
@@ -286,12 +309,13 @@ def _bootstrap_ci_iv(
     ci_bootstrap: int,
     ci_level: float,
     random_state: int,
+    groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
     rng = np.random.default_rng(random_state)
     n = len(df)
     estimates = np.empty(ci_bootstrap)
     for i in range(ci_bootstrap):
-        idx = rng.integers(0, n, size=n)
+        idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx]
         try:
             if model == "wald":
