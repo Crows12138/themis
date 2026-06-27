@@ -401,7 +401,8 @@
             "dose_response_linear_dml",
             "dose_response_causal_forest_dml",
             "dose_response_linear_drlearner",
-            "transport_post_stratification"
+            "transport_post_stratification",
+            "longitudinal_gformula"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -501,6 +502,29 @@
           "properties": {
             "kind": { "enum": ["iid", "cluster"] },
             "cluster_column": { "type": ["string", "null"] }
+          }
+        },
+        "longitudinal_gformula": {
+          "type": "object",
+          "description": "Phase 7.L: longitudinal parametric g-formula (g-computation) detail for a time-varying treatment STRATEGY (Hernán & Robins, What If, ch.21). point/ci mirror the top-level fields; the rest exposes the time-ordered treatment + covariate spec, the two simulated strategy means, and the Monte-Carlo / bootstrap budgets so a consumer can audit the always-treat vs never-treat contrast.",
+          "required": ["point", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "n_sim", "n_bootstrap"],
+          "additionalProperties": false,
+          "properties": {
+            "point": { "type": "number" },
+            "ci_lower": { "type": ["number", "null"] },
+            "ci_upper": { "type": ["number", "null"] },
+            "treatments": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "confounders_by_time": {
+              "type": "array",
+              "items": { "type": "array", "items": { "type": "string" } }
+            },
+            "outcome": { "type": "string" },
+            "strategy_treated": { "type": "number" },
+            "strategy_control": { "type": "number" },
+            "e_y_treated": { "type": "number" },
+            "e_y_control": { "type": "number" },
+            "n_sim": { "type": "integer", "minimum": 1 },
+            "n_bootstrap": { "type": "integer", "minimum": 0 }
           }
         },
         "decomposition": {

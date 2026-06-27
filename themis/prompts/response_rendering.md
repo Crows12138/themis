@@ -513,6 +513,7 @@ df)`, not from symbolic Theta.
 | `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale | "经过 M 这条路径贡献的部分是 X.X（NIE）" |
 | `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases | (covered there) |
 | `joint_backdoor_linear` / `joint_backdoor_logistic` | JOINT effect of intervening on the whole treatment vector at once — see §"Joint interventions" | "同时把 A、B 都设为 1（相对都为 0）让 Y 变化 X.X" |
+| `longitudinal_gformula` | effect of a time-varying treatment STRATEGY (always-treat vs never-treat) via the parametric g-formula; the `longitudinal_gformula` block carries the two strategy means and the time-ordered spec | "一直接受治疗（相对一直不治疗）让最终 Y 平均改变 X.X —— 用 g-formula 校正了被既往治疗影响的时变混杂" |
 
 **Backdoor template**:
 

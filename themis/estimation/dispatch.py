@@ -74,6 +74,17 @@ def estimate_program(
             "model_preference": model,
         })
 
+    # Phase 7.L — g-methods for time-varying treatments. Detected via an
+    # explicit ``options.longitudinal`` spec (not the structural query
+    # shape): the longitudinal g-formula needs the time ordering of
+    # treatments + covariates, which the cross-sectional AST doesn't carry.
+    # Runs first so the per-query backdoor loop's guard skips re-estimating
+    # the same effect query with the (biased!) static adjustment.
+    _maybe_estimate_longitudinal(
+        program, identification_output, contract,
+        random_state=random_state, ci_bootstrap=ci_bootstrap,
+    )
+
     _estimate_effect_queries(
         program, identification_output, contract,
         random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
@@ -81,6 +92,126 @@ def estimate_program(
     )
 
     return identification_output
+
+
+def _maybe_estimate_longitudinal(
+    program: dict | str | bytes,
+    output: dict,
+    contract: DataContract,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+) -> None:
+    """Attach a longitudinal g-formula ``numeric_estimate`` block when the
+    program carries an ``options.longitudinal`` spec.
+
+    Spec shape (kernel_ast.schema.json options.longitudinal)::
+
+        {"treatments": ["A0", "A1"],
+         "confounders_by_time": [["L0"], ["L1"]],
+         "outcome": "Y",
+         "strategy_treated": 1, "strategy_control": 0,
+         "n_sim": 10000, "ci_bootstrap": 200}
+
+    The block is attached to the FIRST effect-query result (so the
+    structural derivation context is preserved), or — when the program
+    declares no effect query — to the first result. Status is left
+    untouched (mirrors the mediation path: the numeric block is
+    supplementary; the structural answer remains primary). Failures
+    (overlap_insufficient / malformed spec) surface as
+    ``estimator_failure`` rather than silently dropping.
+    """
+    ast = _ensure_dict(program)
+    options = ast.get("options") or {}
+    spec = options.get("longitudinal")
+    if not isinstance(spec, dict):
+        return
+
+    treatments = spec.get("treatments")
+    confounders_by_time = spec.get("confounders_by_time")
+    outcome = spec.get("outcome")
+    if not (treatments and confounders_by_time and outcome):
+        return
+
+    target = _longitudinal_target_result(output)
+    if target is None:
+        return
+
+    from .longitudinal import estimate_longitudinal_gformula
+    from .dose_response import EstimatorFailure
+
+    kwargs = {
+        "treatments": tuple(treatments),
+        "confounders_by_time": tuple(tuple(b) for b in confounders_by_time),
+        "outcome": outcome,
+        "random_state": random_state,
+        "ci_bootstrap": int(spec.get("ci_bootstrap", ci_bootstrap)),
+    }
+    if "strategy_treated" in spec:
+        kwargs["strategy_treated"] = spec["strategy_treated"]
+    if "strategy_control" in spec:
+        kwargs["strategy_control"] = spec["strategy_control"]
+    if "n_sim" in spec:
+        kwargs["n_sim"] = int(spec["n_sim"])
+
+    try:
+        est = estimate_longitudinal_gformula(contract.data, **kwargs)
+    except EstimatorFailure as exc:
+        target["estimator_failure"] = {
+            "estimator": "longitudinal_gformula",
+            "failure_type": (
+                exc.failure_type
+                if exc.failure_type in ("overlap_insufficient",
+                                        "convergence_failure")
+                else "unknown"
+            ),
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, KeyError) as exc:
+        target["estimator_failure"] = {
+            "estimator": "longitudinal_gformula",
+            "failure_type": "unknown",
+            "reason": str(exc),
+        }
+        return
+
+    target["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "treatment": ",".join(est.treatments),
+        "outcome": est.outcome,
+        "longitudinal_gformula": {
+            "point": est.point,
+            "ci_lower": est.ci_lower,
+            "ci_upper": est.ci_upper,
+            "treatments": list(est.treatments),
+            "confounders_by_time": [list(b) for b in est.confounders_by_time],
+            "outcome": est.outcome,
+            "strategy_treated": est.strategy_treated,
+            "strategy_control": est.strategy_control,
+            "e_y_treated": est.e_y_treated,
+            "e_y_control": est.e_y_control,
+            "n_sim": est.n_sim,
+            "n_bootstrap": est.n_bootstrap,
+        },
+    }
+    _attach_precision_budget(target["numeric_estimate"])
+
+
+def _longitudinal_target_result(output: dict):
+    """First effect-query result, else the first result, else None."""
+    results = output.get("results", [])
+    for result in results:
+        if result.get("query_kind") == "effect":
+            return result
+    return results[0] if results else None
 
 
 def _resolve_cluster_option(
@@ -140,6 +271,13 @@ def _estimate_effect_queries(
 
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None:
+            continue
+        # Phase 7.L: a longitudinal g-formula estimate already claimed this
+        # result. Do NOT overwrite it with the cross-sectional backdoor ATE
+        # — that static adjustment is exactly the biased estimator the
+        # g-formula exists to replace when a confounder is affected by past
+        # treatment.
+        if (result.get("numeric_estimate") or {}).get("method") == "longitudinal_gformula":
             continue
         dose_response_triggered = q_stmt.id in dose_response_query_ids
         # Joint interventions: do(A=a, B=b, ...) over a treatment SET —

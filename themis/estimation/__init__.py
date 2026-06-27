@@ -32,6 +32,17 @@ Landed scope:
   returning ``TransportEstimate``. Source data + target marginal
   P(Z) → reweighted ATE in target population. Single-Z scope; multi-
   Z and IPSW (Westreich 2017) follow in §T9.3+.
+- Phase 7.L — g-methods for TIME-VARYING treatments:
+  ``estimate_longitudinal_gformula`` returning
+  ``LongitudinalGFormulaEstimate``. The parametric (Monte-Carlo)
+  g-formula / g-computation (Hernán & Robins, *What If*, ch.21):
+  fits the covariate-transition models L_k | history and the outcome
+  model Y | full history, simulates forward under always-treat vs
+  never-treat strategies, and contrasts E[Y_{ā=1}] − E[Y_{ā=0}].
+  This is the estimator for time-varying confounding that is itself
+  affected by past treatment — the structure where ordinary
+  regression adjustment is biased. Binary treatment, K time points,
+  percentile-bootstrap CI.
 - Phase 8.1 — discovery: ``discover_graph`` (PC / FCI / LiNGAM via
   causal-learn) returning ``DiscoveryResult`` +
   ``discovery_to_kernel_ast`` adapter
@@ -58,6 +69,10 @@ from .discovery import (
 )
 from .iv import IVEstimate, estimate_iv_ate
 from .joint import JointEffectEstimate, estimate_joint_effect
+from .longitudinal import (
+    LongitudinalGFormulaEstimate,
+    estimate_longitudinal_gformula,
+)
 from .mediation import (
     CDEChainEstimate,
     CDEEstimate,
@@ -85,6 +100,7 @@ __all__ = [
     "FrontdoorEstimate",
     "IVEstimate",
     "JointEffectEstimate",
+    "LongitudinalGFormulaEstimate",
     "MediationEstimate",
     "TransportEstimate",
     "discover_graph",
@@ -98,6 +114,7 @@ __all__ = [
     "estimate_frontdoor_ate",
     "estimate_iv_ate",
     "estimate_joint_effect",
+    "estimate_longitudinal_gformula",
     "estimate_mediation",
     "estimate_transport",
 ]

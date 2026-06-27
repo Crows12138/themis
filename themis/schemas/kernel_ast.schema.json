@@ -28,6 +28,33 @@
         "cluster": {
           "type": "string",
           "description": "Name of a data column carrying a cluster / block id (families, repeated measures, schools). Consumed only by the numeric estimation path (themis.estimate): every estimator's bootstrap CI then resamples whole clusters (pairs cluster bootstrap) instead of i.i.d. rows — the correct variance under within-cluster dependence. The column is a variance concern, not a causal-model node: it never appears as a variable/edge in the DAG and is excluded from the data hash. Identification (themis.run) ignores it."
+        },
+        "longitudinal": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Phase 7.L. Opt-in spec routing themis.estimate to the longitudinal parametric g-formula (g-computation) for a TIME-VARYING treatment strategy (Hernán & Robins, What If, ch.21). Declares the time ordering of treatments and covariates that the cross-sectional query AST cannot express. When present, the estimator fits L_k|history transition models + the outcome model, Monte-Carlo simulates always-treat vs never-treat, and attaches a longitudinal_gformula block to the first effect-query result.",
+          "required": ["treatments", "confounders_by_time", "outcome"],
+          "properties": {
+            "treatments": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" },
+              "description": "Ordered (A_0..A_K) binary treatment column names, earliest first."
+            },
+            "confounders_by_time": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "description": "Parallel to treatments. Entry k lists covariates L_k measured after A_{k-1} and before A_k; index 0 is the baseline covariates L_0. Inner arrays may be empty."
+            },
+            "outcome": { "type": "string" },
+            "strategy_treated": { "type": ["number", "boolean"] },
+            "strategy_control": { "type": ["number", "boolean"] },
+            "n_sim": { "type": "integer", "minimum": 1 },
+            "ci_bootstrap": { "type": "integer", "minimum": 0 }
+          }
         }
       }
     },
