@@ -394,7 +394,7 @@
         "method": {
           "enum": [
             "backdoor_linear", "backdoor_logistic",
-            "aipw", "ipw_stabilized", "ipw_ht",
+            "aipw", "tmle", "ipw_stabilized", "ipw_ht",
             "frontdoor_linear", "frontdoor_logistic",
             "iv_wald", "iv_2sls",
             "mediation_linear_imai", "mediation_logit_imai",
@@ -520,16 +520,20 @@
         },
         "doubly_robust": {
           "type": "boolean",
-          "description": "AIPW only: True. Flags that the estimate is consistent if EITHER the outcome regression OR the propensity model is correctly specified (Robins-Rotnitzky-Zhao 1994; Bang & Robins 2005)."
+          "description": "AIPW / TMLE: True. Flags that the estimate is consistent if EITHER the outcome regression OR the propensity model is correctly specified (Robins-Rotnitzky-Zhao 1994; Bang & Robins 2005; van der Laan & Rose 2011)."
+        },
+        "tmle_epsilon": {
+          "type": "number",
+          "description": "TMLE only: the fluctuation (targeting) parameter ε from the logistic-fluctuation step. A transparency handle — ε near 0 means the initial outcome fit was already well-targeted; a larger |ε| means the targeting step moved the estimate substantially."
         },
         "std_error": {
           "type": ["number", "null"],
-          "description": "AIPW only: influence-function standard error of the ATE (the analytic-CI path). Null when the CI was skipped. From the Neyman-orthogonal moment's influence function; cluster-robust when a cluster column is in play.",
+          "description": "AIPW / TMLE: influence-function standard error of the ATE (the analytic-CI path). Null when the CI was skipped. From the efficient influence curve; cluster-robust when a cluster column is in play.",
           "minimum": 0
         },
         "ci_method": {
           "enum": ["influence_function", "bootstrap"],
-          "description": "AIPW only: how the CI was formed — 'influence_function' is the analytic Wald CI from the orthogonal-moment influence function (the default, AIPW's advantage over the bootstrap-only g-formula); 'bootstrap' refits both nuisances per resample."
+          "description": "AIPW / TMLE: how the CI was formed — 'influence_function' is the analytic Wald CI from the efficient influence curve (the default, the doubly-robust estimators' advantage over the bootstrap-only g-formula); 'bootstrap' refits the estimator per resample."
         },
         "inference": {
           "type": "object",

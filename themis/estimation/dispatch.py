@@ -242,7 +242,7 @@ def _resolve_cluster_option(
     return None
 
 
-_ATE_ESTIMATORS = frozenset({"gformula", "ipw", "aipw"})
+_ATE_ESTIMATORS = frozenset({"gformula", "ipw", "aipw", "tmle"})
 
 
 def _resolve_ate_estimator_option(
@@ -424,7 +424,7 @@ def _estimate_effect_queries(
             # identification (the adjustment set is a valid backdoor set);
             # different estimator + inference. Default "gformula" leaves
             # this branch untaken and every existing result byte-identical.
-            if ate_estimator in ("ipw", "aipw"):
+            if ate_estimator in ("ipw", "aipw", "tmle"):
                 _attach_doubly_robust_estimate(
                     result=result, contract=contract,
                     graph=graph, x=x_atom, y=y_atom,
@@ -1793,6 +1793,7 @@ def _attach_doubly_robust_estimate(
     numeric_ipw_estimate).
     """
     from .aipw import estimate_aipw_ate, estimate_ipw_ate
+    from .tmle import estimate_tmle_ate
 
     try:
         if estimator == "aipw":
@@ -1801,6 +1802,15 @@ def _attach_doubly_robust_estimate(
                 treatment=x.predicate, outcome=y.predicate,
                 adjustment=adjustment_names,
                 outcome_model=model,  # type: ignore[arg-type]
+                ci_bootstrap=ci_bootstrap,
+                random_state=random_state,
+                cluster=cluster,
+            )
+        elif estimator == "tmle":
+            est = estimate_tmle_ate(
+                contract.data,
+                treatment=x.predicate, outcome=y.predicate,
+                adjustment=adjustment_names,
                 ci_bootstrap=ci_bootstrap,
                 random_state=random_state,
                 cluster=cluster,
@@ -1843,10 +1853,14 @@ def _attach_doubly_robust_estimate(
             "model": prop.model,
         },
     }
-    if estimator == "aipw":
+    if estimator in ("aipw", "tmle"):
         ne["doubly_robust"] = True
         ne["std_error"] = est.std_error
         ne["ci_method"] = est.ci_method
+        if estimator == "tmle":
+            # The fluctuation parameter — a transparency handle: ε≈0 means
+            # the initial outcome fit was already well-targeted.
+            ne["tmle_epsilon"] = est.epsilon
         if est.ci_method == "influence_function":
             # Analytic CI — no bootstrap. Record the inference kind so a
             # consumer knows the CI is Wald-from-influence-function (and
@@ -1879,13 +1893,14 @@ def _attach_doubly_robust_estimate(
         ext["assumption_ledger"] = ledger
 
     _attach_precision_budget(ne)
+    _DR_TERMINAL = {
+        "aipw": "numeric_aipw_estimate",
+        "tmle": "numeric_tmle_estimate",
+        "ipw": "numeric_ipw_estimate",
+    }
     result["derivation"] = _build_dr_numeric_derivation_dict(
         graph=graph, x=x, y=y, adjustment=adjustment, given=given,
-        estimate=est,
-        terminal_rule=(
-            "numeric_aipw_estimate" if estimator == "aipw"
-            else "numeric_ipw_estimate"
-        ),
+        estimate=est, terminal_rule=_DR_TERMINAL[estimator],
     )
     _attach_e_value_if_binary(
         result, contract, outcome=y.predicate, treatment=x.predicate,
@@ -1903,12 +1918,13 @@ def _attach_doubly_robust_estimate(
 def _build_dr_numeric_derivation_dict(
     *, graph, x, y, adjustment, given, estimate, terminal_rule,
 ):
-    """Two-step derivation for a doubly-robust (IPW / AIPW) estimate:
+    """Two-step derivation for a doubly-robust (IPW / AIPW / TMLE) estimate:
 
         s1: backdoor_criterion (same structural witness as g-formula —
             the adjustment set is a valid backdoor set)
-        s2: numeric_aipw_estimate / numeric_ipw_estimate (metadata audit
-            of the estimate + propensity disclosure — no re-fit)
+        s2: numeric_aipw_estimate / numeric_tmle_estimate /
+            numeric_ipw_estimate (metadata audit of the estimate +
+            propensity disclosure — no re-fit)
     """
     from ..types import DerivationStep, StepRef, StructuralResult
     from ..verifier.serialization import derivation_to_dict
@@ -1931,10 +1947,12 @@ def _build_dr_numeric_derivation_dict(
         "propensity_n_trimmed": prop.n_trimmed,
         "propensity_floor": prop.floor,
     }
-    if terminal_rule == "numeric_aipw_estimate":
+    if terminal_rule in ("numeric_aipw_estimate", "numeric_tmle_estimate"):
         terminal_inputs["doubly_robust"] = estimate.doubly_robust
         terminal_inputs["std_error"] = estimate.std_error
         terminal_inputs["ci_method"] = estimate.ci_method
+    if terminal_rule == "numeric_tmle_estimate":
+        terminal_inputs["tmle_epsilon"] = estimate.epsilon
 
     steps = (
         DerivationStep(

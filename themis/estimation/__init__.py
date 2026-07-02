@@ -12,16 +12,20 @@ Landed scope:
   ``estimate_frontdoor_ate`` / ``estimate_iv_ate`` /
   ``estimate_mediation`` returning ``BackdoorEstimate`` /
   ``FrontdoorEstimate`` / ``IVEstimate`` / ``MediationEstimate``
-- Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``)
-  and ``estimate_aipw_ate`` (returning ``AIPWEstimate``), opt-in via
+- Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
+  ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
+  ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via
   ``options.ate_estimator`` on the backdoor path. IPW weights by the
   propensity (single-robust on the treatment model); AIPW is the
   augmented / doubly-robust estimator — consistent if EITHER the outcome
   regression OR the propensity model is correct (Robins-Rotnitzky-Zhao
-  1994; Bang & Robins 2005), with an analytic influence-function CI
-  (cluster-robust when a cluster column is set). Both disclose the
-  positivity / overlap picture via ``PropensitySummary`` (raw propensity
-  range + how many units were Winsorized).
+  1994; Bang & Robins 2005); TMLE is the targeted-substitution
+  doubly-robust estimator (van der Laan & Rose 2011) — asymptotically
+  equivalent to AIPW but a bounded plug-in that respects [0,1] and is
+  steadier near positivity violations. All three carry an analytic
+  influence-function CI (cluster-robust when a cluster column is set) and
+  disclose the positivity / overlap picture via ``PropensitySummary``
+  (raw propensity range + how many units were Winsorized).
 - Phase 7.5 (iter 125) — Controlled Direct Effect at fixed M=m*:
   ``estimate_cde`` returning ``CDEEstimate``. Plug-in g-formula
   on a sklearn outcome model; complements the Imai NDE/NIE path
@@ -104,6 +108,7 @@ from .sensitivity import (
     e_value_from_ate_binary,
     e_value_from_ate_continuous,
 )
+from .tmle import TMLEEstimate, estimate_tmle_ate
 from .transport import TransportEstimate, estimate_transport
 
 __all__ = [
@@ -122,6 +127,7 @@ __all__ = [
     "LongitudinalGFormulaEstimate",
     "MediationEstimate",
     "PropensitySummary",
+    "TMLEEstimate",
     "TransportEstimate",
     "discover_graph",
     "discovery_to_kernel_ast",
@@ -138,5 +144,6 @@ __all__ = [
     "estimate_joint_effect",
     "estimate_longitudinal_gformula",
     "estimate_mediation",
+    "estimate_tmle_ate",
     "estimate_transport",
 ]

@@ -698,8 +698,10 @@ def verify_numeric_estimate(
     allowed_finals = (
         "numeric_backdoor_estimate",
         # Doubly-robust estimators on the same backdoor identification:
-        # inverse-probability weighting and the augmented (AIPW) form.
+        # inverse-probability weighting, the augmented (AIPW) form, and
+        # the targeted-substitution (TMLE) form.
         "numeric_aipw_estimate",
+        "numeric_tmle_estimate",
         "numeric_ipw_estimate",
         "numeric_frontdoor_estimate",
         "numeric_iv_estimate",

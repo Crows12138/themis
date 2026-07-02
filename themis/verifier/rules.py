@@ -17,6 +17,7 @@ Named rules in this file:
 """
 from __future__ import annotations
 
+import math
 from itertools import product
 from typing import Any, Callable
 
@@ -2040,6 +2041,7 @@ def _rule_numeric_backdoor_estimate(
 # =============================== doubly-robust (IPW / AIPW) numeric terminals
 
 _NUMERIC_AIPW_METHODS = frozenset({"aipw"})
+_NUMERIC_TMLE_METHODS = frozenset({"tmle"})
 _NUMERIC_IPW_METHODS = frozenset({"ipw_stabilized", "ipw_ht"})
 _AIPW_CI_METHODS = frozenset({"influence_function", "bootstrap"})
 
@@ -2257,6 +2259,37 @@ def _rule_numeric_aipw_estimate(
         allowed_methods=_NUMERIC_AIPW_METHODS,
         require_aipw_fields=True,
     )
+
+
+def _rule_numeric_tmle_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Audit a targeted-maximum-likelihood (TMLE) numeric estimate.
+
+    Shares the doubly-robust audit (doubly_robust / ci_method / std_error
+    + propensity coherence), plus a check that the fluctuation parameter
+    ``tmle_epsilon`` is a finite number — a corrupted / non-finite
+    targeting step would silently invalidate the substitution estimate.
+    """
+    _audit_dr_numeric_estimate(
+        inputs, claimed_output, step_index, step_by_id,
+        rule="numeric_tmle_estimate",
+        allowed_methods=_NUMERIC_TMLE_METHODS,
+        require_aipw_fields=True,
+    )
+    epsilon = inputs.get("tmle_epsilon")
+    if not isinstance(epsilon, (int, float)) or isinstance(epsilon, bool) \
+            or not math.isfinite(epsilon):
+        raise RuleCheckFailed(
+            f"numeric_tmle_estimate.tmle_epsilon must be a finite number; "
+            f"got {epsilon!r}",
+            step_index=step_index, rule="numeric_tmle_estimate",
+        )
 
 
 def _rule_numeric_ipw_estimate(
@@ -5772,9 +5805,10 @@ _STEP_REF_RULES = {
     "numeric_result",
     # Phase 7.1 S.N.4
     "numeric_backdoor_estimate",
-    # Doubly-robust (IPW / AIPW) numeric estimates — same backdoor
+    # Doubly-robust (IPW / AIPW / TMLE) numeric estimates — same backdoor
     # identification witness, different estimator terminal.
     "numeric_aipw_estimate",
+    "numeric_tmle_estimate",
     "numeric_ipw_estimate",
     # Joint (treatment-set) back-door identification + numeric estimate
     "identify_via_joint_backdoor",
@@ -5833,6 +5867,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_aipw_estimate":
         _rule_numeric_aipw_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_tmle_estimate":
+        _rule_numeric_tmle_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

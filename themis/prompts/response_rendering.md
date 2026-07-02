@@ -515,6 +515,7 @@ df)`, not from symbolic Theta.
 | `joint_backdoor_linear` / `joint_backdoor_logistic` | JOINT effect of intervening on the whole treatment vector at once — see §"Joint interventions" | "同时把 A、B 都设为 1（相对都为 0）让 Y 变化 X.X" |
 | `longitudinal_gformula` | effect of a time-varying treatment STRATEGY (always-treat vs never-treat) via the parametric g-formula; the `longitudinal_gformula` block carries the two strategy means and the time-ordered spec | "一直接受治疗（相对一直不治疗）让最终 Y 平均改变 X.X —— 用 g-formula 校正了被既往治疗影响的时变混杂" |
 | `aipw` | doubly-robust ATE (same scale as `backdoor_linear`); consistent if EITHER the outcome OR the propensity model is right — see §"Doubly-robust estimates" | "ATE = X.X（双稳健估计：结局模型或倾向模型任一设定正确即成立）" |
+| `tmle` | doubly-robust ATE via targeted substitution (same scale as `backdoor_linear`); like `aipw` but a bounded plug-in — see §"Doubly-robust estimates" | "ATE = X.X（TMLE 双稳健定标估计：结局或倾向任一设定正确即成立）" |
 | `ipw_stabilized` / `ipw_ht` | inverse-probability-weighted ATE (same scale as `backdoor_linear`); relies on the propensity model being correct — see §"Doubly-robust estimates" | "ATE = X.X（按倾向得分逆概率加权估计）" |
 
 **Backdoor template**:
@@ -571,7 +572,7 @@ natural distribution; the joint contrast fixes both).
 >
 > 关键假设：联合可交换性 / 每个处理组合都有重叠 / 一致性。
 
-### Doubly-robust estimates (`aipw` / `ipw_stabilized` / `ipw_ht`)
+### Doubly-robust estimates (`aipw` / `tmle` / `ipw_stabilized` / `ipw_ht`)
 
 These are opt-in alternatives to the g-formula (`backdoor_linear`) for the
 SAME backdoor-identified ATE — selected via `options.ate_estimator`. Same
@@ -586,6 +587,15 @@ and how the CI is formed.
   with a reported `std_error` (Wald interval, cluster-robust when
   `inference.cluster_robust` is true), NOT a bootstrap. Render the CI
   plainly; only mention "bootstrap" if `ci_method == "bootstrap"`.
+- **`tmle`** — targeted maximum likelihood: also doubly-robust
+  (`doubly_robust: true`) and asymptotically equivalent to `aipw`, but a
+  *substitution* estimator that targets an initial outcome fit through a
+  bounded fluctuation, so it respects the outcome's natural range and is
+  steadier when propensity scores approach 0/1. Same analytic
+  influence-curve CI as `aipw`. `tmle_epsilon` is the fluctuation
+  parameter (a transparency handle; ε≈0 means the initial fit was already
+  well-targeted) — you normally don't surface it unless asked to explain
+  the method.
 - **`ipw_stabilized`** (Hájek, default) / **`ipw_ht`** (Horvitz-Thompson)
   — inverse-probability weighting. Single-robust: relies on the
   propensity model being correct. Do NOT claim double robustness for
@@ -635,6 +645,7 @@ this is a positivity warning, not a footnote to bury.
 | `logit_outcome_regression` | outcome 用 logit 回归 |
 | `adjustment_set_blocks_mediator_outcome_backdoor_given_treatment` | 给定 X 后调整集阻断 M→Y 的后门 |
 | `doubly_robust_outcome_OR_propensity_model_correct` | 双稳健：结局回归或倾向模型任一设定正确即一致 |
+| `tmle_targeted_substitution_estimator` | TMLE：对初始结局拟合做定标的代入估计（有界、近正性违背更稳）|
 | `correct_propensity_model_single_robust` | 单稳健：估计一致依赖倾向模型设定正确 |
 | `hajek_stabilized_weights` | IPW 用 Hájek 稳定化权重（组内归一，方差更小）|
 | `horvitz_thompson_weights` | IPW 用 Horvitz-Thompson 原始权重 |

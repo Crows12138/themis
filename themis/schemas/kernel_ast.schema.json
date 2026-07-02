@@ -30,8 +30,8 @@
           "description": "Name of a data column carrying a cluster / block id (families, repeated measures, schools). Consumed only by the numeric estimation path (themis.estimate): every estimator's bootstrap CI then resamples whole clusters (pairs cluster bootstrap) instead of i.i.d. rows — the correct variance under within-cluster dependence. The column is a variance concern, not a causal-model node: it never appears as a variable/edge in the DAG and is excluded from the data hash. Identification (themis.run) ignores it."
         },
         "ate_estimator": {
-          "enum": ["gformula", "ipw", "aipw"],
-          "description": "Selects the estimator for the backdoor-identified ATE on the numeric path (themis.estimate). 'gformula' (default) is the outcome-regression plug-in; 'ipw' is inverse-probability weighting on the propensity; 'aipw' is the doubly-robust augmented estimator (consistent if EITHER the outcome OR the propensity model is correct). Only the backdoor branch honours this — front-door / IV / mediation keep their own estimators. Identification (themis.run) ignores it."
+          "enum": ["gformula", "ipw", "aipw", "tmle"],
+          "description": "Selects the estimator for the backdoor-identified ATE on the numeric path (themis.estimate). 'gformula' (default) is the outcome-regression plug-in; 'ipw' is inverse-probability weighting on the propensity; 'aipw' is the doubly-robust augmented estimator; 'tmle' is the doubly-robust targeted-substitution estimator (asymptotically equivalent to aipw, but a bounded plug-in that respects [0,1] and is steadier near positivity violations). aipw/tmle are consistent if EITHER the outcome OR the propensity model is correct. Only the backdoor branch honours this — front-door / IV / mediation keep their own estimators. Identification (themis.run) ignores it."
         },
         "longitudinal": {
           "type": "object",
