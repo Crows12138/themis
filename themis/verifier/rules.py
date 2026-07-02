@@ -2037,6 +2037,245 @@ def _rule_numeric_backdoor_estimate(
         )
 
 
+# =============================== doubly-robust (IPW / AIPW) numeric terminals
+
+_NUMERIC_AIPW_METHODS = frozenset({"aipw"})
+_NUMERIC_IPW_METHODS = frozenset({"ipw_stabilized", "ipw_ht"})
+_AIPW_CI_METHODS = frozenset({"influence_function", "bootstrap"})
+
+
+def _audit_dr_numeric_estimate(
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    *,
+    rule: str,
+    allowed_methods: frozenset,
+    require_aipw_fields: bool,
+) -> None:
+    """Metadata self-consistency audit for an IPW / AIPW numeric estimate.
+
+    Like ``numeric_backdoor_estimate``, this does NOT re-train — it
+    audits the block's internal consistency (the identification witness
+    is the same ``backdoor_criterion`` structural step, re-derived
+    elsewhere). Beyond the backdoor checks it enforces the
+    doubly-robust-specific invariants that make a propensity-weighted
+    estimate trustworthy:
+
+    - the propensity disclosure is coherent: raw min/max in [0,1] with
+      min ≤ max; n_trimmed an int in [0, sample_size]; floor in (0, 0.5)
+    - for AIPW: ``doubly_robust`` is True, ``ci_method`` is a known
+      value, and any reported ``std_error`` is a non-negative number.
+
+    Catches the realistic tamper / bug cases: wrong method name, point
+    outside CI, corrupted hash, adjustment overlapping treatment, a
+    propensity range escaping [0,1], a negative std_error, or a trimmed
+    count exceeding the sample.
+    """
+    criterion_ref = _require(inputs, "criterion", step_index, rule)
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            f"{rule}.criterion must be a StepRef",
+            step_index=step_index, rule=rule,
+        )
+    treatment = _require_atom(inputs, "treatment", step_index, rule)
+    outcome = _require_atom(inputs, "outcome", step_index, rule)
+    adjustment = _require_atom_set(inputs, "adjustment", step_index, rule)
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+
+    if method not in allowed_methods:
+        raise RuleCheckFailed(
+            f"{rule}.method must be one of {sorted(allowed_methods)}; "
+            f"got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be a {_SHA256_HEX_LEN}-char SHA-256 hex "
+            f"string",
+            step_index=step_index, rule=rule,
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be lowercase hex",
+            step_index=step_index, rule=rule,
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.sample_size must be an int >= {_MIN_NUMERIC_SAMPLE_SIZE}; "
+            f"got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"{rule}.point must be a number; got {point!r}",
+            step_index=step_index, rule=rule,
+        )
+
+    ci_present = ci_lower is not None or ci_upper is not None
+    if ci_present:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                f"{rule}: ci_lower and ci_upper must both be present or both "
+                f"absent",
+                step_index=step_index, rule=rule,
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"{rule}: point {point} is outside [{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
+                step_index=step_index, rule=rule,
+            )
+
+    if adjustment & {treatment, outcome}:
+        raise RuleCheckFailed(
+            f"{rule}.adjustment must be disjoint from {{treatment, outcome}}",
+            step_index=step_index, rule=rule,
+        )
+
+    # --- propensity disclosure coherence ---
+    raw_min = inputs.get("propensity_raw_min")
+    raw_max = inputs.get("propensity_raw_max")
+    n_trimmed = inputs.get("propensity_n_trimmed")
+    floor = inputs.get("propensity_floor")
+    for label, v in (("propensity_raw_min", raw_min), ("propensity_raw_max", raw_max)):
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not (0.0 <= v <= 1.0):
+            raise RuleCheckFailed(
+                f"{rule}.{label} must be a probability in [0, 1]; got {v!r}",
+                step_index=step_index, rule=rule,
+            )
+    if raw_min > raw_max:
+        raise RuleCheckFailed(
+            f"{rule}: propensity_raw_min {raw_min} exceeds propensity_raw_max "
+            f"{raw_max}",
+            step_index=step_index, rule=rule,
+        )
+    if (
+        not isinstance(n_trimmed, int)
+        or isinstance(n_trimmed, bool)
+        or not (0 <= n_trimmed <= sample_size)
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.propensity_n_trimmed must be an int in [0, sample_size]; "
+            f"got {n_trimmed!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(floor, (int, float)) or isinstance(floor, bool) or not (0.0 < floor < 0.5):
+        raise RuleCheckFailed(
+            f"{rule}.propensity_floor must be in (0, 0.5); got {floor!r}",
+            step_index=step_index, rule=rule,
+        )
+
+    # --- AIPW-only fields ---
+    if require_aipw_fields:
+        if inputs.get("doubly_robust") is not True:
+            raise RuleCheckFailed(
+                f"{rule}.doubly_robust must be True for an AIPW estimate",
+                step_index=step_index, rule=rule,
+            )
+        ci_method = inputs.get("ci_method")
+        if ci_method not in _AIPW_CI_METHODS:
+            raise RuleCheckFailed(
+                f"{rule}.ci_method must be one of {sorted(_AIPW_CI_METHODS)}; "
+                f"got {ci_method!r}",
+                step_index=step_index, rule=rule,
+            )
+        std_error = inputs.get("std_error")
+        if std_error is not None:
+            if not isinstance(std_error, (int, float)) or isinstance(std_error, bool) or std_error < 0:
+                raise RuleCheckFailed(
+                    f"{rule}.std_error must be a non-negative number or null; "
+                    f"got {std_error!r}",
+                    step_index=step_index, rule=rule,
+                )
+
+    # --- criterion linkage (same backdoor witness as the g-formula path) ---
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None:
+        raise RuleCheckFailed(
+            f"{rule}: referenced criterion step {criterion_ref.step_id!r} "
+            f"missing",
+            step_index=step_index, rule=rule,
+        )
+    if criterion_step.rule != "backdoor_criterion":
+        raise RuleCheckFailed(
+            f"{rule}.criterion must reference a backdoor_criterion step",
+            step_index=step_index, rule=rule,
+        )
+    criterion_z = criterion_step.inputs.get("z")
+    if not isinstance(criterion_z, (frozenset, set)):
+        raise RuleCheckFailed(
+            "referenced backdoor_criterion.z must be an atom set",
+            step_index=step_index, rule=rule,
+        )
+    if frozenset(criterion_z) != frozenset(adjustment):
+        raise RuleCheckFailed(
+            f"{rule}.adjustment must equal the z-set claimed by the "
+            f"referenced backdoor_criterion step",
+            step_index=step_index, rule=rule,
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            f"{rule} output must be a StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"{rule} output.value must be True",
+            step_index=step_index, rule=rule,
+        )
+
+
+def _rule_numeric_aipw_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Audit an augmented-IPW (doubly-robust) numeric estimate."""
+    _audit_dr_numeric_estimate(
+        inputs, claimed_output, step_index, step_by_id,
+        rule="numeric_aipw_estimate",
+        allowed_methods=_NUMERIC_AIPW_METHODS,
+        require_aipw_fields=True,
+    )
+
+
+def _rule_numeric_ipw_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Audit an inverse-probability-weighted numeric estimate."""
+    _audit_dr_numeric_estimate(
+        inputs, claimed_output, step_index, step_by_id,
+        rule="numeric_ipw_estimate",
+        allowed_methods=_NUMERIC_IPW_METHODS,
+        require_aipw_fields=False,
+    )
+
+
 def _rule_numeric_frontdoor_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -5533,6 +5772,10 @@ _STEP_REF_RULES = {
     "numeric_result",
     # Phase 7.1 S.N.4
     "numeric_backdoor_estimate",
+    # Doubly-robust (IPW / AIPW) numeric estimates — same backdoor
+    # identification witness, different estimator terminal.
+    "numeric_aipw_estimate",
+    "numeric_ipw_estimate",
     # Joint (treatment-set) back-door identification + numeric estimate
     "identify_via_joint_backdoor",
     "numeric_joint_backdoor_estimate",
@@ -5585,6 +5828,16 @@ def dispatch_rule(
         return
     if rule_name == "numeric_backdoor_estimate":
         _rule_numeric_backdoor_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_aipw_estimate":
+        _rule_numeric_aipw_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_ipw_estimate":
+        _rule_numeric_ipw_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

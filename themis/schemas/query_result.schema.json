@@ -394,6 +394,7 @@
         "method": {
           "enum": [
             "backdoor_linear", "backdoor_logistic",
+            "aipw", "ipw_stabilized", "ipw_ht",
             "frontdoor_linear", "frontdoor_logistic",
             "iv_wald", "iv_2sls",
             "mediation_linear_imai", "mediation_logit_imai",
@@ -503,6 +504,46 @@
             "kind": { "enum": ["iid", "cluster"] },
             "cluster_column": { "type": ["string", "null"] }
           }
+        },
+        "propensity_summary": {
+          "type": "object",
+          "description": "Doubly-robust / IPW methods (aipw / ipw_*): overlap-positivity disclosure. raw_min/raw_max are the propensity range BEFORE Winsorizing (the honest overlap picture); n_trimmed counts units whose propensity was clipped to the [floor, 1-floor] band to keep the inverse-probability weights finite (large ⇒ thin overlap, NOT hidden). model is 'logistic' (fit on the adjustment set) or 'marginal' (empty adjustment ⇒ e = P(T=1)).",
+          "required": ["raw_min", "raw_max", "n_trimmed", "floor", "model"],
+          "additionalProperties": false,
+          "properties": {
+            "raw_min": { "type": "number", "minimum": 0, "maximum": 1 },
+            "raw_max": { "type": "number", "minimum": 0, "maximum": 1 },
+            "n_trimmed": { "type": "integer", "minimum": 0 },
+            "floor": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 0.5 },
+            "model": { "enum": ["logistic", "marginal"] }
+          }
+        },
+        "doubly_robust": {
+          "type": "boolean",
+          "description": "AIPW only: True. Flags that the estimate is consistent if EITHER the outcome regression OR the propensity model is correctly specified (Robins-Rotnitzky-Zhao 1994; Bang & Robins 2005)."
+        },
+        "std_error": {
+          "type": ["number", "null"],
+          "description": "AIPW only: influence-function standard error of the ATE (the analytic-CI path). Null when the CI was skipped. From the Neyman-orthogonal moment's influence function; cluster-robust when a cluster column is in play.",
+          "minimum": 0
+        },
+        "ci_method": {
+          "enum": ["influence_function", "bootstrap"],
+          "description": "AIPW only: how the CI was formed — 'influence_function' is the analytic Wald CI from the orthogonal-moment influence function (the default, AIPW's advantage over the bootstrap-only g-formula); 'bootstrap' refits both nuisances per resample."
+        },
+        "inference": {
+          "type": "object",
+          "description": "AIPW analytic-CI path: records that the interval is a Wald CI from the influence function (not a bootstrap), and whether it was made cluster-robust.",
+          "required": ["method"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "enum": ["influence_function"] },
+            "cluster_robust": { "type": "boolean" }
+          }
+        },
+        "stabilized": {
+          "type": "boolean",
+          "description": "IPW only: True for the Hajek (stabilized-weights) estimator, False for the raw Horvitz-Thompson form."
         },
         "longitudinal_gformula": {
           "type": "object",

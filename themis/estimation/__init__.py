@@ -12,6 +12,16 @@ Landed scope:
   ``estimate_frontdoor_ate`` / ``estimate_iv_ate`` /
   ``estimate_mediation`` returning ``BackdoorEstimate`` /
   ``FrontdoorEstimate`` / ``IVEstimate`` / ``MediationEstimate``
+- Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``)
+  and ``estimate_aipw_ate`` (returning ``AIPWEstimate``), opt-in via
+  ``options.ate_estimator`` on the backdoor path. IPW weights by the
+  propensity (single-robust on the treatment model); AIPW is the
+  augmented / doubly-robust estimator — consistent if EITHER the outcome
+  regression OR the propensity model is correct (Robins-Rotnitzky-Zhao
+  1994; Bang & Robins 2005), with an analytic influence-function CI
+  (cluster-robust when a cluster column is set). Both disclose the
+  positivity / overlap picture via ``PropensitySummary`` (raw propensity
+  range + how many units were Winsorized).
 - Phase 7.5 (iter 125) — Controlled Direct Effect at fixed M=m*:
   ``estimate_cde`` returning ``CDEEstimate``. Plug-in g-formula
   on a sklearn outcome model; complements the Imai NDE/NIE path
@@ -59,6 +69,13 @@ The data contract (``DataContract`` / ``DataContractError``) is shared
 by all estimators — same DataFrame validation, same SHA-256 hash
 threaded into derivation provenance.
 """
+from .aipw import (
+    AIPWEstimate,
+    IPWEstimate,
+    PropensitySummary,
+    estimate_aipw_ate,
+    estimate_ipw_ate,
+)
 from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .contract import DataContract, DataContractError
 from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
@@ -90,6 +107,7 @@ from .sensitivity import (
 from .transport import TransportEstimate, estimate_transport
 
 __all__ = [
+    "AIPWEstimate",
     "BackdoorEstimate",
     "CDEChainEstimate",
     "CDEEstimate",
@@ -98,20 +116,24 @@ __all__ = [
     "DiscoveryResult",
     "EValueResult",
     "FrontdoorEstimate",
+    "IPWEstimate",
     "IVEstimate",
     "JointEffectEstimate",
     "LongitudinalGFormulaEstimate",
     "MediationEstimate",
+    "PropensitySummary",
     "TransportEstimate",
     "discover_graph",
     "discovery_to_kernel_ast",
     "e_value_for_risk_ratio",
     "e_value_from_ate_binary",
     "e_value_from_ate_continuous",
+    "estimate_aipw_ate",
     "estimate_backdoor_ate",
     "estimate_cde",
     "estimate_cde_chain",
     "estimate_frontdoor_ate",
+    "estimate_ipw_ate",
     "estimate_iv_ate",
     "estimate_joint_effect",
     "estimate_longitudinal_gformula",

@@ -697,6 +697,10 @@ def verify_numeric_estimate(
         )
     allowed_finals = (
         "numeric_backdoor_estimate",
+        # Doubly-robust estimators on the same backdoor identification:
+        # inverse-probability weighting and the augmented (AIPW) form.
+        "numeric_aipw_estimate",
+        "numeric_ipw_estimate",
         "numeric_frontdoor_estimate",
         "numeric_iv_estimate",
         # Joint (treatment-set) back-door data estimate — joint contrast

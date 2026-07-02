@@ -33,6 +33,7 @@ def estimate_program(
     ci_bootstrap: int = 500,
     model: str = "auto",
     cluster: str | None = None,
+    ate_estimator: str = "gformula",
 ) -> dict:
     """See ``themis.estimate`` for the full contract.
 
@@ -44,12 +45,22 @@ def estimate_program(
     it is added to the data contract as a presence-only column (required
     to exist + be non-null) but never enters the causal model or the
     data hash.
+
+    ``ate_estimator`` selects the estimator for the backdoor-identified
+    ATE: ``"gformula"`` (default — the outcome-regression plug-in,
+    byte-identical to before this option existed), ``"ipw"`` (inverse-
+    probability weighting on the propensity), or ``"aipw"`` (the
+    doubly-robust augmented estimator: consistent if EITHER the outcome
+    OR the propensity model is correct). May also be set via the program
+    AST's ``options.ate_estimator``. Only the backdoor branch honours it;
+    front-door / IV / mediation keep their own estimators.
     """
     from ..kernel import run as _run
 
     identification_output = _run(program)
 
     cluster = _resolve_cluster_option(program, cluster)
+    ate_estimator = _resolve_ate_estimator_option(program, ate_estimator)
 
     required_columns = _collect_required_columns(program)
     if not required_columns:
@@ -88,7 +99,7 @@ def estimate_program(
     _estimate_effect_queries(
         program, identification_output, contract,
         random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
-        cluster=cluster,
+        cluster=cluster, ate_estimator=ate_estimator,
     )
 
     return identification_output
@@ -231,6 +242,38 @@ def _resolve_cluster_option(
     return None
 
 
+_ATE_ESTIMATORS = frozenset({"gformula", "ipw", "aipw"})
+
+
+def _resolve_ate_estimator_option(
+    program: dict | str | bytes, ate_estimator: str,
+) -> str:
+    """Resolve the backdoor ATE estimator from the explicit kwarg
+    (precedence) or the program AST's ``options.ate_estimator``. Defaults
+    to ``"gformula"``. Raises on an unknown value rather than silently
+    falling back — a caller who asked for ``"aipw"`` and typo'd should be
+    told, not handed the (different) g-formula number."""
+    if ate_estimator != "gformula":
+        if ate_estimator not in _ATE_ESTIMATORS:
+            raise ValueError(
+                f"ate_estimator must be one of {sorted(_ATE_ESTIMATORS)}; "
+                f"got {ate_estimator!r}"
+            )
+        return ate_estimator
+    ast = _ensure_dict(program)
+    options = ast.get("options")
+    if isinstance(options, dict):
+        opt = options.get("ate_estimator")
+        if isinstance(opt, str) and opt:
+            if opt not in _ATE_ESTIMATORS:
+                raise ValueError(
+                    f"options.ate_estimator must be one of "
+                    f"{sorted(_ATE_ESTIMATORS)}; got {opt!r}"
+                )
+            return opt
+    return "gformula"
+
+
 def _estimate_effect_queries(
     program: dict | str | bytes,
     output: dict,
@@ -240,6 +283,7 @@ def _estimate_effect_queries(
     ci_bootstrap: int,
     model: str,
     cluster: str | None = None,
+    ate_estimator: str = "gformula",
 ) -> None:
     """For each effect query result, attach a numeric_estimate when a
     supported identification strategy is available. Mutates ``output``
@@ -373,6 +417,24 @@ def _estimate_effect_queries(
         if adjustment_sets:
             chosen = min(adjustment_sets, key=len)
             adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+            # Doubly-robust opt-in: when the caller selected IPW / AIPW,
+            # the backdoor-identified ATE is estimated by the propensity /
+            # augmented estimator instead of the g-formula plug-in. Same
+            # identification (the adjustment set is a valid backdoor set);
+            # different estimator + inference. Default "gformula" leaves
+            # this branch untaken and every existing result byte-identical.
+            if ate_estimator in ("ipw", "aipw"):
+                _attach_doubly_robust_estimate(
+                    result=result, contract=contract,
+                    graph=graph, x=x_atom, y=y_atom,
+                    adjustment=chosen, adjustment_names=adjustment_names,
+                    given=frozenset(given_atoms),
+                    estimator=ate_estimator,
+                    random_state=random_state, ci_bootstrap=ci_bootstrap,
+                    model=model, cluster=cluster,
+                )
+                continue
 
             estimate = estimate_backdoor_ate(
                 contract.data,
@@ -1712,6 +1774,188 @@ def _compute_precision_budget(
         if p is not None and abs(p) > 1e-9 and math.isfinite(p):
             out["relative_width"] = round(half_width / abs(p), 4)
     return out
+
+
+def _attach_doubly_robust_estimate(
+    *, result, contract, graph, x, y, adjustment, adjustment_names, given,
+    estimator, random_state, ci_bootstrap, model, cluster,
+):
+    """Attach an IPW / AIPW numeric_estimate to a backdoor-identified
+    effect result.
+
+    Mirrors the g-formula path's envelope — mechanism audit, assumption
+    ledger, e-value, overlap / separation warnings, precision budget,
+    two-step derivation — but swaps in the doubly-robust estimator and
+    adds the propensity-overlap disclosure (``propensity_summary``). The
+    identification witness is the SAME backdoor_criterion step (the
+    adjustment set is a valid backdoor set for all three estimators);
+    only the numeric terminal differs (numeric_aipw_estimate /
+    numeric_ipw_estimate).
+    """
+    from .aipw import estimate_aipw_ate, estimate_ipw_ate
+
+    try:
+        if estimator == "aipw":
+            est = estimate_aipw_ate(
+                contract.data,
+                treatment=x.predicate, outcome=y.predicate,
+                adjustment=adjustment_names,
+                outcome_model=model,  # type: ignore[arg-type]
+                ci_bootstrap=ci_bootstrap,
+                random_state=random_state,
+                cluster=cluster,
+            )
+        else:
+            est = estimate_ipw_ate(
+                contract.data,
+                treatment=x.predicate, outcome=y.predicate,
+                adjustment=adjustment_names,
+                ci_bootstrap=ci_bootstrap,
+                random_state=random_state,
+                cluster=cluster,
+            )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": estimator,
+            "failure_type": exc.failure_type,
+            "reason": str(exc),
+        }
+        return
+
+    prop = est.propensity
+    ne = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "propensity_summary": {
+            "raw_min": prop.raw_min,
+            "raw_max": prop.raw_max,
+            "n_trimmed": prop.n_trimmed,
+            "floor": prop.floor,
+            "model": prop.model,
+        },
+    }
+    if estimator == "aipw":
+        ne["doubly_robust"] = True
+        ne["std_error"] = est.std_error
+        ne["ci_method"] = est.ci_method
+        if est.ci_method == "influence_function":
+            # Analytic CI — no bootstrap. Record the inference kind so a
+            # consumer knows the CI is Wald-from-influence-function (and
+            # cluster-robust when a cluster column is in play).
+            ne["inference"] = {
+                "method": "influence_function",
+                "cluster_robust": cluster is not None,
+            }
+        else:
+            _attach_bootstrap_meta(ne, cluster)
+    else:
+        ne["stabilized"] = est.stabilized
+        _attach_bootstrap_meta(ne, cluster)
+
+    result["numeric_estimate"] = ne
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=est.outcome, form=est.form, method=est.method,
+        assumption=est.model_assumption, provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=est.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+
+    _attach_precision_budget(ne)
+    result["derivation"] = _build_dr_numeric_derivation_dict(
+        graph=graph, x=x, y=y, adjustment=adjustment, given=given,
+        estimate=est,
+        terminal_rule=(
+            "numeric_aipw_estimate" if estimator == "aipw"
+            else "numeric_ipw_estimate"
+        ),
+    )
+    _attach_e_value_if_binary(
+        result, contract, outcome=y.predicate, treatment=x.predicate,
+    )
+    _attach_propensity_overlap_warning(
+        result, contract, treatment=x.predicate, adjustment=adjustment_names,
+    )
+    _attach_outcome_separation_warning(
+        result, contract, treatment=x.predicate, outcome=y.predicate,
+        adjustment=adjustment_names,
+    )
+    _finalise_numeric_result(result)
+
+
+def _build_dr_numeric_derivation_dict(
+    *, graph, x, y, adjustment, given, estimate, terminal_rule,
+):
+    """Two-step derivation for a doubly-robust (IPW / AIPW) estimate:
+
+        s1: backdoor_criterion (same structural witness as g-formula —
+            the adjustment set is a valid backdoor set)
+        s2: numeric_aipw_estimate / numeric_ipw_estimate (metadata audit
+            of the estimate + propensity disclosure — no re-fit)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    prop = estimate.propensity
+    terminal_inputs = {
+        "criterion": StepRef(step_id="s1"),
+        "treatment": x,
+        "outcome": y,
+        "adjustment": frozenset(adjustment),
+        "method": estimate.method,
+        "data_hash": estimate.data_hash,
+        "sample_size": estimate.sample_size,
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "propensity_raw_min": prop.raw_min,
+        "propensity_raw_max": prop.raw_max,
+        "propensity_n_trimmed": prop.n_trimmed,
+        "propensity_floor": prop.floor,
+    }
+    if terminal_rule == "numeric_aipw_estimate":
+        terminal_inputs["doubly_robust"] = estimate.doubly_robust
+        terminal_inputs["std_error"] = estimate.std_error
+        terminal_inputs["ci_method"] = estimate.ci_method
+
+    steps = (
+        DerivationStep(
+            rule="backdoor_criterion",
+            inputs={
+                "graph": graph,
+                "x": x, "y": y,
+                "z": frozenset(adjustment),
+                "given": given,
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule=terminal_rule,
+            inputs=terminal_inputs,
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
 
 
 def _build_numeric_derivation_dict(

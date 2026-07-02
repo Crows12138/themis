@@ -514,6 +514,8 @@ df)`, not from symbolic Theta.
 | `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases | (covered there) |
 | `joint_backdoor_linear` / `joint_backdoor_logistic` | JOINT effect of intervening on the whole treatment vector at once — see §"Joint interventions" | "同时把 A、B 都设为 1（相对都为 0）让 Y 变化 X.X" |
 | `longitudinal_gformula` | effect of a time-varying treatment STRATEGY (always-treat vs never-treat) via the parametric g-formula; the `longitudinal_gformula` block carries the two strategy means and the time-ordered spec | "一直接受治疗（相对一直不治疗）让最终 Y 平均改变 X.X —— 用 g-formula 校正了被既往治疗影响的时变混杂" |
+| `aipw` | doubly-robust ATE (same scale as `backdoor_linear`); consistent if EITHER the outcome OR the propensity model is right — see §"Doubly-robust estimates" | "ATE = X.X（双稳健估计：结局模型或倾向模型任一设定正确即成立）" |
+| `ipw_stabilized` / `ipw_ht` | inverse-probability-weighted ATE (same scale as `backdoor_linear`); relies on the propensity model being correct — see §"Doubly-robust estimates" | "ATE = X.X（按倾向得分逆概率加权估计）" |
 
 **Backdoor template**:
 
@@ -569,6 +571,43 @@ natural distribution; the joint contrast fixes both).
 >
 > 关键假设：联合可交换性 / 每个处理组合都有重叠 / 一致性。
 
+### Doubly-robust estimates (`aipw` / `ipw_stabilized` / `ipw_ht`)
+
+These are opt-in alternatives to the g-formula (`backdoor_linear`) for the
+SAME backdoor-identified ATE — selected via `options.ate_estimator`. Same
+estimand, same outcome scale; what differs is which model must be right
+and how the CI is formed.
+
+- **`aipw`** — the *augmented* / doubly-robust estimator. Consistent if
+  EITHER the outcome regression OR the propensity model is correctly
+  specified (`doubly_robust: true`). Say so — it is the estimator's whole
+  selling point (a second line of defence the single-model g-formula and
+  IPW don't have). Its CI is analytic: `ci_method: "influence_function"`
+  with a reported `std_error` (Wald interval, cluster-robust when
+  `inference.cluster_robust` is true), NOT a bootstrap. Render the CI
+  plainly; only mention "bootstrap" if `ci_method == "bootstrap"`.
+- **`ipw_stabilized`** (Hájek, default) / **`ipw_ht`** (Horvitz-Thompson)
+  — inverse-probability weighting. Single-robust: relies on the
+  propensity model being correct. Do NOT claim double robustness for
+  these.
+
+**`propensity_summary` — always surface when overlap is thin.** It
+discloses the propensity (treatment-probability) range BEFORE clipping:
+`raw_min` / `raw_max`, and `n_trimmed` = how many units had their weight
+Winsorized to the `[floor, 1-floor]` band. When `n_trimmed` is more than a
+handful (or `raw_min` is near 0 / `raw_max` near 1), tell the user overlap
+is thin and the weighted estimate leans on extrapolation for those units —
+this is a positivity warning, not a footnote to bury.
+
+> `<treatment>` 对 `<outcome>` 的平均因果效应（后门识别，调整集
+> `<adjustment>`），用**双稳健 AIPW** 估计：
+>
+> - 点估计 ATE = **`<point>`**（结局模型或倾向模型任一设定正确即成立）
+> - `<ci_level>` 置信区间 [`<ci_lower>`, `<ci_upper>`]（影响函数解析 SE
+>   = `<std_error>`）
+> - 重叠情况：倾向得分范围 [`<raw_min>`, `<raw_max>`]，`<n_trimmed>` 个
+>   单元被裁剪 —— `<n_trimmed 较大时提示正性偏薄>`
+
 #### Assumption glossary (`assumptions[]` translation)
 
 | ID | Chinese |
@@ -595,6 +634,11 @@ natural distribution; the joint contrast fixes both).
 | `pearl_2001_four_conditions_hold_on_the_graph` | Pearl 2001 中介分解四条件在因果图上成立 |
 | `logit_outcome_regression` | outcome 用 logit 回归 |
 | `adjustment_set_blocks_mediator_outcome_backdoor_given_treatment` | 给定 X 后调整集阻断 M→Y 的后门 |
+| `doubly_robust_outcome_OR_propensity_model_correct` | 双稳健：结局回归或倾向模型任一设定正确即一致 |
+| `correct_propensity_model_single_robust` | 单稳健：估计一致依赖倾向模型设定正确 |
+| `hajek_stabilized_weights` | IPW 用 Hájek 稳定化权重（组内归一，方差更小）|
+| `horvitz_thompson_weights` | IPW 用 Horvitz-Thompson 原始权重 |
+| `ci_via_analytic_influence_function` | 置信区间由影响函数解析求得（非 bootstrap）|
 
 For IDs not in the table, render the snake_case verbatim.
 
