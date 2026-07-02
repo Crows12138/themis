@@ -65,6 +65,13 @@ Landed scope:
   (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
   (VanderWeele 2017); auto-attached to ATE estimates (binary OR
   continuous outcome) by the dispatcher
+- Omitted-variable-bias sensitivity — ``estimate_ovb_sensitivity``
+  returning ``OVBSensitivity`` (with per-covariate ``OVBBenchmark``
+  bounds), the regression-scale complement to the E-value (Cinelli &
+  Hazlett 2020): the robustness value + partial R² + confounder-strength
+  bounds for a linear-regression treatment effect. Auto-attached to
+  ``backdoor_linear`` estimates; a closed form of the fit's t-value and
+  dof, so the verifier re-derives it exactly.
 - Phase 14 — dose-response curves via ``themis.estimate(...)`` with
   ``dose_response_*`` method options (LinearDML / CausalForestDML /
   DRLearner, opt-in)
@@ -108,6 +115,11 @@ from .sensitivity import (
     e_value_from_ate_binary,
     e_value_from_ate_continuous,
 )
+from .sensitivity_ovb import (
+    OVBBenchmark,
+    OVBSensitivity,
+    estimate_ovb_sensitivity,
+)
 from .tmle import TMLEEstimate, estimate_tmle_ate
 from .transport import TransportEstimate, estimate_transport
 
@@ -126,6 +138,8 @@ __all__ = [
     "JointEffectEstimate",
     "LongitudinalGFormulaEstimate",
     "MediationEstimate",
+    "OVBBenchmark",
+    "OVBSensitivity",
     "PropensitySummary",
     "TMLEEstimate",
     "TransportEstimate",
@@ -144,6 +158,7 @@ __all__ = [
     "estimate_joint_effect",
     "estimate_longitudinal_gformula",
     "estimate_mediation",
+    "estimate_ovb_sensitivity",
     "estimate_tmle_ate",
     "estimate_transport",
 ]

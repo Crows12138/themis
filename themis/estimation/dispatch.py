@@ -491,6 +491,13 @@ def _estimate_effect_queries(
                 result, contract,
                 outcome=y_atom.predicate, treatment=x_atom.predicate,
             )
+            _attach_ovb_sensitivity(
+                result, contract,
+                treatment=x_atom.predicate,
+                outcome=y_atom.predicate,
+                adjustment=adjustment_names,
+                method=estimate.method,
+            )
             _attach_propensity_overlap_warning(
                 result, contract,
                 treatment=x_atom.predicate,
@@ -1046,6 +1053,72 @@ def _attach_e_value_if_binary(
         "risk_ratio": e_result.risk_ratio,
         "baseline_rate": e_result.baseline_rate,
         "note": e_result.note,
+    }
+
+
+def _nan_to_none(x):
+    """JSON has no NaN; a void benchmark's adjusted_* are NaN → null."""
+    return None if (x is None or x != x) else float(x)
+
+
+def _attach_ovb_sensitivity(
+    result: dict, contract, *, treatment: str, outcome: str,
+    adjustment: tuple[str, ...], method: str,
+) -> None:
+    """Cinelli-Hazlett omitted-variable-bias sensitivity — the
+    regression-scale complement to the E-value, attached under
+    ``numeric_estimate.ovb_sensitivity``.
+
+    Only for ``backdoor_linear`` (the OLS coefficient framework the
+    robustness value / partial R² / bias bounds are defined on). It is a
+    closed form of the fit's t-value + residual dof, so the block records
+    those raw statistics and the per-covariate partial R²s, letting the
+    verifier re-derive every number from first principles. Never allowed
+    to break the main estimate — any failure just skips the block.
+    """
+    if method != "backdoor_linear":
+        return
+    estimate = result.get("numeric_estimate")
+    if estimate is None:
+        return
+    from .sensitivity_ovb import estimate_ovb_sensitivity
+
+    try:
+        s = estimate_ovb_sensitivity(
+            contract.data, treatment=treatment, outcome=outcome,
+            adjustment=adjustment,
+        )
+    except Exception:
+        # Singular design, missing column, degenerate fit — sensitivity
+        # is supplementary; leave the point estimate untouched.
+        return
+
+    estimate["ovb_sensitivity"] = {
+        "estimate": s.estimate,
+        "se": s.se,
+        "t_statistic": s.t_statistic,
+        "dof": s.dof,
+        "q": s.q,
+        "alpha": s.alpha,
+        "partial_r2": s.partial_r2,
+        "robustness_value_q": s.robustness_value_q,
+        "robustness_value_qa": s.robustness_value_qa,
+        "benchmarks": [
+            {
+                "covariate": b.covariate,
+                "kd": b.kd,
+                "ky": b.ky,
+                "r2dxj_x": b.r2dxj_x,
+                "r2yxj_dx": b.r2yxj_dx,
+                "r2dz_x": b.r2dz_x,
+                "r2yz_dx": b.r2yz_dx,
+                "adjusted_estimate": _nan_to_none(b.adjusted_estimate),
+                "adjusted_se": _nan_to_none(b.adjusted_se),
+                "adjusted_t": _nan_to_none(b.adjusted_t),
+                "valid": b.valid,
+            }
+            for b in s.benchmarks
+        ],
     }
 
 

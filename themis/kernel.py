@@ -94,6 +94,7 @@ from .verifier import (
     verify_identify,
     verify_numeric,
     verify_numeric_estimate,
+    verify_ovb_sensitivity,
 )
 
 
@@ -812,6 +813,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # numeric_backdoor_estimate (relaxed metadata audit).
             claimed = _decode_structural_result_json(result["structural_result"])
             verify_numeric_estimate(derivation, ctx, claimed)
+            # A backdoor_linear estimate may carry a Cinelli-Hazlett OVB
+            # sensitivity block. Unlike the point estimate (data-refit,
+            # metadata audit only), it is a closed form of the fit's
+            # t-value + dof — so re-derive every number independently.
+            ovb = (result.get("numeric_estimate") or {}).get("ovb_sensitivity")
+            if ovb is not None:
+                verify_ovb_sensitivity(ovb)
         else:
             if "numeric_result" not in result:
                 raise ValueError(

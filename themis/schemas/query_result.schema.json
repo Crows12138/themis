@@ -466,6 +466,45 @@
             "note": { "type": "string" }
           }
         },
+        "ovb_sensitivity": {
+          "type": "object",
+          "description": "Cinelli & Hazlett (2020) omitted-variable-bias sensitivity — the regression-scale complement to the E-value, attached to backdoor_linear estimates. A closed form of the OLS fit's treatment t-value + residual dof: the robustness value (RV_q = confounding strength, as a partial R² shared with BOTH treatment and outcome, needed to reduce the estimate by 100·q%; RV_{q,α} additionally kills significance at α), the partial R² of the treatment with the outcome, and per-covariate benchmark bounds (the confounder strength / bias implied by a confounder kd/ky times as strong as an observed covariate). All fields are re-derivable by the verifier from t_statistic + dof + the per-benchmark partial R²s.",
+          "required": ["estimate", "se", "t_statistic", "dof", "q", "alpha", "partial_r2", "robustness_value_q", "robustness_value_qa", "benchmarks"],
+          "additionalProperties": false,
+          "properties": {
+            "estimate": { "type": "number", "description": "OLS treatment coefficient (equals the g-formula point for a linear no-interaction model)." },
+            "se": { "type": "number", "minimum": 0 },
+            "t_statistic": { "type": "number" },
+            "dof": { "type": "integer", "minimum": 1 },
+            "q": { "type": "number", "exclusiveMinimum": 0, "description": "Reduction fraction the robustness value targets (q=1 → explain the effect away entirely)." },
+            "alpha": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "description": "Significance level for RV_{q,α}." },
+            "partial_r2": { "type": "number", "minimum": 0, "maximum": 1, "description": "R²_{Y~D|X} = t²/(t²+dof)." },
+            "robustness_value_q": { "type": "number", "minimum": 0, "maximum": 1 },
+            "robustness_value_qa": { "type": "number", "minimum": 0, "maximum": 1 },
+            "benchmarks": {
+              "type": "array",
+              "description": "One entry per observed covariate benchmarked against. Empty when the adjustment set is empty.",
+              "items": {
+                "type": "object",
+                "required": ["covariate", "kd", "ky", "r2dxj_x", "r2yxj_dx", "r2dz_x", "r2yz_dx", "adjusted_estimate", "adjusted_se", "adjusted_t", "valid"],
+                "additionalProperties": false,
+                "properties": {
+                  "covariate": { "type": "string" },
+                  "kd": { "type": "number", "minimum": 0 },
+                  "ky": { "type": "number", "minimum": 0 },
+                  "r2dxj_x": { "type": "number", "description": "Partial R² of the treatment with this covariate (the bound input)." },
+                  "r2yxj_dx": { "type": "number", "description": "Partial R² of the outcome with this covariate (the bound input)." },
+                  "r2dz_x": { "type": ["number", "null"], "description": "Implied R²_{D~Z|X} of a confounder kd times as strong; null when the bound math is undefined (covariate too strong to benchmark)." },
+                  "r2yz_dx": { "type": ["number", "null"], "description": "Implied R²_{Y~Z|D,X} of a confounder ky times as strong; null when the bound math is undefined." },
+                  "adjusted_estimate": { "type": ["number", "null"], "description": "Treatment effect after adjusting for the implied confounder; null when the bound is void (implied R² outside [0,1])." },
+                  "adjusted_se": { "type": ["number", "null"] },
+                  "adjusted_t": { "type": ["number", "null"] },
+                  "valid": { "type": "boolean", "description": "False when the implied confounder R² escapes [0,1] — a covariate too strong to serve as a valid benchmark." }
+                }
+              }
+            }
+          }
+        },
         "sampling_points": {
           "type": "array",
           "description": "Phase 14: T values at which the dose-response curve was evaluated. Sorted ascending; first value is the reference (effect=0 by construction).",

@@ -1160,6 +1160,40 @@ with the SMD-approximation caveat:
 > normal —— 流行病学常用经验法则，不是紧界。如果 SD 在两组差异显著
 > 或 outcome 显著偏态，E-value 解读应保守。
 
+### OVB sensitivity (Cinelli-Hazlett) — robustness value
+
+Fires when `numeric_estimate.ovb_sensitivity` is present (attached to
+`backdoor_linear` estimates). This is the **regression-scale** companion
+to the E-value: instead of a risk ratio it speaks in **partial R²** —
+the fraction of residual variance a confounder would explain. Surface it
+as a robustness statement, never a p-value substitute.
+
+Key fields:
+- `robustness_value_q` (RV_q): the confounding strength — a partial R²
+  the confounder must share with BOTH treatment and outcome — needed to
+  **explain the effect away entirely** (reduce it 100%). RV near 1 ⇒ very
+  robust; near 0 ⇒ fragile. Report as a percentage.
+- `robustness_value_qa` (RV_{q,α}): the (smaller) strength needed to also
+  make the result **statistically insignificant** at `alpha`.
+- `partial_r2`: how much of the residual outcome variance the treatment
+  itself explains — the natural yardstick to compare RV against.
+- `benchmarks[]`: the interpretable handle. Each entry is an observed
+  covariate; `adjusted_estimate` is what the effect becomes under a
+  confounder `kd`/`ky` times as strongly associated as that covariate.
+  `valid=false` (adjusted_* null) means the covariate is too strong to
+  serve as a benchmark — say so, don't drop it silently.
+
+> 敏感性（未观测混杂需要多强才能推翻）：**稳健值 RV = `<robustness_value_q>`
+> （×100 变百分比）** —— 一个未观测混杂要把这个效应完全解释掉，得同时
+> 解释掉处理和结局各约这么多比例的残差方差。作为对照，处理本身只解释了
+> 结局残差方差的 `<partial_r2×100>`%。
+>
+> 要让结果连显著性都失去，只需 RV_{q,α} = `<robustness_value_qa>`。
+>
+> 用已观测协变量作基准：一个和 `<benchmark.covariate>` 一样强的混杂，会把
+> 估计从 `<estimate>` 变到 **`<benchmark.adjusted_estimate>`**（仍`<>0 则同向>`）。
+> `<若 valid=false：这个协变量太强，无法作为有效基准>`
+
 ### Schema mismatch
 
 When the kernel_ast variable declares `domain: [true, false]` but the

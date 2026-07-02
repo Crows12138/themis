@@ -725,6 +725,109 @@ def verify_numeric_estimate(
         )
 
 
+_OVB_TOL = 1e-6
+
+
+def verify_ovb_sensitivity(block: dict) -> None:
+    """Independently re-derive a Cinelli-Hazlett OVB sensitivity block and
+    reject on mismatch.
+
+    Unlike the data-refit point estimators (which get a metadata audit
+    only, because re-fitting needs the data), every number in this block
+    is a CLOSED FORM of the recorded regression statistics — the treatment
+    t-value, the residual dof, and each benchmark covariate's partial R²s.
+    So the verifier recomputes them from scratch with a SECOND,
+    independent transcription of the formulas (it does not import the
+    producer's functions) and checks the recorded values match. This is a
+    genuine re-derivation: it catches tampering, serialization corruption,
+    and any internal inconsistency between the raw statistics and the
+    reported robustness value / partial R² / bounds.
+    """
+    import math
+    from scipy.stats import t as _t_dist
+
+    def _close(recomputed, recorded, name):
+        if recorded is None or not math.isfinite(recomputed):
+            raise VerificationError(
+                f"ovb_sensitivity.{name}: recomputed {recomputed}, "
+                f"recorded {recorded!r}",
+                step_index=None, rule="ovb_sensitivity",
+            )
+        if abs(recomputed - recorded) > _OVB_TOL + 1e-6 * abs(recorded):
+            raise VerificationError(
+                f"ovb_sensitivity.{name}: recomputed {recomputed}, "
+                f"recorded {recorded}",
+                step_index=None, rule="ovb_sensitivity",
+            )
+
+    def _partial_r2(t, dof):
+        return t * t / (t * t + dof)
+
+    def _rv(t, dof, q, alpha):
+        fq = q * abs(t / math.sqrt(dof))
+        f_crit = abs(_t_dist.ppf(alpha / 2.0, dof - 1)) / math.sqrt(dof - 1)
+        fqa = fq - f_crit
+        if fqa < 0:
+            return 0.0
+        if f_crit > 0 and fq > 1.0 / f_crit:
+            return (fq * fq - f_crit * f_crit) / (1.0 + fq * fq)
+        return 0.5 * (math.sqrt(fqa ** 4 + 4.0 * fqa ** 2) - fqa ** 2)
+
+    t = block["t_statistic"]
+    dof = block["dof"]
+    q = block["q"]
+    alpha = block["alpha"]
+    est = block["estimate"]
+    se = block["se"]
+
+    _close(_partial_r2(t, dof), block["partial_r2"], "partial_r2")
+    _close(_rv(t, dof, q, 1.0), block["robustness_value_q"], "robustness_value_q")
+    _close(_rv(t, dof, q, alpha), block["robustness_value_qa"], "robustness_value_qa")
+
+    for b in block.get("benchmarks", []):
+        kd, ky = b["kd"], b["ky"]
+        r2dxj, r2yxj = b["r2dxj_x"], b["r2yxj_dx"]
+        cov = b.get("covariate", "?")
+        # Re-derive the bound; None means the producer flagged it undefined.
+        try:
+            r2dz = kd * (r2dxj / (1.0 - r2dxj))
+            r2zxj = kd * (r2dxj ** 2) / ((1.0 - kd * r2dxj) * (1.0 - r2dxj))
+            r2yz = (
+                ((math.sqrt(ky) + math.sqrt(r2zxj)) / math.sqrt(1.0 - r2zxj)) ** 2
+                * (r2yxj / (1.0 - r2yxj))
+            )
+            defined = math.isfinite(r2dz) and math.isfinite(r2yz)
+        except (ValueError, ZeroDivisionError):
+            defined = False
+            r2dz = r2yz = float("nan")
+
+        if not defined:
+            if b["r2dz_x"] is not None or b["valid"]:
+                raise VerificationError(
+                    f"ovb_sensitivity.benchmark[{cov}]: bound is undefined "
+                    f"but the block reports r2dz_x={b['r2dz_x']!r}, "
+                    f"valid={b['valid']}",
+                    step_index=None, rule="ovb_sensitivity",
+                )
+            continue
+
+        _close(r2dz, b["r2dz_x"], f"benchmark[{cov}].r2dz_x")
+        _close(r2yz, b["r2yz_dx"], f"benchmark[{cov}].r2yz_dx")
+
+        expected_valid = 0.0 <= r2dz < 1.0 and 0.0 <= r2yz <= 1.0
+        if expected_valid != b["valid"]:
+            raise VerificationError(
+                f"ovb_sensitivity.benchmark[{cov}].valid: recomputed "
+                f"{expected_valid}, recorded {b['valid']}",
+                step_index=None, rule="ovb_sensitivity",
+            )
+        if expected_valid:
+            bf = math.sqrt(r2yz * r2dz / (1.0 - r2dz))
+            bias = bf * se * math.sqrt(dof)
+            adj = math.copysign(1.0, est) * (abs(est) - bias)
+            _close(adj, b["adjusted_estimate"], f"benchmark[{cov}].adjusted_estimate")
+
+
 def verify_effect_structural(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,
