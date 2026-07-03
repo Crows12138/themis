@@ -113,7 +113,7 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-当前全量测试基线：**2281 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2310 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -167,7 +167,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2281 passed / 144 skipped（2026-07-02）
+- **测试套件**：2310 passed / 144 skipped（2026-07-03）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

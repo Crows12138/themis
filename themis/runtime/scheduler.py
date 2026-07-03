@@ -3841,6 +3841,7 @@ def dispatch(
     result = _attach_bounds_result(program, stmt, result, bidirected=bidirected)
     result = _attach_data_gap_report(result, program=program, stmt=stmt)
     result = _reconcile_alt_paths_with_bounds(result)
+    result = _attach_selection_recovery(program, stmt, result, graph=graph)
     return result
 
 
@@ -3916,6 +3917,109 @@ def _attach_data_gap_report(
         return result
     result = _replace(result, data_gap_report=report)
     return _attach_structural_caveats(result)
+
+
+def _is_selection_collider(
+    graph: nx.DiGraph, x: Atom, y: Atom, w: Atom,
+) -> bool:
+    """Hernán 2004 §3 'common effect': W is a selection collider of X and Y
+    iff there is a directed path X→…→W not through Y AND a directed path
+    Y→…→W not through X. A pure chain X→Y→W (X ancestor only *via* Y) is
+    over-control on a mediator, not selection on a collider — excluded.
+
+    Mirrors the predicate-level rule in
+    ``data_gap_report._classify_selection_on_collider_opens_path`` but runs
+    directly on the projected graph via reachability.
+    """
+    if w in (x, y) or x not in graph or y not in graph or w not in graph:
+        return False
+    g_no_y = graph.copy()
+    g_no_y.remove_node(y)
+    g_no_x = graph.copy()
+    g_no_x.remove_node(x)
+    x_reaches_w = x in g_no_y and nx.has_path(g_no_y, x, w)
+    y_reaches_w = y in g_no_x and nx.has_path(g_no_x, y, w)
+    return x_reaches_w and y_reaches_w
+
+
+def _serialize_selection_recovery(rec, x: Atom, y: Atom) -> dict:
+    """Serialize a SelectionRecoveryResult to the JSON extension block."""
+    return {
+        "kind": "selection_recovery",
+        "query_kind": rec.query_kind,
+        "treatment": x.predicate,
+        "outcome": y.predicate,
+        "recoverable": rec.recoverable,
+        "criterion": rec.criterion,
+        "selection_nodes": [a.predicate for a in rec.selection_nodes],
+        "adjustment_set": [a.predicate for a in rec.adjustment_set],
+        "z_plus": [a.predicate for a in rec.z_plus],
+        "z_minus": [a.predicate for a in rec.z_minus],
+        "recovery_formula": rec.formula_repr,
+        "external_data_needed": list(rec.external_data_needed),
+        "failure_reason": rec.failure_reason,
+        "reference": (
+            "Bareinboim & Pearl 2012 (selection backdoor criterion); "
+            "Bareinboim, Tian & Pearl 2014 (recoverability)"
+        ),
+    }
+
+
+def _attach_selection_recovery(
+    program: Program | None,
+    stmt: QueryStatement | None,
+    result: QueryResult,
+    *,
+    graph: nx.DiGraph,
+) -> QueryResult:
+    """Phase 9 §S9.1: attach the Bareinboim-Pearl recoverability verdict.
+
+    Fires only for an EffectQuery whose sample is restricted (via an
+    ``ObservationStatement``) on a node that is a *selection collider* of
+    the treatment and outcome — exactly the situation the
+    ``selection_on_collider_opens_path`` gap warns about. This turns that
+    one-sided warning into a constructive verdict: whether P(y|do(x)) is
+    s-recoverable from the biased sample, with what formula, and what
+    external data (if any) is required.
+    """
+    from dataclasses import replace as _replace
+    from ..types import EffectQuery, ObservationStatement
+    from .selection_recovery import recover_effect
+
+    if program is None or stmt is None:
+        return result
+    q = getattr(stmt, "query", None)
+    if not isinstance(q, EffectQuery):
+        return result
+    x = q.intervention.atom
+    y = q.target.atom
+    if x not in graph or y not in graph:
+        return result
+
+    # Selection nodes = the sample-restricting ObservationStatement atoms,
+    # resolved to graph nodes by predicate (grounding may relabel args).
+    pred2node = {n.predicate: n for n in graph.nodes}
+    s_atoms: list[Atom] = []
+    for st in program.statements:
+        if not isinstance(st, ObservationStatement):
+            continue
+        node = pred2node.get(st.atom.predicate)
+        if node is None or node in (x, y) or node in s_atoms:
+            continue
+        s_atoms.append(node)
+    if not s_atoms:
+        return result
+
+    # Gate: only surface when at least one restriction is a genuine
+    # selection collider (otherwise there is no selection-bias question).
+    if not any(_is_selection_collider(graph, x, y, s) for s in s_atoms):
+        return result
+
+    rec = recover_effect(graph, x, y, tuple(s_atoms))
+    block = _serialize_selection_recovery(rec, x, y)
+    new_ext = dict(result.extensions or {})
+    new_ext["selection_recovery"] = block
+    return _replace(result, extensions=new_ext)
 
 
 # Whitelist of gap_kinds whose `description` must surface in

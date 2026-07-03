@@ -113,7 +113,13 @@ do NOT trigger fetch / ask user.
   OR revise the DAG if W is *not* genuinely caused by both X and Y).
   Do NOT phrase the repair as "add a covariate" — selection on a
   collider isn't fixable by stratification on the same restricted
-  sample.
+  sample. When this gap fires, also read
+  `result.extensions.selection_recovery` (Phase 9 §S9.1) — the
+  constructive verdict on whether the effect is *recoverable* via the
+  Bareinboim-Pearl selection-backdoor criterion, with the recovery
+  formula and the external-data ledger. It turns this warning into an
+  actionable prognosis; render it right after the gap (see
+  response_rendering §"Selection-bias recovery").
 - `ill_defined_intervention_versions` (iter 207) → no fetch action at
   all. The intervention predicate is declared a `state_vs_event="state"`
   with no `time_window`, encoding a habitual / persistent attribute

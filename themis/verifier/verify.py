@@ -828,6 +828,190 @@ def verify_ovb_sensitivity(block: dict) -> None:
             _close(adj, b["adjusted_estimate"], f"benchmark[{cov}].adjusted_estimate")
 
 
+def verify_selection_recovery(block: dict, graph) -> None:
+    """Independently re-derive a Bareinboim-Pearl selection-recovery block.
+
+    The verdict is a set of d-separation facts about the graph plus a
+    closed-form recovery formula and external-data ledger. This verifier
+    re-derives all of them from scratch — a SECOND transcription of the
+    selection-backdoor conditions and the Theorem-3.5 formula, running on
+    the reconstructed graph via low-level structural primitives; it does
+    NOT import the producer's ``selection_recovery`` module. It validates
+    the returned witness (the adjustment set genuinely satisfies the
+    criterion, the Z⁺/Z⁻ partition is correct, the ledger and formula
+    match) and, for a negative verdict, re-runs a bounded independent
+    search to confirm no admissible set was missed (a producer that
+    falsely claimed non-recoverability would be hiding a valid recovery).
+    """
+    import networkx as nx
+
+    from ..runtime.structural_solver import (
+        is_d_connected,
+        backdoor_paths,
+        _path_is_open,
+    )
+
+    def _err(msg: str) -> None:
+        raise VerificationError(
+            f"selection_recovery: {msg}",
+            step_index=None, rule="selection_recovery",
+        )
+
+    pred2node = {n.predicate: n for n in graph.nodes}
+
+    def _node(pred: str):
+        n = pred2node.get(pred)
+        if n is None:
+            _err(f"predicate {pred!r} is not a node in the graph")
+        return n
+
+    def _dsep(a, b, cond) -> bool:
+        return not is_d_connected(graph, a, b, tuple(cond))
+
+    def _s_all_dsep_y(s_nodes, yy, cond) -> bool:
+        return all(_dsep(s, yy, cond) for s in s_nodes)
+
+    def _zplus_blocks(xx, yy, zp) -> bool:
+        c = frozenset(zp)
+        return all(
+            not _path_is_open(graph, path, c)
+            for path in backdoor_paths(graph, xx, yy)
+        )
+
+    def _names(preds) -> str:
+        return ", ".join(preds)
+
+    def _cond(*parts) -> str:
+        return ", ".join(p for p in parts if p)
+
+    def _rederive_ledger(x_pred, s_nodes, zp_preds, zm_preds):
+        z_all_preds = list(zp_preds) + list(zm_preds)
+        if not z_all_preds:
+            return []
+        z_all = [_node(p) for p in z_all_preds]
+        if all(_dsep(s, zi, ()) for zi in z_all for s in s_nodes):
+            return []
+        if not zm_preds:
+            return [f"unbiased P({_names(zp_preds)})"]
+        return [f"unbiased P({_cond(x_pred, _names(zp_preds), _names(zm_preds))})"]
+
+    def _rederive_effect_formula(x_pred, y_pred, zp, zm):
+        zpn, zmn = _names(zp), _names(zm)
+        if not zp and not zm:
+            return f"P({y_pred} | do({x_pred})) = P({y_pred} | {x_pred}, S)"
+        if not zm:
+            return (
+                f"P({y_pred} | do({x_pred})) = "
+                f"Σ_{{{zpn}}} P({y_pred} | {_cond(x_pred, zpn)}, S) · P({zpn})"
+            )
+        if not zp:
+            return (
+                f"P({y_pred} | do({x_pred})) = "
+                f"Σ_{{{zmn}}} P({y_pred} | {_cond(x_pred, zmn)}, S) · "
+                f"P({zmn} | {x_pred})"
+            )
+        return (
+            f"P({y_pred} | do({x_pred})) = "
+            f"Σ_{{{zpn}}} [ Σ_{{{zmn}}} P({y_pred} | {_cond(x_pred, zpn, zmn)}, S) "
+            f"· P({zmn} | {_cond(x_pred, zpn)}) ] · P({zpn})"
+        )
+
+    def _sbd_admissible_exists(x_node, y_node, s_nodes, max_size=4):
+        from itertools import combinations
+        desc_x = nx.descendants(graph, x_node)
+        forbidden = {x_node, y_node} | set(s_nodes)
+        cands = [n for n in graph.nodes if n not in forbidden]
+        for size in range(0, min(len(cands), max_size) + 1):
+            for combo in combinations(cands, size):
+                if not _s_all_dsep_y(s_nodes, y_node, (x_node,) + combo):
+                    continue
+                zp = [n for n in combo if n not in desc_x]
+                if _zplus_blocks(x_node, y_node, zp):
+                    return True
+        return False
+
+    def _conditional_z_exists(x_node, y_node, s_nodes, max_size=4):
+        from itertools import combinations
+        forbidden = {x_node, y_node} | set(s_nodes)
+        cands = [n for n in graph.nodes if n not in forbidden]
+        for size in range(1, min(len(cands), max_size) + 1):
+            for combo in combinations(cands, size):
+                if _s_all_dsep_y(s_nodes, y_node, (x_node,) + combo):
+                    return True
+        return False
+
+    kind = block.get("query_kind")
+    x = _node(block["treatment"])
+    y = _node(block["outcome"])
+    s_nodes = [_node(p) for p in block["selection_nodes"]]
+    if not s_nodes:
+        _err("block carries no selection_nodes")
+    recoverable = block["recoverable"]
+    criterion = block["criterion"]
+    zp_preds = list(block["z_plus"])
+    zm_preds = list(block["z_minus"])
+
+    if kind == "effect":
+        if recoverable:
+            if criterion != "selection_backdoor":
+                _err(f"effect recoverable but criterion is {criterion!r}")
+            desc_x = nx.descendants(graph, x)
+            z_plus = [_node(p) for p in zp_preds]
+            z_minus = [_node(p) for p in zm_preds]
+            for zp in z_plus:
+                if zp in desc_x:
+                    _err(f"z_plus member {zp.predicate!r} is a descendant of X")
+            for zm in z_minus:
+                if zm not in desc_x:
+                    _err(f"z_minus member {zm.predicate!r} is not a descendant of X")
+            z_all = z_plus + z_minus
+            if not _s_all_dsep_y(s_nodes, y, (x,) + tuple(z_all)):
+                _err("SBD condition (1) fails: S is not d-separated from Y | X,Z")
+            if not _zplus_blocks(x, y, z_plus):
+                _err("SBD condition (2) fails: Z⁺ leaves a back-door path open")
+            ledger = _rederive_ledger(x.predicate, s_nodes, zp_preds, zm_preds)
+            if ledger != list(block["external_data_needed"]):
+                _err(
+                    f"external_data_needed mismatch: recomputed {ledger}, "
+                    f"recorded {block['external_data_needed']}"
+                )
+            formula = _rederive_effect_formula(
+                x.predicate, y.predicate, zp_preds, zm_preds
+            )
+            if formula != block["recovery_formula"]:
+                _err(
+                    f"recovery_formula mismatch: recomputed {formula!r}, "
+                    f"recorded {block['recovery_formula']!r}"
+                )
+        else:
+            if _sbd_admissible_exists(x, y, s_nodes):
+                _err(
+                    "block claims P(y|do(x)) is not SBD-recoverable, but an "
+                    "admissible selection-backdoor set exists within budget"
+                )
+    elif kind == "conditional":
+        if recoverable:
+            if criterion == "conditional_independence":
+                if not _s_all_dsep_y(s_nodes, y, (x,)):
+                    _err("claims Y ⊥ S | X but they are d-connected")
+            elif criterion == "external_data":
+                z = [_node(p) for p in block["adjustment_set"]]
+                if not _s_all_dsep_y(s_nodes, y, (x,) + tuple(z)):
+                    _err("claims Y ⊥ S | X,Z but they are d-connected given X,Z")
+            else:
+                _err(f"conditional recoverable but criterion is {criterion!r}")
+        else:
+            if _s_all_dsep_y(s_nodes, y, (x,)) or _conditional_z_exists(
+                x, y, s_nodes
+            ):
+                _err(
+                    "block claims P(y|x) is not s-recoverable, but Y is "
+                    "d-separable from S given X (or X and some observed Z)"
+                )
+    else:
+        _err(f"unknown query_kind {kind!r}")
+
+
 def verify_effect_structural(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,

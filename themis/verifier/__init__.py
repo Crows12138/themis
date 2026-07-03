@@ -19,7 +19,11 @@ Public surface (re-exports from sub-modules):
   ``verify_ovb_sensitivity`` (Cinelli-Hazlett OVB sensitivity — a second
   independent transcription of the robustness-value / partial-R² / bound
   closed forms, recomputed from the recorded t-value + dof + benchmark
-  partial R²s)
+  partial R²s) /
+  ``verify_selection_recovery`` (Bareinboim-Pearl recoverability from
+  selection bias — re-derives the selection-backdoor conditions and the
+  Theorem-3.5 recovery formula against the graph, validates the returned
+  adjustment-set witness, and re-searches to confirm a negative verdict)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -72,6 +76,7 @@ from .verify import (
     verify_numeric_estimate,
     verify_ovb_sensitivity,
     verify_scm_counterfactual,
+    verify_selection_recovery,
 )
 from .bounds_rules import (
     verify_balke_pearl_iv_bounds_result,
@@ -103,4 +108,5 @@ __all__ = [
     "verify_numeric_estimate",
     "verify_ovb_sensitivity",
     "verify_scm_counterfactual",
+    "verify_selection_recovery",
 ]

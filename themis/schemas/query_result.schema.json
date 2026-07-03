@@ -13,6 +13,28 @@
       "type": "object",
       "description": "Open-ended extension map. Known sub-fields have explicit sub-schemas below; unknown fields are allowed (extensions is intentionally open for forward compatibility).",
       "properties": {
+        "selection_recovery": {
+          "type": "object",
+          "description": "Phase 9 §S9.1: Bareinboim-Pearl recoverability from selection bias. Attached to an effect result whose sample is restricted (ObservationStatement) on a selection collider of X and Y — the constructive counterpart to the selection_on_collider_opens_path gap. Says whether the unbiased P(y|do(x)) is s-recoverable from the biased sample via the selection-backdoor criterion, with what recovery formula, and what external (unbiased) data (if any) is required. A recoverable=false verdict means 'not via selection-backdoor adjustment', not a proof of non-recoverability (the complete algorithm is out of scope).",
+          "required": ["kind", "query_kind", "treatment", "outcome", "recoverable", "criterion", "selection_nodes", "adjustment_set", "z_plus", "z_minus", "recovery_formula", "external_data_needed", "failure_reason", "reference"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "selection_recovery" },
+            "query_kind": { "enum": ["conditional", "effect"] },
+            "treatment": { "type": "string" },
+            "outcome": { "type": "string" },
+            "recoverable": { "type": "boolean" },
+            "criterion": { "enum": ["conditional_independence", "external_data", "selection_backdoor", null] },
+            "selection_nodes": { "type": "array", "items": { "type": "string" } },
+            "adjustment_set": { "type": "array", "items": { "type": "string" }, "description": "The full selection-backdoor adjustment set Z = Z⁺ ∪ Z⁻." },
+            "z_plus": { "type": "array", "items": { "type": "string" }, "description": "Non-descendants of X within Z (control confounding, back-door part)." },
+            "z_minus": { "type": "array", "items": { "type": "string" }, "description": "Descendants of X within Z (control selection only; reweighted, not used for back-door blocking)." },
+            "recovery_formula": { "type": "string" },
+            "external_data_needed": { "type": "array", "items": { "type": "string" }, "description": "Unbiased distributions required beyond the biased sample P(v|S); empty ⇒ recoverable from the biased data alone." },
+            "failure_reason": { "type": ["string", "null"] },
+            "reference": { "type": "string" }
+          }
+        },
         "iv_identification": {
           "type": "object",
           "description": "Phase 6.iv: metadata emitted when identify / effect is resolved via the IV strategy. The identification only establishes existence of a strategy — the specific formula (Wald / 2SLS / LATE) requires an estimation-layer assumption not captured here.",

@@ -114,7 +114,7 @@ Fields in roughly the order you'll consult them:
 | `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
 | `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |
 | `bounds_result` | Phase 12: symbolic bounds when point identification failed. Method + lower/upper expressions + assumptions. See §"Bounds rendering" |
-| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification`, `mechanism_audit`; **`assumption_ledger`** (unified, severity-ranked lead surface — render first when present) |
+| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification`, `selection_recovery` (recoverability from selection bias — companion to the selection-on-collider gap), `mechanism_audit`; **`assumption_ledger`** (unified, severity-ranked lead surface — render first when present) |
 | `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
 | `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
 
@@ -984,6 +984,45 @@ Plus the context-specific caveats:
   §T9.1 只处理观察到的 S；未观测差异是 §T9.3 范围
 - 如果用户原始问题给了一个源人群数字（"RCT 说 X cm 下降"）→ 明确
   说 transport 不会输出"修正后的 X" —— 只会告诉你需要哪些数据来算
+
+### Selection-bias recovery (Phase 9 §S9.1)
+
+`result.extensions.selection_recovery` is the **constructive companion**
+to the `selection_on_collider_opens_path` gap. That gap says *"your
+sample is restricted on a collider → biased"*; this block answers the
+next question: *can the unbiased P(y|do(x)) be recovered from the biased
+sample, and how?* (Bareinboim-Pearl selection-backdoor criterion.) When
+both are present, render the gap's warning first, then this verdict — the
+gap is the diagnosis, this is the prognosis.
+
+Like §T9.1 it is **structural only** — it hands back a recovery *formula*
+and a *data ledger*, never a number. Do not present `recovery_formula` as
+an answer; present it as "here is what would recover it, and what it costs".
+
+Read `recoverable` first, then branch on it:
+
+- **`recoverable: true`** — the effect is s-recoverable via the
+  selection-backdoor set `adjustment_set` (partitioned into `z_plus`,
+  confounding control, and `z_minus`, selection control). Surface the
+  `recovery_formula`, and — critically — the `external_data_needed`
+  ledger: an **empty** ledger means it is recoverable from the biased
+  data *alone* (the good case); a **non-empty** ledger names the
+  unbiased/population distributions the analyst must obtain externally
+  (the price of recovery). The ledger is the honest bottleneck — lead
+  with it, don't bury it.
+
+- **`recoverable: false`** — surface `failure_reason`, and state the
+  boundary honestly: this means *not recoverable via selection-backdoor
+  adjustment*, **not** a proof that no recovery exists. The complete
+  recovery algorithm is out of scope; inverse-probability-of-selection
+  weighting (already named in the gap's `alternative_paths`) or richer
+  external data may still work. Never overclaim "impossible".
+
+The canonical Hernán-2004 collider (selection driven directly by the
+outcome) lands here as `recoverable: false` — that is the *structural
+confirmation* of Hernán's own point ("no covariate adjustment closes the
+path"), so say so: the kernel independently re-derived what the paper
+asserts.
 
 ### Transport numeric — Phase 9 §T9.2 / iter 128
 

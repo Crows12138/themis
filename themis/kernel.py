@@ -95,6 +95,7 @@ from .verifier import (
     verify_numeric,
     verify_numeric_estimate,
     verify_ovb_sensitivity,
+    verify_selection_recovery,
 )
 
 
@@ -785,6 +786,15 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         selection_nodes=selection_nodes,
         observations=scm_observations or None,
     )
+
+    # Phase 9 §S9.1: an effect result may carry a Bareinboim-Pearl
+    # selection-recovery block in its extensions. It is a set of
+    # d-separation facts + a closed-form recovery formula, independent of
+    # the derivation chain, so re-derive it against the graph regardless
+    # of the result's status.
+    _sel_rec = (result.get("extensions") or {}).get("selection_recovery")
+    if _sel_rec is not None:
+        verify_selection_recovery(_sel_rec, graph)
 
     kind = result.get("query_kind")
     if kind == "cause":
