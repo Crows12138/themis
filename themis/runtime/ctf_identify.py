@@ -41,7 +41,17 @@ from itertools import combinations
 
 import networkx as nx
 
-from ..types import Atom, AtomValue
+from ..types import (
+    Atom,
+    AtomValue,
+    BindDecl,
+    ConstantExpr,
+    FormulaExpr,
+    ProductExpr,
+    SumExpr,
+    ValuedAtom,
+    VarRef,
+)
 from .structural_solver import BidirectedEdgeSet, c_components
 
 
@@ -352,3 +362,211 @@ def make_cg(
         subscript=subscript,
         gamma_prime=gamma_prime,
     )
+
+
+# ---------------------------------------------------------------------------
+# ID*  (R-336 Fig. 11) — general counterfactual identification
+# ---------------------------------------------------------------------------
+
+class _Zero:
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - debug aid
+        return "ZERO"
+
+
+class _Fail:
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - debug aid
+        return "FAIL"
+
+
+class _Undefined:
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - debug aid
+        return "UNDEFINED"
+
+
+ZERO = _Zero()
+FAIL = _Fail()
+UNDEFINED = _Undefined()
+
+# Defensive cap on ID* recursion depth. The algorithm provably terminates
+# (each Line-6 recursion adds interventions that shrink the problem); the cap
+# only guards against a pathological non-progressing input and degrades to
+# FAIL instead of a RecursionError.
+_MAX_CTF_DEPTH = 64
+
+
+@dataclass(frozen=True)
+class _SumVar:
+    """A value slot bound by the Line-6 summation over the unvalued
+    observable nodes ``V(G')\\γ'``. Carried as a counterfactual event value
+    through the recursion and rendered as a FormulaExpr ``VarRef`` at the
+    base case, so the same summed variable in a sibling's subscript and in
+    its own event share one binding."""
+
+    name: str
+
+
+def _sumvar_name(node: PWNode) -> str:
+    args = "_".join(t.name for t in node.variable.args)
+    base = f"cf_{node.variable.predicate}"
+    return f"{base}_{args}" if args else base
+
+
+def _node_value(cf: CfGraph, node: PWNode):
+    if node in cf.value:
+        return cf.value[node]
+    return _SumVar(_sumvar_name(node))  # unvalued observable → outer-Σ bound
+
+
+def _to_value_expr(value):
+    if isinstance(value, _SumVar):
+        return VarRef(name=value.name)
+    return value
+
+
+def id_star(graph: nx.DiGraph, bidirected: BidirectedEdgeSet, gamma: Conjunction):
+    """ID* (Shpitser-Pearl R-336 Fig. 11): identify ``P(γ)`` for a
+    counterfactual conjunction ``γ``.
+
+    Returns a :data:`FormulaExpr` in terms of observational ``P(v)`` (each
+    interventional ``P*`` leaf is reduced through the existing ID engine),
+    or :data:`ZERO` when ``P(γ)=0`` (an inconsistent / effectiveness-
+    violating conjunction), or :data:`FAIL` when the query is provably
+    non-identifiable (a w-graph / subscript conflict witness).
+    """
+    return _id_star(graph, bidirected, gamma, 0)
+
+
+def _id_star(graph, bidirected, gamma, depth):
+    if depth > _MAX_CTF_DEPTH:
+        return FAIL
+
+    # Line 1: empty conjunction.
+    if not gamma:
+        return ConstantExpr(value=1.0)
+
+    # Lines 2-3: an event whose variable is intervened in its own world.
+    for e in gamma:
+        forced = _world_value(e.subscript, e.variable)
+        if forced is not None:
+            if forced != e.value:
+                return ZERO   # Line 2: effectiveness violation, x_{x'}.
+            rest = tuple(x for x in gamma if x is not e)  # Line 3: drop x_{x}.
+            return _id_star(graph, bidirected, rest, depth + 1)
+
+    # Line 4: build the counterfactual graph.
+    cf = make_cg(graph, bidirected, gamma)
+    if cf is INCONSISTENT:
+        return ZERO   # Line 5.
+
+    parts = cf.c_component_partition()
+    obs = cf.observable()
+    gp_nodes = frozenset(n for n, _v in cf.gamma_prime)
+    summed = obs - gp_nodes   # V(G') \ γ'
+
+    if len(parts) > 1:
+        # Line 6: Σ_{V(G')\γ'} Π_i ID*(G, S^i_{ v(G')\S^i }).
+        factors: list = []
+        for si in parts:
+            sub_gamma = _subconjunction(cf, si, obs)
+            f = _id_star(graph, bidirected, sub_gamma, depth + 1)
+            if f is FAIL:
+                return FAIL
+            if f is ZERO:
+                return ZERO
+            factors.append(f)
+        body: FormulaExpr = (
+            factors[0] if len(factors) == 1 else ProductExpr(terms=tuple(factors))
+        )
+        for m in sorted(summed, key=_sumvar_name):
+            body = SumExpr(
+                bind=BindDecl(name=_sumvar_name(m)), over=m.variable, body=body)
+        return body
+
+    # Lines 7-9: single c-component.
+    (s,) = parts
+    return _base_case(graph, bidirected, cf, s)
+
+
+def _subconjunction(cf: CfGraph, si, obs) -> Conjunction:
+    """Build ``S^i_{ v(G')\\S^i }`` (Line 6): the events of ``S^i``, each
+    additionally subscripted by the values of every other observable node."""
+    added = frozenset((m.variable, _node_value(cf, m)) for m in (obs - set(si)))
+    return tuple(
+        CtfEvent(
+            variable=n.variable,
+            subscript=cf.subscript[n] | added,
+            value=_node_value(cf, n),
+        )
+        for n in si
+    )
+
+
+def _base_case(graph, bidirected, cf: CfGraph, s):
+    """Lines 7-9: single c-component ``S``. Line 8 fails on a subscript /
+    observation conflict; Line 9 returns ``P_x(var(S))`` with ``x=⋃sub(S)``,
+    reduced to observational ``P(v)`` through the ID engine."""
+    from .c_factor import (
+        _admg_topo_order,
+        _id_set_structural,
+        _IDC_VALUE_SENTINEL,
+        _map_valued_atoms,
+    )
+
+    # Gather, across the whole component, the values each variable takes as a
+    # subscript (intervention) and as an observation (a node value).
+    sub_by_var: dict = {}
+    for n in s:
+        for (a, av) in cf.subscript[n]:
+            sub_by_var.setdefault(a, set()).add(av)
+    obs_by_var: dict = {}
+    for n in s:
+        obs_by_var.setdefault(n.variable, set()).add(_node_value(cf, n))
+
+    # Line 8: FAIL when a variable is intervened to two different values, or a
+    # subscript value conflicts with an observed value of the same variable
+    # (∃ x≠x', x∈sub(S), x'∈ev(S)) — this is the w-graph / PNS witness. Also
+    # FAIL a genuine cross-world joint on one variable (two distinct observed
+    # values) that the subscript check did not already rule out: that shape is
+    # outside the single-interventional-distribution base case.
+    for a, vals in sub_by_var.items():
+        if len(vals) > 1:
+            return FAIL
+        (sv,) = tuple(vals)
+        if a in obs_by_var and any(ov != sv for ov in obs_by_var[a]):
+            return FAIL
+    for vals in obs_by_var.values():
+        if len(vals) > 1:
+            return FAIL
+
+    # Line 9: P_x(var(S)), x = ⋃ sub(S). make_cg's subscripts are An(ω)∩sub(γ)
+    # — already ancestor-restricted, so redundant subscripts are gone.
+    target_value = {n.variable: _node_value(cf, n) for n in s}
+    xsub = {a: next(iter(vals)) for a, vals in sub_by_var.items()}
+    y_set = frozenset(target_value)
+    x_set = frozenset(xsub) - y_set
+
+    V = _base_vars(graph, bidirected)
+    topo = tuple(_admg_topo_order(graph, V))
+    formula, _trail, _hedge = _id_set_structural(
+        graph, bidirected, topo, V, x_set=x_set, y_set=y_set,
+    )
+    if formula is None:
+        # Identifiable from experiments (P*) but the interventional leaf does
+        # not reduce to observational P(v) — outside this engine's remit.
+        return FAIL
+
+    def bind(va: ValuedAtom) -> ValuedAtom:
+        if va.value is _IDC_VALUE_SENTINEL:
+            return ValuedAtom(atom=va.atom, value=_to_value_expr(xsub[va.atom]))
+        if va.value is None and va.atom in target_value:
+            return ValuedAtom(
+                atom=va.atom, value=_to_value_expr(target_value[va.atom]))
+        return va
+
+    return _map_valued_atoms(formula, bind)
