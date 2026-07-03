@@ -1358,6 +1358,7 @@ they were).
 | `data_required` | name the observable distribution(s) the analyst must supply |
 | `width_when_uninformative` | when True, prepend warning that bounds are trivial |
 | `notes` | quote verbatim — generator-curated context |
+| `lower_value` / `upper_value` / `ci_lower` / `ci_upper` / `estimand` / `numeric_uninformative` | Numeric end (present only when data was supplied) — see §"Numeric end" |
 
 ### Per-method shape
 
@@ -1426,6 +1427,41 @@ they were).
 > **何时考虑放弃这条假设**：如果你怀疑某些子群对处理反应方向相反
 > （效应异质性 with sign reversal），MTR 不成立——告诉我，我可以
 > 退回 Manski 自然界限（更宽但不需要 MTR 假设）。
+
+### Numeric end
+
+When data is supplied via `themis.estimate`, the bounds layer fills
+in the ACTUAL numbers: `lower_value` / `upper_value` (the interval the
+data alone supports), a bootstrap CI, and `estimand`. The symbolic
+`lower_expression` / `upper_expression` stay too. When the numeric
+fields are present, **lead with the numbers** — the symbolic
+expression drops to a "here's how it was computed" footnote, not the
+headline. When they are absent (null / no data), the symbolic
+expressions ARE the answer, as above.
+
+Principles:
+
+- **`estimand` says what the interval is *of*** — do not blur it. It
+  mirrors the method's object: `arm_probability` is a single
+  interventional arm `P(Y=y|do(X=x))` (Manski natural / Manski-Tamer);
+  `ace` is the difference `P(Y=1|do 1) − P(Y=1|do 0)` (Balke-Pearl).
+  State which one so the reader never reads an arm probability as an
+  effect or vice-versa.
+- **`ci_lower` / `ci_upper` bound the interval, not a point.** They are
+  an outer confidence band for the identified SET (covers the whole
+  interval with prob ≥ `ci_level`), NOT a confidence interval for a
+  point estimate. Never render them as "the effect is X ± …"; render
+  as "the interval itself, allowing for sampling, sits within
+  [ci_lower, ci_upper]".
+- **A point estimate and these bounds can co-exist.** An IV-shaped graph
+  can carry BOTH a `numeric_estimate` (an IV point, bought with
+  monotonicity / homogeneity assumptions) AND numeric Balke-Pearl
+  bounds (assumption-free). Show both and name the trade: the point is
+  what you get *if* you accept the extra assumption; the interval is
+  what the data says *without* it. Don't suppress the honest interval
+  because a point exists.
+- **`numeric_uninformative`** True → route to the next section (the
+  computed interval spans essentially the whole range).
 
 ### When the bounds are uninformative
 

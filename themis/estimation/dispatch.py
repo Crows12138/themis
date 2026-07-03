@@ -117,6 +117,15 @@ def estimate_program(
         cluster=cluster, ate_estimator=ate_estimator,
     )
 
+    # Numeric end for the partial-identification layer: when point ID failed
+    # and the kernel attached a SYMBOLIC bounds_result, evaluate it on data.
+    # Runs after the point-estimate loop so it only ever ADDS numeric fields
+    # to an already-symbolic bounds_result — never competes with a point.
+    _attach_numeric_bounds(
+        program, identification_output, contract,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
+    )
+
     return identification_output
 
 
@@ -849,6 +858,127 @@ def _estimate_effect_queries(
             outcome=y_atom.predicate, treatment=x_atom.predicate,
         )
         _finalise_numeric_result(result)
+
+
+def _attach_numeric_bounds(
+    program: dict | str | bytes,
+    output: dict,
+    contract: DataContract,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    cluster: str | None = None,
+) -> None:
+    """Evaluate a symbolic ``bounds_result`` on data — the numeric end of the
+    partial-identification layer.
+
+    When point identification failed, the kernel attached a SYMBOLIC
+    ``bounds_result`` (``lower_expression`` / ``upper_expression`` strings).
+    This turns those symbols into an actual ``[lower_value, upper_value]``
+    (+ percentile-bootstrap outer-band CI) using the estimator that matches
+    the method the kernel already chose — so the numeric interval and the
+    symbolic one describe the SAME method, never a different one.
+
+    Purely additive: the symbolic bounds_result is preserved; only numeric
+    fields are ADDED. Any refusal — a column absent from the data, a
+    non-binary variable where the method needs binary, a positivity failure,
+    or an instrument the data refutes (Balke-Pearl instrumental inequalities)
+    — leaves the symbolic interval untouched. Mirrors the ``method`` selection
+    the kernel made in ``scheduler._attach_bounds_result`` (reuses the SAME
+    instrument / monotonicity detectors), so numeric and symbolic never
+    disagree on which method applies.
+    """
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+    from ..runtime.scheduler import (
+        _detect_iv_candidate_structural,
+        _detect_monotonicity_for_query,
+    )
+    from .bounds_numeric import (
+        evaluate_balke_pearl_ace_bounds,
+        evaluate_manski_natural_bounds,
+        evaluate_manski_tamer_bounds,
+    )
+    from .dose_response import EstimatorFailure
+
+    ast = _ensure_dict(program)
+    prog = validate_program(validate_ast(ast))
+    cols = set(contract.data.columns)
+    cluster_ok = cluster if (cluster is None or cluster in cols) else None
+
+    for q_stmt, result in _pair_effect_queries(prog, output):
+        if q_stmt is None:
+            continue
+        bounds = result.get("bounds_result")
+        if not isinstance(bounds, dict):
+            continue
+        if bounds.get("lower_value") is not None:
+            continue  # idempotent: already evaluated
+        query = q_stmt.query
+        method = bounds.get("method")
+        x_pred = query.intervention.atom.predicate
+        y_pred = query.target.atom.predicate
+        try:
+            if method == "manski_natural":
+                nb = evaluate_manski_natural_bounds(
+                    contract.data, treatment=x_pred, outcome=y_pred,
+                    treatment_value=query.intervention.value,
+                    outcome_value=query.target.value,
+                    ci_bootstrap=ci_bootstrap, random_state=random_state,
+                    cluster=cluster_ok,
+                )
+            elif method == "manski_tamer_monotonicity":
+                mono = _detect_monotonicity_for_query(prog, query)
+                if mono is None:
+                    continue
+                nb = evaluate_manski_tamer_bounds(
+                    contract.data, treatment=x_pred, outcome=y_pred,
+                    monotonicity=mono.value,
+                    treatment_value=query.intervention.value,
+                    outcome_value=query.target.value,
+                    ci_bootstrap=ci_bootstrap, random_state=random_state,
+                    cluster=cluster_ok,
+                )
+            elif method == "balke_pearl_iv":
+                iv_ext = (result.get("extensions") or {}).get("iv_identification")
+                instrument = None
+                if isinstance(iv_ext, dict):
+                    instrument = iv_ext.get("instrument")
+                if instrument is None:
+                    instrument = _detect_iv_candidate_structural(prog, query)
+                if instrument is None:
+                    continue
+                nb = evaluate_balke_pearl_ace_bounds(
+                    contract.data, treatment=x_pred, outcome=y_pred,
+                    instrument=instrument,
+                    ci_bootstrap=ci_bootstrap, random_state=random_state,
+                    cluster=cluster_ok,
+                )
+            else:
+                continue
+        except (EstimatorFailure, ValueError, NotImplementedError):
+            # Honest refusal — the symbolic interval still stands.
+            continue
+        _fill_numeric_bounds(bounds, nb)
+
+
+def _fill_numeric_bounds(bounds: dict, nb) -> None:
+    """Add the numeric evaluation of a NumericBounds onto the symbolic
+    bounds_result dict in place (schema: query_result boundsResult)."""
+    bounds["estimand"] = nb.estimand
+    bounds["lower_value"] = nb.lower_value
+    bounds["upper_value"] = nb.upper_value
+    bounds["width"] = nb.width
+    bounds["numeric_uninformative"] = nb.width_is_trivial
+    bounds["ci_lower"] = nb.ci_lower
+    bounds["ci_upper"] = nb.ci_upper
+    bounds["ci_level"] = nb.ci_level
+    bounds["sample_size"] = nb.sample_size
+    bounds["numeric_data_hash"] = nb.data_hash
+    if nb.instrument is not None:
+        bounds["instrument"] = nb.instrument
+    if nb.cluster is not None:
+        bounds["numeric_cluster"] = nb.cluster
 
 
 def _try_general_id_estimate(

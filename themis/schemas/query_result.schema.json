@@ -1299,7 +1299,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["method", "lower_expression", "upper_expression"],
-      "description": "Phase 12: symbolic bounds attached when point identification fails. Expressions are over observable distributions; numeric evaluation lives in the future estimator layer.",
+      "description": "Phase 12: symbolic bounds attached when point identification fails. Expressions are over observable distributions. When data is supplied via themis.estimate, the numeric end (estimation/bounds_numeric.py) additionally fills lower_value / upper_value / CI — the actual interval the data alone supports, computed by the SAME method named here.",
       "properties": {
         "method": {
           "enum": [
@@ -1331,7 +1331,55 @@
           "default": false,
           "description": "True when bounds collapse to the trivial range (e.g. [-1, 1] for risk difference) — answer is honest but not useful."
         },
-        "notes": {"type": ["string", "null"]}
+        "notes": {"type": ["string", "null"]},
+        "estimand": {
+          "enum": ["arm_probability", "ace"],
+          "description": "Numeric end: which quantity the numeric bounds bound. 'arm_probability' = a single interventional arm P(Y=y|do(X=x)) (Manski natural / Manski-Tamer); 'ace' = the average causal effect P(Y=1|do(X=1))−P(Y=1|do(X=0)) (Balke-Pearl). Mirrors the symbolic method's object."
+        },
+        "lower_value": {
+          "type": ["number", "null"],
+          "description": "Numeric end: data-evaluated lower bound. Null when the symbolic bounds were not numerically evaluated (no data / refusal)."
+        },
+        "upper_value": {
+          "type": ["number", "null"],
+          "description": "Numeric end: data-evaluated upper bound."
+        },
+        "width": {
+          "type": ["number", "null"],
+          "description": "Numeric end: upper_value − lower_value."
+        },
+        "numeric_uninformative": {
+          "type": "boolean",
+          "description": "Numeric end: True when the evaluated interval spans (essentially) the whole logically-possible range (arm ∈ [0,1] → width≈1; ACE ∈ [−1,1] → width≈2) — honest but uninformative."
+        },
+        "ci_lower": {
+          "type": ["number", "null"],
+          "description": "Numeric end: lower edge of the percentile-bootstrap OUTER band for the identified set (lower-α/2 quantile of the bootstrapped lower endpoint). Covers the identified interval with prob ≥ 1−ci_level; NOT an Imbens-Manski point CI."
+        },
+        "ci_upper": {
+          "type": ["number", "null"],
+          "description": "Numeric end: upper edge of the outer band (upper-α/2 quantile of the bootstrapped upper endpoint)."
+        },
+        "ci_level": {
+          "type": ["number", "null"],
+          "description": "Numeric end: two-sided confidence level of the outer band."
+        },
+        "sample_size": {
+          "type": ["integer", "null"],
+          "description": "Numeric end: rows used to evaluate the bounds."
+        },
+        "numeric_data_hash": {
+          "type": ["string", "null"],
+          "description": "Numeric end: SHA-256 of the data the numeric bounds were computed on (verifier reproducibility fingerprint)."
+        },
+        "instrument": {
+          "type": ["string", "null"],
+          "description": "Numeric end (Balke-Pearl only): the binary instrument column the ACE bounds used."
+        },
+        "numeric_cluster": {
+          "type": ["string", "null"],
+          "description": "Numeric end: cluster-id column when the CI used a pairs cluster bootstrap; absent for the i.i.d. bootstrap."
+        }
       }
     },
     "dataGapReport": {

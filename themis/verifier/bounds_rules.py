@@ -189,6 +189,11 @@ def verify_manski_tamer_bounds_result(
             step_index=None, rule="bounds_manski_tamer",
         )
 
+    _audit_numeric_bounds(
+        bounds_result, method="manski_tamer_monotonicity",
+        rule="bounds_manski_tamer",
+    )
+
 
 def verify_manski_natural_bounds_result(
     bounds_result: dict,
@@ -275,6 +280,10 @@ def verify_manski_natural_bounds_result(
             f"assumptions tuple must be empty, got {list(assumptions)!r}",
             step_index=None, rule="bounds_manski_natural",
         )
+
+    _audit_numeric_bounds(
+        bounds_result, method="manski_natural", rule="bounds_manski_natural",
+    )
 
 
 _BP_EXPECTED_ASSUMPTIONS = frozenset({
@@ -405,6 +414,105 @@ def verify_balke_pearl_iv_bounds_result(
             f"Missing: {sorted(missing)!r}; extra: {sorted(extra)!r}",
             step_index=None, rule="bounds_balke_pearl_iv",
         )
+
+    _audit_numeric_bounds(
+        bounds_result, method="balke_pearl_iv", rule="bounds_balke_pearl_iv",
+    )
+
+
+_NUMERIC_ESTIMAND_BY_METHOD = {
+    "manski_natural": ("arm_probability", (0.0, 1.0)),
+    "manski_tamer_monotonicity": ("arm_probability", (0.0, 1.0)),
+    "balke_pearl_iv": ("ace", (-1.0, 1.0)),
+}
+
+
+def _audit_numeric_bounds(bounds_result: dict, *, method: str, rule: str) -> None:
+    """Metadata self-consistency audit of the numeric end of a bounds_result
+    (produced by ``estimation/bounds_numeric.py`` when data is supplied).
+
+    The verifier has NO DataFrame, so this is a relaxed audit — direction,
+    admissible range, estimand/method agreement, CI containment, hash +
+    sample-size shape — NOT a re-evaluation on data (same posture as the
+    numeric_estimate verifier rules). Skipped entirely when the numeric
+    fields are absent (symbolic-only bounds). Independence pin preserved:
+    does not import the producer.
+    """
+    lower = bounds_result.get("lower_value")
+    upper = bounds_result.get("upper_value")
+    if lower is None and upper is None:
+        return  # symbolic-only; nothing numeric to audit
+    eps = 1e-9
+    if not isinstance(lower, (int, float)) or not isinstance(upper, (int, float)):
+        raise VerificationError(
+            f"numeric bounds must have numeric lower_value / upper_value; got "
+            f"{lower!r} / {upper!r}", step_index=None, rule=rule,
+        )
+    if lower > upper + eps:
+        raise VerificationError(
+            f"numeric bounds inverted: lower_value {lower} > upper_value "
+            f"{upper}", step_index=None, rule=rule,
+        )
+    estimand_expected, (lo_r, hi_r) = _NUMERIC_ESTIMAND_BY_METHOD[method]
+    if lower < lo_r - eps or upper > hi_r + eps:
+        raise VerificationError(
+            f"numeric bounds [{lower}, {upper}] fall outside the admissible "
+            f"range [{lo_r}, {hi_r}] for estimand {estimand_expected!r}",
+            step_index=None, rule=rule,
+        )
+    estimand = bounds_result.get("estimand")
+    if estimand != estimand_expected:
+        raise VerificationError(
+            f"numeric bounds estimand {estimand!r} does not match method "
+            f"{method!r} (expected {estimand_expected!r})",
+            step_index=None, rule=rule,
+        )
+    width = bounds_result.get("width")
+    if width is not None and abs(width - (upper - lower)) > 1e-6:
+        raise VerificationError(
+            f"numeric bounds width {width} != upper_value − lower_value "
+            f"{upper - lower}", step_index=None, rule=rule,
+        )
+    ci_lower = bounds_result.get("ci_lower")
+    ci_upper = bounds_result.get("ci_upper")
+    if ci_lower is not None and ci_upper is not None:
+        # The outer band must ENCLOSE the point-estimated interval.
+        if ci_lower > lower + 1e-6 or ci_upper < upper - 1e-6:
+            raise VerificationError(
+                f"numeric bounds CI [{ci_lower}, {ci_upper}] does not enclose "
+                f"the interval [{lower}, {upper}] (outer band must contain it)",
+                step_index=None, rule=rule,
+            )
+        if ci_lower > ci_upper + eps:
+            raise VerificationError(
+                f"numeric bounds CI inverted: {ci_lower} > {ci_upper}",
+                step_index=None, rule=rule,
+            )
+        ci_level = bounds_result.get("ci_level")
+        if not isinstance(ci_level, (int, float)) or not (0.0 < ci_level < 1.0):
+            raise VerificationError(
+                f"numeric bounds ci_level must be in (0, 1); got {ci_level!r}",
+                step_index=None, rule=rule,
+            )
+    h = bounds_result.get("numeric_data_hash")
+    if h is not None and (not isinstance(h, str) or len(h) != 64):
+        raise VerificationError(
+            f"numeric_data_hash must be a 64-char hex string; got {h!r}",
+            step_index=None, rule=rule,
+        )
+    ss = bounds_result.get("sample_size")
+    if ss is not None and (not isinstance(ss, int) or isinstance(ss, bool) or ss < 10):
+        raise VerificationError(
+            f"numeric bounds sample_size must be an int ≥ 10; got {ss!r}",
+            step_index=None, rule=rule,
+        )
+    if method == "balke_pearl_iv":
+        instrument = bounds_result.get("instrument")
+        if not isinstance(instrument, str) or not instrument:
+            raise VerificationError(
+                "numeric Balke-Pearl bounds must name the instrument column",
+                step_index=None, rule=rule,
+            )
 
 
 def _fmt_value(v: object) -> str:
