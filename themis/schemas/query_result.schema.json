@@ -454,7 +454,8 @@
             "dose_response_causal_forest_dml",
             "dose_response_linear_drlearner",
             "transport_post_stratification",
-            "longitudinal_gformula"
+            "longitudinal_gformula",
+            "longitudinal_ipw_msm"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -659,6 +660,32 @@
             "e_y_treated": { "type": "number" },
             "e_y_control": { "type": "number" },
             "n_sim": { "type": "integer", "minimum": 1 },
+            "n_bootstrap": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "longitudinal_ipw_msm": {
+          "type": "object",
+          "description": "Phase 7.L: longitudinal IPW marginal structural model detail for a time-varying treatment STRATEGY (Robins 2000; Hernán & Robins ch.12/17). An independent route to the same strategy contrast as longitudinal_gformula — it models the TREATMENT process (per-time propensities → IP weights) rather than the covariate/outcome models, so agreement between the two cross-validates the estimate. msm_coefficients are (β0, β_A0, …, β_AK) of E[Y_ā]=β0+Σβ_k·a_k; weight_mean/weight_max disclose the weight distribution (a mean far from 1 or a huge max flags near-positivity violation).",
+          "required": ["point", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "stabilized", "msm_coefficients", "weight_mean", "weight_max", "n_bootstrap"],
+          "additionalProperties": false,
+          "properties": {
+            "point": { "type": "number" },
+            "ci_lower": { "type": ["number", "null"] },
+            "ci_upper": { "type": ["number", "null"] },
+            "treatments": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "confounders_by_time": {
+              "type": "array",
+              "items": { "type": "array", "items": { "type": "string" } }
+            },
+            "outcome": { "type": "string" },
+            "strategy_treated": { "type": "number" },
+            "strategy_control": { "type": "number" },
+            "e_y_treated": { "type": "number" },
+            "e_y_control": { "type": "number" },
+            "stabilized": { "type": "boolean" },
+            "msm_coefficients": { "type": "array", "items": { "type": "number" }, "minItems": 2 },
+            "weight_mean": { "type": "number" },
+            "weight_max": { "type": "number" },
             "n_bootstrap": { "type": "integer", "minimum": 0 }
           }
         },

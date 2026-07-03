@@ -36,9 +36,14 @@
         "longitudinal": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Phase 7.L. Opt-in spec routing themis.estimate to the longitudinal parametric g-formula (g-computation) for a TIME-VARYING treatment strategy (Hernán & Robins, What If, ch.21). Declares the time ordering of treatments and covariates that the cross-sectional query AST cannot express. When present, the estimator fits L_k|history transition models + the outcome model, Monte-Carlo simulates always-treat vs never-treat, and attaches a longitudinal_gformula block to the first effect-query result.",
+          "description": "Phase 7.L. Opt-in spec routing themis.estimate to a longitudinal g-method for a TIME-VARYING treatment strategy (Hernán & Robins, What If, ch.21). Declares the time ordering of treatments and covariates that the cross-sectional query AST cannot express. The 'estimator' field picks the g-method: 'gformula' (default; fits L_k|history transition models + the outcome model, Monte-Carlo simulates always-treat vs never-treat) or 'ipw_msm' (fits per-time treatment propensity models, IP-weights, and fits a marginal structural mean model). Both target the same strategy contrast and are misspecified in different ways, so they cross-check each other. The result block (longitudinal_gformula or longitudinal_ipw_msm) is attached to the first effect-query result.",
           "required": ["treatments", "confounders_by_time", "outcome"],
           "properties": {
+            "estimator": {
+              "type": "string",
+              "enum": ["gformula", "ipw_msm"],
+              "description": "Which longitudinal g-method to run. 'gformula' (default) is the parametric g-formula / g-computation; 'ipw_msm' is the IPW marginal structural model. Same estimand, different modelling assumptions."
+            },
             "treatments": {
               "type": "array",
               "minItems": 1,
@@ -56,7 +61,8 @@
             "outcome": { "type": "string" },
             "strategy_treated": { "type": ["number", "boolean"] },
             "strategy_control": { "type": ["number", "boolean"] },
-            "n_sim": { "type": "integer", "minimum": 1 },
+            "n_sim": { "type": "integer", "minimum": 1, "description": "g-formula only: Monte-Carlo subjects simulated per strategy." },
+            "stabilized": { "type": "boolean", "description": "ipw_msm only: use stabilized IP weights (default true) — mean weight ≈ 1, much lower variance than unstabilized." },
             "ci_bootstrap": { "type": "integer", "minimum": 0 }
           }
         }

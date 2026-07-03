@@ -234,6 +234,188 @@ def estimate_longitudinal_gformula(
     )
 
 
+# ==========================================================================
+# IPW-MSM — marginal structural model via inverse-probability-of-treatment
+# weighting (Robins 2000; Hernán & Robins, What If, ch.12 & ch.17)
+# ==========================================================================
+
+
+@dataclass(frozen=True)
+class LongitudinalIPWMSMEstimate:
+    """Result of a longitudinal IPW marginal-structural-model estimate.
+
+    An INDEPENDENT route to the same estimand the g-formula targets — the
+    time-varying treatment strategy contrast E[Y_{ā=treated}] −
+    E[Y_{ā=control}] — computed by re-weighting the observed population by
+    the inverse probability of the treatment actually received, then
+    fitting a marginal structural (mean) model on the pseudo-population.
+    Where the g-formula MODELS the covariate transitions + outcome, the
+    MSM models the TREATMENT process instead, so the two are misspecified
+    in different ways: agreement between them is strong evidence the
+    estimate is right (Hernán & Robins ch.21).
+
+    ``msm_coefficients`` are the per-time treatment coefficients β_k of the
+    marginal structural mean model E[Y_{ā}] = β0 + Σ_k β_k·a_k; the contrast
+    is (treated−control)·Σ_k β_k. ``weight_mean`` / ``weight_max`` disclose
+    the weight distribution — a mean far from 1 (stabilized) or a huge max
+    signals a near-positivity violation the point estimate can't fix.
+    """
+
+    point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    ci_level: float
+    method: str  # always "longitudinal_ipw_msm"
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    treatments: tuple[str, ...]
+    confounders_by_time: tuple[tuple[str, ...], ...]
+    outcome: str
+    strategy_treated: float
+    strategy_control: float
+    stabilized: bool
+    e_y_treated: float
+    e_y_control: float
+    msm_coefficients: tuple[float, ...]   # (β0, β_{A0}, ..., β_{AK})
+    weight_mean: float
+    weight_max: float
+    n_bootstrap: int
+
+
+def estimate_longitudinal_ipw_msm(
+    data: pd.DataFrame,
+    *,
+    treatments: tuple[str, ...],
+    confounders_by_time: tuple[tuple[str, ...], ...],
+    outcome: str,
+    strategy_treated: float = 1,
+    strategy_control: float = 0,
+    stabilized: bool = True,
+    ci_bootstrap: int = 200,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+) -> LongitudinalIPWMSMEstimate:
+    """IPW marginal structural model for a time-varying treatment strategy.
+
+    Same spec as :func:`estimate_longitudinal_gformula` (subject-per-row
+    frame, time-ordered ``treatments`` and ``confounders_by_time``). At each
+    time k a logistic treatment model P(A_k=1 | history through L_k, A_{<k})
+    supplies the DENOMINATOR of the IP weight; the (stabilized) NUMERATOR is
+    P(A_k=1 | past treatments only). Each subject's weight is the product
+    over time of numerator/denominator (or 1/denominator when
+    ``stabilized=False``). A weighted least-squares marginal structural
+    mean model ``E[Y_{ā}] = β0 + Σ_k β_k·a_k`` is then fit on the
+    pseudo-population; the strategy contrast is
+    ``(strategy_treated − strategy_control)·Σ_k β_k``.
+
+    The MSM is a MAIN-EFFECTS mean model (no treatment×treatment
+    interaction term) — correctly specified when per-time effects are
+    additive; that assumption is surfaced in ``assumptions``. CI is a
+    subject (row) percentile bootstrap: refit every propensity model,
+    recompute weights, refit the MSM.
+
+    Raises ``EstimatorFailure('overlap_insufficient')`` if any treatment
+    column has a single observed level; ``ValueError`` on a malformed spec.
+    """
+    if len(treatments) == 0:
+        raise ValueError("treatments must be non-empty")
+    if len(confounders_by_time) != len(treatments):
+        raise ValueError(
+            "confounders_by_time must have the same length as treatments "
+            f"({len(confounders_by_time)} != {len(treatments)})"
+        )
+
+    treatments = tuple(treatments)
+    confounders_by_time = tuple(tuple(c) for c in confounders_by_time)
+    all_confounders = tuple(c for block in confounders_by_time for c in block)
+    required = {*treatments, *all_confounders, outcome}
+    contract = validate_data(data, required_columns=required)
+    df = contract.data
+
+    for a in treatments:
+        levels = df[a].dropna().unique()
+        if len(levels) < 2:
+            raise EstimatorFailure(
+                "overlap_insufficient",
+                f"treatment {a!r} has a single observed level "
+                f"({levels.tolist()}) — positivity is maximally violated and "
+                f"the IP weight for the absent arm is undefined. Supply data "
+                f"with variation in every treatment.",
+                treatment=a,
+            )
+
+    point, e1, e0, betas, w_mean, w_max = _ipw_msm_contrast(
+        df,
+        treatments=treatments,
+        confounders_by_time=confounders_by_time,
+        outcome=outcome,
+        strategy_treated=float(strategy_treated),
+        strategy_control=float(strategy_control),
+        stabilized=stabilized,
+    )
+
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if ci_bootstrap > 0:
+        rng = np.random.default_rng(random_state)
+        n = len(df)
+        draws = np.empty(ci_bootstrap)
+        for i in range(ci_bootstrap):
+            idx = rng.integers(0, n, size=n)
+            sample = df.iloc[idx].reset_index(drop=True)
+            try:
+                pt, *_ = _ipw_msm_contrast(
+                    sample,
+                    treatments=treatments,
+                    confounders_by_time=confounders_by_time,
+                    outcome=outcome,
+                    strategy_treated=float(strategy_treated),
+                    strategy_control=float(strategy_control),
+                    stabilized=stabilized,
+                )
+            except (ValueError, np.linalg.LinAlgError):
+                pt = np.nan
+            draws[i] = pt
+        draws = draws[np.isfinite(draws)]
+        if len(draws) > 0:
+            alpha = (1 - ci_level) / 2
+            ci_lower = float(np.quantile(draws, alpha))
+            ci_upper = float(np.quantile(draws, 1 - alpha))
+
+    assumptions = (
+        "sequential_exchangeability_no_unmeasured_time_varying_confounding",
+        "positivity_each_treatment_level_observed_within_history_strata",
+        "consistency_well_defined_sustained_treatment_strategy",
+        # The price of IPW-MSM (vs the g-formula's outcome/transition models):
+        "correct_specification_of_treatment_propensity_models",
+        "marginal_structural_model_additive_no_treatment_time_interaction",
+    )
+
+    return LongitudinalIPWMSMEstimate(
+        point=float(point),
+        ci_lower=ci_lower,
+        ci_upper=ci_upper,
+        ci_level=ci_level,
+        method="longitudinal_ipw_msm",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        treatments=treatments,
+        confounders_by_time=confounders_by_time,
+        outcome=outcome,
+        strategy_treated=float(strategy_treated),
+        strategy_control=float(strategy_control),
+        stabilized=stabilized,
+        e_y_treated=float(e1),
+        e_y_control=float(e0),
+        msm_coefficients=tuple(float(b) for b in betas),
+        weight_mean=float(w_mean),
+        weight_max=float(w_max),
+        n_bootstrap=ci_bootstrap,
+    )
+
+
 # --- internals ----------------------------------------------------------------
 
 
@@ -455,3 +637,100 @@ def _bootstrap_ci(
     lo = float(np.quantile(estimates, alpha))
     hi = float(np.quantile(estimates, 1 - alpha))
     return lo, hi
+
+
+# --- IPW-MSM internals --------------------------------------------------------
+
+_PROP_EPS = 1e-6  # clip propensities off {0,1} so the IP weight stays finite
+
+
+def _propensity_p1(df: pd.DataFrame, target: str, features: list[str]) -> np.ndarray:
+    """P(target=1 | features) for every row. Empty features → the marginal
+    proportion (an intercept-only model). Probabilities are clipped to
+    ``[eps, 1-eps]`` so a reciprocal in the IP weight can't blow up."""
+    n = len(df)
+    a = df[target].to_numpy(dtype=float)
+    if not features:
+        p = np.full(n, float(a.mean()))
+    else:
+        X = _to_float_matrix(df, features)
+        y = a.astype(int)
+        if len(np.unique(y)) < 2:
+            # Degenerate arm in this (bootstrap) frame — fall back to the
+            # marginal so the weight stays defined rather than raising.
+            p = np.full(n, float(a.mean()))
+        else:
+            clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+            clf.fit(X, y)
+            p = clf.predict_proba(X)[:, 1]
+    return np.clip(p, _PROP_EPS, 1.0 - _PROP_EPS)
+
+
+def _ip_weights(
+    df: pd.DataFrame,
+    *,
+    treatments: tuple[str, ...],
+    confounders_by_time: tuple[tuple[str, ...], ...],
+    stabilized: bool,
+) -> np.ndarray:
+    """Per-subject IP-of-treatment weight, the product over time of
+    numerator/denominator (stabilized) or 1/denominator (unstabilized).
+
+    Denominator at time k: P(A_k = a_k | L_0..L_k, A_0..A_{k-1}) — the full
+    time-varying history before A_k. Numerator (stabilized): P(A_k = a_k |
+    A_0..A_{k-1}) — past treatment only, so the marginal treatment process
+    cancels and the MSM stays fully marginal (only the treatments enter).
+    """
+    n = len(df)
+    num = np.ones(n)
+    den = np.ones(n)
+    history: list[str] = []
+    for k in range(len(treatments)):
+        # L_k is measured before A_k → part of the denominator history.
+        history.extend(confounders_by_time[k])
+        a_k = df[treatments[k]].to_numpy(dtype=float)
+        p_den = _propensity_p1(df, treatments[k], list(history))
+        den *= np.where(a_k == 1.0, p_den, 1.0 - p_den)
+        if stabilized:
+            past_treatments = [treatments[j] for j in range(k)]
+            p_num = _propensity_p1(df, treatments[k], past_treatments)
+            num *= np.where(a_k == 1.0, p_num, 1.0 - p_num)
+        history.append(treatments[k])
+    return (num / den) if stabilized else (1.0 / den)
+
+
+def _ipw_msm_contrast(
+    df: pd.DataFrame,
+    *,
+    treatments: tuple[str, ...],
+    confounders_by_time: tuple[tuple[str, ...], ...],
+    outcome: str,
+    strategy_treated: float,
+    strategy_control: float,
+    stabilized: bool,
+) -> tuple[float, float, float, np.ndarray, float, float]:
+    """Fit the propensities, weight, and fit the weighted marginal
+    structural mean model. Returns
+    ``(contrast, e_y_treated, e_y_control, betas, weight_mean, weight_max)``.
+    """
+    w = _ip_weights(
+        df, treatments=treatments,
+        confounders_by_time=confounders_by_time, stabilized=stabilized,
+    )
+    # Marginal structural mean model: E[Y_{ā}] = β0 + Σ_k β_k·a_k, fit by
+    # weighted least squares (numpy normal equations via the sqrt-weight
+    # trick — no statsmodels, to keep the native footprint small).
+    n = len(df)
+    a_cols = [df[t].to_numpy(dtype=float) for t in treatments]
+    design = np.column_stack([np.ones(n), *a_cols])
+    y = df[outcome].to_numpy(dtype=float)
+    sw = np.sqrt(w)
+    betas, *_ = np.linalg.lstsq(design * sw[:, None], y * sw, rcond=None)
+    beta0 = betas[0]
+    beta_treat = betas[1:]  # per-time treatment coefficients
+    sum_beta = float(np.sum(beta_treat))
+    e_y_treated = float(beta0 + strategy_treated * sum_beta)
+    e_y_control = float(beta0 + strategy_control * sum_beta)
+    contrast = (strategy_treated - strategy_control) * sum_beta
+    return (float(contrast), e_y_treated, e_y_control, betas,
+            float(np.mean(w)), float(np.max(w)))

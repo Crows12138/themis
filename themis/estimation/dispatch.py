@@ -148,8 +148,27 @@ def _maybe_estimate_longitudinal(
     if target is None:
         return
 
-    from .longitudinal import estimate_longitudinal_gformula
+    from .longitudinal import (
+        estimate_longitudinal_gformula,
+        estimate_longitudinal_ipw_msm,
+    )
     from .dose_response import EstimatorFailure
+
+    estimator = spec.get("estimator", "gformula")
+    if estimator not in ("gformula", "ipw_msm"):
+        target["estimator_failure"] = {
+            "estimator": "longitudinal",
+            "failure_type": "unknown",
+            "reason": (
+                f"options.longitudinal.estimator must be 'gformula' or "
+                f"'ipw_msm', got {estimator!r}"
+            ),
+        }
+        return
+    method_name = (
+        "longitudinal_gformula" if estimator == "gformula"
+        else "longitudinal_ipw_msm"
+    )
 
     kwargs = {
         "treatments": tuple(treatments),
@@ -162,14 +181,19 @@ def _maybe_estimate_longitudinal(
         kwargs["strategy_treated"] = spec["strategy_treated"]
     if "strategy_control" in spec:
         kwargs["strategy_control"] = spec["strategy_control"]
-    if "n_sim" in spec:
+    if estimator == "gformula" and "n_sim" in spec:
         kwargs["n_sim"] = int(spec["n_sim"])
+    if estimator == "ipw_msm" and "stabilized" in spec:
+        kwargs["stabilized"] = bool(spec["stabilized"])
 
     try:
-        est = estimate_longitudinal_gformula(contract.data, **kwargs)
+        if estimator == "gformula":
+            est = estimate_longitudinal_gformula(contract.data, **kwargs)
+        else:
+            est = estimate_longitudinal_ipw_msm(contract.data, **kwargs)
     except EstimatorFailure as exc:
         target["estimator_failure"] = {
-            "estimator": "longitudinal_gformula",
+            "estimator": method_name,
             "failure_type": (
                 exc.failure_type
                 if exc.failure_type in ("overlap_insufficient",
@@ -181,13 +205,13 @@ def _maybe_estimate_longitudinal(
         return
     except (ValueError, KeyError) as exc:
         target["estimator_failure"] = {
-            "estimator": "longitudinal_gformula",
+            "estimator": method_name,
             "failure_type": "unknown",
             "reason": str(exc),
         }
         return
 
-    target["numeric_estimate"] = {
+    numeric_estimate = {
         "point": est.point,
         "ci_lower": est.ci_lower,
         "ci_upper": est.ci_upper,
@@ -198,7 +222,9 @@ def _maybe_estimate_longitudinal(
         "data_hash": est.data_hash,
         "treatment": ",".join(est.treatments),
         "outcome": est.outcome,
-        "longitudinal_gformula": {
+    }
+    if estimator == "gformula":
+        numeric_estimate["longitudinal_gformula"] = {
             "point": est.point,
             "ci_lower": est.ci_lower,
             "ci_upper": est.ci_upper,
@@ -211,8 +237,26 @@ def _maybe_estimate_longitudinal(
             "e_y_control": est.e_y_control,
             "n_sim": est.n_sim,
             "n_bootstrap": est.n_bootstrap,
-        },
-    }
+        }
+    else:
+        numeric_estimate["longitudinal_ipw_msm"] = {
+            "point": est.point,
+            "ci_lower": est.ci_lower,
+            "ci_upper": est.ci_upper,
+            "treatments": list(est.treatments),
+            "confounders_by_time": [list(b) for b in est.confounders_by_time],
+            "outcome": est.outcome,
+            "strategy_treated": est.strategy_treated,
+            "strategy_control": est.strategy_control,
+            "e_y_treated": est.e_y_treated,
+            "e_y_control": est.e_y_control,
+            "stabilized": est.stabilized,
+            "msm_coefficients": list(est.msm_coefficients),
+            "weight_mean": est.weight_mean,
+            "weight_max": est.weight_max,
+            "n_bootstrap": est.n_bootstrap,
+        }
+    target["numeric_estimate"] = numeric_estimate
     _attach_precision_budget(target["numeric_estimate"])
 
 
@@ -321,7 +365,9 @@ def _estimate_effect_queries(
         # — that static adjustment is exactly the biased estimator the
         # g-formula exists to replace when a confounder is affected by past
         # treatment.
-        if (result.get("numeric_estimate") or {}).get("method") == "longitudinal_gformula":
+        if (result.get("numeric_estimate") or {}).get("method") in (
+            "longitudinal_gformula", "longitudinal_ipw_msm",
+        ):
             continue
         dose_response_triggered = q_stmt.id in dose_response_query_ids
         # Joint interventions: do(A=a, B=b, ...) over a treatment SET —

@@ -66,6 +66,15 @@ Landed scope:
   affected by past treatment — the structure where ordinary
   regression adjustment is biased. Binary treatment, K time points,
   percentile-bootstrap CI.
+  An INDEPENDENT route to the same estimand —
+  ``estimate_longitudinal_ipw_msm`` returning
+  ``LongitudinalIPWMSMEstimate`` — fits the TREATMENT process instead of
+  the covariate/outcome models: per-time propensity models supply IP-of-
+  treatment weights (stabilized by default), then a weighted marginal
+  structural mean model E[Y_{ā}] = β0 + Σ_k β_k·a_k gives the strategy
+  contrast (Robins 2000; Hernán & Robins ch.12/17). Misspecified in a
+  different way than the g-formula, so agreement between the two is strong
+  evidence the estimate is right.
 - Phase 8.1 — discovery: ``discover_graph`` (PC / FCI / LiNGAM via
   causal-learn) returning ``DiscoveryResult`` +
   ``discovery_to_kernel_ast`` adapter
@@ -116,7 +125,9 @@ from .iv import IVEstimate, estimate_iv_ate
 from .joint import JointEffectEstimate, estimate_joint_effect
 from .longitudinal import (
     LongitudinalGFormulaEstimate,
+    LongitudinalIPWMSMEstimate,
     estimate_longitudinal_gformula,
+    estimate_longitudinal_ipw_msm,
 )
 from .mediation import (
     CDEChainEstimate,
@@ -156,6 +167,7 @@ __all__ = [
     "IVEstimate",
     "JointEffectEstimate",
     "LongitudinalGFormulaEstimate",
+    "LongitudinalIPWMSMEstimate",
     "MediationEstimate",
     "OVBBenchmark",
     "OVBSensitivity",
@@ -178,6 +190,7 @@ __all__ = [
     "estimate_iv_ate",
     "estimate_joint_effect",
     "estimate_longitudinal_gformula",
+    "estimate_longitudinal_ipw_msm",
     "estimate_mediation",
     "estimate_ovb_sensitivity",
     "estimate_tmle_ate",
