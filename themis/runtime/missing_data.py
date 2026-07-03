@@ -338,3 +338,123 @@ def analyze_missing_data(
     m_graph, r_of_var = build_m_graph(base_graph, indicators)
     mechanism = classify_missingness(m_graph, r_of_var, list(base_graph.nodes))
     return recover_query(m_graph, y_list, x_list, r_of_var, mechanism, max_cond)
+
+
+# ================================================= full-estimand combination
+
+
+@dataclass(frozen=True)
+class EstimandRecoveryResult:
+    """Recoverability of the full back-door g-formula estimand
+
+        P(Y | do(X)[, C]) = Σ_z P(Y | X, C, Z=z) · P(Z=z | C)
+
+    from missing data. The interventional distribution is a PRODUCT of two
+    manifest factors — the adjusted conditional and the covariate marginal —
+    so by the factor-by-factor logic of Mohan-Pearl-Tian (2013 §4) it is
+    recoverable iff BOTH factors are recoverable. The scheduler already
+    recovered the conditional; this adds the marginal P(Z | C) that the
+    original slice flagged as the missing piece: a self-masking confounder
+    (Z → R_Z) leaves the conditional P(Y|X,Z) recoverable yet makes P(Z)
+    — and therefore the whole estimand — unrecoverable.
+
+    ``covariate`` is None when the adjustment set Z is empty (no marginal to
+    recover — the estimand collapses to the bare conditional).
+    """
+    estimand_repr: str
+    mechanism: str
+    recoverable: bool
+    conditional: MissingDataRecoveryResult
+    covariate: MissingDataRecoveryResult | None
+    adjustment_set: tuple[Atom, ...]
+    formula_repr: str
+    failure_reason: str | None = None
+
+
+def _estimand_repr(y: Atom, x: Atom, given) -> str:
+    given = list(given)
+    if given:
+        return f"P({y.predicate} | do({x.predicate}), {_names(given)})"
+    return f"P({y.predicate} | do({x.predicate}))"
+
+
+def _rhs(formula_repr: str) -> str:
+    """The right-hand side of a ``TARGET = RHS`` recovery formula."""
+    return formula_repr.split(" = ", 1)[1] if " = " in formula_repr else formula_repr
+
+
+def analyze_missing_data_estimand(
+    base_graph: nx.DiGraph,
+    indicators,
+    y: Atom,
+    x: Atom,
+    given=(),
+    z=(),
+    max_cond: int = 4,
+) -> EstimandRecoveryResult:
+    """Recover the full back-door g-formula estimand P(Y | do(X)[, C]) from
+    missing data by combining the two manifest factors.
+
+    ``y``/``x`` are single atoms; ``given`` (C) the query conditioning; ``z``
+    the already-chosen back-door adjustment set (graph atoms). Builds the
+    m-graph once, classifies the mechanism, then recovers via ordered
+    factorization (a) the adjusted conditional P(Y | X, C, Z) and (b) the
+    covariate marginal P(Z | C). The estimand is recoverable iff both are;
+    ``covariate`` is None (and ignored) when Z is empty.
+    """
+    m_graph, r_of_var = build_m_graph(base_graph, indicators)
+    mechanism = classify_missingness(m_graph, r_of_var, list(base_graph.nodes))
+
+    given_list = list(given)
+    z_list = list(z)
+
+    conditional = recover_query(
+        m_graph, [y], [x, *given_list, *z_list], r_of_var, mechanism, max_cond,
+    )
+    covariate: MissingDataRecoveryResult | None = None
+    if z_list:
+        covariate = recover_query(
+            m_graph, z_list, given_list, r_of_var, mechanism, max_cond,
+        )
+
+    cov_ok = covariate is None or covariate.recoverable
+    recoverable = conditional.recoverable and cov_ok
+    estimand = _estimand_repr(y, x, given_list)
+
+    if recoverable:
+        if covariate is None:
+            formula = f"{estimand} = {_rhs(conditional.formula_repr)}"
+        else:
+            zsub = _names(z_list)
+            formula = (
+                f"{estimand} = Σ_{{{zsub}}} "
+                f"{_rhs(conditional.formula_repr)} · {_rhs(covariate.formula_repr)}"
+            )
+        failure = None
+    else:
+        formula = ""
+        parts = []
+        if not conditional.recoverable:
+            parts.append("the adjusted conditional P(Y|X,Z) is not recoverable")
+        if covariate is not None and not covariate.recoverable:
+            parts.append(
+                "the covariate marginal P(Z) is not recoverable (e.g. a "
+                "self-masking confounder Z→R_Z)"
+            )
+        failure = (
+            "; ".join(parts)
+            + ". The interventional estimand is a product of both factors, so "
+            "either factor failing blocks it. Not recoverable via ordered "
+            "factorization — not a proof of non-recoverability."
+        )
+
+    return EstimandRecoveryResult(
+        estimand_repr=estimand,
+        mechanism=mechanism,
+        recoverable=recoverable,
+        conditional=conditional,
+        covariate=covariate,
+        adjustment_set=_sorted_atoms(z_list),
+        formula_repr=formula,
+        failure_reason=failure,
+    )

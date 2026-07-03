@@ -4024,7 +4024,13 @@ def _attach_selection_recovery(
 
 
 def _serialize_missing_data_recovery(rec) -> dict:
-    """Serialize a MissingDataRecoveryResult to the JSON extension block."""
+    """Serialize a MissingDataRecoveryResult to the JSON extension block.
+
+    Describes the ADJUSTED CONDITIONAL P(Y | X, given, Z) — the top-level
+    keys are backward-compatible with the original slice. The full-estimand
+    verdict (which also needs P(Z) recoverable) lives under ``estimand``,
+    attached by ``_attach_missing_data_recovery``.
+    """
     return {
         "kind": "missing_data_recovery",
         "target": rec.target_repr,
@@ -4044,6 +4050,22 @@ def _serialize_missing_data_recovery(rec) -> dict:
     }
 
 
+def _serialize_covariate_recovery(rec) -> dict | None:
+    """Serialize the covariate-marginal P(Z) recovery (None if Z is empty)."""
+    if rec is None:
+        return None
+    return {
+        "target": rec.target_repr,
+        "recoverable": rec.recoverable,
+        "factorization": [
+            {"factor": yi.predicate, "conditioned_on": [a.predicate for a in xi]}
+            for yi, xi in rec.factorization
+        ],
+        "recovery_formula": rec.formula_repr,
+        "failure_reason": rec.failure_reason,
+    }
+
+
 def _attach_missing_data_recovery(
     program: Program | None,
     stmt: QueryStatement | None,
@@ -4055,16 +4077,22 @@ def _attach_missing_data_recovery(
 
     Fires for an EffectQuery when the program declares at least one
     ``MissingnessIndicator``. It classifies the mechanism (MCAR/MAR/MNAR)
-    and decides whether the estimand's observational conditional
-    P(Y | X, given, Z) is recoverable from the missing data — where Z is a
-    smallest back-door adjustment set for (X, Y) when one exists (the
-    g-formula conditioning), otherwise just X and the query's `given`.
-    Recovering the full causal estimand also needs P(Z) recoverable; that
-    multi-factor combination is the next slice.
+    and decides whether the full back-door g-formula estimand
+
+        P(Y | do(X), given) = Σ_z P(Y | X, given, Z=z) · P(Z=z | given)
+
+    is recoverable — where Z is a smallest back-door adjustment set for
+    (X, Y). The interventional distribution is a PRODUCT of two manifest
+    factors, so it is recoverable iff BOTH the adjusted conditional
+    P(Y|X,given,Z) AND the covariate marginal P(Z|given) are recoverable
+    (Mohan-Pearl-Tian 2013 §4). The top-level block describes the
+    conditional (backward-compatible); the ``estimand`` sub-block carries
+    the combined multi-factor verdict, and ``covariate_recovery`` the P(Z)
+    factor (null when Z is empty).
     """
     from dataclasses import replace as _replace
     from ..types import EffectQuery, MissingnessIndicator
-    from .missing_data import analyze_missing_data
+    from .missing_data import analyze_missing_data_estimand
 
     if program is None or stmt is None:
         return result
@@ -4091,9 +4119,20 @@ def _attach_missing_data_recovery(
             z = tuple(sorted(min(adj_sets, key=len), key=lambda a: a.predicate))
     except Exception:
         z = ()
-    x_list = [x, *given, *z]
-    rec = analyze_missing_data(graph, indicators, [y], x_list)
-    block = _serialize_missing_data_recovery(rec)
+    est = analyze_missing_data_estimand(graph, indicators, y, x, given=given, z=z)
+    block = _serialize_missing_data_recovery(est.conditional)
+    block["adjustment_set"] = [a.predicate for a in est.adjustment_set]
+    block["covariate_recovery"] = _serialize_covariate_recovery(est.covariate)
+    block["estimand"] = {
+        "target": est.estimand_repr,
+        "recoverable": est.recoverable,
+        "recovery_formula": est.formula_repr,
+        "requires": (
+            ["conditional P(Y|X,Z)", "covariate P(Z)"]
+            if est.covariate is not None else ["conditional P(Y|X)"]
+        ),
+        "failure_reason": est.failure_reason,
+    }
     new_ext = dict(result.extensions or {})
     new_ext["missing_data_recovery"] = block
     return _replace(result, extensions=new_ext)

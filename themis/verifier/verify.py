@@ -1022,6 +1022,12 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     low-level structural primitives, NOT by importing the producer's
     missing_data module. It then checks the block's mechanism,
     recoverability verdict, and recovery formula match the re-derivation.
+
+    When the block carries the multi-factor sub-blocks (``covariate_recovery``
+    / ``estimand``), it also independently re-derives the covariate marginal
+    P(Z | given) recovery and the combined interventional estimand verdict
+    (recoverable iff BOTH the conditional and the covariate factor are), and
+    checks those too. A bare conditional-only block skips that section.
     """
     import networkx as nx
     from itertools import combinations, permutations
@@ -1095,7 +1101,7 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     x_list = [x, *given, *z]
     y_list = [y]
 
-    # --- re-search the ordered factorization ---
+    # --- re-search the ordered factorization (reusable for any factor) ---
     def _pick_xi(yi, later):
         later_list = list(later)
         later_set = set(later_list)
@@ -1110,31 +1116,20 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
                     return tuple(sorted(xi, key=lambda a: a.predicate))
         return None
 
-    factors = None
-    for order in permutations(y_list):
-        acc = []
-        ok = True
-        for i, yi in enumerate(order):
-            later = list(order[i + 1:]) + list(x_list)
-            xi = _pick_xi(yi, later)
-            if xi is None:
-                ok = False
-                break
-            acc.append((yi, xi))
-        if ok:
-            factors = acc
-            break
-
-    recoverable = factors is not None
-    if recoverable != block["recoverable"]:
-        _err(
-            f"recoverable: recomputed {recoverable}, recorded "
-            f"{block['recoverable']}"
-        )
-
-    # --- re-derive the formula and compare (recoverable case) ---
-    if not recoverable:
-        return
+    def _search(yl, xl):
+        for order in permutations(yl):
+            acc = []
+            ok = True
+            for i, yi in enumerate(order):
+                later = list(order[i + 1:]) + list(xl)
+                xi = _pick_xi(yi, later)
+                if xi is None:
+                    ok = False
+                    break
+                acc.append((yi, xi))
+            if ok:
+                return acc
+        return None
 
     def _factor_repr(yi, xi):
         w_i = [yi, *xi]
@@ -1149,19 +1144,93 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
             return f"P({inside} | {r_names})"
         return f"P({inside})"
 
-    ynames = ", ".join(a.predicate for a in y_list)
-    xnames = ", ".join(a.predicate for a in x_list)
-    target = f"P({ynames} | {xnames})" if x_list else f"P({ynames})"
-    factor_strs = [_factor_repr(yi, xi) for yi, xi in factors]
-    if len(factor_strs) == 1 and not x_list and len(y_list) == 1:
-        formula = f"{target} = {factor_strs[0]}"
-    else:
-        formula = f"{target} = " + " · ".join(factor_strs)
-    if formula != block["recovery_formula"]:
+    def _formula_of(yl, xl, factors):
+        ynames = ", ".join(a.predicate for a in yl)
+        xnames = ", ".join(a.predicate for a in xl)
+        target = f"P({ynames} | {xnames})" if xl else f"P({ynames})"
+        factor_strs = [_factor_repr(yi, xi) for yi, xi in factors]
+        if len(factor_strs) == 1 and not xl and len(yl) == 1:
+            return f"{target} = {factor_strs[0]}"
+        return f"{target} = " + " · ".join(factor_strs)
+
+    def _rhs(f):
+        return f.split(" = ", 1)[1] if " = " in f else f
+
+    # --- conditional P(Y | X, given, Z) ---
+    cond_factors = _search(y_list, x_list)
+    cond_recoverable = cond_factors is not None
+    if cond_recoverable != block["recoverable"]:
         _err(
-            f"recovery_formula: recomputed {formula!r}, recorded "
-            f"{block['recovery_formula']!r}"
+            f"recoverable: recomputed {cond_recoverable}, recorded "
+            f"{block['recoverable']}"
         )
+    if cond_recoverable:
+        cond_formula = _formula_of(y_list, x_list, cond_factors)
+        if cond_formula != block["recovery_formula"]:
+            _err(
+                f"recovery_formula: recomputed {cond_formula!r}, recorded "
+                f"{block['recovery_formula']!r}"
+            )
+
+    # --- covariate marginal P(Z | given) + full-estimand combination ---
+    # Only when the block carries the multi-factor sub-blocks (the real
+    # scheduler path always does; a bare conditional-only block skips this).
+    if "estimand" in block or block.get("covariate_recovery") is not None:
+        z_list = list(z)
+        cov_factors = None
+        cov_recoverable = True            # empty Z ⇒ nothing to recover
+        if z_list:
+            cov_factors = _search(z_list, list(given))
+            cov_recoverable = cov_factors is not None
+
+        cov_block = block.get("covariate_recovery")
+        if z_list:
+            if cov_block is None:
+                _err("covariate_recovery: Z non-empty but block is null")
+            if cov_recoverable != cov_block["recoverable"]:
+                _err(
+                    f"covariate recoverable: recomputed {cov_recoverable}, "
+                    f"recorded {cov_block['recoverable']}"
+                )
+            if cov_recoverable:
+                cov_formula = _formula_of(z_list, list(given), cov_factors)
+                if cov_formula != cov_block["recovery_formula"]:
+                    _err(
+                        f"covariate recovery_formula: recomputed "
+                        f"{cov_formula!r}, recorded "
+                        f"{cov_block['recovery_formula']!r}"
+                    )
+        elif cov_block is not None:
+            _err("covariate_recovery: empty Z but a block was recorded")
+
+        # estimand = conditional × covariate: recoverable iff both are.
+        est_recoverable = cond_recoverable and cov_recoverable
+        est_block = block.get("estimand")
+        if est_block is not None:
+            if est_recoverable != est_block["recoverable"]:
+                _err(
+                    f"estimand recoverable: recomputed {est_recoverable}, "
+                    f"recorded {est_block['recoverable']}"
+                )
+            if est_recoverable:
+                gnames = ", ".join(a.predicate for a in given)
+                estimand = (
+                    f"P({y.predicate} | do({x.predicate}), {gnames})"
+                    if given else f"P({y.predicate} | do({x.predicate}))"
+                )
+                cond_rhs = _rhs(_formula_of(y_list, x_list, cond_factors))
+                if z_list:
+                    cov_rhs = _rhs(_formula_of(z_list, list(given), cov_factors))
+                    zsub = ", ".join(a.predicate for a in z_list)
+                    est_formula = f"{estimand} = Σ_{{{zsub}}} {cond_rhs} · {cov_rhs}"
+                else:
+                    est_formula = f"{estimand} = {cond_rhs}"
+                if est_formula != est_block["recovery_formula"]:
+                    _err(
+                        f"estimand recovery_formula: recomputed "
+                        f"{est_formula!r}, recorded "
+                        f"{est_block['recovery_formula']!r}"
+                    )
 
 
 def verify_effect_structural(

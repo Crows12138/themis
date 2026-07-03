@@ -369,3 +369,179 @@ def test_verifier_rejects_tampered_formula():
     block["recovery_formula"] = "P(y | x) = P(y | x)"
     with pytest.raises(VerificationError):
         verify_missing_data_recovery(block, g, ind, _query())
+
+
+# ==================================================== full-estimand (P(Z))
+#
+# analyze_missing_data_estimand combines the adjusted conditional
+# P(Y|X,Z) with the covariate marginal P(Z): the interventional estimand
+# P(Y|do(X)) = Σ_z P(Y|X,Z)·P(Z) is a product of two manifest factors, so
+# it is recoverable iff BOTH are. The crux is the self-masking confounder:
+# the conditional stays recoverable while P(Z) does not.
+
+from themis.runtime.missing_data import (  # noqa: E402
+    EstimandRecoveryResult,
+    analyze_missing_data_estimand,
+)
+
+
+def test_estimand_confounder_drives_missingness_recoverable():
+    """Z→X, Z→Y, X→Y, Z→R_y. Z is fully observed; the conditional and the
+    marginal P(Z) are both recoverable ⇒ the full estimand is."""
+    g = _graph([("z", "x"), ("z", "y"), ("x", "y")])
+    ind = [_mi("y", caused_by=("z",))]
+    est = analyze_missing_data_estimand(g, ind, A("y"), A("x"), given=(), z=(A("z"),))
+    assert isinstance(est, EstimandRecoveryResult)
+    assert est.mechanism == "MAR"
+    assert est.conditional.recoverable is True
+    assert est.covariate is not None and est.covariate.recoverable is True
+    assert est.recoverable is True
+    assert est.failure_reason is None
+    assert est.formula_repr == (
+        "P(y | do(x)) = Σ_{z} P(y | x, z, R_y=0) · P(z)"
+    )
+
+
+def test_estimand_self_masking_confounder_conditional_ok_marginal_not():
+    """Z→X, Z→Y, X→Y with a SELF-MASKING confounder Z→R_z. Conditioning on
+    Z blocks the conditional's target from R_z ⇒ P(Y|X,Z) IS recoverable,
+    but P(Z) is not (self-masking) ⇒ the full estimand is NOT. This is the
+    whole reason to check P(Z) separately."""
+    g = _graph([("z", "x"), ("z", "y"), ("x", "y")])
+    ind = [_mi("z", caused_by=("z",))]
+    est = analyze_missing_data_estimand(g, ind, A("y"), A("x"), given=(), z=(A("z"),))
+    assert est.conditional.recoverable is True
+    assert est.covariate is not None and est.covariate.recoverable is False
+    assert est.recoverable is False
+    assert "P(Z)" in est.failure_reason
+    assert est.formula_repr == ""
+
+
+def test_estimand_no_adjustment_covariate_none():
+    """No back-door adjustment needed ⇒ the estimand collapses to the bare
+    conditional; there is no marginal to recover."""
+    g = _graph([("x", "y")])
+    est = analyze_missing_data_estimand(g, [_mi("y")], A("y"), A("x"), given=(), z=())
+    assert est.covariate is None
+    assert est.recoverable is True
+    assert est.formula_repr == "P(y | do(x)) = P(y | x, R_y=0)"
+
+
+def test_estimand_result_frozen():
+    g = _graph([("z", "x"), ("z", "y"), ("x", "y")])
+    est = analyze_missing_data_estimand(
+        g, [_mi("y", caused_by=("z",))], A("y"), A("x"), given=(), z=(A("z"),)
+    )
+    with pytest.raises(Exception):
+        est.recoverable = False  # type: ignore[misc]
+
+
+# ---- end-to-end: the run() block carries the estimand sub-blocks ----
+
+
+def test_e2e_estimand_block_recoverable_via_backdoor_marginal():
+    prog = _program([
+        _var("x"), _var("y"), _var("z"),
+        _edge("z", "x"), _edge("z", "y"), _edge("x", "y"),
+        _indicator("y", caused_by=("z",)),
+        _effect_query(),
+    ])
+    block = _md_block(run(prog))
+    assert block["adjustment_set"] == ["z"]
+    assert block["covariate_recovery"] is not None
+    assert block["covariate_recovery"]["recoverable"] is True
+    assert block["estimand"]["recoverable"] is True
+    assert block["estimand"]["target"] == "P(y | do(x))"
+    assert block["estimand"]["requires"] == [
+        "conditional P(Y|X,Z)", "covariate P(Z)",
+    ]
+
+
+def test_e2e_self_masking_confounder_estimand_not_recoverable():
+    prog = _program([
+        _var("x"), _var("y"), _var("z"),
+        _edge("z", "x"), _edge("z", "y"), _edge("x", "y"),
+        _indicator("z", caused_by=("z",)),
+        _effect_query(),
+    ])
+    block = _md_block(run(prog))
+    assert block["recoverable"] is True                       # conditional
+    assert block["covariate_recovery"]["recoverable"] is False
+    assert block["estimand"]["recoverable"] is False
+    assert block["estimand"]["failure_reason"] is not None
+
+
+def test_e2e_mcar_estimand_covariate_null():
+    prog = _program([
+        _var("x"), _var("y"), _edge("x", "y"), _indicator("y"), _effect_query(),
+    ])
+    block = _md_block(run(prog))
+    assert block["adjustment_set"] == []
+    assert block["covariate_recovery"] is None
+    assert block["estimand"]["recoverable"] is True
+
+
+# ---- verifier independently re-derives the estimand combination ----
+
+from themis.kernel import _to_ast, validate_ast, validate_program  # noqa: E402
+from themis.runtime.instantiation import instantiate  # noqa: E402
+from themis.runtime.graph_projection import project  # noqa: E402
+from themis.types import QueryStatement as _QueryStatement  # noqa: E402
+
+
+def _rich_block_and_ctx(prog):
+    """Real run() block + reconstructed (graph, indicators, query) for the
+    independent verifier — mirrors the kernel.verify wiring."""
+    out = run(prog)
+    p = validate_program(validate_ast(_to_ast(prog)))
+    graph = project(instantiate(p))
+    inds = [s for s in p.statements if isinstance(s, MissingnessIndicator)]
+    qstmt = [s for s in p.statements if isinstance(s, _QueryStatement)][0]
+    block = out["results"][0]["extensions"]["missing_data_recovery"]
+    return block, graph, inds, qstmt.query
+
+
+_CONFOUNDER_PROG = _program([
+    _var("x"), _var("y"), _var("z"),
+    _edge("z", "x"), _edge("z", "y"), _edge("x", "y"),
+    _indicator("y", caused_by=("z",)),
+    _effect_query(),
+])
+_SELFMASK_PROG = _program([
+    _var("x"), _var("y"), _var("z"),
+    _edge("z", "x"), _edge("z", "y"), _edge("x", "y"),
+    _indicator("z", caused_by=("z",)),
+    _effect_query(),
+])
+
+
+def test_verifier_accepts_truthful_estimand_block():
+    block, g, inds, q = _rich_block_and_ctx(_CONFOUNDER_PROG)
+    verify_missing_data_recovery(block, g, inds, q)  # no raise
+
+
+def test_verifier_accepts_truthful_unrecoverable_estimand_block():
+    block, g, inds, q = _rich_block_and_ctx(_SELFMASK_PROG)
+    assert block["estimand"]["recoverable"] is False
+    verify_missing_data_recovery(block, g, inds, q)  # no raise
+
+
+def test_verifier_rejects_false_estimand_recoverable_claim():
+    block, g, inds, q = _rich_block_and_ctx(_SELFMASK_PROG)
+    block["estimand"]["recoverable"] = True
+    with pytest.raises(VerificationError):
+        verify_missing_data_recovery(block, g, inds, q)
+
+
+def test_verifier_rejects_tampered_covariate_recoverable():
+    block, g, inds, q = _rich_block_and_ctx(_CONFOUNDER_PROG)
+    block["covariate_recovery"]["recoverable"] = False
+    with pytest.raises(VerificationError):
+        verify_missing_data_recovery(block, g, inds, q)
+
+
+def test_verifier_rejects_tampered_estimand_formula():
+    block, g, inds, q = _rich_block_and_ctx(_CONFOUNDER_PROG)
+    block["estimand"]["recovery_formula"] = "P(y | do(x)) = 42"
+    with pytest.raises(VerificationError):
+        verify_missing_data_recovery(block, g, inds, q)

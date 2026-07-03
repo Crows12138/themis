@@ -515,6 +515,7 @@ df)`, not from symbolic Theta.
 | `joint_backdoor_linear` / `joint_backdoor_logistic` | JOINT effect of intervening on the whole treatment vector at once — see §"Joint interventions" | "同时把 A、B 都设为 1（相对都为 0）让 Y 变化 X.X" |
 | `longitudinal_gformula` | effect of a time-varying treatment STRATEGY (always-treat vs never-treat) via the parametric g-formula; the `longitudinal_gformula` block carries the two strategy means and the time-ordered spec | "一直接受治疗（相对一直不治疗）让最终 Y 平均改变 X.X —— 用 g-formula 校正了被既往治疗影响的时变混杂" |
 | `longitudinal_ipw_msm` | same time-varying strategy contrast as `longitudinal_gformula`, but via an IPW marginal structural model (models the TREATMENT process instead of the outcome). The `longitudinal_ipw_msm` block carries the per-time MSM coefficients + the weight diagnostics (`weight_mean` should be ≈1 when stabilized; a large `weight_max` warns of a near-positivity violation). If BOTH a g-formula and an IPW-MSM estimate are present, note their agreement as corroboration — they are misspecified differently. | "一直接受治疗（相对一直不治疗）让 Y 平均改变 X.X —— 用 IPW 边际结构模型（校正时变混杂）；与 g-formula 结果相互印证。权重均值≈1、最大值 W 表明重叠尚可" |
+| `missing_data_recovery_gformula` | back-door ATE recovered from data that itself has MISSING values (§S9.2). The `recovered_ate` block estimates each g-formula factor from its OWN complete cases — the conditional E[Y\|X,Z] from rows with {Y,X,Z} observed, the marginal P(Z) from rows with {Z} observed — so under MAR it is unbiased where naive listwise deletion is not. Lead with `point`; then contrast `naive_listwise_ate` (the biased complete-case number) to show what the multi-factor recovery corrected. `n_conditional_rows` vs `n_marginal_rows` shows the two factor-specific complete-case sizes. This appears ONLY when identification found the estimand recoverable; otherwise there is a `not_recoverable` `estimator_failure` instead — do not fabricate a number. | "校正缺失后 ATE = X.X（对缺失数据做可恢复性校正：条件与 P(Z) 各用自己的完整样本估计）；若直接删缺失行得 Y.Y —— 那个数在 MAR 下有偏。缺失列：…" |
 | `aipw` | doubly-robust ATE (same scale as `backdoor_linear`); consistent if EITHER the outcome OR the propensity model is right — see §"Doubly-robust estimates" | "ATE = X.X（双稳健估计：结局模型或倾向模型任一设定正确即成立）" |
 | `tmle` | doubly-robust ATE via targeted substitution (same scale as `backdoor_linear`); like `aipw` but a bounded plug-in — see §"Doubly-robust estimates" | "ATE = X.X（TMLE 双稳健定标估计：结局或倾向任一设定正确即成立）" |
 | `ipw_stabilized` / `ipw_ht` | inverse-probability-weighted ATE (same scale as `backdoor_linear`); relies on the propensity model being correct — see §"Doubly-robust estimates" | "ATE = X.X（按倾向得分逆概率加权估计）" |
@@ -1045,23 +1046,32 @@ Two things to surface, in order:
    plainly — and if it is **MNAR**, say that the usual MAR-based fixes are
    not licensed here.
 
-2. **`recoverable`** for the analyzed conditional (`target`, e.g.
-   `P(y | x, z)` — the g-formula conditional, back-door set folded in):
-   - **true** — surface `recovery_formula`; the `R_·=0` factors say the
-     estimate is a *complete-case* computation on exactly those factors.
-     Note the striking case: an **MNAR** mechanism can still yield a
+2. **`estimand.recoverable`** — the HEADLINE verdict for the full causal
+   effect `P(Y | do(X)) = Σ_z P(Y|X,Z)·P(Z)`. The interventional
+   distribution is a *product* of two manifest factors, so it is
+   recoverable iff BOTH are: the adjusted conditional (top-level
+   `recoverable` / `recovery_formula`, e.g. `P(y|x,z)`) AND the covariate
+   marginal `covariate_recovery` (`P(z)`; `null` when no adjustment is
+   needed). Lead with `estimand.recoverable` and `estimand.recovery_formula`
+   (`… = Σ_z P(y|x,z,R=0)·P(z)`); the two sub-verdicts are the *why*.
+   - **conditional true, covariate false** — the striking multi-factor
+     case: an **MNAR** self-masking *confounder* (Z→R_Z) can leave the
+     conditional `P(Y|X,Z)` perfectly recoverable yet make `P(Z)` — and
+     therefore the whole effect — unrecoverable. Don't let a green
+     conditional imply a recoverable effect; the marginal is the gate.
+   - **true** — the `R_·=0` factors say each factor is a *complete-case*
+     computation. Note too that an MNAR mechanism can still yield a
      recoverable conditional (conditioning on the missingness driver blocks
      the target from its R) — MNAR is not automatically hopeless.
-   - **false** — surface `failure_reason`, and keep the same honesty as
-     §S9.1: "not recoverable via ordered factorization", **not** a proof of
-     impossibility. The canonical obstruction is **self-masking** (a
-     variable's own value drives its missingness, V→R_V) — name it when
-     `failure_reason` points there.
+   - **false** — surface `estimand.failure_reason`, and keep the same
+     honesty as §S9.1: "not recoverable via ordered factorization", **not**
+     a proof of impossibility. The canonical obstruction is **self-masking**
+     (a variable's own value drives its missingness, V→R_V).
 
-Scope caveat to carry: the block analyzes the observational conditional
-the estimand needs; recovering the *full* causal effect also needs the
-adjustment marginal P(Z) recoverable — flag that as the remaining check,
-don't imply the number is already in hand.
+When data is supplied (`themis.estimate`), the recoverable estimand is
+carried through to a NUMBER — see the `missing_data_recovery_gformula`
+numeric row below; when it is *not* recoverable the estimator refuses (a
+`not_recoverable` `estimator_failure`), never inventing a figure.
 
 ### Transport numeric — Phase 9 §T9.2 / iter 128
 

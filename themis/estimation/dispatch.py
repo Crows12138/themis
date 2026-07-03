@@ -62,6 +62,21 @@ def estimate_program(
     cluster = _resolve_cluster_option(program, cluster)
     ate_estimator = _resolve_ate_estimator_option(program, ate_estimator)
 
+    # Phase 9 §S9.2 numeric end: a program declaring missingness indicators
+    # carries NaN in its partially-observed columns, which the standard data
+    # contract (validate_data) forbids. Route it to the missing-data recovery
+    # estimator, which applies the ordered-factorization recovery formula and
+    # honours the identification verdict (only produces a number when the
+    # estimand is recoverable). Guarded on the indicator declaration, so
+    # ordinary (no-indicator) programs never reach here and are byte-identical.
+    if _declares_missingness(program):
+        _maybe_estimate_missing_recovery(
+            program, identification_output, data,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+        return identification_output
+
     required_columns = _collect_required_columns(program)
     if not required_columns:
         return identification_output
@@ -267,6 +282,147 @@ def _longitudinal_target_result(output: dict):
         if result.get("query_kind") == "effect":
             return result
     return results[0] if results else None
+
+
+def _declares_missingness(program: dict | str | bytes) -> bool:
+    """True iff the program declares ≥1 ``missingness_indicator`` statement."""
+    ast = _ensure_dict(program)
+    return any(
+        isinstance(s, dict) and s.get("kind") == "missingness_indicator"
+        for s in ast.get("statements", [])
+    )
+
+
+def _effect_treatment_outcome(
+    program: dict | str | bytes, query_id: str | None,
+) -> tuple[str | None, str | None]:
+    """Treatment / outcome predicates of the effect query with ``query_id``."""
+    ast = _ensure_dict(program)
+    for s in ast.get("statements", []):
+        if not isinstance(s, dict) or s.get("kind") != "query":
+            continue
+        if query_id is not None and s.get("id") != query_id:
+            continue
+        q = s.get("query") or {}
+        if q.get("kind") == "effect":
+            try:
+                return (
+                    q["intervention"]["atom"]["predicate"],
+                    q["target"]["atom"]["predicate"],
+                )
+            except (KeyError, TypeError):
+                return None, None
+    return None, None
+
+
+def _maybe_estimate_missing_recovery(
+    program: dict | str | bytes,
+    output: dict,
+    data: Any,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    cluster: str | None,
+) -> None:
+    """Attach the §S9.2 recovered-ATE numeric block (or a refusal).
+
+    Reads the ``missing_data_recovery`` identification block already on the
+    result: if its ``estimand`` is NOT recoverable, attaches a
+    ``not_recoverable`` ``estimator_failure`` (the kernel refuses to invent
+    a number identification says can't be recovered). If it IS recoverable,
+    calls ``estimate_recovered_ate`` with the identified back-door set and
+    attaches a ``recovered_ate`` numeric block — the conditional from
+    complete cases per factor, P(Z) from its own, so the estimate is
+    unbiased under MAR where naive listwise deletion is not.
+    """
+    from .missing_recovery import estimate_recovered_ate
+    from .dose_response import EstimatorFailure
+
+    target = None
+    block = None
+    for result in output.get("results", []):
+        ext = result.get("extensions") or {}
+        if "missing_data_recovery" in ext:
+            target = result
+            block = ext["missing_data_recovery"]
+            break
+    if target is None or block is None:
+        return
+
+    estimand = block.get("estimand") or {}
+    if not estimand.get("recoverable", False):
+        target["estimator_failure"] = {
+            "estimator": "missing_data_recovery",
+            "failure_type": "not_recoverable",
+            "reason": (
+                estimand.get("failure_reason")
+                or "the interventional estimand is not recoverable from this "
+                "missing-data pattern via ordered factorization; no number is "
+                "produced (Mohan-Pearl-Tian 2013)."
+            ),
+        }
+        return
+
+    treatment, outcome = _effect_treatment_outcome(
+        program, target.get("query_id")
+    )
+    if treatment is None or outcome is None:
+        return
+    adjustment = tuple(block.get("adjustment_set") or [])
+
+    try:
+        est = estimate_recovered_ate(
+            data, treatment=treatment, outcome=outcome, adjustment=adjustment,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+    except EstimatorFailure as exc:
+        target["estimator_failure"] = {
+            "estimator": "missing_data_recovery",
+            "failure_type": (
+                "overlap_insufficient"
+                if exc.failure_type == "insufficient_support" else "unknown"
+            ),
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, KeyError) as exc:
+        target["estimator_failure"] = {
+            "estimator": "missing_data_recovery",
+            "failure_type": "unknown",
+            "reason": str(exc),
+        }
+        return
+
+    numeric_estimate = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.n_total,
+        "data_hash": est.data_hash,
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "adjustment": list(est.adjustment),
+        "recovered_ate": {
+            "point": est.point,
+            "ci_lower": est.ci_lower,
+            "ci_upper": est.ci_upper,
+            "naive_listwise_ate": est.naive_listwise_ate,
+            "adjustment": list(est.adjustment),
+            "n_total": est.n_total,
+            "n_complete_case": est.n_complete_case,
+            "n_conditional_rows": est.n_conditional_rows,
+            "n_marginal_rows": est.n_marginal_rows,
+            "n_strata": est.n_strata,
+            "missing_columns": list(est.missing_columns),
+            "n_bootstrap": est.n_bootstrap,
+        },
+    }
+    target["numeric_estimate"] = numeric_estimate
+    _attach_precision_budget(target["numeric_estimate"])
 
 
 def _resolve_cluster_option(

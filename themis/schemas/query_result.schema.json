@@ -37,14 +37,14 @@
         },
         "missing_data_recovery": {
           "type": "object",
-          "description": "Phase 9 §S9.2: Mohan-Pearl-Tian recoverability from missing data. Attached to an effect result when the program declares ≥1 missingness_indicator. Classifies the mechanism (MCAR/MAR/MNAR) and decides whether the g-formula conditional P(Y | X, given, Z) — Z the back-door adjustment set — is recoverable from the missing data via an ordered factorization, with the complete-case recovery formula. recoverable=false means 'not via ordered factorization', not a proof of non-recoverability. Recovering the full causal estimand also needs P(Z) recoverable (next slice).",
-          "required": ["kind", "target", "mechanism", "recoverable", "partially_observed", "factorization", "recovery_formula", "failure_reason", "reference"],
+          "description": "Phase 9 §S9.2: Mohan-Pearl-Tian recoverability from missing data. Attached to an effect result when the program declares ≥1 missingness_indicator. Classifies the mechanism (MCAR/MAR/MNAR); the top-level keys describe the g-formula ADJUSTED CONDITIONAL P(Y | X, given, Z) — Z the back-door adjustment set — recovered from the missing data via an ordered factorization. The full interventional estimand P(Y | do(X)) = Σ_z P(Y|X,Z)·P(Z) is a product of two manifest factors, so it is recoverable iff BOTH the conditional AND the covariate marginal P(Z) are: the covariate_recovery sub-block carries the P(Z) verdict (null when Z is empty) and the estimand sub-block the combined multi-factor verdict. recoverable=false means 'not via ordered factorization', not a proof of non-recoverability.",
+          "required": ["kind", "target", "mechanism", "recoverable", "partially_observed", "factorization", "recovery_formula", "failure_reason", "reference", "adjustment_set", "covariate_recovery", "estimand"],
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "missing_data_recovery" },
             "target": { "type": "string", "description": "The conditional analyzed, e.g. 'P(y | x, z)'." },
             "mechanism": { "enum": ["MCAR", "MAR", "MNAR", "none"] },
-            "recoverable": { "type": "boolean" },
+            "recoverable": { "type": "boolean", "description": "Whether the ADJUSTED CONDITIONAL P(Y|X,given,Z) is recoverable. The full-estimand verdict is estimand.recoverable." },
             "partially_observed": { "type": "array", "items": { "type": "string" }, "description": "The substantive variables that are sometimes missing (V_m)." },
             "factorization": {
               "type": "array",
@@ -61,7 +61,45 @@
             },
             "recovery_formula": { "type": "string" },
             "failure_reason": { "type": ["string", "null"] },
-            "reference": { "type": "string" }
+            "reference": { "type": "string" },
+            "adjustment_set": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set Z whose marginal P(Z) the estimand also needs. Empty when no adjustment is required." },
+            "covariate_recovery": {
+              "type": ["object", "null"],
+              "description": "Recoverability of the covariate marginal P(Z | given). null when the adjustment set Z is empty (no marginal to recover).",
+              "required": ["target", "recoverable", "factorization", "recovery_formula", "failure_reason"],
+              "additionalProperties": false,
+              "properties": {
+                "target": { "type": "string" },
+                "recoverable": { "type": "boolean" },
+                "factorization": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["factor", "conditioned_on"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "factor": { "type": "string" },
+                      "conditioned_on": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                },
+                "recovery_formula": { "type": "string" },
+                "failure_reason": { "type": ["string", "null"] }
+              }
+            },
+            "estimand": {
+              "type": "object",
+              "description": "The full interventional estimand P(Y | do(X)[, given]) = Σ_z P(Y|X,Z)·P(Z): recoverable iff BOTH the conditional and the covariate marginal are. This is the headline multi-factor verdict.",
+              "required": ["target", "recoverable", "recovery_formula", "requires", "failure_reason"],
+              "additionalProperties": false,
+              "properties": {
+                "target": { "type": "string" },
+                "recoverable": { "type": "boolean" },
+                "recovery_formula": { "type": "string" },
+                "requires": { "type": "array", "items": { "type": "string" }, "description": "The manifest factors the estimand is built from." },
+                "failure_reason": { "type": ["string", "null"] }
+              }
+            }
           }
         },
         "iv_identification": {
@@ -455,7 +493,8 @@
             "dose_response_linear_drlearner",
             "transport_post_stratification",
             "longitudinal_gformula",
-            "longitudinal_ipw_msm"
+            "longitudinal_ipw_msm",
+            "missing_data_recovery_gformula"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -689,6 +728,26 @@
             "n_bootstrap": { "type": "integer", "minimum": 0 }
           }
         },
+        "recovered_ate": {
+          "type": "object",
+          "description": "Phase 9 §S9.2 numeric end: the back-door ATE recovered from data that itself has missing values (Mohan-Pearl-Tian 2013). Each g-formula factor is estimated from its OWN complete cases — the conditional E[Y|X,Z] from rows with {Y,X,Z} observed, the covariate marginal P(Z) from rows with {Z} observed — so under MAR the estimate is unbiased where naive listwise deletion (naive_listwise_ate, both factors from the fully-complete subset) is not. n_conditional_rows / n_marginal_rows expose the two factor-specific complete-case sizes; their gap is why the multi-factor combination matters.",
+          "required": ["point", "adjustment", "n_total", "n_complete_case", "n_conditional_rows", "n_marginal_rows", "n_strata", "missing_columns", "n_bootstrap"],
+          "additionalProperties": false,
+          "properties": {
+            "point": { "type": "number" },
+            "ci_lower": { "type": ["number", "null"] },
+            "ci_upper": { "type": ["number", "null"] },
+            "naive_listwise_ate": { "type": ["number", "null"], "description": "The biased complete-case comparison (both factors from the listwise-deleted subset); null when that subset has an empty treatment×stratum cell." },
+            "adjustment": { "type": "array", "items": { "type": "string" } },
+            "n_total": { "type": "integer", "minimum": 0 },
+            "n_complete_case": { "type": "integer", "minimum": 0 },
+            "n_conditional_rows": { "type": "integer", "minimum": 0 },
+            "n_marginal_rows": { "type": "integer", "minimum": 0 },
+            "n_strata": { "type": "integer", "minimum": 1 },
+            "missing_columns": { "type": "array", "items": { "type": "string" } },
+            "n_bootstrap": { "type": "integer", "minimum": 0 }
+          }
+        },
         "decomposition": {
           "type": "object",
           "description": "Phase 7.4 mediation decomposition: point + CI for NDE, NIE, TE, plus the proportion of total effect mediated through M (NIE / TE).",
@@ -787,13 +846,13 @@
     },
     "estimator_failure": {
       "type": "object",
-      "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result.",
+      "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result. ``not_recoverable`` is the §S9.2 missing-data case: identification decided the estimand cannot be recovered from this response process, so the estimator refuses to produce a number.",
       "required": ["estimator", "failure_type", "reason"],
       "additionalProperties": false,
       "properties": {
         "estimator": { "type": "string" },
         "failure_type": {
-          "enum": ["overlap_insufficient", "convergence_failure", "unknown"]
+          "enum": ["overlap_insufficient", "convergence_failure", "not_recoverable", "unknown"]
         },
         "reason": { "type": "string" },
         "details": { "type": "object" }

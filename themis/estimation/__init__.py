@@ -93,6 +93,17 @@ Landed scope:
 - Phase 14 — dose-response curves via ``themis.estimate(...)`` with
   ``dose_response_*`` method options (LinearDML / CausalForestDML /
   DRLearner, opt-in)
+- Phase 9 §S9.2 numeric end — recover the back-door ATE from data that
+  itself has missing values: ``estimate_recovered_ate`` returning
+  ``RecoveredATEEstimate``. Applies the Mohan-Pearl-Tian ordered-
+  factorization recovery — the conditional E[Y|X,Z] from rows with {Y,X,Z}
+  observed, the covariate marginal P(Z) from rows with {Z} observed — so
+  under MAR the estimate is unbiased where naive listwise deletion is
+  biased (that naive number is reported for contrast). Reached through
+  ``themis.estimate`` when the program declares a missingness_indicator;
+  it honours the identification verdict, refusing to produce a number when
+  the estimand is not recoverable. Unlike the other estimators it does NOT
+  route model columns through the NaN-forbidding data contract.
 
 The data contract (``DataContract`` / ``DataContractError``) is shared
 by all estimators — same DataFrame validation, same SHA-256 hash
@@ -137,6 +148,10 @@ from .mediation import (
     estimate_cde_chain,
     estimate_mediation,
 )
+from .missing_recovery import (
+    RecoveredATEEstimate,
+    estimate_recovered_ate,
+)
 from .sensitivity import (
     EValueResult,
     e_value_for_risk_ratio,
@@ -172,6 +187,7 @@ __all__ = [
     "OVBBenchmark",
     "OVBSensitivity",
     "PropensitySummary",
+    "RecoveredATEEstimate",
     "TMLEEstimate",
     "TransportEstimate",
     "discover_graph",
@@ -193,6 +209,7 @@ __all__ = [
     "estimate_longitudinal_ipw_msm",
     "estimate_mediation",
     "estimate_ovb_sensitivity",
+    "estimate_recovered_ate",
     "estimate_tmle_ate",
     "estimate_transport",
 ]
