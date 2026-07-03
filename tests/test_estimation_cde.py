@@ -267,3 +267,61 @@ def test_cde_re_exported_from_themis_estimation():
     assert "CDEEstimate" in e.__all__
     assert e.estimate_cde is estimate_cde
     assert e.CDEEstimate is CDEEstimate
+
+
+# ---------------------------------------------------------------------------
+# Cluster (pairs) bootstrap — parity with backdoor / mediation
+# ---------------------------------------------------------------------------
+
+
+def _cde_cluster_dgp(seed: int, *, G: int = 45, per: int = 20) -> pd.DataFrame:
+    """Cluster-level treatment + a shared family effect on Y (continuous).
+    Same X for every row of a cluster + a same-sign cluster shock on Y →
+    within-cluster positive correlation, so the i.i.d. bootstrap
+    UNDERSTATES the variance and the cluster CI must be wider. The CDE at
+    fixed M is the X coefficient (2.0); M enters additively so the
+    mediator value doesn't move the direct contrast."""
+    rng = np.random.default_rng(seed)
+    clu = np.repeat(np.arange(G), per)
+    x_by_cluster = rng.integers(0, 2, G)
+    x = x_by_cluster[clu].astype(float)
+    m = (rng.random(G * per) < 0.4 + 0.2 * x).astype(float)
+    u = rng.standard_normal(G) * 2.0  # shared family effect
+    y = 2.0 * x + 3.0 * m + u[clu] + rng.standard_normal(G * per) * 0.4
+    return pd.DataFrame({"x": x, "m": m, "y": y, "fam": clu})
+
+
+def test_cde_cluster_none_byte_identical_to_default():
+    df = _cde_cluster_dgp(0)
+    a = estimate_cde(df, treatment="x", outcome="y", mediator="m",
+                     mediator_value=True, ci_bootstrap=200, random_state=7)
+    b = estimate_cde(df, treatment="x", outcome="y", mediator="m",
+                     mediator_value=True, ci_bootstrap=200, random_state=7,
+                     cluster=None)
+    assert a.point == b.point
+    assert a.ci_lower == b.ci_lower and a.ci_upper == b.ci_upper
+    assert a.data_hash == b.data_hash
+    assert a.cluster is None
+
+
+def test_cde_cluster_column_excluded_from_hash():
+    df = _cde_cluster_dgp(1)
+    with_col = estimate_cde(df, treatment="x", outcome="y", mediator="m",
+                            mediator_value=True, ci_bootstrap=50,
+                            random_state=1, cluster="fam")
+    without = estimate_cde(df[["x", "m", "y"]], treatment="x", outcome="y",
+                           mediator="m", mediator_value=True, ci_bootstrap=50,
+                           random_state=1)
+    assert with_col.data_hash == without.data_hash
+    assert with_col.cluster == "fam"
+
+
+def test_cde_cluster_ci_is_wider_under_clustering():
+    df = _cde_cluster_dgp(2)
+    iid = estimate_cde(df, treatment="x", outcome="y", mediator="m",
+                       mediator_value=True, ci_bootstrap=400, random_state=1)
+    clu = estimate_cde(df, treatment="x", outcome="y", mediator="m",
+                       mediator_value=True, ci_bootstrap=400, random_state=1,
+                       cluster="fam")
+    assert (clu.ci_upper - clu.ci_lower) > 1.3 * (iid.ci_upper - iid.ci_lower)
+    assert any("cluster_bootstrap" in a for a in clu.assumptions)

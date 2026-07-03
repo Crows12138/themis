@@ -275,3 +275,59 @@ def test_re_exported_from_themis_estimation():
     assert "CDEChainEstimate" in e.__all__
     assert e.estimate_cde_chain is estimate_cde_chain
     assert e.CDEChainEstimate is CDEChainEstimate
+
+
+# ---------------------------------------------------------------------------
+# Cluster (pairs) bootstrap — parity with backdoor / mediation / cde
+# ---------------------------------------------------------------------------
+
+
+def _chain_cluster_dgp(seed: int, *, G: int = 45, per: int = 20):
+    """Cluster-level treatment + shared family effect on Y, X → M1 → M2 → Y
+    with no interactions so the chain CDE is the X coefficient (2.0). The
+    within-cluster correlation makes the i.i.d. CI too narrow."""
+    rng = np.random.default_rng(seed)
+    clu = np.repeat(np.arange(G), per)
+    x_by_cluster = rng.integers(0, 2, G)
+    x = x_by_cluster[clu].astype(float)
+    m1 = (rng.random(G * per) < 0.4 + 0.2 * x).astype(float)
+    m2 = (rng.random(G * per) < 0.3 + 0.3 * m1).astype(float)
+    u = rng.standard_normal(G) * 2.0
+    y = 2.0 * x + 1.5 * m1 + 1.0 * m2 + u[clu] + rng.standard_normal(G * per) * 0.4
+    return pd.DataFrame({"x": x, "m1": m1, "m2": m2, "y": y, "fam": clu})
+
+
+def test_chain_cluster_none_byte_identical_to_default():
+    df = _chain_cluster_dgp(0)
+    kw = dict(treatment="x", outcome="y", mediators=("m1", "m2"),
+              mediator_values=(True, True), ci_bootstrap=200, random_state=7)
+    a = estimate_cde_chain(df, **kw)
+    b = estimate_cde_chain(df, cluster=None, **kw)
+    assert a.point == b.point
+    assert a.ci_lower == b.ci_lower and a.ci_upper == b.ci_upper
+    assert a.data_hash == b.data_hash
+    assert a.cluster is None
+
+
+def test_chain_cluster_column_excluded_from_hash():
+    df = _chain_cluster_dgp(1)
+    with_col = estimate_cde_chain(
+        df, treatment="x", outcome="y", mediators=("m1", "m2"),
+        mediator_values=(True, True), ci_bootstrap=50, random_state=1,
+        cluster="fam")
+    without = estimate_cde_chain(
+        df[["x", "m1", "m2", "y"]], treatment="x", outcome="y",
+        mediators=("m1", "m2"), mediator_values=(True, True),
+        ci_bootstrap=50, random_state=1)
+    assert with_col.data_hash == without.data_hash
+    assert with_col.cluster == "fam"
+
+
+def test_chain_cluster_ci_is_wider_under_clustering():
+    df = _chain_cluster_dgp(2)
+    kw = dict(treatment="x", outcome="y", mediators=("m1", "m2"),
+              mediator_values=(True, True), ci_bootstrap=400, random_state=1)
+    iid = estimate_cde_chain(df, **kw)
+    clu = estimate_cde_chain(df, cluster="fam", **kw)
+    assert (clu.ci_upper - clu.ci_lower) > 1.3 * (iid.ci_upper - iid.ci_lower)
+    assert any("cluster_bootstrap" in a for a in clu.assumptions)

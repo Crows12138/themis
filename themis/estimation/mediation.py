@@ -450,6 +450,10 @@ class CDEEstimate:
     treatment: str
     outcome: str
     assumptions: tuple[str, ...]
+    # Variance concern, not a model node: when set, the bootstrap CI was
+    # computed by resampling whole clusters (pairs cluster bootstrap)
+    # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
+    cluster: str | None = None
 
 
 def estimate_cde(
@@ -466,6 +470,7 @@ def estimate_cde(
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> CDEEstimate:
     """Plug-in g-formula CDE at fixed ``M = mediator_value``.
 
@@ -476,6 +481,14 @@ def estimate_cde(
        ``(X=low, M=m*, Z=Z_i)``; the CDE is the sample-mean difference.
     3. Percentile bootstrap CI (same pattern as backdoor.py).
 
+    ``cluster`` (optional column name) switches the bootstrap from
+    i.i.d. rows to a pairs cluster bootstrap (whole clusters resampled
+    with replacement) — the right variance under within-cluster
+    dependence (families / repeated measures / schools). ``None``
+    reproduces the i.i.d. bootstrap byte-for-byte. The cluster column
+    is a variance concern, NOT part of the causal model: it never
+    enters the outcome regression or the data hash.
+
     Returns ``CDEEstimate``. Does NOT require statsmodels — purely
     sklearn — because the statsmodels Mediation API doesn't expose
     do(M=m*) plug-in directly.
@@ -483,7 +496,16 @@ def estimate_cde(
     from sklearn.linear_model import LinearRegression, LogisticRegression
 
     required = {treatment, outcome, mediator, *adjustment}
-    contract = validate_data(data, required_columns=required)
+    # Pull cluster labels from the raw frame (uncoerced) before the
+    # contract subsets to model columns; positionally aligned with df.
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None else None
+    )
+    contract = validate_data(
+        data, required_columns=required,
+        presence_columns=(cluster,) if cluster is not None else (),
+    )
     df = contract.data
 
     is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
@@ -535,7 +557,7 @@ def estimate_cde(
         n = len(df)
         draws = np.empty(ci_bootstrap)
         for i in range(ci_bootstrap):
-            idx = rng.integers(0, n, size=n)
+            idx = resample_indices(n, rng, groups=groups)
             try:
                 draws[i] = _fit_predict_diff(df.iloc[idx])
             except (ValueError, np.linalg.LinAlgError):
@@ -556,6 +578,10 @@ def estimate_cde(
         assumptions = assumptions + (
             "adjustment_set_blocks_xy_and_my_backdoors",
         )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
 
     return CDEEstimate(
         point=point,
@@ -573,6 +599,7 @@ def estimate_cde(
         treatment=treatment,
         outcome=outcome,
         assumptions=assumptions,
+        cluster=cluster,
     )
 
 
@@ -613,6 +640,10 @@ class CDEChainEstimate:
     treatment: str
     outcome: str
     assumptions: tuple[str, ...]
+    # Variance concern, not a model node: when set, the bootstrap CI was
+    # computed by resampling whole clusters (pairs cluster bootstrap)
+    # rather than i.i.d. rows. None → ordinary i.i.d. bootstrap.
+    cluster: str | None = None
 
 
 def estimate_cde_chain(
@@ -629,6 +660,7 @@ def estimate_cde_chain(
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> CDEChainEstimate:
     """Plug-in g-formula CDE for a chain of N mediators, each fixed
     at a chosen value.
@@ -646,6 +678,13 @@ def estimate_cde_chain(
     explicitly and the audit trail records the chain-CDE assumption
     set (which adds "no unmeasured confounder between successive
     mediators given X and Z").
+
+    ``cluster`` (optional column name) switches the bootstrap from
+    i.i.d. rows to a pairs cluster bootstrap (whole clusters resampled
+    with replacement) — the right variance under within-cluster
+    dependence. ``None`` reproduces the i.i.d. bootstrap byte-for-byte.
+    The cluster column is a variance concern, NOT part of the causal
+    model: it never enters the outcome regression or the data hash.
 
     Raises ``ValueError`` when:
     - ``mediators`` and ``mediator_values`` have different length
@@ -666,7 +705,16 @@ def estimate_cde_chain(
         )
 
     required = {treatment, outcome, *mediators, *adjustment}
-    contract = validate_data(data, required_columns=required)
+    # Pull cluster labels from the raw frame (uncoerced) before the
+    # contract subsets to model columns; positionally aligned with df.
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None else None
+    )
+    contract = validate_data(
+        data, required_columns=required,
+        presence_columns=(cluster,) if cluster is not None else (),
+    )
     df = contract.data
 
     is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
@@ -721,7 +769,7 @@ def estimate_cde_chain(
         n = len(df)
         draws = np.empty(ci_bootstrap)
         for i in range(ci_bootstrap):
-            idx = rng.integers(0, n, size=n)
+            idx = resample_indices(n, rng, groups=groups)
             try:
                 draws[i] = _fit_predict_diff(df.iloc[idx])
             except (ValueError, np.linalg.LinAlgError):
@@ -743,6 +791,10 @@ def estimate_cde_chain(
         assumptions = assumptions + (
             "adjustment_set_blocks_xy_and_my_chain_backdoors",
         )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
 
     return CDEChainEstimate(
         point=point,
@@ -760,6 +812,7 @@ def estimate_cde_chain(
         treatment=treatment,
         outcome=outcome,
         assumptions=assumptions,
+        cluster=cluster,
     )
 
 
