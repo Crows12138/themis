@@ -39,6 +39,7 @@ INTref=θ3·E[M|A=0], INTmed=θ3·β1, PIE=θ2·β1.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import exp
 
 
 @dataclass(frozen=True)
@@ -92,4 +93,185 @@ def four_way_decomposition(
         cde=cde, intref=intref, intmed=intmed, pie=pie, te=te,
         pnde=cde + intref, tnie=intmed + pie,
         additive_interaction=additive_interaction,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Ratio (excess-relative-risk) scale — VanderWeele 2014 eAppendix §3.4
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FourWayRatioComponents:
+    """The four-way decomposition on the EXCESS RELATIVE RISK scale for a
+    binary outcome with a binary mediator (VanderWeele 2014, "A unification
+    of mediation and interaction: a four-way decomposition", Epidemiology
+    25:749-761; eAppendix §3.4).
+
+    For a binary outcome the natural scale is multiplicative: the total
+    effect is a risk ratio and the excess relative risk (RR − 1) is what
+    decomposes ADDITIVELY into four pieces. Unlike the difference scale
+    (``FourWayComponents``), these components are NOT collapsible from the
+    standardized cell means p_am / q_a — they are functions of the logistic
+    outcome (Y ~ A + M + A·M + C) and logistic mediator (M ~ A + C) model
+    coefficients, reflecting logistic non-collapsibility (the odds-ratio
+    approximation VanderWeele uses).
+
+    The four ``*_comp`` are the raw ratio-scale components; ``terr`` is
+    their sum. VanderWeele defines each REPORTED excess-relative-risk piece
+    as ``comp · (total_rr − 1) / terr`` so the four pieces sum EXACTLY to
+    ``total_err`` — a rescaling that is a no-op for the binary/binary case
+    (there ``terr ≡ total_rr − 1`` identically) but corrects the
+    continuous-mediator case. Proportions use ``terr`` as the denominator.
+
+    Fields:
+      err_cde / err_intref / err_intmed / err_pie : the excess-relative-risk
+        attributed to (neither) / (interaction only) / (both) / (mediation
+        only); sum to ``total_err``.
+      total_rr : total-effect risk ratio; total_err = total_rr − 1.
+      prop_* : proportion of the total ERR due to each component (sum to 1).
+      prop_mediated = (intmed+pie)/terr ; prop_interaction = (intref+intmed)/
+        terr ; prop_eliminated = (intref+intmed+pie)/terr — the fraction of
+        the effect removed by fixing M to its reference.
+    """
+
+    err_cde: float
+    err_intref: float
+    err_intmed: float
+    err_pie: float
+    total_err: float
+    total_rr: float
+    prop_cde: float
+    prop_intref: float
+    prop_intmed: float
+    prop_pie: float
+    prop_mediated: float
+    prop_interaction: float
+    prop_eliminated: float
+    # Raw (pre-rescale) components; terr is their sum.
+    cde_comp: float
+    intref_comp: float
+    intmed_comp: float
+    pie_comp: float
+
+
+def four_way_ratio_decomposition(
+    *,
+    t1: float,   # outcome-model coefficient on A
+    t2: float,   # outcome-model coefficient on M
+    t3: float,   # outcome-model coefficient on A·M
+    b0: float,   # mediator-model intercept
+    b1: float,   # mediator-model coefficient on A
+    bcc: float = 0.0,   # mediator-model covariate contribution (bc·c)
+    a1: float = 1.0,    # exposure level compared (treated)
+    a0: float = 0.0,    # exposure reference (control)
+    mstar: float = 0.0,  # mediator reference level for the CDE
+) -> FourWayRatioComponents:
+    """VanderWeele's excess-relative-risk four-way decomposition (eAppendix
+    §3.4) for a binary outcome + binary mediator, in closed form from the
+    logistic outcome / mediator coefficients.
+
+    ``t1, t2, t3`` are the A, M, A·M coefficients of
+    ``logit P(Y=1|A,M,C) = t0 + t1·A + t2·M + t3·A·M + t_C·C`` (the
+    intercept t0 and the outcome covariate coefficients cancel on the ratio
+    scale, so they are not needed). ``b0, b1`` are the intercept and A
+    coefficient of ``logit P(M=1|A,C) = b0 + b1·A + b_C·C`` and ``bcc`` is
+    the covariate contribution ``b_C·c`` at the chosen covariate value c
+    (default 0; a data estimator supplies the sample-mean value).
+
+    This is the ORACLE — a transcription of VanderWeele's formulas, nothing
+    is re-derived. The binary/binary identity ``terr ≡ total_rr − 1`` is a
+    strong internal consistency check on the transcription.
+    """
+    def E(x: float) -> float:
+        return exp(x)
+
+    cde_comp = (
+        E(t1 * (a1 - a0) + t2 * mstar + t3 * a1 * mstar)
+        * (1 + E(b0 + b1 * a0 + bcc))
+        / (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+        - E(t2 * mstar + t3 * a0 * mstar)
+        * (1 + E(b0 + b1 * a0 + bcc))
+        / (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+    )
+    intref_comp = (
+        E(t1 * (a1 - a0))
+        * (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a1))
+        / (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+        - 1.0
+        - E(t1 * (a1 - a0) + t2 * mstar + t3 * a1 * mstar)
+        * (1 + E(b0 + b1 * a0 + bcc))
+        / (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+        + E(t2 * mstar + t3 * a0 * mstar)
+        * (1 + E(b0 + b1 * a0 + bcc))
+        / (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+    )
+    intmed_comp = (
+        E(t1 * (a1 - a0))
+        * (1 + E(b0 + b1 * a1 + bcc + t2 + t3 * a1))
+        * (1 + E(b0 + b1 * a0 + bcc))
+        / (
+            (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+            * (1 + E(b0 + b1 * a1 + bcc))
+        )
+        - (1 + E(b0 + b1 * a1 + bcc + t2 + t3 * a0))
+        * (1 + E(b0 + b1 * a0 + bcc))
+        / (
+            (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+            * (1 + E(b0 + b1 * a1 + bcc))
+        )
+        - E(t1 * (a1 - a0))
+        * (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a1))
+        / (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+        + 1.0
+    )
+    pie_comp = (
+        (1 + E(b0 + b1 * a0 + bcc))
+        * (1 + E(b0 + b1 * a1 + bcc + t2 + t3 * a0))
+        / (
+            (1 + E(b0 + b1 * a1 + bcc))
+            * (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+        )
+        - 1.0
+    )
+
+    terr = cde_comp + intref_comp + intmed_comp + pie_comp
+    total_rr = (
+        E(t1 * a1)
+        * (1 + E(b0 + b1 * a0 + bcc))
+        * (1 + E(b0 + b1 * a1 + bcc + t2 + t3 * a1))
+        / (
+            E(t1 * a0)
+            * (1 + E(b0 + b1 * a1 + bcc))
+            * (1 + E(b0 + b1 * a0 + bcc + t2 + t3 * a0))
+        )
+    )
+    total_err = total_rr - 1.0
+
+    # Rescale so the four ERR pieces sum EXACTLY to total_err. For binary/
+    # binary terr == total_err identically, so this factor is 1; keeping it
+    # matches VanderWeele's definition verbatim and stays robust to drift.
+    scale = (total_err / terr) if terr != 0 else float("nan")
+
+    def _prop(c: float) -> float:
+        return (c / terr) if terr != 0 else float("nan")
+
+    return FourWayRatioComponents(
+        err_cde=cde_comp * scale,
+        err_intref=intref_comp * scale,
+        err_intmed=intmed_comp * scale,
+        err_pie=pie_comp * scale,
+        total_err=total_err,
+        total_rr=total_rr,
+        prop_cde=_prop(cde_comp),
+        prop_intref=_prop(intref_comp),
+        prop_intmed=_prop(intmed_comp),
+        prop_pie=_prop(pie_comp),
+        prop_mediated=_prop(intmed_comp + pie_comp),
+        prop_interaction=_prop(intref_comp + intmed_comp),
+        prop_eliminated=_prop(intref_comp + intmed_comp + pie_comp),
+        cde_comp=cde_comp,
+        intref_comp=intref_comp,
+        intmed_comp=intmed_comp,
+        pie_comp=pie_comp,
     )

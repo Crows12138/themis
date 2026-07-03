@@ -90,6 +90,14 @@ from .aipw import (
 from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .contract import DataContract, DataContractError
 from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
+from .four_way import (
+    FourWayRatioComponents,
+    four_way_ratio_decomposition,
+)
+from .four_way_ratio import (
+    FourWayRatioEstimate,
+    estimate_four_way_ratio,
+)
 from .discovery import (
     DiscoveryResult,
     discover_graph,
@@ -132,6 +140,8 @@ __all__ = [
     "DataContractError",
     "DiscoveryResult",
     "EValueResult",
+    "FourWayRatioComponents",
+    "FourWayRatioEstimate",
     "FrontdoorEstimate",
     "IPWEstimate",
     "IVEstimate",
@@ -152,8 +162,10 @@ __all__ = [
     "estimate_backdoor_ate",
     "estimate_cde",
     "estimate_cde_chain",
+    "estimate_four_way_ratio",
     "estimate_frontdoor_ate",
     "estimate_ipw_ate",
+    "four_way_ratio_decomposition",
     "estimate_iv_ate",
     "estimate_joint_effect",
     "estimate_longitudinal_gformula",
