@@ -41,6 +41,15 @@ Landed scope:
   ``estimate_cde_chain`` returning ``CDEChainEstimate``. Extends the
   iter 125 single-M CDE to N mediators X→M_1→...→M_n→Y, fixing
   each M_i at a chosen reference (VanderWeele 2015 ch.5).
+- Ratio-scale four-way decomposition — ``estimate_four_way_ratio``
+  returning ``FourWayRatioEstimate``, over the oracle
+  ``four_way_ratio_decomposition`` (returning ``FourWayRatioComponents``).
+  VanderWeele's CDE / INTref / INTmed / PIE split on the EXCESS RELATIVE
+  RISK scale for a binary outcome + binary mediator (VanderWeele 2014,
+  eAppendix §3.4). Unlike the difference-scale ``four_way_decomposition``
+  (a pure computation over standardized cell means), the ratio-scale
+  components are non-collapsible functions of the logistic outcome /
+  mediator coefficients, so this fits both parametric models.
 - Phase 9 §T9.2 (iter 128) — transport-numeric ATE via post-
   stratification (Cole & Stuart 2010 §3): ``estimate_transport``
   returning ``TransportEstimate``. Source data + target marginal
