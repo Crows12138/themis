@@ -519,6 +519,7 @@ df)`, not from symbolic Theta.
 | `aipw` | doubly-robust ATE (same scale as `backdoor_linear`); consistent if EITHER the outcome OR the propensity model is right — see §"Doubly-robust estimates" | "ATE = X.X（双稳健估计：结局模型或倾向模型任一设定正确即成立）" |
 | `tmle` | doubly-robust ATE via targeted substitution (same scale as `backdoor_linear`); like `aipw` but a bounded plug-in — see §"Doubly-robust estimates" | "ATE = X.X（TMLE 双稳健定标估计：结局或倾向任一设定正确即成立）" |
 | `ipw_stabilized` / `ipw_ht` | inverse-probability-weighted ATE (same scale as `backdoor_linear`); relies on the propensity model being correct — see §"Doubly-robust estimates" | "ATE = X.X（按倾向得分逆概率加权估计）" |
+| `general_id_plugin` | risk-difference ATE for an effect identified ONLY by the general ID algorithm's c-factor factorisation — no back-door set, front-door set, or instrument applies (Pearl's napkin is the canonical case). The identified estimand (a nested sum/product/ratio of observational conditionals) is evaluated on discrete data by the NON-PARAMETRIC plug-in, so it is assumption-free about functional form — the trade-off is higher variance (saturated cells). `treatment_high` / `treatment_low` name the contrasted do-levels; `outcome_high` the outcome level. Lead with the point; note it is the assumption-free non-parametric answer (contrast: an IV estimate on the same graph would need a monotonicity/homogeneity assumption for a point). | "在你的图上 X 对 Y 的效应无法用后门/前门/工具变量识别，但通用 ID 算法把它非参数识别了：ATE = X.X 个百分点（无函数形式假设的 plug-in 估计）" |
 
 **Backdoor template**:
 

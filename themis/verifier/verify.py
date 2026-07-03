@@ -705,6 +705,11 @@ def verify_numeric_estimate(
         "numeric_ipw_estimate",
         "numeric_frontdoor_estimate",
         "numeric_iv_estimate",
+        # General-ID (c-factor) non-parametric plug-in — the effect is
+        # point-identified only through the general ID algorithm (e.g. the
+        # napkin); the derivation ends in the plug-in terminal atop a
+        # general_id_criterion structural witness.
+        "numeric_general_id_estimate",
         # Joint (treatment-set) back-door data estimate — joint contrast
         # + treatment×treatment interaction via the joint g-formula.
         "numeric_joint_backdoor_estimate",

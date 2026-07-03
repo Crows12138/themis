@@ -494,7 +494,8 @@
             "transport_post_stratification",
             "longitudinal_gformula",
             "longitudinal_ipw_msm",
-            "missing_data_recovery_gformula"
+            "missing_data_recovery_gformula",
+            "general_id_plugin"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -510,6 +511,18 @@
         },
         "mediator": { "type": "string" },
         "n_rep": { "type": "integer", "minimum": 1 },
+        "treatment_high": {
+          "type": ["boolean", "number", "string", "null"],
+          "description": "general_id_plugin only: the high treatment level the ATE contrasts do(X=treatment_high) against do(X=treatment_low)."
+        },
+        "treatment_low": {
+          "type": ["boolean", "number", "string", "null"],
+          "description": "general_id_plugin only: the low (reference) treatment level of the ATE contrast."
+        },
+        "outcome_high": {
+          "type": ["boolean", "number", "string", "null"],
+          "description": "general_id_plugin only: the outcome level the binary P(Y=outcome_high|do(X)) contrast is taken on."
+        },
         "treatment": { "type": "string" },
         "treatments": {
           "type": "array",

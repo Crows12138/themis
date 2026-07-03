@@ -1128,6 +1128,61 @@ def _rule_iv_criterion_check(
         )
 
 
+def _rule_general_id_criterion(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify that P(Y | do(X)) is point-identified by the general ID
+    (Tian–Shpitser c-factor) algorithm on this ADMG — the structural
+    licence for a general-ID plug-in numeric estimate.
+
+    Re-executes ``c_factor.identify_via_tian`` on the context's
+    (graph, bidirected) and confirms it reports ``identifiable`` with a
+    well-formed formula. This is the safety-critical check: a number is
+    produced ONLY for a genuinely identified effect, never for a hedge.
+
+    It re-runs the ID engine rather than reimplementing it — the deep,
+    fully-independent c-factor replay lives in ``_rule_identify_via_tian``
+    on the identify-query path. Here the relaxed numeric audit confirms
+    identifiability, matching the cost trade-off the other numeric rules
+    make (verify_numeric_estimate: numerical reproduction is prohibitively
+    expensive for a verifier pass).
+
+    inputs: graph, x, y
+    output: bool
+    """
+    from ..runtime import c_factor
+
+    graph = _require(inputs, "graph", step_index, "general_id_criterion")
+    _assert_same_graph(graph, ctx.graph, step_index, "general_id_criterion")
+    x = _require_atom(inputs, "x", step_index, "general_id_criterion")
+    y = _require_atom(inputs, "y", step_index, "general_id_criterion")
+
+    if x not in graph or y not in graph or x == y:
+        raise RuleCheckFailed(
+            "general_id_criterion: x / y missing from graph or identical",
+            step_index=step_index, rule="general_id_criterion",
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    # Identifiability is independent of the intervention value; use the
+    # query's value when available, else a boolean placeholder.
+    x_value = True
+    q = getattr(ctx, "query", None)
+    if q is not None and getattr(q, "intervention", None) is not None:
+        x_value = q.intervention.value
+    res = c_factor.identify_via_tian(graph, bidir, x, y, x_value)
+    recomputed = bool(res.identifiable and res.formula is not None)
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"general_id_criterion claimed {claimed_output!r}, but the ID "
+            f"engine recomputed identifiable={recomputed!r}",
+            step_index=step_index, rule="general_id_criterion",
+        )
+
+
 # ----- Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE rule -----
 
 def _rule_iv_wald_numeric_evaluate(
@@ -1881,6 +1936,10 @@ _NUMERIC_JOINT_METHODS = frozenset({
     "joint_backdoor_logistic",
 })
 
+# General-ID (c-factor) non-parametric plug-in — the crown-jewel
+# identification made numeric on discrete data.
+_NUMERIC_GENERAL_ID_METHODS = frozenset({"general_id_plugin"})
+
 _SHA256_HEX_LEN = 64
 _MIN_NUMERIC_SAMPLE_SIZE = 10
 
@@ -2592,6 +2651,142 @@ def _rule_numeric_iv_estimate(
         raise RuleCheckFailed(
             "numeric_iv_estimate output.value must be True",
             step_index=step_index, rule="numeric_iv_estimate",
+        )
+
+
+def _rule_numeric_general_id_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Relaxed audit for a general-ID (c-factor plug-in) ATE estimate.
+
+    Method enum + CI bounds + data_hash + sample_size checks; the
+    referenced ``criterion`` step must be a ``general_id_criterion`` for
+    the same (treatment, outcome). Same shape as numeric_iv_estimate —
+    a metadata self-consistency audit, no re-fit. The identification the
+    number rests on is re-derived by the referenced general_id_criterion
+    step (which re-runs the ID engine).
+    """
+    criterion_ref = _require(
+        inputs, "criterion", step_index, "numeric_general_id_estimate",
+    )
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_general_id_estimate.criterion must be a StepRef",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    treatment = _require_atom(
+        inputs, "treatment", step_index, "numeric_general_id_estimate",
+    )
+    outcome = _require_atom(
+        inputs, "outcome", step_index, "numeric_general_id_estimate",
+    )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+
+    if method not in _NUMERIC_GENERAL_ID_METHODS:
+        raise RuleCheckFailed(
+            f"numeric_general_id_estimate.method must be one of "
+            f"{sorted(_NUMERIC_GENERAL_ID_METHODS)}; got {method!r}",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"numeric_general_id_estimate.data_hash must be a "
+            f"{_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            "numeric_general_id_estimate.data_hash must be lowercase hex",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"numeric_general_id_estimate.sample_size must be an int "
+            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"numeric_general_id_estimate.point must be a number; got {point!r}",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    ci_present = ci_lower is not None or ci_upper is not None
+    if ci_present:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                "numeric_general_id_estimate: ci_lower and ci_upper must both "
+                "be present or both absent",
+                step_index=step_index, rule="numeric_general_id_estimate",
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"numeric_general_id_estimate: point {point} outside "
+                f"[{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule="numeric_general_id_estimate",
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"numeric_general_id_estimate.ci_level must be in (0, 1); "
+                f"got {ci_level!r}",
+                step_index=step_index, rule="numeric_general_id_estimate",
+            )
+
+    if treatment == outcome:
+        raise RuleCheckFailed(
+            "numeric_general_id_estimate: treatment and outcome must differ",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None:
+        raise RuleCheckFailed(
+            f"numeric_general_id_estimate: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if criterion_step.rule != "general_id_criterion":
+        raise RuleCheckFailed(
+            "numeric_general_id_estimate.criterion must reference a "
+            "general_id_criterion step",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if criterion_step.inputs.get("x") != treatment:
+        raise RuleCheckFailed(
+            "numeric_general_id_estimate.treatment must equal the x claimed "
+            "by the referenced general_id_criterion step",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if criterion_step.inputs.get("y") != outcome:
+        raise RuleCheckFailed(
+            "numeric_general_id_estimate.outcome must equal the y claimed "
+            "by the referenced general_id_criterion step",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "numeric_general_id_estimate output must be a StructuralResult",
+            step_index=step_index, rule="numeric_general_id_estimate",
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "numeric_general_id_estimate output.value must be True",
+            step_index=step_index, rule="numeric_general_id_estimate",
         )
 
 
@@ -5778,6 +5973,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "scm_abduction_action_prediction": _rule_scm_abduction_action_prediction,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
+    # General-ID (c-factor) plug-in — structural licence: re-run the ID
+    # engine and confirm the effect is point-identified.
+    "general_id_criterion": _rule_general_id_criterion,
     # Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE numeric
     "iv_wald_numeric_evaluate": _rule_iv_wald_numeric_evaluate,
     # Phase 6.mediation S.M.3
@@ -5817,6 +6015,9 @@ _STEP_REF_RULES = {
     "numeric_frontdoor_estimate",
     # Phase 7.3 S.IVN.3
     "numeric_iv_estimate",
+    # General-ID (c-factor) plug-in numeric estimate — same c-factor
+    # identification witness (general_id_criterion), plug-in terminal.
+    "numeric_general_id_estimate",
     # Phase 9 §T9.1.4 — transport identification
     "identify_via_transport",
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
@@ -5887,6 +6088,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_iv_estimate":
         _rule_numeric_iv_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_general_id_estimate":
+        _rule_numeric_general_id_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

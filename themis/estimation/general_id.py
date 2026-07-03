@@ -1,0 +1,485 @@
+"""General-identification numeric evaluator — non-parametric plug-in of a
+point-identified c-factor (Tian–Shpitser ID) estimand on discrete data.
+
+When an effect ``P(Y | do(X))`` is identified ONLY through the general ID
+algorithm's c-component factorisation — not by a back-door adjustment, a
+front-door set, or an instrument — the identified estimand is a nested
+sum / product / ratio of *observational* conditional probabilities (the
+Tian–Pearl c-factor form). Pearl's napkin graph (W→Z→X→Y, W↔X, W↔Y) is
+the canonical example: no observed set blocks the back-door paths, yet the
+effect is non-parametrically identified as a ratio.
+
+The identification layer already derives that estimand as a ``FormulaExpr``
+AST (:func:`themis.runtime.c_factor.identify_via_tian`). This module turns
+it into a NUMBER on data by the non-parametric plug-in:
+
+    every conditional  P(v | v_predecessors)  in the formula is the
+    empirical conditional from its OWN stratum of the data, and the
+    sums / products / ratio the identified formula prescribes are carried
+    out exactly.
+
+    ATE = P(Y=y_hi | do(X=x_hi)) − P(Y=y_hi | do(X=x_lo))
+
+where ``x_lo < x_hi`` are the two observed treatment levels and ``y_hi`` is
+the high outcome level. The evaluator reuses
+:func:`themis.runtime.numeric_estimator.estimate_formula` — the SAME
+formula walker the kernel uses for theta-supplied evaluation — so the
+number is a plug-in of the *identified* formula, never an independent
+re-derivation. Confidence intervals are a non-parametric percentile
+bootstrap.
+
+Scope (declared):
+
+- DISCRETE variables only. The plug-in is the *saturated* non-parametric
+  estimator over empirical conditional probabilities; a continuous
+  covariate has no empirical stratum. The back-door / front-door
+  regression estimators cover the continuous cases they can — this
+  estimator is the catch-all for the genuinely-nested discrete estimands
+  none of them reach.
+- Binary treatment, binary outcome (the ATE contrast is on the high
+  outcome level). Multi-level / E[Y] contrasts are a future extension.
+- Unconditional effect (``given`` empty). Conditional general-ID (IDC)
+  plug-in is a natural follow-up.
+- An empty conditioning stratum is a positivity violation and raises
+  ``EstimatorFailure`` rather than fabricating a value. Because the
+  c-factor form can condition on a long predecessor sequence, the strata
+  can be sparse — the plug-in is unbiased but higher-variance than a
+  parametric fit; the bootstrap CI reflects that honestly.
+
+Reference: Tian & Pearl 2002 (general ID / c-factor); Shpitser & Pearl
+2006 (ID completeness). Hernán & Robins 2020 ch.13 for the plug-in
+(g-formula) principle in the non-parametric limit.
+
+API::
+
+    from themis.estimation.general_id import estimate_general_id_ate
+    est = estimate_general_id_ate(
+        data, graph=g, bidirected=bi,
+        treatment_atom=x, outcome_atom=y,
+    )
+    print(est.point, est.ci_lower, est.ci_upper)
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
+
+from ..types import (
+    Atom,
+    ConstantExpr,
+    FormulaExpr,
+    FractionExpr,
+    ProbabilityRefExpr,
+    ProductExpr,
+    SumExpr,
+    ValuedAtom,
+)
+from ..runtime.numeric_estimator import (
+    ProbabilityKey,
+    Theta,
+    enumerate_keys,
+    estimate_formula,
+)
+from .contract import validate_data
+from .dose_response import EstimatorFailure
+from .resample import cluster_labels, resample_indices
+
+
+@dataclass(frozen=True)
+class GeneralIdEstimate:
+    """Result of a general-ID (c-factor plug-in) ATE estimate."""
+
+    point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    ci_level: float
+    method: str                       # "general_id_plugin"
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    treatment: str
+    outcome: str
+    # The two contrasted treatment levels and the outcome level the
+    # contrast is taken on — makes the ATE definition explicit in the
+    # audit trail (do(X=x_hi) vs do(X=x_lo), outcome = y_hi).
+    treatment_high: object = None
+    treatment_low: object = None
+    outcome_high: object = None
+    # Mechanism + structured identification assumptions (assumption-ledger
+    # parity with the back-door / dose-response estimators).
+    model_assumption: str = ""
+    form: str = "nonparametric_plug_in"
+    identification_assumptions: tuple[dict, ...] = ()
+    # Variance concern, not a model node: whole-cluster bootstrap when set.
+    cluster: str | None = None
+
+
+def estimate_general_id_ate(
+    data: pd.DataFrame,
+    *,
+    graph,
+    bidirected,
+    treatment_atom: Atom,
+    outcome_atom: Atom,
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> GeneralIdEstimate:
+    """Plug-in ATE for a general-ID (c-factor) identified effect.
+
+    Parameters
+    ----------
+    data: DataFrame with a column per observed variable (named by each
+        atom's ``predicate``).
+    graph: the projected directed graph (networkx ``DiGraph``) of the
+        ADMG — same object the kernel identified on.
+    bidirected: the ``BidirectedEdgeSet`` (latent-confounding edges).
+    treatment_atom / outcome_atom: the intervention / target atoms; must
+        be graph nodes with a matching data column.
+    ci_bootstrap: number of bootstrap resamples; 0 skips the CI.
+    ci_level: two-sided confidence level.
+    random_state: deterministic seed.
+    cluster: optional cluster-id column for a pairs cluster bootstrap
+        (matches the back-door estimator's variance handling). Not part of
+        the causal model; excluded from the design and the data hash.
+
+    Raises
+    ------
+    EstimatorFailure: treatment / outcome not binary, effect not
+        identifiable by the general ID algorithm, or insufficient support
+        (an empty conditioning stratum — positivity).
+    DataContractError (ValueError): the data violates the estimation
+        contract (missing column, NaN, or too-small sample).
+    """
+    from ..runtime import c_factor
+
+    t_col = treatment_atom.predicate
+    y_col = outcome_atom.predicate
+    if t_col not in data.columns:
+        raise EstimatorFailure(
+            "missing_column",
+            f"treatment column {t_col!r} not present in the data",
+            treatment=t_col,
+        )
+    if y_col not in data.columns:
+        raise EstimatorFailure(
+            "missing_column",
+            f"outcome column {y_col!r} not present in the data",
+            outcome=y_col,
+        )
+
+    # Binary treatment / outcome — the ATE contrast is the two-level
+    # difference on the high outcome level.
+    t_levels = _sorted_levels(data[t_col])
+    if len(t_levels) != 2:
+        raise EstimatorFailure(
+            "treatment_not_binary",
+            f"treatment {t_col!r} has {len(t_levels)} observed levels "
+            f"({t_levels}); the general-ID plug-in ATE is a two-level "
+            f"contrast. Supply a binary treatment.",
+            treatment=t_col,
+        )
+    y_levels = _sorted_levels(data[y_col])
+    if len(y_levels) != 2:
+        raise EstimatorFailure(
+            "outcome_not_binary",
+            f"outcome {y_col!r} has {len(y_levels)} observed levels "
+            f"({y_levels}); v1 of the general-ID plug-in ATE requires a "
+            f"binary outcome.",
+            outcome=y_col,
+        )
+    x_lo, x_hi = t_levels[0], t_levels[1]
+    y_hi = y_levels[-1]
+
+    # Identify the estimand once per do-level (data-independent). The
+    # structure is identical; only the do-literal baked into the outer X
+    # slot differs.
+    res_hi = c_factor.identify_via_tian(
+        graph, bidirected, treatment_atom, outcome_atom, x_hi)
+    res_lo = c_factor.identify_via_tian(
+        graph, bidirected, treatment_atom, outcome_atom, x_lo)
+    if not (res_hi.identifiable and res_lo.identifiable
+            and res_hi.formula is not None and res_lo.formula is not None):
+        raise EstimatorFailure(
+            "not_identifiable_by_general_id",
+            f"the effect of {t_col!r} on {y_col!r} is not point-identified "
+            f"by the general ID algorithm on this ADMG — there is no "
+            f"c-factor estimand to evaluate.",
+            treatment=t_col,
+            outcome=y_col,
+        )
+    f_hi = _bind_target_value(res_hi.formula, outcome_atom, y_hi)
+    f_lo = _bind_target_value(res_lo.formula, outcome_atom, y_hi)
+
+    # Contract validation (no NaN, canonical hash). Required columns are
+    # exactly the observed variables the estimand references.
+    required = (
+        _referenced_predicates(f_hi)
+        | _referenced_predicates(f_lo)
+        | {t_col, y_col}
+    )
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None
+        else None
+    )
+    # validate_data enforces the no-NaN contract, the canonical hash, and
+    # the shared minimum-sample-size floor (raises DataContractError, a
+    # ValueError, on a too-small frame).
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
+    df = contract.data
+
+    domains = _domains_from_data(graph, df)
+    point = _point_ate(df, f_hi, f_lo, domains)
+
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if ci_bootstrap > 0:
+        ci_lower, ci_upper = _bootstrap_ci(
+            df, f_hi, f_lo, domains,
+            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            random_state=random_state, groups=groups,
+        )
+
+    assumptions = (
+        "admg_structure_correct_including_latent_confounders",
+        "positivity_every_conditioning_stratum_has_support",
+        "consistency_of_potential_outcomes",
+        "discrete_variables_saturated_nonparametric_plug_in",
+    )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
+    identification_assumptions = (
+        {"claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+        {"claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
+         "layer": "identification", "severity": "invalidating", "testable": True},
+        {"claim": "一致性：干预定义明确，potential outcomes 良定义",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+    )
+    return GeneralIdEstimate(
+        point=float(point),
+        ci_lower=float(ci_lower) if ci_lower is not None else None,
+        ci_upper=float(ci_upper) if ci_upper is not None else None,
+        ci_level=ci_level,
+        method="general_id_plugin",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        treatment=t_col,
+        outcome=y_col,
+        treatment_high=_py(x_hi),
+        treatment_low=_py(x_lo),
+        outcome_high=_py(y_hi),
+        model_assumption=(
+            "识别公式按非参数 plug-in 求值：每个条件概率用其所属数据层的"
+            "经验频率，无函数形式假设（饱和估计）"
+        ),
+        form="nonparametric_plug_in",
+        identification_assumptions=identification_assumptions,
+        cluster=cluster,
+    )
+
+
+# --- internals ----------------------------------------------------------------
+
+
+def _sorted_levels(series: pd.Series) -> list:
+    """Observed distinct levels of a column, sorted, NaN dropped."""
+    vals = pd.unique(series.dropna())
+    try:
+        return sorted(vals.tolist())
+    except TypeError:
+        return sorted(vals.tolist(), key=str)
+
+
+def _py(v):
+    """Coerce a numpy scalar to a plain Python value for the result dict."""
+    if isinstance(v, np.generic):
+        return v.item()
+    return v
+
+
+def _bind_target_value(
+    formula: FormulaExpr, y_atom: Atom, y_value
+) -> FormulaExpr:
+    """Bind the query-target atom's externally-bound (None) value to a
+    concrete literal — the outcome level the P(Y=y | do(X)) contrast is
+    taken on. Structure-preserving; population tags are preserved (the
+    general-ID formula is single-population, but we never silently drop
+    the field)."""
+
+    def rebind(va: ValuedAtom) -> ValuedAtom:
+        if va.atom == y_atom and va.value is None:
+            return ValuedAtom(atom=va.atom, value=y_value)
+        return va
+
+    def walk(node: FormulaExpr) -> FormulaExpr:
+        if isinstance(node, ConstantExpr):
+            return node
+        if isinstance(node, ProbabilityRefExpr):
+            return ProbabilityRefExpr(
+                target=rebind(node.target),
+                given=tuple(rebind(g) for g in node.given),
+                population=node.population,
+            )
+        if isinstance(node, ProductExpr):
+            return ProductExpr(terms=tuple(walk(t) for t in node.terms))
+        if isinstance(node, SumExpr):
+            return SumExpr(bind=node.bind, over=node.over, body=walk(node.body))
+        if isinstance(node, FractionExpr):
+            return FractionExpr(
+                numerator=walk(node.numerator),
+                denominator=walk(node.denominator),
+            )
+        raise TypeError(f"unknown formula node: {type(node).__name__}")
+
+    return walk(formula)
+
+
+def _referenced_predicates(formula: FormulaExpr) -> set[str]:
+    """Collect every observed-variable predicate the formula references."""
+    preds: set[str] = set()
+
+    def walk(node: FormulaExpr) -> None:
+        if isinstance(node, ConstantExpr):
+            return
+        if isinstance(node, ProbabilityRefExpr):
+            preds.add(node.target.atom.predicate)
+            for gv in node.given:
+                preds.add(gv.atom.predicate)
+            return
+        if isinstance(node, ProductExpr):
+            for t in node.terms:
+                walk(t)
+            return
+        if isinstance(node, SumExpr):
+            preds.add(node.over.predicate)
+            walk(node.body)
+            return
+        if isinstance(node, FractionExpr):
+            walk(node.numerator)
+            walk(node.denominator)
+            return
+        raise TypeError(f"unknown formula node: {type(node).__name__}")
+
+    walk(formula)
+    return preds
+
+
+def _domains_from_data(graph, df: pd.DataFrame) -> dict[Atom, tuple]:
+    """Per-atom observed value domain, keyed by the graph-node Atom (so it
+    matches the formula's ``SumExpr.over`` / conditioning atoms by value
+    equality)."""
+    domains: dict[Atom, tuple] = {}
+    for node in graph.nodes():
+        col = node.predicate
+        if col in df.columns:
+            domains[node] = tuple(_sorted_levels(df[col]))
+    return domains
+
+
+def _empirical_conditional(df: pd.DataFrame, key: ProbabilityKey) -> float:
+    """Empirical P(target=target_value | given) from the data — the count
+    ratio over the conditioning stratum. An empty stratum is a positivity
+    violation (raises), never a fabricated value."""
+    mask = np.ones(len(df), dtype=bool)
+    for atom, value in key.given:
+        mask &= (df[atom.predicate].to_numpy() == value)
+    denom = int(mask.sum())
+    if denom == 0:
+        raise EstimatorFailure(
+            "insufficient_support",
+            "positivity violation: the identified estimand conditions on a "
+            "covariate stratum with zero support in the data "
+            f"({_render_given(key)}); the effect cannot be evaluated there "
+            "without extrapolating. Supply data covering that stratum.",
+        )
+    target_col = df[key.target_atom.predicate].to_numpy()
+    num = int((mask & (target_col == key.target_value)).sum())
+    return num / denom
+
+
+def _render_given(key: ProbabilityKey) -> str:
+    pairs = sorted(
+        ((a.predicate, v) for a, v in key.given), key=lambda p: p[0]
+    )
+    return ",".join(f"{p}={v}" for p, v in pairs) or "∅"
+
+
+def _build_data_theta(
+    formula: FormulaExpr, df: pd.DataFrame, domains: dict[Atom, tuple]
+) -> Theta:
+    """A Theta whose entries are the empirical conditionals the formula
+    needs. Every key ``enumerate_keys`` would look up is pre-filled from
+    data, so ``estimate_formula``'s sparse-theta fallbacks never fire."""
+    theta = Theta(domains=dict(domains))
+    for key in set(enumerate_keys(formula, theta)):
+        theta.entries[key] = _empirical_conditional(df, key)
+    return theta
+
+
+def _prob_do(
+    formula: FormulaExpr, df: pd.DataFrame, domains: dict[Atom, tuple]
+) -> float:
+    theta = _build_data_theta(formula, df, domains)
+    return estimate_formula(formula, theta)
+
+
+def _point_ate(
+    df: pd.DataFrame,
+    f_hi: FormulaExpr,
+    f_lo: FormulaExpr,
+    domains: dict[Atom, tuple],
+) -> float:
+    """ATE = P(Y=y_hi | do(X=x_hi)) − P(Y=y_hi | do(X=x_lo))."""
+    return _prob_do(f_hi, df, domains) - _prob_do(f_lo, df, domains)
+
+
+def _bootstrap_ci(
+    df: pd.DataFrame,
+    f_hi: FormulaExpr,
+    f_lo: FormulaExpr,
+    domains: dict[Atom, tuple],
+    *,
+    ci_bootstrap: int,
+    ci_level: float,
+    random_state: int,
+    groups: np.ndarray | None = None,
+) -> tuple[float | None, float | None]:
+    """Non-parametric percentile bootstrap. The identified formula is
+    fixed (data-independent); each resample re-estimates the empirical
+    Theta on its own domains and re-evaluates. A resample that induces an
+    empty stratum (positivity failure on that draw) is skipped — the CI is
+    over the draws where the estimand is evaluable."""
+    rng = np.random.default_rng(random_state)
+    n = len(df)
+    estimates: list[float] = []
+    for _ in range(ci_bootstrap):
+        idx = resample_indices(n, rng, groups=groups)
+        sample = df.iloc[idx]
+        # Keep the FULL-data domains across resamples: a level absent from
+        # one draw still yields a (zero-support) key that the positivity
+        # guard catches and skips, rather than silently changing the sum's
+        # range and evaluating a DIFFERENT estimand on that draw.
+        try:
+            est = (
+                _prob_do(f_hi, sample, domains)
+                - _prob_do(f_lo, sample, domains)
+            )
+        except EstimatorFailure:
+            continue
+        estimates.append(est)
+    if len(estimates) < 2:
+        return None, None
+    arr = np.asarray(estimates)
+    alpha = (1 - ci_level) / 2
+    return float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha))

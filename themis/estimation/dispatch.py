@@ -724,7 +724,21 @@ def _estimate_effect_queries(
                 graph, x_atom, y_atom, bidirected=bidirected or None,
             )
         if not front:
-            # Phase 7.3: try IV as the third fallback.
+            # Phase 7.G: general-ID (c-factor) plug-in — the crown-jewel
+            # non-parametric identification made numeric. Tried BEFORE IV
+            # because a c-factor estimand is assumption-free, whereas the
+            # IV point estimate needs monotonicity / effect homogeneity.
+            # When do(X) is non-parametrically point-identified (e.g. the
+            # napkin) this is the honest answer; only when it is NOT (a
+            # genuine hedge) do we fall through to the under-assumption IV.
+            if _try_general_id_estimate(
+                q_stmt, result, contract, graph, bidirected,
+                x_atom=x_atom, y_atom=y_atom, given_atoms=given_atoms,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
+            ):
+                continue
+            # Phase 7.3: try IV when NOT non-parametrically identified.
             iv_candidates = structural_solver.iv_sets(
                 graph, x_atom, y_atom, bidirected=bidirected or None,
             )
@@ -835,6 +849,135 @@ def _estimate_effect_queries(
             outcome=y_atom.predicate, treatment=x_atom.predicate,
         )
         _finalise_numeric_result(result)
+
+
+def _try_general_id_estimate(
+    q_stmt, result: dict, contract, graph, bidirected, *,
+    x_atom, y_atom, given_atoms, random_state: int,
+    ci_bootstrap: int = 500, cluster: str | None = None,
+) -> bool:
+    """Final identification fallback: evaluate a general-ID (c-factor)
+    identified estimand on data by the non-parametric plug-in.
+
+    Tried BEFORE the IV escalation because a c-factor estimand is
+    ASSUMPTION-FREE, whereas the IV point estimate needs monotonicity /
+    effect homogeneity. When ``do(X)`` is non-parametrically point-
+    identified (Pearl's napkin is the canonical case) this is the honest
+    answer; only when it is NOT (a genuine hedge) does the caller fall
+    through to the under-assumption IV.
+
+    Purely additive: returns True only when it ATTACHES a plug-in numeric
+    estimate. On any refusal — not c-factor identified, out of the binary
+    scope, or the data can't support the estimand (positivity) — it
+    returns False and touches nothing, so the prior IV / cliff behavior
+    stays byte-identical when the plug-in doesn't apply.
+    """
+    from .dose_response import EstimatorFailure
+    from .general_id import estimate_general_id_ate
+
+    # v1 scope: unconditional effect only (IDC plug-in deferred).
+    if given_atoms:
+        return False
+    df = contract.data
+    if x_atom.predicate not in df.columns or y_atom.predicate not in df.columns:
+        return False
+
+    try:
+        estimate = estimate_general_id_ate(
+            df, graph=graph, bidirected=bidirected,
+            treatment_atom=x_atom, outcome_atom=y_atom,
+            ci_bootstrap=ci_bootstrap, random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
+        )
+    except (EstimatorFailure, ValueError, NotImplementedError):
+        # Not (non-parametrically) c-factor identified here, out of the
+        # plug-in's binary scope, or a positivity refusal — leave the
+        # result untouched and fall through to the IV escalation.
+        return False
+
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "treatment": estimate.treatment,
+        "outcome": estimate.outcome,
+        "treatment_high": estimate.treatment_high,
+        "treatment_low": estimate.treatment_low,
+        "outcome_high": estimate.outcome_high,
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=estimate.outcome,
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+
+    result["derivation"] = _build_general_id_numeric_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, estimate=estimate,
+    )
+    _attach_e_value_if_binary(
+        result, contract,
+        outcome=y_atom.predicate, treatment=x_atom.predicate,
+    )
+    _finalise_numeric_result(result)
+    return True
+
+
+def _build_general_id_numeric_derivation_dict(*, graph, x, y, estimate):
+    """Two-step derivation for a general-ID (c-factor plug-in) estimate:
+
+        s1: general_id_criterion (structural witness — re-runs the ID
+            engine to confirm point-identifiability)
+        s2: numeric_general_id_estimate (metadata audit — no re-fit)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="general_id_criterion",
+            inputs={"graph": graph, "x": x, "y": y},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_general_id_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "treatment": x,
+                "outcome": y,
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
 
 
 def _try_mediation_estimate(

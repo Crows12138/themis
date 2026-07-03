@@ -108,6 +108,18 @@ Landed scope:
   it honours the identification verdict, refusing to produce a number when
   the estimand is not recoverable. Unlike the other estimators it does NOT
   route model columns through the NaN-forbidding data contract.
+- General-ID (c-factor) plug-in — ``estimate_general_id_ate`` returning
+  ``GeneralIdEstimate``. Evaluates a point-identified Tian-Shpitser
+  c-factor estimand (a nested sum/product/ratio of observational
+  conditionals) on discrete data by the non-parametric plug-in, reusing
+  the kernel's own ``estimate_formula`` walker. This is the numeric end of
+  the general ID algorithm: effects identified ONLY through the
+  c-component factorisation — not by back-door / front-door / IV — such as
+  Pearl's napkin. Reached through ``themis.estimate`` as the final
+  identification fallback, tried BEFORE the IV escalation because the
+  c-factor estimand is assumption-free (an IV point needs monotonicity /
+  homogeneity). Refuses on a positivity violation (empty stratum) rather
+  than fabricating a value.
 
 The data contract (``DataContract`` / ``DataContractError``) is shared
 by all estimators — same DataFrame validation, same SHA-256 hash
@@ -123,6 +135,7 @@ from .aipw import (
 from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .contract import DataContract, DataContractError
 from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
+from .general_id import GeneralIdEstimate, estimate_general_id_ate
 from .four_way import (
     FourWayRatioComponents,
     four_way_ratio_decomposition,
@@ -183,6 +196,7 @@ __all__ = [
     "FourWayRatioComponents",
     "FourWayRatioEstimate",
     "FrontdoorEstimate",
+    "GeneralIdEstimate",
     "IPWEstimate",
     "IVEstimate",
     "JointEffectEstimate",
@@ -206,6 +220,7 @@ __all__ = [
     "estimate_cde_chain",
     "estimate_four_way_ratio",
     "estimate_frontdoor_ate",
+    "estimate_general_id_ate",
     "estimate_ipw_ate",
     "four_way_ratio_decomposition",
     "estimate_iv_ate",
