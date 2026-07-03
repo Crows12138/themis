@@ -908,6 +908,30 @@ Failed-condition codes → plain explanation:
 | C1 | 无法阻断 (X, M) 到 Y 的所有后门 |
 | C2 | 唯一能阻断后门的变量是 X 或 M 的后代（不允许调整） |
 
+**Four-way decomposition sub-blocks (VanderWeele 2014).** With data, the
+mediation `numeric_estimate` may also carry a four-way split of the total
+effect — TE = CDE + INTref + INTmed + PIE — answering "how much is due to
+*neither* mediation nor interaction / *only* interaction / *both* / *only*
+mediation". Two scales:
+
+- `four_way_decomposition` — the **difference (risk-difference) scale**. The
+  default; report the four pieces and `prop_mediated` / `prop_interaction`.
+  `four_way_unavailable` (with a reason) appears instead when the shape is
+  invalid (continuous mediator under a logit outcome).
+- `four_way_ratio` — the **ratio (excess relative risk) scale**, attached
+  only when the OUTCOME is binary. For a binary outcome the multiplicative
+  scale is the natural one: `total_rr − 1 = err_cde + err_intref +
+  err_intmed + err_pie`. **Lead with this one when it is present** — for a
+  binary outcome the risk difference is scale-dependent on baseline risk,
+  whereas the excess relative risk is what decomposes cleanly. Report the
+  four `err_*` and the proportions; `mediator_scale` says whether the
+  mediator model was logistic (`binary`, §3.4) or linear (`continuous`,
+  §3.3 — then `mediator_residual_variance` carries σ²). Do NOT expect the
+  ratio and difference pieces to be proportional — non-collapsibility means
+  the split genuinely differs by scale; that is information, not an
+  inconsistency. Both are supplementary audit detail; the headline stays the
+  proportion mediated + the structural identifiability verdict.
+
 ### Transport identification (Phase 9 §T9.1)
 
 When `result.extensions.transport_identification` is present, the

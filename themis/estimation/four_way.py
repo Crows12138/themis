@@ -120,9 +120,12 @@ class FourWayRatioComponents:
     The four ``*_comp`` are the raw ratio-scale components; ``terr`` is
     their sum. VanderWeele defines each REPORTED excess-relative-risk piece
     as ``comp · (total_rr − 1) / terr`` so the four pieces sum EXACTLY to
-    ``total_err`` — a rescaling that is a no-op for the binary/binary case
-    (there ``terr ≡ total_rr − 1`` identically) but corrects the
-    continuous-mediator case. Proportions use ``terr`` as the denominator.
+    ``total_err``. This rescale is numerically a NO-OP: the risk contrasts
+    telescope to the total effect, so ``terr ≡ total_rr − 1`` identically
+    for BOTH the binary-mediator (§3.4) and continuous-mediator (§3.3)
+    forms — confirmed against direct numerical integration to machine
+    precision. It is kept only to match VanderWeele verbatim and stay robust
+    to floating drift. Proportions use ``terr`` as the denominator.
 
     Fields:
       err_cde / err_intref / err_intmed / err_pie : the excess-relative-risk
@@ -251,6 +254,98 @@ def four_way_ratio_decomposition(
     # Rescale so the four ERR pieces sum EXACTLY to total_err. For binary/
     # binary terr == total_err identically, so this factor is 1; keeping it
     # matches VanderWeele's definition verbatim and stays robust to drift.
+    scale = (total_err / terr) if terr != 0 else float("nan")
+
+    def _prop(c: float) -> float:
+        return (c / terr) if terr != 0 else float("nan")
+
+    return FourWayRatioComponents(
+        err_cde=cde_comp * scale,
+        err_intref=intref_comp * scale,
+        err_intmed=intmed_comp * scale,
+        err_pie=pie_comp * scale,
+        total_err=total_err,
+        total_rr=total_rr,
+        prop_cde=_prop(cde_comp),
+        prop_intref=_prop(intref_comp),
+        prop_intmed=_prop(intmed_comp),
+        prop_pie=_prop(pie_comp),
+        prop_mediated=_prop(intmed_comp + pie_comp),
+        prop_interaction=_prop(intref_comp + intmed_comp),
+        prop_eliminated=_prop(intref_comp + intmed_comp + pie_comp),
+        cde_comp=cde_comp,
+        intref_comp=intref_comp,
+        intmed_comp=intmed_comp,
+        pie_comp=pie_comp,
+    )
+
+
+def four_way_ratio_decomposition_continuous(
+    *,
+    t1: float,   # outcome-model coefficient on A
+    t2: float,   # outcome-model coefficient on M
+    t3: float,   # outcome-model coefficient on A·M
+    b0: float,   # LINEAR mediator-model intercept
+    b1: float,   # LINEAR mediator-model coefficient on A
+    ss_m: float,  # LINEAR mediator-model RESIDUAL VARIANCE (σ²)
+    bcc: float = 0.0,   # mediator-model covariate contribution (b_C·c)
+    a1: float = 1.0,    # exposure level compared (treated)
+    a0: float = 0.0,    # exposure reference (control)
+    mstar: float = 0.0,  # mediator reference level for the CDE
+) -> FourWayRatioComponents:
+    """VanderWeele's excess-relative-risk four-way decomposition (eAppendix
+    §3.3) for a binary outcome + CONTINUOUS mediator, in closed form.
+
+    Same logistic outcome model as §3.4
+    (``logit P(Y=1|A,M,C) = t0 + t1·A + t2·M + t3·A·M + t_C·C``) but a LINEAR
+    mediator model ``M = b0 + b1·A + b_C·C + ε`` with ε ~ N(0, ss_m). Where
+    the binary-mediator §3.4 formulas sum the odds over m ∈ {0,1}, the
+    continuous case INTEGRATES the odds-ratio-approximation risk exp(·) over
+    the normal mediator, so every term carries a Gaussian-MGF factor
+    ``exp((t2+t3·a)·μ − ½(t2+t3·a)²·ss_m)`` — hence the ``ss_m`` terms.
+
+    This is the ORACLE — a verbatim transcription of VanderWeele's SAS
+    ``proc nlmixed`` code (eAppendix §3.3), nothing is re-derived. It is
+    validated against direct numerical (Gauss-Hermite) integration of the
+    risk contrasts to machine precision. ``ss_m`` is the mediator model's
+    residual variance (the estimator supplies the ML value SSR/n).
+
+    As in §3.4 the reported ERR pieces are ``comp·(total_rr−1)/terr``; here
+    too ``terr ≡ total_rr − 1`` identically (the risk contrasts telescope to
+    the total effect), so the rescale is numerically a no-op — kept only to
+    match VanderWeele verbatim and stay robust to floating drift.
+    """
+    def E(x: float) -> float:
+        return exp(x)
+
+    # Shared with the CDE: the two controlled-risk-at-mstar terms.
+    _shift = (t2 + t3 * a0) * (b0 + b1 * a0 + bcc) + 0.5 * (t2 + t3 * a0) ** 2 * ss_m
+    cde_hi = E(t1 * (a1 - a0) + t2 * mstar + t3 * a1 * mstar - _shift)
+    cde_lo = E(t2 * mstar + t3 * a0 * mstar - _shift)
+    cde_comp = cde_hi - cde_lo
+
+    # The natural-mediator risk at (a1, M_{a0}), relative to baseline.
+    nat_a1_M0 = E(
+        (t1 + t3 * (b0 + b1 * a0 + bcc + t2 * ss_m)) * (a1 - a0)
+        + 0.5 * t3 * t3 * ss_m * (a1 * a1 - a0 * a0)
+    )
+    intref_comp = nat_a1_M0 - 1.0 - cde_hi + cde_lo
+
+    intmed_comp = (
+        E(
+            (t1 + t2 * b1 + t3 * (b0 + b1 * a0 + b1 * a1 + bcc + t2 * ss_m)) * (a1 - a0)
+            + 0.5 * t3 * t3 * ss_m * (a1 * a1 - a0 * a0)
+        )
+        - E((t2 * b1 + t3 * b1 * a0) * (a1 - a0))
+        - nat_a1_M0
+        + 1.0
+    )
+    pie_comp = E((t2 * b1 + t3 * b1 * a0) * (a1 - a0)) - 1.0
+
+    terr = cde_comp + intref_comp + intmed_comp + pie_comp
+    total_rr = nat_a1_M0 * E((t2 * b1 + t3 * b1 * a1) * (a1 - a0))
+    total_err = total_rr - 1.0
+
     scale = (total_err / terr) if terr != 0 else float("nan")
 
     def _prop(c: float) -> float:

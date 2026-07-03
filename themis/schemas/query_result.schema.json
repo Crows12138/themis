@@ -826,6 +826,26 @@
           "additionalProperties": false,
           "required": ["reason"],
           "properties": { "reason": { "type": "string" } }
+        },
+        "four_way_ratio": {
+          "type": "object",
+          "description": "VanderWeele 2014 eAppendix §3.4 (binary mediator) / §3.3 (continuous mediator) RATIO-scale (excess relative risk) four-way decomposition, attached to a mediation numeric_estimate when the OUTCOME is binary. For a binary outcome the multiplicative scale is the natural one: the total excess relative risk (total_rr − 1) = err_cde + err_intref + err_intmed + err_pie. Unlike the collapsible difference-scale four_way_decomposition these components are NON-collapsible functions of the logistic outcome coefficients (odds-ratio approximation). mediator_scale is 'binary' (§3.4, logistic mediator) or 'continuous' (§3.3, linear mediator; mediator_residual_variance then carries σ²).",
+          "required": ["mediator_scale", "err_cde", "err_intref", "err_intmed", "err_pie", "total_err", "total_rr", "prop_mediated", "prop_interaction", "prop_eliminated"],
+          "additionalProperties": false,
+          "properties": {
+            "mediator_scale": { "enum": ["binary", "continuous"] },
+            "err_cde": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "err_intref": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "err_intmed": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "err_pie": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "total_err": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "total_rr": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "prop_mediated": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "prop_interaction": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "prop_eliminated": { "$ref": "#/$defs/ratioComponentEstimate" },
+            "mediator_residual_variance": { "type": "number" },
+            "reference": { "type": "string" }
+          }
         }
       }
     },
@@ -894,6 +914,17 @@
         "point": { "type": "number" },
         "ci_lower": { "type": "number" },
         "ci_upper": { "type": "number" }
+      }
+    },
+    "ratioComponentEstimate": {
+      "type": "object",
+      "description": "A ratio-scale four-way component: point + percentile CI whose bounds may be null (no bootstrap requested, or all resample draws non-finite).",
+      "required": ["point", "ci_lower", "ci_upper"],
+      "additionalProperties": false,
+      "properties": {
+        "point": { "type": "number" },
+        "ci_lower": { "type": ["number", "null"] },
+        "ci_upper": { "type": ["number", "null"] }
       }
     },
     "precisionBudget": {

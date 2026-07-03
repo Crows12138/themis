@@ -198,3 +198,77 @@ def test_mediation_decomposition_carries_per_component_precision_budget():
         assert "current_ci_half_width" in pb
         assert "n_to_halve_ci" in pb
         assert pb["n_to_halve_ci"] >= 1
+
+
+# ==================================== ratio-scale four-way (VanderWeele §3.4/§3.3)
+#
+# When the OUTCOME is binary the mediation dispatch also attaches a
+# four_way_ratio block (excess relative risk scale) alongside the NDE/NIE.
+# Binary mediator → §3.4 (logistic mediator), continuous mediator → §3.3
+# (linear mediator + residual variance).
+
+
+def _binary_outcome_med_data(n=1200, seed=0, continuous_mediator=False):
+    rng = np.random.default_rng(seed)
+    x = rng.binomial(1, 0.5, n)
+    if continuous_mediator:
+        m = 0.2 + 0.8 * x + rng.normal(0, 1.0, n)
+    else:
+        m = rng.binomial(1, 1 / (1 + np.exp(-(-0.2 + 1.0 * x))))
+    y = rng.binomial(1, 1 / (1 + np.exp(-(-1.0 + 0.6 * x + 0.7 * m + 0.4 * x * m))))
+    return pd.DataFrame({
+        "x": x.astype(float),
+        "m": m if continuous_mediator else m.astype(float),
+        "y": y.astype(float),
+    })
+
+
+def test_binary_outcome_binary_mediator_attaches_ratio_section_3_4():
+    df = _binary_outcome_med_data(seed=1, continuous_mediator=False)
+    out = themis.estimate(_clean_mediation_ast(), df, ci_bootstrap=30,
+                          random_state=7)
+    est = out["results"][0]["numeric_estimate"]
+    fr = est["four_way_ratio"]
+    assert fr["mediator_scale"] == "binary"
+    assert "mediator_residual_variance" not in fr        # §3.4 has no ss_m
+    # the four ERR pieces sum to the total excess relative risk
+    s = sum(fr[k]["point"] for k in ("err_cde", "err_intref", "err_intmed", "err_pie"))
+    assert abs(s - fr["total_err"]["point"]) < 1e-9
+    assert fr["err_cde"]["ci_lower"] is not None
+
+
+def test_binary_outcome_continuous_mediator_attaches_ratio_section_3_3():
+    """A continuous mediator under a binary (logit) outcome: the
+    difference-scale four-way is skipped (four_way_unavailable) and the
+    §3.3 ratio block fills in."""
+    ast = _clean_mediation_ast()
+    ast["statements"][1] = {"kind": "variable", "predicate": "m",
+                            "domain": [0.0, 1.0]}     # framing-only domain
+    df = _binary_outcome_med_data(seed=2, continuous_mediator=True)
+    out = themis.estimate(ast, df, ci_bootstrap=30, random_state=7)
+    est = out["results"][0]["numeric_estimate"]
+    fr = est["four_way_ratio"]
+    assert fr["mediator_scale"] == "continuous"
+    assert fr["mediator_residual_variance"] > 0
+    s = sum(fr[k]["point"] for k in ("err_cde", "err_intref", "err_intmed", "err_pie"))
+    assert abs(s - fr["total_err"]["point"]) < 1e-9
+    # the difference-scale block is (correctly) unavailable for this shape
+    assert "four_way_unavailable" in est
+
+
+def test_continuous_outcome_gets_no_ratio_block():
+    """A continuous outcome has no excess relative risk — the ratio block
+    must NOT be attached (only the difference-scale four-way)."""
+    df = _clean_med_data(n=2000, seed=0)          # continuous y
+    out = themis.estimate(_clean_mediation_ast(), df, random_state=42)
+    est = out["results"][0]["numeric_estimate"]
+    assert "four_way_ratio" not in est
+
+
+def test_ratio_block_output_validates_against_schema():
+    from themis.input.syntactic_validator import validate_result
+    df = _binary_outcome_med_data(seed=3, continuous_mediator=False)
+    out = themis.estimate(_clean_mediation_ast(), df, ci_bootstrap=20,
+                          random_state=7)
+    for r in out["results"]:
+        validate_result(r)

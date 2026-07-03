@@ -42,14 +42,18 @@ Landed scope:
   iter 125 single-M CDE to N mediators X→M_1→...→M_n→Y, fixing
   each M_i at a chosen reference (VanderWeele 2015 ch.5).
 - Ratio-scale four-way decomposition — ``estimate_four_way_ratio``
-  returning ``FourWayRatioEstimate``, over the oracle
-  ``four_way_ratio_decomposition`` (returning ``FourWayRatioComponents``).
-  VanderWeele's CDE / INTref / INTmed / PIE split on the EXCESS RELATIVE
-  RISK scale for a binary outcome + binary mediator (VanderWeele 2014,
-  eAppendix §3.4). Unlike the difference-scale ``four_way_decomposition``
-  (a pure computation over standardized cell means), the ratio-scale
-  components are non-collapsible functions of the logistic outcome /
-  mediator coefficients, so this fits both parametric models.
+  returning ``FourWayRatioEstimate``, over the oracles
+  ``four_way_ratio_decomposition`` (binary mediator, §3.4) and
+  ``four_way_ratio_decomposition_continuous`` (continuous mediator, §3.3),
+  both returning ``FourWayRatioComponents``. VanderWeele's CDE / INTref /
+  INTmed / PIE split on the EXCESS RELATIVE RISK scale for a binary outcome
+  (VanderWeele 2014, eAppendix §3.4/§3.3). Unlike the difference-scale
+  ``four_way_decomposition`` (a pure computation over standardized cell
+  means), the ratio-scale components are non-collapsible functions of the
+  logistic outcome coefficients; the mediator model is logistic (binary
+  mediator) or linear-with-residual-variance (continuous mediator). Surfaced
+  in the kernel mediation dispatch as a ``four_way_ratio`` block when the
+  outcome is binary.
 - Phase 9 §T9.2 (iter 128) — transport-numeric ATE via post-
   stratification (Cole & Stuart 2010 §3): ``estimate_transport``
   returning ``TransportEstimate``. Source data + target marginal
@@ -122,6 +126,7 @@ from .frontdoor import FrontdoorEstimate, estimate_frontdoor_ate
 from .four_way import (
     FourWayRatioComponents,
     four_way_ratio_decomposition,
+    four_way_ratio_decomposition_continuous,
 )
 from .four_way_ratio import (
     FourWayRatioEstimate,
@@ -205,6 +210,7 @@ __all__ = [
     "four_way_ratio_decomposition",
     "estimate_iv_ate",
     "estimate_joint_effect",
+    "four_way_ratio_decomposition_continuous",
     "estimate_longitudinal_gformula",
     "estimate_longitudinal_ipw_msm",
     "estimate_mediation",

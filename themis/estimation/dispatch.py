@@ -542,7 +542,8 @@ def _estimate_effect_queries(
         if q_stmt.query.mediator is not None:
             _try_mediation_estimate(
                 q_stmt, result, contract, graph, bidirected,
-                random_state=random_state, cluster=cluster,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
             )
             continue
 
@@ -838,7 +839,7 @@ def _estimate_effect_queries(
 
 def _try_mediation_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
-    cluster: str | None = None,
+    ci_bootstrap: int = 500, cluster: str | None = None,
 ) -> None:
     """Phase 7.4 — attach a mediation numeric estimate when the
     identification layer has cleared NDE/NIE for the requested mediator.
@@ -847,6 +848,10 @@ def _try_mediation_estimate(
     whether to fit. Only the ``nde_nie`` strategy is wired in 7.4 —
     CDE numeric estimation is deferred (the reference mediator value
     isn't expressible cleanly in the statsmodels Mediation API).
+
+    When the OUTCOME is binary, a ratio-scale (excess relative risk)
+    four-way block is attached alongside the difference-scale one
+    (VanderWeele eAppendix §3.4/§3.3); ``ci_bootstrap`` sizes its CI.
     """
     from .mediation import estimate_mediation
 
@@ -959,6 +964,17 @@ def _try_mediation_estimate(
         result["numeric_estimate"]["four_way_unavailable"] = {
             "reason": med_estimate.four_way_unavailable_reason,
         }
+    # VanderWeele 2014 eAppendix §3.4/§3.3 ratio-scale (excess relative risk)
+    # four-way split — attached when the OUTCOME is binary (the ratio scale
+    # is only defined then). For a binary outcome the multiplicative scale is
+    # the natural one; the difference-scale block above is a collapsible
+    # linear combination, the ratio-scale block a NON-collapsible function of
+    # the logistic coefficients. Binary mediator → §3.4, continuous → §3.3.
+    _attach_four_way_ratio(
+        result, contract, treatment=x_pred, outcome=y_pred, mediator=m_pred,
+        adjustment=adjustment, random_state=random_state,
+        ci_bootstrap=ci_bootstrap, cluster=cluster,
+    )
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget_decomposition(result["numeric_estimate"])
     _attach_e_value_if_binary(
@@ -973,6 +989,81 @@ def _try_mediation_estimate(
     # mediation derivation (mediation_*_check + identify_via_mediation)
     # already passes verify_effect_structural. Flipping to
     # numerically_solved would break that round-trip.
+
+
+# Upper bound on the supplementary ratio-scale four-way bootstrap (a
+# second double-model bootstrap beside the primary Imai one). The other
+# auto-attached supplementary blocks (E-value, OVB) are closed-form and
+# cheap; this one needs a bootstrap, so it is capped so a mediation estimate
+# with the default ci_bootstrap (500) never silently pays a full 500×
+# double-fit for a supplementary audit block. The POINT decomposition (the
+# value) is exact regardless; only the supplementary CIs use the bounded
+# bootstrap — a declared cost↔precision trade-off.
+_RATIO_BOOTSTRAP_CAP = 200
+
+
+def _attach_four_way_ratio(
+    result: dict, contract, *, treatment: str, outcome: str, mediator: str,
+    adjustment: tuple[str, ...], random_state: int, ci_bootstrap: int,
+    cluster: str | None,
+) -> None:
+    """Attach the ratio-scale (excess relative risk) four-way block to a
+    mediation numeric_estimate when the OUTCOME is binary.
+
+    VanderWeele eAppendix §3.4 (binary mediator, logistic model) / §3.3
+    (continuous mediator, linear model + residual variance). Silent no-op
+    when the outcome is continuous (the estimator raises
+    ``outcome_not_binary``), a level is degenerate, or a model fit fails —
+    the difference-scale block already attached stays the primary detail.
+    """
+    import numpy as np
+
+    from .dose_response import EstimatorFailure
+    from .four_way_ratio import estimate_four_way_ratio
+
+    ne = result.get("numeric_estimate")
+    if ne is None:
+        return
+    # The ratio block is SUPPLEMENTARY audit detail sitting beside the
+    # primary NDE/NIE; its CI is a second, independent double-model
+    # bootstrap. Bounding it (a declared cost↔precision trade-off) keeps a
+    # single mediation estimate from silently paying a full 500× double-fit
+    # bootstrap on top of the Imai one — the point decomposition (the value)
+    # is exact regardless of this cap.
+    ratio_bootstrap = min(ci_bootstrap, _RATIO_BOOTSTRAP_CAP)
+    try:
+        est = estimate_four_way_ratio(
+            contract.data, treatment=treatment, outcome=outcome,
+            mediator=mediator, adjustment=adjustment,
+            ci_bootstrap=ratio_bootstrap, random_state=random_state,
+            cluster=cluster,
+        )
+    except (EstimatorFailure, ValueError, KeyError, np.linalg.LinAlgError):
+        return
+
+    def _p(pt, lo, hi) -> dict:
+        return {"point": pt, "ci_lower": lo, "ci_upper": hi}
+
+    block = {
+        "mediator_scale": est.mediator_scale,
+        "err_cde": _p(est.err_cde_point, est.err_cde_ci_lower, est.err_cde_ci_upper),
+        "err_intref": _p(est.err_intref_point, est.err_intref_ci_lower, est.err_intref_ci_upper),
+        "err_intmed": _p(est.err_intmed_point, est.err_intmed_ci_lower, est.err_intmed_ci_upper),
+        "err_pie": _p(est.err_pie_point, est.err_pie_ci_lower, est.err_pie_ci_upper),
+        "total_err": _p(est.total_err_point, est.total_err_ci_lower, est.total_err_ci_upper),
+        "total_rr": _p(est.total_rr_point, est.total_rr_ci_lower, est.total_rr_ci_upper),
+        "prop_mediated": _p(est.prop_mediated_point, est.prop_mediated_ci_lower, est.prop_mediated_ci_upper),
+        "prop_interaction": _p(est.prop_interaction_point, est.prop_interaction_ci_lower, est.prop_interaction_ci_upper),
+        "prop_eliminated": _p(est.prop_eliminated_point, est.prop_eliminated_ci_lower, est.prop_eliminated_ci_upper),
+        "reference": (
+            "VanderWeele 2014 eAppendix §3.4 (binary mediator) / §3.3 "
+            "(continuous mediator); excess relative risk = CDE + INTref + "
+            "INTmed + PIE"
+        ),
+    }
+    if est.ss_m is not None:
+        block["mediator_residual_variance"] = est.ss_m
+    ne["four_way_ratio"] = block
 
 
 def _try_joint_estimate(

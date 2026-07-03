@@ -22,16 +22,17 @@ summary" convention — the ratio-scale closed form is conditional on c, so
 a single covariate value is chosen rather than averaging the nonlinear
 formula over C), and forms percentile-bootstrap CIs.
 
-Scope (v1, declared):
-- Binary outcome AND binary mediator only. A continuous mediator needs
-  VanderWeele's eAppendix §3.3 formula (with the mediator residual
-  variance) and is deferred; a continuous outcome has no excess relative
+Scope (declared):
+- Binary OUTCOME required. The MEDIATOR may be binary (§3.4, logistic
+  mediator model) or continuous (§3.3, linear mediator model with normal
+  residual variance) — the estimator detects the mediator scale and picks
+  the matching closed form. A continuous outcome has no excess relative
   risk and uses the difference-scale ``four_way_decomposition``.
 - The decomposition is reported at the sample-mean covariate value. Effect
   modification by C (reporting at several c) is deferred.
-- Standalone public estimator (like ``estimate_cde``); not wired into the
-  kernel mediation dispatch. Surfacing the ratio-scale block in the
-  mediation result (schema + rendering) is a separate slice.
+- Surfaced in the kernel mediation dispatch when the outcome is binary: the
+  ``themis.estimate`` mediation path attaches a ``four_way_ratio`` block
+  alongside the NDE/NIE decomposition.
 
 API::
 
@@ -52,7 +53,11 @@ import statsmodels.api as sm
 
 from .contract import validate_data
 from .dose_response import EstimatorFailure
-from .four_way import FourWayRatioComponents, four_way_ratio_decomposition
+from .four_way import (
+    FourWayRatioComponents,
+    four_way_ratio_decomposition,
+    four_way_ratio_decomposition_continuous,
+)
 from .resample import cluster_labels, resample_indices
 
 
@@ -109,6 +114,10 @@ class FourWayRatioEstimate:
     b0: float
     b1: float
     bcc: float
+    # "binary" (§3.4, logistic mediator) or "continuous" (§3.3, linear
+    # mediator with residual variance ss_m). ss_m is None for the binary case.
+    mediator_scale: str = "binary"
+    ss_m: float | None = None
     cluster: str | None = None
 
 
@@ -125,9 +134,17 @@ def _decompose_frame(
     adjustment: tuple[str, ...],
     mediator_reference: float,
     covariate_means: dict[str, float],
-) -> tuple[FourWayRatioComponents, float, float, float, float, float, float]:
-    """Fit both logistic models on ``frame`` and return the ratio-scale
-    decomposition plus the (t1, t2, t3, b0, b1, bcc) it used."""
+    mediator_binary: bool,
+) -> tuple[FourWayRatioComponents, float, float, float, float, float, float, float | None]:
+    """Fit the logistic outcome model + the mediator model on ``frame`` and
+    return the ratio-scale decomposition plus the (t1, t2, t3, b0, b1, bcc,
+    ss_m) it used.
+
+    The mediator model is logistic (§3.4) for a binary mediator or linear
+    (§3.3) for a continuous one; ``ss_m`` is the linear model's ML residual
+    variance (SSR/n, matching VanderWeele's joint normal likelihood) and is
+    ``None`` for the binary case.
+    """
     adj_term = " + ".join(adjustment)
     sep = " + " if adj_term else ""
     interaction = f"{treatment}:{mediator}"
@@ -137,21 +154,34 @@ def _decompose_frame(
     mediator_formula = f"{mediator} ~ {treatment}{sep}{adj_term}"
 
     om = sm.Logit.from_formula(outcome_formula, data=frame).fit(disp=0)
-    mm = sm.Logit.from_formula(mediator_formula, data=frame).fit(disp=0)
-
     t1 = float(om.params[treatment])
     t2 = float(om.params[mediator])
     t3 = float(om.params[interaction])
+
+    if mediator_binary:
+        mm = sm.Logit.from_formula(mediator_formula, data=frame).fit(disp=0)
+        b0 = float(mm.params["Intercept"])
+        b1 = float(mm.params[treatment])
+        bcc = float(sum(mm.params[c] * covariate_means[c] for c in adjustment))
+        comps = four_way_ratio_decomposition(
+            t1=t1, t2=t2, t3=t3, b0=b0, b1=b1, bcc=bcc,
+            a1=1.0, a0=0.0, mstar=float(mediator_reference),
+        )
+        return comps, t1, t2, t3, b0, b1, bcc, None
+
+    mm = sm.OLS.from_formula(mediator_formula, data=frame).fit()
     b0 = float(mm.params["Intercept"])
     b1 = float(mm.params[treatment])
-    # Mediator-model covariate contribution at the chosen (sample-mean) c.
     bcc = float(sum(mm.params[c] * covariate_means[c] for c in adjustment))
-
-    comps = four_way_ratio_decomposition(
-        t1=t1, t2=t2, t3=t3, b0=b0, b1=b1, bcc=bcc,
+    # ML residual variance (SSR/n) — matches VanderWeele's nlmixed joint
+    # normal likelihood ll_m = -(m-mu)²/(2·ss_m) - ½·log(ss_m).
+    resid = mm.resid.to_numpy()
+    ss_m = float(np.mean(resid ** 2))
+    comps = four_way_ratio_decomposition_continuous(
+        t1=t1, t2=t2, t3=t3, b0=b0, b1=b1, ss_m=ss_m, bcc=bcc,
         a1=1.0, a0=0.0, mstar=float(mediator_reference),
     )
-    return comps, t1, t2, t3, b0, b1, bcc
+    return comps, t1, t2, t3, b0, b1, bcc, ss_m
 
 
 def estimate_four_way_ratio(
@@ -167,14 +197,16 @@ def estimate_four_way_ratio(
     random_state: int = 42,
     cluster: str | None = None,
 ) -> FourWayRatioEstimate:
-    """Excess-relative-risk four-way decomposition (VanderWeele §3.4).
+    """Excess-relative-risk four-way decomposition (VanderWeele eAppendix
+    §3.4 / §3.3).
 
-    Requires a binary outcome AND a binary mediator; raises
-    ``EstimatorFailure`` otherwise (a continuous outcome uses the
-    difference-scale ``four_way_decomposition``; a continuous mediator
-    needs the deferred §3.3 formula). Covariates enter both logistic models
-    (so t1/t2/t3 and b0/b1 are adjusted); the decomposition is reported at
-    the sample-mean covariate value.
+    Requires a binary OUTCOME; the mediator may be binary (§3.4, logistic
+    mediator model) or continuous (§3.3, linear mediator model with normal
+    residual variance) — the estimator detects which and picks the matching
+    closed form. A continuous outcome has no excess relative risk and uses
+    the difference-scale ``four_way_decomposition`` instead. Covariates enter
+    both models (so t1/t2/t3 and b0/b1 are adjusted); the decomposition is
+    reported at the sample-mean covariate value.
 
     ``cluster`` switches the bootstrap to a pairs cluster bootstrap (parity
     with the other estimators); ``None`` is the i.i.d. bootstrap.
@@ -198,15 +230,11 @@ def estimate_four_way_ratio(
             f"four_way_decomposition for a continuous outcome.",
             treatment=treatment,
         )
-    if not _is_binary(df[mediator]):
-        raise EstimatorFailure(
-            "mediator_not_binary",
-            f"the ratio-scale four-way decomposition (VanderWeele eAppendix "
-            f"§3.4) needs a binary mediator; {mediator!r} is not 0/1. The "
-            f"continuous-mediator formula (§3.3) is deferred.",
-            treatment=treatment,
-        )
-    for t in (treatment, mediator):
+    # Mediator scale selects §3.4 (binary → logistic) vs §3.3 (continuous →
+    # linear with residual variance).
+    mediator_binary = _is_binary(df[mediator])
+    check_levels = (treatment, mediator) if mediator_binary else (treatment,)
+    for t in check_levels:
         if len(np.unique(df[t].to_numpy())) < 2:
             raise EstimatorFailure(
                 "overlap_insufficient",
@@ -226,15 +254,15 @@ def estimate_four_way_ratio(
     mref = float(mediator_reference)
 
     try:
-        point_comps, t1, t2, t3, b0, b1, bcc = _decompose_frame(
+        point_comps, t1, t2, t3, b0, b1, bcc, ss_m = _decompose_frame(
             fit_df, treatment=treatment, outcome=outcome, mediator=mediator,
             adjustment=adjustment, mediator_reference=mref,
-            covariate_means=covariate_means,
+            covariate_means=covariate_means, mediator_binary=mediator_binary,
         )
     except (ValueError, np.linalg.LinAlgError) as exc:
         raise EstimatorFailure(
             "model_fit_failed",
-            f"logistic outcome/mediator fit failed on the full sample: {exc}",
+            f"outcome/mediator model fit failed on the full sample: {exc}",
             treatment=treatment,
         )
 
@@ -257,6 +285,7 @@ def estimate_four_way_ratio(
                     bframe, treatment=treatment, outcome=outcome,
                     mediator=mediator, adjustment=adjustment,
                     mediator_reference=mref, covariate_means=covariate_means,
+                    mediator_binary=mediator_binary,
                 )
             except Exception:
                 continue
@@ -296,9 +325,19 @@ def estimate_four_way_ratio(
         "no_unmeasured_confounder_exposure_mediator_given_adjustment",
         "no_effect_of_exposure_that_confounds_mediator_outcome",
         "logit_outcome_model_with_exposure_mediator_interaction",
-        "logit_mediator_model",
+        (
+            "logit_mediator_model" if mediator_binary
+            else "linear_mediator_model_with_normal_residual_variance"
+        ),
         "decomposition_reported_at_sample_mean_covariate_value",
     )
+    if not mediator_binary:
+        # §3.3 integrates the odds-ratio-approximation risk over the normal
+        # mediator, so the closed form inherits the rare-outcome (OR≈RR)
+        # approximation the ratio-scale decomposition already rests on.
+        assumptions = assumptions + (
+            "continuous_mediator_odds_ratio_approximation_rare_outcome",
+        )
     if cluster is not None:
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
@@ -334,5 +373,7 @@ def estimate_four_way_ratio(
         mediator=mediator,
         mediator_reference=mediator_reference,
         t1=t1, t2=t2, t3=t3, b0=b0, b1=b1, bcc=bcc,
+        mediator_scale="binary" if mediator_binary else "continuous",
+        ss_m=ss_m,
         cluster=cluster,
     )

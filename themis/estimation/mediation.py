@@ -289,10 +289,12 @@ def estimate_mediation(
     ) <= {0.0, 1.0}
     four_way_valid = mediator_is_binary or resolved == "linear"
     four_way_unavailable_reason = None if four_way_valid else (
-        "four-way decomposition skipped: a continuous mediator under a "
-        "nonlinear (logit) outcome needs the ratio-scale decomposition "
-        "(VanderWeele 2015 §14.5), not the difference-scale m∈{0,1} "
-        "plug-in (which would extrapolate off the mediator's support)"
+        "difference-scale four-way skipped: a continuous mediator under a "
+        "nonlinear (logit) outcome would extrapolate the m∈{0,1} plug-in off "
+        "the mediator's support. The dispatch instead attaches the "
+        "ratio-scale (excess relative risk) four_way_ratio block — "
+        "VanderWeele 2014 eAppendix §3.3, the correct tool for a continuous "
+        "mediator + binary outcome"
     )
 
     om_point, mm_point = _fit(fit_df)
