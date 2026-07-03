@@ -199,6 +199,39 @@
         }
       }
     },
+    "missingnessIndicatorStatement": {
+      "type": "object",
+      "description": "Phase 9 §S9.2. A Mohan-Pearl-Tian 2013 missingness indicator R_i in an m-graph. Declares that the substantive variable named in ``missing_var`` is partially observed (sometimes missing) and that its missingness is caused by the variables in ``caused_by`` (the parents of R_i). Reasoning rules build the m-graph (G(M) ∪ {caused_by → R_i}) on demand to classify the mechanism (MCAR/MAR/MNAR) and decide recoverability of a target query; the verifier re-derives against it. The R node itself is not part of G(M).",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "missing_var"
+      ],
+      "properties": {
+        "kind": {
+          "const": "missingness_indicator"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier for this R node (e.g. ``R_income``). Appears in derivation / recovery steps so the user can trace which missingness mechanism a step references."
+        },
+        "missing_var": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The substantive variable V_i that is sometimes missing. Its proxy V*_i equals V_i when R_i=0 (recorded) and is missing when R_i=1."
+        },
+        "caused_by": {
+          "type": "array",
+          "items": { "$ref": "atom.schema.json#/$defs/atom" },
+          "description": "The parents of R_i in the m-graph — the variables whose values determine whether V_i is recorded. Empty ⇒ missingness is unconditionally random (an MCAR contribution). A self-masking mechanism includes missing_var itself here (V_i → R_i), which makes the marginal P(V_i) non-recoverable."
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotation",
+          "description": "Provenance / evidence for the declared missingness mechanism. Reasoning does not read this."
+        }
+      }
+    },
     "bidirectedStatement": {
       "type": "object",
       "description": "Phase 2.latent S1. An undirected 'bidirected' edge between two observed atoms, semantically declaring the existence of at least one unobserved common cause (semi-Markov representation). The runtime dispatches bidirected edges through the ADMG-aware identification path (m-separation + c-component / Tian-Shpitser ID), with IV / Balke-Pearl / Manski bounds as the escape layer when non-parametric point identification fails. See PHASE_2_LATENT_CHARTER.md.",
@@ -711,6 +744,9 @@
         },
         {
           "$ref": "#/$defs/selectionNodeStatement"
+        },
+        {
+          "$ref": "#/$defs/missingnessIndicatorStatement"
         },
         {
           "$ref": "#/$defs/probabilityStatement"

@@ -35,6 +35,35 @@
             "reference": { "type": "string" }
           }
         },
+        "missing_data_recovery": {
+          "type": "object",
+          "description": "Phase 9 §S9.2: Mohan-Pearl-Tian recoverability from missing data. Attached to an effect result when the program declares ≥1 missingness_indicator. Classifies the mechanism (MCAR/MAR/MNAR) and decides whether the g-formula conditional P(Y | X, given, Z) — Z the back-door adjustment set — is recoverable from the missing data via an ordered factorization, with the complete-case recovery formula. recoverable=false means 'not via ordered factorization', not a proof of non-recoverability. Recovering the full causal estimand also needs P(Z) recoverable (next slice).",
+          "required": ["kind", "target", "mechanism", "recoverable", "partially_observed", "factorization", "recovery_formula", "failure_reason", "reference"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "missing_data_recovery" },
+            "target": { "type": "string", "description": "The conditional analyzed, e.g. 'P(y | x, z)'." },
+            "mechanism": { "enum": ["MCAR", "MAR", "MNAR", "none"] },
+            "recoverable": { "type": "boolean" },
+            "partially_observed": { "type": "array", "items": { "type": "string" }, "description": "The substantive variables that are sometimes missing (V_m)." },
+            "factorization": {
+              "type": "array",
+              "description": "The recovering ordered factorization: one entry per factor P(factor | conditioned_on, R=0). Empty when not recoverable.",
+              "items": {
+                "type": "object",
+                "required": ["factor", "conditioned_on"],
+                "additionalProperties": false,
+                "properties": {
+                  "factor": { "type": "string" },
+                  "conditioned_on": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
+            "recovery_formula": { "type": "string" },
+            "failure_reason": { "type": ["string", "null"] },
+            "reference": { "type": "string" }
+          }
+        },
         "iv_identification": {
           "type": "object",
           "description": "Phase 6.iv: metadata emitted when identify / effect is resolved via the IV strategy. The identification only establishes existence of a strategy — the specific formula (Wald / 2SLS / LATE) requires an estimation-layer assumption not captured here.",

@@ -23,7 +23,11 @@ Public surface (re-exports from sub-modules):
   ``verify_selection_recovery`` (Bareinboim-Pearl recoverability from
   selection bias — re-derives the selection-backdoor conditions and the
   Theorem-3.5 recovery formula against the graph, validates the returned
-  adjustment-set witness, and re-searches to confirm a negative verdict)
+  adjustment-set witness, and re-searches to confirm a negative verdict) /
+  ``verify_missing_data_recovery`` (Mohan-Pearl-Tian recoverability from
+  missing data — rebuilds the m-graph from the declared indicators,
+  reclassifies MCAR/MAR/MNAR, and re-searches the ordered factorization to
+  re-derive the recoverability verdict + recovery formula)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -72,6 +76,7 @@ from .verify import (
     verify_counterfactual,
     verify_effect_structural,
     verify_identify,
+    verify_missing_data_recovery,
     verify_numeric,
     verify_numeric_estimate,
     verify_ovb_sensitivity,
@@ -106,6 +111,7 @@ __all__ = [
     "verify_manski_tamer_bounds_result",
     "verify_numeric",
     "verify_numeric_estimate",
+    "verify_missing_data_recovery",
     "verify_ovb_sensitivity",
     "verify_scm_counterfactual",
     "verify_selection_recovery",

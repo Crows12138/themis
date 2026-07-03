@@ -51,6 +51,7 @@ from ..types import (
     Atom,
     BidirectedStatement,
     SelectionNode,
+    MissingnessIndicator,
     CausationQuery,
     CounterfactualAssumptions,
     CounterfactualQuery,
@@ -246,6 +247,13 @@ def _to_statement(d: dict):
             target_population=d["target_population"],
             annotations=_to_annotation(d.get("annotations")),
         )
+    if k == "missingness_indicator":
+        return MissingnessIndicator(
+            id=d["id"],
+            missing_var=_to_atom(d["missing_var"]),
+            caused_by=tuple(_to_atom(a) for a in d.get("caused_by", ())),
+            annotations=_to_annotation(d.get("annotations")),
+        )
     if k == "probability":
         return ProbabilityStatement(
             target=_to_grounded(d["target"]),
@@ -297,6 +305,8 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
         return (stmt.left, stmt.right)
     if isinstance(stmt, SelectionNode):
         return (stmt.affects,)
+    if isinstance(stmt, MissingnessIndicator):
+        return (stmt.missing_var, *stmt.caused_by)
     if isinstance(stmt, ProbabilityStatement):
         return (_as_atom(stmt.target), *(_as_atom(g) for g in stmt.given))
     if isinstance(stmt, ObservationStatement):

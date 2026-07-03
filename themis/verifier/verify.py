@@ -1012,6 +1012,158 @@ def verify_selection_recovery(block: dict, graph) -> None:
         _err(f"unknown query_kind {kind!r}")
 
 
+def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> None:
+    """Independently re-derive a Mohan-Pearl-Tian missing-data block.
+
+    A SECOND transcription of the whole §S9.2 analysis — rebuild the
+    m-graph from the declared indicators, reclassify the mechanism
+    (MCAR/MAR/MNAR) by d-separation, reconstruct the g-formula
+    conditioning set, and re-search the ordered factorization — all via
+    low-level structural primitives, NOT by importing the producer's
+    missing_data module. It then checks the block's mechanism,
+    recoverability verdict, and recovery formula match the re-derivation.
+    """
+    import networkx as nx
+    from itertools import combinations, permutations
+
+    from ..runtime.structural_solver import is_d_connected, minimal_adjustment_sets
+    from ..types import Atom, ConstTerm
+
+    def _err(msg: str) -> None:
+        raise VerificationError(
+            f"missing_data_recovery: {msg}",
+            step_index=None, rule="missing_data_recovery",
+        )
+
+    R_PREFIX = "__R__"
+    pred2node = {n.predicate: n for n in base_graph.nodes}
+
+    def _dsep(g, a, b, cond):
+        return not is_d_connected(g, a, b, tuple(cond))
+
+    # --- rebuild the m-graph (independent transcription) ---
+    m = base_graph.copy()
+    r_of_var: dict = {}
+    for mi in indicators:
+        var_node = pred2node.get(mi.missing_var.predicate)
+        if var_node is None:
+            continue
+        r_atom = Atom(
+            predicate=f"{R_PREFIX}{var_node.predicate}",
+            args=(ConstTerm(name=var_node.predicate),),
+        )
+        m.add_node(r_atom)
+        r_of_var[var_node] = r_atom
+        for parent in mi.caused_by:
+            p = pred2node.get(parent.predicate)
+            if p is not None:
+                m.add_edge(p, r_atom)
+    if not r_of_var:
+        _err("block present but the program declares no missingness indicators")
+
+    vm = set(r_of_var)
+    substantive = list(base_graph.nodes)
+    vo = [n for n in substantive if n not in vm]
+
+    # --- reclassify mechanism ---
+    r_atoms = list(r_of_var.values())
+    if all(_dsep(m, r, v, ()) for r in r_atoms for v in substantive):
+        mech = "MCAR"
+    elif all(_dsep(m, r, vmi, vo) for r in r_atoms for vmi in vm):
+        mech = "MAR"
+    else:
+        mech = "MNAR"
+    if mech != block["mechanism"]:
+        _err(f"mechanism: recomputed {mech}, recorded {block['mechanism']!r}")
+
+    # --- reconstruct the g-formula conditioning set (as the producer did) ---
+    x = pred2node.get(query.intervention.atom.predicate)
+    y = pred2node.get(query.target.atom.predicate)
+    if x is None or y is None:
+        _err("treatment or outcome not in graph")
+    given = tuple(
+        pred2node[g.atom.predicate] for g in query.given
+        if g.atom.predicate in pred2node
+    )
+    z: tuple = ()
+    try:
+        adj = minimal_adjustment_sets(base_graph, x, y, given=given)
+        if adj:
+            z = tuple(sorted(min(adj, key=len), key=lambda a: a.predicate))
+    except Exception:
+        z = ()
+    x_list = [x, *given, *z]
+    y_list = [y]
+
+    # --- re-search the ordered factorization ---
+    def _pick_xi(yi, later):
+        later_list = list(later)
+        later_set = set(later_list)
+        for size in range(0, min(len(later_list), 4) + 1):
+            for xi in combinations(later_list, size):
+                rest = later_set - set(xi)
+                if any(not _dsep(m, yi, v, xi) for v in rest):
+                    continue
+                w_i = [yi, *xi]
+                r_wi = [r_of_var[v] for v in w_i if v in vm]
+                if all(_dsep(m, yi, r, xi) for r in r_wi):
+                    return tuple(sorted(xi, key=lambda a: a.predicate))
+        return None
+
+    factors = None
+    for order in permutations(y_list):
+        acc = []
+        ok = True
+        for i, yi in enumerate(order):
+            later = list(order[i + 1:]) + list(x_list)
+            xi = _pick_xi(yi, later)
+            if xi is None:
+                ok = False
+                break
+            acc.append((yi, xi))
+        if ok:
+            factors = acc
+            break
+
+    recoverable = factors is not None
+    if recoverable != block["recoverable"]:
+        _err(
+            f"recoverable: recomputed {recoverable}, recorded "
+            f"{block['recoverable']}"
+        )
+
+    # --- re-derive the formula and compare (recoverable case) ---
+    if not recoverable:
+        return
+
+    def _factor_repr(yi, xi):
+        w_i = [yi, *xi]
+        r_names = ", ".join(f"R_{v.predicate}=0" for v in w_i if v in vm)
+        cond = ", ".join(a.predicate for a in xi)
+        inside = yi.predicate
+        if cond and r_names:
+            return f"P({inside} | {cond}, {r_names})"
+        if cond:
+            return f"P({inside} | {cond})"
+        if r_names:
+            return f"P({inside} | {r_names})"
+        return f"P({inside})"
+
+    ynames = ", ".join(a.predicate for a in y_list)
+    xnames = ", ".join(a.predicate for a in x_list)
+    target = f"P({ynames} | {xnames})" if x_list else f"P({ynames})"
+    factor_strs = [_factor_repr(yi, xi) for yi, xi in factors]
+    if len(factor_strs) == 1 and not x_list and len(y_list) == 1:
+        formula = f"{target} = {factor_strs[0]}"
+    else:
+        formula = f"{target} = " + " · ".join(factor_strs)
+    if formula != block["recovery_formula"]:
+        _err(
+            f"recovery_formula: recomputed {formula!r}, recorded "
+            f"{block['recovery_formula']!r}"
+        )
+
+
 def verify_effect_structural(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,

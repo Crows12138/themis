@@ -3842,6 +3842,7 @@ def dispatch(
     result = _attach_data_gap_report(result, program=program, stmt=stmt)
     result = _reconcile_alt_paths_with_bounds(result)
     result = _attach_selection_recovery(program, stmt, result, graph=graph)
+    result = _attach_missing_data_recovery(program, stmt, result, graph=graph)
     return result
 
 
@@ -4019,6 +4020,82 @@ def _attach_selection_recovery(
     block = _serialize_selection_recovery(rec, x, y)
     new_ext = dict(result.extensions or {})
     new_ext["selection_recovery"] = block
+    return _replace(result, extensions=new_ext)
+
+
+def _serialize_missing_data_recovery(rec) -> dict:
+    """Serialize a MissingDataRecoveryResult to the JSON extension block."""
+    return {
+        "kind": "missing_data_recovery",
+        "target": rec.target_repr,
+        "mechanism": rec.mechanism,
+        "recoverable": rec.recoverable,
+        "partially_observed": [a.predicate for a in rec.partially_observed],
+        "factorization": [
+            {"factor": yi.predicate, "conditioned_on": [a.predicate for a in xi]}
+            for yi, xi in rec.factorization
+        ],
+        "recovery_formula": rec.formula_repr,
+        "failure_reason": rec.failure_reason,
+        "reference": (
+            "Mohan, Pearl & Tian 2013 (m-graphs; MCAR/MAR/MNAR; "
+            "ordered-factorization recoverability)"
+        ),
+    }
+
+
+def _attach_missing_data_recovery(
+    program: Program | None,
+    stmt: QueryStatement | None,
+    result: QueryResult,
+    *,
+    graph: nx.DiGraph,
+) -> QueryResult:
+    """Phase 9 §S9.2: attach the Mohan-Pearl-Tian missing-data verdict.
+
+    Fires for an EffectQuery when the program declares at least one
+    ``MissingnessIndicator``. It classifies the mechanism (MCAR/MAR/MNAR)
+    and decides whether the estimand's observational conditional
+    P(Y | X, given, Z) is recoverable from the missing data — where Z is a
+    smallest back-door adjustment set for (X, Y) when one exists (the
+    g-formula conditioning), otherwise just X and the query's `given`.
+    Recovering the full causal estimand also needs P(Z) recoverable; that
+    multi-factor combination is the next slice.
+    """
+    from dataclasses import replace as _replace
+    from ..types import EffectQuery, MissingnessIndicator
+    from .missing_data import analyze_missing_data
+
+    if program is None or stmt is None:
+        return result
+    q = getattr(stmt, "query", None)
+    if not isinstance(q, EffectQuery):
+        return result
+    indicators = [
+        s for s in program.statements if isinstance(s, MissingnessIndicator)
+    ]
+    if not indicators:
+        return result
+
+    x = q.intervention.atom
+    y = q.target.atom
+    if x not in graph or y not in graph:
+        return result
+
+    given = tuple(g.atom for g in q.given if g.atom in graph)
+    # g-formula conditioning: X ∪ given ∪ (smallest back-door Z if any).
+    z: tuple[Atom, ...] = ()
+    try:
+        adj_sets = structural_solver.minimal_adjustment_sets(graph, x, y, given=given)
+        if adj_sets:
+            z = tuple(sorted(min(adj_sets, key=len), key=lambda a: a.predicate))
+    except Exception:
+        z = ()
+    x_list = [x, *given, *z]
+    rec = analyze_missing_data(graph, indicators, [y], x_list)
+    block = _serialize_missing_data_recovery(rec)
+    new_ext = dict(result.extensions or {})
+    new_ext["missing_data_recovery"] = block
     return _replace(result, extensions=new_ext)
 
 

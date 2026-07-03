@@ -71,6 +71,7 @@ from .types import (
     ObservationStatement,
     ProbabilityQuery,
     ProbabilityStatement,
+    MissingnessIndicator,
     Program,
     QueryStatement,
     SCMCounterfactualQuery,
@@ -93,6 +94,7 @@ from .verifier import (
     verify_effect_structural,
     verify_identify,
     verify_numeric,
+    verify_missing_data_recovery,
     verify_numeric_estimate,
     verify_ovb_sensitivity,
     verify_selection_recovery,
@@ -393,6 +395,17 @@ def _statement_to_dict(s) -> dict:
             "affects": _atom_to_dict(s.affects),
             "source_population": s.source_population,
             "target_population": s.target_population,
+        }
+        ann = _annotation_to_dict(s.annotations)
+        if ann is not None:
+            d["annotations"] = ann
+        return d
+    if isinstance(s, MissingnessIndicator):
+        d = {
+            "kind": "missingness_indicator",
+            "id": s.id,
+            "missing_var": _atom_to_dict(s.missing_var),
+            "caused_by": [_atom_to_dict(a) for a in s.caused_by],
         }
         ann = _annotation_to_dict(s.annotations)
         if ann is not None:
@@ -795,6 +808,18 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     _sel_rec = (result.get("extensions") or {}).get("selection_recovery")
     if _sel_rec is not None:
         verify_selection_recovery(_sel_rec, graph)
+
+    # Phase 9 §S9.2: an effect result may carry a Mohan-Pearl-Tian
+    # missing-data recovery block. Re-derive it (m-graph classification +
+    # ordered factorization) against the graph + declared indicators.
+    _md_rec = (result.get("extensions") or {}).get("missing_data_recovery")
+    if _md_rec is not None:
+        _mi_stmts = [
+            s for s in prog.statements if isinstance(s, MissingnessIndicator)
+        ]
+        verify_missing_data_recovery(
+            _md_rec, graph, _mi_stmts, query_stmt.query
+        )
 
     kind = result.get("query_kind")
     if kind == "cause":

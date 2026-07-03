@@ -119,6 +119,32 @@ class SelectionNode:
 
 
 @dataclass(frozen=True)
+class MissingnessIndicator:
+    """Phase 9 §S9.2: a Mohan-Pearl-Tian 2013 missingness indicator R_i.
+
+    Declares that the substantive variable ``missing_var`` (V_i) is
+    *partially observed* — sometimes missing — and that its missingness
+    is caused by ``caused_by`` (the parents of R_i in the m-graph). The
+    manifest data the analyst holds is the proxy V*_i = V_i when R_i=0
+    (recorded) else missing; complete-case analysis conditions on R_i=0.
+
+    Like ``SelectionNode``, the R node itself does NOT enter G(M) (the
+    working causal graph). It only enters the *m-graph* built on demand
+    by the missing-data recoverability rules (m-graph = G(M) ∪ {parent →
+    R_i} for every declared indicator). No ``forall`` — the m-graph is
+    program-global; the statement is dispatch-inert (schema + read by
+    the missing-data rules only).
+
+    An empty ``caused_by`` means R_i has no declared parents — i.e. the
+    missingness is unconditionally random (MCAR contribution).
+    """
+    id: str
+    missing_var: Atom
+    caused_by: tuple[Atom, ...] = ()
+    annotations: Annotation | None = None
+
+
+@dataclass(frozen=True)
 class ObservationStatement:
     atom: Atom
     value: AtomValue
@@ -393,6 +419,8 @@ Statement = Union[
     ObservationStatement,
     QueryStatement,
     VariableDeclaration,
+    SelectionNode,
+    MissingnessIndicator,
 ]
 
 

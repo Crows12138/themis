@@ -114,7 +114,7 @@ Fields in roughly the order you'll consult them:
 | `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
 | `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |
 | `bounds_result` | Phase 12: symbolic bounds when point identification failed. Method + lower/upper expressions + assumptions. See §"Bounds rendering" |
-| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification`, `selection_recovery` (recoverability from selection bias — companion to the selection-on-collider gap), `mechanism_audit`; **`assumption_ledger`** (unified, severity-ranked lead surface — render first when present) |
+| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification`, `selection_recovery` (recoverability from selection bias — companion to the selection-on-collider gap), `missing_data_recovery` (MCAR/MAR/MNAR + recoverability under missing data), `mechanism_audit`; **`assumption_ledger`** (unified, severity-ranked lead surface — render first when present) |
 | `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
 | `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
 
@@ -1023,6 +1023,44 @@ outcome) lands here as `recoverable: false` — that is the *structural
 confirmation* of Hernán's own point ("no covariate adjustment closes the
 path"), so say so: the kernel independently re-derived what the paper
 asserts.
+
+### Missing-data recovery (Phase 9 §S9.2)
+
+`result.extensions.missing_data_recovery` appears when the program
+declares a missingness mechanism (`missingness_indicator` statements) —
+i.e. some variables are sometimes *missing*, not just conditioned on.
+Missing data is a different failure from selection bias: selection
+conditions on one event S=1; missingness conditions on a *set* of
+response events R=0 (one per partially-observed variable), recovered
+*factor by factor* (Mohan-Pearl-Tian). Structural only — a recovery
+formula and a mechanism label, never a number.
+
+Two things to surface, in order:
+
+1. **`mechanism`** — MCAR / MAR / MNAR, read straight off the m-graph.
+   This is high-value on its own: people routinely *assert* MAR to justify
+   a method (multiple imputation, complete-case) without checking it. The
+   kernel derives it structurally from the declared mechanism, so state it
+   plainly — and if it is **MNAR**, say that the usual MAR-based fixes are
+   not licensed here.
+
+2. **`recoverable`** for the analyzed conditional (`target`, e.g.
+   `P(y | x, z)` — the g-formula conditional, back-door set folded in):
+   - **true** — surface `recovery_formula`; the `R_·=0` factors say the
+     estimate is a *complete-case* computation on exactly those factors.
+     Note the striking case: an **MNAR** mechanism can still yield a
+     recoverable conditional (conditioning on the missingness driver blocks
+     the target from its R) — MNAR is not automatically hopeless.
+   - **false** — surface `failure_reason`, and keep the same honesty as
+     §S9.1: "not recoverable via ordered factorization", **not** a proof of
+     impossibility. The canonical obstruction is **self-masking** (a
+     variable's own value drives its missingness, V→R_V) — name it when
+     `failure_reason` points there.
+
+Scope caveat to carry: the block analyzes the observational conditional
+the estimand needs; recovering the *full* causal effect also needs the
+adjustment marginal P(Z) recoverable — flag that as the remaining check,
+don't imply the number is already in hand.
 
 ### Transport numeric — Phase 9 §T9.2 / iter 128
 
