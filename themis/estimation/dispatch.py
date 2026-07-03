@@ -332,7 +332,7 @@ def _estimate_effect_queries(
             _try_joint_estimate(
                 q_stmt, result, contract, graph, bidirected,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
-                model=model,
+                model=model, cluster=cluster,
             )
             continue
         # Phase 7.4: mediation queries route to the Imai-via-statsmodels
@@ -776,6 +776,7 @@ def _try_mediation_estimate(
 def _try_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected,
     *, random_state: int, ci_bootstrap: int, model: str,
+    cluster: str | None = None,
 ) -> None:
     """Joint multi-treatment effect estimate: do(A=a, B=b, ...).
 
@@ -853,6 +854,7 @@ def _try_joint_estimate(
             ci_bootstrap=ci_bootstrap,
             random_state=random_state,
             model=model,  # type: ignore[arg-type]
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
     except EstimatorFailure as exc:
         result["estimator_failure"] = {
@@ -888,6 +890,10 @@ def _try_joint_estimate(
             "scale": "difference",
         },
     }
+    # Cluster-bootstrap provenance (both the joint contrast and the
+    # interaction ride the same clustered resample). No-op when i.i.d.,
+    # keeping the cluster=None surface byte-identical.
+    _attach_bootstrap_meta(result["numeric_estimate"], estimate.cluster)
 
     result["derivation"] = _build_joint_numeric_derivation_dict(
         graph=graph,

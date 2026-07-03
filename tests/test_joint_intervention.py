@@ -26,6 +26,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis.estimation.joint import estimate_joint_effect
 from themis.runtime import structural_solver
 from themis.runtime.graph_projection import project
 from themis.runtime.instantiation import instantiate
@@ -254,3 +255,92 @@ def test_single_treatment_program_byte_identical_without_field():
     df = _joint_dgp(n=1500, seed=4)
     est = themis.estimate(_single_ast(), df, ci_bootstrap=0)
     assert est["results"][0]["numeric_estimate"]["method"] == "backdoor_linear"
+
+
+# ============================================ cluster (pairs) bootstrap
+
+
+def _joint_cluster_dgp(seed, *, G=60, per=20, cluster_sd=2.0):
+    """Cluster-level treatments A, B (assigned once per cluster from a
+    cluster-level confounder Z) + a shared family shock on Y. Within a
+    cluster A, B, Z are constant and the shock is shared, so the i.i.d.
+    bootstrap UNDERSTATES the variance and the cluster CI must be wider —
+    for BOTH the joint contrast and the interaction. True joint contrast
+    = 1+1+3 = 5, interaction = 3 (same coefficients as _joint_dgp)."""
+    rng = np.random.default_rng(seed)
+    clu = np.repeat(np.arange(G), per)
+    z_c = rng.standard_normal(G)
+    a_c = rng.random(G) < (1 / (1 + np.exp(-0.8 * z_c)))
+    b_c = rng.random(G) < (1 / (1 + np.exp(-0.6 * z_c)))
+    a = a_c[clu]; b = b_c[clu]; z = z_c[clu]
+    u = rng.standard_normal(G) * cluster_sd
+    y = (
+        1.0 * a.astype(float) + 1.0 * b.astype(float)
+        + 3.0 * (a & b).astype(float) + 2.0 * z
+        + u[clu] + rng.standard_normal(G * per) * 0.3
+    )
+    return pd.DataFrame({"a": a, "b": b, "z": z, "y": y, "fam": clu})
+
+
+def test_joint_cluster_none_byte_identical_to_default():
+    df = _joint_cluster_dgp(0)
+    kw = dict(treatments=("a", "b"), outcome="y", adjustment=("z",),
+              ci_bootstrap=200, random_state=7)
+    base = estimate_joint_effect(df, **kw)
+    same = estimate_joint_effect(df, cluster=None, **kw)
+    assert base.joint_point == same.joint_point
+    assert base.joint_ci_lower == same.joint_ci_lower
+    assert base.joint_ci_upper == same.joint_ci_upper
+    assert base.interaction_ci_lower == same.interaction_ci_lower
+    assert base.interaction_ci_upper == same.interaction_ci_upper
+    assert base.data_hash == same.data_hash
+    assert base.cluster is None
+
+
+def test_joint_cluster_column_excluded_from_hash():
+    df = _joint_cluster_dgp(1)
+    with_col = estimate_joint_effect(
+        df, treatments=("a", "b"), outcome="y", adjustment=("z",),
+        ci_bootstrap=50, random_state=1, cluster="fam")
+    without = estimate_joint_effect(
+        df[["a", "b", "z", "y"]], treatments=("a", "b"), outcome="y",
+        adjustment=("z",), ci_bootstrap=50, random_state=1)
+    assert with_col.data_hash == without.data_hash
+    assert with_col.cluster == "fam"
+
+
+def test_joint_cluster_ci_wider_for_both_contrasts():
+    """Both the joint contrast AND the interaction ride the same clustered
+    resample, so both intervals widen under clustering."""
+    df = _joint_cluster_dgp(2)
+    kw = dict(treatments=("a", "b"), outcome="y", adjustment=("z",),
+              ci_bootstrap=400, random_state=1)
+    iid = estimate_joint_effect(df, **kw)
+    clu = estimate_joint_effect(df, cluster="fam", **kw)
+    j_iid = iid.joint_ci_upper - iid.joint_ci_lower
+    j_clu = clu.joint_ci_upper - clu.joint_ci_lower
+    i_iid = iid.interaction_ci_upper - iid.interaction_ci_lower
+    i_clu = clu.interaction_ci_upper - clu.interaction_ci_lower
+    assert j_clu > 1.3 * j_iid
+    assert i_clu > 1.3 * i_iid
+    assert any("cluster_bootstrap" in a for a in clu.assumptions)
+
+
+def test_joint_cluster_e2e_attaches_bootstrap_meta_and_verifies():
+    """options.cluster on a joint query: the numeric_estimate carries the
+    cluster bootstrap provenance and the independent verifier still accepts
+    (the cluster column is a variance concern, outside the derivation)."""
+    ast = _joint_ast()
+    ast["options"] = {"cluster": "fam"}
+    df = _joint_cluster_dgp(3)
+    out = themis.estimate(ast, df, ci_bootstrap=150, random_state=1)
+    r = out["results"][0]
+    ne = r["numeric_estimate"]
+    assert ne["method"] == "joint_backdoor_linear"
+    assert ne["bootstrap"] == {"kind": "cluster", "cluster_column": "fam"}
+    assert any("cluster_bootstrap" in a for a in ne["assumptions"])
+    themis.verify(ast, r)  # raises on reject
+    # Without the option, no bootstrap block (i.i.d., byte-identical surface).
+    r2 = themis.estimate(_joint_ast(), df, ci_bootstrap=150,
+                         random_state=1)["results"][0]
+    assert "bootstrap" not in r2["numeric_estimate"]

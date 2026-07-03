@@ -61,6 +61,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
 from .dose_response import EstimatorFailure
+from .resample import cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "linear", "logistic"]
@@ -94,6 +95,10 @@ class JointEffectEstimate:
     treated: tuple[tuple[str, object], ...]   # ((name, value), ...) — the (a, b) cell
     control: tuple[tuple[str, object], ...]   # ((name, value), ...) — the (a', b') cell
     outcome: str
+    # Variance concern, not a model node: when set, both the joint and the
+    # interaction CIs were computed by resampling whole clusters (pairs
+    # cluster bootstrap) rather than i.i.d. rows. None → i.i.d. bootstrap.
+    cluster: str | None = None
 
 
 def estimate_joint_effect(
@@ -108,6 +113,7 @@ def estimate_joint_effect(
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> JointEffectEstimate:
     """Joint g-formula contrast + treatment×treatment interaction.
 
@@ -125,6 +131,15 @@ def estimate_joint_effect(
     ci_bootstrap: bootstrap resamples; 0 skips CIs.
     ci_level: two-sided level (default 0.95).
     random_state: deterministic seed.
+    cluster: optional column naming a cluster / block id. When set, the
+        bootstrap resamples whole clusters with replacement (pairs cluster
+        bootstrap) instead of i.i.d. rows — the right variance under
+        within-cluster dependence. Because the joint contrast and the
+        interaction share the SAME resample, both CIs become
+        cluster-robust together. ``None`` reproduces the i.i.d. bootstrap
+        byte-for-byte. The cluster column is a variance concern, NOT part
+        of the causal model: it never enters the outcome regression or the
+        data hash.
     """
     if len(treatments) != 2:
         raise NotImplementedError(
@@ -133,7 +148,16 @@ def estimate_joint_effect(
         )
 
     required = {*treatments, outcome, *adjustment}
-    contract = validate_data(data, required_columns=required)
+    # Pull cluster labels from the raw frame (uncoerced) before the
+    # contract subsets to model columns; positionally aligned with df.
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None else None
+    )
+    contract = validate_data(
+        data, required_columns=required,
+        presence_columns=(cluster,) if cluster is not None else (),
+    )
     df = contract.data
 
     a_name, b_name = treatments
@@ -194,7 +218,7 @@ def estimate_joint_effect(
         joint_draws = np.empty(ci_bootstrap)
         inter_draws = np.empty(ci_bootstrap)
         for i in range(ci_bootstrap):
-            idx = rng.integers(0, n, size=n)
+            idx = resample_indices(n, rng, groups=groups)
             try:
                 jd, idd = _joint_and_interaction(df.iloc[idx])
             except (ValueError, np.linalg.LinAlgError):
@@ -211,6 +235,12 @@ def estimate_joint_effect(
             inter_lo = float(np.quantile(id_valid, alpha))
             inter_hi = float(np.quantile(id_valid, 1 - alpha))
 
+    assumptions = _assumptions_for(resolved, len(adjustment))
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
+
     return JointEffectEstimate(
         joint_point=joint_point,
         joint_ci_lower=joint_lo,
@@ -220,7 +250,7 @@ def estimate_joint_effect(
         interaction_ci_upper=inter_hi,
         ci_level=ci_level,
         method=method,
-        assumptions=_assumptions_for(resolved, len(adjustment)),
+        assumptions=assumptions,
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         adjustment=tuple(adjustment),
@@ -228,6 +258,7 @@ def estimate_joint_effect(
         treated=tuple((k, treated_values[k]) for k in treatments),
         control=tuple((k, control_values[k]) for k in treatments),
         outcome=outcome,
+        cluster=cluster,
     )
 
 
