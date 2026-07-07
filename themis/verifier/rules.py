@@ -1183,6 +1183,82 @@ def _rule_general_id_criterion(
         )
 
 
+def _rule_id_star_identification(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Structural licence for a general counterfactual (ID*) estimand.
+
+    Re-runs ``ctf_identify.id_star`` on the context's (graph, bidirected)
+    and the query's conjunction γ, and confirms the outcome CLASS matches
+    the claimed result: an identified estimand (a FormulaExpr, or
+    ``P(γ)=0`` for an inconsistent γ). ``FAIL`` (non-identifiable) must
+    never back a structurally_solved step. Like ``general_id_criterion``,
+    this re-runs the engine rather than reimplementing it; the deep,
+    fully-independent check that the formula computes the true ``P(γ)`` is
+    the Monte-Carlo semantic probe in ``verify_counterfactual_conjunction``
+    (mirroring how ``verify_identify`` layers the semantic probe on top of
+    the per-method structural rules).
+
+    inputs: graph, formula
+    output: StructuralResult(value=True)
+    """
+    from ..runtime.ctf_identify import CtfEvent, FAIL, ZERO, id_star
+    from ..types import (
+        ConstantExpr,
+        CounterfactualConjunctionQuery,
+        StructuralResult,
+    )
+
+    graph = _require(inputs, "graph", step_index, "id_star_identification")
+    _assert_same_graph(graph, ctx.graph, step_index, "id_star_identification")
+
+    q = getattr(ctx, "query", None)
+    if not isinstance(q, CounterfactualConjunctionQuery):
+        raise RuleCheckFailed(
+            "id_star_identification requires a CounterfactualConjunctionQuery "
+            "in the verification context",
+            step_index=step_index, rule="id_star_identification",
+        )
+    if not (isinstance(claimed_output, StructuralResult)
+            and claimed_output.value is True):
+        raise RuleCheckFailed(
+            "id_star_identification output must be StructuralResult(value=True)",
+            step_index=step_index, rule="id_star_identification",
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    gamma = tuple(
+        CtfEvent(
+            variable=e.variable,
+            subscript=frozenset((s.atom, s.value) for s in e.subscript),
+            value=e.value,
+        )
+        for e in q.events
+    )
+    outcome = id_star(graph, bidir, gamma)
+    if outcome is FAIL:
+        raise RuleCheckFailed(
+            "id_star_identification: the ID* engine reports P(γ) "
+            "NON-identifiable, but the result claims a structural solution",
+            step_index=step_index, rule="id_star_identification",
+        )
+    claimed_formula = inputs.get("formula")
+    claimed_zero = (
+        isinstance(claimed_formula, ConstantExpr)
+        and claimed_formula.value == 0.0
+    )
+    engine_zero = outcome is ZERO
+    if claimed_zero != engine_zero:
+        raise RuleCheckFailed(
+            f"id_star_identification: claimed P(γ)=0 is {claimed_zero}, but "
+            f"the ID* engine reports inconsistent={engine_zero}",
+            step_index=step_index, rule="id_star_identification",
+        )
+
+
 # ----- Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE rule -----
 
 def _rule_iv_wald_numeric_evaluate(
@@ -5971,6 +6047,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "probabilities_of_causation_tian_pearl": _rule_probabilities_of_causation_tian_pearl,
     # Linear-SCM counterfactual point (Pearl Primer §4.2)
     "scm_abduction_action_prediction": _rule_scm_abduction_action_prediction,
+    # General counterfactual identification (Shpitser-Pearl ID*, R-336) —
+    # structural licence for a counterfactual-conjunction estimand.
+    "id_star_identification": _rule_id_star_identification,
     # Phase 6.iv S.IV.3
     "iv_criterion_check": _rule_iv_criterion_check,
     # General-ID (c-factor) plug-in — structural licence: re-run the ID

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from ..runtime import formula_builder
 from ..types import (
+    ConstantExpr,
     EffectQuery,
     InvestigationAction,
     Priority,
@@ -179,6 +180,26 @@ def _explain_identify_zh(result: QueryResult) -> str:
             return "该干预量无需后门调整即可识别，观察分布本身给出答案。"
         return "该干预量可识别。"
     return "识别结果未分类。"
+
+
+def _explain_counterfactual_conjunction_zh(result: QueryResult) -> str:
+    """General counterfactual identification (Shpitser-Pearl ID*)."""
+    if result.status is ResultStatus.NEEDS_INVESTIGATION:
+        base = (
+            "该反事实合取 P(γ) 在当前结构下不可识别"
+            "（ID* 报出 w-graph / 下标冲突见证，观察数据无法给出估计式）。"
+        )
+        gap = _describe_needs_investigation(result)
+        return f"{base}{gap}" if gap else base
+    sr = result.structural_result
+    if sr is not None and sr.value is True:
+        if isinstance(result.formula, ConstantExpr) and result.formula.value == 0.0:
+            return "该反事实合取自相矛盾（不同世界的断言冲突），因此 P(γ)=0。"
+        return (
+            "该反事实合取 P(γ) 可识别："
+            "ID* 已把它约化为观察分布上的估计式。"
+        )
+    return "反事实合取查询：结果未分类。"
 
 
 def _explain_effect_zh(result: QueryResult, stmt) -> str:
@@ -412,6 +433,8 @@ def explain(
         text = _explain_causation_zh(result)
     elif result.query_kind == QueryKind.SCM_COUNTERFACTUAL:
         text = _explain_scm_counterfactual_zh(result)
+    elif result.query_kind == QueryKind.COUNTERFACTUAL_CONJUNCTION:
+        text = _explain_counterfactual_conjunction_zh(result)
     else:
         raise NotImplementedError(
             f"explainer for {result.query_kind.value} not implemented yet"

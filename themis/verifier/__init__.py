@@ -16,6 +16,12 @@ Public surface (re-exports from sub-modules):
   ``verify_scm_counterfactual`` (linear-SCM point, Pearl Primer §4.2 —
   independently re-runs abduction-action-prediction from the edge
   coefficients + the unit's observations) /
+  ``verify_counterfactual_conjunction`` (general counterfactual
+  identification, Shpitser-Pearl ID* R-336 — pins the id_star terminal
+  rule and runs an independent Monte-Carlo semantic probe: samples SCMs
+  consistent with the ADMG, computes the true P(γ) by counterfactual MC
+  over a shared exogenous background, and rejects a formula that computes
+  the wrong number) /
   ``verify_ovb_sensitivity`` (Cinelli-Hazlett OVB sensitivity — a second
   independent transcription of the robustness-value / partial-R² / bound
   closed forms, recomputed from the recorded t-value + dof + benchmark
@@ -74,6 +80,7 @@ from .verify import (
     verify_causation,
     verify_cause,
     verify_counterfactual,
+    verify_counterfactual_conjunction,
     verify_effect_structural,
     verify_identify,
     verify_missing_data_recovery,
@@ -104,6 +111,7 @@ __all__ = [
     "verify_causation",
     "verify_cause",
     "verify_counterfactual",
+    "verify_counterfactual_conjunction",
     "verify_effect_structural",
     "verify_balke_pearl_iv_bounds_result",
     "verify_identify",

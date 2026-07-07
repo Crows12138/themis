@@ -108,6 +108,19 @@ def _rand_dist(domain, rng: random.Random) -> dict:
     return {v: r / s for v, r in zip(domain, raw)}
 
 
+def _draw(dist: dict, rng: random.Random):
+    """Sample one value from a ``{value: prob}`` categorical."""
+    r = rng.random()
+    cum = 0.0
+    last = None
+    for v, p in dist.items():
+        last = v
+        cum += p
+        if r < cum:
+            return v
+    return last
+
+
 def _sample_scm(
     graph: nx.DiGraph,
     bidirected: frozenset,
@@ -338,5 +351,125 @@ def probe_identify_formula(
                         f"do({x.predicate}={x_value})) but the true interventional "
                         f"value is {true:.6f}",
                     )
+
+    return ProbeResult("match")
+
+
+# ============================================ counterfactual (ID*) backbone
+
+
+def _counterfactual_true_mc(
+    scm: _SCM, gamma, topo, n_draws: int, rng: random.Random,
+) -> float:
+    """True ``P(γ)`` for a counterfactual conjunction, by Monte-Carlo over
+    the shared exogenous background.
+
+    Draws the exogenous background (the bidirected latents) ONCE per
+    replicate; every hypothetical world's submodel is evaluated against
+    that SAME background, and a node's response to a given parent
+    configuration is cached across worlds — the definition of a
+    counterfactual (Balke-Pearl / Pearl's twin-network semantics). It never
+    calls the identification code, so it cannot share a bug with the ID*
+    formula it checks.
+
+    Evaluation is a single forward pass in topological order (``topo``:
+    observed atoms, parents before children) per world — deliberately
+    NON-recursive: a recursive evaluator overflows the C stack when the
+    probe runs deep under the verifier (``verify → _walk → dispatch → probe
+    → …``) on platforms with a small native stack.
+
+    ``gamma`` is a tuple of objects with ``.variable`` (Atom),
+    ``.subscript`` (frozenset of ``(Atom, value)`` interventions = the
+    world) and ``.value``.
+    """
+    worlds = {e.subscript for e in gamma}
+    count = 0
+    for _ in range(n_draws):
+        latents = {n: _draw(scm.latent_dist[n], rng) for n in scm.latents}
+        response: dict = {}      # (node, parent-combo) -> value (shared across worlds)
+        world_val: dict = {}     # (world, node) -> value
+
+        for world in worlds:
+            wd = dict(world)
+            for node in topo:
+                if node in wd:                   # intervened in this world
+                    world_val[(world, node)] = wd[node]
+                    continue
+                combo = tuple(
+                    latents[p] if isinstance(p, str) else world_val[(world, p)]
+                    for p in scm.parents[node]
+                )
+                rk = (node, combo)
+                if rk not in response:
+                    response[rk] = _draw(scm.cpt[node][combo], rng)
+                world_val[(world, node)] = response[rk]
+
+        if all(world_val[(e.subscript, e.variable)] == e.value for e in gamma):
+            count += 1
+    return count / n_draws
+
+
+def probe_counterfactual_formula(
+    graph: nx.DiGraph,
+    bidirected: frozenset,
+    *,
+    gamma,
+    formula: FormulaExpr,
+    domains: dict[Atom, tuple] | None = None,
+    k: int = 2,
+    n_draws: int = 50000,
+    tol: float = 0.03,
+    seed: int = 0x5CA1AB1E,
+) -> ProbeResult:
+    """Semantic backbone for ID*: does ``formula`` compute the true
+    ``P(γ)`` in models consistent with the graph?
+
+    Unlike :func:`probe_identify_formula` (exact enumeration, tol 1e-7),
+    this is **Monte-Carlo**: an exact counterfactual evaluation requires
+    enumerating a response function per node — exponential, and the Fig-1
+    worked example alone is ~2^19 > the exact-enumeration cap. So the true
+    ``P(γ)`` is estimated by sampling the shared exogenous background. The
+    seed is fixed (reproducible) and the tolerance is generous — the MC
+    standard error ≈ 1/(2√n_draws) ≈ 0.002 is far below ``tol`` — so a
+    correct formula never trips and a wrong formula (typically off by
+    ≥ 0.05) is caught. ``k`` independent SCMs make a false accept unlikely.
+
+    Returns ``match`` / ``mismatch`` / ``inconclusive`` (parallel to
+    ``probe_identify_formula``); ``inconclusive`` is NOT a rejection.
+    """
+    domains = dict(domains or {})
+
+    atoms = {
+        a
+        for e in gamma
+        for a in (e.variable, *(at for (at, _v) in e.subscript))
+    }
+    if any(a not in graph for a in atoms):
+        return ProbeResult("inconclusive", "a γ atom is absent from the graph")
+
+    # Forward-evaluation order for the (non-recursive) MC truth — parents
+    # before children, over the observed nodes.
+    topo = list(nx.topological_sort(graph))
+
+    for i in range(k):
+        rng = random.Random(seed + i)
+        scm = _sample_scm(graph, bidirected, domains, rng)
+        try:
+            theta = _theta_from_scm(scm, formula, graph, bidirected)
+            got = estimate_formula(
+                formula, theta, graph=graph, bidirected=bidirected)
+        except Exception as exc:  # noqa: BLE001 — probe is best-effort
+            return ProbeResult(
+                "inconclusive",
+                f"formula could not be evaluated against the probe SCM: {exc}",
+            )
+        mc_rng = random.Random(seed + 7919 + i)
+        true = _counterfactual_true_mc(scm, gamma, topo, n_draws, mc_rng)
+        if abs(got - true) > tol:
+            return ProbeResult(
+                "mismatch",
+                f"SCM #{i}: formula gives {got:.4f} for P(γ) but the "
+                f"counterfactual Monte-Carlo truth is {true:.4f}",
+            )
 
     return ProbeResult("match")

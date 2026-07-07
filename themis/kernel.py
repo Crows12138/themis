@@ -59,6 +59,7 @@ from .types import (
     Atom,
     BidirectedStatement,
     CausationQuery,
+    CounterfactualConjunctionQuery,
     CounterfactualQuery,
     CauseQuery,
     CauseStatement,
@@ -90,6 +91,7 @@ from .verifier import (
     verify_causation,
     verify_cause,
     verify_counterfactual,
+    verify_counterfactual_conjunction,
     verify_scm_counterfactual,
     verify_effect_structural,
     verify_identify,
@@ -309,6 +311,20 @@ def _query_to_dict(q) -> dict:
             "kind": "scm_counterfactual",
             "intervention": _intervention_to_dict(q.intervention),
             "target": _atom_to_dict(q.target),
+        }
+    if isinstance(q, CounterfactualConjunctionQuery):
+        return {
+            "kind": "counterfactual_conjunction",
+            "events": [
+                {
+                    "variable": _atom_to_dict(e.variable),
+                    "subscript": [
+                        _valued_atom_to_dict(s) for s in e.subscript
+                    ],
+                    "value": e.value,
+                }
+                for e in q.events
+            ],
         }
     raise TypeError(f"unknown query: {type(q).__name__}")
 
@@ -889,6 +905,9 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             )
         claimed = _decode_numeric_result_json(result["numeric_result"])
         verify_scm_counterfactual(derivation, ctx, claimed)
+    elif kind == "counterfactual_conjunction":
+        claimed = _decode_structural_result_json(result["structural_result"])
+        verify_counterfactual_conjunction(derivation, ctx, claimed)
     else:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"

@@ -347,7 +347,8 @@
         "probability",
         "counterfactual",
         "causation",
-        "scm_counterfactual"
+        "scm_counterfactual",
+        "counterfactual_conjunction"
       ]
     },
     "structural_result": {

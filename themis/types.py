@@ -364,6 +364,45 @@ class SCMCounterfactualQuery:
     target: Atom
 
 
+@dataclass(frozen=True)
+class CounterfactualEvent:
+    """One event ``V_{subscript}=value`` in a general counterfactual
+    conjunction (Shpitser-Pearl R-336).
+
+    ``variable`` is the base atom ``V``; ``subscript`` is the world in
+    which it is read — a tuple of ``ValuedAtom`` interventions (empty =
+    the factual world); ``value`` is the value ``V`` attains there.
+
+    Example: ``Y_{X=1}=1`` is ``CounterfactualEvent(Y, (ValuedAtom(X, True),),
+    True)``; the plain observation ``x'`` is
+    ``CounterfactualEvent(X, (), False)``.
+    """
+    variable: Atom
+    subscript: tuple[ValuedAtom, ...]
+    value: AtomValue
+
+
+@dataclass(frozen=True)
+class CounterfactualConjunctionQuery:
+    """General counterfactual identification (Shpitser-Pearl ID*, R-336 /
+    JMLR 9:1941-1979 2008).
+
+    Asks whether ``P(γ)`` is identifiable for a counterfactual conjunction
+
+        γ = y¹_{x¹} ∧ … ∧ yᵏ_{xᵏ}
+
+    spanning multiple, possibly contradictory, hypothetical worlds sharing
+    exogenous background. This is the counterfactual rung of the causal
+    hierarchy — strictly more general than ``CounterfactualQuery`` (a single
+    binary/monotone world pair) and ``CausationQuery`` (PN/PS/PNS): the
+    events range over arbitrary variables in arbitrary worlds. The kernel
+    decides identifiability structurally via ``runtime.ctf_identify.id_star``
+    and returns the estimand as an observational ``FormulaExpr``, ``P(γ)=0``
+    for an inconsistent conjunction, or non-identifiable (a w-graph witness).
+    """
+    events: tuple[CounterfactualEvent, ...]
+
+
 Query = Union[
     CauseQuery,
     AssocQuery,
@@ -373,6 +412,7 @@ Query = Union[
     CounterfactualQuery,
     CausationQuery,
     SCMCounterfactualQuery,
+    CounterfactualConjunctionQuery,
 ]
 
 
@@ -535,6 +575,7 @@ class QueryKind(str, Enum):
     COUNTERFACTUAL = "counterfactual"
     CAUSATION = "causation"
     SCM_COUNTERFACTUAL = "scm_counterfactual"
+    COUNTERFACTUAL_CONJUNCTION = "counterfactual_conjunction"
 
 
 @dataclass(frozen=True)

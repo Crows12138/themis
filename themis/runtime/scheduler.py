@@ -47,6 +47,8 @@ from ..types import (
     CausationQuery,
     CauseQuery,
     ConfidenceSource,
+    ConstantExpr,
+    CounterfactualConjunctionQuery,
     CounterfactualQuery,
     DerivationStep,
     EffectQuery,
@@ -102,6 +104,7 @@ _QUERY_KIND_OF: dict[type, QueryKind] = {
     CounterfactualQuery: QueryKind.COUNTERFACTUAL,
     CausationQuery: QueryKind.CAUSATION,
     SCMCounterfactualQuery: QueryKind.SCM_COUNTERFACTUAL,
+    CounterfactualConjunctionQuery: QueryKind.COUNTERFACTUAL_CONJUNCTION,
 }
 
 
@@ -2291,6 +2294,113 @@ def _dispatch_scm_counterfactual(
     )
 
 
+def _dispatch_counterfactual_conjunction(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    """General counterfactual identification (Shpitser-Pearl ID*, R-336 /
+    JMLR 9:1941-1979 2008).
+
+    Converts the query's events into a ``ctf_identify`` conjunction γ and
+    runs ID*, which decides identifiability structurally and reduces each
+    interventional leaf to observational ``P(v)`` through the existing ID
+    engine. Three outcomes:
+
+    - a ``FormulaExpr`` → identifiable; the estimand over observational
+      ``P(v)`` is returned as ``structurally_solved`` (mirrors ``identify``).
+    - ``ZERO`` → the conjunction is inconsistent (an effectiveness violation
+      ``x_{x'}`` or contradictory worlds), so ``P(γ)=0`` — a definite
+      identified answer, returned as the constant ``0``.
+    - ``FAIL`` → provably non-identifiable (a w-graph / subscript-conflict
+      witness, e.g. the PNS ``P(y_x, y'_{x'})`` with a direct X→Y edge),
+      surfaced as ``needs_investigation``.
+    """
+    from .ctf_identify import CtfEvent, FAIL, ZERO, id_star
+
+    q: CounterfactualConjunctionQuery = stmt.query  # type: ignore[assignment]
+
+    referenced = [
+        a
+        for e in q.events
+        for a in (e.variable, *(s.atom for s in e.subscript))
+    ]
+    missing_atoms = [a for a in referenced if a not in graph]
+    if missing_atoms:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.COUNTERFACTUAL_CONJUNCTION,
+            query_id=stmt.id,
+            missing_information=tuple(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"atom:{_atom_to_str(a)}",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "counterfactual event atom is not in the "
+                        "instantiated variable set V"
+                    ),
+                )
+                for a in missing_atoms
+            ),
+        )
+
+    gamma = tuple(
+        CtfEvent(
+            variable=e.variable,
+            subscript=frozenset((s.atom, s.value) for s in e.subscript),
+            value=e.value,
+        )
+        for e in q.events
+    )
+
+    outcome = id_star(graph, bidirected, gamma)
+
+    if outcome is FAIL:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.COUNTERFACTUAL_CONJUNCTION,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:counterfactual_unidentifiable",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "P(γ) is not identifiable by the ID* algorithm — a "
+                        "w-graph / subscript-conflict witness (e.g. the PNS "
+                        "P(y_x, y'_{x'}) with a direct X→Y edge). No "
+                        "observational estimand exists."
+                    ),
+                ),
+            ),
+        )
+
+    if outcome is ZERO:
+        formula: FormulaExpr = ConstantExpr(value=0.0)
+    else:
+        formula = outcome
+        validate_formula(formula)
+
+    structural_result = StructuralResult(value=True)
+    derivation = (
+        DerivationStep(
+            rule="id_star_identification",
+            inputs={"graph": graph, "formula": formula},
+            output=structural_result,
+            step_id="s1",
+        ),
+    )
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.COUNTERFACTUAL_CONJUNCTION,
+        query_id=stmt.id,
+        structural_result=structural_result,
+        formula=formula,
+        derivation=derivation,
+    )
+
+
 def _try_numeric(
     stmt: QueryStatement,
     formula,
@@ -3824,6 +3934,10 @@ def dispatch(
         )
     elif isinstance(q, SCMCounterfactualQuery):
         result = _dispatch_scm_counterfactual(stmt, graph, program)
+    elif isinstance(q, CounterfactualConjunctionQuery):
+        result = _dispatch_counterfactual_conjunction(
+            stmt, graph, bidirected=bidirected
+        )
     else:
         # Truly unknown type: fail loudly. The schema layer should
         # have already rejected it; reaching here is a programmer bug.

@@ -637,6 +637,50 @@
         }
       }
     },
+    "counterfactualConjunctionQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "General counterfactual identification (Shpitser-Pearl ID*, R-336 / JMLR 9:1941-1979 2008). Queries P(gamma) for a counterfactual conjunction gamma = AND_i V_i{world_i}=v_i spanning multiple, possibly contradictory hypothetical worlds sharing exogenous background — the counterfactual rung of the causal hierarchy, strictly more general than counterfactualQuery (one binary world pair) and causationQuery (PN/PS/PNS). The kernel decides identifiability structurally and returns an observational estimand, P(gamma)=0 for an inconsistent conjunction, or non-identifiable (a w-graph witness).",
+      "required": [
+        "kind",
+        "events"
+      ],
+      "properties": {
+        "kind": {
+          "const": "counterfactual_conjunction"
+        },
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The conjoined counterfactual events. Each event reads a variable in one hypothetical world.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "variable",
+              "value"
+            ],
+            "properties": {
+              "variable": {
+                "$ref": "atom.schema.json#/$defs/atom",
+                "description": "The base variable V read in this event."
+              },
+              "subscript": {
+                "type": "array",
+                "description": "The world V is read in: the interventions do(...) fixing it. Empty (or omitted) = the factual world.",
+                "items": {
+                  "$ref": "atom.schema.json#/$defs/groundedAtom"
+                }
+              },
+              "value": {
+                "$ref": "atom.schema.json#/$defs/literalValue",
+                "description": "The value V attains in this world."
+              }
+            }
+          }
+        }
+      }
+    },
     "query": {
       "oneOf": [
         {
@@ -662,6 +706,9 @@
         },
         {
           "$ref": "#/$defs/scmCounterfactualQuery"
+        },
+        {
+          "$ref": "#/$defs/counterfactualConjunctionQuery"
         }
       ]
     },

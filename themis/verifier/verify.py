@@ -24,6 +24,7 @@ from ..types import (
     CausationQuery,
     CauseQuery,
     ConstantExpr,
+    CounterfactualConjunctionQuery,
     CounterfactualQuery,
     DerivationStep,
     EffectQuery,
@@ -47,7 +48,7 @@ from .errors import (
     VerificationError,
 )
 from .rules import _numeric_result_matches, dispatch_rule, known_rule
-from .semantic_probe import probe_identify_formula
+from .semantic_probe import probe_counterfactual_formula, probe_identify_formula
 
 
 # Phase 15 — nonparametric point-identification terminal rules. For these
@@ -1593,3 +1594,88 @@ def verify_scm_counterfactual(
             "last derivation step output does not equal claimed result",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
+
+
+def _assert_ctf_query_binding(
+    step: DerivationStep,
+    context: VerificationContext,
+    step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+) -> None:
+    """Counterfactual-conjunction derivations have a single rule whose
+    binding to the query/graph is rechecked inside the rule."""
+    return None
+
+
+def verify_counterfactual_conjunction(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """Verify a general counterfactual identification (ID*) derivation.
+
+    The terminal ``id_star_identification`` rule re-runs the ID* engine and
+    confirms the outcome CLASS (identifiable / inconsistent-zero) matches
+    the claim (a structural licence). On top of that — mirroring
+    ``verify_identify`` — this pins the terminal rule, checks the last
+    step's output equals the claim, and, unless ``P(γ)=0``, runs a
+    Monte-Carlo semantic probe: it samples random SCMs consistent with the
+    ADMG, computes the true ``P(γ)`` by counterfactual Monte-Carlo over a
+    shared exogenous background, and requires the claimed formula to match.
+    A formula that passes every structural check but computes the wrong
+    number is rejected here.
+
+    Raises ``VerificationError`` on reject; returns ``None`` on accept.
+    """
+    if not isinstance(context.query, CounterfactualConjunctionQuery):
+        raise VerificationError(
+            "verify_counterfactual_conjunction requires a "
+            "CounterfactualConjunctionQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_ctf_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].rule != "id_star_identification":
+        raise VerificationError(
+            "counterfactual-conjunction derivation must end in "
+            f"'id_star_identification'; got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+    # Semantic backbone: the structural rule proves the query is identified;
+    # it does NOT prove the FORMULA computes the true P(γ). Probe it against
+    # random SCMs. P(γ)=0 (an inconsistent conjunction, rendered as the
+    # constant 0) has no formula to probe — the rule already confirmed the
+    # ID* engine agrees it is inconsistent.
+    formula = derivation[-1].inputs.get("formula")
+    is_zero = isinstance(formula, ConstantExpr) and formula.value == 0.0
+    if formula is not None and not is_zero:
+        from ..runtime.ctf_identify import CtfEvent
+        q = context.query
+        gamma = tuple(
+            CtfEvent(
+                variable=e.variable,
+                subscript=frozenset((s.atom, s.value) for s in e.subscript),
+                value=e.value,
+            )
+            for e in q.events
+        )
+        domains = context.theta.domains if context.theta is not None else {}
+        probe = probe_counterfactual_formula(
+            context.graph, context.bidirected,
+            gamma=gamma, formula=formula, domains=domains,
+        )
+        if probe.status == "mismatch":
+            raise VerificationError(
+                "counterfactual formula fails semantic verification: it does "
+                "not compute the true P(γ) in a model consistent with the "
+                f"graph. {probe.detail}",
+                step_index=len(derivation) - 1, rule=derivation[-1].rule,
+            )

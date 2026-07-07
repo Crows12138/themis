@@ -21,6 +21,7 @@ from ..types import (
     Atom,
     AssocQuery,
     CausationQuery,
+    CounterfactualConjunctionQuery,
     CounterfactualQuery,
     CauseQuery,
     EffectQuery,
@@ -39,6 +40,7 @@ VerifiableQuery = Union[
     CounterfactualQuery,
     CausationQuery,
     SCMCounterfactualQuery,
+    CounterfactualConjunctionQuery,
 ]
 
 

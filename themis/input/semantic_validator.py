@@ -54,6 +54,8 @@ from ..types import (
     MissingnessIndicator,
     CausationQuery,
     CounterfactualAssumptions,
+    CounterfactualConjunctionQuery,
+    CounterfactualEvent,
     CounterfactualQuery,
     CauseQuery,
     CauseStatement,
@@ -219,6 +221,19 @@ def _to_query(d: dict):
             intervention=_to_intervention(d["intervention"]),
             target=_to_atom(d["target"]),
         )
+    if k == "counterfactual_conjunction":
+        return CounterfactualConjunctionQuery(
+            events=tuple(
+                CounterfactualEvent(
+                    variable=_to_atom(e["variable"]),
+                    subscript=tuple(
+                        _to_grounded(s) for s in e.get("subscript", ())
+                    ),
+                    value=e["value"],
+                )
+                for e in d["events"]
+            ),
+        )
     raise SemanticError(f"unknown query kind: {k}")
 
 
@@ -338,6 +353,12 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
             return (q.cause, q.effect)
         if isinstance(q, SCMCounterfactualQuery):
             return (q.intervention.atom, q.target)
+        if isinstance(q, CounterfactualConjunctionQuery):
+            return tuple(
+                a
+                for e in q.events
+                for a in (e.variable, *(s.atom for s in e.subscript))
+            )
     return ()
 
 
@@ -721,6 +742,12 @@ def _query_structural_atoms(q) -> tuple[Atom, ...]:
         return (q.cause, q.effect)
     if isinstance(q, SCMCounterfactualQuery):
         return (q.intervention.atom, q.target)
+    if isinstance(q, CounterfactualConjunctionQuery):
+        return tuple(
+            a
+            for e in q.events
+            for a in (e.variable, *(s.atom for s in e.subscript))
+        )
     return ()
 
 
