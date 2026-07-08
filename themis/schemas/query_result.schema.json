@@ -474,7 +474,17 @@
     "numeric_estimate": {
       "type": "object",
       "description": "Phase 7: data-based estimate. For backdoor / front-door / IV queries this is a single ATE point + CI. For mediation queries it carries a ``decomposition`` sub-block with NDE/NIE/TE triples (point + CI each).",
-      "required": ["method", "ci_level", "assumptions", "sample_size", "data_hash", "treatment", "outcome"],
+      "required": ["method", "ci_level", "assumptions", "sample_size", "data_hash"],
+      "allOf": [
+        {
+          "if": {
+            "required": ["method"],
+            "properties": { "method": { "const": "ctf_conjunction_plugin" } }
+          },
+          "then": { "required": ["conditional", "estimand"] },
+          "else": { "required": ["treatment", "outcome"] }
+        }
+      ],
       "additionalProperties": false,
       "properties": {
         "point": { "type": "number" },
@@ -496,7 +506,8 @@
             "longitudinal_gformula",
             "longitudinal_ipw_msm",
             "missing_data_recovery_gformula",
-            "general_id_plugin"
+            "general_id_plugin",
+            "ctf_conjunction_plugin"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -523,6 +534,14 @@
         "outcome_high": {
           "type": ["boolean", "number", "string", "null"],
           "description": "general_id_plugin only: the outcome level the binary P(Y=outcome_high|do(X)) contrast is taken on."
+        },
+        "conditional": {
+          "type": "boolean",
+          "description": "ctf_conjunction_plugin only: whether the estimand is a conditional P(γ|δ) (IDC*) rather than an unconditional P(γ) (ID*)."
+        },
+        "estimand": {
+          "type": "string",
+          "description": "ctf_conjunction_plugin only: a human-readable rendering of the identified counterfactual probability, e.g. P(y_{x=True}=True | x=False)."
         },
         "treatment": { "type": "string" },
         "treatments": {

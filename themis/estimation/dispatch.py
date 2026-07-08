@@ -117,6 +117,15 @@ def estimate_program(
         cluster=cluster, ate_estimator=ate_estimator,
     )
 
+    # Numeric end for the counterfactual rung: evaluate an ID*/IDC*-identified
+    # counterfactual conjunction P(γ) / P(γ|δ) on data by the same
+    # non-parametric plug-in. Purely additive — attaches a numeric_estimate
+    # only when the conjunction is identifiable and the data support it.
+    _estimate_ctf_conjunction_queries(
+        program, identification_output, contract,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
+    )
+
     # Numeric end for the partial-identification layer: when point ID failed
     # and the kernel attached a SYMBOLIC bounds_result, evaluate it on data.
     # Runs after the point-estimate loop so it only ever ADDS numeric fields
@@ -1102,6 +1111,181 @@ def _build_general_id_numeric_derivation_dict(*, graph, x, y, estimate):
                 "ci_lower": estimate.ci_lower,
                 "ci_upper": estimate.ci_upper,
                 "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
+
+
+def _pair_ctf_conjunction_queries(prog, output):
+    """Yield (QueryStatement, result_dict) pairs whose query is a
+    CounterfactualConjunctionQuery. Alignment uses query_id."""
+    from ..types import CounterfactualConjunctionQuery, QueryStatement
+
+    id_to_stmt = {
+        s.id: s for s in prog.statements
+        if isinstance(s, QueryStatement)
+        and isinstance(s.query, CounterfactualConjunctionQuery)
+    }
+    for result in output.get("results", []):
+        if result.get("query_kind") != "counterfactual_conjunction":
+            continue
+        qid = result.get("query_id")
+        yield id_to_stmt.get(qid), result
+
+
+def _estimate_ctf_conjunction_queries(
+    program: dict | str | bytes,
+    output: dict,
+    contract: DataContract,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    cluster: str | None = None,
+) -> None:
+    """For each counterfactual-conjunction result, attach a plug-in
+    ``numeric_estimate`` of P(γ) / P(γ|δ) when the ID*/IDC* estimand is
+    identifiable and the data support it. Mutates ``output`` in place.
+
+    Purely additive: a non-identifiable / UNDEFINED / positivity refusal
+    leaves the structural result untouched (the identifiability verdict
+    stays the primary answer for a counterfactual query)."""
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
+    from ..runtime import structural_solver
+
+    ast = _ensure_dict(program)
+    ast = validate_ast(ast)
+    prog = validate_program(ast)
+    ground_statements = instantiate(prog)
+    graph = project(ground_statements)
+    bidirected = structural_solver.bidirected_from_ground(ground_statements)
+
+    for q_stmt, result in _pair_ctf_conjunction_queries(prog, output):
+        if q_stmt is None:
+            continue
+        _try_ctf_conjunction_estimate(
+            q_stmt, result, contract, graph, bidirected,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+
+
+def _try_ctf_conjunction_estimate(
+    q_stmt, result: dict, contract, graph, bidirected, *,
+    random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
+) -> bool:
+    """Evaluate an ID*/IDC*-identified counterfactual conjunction on data by
+    the non-parametric plug-in (the counterfactual analogue of
+    ``_try_general_id_estimate``).
+
+    Returns True only when it ATTACHES a plug-in numeric estimate. On any
+    refusal — not identifiable, UNDEFINED conditioning event, or the data
+    can't support the estimand (positivity) — it returns False and touches
+    nothing, so the structural (identifiability) answer stays primary."""
+    from ..runtime.ctf_identify import CtfEvent
+    from .ctf_conjunction import estimate_ctf_conjunction_prob
+    from .dose_response import EstimatorFailure
+
+    def _to_ctf(events):
+        return tuple(
+            CtfEvent(
+                variable=e.variable,
+                subscript=frozenset((s.atom, s.value) for s in e.subscript),
+                value=e.value,
+            )
+            for e in events
+        )
+
+    q = q_stmt.query
+    gamma = _to_ctf(q.events)
+    delta = _to_ctf(q.condition)
+    df = contract.data
+
+    try:
+        estimate = estimate_ctf_conjunction_prob(
+            df, graph=graph, bidirected=bidirected, gamma=gamma, delta=delta,
+            ci_bootstrap=ci_bootstrap, random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
+        )
+    except (EstimatorFailure, ValueError, NotImplementedError):
+        # Not identifiable, UNDEFINED, or a positivity refusal — leave the
+        # structural result untouched.
+        return False
+
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "conditional": estimate.conditional,
+        "estimand": estimate.estimand,
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=estimate.estimand,
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+
+    result["derivation"] = _build_ctf_conjunction_numeric_derivation_dict(
+        graph=graph, estimate=estimate,
+    )
+    _finalise_numeric_result(result)
+    return True
+
+
+def _build_ctf_conjunction_numeric_derivation_dict(*, graph, estimate):
+    """Two-step derivation for a counterfactual-conjunction plug-in estimate:
+
+        s1: ctf_conjunction_criterion (structural witness — re-runs ID*/IDC*
+            to confirm the conjunction is identifiable)
+        s2: numeric_ctf_conjunction_estimate (metadata audit — no re-fit)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="ctf_conjunction_criterion",
+            inputs={"graph": graph},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_ctf_conjunction_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+                "conditional": estimate.conditional,
             },
             output=StructuralResult(value=True),
             step_id="s2",

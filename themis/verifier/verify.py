@@ -1700,3 +1700,45 @@ def verify_counterfactual_conjunction(
                 f"the graph. {probe.detail}",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
+
+
+def verify_ctf_conjunction_numeric(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """Verify a data-based counterfactual-conjunction (ID*/IDC* plug-in)
+    estimate derivation — the numeric counterpart of
+    ``verify_counterfactual_conjunction``.
+
+    The derivation must end in ``numeric_ctf_conjunction_estimate`` atop a
+    ``ctf_conjunction_criterion`` structural witness. The rule handlers
+    re-run ID*/IDC* to confirm the conjunction is identifiable
+    (safety-critical: a number is licensed ONLY for an identified
+    counterfactual) and audit the estimate's metadata self-consistency
+    (method enum / CI bounds / data_hash / sample_size) — no re-fit, the
+    same cost trade-off ``verify_numeric_estimate`` makes for the effect
+    data estimators.
+
+    Raises ``VerificationError`` on reject; returns ``None`` on accept.
+    """
+    if not isinstance(context.query, CounterfactualConjunctionQuery):
+        raise VerificationError(
+            "verify_ctf_conjunction_numeric requires a "
+            "CounterfactualConjunctionQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_ctf_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].rule != "numeric_ctf_conjunction_estimate":
+        raise VerificationError(
+            "counterfactual-conjunction numeric derivation must end in "
+            f"'numeric_ctf_conjunction_estimate'; got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )

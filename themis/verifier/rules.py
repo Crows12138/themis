@@ -1183,6 +1183,75 @@ def _rule_general_id_criterion(
         )
 
 
+def _rule_ctf_conjunction_criterion(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify that a counterfactual conjunction P(γ) / P(γ|δ) is identified
+    by ID* (δ empty) / IDC* (δ present) on this ADMG — the structural
+    licence for a counterfactual-conjunction plug-in numeric estimate.
+
+    Re-runs ``ctf_identify.id_star`` / ``idc_star`` on the context's
+    (graph, bidirected) and the query's γ / δ, and confirms the outcome is
+    an identified estimand (a FormulaExpr, or the inconsistent-``ZERO``
+    constant). ``FAIL`` (non-identifiable) and ``UNDEFINED`` (``P(δ)=0``)
+    must NEVER back a numeric estimate — a number is produced only for a
+    genuinely identified counterfactual. Like ``general_id_criterion``, it
+    re-runs the engine rather than reimplementing it; the deep,
+    fully-independent semantic replay lives on the structural
+    counterfactual-conjunction path (``verify_counterfactual_conjunction``).
+
+    inputs: graph
+    output: bool
+    """
+    from ..runtime.ctf_identify import (
+        CtfEvent,
+        FAIL,
+        UNDEFINED,
+        id_star,
+        idc_star,
+    )
+    from ..types import CounterfactualConjunctionQuery
+
+    graph = _require(inputs, "graph", step_index, "ctf_conjunction_criterion")
+    _assert_same_graph(graph, ctx.graph, step_index, "ctf_conjunction_criterion")
+
+    q = getattr(ctx, "query", None)
+    if not isinstance(q, CounterfactualConjunctionQuery):
+        raise RuleCheckFailed(
+            "ctf_conjunction_criterion requires a "
+            "CounterfactualConjunctionQuery in the verification context",
+            step_index=step_index, rule="ctf_conjunction_criterion",
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+
+    def _to_gamma(events):
+        return tuple(
+            CtfEvent(
+                variable=e.variable,
+                subscript=frozenset((s.atom, s.value) for s in e.subscript),
+                value=e.value,
+            )
+            for e in events
+        )
+
+    gamma = _to_gamma(q.events)
+    delta = _to_gamma(q.condition)
+    outcome = idc_star(graph, bidir, gamma, delta) if delta \
+        else id_star(graph, bidir, gamma)
+    # ZERO (an inconsistent conjunction, P=0) IS an identified answer.
+    identified = outcome is not FAIL and outcome is not UNDEFINED
+    if identified != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"ctf_conjunction_criterion claimed {claimed_output!r}, but the "
+            f"ID*/IDC* engine recomputed identifiable={identified!r}",
+            step_index=step_index, rule="ctf_conjunction_criterion",
+        )
+
+
 def _rule_id_star_identification(
     ctx: VerificationContext,
     inputs: dict,
@@ -2032,6 +2101,10 @@ _NUMERIC_JOINT_METHODS = frozenset({
 # identification made numeric on discrete data.
 _NUMERIC_GENERAL_ID_METHODS = frozenset({"general_id_plugin"})
 
+# Counterfactual-conjunction (ID*/IDC*) non-parametric plug-in — the
+# counterfactual rung made numeric on discrete data.
+_NUMERIC_CTF_CONJUNCTION_METHODS = frozenset({"ctf_conjunction_plugin"})
+
 _SHA256_HEX_LEN = 64
 _MIN_NUMERIC_SAMPLE_SIZE = 10
 
@@ -2879,6 +2952,128 @@ def _rule_numeric_general_id_estimate(
         raise RuleCheckFailed(
             "numeric_general_id_estimate output.value must be True",
             step_index=step_index, rule="numeric_general_id_estimate",
+        )
+
+
+def _rule_numeric_ctf_conjunction_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Relaxed audit for a counterfactual-conjunction (ID*/IDC* plug-in)
+    estimate.
+
+    Method enum + CI bounds + data_hash + sample_size + conditional-flag
+    checks; the referenced ``criterion`` step must be a
+    ``ctf_conjunction_criterion``. Same shape as
+    ``numeric_general_id_estimate`` — a metadata self-consistency audit, no
+    re-fit. The identifiability the number rests on is re-derived by the
+    referenced ``ctf_conjunction_criterion`` step (which re-runs ID*/IDC*).
+    There is no treatment / outcome pair (the estimand is a single
+    conjunction probability, not an ATE contrast).
+    """
+    rule = "numeric_ctf_conjunction_estimate"
+    criterion_ref = _require(inputs, "criterion", step_index, rule)
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_ctf_conjunction_estimate.criterion must be a StepRef",
+            step_index=step_index, rule=rule,
+        )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+    conditional = inputs.get("conditional")
+
+    if method not in _NUMERIC_CTF_CONJUNCTION_METHODS:
+        raise RuleCheckFailed(
+            f"numeric_ctf_conjunction_estimate.method must be one of "
+            f"{sorted(_NUMERIC_CTF_CONJUNCTION_METHODS)}; got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"numeric_ctf_conjunction_estimate.data_hash must be a "
+            f"{_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule=rule,
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            "numeric_ctf_conjunction_estimate.data_hash must be lowercase hex",
+            step_index=step_index, rule=rule,
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"numeric_ctf_conjunction_estimate.sample_size must be an int "
+            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"numeric_ctf_conjunction_estimate.point must be a number; "
+            f"got {point!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(conditional, bool):
+        raise RuleCheckFailed(
+            f"numeric_ctf_conjunction_estimate.conditional must be a bool; "
+            f"got {conditional!r}",
+            step_index=step_index, rule=rule,
+        )
+    ci_present = ci_lower is not None or ci_upper is not None
+    if ci_present:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                "numeric_ctf_conjunction_estimate: ci_lower and ci_upper must "
+                "both be present or both absent",
+                step_index=step_index, rule=rule,
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"numeric_ctf_conjunction_estimate: point {point} outside "
+                f"[{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"numeric_ctf_conjunction_estimate.ci_level must be in (0, 1); "
+                f"got {ci_level!r}",
+                step_index=step_index, rule=rule,
+            )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None:
+        raise RuleCheckFailed(
+            f"numeric_ctf_conjunction_estimate: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule=rule,
+        )
+    if criterion_step.rule != "ctf_conjunction_criterion":
+        raise RuleCheckFailed(
+            "numeric_ctf_conjunction_estimate.criterion must reference a "
+            "ctf_conjunction_criterion step",
+            step_index=step_index, rule=rule,
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "numeric_ctf_conjunction_estimate output must be a StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "numeric_ctf_conjunction_estimate output.value must be True",
+            step_index=step_index, rule=rule,
         )
 
 
@@ -6071,6 +6266,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # General-ID (c-factor) plug-in — structural licence: re-run the ID
     # engine and confirm the effect is point-identified.
     "general_id_criterion": _rule_general_id_criterion,
+    # Counterfactual-conjunction (ID*/IDC*) plug-in — structural licence:
+    # re-run ID*/IDC* and confirm the conjunction is identified.
+    "ctf_conjunction_criterion": _rule_ctf_conjunction_criterion,
     # Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE numeric
     "iv_wald_numeric_evaluate": _rule_iv_wald_numeric_evaluate,
     # Phase 6.mediation S.M.3
@@ -6113,6 +6311,9 @@ _STEP_REF_RULES = {
     # General-ID (c-factor) plug-in numeric estimate — same c-factor
     # identification witness (general_id_criterion), plug-in terminal.
     "numeric_general_id_estimate",
+    # Counterfactual-conjunction (ID*/IDC*) plug-in numeric estimate — same
+    # counterfactual identification witness (ctf_conjunction_criterion).
+    "numeric_ctf_conjunction_estimate",
     # Phase 9 §T9.1.4 — transport identification
     "identify_via_transport",
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
@@ -6188,6 +6389,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_general_id_estimate":
         _rule_numeric_general_id_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_ctf_conjunction_estimate":
+        _rule_numeric_ctf_conjunction_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

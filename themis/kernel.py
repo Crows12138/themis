@@ -92,6 +92,7 @@ from .verifier import (
     verify_cause,
     verify_counterfactual,
     verify_counterfactual_conjunction,
+    verify_ctf_conjunction_numeric,
     verify_scm_counterfactual,
     verify_effect_structural,
     verify_identify,
@@ -907,7 +908,17 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         verify_scm_counterfactual(derivation, ctx, claimed)
     elif kind == "counterfactual_conjunction":
         claimed = _decode_structural_result_json(result["structural_result"])
-        verify_counterfactual_conjunction(derivation, ctx, claimed)
+        if (
+            result.get("status") == "numerically_solved"
+            and "numeric_estimate" in result
+        ):
+            # Data path (themis.estimate): the ID*/IDC* estimand was
+            # evaluated to a point by the non-parametric plug-in. Verify the
+            # numeric derivation (ctf_conjunction_criterion re-runs the
+            # engine; numeric_ctf_conjunction_estimate audits the metadata).
+            verify_ctf_conjunction_numeric(derivation, ctx, claimed)
+        else:
+            verify_counterfactual_conjunction(derivation, ctx, claimed)
     else:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"
