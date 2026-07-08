@@ -109,11 +109,11 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 运行结构查询：`cause / assoc / identify / effect / probability / counterfactual / causation / scm_counterfactual / counterfactual_conjunction`
 - 处理已显式立项的 fragment：front-door、窄 ADMG、窄 temporal、窄 counterfactual、IV、mediation、transport、probabilities of causation（PN/PS/PNS, Tian-Pearl 2000）、线性 SCM 反事实点（Pearl Primer §4 溯因-干预-预测）、通用反事实识别（Shpitser-Pearl ID*，任意反事实合取 P(γ) 的非参数可识别性判定）
 - 输出严格推导链，并通过独立 verifier 复核
-- 在有数据时通过 `themis.estimate(...)` 给出 backdoor / front-door / IV / mediation / dose-response 估计
+- 在有数据时通过 `themis.estimate(...)` 给出 backdoor / front-door / IV / mediation / dose-response / 通用-ID / 近端 proximal / PN·PS·PNS 归因概率（Tian-Pearl，单调下点识别 + 无假设界）/ 反事实合取的数值估计
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 
-当前全量测试基线：**2567 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2587 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -167,7 +167,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2567 passed / 144 skipped（2026-07-08）
+- **测试套件**：2587 passed / 144 skipped（2026-07-08）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
