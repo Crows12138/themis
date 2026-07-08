@@ -90,6 +90,7 @@ from .verifier import (
     derivation_from_dict,
     verify_assoc,
     verify_causation,
+    verify_causation_numeric,
     verify_cause,
     verify_counterfactual,
     verify_counterfactual_conjunction,
@@ -735,6 +736,63 @@ def _verify_causation_extensions_match(result: dict, derivation) -> None:
             _fail()
 
 
+def _verify_causation_numeric_extensions_match(result: dict, derivation) -> None:
+    """Numeric analogue of ``_verify_causation_extensions_match``.
+
+    The data path's ``extensions.causation`` display copy must agree with the
+    ``numeric_causation_estimate`` step's inputs (the pn/ps/pns bounds + points,
+    do-risks, joint), which ``verify_causation_numeric`` already re-derived
+    independently. Reads the FLAT inputs of the numeric step rather than a
+    tian_pearl envelope. Skips quietly when no causation extension is present.
+    """
+    ext = (result.get("extensions") or {}).get("causation")
+    if ext is None:
+        return
+    inp = derivation[-1].inputs
+    if not isinstance(inp, dict):
+        raise VerificationError(
+            "causation numeric derivation inputs are not a dict; cannot "
+            "cross-check extensions",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    tol = 1e-9
+
+    def _num_eq(a, b) -> bool:
+        return a is not None and b is not None and abs(float(a) - float(b)) <= tol
+
+    def _fail() -> None:
+        raise VerificationError(
+            "extensions.causation does not match the verified numeric "
+            "derivation inputs (display copy diverges from the audited answer)",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+    for q in ("pn", "ps", "pns"):
+        a = ext.get(q)
+        if not isinstance(a, dict):
+            _fail()
+        if not _num_eq(a.get("lower"), inp.get(f"{q}_lower")):
+            _fail()
+        if not _num_eq(a.get("upper"), inp.get(f"{q}_upper")):
+            _fail()
+        # The data path is monotone (points present), so point must agree.
+        if not _num_eq(a.get("point"), inp.get(f"{q}_point")):
+            _fail()
+    for k in ("p_y_do_x1", "p_y_do_x0"):
+        if not _num_eq(ext.get(k), inp.get(k)):
+            _fail()
+    if bool(ext.get("monotonic")) != bool(inp.get("monotonic")):
+        _fail()
+    if ext.get("interventional_risk_provenance") != inp.get(
+        "interventional_risk_provenance"
+    ):
+        _fail()
+    ja = ext.get("observational_joint") or {}
+    for k in ("p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"):
+        if not _num_eq(ja.get(k), inp.get(k)):
+            _fail()
+
+
 def verify(program: dict | str | bytes, result: dict) -> None:
     """Independently re-verify one result against its source program.
 
@@ -900,18 +958,33 @@ def verify(program: dict | str | bytes, result: dict) -> None:
         claimed = _decode_numeric_result_json(result["numeric_result"])
         verify_counterfactual(derivation, ctx, claimed)
     elif kind == "causation":
-        if "numeric_result" not in result:
-            raise ValueError(
-                "verify(): causation result must carry a numeric_result"
-            )
-        claimed = _decode_numeric_result_json(result["numeric_result"])
-        verify_causation(derivation, ctx, claimed)
-        # The consumer-facing extensions.causation copy carries PS/PNS,
-        # which are answer-grade numbers a reader sees only there (the
-        # headline numeric_result is just PN). Cross-check it against the
-        # derivation envelope that verify_causation just independently
-        # audited, so a tamper of the display copy alone cannot pass.
-        _verify_causation_extensions_match(result, derivation)
+        if (
+            result.get("status") == "numerically_solved"
+            and "numeric_estimate" in result
+        ):
+            # Data path (themis.estimate): PN/PS/PNS recovered from a DataFrame
+            # (empirical joint + g-formula do-risks → Tian-Pearl). The single
+            # numeric_causation_estimate rule re-derives the theorem on the
+            # reported inputs and re-checks the adjustment set on the graph.
+            claimed = _decode_structural_result_json(result["structural_result"])
+            verify_causation_numeric(derivation, ctx, claimed)
+            # The extensions.causation display copy (PS/PNS + bounds a reader
+            # sees only there) must agree with the audited numeric derivation
+            # inputs, so a tamper of the display copy alone cannot pass.
+            _verify_causation_numeric_extensions_match(result, derivation)
+        else:
+            if "numeric_result" not in result:
+                raise ValueError(
+                    "verify(): causation result must carry a numeric_result"
+                )
+            claimed = _decode_numeric_result_json(result["numeric_result"])
+            verify_causation(derivation, ctx, claimed)
+            # The consumer-facing extensions.causation copy carries PS/PNS,
+            # which are answer-grade numbers a reader sees only there (the
+            # headline numeric_result is just PN). Cross-check it against the
+            # derivation envelope that verify_causation just independently
+            # audited, so a tamper of the display copy alone cannot pass.
+            _verify_causation_extensions_match(result, derivation)
     elif kind == "scm_counterfactual":
         if "numeric_result" not in result:
             raise ValueError(

@@ -1547,6 +1547,44 @@ def verify_causation(
         )
 
 
+def verify_causation_numeric(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """Verify a data-based PN/PS/PNS estimate derivation — the numeric
+    counterpart of ``verify_causation``.
+
+    The derivation must end in ``numeric_causation_estimate``. That single rule
+    re-applies the Tian-Pearl theorem (the verifier's OWN transcription) to the
+    reported empirical joint + do-risks and confirms the reported PN/PS/PNS
+    bounds and points, re-derives the back-door adjustment set on ``ctx.graph``,
+    and audits the estimate metadata — no re-fit on the raw data, the same
+    trade-off the other numeric verifiers make.
+
+    Raises ``VerificationError`` on reject; returns ``None`` on accept.
+    """
+    if not isinstance(context.query, CausationQuery):
+        raise VerificationError(
+            "verify_causation_numeric requires a CausationQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_causation_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].rule != "numeric_causation_estimate":
+        raise VerificationError(
+            "causation numeric derivation must end in "
+            f"'numeric_causation_estimate'; got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
 def _assert_scm_query_binding(
     step: DerivationStep,
     context: VerificationContext,

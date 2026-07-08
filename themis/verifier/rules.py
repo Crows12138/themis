@@ -3240,6 +3240,210 @@ def _rule_numeric_proximal_estimate(
         )
 
 
+_NUMERIC_CAUSATION_METHODS = frozenset({"causation_plugin"})
+
+
+def _rule_numeric_causation_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Independent audit of a data-based PN/PS/PNS (causation) estimate.
+
+    The numeric counterpart of ``probabilities_of_causation_tian_pearl``, but
+    the observational joint + interventional risks are now EMPIRICAL, so the
+    theta-recovery leg does not apply. Three independent re-checks:
+
+    1. Theorem re-application — the reported PN/PS/PNS points must equal the
+       verifier's OWN Tian-Pearl transcription (``_tian_pearl_poc_for_verifier``,
+       never the producer's oracle) of the reported joint + do-risks; catches a
+       formula / packaging bug in the data path.
+    2. Identification structure — when the do-risks were back-door standardized
+       (or exogenous), the claimed adjustment set is re-derived from
+       ``ctx.graph`` via ``minimal_adjustment_sets`` and must be a genuinely
+       admissible back-door set; catches standardizing over a WRONG set.
+    3. Metadata self-consistency — method enum, data_hash hex, sample_size,
+       probabilities in range, PN CI brackets the point.
+
+    Like the other numeric verifiers this does not re-fit on the raw data (the
+    verifier holds only the ``data_hash``); the arithmetic and the graph
+    licence are what it re-derives.
+
+    inputs: cause/effect atoms, the four empirical cells, the two do-risks,
+        monotonic, provenance, adjustment, the reported pn/ps/pns points, CI.
+    output: StructuralResult(value=True)
+    """
+    from ..runtime import structural_solver
+
+    rule = "numeric_causation_estimate"
+    if not isinstance(ctx.query, CausationQuery):
+        raise RuleCheckFailed(
+            f"{rule} requires a CausationQuery context",
+            step_index=step_index, rule=rule,
+        )
+
+    method = inputs.get("method")
+    if method not in _NUMERIC_CAUSATION_METHODS:
+        raise RuleCheckFailed(
+            f"{rule}.method must be one of {sorted(_NUMERIC_CAUSATION_METHODS)}; "
+            f"got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    data_hash = inputs.get("data_hash")
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be a {_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule=rule,
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be lowercase hex",
+            step_index=step_index, rule=rule,
+        )
+    sample_size = inputs.get("sample_size")
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.sample_size must be an int >= {_MIN_NUMERIC_SAMPLE_SIZE}; "
+            f"got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+
+    x_atom = _require_atom(inputs, "cause", step_index, rule)
+    y_atom = _require_atom(inputs, "effect", step_index, rule)
+    if x_atom != ctx.query.cause or y_atom != ctx.query.effect:
+        raise RuleCheckFailed(
+            f"{rule}: cause/effect inputs do not bind to the query atoms",
+            step_index=step_index, rule=rule,
+        )
+
+    cells = {
+        "p_x1_y1": float(_require(inputs, "p_x1_y1", step_index, rule)),
+        "p_x1_y0": float(_require(inputs, "p_x1_y0", step_index, rule)),
+        "p_x0_y1": float(_require(inputs, "p_x0_y1", step_index, rule)),
+        "p_x0_y0": float(_require(inputs, "p_x0_y0", step_index, rule)),
+    }
+    if abs(sum(cells.values()) - 1.0) > 1e-6:
+        raise RuleCheckFailed(
+            f"{rule}: the four observational cells must sum to 1; "
+            f"got {sum(cells.values()):.6g}",
+            step_index=step_index, rule=rule,
+        )
+    p_y_do_x1 = float(_require(inputs, "p_y_do_x1", step_index, rule))
+    p_y_do_x0 = float(_require(inputs, "p_y_do_x0", step_index, rule))
+    for label, v in (("p_y_do_x1", p_y_do_x1), ("p_y_do_x0", p_y_do_x0)):
+        if not (0.0 <= v <= 1.0):
+            raise RuleCheckFailed(
+                f"{rule}: {label}={v} is not a probability in [0, 1]",
+                step_index=step_index, rule=rule,
+            )
+    monotonic = bool(_require(inputs, "monotonic", step_index, rule))
+    if not monotonic:
+        raise RuleCheckFailed(
+            f"{rule}: a numeric PN/PS/PNS POINT requires monotonic=True "
+            "(without it the quantities are only bounds)",
+            step_index=step_index, rule=rule,
+        )
+
+    # 1. Independent Tian-Pearl re-application on the reported data inputs.
+    recomputed = _tian_pearl_poc_for_verifier(
+        p_x1_y1=cells["p_x1_y1"], p_x1_y0=cells["p_x1_y0"],
+        p_x0_y1=cells["p_x0_y1"], p_x0_y0=cells["p_x0_y0"],
+        p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0, monotonic=True,
+    )
+    for q in ("pn", "ps", "pns"):
+        exp_lower, exp_upper, exp_point = recomputed[q]
+        # Bounds must match the independent re-derivation exactly.
+        for label, reported_v, expected_v in (
+            (f"{q}_lower", _require(inputs, f"{q}_lower", step_index, rule), exp_lower),
+            (f"{q}_upper", _require(inputs, f"{q}_upper", step_index, rule), exp_upper),
+        ):
+            if abs(float(reported_v) - expected_v) > 1e-9:
+                raise RuleCheckFailed(
+                    f"{rule}: {label} {reported_v} does not match the "
+                    f"independently re-derived Tian-Pearl value {expected_v}",
+                    step_index=step_index, rule=rule,
+                )
+        reported = _require(inputs, f"{q}_point", step_index, rule)
+        if exp_point is None:
+            # A zero conditioning cell — the producer should not claim a point.
+            if reported is not None:
+                raise RuleCheckFailed(
+                    f"{rule}: {q} point claimed {reported} but the conditioning "
+                    "cell has zero mass — it is not point-identified",
+                    step_index=step_index, rule=rule,
+                )
+            continue
+        if reported is None or abs(float(reported) - exp_point) > 1e-9:
+            raise RuleCheckFailed(
+                f"{rule}: {q} point {reported} does not match the independently "
+                f"re-derived Tian-Pearl value {exp_point}",
+                step_index=step_index, rule=rule,
+            )
+        if not (0.0 <= float(reported) <= 1.0):
+            raise RuleCheckFailed(
+                f"{rule}: {q} point {reported} is not a probability in [0, 1]",
+                step_index=step_index, rule=rule,
+            )
+
+    # 2. Identification-structure re-check: the adjustment set must be an
+    #    admissible back-door set on ctx.graph (skip for external experiments).
+    provenance = _require(inputs, "interventional_risk_provenance", step_index, rule)
+    # ``adjustment`` is serialized as a comma-joined scalar string (the
+    # derivation serializer does not take a tuple of strings).
+    adjustment_str = _require(inputs, "adjustment", step_index, rule)
+    if provenance in ("backdoor_adjustment", "exogenous"):
+        sets = structural_solver.minimal_adjustment_sets(
+            ctx.graph, x_atom, y_atom,
+            bidirected=(ctx.bidirected or None),
+        )
+        if not sets:
+            raise RuleCheckFailed(
+                f"{rule}: no admissible back-door adjustment set exists on the "
+                "graph, yet the estimate claims a data-identified do-risk",
+                step_index=step_index, rule=rule,
+            )
+        claimed = frozenset(p for p in str(adjustment_str).split(",") if p)
+        admissible = {frozenset(a.predicate for a in s) for s in sets}
+        if claimed not in admissible:
+            raise RuleCheckFailed(
+                f"{rule}: claimed adjustment set {sorted(claimed)} is not an "
+                f"admissible minimal back-door set on the graph",
+                step_index=step_index, rule=rule,
+            )
+
+    # 3. Headline PN CI brackets the PN point (when a CI is present).
+    pn_point = float(_require(inputs, "pn_point", step_index, rule))
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    if ci_lower is not None or ci_upper is not None:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                f"{rule}: ci_lower and ci_upper must both be present or absent",
+                step_index=step_index, rule=rule,
+            )
+        if not (ci_lower <= pn_point <= ci_upper):
+            raise RuleCheckFailed(
+                f"{rule}: PN point {pn_point} outside CI [{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=rule,
+            )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            f"{rule} output must be a StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"{rule} output.value must be True",
+            step_index=step_index, rule=rule,
+        )
+
+
 # ========================================================== R6
 
 def _rule_probability_ref_lookup(
@@ -6419,6 +6623,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
     # Probabilities of causation — PN / PS / PNS (Tian & Pearl 2000)
     "probabilities_of_causation_tian_pearl": _rule_probabilities_of_causation_tian_pearl,
+    # Data-based PN/PS/PNS — numeric counterpart (empirical joint + g-formula
+    # do-risks → the same Tian-Pearl theorem, re-derived independently).
+    "numeric_causation_estimate": _rule_numeric_causation_estimate,
     # Linear-SCM counterfactual point (Pearl Primer §4.2)
     "scm_abduction_action_prediction": _rule_scm_abduction_action_prediction,
     # General counterfactual identification (Shpitser-Pearl ID*, R-336) —

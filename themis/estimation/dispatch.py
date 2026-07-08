@@ -134,6 +134,15 @@ def estimate_program(
         random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
 
+    # Numeric end for the attribution rung: recover PN/PS/PNS (Tian-Pearl) from
+    # the empirical joint + g-formula do-risks. Purely additive — attaches a
+    # numeric_estimate only when the quantities are point-identified (monotone)
+    # and the do-risks are back-door / experimentally available.
+    _estimate_causation_queries(
+        program, identification_output, contract,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
+    )
+
     # Numeric end for the partial-identification layer: when point ID failed
     # and the kernel attached a SYMBOLIC bounds_result, evaluate it on data.
     # Runs after the point-estimate loop so it only ever ADDS numeric fields
@@ -1461,6 +1470,223 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
             },
             output=StructuralResult(value=True),
             step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
+
+
+def _pair_causation_queries(prog, output):
+    """Yield (QueryStatement, result_dict) pairs whose query is a
+    CausationQuery. Alignment uses query_id."""
+    from ..types import CausationQuery, QueryStatement
+
+    id_to_stmt = {
+        s.id: s for s in prog.statements
+        if isinstance(s, QueryStatement) and isinstance(s.query, CausationQuery)
+    }
+    for result in output.get("results", []):
+        if result.get("query_kind") != "causation":
+            continue
+        qid = result.get("query_id")
+        yield id_to_stmt.get(qid), result
+
+
+def _estimate_causation_queries(
+    program: dict | str | bytes,
+    output: dict,
+    contract: DataContract,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    cluster: str | None = None,
+) -> None:
+    """For each causation (PN/PS/PNS) result, attach a data-based
+    ``numeric_estimate`` when the quantities are point-identified (monotone)
+    and the do-risks are back-door / experimentally available. Mutates
+    ``output`` in place.
+
+    Purely additive: without monotonicity, or on any estimator refusal, the
+    structural (bounds / needs-experiment) answer is left untouched — the
+    data-based bounds overlay is a follow-up on the bounds_result channel."""
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
+    from ..runtime import structural_solver
+
+    ast = _ensure_dict(program)
+    ast = validate_ast(ast)
+    prog = validate_program(ast)
+    ground_statements = instantiate(prog)
+    graph = project(ground_statements)
+    bidirected = structural_solver.bidirected_from_ground(ground_statements)
+
+    for q_stmt, result in _pair_causation_queries(prog, output):
+        if q_stmt is None:
+            continue
+        _try_causation_estimate(
+            q_stmt, result, contract, graph, bidirected,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+
+
+def _try_causation_estimate(
+    q_stmt, result: dict, contract, graph, bidirected, *,
+    random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
+) -> bool:
+    """Recover PN/PS/PNS on data (empirical joint + g-formula do-risks →
+    Tian-Pearl), attaching a numeric point overlay ONLY when monotonicity
+    point-identifies the quantities.
+
+    Returns True only when it ATTACHES a numeric estimate. Without monotonicity
+    (points are None) or on any refusal — not back-door identifiable, non-binary
+    cause/effect, a positivity hole — it returns False and touches nothing, so
+    the structural bounds answer stays primary."""
+    from .causation import estimate_causation_probabilities
+    from .dose_response import EstimatorFailure
+
+    q = q_stmt.query
+    df = contract.data
+    try:
+        estimate = estimate_causation_probabilities(
+            df, graph=graph, bidirected=bidirected,
+            cause=q.cause, effect=q.effect, monotonic=q.monotonic,
+            experimental_risk_treated=q.experimental_risk_treated,
+            experimental_risk_control=q.experimental_risk_control,
+            ci_bootstrap=ci_bootstrap, random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
+        )
+    except (EstimatorFailure, ValueError, NotImplementedError):
+        return False
+
+    # Scope: a numeric POINT only under monotonicity. Otherwise PN/PS/PNS are
+    # genuinely bounds — leave the structural bounds answer primary.
+    if estimate.pn_point is None:
+        return False
+
+    def _quantity(point, lower, upper, ci_lo, ci_hi):
+        return {
+            "point": point, "lower": lower, "upper": upper,
+            "ci_lower": ci_lo, "ci_upper": ci_hi,
+        }
+
+    poc_block = {
+        "monotonic": estimate.monotonic,
+        "interventional_risk_provenance": estimate.interventional_risk_provenance,
+        "adjustment": list(estimate.adjustment),
+        "p_y_do_x1": estimate.p_y_do_x1,
+        "p_y_do_x0": estimate.p_y_do_x0,
+        "observational_joint": {
+            "p_x1_y1": estimate.p_x1_y1, "p_x1_y0": estimate.p_x1_y0,
+            "p_x0_y1": estimate.p_x0_y1, "p_x0_y0": estimate.p_x0_y0,
+        },
+        "pn": _quantity(estimate.pn_point, estimate.pn_lower, estimate.pn_upper,
+                        estimate.pn_point_ci_lower, estimate.pn_point_ci_upper),
+        "ps": _quantity(estimate.ps_point, estimate.ps_lower, estimate.ps_upper,
+                        estimate.ps_point_ci_lower, estimate.ps_point_ci_upper),
+        "pns": _quantity(estimate.pns_point, estimate.pns_lower, estimate.pns_upper,
+                         estimate.pns_point_ci_lower, estimate.pns_point_ci_upper),
+    }
+    result["numeric_estimate"] = {
+        "point": estimate.pn_point,          # headline = PN (necessity)
+        "ci_lower": estimate.pn_point_ci_lower,
+        "ci_upper": estimate.pn_point_ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "treatment": estimate.cause,
+        "outcome": estimate.effect,
+        "probabilities_of_causation": poc_block,
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    # Headline numeric_result reflects the DATA PN point (not the stale theta
+    # one, if the structural pass produced any).
+    result["numeric_result"] = {"value": float(estimate.pn_point)}
+
+    # Display copy: the explainer reads extensions.causation. Overwrite the
+    # (theta-based, if any) structural envelope with the data envelope so all
+    # surfaces show the same audited numbers; verify_causation_numeric
+    # cross-checks it against the derivation inputs.
+    ext = result.setdefault("extensions", {})
+    ext["causation"] = {
+        "monotonic": estimate.monotonic,
+        "interventional_risk_provenance": estimate.interventional_risk_provenance,
+        "p_y_do_x1": estimate.p_y_do_x1,
+        "p_y_do_x0": estimate.p_y_do_x0,
+        "observational_joint": poc_block["observational_joint"],
+        "pn": {"lower": estimate.pn_lower, "upper": estimate.pn_upper, "point": estimate.pn_point},
+        "ps": {"lower": estimate.ps_lower, "upper": estimate.ps_upper, "point": estimate.ps_point},
+        "pns": {"lower": estimate.pns_lower, "upper": estimate.pns_upper, "point": estimate.pns_point},
+    }
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=f"PN({estimate.effect}|{estimate.cause})",
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+
+    result["derivation"] = _build_causation_numeric_derivation_dict(
+        q_stmt=q_stmt, estimate=estimate,
+    )
+    _finalise_numeric_result(result)
+    return True
+
+
+def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
+    """Single-step derivation for a data-based PN/PS/PNS estimate:
+
+        numeric_causation_estimate — re-applies the Tian-Pearl theorem
+        (verifier's own transcription) to the reported empirical joint +
+        do-risks, re-derives the adjustment set on the graph, and audits
+        metadata. No separate structural criterion step: for causation the
+        theorem re-application on the reported inputs IS the check.
+    """
+    from ..types import DerivationStep, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    q = q_stmt.query
+    steps = (
+        DerivationStep(
+            rule="numeric_causation_estimate",
+            inputs={
+                "cause": q.cause, "effect": q.effect,
+                "p_x1_y1": estimate.p_x1_y1, "p_x1_y0": estimate.p_x1_y0,
+                "p_x0_y1": estimate.p_x0_y1, "p_x0_y0": estimate.p_x0_y0,
+                "p_y_do_x1": estimate.p_y_do_x1, "p_y_do_x0": estimate.p_y_do_x0,
+                "monotonic": estimate.monotonic,
+                "interventional_risk_provenance": estimate.interventional_risk_provenance,
+                # comma-joined scalar (serializer does not take a str tuple).
+                "adjustment": ",".join(estimate.adjustment),
+                "pn_lower": estimate.pn_lower, "pn_upper": estimate.pn_upper,
+                "pn_point": estimate.pn_point,
+                "ps_lower": estimate.ps_lower, "ps_upper": estimate.ps_upper,
+                "ps_point": estimate.ps_point,
+                "pns_lower": estimate.pns_lower, "pns_upper": estimate.pns_upper,
+                "pns_point": estimate.pns_point,
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "ci_lower": estimate.pn_point_ci_lower,
+                "ci_upper": estimate.pn_point_ci_upper,
+            },
+            output=StructuralResult(value=True),
+            step_id="s1",
         ),
     )
     return derivation_to_dict(steps)

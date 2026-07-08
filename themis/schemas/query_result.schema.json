@@ -171,8 +171,8 @@
             "pns": { "type": "object", "description": "Probability of necessity and sufficiency: lower/upper bounds and (when monotonic) point." },
             "monotonic": { "type": "boolean" },
             "interventional_risk_provenance": {
-              "enum": ["derived_identification", "user_experimental"],
-              "description": "Whether P(Y=1|do(X)) was derived from theta via effect identification, or supplied directly as randomized-experiment data (confounded case, e.g. Tian-Pearl drug example)."
+              "enum": ["derived_identification", "user_experimental", "exogenous", "backdoor_adjustment"],
+              "description": "How P(Y=1|do(X)) was obtained. Structural (run) path: 'derived_identification' (from theta via effect identification) or 'user_experimental' (randomized-experiment data, the Tian-Pearl drug case). Data (estimate) path additionally distinguishes 'exogenous' (no back-door path → do-risk = P(Y|X)) from 'backdoor_adjustment' (g-formula standardized over a measured set)."
             },
             "p_y_do_x1": { "type": "number" },
             "p_y_do_x0": { "type": "number" },
@@ -509,7 +509,8 @@
             "missing_data_recovery_gformula",
             "general_id_plugin",
             "ctf_conjunction_plugin",
-            "proximal_matrix"
+            "proximal_matrix",
+            "causation_plugin"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -598,6 +599,33 @@
         "do_prob_control": {
           "type": "number",
           "description": "proximal_matrix only: P(Y=1|do(X=0)) recovered by Miao formula (5)."
+        },
+        "probabilities_of_causation": {
+          "type": "object",
+          "description": "causation_plugin only: the full PN/PS/PNS answer (Tian-Pearl 2000) from data. Each of pn/ps/pns carries its assumption-free bounds (lower/upper) and, under monotonicity, the point + its bootstrap CI. The top-level numeric_estimate point/ci mirror pn (the necessity headline).",
+          "required": ["monotonic", "interventional_risk_provenance", "p_y_do_x1", "p_y_do_x0", "observational_joint", "pn", "ps", "pns"],
+          "additionalProperties": false,
+          "properties": {
+            "monotonic": { "type": "boolean" },
+            "interventional_risk_provenance": { "enum": ["exogenous", "backdoor_adjustment", "user_experimental"] },
+            "adjustment": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set standardized over for the do-risks (empty for exogenous / experimental)." },
+            "p_y_do_x1": { "type": "number", "minimum": 0, "maximum": 1 },
+            "p_y_do_x0": { "type": "number", "minimum": 0, "maximum": 1 },
+            "observational_joint": {
+              "type": "object",
+              "required": ["p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"],
+              "additionalProperties": false,
+              "properties": {
+                "p_x1_y1": { "type": "number" },
+                "p_x1_y0": { "type": "number" },
+                "p_x0_y1": { "type": "number" },
+                "p_x0_y0": { "type": "number" }
+              }
+            },
+            "pn": { "$ref": "#/$defs/causationQuantity" },
+            "ps": { "$ref": "#/$defs/causationQuantity" },
+            "pns": { "$ref": "#/$defs/causationQuantity" }
+          }
         },
         "sensitivity_analysis": {
           "type": "object",
@@ -960,6 +988,19 @@
     }
   },
   "$defs": {
+    "causationQuantity": {
+      "type": "object",
+      "description": "One probability of causation (PN, PS, or PNS): assumption-free bounds (lower/upper) plus, under monotonicity, the point value and its bootstrap CI. point/ci_lower/ci_upper are null when the quantity is not point-identified.",
+      "required": ["lower", "upper", "point"],
+      "additionalProperties": false,
+      "properties": {
+        "lower": { "type": "number", "minimum": 0, "maximum": 1 },
+        "upper": { "type": "number", "minimum": 0, "maximum": 1 },
+        "point": { "type": ["number", "null"] },
+        "ci_lower": { "type": ["number", "null"] },
+        "ci_upper": { "type": ["number", "null"] }
+      }
+    },
     "componentEstimate": {
       "type": "object",
       "description": "A decomposition component: point estimate + bootstrap percentile CI (used by the four-way decomposition).",

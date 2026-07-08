@@ -78,6 +78,7 @@ from .serialization import (
 from .verify import (
     verify_assoc,
     verify_causation,
+    verify_causation_numeric,
     verify_cause,
     verify_counterfactual,
     verify_counterfactual_conjunction,
@@ -112,6 +113,7 @@ __all__ = [
     "derivation_to_dict",
     "verify_assoc",
     "verify_causation",
+    "verify_causation_numeric",
     "verify_cause",
     "verify_counterfactual",
     "verify_counterfactual_conjunction",
