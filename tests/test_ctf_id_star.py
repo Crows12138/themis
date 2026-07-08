@@ -141,6 +141,22 @@ def test_fig1_formula_is_sum_over_product_of_four():
     assert len(formula.body.terms) == 4
 
 
+def test_compound_subscript_variable_matches_mc():
+    # y_{x,z} ∧ x' — Y carries TWO interventions (x=T, z=T) in one subscript,
+    # while X is factually observed x'=F. This is what IDC* produces after it
+    # moves z,d into y_x's subscript, and it exposed a Line-6 bug: the {W_{x,z}}
+    # c-component's added intervention on X (from the factual x'=F) collided
+    # with W's own world value x=T, so P(W) was taken under the wrong X. The
+    # formula must reduce to Σ_w P_{z,w}(x',y)·P_x(w) — with W under x=T — and
+    # match the counterfactual MC truth. Regression guard for _subconjunction.
+    g, bi = _fig1_graph()
+    gamma = (
+        CtfEvent(Y, frozenset({(X, True), (Z, True)}), True),  # y_{x,z}
+        CtfEvent(X, frozenset(), False),                       # x'
+    )
+    _assert_matches_mc(g, bi, gamma, n_draws=60000, tol=0.02)
+
+
 # ============================================================ non-identifiable
 def test_pns_w_graph_fails():
     # PNS = P(y_x ∧ y'_{x'}) with X a direct parent of Y and X↔Y — the

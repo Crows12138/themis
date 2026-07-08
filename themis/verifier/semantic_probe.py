@@ -358,6 +358,31 @@ def probe_identify_formula(
 # ============================================ counterfactual (ID*) backbone
 
 
+def _parent_combo(parents, latents, world_val, world) -> tuple:
+    """Ordered parent-value tuple for a CPT lookup — an EXPLICIT loop, no
+    generator expression. The MC evaluator runs a genexpr here millions of
+    times deep under the verifier callstack; on a small native stack that
+    surfaced as heap corruption ("generator already executing" / segfault).
+    A plain loop has no reusable generator frame to corrupt."""
+    combo = []
+    for p in parents:
+        if isinstance(p, str):
+            combo.append(latents[p])
+        else:
+            combo.append(world_val[(world, p)])
+    return tuple(combo)
+
+
+def _events_hold(events, world_val) -> bool:
+    """True iff every counterfactual event attains its value in the sampled
+    replicate. Explicit loop (no ``all(genexpr)``) for the same native-stack
+    robustness reason as :func:`_parent_combo`."""
+    for e in events:
+        if world_val[(e.subscript, e.variable)] != e.value:
+            return False
+    return True
+
+
 def _counterfactual_true_mc(
     scm: _SCM, gamma, topo, n_draws: int, rng: random.Random,
 ) -> float:
@@ -385,7 +410,9 @@ def _counterfactual_true_mc(
     worlds = {e.subscript for e in gamma}
     count = 0
     for _ in range(n_draws):
-        latents = {n: _draw(scm.latent_dist[n], rng) for n in scm.latents}
+        latents = {}
+        for n in scm.latents:
+            latents[n] = _draw(scm.latent_dist[n], rng)
         response: dict = {}      # (node, parent-combo) -> value (shared across worlds)
         world_val: dict = {}     # (world, node) -> value
 
@@ -395,16 +422,13 @@ def _counterfactual_true_mc(
                 if node in wd:                   # intervened in this world
                     world_val[(world, node)] = wd[node]
                     continue
-                combo = tuple(
-                    latents[p] if isinstance(p, str) else world_val[(world, p)]
-                    for p in scm.parents[node]
-                )
+                combo = _parent_combo(scm.parents[node], latents, world_val, world)
                 rk = (node, combo)
                 if rk not in response:
                     response[rk] = _draw(scm.cpt[node][combo], rng)
                 world_val[(world, node)] = response[rk]
 
-        if all(world_val[(e.subscript, e.variable)] == e.value for e in gamma):
+        if _events_hold(gamma, world_val):
             count += 1
     return count / n_draws
 
@@ -469,6 +493,116 @@ def probe_counterfactual_formula(
             return ProbeResult(
                 "mismatch",
                 f"SCM #{i}: formula gives {got:.4f} for P(γ) but the "
+                f"counterfactual Monte-Carlo truth is {true:.4f}",
+            )
+
+    return ProbeResult("match")
+
+
+# ============================================ conditional (IDC*) backbone
+
+
+def _conditional_true_mc(
+    scm: _SCM, gamma, delta, topo, n_draws: int, rng: random.Random,
+) -> tuple[float, int]:
+    """True ``P(γ | δ) = P(γ ∧ δ) / P(δ)`` by counterfactual Monte-Carlo.
+
+    Numerator and denominator SHARE the exogenous background draw (the same
+    replicate contributes to both), which is what makes it a genuine
+    conditional over parallel worlds rather than a product of two
+    independent estimates. Returns ``(estimate, denominator_count)`` — the
+    caller treats a tiny denominator (a rare conditioning event) as
+    inconclusive rather than trusting a high-variance ratio.
+    """
+    worlds = {e.subscript for e in (*gamma, *delta)}
+    num = 0
+    den = 0
+    for _ in range(n_draws):
+        latents = {}
+        for n in scm.latents:
+            latents[n] = _draw(scm.latent_dist[n], rng)
+        response: dict = {}
+        world_val: dict = {}
+        for world in worlds:
+            wd = dict(world)
+            for node in topo:
+                if node in wd:
+                    world_val[(world, node)] = wd[node]
+                    continue
+                combo = _parent_combo(scm.parents[node], latents, world_val, world)
+                rk = (node, combo)
+                if rk not in response:
+                    response[rk] = _draw(scm.cpt[node][combo], rng)
+                world_val[(world, node)] = response[rk]
+
+        if _events_hold(delta, world_val):
+            den += 1
+            if _events_hold(gamma, world_val):
+                num += 1
+    return (num / den if den else 0.0), den
+
+
+def probe_conditional_counterfactual_formula(
+    graph: nx.DiGraph,
+    bidirected: frozenset,
+    *,
+    gamma,
+    delta,
+    formula: FormulaExpr,
+    domains: dict[Atom, tuple] | None = None,
+    k: int = 2,
+    n_draws: int = 80000,
+    tol: float = 0.04,
+    min_den: int = 1000,
+    seed: int = 0x5CA1AB1E,
+) -> ProbeResult:
+    """Semantic backbone for IDC*: does ``formula`` compute the true
+    ``P(γ | δ)`` in models consistent with the graph?
+
+    The conditional counterpart of :func:`probe_counterfactual_formula`.
+    The truth is a ratio of two counterfactual Monte-Carlo counts sharing
+    one background draw, so its variance is higher than the unconditional
+    probe's — hence a larger ``n_draws`` and ``tol``, and a ``min_den``
+    guard that declines (``inconclusive``, not a rejection) when the
+    conditioning event ``δ`` is too rare in a sampled SCM to estimate the
+    ratio reliably. Never calls the identification code.
+    """
+    domains = dict(domains or {})
+
+    atoms = {
+        a
+        for e in (*gamma, *delta)
+        for a in (e.variable, *(at for (at, _v) in e.subscript))
+    }
+    if any(a not in graph for a in atoms):
+        return ProbeResult("inconclusive", "a γ/δ atom is absent from the graph")
+
+    topo = list(nx.topological_sort(graph))
+
+    for i in range(k):
+        rng = random.Random(seed + i)
+        scm = _sample_scm(graph, bidirected, domains, rng)
+        try:
+            theta = _theta_from_scm(scm, formula, graph, bidirected)
+            got = estimate_formula(
+                formula, theta, graph=graph, bidirected=bidirected)
+        except Exception as exc:  # noqa: BLE001 — probe is best-effort
+            return ProbeResult(
+                "inconclusive",
+                f"formula could not be evaluated against the probe SCM: {exc}",
+            )
+        mc_rng = random.Random(seed + 7919 + i)
+        true, den = _conditional_true_mc(scm, gamma, delta, topo, n_draws, mc_rng)
+        if den < min_den:
+            return ProbeResult(
+                "inconclusive",
+                f"SCM #{i}: conditioning event too rare "
+                f"({den}/{n_draws}) to estimate the ratio",
+            )
+        if abs(got - true) > tol:
+            return ProbeResult(
+                "mismatch",
+                f"SCM #{i}: formula gives {got:.4f} for P(γ|δ) but the "
                 f"counterfactual Monte-Carlo truth is {true:.4f}",
             )
 

@@ -47,12 +47,13 @@ from ..types import (
     BindDecl,
     ConstantExpr,
     FormulaExpr,
+    FractionExpr,
     ProductExpr,
     SumExpr,
     ValuedAtom,
     VarRef,
 )
-from .structural_solver import BidirectedEdgeSet, c_components
+from .structural_solver import BidirectedEdgeSet, c_components, m_separated
 
 
 # A world / submodel is identified by its intervention set: a frozenset of
@@ -495,16 +496,30 @@ def _id_star(graph, bidirected, gamma, depth):
 
 def _subconjunction(cf: CfGraph, si, obs) -> Conjunction:
     """Build ``S^i_{ v(G')\\S^i }`` (Line 6): the events of ``S^i``, each
-    additionally subscripted by the values of every other observable node."""
-    added = frozenset((m.variable, _node_value(cf, m)) for m in (obs - set(si)))
-    return tuple(
-        CtfEvent(
+    additionally intervened by fixing every OTHER observable node to its
+    value.
+
+    An added intervention on a variable that already fixes the node's own
+    world (i.e. it is present in ``cf.subscript[n]``) is DROPPED: it refers to
+    a *different* world-copy of that variable and must not override the
+    node's own ancestral value. Without this, a node like ``W_x`` (whose own
+    world fixes ``X=x``) collides with the factual observation ``x'`` on the
+    base variable ``X`` — the subscript becomes ``{(X,x),(X,x')}`` and the
+    downstream ``P(W)`` is evaluated under the wrong intervention value. This
+    is exactly the paper's "remove redundant subscripts" step: the {W}
+    c-component of ``P(y_{x,z},x')`` reduces to ``P(w_x)``, keeping only
+    ``x`` and dropping the added ``x'`` and ``y``."""
+    others = tuple((m.variable, _node_value(cf, m)) for m in (obs - set(si)))
+    events = []
+    for n in si:
+        own_vars = {a for (a, _v) in cf.subscript[n]}
+        extra = frozenset((v, val) for (v, val) in others if v not in own_vars)
+        events.append(CtfEvent(
             variable=n.variable,
-            subscript=cf.subscript[n] | added,
+            subscript=cf.subscript[n] | extra,
             value=_node_value(cf, n),
-        )
-        for n in si
-    )
+        ))
+    return tuple(events)
 
 
 def _base_case(graph, bidirected, cf: CfGraph, s):
@@ -570,3 +585,125 @@ def _base_case(graph, bidirected, cf: CfGraph, s):
         return va
 
     return _map_valued_atoms(formula, bind)
+
+
+# ---------------------------------------------------------------------------
+# IDC*  (R-336 / JMLR 9:1941-1979 Fig. 12) — conditional counterfactual id.
+# ---------------------------------------------------------------------------
+
+def idc_star(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    gamma: Conjunction,
+    delta: Conjunction,
+):
+    """IDC* (Shpitser-Pearl Fig. 12): identify ``P(γ | δ)`` for a
+    conditional counterfactual — a conjunction ``γ`` given counterfactual
+    evidence ``δ`` (both spanning arbitrary hypothetical worlds).
+
+    Returns a :data:`FormulaExpr` (a :class:`FractionExpr` numerator/den
+    ratio, ultimately in terms of observational ``P(v)``), or:
+
+    - :data:`ZERO` — ``P(γ|δ) = 0`` (the numerator conjunction is
+      inconsistent while the conditioning event has positive probability);
+    - :data:`FAIL` — provably non-identifiable from ``P*``;
+    - :data:`UNDEFINED` — ``P(δ) = 0``, so the conditional is not defined
+      (Line 1: conditioning on a zero-probability counterfactual event).
+
+    When ``δ`` is empty this is exactly the unconditional :func:`id_star`.
+
+    The algorithm's central step (Line 4) moves a conditioning event
+    ``Y_x = y`` from the evidence ``δ`` into the *intervention* subscript of
+    every descendant in ``γ`` whenever there is no back-door path from
+    ``Y_x`` to ``γ'`` — tested as the **marginal** m-separation
+    ``(Y_x ⊥⊥ γ')`` (empty conditioning set) in the counterfactual graph
+    ``G'`` with the *outgoing* arcs of ``Y_x`` deleted (``G'_{\\underline{y_x}}``;
+    bidirected arcs, being latent common causes *into* ``Y_x``, remain — a
+    surviving one is precisely a back-door and correctly blocks the move).
+    """
+    return _idc_star(graph, bidirected, tuple(gamma), tuple(delta), 0)
+
+
+def _idc_star(graph, bidirected, gamma, delta, depth):
+    if depth > _MAX_CTF_DEPTH:
+        return FAIL
+
+    # Line 1: conditioning on a zero-probability event is undefined. (δ empty
+    # degenerates to the unconditional query, whose ID* handles Line 1's job.)
+    if not delta:
+        return id_star(graph, bidirected, gamma)
+    if id_star(graph, bidirected, delta) is ZERO:
+        return UNDEFINED
+
+    # Line 2: one counterfactual graph for the *joint* γ ∧ δ (make-cg only
+    # takes conjunctions), so γ' and δ' share the same relabelled worlds.
+    cf = make_cg(graph, bidirected, gamma + delta)
+    if cf is INCONSISTENT:
+        return ZERO   # Line 3.
+
+    # Split γ' | δ': gamma_prime preserves the input order, so the first
+    # |γ| representatives are γ', the rest δ'.
+    gamma_reps = cf.gamma_prime[: len(gamma)]
+    delta_reps = cf.gamma_prime[len(gamma):]
+    gamma_nodes = frozenset(r for r, _v in gamma_reps)
+
+    # Line 4: can any y_x ∈ δ' be moved into γ's subscript (no back-door)?
+    for idx, (yx_rep, _yx_val) in enumerate(delta_reps):
+        if yx_rep in gamma_nodes:
+            continue  # already a γ' node (merged) — nothing to move
+        g_under = cf.graph.copy()
+        g_under.remove_edges_from(list(cf.graph.out_edges(yx_rep)))
+        if all(
+            m_separated(g_under, cf.bidirected, yx_rep, g, ())
+            for g in gamma_nodes
+        ):
+            new_gamma, new_delta = _move_evidence(cf, gamma_reps, delta_reps, idx)
+            return _idc_star(graph, bidirected, new_gamma, new_delta, depth + 1)
+
+    # Line 5: no more moves. P(γ|δ) = P(γ' ∧ δ') / P(δ'). Both ends are
+    # ID* on the current (relabelled) conjunctions. The denominator is the
+    # marginal P(δ') — computed as an independent ID*(δ') rather than the
+    # paper's syntactic Σ_{var(γ')} of the joint. The two are numerically
+    # identical by the law of total probability; the independent form
+    # sidesteps the ambiguity of marginalising "over var(γ')" once ID* has
+    # dissolved the counterfactual nodes into observational P(v) and the
+    # γ'/δ' provenance of a shared base variable is no longer visible. The
+    # cost is a ratio whose common factors are not syntactically cancelled;
+    # the graph, not the formula, is the human surface, and the MC probe
+    # checks the number regardless.
+    num = id_star(graph, bidirected, gamma + delta)
+    if num is FAIL:
+        return FAIL
+    if num is ZERO:
+        return ConstantExpr(value=0.0)
+    den = id_star(graph, bidirected, delta)
+    if den is FAIL:
+        return FAIL
+    if den is ZERO:
+        return UNDEFINED
+    return FractionExpr(numerator=num, denominator=den)
+
+
+def _move_evidence(cf: CfGraph, gamma_reps, delta_reps, idx):
+    """Line-4 relabelling: move ``δ'[idx] = (Y_x = y)`` into the intervention
+    subscript of every γ' event that descends from it (``γ'_{y_x}``), and drop
+    it from δ' (``δ' ∖ {y_x}``). Representatives are rebuilt into counterfactual
+    events over the *original* variables — the recursion re-runs make-cg, so
+    the moved world propagates through a fresh (possibly different) cf graph,
+    exactly as the worked example ``P(y_x | x',z_d,d)`` does."""
+    yx_rep, yx_val = delta_reps[idx]
+    added = (yx_rep.variable, yx_val)
+    descendants = nx.descendants(cf.graph, yx_rep)
+
+    def to_event(rep, value, extra):
+        world = cf.subscript[rep] | ({added} if extra else frozenset())
+        return CtfEvent(variable=rep.variable, subscript=frozenset(world), value=value)
+
+    new_gamma = tuple(
+        to_event(rep, value, rep in descendants) for (rep, value) in gamma_reps
+    )
+    new_delta = tuple(
+        to_event(rep, value, False)
+        for j, (rep, value) in enumerate(delta_reps) if j != idx
+    )
+    return new_gamma, new_delta
