@@ -12,6 +12,12 @@ Landed scope:
   ``estimate_frontdoor_ate`` / ``estimate_iv_ate`` /
   ``estimate_mediation`` returning ``BackdoorEstimate`` /
   ``FrontdoorEstimate`` / ``IVEstimate`` / ``MediationEstimate``
+- iter 212 — ``anderson_rubin_confidence_set`` returning
+  ``ARConfidenceSet``: the Anderson-Rubin (1949) weak-identification-robust
+  confidence set for the single-instrument IV coefficient, always attached
+  to ``IVEstimate``. Valid regardless of first-stage strength — unlike the
+  bootstrap CI — and honestly returns an unbounded set when the data cannot
+  bound the effect.
 - Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
   ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
   ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via
