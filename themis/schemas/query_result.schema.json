@@ -524,6 +524,21 @@
           "type": ["number", "null"],
           "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold for single-instrument 2SLS / Wald. Null when computation was degenerate (e.g. n too small, instrument variance ~0)."
         },
+        "anderson_rubin_confidence_set": {
+          "type": "object",
+          "description": "iter 212 / IV methods only: the Anderson-Rubin (1949) weak-identification-robust confidence set for the IV coefficient. Valid regardless of first-stage strength — unlike the bootstrap CI. For a single instrument it is the solution of a quadratic inequality in beta0 and can be a bounded interval [lower, upper], a disconnected pair (-inf, lower] u [upper, +inf), a single ray, or the whole line (an unbounded shape is the honest signal that the data cannot bound the effect).",
+          "required": ["kind", "ci_level"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": ["bounded", "disconnected", "unbounded_below", "unbounded_above", "whole_line", "empty"]
+            },
+            "lower": { "type": ["number", "null"], "description": "Finite lower endpoint where it exists; null on an open side. For a disconnected set this is the upper edge of the left ray (-inf, lower]." },
+            "upper": { "type": ["number", "null"], "description": "Finite upper endpoint where it exists; null on an open side. For a disconnected set this is the lower edge of the right ray [upper, +inf)." },
+            "ci_level": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+            "point": { "type": ["number", "null"], "description": "The just-identified IV point Szy/Szx that the set is centred on; null if the first stage is exactly degenerate." }
+          }
+        },
         "mediator": { "type": "string" },
         "n_rep": { "type": "integer", "minimum": 1 },
         "treatment_high": {

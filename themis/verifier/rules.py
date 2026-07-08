@@ -2679,6 +2679,144 @@ def _rule_numeric_frontdoor_estimate(
         )
 
 
+def _ar_solve_set_verifier(a: float, b: float, c: float, *, atol: float):
+    """Independent transcription (NOT the producer's ``_ar_solve_set``) of the
+    Anderson-Rubin quadratic solve, so a bug on either side is caught by the
+    other. Returns ``(kind, lower, upper)``."""
+    import math
+
+    if abs(a) <= atol:
+        if abs(b) <= atol:
+            return ("whole_line", None, None) if c <= 0 else ("empty", None, None)
+        root = -c / b
+        if b > 0:
+            return ("unbounded_below", None, root)
+        return ("unbounded_above", root, None)
+    disc = b * b - 4.0 * a * c
+    if a > 0:
+        if disc <= 0:
+            return ("empty", None, None)
+        sq = math.sqrt(disc)
+        r1, r2 = (-b - sq) / (2 * a), (-b + sq) / (2 * a)
+        lo, hi = (r1, r2) if r1 <= r2 else (r2, r1)
+        return ("bounded", lo, hi)
+    if disc <= 0:
+        return ("whole_line", None, None)
+    sq = math.sqrt(disc)
+    r1, r2 = (-b - sq) / (2 * a), (-b + sq) / (2 * a)
+    lo, hi = (r1, r2) if r1 <= r2 else (r2, r1)
+    return ("disconnected", lo, hi)
+
+
+def _point_in_ar_set(kind, lower, upper, point, *, tol) -> bool:
+    if kind == "bounded":
+        return lower - tol <= point <= upper + tol
+    if kind == "disconnected":
+        return point <= lower + tol or point >= upper - tol
+    if kind == "unbounded_below":
+        return point <= upper + tol
+    if kind == "unbounded_above":
+        return point >= lower - tol
+    if kind == "whole_line":
+        return True
+    return False  # empty
+
+
+def _check_anderson_rubin(inputs: dict, point, step_index: int) -> None:
+    """Re-solve the Anderson-Rubin confidence set from the reported
+    residualised sufficient statistics and confirm the claimed set (kind +
+    endpoints), the F critical value, and the IV point (Szy/Szx) all match —
+    the verifier's OWN transcription, never the producer's solve. Gives the
+    IV numeric audit real teeth: an isolated tamper of the AR set, the point,
+    or kappa is rejected."""
+    from scipy.stats import f as _f_dist
+
+    try:
+        s_yy = float(inputs["ar_s_yy"]); s_xy = float(inputs["ar_s_xy"])
+        s_xx = float(inputs["ar_s_xx"]); s_zy = float(inputs["ar_s_zy"])
+        s_zx = float(inputs["ar_s_zx"]); s_zz = float(inputs["ar_s_zz"])
+        n_obs = int(inputs["ar_n_obs"]); n_exog = int(inputs["ar_n_exog"])
+        ci_level = float(inputs["ar_ci_level"])
+    except (KeyError, TypeError, ValueError):
+        raise RuleCheckFailed(
+            "numeric_iv_estimate: AR set present but its sufficient "
+            "statistics are missing or ill-typed",
+            step_index=step_index, rule="numeric_iv_estimate",
+        )
+
+    claimed_kind = inputs.get("ar_kind")
+    claimed_lower = inputs.get("ar_lower")
+    claimed_upper = inputs.get("ar_upper")
+
+    m = n_obs - n_exog - 2
+    if m < 1 or s_zz <= 0:
+        raise RuleCheckFailed(
+            "numeric_iv_estimate: AR sufficient statistics are degenerate "
+            "(residual df < 1 or Szz <= 0)",
+            step_index=step_index, rule="numeric_iv_estimate",
+        )
+
+    kappa = float(_f_dist.ppf(ci_level, 1, m))
+    ar_kappa = inputs.get("ar_kappa")
+    if ar_kappa is not None and abs(float(ar_kappa) - kappa) > 1e-6 * (1 + abs(kappa)):
+        raise RuleCheckFailed(
+            f"numeric_iv_estimate: reported AR kappa {ar_kappa} does not "
+            f"match the F(1,{m}) critical value {kappa}",
+            step_index=step_index, rule="numeric_iv_estimate",
+        )
+
+    g = (m + kappa) / s_zz
+    a = g * s_zx * s_zx - kappa * s_xx
+    b = 2.0 * (kappa * s_xy - g * s_zx * s_zy)
+    c = g * s_zy * s_zy - kappa * s_yy
+    a_scale = abs(g * s_zx * s_zx) + abs(kappa * s_xx) + 1.0
+    kind, lower, upper = _ar_solve_set_verifier(a, b, c, atol=1e-9 * a_scale)
+
+    if kind != claimed_kind:
+        raise RuleCheckFailed(
+            f"numeric_iv_estimate: AR set kind mismatch — re-solve {kind!r} "
+            f"vs claimed {claimed_kind!r}",
+            step_index=step_index, rule="numeric_iv_estimate",
+        )
+    for name, recomputed, claimed in (
+        ("lower", lower, claimed_lower),
+        ("upper", upper, claimed_upper),
+    ):
+        if recomputed is None and claimed is None:
+            continue
+        if (recomputed is None) != (claimed is None):
+            raise RuleCheckFailed(
+                f"numeric_iv_estimate: AR {name} presence mismatch — "
+                f"re-solve {recomputed} vs claimed {claimed}",
+                step_index=step_index, rule="numeric_iv_estimate",
+            )
+        if abs(recomputed - float(claimed)) > 1e-6 * (1 + abs(recomputed)):
+            raise RuleCheckFailed(
+                f"numeric_iv_estimate: AR {name} mismatch — re-solve "
+                f"{recomputed} vs claimed {claimed}",
+                step_index=step_index, rule="numeric_iv_estimate",
+            )
+
+    # Independent re-derivation of the IV point: for a single instrument the
+    # just-identified estimate is exactly Szy/Szx (Wald and 2SLS both).
+    if abs(s_zx) > 1e-12 and isinstance(point, (int, float)):
+        pt = s_zy / s_zx
+        if abs(pt - point) > 1e-5 * (1 + abs(pt)):
+            raise RuleCheckFailed(
+                f"numeric_iv_estimate: IV point {point} does not match "
+                f"Szy/Szx = {pt} from the reported sufficient statistics",
+                step_index=step_index, rule="numeric_iv_estimate",
+            )
+        if not _point_in_ar_set(
+            kind, lower, upper, point, tol=1e-7 * (1 + abs(point))
+        ):
+            raise RuleCheckFailed(
+                "numeric_iv_estimate: IV point estimate is not contained in "
+                "its own Anderson-Rubin confidence set",
+                step_index=step_index, rule="numeric_iv_estimate",
+            )
+
+
 def _rule_numeric_iv_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -2687,13 +2825,18 @@ def _rule_numeric_iv_estimate(
     step_by_id: dict[str, Any],
     step_output_by_id: dict[str, Any],
 ) -> None:
-    """Phase 7.3 — relaxed audit for a data-based IV ATE estimate.
+    """Phase 7.3 — audit for a data-based IV ATE estimate.
 
     Method enum + CI bounds + data_hash + sample_size + instrument
     validity checks. Same shape as numeric_backdoor_estimate /
     numeric_frontdoor_estimate; the referenced criterion step must be
     an ``iv_criterion_check`` and its (instrument, conditioning) must
     equal the numeric step's claims.
+
+    When an Anderson-Rubin set is attached (iter 212), it is independently
+    RE-SOLVED from the reported residualised sufficient statistics — the
+    verifier re-derives kappa, the quadratic, the set shape/endpoints, and
+    the point Szy/Szx — so a tampered AR set, point, or kappa is rejected.
     """
     criterion_ref = _require(inputs, "criterion", step_index, "numeric_iv_estimate")
     if not isinstance(criterion_ref, StepRef):
@@ -2817,6 +2960,10 @@ def _rule_numeric_iv_estimate(
             "numeric_iv_estimate output.value must be True",
             step_index=step_index, rule="numeric_iv_estimate",
         )
+
+    # iter 212 — independently re-solve the Anderson-Rubin set when present.
+    if inputs.get("ar_kind") is not None:
+        _check_anderson_rubin(inputs, point, step_index)
 
 
 def _rule_numeric_general_id_estimate(

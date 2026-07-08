@@ -816,6 +816,10 @@ def _estimate_effect_queries(
             }
             if iv_estimate.first_stage_f_stat is not None:
                 iv_numeric_dict["first_stage_f_stat"] = iv_estimate.first_stage_f_stat
+            if iv_estimate.anderson_rubin is not None:
+                iv_numeric_dict["anderson_rubin_confidence_set"] = _ar_set_to_dict(
+                    iv_estimate.anderson_rubin
+                )
             result["numeric_estimate"] = iv_numeric_dict
             _attach_bootstrap_meta(result["numeric_estimate"], cluster)
             _attach_precision_budget(result["numeric_estimate"])
@@ -2687,6 +2691,35 @@ def _attach_propensity_overlap_warning(
         )
 
 
+def _ar_set_to_dict(ar) -> dict:
+    """Serialise an ARConfidenceSet to the numeric_estimate sub-block."""
+    return {
+        "kind": ar.kind,
+        "lower": ar.lower,
+        "upper": ar.upper,
+        "ci_level": ar.ci_level,
+        "point": ar.point,
+    }
+
+
+def _render_ar_set(ar) -> str:
+    """Human-readable rendering of an Anderson-Rubin confidence set,
+    honouring its shape (bounded / disconnected / ray / whole line)."""
+    lo = "" if ar.lower is None else f"{ar.lower:.4g}"
+    hi = "" if ar.upper is None else f"{ar.upper:.4g}"
+    if ar.kind == "bounded":
+        return f"[{lo}, {hi}]"
+    if ar.kind == "disconnected":
+        return f"(-∞, {lo}] ∪ [{hi}, +∞)"
+    if ar.kind == "unbounded_below":
+        return f"(-∞, {hi}]"
+    if ar.kind == "unbounded_above":
+        return f"[{lo}, +∞)"
+    if ar.kind == "whole_line":
+        return "(-∞, +∞) — 整条实线，工具太弱无法约束效应"
+    return "∅"
+
+
 def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
     """Iter 120 — when the first-stage F-statistic is below the
     Stock-Yogo (2005) threshold (10 by default for single-instrument
@@ -2705,6 +2738,25 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
     if f_stat >= WEAK_IV_F_THRESHOLD:
         return
 
+    ar = getattr(iv_estimate, "anderson_rubin", None)
+    ar_clause = ""
+    ar_alt = (
+        "report the Anderson-Rubin confidence set — it inverts a test "
+        "with correct size regardless of first-stage strength"
+    )
+    if ar is not None:
+        rendered = _render_ar_set(ar)
+        pct = int(round(ar.ci_level * 100))
+        ar_clause = (
+            f" The Anderson-Rubin {pct}% weak-robust confidence set "
+            f"(valid whatever the instrument strength) is {rendered}."
+        )
+        ar_alt = (
+            f"use the Anderson-Rubin {pct}% weak-robust set {rendered} "
+            "(already computed; valid under weak instruments) instead of "
+            "the bootstrap CI"
+        )
+
     gap_entry = {
         "kind": "weak_iv_instrument",
         "severity": "informational",
@@ -2714,16 +2766,15 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
             f"`{iv_estimate.instrument}` falls below the Stock-Yogo "
             f"(2005) threshold of {WEAK_IV_F_THRESHOLD:.0f}. "
             "The IV estimate's bias toward OLS scales with 1/F, "
-            "and standard 2SLS / Wald asymptotic CIs underestimate "
-            "uncertainty when the first stage is weak. Treat the "
-            "point estimate as a rough guide, not a tight identification."
+            "and the 2SLS / Wald bootstrap CI is unreliable when the "
+            "first stage is weak. Treat the point estimate as a rough "
+            f"guide, not a tight identification.{ar_clause}"
         ),
         "required_data": None,
         "alternative_paths": [
             "find a stronger instrument (higher first-stage partial "
             "correlation with treatment after conditioning)",
-            "report the LIML or Anderson-Rubin CI instead of 2SLS — "
-            "they are valid under weak-instrument asymptotics",
+            ar_alt,
             "fall back to a bounds-only answer (Manski natural / "
             "Balke-Pearl IV are weak-instrument robust)",
         ],
@@ -2754,8 +2805,14 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         f"⚠ 工具变量 `{iv_estimate.instrument}` first-stage F = "
         f"{f_stat:.2f} 低于 Stock-Yogo 弱工具阈值 "
         f"{WEAK_IV_F_THRESHOLD:.0f}；IV 估计 bias 偏向 OLS、"
-        "标准 CI 不可靠"
+        "bootstrap CI 不可靠"
     )
+    if ar is not None:
+        pct = int(round(ar.ci_level * 100))
+        headline = (
+            f"{headline}；Anderson-Rubin {pct}% 稳健集 = "
+            f"{_render_ar_set(ar)}"
+        )
     existing = result.get("explanation") or ""
     if headline not in existing:
         result["explanation"] = (
@@ -3284,12 +3341,38 @@ def _build_iv_numeric_derivation_dict(
                 "ci_lower": estimate.ci_lower,
                 "ci_upper": estimate.ci_upper,
                 "ci_level": estimate.ci_level,
+                **_ar_derivation_inputs(estimate.anderson_rubin),
             },
             output=StructuralResult(value=True),
             step_id="s2",
         ),
     )
     return derivation_to_dict(steps)
+
+
+def _ar_derivation_inputs(ar) -> dict:
+    """The Anderson-Rubin set + its residualised sufficient statistics as
+    flat derivation inputs, so the verifier can independently re-solve the
+    quadratic (and re-derive the point Szy/Szx) without the raw data.
+    Empty when no AR set is attached (degenerate / not computed)."""
+    if ar is None:
+        return {}
+    return {
+        "ar_kind": ar.kind,
+        "ar_lower": ar.lower,
+        "ar_upper": ar.upper,
+        "ar_ci_level": ar.ci_level,
+        "ar_point": ar.point,
+        "ar_kappa": ar.kappa,
+        "ar_s_yy": ar.s_yy,
+        "ar_s_xy": ar.s_xy,
+        "ar_s_xx": ar.s_xx,
+        "ar_s_zy": ar.s_zy,
+        "ar_s_zx": ar.s_zx,
+        "ar_s_zz": ar.s_zz,
+        "ar_n_obs": ar.n_obs,
+        "ar_n_exog": ar.n_exog,
+    }
 
 
 def _build_frontdoor_numeric_derivation_dict(

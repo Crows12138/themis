@@ -34,6 +34,11 @@ Public surface (re-exports from sub-modules):
   missing data — rebuilds the m-graph from the declared indicators,
   reclassifies MCAR/MAR/MNAR, and re-searches the ordered factorization to
   re-derive the recoverability verdict + recovery formula)
+- Numeric-end verifiers (data-based overlays that re-derive the reported
+  numbers from the recorded sufficient statistics, not the raw data):
+  ``verify_proximal_effect`` / ``verify_proximal_numeric`` (Miao-2018
+  proximal do-effect), ``verify_causation_numeric`` (PN/PS/PNS plug-in),
+  ``verify_ctf_conjunction_numeric`` (ID*/IDC* counterfactual conjunction)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
