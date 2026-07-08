@@ -692,6 +692,50 @@
         }
       }
     },
+    "proximalEffectQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Proximal causal inference (Miao-Geng-Tchetgen 2018 Biometrika 105(4); Kuroki-Pearl 2014 as the independent source). Queries the average causal effect P(Y|do(X)) when the sufficient confounder U is UNOBSERVED, using two observed proxies of U: a treatment-inducing proxy Z (negative-control exposure) and an outcome-inducing proxy W (negative-control outcome). 'latent' names the unobserved confounder — an ordinary graph node that carries no data column; the query declares which node is unobserved. 'latent_cardinality' is the assumed number k of categories of U. Structurally the kernel decides identifiability via Miao model (f) (W INDEP (Z,X) | U and Z INDEP Y | (U,X) plus {U} a sufficient confounder); with data it recovers the ATE by inverting the ZxW measurement channel (Miao formula 5). The escape hatch one rung past back-door / front-door / general-ID, which all assume the confounders on the relevant paths are observed.",
+      "required": [
+        "kind",
+        "treatment",
+        "outcome",
+        "latent",
+        "treatment_proxy",
+        "outcome_proxy",
+        "latent_cardinality"
+      ],
+      "properties": {
+        "kind": {
+          "const": "proximal_effect"
+        },
+        "treatment": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The treatment X whose effect on the outcome is wanted."
+        },
+        "outcome": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The outcome Y."
+        },
+        "latent": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The unobserved sufficient confounder U — a node of the graph with no data column."
+        },
+        "treatment_proxy": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The treatment-inducing proxy Z (negative-control exposure): a proxy of U that may cause X but must not touch Y except through U and X."
+        },
+        "outcome_proxy": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "The outcome-inducing proxy W (negative-control outcome): a proxy of U that may cause Y but must be independent of (Z, X) given U."
+        },
+        "latent_cardinality": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "The assumed number k of categories of the unobserved confounder U. Point identification needs each proxy to present at least k observed levels."
+        }
+      }
+    },
     "query": {
       "oneOf": [
         {
@@ -720,6 +764,9 @@
         },
         {
           "$ref": "#/$defs/counterfactualConjunctionQuery"
+        },
+        {
+          "$ref": "#/$defs/proximalEffectQuery"
         }
       ]
     },

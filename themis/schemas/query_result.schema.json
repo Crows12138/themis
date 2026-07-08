@@ -348,7 +348,8 @@
         "counterfactual",
         "causation",
         "scm_counterfactual",
-        "counterfactual_conjunction"
+        "counterfactual_conjunction",
+        "proximal_effect"
       ]
     },
     "structural_result": {
@@ -507,7 +508,8 @@
             "longitudinal_ipw_msm",
             "missing_data_recovery_gformula",
             "general_id_plugin",
-            "ctf_conjunction_plugin"
+            "ctf_conjunction_plugin",
+            "proximal_matrix"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -577,6 +579,26 @@
           }
         },
         "outcome": { "type": "string" },
+        "treatment_proxy": {
+          "type": "string",
+          "description": "proximal_matrix only: the treatment-inducing proxy Z (negative-control exposure)."
+        },
+        "outcome_proxy": {
+          "type": "string",
+          "description": "proximal_matrix only: the outcome-inducing proxy W (negative-control outcome)."
+        },
+        "latent_cardinality": {
+          "type": "integer",
+          "description": "proximal_matrix only: the assumed number k of categories of the unobserved confounder U."
+        },
+        "do_prob_treated": {
+          "type": "number",
+          "description": "proximal_matrix only: P(Y=1|do(X=1)) recovered by Miao formula (5)."
+        },
+        "do_prob_control": {
+          "type": "number",
+          "description": "proximal_matrix only: P(Y=1|do(X=0)) recovered by Miao formula (5)."
+        },
         "sensitivity_analysis": {
           "type": "object",
           "description": "Phase 8.2 + iter 124: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present for binary outcomes (RR via baseline rate) and continuous outcomes (RR ≈ exp(0.91·SMD) per Chinn 2000). Categorical / object-typed outcomes silently skip this block. baseline_rate is null on the continuous path because the conversion is fully standardisation-based.",

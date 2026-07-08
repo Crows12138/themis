@@ -55,6 +55,7 @@ from ..types import (
     CausationQuery,
     CounterfactualAssumptions,
     CounterfactualConjunctionQuery,
+    ProximalEffectQuery,
     CounterfactualEvent,
     CounterfactualQuery,
     CauseQuery,
@@ -237,6 +238,15 @@ def _to_query(d: dict):
             events=_to_ctf_events(d["events"]),
             condition=_to_ctf_events(d.get("condition", ())),
         )
+    if k == "proximal_effect":
+        return ProximalEffectQuery(
+            treatment=_to_atom(d["treatment"]),
+            outcome=_to_atom(d["outcome"]),
+            latent=_to_atom(d["latent"]),
+            treatment_proxy=_to_atom(d["treatment_proxy"]),
+            outcome_proxy=_to_atom(d["outcome_proxy"]),
+            latent_cardinality=int(d["latent_cardinality"]),
+        )
     raise SemanticError(f"unknown query kind: {k}")
 
 
@@ -361,6 +371,11 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
                 a
                 for e in (*q.events, *q.condition)
                 for a in (e.variable, *(s.atom for s in e.subscript))
+            )
+        if isinstance(q, ProximalEffectQuery):
+            return (
+                q.treatment, q.outcome, q.latent,
+                q.treatment_proxy, q.outcome_proxy,
             )
     return ()
 
@@ -750,6 +765,11 @@ def _query_structural_atoms(q) -> tuple[Atom, ...]:
             a
             for e in (*q.events, *q.condition)
             for a in (e.variable, *(s.atom for s in e.subscript))
+        )
+    if isinstance(q, ProximalEffectQuery):
+        return (
+            q.treatment, q.outcome, q.latent,
+            q.treatment_proxy, q.outcome_proxy,
         )
     return ()
 

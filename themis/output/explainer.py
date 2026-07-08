@@ -222,6 +222,42 @@ def _explain_counterfactual_conjunction_zh(result: QueryResult, stmt=None) -> st
     return "反事实合取查询：结果未分类。"
 
 
+def _explain_proximal_effect_zh(result: QueryResult, stmt=None) -> str:
+    """Proximal causal inference (Miao-Geng-Tchetgen 2018 model (f))."""
+    from ..types import ProximalEffectQuery
+
+    q = (
+        stmt.query
+        if stmt is not None and isinstance(stmt.query, ProximalEffectQuery)
+        else None
+    )
+    if result.status is ResultStatus.NEEDS_INVESTIGATION:
+        base = (
+            "该效应 P(Y|do(X)) 在未观测混杂下近端不可识别："
+            "所声明的两个 proxy 不构成 Miao model (f) 结构"
+            "（治疗侧 proxy 泄漏到结局、结局侧 proxy 泄漏到治疗，"
+            "或 U 之外还有未阻断的混杂）。"
+        )
+        gap = _describe_needs_investigation(result)
+        return f"{base}{gap}" if gap else base
+    sr = result.structural_result
+    if sr is not None and sr.value is True:
+        if q is not None:
+            z, w, u = (
+                q.treatment_proxy.predicate,
+                q.outcome_proxy.predicate,
+                q.latent.predicate,
+            )
+            return (
+                f"该效应 P(Y|do(X)) 在未观测混杂 {u} 下近端可识别："
+                f"借治疗侧 proxy {z} 与结局侧 proxy {w}（Miao model f），"
+                f"可由 P(y|Z,x)·P(W|Z,x)⁻¹·P(W) 反演 Z×W 测量通道从数据恢复 "
+                f"ATE（需 proxy 对 {u} 足够相关，rank 条件在数据上核验）。"
+            )
+        return "该效应 P(Y|do(X)) 在未观测混杂下近端可识别（Miao model f）。"
+    return "近端效应查询：结果未分类。"
+
+
 def _explain_effect_zh(result: QueryResult, stmt) -> str:
     """Render an effect query result.
 
@@ -455,6 +491,8 @@ def explain(
         text = _explain_scm_counterfactual_zh(result)
     elif result.query_kind == QueryKind.COUNTERFACTUAL_CONJUNCTION:
         text = _explain_counterfactual_conjunction_zh(result, stmt)
+    elif result.query_kind == QueryKind.PROXIMAL_EFFECT:
+        text = _explain_proximal_effect_zh(result, stmt)
     else:
         raise NotImplementedError(
             f"explainer for {result.query_kind.value} not implemented yet"

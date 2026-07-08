@@ -35,6 +35,7 @@ from ..types import (
     ProbabilityRefExpr,
     ProbabilityQuery,
     ProductExpr,
+    ProximalEffectQuery,
     SCMCounterfactualQuery,
     SumExpr,
     StepRef,
@@ -1740,5 +1741,95 @@ def verify_ctf_conjunction_numeric(
         raise VerificationError(
             "counterfactual-conjunction numeric derivation must end in "
             f"'numeric_ctf_conjunction_estimate'; got {derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
+def _assert_proximal_query_binding(
+    step: DerivationStep,
+    context: VerificationContext,
+    step_index: int,
+    step_by_id: dict[str, DerivationStep],
+    step_output_by_id: dict[str, object],
+) -> None:
+    """Proximal derivations have rules whose binding to the query/graph is
+    rechecked inside the rule (``proximal_criterion`` re-runs identify_proximal
+    from ``ctx.query``)."""
+    return None
+
+
+def verify_proximal_effect(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """Verify a structural proximal-identification derivation.
+
+    The terminal ``proximal_criterion`` rule re-runs ``identify_proximal`` on
+    the context's (graph, bidirected) and the query's roles, confirming the
+    effect is proximal-identifiable (Miao model (f)) — the independent safety
+    check. Here we pin the terminal rule and confirm the last step's output
+    equals the claim. Proximal identification produces a matrix estimand
+    descriptor, not a formula, so there is no formula to semantically probe —
+    the independent re-run of identify_proximal IS the semantic check.
+
+    Raises ``VerificationError`` on reject; returns ``None`` on accept.
+    """
+    if not isinstance(context.query, ProximalEffectQuery):
+        raise VerificationError(
+            "verify_proximal_effect requires a ProximalEffectQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_proximal_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].rule != "proximal_criterion":
+        raise VerificationError(
+            "proximal derivation must end in 'proximal_criterion'; got "
+            f"{derivation[-1].rule!r}",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+
+def verify_proximal_numeric(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result: StructuralResult,
+) -> None:
+    """Verify a data-based proximal (matrix plug-in) estimate derivation — the
+    numeric counterpart of ``verify_proximal_effect``.
+
+    The derivation must end in ``numeric_proximal_estimate`` atop a
+    ``proximal_criterion`` structural witness. The rule handlers re-run
+    ``identify_proximal`` to confirm proximal-identifiability (safety-critical:
+    a number is licensed ONLY for an identified effect) and audit the
+    estimate's metadata self-consistency (method enum / CI bounds / data_hash /
+    sample_size) — no re-fit, the same trade-off the other numeric verifiers
+    make.
+
+    Raises ``VerificationError`` on reject; returns ``None`` on accept.
+    """
+    if not isinstance(context.query, ProximalEffectQuery):
+        raise VerificationError(
+            "verify_proximal_numeric requires a ProximalEffectQuery in the context",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_proximal_query_binding)
+
+    final = derivation[-1].output
+    if final != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].rule != "numeric_proximal_estimate":
+        raise VerificationError(
+            "proximal numeric derivation must end in 'numeric_proximal_estimate';"
+            f" got {derivation[-1].rule!r}",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )

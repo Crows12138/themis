@@ -412,6 +412,37 @@ class CounterfactualConjunctionQuery:
     condition: tuple[CounterfactualEvent, ...] = ()
 
 
+@dataclass(frozen=True)
+class ProximalEffectQuery:
+    """Proximal causal inference (Miao-Geng-Tchetgen 2018, Biometrika 105(4);
+    Kuroki-Pearl 2014 as the independent source).
+
+    Asks for the average causal effect ``P(Y | do(X))`` when the sufficient
+    confounder ``U`` is UNOBSERVED, using two observed proxies of ``U`` — a
+    treatment-inducing proxy ``Z`` and an outcome-inducing proxy ``W`` (in the
+    negative-control vocabulary: a negative-control exposure and a
+    negative-control outcome).
+
+    ``latent`` names the unobserved confounder — an ordinary node of the program
+    graph that carries no data column; the query merely declares which node is
+    unobserved. ``latent_cardinality`` is the assumed number ``k`` of categories
+    of ``U`` (the strongest assumption — U is never seen, yet its cardinality
+    must be posited). Structurally the kernel decides identifiability via
+    ``runtime.proximal_identify.identify_proximal`` (Miao model (f): the proxy
+    criteria W⊥(Z,X)|U and Z⊥Y|(U,X) plus {U} a sufficient confounder); with
+    data, ``estimation.proximal.estimate_proximal_ate`` recovers the ATE by
+    inverting the Z×W measurement channel (Miao formula (5)). This is the escape
+    hatch one rung past back-door / front-door / general-ID, all of which assume
+    the confounders on the relevant paths are observed.
+    """
+    treatment: Atom
+    outcome: Atom
+    latent: Atom
+    treatment_proxy: Atom
+    outcome_proxy: Atom
+    latent_cardinality: int
+
+
 Query = Union[
     CauseQuery,
     AssocQuery,
@@ -422,6 +453,7 @@ Query = Union[
     CausationQuery,
     SCMCounterfactualQuery,
     CounterfactualConjunctionQuery,
+    ProximalEffectQuery,
 ]
 
 
@@ -585,6 +617,7 @@ class QueryKind(str, Enum):
     CAUSATION = "causation"
     SCM_COUNTERFACTUAL = "scm_counterfactual"
     COUNTERFACTUAL_CONJUNCTION = "counterfactual_conjunction"
+    PROXIMAL_EFFECT = "proximal_effect"
 
 
 @dataclass(frozen=True)

@@ -126,6 +126,14 @@ def estimate_program(
         random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
 
+    # Numeric end for the proximal rung: recover the ATE under an unobserved
+    # confounder via Miao formula (5). Purely additive — attaches a
+    # numeric_estimate only when proximal-identifiable and the data support it.
+    _estimate_proximal_queries(
+        program, identification_output, contract,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
+    )
+
     # Numeric end for the partial-identification layer: when point ID failed
     # and the kernel attached a SYMBOLIC bounds_result, evaluate it on data.
     # Runs after the point-estimate loop so it only ever ADDS numeric fields
@@ -1286,6 +1294,170 @@ def _build_ctf_conjunction_numeric_derivation_dict(*, graph, estimate):
                 "ci_upper": estimate.ci_upper,
                 "ci_level": estimate.ci_level,
                 "conditional": estimate.conditional,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
+
+
+def _pair_proximal_queries(prog, output):
+    """Yield (QueryStatement, result_dict) pairs whose query is a
+    ProximalEffectQuery. Alignment uses query_id."""
+    from ..types import ProximalEffectQuery, QueryStatement
+
+    id_to_stmt = {
+        s.id: s for s in prog.statements
+        if isinstance(s, QueryStatement)
+        and isinstance(s.query, ProximalEffectQuery)
+    }
+    for result in output.get("results", []):
+        if result.get("query_kind") != "proximal_effect":
+            continue
+        qid = result.get("query_id")
+        yield id_to_stmt.get(qid), result
+
+
+def _estimate_proximal_queries(
+    program: dict | str | bytes,
+    output: dict,
+    contract: DataContract,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    cluster: str | None = None,
+) -> None:
+    """For each proximal-effect result, attach a matrix plug-in
+    ``numeric_estimate`` of the ATE (Miao formula (5)) when the effect is
+    proximal-identifiable and the data support it. Mutates ``output`` in place.
+
+    Purely additive: a non-identifiable / rank / positivity refusal leaves the
+    structural (identifiability) result untouched."""
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
+    from ..runtime import structural_solver
+
+    ast = _ensure_dict(program)
+    ast = validate_ast(ast)
+    prog = validate_program(ast)
+    ground_statements = instantiate(prog)
+    graph = project(ground_statements)
+    bidirected = structural_solver.bidirected_from_ground(ground_statements)
+
+    for q_stmt, result in _pair_proximal_queries(prog, output):
+        if q_stmt is None:
+            continue
+        _try_proximal_estimate(
+            q_stmt, result, contract, graph, bidirected,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+
+
+def _try_proximal_estimate(
+    q_stmt, result: dict, contract, graph, bidirected, *,
+    random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
+) -> bool:
+    """Recover the proximal ATE on data by Miao's discrete formula (5).
+
+    Returns True only when it ATTACHES a numeric estimate. On any refusal —
+    not identifiable, proxy-cardinality mismatch, a singular measurement
+    channel (rank), or an empty stratum (positivity) — it returns False and
+    touches nothing, so the identifiability answer stays primary."""
+    from .proximal import estimate_proximal_ate
+    from .dose_response import EstimatorFailure
+
+    q = q_stmt.query
+    df = contract.data
+    try:
+        estimate = estimate_proximal_ate(
+            df, graph=graph, bidirected=bidirected,
+            treatment=q.treatment, outcome=q.outcome, latent=q.latent,
+            treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
+            latent_cardinality=q.latent_cardinality,
+            ci_bootstrap=ci_bootstrap, random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
+        )
+    except (EstimatorFailure, ValueError, NotImplementedError):
+        return False
+
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "treatment": estimate.treatment,
+        "outcome": estimate.outcome,
+        "treatment_proxy": estimate.treatment_proxy,
+        "outcome_proxy": estimate.outcome_proxy,
+        "latent_cardinality": estimate.latent_cardinality,
+        "do_prob_treated": estimate.do_prob_treated,
+        "do_prob_control": estimate.do_prob_control,
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    target = f"P({estimate.outcome}|do({estimate.treatment}))"
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=target,
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+
+    result["derivation"] = _build_proximal_numeric_derivation_dict(
+        graph=graph, estimate=estimate,
+    )
+    _finalise_numeric_result(result)
+    return True
+
+
+def _build_proximal_numeric_derivation_dict(*, graph, estimate):
+    """Two-step derivation for a proximal matrix plug-in estimate:
+
+        s1: proximal_criterion (structural witness — re-runs identify_proximal
+            to confirm the effect is proximal-identifiable)
+        s2: numeric_proximal_estimate (metadata audit — no re-fit)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="proximal_criterion",
+            inputs={"graph": graph},
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_proximal_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
             step_id="s2",
@@ -3296,13 +3468,24 @@ def _collect_required_columns(program: dict | str | bytes) -> set[str]:
     ast = _ensure_dict(program)
     statements = ast.get("statements", [])
     columns: set[str] = set()
+    proximal_latents: set[str] = set()
     for stmt in statements:
         kind = stmt.get("kind")
         if kind == "variable":
             pred = stmt.get("predicate")
             if isinstance(pred, str):
                 columns.add(pred)
-    return columns
+        elif kind == "query":
+            q = stmt.get("query", {})
+            if q.get("kind") == "proximal_effect":
+                lat = q.get("latent", {}).get("predicate")
+                if isinstance(lat, str):
+                    proximal_latents.add(lat)
+    # Proximal inference's confounder U is a graph node that is UNOBSERVED by
+    # construction — it carries no data column. Exclude any node declared as a
+    # proximal latent from the contract's required columns (this is the one
+    # query whose graph legitimately contains a column-less node).
+    return columns - proximal_latents
 
 
 def _ensure_dict(program: dict | str | bytes) -> dict:

@@ -74,6 +74,7 @@ from .types import (
     ProbabilityStatement,
     MissingnessIndicator,
     Program,
+    ProximalEffectQuery,
     QueryStatement,
     SCMCounterfactualQuery,
     SelectionNode,
@@ -100,6 +101,8 @@ from .verifier import (
     verify_missing_data_recovery,
     verify_numeric_estimate,
     verify_ovb_sensitivity,
+    verify_proximal_effect,
+    verify_proximal_numeric,
     verify_selection_recovery,
 )
 
@@ -327,6 +330,16 @@ def _query_to_dict(q) -> dict:
         if q.condition:
             out["condition"] = [_event_to_dict(e) for e in q.condition]
         return out
+    if isinstance(q, ProximalEffectQuery):
+        return {
+            "kind": "proximal_effect",
+            "treatment": _atom_to_dict(q.treatment),
+            "outcome": _atom_to_dict(q.outcome),
+            "latent": _atom_to_dict(q.latent),
+            "treatment_proxy": _atom_to_dict(q.treatment_proxy),
+            "outcome_proxy": _atom_to_dict(q.outcome_proxy),
+            "latent_cardinality": q.latent_cardinality,
+        }
     raise TypeError(f"unknown query: {type(q).__name__}")
 
 
@@ -919,6 +932,19 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             verify_ctf_conjunction_numeric(derivation, ctx, claimed)
         else:
             verify_counterfactual_conjunction(derivation, ctx, claimed)
+    elif kind == "proximal_effect":
+        claimed = _decode_structural_result_json(result["structural_result"])
+        if (
+            result.get("status") == "numerically_solved"
+            and "numeric_estimate" in result
+        ):
+            # Data path (themis.estimate): the proximal ATE was recovered by
+            # Miao formula (5). Verify the numeric derivation
+            # (proximal_criterion re-runs identify_proximal; the
+            # numeric_proximal_estimate rule audits the metadata).
+            verify_proximal_numeric(derivation, ctx, claimed)
+        else:
+            verify_proximal_effect(derivation, ctx, claimed)
     else:
         raise ValueError(
             f"verify(): unsupported query_kind {kind!r}"

@@ -88,6 +88,8 @@ from .verify import (
     verify_numeric,
     verify_numeric_estimate,
     verify_ovb_sensitivity,
+    verify_proximal_effect,
+    verify_proximal_numeric,
     verify_scm_counterfactual,
     verify_selection_recovery,
 )
@@ -123,6 +125,8 @@ __all__ = [
     "verify_numeric_estimate",
     "verify_missing_data_recovery",
     "verify_ovb_sensitivity",
+    "verify_proximal_effect",
+    "verify_proximal_numeric",
     "verify_scm_counterfactual",
     "verify_selection_recovery",
 ]

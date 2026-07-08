@@ -89,7 +89,11 @@ def _query_atoms(q) -> tuple[Atom, ...]:
             q.counterfactual_intervention.atom,
             q.counterfactual_target.atom,
         )
-    from ..types import CounterfactualConjunctionQuery, SCMCounterfactualQuery
+    from ..types import (
+        CounterfactualConjunctionQuery,
+        ProximalEffectQuery,
+        SCMCounterfactualQuery,
+    )
     if isinstance(q, SCMCounterfactualQuery):
         return (q.intervention.atom, q.target)
     if isinstance(q, CounterfactualConjunctionQuery):
@@ -97,6 +101,11 @@ def _query_atoms(q) -> tuple[Atom, ...]:
             a
             for e in (*q.events, *q.condition)
             for a in (e.variable, *(s.atom for s in e.subscript))
+        )
+    if isinstance(q, ProximalEffectQuery):
+        return (
+            q.treatment, q.outcome, q.latent,
+            q.treatment_proxy, q.outcome_proxy,
         )
     return ()
 

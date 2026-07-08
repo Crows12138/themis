@@ -3077,6 +3077,169 @@ def _rule_numeric_ctf_conjunction_estimate(
         )
 
 
+_NUMERIC_PROXIMAL_METHODS = frozenset({"proximal_matrix"})
+
+
+def _rule_proximal_criterion(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify P(Y|do(X)) is proximal-identifiable (Miao model (f)) on this
+    ADMG — the structural licence for a proximal matrix plug-in estimate and
+    the primary answer of a structural proximal query.
+
+    Re-runs ``proximal_identify.identify_proximal`` on the context's
+    (graph, bidirected) and the query's roles (treatment/outcome/latent/
+    proxies + k), and confirms the outcome is a ``ProximalEstimand``. A
+    ``ProximalNotIdentified`` must NEVER back a numeric estimate. Like
+    ``ctf_conjunction_criterion`` / ``general_id_criterion``, it re-runs the
+    identification engine independently rather than trusting the result.
+
+    inputs: graph
+    output: bool
+    """
+    from ..runtime.proximal_identify import ProximalEstimand, identify_proximal
+    from ..types import ProximalEffectQuery
+
+    graph = _require(inputs, "graph", step_index, "proximal_criterion")
+    _assert_same_graph(graph, ctx.graph, step_index, "proximal_criterion")
+
+    q = getattr(ctx, "query", None)
+    if not isinstance(q, ProximalEffectQuery):
+        raise RuleCheckFailed(
+            "proximal_criterion requires a ProximalEffectQuery in the "
+            "verification context",
+            step_index=step_index, rule="proximal_criterion",
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    outcome = identify_proximal(
+        graph, bidir,
+        treatment=q.treatment, outcome=q.outcome, latent=q.latent,
+        treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
+        latent_cardinality=q.latent_cardinality,
+    )
+    identified = isinstance(outcome, ProximalEstimand)
+    if identified != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"proximal_criterion claimed {claimed_output!r}, but "
+            f"identify_proximal recomputed identifiable={identified!r}",
+            step_index=step_index, rule="proximal_criterion",
+        )
+
+
+def _rule_numeric_proximal_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Relaxed audit for a proximal matrix plug-in ATE estimate.
+
+    Method enum + CI bounds + data_hash + sample_size checks; the referenced
+    ``criterion`` step must be a ``proximal_criterion``. Same shape as
+    ``numeric_ctf_conjunction_estimate`` — a metadata self-consistency audit,
+    no re-fit. The identifiability the number rests on is re-derived by the
+    referenced ``proximal_criterion`` step (which re-runs identify_proximal).
+    """
+    rule = "numeric_proximal_estimate"
+    criterion_ref = _require(inputs, "criterion", step_index, rule)
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_proximal_estimate.criterion must be a StepRef",
+            step_index=step_index, rule=rule,
+        )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+
+    if method not in _NUMERIC_PROXIMAL_METHODS:
+        raise RuleCheckFailed(
+            f"numeric_proximal_estimate.method must be one of "
+            f"{sorted(_NUMERIC_PROXIMAL_METHODS)}; got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"numeric_proximal_estimate.data_hash must be a "
+            f"{_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule=rule,
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            "numeric_proximal_estimate.data_hash must be lowercase hex",
+            step_index=step_index, rule=rule,
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"numeric_proximal_estimate.sample_size must be an int "
+            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"numeric_proximal_estimate.point must be a number; got {point!r}",
+            step_index=step_index, rule=rule,
+        )
+    ci_present = ci_lower is not None or ci_upper is not None
+    if ci_present:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                "numeric_proximal_estimate: ci_lower and ci_upper must both be "
+                "present or both absent",
+                step_index=step_index, rule=rule,
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"numeric_proximal_estimate: point {point} outside "
+                f"[{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"numeric_proximal_estimate.ci_level must be in (0, 1); "
+                f"got {ci_level!r}",
+                step_index=step_index, rule=rule,
+            )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None:
+        raise RuleCheckFailed(
+            f"numeric_proximal_estimate: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule=rule,
+        )
+    if criterion_step.rule != "proximal_criterion":
+        raise RuleCheckFailed(
+            "numeric_proximal_estimate.criterion must reference a "
+            "proximal_criterion step",
+            step_index=step_index, rule=rule,
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "numeric_proximal_estimate output must be a StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "numeric_proximal_estimate output.value must be True",
+            step_index=step_index, rule=rule,
+        )
+
+
 # ========================================================== R6
 
 def _rule_probability_ref_lookup(
@@ -6269,6 +6432,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Counterfactual-conjunction (ID*/IDC*) plug-in — structural licence:
     # re-run ID*/IDC* and confirm the conjunction is identified.
     "ctf_conjunction_criterion": _rule_ctf_conjunction_criterion,
+    # Proximal inference (Miao 2018 model f) — structural licence: re-run
+    # identify_proximal and confirm the effect is proximal-identifiable.
+    "proximal_criterion": _rule_proximal_criterion,
     # Fix 6 (v0.1.5, audit follow-up) — IV-in-effect Wald LATE numeric
     "iv_wald_numeric_evaluate": _rule_iv_wald_numeric_evaluate,
     # Phase 6.mediation S.M.3
@@ -6314,6 +6480,9 @@ _STEP_REF_RULES = {
     # Counterfactual-conjunction (ID*/IDC*) plug-in numeric estimate — same
     # counterfactual identification witness (ctf_conjunction_criterion).
     "numeric_ctf_conjunction_estimate",
+    # Proximal matrix plug-in numeric estimate — same proximal identification
+    # witness (proximal_criterion), plug-in terminal.
+    "numeric_proximal_estimate",
     # Phase 9 §T9.1.4 — transport identification
     "identify_via_transport",
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
@@ -6394,6 +6563,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_ctf_conjunction_estimate":
         _rule_numeric_ctf_conjunction_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_proximal_estimate":
+        _rule_numeric_proximal_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

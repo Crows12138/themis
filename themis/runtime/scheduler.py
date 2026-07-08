@@ -64,6 +64,7 @@ from ..types import (
     Priority,
     ProbabilityQuery,
     Program,
+    ProximalEffectQuery,
     Query,
     QueryKind,
     QueryResult,
@@ -105,6 +106,7 @@ _QUERY_KIND_OF: dict[type, QueryKind] = {
     CausationQuery: QueryKind.CAUSATION,
     SCMCounterfactualQuery: QueryKind.SCM_COUNTERFACTUAL,
     CounterfactualConjunctionQuery: QueryKind.COUNTERFACTUAL_CONJUNCTION,
+    ProximalEffectQuery: QueryKind.PROXIMAL_EFFECT,
 }
 
 
@@ -2434,6 +2436,114 @@ def _dispatch_counterfactual_conjunction(
     )
 
 
+def _dispatch_proximal_effect(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    """Proximal causal inference (Miao-Geng-Tchetgen 2018; Kuroki-Pearl 2014).
+
+    Decides whether the average causal effect ``P(Y|do(X))`` is identifiable when
+    the sufficient confounder ``U`` is unobserved, using the declared proxies
+    ``Z`` (treatment-inducing) and ``W`` (outcome-inducing) via
+    ``proximal_identify.identify_proximal`` (Miao model (f)). Outcomes:
+
+    - a ``ProximalEstimand`` → identifiable; returned as ``structurally_solved``
+      with the estimand roles/method attached in ``extensions`` (an estimand
+      descriptor — the from-data ATE is the ``estimate()`` numeric overlay, since
+      proximal identification produces a matrix operation, not a formula AST).
+    - a ``ProximalNotIdentified`` → surfaced as ``needs_investigation`` with a
+      structure gap naming the failed criterion + human diagnosis.
+    """
+    from .proximal_identify import (
+        ProximalEstimand,
+        ProximalNotIdentified,
+        identify_proximal,
+    )
+
+    q: ProximalEffectQuery = stmt.query  # type: ignore[assignment]
+
+    referenced = [
+        q.treatment, q.outcome, q.latent, q.treatment_proxy, q.outcome_proxy,
+    ]
+    missing_atoms = [a for a in referenced if a not in graph]
+    if missing_atoms:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.PROXIMAL_EFFECT,
+            query_id=stmt.id,
+            missing_information=tuple(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"atom:{_atom_to_str(a)}",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "proximal query role atom is not in the instantiated "
+                        "variable set V"
+                    ),
+                )
+                for a in missing_atoms
+            ),
+        )
+
+    outcome = identify_proximal(
+        graph, bidirected,
+        treatment=q.treatment, outcome=q.outcome, latent=q.latent,
+        treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
+        latent_cardinality=q.latent_cardinality,
+    )
+
+    if isinstance(outcome, ProximalNotIdentified):
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.PROXIMAL_EFFECT,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:proximal_not_identifiable",
+                    priority=Priority.HIGH,
+                    reason=(
+                        f"P(Y|do(X)) is not proximal-identifiable "
+                        f"({outcome.failed_criterion}): {outcome.reason}"
+                    ),
+                ),
+            ),
+        )
+
+    estimand: ProximalEstimand = outcome
+    descriptor = {
+        "method": estimand.method,
+        "treatment": _atom_to_str(estimand.treatment),
+        "outcome": _atom_to_str(estimand.outcome),
+        "latent": _atom_to_str(estimand.latent),
+        "treatment_proxy": _atom_to_str(estimand.treatment_proxy),
+        "outcome_proxy": _atom_to_str(estimand.outcome_proxy),
+        "latent_cardinality": estimand.latent_cardinality,
+        # Join to a scalar string: this descriptor rides a DerivationStep's
+        # inputs, whose serializer takes scalars / atoms / graphs but not a
+        # collection of plain strings.
+        "data_conditions": " | ".join(estimand.data_conditions),
+    }
+    structural_result = StructuralResult(value=True)
+    derivation = (
+        DerivationStep(
+            rule="proximal_criterion",
+            inputs={"graph": graph, "estimand": descriptor},
+            output=structural_result,
+            step_id="s1",
+        ),
+    )
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.PROXIMAL_EFFECT,
+        query_id=stmt.id,
+        structural_result=structural_result,
+        derivation=derivation,
+        extensions={"proximal_estimand": descriptor},
+    )
+
+
 def _try_numeric(
     stmt: QueryStatement,
     formula,
@@ -3969,6 +4079,10 @@ def dispatch(
         result = _dispatch_scm_counterfactual(stmt, graph, program)
     elif isinstance(q, CounterfactualConjunctionQuery):
         result = _dispatch_counterfactual_conjunction(
+            stmt, graph, bidirected=bidirected
+        )
+    elif isinstance(q, ProximalEffectQuery):
+        result = _dispatch_proximal_effect(
             stmt, graph, bidirected=bidirected
         )
     else:
