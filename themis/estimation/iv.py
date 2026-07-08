@@ -21,6 +21,7 @@ form when Z and X are binary and W is a valid conditioning set.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal
 
@@ -34,6 +35,51 @@ from .resample import cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "wald", "2sls"]
+
+
+@dataclass(frozen=True)
+class ARConfidenceSet:
+    """Anderson-Rubin (1949) weak-identification-robust confidence set for
+    the single-instrument IV coefficient.
+
+    The AR set inverts a test whose size is correct regardless of
+    instrument strength, so — unlike the 2SLS/Wald bootstrap CI — it stays
+    valid under a weak first stage. Operationally, ``beta0`` is IN the set
+    iff we cannot reject that the instrument ``Z`` is uncorrelated with the
+    structural residual ``Y - beta0*X`` (after partialing out the controls
+    ``W``). For a single instrument that test statistic is a ratio of
+    quadratics in ``beta0``, so the set is the solution of one quadratic
+    inequality and can take five shapes (Dufour 1997):
+
+      - ``bounded``          : ``[lower, upper]``                 (strong case)
+      - ``disconnected``     : ``(-inf, lower] u [upper, +inf)``  (complement of
+                               an open interval — a weak-instrument signature)
+      - ``unbounded_below``  : ``(-inf, upper]``
+      - ``unbounded_above``  : ``[lower, +inf)``
+      - ``whole_line``       : ``(-inf, +inf)``          (instrument ~useless)
+
+    ``lower`` / ``upper`` carry the finite endpoints where they exist and are
+    ``None`` on the open side. The residualised second moments (plus ``n``,
+    ``|W|``, ``kappa``) are retained so an independent verifier can re-solve
+    the quadratic — and re-derive the point ``Szy/Szx`` — without the raw
+    data. ``point`` is that just-identified IV point (``None`` if the first
+    stage is exactly degenerate).
+    """
+
+    kind: str
+    lower: float | None
+    upper: float | None
+    ci_level: float
+    point: float | None
+    kappa: float
+    s_yy: float
+    s_xy: float
+    s_xx: float
+    s_zy: float
+    s_zx: float
+    s_zz: float
+    n_obs: int
+    n_exog: int
 
 
 @dataclass(frozen=True)
@@ -58,6 +104,12 @@ class IVEstimate:
     # (degenerate first stage / sample too small) — downstream weak-IV
     # detection treats None as "could not assess" rather than "strong".
     first_stage_f_stat: float | None = None
+    # iter 212: the Anderson-Rubin weak-identification-robust confidence set.
+    # Always valid regardless of first-stage strength — the honest answer the
+    # bootstrap CI cannot give when the instrument is weak. None when the AR
+    # test is undefined on this data (residual df < 1, or instrument has ~no
+    # residual variance).
+    anderson_rubin: ARConfidenceSet | None = None
 
 
 def estimate_iv_ate(
@@ -127,6 +179,14 @@ def estimate_iv_ate(
         df, treatment=treatment, instrument=instrument, conditioning=conditioning,
     )
 
+    try:
+        ar_set = anderson_rubin_confidence_set(
+            df, treatment=treatment, outcome=outcome, instrument=instrument,
+            conditioning=conditioning, ci_level=ci_level,
+        )
+    except (np.linalg.LinAlgError, ValueError):
+        ar_set = None
+
     ci_lower: float | None = None
     ci_upper: float | None = None
     if ci_bootstrap > 0:
@@ -158,6 +218,7 @@ def estimate_iv_ate(
         outcome=outcome,
         cluster=cluster,
         first_stage_f_stat=f_stat,
+        anderson_rubin=ar_set,
     )
 
 
@@ -296,6 +357,137 @@ def _first_stage_f_stat(
         return float(f)
     except (np.linalg.LinAlgError, ValueError):
         return None
+
+
+# --- Anderson-Rubin weak-IV-robust confidence set -----------------------------
+
+
+def _residualise(target: np.ndarray, w_design: np.ndarray) -> np.ndarray:
+    """Residual of ``target`` after OLS on ``[1, W]`` (Frisch-Waugh-Lovell).
+
+    ``w_design`` is the ``(n, |W|)`` control matrix WITHOUT an intercept
+    column; the intercept is added here, so the ``|W| == 0`` case reduces to
+    plain mean-centring.
+    """
+    n = target.shape[0]
+    if w_design.shape[1]:
+        design = np.hstack([np.ones((n, 1)), w_design])
+    else:
+        design = np.ones((n, 1))
+    coef, *_ = np.linalg.lstsq(design, target, rcond=None)
+    return target - design @ coef
+
+
+def _ar_solve_set(a: float, b: float, c: float, *, atol: float):
+    """Classify + solve ``{beta0 : a*beta0^2 + b*beta0 + c <= 0}``.
+
+    Returns ``(kind, lower, upper)`` where the finite endpoints are ``None``
+    on any open side. ``atol`` is the scale-aware threshold below which the
+    leading coefficient counts as zero (the exactly-linear edge case).
+    """
+    if abs(a) <= atol:
+        # Linear: b*beta0 + c <= 0.
+        if abs(b) <= atol:
+            return ("whole_line", None, None) if c <= 0 else ("empty", None, None)
+        root = -c / b
+        if b > 0:
+            return ("unbounded_below", None, root)   # beta0 <= root
+        return ("unbounded_above", root, None)        # beta0 >= root
+
+    disc = b * b - 4.0 * a * c
+    if a > 0:
+        if disc <= 0:
+            # Opens upward, never dips to <= 0 (the point estimate always
+            # satisfies AR == 0, so for a just-identified single instrument
+            # this branch is a numerical guard, not an expected outcome).
+            return ("empty", None, None)
+        sq = math.sqrt(disc)
+        r1, r2 = (-b - sq) / (2 * a), (-b + sq) / (2 * a)
+        lo, hi = (r1, r2) if r1 <= r2 else (r2, r1)
+        return ("bounded", lo, hi)                    # <= 0 BETWEEN the roots
+
+    # a < 0.
+    if disc <= 0:
+        return ("whole_line", None, None)             # opens down, <= 0 always
+    sq = math.sqrt(disc)
+    r1, r2 = (-b - sq) / (2 * a), (-b + sq) / (2 * a)
+    lo, hi = (r1, r2) if r1 <= r2 else (r2, r1)
+    return ("disconnected", lo, hi)                   # <= 0 OUTSIDE (lo, hi)
+
+
+def anderson_rubin_confidence_set(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    instrument: str,
+    conditioning: tuple[str, ...] = (),
+    ci_level: float = 0.95,
+) -> ARConfidenceSet | None:
+    """Single-instrument homoskedastic Anderson-Rubin confidence set.
+
+    Residualises ``Y``, ``X``, ``Z`` on ``[1, W]`` (FWL) and inverts the test
+    that ``Z`` is uncorrelated with ``Y - beta0*X``:
+
+        ``AR(beta0) = m * N(beta0) / (T(beta0) - N(beta0))``,   ``m = n-|W|-2``
+        ``N(beta0)  = (Szy - beta0*Szx)^2 / Szz``
+        ``T(beta0)  = Syy - 2*beta0*Sxy + beta0^2*Sxx``
+
+    returning ``{beta0 : AR(beta0) <= kappa}`` with the ``F(1, m)`` critical
+    value ``kappa = F_{1, m; ci_level}``. Rearranged, that is the quadratic
+    inequality ``A*beta0^2 + B*beta0 + C <= 0`` with ``A = g*Szx^2 - k*Sxx``,
+    ``B = 2*(k*Sxy - g*Szx*Szy)``, ``C = g*Szy^2 - k*Syy`` and
+    ``g = (m + kappa)/Szz`` — solved by :func:`_ar_solve_set`.
+
+    Returns ``None`` when the test is undefined: residual df ``m < 1``, or the
+    instrument has ~no residual variance (``Szz ~ 0``).
+    """
+    from scipy.stats import f as _f_dist
+
+    w_cols = list(conditioning)
+    n = len(data)
+    n_exog = len(w_cols)
+    m = n - n_exog - 2
+    if m < 1:
+        return None
+
+    y = data[outcome].to_numpy(dtype=float)
+    x = data[treatment].to_numpy(dtype=float)
+    z = data[instrument].to_numpy(dtype=float)
+    w = data[w_cols].to_numpy(dtype=float) if w_cols else np.empty((n, 0))
+
+    yr = _residualise(y, w)
+    xr = _residualise(x, w)
+    zr = _residualise(z, w)
+
+    s_yy = float(yr @ yr)
+    s_xy = float(xr @ yr)
+    s_xx = float(xr @ xr)
+    s_zy = float(zr @ yr)
+    s_zx = float(zr @ xr)
+    s_zz = float(zr @ zr)
+
+    if s_zz <= 1e-12:
+        # Instrument has no residual variation — the AR test is undefined.
+        return None
+
+    kappa = float(_f_dist.ppf(ci_level, 1, m))
+    g = (m + kappa) / s_zz
+    a = g * s_zx * s_zx - kappa * s_xx
+    b = 2.0 * (kappa * s_xy - g * s_zx * s_zy)
+    c = g * s_zy * s_zy - kappa * s_yy
+    a_scale = abs(g * s_zx * s_zx) + abs(kappa * s_xx) + 1.0
+    kind, lower, upper = _ar_solve_set(a, b, c, atol=1e-9 * a_scale)
+
+    point = s_zy / s_zx if abs(s_zx) > 1e-12 else None
+
+    return ARConfidenceSet(
+        kind=kind, lower=lower, upper=upper, ci_level=ci_level,
+        point=point, kappa=kappa,
+        s_yy=s_yy, s_xy=s_xy, s_xx=s_xx,
+        s_zy=s_zy, s_zx=s_zx, s_zz=s_zz,
+        n_obs=n, n_exog=n_exog,
+    )
 
 
 def _bootstrap_ci_iv(

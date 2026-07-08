@@ -172,7 +172,12 @@ from .discovery import (
     discover_graph,
     discovery_to_kernel_ast,
 )
-from .iv import IVEstimate, estimate_iv_ate
+from .iv import (
+    ARConfidenceSet,
+    IVEstimate,
+    anderson_rubin_confidence_set,
+    estimate_iv_ate,
+)
 from .joint import JointEffectEstimate, estimate_joint_effect
 from .longitudinal import (
     LongitudinalGFormulaEstimate,
@@ -214,6 +219,7 @@ __all__ = [
     "DataContract",
     "DataContractError",
     "DiscoveryResult",
+    "ARConfidenceSet",
     "EValueResult",
     "FourWayRatioComponents",
     "FourWayRatioEstimate",
@@ -232,6 +238,7 @@ __all__ = [
     "RecoveredATEEstimate",
     "TMLEEstimate",
     "TransportEstimate",
+    "anderson_rubin_confidence_set",
     "discover_graph",
     "discovery_to_kernel_ast",
     "e_value_for_risk_ratio",
