@@ -222,8 +222,8 @@ def _to_query(d: dict):
             target=_to_atom(d["target"]),
         )
     if k == "counterfactual_conjunction":
-        return CounterfactualConjunctionQuery(
-            events=tuple(
+        def _to_ctf_events(raw):
+            return tuple(
                 CounterfactualEvent(
                     variable=_to_atom(e["variable"]),
                     subscript=tuple(
@@ -231,8 +231,11 @@ def _to_query(d: dict):
                     ),
                     value=e["value"],
                 )
-                for e in d["events"]
-            ),
+                for e in raw
+            )
+        return CounterfactualConjunctionQuery(
+            events=_to_ctf_events(d["events"]),
+            condition=_to_ctf_events(d.get("condition", ())),
         )
     raise SemanticError(f"unknown query kind: {k}")
 
@@ -356,7 +359,7 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
         if isinstance(q, CounterfactualConjunctionQuery):
             return tuple(
                 a
-                for e in q.events
+                for e in (*q.events, *q.condition)
                 for a in (e.variable, *(s.atom for s in e.subscript))
             )
     return ()
@@ -745,7 +748,7 @@ def _query_structural_atoms(q) -> tuple[Atom, ...]:
     if isinstance(q, CounterfactualConjunctionQuery):
         return tuple(
             a
-            for e in q.events
+            for e in (*q.events, *q.condition)
             for a in (e.variable, *(s.atom for s in e.subscript))
         )
     return ()

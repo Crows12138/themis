@@ -48,7 +48,11 @@ from .errors import (
     VerificationError,
 )
 from .rules import _numeric_result_matches, dispatch_rule, known_rule
-from .semantic_probe import probe_counterfactual_formula, probe_identify_formula
+from .semantic_probe import (
+    probe_conditional_counterfactual_formula,
+    probe_counterfactual_formula,
+    probe_identify_formula,
+)
 
 
 # Phase 15 — nonparametric point-identification terminal rules. For these
@@ -1659,23 +1663,40 @@ def verify_counterfactual_conjunction(
     if formula is not None and not is_zero:
         from ..runtime.ctf_identify import CtfEvent
         q = context.query
-        gamma = tuple(
-            CtfEvent(
-                variable=e.variable,
-                subscript=frozenset((s.atom, s.value) for s in e.subscript),
-                value=e.value,
+
+        def _to_gamma(events):
+            return tuple(
+                CtfEvent(
+                    variable=e.variable,
+                    subscript=frozenset((s.atom, s.value) for s in e.subscript),
+                    value=e.value,
+                )
+                for e in events
             )
-            for e in q.events
-        )
+
+        gamma = _to_gamma(q.events)
+        delta = _to_gamma(q.condition)
         domains = context.theta.domains if context.theta is not None else {}
-        probe = probe_counterfactual_formula(
-            context.graph, context.bidirected,
-            gamma=gamma, formula=formula, domains=domains,
-        )
+        # Conditional (IDC*) formulas are a P(γ',δ')/P(δ') ratio — probe them
+        # with the conditional Monte-Carlo backbone (numerator and denominator
+        # share one exogenous draw); unconditional (ID*) formulas use the plain
+        # P(γ) probe.
+        if delta:
+            probe = probe_conditional_counterfactual_formula(
+                context.graph, context.bidirected,
+                gamma=gamma, delta=delta, formula=formula, domains=domains,
+            )
+            quantity = "P(γ|δ)"
+        else:
+            probe = probe_counterfactual_formula(
+                context.graph, context.bidirected,
+                gamma=gamma, formula=formula, domains=domains,
+            )
+            quantity = "P(γ)"
         if probe.status == "mismatch":
             raise VerificationError(
                 "counterfactual formula fails semantic verification: it does "
-                "not compute the true P(γ) in a model consistent with the "
-                f"graph. {probe.detail}",
+                f"not compute the true {quantity} in a model consistent with "
+                f"the graph. {probe.detail}",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )

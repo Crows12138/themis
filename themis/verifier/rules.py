@@ -1205,7 +1205,14 @@ def _rule_id_star_identification(
     inputs: graph, formula
     output: StructuralResult(value=True)
     """
-    from ..runtime.ctf_identify import CtfEvent, FAIL, ZERO, id_star
+    from ..runtime.ctf_identify import (
+        CtfEvent,
+        FAIL,
+        UNDEFINED,
+        ZERO,
+        id_star,
+        idc_star,
+    )
     from ..types import (
         ConstantExpr,
         CounterfactualConjunctionQuery,
@@ -1230,19 +1237,28 @@ def _rule_id_star_identification(
         )
 
     bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
-    gamma = tuple(
-        CtfEvent(
-            variable=e.variable,
-            subscript=frozenset((s.atom, s.value) for s in e.subscript),
-            value=e.value,
+
+    def _to_gamma(events):
+        return tuple(
+            CtfEvent(
+                variable=e.variable,
+                subscript=frozenset((s.atom, s.value) for s in e.subscript),
+                value=e.value,
+            )
+            for e in events
         )
-        for e in q.events
-    )
-    outcome = id_star(graph, bidir, gamma)
-    if outcome is FAIL:
+
+    gamma = _to_gamma(q.events)
+    delta = _to_gamma(q.condition)
+    # Conditional (IDC*) when δ is present; unconditional (ID*) otherwise —
+    # re-run the SAME engine dispatch the scheduler used.
+    outcome = idc_star(graph, bidir, gamma, delta) if delta \
+        else id_star(graph, bidir, gamma)
+    if outcome is FAIL or outcome is UNDEFINED:
         raise RuleCheckFailed(
-            "id_star_identification: the ID* engine reports P(γ) "
-            "NON-identifiable, but the result claims a structural solution",
+            "id_star_identification: the ID*/IDC* engine reports P(γ|δ) "
+            "NON-identifiable or UNDEFINED, but the result claims a "
+            "structural solution",
             step_index=step_index, rule="id_star_identification",
         )
     claimed_formula = inputs.get("formula")

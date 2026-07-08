@@ -15,6 +15,7 @@ from __future__ import annotations
 from ..runtime import formula_builder
 from ..types import (
     ConstantExpr,
+    CounterfactualConjunctionQuery,
     EffectQuery,
     InvestigationAction,
     Priority,
@@ -182,22 +183,41 @@ def _explain_identify_zh(result: QueryResult) -> str:
     return "识别结果未分类。"
 
 
-def _explain_counterfactual_conjunction_zh(result: QueryResult) -> str:
-    """General counterfactual identification (Shpitser-Pearl ID*)."""
+def _explain_counterfactual_conjunction_zh(result: QueryResult, stmt=None) -> str:
+    """General counterfactual identification (Shpitser-Pearl ID*/IDC*)."""
+    conditional = bool(
+        stmt is not None
+        and isinstance(stmt.query, CounterfactualConjunctionQuery)
+        and stmt.query.condition
+    )
+    quantity = "P(γ|δ)" if conditional else "P(γ)"
+    algo = "IDC*" if conditional else "ID*"
     if result.status is ResultStatus.NEEDS_INVESTIGATION:
-        base = (
-            "该反事实合取 P(γ) 在当前结构下不可识别"
-            "（ID* 报出 w-graph / 下标冲突见证，观察数据无法给出估计式）。"
-        )
+        if any(
+            m.name == "query:conditioning_event_probability_zero"
+            for m in result.missing_information
+        ):
+            base = (
+                f"该条件反事实 {quantity} 未定义：条件事件 δ 的概率为 0"
+                "（效力违反或不同世界断言冲突），无法作为条件。"
+            )
+        else:
+            base = (
+                f"该反事实合取 {quantity} 在当前结构下不可识别"
+                f"（{algo} 报出 w-graph / 下标冲突见证，观察数据无法给出估计式）。"
+            )
         gap = _describe_needs_investigation(result)
         return f"{base}{gap}" if gap else base
     sr = result.structural_result
     if sr is not None and sr.value is True:
         if isinstance(result.formula, ConstantExpr) and result.formula.value == 0.0:
-            return "该反事实合取自相矛盾（不同世界的断言冲突），因此 P(γ)=0。"
+            return (
+                f"该反事实合取的分子自相矛盾（不同世界的断言冲突），"
+                f"因此 {quantity}=0。"
+            )
         return (
-            "该反事实合取 P(γ) 可识别："
-            "ID* 已把它约化为观察分布上的估计式。"
+            f"该反事实合取 {quantity} 可识别："
+            f"{algo} 已把它约化为观察分布上的估计式。"
         )
     return "反事实合取查询：结果未分类。"
 
@@ -434,7 +454,7 @@ def explain(
     elif result.query_kind == QueryKind.SCM_COUNTERFACTUAL:
         text = _explain_scm_counterfactual_zh(result)
     elif result.query_kind == QueryKind.COUNTERFACTUAL_CONJUNCTION:
-        text = _explain_counterfactual_conjunction_zh(result)
+        text = _explain_counterfactual_conjunction_zh(result, stmt)
     else:
         raise NotImplementedError(
             f"explainer for {result.query_kind.value} not implemented yet"

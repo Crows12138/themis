@@ -95,7 +95,7 @@ def _query_atoms(q) -> tuple[Atom, ...]:
     if isinstance(q, CounterfactualConjunctionQuery):
         return tuple(
             a
-            for e in q.events
+            for e in (*q.events, *q.condition)
             for a in (e.variable, *(s.atom for s in e.subscript))
         )
     return ()

@@ -384,23 +384,32 @@ class CounterfactualEvent:
 
 @dataclass(frozen=True)
 class CounterfactualConjunctionQuery:
-    """General counterfactual identification (Shpitser-Pearl ID*, R-336 /
+    """General counterfactual identification (Shpitser-Pearl ID*/IDC*, R-336 /
     JMLR 9:1941-1979 2008).
 
-    Asks whether ``P(γ)`` is identifiable for a counterfactual conjunction
+    Asks whether ``P(γ | δ)`` is identifiable for a counterfactual conjunction
 
         γ = y¹_{x¹} ∧ … ∧ yᵏ_{xᵏ}
 
-    spanning multiple, possibly contradictory, hypothetical worlds sharing
-    exogenous background. This is the counterfactual rung of the causal
-    hierarchy — strictly more general than ``CounterfactualQuery`` (a single
-    binary/monotone world pair) and ``CausationQuery`` (PN/PS/PNS): the
-    events range over arbitrary variables in arbitrary worlds. The kernel
-    decides identifiability structurally via ``runtime.ctf_identify.id_star``
-    and returns the estimand as an observational ``FormulaExpr``, ``P(γ)=0``
-    for an inconsistent conjunction, or non-identifiable (a w-graph witness).
+    optionally conditioned on a second counterfactual conjunction ``δ``
+    (the ``condition`` field). Both span multiple, possibly contradictory,
+    hypothetical worlds sharing exogenous background. This is the
+    counterfactual rung of the causal hierarchy — strictly more general than
+    ``CounterfactualQuery`` (a single binary/monotone world pair) and
+    ``CausationQuery`` (PN/PS/PNS): the events range over arbitrary variables
+    in arbitrary worlds.
+
+    With ``condition`` empty the kernel decides identifiability structurally
+    via ``runtime.ctf_identify.id_star`` (the unconditional ID*); with a
+    non-empty ``condition`` it runs ``idc_star`` (IDC*, the conditional
+    identifier — the engine behind attribution / effect-of-treatment-on-the-
+    treated). It returns the estimand as an observational ``FormulaExpr``,
+    ``P(γ|δ)=0`` for an inconsistent numerator, ``UNDEFINED`` when the
+    conditioning event has probability zero, or non-identifiable (a w-graph
+    witness).
     """
     events: tuple[CounterfactualEvent, ...]
+    condition: tuple[CounterfactualEvent, ...] = ()
 
 
 Query = Union[

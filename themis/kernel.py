@@ -313,19 +313,19 @@ def _query_to_dict(q) -> dict:
             "target": _atom_to_dict(q.target),
         }
     if isinstance(q, CounterfactualConjunctionQuery):
-        return {
+        def _event_to_dict(e):
+            return {
+                "variable": _atom_to_dict(e.variable),
+                "subscript": [_valued_atom_to_dict(s) for s in e.subscript],
+                "value": e.value,
+            }
+        out: dict = {
             "kind": "counterfactual_conjunction",
-            "events": [
-                {
-                    "variable": _atom_to_dict(e.variable),
-                    "subscript": [
-                        _valued_atom_to_dict(s) for s in e.subscript
-                    ],
-                    "value": e.value,
-                }
-                for e in q.events
-            ],
+            "events": [_event_to_dict(e) for e in q.events],
         }
+        if q.condition:
+            out["condition"] = [_event_to_dict(e) for e in q.condition]
+        return out
     raise TypeError(f"unknown query: {type(q).__name__}")
 
 

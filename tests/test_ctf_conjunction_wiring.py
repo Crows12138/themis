@@ -245,3 +245,149 @@ def test_verify_rejects_tampered_structural_flag():
         "kind": "constant", "value": 0.0}
     with pytest.raises(VerificationError):
         themis.verify(ast, tampered)
+
+
+# ============================================================ conditional (IDC*)
+# The same query kind carries an optional ``condition`` (δ). A non-empty δ
+# routes the whole stack through idc_star: P(γ|δ) instead of P(γ).
+def _ast_cond(statements, events, condition):
+    return {
+        "version": "0.1",
+        "domain": {"objects": []},
+        "statements": [
+            *statements,
+            {"kind": "query", "id": "q",
+             "query": {"kind": "counterfactual_conjunction",
+                       "events": events, "condition": condition}},
+        ],
+    }
+
+
+def _fig1_conditional_ast():
+    # P(y_x | x', z_d, d) — the JMLR Fig 12 worked example. IDC* moves z,d into
+    # y's subscript (no back-door) but x' is held by the X<->Y latent, so the
+    # answer is the ratio P(y_{x,z}, x') / P(x').
+    return _ast_cond(
+        [_var("x"), _var("w"), _var("y"), _var("z"), _var("d"),
+         _cause("x", "w"), _cause("w", "y"), _cause("z", "y"), _cause("d", "z"),
+         _bidir("x", "y")],
+        events=[_ev("y", [("x", True)], True)],
+        condition=[_ev("x", [], False),
+                   _ev("z", [("d", True)], True),
+                   _ev("d", [], True)],
+    )
+
+
+def _noconfound_conditional_ast():
+    # X->Y, no confounding. Y_x ⊥ X, so the line-4 move fires and the evidence
+    # drops entirely: P(y_x | x') = P(y_x) = P(y|x=T).
+    return _ast_cond([_var("x"), _var("y"), _cause("x", "y")],
+                     events=[_ev("y", [("x", True)], True)],
+                     condition=[_ev("x", [], False)])
+
+
+def _ett_conditional_ast():
+    # X->Y AND X<->Y. P(y_x | x') is the effect of treatment on the treated —
+    # y_x and x' share the latent, a back-door blocks the move, non-identifiable.
+    return _ast_cond([_var("x"), _var("y"), _cause("x", "y"), _bidir("x", "y")],
+                     events=[_ev("y", [("x", True)], True)],
+                     condition=[_ev("x", [], False)])
+
+
+def _undefined_conditional_ast():
+    # δ contains x_{x'} (X forced False, observed True): P(δ)=0 → UNDEFINED.
+    return _ast_cond([_var("x"), _var("y"), _cause("x", "y")],
+                     events=[_ev("y", [("x", True)], True)],
+                     condition=[_ev("x", [("x", False)], True)])
+
+
+def test_schema_accepts_conditional_query():
+    assert isinstance(validate_ast(_fig1_conditional_ast()), dict)
+
+
+def test_validate_program_parses_condition():
+    prog = validate_program(
+        validate_ast(_fig1_conditional_ast()), checks=frozenset())
+    stmt = next(s for s in prog.statements if isinstance(s, QueryStatement))
+    assert isinstance(stmt.query, CounterfactualConjunctionQuery)
+    assert len(stmt.query.events) == 1
+    assert len(stmt.query.condition) == 3
+    assert stmt.query.condition[0].variable.predicate == "x"
+    assert stmt.query.condition[0].value is False
+
+
+def test_conditional_round_trip_preserves_condition():
+    prog = validate_program(
+        validate_ast(_fig1_conditional_ast()), checks=frozenset())
+    emitted = _program_to_ast_dict(prog)
+    q = next(s for s in emitted["statements"] if s["kind"] == "query")["query"]
+    assert q["kind"] == "counterfactual_conjunction"
+    assert len(q["condition"]) == 3
+    prog2 = validate_program(validate_ast(emitted), checks=frozenset())
+    assert prog2 == prog
+
+
+def test_empty_condition_omitted_on_round_trip():
+    # An unconditional query must NOT emit a "condition" key (it stays ID*).
+    prog = validate_program(validate_ast(_fig1_ast()), checks=frozenset())
+    emitted = _program_to_ast_dict(prog)
+    q = next(s for s in emitted["statements"] if s["kind"] == "query")["query"]
+    assert "condition" not in q
+
+
+def test_run_conditional_worked_example_identifiable():
+    out = run(_fig1_conditional_ast())
+    r = out["results"][0]
+    validate_result(r)
+    assert r["status"] == "structurally_solved"
+    # P(y_x | x',z_d,d) = P'/P'(x') — a ratio.
+    assert r["formula"]["kind"] == "fraction"
+
+
+def test_run_conditional_no_confound_drops_out():
+    out = run(_noconfound_conditional_ast())
+    r = out["results"][0]
+    validate_result(r)
+    assert r["status"] == "structurally_solved"
+    assert r["formula"]["kind"] == "probability_ref"
+    assert r["formula"]["given"][0]["value"] is True   # P(y | x=T)
+
+
+def test_run_conditional_confounded_ett_non_identifiable():
+    out = run(_ett_conditional_ast())
+    r = out["results"][0]
+    validate_result(r)
+    assert r["status"] == "needs_investigation"
+    assert any("unidentifiable" in m["name"] for m in r["missing_information"])
+    assert "formula" not in r
+
+
+def test_run_conditional_zero_probability_undefined():
+    out = run(_undefined_conditional_ast())
+    r = out["results"][0]
+    validate_result(r)
+    assert r["status"] == "needs_investigation"
+    assert any(
+        m["name"] == "query:conditioning_event_probability_zero"
+        for m in r["missing_information"]
+    )
+    assert "formula" not in r
+
+
+def test_verify_accepts_conditional_worked_example():
+    ast = _fig1_conditional_ast()
+    r = run(ast)["results"][0]
+    themis.verify(ast, r)  # the conditional MC probe confirms P'/P'(x')
+
+
+def test_verify_rejects_tampered_conditional_formula():
+    """δ present → verify routes through the CONDITIONAL probe. A formula that
+    computes the wrong P(γ|δ) is rejected. The no-confound case collapses to
+    P(y|x=T); flipping it to P(y|x=F) is the wrong interventional number."""
+    ast = _noconfound_conditional_ast()
+    r = run(ast)["results"][0]
+    tampered = copy.deepcopy(r)
+    tampered["formula"]["given"][0]["value"] = False
+    tampered["derivation"]["steps"][-1]["inputs"]["formula"]["given"][0]["value"] = False
+    with pytest.raises(VerificationError):
+        themis.verify(ast, tampered)

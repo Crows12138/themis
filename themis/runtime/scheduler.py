@@ -2299,30 +2299,35 @@ def _dispatch_counterfactual_conjunction(
     graph: nx.DiGraph,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
 ) -> QueryResult:
-    """General counterfactual identification (Shpitser-Pearl ID*, R-336 /
+    """General counterfactual identification (Shpitser-Pearl ID*/IDC*, R-336 /
     JMLR 9:1941-1979 2008).
 
-    Converts the query's events into a ``ctf_identify`` conjunction γ and
-    runs ID*, which decides identifiability structurally and reduces each
-    interventional leaf to observational ``P(v)`` through the existing ID
-    engine. Three outcomes:
+    Converts the query's events into a ``ctf_identify`` conjunction γ (and an
+    optional conditioning conjunction δ = ``query.condition``) and runs ID*
+    (δ empty) or IDC* (δ non-empty), which decide identifiability structurally
+    and reduce each interventional leaf to observational ``P(v)`` through the
+    existing ID engine. Outcomes:
 
     - a ``FormulaExpr`` → identifiable; the estimand over observational
       ``P(v)`` is returned as ``structurally_solved`` (mirrors ``identify``).
-    - ``ZERO`` → the conjunction is inconsistent (an effectiveness violation
-      ``x_{x'}`` or contradictory worlds), so ``P(γ)=0`` — a definite
-      identified answer, returned as the constant ``0``.
+      For the conditional case this is a ``FractionExpr`` ``P(γ',δ')/P(δ')``.
+    - ``ZERO`` → the (numerator) conjunction is inconsistent (an effectiveness
+      violation ``x_{x'}`` or contradictory worlds), so ``P(γ|δ)=0`` — a
+      definite identified answer, returned as the constant ``0``.
     - ``FAIL`` → provably non-identifiable (a w-graph / subscript-conflict
-      witness, e.g. the PNS ``P(y_x, y'_{x'})`` with a direct X→Y edge),
-      surfaced as ``needs_investigation``.
+      witness, e.g. the PNS ``P(y_x, y'_{x'})`` with a direct X→Y edge, or a
+      back-door blocking every IDC* move), surfaced as ``needs_investigation``.
+    - ``UNDEFINED`` (conditional only) → the conditioning event δ has
+      probability 0, so ``P(γ|δ)`` is undefined; surfaced as
+      ``needs_investigation`` with a distinct reason.
     """
-    from .ctf_identify import CtfEvent, FAIL, ZERO, id_star
+    from .ctf_identify import CtfEvent, FAIL, UNDEFINED, ZERO, id_star, idc_star
 
     q: CounterfactualConjunctionQuery = stmt.query  # type: ignore[assignment]
 
     referenced = [
         a
-        for e in q.events
+        for e in (*q.events, *q.condition)
         for a in (e.variable, *(s.atom for s in e.subscript))
     ]
     missing_atoms = [a for a in referenced if a not in graph]
@@ -2345,16 +2350,43 @@ def _dispatch_counterfactual_conjunction(
             ),
         )
 
-    gamma = tuple(
-        CtfEvent(
-            variable=e.variable,
-            subscript=frozenset((s.atom, s.value) for s in e.subscript),
-            value=e.value,
+    def _to_gamma(events):
+        return tuple(
+            CtfEvent(
+                variable=e.variable,
+                subscript=frozenset((s.atom, s.value) for s in e.subscript),
+                value=e.value,
+            )
+            for e in events
         )
-        for e in q.events
-    )
 
-    outcome = id_star(graph, bidirected, gamma)
+    gamma = _to_gamma(q.events)
+    delta = _to_gamma(q.condition)
+
+    if delta:
+        outcome = idc_star(graph, bidirected, gamma, delta)
+    else:
+        outcome = id_star(graph, bidirected, gamma)
+
+    if outcome is UNDEFINED:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.COUNTERFACTUAL_CONJUNCTION,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:conditioning_event_probability_zero",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "P(γ|δ) is undefined: the conditioning conjunction δ "
+                        "has probability 0 in every model consistent with the "
+                        "graph (an effectiveness violation or contradictory "
+                        "worlds), so the conditional does not exist."
+                    ),
+                ),
+            ),
+        )
 
     if outcome is FAIL:
         return QueryResult(
@@ -2367,10 +2399,11 @@ def _dispatch_counterfactual_conjunction(
                     name="query:counterfactual_unidentifiable",
                     priority=Priority.HIGH,
                     reason=(
-                        "P(γ) is not identifiable by the ID* algorithm — a "
-                        "w-graph / subscript-conflict witness (e.g. the PNS "
-                        "P(y_x, y'_{x'}) with a direct X→Y edge). No "
-                        "observational estimand exists."
+                        "P(γ|δ) is not identifiable by the ID*/IDC* algorithm "
+                        "— a w-graph / subscript-conflict witness (e.g. the PNS "
+                        "P(y_x, y'_{x'}) with a direct X→Y edge, or a back-door "
+                        "blocking every conditional move). No observational "
+                        "estimand exists."
                     ),
                 ),
             ),
