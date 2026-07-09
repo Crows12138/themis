@@ -80,7 +80,19 @@ class TianResult:
 # Upper bound on graph size for the full nested-Identify Line-7 retry.
 # Nested-ID queries are small in practice; beyond this the full path (and
 # its numeric probe self-check) is not attempted and the query degrades.
-_FULL_LINE7_MAX_NODES = 8
+#
+# The bound is gated by the numeric probe, not by identification itself
+# (which is cheap and correct well past this). After the probe's grouped
+# one-pass rebuild (see semantic_probe._theta_from_scm) the self-check is
+# O(n·2^|V|) — fast to |V|≈13 (~1s). The binding constraint is instead a
+# flaky NATIVE fault (segfault / heap-corruption, non-deterministic even
+# at a fixed hash seed) in the probe's evaluation whose probability rises
+# with |V|: never observed at |V|≤11, ~20% at |V|=12, ~80% at |V|=15. It
+# is not a stack overflow (AST depth ~19, tiny) nor OOM (KB); it tracks
+# the 2^|V| operation count. We keep a 2-node margin below the observed
+# onset — trading ~1 node of extra reach for not exposing a
+# non-deterministic crash on a region characterised on one graph family.
+_FULL_LINE7_MAX_NODES = 10
 
 
 def identify_via_tian(

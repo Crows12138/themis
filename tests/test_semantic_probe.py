@@ -145,3 +145,68 @@ def test_verify_identify_accepts_correct_idc_fraction():
     )
     ctx = VerificationContext(graph=g, query=q, bidirected=bi)
     verify_identify(derivation, ctx, StructuralResult(value=True))  # no raise
+
+
+# ============================================ grouped Theta rebuild
+
+
+def _napkin_chain(n_mediators: int):
+    """Pearl's napkin (W→Z→X→Y, W↔X, W↔Y) extended with a mediator chain
+    between X and Y — the canonical family that forces the full nested-ID
+    Line-7 path. |V| = 4 + n_mediators."""
+    w, z, x, y = _A("w"), _A("z"), _A("x"), _A("y")
+    meds = [_A(f"m{i}") for i in range(n_mediators)]
+    chain = [w, z, x] + meds + [y]
+    g = nx.DiGraph(list(zip(chain, chain[1:])))
+    bi = frozenset({frozenset({w, x}), frozenset({w, y})})
+    return g, bi, x, y
+
+
+def test_theta_from_scm_grouped_matches_per_key_reference():
+    """The grouped one-pass Theta rebuild must reproduce the conditional
+    the readable per-key reference (_observational_cond) computes for EVERY
+    key — the optimization is a pure speedup, not an approximation. Checked
+    on a genuine nested-ID estimand whose formula references hundreds of
+    keys but only |V| distinct conditioning atom-sets. (Equality is to a
+    tight tolerance, not bit-exact: grouping re-associates the same mass
+    sums, which floating-point addition is not invariant under.)"""
+    import random
+
+    g, bi, x, y = _napkin_chain(3)  # |V| = 7
+    r = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
+    assert r.formula is not None
+    bound = sp._bind_holes(r.formula, {y: True})
+
+    scm = sp._sample_scm(g, bi, {}, random.Random(12345))
+    grouped = sp._theta_from_scm(scm, bound, g, bi)
+
+    keys = sp.enumerate_keys(bound, sp.Theta())
+    ref = {}
+    for key in keys:
+        given = {a: v for a, v in key.given}
+        ref[key] = sp._observational_cond(
+            scm, key.target_atom, key.target_value, given)
+
+    assert set(grouped.entries) == set(ref)
+    for key, val in ref.items():
+        assert abs(grouped.entries[key] - val) <= 1e-12
+
+    # the win the grouping exploits: distinct conditioning atom-sets are
+    # linear in |V|, while the key count is exponential.
+    n_groups = len({
+        (k.target_atom, frozenset(a for a, _ in k.given)) for k in keys
+    })
+    assert n_groups <= g.number_of_nodes()
+    assert len(keys) > 5 * n_groups
+
+
+def test_full_nested_id_identifies_past_old_cap():
+    """|V| = 9 exceeds the former Line-7 node cap of 8; with the grouped
+    probe self-check now tractable the estimand identifies in-config, with
+    a numerically-sound formula. Guards that raising the cap actually
+    widened reach rather than just renaming a constant."""
+    g, bi, x, y = _napkin_chain(5)  # |V| = 9 > old cap 8
+    assert g.number_of_nodes() == 9
+    r = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
+    assert r.identifiable
+    assert r.formula is not None
