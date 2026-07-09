@@ -162,14 +162,13 @@ def _napkin_chain(n_mediators: int):
     return g, bi, x, y
 
 
-def test_theta_from_scm_grouped_matches_per_key_reference():
-    """The grouped one-pass Theta rebuild must reproduce the conditional
-    the readable per-key reference (_observational_cond) computes for EVERY
-    key — the optimization is a pure speedup, not an approximation. Checked
-    on a genuine nested-ID estimand whose formula references hundreds of
-    keys but only |V| distinct conditioning atom-sets. (Equality is to a
-    tight tolerance, not bit-exact: grouping re-associates the same mass
-    sums, which floating-point addition is not invariant under.)"""
+def test_theta_from_scm_matches_enumeration_reference():
+    """`_theta_from_scm` (variable-elimination marginals) must reproduce
+    the conditional the brute-force per-key reference (`_observational_cond`)
+    computes for EVERY key — VE is a pure speedup, not an approximation.
+    Checked on a genuine nested-ID estimand whose formula references
+    hundreds of keys but only |V| distinct conditioning atom-sets.
+    (Tolerance, not bit-exact: VE re-associates the same mass sums.)"""
     import random
 
     g, bi, x, y = _napkin_chain(3)  # |V| = 7
@@ -178,7 +177,7 @@ def test_theta_from_scm_grouped_matches_per_key_reference():
     bound = sp._bind_holes(r.formula, {y: True})
 
     scm = sp._sample_scm(g, bi, {}, random.Random(12345))
-    grouped = sp._theta_from_scm(scm, bound, g, bi)
+    theta = sp._theta_from_scm(scm, bound, g, bi)
 
     keys = sp.enumerate_keys(bound, sp.Theta())
     ref = {}
@@ -187,12 +186,12 @@ def test_theta_from_scm_grouped_matches_per_key_reference():
         ref[key] = sp._observational_cond(
             scm, key.target_atom, key.target_value, given)
 
-    assert set(grouped.entries) == set(ref)
+    assert set(theta.entries) == set(ref)
     for key, val in ref.items():
-        assert abs(grouped.entries[key] - val) <= 1e-12
+        assert abs(theta.entries[key] - val) <= 1e-12
 
-    # the win the grouping exploits: distinct conditioning atom-sets are
-    # linear in |V|, while the key count is exponential.
+    # what VE (and the grouping) exploits: distinct conditioning atom-sets
+    # are linear in |V|, while the key count is exponential.
     n_groups = len({
         (k.target_atom, frozenset(a for a, _ in k.given)) for k in keys
     })
@@ -200,12 +199,41 @@ def test_theta_from_scm_grouped_matches_per_key_reference():
     assert len(keys) > 5 * n_groups
 
 
-def test_full_nested_id_identifies_past_old_cap():
-    """|V| = 9 exceeds the former Line-7 node cap of 8; with the grouped
-    probe self-check now tractable the estimand identifies in-config, with
-    a numerically-sound formula. Guards that raising the cap actually
-    widened reach rather than just renaming a constant."""
-    g, bi, x, y = _napkin_chain(5)  # |V| = 9 > old cap 8
+def test_true_do_ve_matches_enumeration():
+    """The VE ground truth ``_true_do`` must equal the brute-force
+    ``_true_do_enum`` EXACTLY (float tol) — it is the numeric oracle the
+    whole probe rests on, so any drift is a correctness bug. Checked across
+    mediator counts and a second (non-chain) family, unconditional and
+    conditioned, both Y values, several SCMs."""
+    import random
+
+    families = [_napkin_chain(k) for k in (0, 2, 4)]
+    # a non-chain family: Z→X→M→Y with Z→Y and X↔Y
+    z2, m2, x2, y2 = _A("z2"), _A("m2"), _A("x"), _A("y")
+    g2 = nx.DiGraph([(z2, x2), (x2, m2), (m2, y2), (z2, y2)])
+    families.append((g2, frozenset({frozenset({x2, y2})}), x2, y2))
+
+    for g, bi, x, y in families:
+        others = [n for n in g.nodes() if n not in (x, y)]
+        for seed in range(1, 5):
+            scm = sp._sample_scm(g, bi, {}, random.Random(seed))
+            for yv in (True, False):
+                assert abs(sp._true_do_enum(scm, x, True, y, yv, {})
+                           - sp._true_do(scm, x, True, y, yv, {})) < 1e-9
+                if others:
+                    gvar = others[0]
+                    for gv in (True, False):
+                        assert abs(
+                            sp._true_do_enum(scm, x, True, y, yv, {gvar: gv})
+                            - sp._true_do(scm, x, True, y, yv, {gvar: gv})) < 1e-9
+
+
+def test_full_nested_id_identifies_with_ve_probe():
+    """A genuine nested-ID case (|V| = 9, past the original Line-7 cap of
+    8) identifies in-config with a numerically-sound formula, exercising
+    the variable-elimination probe self-check end to end. Its ground truth
+    used to be a ~1s brute-force enumeration; VE makes it milliseconds."""
+    g, bi, x, y = _napkin_chain(5)  # |V| = 9
     assert g.number_of_nodes() == 9
     r = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
     assert r.identifiable

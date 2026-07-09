@@ -78,20 +78,19 @@ class TianResult:
 
 
 # Upper bound on graph size for the full nested-Identify Line-7 retry.
-# Nested-ID queries are small in practice; beyond this the full path (and
-# its numeric probe self-check) is not attempted and the query degrades.
+# Nested-ID queries are small in practice; beyond this the full path is not
+# attempted and the query degrades to the IV escalation.
 #
-# The bound is gated by the numeric probe, not by identification itself
-# (which is cheap and correct well past this). After the probe's grouped
-# one-pass rebuild (see semantic_probe._theta_from_scm) the self-check is
-# O(n·2^|V|) — fast to |V|≈13 (~1s). The binding constraint is instead a
-# flaky NATIVE fault (segfault / heap-corruption, non-deterministic even
-# at a fixed hash seed) in the probe's evaluation whose probability rises
-# with |V|: never observed at |V|≤11, ~20% at |V|=12, ~80% at |V|=15. It
-# is not a stack overflow (AST depth ~19, tiny) nor OOM (KB); it tracks
-# the 2^|V| operation count. We keep a 2-node margin below the observed
-# onset — trading ~1 node of extra reach for not exposing a
-# non-deterministic crash on a region characterised on one graph family.
+# The bound is gated by the numeric probe, not identification (cheap and
+# correct to |V|≈18). The probe has THREE 2^|V|-ish sites: the ground-truth
+# do-quantity, the observational conditionals, and the formula evaluation.
+# Variable elimination (semantic_probe._true_do / _theta_from_scm) fixed
+# the first two — ~2^treewidth, no enumeration, and it roughly halves the
+# measured crash rate (|V|=11: 27%→12%, |V|=12: 33%→7%). But the third,
+# estimate_formula's 2^#sums recursive walk, is UNTOUCHED and still trips
+# the flaky native fault at |V|≳11 (~12% at |V|=11, ~40% at |V|=14). So the
+# cap stays at the pre-VE safe value; raising it needs the formula
+# evaluation VE-ified too (follow-up), not just the ground truth.
 _FULL_LINE7_MAX_NODES = 10
 
 

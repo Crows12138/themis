@@ -204,7 +204,154 @@ def _cell_prob(scm: _SCM, assign: dict, *, fixed: dict | None = None) -> float:
     return p
 
 
+# ============================================ variable elimination
+#
+# The probe's ground-truth quantity (_true_do) and the observational
+# conditionals it needs (_theta_from_scm) are marginals of the sampled
+# SCM's discrete factor graph. Brute-force enumeration over all 2^|V|
+# joint assignments is exponential AND the site of a flaky native fault at
+# |V|≳12 (the per-assignment object churn). Variable elimination computes
+# the IDENTICAL marginals in time exponential only in the graph's
+# TREEWIDTH — milliseconds for the sparse ADMGs nested-ID produces, with
+# no giant enumeration to trip the fault. A factor is
+# (vars: tuple, table: {value-tuple: prob}); VE equals enumeration EXACTLY
+# (pinned by test). The enumeration forms below stay as the oracle.
+
+_VE_MAX_SCOPE = 20  # decline (inconclusive) if any intermediate factor's
+#                     scope exceeds this — bounds VE on high-treewidth graphs.
+
+
+class _VEIntractable(Exception):
+    """Variable elimination would build a factor too large to be worth it
+    (high-treewidth graph). The probe treats this as ``inconclusive`` —
+    the graceful decline the old state-space cap used to give."""
+
+
+def _scm_factors(scm: _SCM, drop: "Atom | None" = None) -> list:
+    """Factors of the SCM joint: one per latent, one per observed node's
+    CPT. ``drop`` omits a node's CPT (do-operator severs its mechanism;
+    the node survives only as a clamped parent of its children)."""
+    factors: list = []
+    for name in scm.latents:
+        factors.append(((name,), {(v,): p for v, p in scm.latent_dist[name].items()}))
+    for node in scm.observed:
+        if node == drop:
+            continue
+        vars_ = scm.parents[node] + (node,)
+        table: dict = {}
+        for pv, dist in scm.cpt[node].items():
+            for v, p in dist.items():
+                table[pv + (v,)] = p
+        factors.append((vars_, table))
+    return factors
+
+
+def _ve_restrict(factor, evidence):
+    """Clamp a factor's evidence variables to their given values, dropping
+    them from the scope."""
+    vars_, table = factor
+    if not any(v in evidence for v in vars_):
+        return factor
+    keep_i = [i for i, v in enumerate(vars_) if v not in evidence]
+    keep_vars = tuple(vars_[i] for i in keep_i)
+    ev_i = [(i, evidence[v]) for i, v in enumerate(vars_) if v in evidence]
+    new: dict = {}
+    for vals, p in table.items():
+        if all(vals[i] == ev for i, ev in ev_i):
+            key = tuple(vals[i] for i in keep_i)
+            new[key] = new.get(key, 0.0) + p
+    return (keep_vars, new)
+
+
+def _ve_multiply(f1, f2):
+    v1, t1 = f1
+    v2, t2 = f2
+    extra = tuple(v for v in v2 if v not in v1)
+    vars_ = v1 + extra
+    if len(vars_) > _VE_MAX_SCOPE:
+        raise _VEIntractable(f"factor scope {len(vars_)} exceeds cap")
+    shared = [v for v in v1 if v in v2]
+    v1_sh = [v1.index(v) for v in shared]
+    v2_sh = [v2.index(v) for v in shared]
+    v2_ex = [v2.index(v) for v in extra]
+    by_shared: dict = {}
+    for vals2, p2 in t2.items():
+        by_shared.setdefault(tuple(vals2[i] for i in v2_sh), []).append((vals2, p2))
+    new: dict = {}
+    for vals1, p1 in t1.items():
+        for vals2, p2 in by_shared.get(tuple(vals1[i] for i in v1_sh), ()):
+            combined = vals1 + tuple(vals2[i] for i in v2_ex)
+            new[combined] = new.get(combined, 0.0) + p1 * p2
+    return (vars_, new)
+
+
+def _ve_sum_out(factor, v):
+    vars_, table = factor
+    i = vars_.index(v)
+    keep_vars = vars_[:i] + vars_[i + 1:]
+    new: dict = {}
+    for vals, p in table.items():
+        key = vals[:i] + vals[i + 1:]
+        new[key] = new.get(key, 0.0) + p
+    return (keep_vars, new)
+
+
+def _ve_degree(factors, v) -> int:
+    neigh: set = set()
+    for vars_, _ in factors:
+        if v in vars_:
+            neigh.update(vars_)
+    return len(neigh)
+
+
+def _ve_eliminate(factors, v):
+    containing = [f for f in factors if v in f[0]]
+    rest = [f for f in factors if v not in f[0]]
+    prod = containing[0]
+    for f in containing[1:]:
+        prod = _ve_multiply(prod, f)
+    return rest + [_ve_sum_out(prod, v)]
+
+
+def _ve_prob(factors, evidence) -> float:
+    """P(evidence) under the factor product, via variable elimination
+    (min-degree order): Σ over non-evidence vars of ∏ factors, evidence
+    clamped."""
+    fs = [_ve_restrict(f, evidence) for f in factors]
+    while True:
+        allv = set().union(*[set(f[0]) for f in fs]) if fs else set()
+        if not allv:
+            break
+        v = min(allv, key=lambda v: _ve_degree(fs, v))
+        fs = _ve_eliminate(fs, v)
+    p = 1.0
+    for _, table in fs:
+        p *= table.get((), 0.0)
+    return p
+
+
+def _ve_marginal(factors, keep):
+    """Joint marginal factor over ``keep`` (every other variable summed
+    out); its table is the distribution P(keep) and sums to 1."""
+    keepset = set(keep)
+    fs = list(factors)
+    while True:
+        elim = (set().union(*[set(f[0]) for f in fs]) if fs else set()) - keepset
+        if not elim:
+            break
+        v = min(elim, key=lambda v: _ve_degree(fs, v))
+        fs = _ve_eliminate(fs, v)
+    prod = ((), {(): 1.0})
+    for f in fs:
+        prod = _ve_multiply(prod, f)
+    return prod
+
+
 # ============================================ true quantities
+#
+# Enumeration forms — the readable definitions and the VE equivalence
+# oracle. Production paths (_true_do, _theta_from_scm) use variable
+# elimination above; their equality to these is pinned by test.
 
 
 def _observational_cond(scm: _SCM, target: Atom, tv, given: dict[Atom, object]) -> float:
@@ -225,8 +372,9 @@ def _observational_cond(scm: _SCM, target: Atom, tv, given: dict[Atom, object]) 
     return num / den if den > 0 else 0.0
 
 
-def _true_do(scm: _SCM, x: Atom, xv, y: Atom, yv, given: dict[Atom, object]) -> float:
-    """True P(Y=yv | do(X=xv), given) by direct structural intervention."""
+def _true_do_enum(scm: _SCM, x: Atom, xv, y: Atom, yv, given: dict[Atom, object]) -> float:
+    """True P(Y=yv | do(X=xv), given) by direct structural intervention,
+    computed by brute-force enumeration. Reference oracle for ``_true_do``."""
     fixed = {x: xv}
     num = 0.0   # P(Y=yv, given | do x)
     den = 0.0   # P(given | do x)
@@ -240,6 +388,21 @@ def _true_do(scm: _SCM, x: Atom, xv, y: Atom, yv, given: dict[Atom, object]) -> 
         if a[y] == yv:
             num += m
     return num / den if den > 0 else 0.0
+
+
+def _true_do(scm: _SCM, x: Atom, xv, y: Atom, yv, given: dict[Atom, object]) -> float:
+    """True P(Y=yv | do(X=xv), given), via variable elimination on the
+    do-mutilated factor graph (X's CPT dropped, X clamped to xv). Equals
+    ``_true_do_enum`` exactly (pinned by test) but costs ~2^treewidth, not
+    2^|V|, and never enumerates — so it neither hangs nor trips the native
+    fault on larger graphs. May raise ``_VEIntractable`` (→ inconclusive)
+    on a high-treewidth graph."""
+    factors = _scm_factors(scm, drop=x)
+    den = _ve_prob(factors, {x: xv, **given})
+    if den <= 0:
+        return 0.0
+    num = _ve_prob(factors, {x: xv, y: yv, **given})
+    return num / den
 
 
 # ============================================ formula evaluation
@@ -284,25 +447,22 @@ def _theta_from_scm(
     """Fill a Theta with exactly the conditionals ``bound_formula``
     references, computed from the SCM's observational distribution.
 
-    The readable form recomputes each key with its own full pass over the
-    2^|V| assignments — O(n_keys · 2^|V|). But for a nested-ID estimand
-    n_keys itself grows like 2^|V|, while the number of DISTINCT
-    conditioning atom-SETS the formula references is only linear in |V|
-    (one per probability factor). So group the keys by (target atom,
-    conditioning atom-set) and accumulate every group's joint contingency
-    table in a SINGLE pass over the assignments — O(n_groups · 2^|V|).
-    Every entry is still the exact observational conditional (a key's
-    value depends only on its target/given atoms and their values, never
-    on the population tag), so this is a pure speedup: measured 60–3000×
-    fewer passes as |V| grows, which is what keeps the full nested-ID
-    probe self-check tractable past the smallest graphs. Its equivalence
-    to :func:`_observational_cond` is pinned by test."""
+    n_keys grows like 2^|V| but the number of DISTINCT conditioning
+    atom-SETS the formula references is only linear in |V| (one per
+    probability factor). Group the keys by (target atom, conditioning
+    atom-set) and answer each group from ONE variable-elimination marginal
+    P(target, given-atoms) — cost ~2^treewidth per group, never a 2^|V|
+    enumeration. Every entry is the exact observational conditional (a
+    key's value depends only on its target/given atoms and their values,
+    not the population tag). Equality to :func:`_observational_cond` is
+    pinned by test; may raise ``_VEIntractable`` (→ inconclusive) on a
+    high-treewidth graph."""
     th = Theta()
     keys = enumerate_keys(bound_formula, th)
 
     # Group keys by (target atom, conditioning atom-SET). Keys in a group
     # differ only by the conditioning VALUES (and possibly population),
-    # all answered from one shared contingency table.
+    # all answered from one shared marginal.
     members: dict = {}
     atom_order: dict = {}
     for key in keys:
@@ -312,29 +472,22 @@ def _theta_from_scm(
             atom_order[gid] = tuple(sorted(gid[1], key=_atom_sort_key))
         members[gid].append(key)
 
-    # One enumeration over all assignments: bucket each assignment's mass
-    # into every group's table, indexed by that group's conditioning
-    # values, then by the target value.
-    tables: dict = {gid: {} for gid in members}
-    for assign in _full_assignments(scm):
-        m = _cell_prob(scm, assign)
-        if m == 0.0:
-            continue
-        for gid, atoms in atom_order.items():
-            gvals = tuple(assign[a] for a in atoms)
-            cell = tables[gid].setdefault(gvals, {})
-            tv = assign[gid[0]]
-            cell[tv] = cell.get(tv, 0.0) + m
-
-    # Read each key's conditional off its group's table: P(target=tv|gvals)
-    # = mass(target=tv, gvals) / mass(gvals).
+    factors = _scm_factors(scm)
     for gid, klist in members.items():
-        table = tables[gid]
+        target_atom = gid[0]
         atoms = atom_order[gid]
+        m_vars, m_table = _ve_marginal(factors, (target_atom,) + atoms)
+        ti = m_vars.index(target_atom)
+        gi = [m_vars.index(a) for a in atoms]
+        # cond[given-values][target-value] = P(target, given) mass
+        cond: dict = {}
+        for row, p in m_table.items():
+            slot = cond.setdefault(tuple(row[j] for j in gi), {})
+            tvv = row[ti]
+            slot[tvv] = slot.get(tvv, 0.0) + p
         for key in klist:
             gmap = dict(key.given)
-            gvals = tuple(gmap[a] for a in atoms)
-            cell = table.get(gvals)
+            cell = cond.get(tuple(gmap[a] for a in atoms))
             if not cell:
                 th.entries[key] = 0.0
                 continue
@@ -383,8 +536,6 @@ def probe_identify_formula(
     for i in range(k):
         rng = random.Random(seed + i)
         scm = _sample_scm(graph, bidirected, domains, rng)
-        if _state_space_size(scm) > _MAX_STATES:
-            return ProbeResult("inconclusive", "state space exceeds probe cap")
 
         y_dom = _domain_of(y, domains)
         given_doms = [_domain_of(g, domains) for g in given]
@@ -398,12 +549,17 @@ def probe_identify_formula(
                 try:
                     theta = _theta_from_scm(scm, bound, graph, bidirected)
                     got = estimate_formula(bound, theta, graph=graph, bidirected=bidirected)
+                    true = _true_do(scm, x, x_value, y, yv, given_map)
+                except _VEIntractable:
+                    return ProbeResult(
+                        "inconclusive",
+                        "variable elimination exceeded the probe cap (high treewidth)",
+                    )
                 except Exception as exc:  # noqa: BLE001 — probe is best-effort
                     return ProbeResult(
                         "inconclusive",
                         f"formula could not be evaluated against the probe SCM: {exc}",
                     )
-                true = _true_do(scm, x, x_value, y, yv, given_map)
                 if abs(got - true) > 1e-7:
                     binding_str = ", ".join(
                         [f"{y.predicate}={yv}"]
