@@ -34,6 +34,7 @@ from themis.runtime.ctf_identify import CtfEvent
 from themis.types import Atom
 from themis.verifier import VerificationError
 from themis.verifier.semantic_probe import _sample_scm
+from tests.ctf_mc_oracle import conditional_prob
 
 
 def A(name: str) -> Atom:
@@ -75,59 +76,9 @@ def _sample_observational_data(scm, graph, n: int, rng: random.Random) -> pd.Dat
     return pd.DataFrame(rows)
 
 
-def _conditional_true_mc(scm, graph, gamma, delta, n_draws: int, rng: random.Random):
-    """True P(γ|δ) = P(γ∧δ)/P(δ) by counterfactual Monte-Carlo, numerator and
-    denominator sharing one exogenous draw. Returns ``(estimate, den)``.
-
-    Each intervention world is evaluated ITERATIVELY in topological order (no
-    recursion, no per-draw closures): the hot MC path runs 10^5 times, and a
-    recursive graph walk there overflows the small Windows native stack under
-    pytest — the documented segfault. ``response`` is the cross-world response
-    cache that keeps the shared exogenous draw consistent across worlds."""
-    topo = list(nx.topological_sort(graph))
-    events = (*delta, *gamma)
-    num = 0
-    den = 0
-    for _ in range(n_draws):
-        latents = {n: _draw(scm.latent_dist[n], rng) for n in scm.latents}
-        response: dict = {}
-        world_vals: dict = {}
-        for ev in events:
-            world = ev.subscript
-            if world in world_vals:
-                continue
-            fixed = dict(world)
-            vals: dict = {}
-            for node in topo:
-                if node in fixed:
-                    vals[node] = fixed[node]
-                    continue
-                combo = tuple(
-                    latents[p] if isinstance(p, str) else vals[p]
-                    for p in scm.parents[node]
-                )
-                rk = (node, combo)
-                if rk not in response:
-                    response[rk] = _draw(scm.cpt[node][combo], rng)
-                vals[node] = response[rk]
-            world_vals[world] = vals
-
-        delta_ok = True
-        for e in delta:
-            if world_vals[e.subscript][e.variable] != e.value:
-                delta_ok = False
-                break
-        if not delta_ok:
-            continue
-        den += 1
-        gamma_ok = True
-        for e in gamma:
-            if world_vals[e.subscript][e.variable] != e.value:
-                gamma_ok = False
-                break
-        if gamma_ok:
-            num += 1
-    return (num / den if den else 0.0), den
+# The counterfactual P(γ|δ) MC oracle lives in tests.ctf_mc_oracle (a
+# vectorized, identification-independent second implementation, pinned to exact
+# enumeration by tests/test_counterfactual_mc_vectorized.py).
 
 
 def _fig1_graph():
@@ -192,7 +143,7 @@ def test_estimate_fig1_conditional_matches_mc_oracle():
         CtfEvent(Z, frozenset({(D, True)}), True),
         CtfEvent(D, frozenset(), True),
     )
-    true, den = _conditional_true_mc(scm, g, gamma, delta, 150000, random.Random(9))
+    true, den = conditional_prob(scm, g, gamma, delta, 150000, 9)
     assert den > 3000, f"conditioning event too rare in the SCM ({den})"
     est = estimate_ctf_conjunction_prob(
         df, graph=g, bidirected=bi, gamma=gamma, delta=delta, ci_bootstrap=0)

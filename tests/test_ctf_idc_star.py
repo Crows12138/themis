@@ -3,11 +3,12 @@ counterfactual identification ``P(γ | δ)``.
 
 Validation is D1 two-pronged, mirroring ``test_ctf_id_star``:
 
-1. An INDEPENDENT conditional Monte-Carlo oracle (a second implementation,
-   NOT the product's ``semantic_probe``): it draws the shared exogenous
-   background once per replicate, evaluates every world's submodel against
-   it, and counts P(γ∧δ)/P(δ) with numerator and denominator sharing the
-   same background — the definition of a conditional over parallel worlds.
+1. An INDEPENDENT conditional Monte-Carlo oracle (``tests.ctf_mc_oracle``, a
+   second implementation, NOT the product's ``semantic_probe``): it draws the
+   shared exogenous background once per replicate, evaluates every world's
+   submodel against it, and counts P(γ∧δ)/P(δ) with numerator and denominator
+   sharing the same background — the definition of a conditional over parallel
+   worlds.
 
 2. The published worked example (JMLR §Fig 12 text): the query
    ``P(y_x | x', z_d, d)`` on ``X→W→Y ← Z ← D`` with ``X↔Y`` is identifiable
@@ -39,6 +40,7 @@ from themis.runtime.ctf_identify import (
 )
 from themis.verifier.semantic_probe import _sample_scm, _theta_from_scm
 from themis.runtime.numeric_estimator import estimate_formula
+from tests.ctf_mc_oracle import conditional_prob
 
 
 def A(name: str) -> Atom:
@@ -48,54 +50,9 @@ def A(name: str) -> Atom:
 X, W, Y, Z, D = A("x"), A("w"), A("y"), A("z"), A("d")
 
 
-# ============================================================ MC oracle (independent)
-def _draw(dist: dict, rng: random.Random):
-    r = rng.random()
-    cum = 0.0
-    last = None
-    for v, p in dist.items():
-        last = v
-        cum += p
-        if r < cum:
-            return v
-    return last
-
-
-def _conditional_prob(scm, gamma, delta, n_draws: int, rng: random.Random):
-    """True ``P(γ|δ) = P(γ∧δ)/P(δ)`` by counterfactual Monte-Carlo, numerator
-    and denominator sharing one exogenous draw. Returns ``(estimate, den)``."""
-    num = 0
-    den = 0
-    for _ in range(n_draws):
-        latents = {n: _draw(scm.latent_dist[n], rng) for n in scm.latents}
-        world_cache: dict = {}
-        response: dict = {}
-
-        def value_in(node, world):
-            ck = (node, world)
-            if ck in world_cache:
-                return world_cache[ck]
-            wd = dict(world)
-            if node in wd:
-                world_cache[ck] = wd[node]
-                return wd[node]
-            combo = tuple(
-                latents[p] if isinstance(p, str) else value_in(p, world)
-                for p in scm.parents[node]
-            )
-            rk = (node, combo)
-            if rk not in response:
-                response[rk] = _draw(scm.cpt[node][combo], rng)
-            world_cache[ck] = response[rk]
-            return response[rk]
-
-        if all(value_in(e.variable, e.subscript) == e.value for e in delta):
-            den += 1
-            if all(value_in(e.variable, e.subscript) == e.value for e in gamma):
-                num += 1
-    return (num / den if den else 0.0), den
-
-
+# The conditional MC oracle lives in tests.ctf_mc_oracle (a vectorized,
+# identification-independent second implementation, pinned to exact enumeration
+# by tests/test_counterfactual_mc_vectorized.py).
 def _assert_matches_mc(graph, bidirected, gamma, delta,
                        *, n_draws=120000, tol=0.03, k=2):
     formula = idc_star(graph, bidirected, gamma, delta)
@@ -105,8 +62,7 @@ def _assert_matches_mc(graph, bidirected, gamma, delta,
         scm = _sample_scm(graph, bidirected, {}, rng)
         theta = _theta_from_scm(scm, formula, graph, bidirected)
         got = estimate_formula(formula, theta, graph=graph, bidirected=bidirected)
-        mc_rng = random.Random(60 + i)
-        true, den = _conditional_prob(scm, gamma, delta, n_draws, mc_rng)
+        true, den = conditional_prob(scm, graph, gamma, delta, n_draws, 60 + i)
         assert den > 1500, f"SCM #{i}: conditioning event too rare ({den})"
         assert abs(got - true) < tol, (
             f"SCM #{i}: formula={got:.4f} vs conditional MC={true:.4f}")

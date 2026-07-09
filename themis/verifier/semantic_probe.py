@@ -37,6 +37,7 @@ import random
 from dataclasses import dataclass
 
 import networkx as nx
+import numpy as np
 
 from ..types import (
     Atom,
@@ -112,19 +113,6 @@ def _rand_dist(domain, rng: random.Random) -> dict:
     raw = [rng.random() + 1e-6 for _ in domain]
     s = sum(raw)
     return {v: r / s for v, r in zip(domain, raw)}
-
-
-def _draw(dist: dict, rng: random.Random):
-    """Sample one value from a ``{value: prob}`` categorical."""
-    r = rng.random()
-    cum = 0.0
-    last = None
-    for v, p in dist.items():
-        last = v
-        cum += p
-        if r < cum:
-            return v
-    return last
 
 
 def _sample_scm(
@@ -551,79 +539,143 @@ def probe_identify_formula(
 # ============================================ counterfactual (ID*) backbone
 
 
-def _parent_combo(parents, latents, world_val, world) -> tuple:
-    """Ordered parent-value tuple for a CPT lookup — an EXPLICIT loop, no
-    generator expression. The MC evaluator runs a genexpr here millions of
-    times deep under the verifier callstack; on a small native stack that
-    surfaced as heap corruption ("generator already executing" / segfault).
-    A plain loop has no reusable generator frame to corrupt."""
-    combo = []
-    for p in parents:
-        if isinstance(p, str):
-            combo.append(latents[p])
-        else:
-            combo.append(world_val[(world, p)])
-    return tuple(combo)
+# ---------------------------------------- vectorized counterfactual MC
+#
+# The true P(γ) / P(γ|δ) of a counterfactual conjunction is estimated by
+# Monte-Carlo: unlike the formula-evaluation path there is NO exact factor
+# reduction to fall back on — the exact counterfactual is a sum over a per-node
+# RESPONSE FUNCTION whose state space is ∏ exponential (Fig-1 alone is ~2^19),
+# so the truth stays Monte-Carlo. The earlier per-draw Python loop churned
+# millions of small dict/tuple objects at 50k-120k replicates, and under a deep
+# native callstack that was a flaky Windows heap-corruption / access-violation
+# site (an innocent dict assignment raising a nonsense "tuple has no context
+# manager" TypeError, or an outright segfault). This vectorized form removes
+# the churn — draw all ``n`` replicates AT ONCE as integer arrays and propagate
+# each world with a handful of numpy ops. Standard twin-network semantics: one
+# exogenous background shared across worlds; a node's per-parent-combo response
+# shared across worlds, independent across combos. Its equality to an EXACT
+# enumeration of the whole exogenous space (the readable ground truth) is
+# pinned by tests/test_counterfactual_mc_vectorized.py.
+
+# A pathologically high-in-degree node would pre-draw a huge response table;
+# decline (→ probe inconclusive) rather than allocate unboundedly.
+_MC_MAX_COMBOS = 1 << 16
 
 
-def _events_hold(events, world_val) -> bool:
-    """True iff every counterfactual event attains its value in the sampled
-    replicate. Explicit loop (no ``all(genexpr)``) for the same native-stack
-    robustness reason as :func:`_parent_combo`."""
-    for e in events:
-        if world_val[(e.subscript, e.variable)] != e.value:
-            return False
-    return True
+def _sample_categorical(pvec: np.ndarray, n: int, rng) -> np.ndarray:
+    """``n`` i.i.d. draws from a categorical given as probability vector
+    ``pvec`` (ordered by value index); returns an int8 array of value indices,
+    by inverse-CDF via ``searchsorted``."""
+    cum = np.cumsum(pvec)
+    cum[-1] = 1.0                      # guard against fp drift below 1.0
+    u = rng.random(n)
+    return np.searchsorted(cum, u, side="right").astype(np.int8)
+
+
+def _mc_world_values(scm: _SCM, worlds, topo, n: int, rng):
+    """Sample ``n`` replicates of every ``(world, node)`` value as an int8
+    array of value indices, by a fully vectorized forward pass.
+
+    Shares one exogenous background across worlds (latents drawn once per
+    replicate) and shares each node's per-parent-combo response across worlds
+    while keeping different combos independent — the standard counterfactual
+    twin-network semantics, with no per-draw allocation. Returns
+    ``(world_values, value_to_index)`` where ``world_values[world][atom]`` is
+    the length-``n`` index array and ``value_to_index[atom]`` maps a domain
+    value to its index."""
+    lat_dom = scm.latent_domain
+
+    # exogenous background: one index array per latent, shared across worlds.
+    U: dict = {}
+    for name in scm.latents:
+        pvec = np.array([scm.latent_dist[name][v] for v in lat_dom], dtype=np.float64)
+        U[name] = _sample_categorical(pvec, n, rng)
+
+    arange_n = np.arange(n)
+    v2i: dict = {}
+    radix: dict = {}          # node -> per-parent mixed-radix multiplier
+    resp: dict = {}           # node -> (n_combos, n) int8 response table
+
+    for node in topo:
+        node_dom = scm.domains.get(node, _DEFAULT_DOMAIN)
+        v2i[node] = {v: i for i, v in enumerate(node_dom)}
+        pars = scm.parents[node]
+        par_doms = [
+            lat_dom if isinstance(p, str) else scm.domains.get(p, _DEFAULT_DOMAIN)
+            for p in pars
+        ]
+        sizes = [len(d) for d in par_doms]
+        # mixed-radix multipliers matching itertools.product order (first
+        # parent most significant) — the order _sample_scm built cpt keys in.
+        mult = [1] * len(sizes)
+        acc = 1
+        for k in range(len(sizes) - 1, -1, -1):
+            mult[k] = acc
+            acc *= sizes[k]
+        radix[node] = mult
+        n_combos = acc
+        if n_combos > _MC_MAX_COMBOS:
+            raise ValueError(
+                f"node {node.predicate} has {n_combos} parent combinations — "
+                "beyond the vectorized MC response-table cap"
+            )
+        stack = np.empty((n_combos, n), dtype=np.int8)
+        combos = itertools.product(*par_doms) if par_doms else [()]
+        for ci, combo in enumerate(combos):
+            dist = scm.cpt[node][combo]
+            pvec = np.array([dist[v] for v in node_dom], dtype=np.float64)
+            stack[ci] = _sample_categorical(pvec, n, rng)
+        resp[node] = stack
+
+    world_values: dict = {}
+    for world in worlds:
+        wd = dict(world)
+        vals: dict = {}
+        for node in topo:
+            if node in wd:                          # intervened in this world
+                vals[node] = np.full(n, v2i[node][wd[node]], dtype=np.int8)
+                continue
+            pars = scm.parents[node]
+            combo_idx = np.zeros(n, dtype=np.int64)
+            for k, p in enumerate(pars):
+                pidx = U[p] if isinstance(p, str) else vals[p]
+                combo_idx += pidx.astype(np.int64) * radix[node][k]
+            vals[node] = resp[node][combo_idx, arange_n]
+        world_values[world] = vals
+    return world_values, v2i
 
 
 def _counterfactual_true_mc(
-    scm: _SCM, gamma, topo, n_draws: int, rng: random.Random,
+    scm: _SCM, gamma, topo, n_draws: int, rng,
 ) -> float:
-    """True ``P(γ)`` for a counterfactual conjunction, by Monte-Carlo over
-    the shared exogenous background.
-
-    Draws the exogenous background (the bidirected latents) ONCE per
-    replicate; every hypothetical world's submodel is evaluated against
-    that SAME background, and a node's response to a given parent
-    configuration is cached across worlds — the definition of a
-    counterfactual (Balke-Pearl / Pearl's twin-network semantics). It never
-    calls the identification code, so it cannot share a bug with the ID*
-    formula it checks.
-
-    Evaluation is a single forward pass in topological order (``topo``:
-    observed atoms, parents before children) per world — deliberately
-    NON-recursive: a recursive evaluator overflows the C stack when the
-    probe runs deep under the verifier (``verify → _walk → dispatch → probe
-    → …``) on platforms with a small native stack.
-
-    ``gamma`` is a tuple of objects with ``.variable`` (Atom),
-    ``.subscript`` (frozenset of ``(Atom, value)`` interventions = the
-    world) and ``.value``.
-    """
+    """Vectorized true ``P(γ)`` for a counterfactual conjunction ``gamma``.
+    ``rng`` is a numpy ``Generator``. ``gamma`` is a tuple of objects with
+    ``.variable`` (Atom), ``.subscript`` (frozenset of ``(Atom, value)``
+    interventions = the world) and ``.value``."""
     worlds = {e.subscript for e in gamma}
-    count = 0
-    for _ in range(n_draws):
-        latents = {}
-        for n in scm.latents:
-            latents[n] = _draw(scm.latent_dist[n], rng)
-        response: dict = {}      # (node, parent-combo) -> value (shared across worlds)
-        world_val: dict = {}     # (world, node) -> value
+    wv, v2i = _mc_world_values(scm, worlds, topo, n_draws, rng)
+    mask = np.ones(n_draws, dtype=bool)
+    for e in gamma:
+        mask &= wv[e.subscript][e.variable] == v2i[e.variable][e.value]
+    return float(np.count_nonzero(mask)) / n_draws
 
-        for world in worlds:
-            wd = dict(world)
-            for node in topo:
-                if node in wd:                   # intervened in this world
-                    world_val[(world, node)] = wd[node]
-                    continue
-                combo = _parent_combo(scm.parents[node], latents, world_val, world)
-                rk = (node, combo)
-                if rk not in response:
-                    response[rk] = _draw(scm.cpt[node][combo], rng)
-                world_val[(world, node)] = response[rk]
 
-        if _events_hold(gamma, world_val):
-            count += 1
-    return count / n_draws
+def _conditional_true_mc(
+    scm: _SCM, gamma, delta, topo, n_draws: int, rng,
+) -> tuple[float, int]:
+    """Vectorized true ``P(γ | δ) = P(γ∧δ)/P(δ)``. Numerator and denominator
+    share one background draw (parallel worlds), so the ratio is a genuine
+    counterfactual conditional. Returns ``(estimate, denominator_count)``."""
+    worlds = {e.subscript for e in (*gamma, *delta)}
+    wv, v2i = _mc_world_values(scm, worlds, topo, n_draws, rng)
+    dmask = np.ones(n_draws, dtype=bool)
+    for e in delta:
+        dmask &= wv[e.subscript][e.variable] == v2i[e.variable][e.value]
+    nmask = dmask.copy()
+    for e in gamma:
+        nmask &= wv[e.subscript][e.variable] == v2i[e.variable][e.value]
+    den = int(np.count_nonzero(dmask))
+    return (float(np.count_nonzero(nmask)) / den if den else 0.0), den
 
 
 def probe_counterfactual_formula(
@@ -679,8 +731,14 @@ def probe_counterfactual_formula(
                 "inconclusive",
                 f"formula could not be evaluated against the probe SCM: {exc}",
             )
-        mc_rng = random.Random(seed + 7919 + i)
-        true = _counterfactual_true_mc(scm, gamma, topo, n_draws, mc_rng)
+        mc_rng = np.random.default_rng(seed + 7919 + i)
+        try:
+            true = _counterfactual_true_mc(scm, gamma, topo, n_draws, mc_rng)
+        except Exception as exc:  # noqa: BLE001 — probe is best-effort
+            return ProbeResult(
+                "inconclusive",
+                f"counterfactual Monte-Carlo could not run: {exc}",
+            )
         if abs(got - true) > tol:
             return ProbeResult(
                 "mismatch",
@@ -692,46 +750,6 @@ def probe_counterfactual_formula(
 
 
 # ============================================ conditional (IDC*) backbone
-
-
-def _conditional_true_mc(
-    scm: _SCM, gamma, delta, topo, n_draws: int, rng: random.Random,
-) -> tuple[float, int]:
-    """True ``P(γ | δ) = P(γ ∧ δ) / P(δ)`` by counterfactual Monte-Carlo.
-
-    Numerator and denominator SHARE the exogenous background draw (the same
-    replicate contributes to both), which is what makes it a genuine
-    conditional over parallel worlds rather than a product of two
-    independent estimates. Returns ``(estimate, denominator_count)`` — the
-    caller treats a tiny denominator (a rare conditioning event) as
-    inconclusive rather than trusting a high-variance ratio.
-    """
-    worlds = {e.subscript for e in (*gamma, *delta)}
-    num = 0
-    den = 0
-    for _ in range(n_draws):
-        latents = {}
-        for n in scm.latents:
-            latents[n] = _draw(scm.latent_dist[n], rng)
-        response: dict = {}
-        world_val: dict = {}
-        for world in worlds:
-            wd = dict(world)
-            for node in topo:
-                if node in wd:
-                    world_val[(world, node)] = wd[node]
-                    continue
-                combo = _parent_combo(scm.parents[node], latents, world_val, world)
-                rk = (node, combo)
-                if rk not in response:
-                    response[rk] = _draw(scm.cpt[node][combo], rng)
-                world_val[(world, node)] = response[rk]
-
-        if _events_hold(delta, world_val):
-            den += 1
-            if _events_hold(gamma, world_val):
-                num += 1
-    return (num / den if den else 0.0), den
 
 
 def probe_conditional_counterfactual_formula(
@@ -782,8 +800,14 @@ def probe_conditional_counterfactual_formula(
                 "inconclusive",
                 f"formula could not be evaluated against the probe SCM: {exc}",
             )
-        mc_rng = random.Random(seed + 7919 + i)
-        true, den = _conditional_true_mc(scm, gamma, delta, topo, n_draws, mc_rng)
+        mc_rng = np.random.default_rng(seed + 7919 + i)
+        try:
+            true, den = _conditional_true_mc(scm, gamma, delta, topo, n_draws, mc_rng)
+        except Exception as exc:  # noqa: BLE001 — probe is best-effort
+            return ProbeResult(
+                "inconclusive",
+                f"counterfactual Monte-Carlo could not run: {exc}",
+            )
         if den < min_den:
             return ProbeResult(
                 "inconclusive",
