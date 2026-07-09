@@ -81,17 +81,25 @@ class TianResult:
 # Nested-ID queries are small in practice; beyond this the full path is not
 # attempted and the query degrades to the IV escalation.
 #
-# The bound is gated by the numeric probe, not identification (cheap and
-# correct to |V|≈18). The probe has THREE 2^|V|-ish sites: the ground-truth
-# do-quantity, the observational conditionals, and the formula evaluation.
-# Variable elimination (semantic_probe._true_do / _theta_from_scm) fixed
-# the first two — ~2^treewidth, no enumeration, and it roughly halves the
-# measured crash rate (|V|=11: 27%→12%, |V|=12: 33%→7%). But the third,
-# estimate_formula's 2^#sums recursive walk, is UNTOUCHED and still trips
-# the flaky native fault at |V|≳11 (~12% at |V|=11, ~40% at |V|=14). So the
-# cap stays at the pre-VE safe value; raising it needs the formula
-# evaluation VE-ified too (follow-up), not just the ground truth.
-_FULL_LINE7_MAX_NODES = 10
+# The bound is gated by the exponential 2^|V| sites that used to trip a flaky
+# native fault, not by identification (`_id` is cheap and fast — |V|=18 in
+# ~150ms). Those sites are now ALL evaluated by VARIABLE ELIMINATION
+# (~2^treewidth, no giant enumeration):
+#   - the probe's ground-truth do-quantity + observational conditionals
+#     (semantic_probe._true_do / _theta_from_scm),
+#   - the probe's referenced-key collection (runtime.referenced_keys — the old
+#     enumerate_keys materialised 2^#sums keys, millions past |V|≈18),
+#   - the formula evaluation itself (runtime.ve_estimate_formula), shared by
+#     the probe self-check AND the general-ID plug-in numeric end (bootstrap
+#     re-evaluates it hundreds of times).
+# Measured after VE: the probe self-check is crash-free over 64 runs across
+# |V|=11-20 (was ~33% at |V|=15-16 with the recursive walk) and clean to
+# |V|=24; a 200x production bootstrap is crash-free at |V|=12-16. The cap rises
+# from the old pre-VE safe value (10) to 14 — comfortable margin over realistic
+# nested-ID, well inside the validated crash-free zone. A denser (high-
+# treewidth) estimand within the cap declines gracefully (probe → inconclusive;
+# numeric end → EstimatorFailure), never a crash.
+_FULL_LINE7_MAX_NODES = 14
 
 
 def identify_via_tian(

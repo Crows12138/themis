@@ -79,8 +79,9 @@ from ..types import (
 from ..runtime.numeric_estimator import (
     ProbabilityKey,
     Theta,
-    enumerate_keys,
-    estimate_formula,
+    VEIntractable,
+    referenced_keys,
+    ve_estimate_formula,
 )
 from .contract import validate_data
 from .dose_response import EstimatorFailure
@@ -419,10 +420,13 @@ def _build_data_theta(
     formula: FormulaExpr, df: pd.DataFrame, domains: dict[Atom, tuple]
 ) -> Theta:
     """A Theta whose entries are the empirical conditionals the formula
-    needs. Every key ``enumerate_keys`` would look up is pre-filled from
-    data, so ``estimate_formula``'s sparse-theta fallbacks never fire."""
+    needs. Every key the evaluator looks up is pre-filled from data, so
+    ``ve_estimate_formula``'s complete-theta contract holds (no fallbacks).
+    Uses ``referenced_keys`` (a linear per-factor walk) rather than
+    ``enumerate_keys`` (which materialises the 2^#sums key list — exponential
+    and a native-fault site) so a large nested-ID estimand is affordable."""
     theta = Theta(domains=dict(domains))
-    for key in set(enumerate_keys(formula, theta)):
+    for key in referenced_keys(formula, domains):
         theta.entries[key] = _empirical_conditional(df, key)
     return theta
 
@@ -431,7 +435,23 @@ def _prob_do(
     formula: FormulaExpr, df: pd.DataFrame, domains: dict[Atom, tuple]
 ) -> float:
     theta = _build_data_theta(formula, df, domains)
-    return estimate_formula(formula, theta)
+    # Variable elimination, not the recursive estimate_formula: a nested-ID
+    # estimand has |V|-1 nested sums, and bootstrap re-evaluates hundreds of
+    # times — the recursive 2^#sums walk is exponential and trips the flaky
+    # native fault past |V|≈14. The theta is complete, so VE equals it exactly.
+    try:
+        return ve_estimate_formula(formula, theta)
+    except VEIntractable as exc:
+        # A pathological high-treewidth estimand — VE would build an
+        # intractable intermediate factor. Degrade gracefully (like a
+        # positivity failure) rather than leak the internal VE exception;
+        # realistic nested-ID estimands are sparse and never reach this.
+        raise EstimatorFailure(
+            "intractable_estimand",
+            "the identified estimand has too high a treewidth to evaluate by "
+            f"variable elimination ({exc}); it is beyond the numeric plug-in's "
+            "reach on this ADMG.",
+        ) from exc
 
 
 def _point_ate(

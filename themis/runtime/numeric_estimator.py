@@ -34,6 +34,7 @@ does and does not cover in v0.1.
 """
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -985,3 +986,212 @@ def _try_derive_via_marginalization(
             outer_values[v] * inner_values[v] for v in domain
         )
     return None
+
+
+# ================================================= variable-elimination eval
+#
+# ``estimate_formula`` walks the estimand recursively, binding a FRESH subs
+# dict for every value of every enclosing Σ: for a nested-ID / general-ID
+# estimand #sums = |V|-1, so it does 2^#sums leaf evaluations and churns
+# 2^#sums transient dicts. Past |V|≈14 that recursion is BOTH exponential and
+# a flaky native-fault site (segfault / heap corruption under a deep callstack,
+# measured even for a single call). For the paths that evaluate such large
+# estimands on a COMPLETE theta — the identification probe's self-check and the
+# general-ID plug-in numeric end (bootstrap re-evaluates hundreds of times) —
+# ``ve_estimate_formula`` computes the SAME value by VARIABLE ELIMINATION on
+# the estimand's own factor graph:
+#   - each probability factor is a small table over the enclosing Σ-variables
+#     it mentions (value = the theta conditional for that binding);
+#   - a Π concatenates factor lists (no eager multiply);
+#   - a Σ eliminates its bound variable — multiply ONLY the factors that
+#     mention it, sum it out — cost ~2^treewidth, not 2^|V|;
+#   - a fraction is an elimination barrier (numerator / denominator each
+#     reduced to one factor, then divided pointwise).
+# No deep recursion over domains, no 2^|V| churn — so no fault. It equals
+# ``estimate_formula`` EXACTLY when theta is complete (pinned by test); it does
+# NOT run the sparse-theta derivation fallbacks, so it is for complete-theta
+# callers only (both current callers pre-fill every referenced key). A factor
+# is ``(vars: tuple[str], table: {value-tuple: p})`` — vars being the VarRef
+# NAMES bound by enclosing sums.
+
+VE_MAX_SCOPE = 20  # decline (VEIntractable) if any intermediate factor's scope
+#                    exceeds this — bounds VE on high-treewidth estimands.
+
+
+class VEIntractable(Exception):
+    """Variable elimination would build a factor too large to be worth it
+    (high-treewidth estimand). Callers treat this as a graceful decline —
+    the probe reports ``inconclusive``; the plug-in falls back to enumeration
+    only if it chooses to."""
+
+
+def _ve_multiply(f1, f2):
+    """Pointwise product of two factors over the union of their scopes."""
+    v1, t1 = f1
+    v2, t2 = f2
+    extra = tuple(v for v in v2 if v not in v1)
+    vars_ = v1 + extra
+    if len(vars_) > VE_MAX_SCOPE:
+        raise VEIntractable(f"factor scope {len(vars_)} exceeds cap")
+    shared = [v for v in v1 if v in v2]
+    v1_sh = [v1.index(v) for v in shared]
+    v2_sh = [v2.index(v) for v in shared]
+    v2_ex = [v2.index(v) for v in extra]
+    by_shared: dict = {}
+    for vals2, p2 in t2.items():
+        by_shared.setdefault(tuple(vals2[i] for i in v2_sh), []).append((vals2, p2))
+    new: dict = {}
+    for vals1, p1 in t1.items():
+        for vals2, p2 in by_shared.get(tuple(vals1[i] for i in v1_sh), ()):
+            combined = vals1 + tuple(vals2[i] for i in v2_ex)
+            new[combined] = new.get(combined, 0.0) + p1 * p2
+    return (vars_, new)
+
+
+def _ve_sum_out(factor, v):
+    """Marginalise ``v`` out of a factor."""
+    vars_, table = factor
+    i = vars_.index(v)
+    keep_vars = vars_[:i] + vars_[i + 1:]
+    new: dict = {}
+    for vals, p in table.items():
+        key = vals[:i] + vals[i + 1:]
+        new[key] = new.get(key, 0.0) + p
+    return (keep_vars, new)
+
+
+def referenced_keys(
+    formula: FormulaExpr, domains: Mapping[Atom, tuple]
+) -> set:
+    """The DISTINCT ``ProbabilityKey`` set ``formula`` references, collected by
+    a LINEAR per-factor enumeration: each leaf contributes the product over its
+    VarRef (summed) slots of their atom domains, with concrete (bound /
+    do-value) slots pinned. Deduped this equals :func:`enumerate_keys`'s
+    distinct output, but costs O(#factors · 2^slots-per-factor), NOT the
+    2^#sums expansion :func:`enumerate_keys` materialises (millions of keys past
+    |V|≈18 — a native-fault site in its own right). ``domains`` supplies each
+    atom's value domain (default boolean)."""
+    out: set = set()
+    _referenced_keys(formula, domains, out)
+    return out
+
+
+def _referenced_keys(expr: FormulaExpr, domains: Mapping[Atom, tuple], out: set) -> None:
+    if isinstance(expr, ProbabilityRefExpr):
+        names: list[str] = []
+        dom_of: dict[str, tuple] = {}
+        for va in (expr.target, *expr.given):
+            v = va.value
+            if isinstance(v, VarRef) and v.name not in dom_of:
+                names.append(v.name)
+                dom_of[v.name] = domains.get(va.atom, (True, False))
+        for combo in (itertools.product(*(dom_of[n] for n in names)) if names else [()]):
+            out.add(_probability_ref_key(expr, dict(zip(names, combo))))
+    elif isinstance(expr, ProductExpr):
+        for t in expr.terms:
+            _referenced_keys(t, domains, out)
+    elif isinstance(expr, SumExpr):
+        _referenced_keys(expr.body, domains, out)
+    elif isinstance(expr, FractionExpr):
+        _referenced_keys(expr.numerator, domains, out)
+        _referenced_keys(expr.denominator, domains, out)
+    # ConstantExpr / bare VarRef: no probability factor.
+
+
+def _ve_prob_ref_factor(ref: ProbabilityRefExpr, bound_domains: dict, theta: Theta):
+    """Leaf factor: a table over the enclosing Σ-variables the reference
+    mentions, each entry the theta conditional for that binding. Concrete slots
+    (do-value / bound target) stay fixed and do not enter the scope."""
+    names: list[str] = []
+    for va in (ref.target, *ref.given):
+        v = va.value
+        if isinstance(v, VarRef) and v.name in bound_domains and v.name not in names:
+            names.append(v.name)
+    scope = tuple(names)
+    doms = [bound_domains[n] for n in scope]
+    table: dict = {}
+    for combo in (itertools.product(*doms) if scope else [()]):
+        key = _probability_ref_key(ref, dict(zip(scope, combo)))
+        val = theta.get(key)
+        if val is None:
+            # ve_estimate_formula is a complete-theta evaluator (no fallbacks);
+            # a missing key is a genuine gap, surfaced like estimate_formula.
+            raise InsufficientTheta(
+                key, f"Theta 中缺条目 {format_probability_key(key)}"
+            )
+        table[combo] = val
+    return (scope, table)
+
+
+def _ve_eliminate_var(factors: list, name: str, dom: tuple) -> list:
+    """Sum out ``name``: multiply only the factors that mention it, sum it out,
+    keep the rest (the VE win). A variable no factor depends on is a degenerate
+    Σ over a constant = ×|dom|."""
+    containing = [f for f in factors if name in f[0]]
+    rest = [f for f in factors if name not in f[0]]
+    if not containing:
+        rest.append(((), {(): float(len(dom))}))
+        return rest
+    prod = containing[0]
+    for f in containing[1:]:
+        prod = _ve_multiply(prod, f)
+    return rest + [_ve_sum_out(prod, name)]
+
+
+def _ve_product(factors: list):
+    prod = ((), {(): 1.0})
+    for f in factors:
+        prod = _ve_multiply(prod, f)
+    return prod
+
+
+def _ve_divide(num_f, den_f):
+    """Pointwise num/den over the union scope (multiply by reciprocal, so the
+    shared-variable join is the tested ``_ve_multiply``). A zero denominator is
+    a positivity violation, matching ``estimate_formula``'s fraction rule."""
+    dv, dt = den_f
+    recip: dict = {}
+    for vals, p in dt.items():
+        if p == 0.0:
+            raise ValueError(
+                "fraction denominator evaluated to 0 — positivity violation "
+                "(the conditioning event P_x(z) has zero probability)"
+            )
+        recip[vals] = 1.0 / p
+    return _ve_multiply(num_f, (dv, recip))
+
+
+def _ve_factors(expr: FormulaExpr, bound_domains: dict, theta: Theta) -> list:
+    if isinstance(expr, ConstantExpr):
+        return [((), {(): float(expr.value)})]
+    if isinstance(expr, ProbabilityRefExpr):
+        return [_ve_prob_ref_factor(expr, bound_domains, theta)]
+    if isinstance(expr, ProductExpr):
+        out: list = []
+        for t in expr.terms:
+            out.extend(_ve_factors(t, bound_domains, theta))
+        return out
+    if isinstance(expr, SumExpr):
+        name = expr.bind.name
+        dom = theta.domain_of(expr.over)
+        inner = dict(bound_domains)
+        inner[name] = dom
+        fs = _ve_factors(expr.body, inner, theta)
+        return _ve_eliminate_var(fs, name, dom)
+    if isinstance(expr, FractionExpr):
+        num_f = _ve_product(_ve_factors(expr.numerator, bound_domains, theta))
+        den_f = _ve_product(_ve_factors(expr.denominator, bound_domains, theta))
+        return [_ve_divide(num_f, den_f)]
+    raise TypeError(f"unknown formula node: {type(expr).__name__}")
+
+
+def ve_estimate_formula(formula: FormulaExpr, theta: Theta) -> float:
+    """Evaluate a (closed) estimand to its scalar value by variable
+    elimination. Equals ``estimate_formula(formula, theta)`` when theta is
+    complete, but costs ~2^treewidth (not 2^#sums) and never recurses over
+    domains — so it neither hangs nor trips the native fault on the larger
+    nested-ID / general-ID estimands. Complete-theta only: a missing key raises
+    ``InsufficientTheta`` (no sparse-theta fallbacks). May raise
+    ``VEIntractable`` (→ caller declines) on a high-treewidth estimand."""
+    _, table = _ve_product(_ve_factors(formula, {}, theta))
+    return table.get((), 0.0)

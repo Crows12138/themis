@@ -229,12 +229,15 @@ def test_true_do_ve_matches_enumeration():
 
 
 def test_full_nested_id_identifies_with_ve_probe():
-    """A genuine nested-ID case (|V| = 9, past the original Line-7 cap of
-    8) identifies in-config with a numerically-sound formula, exercising
-    the variable-elimination probe self-check end to end. Its ground truth
-    used to be a ~1s brute-force enumeration; VE makes it milliseconds."""
-    g, bi, x, y = _napkin_chain(5)  # |V| = 9
-    assert g.number_of_nodes() == 9
+    """A genuine nested-ID case at the raised Line-7 cap (|V| = 14, well past
+    the original cap of 8/10) identifies in-config with a numerically-sound
+    formula, exercising the full variable-elimination pipeline end to end — the
+    ground-truth do-quantity, the observational-conditional theta, the
+    referenced-key collection, AND the formula evaluation are all VE now. With
+    the recursive walk the probe self-check crashed ~33% at these sizes; VE
+    makes it crash-free and fast (~80ms)."""
+    g, bi, x, y = _napkin_chain(10)  # |V| = 14 = _FULL_LINE7_MAX_NODES
+    assert g.number_of_nodes() == c_factor._FULL_LINE7_MAX_NODES == 14
     r = c_factor.identify_via_tian(g, bi, x, y, x_value=True)
     assert r.identifiable
     assert r.formula is not None

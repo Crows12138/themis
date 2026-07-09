@@ -40,16 +40,22 @@ import networkx as nx
 
 from ..types import (
     Atom,
-    ConstantExpr,
     FormulaExpr,
     FractionExpr,
     ProbabilityRefExpr,
     ProductExpr,
     SumExpr,
     ValuedAtom,
-    VarRef,
 )
-from ..runtime.numeric_estimator import Theta, estimate_formula, enumerate_keys
+from ..runtime.numeric_estimator import (
+    VEIntractable as _VEIntractable,
+    Theta,
+    _ve_multiply,
+    _ve_sum_out,
+    enumerate_keys,
+    referenced_keys,
+    ve_estimate_formula,
+)
 
 
 # Cap on the SCM enumeration state space (observed nodes + one latent per
@@ -216,15 +222,12 @@ def _cell_prob(scm: _SCM, assign: dict, *, fixed: dict | None = None) -> float:
 # no giant enumeration to trip the fault. A factor is
 # (vars: tuple, table: {value-tuple: prob}); VE equals enumeration EXACTLY
 # (pinned by test). The enumeration forms below stay as the oracle.
-
-_VE_MAX_SCOPE = 20  # decline (inconclusive) if any intermediate factor's
-#                     scope exceeds this — bounds VE on high-treewidth graphs.
-
-
-class _VEIntractable(Exception):
-    """Variable elimination would build a factor too large to be worth it
-    (high-treewidth graph). The probe treats this as ``inconclusive`` —
-    the graceful decline the old state-space cap used to give."""
+#
+# The generic factor primitives (_ve_multiply / _ve_sum_out, the VE_MAX_SCOPE
+# guard and VEIntractable) live in runtime.numeric_estimator — shared with the
+# formula-VE evaluator the plug-in numeric end also uses — and are imported
+# above. The SCM-specific pieces (factor construction, min-degree ordering,
+# marginals) stay here.
 
 
 def _scm_factors(scm: _SCM, drop: "Atom | None" = None) -> list:
@@ -260,39 +263,6 @@ def _ve_restrict(factor, evidence):
         if all(vals[i] == ev for i, ev in ev_i):
             key = tuple(vals[i] for i in keep_i)
             new[key] = new.get(key, 0.0) + p
-    return (keep_vars, new)
-
-
-def _ve_multiply(f1, f2):
-    v1, t1 = f1
-    v2, t2 = f2
-    extra = tuple(v for v in v2 if v not in v1)
-    vars_ = v1 + extra
-    if len(vars_) > _VE_MAX_SCOPE:
-        raise _VEIntractable(f"factor scope {len(vars_)} exceeds cap")
-    shared = [v for v in v1 if v in v2]
-    v1_sh = [v1.index(v) for v in shared]
-    v2_sh = [v2.index(v) for v in shared]
-    v2_ex = [v2.index(v) for v in extra]
-    by_shared: dict = {}
-    for vals2, p2 in t2.items():
-        by_shared.setdefault(tuple(vals2[i] for i in v2_sh), []).append((vals2, p2))
-    new: dict = {}
-    for vals1, p1 in t1.items():
-        for vals2, p2 in by_shared.get(tuple(vals1[i] for i in v1_sh), ()):
-            combined = vals1 + tuple(vals2[i] for i in v2_ex)
-            new[combined] = new.get(combined, 0.0) + p1 * p2
-    return (vars_, new)
-
-
-def _ve_sum_out(factor, v):
-    vars_, table = factor
-    i = vars_.index(v)
-    keep_vars = vars_[:i] + vars_[i + 1:]
-    new: dict = {}
-    for vals, p in table.items():
-        key = vals[:i] + vals[i + 1:]
-        new[key] = new.get(key, 0.0) + p
     return (keep_vars, new)
 
 
@@ -447,29 +417,33 @@ def _theta_from_scm(
     """Fill a Theta with exactly the conditionals ``bound_formula``
     references, computed from the SCM's observational distribution.
 
-    n_keys grows like 2^|V| but the number of DISTINCT conditioning
-    atom-SETS the formula references is only linear in |V| (one per
-    probability factor). Group the keys by (target atom, conditioning
-    atom-set) and answer each group from ONE variable-elimination marginal
-    P(target, given-atoms) — cost ~2^treewidth per group, never a 2^|V|
-    enumeration. Every entry is the exact observational conditional (a
-    key's value depends only on its target/given atoms and their values,
-    not the population tag). Equality to :func:`_observational_cond` is
-    pinned by test; may raise ``_VEIntractable`` (→ inconclusive) on a
-    high-treewidth graph."""
+    The formula references 2^#sums keys but only |V|-order DISTINCT
+    (target atom, conditioning atom-SET) groups (one per probability factor;
+    the conditioning set of each is bounded). Collect the distinct referenced
+    keys by a LINEAR per-factor walk (runtime :func:`referenced_keys` — never
+    the 2^#sums :func:`enumerate_keys` list, which is itself exponential and a
+    native-fault site), group them by (target atom, conditioning atom-SET), and
+    answer each group from ONE variable-elimination marginal P(target,
+    given-atoms): cost ~2^treewidth per group, never a 2^|V| enumeration. Every
+    entry is the exact observational conditional (a key's value depends only on
+    its target/given atoms and their values, not the population tag). The key
+    set equals :func:`enumerate_keys`'s distinct output and each value equals
+    :func:`_observational_cond` (both pinned by test); may raise
+    ``_VEIntractable`` (→ inconclusive) on a high-treewidth graph."""
     th = Theta()
-    keys = enumerate_keys(bound_formula, th)
+    keys = referenced_keys(bound_formula, scm.domains)
 
-    # Group keys by (target atom, conditioning atom-SET). Keys in a group
-    # differ only by the conditioning VALUES (and possibly population),
-    # all answered from one shared marginal.
+    # Group keys by (target atom, population, conditioning atom-SET). Keys in a
+    # group differ only by the conditioning/target VALUES, all answered from
+    # one shared marginal.
     members: dict = {}
     atom_order: dict = {}
     for key in keys:
-        gid = (key.target_atom, frozenset(a for a, _ in key.given))
+        gid = (key.target_atom, key.population,
+               frozenset(a for a, _ in key.given))
         if gid not in members:
             members[gid] = []
-            atom_order[gid] = tuple(sorted(gid[1], key=_atom_sort_key))
+            atom_order[gid] = tuple(sorted(gid[2], key=_atom_sort_key))
         members[gid].append(key)
 
     factors = _scm_factors(scm)
@@ -548,7 +522,7 @@ def probe_identify_formula(
                 bound = _bind_holes(formula, bindings)
                 try:
                     theta = _theta_from_scm(scm, bound, graph, bidirected)
-                    got = estimate_formula(bound, theta, graph=graph, bidirected=bidirected)
+                    got = ve_estimate_formula(bound, theta)
                     true = _true_do(scm, x, x_value, y, yv, given_map)
                 except _VEIntractable:
                     return ProbeResult(
@@ -699,8 +673,7 @@ def probe_counterfactual_formula(
         scm = _sample_scm(graph, bidirected, domains, rng)
         try:
             theta = _theta_from_scm(scm, formula, graph, bidirected)
-            got = estimate_formula(
-                formula, theta, graph=graph, bidirected=bidirected)
+            got = ve_estimate_formula(formula, theta)
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
             return ProbeResult(
                 "inconclusive",
@@ -803,8 +776,7 @@ def probe_conditional_counterfactual_formula(
         scm = _sample_scm(graph, bidirected, domains, rng)
         try:
             theta = _theta_from_scm(scm, formula, graph, bidirected)
-            got = estimate_formula(
-                formula, theta, graph=graph, bidirected=bidirected)
+            got = ve_estimate_formula(formula, theta)
         except Exception as exc:  # noqa: BLE001 — probe is best-effort
             return ProbeResult(
                 "inconclusive",
