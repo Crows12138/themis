@@ -2314,8 +2314,7 @@ def _try_transport_estimate(
     adjustment_names = tuple(
         a.get("predicate") for a in adjustment_atoms if isinstance(a, dict)
     )
-    if not all(adjustment_names) or len(adjustment_names) != 1:
-        # v1 single-Z scope; multi-Z is §T9.3+ follow-up.
+    if not adjustment_names or not all(adjustment_names):
         return
 
     program_extensions = _extract_program_extensions(program)
@@ -2330,7 +2329,7 @@ def _try_transport_estimate(
     df = contract.data
     if treatment not in df.columns or outcome not in df.columns:
         return
-    if adjustment_names[0] not in df.columns:
+    if not all(name in df.columns for name in adjustment_names):
         return
 
     try:

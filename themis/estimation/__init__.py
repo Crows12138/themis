@@ -63,8 +63,9 @@ Landed scope:
 - Phase 9 §T9.2 (iter 128) — transport-numeric ATE via post-
   stratification (Cole & Stuart 2010 §3): ``estimate_transport``
   returning ``TransportEstimate``. Source data + target marginal
-  P(Z) → reweighted ATE in target population. Single-Z scope; multi-
-  Z and IPSW (Westreich 2017) follow in §T9.3+.
+  P(Z) → reweighted ATE in target population. Supports one OR more
+  adjustment variables (joint post-stratification over the Z set);
+  multi-source transport and IPSW (Westreich 2017) follow in §T9.3+.
 - Phase 7.L — g-methods for TIME-VARYING treatments:
   ``estimate_longitudinal_gformula`` returning
   ``LongitudinalGFormulaEstimate``. The parametric (Monte-Carlo)

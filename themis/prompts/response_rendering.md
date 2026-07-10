@@ -1111,8 +1111,9 @@ ATE comes from observed source data and is reweighted by the target
 marginal supplied via ``program.extensions.target_marginal``.
 
 Field map: standard ``point`` / ``ci_lower`` / ``ci_upper`` /
-``ci_level`` / ``adjustment`` (the Z stratum variable, single-Z
-in v1). Plus the four assumptions in ``assumptions``:
+``ci_level`` / ``adjustment`` (the Z stratum variable(s) — one or
+more; multiple Z are post-stratified jointly). Plus the four
+assumptions in ``assumptions``:
 
 - ``s_admissibility_of_adjustment_set`` — Bareinboim-Pearl's
   identification precondition; this is what §T9.1 already verified
@@ -1140,10 +1141,12 @@ Template:
 > modification 不超出 Z"的额外承诺。如果用户怀疑还有其他效应修饰
 > 因素（年龄段 × 处理 × 子人群），点估计会偏。
 
-When ``adjustment`` has more than one variable (currently impossible
-since §T9.2 is single-Z scope), ``estimate_transport`` raises
-``NotImplementedError`` and dispatch leaves the structural
-identification result intact.
+When ``adjustment`` has more than one variable, the target marginal is
+supplied as a JOINT table (``{'predicates': [...], 'cells': [...]}``) and
+``estimate_transport`` post-stratifies over the joint Z strata:
+``ATE_target = Σ_{z1,...,zk} P*(z1,...,zk) · ATE_source(z1,...,zk)``.
+Multi-SOURCE transport (mz-transportability) still needs its structural
+identification foundation and is a §T9.3+ follow-up.
 
 ### Dose-response curve — Phase 14
 

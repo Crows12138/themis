@@ -13,17 +13,24 @@ Phase 9 §T9.1 (already landed) produces the structural identification
 result with an `adjustment_set` and `formula_repr`. This module is
 the numeric companion: same identification, plug-in numeric.
 
-Scope (v1):
+Scope:
 - Binary treatment, bool / continuous outcome
-- Single adjustment variable Z (binary in source data)
+- One OR MORE adjustment variables Z. Multi-variable Z generalises the
+  post-stratification sum to the JOINT strata of the Z set:
+
+      ATE_target = Σ_{z1,...,zk} P*(Z1=z1,...,Zk=zk) · ATE_source(z1,...,zk)
+
+  where each ``ATE_source`` is a difference-in-means inside the joint
+  source stratum. Single-Z is the k=1 special case (identical arithmetic).
 - Target marginal supplied as ``program.extensions['target_marginal']``
   via the dispatch path; this module's standalone signature takes a
-  Python dict
+  Python dict (single-Z ``{'predicate','marginal'}`` OR multi-Z
+  ``{'predicates','cells'}`` joint form — see ``_canonical_target_marginal``)
 - Bootstrap percentile CI matching the backdoor estimator's pattern
 
 Out of scope (follow-up §T9.3+):
-- Multi-source transport (Bareinboim 2014 §5)
-- Multi-variable Z marginals (joint table)
+- Multi-source transport (Bareinboim 2014 §5) — needs the mz-transport
+  structural identification first; not a numeric-only catch-up
 - Latent S (unobservable population indicator)
 - IPSW reweighting of continuous covariates
 
@@ -64,6 +71,74 @@ class TransportEstimate:
     cluster: str | None = None
 
 
+def _canonical_target_marginal(
+    target_marginal: dict, adjustment: tuple[str, ...],
+) -> tuple[tuple[str, ...], list[tuple[dict, float]]]:
+    """Normalise a target marginal to ``(z_predicates, cells)``.
+
+    ``cells`` is a list of ``(assignment, probability)`` where
+    ``assignment`` maps every Z predicate to a concrete value. Two input
+    shapes are accepted:
+
+    - multi-Z joint form (any k >= 1)::
+
+          {"predicates": ["z1", "z2"],
+           "cells": [{"values": {"z1": True, "z2": False},
+                      "probability": 0.1}, ...]}
+
+    - single-Z form (k == 1, back-compatible)::
+
+          {"predicate": "z", "marginal": {True: 0.7, False: 0.3}}
+
+    Malformed shapes raise ``ValueError`` (message contains "must be").
+    """
+    if "predicates" in target_marginal or "cells" in target_marginal:
+        preds = target_marginal.get("predicates")
+        raw_cells = target_marginal.get("cells")
+        if (
+            not isinstance(preds, (list, tuple))
+            or not preds
+            or not all(isinstance(p, str) for p in preds)
+            or not isinstance(raw_cells, list)
+            or not raw_cells
+        ):
+            raise ValueError(
+                "multi-Z target_marginal must be {'predicates': [str, ...], "
+                "'cells': [{'values': {pred: value}, 'probability': p}, ...]}"
+            )
+        z_preds = tuple(preds)
+        cells: list[tuple[dict, float]] = []
+        for c in raw_cells:
+            values = c.get("values") if isinstance(c, dict) else None
+            prob = c.get("probability") if isinstance(c, dict) else None
+            if (
+                not isinstance(values, dict)
+                or not isinstance(prob, (int, float))
+                or isinstance(prob, bool)
+            ):
+                raise ValueError(
+                    "each target_marginal cell must be {'values': "
+                    "{pred: value}, 'probability': number}"
+                )
+            if set(values.keys()) != set(z_preds):
+                raise ValueError(
+                    f"cell values keys {sorted(values.keys())} must equal "
+                    f"the declared predicates {sorted(z_preds)}"
+                )
+            cells.append((dict(values), float(prob)))
+        return z_preds, cells
+
+    z_pred = target_marginal.get("predicate")
+    z_marg = target_marginal.get("marginal")
+    if not isinstance(z_pred, str) or not isinstance(z_marg, dict):
+        raise ValueError(
+            "target_marginal must be {'predicate': str, "
+            "'marginal': {z_value: probability}} or the multi-Z "
+            "{'predicates': [...], 'cells': [...]} form"
+        )
+    return (z_pred,), [({z_pred: v}, float(p)) for v, p in z_marg.items()]
+
+
 def estimate_transport(
     source_data: pd.DataFrame,
     *,
@@ -76,14 +151,18 @@ def estimate_transport(
     random_state: int = 42,
     cluster: str | None = None,
 ) -> TransportEstimate:
-    """Post-stratification transport-numeric ATE.
+    """Post-stratification transport-numeric ATE (single- OR multi-Z).
 
-    ``target_marginal`` shape (single Z, v1):
-        {"predicate": "z_pred", "marginal": {True: p1, False: p0}}
+    ``target_marginal`` — two accepted shapes (see
+    ``_canonical_target_marginal``):
+      single-Z: {"predicate": "z", "marginal": {True: p1, False: p0}}
+      multi-Z : {"predicates": ["z1", "z2"],
+                 "cells": [{"values": {"z1": True, "z2": False},
+                            "probability": p}, ...]}
 
-    The Z values in ``target_marginal["marginal"]`` are matched
-    against the same column in ``source_data`` named by
-    ``target_marginal["predicate"]``.
+    The Z assignment in each cell is matched against the same columns
+    in ``source_data``; the target's JOINT distribution P*(Z1,...,Zk)
+    reweights each source joint-stratum effect.
 
     Returns ``TransportEstimate`` with point + CI in the target
     population's effect-size scale (binary outcome → risk difference;
@@ -91,37 +170,27 @@ def estimate_transport(
 
     Raises ``ValueError`` when:
     - target_marginal shape is malformed
-    - Z's marginal probabilities don't sum to 1 within ε
-    - any source stratum is empty (cannot compute ATE_source(z))
-    - len(adjustment) > 1 (multi-Z is out of scope this slice)
+    - Z probabilities don't sum to 1 within ε
+    - the target's Z variables don't match ``adjustment``
+    - any source joint stratum is empty (cannot compute ATE_source(z))
     """
-    if len(adjustment) != 1:
-        raise NotImplementedError(
-            "transport-numeric v1 supports only single-variable "
-            "adjustment; got " + repr(adjustment)
+    if not adjustment:
+        raise ValueError("estimate_transport requires >=1 adjustment variable")
+
+    z_preds, cells = _canonical_target_marginal(target_marginal, adjustment)
+    if set(z_preds) != set(adjustment):
+        raise ValueError(
+            f"target_marginal variables {sorted(z_preds)} doesn't match "
+            f"the adjustment set {sorted(adjustment)}"
         )
 
-    z_pred = target_marginal.get("predicate")
-    z_marg = target_marginal.get("marginal")
-    if not isinstance(z_pred, str) or not isinstance(z_marg, dict):
-        raise ValueError(
-            "target_marginal must be {'predicate': str, "
-            "'marginal': {z_value: probability}}"
-        )
-    if z_pred != adjustment[0]:
-        raise ValueError(
-            f"target_marginal.predicate {z_pred!r} doesn't match "
-            f"the adjustment variable {adjustment[0]!r}"
-        )
-
-    total_p = sum(z_marg.values())
+    total_p = sum(p for _, p in cells)
     if abs(total_p - 1.0) > 1e-6:
         raise ValueError(
-            f"target_marginal.marginal probabilities must sum to 1; "
-            f"got {total_p}"
+            f"target_marginal probabilities must sum to 1; got {total_p}"
         )
 
-    required = {treatment, outcome, z_pred}
+    required = {treatment, outcome, *z_preds}
     presence = (cluster,) if cluster is not None else ()
     groups = (
         cluster_labels(source_data, cluster, expected_n=len(source_data))
@@ -133,17 +202,19 @@ def estimate_transport(
     )
     df = contract.data
 
-    def _ate_in_stratum(sample: pd.DataFrame, z_value) -> float:
-        sub = sample[sample[z_pred] == z_value]
+    def _ate_in_stratum(sample: pd.DataFrame, assignment: dict) -> float:
+        sub = sample
+        for pred, value in assignment.items():
+            sub = sub[sub[pred] == value]
         if len(sub) == 0:
             raise ValueError(
-                f"source data has no observations with {z_pred}={z_value}"
+                f"source data has no observations with stratum {assignment}"
             )
         treated = sub[sub[treatment] == True]  # noqa: E712
         control = sub[sub[treatment] == False]  # noqa: E712
         if len(treated) == 0 or len(control) == 0:
             raise ValueError(
-                f"stratum {z_pred}={z_value} lacks both treatment arms; "
+                f"stratum {assignment} lacks both treatment arms; "
                 "cannot compute ATE_source(z)"
             )
         return float(treated[outcome].astype(float).mean()
@@ -151,8 +222,8 @@ def estimate_transport(
 
     def _transport_point(sample: pd.DataFrame) -> float:
         ate = 0.0
-        for z_value, p in z_marg.items():
-            ate += float(p) * _ate_in_stratum(sample, z_value)
+        for assignment, p in cells:
+            ate += float(p) * _ate_in_stratum(sample, assignment)
         return ate
 
     point = _transport_point(df)
