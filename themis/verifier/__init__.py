@@ -31,6 +31,12 @@ Public surface (re-exports from sub-modules):
   transcription of E = RR + √(RR·(RR−1)), re-deriving the risk ratio and
   both E-values from the audited headline ATE + the recorded conversion
   input (baseline rate / outcome SD), so a tampered E-value is rejected) /
+  ``verify_dose_response_curve`` (dose-response curve construction
+  invariants — the curve values come from a black-box EconML fit and can't
+  be re-derived, but the array (the answer) gets a semantic audit the
+  metadata-only path skips: one point per sampling point with matching x,
+  reference-point effect 0, and every point inside its own interval; catches
+  a corrupted / reordered curve or a point escaping its CI) /
   ``verify_selection_recovery`` (Bareinboim-Pearl recoverability from
   selection bias — re-derives the selection-backdoor conditions and the
   Theorem-3.5 recovery formula against the graph, validates the returned
@@ -93,6 +99,7 @@ from .verify import (
     verify_counterfactual,
     verify_counterfactual_conjunction,
     verify_ctf_conjunction_numeric,
+    verify_dose_response_curve,
     verify_e_value,
     verify_effect_structural,
     verify_identify,
@@ -129,6 +136,7 @@ __all__ = [
     "verify_counterfactual",
     "verify_counterfactual_conjunction",
     "verify_ctf_conjunction_numeric",
+    "verify_dose_response_curve",
     "verify_e_value",
     "verify_effect_structural",
     "verify_balke_pearl_iv_bounds_result",

@@ -1171,6 +1171,16 @@ effect=0 by construction), ``dose_response_curve`` (list of {x,
 effect, ci_lower, ci_upper}), plus standard ``method`` /
 ``assumptions`` / ``data_hash``.
 
+The curve VALUES come from a black-box EconML fit and are not
+re-derivable by the verifier (same ceiling as any data-refit point
+estimate). But the kernel's ``verify_dose_response_curve`` audits the
+curve's CONSTRUCTION invariants — one point per sampling point with
+matching x, reference-point effect 0, every point inside its own
+interval — so a corrupted / reordered curve or a point that escaped
+its CI is rejected. It does NOT catch a fully self-consistent forged
+curve; disclose robustness at the level the estimator's own CI gives,
+not more.
+
 Template:
 
 > 在 `<treatment>` 取 `<reference_point>` 为参照下，目标 `<outcome>`

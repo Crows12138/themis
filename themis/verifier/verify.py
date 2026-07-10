@@ -948,6 +948,104 @@ def verify_e_value(estimate: dict) -> None:
     _close(e_ci, block.get("e_value_ci_bound"), "e_value_ci_bound")
 
 
+def verify_dose_response_curve(estimate: dict) -> None:
+    """Audit a dose-response curve's CONSTRUCTION invariants and reject on
+    violation.
+
+    The curve values come from a black-box EconML DML / DRLearner fit, so —
+    like every data-refit estimator — the verifier cannot re-derive them
+    without re-running the fit on the data (prohibitively expensive, and the
+    data is not in the envelope). The numeric_backdoor_estimate metadata
+    audit only inspects the derivation's headline scalar (the last curve
+    point via the adapter), leaving the curve ARRAY — which IS the answer for
+    a dose-response query — checked for JSON shape only. This closes that
+    hole with the invariants the curve satisfies BY CONSTRUCTION, independent
+    of the fitted numbers:
+
+    - one point per sampling point, each x equal to its sampling point;
+    - reference_point equals the first sampling point and the first curve x;
+    - the reference point's effect is 0 (Y(x_ref) − Y(x_ref) = 0), with an
+      interval that brackets 0;
+    - every point's effect lies within its own [ci_lower, ci_upper].
+
+    These catch a corrupted / truncated / reordered curve, a point that
+    escaped its interval, and a reference effect moved off zero — the tamper
+    classes the metadata-only audit misses. It does NOT catch a fully
+    self-consistent forged curve (effect + interval moved together to a
+    plausible pair): re-deriving ML-fitted values is out of scope for any
+    data-refit estimator's verifier, the same ceiling backdoor / IV / TMLE
+    point estimates sit at.
+
+    ``estimate`` is the full ``numeric_estimate`` dict; a missing
+    ``dose_response_curve`` is a no-op.
+    """
+    import math
+
+    curve = estimate.get("dose_response_curve")
+    if curve is None:
+        return
+
+    def _fail(msg):
+        raise VerificationError(
+            f"dose_response_curve: {msg}",
+            step_index=None, rule="dose_response_curve",
+        )
+
+    sampling = estimate.get("sampling_points")
+    reference = estimate.get("reference_point")
+    if not isinstance(curve, list) or not curve:
+        _fail(f"curve must be a non-empty list; got {curve!r}")
+    if not isinstance(sampling, list) or len(sampling) != len(curve):
+        _fail(
+            f"curve has {len(curve)} points but sampling_points has "
+            f"{len(sampling) if isinstance(sampling, list) else sampling!r}"
+        )
+
+    # Exact-by-construction facts get a hair of float tolerance; the
+    # point-in-interval bound gets a looser relative slack.
+    def _eq(a, b, scale=1.0):
+        return a is not None and b is not None and \
+            abs(a - b) <= 1e-9 + 1e-9 * abs(scale)
+
+    for i, pt in enumerate(curve):
+        x = pt.get("x")
+        eff = pt.get("effect")
+        lo = pt.get("ci_lower")
+        hi = pt.get("ci_upper")
+        sp = sampling[i]
+        if x is None or eff is None or not math.isfinite(x) or not math.isfinite(eff):
+            _fail(f"point[{i}] has a missing / non-finite x or effect: {pt!r}")
+        if not _eq(x, sp, sp):
+            _fail(f"point[{i}].x = {x} does not match sampling_points[{i}] = {sp}")
+        # A real estimator's point always lies inside its own interval
+        # (point ± z·se). A point outside it is impossible without tampering.
+        if lo is not None and hi is not None:
+            if lo > hi + 1e-9:
+                _fail(f"point[{i}] interval is inverted: [{lo}, {hi}]")
+            slack = 1e-6 * max(1.0, abs(eff), abs(lo), abs(hi))
+            if not (lo - slack <= eff <= hi + slack):
+                _fail(
+                    f"point[{i}].effect = {eff} lies outside its interval "
+                    f"[{lo}, {hi}]"
+                )
+
+    # Reference point (first) — pinned by construction.
+    if not _eq(reference, sampling[0], sampling[0]):
+        _fail(
+            f"reference_point = {reference} does not equal sampling_points[0] "
+            f"= {sampling[0]}"
+        )
+    ref_pt = curve[0]
+    if abs(ref_pt["effect"]) > 1e-6:
+        _fail(
+            f"reference point effect = {ref_pt['effect']} must be 0 "
+            "(Y(x_ref) − Y(x_ref) = 0)"
+        )
+    rlo, rhi = ref_pt.get("ci_lower"), ref_pt.get("ci_upper")
+    if rlo is not None and rhi is not None and not (rlo <= 1e-6 and rhi >= -1e-6):
+        _fail(f"reference point interval [{rlo}, {rhi}] must bracket 0")
+
+
 def verify_selection_recovery(block: dict, graph) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 

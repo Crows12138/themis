@@ -95,6 +95,7 @@ from .verifier import (
     verify_counterfactual,
     verify_counterfactual_conjunction,
     verify_ctf_conjunction_numeric,
+    verify_dose_response_curve,
     verify_e_value,
     verify_scm_counterfactual,
     verify_effect_structural,
@@ -951,6 +952,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             num_est = result.get("numeric_estimate") or {}
             if num_est.get("sensitivity_analysis") is not None:
                 verify_e_value(num_est)
+            # A dose-response estimate carries a curve array that the
+            # metadata audit doesn't inspect (it only sees the headline
+            # scalar). Audit the curve's construction invariants — the
+            # answer object otherwise ships checked for JSON shape only.
+            if num_est.get("dose_response_curve") is not None:
+                verify_dose_response_curve(num_est)
         else:
             if "numeric_result" not in result:
                 raise ValueError(
