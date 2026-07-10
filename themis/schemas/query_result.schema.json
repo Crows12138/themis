@@ -644,14 +644,16 @@
         },
         "sensitivity_analysis": {
           "type": "object",
-          "description": "Phase 8.2 + iter 124: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present for binary outcomes (RR via baseline rate) and continuous outcomes (RR ≈ exp(0.91·SMD) per Chinn 2000). Categorical / object-typed outcomes silently skip this block. baseline_rate is null on the continuous path because the conversion is fully standardisation-based.",
-          "required": ["e_value", "e_value_ci_bound", "risk_ratio", "baseline_rate", "note"],
+          "description": "Phase 8.2 + iter 124: VanderWeele 2017 E-value sensitivity for the numeric estimate. Present for binary outcomes (RR via baseline rate) and continuous outcomes (RR ≈ exp(0.91·SMD) per Chinn 2000). Categorical / object-typed outcomes silently skip this block. baseline_rate is null on the continuous path because the conversion is fully standardisation-based. path + baseline_rate / outcome_sd record the conversion INPUTS so the verifier (verify_e_value) re-derives the risk ratio and both E-values from the audited headline ATE with a second, independent transcription of the formulas.",
+          "required": ["e_value", "e_value_ci_bound", "risk_ratio", "baseline_rate", "outcome_sd", "path", "note"],
           "additionalProperties": false,
           "properties": {
             "e_value": { "type": ["number", "null"] },
             "e_value_ci_bound": { "type": ["number", "null"] },
             "risk_ratio": { "type": ["number", "null"] },
             "baseline_rate": { "type": ["number", "null"] },
+            "outcome_sd": { "type": ["number", "null"], "description": "Outcome standard deviation used for the Chinn SMD→RR conversion (continuous path); null on the binary path." },
+            "path": { "enum": ["binary", "continuous"], "description": "Which ATE→RR conversion produced this block: binary (baseline rate) or continuous (Chinn SMD)." },
             "note": { "type": "string" }
           }
         },

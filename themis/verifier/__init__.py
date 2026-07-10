@@ -26,6 +26,11 @@ Public surface (re-exports from sub-modules):
   independent transcription of the robustness-value / partial-R² / bound
   closed forms, recomputed from the recorded t-value + dof + benchmark
   partial R²s) /
+  ``verify_e_value`` (VanderWeele-Ding E-value sensitivity — the
+  risk-ratio-scale sibling of the OVB block; a second independent
+  transcription of E = RR + √(RR·(RR−1)), re-deriving the risk ratio and
+  both E-values from the audited headline ATE + the recorded conversion
+  input (baseline rate / outcome SD), so a tampered E-value is rejected) /
   ``verify_selection_recovery`` (Bareinboim-Pearl recoverability from
   selection bias — re-derives the selection-backdoor conditions and the
   Theorem-3.5 recovery formula against the graph, validates the returned
@@ -88,6 +93,7 @@ from .verify import (
     verify_counterfactual,
     verify_counterfactual_conjunction,
     verify_ctf_conjunction_numeric,
+    verify_e_value,
     verify_effect_structural,
     verify_identify,
     verify_missing_data_recovery,
@@ -123,6 +129,7 @@ __all__ = [
     "verify_counterfactual",
     "verify_counterfactual_conjunction",
     "verify_ctf_conjunction_numeric",
+    "verify_e_value",
     "verify_effect_structural",
     "verify_balke_pearl_iv_bounds_result",
     "verify_identify",

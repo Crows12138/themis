@@ -95,6 +95,7 @@ from .verifier import (
     verify_counterfactual,
     verify_counterfactual_conjunction,
     verify_ctf_conjunction_numeric,
+    verify_e_value,
     verify_scm_counterfactual,
     verify_effect_structural,
     verify_identify,
@@ -943,6 +944,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             ovb = (result.get("numeric_estimate") or {}).get("ovb_sensitivity")
             if ovb is not None:
                 verify_ovb_sensitivity(ovb)
+            # The same numeric estimate may also carry a VanderWeele-Ding
+            # E-value block — also a closed form of the audited ATE plus one
+            # recorded conversion input (baseline rate / outcome SD), so
+            # re-derive its risk ratio and both E-values independently too.
+            num_est = result.get("numeric_estimate") or {}
+            if num_est.get("sensitivity_analysis") is not None:
+                verify_e_value(num_est)
         else:
             if "numeric_result" not in result:
                 raise ValueError(

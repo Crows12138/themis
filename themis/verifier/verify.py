@@ -839,6 +839,115 @@ def verify_ovb_sensitivity(block: dict) -> None:
             _close(adj, b["adjusted_estimate"], f"benchmark[{cov}].adjusted_estimate")
 
 
+_EVALUE_TOL = 1e-6
+
+
+def verify_e_value(estimate: dict) -> None:
+    """Independently re-derive a VanderWeele-Ding E-value block and reject on
+    mismatch.
+
+    Like the OVB block (and unlike the data-refit point estimate, which gets a
+    metadata audit only), every number here is a CLOSED FORM of the audited
+    headline ATE and one data-derived conversion input the block records — the
+    control-arm baseline rate (binary path) or the outcome SD (continuous
+    path). So the verifier recomputes the risk ratio and BOTH E-values from
+    scratch with a SECOND, independent transcription of the formulas — pairing
+    them with the SAME point / CI the pipeline already audits, so a tamper of
+    the sensitivity block alone (e.g. inflating a fragile finding's E-value to
+    look robust, or hiding a fragile one) cannot pass.
+
+    ``estimate`` is the full ``numeric_estimate`` dict; a missing
+    ``sensitivity_analysis`` sub-block is a no-op.
+    """
+    import math
+
+    block = estimate.get("sensitivity_analysis")
+    if block is None:
+        return
+
+    # --- second, independent transcription of the formulas ------------------
+    def _evalue(rr):
+        # VanderWeele & Ding 2017: E = RR + √(RR·(RR−1)), symmetric about RR=1.
+        if rr is None or not math.isfinite(rr) or rr <= 0:
+            return None
+        if rr < 1.0:
+            rr = 1.0 / rr
+        if rr == 1.0:
+            return 1.0
+        return rr + math.sqrt(rr * (rr - 1.0))
+
+    def _closer_to_null(point, lo, hi):
+        # Whichever CI bound sits on the point's side of zero but nearer to it.
+        if point is None or lo is None or hi is None:
+            return None
+        if point >= 0:
+            return lo if lo >= 0 else None
+        return hi if hi <= 0 else None
+
+    def _close(recomputed, recorded, name):
+        # None must match None; a finite value must match within tolerance.
+        if recomputed is None or recorded is None:
+            if recomputed is None and recorded is None:
+                return
+            raise VerificationError(
+                f"e_value.{name}: recomputed {recomputed!r}, "
+                f"recorded {recorded!r}",
+                step_index=None, rule="e_value",
+            )
+        if not math.isfinite(recomputed):
+            raise VerificationError(
+                f"e_value.{name}: recomputed non-finite {recomputed}",
+                step_index=None, rule="e_value",
+            )
+        if abs(recomputed - recorded) > _EVALUE_TOL + 1e-6 * abs(recorded):
+            raise VerificationError(
+                f"e_value.{name}: recomputed {recomputed}, recorded {recorded}",
+                step_index=None, rule="e_value",
+            )
+
+    # --- pull the SAME audited headline ATE the block was built on ----------
+    if "decomposition" in estimate:
+        te = estimate["decomposition"]["te"]
+        ate, lo, hi = te.get("point"), te.get("ci_lower"), te.get("ci_upper")
+    else:
+        ate = estimate.get("point")
+        lo, hi = estimate.get("ci_lower"), estimate.get("ci_upper")
+    ci_bound = _closer_to_null(ate, lo, hi)
+
+    path = block.get("path")
+    rr = None
+    e_ci = None
+
+    if path == "binary":
+        baseline = block.get("baseline_rate")
+        if baseline is not None and 0.0 < baseline < 1.0 and ate is not None:
+            treated = baseline + ate
+            if 0.0 < treated < 1.0:
+                rr = treated / baseline
+                # Producer computes the CI-bound E-value only once the point
+                # RR is defined — mirror that nesting exactly.
+                if ci_bound is not None:
+                    ci_treated = baseline + ci_bound
+                    if 0.0 < ci_treated < 1.0:
+                        e_ci = _evalue(ci_treated / baseline)
+    elif path == "continuous":
+        sd = block.get("outcome_sd")
+        if (sd is not None and sd > 0.0 and math.isfinite(sd)
+                and ate is not None and math.isfinite(ate)):
+            rr = math.exp(0.91 * (ate / sd))   # Chinn 2000 SMD→log-RR = 0.91
+            if ci_bound is not None and math.isfinite(ci_bound):
+                e_ci = _evalue(math.exp(0.91 * (ci_bound / sd)))
+    else:
+        raise VerificationError(
+            f"e_value.path: unknown conversion path {path!r}",
+            step_index=None, rule="e_value",
+        )
+
+    _close(rr, block.get("risk_ratio"), "risk_ratio")
+    _close(_evalue(rr), block.get("e_value"), "e_value")
+    _close(e_ci, block.get("e_value_ci_bound"), "e_value_ci_bound")
+
+
 def verify_selection_recovery(block: dict, graph) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 

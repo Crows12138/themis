@@ -1235,8 +1235,14 @@ this away?"
 
 Field map: `e_value`, `e_value_ci_bound` (E-value on the CI bound
 nearer the null; more conservative), `risk_ratio`, `baseline_rate`,
+`outcome_sd` (SD used on the continuous / Chinn path; null on binary),
+`path` (`"binary"` | `"continuous"` — which ATE→RR conversion ran),
 `note` (one-line interpretation already includes the threshold
-category).
+category). `path` + `baseline_rate` / `outcome_sd` are the conversion
+INPUTS: the kernel's `verify_e_value` re-derives `risk_ratio` and both
+E-values from them plus the audited headline ATE (a second, independent
+transcription of the VanderWeele-Ding formula), so a tampered E-value
+is rejected — the same audited-not-asserted guarantee the OVB block has.
 
 Plain-language thresholds (already encoded in `note`):
 

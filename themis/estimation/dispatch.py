@@ -2187,6 +2187,7 @@ def _attach_e_value_if_binary(
             estimate.get("ci_upper"),
         )
 
+    outcome_sd = None
     if is_binary:
         treated_mask = df[treatment].to_numpy().astype(bool)
         if treated_mask.all() or (~treated_mask).all():
@@ -2195,6 +2196,7 @@ def _attach_e_value_if_binary(
         e_result = e_value_from_ate_binary(
             ate=ate, baseline_rate=baseline_rate, ci_bound=ci_bound,
         )
+        path = "binary"
     elif is_numeric:
         outcome_sd = float(outcome_series.std(ddof=1))
         if outcome_sd <= 0 or not (outcome_sd == outcome_sd):  # NaN-safe
@@ -2202,14 +2204,22 @@ def _attach_e_value_if_binary(
         e_result = e_value_from_ate_continuous(
             ate=ate, outcome_sd=outcome_sd, ci_bound=ci_bound,
         )
+        path = "continuous"
     else:
         return  # categorical / object outcomes — out of scope this iter
 
+    # Record the conversion INPUTS (path + baseline_rate / outcome_sd) next to
+    # the outputs so the verifier can re-derive the risk ratio and BOTH
+    # E-values from first principles — pairing them with the audited headline
+    # ATE — without needing the DataFrame. Same reason the OVB block records
+    # the raw t-value + dof rather than only the robustness value.
     estimate["sensitivity_analysis"] = {
         "e_value": e_result.e_value,
         "e_value_ci_bound": e_result.e_value_ci_bound,
         "risk_ratio": e_result.risk_ratio,
         "baseline_rate": e_result.baseline_rate,
+        "outcome_sd": outcome_sd,
+        "path": path,
         "note": e_result.note,
     }
 

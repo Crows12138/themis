@@ -45,6 +45,8 @@ export interface Sensitivity {
   e_value_ci_bound?: number
   risk_ratio?: number
   baseline_rate?: number
+  outcome_sd?: number | null
+  path?: 'binary' | 'continuous'
   note?: string
 }
 
