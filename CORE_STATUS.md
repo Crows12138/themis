@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2670 passed / 144 skipped, warning-clean
+2686 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -666,6 +666,18 @@ Phase 7；多 mediator 链式前门 → 6.front-door-multi。
 bootstrap 引入随机性使 bit-exact 复检不现实），只审 method enum +
 point in CI + data_hash 格式 + adjustment 与识别 step 的一致性 + 字
 段 disjoint 等。byte-code scan 钉独立性。
+
+**followup(2026-07-10)：`verify_mediation_numeric` — mediation 数值答案块审计**。
+此前 mediation 保持 `structurally_solved`→走 verify_effect_structural（只查
+`identify_via_mediation` 终端），挂在上面的数值块（NDE/NIE decomposition +
+两个 four-way 分解）**零数值审计**——实测 four_way_ratio 的 err_cde 篡改成 999 /
+prop_mediated 篡改成 42 verify 全放过。修法分两级:①**four_way_ratio 强重导**
+——block 补记拟合系数 `coefficients`(t1/t2/t3/b0/b1/bcc/mediator_reference)进
+schema,验证器从系数经 VanderWeele 闭式(§3.4/§3.3)重导每个 err_*/prop_* 并核对
+(自洽伪造也逮得住,因不再与记录的拟合吻合)+ 无转写内部恒等式(四 err 和=total_err、
+total_rr−1=total_err、各 prop=分量比)独立复核;②**差值 four_way + NDE/NIE
+decomposition 内部不变量**(TE=各部分和、prop=比)——其充分统计量(cell means/
+模拟)未记录不可重导=诚实天花板,只逮单component篡改非自洽伪造(有测试钉住)。
 
 **Schema 扩展**：`numeric_estimate` 顶层字段 + `estimation_context`
 + `decomposition` 子块（mediation 用）。method enum 8 个值
