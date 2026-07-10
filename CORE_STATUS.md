@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2643 passed / 144 skipped, warning-clean
+2657 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -714,7 +714,11 @@ point in CI + data_hash 格式 + adjustment 与识别 step 的一致性 + 字
 - 在 `dispatch.py` 的所有 4 个 estimator 路径尾巴自动调用
   `_attach_e_value_if_binary`，仅对 bool outcome 触发
 - `numeric_estimate.sensitivity_analysis` 子 schema：e_value /
-  e_value_ci_bound / risk_ratio / baseline_rate / note
+  e_value_ci_bound / risk_ratio / baseline_rate / outcome_sd / path / note
+  （path + baseline_rate/outcome_sd 是转换输入，供验证器独立重导）
+- **kernel `verify_e_value`**：像 OVB 一样对该块做第二次独立公式转写——
+  从审计过的 headline ATE + 记录的转换输入重算 risk_ratio 与两个 E-value，
+  篡改 e_value（把脆弱结果伪装稳健）被拒；补上"出数无独立复核"的契约空洞
 - response_rendering 加专门 disclosure section + 4 档威胁水平模板
 - F22 加入失败模式 taxonomy
 
