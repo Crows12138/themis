@@ -27,9 +27,15 @@ API:
         mediators=("m1", "m2"),  # topological order
     )
 
-First version: binary treatment + bool-or-continuous outcome, bool
-mediators (so the outer sum has 2^k terms). Continuous-mediator
-extension is deferred until a real case asks for it.
+Binary treatment + bool-or-continuous outcome. Mediators may be bool
+or any discrete/categorical variable (integer, string, or categorical
+dtype, or an integer-valued float): each mediator is drop-first one-hot
+encoded, the chain factors ``P(Zi | X, Z_<i)`` become multinomial
+logistic, and the outer sum ranges over the full Cartesian product of
+the mediators' level sets (``∏_i k_i`` strata). Binary mediators reduce
+to the original 2^k enumeration exactly. Genuinely continuous mediators
+(fractional-valued floats, or more than ``MAX_LEVELS_PER_MEDIATOR``
+distinct values) need density estimation / integration and are deferred.
 """
 from __future__ import annotations
 
@@ -46,6 +52,14 @@ from .resample import cluster_labels, resample_indices
 
 
 ModelName = Literal["auto", "linear", "logistic"]
+
+# A mediator with more distinct values than this is treated as continuous /
+# high-cardinality and deferred (exact stratum enumeration would be a poor
+# model and, past the cross-product cap, infeasible).
+MAX_LEVELS_PER_MEDIATOR = 20
+# Ceiling on ``∏_i k_i`` — the number of mediator-value strata the outer sum
+# enumerates. Guards against combinatorial blow-up across many mediators.
+MAX_MEDIATOR_CROSSPRODUCT = 2048
 
 
 @dataclass(frozen=True)
@@ -147,6 +161,40 @@ def estimate_frontdoor_ate(
 # --- internals ----------------------------------------------------------------
 
 
+def _discrete_levels(series: pd.Series, name: str) -> list:
+    """Sorted discrete level set of a mediator, or raise ``NotImplementedError``
+    when it looks continuous.
+
+    Discrete = bool / integer / categorical / string dtype, or an
+    integer-valued float column, with at most ``MAX_LEVELS_PER_MEDIATOR``
+    distinct values. Fractional floats or higher cardinality are treated as
+    continuous and deferred: a genuinely continuous mediator needs density
+    estimation / integration, a separate estimator family.
+    """
+    s = series.dropna()
+    if pd.api.types.is_float_dtype(series):
+        vals = s.to_numpy(dtype=float)
+        integer_valued = bool(vals.size) and bool(
+            np.all(np.isfinite(vals)) and np.all(vals == np.round(vals))
+        )
+        if not integer_valued:
+            raise NotImplementedError(
+                f"front-door estimator does not support continuous mediator "
+                f"{name!r} (float dtype with non-integer values); only "
+                f"discrete/categorical mediators are supported. Continuous-"
+                f"mediator front-door needs density estimation and is deferred."
+            )
+    nunique = int(s.nunique())
+    if nunique > MAX_LEVELS_PER_MEDIATOR:
+        raise NotImplementedError(
+            f"front-door estimator treats mediator {name!r} as continuous: "
+            f"{nunique} distinct values exceeds the {MAX_LEVELS_PER_MEDIATOR}-"
+            f"level cap for exact stratum enumeration. High-cardinality / "
+            f"continuous front-door is deferred."
+        )
+    return sorted(s.unique().tolist())
+
+
 def _point_estimate_frontdoor(
     df: pd.DataFrame,
     treatment: str,
@@ -157,81 +205,131 @@ def _point_estimate_frontdoor(
 ) -> float:
     """Evaluate Pearl Eq 3.29 on the fitted conditionals.
 
-    For bool mediators (first-version restriction), the outer sum
-    ranges over the 2^k cross-product of mediator values. We compute
-    ``∑_z P(Z=z|X=x) · ∑_x' P(Y|X=x',Z=z) · P(X=x')`` for each
-    do(X) arm, then return the difference.
+    Each mediator is drop-first one-hot encoded over its discrete level
+    set; the outer sum ranges over the full Cartesian product of those
+    level sets (``∏_i k_i`` strata). For binary mediators this is exactly
+    the original 2^k enumeration. We compute
+    ``∑_z P(Z=z|X=x) · ∑_x' P(Y|X=x',Z=z) · P(X=x')`` for each do(X) arm,
+    then return the difference.
     """
-    # All mediators must be bool in the first version — check & coerce
-    for m in mediators:
-        if not pd.api.types.is_bool_dtype(df[m]):
-            raise NotImplementedError(
-                f"front-door estimator v1 only supports bool mediators; "
-                f"mediator {m!r} has dtype {df[m].dtype}"
-            )
+    import itertools
 
-    n = len(df)
+    # Discrete level set per mediator (raises on a continuous mediator).
+    levels = {m: _discrete_levels(df[m], m) for m in mediators}
+    crossproduct = 1
+    for m in mediators:
+        crossproduct *= len(levels[m])
+    if crossproduct > MAX_MEDIATOR_CROSSPRODUCT:
+        raise NotImplementedError(
+            f"front-door stratum cross-product {crossproduct} exceeds the "
+            f"{MAX_MEDIATOR_CROSSPRODUCT}-combination cap; too many mediator "
+            f"level combinations to enumerate exactly."
+        )
+    val_to_idx = {
+        m: {v: i for i, v in enumerate(levels[m])} for m in mediators
+    }
+
+    def encode_value(m: str, v) -> np.ndarray:
+        """Drop-first one-hot of a single mediator value (length k-1)."""
+        vec = np.zeros(len(levels[m]) - 1, dtype=float)
+        idx = val_to_idx[m][v]
+        if idx > 0:
+            vec[idx - 1] = 1.0
+        return vec
+
+    def encode_column(m: str) -> np.ndarray:
+        """Vectorised drop-first one-hot of a mediator column (n x k-1)."""
+        idx = df[m].map(val_to_idx[m]).to_numpy(dtype=int)
+        onehot = np.zeros((len(df), len(levels[m])), dtype=float)
+        onehot[np.arange(len(df)), idx] = 1.0
+        return onehot[:, 1:]
+
+    def encode_assignment(combo: tuple) -> np.ndarray:
+        """Concatenated drop-first one-hot for a full mediator assignment."""
+        if not mediators:
+            return np.zeros(0)
+        return np.concatenate(
+            [encode_value(m, combo[i]) for i, m in enumerate(mediators)]
+        )
+
     x_arr = df[treatment].to_numpy(dtype=float).reshape(-1, 1)  # n x 1
     y_arr = df[outcome].to_numpy()
     if y_arr.dtype == bool:
         y_arr = y_arr.astype(int)
 
-    # Fit P(Y | X, Z) — single model on (x, z1, ..., zk)
-    z_arr = df[list(mediators)].to_numpy(dtype=float)
-    xz = np.hstack([x_arr, z_arr])
+    # Fit P(Y | X, Z) — single model on [X, one-hot(Z1..Zk)].
+    if mediators:
+        z_train = np.hstack([encode_column(m) for m in mediators])
+        xz = np.hstack([x_arr, z_train])
+    else:
+        xz = x_arr
     predict_y = _fit_predict(xz, y_arr, model)
 
-    # Fit P(Z | X) via chain rule — each Zi as logistic on (X, Z_{<i})
-    # (mediators are bool → logistic is the only sensible choice)
-    chain_predictors: list = []  # list of callables: (X_arr, Z_prior_arr) -> prob Zi=1
+    # Fit P(Zi | X, Z_<i) via chain rule — each factor a (multinomial)
+    # logistic on [X, one-hot(Z_<i)]. A degenerate single-level factor is
+    # stored as a constant so LogisticRegression is never asked to fit a
+    # single class (which happens in bootstrap resamples).
+    chain: list[tuple[str, object]] = []
     for i, m in enumerate(mediators):
-        zi_target = df[m].to_numpy().astype(int)
-        # Features: X and prior mediators' values
-        prior_arr = df[list(mediators[:i])].to_numpy(dtype=float) if i > 0 else None
-        if prior_arr is None:
+        target = df[m].map(val_to_idx[m]).to_numpy(dtype=int)
+        if i == 0:
             feats = x_arr
         else:
-            feats = np.hstack([x_arr, prior_arr])
-        clf = LogisticRegression(max_iter=1000, solver="lbfgs")
-        clf.fit(feats, zi_target)
-        chain_predictors.append(clf)
+            feats = np.hstack(
+                [x_arr] + [encode_column(mediators[j]) for j in range(i)]
+            )
+        distinct = np.unique(target)
+        if distinct.size <= 1:
+            chain.append(("const", int(distinct[0]) if distinct.size else 0))
+        else:
+            clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+            clf.fit(feats, target)
+            chain.append(("clf", clf))
 
-    # Empirical P(X) — treatment prevalence
+    # Empirical P(X) — treatment prevalence (binary treatment).
     p_x1 = float(df[treatment].mean())
     p_x0 = 1.0 - p_x1
 
-    def p_z_given_x(z_values: np.ndarray, x_value: float) -> float:
+    def p_factor(i: int, combo: tuple, x_value: float) -> float:
+        """P(Zi = combo[i] | X=x, Z_<i = combo[:i])."""
+        kind, obj = chain[i]
+        target_idx = val_to_idx[mediators[i]][combo[i]]
+        if kind == "const":
+            return 1.0 if target_idx == obj else 0.0
+        clf = obj  # type: ignore[assignment]
+        if i == 0:
+            feats = np.array([[x_value]])
+        else:
+            prior = np.concatenate(
+                [encode_value(mediators[j], combo[j]) for j in range(i)]
+            )
+            feats = np.concatenate([[x_value], prior]).reshape(1, -1)
+        proba = clf.predict_proba(feats)[0]
+        cols = np.nonzero(clf.classes_ == target_idx)[0]
+        return float(proba[cols[0]]) if cols.size else 0.0
+
+    def p_z_given_x(combo: tuple, x_value: float) -> float:
         """Joint conditional P(Z1=z1,...,Zk=zk | X=x) via chain rule."""
         acc = 1.0
-        for i, m in enumerate(mediators):
-            prior = z_values[:i] if i > 0 else np.array([])
-            if i == 0:
-                feats = np.array([[x_value]])
-            else:
-                feats = np.hstack([[[x_value]], prior.reshape(1, -1)])
-            proba = chain_predictors[i].predict_proba(feats)[0, 1]
-            zi = z_values[i]
-            acc *= proba if zi == 1 else (1 - proba)
-        return float(acc)
+        for i in range(len(mediators)):
+            acc *= p_factor(i, combo, x_value)
+        return acc
 
-    def inner_marginalise(z_values: np.ndarray) -> float:
+    def inner_marginalise(combo: tuple) -> float:
         """∑_x' P(Y | X=x', Z=z) · P(X=x')."""
-        feats1 = np.array([[1.0, *z_values]])
-        feats0 = np.array([[0.0, *z_values]])
+        z_oh = encode_assignment(combo)
+        feats1 = np.concatenate([[1.0], z_oh]).reshape(1, -1)
+        feats0 = np.concatenate([[0.0], z_oh]).reshape(1, -1)
         y_at_1 = float(predict_y(feats1)[0])
         y_at_0 = float(predict_y(feats0)[0])
         return y_at_1 * p_x1 + y_at_0 * p_x0
 
-    # Cross-product of bool mediator values
+    level_lists = [levels[m] for m in mediators]
+
     def do_arm(x_arm: float) -> float:
         total = 0.0
-        for mask in range(2 ** len(mediators)):
-            z_values = np.array(
-                [(mask >> i) & 1 for i in range(len(mediators))],
-                dtype=float,
-            )
-            weight = p_z_given_x(z_values, x_arm)
-            total += weight * inner_marginalise(z_values)
+        for combo in itertools.product(*level_lists):
+            total += p_z_given_x(combo, x_arm) * inner_marginalise(combo)
         return total
 
     return do_arm(1.0) - do_arm(0.0)

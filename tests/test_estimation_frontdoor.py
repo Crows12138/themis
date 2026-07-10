@@ -5,9 +5,12 @@ Coverage:
   (X ↔ Y latent, mediator M intercepts): recovers true ATE
 - Multi-mediator (two mediators) via chain-rule: recovers true ATE
 - Bool + continuous outcome paths
+- Multi-valued (categorical / integer) mediator recovers true ATE
+  against an analytic front-door oracle
+- Integer-valued float mediator accepted; genuinely continuous and
+  high-cardinality mediators rejected
 - Determinism under fixed seed
 - Bootstrap CI brackets point estimate
-- Rejects continuous mediators (first-version restriction)
 - Empty mediators rejected
 """
 from __future__ import annotations
@@ -55,6 +58,37 @@ def _double_mediator_dgp(n=3000, seed=0, true_ate_through_m2=1.5):
     return pd.DataFrame({"x": x, "m1": m1, "m2": m2, "y": y})
 
 
+def _categorical_mediator_dgp(n=8000, seed=0):
+    """X → M → Y with X ↔ Y latent, M a 3-level categorical mediator.
+
+    U confounds X and Y (the backdoor front-door sidesteps). M depends only
+    on X. Y is additive: ``g(M) + 2·U + noise`` with ``g = [0, 1, 2.5]``.
+    Because M ⟂ U | X, the outcome model E[Y|X,M] is saturated in
+    [X, one-hot(M)], so the front-door plug-in recovers the *analytic*
+    interventional contrast
+
+        ATE = Σ_m [P(M=m|X=1) − P(M=m|X=0)] · g(m)
+
+    exactly in the large-sample limit — an independent oracle that does not
+    reuse the estimator's machinery.
+    """
+    rng = np.random.default_rng(seed)
+    u = rng.standard_normal(n)
+    x = rng.random(n) < (1 / (1 + np.exp(-u)))
+    probs0 = np.array([0.6, 0.3, 0.1])   # P(M | X=0)
+    probs1 = np.array([0.1, 0.3, 0.6])   # P(M | X=1)
+    m = np.empty(n, dtype=int)
+    for xi in (0, 1):
+        mask = x == bool(xi)
+        m[mask] = rng.choice(3, size=int(mask.sum()),
+                             p=(probs1 if xi == 1 else probs0))
+    g = np.array([0.0, 1.0, 2.5])
+    y = g[m] + 2.0 * u + rng.standard_normal(n) * 0.3
+    df = pd.DataFrame({"x": x, "m": m.astype(int), "y": y})
+    true_ate = float(((probs1 - probs0) * g).sum())   # = 1.25
+    return df, true_ate
+
+
 # ============================================ correctness
 
 
@@ -85,6 +119,44 @@ def test_double_mediator_recovers_positive_effect():
     # Method reflects linear outcome
     assert est.method == "frontdoor_linear"
     assert len(est.mediators) == 2
+
+
+def test_multivalued_categorical_mediator_recovers_true_ate():
+    """3-level integer mediator: front-door recovers the analytic ATE
+    despite latent X↔Y confounding the estimator never sees."""
+    df, true_ate = _categorical_mediator_dgp(n=8000, seed=0)
+    est = estimate_frontdoor_ate(
+        df, treatment="x", outcome="y", mediators=("m",), ci_bootstrap=0,
+    )
+    assert est.method == "frontdoor_linear"
+    assert abs(est.point - true_ate) < 0.12, (
+        f"expected ~{true_ate:.3f}, got {est.point:.3f}"
+    )
+
+
+def test_integer_valued_float_mediator_accepted():
+    """A 3-level mediator encoded as float 0.0/1.0/2.0 is treated as
+    discrete (integer-valued) and recovers the same ATE."""
+    df, true_ate = _categorical_mediator_dgp(n=6000, seed=1)
+    df = df.assign(m=df["m"].astype(float))   # 0.0 / 1.0 / 2.0
+    est = estimate_frontdoor_ate(
+        df, treatment="x", outcome="y", mediators=("m",), ci_bootstrap=0,
+    )
+    assert abs(est.point - true_ate) < 0.15, (
+        f"expected ~{true_ate:.3f}, got {est.point:.3f}"
+    )
+
+
+def test_categorical_mediator_bootstrap_ci_brackets_point():
+    """Bootstrap over a multi-level mediator (resamples may drop a level;
+    the degenerate-factor guard must hold) and the CI brackets the point."""
+    df, _ = _categorical_mediator_dgp(n=2000, seed=2)
+    est = estimate_frontdoor_ate(
+        df, treatment="x", outcome="y", mediators=("m",),
+        ci_bootstrap=80, random_state=3,
+    )
+    assert est.ci_lower is not None and est.ci_upper is not None
+    assert est.ci_lower <= est.point <= est.ci_upper
 
 
 def test_bool_outcome_uses_logistic_path():
@@ -167,18 +239,35 @@ def test_empty_mediators_rejected():
         )
 
 
-def test_continuous_mediator_rejected_v1():
-    """First version only supports bool mediators — explicit limit."""
+def test_continuous_mediator_rejected():
+    """A genuinely continuous (fractional-valued) mediator is deferred."""
     rng = np.random.default_rng(0)
     n = 200
     df = pd.DataFrame({
         "x": rng.random(n) < 0.5,
-        "m_cont": rng.standard_normal(n),
+        "m_cont": rng.standard_normal(n),   # fractional float
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(NotImplementedError, match="bool mediators"):
+    with pytest.raises(NotImplementedError, match="continuous"):
         estimate_frontdoor_ate(
             df, treatment="x", outcome="y", mediators=("m_cont",),
+            ci_bootstrap=0,
+        )
+
+
+def test_high_cardinality_integer_mediator_rejected():
+    """A near-continuous integer mediator (too many levels) is deferred —
+    exact stratum enumeration is refused past the per-mediator level cap."""
+    rng = np.random.default_rng(0)
+    n = 400
+    df = pd.DataFrame({
+        "x": rng.random(n) < 0.5,
+        "m_int": rng.integers(0, 100, size=n),   # ~100 levels > cap
+        "y": rng.standard_normal(n),
+    })
+    with pytest.raises(NotImplementedError, match="continuous"):
+        estimate_frontdoor_ate(
+            df, treatment="x", outcome="y", mediators=("m_int",),
             ci_bootstrap=0,
         )
 

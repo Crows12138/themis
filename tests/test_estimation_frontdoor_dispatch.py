@@ -136,6 +136,55 @@ def test_dispatch_skips_frontdoor_when_continuous_mediator():
     assert "numeric_estimate" not in result
 
 
+def _frontdoor_categorical_ast():
+    """X → M → Y, X ↔ Y latent, with M a 3-level categorical mediator."""
+    ast = _frontdoor_ast()
+    for st in ast["statements"]:
+        if st.get("kind") == "variable" and st.get("predicate") == "m":
+            st["domain"] = [0, 1, 2]
+    return ast
+
+
+def _frontdoor_categorical_data(n=8000, seed=0):
+    """Same X↔Y-latent ADMG but M is a 3-level categorical mediator.
+
+    True front-door ATE is analytic: Σ_m [P(M=m|X=1)−P(M=m|X=0)]·g(m) = 1.25.
+    """
+    rng = np.random.default_rng(seed)
+    u = rng.standard_normal(n)
+    x = rng.random(n) < (1 / (1 + np.exp(-u)))
+    probs0 = np.array([0.6, 0.3, 0.1])
+    probs1 = np.array([0.1, 0.3, 0.6])
+    m = np.empty(n, dtype=int)
+    for xi in (0, 1):
+        mask = x == bool(xi)
+        m[mask] = rng.choice(3, size=int(mask.sum()),
+                             p=(probs1 if xi == 1 else probs0))
+    g = np.array([0.0, 1.0, 2.5])
+    y = g[m] + 2.0 * u + rng.standard_normal(n) * 0.3
+    df = pd.DataFrame({"x": x, "m": m.astype(int), "y": y})
+    return df, float(((probs1 - probs0) * g).sum())
+
+
+def test_dispatch_frontdoor_categorical_mediator():
+    """A multi-valued (3-level) mediator flows through the full
+    run→estimate→verify pipeline and recovers the analytic ATE."""
+    df, true_ate = _frontdoor_categorical_data(n=8000, seed=0)
+    ast = _frontdoor_categorical_ast()
+    out = themis.estimate(ast, df, ci_bootstrap=0)
+    result = out["results"][0]
+
+    assert result["status"] == "numerically_solved"
+    est = result["numeric_estimate"]
+    assert est["method"] == "frontdoor_linear"
+    assert est["mediators"] == ["m"]
+    assert abs(est["point"] - true_ate) < 0.12, (
+        f"categorical front-door estimate {est['point']} off ~{true_ate:.3f}"
+    )
+    # verifier metadata audit must round-trip on the categorical case too
+    themis.verify(ast, result)
+
+
 def test_dispatch_bootstrap_ci_populated():
     df = _frontdoor_data(n=500, seed=0)
     out = themis.estimate(
