@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2657 passed / 144 skipped, warning-clean
+2670 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1059,6 +1059,15 @@ DataFrame 旁路。
 - slice b.2：`model='drlearner'`，LinearDRLearner + T 离散化，可恢复
   T-Y 非线性；`auto` 在样本量和采样点足够时选择 drlearner
 - followup：verify roundtrip 与 model-string normalization 修复
+- **followup(2026-07-10)：`verify_dose_response_curve` 曲线语义审计**。
+  此前曲线数组(=dose-response 的答案)只走 numeric_backdoor_estimate 松弛
+  元数据审计(只看 adapter 的 headline 末点),曲线本身除 JSON 形状外零复核
+  ——实测参考点 effect 篡改成 99 / 某点 effect 篡改成 1e6(远超自身 CI) /
+  x 挪出采样网格,verify 全放过。补上构造不变量审计(参考点 effect=0、每点
+  effect∈自身CI、x 逐一匹配采样点、点数一致、区间不倒挂)接进 kernel effect
+  分支。**诚实天花板**:曲线值是 EconML 黑盒拟合、无充分统计量,不能重导
+  拟合值(与所有 data-refit 估计器同);逮得住破坏构造的篡改,逮不住"effect+CI
+  一致伪造"(那需重跑拟合,超范围;有专门测试钉住此限制)
 
 **当前边界**：
 
