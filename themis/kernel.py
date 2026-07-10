@@ -97,6 +97,7 @@ from .verifier import (
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
     verify_e_value,
+    verify_mediation_numeric,
     verify_scm_counterfactual,
     verify_effect_structural,
     verify_identify,
@@ -929,6 +930,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # the structural effect verifier.
             claimed = _decode_structural_result_json(result["structural_result"])
             verify_effect_structural(derivation, ctx, claimed)
+            # The mediation path attaches numeric answer blocks (Imai NDE/NIE
+            # + the two four-way splits) to this structurally_solved result;
+            # the structural verifier above doesn't inspect them. Re-derive
+            # the ratio-scale four-way from its recorded coefficients and
+            # check the construction identities of the rest.
+            num_est = result.get("numeric_estimate")
+            if num_est is not None:
+                verify_mediation_numeric(num_est)
         elif (
             status == "numerically_solved"
             and kind == "effect"

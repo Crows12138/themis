@@ -49,7 +49,12 @@ Public surface (re-exports from sub-modules):
   numbers from the recorded sufficient statistics, not the raw data):
   ``verify_proximal_effect`` / ``verify_proximal_numeric`` (Miao-2018
   proximal do-effect), ``verify_causation_numeric`` (PN/PS/PNS plug-in),
-  ``verify_ctf_conjunction_numeric`` (ID*/IDC* counterfactual conjunction)
+  ``verify_ctf_conjunction_numeric`` (ID*/IDC* counterfactual conjunction),
+  ``verify_mediation_numeric`` (the numbers riding on a mediation structural
+  result: the VanderWeele ratio-scale four-way split re-derived from the
+  recorded logistic coefficients, plus construction-identity checks on the
+  difference-scale four-way and the Imai NDE/NIE decomposition whose
+  simulation-based values aren't re-derivable)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -103,6 +108,7 @@ from .verify import (
     verify_e_value,
     verify_effect_structural,
     verify_identify,
+    verify_mediation_numeric,
     verify_missing_data_recovery,
     verify_numeric,
     verify_numeric_estimate,
@@ -143,6 +149,7 @@ __all__ = [
     "verify_identify",
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",
+    "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",
     "verify_missing_data_recovery",

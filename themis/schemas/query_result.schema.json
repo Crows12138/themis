@@ -930,7 +930,7 @@
         "four_way_ratio": {
           "type": "object",
           "description": "VanderWeele 2014 eAppendix §3.4 (binary mediator) / §3.3 (continuous mediator) RATIO-scale (excess relative risk) four-way decomposition, attached to a mediation numeric_estimate when the OUTCOME is binary. For a binary outcome the multiplicative scale is the natural one: the total excess relative risk (total_rr − 1) = err_cde + err_intref + err_intmed + err_pie. Unlike the collapsible difference-scale four_way_decomposition these components are NON-collapsible functions of the logistic outcome coefficients (odds-ratio approximation). mediator_scale is 'binary' (§3.4, logistic mediator) or 'continuous' (§3.3, linear mediator; mediator_residual_variance then carries σ²).",
-          "required": ["mediator_scale", "err_cde", "err_intref", "err_intmed", "err_pie", "total_err", "total_rr", "prop_mediated", "prop_interaction", "prop_eliminated"],
+          "required": ["mediator_scale", "err_cde", "err_intref", "err_intmed", "err_pie", "total_err", "total_rr", "prop_mediated", "prop_interaction", "prop_eliminated", "coefficients"],
           "additionalProperties": false,
           "properties": {
             "mediator_scale": { "enum": ["binary", "continuous"] },
@@ -944,6 +944,21 @@
             "prop_interaction": { "$ref": "#/$defs/ratioComponentEstimate" },
             "prop_eliminated": { "$ref": "#/$defs/ratioComponentEstimate" },
             "mediator_residual_variance": { "type": "number" },
+            "coefficients": {
+              "type": "object",
+              "description": "The fitted outcome / mediator model coefficients the VanderWeele closed form was evaluated at — the sufficient statistics verify_four_way_ratio re-derives every err_* / prop_* from. t1/t2/t3: outcome-model logit coefficients on A / M / A·M; b0/b1: mediator-model intercept / A coefficient; bcc: mediator-model covariate contribution at the sample-mean covariate value; mediator_reference: the m* the CDE fixes M at.",
+              "required": ["t1", "t2", "t3", "b0", "b1", "bcc", "mediator_reference"],
+              "additionalProperties": false,
+              "properties": {
+                "t1": { "type": "number" },
+                "t2": { "type": "number" },
+                "t3": { "type": "number" },
+                "b0": { "type": "number" },
+                "b1": { "type": "number" },
+                "bcc": { "type": "number" },
+                "mediator_reference": { "type": "number" }
+              }
+            },
             "reference": { "type": "string" }
           }
         }

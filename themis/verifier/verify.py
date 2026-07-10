@@ -1046,6 +1046,152 @@ def verify_dose_response_curve(estimate: dict) -> None:
         _fail(f"reference point interval [{rlo}, {rhi}] must bracket 0")
 
 
+_MEDIATION_TOL = 1e-6
+
+
+def verify_mediation_numeric(estimate: dict) -> None:
+    """Audit the numeric answer blocks riding on a mediation structural
+    result and reject on violation.
+
+    Mediation stays ``structurally_solved`` (routed to
+    verify_effect_structural, which checks only the identify_via_mediation
+    terminal), so the numbers attached to it — the Imai NDE/NIE
+    decomposition and the two four-way splits — otherwise ship with no
+    numeric audit at all: today a tampered ``err_cde`` or ``prop_mediated``
+    passes ``themis.verify`` untouched.
+
+    Three blocks, two levels of check:
+
+    - ``four_way_ratio`` (STRONG): every ERR component is a closed form of
+      the fitted logistic outcome/mediator coefficients, now recorded under
+      ``coefficients``. Re-derive each err_* / prop_* from those
+      coefficients through VanderWeele's decomposition and confirm the block
+      matches — so a tamper of any reported value, even a self-consistent
+      one, is caught because it no longer agrees with the recorded fit.
+      Independently (not trusting that oracle), the transcription-free
+      identities are re-checked: the four ERR pieces sum to total_err,
+      total_err = total_rr − 1, and each proportion equals its component
+      ratio.
+    - ``four_way_decomposition`` (difference scale) and ``decomposition``
+      (Imai NDE/NIE) (INVARIANTS): their sufficient statistics — standardized
+      cell means, and a Monte-Carlo simulation over the data — are not
+      recorded / not re-derivable without a re-fit, the ceiling every
+      data-refit estimator sits at. What IS checkable is the construction
+      identities (TE = sum of parts; each proportion = its ratio). These
+      catch a single-component tamper (the demonstrated hole) but not a
+      fully self-consistent forgery.
+
+    ``estimate`` is the full ``numeric_estimate`` dict; each block is
+    audited only when present.
+    """
+    import math
+
+    def _fail(msg, rule):
+        raise VerificationError(msg, step_index=None, rule=rule)
+
+    def _isnan_none(v):
+        return v is None or (isinstance(v, float) and math.isnan(v))
+
+    def _close(a, b, name, rule):
+        # Both undefined (construction gives nan, e.g. total_err == 0) is
+        # consistent; one defined and the other not is a mismatch.
+        if _isnan_none(a) or _isnan_none(b):
+            if _isnan_none(a) and _isnan_none(b):
+                return
+            _fail(f"{name}: recomputed {a!r}, recorded {b!r}", rule)
+        if not math.isfinite(a):
+            _fail(f"{name}: recomputed non-finite {a}", rule)
+        if abs(a - b) > _MEDIATION_TOL + 1e-6 * abs(b):
+            _fail(f"{name}: recomputed {a}, recorded {b}", rule)
+
+    # ---- four_way_ratio: strong re-derivation from recorded coefficients ----
+    fr = estimate.get("four_way_ratio")
+    if fr is not None:
+        coeffs = fr.get("coefficients")
+        if coeffs is None:
+            _fail("four_way_ratio.coefficients missing — cannot re-derive",
+                  "four_way_ratio")
+        from ..estimation.four_way import (
+            four_way_ratio_decomposition,
+            four_way_ratio_decomposition_continuous,
+        )
+        t1, t2, t3 = coeffs["t1"], coeffs["t2"], coeffs["t3"]
+        b0, b1, bcc = coeffs["b0"], coeffs["b1"], coeffs["bcc"]
+        mstar = coeffs["mediator_reference"]
+        mscale = fr.get("mediator_scale")
+        if mscale == "binary":
+            comps = four_way_ratio_decomposition(
+                t1=t1, t2=t2, t3=t3, b0=b0, b1=b1, bcc=bcc,
+                a1=1.0, a0=0.0, mstar=mstar,
+            )
+        elif mscale == "continuous":
+            ss_m = fr.get("mediator_residual_variance")
+            if ss_m is None:
+                _fail("four_way_ratio: continuous scale needs "
+                      "mediator_residual_variance", "four_way_ratio")
+            comps = four_way_ratio_decomposition_continuous(
+                t1=t1, t2=t2, t3=t3, b0=b0, b1=b1, ss_m=ss_m, bcc=bcc,
+                a1=1.0, a0=0.0, mstar=mstar,
+            )
+        else:
+            _fail(f"four_way_ratio.mediator_scale unknown: {mscale!r}",
+                  "four_way_ratio")
+
+        for recomputed, key in (
+            (comps.err_cde, "err_cde"), (comps.err_intref, "err_intref"),
+            (comps.err_intmed, "err_intmed"), (comps.err_pie, "err_pie"),
+            (comps.total_err, "total_err"), (comps.total_rr, "total_rr"),
+            (comps.prop_mediated, "prop_mediated"),
+            (comps.prop_interaction, "prop_interaction"),
+            (comps.prop_eliminated, "prop_eliminated"),
+        ):
+            _close(recomputed, fr[key]["point"],
+                   f"four_way_ratio.{key}", "four_way_ratio")
+
+        # transcription-free internal identities (independent of the oracle)
+        ec, er = fr["err_cde"]["point"], fr["err_intref"]["point"]
+        em, ep = fr["err_intmed"]["point"], fr["err_pie"]["point"]
+        te, tr = fr["total_err"]["point"], fr["total_rr"]["point"]
+        _close(ec + er + em + ep, te, "four_way_ratio.sum==total_err",
+               "four_way_ratio")
+        _close(tr - 1.0, te, "four_way_ratio.total_rr-1==total_err",
+               "four_way_ratio")
+        if abs(te) > _MEDIATION_TOL:
+            _close((em + ep) / te, fr["prop_mediated"]["point"],
+                   "four_way_ratio.prop_mediated_identity", "four_way_ratio")
+            _close((er + em) / te, fr["prop_interaction"]["point"],
+                   "four_way_ratio.prop_interaction_identity", "four_way_ratio")
+            _close((er + em + ep) / te, fr["prop_eliminated"]["point"],
+                   "four_way_ratio.prop_eliminated_identity", "four_way_ratio")
+
+    # ---- four_way_decomposition (difference scale): construction identities --
+    fw = estimate.get("four_way_decomposition")
+    if fw is not None:
+        cde, ir = fw["cde"]["point"], fw["intref"]["point"]
+        im, pie = fw["intmed"]["point"], fw["pie"]["point"]
+        te = fw["te"]["point"]
+        _close(cde + ir + im + pie, te, "four_way_decomposition.sum==te",
+               "four_way_decomposition")
+        if abs(te) > _MEDIATION_TOL:
+            _close((im + pie) / te, fw["prop_mediated"]["point"],
+                   "four_way_decomposition.prop_mediated",
+                   "four_way_decomposition")
+            _close((ir + im) / te, fw["prop_interaction"]["point"],
+                   "four_way_decomposition.prop_interaction",
+                   "four_way_decomposition")
+
+    # ---- decomposition (Imai NDE/NIE): construction identities --------------
+    dec = estimate.get("decomposition")
+    if dec is not None and {"nde", "nie", "te"} <= dec.keys():
+        nde, nie = dec["nde"]["point"], dec["nie"]["point"]
+        te = dec["te"]["point"]
+        _close(nde + nie, te, "decomposition.nde+nie==te", "decomposition")
+        pm = dec.get("proportion_mediated")
+        if pm is not None and abs(te) > _MEDIATION_TOL:
+            _close(nie / te, pm["point"], "decomposition.proportion_mediated",
+                   "decomposition")
+
+
 def verify_selection_recovery(block: dict, graph) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 

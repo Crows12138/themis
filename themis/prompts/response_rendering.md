@@ -936,6 +936,17 @@ mediation". Two scales:
   inconsistency. Both are supplementary audit detail; the headline stays the
   proportion mediated + the structural identifiability verdict.
 
+These numbers ride on a `structurally_solved` result, so the kernel's
+`verify_mediation_numeric` audits them: it re-derives every `four_way_ratio`
+`err_*` / `prop_*` from the recorded `coefficients` (the fitted logistic
+t1/t2/t3/b0/b1 the VanderWeele closed form was evaluated at), so a tampered
+ratio component — even a self-consistent one — is rejected. The
+difference-scale `four_way_decomposition` and the Imai `decomposition`
+(NDE/NIE) get construction-identity checks only (TE = sum of parts;
+proportion = ratio); their values are cell-mean / simulation based and not
+re-derivable without a re-fit, so disclose them at the estimator's own
+precision, not more.
+
 ### Transport identification (Phase 9 §T9.1)
 
 When `result.extensions.transport_identification` is present, the

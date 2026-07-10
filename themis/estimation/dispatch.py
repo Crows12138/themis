@@ -1922,6 +1922,16 @@ def _attach_four_way_ratio(
     }
     if est.ss_m is not None:
         block["mediator_residual_variance"] = est.ss_m
+    # Record the fitted coefficients the VanderWeele closed form was
+    # evaluated at — the sufficient statistics verify_four_way_ratio
+    # re-derives every err_* / prop_* from. Without them the ratio block
+    # (the answer) would ride on a structurally_solved result with no
+    # numeric audit at all.
+    block["coefficients"] = {
+        "t1": est.t1, "t2": est.t2, "t3": est.t3,
+        "b0": est.b0, "b1": est.b1, "bcc": est.bcc,
+        "mediator_reference": float(est.mediator_reference),
+    }
     ne["four_way_ratio"] = block
 
 
