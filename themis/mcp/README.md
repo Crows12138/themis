@@ -69,7 +69,7 @@ prefixed `mcp__themis__`.
 | `themis_verify_markov_blanket` | `themis.verify_markov_blanket(result)` | Borrow-list #4 — re-checks the Markov-blanket definition from the recorded correlation matrix |
 | `themis_estimate` | `themis.estimate(program, df)` | Loads CSV from `csv_path` (Phase 7+14) |
 | `themis_discover` | `themis.estimation.discovery.discover_*` | Phase 8.1 — PC / GES skeletons from CSV |
-| `themis_markov_blanket` | `themis.estimation.discovery.markov_blanket` | Borrow-list #4 — local Markov-blanket screen of a target (continuous, Fisher-Z) |
+| `themis_markov_blanket` | `themis.estimation.discovery.markov_blanket` | Borrow-list #4 — local Markov-blanket screen of a target (continuous Fisher-Z / discrete chi-square) |
 | `themis_report` | `themis.build_analysis_report` (+ run/estimate/verify) | Deterministic analyze → verify → Markdown report per query (no LLM / API key) |
 | `themis_submit_verdict` | n/a (agent-side commitment) | v0.1.5 Fix 2A — schema-validated `yes`/`no`/`needs_more_info` commitment channel so binary verdicts survive token-level decoding artifacts |
 | `themis_list_resources` | n/a | Returns the resource URI catalog |

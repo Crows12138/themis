@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2798 passed / 144 skipped, warning-clean
+2811 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -84,14 +84,26 @@ distinct-value 集作充分统计量），`verify_type_reconciliation` 从零重
 统计量**；`verify_markov_blanket`（`themis.verify_markov_blanket` 公开面，平行
 `verify_bounds_result`）从记录的相关矩阵**独立重写 Fisher-Z**（不 import 生产
 侧、不 import causal-learn、不重跑搜索）重算每条完备性/最小性检验，拒伪造/裁剪
-的毯、篡改的检验、非良构（非对称/非 PSD）的相关矩阵。**声明的取舍**：仅连续
-（Fisher-Z）；离散马尔可夫毯需卡方检验、充分统计量是列联表而非相关矩阵，
-**显式推迟**——离散/混合输入直接报错而非静默出不可验证的毯。D1 oracle：已知
+的毯、篡改的检验、非良构（非对称/非 PSD）的相关矩阵。D1 oracle：已知
 线性高斯 SCM 恢复手推毯（含**配偶**这一微妙情形——与 T 边际独立、条件于共同
 子后才相关）+ 生产者 Fisher-Z p 值对齐 causal-learn CIT（跨实现锚定）。MCP
 工具 10→12（`themis_markov_blanket` 产 + `themis_verify_markov_blanket` 验；
 同步 test_mcp_server 精确集 + server.py 模块 docstring + README 目录表与计数 +
 COVERAGE_MAP 计数四处守卫）；+21 测试；基线 2777→**2798**。
+
+**离散马尔可夫毯（卡方，同 session follow-up）**：补齐上条「仅连续」的取舍。
+`markov_blanket` 现按数据类型分派：全连续→Fisher-Z（相关矩阵）、全离散
+[整数编码/bool]→**卡方**（充分统计量=**稀疏联合列联表**，以 distinct-行数≤n 为界
+而非 k^p 稠密表）；grow-shrink 抽成接受 CI 闭包的通用版，两条路径共享搜索。
+卡方自由度**逐字对齐 causal-learn 约定**（每层 dof=(该层出现的 X 水平−1)(Y 水平
+−1)，按出现过的分层求和）；`verify_markov_blanket` 从记录的联合列联表独立重写
+卡方、重算完备性/最小性，拒伪造/裁剪毯 + 篡改 statistic/dof/p + 列联计数和≠n +
+越界编码。**分类必须用原始未强转数据**（validate_data 把整数列转 float64 →
+`_classify_column` 会把离散整数误判成 continuous，同借鉴清单 #3 的教训）；混合
+连续+离散报错（混合 CI 检验未做，显式推迟）。D1=离散对撞 SCM 恢复含配偶的
+手推毯 [X1,X2,X3,Y] + 3 水平无关变量正确排除 + `_chi_square_from_joint` p 值对齐
+causal-learn CIT chisq（跨实现锚定，含多值/多条件）。MCP 工具数不变（复用同
+两工具）；+13 测试；基线 2798→**2811**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
