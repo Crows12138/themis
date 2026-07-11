@@ -960,17 +960,26 @@ class MarkovBlanketResult:
     - ``blanket``: sorted tuple of member variable names (the shield)
     - ``columns``: all variables considered, canonical order
     - ``method``: the search method run (``"grow_shrink"``)
+    - ``test``: the conditional-independence test used — ``"fisherz"`` for
+      continuous data, ``"chisq"`` for discrete data. This selects which
+      sufficient statistic is recorded and which the verifier recomputes.
     - ``alpha``: CI-test significance level
     - ``sample_size`` / ``data_hash``: provenance of the fitted data
-    - ``correlation``: the Pearson correlation matrix over ``columns`` in
-      that order — the complete sufficient statistic for Fisher-Z, recorded
-      so the verifier can independently recompute every test
+    - ``correlation`` (fisherz only): the Pearson correlation matrix over
+      ``columns`` — the complete sufficient statistic for Fisher-Z.
+    - ``contingency`` (chisq only): ``{"levels": [...], "counts": [...]}`` —
+      the per-column distinct values (defining the integer codes) and the
+      sparse observed joint count table over all columns. From this the
+      verifier reconstructs any stratified table and recomputes any
+      chi-square test; it is a complete sufficient statistic bounded by the
+      number of distinct rows (≤ n), not by the k^p dense table.
     - ``tests``: the completeness + minimality definition check — one entry
       per non-member (``role="shield"``, must be independent) and per member
       (``role="necessary"``, must be dependent); each carries the tested
-      variable, the conditioning set, the partial correlation, the p-value,
-      and whether it passed. The verifier re-derives all of this from
-      ``correlation`` and rejects a blanket that does not satisfy its own
+      variable, the conditioning set, the test statistic (partial correlation
+      for fisherz; chi-square statistic + dof for chisq), the p-value, and
+      whether it passed. The verifier re-derives all of this from the recorded
+      sufficient statistic and rejects a blanket that does not satisfy its own
       definition.
     - ``note``: human-readable summary
     """
@@ -979,12 +988,14 @@ class MarkovBlanketResult:
     blanket: tuple[str, ...]
     columns: tuple[str, ...]
     method: str
+    test: str
     alpha: float
     sample_size: int
     data_hash: str
-    correlation: tuple[tuple[float, ...], ...]
     tests: tuple[dict, ...]
     note: str
+    correlation: tuple[tuple[float, ...], ...] = ()
+    contingency: dict | None = None
 
 
 def _corr_matrix(matrix: np.ndarray) -> np.ndarray:
@@ -1030,19 +1041,101 @@ def _fisher_z_pvalue(
     return float(2.0 * (1.0 - stats.norm.cdf(stat)))
 
 
+# --- discrete: chi-square conditional independence from joint counts ----------
+#
+# Sufficient statistic = the sparse observed joint count table over all
+# columns (bounded by the number of distinct rows ≤ n, NOT the k^p dense
+# table). Every conditional test marginalises this table to per-stratum X×Y
+# tables. Degrees of freedom follow causal-learn's convention: per stratum,
+# (present-X-levels − 1)(present-Y-levels − 1), summed over strata with data.
+
+
+def _to_py_scalar(v):
+    """numpy scalar → JSON-safe Python scalar (bool / int / float)."""
+    x = v.item() if hasattr(v, "item") else v
+    if isinstance(x, float) and x.is_integer():
+        return int(x)
+    return x
+
+
+def _recode_discrete(frame: pd.DataFrame, cols: tuple[str, ...]):
+    """Recode each column to integer codes 0..card-1 by sorted distinct value.
+    Returns ``(int_matrix (n, p), levels, cards)`` where ``levels[c]`` is the
+    sorted distinct values (the code = its index)."""
+    levels: list[list] = []
+    code_cols: list[np.ndarray] = []
+    for c in cols:
+        vals = frame[c].to_numpy()
+        uniq = np.unique(vals)
+        levels.append([_to_py_scalar(v) for v in uniq])
+        code_cols.append(np.searchsorted(uniq, vals).astype(np.int64))
+    int_matrix = np.column_stack(code_cols)
+    cards = [len(u) for u in levels]
+    return int_matrix, levels, cards
+
+
+def _build_joint_counts(int_matrix: np.ndarray) -> list[tuple[tuple[int, ...], int]]:
+    """Sparse joint counts over all columns: ``[(config_tuple, count), ...]``,
+    bounded by the number of distinct rows (≤ n)."""
+    uniq, counts = np.unique(int_matrix, axis=0, return_counts=True)
+    return [
+        (tuple(int(x) for x in row), int(cnt))
+        for row, cnt in zip(uniq, counts)
+    ]
+
+
+def _chi_square_from_joint(joint, cards, i, j, cond) -> tuple[float, int, float]:
+    """Conditional chi-square CI test for ``i ⊥ j | cond`` from the sparse
+    joint count table. Returns ``(statistic, dof, p_value)`` — large p →
+    independent. Matches causal-learn's chisq dof convention exactly."""
+    from scipy.stats import chi2
+
+    card_x, card_y = cards[i], cards[j]
+    strata: dict[tuple, np.ndarray] = {}
+    for config, cnt in joint:
+        key = tuple(config[c] for c in cond)
+        tbl = strata.get(key)
+        if tbl is None:
+            tbl = np.zeros((card_x, card_y), dtype=float)
+            strata[key] = tbl
+        tbl[config[i], config[j]] += cnt
+
+    stat = 0.0
+    dof = 0
+    for tbl in strata.values():
+        row = tbl.sum(axis=1)
+        col = tbl.sum(axis=0)
+        total = tbl.sum()
+        if total <= 0:
+            continue
+        d = (int(np.count_nonzero(row)) - 1) * (int(np.count_nonzero(col)) - 1)
+        if d <= 0:
+            continue
+        expected = np.outer(row, col) / total
+        mask = expected > 0
+        stat += float(np.sum(((tbl[mask] - expected[mask]) ** 2) / expected[mask]))
+        dof += d
+    if dof == 0:
+        return stat, 0, 1.0
+    return stat, dof, float(chi2.sf(stat, dof))
+
+
 def _grow_shrink_mb(
-    R: np.ndarray, n: int, target: int, candidates: tuple[int, ...], alpha: float,
+    ci_pvalue, target: int, candidates: tuple[int, ...], alpha: float,
     *, max_rounds: int = 100,
 ) -> list[int]:
     """Interleaved grow-shrink Markov-blanket search to a fixpoint.
 
-    Grow adds the most strongly associated candidate that is dependent on the
-    target given the current blanket; shrink drops any member that has become
-    independent of the target given the rest. Iterating both to a fixpoint
-    yields a set on which grow can add nothing (completeness) and shrink can
-    remove nothing (minimality) — exactly the Markov-blanket definition at
-    this alpha. Deterministic: grow breaks ties by smallest p-value then
-    column order; shrink scans in column order.
+    ``ci_pvalue(i, j, cond)`` returns the conditional-independence p-value for
+    ``i ⊥ j | cond`` (Fisher-Z for continuous data, chi-square for discrete) —
+    the only test-specific dependency, so the search is shared across data
+    types. Grow adds the most strongly associated candidate that is dependent
+    on the target given the current blanket; shrink drops any member that has
+    become independent given the rest. Iterating both to a fixpoint yields a
+    set on which grow can add nothing (completeness) and shrink can remove
+    nothing (minimality) — exactly the Markov-blanket definition at this alpha.
+    Deterministic: grow breaks ties by smallest p-value then column order;
+    shrink scans in column order.
     """
     mb: list[int] = []
     for _ in range(max_rounds):
@@ -1053,7 +1146,7 @@ def _grow_shrink_mb(
             for c in candidates:
                 if c == target or c in mb:
                     continue
-                p = _fisher_z_pvalue(R, target, c, tuple(mb), n)
+                p = ci_pvalue(target, c, tuple(mb))
                 if p < alpha and (best is None or p < best[0]):
                     best = (p, c)
             if best is None:
@@ -1063,7 +1156,7 @@ def _grow_shrink_mb(
         # Shrink to minimality
         for c in list(mb):
             rest = tuple(x for x in mb if x != c)
-            p = _fisher_z_pvalue(R, target, c, rest, n)
+            p = ci_pvalue(target, c, rest)
             if p > alpha:  # independent given the rest → not necessary
                 mb.remove(c)
                 changed = True
@@ -1083,18 +1176,18 @@ def markov_blanket(
     columns: tuple[str, ...] | None = None,
     method: str = "grow_shrink",
 ) -> MarkovBlanketResult:
-    """Find the Markov blanket of ``target`` in continuous ``data``.
+    """Find the Markov blanket of ``target`` in ``data``.
 
-    ``columns`` restricts the candidate pool (defaults to every continuous
-    column other than the target). ``alpha`` is the Fisher-Z significance
-    level. The returned blanket provably satisfies its own definition at
-    ``alpha`` given the fitted correlation matrix — see
-    ``verify_markov_blanket`` for the independent audit.
+    Dispatches on the data type: all-continuous → Fisher-Z (correlation-matrix
+    sufficient statistic); all-discrete (integer-coded / bool) → chi-square
+    (joint-count sufficient statistic). ``columns`` restricts the candidate
+    pool (defaults to every numeric / bool column other than the target).
+    The returned blanket provably satisfies its own definition at ``alpha``
+    given the recorded sufficient statistic — see ``verify_markov_blanket``.
 
     Raises ``MarkovBlanketError`` when the target is missing, there are no
-    candidates, or any considered column is not continuous (the Fisher-Z
-    sufficient-statistic path is continuous-only; discretise or await the
-    discrete extension).
+    candidates, or the columns mix continuous and discrete types (a mixed CI
+    test is deferred — split or discretise).
     """
     if method != "grow_shrink":
         raise MarkovBlanketError(
@@ -1122,28 +1215,68 @@ def markov_blanket(
 
     used = (target, *pool)
     contract = validate_data(data, required_columns=set(used))
-    # Continuous-only: the correlation matrix is a complete sufficient
-    # statistic only under joint continuity. Reject discrete / bool columns
-    # rather than emit an un-verifiable blanket.
-    non_continuous = [
-        c for c in used if _classify_column(contract.data[c]) != "continuous"
-    ]
-    if non_continuous:
+    cols = tuple(used)  # target first, then pool in given order
+
+    # Classify on the ORIGINAL (un-coerced) data: validate_data coerces integer
+    # columns to float64, which would make _classify_column call a discrete
+    # integer column "continuous". Discrete path = every column integer-coded
+    # or bool; continuous path = every column continuous; a mix is rejected.
+    kinds = {c: _classify_column(data[c]) for c in cols}
+    discrete_cols = [c for c in cols if kinds[c] in ("bool", "discrete")]
+    continuous_cols = [c for c in cols if kinds[c] == "continuous"]
+    if discrete_cols and continuous_cols:
         raise MarkovBlanketError(
-            f"columns {sorted(non_continuous)} are not continuous; the Fisher-Z "
-            "Markov-blanket path supports continuous data only. Discretise and "
-            "use a discrete method, or drop these columns."
+            f"columns mix discrete {sorted(discrete_cols)} and continuous "
+            f"{sorted(continuous_cols)}; a mixed-type conditional-independence "
+            "test is not implemented. Split the analysis or discretise the "
+            "continuous columns."
         )
 
-    cols = tuple(used)  # target first, then pool in given order
-    df = contract.data[list(cols)]
-    matrix = df.to_numpy(dtype=float)
-    R = _corr_matrix(matrix)
     n = contract.sample_size
     t_idx = 0
     cand_idx = tuple(range(1, len(cols)))
 
-    mb_idx = _grow_shrink_mb(R, n, t_idx, cand_idx, alpha)
+    if continuous_cols:  # ---- Fisher-Z path
+        test = "fisherz"
+        matrix = contract.data[list(cols)].to_numpy(dtype=float)
+        R = _corr_matrix(matrix)
+
+        def ci_pvalue(i, j, cond):
+            return _fisher_z_pvalue(R, i, j, cond, n)
+
+        def make_test(i, role, cond):
+            return {
+                "variable": cols[i], "role": role,
+                "conditioning_set": sorted(cols[x] for x in cond),
+                "partial_correlation": round(_partial_corr(R, t_idx, i, cond), 12),
+                "p_value": ci_pvalue(t_idx, i, cond),
+            }
+
+        correlation = tuple(tuple(float(v) for v in row) for row in R)
+        contingency = None
+    else:  # ---- chi-square path
+        test = "chisq"
+        int_matrix, levels, cards = _recode_discrete(contract.data, cols)
+        joint = _build_joint_counts(int_matrix)
+
+        def ci_pvalue(i, j, cond):
+            return _chi_square_from_joint(joint, cards, i, j, cond)[2]
+
+        def make_test(i, role, cond):
+            stat, dof, p = _chi_square_from_joint(joint, cards, t_idx, i, cond)
+            return {
+                "variable": cols[i], "role": role,
+                "conditioning_set": sorted(cols[x] for x in cond),
+                "statistic": round(stat, 10), "dof": dof, "p_value": p,
+            }
+
+        correlation = ()
+        contingency = {
+            "levels": [list(lv) for lv in levels],
+            "counts": [[list(cfg), cnt] for cfg, cnt in joint],
+        }
+
+    mb_idx = _grow_shrink_mb(ci_pvalue, t_idx, cand_idx, alpha)
     mb_set = set(mb_idx)
     blanket = tuple(sorted(cols[i] for i in mb_idx))
 
@@ -1153,32 +1286,19 @@ def markov_blanket(
     tests: list[dict] = []
     for i in cand_idx:
         if i in mb_set:
-            rest = tuple(x for x in mb_idx if x != i)
-            p = _fisher_z_pvalue(R, t_idx, i, rest, n)
-            tests.append({
-                "variable": cols[i],
-                "role": "necessary",
-                "conditioning_set": sorted(cols[x] for x in rest),
-                "partial_correlation": round(_partial_corr(R, t_idx, i, rest), 12),
-                "p_value": p,
-                "passed": p <= alpha,
-            })
+            entry = make_test(i, "necessary", tuple(x for x in mb_idx if x != i))
+            entry["passed"] = entry["p_value"] <= alpha
         else:
-            cond = tuple(mb_idx)
-            p = _fisher_z_pvalue(R, t_idx, i, cond, n)
-            tests.append({
-                "variable": cols[i],
-                "role": "shield",
-                "conditioning_set": sorted(cols[x] for x in cond),
-                "partial_correlation": round(_partial_corr(R, t_idx, i, cond), 12),
-                "p_value": p,
-                "passed": p > alpha,
-            })
+            entry = make_test(i, "shield", tuple(mb_idx))
+            entry["passed"] = entry["p_value"] > alpha
+        tests.append(entry)
 
+    test_name = "Fisher-Z" if test == "fisherz" else "chi-square"
     note = (
         f"grow-shrink Markov blanket of {target!r}: "
         f"{{{', '.join(blanket) if blanket else '∅'}}} "
-        f"({len(blanket)} of {len(pool)} candidates) at α={alpha}. "
+        f"({len(blanket)} of {len(pool)} candidates) at α={alpha} "
+        f"({test_name} CI test). "
         "The blanket is the local shield (parents, children, spouses) — a "
         "screening set for building a DAG, NOT an adjustment set (do not "
         "condition on children/spouses when estimating an effect)."
@@ -1189,28 +1309,35 @@ def markov_blanket(
         blanket=blanket,
         columns=cols,
         method=method,
+        test=test,
         alpha=alpha,
         sample_size=n,
         data_hash=contract.data_hash,
-        correlation=tuple(tuple(float(v) for v in row) for row in R),
         tests=tuple(tests),
         note=note,
+        correlation=correlation,
+        contingency=contingency,
     )
 
 
 def markov_blanket_to_dict(result: MarkovBlanketResult) -> dict:
     """JSON-serialisable view of a ``MarkovBlanketResult`` — the artifact
     ``verify_markov_blanket`` consumes and the MCP tool returns."""
-    return {
+    d = {
         "kind": "markov_blanket",
         "target": result.target,
         "blanket": list(result.blanket),
         "columns": list(result.columns),
         "method": result.method,
+        "test": result.test,
         "alpha": result.alpha,
         "sample_size": result.sample_size,
         "data_hash": result.data_hash,
-        "correlation": [list(row) for row in result.correlation],
         "tests": [dict(t) for t in result.tests],
         "note": result.note,
     }
+    if result.test == "fisherz":
+        d["correlation"] = [list(row) for row in result.correlation]
+    else:
+        d["contingency"] = result.contingency
+    return d

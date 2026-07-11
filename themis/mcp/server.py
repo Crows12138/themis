@@ -343,12 +343,14 @@ def build_server():
         spouses, which must not be conditioned on when estimating the target's
         effect. A human still directs the local edges.
 
-        Continuous data only (Fisher-Z): the correlation matrix is the complete
-        sufficient statistic, recorded in the result so
+        Dispatches on data type: all-continuous → Fisher-Z (correlation matrix
+        is the sufficient statistic); all-discrete (integer-coded / bool) →
+        chi-square (joint contingency counts are the sufficient statistic).
+        Either way the statistic is recorded so
         ``themis_verify_markov_blanket`` can independently recompute every test.
-        Discrete / mixed columns raise an error rather than emit an
-        un-verifiable blanket. ``columns`` optionally restricts the candidate
-        pool; ``alpha`` is the CI-test significance level.
+        Columns that mix continuous and discrete types raise an error (a mixed
+        CI test is not implemented). ``columns`` optionally restricts the
+        candidate pool; ``alpha`` is the CI-test significance level.
         """
         import pandas as pd
 

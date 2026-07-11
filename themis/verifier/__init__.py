@@ -69,11 +69,12 @@ Public surface (re-exports from sub-modules):
 - Discovery-layer verifier: ``verify_markov_blanket`` (2026-07-11, borrow-list
   #4 — the first per-number audit to reach the causal-discovery layer. Re-checks
   the completeness + minimality Markov-blanket definition directly on the
-  returned set, recomputing every Fisher-Z conditional-independence test from
-  the recorded correlation matrix [the complete sufficient statistic under joint
-  continuity] with an independent reimplementation, without re-running the
-  grow-shrink search; rejects a fabricated / trimmed blanket, a corrupted
-  correlation matrix, or a recorded test that disagrees with the recomputation)
+  returned set, recomputing every conditional-independence test from the
+  recorded sufficient statistic — the correlation matrix (continuous, Fisher-Z)
+  or the sparse joint contingency counts (discrete, chi-square) — with an
+  independent reimplementation, without re-running the grow-shrink search;
+  rejects a fabricated / trimmed blanket, a corrupted sufficient statistic, or a
+  recorded test that disagrees with the recomputation)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the

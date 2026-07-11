@@ -32,6 +32,9 @@ from themis.estimation.discovery import (
     markov_blanket,
     markov_blanket_to_dict,
     _fisher_z_pvalue,
+    _recode_discrete,
+    _build_joint_counts,
+    _chi_square_from_joint,
 )
 from themis.verifier import verify_markov_blanket
 from themis.verifier.errors import VerificationError
@@ -69,6 +72,32 @@ def _independent_frame(n=2000, seed=1):
 
 def _honest(seed=0):
     df = _collider_scm(seed=seed)
+    return markov_blanket_to_dict(markov_blanket(df, "T"))
+
+
+def _sig(z):
+    return 1.0 / (1.0 + np.exp(-z))
+
+
+def _discrete_collider_scm(n=6000, seed=0):
+    """Discrete analogue: X1 → T, X2 → T, T → Y, X3 → Y, X4 ⟂ everything, all
+    categorical. Hand-derived MB(T) = {X1, X2, X3, Y} (X3 is the spouse). X5 is
+    a 3-level variable independent of everything (exercises cardinality > 2)."""
+    rng = np.random.default_rng(seed)
+
+    def bern(p):
+        return (rng.random(n) < p).astype(int)
+
+    x1, x2, x3, x4 = bern(0.5), bern(0.5), bern(0.5), bern(0.5)
+    x5 = rng.integers(0, 3, n)
+    t = (rng.random(n) < _sig(2.6 * x1 - 2.2 * x2 - 0.2)).astype(int)
+    y = (rng.random(n) < _sig(2.6 * t + 2.2 * x3 - 2.4)).astype(int)
+    return pd.DataFrame({"T": t, "X1": x1, "X2": x2, "X3": x3,
+                         "X4": x4, "X5": x5, "Y": y})
+
+
+def _honest_discrete(seed=0):
+    df = _discrete_collider_scm(seed=seed)
     return markov_blanket_to_dict(markov_blanket(df, "T"))
 
 
@@ -248,3 +277,119 @@ def test_rejects_non_psd_correlation():
         d["correlation"][2][1] = -0.99
     with pytest.raises(VerificationError):
         verify_markov_blanket(_tampered(mutate))
+
+
+# ============================================ discrete (chi-square) path
+
+
+def test_discrete_recovers_known_blanket_including_spouse():
+    df = _discrete_collider_scm()
+    res = markov_blanket(df, "T")
+    assert res.test == "chisq"
+    assert res.blanket == ("X1", "X2", "X3", "Y")
+    assert "X4" not in res.blanket and "X5" not in res.blanket
+
+
+def test_discrete_result_records_contingency_not_correlation():
+    d = _honest_discrete()
+    assert d["test"] == "chisq"
+    assert "contingency" in d and "correlation" not in d
+    assert len(d["contingency"]["levels"]) == len(d["columns"])
+    # counts sum to the sample size (a complete sufficient statistic)
+    assert sum(c for _, c in d["contingency"]["counts"]) == d["sample_size"]
+    t0 = d["tests"][0]
+    assert "statistic" in t0 and "dof" in t0 and "partial_correlation" not in t0
+
+
+def test_discrete_verifier_accepts_honest():
+    verify_markov_blanket(_honest_discrete())
+    themis.verify_markov_blanket(_honest_discrete())
+
+
+def test_chi_square_matches_causal_learn():
+    """Producer chi-square p-values must match causal-learn's independent CIT
+    chisq — anchors the shared formula (and its dof convention) to a third
+    party."""
+    pytest.importorskip("causallearn")
+    from causallearn.utils.cit import CIT
+
+    df = _discrete_collider_scm()
+    cols = ("T", "X1", "X2", "X3", "X4", "X5", "Y")
+    int_matrix, _levels, cards = _recode_discrete(df, cols)
+    joint = _build_joint_counts(int_matrix)
+    cit = CIT(int_matrix, "chisq")
+
+    cases = [(0, 6, ()), (0, 3, ()), (0, 3, (6,)), (0, 1, (2, 6)), (0, 5, (1, 6))]
+    for i, j, cond in cases:
+        mine = _chi_square_from_joint(joint, cards, i, j, cond)[2]
+        theirs = float(cit(i, j, list(cond)))
+        assert abs(mine - theirs) < 1e-6, (i, j, cond, mine, theirs)
+
+
+def test_mixed_continuous_and_discrete_raises():
+    df = _discrete_collider_scm()
+    df["cont"] = np.random.default_rng(0).standard_normal(len(df))
+    with pytest.raises(MarkovBlanketError):
+        markov_blanket(df, "T")
+
+
+def _tampered_discrete(mutate):
+    d = copy.deepcopy(_honest_discrete())
+    mutate(d)
+    return d
+
+
+def test_discrete_rejects_added_spurious_member():
+    def mutate(d):
+        d["blanket"] = sorted(d["blanket"] + ["X4"])
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_removed_true_member():
+    def mutate(d):
+        d["blanket"] = [m for m in d["blanket"] if m != "X1"]
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_tampered_statistic():
+    def mutate(d):
+        d["tests"][0]["statistic"] = float(d["tests"][0]["statistic"]) + 50.0
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_tampered_dof():
+    def mutate(d):
+        d["tests"][0]["dof"] = int(d["tests"][0]["dof"]) + 5
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_tampered_pvalue():
+    def mutate(d):
+        d["tests"][0]["p_value"] = 0.5 - float(d["tests"][0]["p_value"])
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_corrupted_count_sum():
+    def mutate(d):
+        d["contingency"]["counts"][0][1] += 999  # counts no longer sum to n
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_out_of_range_code():
+    def mutate(d):
+        d["contingency"]["counts"][0][0][0] = 99  # code beyond its cardinality
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_missing_test():
+    def mutate(d):
+        d["tests"] = d["tests"][1:]
+    with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))

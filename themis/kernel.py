@@ -1248,11 +1248,12 @@ def verify_markov_blanket(result: dict) -> None:
 
     Re-checks the completeness + minimality Markov-blanket definition directly
     on the returned set, recomputing every conditional-independence test from
-    the recorded correlation matrix with an independent Fisher-Z
-    reimplementation (no re-run of the grow-shrink search). Returns ``None`` on
-    accept; raises
+    the recorded sufficient statistic — the correlation matrix (continuous,
+    Fisher-Z) or the joint contingency counts (discrete, chi-square) — with an
+    independent reimplementation of the test (no re-run of the grow-shrink
+    search). Returns ``None`` on accept; raises
     :class:`themis.verifier.errors.VerificationError` on any structural
-    inconsistency, an ill-formed correlation matrix, a recorded test that
+    inconsistency, an ill-formed sufficient statistic, a recorded test that
     disagrees with the recomputation, or a blanket that violates its own
     definition at the stated alpha.
     """
