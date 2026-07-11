@@ -1508,6 +1508,20 @@
         "numeric_cluster": {
           "type": ["string", "null"],
           "description": "Numeric end: cluster-id column when the CI used a pairs cluster bootstrap; absent for the i.i.d. bootstrap."
+        },
+        "sufficient_statistics": {
+          "type": ["object", "null"],
+          "description": "Numeric end: recorded sufficient statistics that let the verifier RE-DERIVE [lower_value, upper_value] independently, rather than only metadata-auditing it. Balke-Pearl records the empirical P(X=x, Y=y | Z=z) table under key 'P_xyz' (a 2x2x2 nested array indexed by sorted level positions z,x,y); the verifier re-runs the response-function LP over it. Absent for Manski natural / tamer, whose bound is a trivial closed form already anchored by the width/range invariants.",
+          "properties": {
+            "P_xyz": {
+              "type": "array",
+              "description": "Balke-Pearl: empirical P(X=x, Y=y | Z=z) as a 2x2x2 nested array [z][x][y].",
+              "items": {
+                "type": "array",
+                "items": { "type": "array", "items": { "type": "number" } }
+              }
+            }
+          }
         }
       }
     },

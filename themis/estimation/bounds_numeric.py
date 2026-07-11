@@ -89,6 +89,14 @@ class NumericBounds:
     instrument: str | None = None
     assumptions: tuple[str, ...] = ()
     cluster: str | None = None
+    # Recorded sufficient statistics that let the verifier RE-DERIVE the
+    # point interval [lower_value, upper_value] independently, rather than
+    # only metadata-auditing it. Balke-Pearl records the empirical
+    # P(X=x, Y=y | Z=z) table ({"P_xyz": nested 2x2x2 list}) — the verifier
+    # re-runs the response-function LP over it. None for methods whose bound
+    # is a trivial closed form already anchored by the width/range invariants
+    # (Manski natural / tamer).
+    sufficient_statistics: dict | None = None
 
 
 # The width above which an interval is flagged "uninformative" (essentially
@@ -397,6 +405,12 @@ def evaluate_balke_pearl_ace_bounds(
         return _bp_ace_bounds_from_P(P)
 
     lower, upper = bounds_from_frame(df)
+    # The full-data P(X=x, Y=y | Z=z) table is the sufficient statistic the
+    # response-function LP consumes — record it so the verifier can re-derive
+    # [lower_value, upper_value] independently rather than only metadata-audit.
+    P_full = _empirical_P_xyz(
+        df, treatment, outcome, instrument, x_levels, y_levels, z_levels,
+    )
     ci_lower, ci_upper = _bootstrap_outer_band_frame(
         df, bounds_from_frame,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
@@ -408,6 +422,10 @@ def evaluate_balke_pearl_ace_bounds(
         estimand="ace",
         lower_value=float(lower),
         upper_value=float(upper),
+        sufficient_statistics={"P_xyz": [
+            [[float(P_full[z, x, y]) for y in range(2)] for x in range(2)]
+            for z in range(2)
+        ]},
         ci_lower=ci_lower,
         ci_upper=ci_upper,
         ci_level=ci_level,

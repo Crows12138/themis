@@ -24,10 +24,13 @@ aspirational with no producer yet):
 - ``verify_balke_pearl_iv_bounds_result`` (iter 130) — checks the
   canonical reference-shape lower/upper expressions, the iv1/iv2/iv3
   assumption tag set, and that target/treatment predicates from the
-  query appear in the expression. Doesn't re-derive the 16 linear
-  combinations (the producer emits a compact reference rather than
-  spelling them out — auditing that reference's shape is a smaller
-  but real check).
+  query appear in the expression. For the NUMERIC end (when data was
+  supplied), it additionally RE-DERIVES the ACE interval: the producer
+  records the empirical P(X=x, Y=y | Z=z) table under
+  ``sufficient_statistics.P_xyz`` and this module re-runs an
+  independently-transcribed response-function LP over it, rejecting a
+  bound that isn't what the LP yields — plus a closed-form check of
+  Balke-Pearl's instrumental inequalities on the recorded table.
 """
 from __future__ import annotations
 
@@ -418,6 +421,156 @@ def verify_balke_pearl_iv_bounds_result(
     _audit_numeric_bounds(
         bounds_result, method="balke_pearl_iv", rule="bounds_balke_pearl_iv",
     )
+    _rederive_balke_pearl_numeric(bounds_result)
+
+
+# Balke-Pearl response-function model, transcribed INDEPENDENTLY here (this
+# module must not import estimation/bounds_numeric.py). X responds to Z with 4
+# canonical types, Y responds to X with 4 — 16 joint types.
+#   X-type i: 0 never (X≡0)  1 complier (X≡Z)  2 defier (X≡1−Z)  3 always (X≡1)
+#   Y-type j: 0 (Y≡0)        1 (Y≡X)           2 (Y≡1−X)         3 (Y≡1)
+def _v_fx(i: int, z: int) -> int:
+    return (0, z, 1 - z, 1)[i]
+
+
+def _v_gy(j: int, x: int) -> int:
+    return (0, x, 1 - x, 1)[j]
+
+
+def _rederive_balke_pearl_numeric(bounds_result: dict) -> None:
+    """Strong re-derivation of the Balke-Pearl ACE interval from the recorded
+    P(X=x, Y=y | Z=z) table.
+
+    The producer records ``sufficient_statistics.P_xyz`` (the empirical 2x2x2
+    conditional table the response-function LP consumed). This verifier
+    re-runs an INDEPENDENTLY-transcribed response-function LP over that table
+    and rejects a mismatch with the reported ``lower_value`` / ``upper_value``
+    — so a tampered bound (e.g. a falsely-tight interval) is caught, not just
+    range/width-audited. Also re-checks that the recorded table is a valid
+    conditional distribution and satisfies Balke-Pearl's instrumental
+    inequalities (eq 6) — the closed-form falsifiability test, computed
+    without the LP. Skipped when no P_xyz is recorded (symbolic-only, or an
+    older producer). Independence pin: does not import the producer.
+
+    A self-consistent forgery of the whole table + interval is the honest
+    ceiling (the verifier has no DataFrame to re-count the table from).
+    """
+    stats = bounds_result.get("sufficient_statistics")
+    if not isinstance(stats, dict):
+        return
+    raw = stats.get("P_xyz")
+    if raw is None:
+        return
+
+    import numpy as np
+
+    rule = "bounds_balke_pearl_iv"
+    try:
+        P = np.asarray(raw, dtype=float)
+    except (TypeError, ValueError):
+        raise VerificationError(
+            "Balke-Pearl sufficient_statistics.P_xyz must be a numeric 2x2x2 "
+            f"array; got {raw!r}", step_index=None, rule=rule,
+        )
+    if P.shape != (2, 2, 2):
+        raise VerificationError(
+            f"Balke-Pearl P_xyz must have shape (2,2,2); got {P.shape}",
+            step_index=None, rule=rule,
+        )
+    if np.any(P < -1e-9):
+        raise VerificationError(
+            "Balke-Pearl P_xyz has a negative probability entry",
+            step_index=None, rule=rule,
+        )
+    # Each Z-slice is a conditional distribution over (X, Y): must sum to 1.
+    for z in (0, 1):
+        s = float(P[z].sum())
+        if abs(s - 1.0) > 1e-6:
+            raise VerificationError(
+                f"Balke-Pearl P_xyz[Z={z}] sums to {s}, not 1 (not a "
+                "conditional distribution)", step_index=None, rule=rule,
+            )
+
+    # Closed-form instrumental inequalities (Balke-Pearl 1997 eq 6): the
+    # binary IV model is refuted if any exceeds 1. Independent of the LP.
+    ineqs = (
+        P[0, 0, 0] + P[1, 0, 1],
+        P[0, 1, 0] + P[1, 1, 1],
+        P[0, 0, 1] + P[1, 0, 0],
+        P[0, 1, 1] + P[1, 1, 0],
+    )
+    worst = max(ineqs)
+    if worst > 1.0 + 1e-6:
+        raise VerificationError(
+            f"Balke-Pearl recorded P_xyz violates an instrumental inequality "
+            f"(max = {worst:.4f} > 1); the table is incompatible with a valid "
+            "binary IV model, so the bounds could not have come from it",
+            step_index=None, rule=rule,
+        )
+
+    lo, hi = _verifier_bp_bounds_from_P(P, rule)
+    reported_lo = bounds_result.get("lower_value")
+    reported_hi = bounds_result.get("upper_value")
+    if reported_lo is None or reported_hi is None:
+        raise VerificationError(
+            "Balke-Pearl recorded sufficient_statistics but no numeric "
+            "lower_value / upper_value to verify against",
+            step_index=None, rule=rule,
+        )
+    tol = 1e-6
+    if abs(lo - reported_lo) > tol + 1e-6 * abs(reported_lo):
+        raise VerificationError(
+            f"Balke-Pearl lower_value {reported_lo} does not match the interval "
+            f"re-derived from the recorded P(X,Y|Z) table ({lo}); the reported "
+            "bound is not what the response-function LP yields on that table",
+            step_index=None, rule=rule,
+        )
+    if abs(hi - reported_hi) > tol + 1e-6 * abs(reported_hi):
+        raise VerificationError(
+            f"Balke-Pearl upper_value {reported_hi} does not match the interval "
+            f"re-derived from the recorded P(X,Y|Z) table ({hi})",
+            step_index=None, rule=rule,
+        )
+
+
+def _verifier_bp_bounds_from_P(P, rule: str) -> tuple[float, float]:
+    """Sharp ACE bounds by an independently-transcribed LP over the 16-type
+    simplex. ``P[z,x,y] = P(X=x, Y=y | Z=z)``. Returns (lower, upper)."""
+    import numpy as np
+    from scipy.optimize import linprog
+
+    # ACE contribution per (i, j) type = g(j,1) − g(j,0) = [0, 1, −1, 0][j].
+    ace_coef = np.array(
+        [_v_gy(j, 1) - _v_gy(j, 0) for _i in range(4) for j in range(4)],
+        dtype=float,
+    )
+    rows: list = []
+    b: list = []
+    for z in (0, 1):
+        for x in (0, 1):
+            for y in (0, 1):
+                row = np.zeros(16)
+                for i in range(4):
+                    for j in range(4):
+                        if _v_fx(i, z) == x and _v_gy(j, _v_fx(i, z)) == y:
+                            row[i * 4 + j] = 1.0
+                rows.append(row)
+                b.append(float(P[z, x, y]))
+    rows.append(np.ones(16))
+    b.append(1.0)
+    A_eq = np.asarray(rows)
+    b_eq = np.asarray(b)
+    simplex = [(0.0, None)] * 16
+    lo = linprog(ace_coef, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
+    hi = linprog(-ace_coef, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
+    if not (lo.success and hi.success):
+        raise VerificationError(
+            "Balke-Pearl re-derivation LP is infeasible on the recorded "
+            "P(X,Y|Z) table — no response-type distribution reproduces it, so "
+            "the table cannot have produced sharp bounds",
+            step_index=None, rule=rule,
+        )
+    return float(lo.fun), float(-hi.fun)
 
 
 _NUMERIC_ESTIMAND_BY_METHOD = {

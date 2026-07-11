@@ -1046,6 +1046,8 @@ def _fill_numeric_bounds(bounds: dict, nb) -> None:
         bounds["instrument"] = nb.instrument
     if nb.cluster is not None:
         bounds["numeric_cluster"] = nb.cluster
+    if getattr(nb, "sufficient_statistics", None) is not None:
+        bounds["sufficient_statistics"] = nb.sufficient_statistics
 
 
 def _try_general_id_estimate(
