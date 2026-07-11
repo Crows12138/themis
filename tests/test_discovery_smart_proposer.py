@@ -151,6 +151,66 @@ def test_ges_on_discrete_uses_bdeu_score():
     assert r.score_func == "local_score_BDeu"
 
 
+# ============================================ GRaSP (permutation-based, added via the registry)
+
+
+def test_grasp_finds_chain_skeleton():
+    r = discover_graph(_chain(non_gaussian=False), algorithm="grasp")
+    assert r.algorithm == "grasp"
+    assert r.score_func == "local_score_BIC_from_cov"
+    skeleton = set()
+    for s, d in r.directed_edges:
+        skeleton.add(frozenset({s, d}))
+    for pair in (*r.ambiguous_edges, *r.bidirected_edges):
+        skeleton.add(pair)
+    assert frozenset({"x", "m"}) in skeleton
+    assert frozenset({"m", "y"}) in skeleton
+    assert frozenset({"x", "y"}) not in skeleton
+
+
+def test_grasp_on_discrete_uses_bdeu_score():
+    r = discover_graph(_discrete_chain(), algorithm="grasp")
+    assert r.algorithm == "grasp"
+    assert r.score_func == "local_score_BDeu"
+
+
+def test_grasp_bootstrap_confidence():
+    r = discover_graph(
+        _chain(non_gaussian=False, n=1200), algorithm="grasp", n_bootstrap=15,
+    )
+    assert r.n_bootstrap_ok > 0
+    assert r.skeleton_confidence  # adjacency stability recorded
+    for _a, _b, conf in r.skeleton_confidence:
+        assert 0.0 <= conf <= 1.0
+
+
+# ============================================ registry (the algorithm knowledge base)
+
+
+def test_registry_has_all_five_algorithms():
+    from themis.estimation.discovery import _ALGORITHMS
+    assert set(_ALGORITHMS) == {"pc", "fci", "ges", "grasp", "lingam"}
+
+
+def test_auto_only_resolves_to_auto_eligible_algorithms():
+    # ges / grasp / fci are explicit opt-in (auto=None) — auto must resolve
+    # to pc or lingam only, whatever the data looks like.
+    for kwargs in ({}, {"non_gaussian": True}):
+        r = discover_graph(_chain(n=1000, **kwargs), algorithm="auto")
+        assert r.algorithm in ("pc", "lingam")
+    r_disc = discover_graph(_discrete_chain(), algorithm="auto")
+    assert r_disc.algorithm in ("pc", "lingam")
+
+
+def test_registry_specs_are_well_formed():
+    from themis.estimation.discovery import _ALGORITHMS
+    for name, spec in _ALGORITHMS.items():
+        assert spec.name == name
+        assert callable(spec.run)
+        assert spec.auto is None or callable(spec.auto)
+        assert spec.violations is None or callable(spec.violations)
+
+
 # ============================================ bootstrap edge stability
 
 

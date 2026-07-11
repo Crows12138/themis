@@ -193,9 +193,9 @@ def build_server():
         query: dict | None = None,
         n_bootstrap: int = 0,
     ) -> dict:
-        """Run causal discovery (PC / FCI / GES / LiNGAM) on a CSV-backed
-        dataset and return a kernel_ast suggestion the agent can review,
-        edit, then feed to ``themis_run``.
+        """Run causal discovery (PC / FCI / GES / GRaSP / LiNGAM) on a
+        CSV-backed dataset and return a kernel_ast suggestion the agent
+        can review, edit, then feed to ``themis_run``.
 
         Each emitted ``cause`` / ``bidirected`` edge carries
         ``annotations.source = "discovery:<algo>"`` so downstream the
@@ -203,8 +203,9 @@ def build_server():
         and the orchestrator can ask the user to review the suggested
         graph before committing to identification.
 
-        ``algorithm``: ``"pc"`` / ``"fci"`` / ``"ges"`` / ``"lingam"`` /
-        ``"auto"``. ``auto`` runs a deterministic, reproducible selector
+        ``algorithm``: ``"pc"`` / ``"fci"`` / ``"ges"`` / ``"grasp"`` /
+        ``"lingam"`` / ``"auto"``. ``auto`` runs a deterministic,
+        reproducible selector
         over measured data properties (continuous + non-Gaussian + large
         N → LiNGAM; all-categorical → PC with a chi-square test; else PC
         with Fisher-Z) — the chosen algorithm, the CI test / score

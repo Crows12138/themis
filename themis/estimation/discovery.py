@@ -1,6 +1,6 @@
 """Phase 8.1 — causal discovery wrapper around causal-learn.
 
-Four algorithms:
+Five algorithms (one ``AlgorithmSpec`` registry entry each):
 - **PC** (Spirtes, Glymour 1991): assumes no latent confounders.
   Returns a CPDAG — directed edges where orientation is identified
   by colliders, undirected otherwise (Markov equivalence class).
@@ -8,6 +8,8 @@ Four algorithms:
   with three endpoint types: TAIL, ARROW, CIRCLE (ambiguous).
 - **GES** (Chickering 2002): score-based (BIC / BDeu). Greedy
   equivalence search; returns a CPDAG like PC.
+- **GRaSP** (Lam, Andrews, Ramsey 2022): permutation/score-based;
+  returns a CPDAG, often more accurate than PC/GES on the same data.
 - **LiNGAM** (Shimizu et al. 2006): assumes linear non-Gaussian.
   Returns a fully directed DAG when assumptions hold.
 
@@ -54,7 +56,7 @@ API:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Callable, Literal
 
 import numpy as np
 import pandas as pd
@@ -62,7 +64,7 @@ import pandas as pd
 from .contract import validate_data
 
 
-AlgorithmName = Literal["pc", "fci", "lingam", "ges", "auto"]
+AlgorithmName = Literal["pc", "fci", "lingam", "ges", "grasp", "auto"]
 
 
 @dataclass(frozen=True)
@@ -92,6 +94,30 @@ class Selection:
     indep_test: str | None
     score_func: str | None
     rationale: str
+
+
+@dataclass(frozen=True)
+class AlgorithmSpec:
+    """Declarative profile of one discovery algorithm — the single place
+    that knows how to run it, its note, its precondition check, and when
+    ``auto`` should pick it. Adding an algorithm is one entry here (plus a
+    runner), not edits scattered across the selector, the note, and the
+    violation checks. Themis's deterministic take on Causal-Copilot's
+    algorithm knowledge base: rules over measured data properties, no LLM.
+    """
+
+    name: str
+    run: Callable
+    kind: str  # constraint | score | permutation | fcm
+    uses_indep_test: bool = False
+    score_continuous: str | None = None
+    score_discrete: str | None = None
+    note_clause: str = ""
+    violations: Callable | None = None
+    auto: Callable | None = None
+    """None → never auto-selected (explicit only). Otherwise a function of
+    ``DataDiagnostics`` returning ``(eligible, priority, rationale)``; the
+    highest-priority eligible spec wins under ``algorithm='auto'``."""
 
 
 @dataclass(frozen=True)
@@ -278,32 +304,13 @@ def _detect_assumption_violations(
     Detection is intentionally conservative: only flag clear violations
     (Gaussian data on LiNGAM, sample size below standard thresholds).
     Borderline cases pass silently to avoid false-alarming on every run.
+    Delegates to the resolved algorithm's own ``violations`` check in the
+    registry so each algorithm's preconditions live in one place.
     """
-    violations: list[str] = []
-    numeric = df.select_dtypes(include=[np.number])
-
-    if algorithm == "lingam" and not numeric.empty:
-        max_abs_skew = float(numeric.apply(lambda s: float(s.skew())).abs().max())
-        if max_abs_skew < 0.5:
-            violations.append(
-                f"data appears Gaussian (max |skew| = {max_abs_skew:.2f} < 0.5); "
-                "LiNGAM identifiability requires non-Gaussian noise — "
-                "edge directions on Gaussian data are essentially arbitrary"
-            )
-
-    if algorithm in ("pc", "fci") and sample_size < 200:
-        violations.append(
-            f"sample size {sample_size} < 200 — conditional independence "
-            "tests have low power; expect spurious edges and missed edges"
-        )
-
-    if algorithm == "ges" and sample_size < 200:
-        violations.append(
-            f"sample size {sample_size} < 200 — the BIC / BDeu score is "
-            "unstable at small N; the returned graph is unreliable"
-        )
-
-    return tuple(violations)
+    spec = _ALGORITHMS.get(algorithm)
+    if spec is None or spec.violations is None:
+        return ()
+    return spec.violations(df, sample_size)
 
 
 # --- internals ----------------------------------------------------------------
@@ -373,50 +380,46 @@ def _select_algorithm(
     under ``"auto"``) and choose the CI test / score function that matches
     the data type. Returns the choice plus a human-readable rationale.
 
-    The ``auto`` rules are intentionally conservative and deterministic:
-    they favour the fewest-assumption method unless the data clearly
-    supports a stronger one (non-Gaussianity → LiNGAM's full orientation).
+    ``auto`` is deterministic: among the auto-eligible algorithms in the
+    registry whose applicability matches the measured diagnostics, the
+    highest-priority one wins. PC (fewest assumptions) is always eligible
+    at priority 1, so a stronger method only wins when the data clearly
+    supports it.
     """
-    types = {c: _classify_column(df[c]) for c in cols}
-    all_categorical = all(types[c] in ("bool", "discrete") for c in cols)
-    non_gaussian = diag.frac_non_gaussian >= 0.5
-    mostly_continuous = diag.n_continuous >= max(1, diag.n_variables // 2 + 1)
+    all_categorical = diag.n_continuous == 0
 
     if algorithm == "auto":
-        if mostly_continuous and non_gaussian and diag.n_samples >= 500:
-            algo = "lingam"
-            why = (
-                f"auto→LiNGAM: {diag.frac_non_gaussian:.0%} of continuous "
-                f"variables fail a normality test and N={diag.n_samples}≥500, "
-                "so non-Gaussian noise can fully orient the edges"
-            )
-        elif all_categorical:
-            algo = "pc"
-            why = (
-                "auto→PC: all variables are categorical/discrete, so a "
-                "chi-square conditional-independence test is used"
-            )
+        best: tuple[int, str, str] | None = None
+        for spec in _ALGORITHMS.values():
+            if spec.auto is None:
+                continue
+            eligible, priority, rationale = spec.auto(diag)
+            if eligible and (best is None or priority > best[0]):
+                best = (priority, spec.name, rationale)
+        if best is None:  # unreachable (PC always eligible) — defensive
+            algo, why = "pc", "auto→PC (fallback)"
         else:
-            algo = "pc"
-            why = (
-                "auto→PC: data is continuous and not clearly non-Gaussian "
-                "(or N is below the LiNGAM threshold); PC with Fisher-Z makes "
-                "the fewest parametric assumptions"
-            )
+            _, algo, why = best
     else:
         algo = algorithm
         why = f"user-selected {algorithm.upper()}"
 
+    spec = _ALGORITHMS.get(algo)
     indep_test: str | None = None
     score_func: str | None = None
-    if algo in ("pc", "fci"):
-        indep_test = "chisq" if all_categorical else "fisherz"
-        if all_categorical:
-            why += "; chi-square CI test chosen for categorical data"
-    elif algo == "ges":
-        score_func = "local_score_BDeu" if all_categorical else "local_score_BIC"
-        if all_categorical:
-            why += "; BDeu score chosen for categorical data"
+    if spec is not None:
+        if spec.uses_indep_test:
+            indep_test = "chisq" if all_categorical else "fisherz"
+            if all_categorical:
+                why += "; chi-square CI test chosen for categorical data"
+        if spec.score_continuous is not None:
+            score_func = (
+                spec.score_discrete
+                if all_categorical and spec.score_discrete
+                else spec.score_continuous
+            )
+            if all_categorical and spec.score_discrete:
+                why += "; BDeu score chosen for categorical data"
 
     return Selection(
         algorithm=algo,
@@ -430,50 +433,68 @@ def _run_resolved(
     matrix, cols, resolved, *,
     alpha, indep_test, score_func, random_state,
 ):
-    """Dispatch to the concrete algorithm runner. Shared by the main run
-    and each bootstrap resample so they use identical settings."""
-    if resolved == "pc":
-        return _run_pc(matrix, cols, alpha=alpha, indep_test=indep_test or "fisherz")
-    if resolved == "fci":
-        return _run_fci(matrix, cols, alpha=alpha, indep_test=indep_test or "fisherz")
-    if resolved == "ges":
-        return _run_ges(matrix, cols, score_func=score_func or "local_score_BIC")
-    if resolved == "lingam":
-        return _run_lingam(matrix, cols, random_state=random_state)
-    raise ValueError(f"unknown algorithm {resolved!r}")
+    """Dispatch to the resolved algorithm's runner via the registry.
+    Shared by the main run and each bootstrap resample so they use
+    identical settings."""
+    spec = _ALGORITHMS.get(resolved)
+    if spec is None:
+        raise ValueError(f"unknown algorithm {resolved!r}")
+    return spec.run(
+        matrix, cols,
+        alpha=alpha, indep_test=indep_test,
+        score_func=score_func, random_state=random_state,
+    )
 
 
-def _run_pc(matrix, cols, *, alpha, indep_test="fisherz"):
+# All runners share one signature (matrix, cols, *, alpha, indep_test,
+# score_func, random_state) and ignore what they don't need, so the
+# registry can call any of them uniformly.
+
+
+def _run_pc(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None, random_state=None):
     from causallearn.search.ConstraintBased.PC import pc
     from causallearn.graph.Endpoint import Endpoint
 
     result = pc(
-        matrix, alpha=alpha, indep_test=indep_test, show_progress=False,
-        node_names=list(cols),
+        matrix, alpha=alpha, indep_test=indep_test or "fisherz",
+        show_progress=False, node_names=list(cols),
     )
     return _extract_edges(result.G, cols, Endpoint)
 
 
-def _run_fci(matrix, cols, *, alpha, indep_test="fisherz"):
+def _run_fci(matrix, cols, *, alpha=0.05, indep_test="fisherz", score_func=None, random_state=None):
     from causallearn.search.ConstraintBased.FCI import fci
     from causallearn.graph.Endpoint import Endpoint
 
     g, edges = fci(
-        matrix, independence_test_method=indep_test, alpha=alpha,
+        matrix, independence_test_method=indep_test or "fisherz", alpha=alpha,
         verbose=False, show_progress=False, node_names=list(cols),
     )
     return _extract_edges(g, cols, Endpoint)
 
 
-def _run_ges(matrix, cols, *, score_func="local_score_BIC"):
+def _run_ges(matrix, cols, *, alpha=None, indep_test=None, score_func="local_score_BIC", random_state=None):
     from causallearn.search.ScoreBased.GES import ges
     from causallearn.graph.Endpoint import Endpoint
 
-    record = ges(matrix, score_func=score_func, node_names=list(cols))
+    record = ges(
+        matrix, score_func=score_func or "local_score_BIC", node_names=list(cols),
+    )
     return _extract_edges(record["G"], cols, Endpoint)
 
 
-def _run_lingam(matrix, cols, *, random_state):
+def _run_grasp(matrix, cols, *, alpha=None, indep_test=None, score_func="local_score_BIC_from_cov", random_state=None):
+    from causallearn.search.PermutationBased.GRaSP import grasp
+    from causallearn.graph.Endpoint import Endpoint
+
+    g = grasp(
+        matrix, score_func=score_func or "local_score_BIC_from_cov",
+        depth=3, verbose=False, node_names=list(cols),
+    )
+    return _extract_edges(g, cols, Endpoint)
+
+
+def _run_lingam(matrix, cols, *, alpha=None, indep_test=None, score_func=None, random_state=42):
     from causallearn.search.FCMBased.lingam import DirectLiNGAM
 
     model = DirectLiNGAM()
@@ -490,6 +511,103 @@ def _run_lingam(matrix, cols, *, random_state):
                 # j → i in causal-learn's convention
                 directed.append((cols[j], cols[i]))
     return tuple(directed), (), ()
+
+
+# --- algorithm registry (the "knowledge base") --------------------------------
+
+
+def _viol_citest_small_n(df, n):
+    if n < 200:
+        return (
+            f"sample size {n} < 200 — conditional independence tests have "
+            "low power; expect spurious edges and missed edges",
+        )
+    return ()
+
+
+def _viol_score_small_n(df, n):
+    if n < 200:
+        return (
+            f"sample size {n} < 200 — the BIC / BDeu score is unstable at "
+            "small N; the returned graph is unreliable",
+        )
+    return ()
+
+
+def _viol_lingam(df, n):
+    numeric = df.select_dtypes(include=[np.number])
+    if numeric.empty:
+        return ()
+    max_abs_skew = float(numeric.apply(lambda s: float(s.skew())).abs().max())
+    if max_abs_skew < 0.5:
+        return (
+            f"data appears Gaussian (max |skew| = {max_abs_skew:.2f} < 0.5); "
+            "LiNGAM identifiability requires non-Gaussian noise — "
+            "edge directions on Gaussian data are essentially arbitrary",
+        )
+    return ()
+
+
+def _auto_pc(diag: DataDiagnostics):
+    """PC is always the fewest-assumption fallback (priority 1)."""
+    if diag.n_continuous == 0:
+        return (True, 1, (
+            "auto→PC: all variables are categorical/discrete, so a "
+            "chi-square conditional-independence test is used"
+        ))
+    return (True, 1, (
+        "auto→PC: data is continuous and not clearly non-Gaussian (or N is "
+        "below the LiNGAM threshold); PC with Fisher-Z makes the fewest "
+        "parametric assumptions"
+    ))
+
+
+def _auto_lingam(diag: DataDiagnostics):
+    """LiNGAM wins (priority 10) only when the data clearly supports it:
+    continuous, non-Gaussian, and enough samples to orient edges."""
+    mostly_continuous = diag.n_continuous >= max(1, diag.n_variables // 2 + 1)
+    non_gaussian = diag.frac_non_gaussian >= 0.5
+    if mostly_continuous and non_gaussian and diag.n_samples >= 500:
+        return (True, 10, (
+            f"auto→LiNGAM: {diag.frac_non_gaussian:.0%} of continuous "
+            f"variables fail a normality test and N={diag.n_samples}≥500, "
+            "so non-Gaussian noise can fully orient the edges"
+        ))
+    return (False, 0, "")
+
+
+# One entry per algorithm; adding a new algorithm is a runner + one row.
+_ALGORITHMS: dict[str, AlgorithmSpec] = {
+    "pc": AlgorithmSpec(
+        name="pc", run=_run_pc, kind="constraint",
+        uses_indep_test=True,
+        note_clause="PC assumes no latent confounders; consider FCI if that is wrong",
+        violations=_viol_citest_small_n, auto=_auto_pc,
+    ),
+    "fci": AlgorithmSpec(
+        name="fci", run=_run_fci, kind="constraint",
+        uses_indep_test=True,
+        note_clause="FCI allows latent confounders; CIRCLE endpoints denote ambiguous orientation",
+        violations=_viol_citest_small_n, auto=None,
+    ),
+    "ges": AlgorithmSpec(
+        name="ges", run=_run_ges, kind="score",
+        score_continuous="local_score_BIC", score_discrete="local_score_BDeu",
+        note_clause="GES is score-based (BIC/BDeu); returns a CPDAG — orientation only within the equivalence class",
+        violations=_viol_score_small_n, auto=None,
+    ),
+    "grasp": AlgorithmSpec(
+        name="grasp", run=_run_grasp, kind="permutation",
+        score_continuous="local_score_BIC_from_cov", score_discrete="local_score_BDeu",
+        note_clause="GRaSP is permutation-based (score-guided); returns a CPDAG, often more accurate than PC/GES on the same data",
+        violations=_viol_score_small_n, auto=None,
+    ),
+    "lingam": AlgorithmSpec(
+        name="lingam", run=_run_lingam, kind="fcm",
+        note_clause="LiNGAM assumes linear non-Gaussian noise; weak signal under Gaussian data",
+        violations=_viol_lingam, auto=_auto_lingam,
+    ),
+}
 
 
 def _bootstrap_edge_confidence(
@@ -783,14 +901,9 @@ def _format_note(algorithm: str, n_dir: int, n_bidir: int, n_amb: int) -> str:
         f"causal-learn {algorithm.upper()} found "
         f"{n_dir} directed, {n_bidir} bidirected, {n_amb} ambiguous edges"
     ]
-    if algorithm == "pc":
-        parts.append("PC assumes no latent confounders; consider FCI if that is wrong")
-    elif algorithm == "fci":
-        parts.append("FCI allows latent confounders; CIRCLE endpoints denote ambiguous orientation")
-    elif algorithm == "ges":
-        parts.append("GES is score-based (BIC/BDeu); returns a CPDAG — orientation only within the equivalence class")
-    elif algorithm == "lingam":
-        parts.append("LiNGAM assumes linear non-Gaussian noise; weak signal under Gaussian data")
+    spec = _ALGORITHMS.get(algorithm)
+    if spec is not None and spec.note_clause:
+        parts.append(spec.note_clause)
     if n_amb > 0 and algorithm != "lingam":
         parts.append(
             f"{n_amb} edges are not orientable from observational data alone "
