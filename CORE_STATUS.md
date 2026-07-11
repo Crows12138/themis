@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2734 passed / 144 skipped, warning-clean
+2740 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -721,7 +721,7 @@ atom_tuple/atom_paths/单-StepRef 全可序列化(避开不支持的 tuple-of-St
 
 | Slice | 状态 | 落地 commits |
 |---|---|---|
-| 8.1 discovery (PC/FCI/GES/LiNGAM) | ✅ | e2b2677 → 48a7e6f；stronger-proposer followup |
+| 8.1 discovery (PC/FCI/GES/GRaSP/LiNGAM) | ✅ | e2b2677 → 48a7e6f；stronger-proposer + registry followup |
 | 8.2 sensitivity (E-value) | ✅ | e1d8bdc → 97daad6 |
 
 **8.1 Discovery**：
@@ -771,6 +771,16 @@ atom_tuple/atom_paths/单-StepRef 全可序列化(避开不支持的 tuple-of-St
   小样本回退 / 离散 chisq+BDeu / GES 骨架 / bootstrap 稳定度+可复现+
   逮伪边 / kernel_ast confidence + metadata / gap 报告显示稳定度）；
   基线 2713→**2734**
+- **算法知识库重构 + GRaSP（同 followup）**：把「每算法的 run / note /
+  假设违反 / auto 适用性」从散在 4 个函数收敛成**单一 `AlgorithmSpec`
+  注册表 `_ALGORITHMS`** —— 加算法 = 一个 runner + 一行 entry（借
+  Causal-Copilot 的算法知识库思路，但**确定性规则、无 LLM**）。
+  `_select_algorithm` / `_run_resolved` / `_detect_assumption_violations`
+  / `_format_note` 全改成消费注册表的薄封装。借此加 **GRaSP**（Lam-
+  Andrews-Ramsey 2022,permutation/score-based,常比 PC/GES 准;连续
+  BIC_from_cov / 离散 BDeu）。auto 仍只在 pc/lingam 间选（ges/grasp/fci
+  显式 opt-in,priority 表达:pc 恒 eligible@1、lingam 满足条件@10),行为
+  完全不变。+6 测试；基线 2734→**2740**
 
 **8.2 Sensitivity**：
 - `e_value_for_risk_ratio(rr)`：VanderWeele & Ding 2017 closed form
