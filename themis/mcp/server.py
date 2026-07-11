@@ -191,8 +191,9 @@ def build_server():
         alpha: float = 0.05,
         random_state: int = 42,
         query: dict | None = None,
+        n_bootstrap: int = 0,
     ) -> dict:
-        """Run causal discovery (PC / FCI / LiNGAM) on a CSV-backed
+        """Run causal discovery (PC / FCI / GES / LiNGAM) on a CSV-backed
         dataset and return a kernel_ast suggestion the agent can review,
         edit, then feed to ``themis_run``.
 
@@ -202,12 +203,22 @@ def build_server():
         and the orchestrator can ask the user to review the suggested
         graph before committing to identification.
 
-        ``algorithm``: ``"pc"`` / ``"fci"`` / ``"lingam"`` / ``"auto"``
-        (auto picks LiNGAM for clearly non-Gaussian data, else PC).
+        ``algorithm``: ``"pc"`` / ``"fci"`` / ``"ges"`` / ``"lingam"`` /
+        ``"auto"``. ``auto`` runs a deterministic, reproducible selector
+        over measured data properties (continuous + non-Gaussian + large
+        N → LiNGAM; all-categorical → PC with a chi-square test; else PC
+        with Fisher-Z) — the chosen algorithm, the CI test / score
+        function, and the rationale are all recorded under
+        ``extensions.discovery_metadata`` so the choice is auditable.
         ``bool_predicates``: column names to declare as bool domain
         (others must be filled in by the agent before themis_run will
         accept the suggestion).
         ``query``: optional pre-built query statement to embed.
+        ``n_bootstrap``: if ``>0``, re-run the resolved algorithm on that
+        many row-resamples and attach a per-edge stability score in
+        ``[0, 1]`` as ``annotations.confidence`` — an unstable edge
+        (low fraction) is a likely artefact worth reviewing. Costs one
+        extra discovery run per resample; ``0`` (default) skips it.
         """
         import pandas as pd
 
@@ -224,7 +235,7 @@ def build_server():
         df = pd.read_csv(path)
         result = discover_graph(
             df, algorithm=algorithm, alpha=alpha,
-            random_state=random_state,
+            random_state=random_state, n_bootstrap=n_bootstrap,
         )
         return discovery_to_kernel_ast(
             result,

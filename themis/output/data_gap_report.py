@@ -490,6 +490,7 @@ def _classify_unverified_proposal_edges(
                 flagged.add((a, f"↔{b}"))
 
     edge_sources = _index_edge_sources(program)
+    edge_confidences = _index_edge_confidence(program)
     for frm, to in sorted(flagged):
         # Look up the actual source string so the description can name
         # 'LLM hypothesis' vs 'PC algorithm output' specifically.
@@ -501,6 +502,7 @@ def _classify_unverified_proposal_edges(
             else ("cause", (frm, clean_to))
         )
         source_str = edge_sources.get(source_key, "")
+        confidence = edge_confidences.get(source_key)
         edge_render = f"{frm} ↔ {clean_to}" if bidirected else f"{frm} → {to}"
         if source_str.startswith("discovery:"):
             algo = source_str.split(":", 1)[1]
@@ -509,6 +511,11 @@ def _classify_unverified_proposal_edges(
                 f"`{algo.upper()}` 从数据中学出的，结果以算法假设（如 PC: "
                 f"忠实性 + 因果充足性；LiNGAM: 线性 + 非高斯）为前提。"
             )
+            if confidence is not None:
+                description += (
+                    f"自助法稳定度 {confidence:.0%}（该边在此比例的数据重"
+                    "采样中重现；越低越可能是采样噪声，越应复核）。"
+                )
         else:
             description = (
                 f"结构性回答途径上的边 `{edge_render}` 是上游 LLM 提出的"
@@ -554,6 +561,24 @@ def _index_edge_sources(program) -> dict[tuple[str, tuple[str, ...]], str]:
         elif isinstance(st, BidirectedStatement):
             pair = tuple(sorted((st.left.predicate, st.right.predicate)))
             out[("bidirected", pair)] = ann.source
+    return out
+
+
+def _index_edge_confidence(program) -> dict[tuple[str, tuple[str, ...]], float]:
+    """Mirror of ``_index_edge_sources`` capturing ``annotations.confidence``
+    (bootstrap edge stability, when a discovery run recorded it) so the
+    proposal-edge description can report how often the edge survived
+    resampling — a low fraction flags a likely artefact."""
+    out: dict[tuple[str, tuple[str, ...]], float] = {}
+    for st in program.statements:
+        ann = getattr(st, "annotations", None)
+        if ann is None or ann.confidence is None:
+            continue
+        if isinstance(st, CauseStatement):
+            out[("cause", (st.from_atom.predicate, st.to_atom.predicate))] = ann.confidence
+        elif isinstance(st, BidirectedStatement):
+            pair = tuple(sorted((st.left.predicate, st.right.predicate)))
+            out[("bidirected", pair)] = ann.confidence
     return out
 
 

@@ -86,9 +86,11 @@ Landed scope:
   contrast (Robins 2000; Hernán & Robins ch.12/17). Misspecified in a
   different way than the g-formula, so agreement between the two is strong
   evidence the estimate is right.
-- Phase 8.1 — discovery: ``discover_graph`` (PC / FCI / LiNGAM via
-  causal-learn) returning ``DiscoveryResult`` +
-  ``discovery_to_kernel_ast`` adapter
+- Phase 8.1 — discovery: ``discover_graph`` (PC / FCI / GES / LiNGAM via
+  causal-learn) returning ``DiscoveryResult`` + ``discovery_to_kernel_ast``
+  adapter. ``algorithm="auto"`` runs a deterministic diagnostics-driven
+  selector (``DataDiagnostics``); ``n_bootstrap>0`` attaches per-edge
+  stability scores
 - Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
   ``e_value_from_ate_binary`` / ``e_value_from_ate_continuous``
   (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
@@ -175,6 +177,7 @@ from .four_way_ratio import (
     estimate_four_way_ratio,
 )
 from .discovery import (
+    DataDiagnostics,
     DiscoveryResult,
     discover_graph,
     discovery_to_kernel_ast,
@@ -225,6 +228,7 @@ __all__ = [
     "CDEEstimate",
     "DataContract",
     "DataContractError",
+    "DataDiagnostics",
     "DiscoveryResult",
     "ARConfidenceSet",
     "EValueResult",
