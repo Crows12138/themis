@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2703 passed / 144 skipped, warning-clean
+2713 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -1058,6 +1058,20 @@ apply_patch_and_run）逐个查 alt_paths × bounds_result × required_data 对�
 - Frontdoor partial / Manski-Tamer monotonicity 等更高级方法
 - 非 binary outcome 的 bounds
 - IV 路径 sample_size（gap 是结构性"找 IV 变量"，不是分布，无 n 可算）
+
+**followup(2026-07-11)：Balke-Pearl 数值界强重导**。此前 `_audit_numeric_bounds`
+只做元数据审计(方向/容许区间/width/CI 包含),**从不重导界值**——实测:把
+lower_value 从 0.60 篡成 0.30(仍在区间内、width 一致、CI 包住)verify 全放过
+(伪造成"假紧"区间掩盖不确定性=最可能的恶意伪造)。iter 130 验证器 docstring 本就
+标注"16 linear combinations 待未来数值审计"——BP 数值估计器早已落地(`6894988`),
+此审计逾期。修法:producer 记录经验 `P(X=x,Y=y|Z=z)` 表(`sufficient_statistics.
+P_xyz`,8 数=LP 消费的充分统计量),验证器**本地独立转写 response-function LP**
+(不 import 生产者)从表重导 [lo,hi] 核对 + 闭式查 P 有效性(每 Z 片和=1、非负)+
+Balke-Pearl 工具不等式(eq 6);篡改单界被逮。**grid oracle**:验证器 LP == 生产者 LP
+@200 随机可行表钉死独立转写正确。诚实天花板:整表+界一起自洽伪造逮不住(验证器无
+DataFrame 重数表)。**取舍声明:只做 BP**(其界=8 表上的非平凡 LP,重导有真价值);
+Manski 自然/tamer 的界=`[P(Y,X=x), +P(X≠x)]` 已被 width/range 不变量锚定,记其
+2 个平凡统计量近乎循环、边际价值低,故留元数据审计。基线 2703→**2713**。
 
 ## Phase 13 dose-response diagnostic (2026-04-28 落地)
 
