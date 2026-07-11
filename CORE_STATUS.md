@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2777 passed / 144 skipped, warning-clean
+2798 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -71,6 +71,27 @@ distinct-value 集作充分统计量），`verify_type_reconciliation` 从零重
 三方 + GAP_KINDS_REFERENCE 行 + COVERAGE_MAP 计数 31→32；`scale` round-trip
 过 `_statement_to_dict` + `_to_statement` + kernel_ast schema。+22 测试；
 基线 2755→**2777**。
+
+**Markov blanket 发现 + 独立验证器（2026-07-11）**：借鉴清单 #4「更多发现
+算法」。现有 5 个整图学习器（PC/FCI/GES/GRaSP/LiNGAM，均无验证器）之外，加
+**目标相对的局部原语**：目标 T 的马尔可夫毯 = 屏蔽 T 与其余所有变量的最小
+集（父、子、以及子的其他父/配偶）。用途是把几十列**筛**到与 T 局部相关的少
+数几个，供建 DAG——**不是调整集**（毯含子与配偶，估计效应时不可条件化，否则
+开对撞）。`themis/estimation/discovery.py:markov_blanket`：**grow-shrink 交织
+到不动点**——在不动点上「加不进」保证完备性、「删不掉」保证最小性，两条正是
+马尔可夫毯定义，故生产者输出**恒满足其所声称的定义**。**发现层首个逐数验证**：
+连续数据下 Fisher-Z 偏相关检验是相关矩阵的纯函数，故相关矩阵是**完备充分
+统计量**；`verify_markov_blanket`（`themis.verify_markov_blanket` 公开面，平行
+`verify_bounds_result`）从记录的相关矩阵**独立重写 Fisher-Z**（不 import 生产
+侧、不 import causal-learn、不重跑搜索）重算每条完备性/最小性检验，拒伪造/裁剪
+的毯、篡改的检验、非良构（非对称/非 PSD）的相关矩阵。**声明的取舍**：仅连续
+（Fisher-Z）；离散马尔可夫毯需卡方检验、充分统计量是列联表而非相关矩阵，
+**显式推迟**——离散/混合输入直接报错而非静默出不可验证的毯。D1 oracle：已知
+线性高斯 SCM 恢复手推毯（含**配偶**这一微妙情形——与 T 边际独立、条件于共同
+子后才相关）+ 生产者 Fisher-Z p 值对齐 causal-learn CIT（跨实现锚定）。MCP
+工具 10→12（`themis_markov_blanket` 产 + `themis_verify_markov_blanket` 验；
+同步 test_mcp_server 精确集 + server.py 模块 docstring + README 目录表与计数 +
+COVERAGE_MAP 计数四处守卫）；+21 测试；基线 2777→**2798**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
