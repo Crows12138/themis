@@ -7,8 +7,10 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None)`` → wraps :func:`themis.estimate`; loads CSV from disk
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
+- ``themis_markov_blanket(csv_path, target, ...)`` → borrow-list #4, wraps :func:`themis.estimation.discovery.markov_blanket`; local Markov-blanket screen from CSV
 - ``themis_report(program, csv_path=None, run_verify=True)`` → deterministic
   analyze → (verify) → one Markdown report per query (no LLM, no API key)
 - ``themis_submit_verdict(verdict, question, ...)`` → Fix 2A (v0.1.5):
@@ -163,6 +165,24 @@ def build_server():
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     @app.tool()
+    def themis_verify_markov_blanket(result: dict) -> dict:
+        """Independently audit a Markov-blanket result (borrow-list #4).
+
+        Parallel to ``themis_verify_bounds_result``: the artifact is a
+        standalone Markov-blanket dict (from ``themis_markov_blanket``), not a
+        query_result envelope, so ``themis_verify`` does not apply. Re-checks
+        the completeness + minimality definition on the returned set by
+        recomputing every conditional-independence test from the recorded
+        correlation matrix with an independent Fisher-Z reimplementation —
+        rejecting a fabricated / trimmed blanket or a tampered test.
+        """
+        try:
+            themis.verify_markov_blanket(result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.tool()
     def themis_estimate(
         program: dict | str,
         csv_path: str,
@@ -303,6 +323,52 @@ def build_server():
             bool_predicates=tuple(bool_predicates or ()),
             query=query,
         )
+
+    @app.tool()
+    def themis_markov_blanket(
+        csv_path: str,
+        target: str,
+        alpha: float = 0.05,
+        columns: list[str] | None = None,
+    ) -> dict:
+        """Find the Markov blanket of ``target`` in a continuous CSV dataset
+        (borrow-list #4) and return a result the agent can review and audit
+        with ``themis_verify_markov_blanket``.
+
+        The Markov blanket is the minimal set of variables that shields the
+        target from everything else — its parents, children, and children's
+        other parents. It is a **local screening** primitive: it narrows dozens
+        of columns to the handful locally relevant to the target for building a
+        DAG. It is NOT an adjustment set — the blanket includes children and
+        spouses, which must not be conditioned on when estimating the target's
+        effect. A human still directs the local edges.
+
+        Continuous data only (Fisher-Z): the correlation matrix is the complete
+        sufficient statistic, recorded in the result so
+        ``themis_verify_markov_blanket`` can independently recompute every test.
+        Discrete / mixed columns raise an error rather than emit an
+        un-verifiable blanket. ``columns`` optionally restricts the candidate
+        pool; ``alpha`` is the CI-test significance level.
+        """
+        import pandas as pd
+
+        from themis.estimation.discovery import (
+            markov_blanket,
+            markov_blanket_to_dict,
+        )
+
+        path = Path(csv_path)
+        if not path.is_absolute():
+            path = (REPO_ROOT / csv_path).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
+        df = pd.read_csv(path)
+        result = markov_blanket(
+            df, target,
+            alpha=alpha,
+            columns=tuple(columns) if columns else None,
+        )
+        return markov_blanket_to_dict(result)
 
     @app.tool()
     def themis_submit_verdict(

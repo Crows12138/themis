@@ -66,6 +66,14 @@ Public surface (re-exports from sub-modules):
   [n_unique / dtype_kind / observed_values] and confirms the attached gaps
   match; catches a producer that mis-classifies a column, mislabels a
   verdict, or fabricates / drops a gap)
+- Discovery-layer verifier: ``verify_markov_blanket`` (2026-07-11, borrow-list
+  #4 — the first per-number audit to reach the causal-discovery layer. Re-checks
+  the completeness + minimality Markov-blanket definition directly on the
+  returned set, recomputing every Fisher-Z conditional-independence test from
+  the recorded correlation matrix [the complete sufficient statistic under joint
+  continuity] with an independent reimplementation, without re-running the
+  grow-shrink search; rejects a fabricated / trimmed blanket, a corrupted
+  correlation matrix, or a recorded test that disagrees with the recomputation)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -136,6 +144,7 @@ from .bounds_rules import (
     verify_manski_tamer_bounds_result,
 )
 from .type_reconciliation_rules import verify_type_reconciliation
+from .markov_blanket_rules import verify_markov_blanket
 
 __all__ = [
     "DerivationSerializationError",
@@ -163,6 +172,7 @@ __all__ = [
     "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",
+    "verify_markov_blanket",
     "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",

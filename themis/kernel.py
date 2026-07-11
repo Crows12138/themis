@@ -1234,3 +1234,32 @@ def verify_data_gap_report(result: dict) -> None:
     from .verifier.type_reconciliation_rules import verify_type_reconciliation
 
     verify_type_reconciliation(result)
+
+
+def verify_markov_blanket(result: dict) -> None:
+    """Independently audit a Markov-blanket result (borrow-list #4).
+
+    Parallel to :func:`verify_bounds_result`: the artifact is a standalone
+    Markov-blanket dict (from
+    :func:`themis.estimation.discovery.markov_blanket_to_dict` / the
+    ``themis_markov_blanket`` MCP tool), not a query_result envelope, so there
+    is no derivation chain or source program to cross-reference — hence a
+    dedicated public entry rather than the :func:`verify` path.
+
+    Re-checks the completeness + minimality Markov-blanket definition directly
+    on the returned set, recomputing every conditional-independence test from
+    the recorded correlation matrix with an independent Fisher-Z
+    reimplementation (no re-run of the grow-shrink search). Returns ``None`` on
+    accept; raises
+    :class:`themis.verifier.errors.VerificationError` on any structural
+    inconsistency, an ill-formed correlation matrix, a recorded test that
+    disagrees with the recomputation, or a blanket that violates its own
+    definition at the stated alpha.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.markov_blanket_rules import (
+        verify_markov_blanket as _verify_mb,
+    )
+
+    _verify_mb(result)

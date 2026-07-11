@@ -910,3 +910,307 @@ def _format_note(algorithm: str, n_dir: int, n_bidir: int, n_amb: int) -> str:
             "— user / domain knowledge required to direct them"
         )
     return "; ".join(parts)
+
+
+# ==============================================================================
+# Markov blanket (2026-07-11, borrow-list #4).
+#
+# The Markov blanket MB(T) of a target T is the minimal set that shields T from
+# every other variable: T ⊥ V | MB(T) for all V ∉ MB(T)∪{T} (completeness), and
+# no proper subset does (minimality — every member is necessary). Structurally
+# it is the parents, children, and children's other parents (spouses) of T.
+#
+# Unlike the five whole-graph learners above, MB is a *local, target-relative*
+# primitive: given a target it screens dozens of variables down to the handful
+# locally relevant to it — a dimension-reduction / pruning step for building a
+# DAG. It does NOT hand you an adjustment set: the blanket includes children and
+# spouses, which you must NOT condition on when estimating T's effect (that opens
+# colliders). It tells you where the local structure lives; a human still directs.
+#
+# Why MB earns a verifier where the whole-graph learners don't: its defining
+# property is checkable on the OUTPUT without re-running the search. For
+# continuous (Gaussian) data the Fisher-Z conditional-independence test is a pure
+# function of the correlation matrix + sample size, so the correlation matrix is
+# a complete sufficient statistic. ``verify_markov_blanket`` recomputes every
+# completeness / minimality test from that recorded matrix with an independent
+# Fisher-Z reimplementation and rejects a returned blanket that violates the
+# definition — the first per-number verification to reach the discovery layer.
+#
+# Scope (stated tradeoff): continuous data only. Discrete Markov blankets need a
+# chi-square test whose sufficient statistic is the contingency tables, not the
+# correlation matrix; that path is deliberately deferred, and mixed / discrete
+# input raises an actionable error rather than silently emitting an
+# un-verifiable blanket.
+# ==============================================================================
+
+
+class MarkovBlanketError(ValueError):
+    """The Markov-blanket request cannot be served as posed — the target is
+    absent, there are too few candidates, or (the common case) the data is
+    not continuous so the Fisher-Z sufficient-statistic path does not apply.
+    Preferred over silently returning a blanket that cannot be verified.
+    """
+
+
+@dataclass(frozen=True)
+class MarkovBlanketResult:
+    """Output of a Markov-blanket screen for one ``target``.
+
+    - ``target``: the variable whose blanket was found
+    - ``blanket``: sorted tuple of member variable names (the shield)
+    - ``columns``: all variables considered, canonical order
+    - ``method``: the search method run (``"grow_shrink"``)
+    - ``alpha``: CI-test significance level
+    - ``sample_size`` / ``data_hash``: provenance of the fitted data
+    - ``correlation``: the Pearson correlation matrix over ``columns`` in
+      that order — the complete sufficient statistic for Fisher-Z, recorded
+      so the verifier can independently recompute every test
+    - ``tests``: the completeness + minimality definition check — one entry
+      per non-member (``role="shield"``, must be independent) and per member
+      (``role="necessary"``, must be dependent); each carries the tested
+      variable, the conditioning set, the partial correlation, the p-value,
+      and whether it passed. The verifier re-derives all of this from
+      ``correlation`` and rejects a blanket that does not satisfy its own
+      definition.
+    - ``note``: human-readable summary
+    """
+
+    target: str
+    blanket: tuple[str, ...]
+    columns: tuple[str, ...]
+    method: str
+    alpha: float
+    sample_size: int
+    data_hash: str
+    correlation: tuple[tuple[float, ...], ...]
+    tests: tuple[dict, ...]
+    note: str
+
+
+def _corr_matrix(matrix: np.ndarray) -> np.ndarray:
+    """Pearson correlation over columns (variables). This is the complete
+    sufficient statistic for the Fisher-Z partial-correlation test."""
+    return np.corrcoef(matrix, rowvar=False)
+
+
+def _partial_corr(R: np.ndarray, i: int, j: int, cond: tuple[int, ...]) -> float:
+    """Partial correlation of i and j given the conditioning set ``cond``,
+    computed from the correlation matrix ``R`` by inverting the relevant
+    submatrix (precision-matrix formula)."""
+    if not cond:
+        return float(R[i, j])
+    idx = [i, j, *cond]
+    sub = R[np.ix_(idx, idx)]
+    try:
+        P = np.linalg.inv(sub)
+    except np.linalg.LinAlgError:
+        P = np.linalg.pinv(sub)
+    denom = np.sqrt(P[0, 0] * P[1, 1])
+    if denom <= 0.0:
+        return 0.0
+    return float(-P[0, 1] / denom)
+
+
+def _fisher_z_pvalue(
+    R: np.ndarray, i: int, j: int, cond: tuple[int, ...], n: int,
+) -> float:
+    """Two-sided p-value of the Fisher-Z partial-correlation test for
+    ``i ⊥ j | cond``. Large p → independent; small p → dependent."""
+    from scipy import stats
+
+    r = _partial_corr(R, i, j, cond)
+    r = max(min(r, 0.999999999999), -0.999999999999)
+    z = float(np.arctanh(r))
+    dof = n - len(cond) - 3
+    if dof <= 0:
+        # Not enough samples to condition on this many variables — treat as
+        # inconclusive/dependent (never drop an edge we cannot test).
+        return 0.0
+    stat = np.sqrt(dof) * abs(z)
+    return float(2.0 * (1.0 - stats.norm.cdf(stat)))
+
+
+def _grow_shrink_mb(
+    R: np.ndarray, n: int, target: int, candidates: tuple[int, ...], alpha: float,
+    *, max_rounds: int = 100,
+) -> list[int]:
+    """Interleaved grow-shrink Markov-blanket search to a fixpoint.
+
+    Grow adds the most strongly associated candidate that is dependent on the
+    target given the current blanket; shrink drops any member that has become
+    independent of the target given the rest. Iterating both to a fixpoint
+    yields a set on which grow can add nothing (completeness) and shrink can
+    remove nothing (minimality) — exactly the Markov-blanket definition at
+    this alpha. Deterministic: grow breaks ties by smallest p-value then
+    column order; shrink scans in column order.
+    """
+    mb: list[int] = []
+    for _ in range(max_rounds):
+        changed = False
+        # Grow to local completeness
+        while True:
+            best: tuple[float, int] | None = None
+            for c in candidates:
+                if c == target or c in mb:
+                    continue
+                p = _fisher_z_pvalue(R, target, c, tuple(mb), n)
+                if p < alpha and (best is None or p < best[0]):
+                    best = (p, c)
+            if best is None:
+                break
+            mb.append(best[1])
+            changed = True
+        # Shrink to minimality
+        for c in list(mb):
+            rest = tuple(x for x in mb if x != c)
+            p = _fisher_z_pvalue(R, target, c, rest, n)
+            if p > alpha:  # independent given the rest → not necessary
+                mb.remove(c)
+                changed = True
+        if not changed:
+            return sorted(mb)
+    raise MarkovBlanketError(
+        f"grow-shrink did not converge in {max_rounds} rounds — the data may "
+        "violate faithfulness or be too collinear for a stable blanket"
+    )
+
+
+def markov_blanket(
+    data: pd.DataFrame,
+    target: str,
+    *,
+    alpha: float = 0.05,
+    columns: tuple[str, ...] | None = None,
+    method: str = "grow_shrink",
+) -> MarkovBlanketResult:
+    """Find the Markov blanket of ``target`` in continuous ``data``.
+
+    ``columns`` restricts the candidate pool (defaults to every continuous
+    column other than the target). ``alpha`` is the Fisher-Z significance
+    level. The returned blanket provably satisfies its own definition at
+    ``alpha`` given the fitted correlation matrix — see
+    ``verify_markov_blanket`` for the independent audit.
+
+    Raises ``MarkovBlanketError`` when the target is missing, there are no
+    candidates, or any considered column is not continuous (the Fisher-Z
+    sufficient-statistic path is continuous-only; discretise or await the
+    discrete extension).
+    """
+    if method != "grow_shrink":
+        raise MarkovBlanketError(
+            f"unknown method {method!r}; only 'grow_shrink' is implemented"
+        )
+    if target not in data.columns:
+        raise MarkovBlanketError(
+            f"target {target!r} is not a column in the data"
+        )
+
+    if columns is None:
+        pool = tuple(
+            c for c in data.columns
+            if c != target and (
+                pd.api.types.is_numeric_dtype(data[c])
+                or pd.api.types.is_bool_dtype(data[c])
+            )
+        )
+    else:
+        pool = tuple(c for c in columns if c != target)
+    if not pool:
+        raise MarkovBlanketError(
+            "no candidate columns to search for a Markov blanket"
+        )
+
+    used = (target, *pool)
+    contract = validate_data(data, required_columns=set(used))
+    # Continuous-only: the correlation matrix is a complete sufficient
+    # statistic only under joint continuity. Reject discrete / bool columns
+    # rather than emit an un-verifiable blanket.
+    non_continuous = [
+        c for c in used if _classify_column(contract.data[c]) != "continuous"
+    ]
+    if non_continuous:
+        raise MarkovBlanketError(
+            f"columns {sorted(non_continuous)} are not continuous; the Fisher-Z "
+            "Markov-blanket path supports continuous data only. Discretise and "
+            "use a discrete method, or drop these columns."
+        )
+
+    cols = tuple(used)  # target first, then pool in given order
+    df = contract.data[list(cols)]
+    matrix = df.to_numpy(dtype=float)
+    R = _corr_matrix(matrix)
+    n = contract.sample_size
+    t_idx = 0
+    cand_idx = tuple(range(1, len(cols)))
+
+    mb_idx = _grow_shrink_mb(R, n, t_idx, cand_idx, alpha)
+    mb_set = set(mb_idx)
+    blanket = tuple(sorted(cols[i] for i in mb_idx))
+
+    # Definition check — the sufficient audit trail. Completeness: every
+    # non-member is independent of the target given the whole blanket.
+    # Minimality: every member is dependent given the rest of the blanket.
+    tests: list[dict] = []
+    for i in cand_idx:
+        if i in mb_set:
+            rest = tuple(x for x in mb_idx if x != i)
+            p = _fisher_z_pvalue(R, t_idx, i, rest, n)
+            tests.append({
+                "variable": cols[i],
+                "role": "necessary",
+                "conditioning_set": sorted(cols[x] for x in rest),
+                "partial_correlation": round(_partial_corr(R, t_idx, i, rest), 12),
+                "p_value": p,
+                "passed": p <= alpha,
+            })
+        else:
+            cond = tuple(mb_idx)
+            p = _fisher_z_pvalue(R, t_idx, i, cond, n)
+            tests.append({
+                "variable": cols[i],
+                "role": "shield",
+                "conditioning_set": sorted(cols[x] for x in cond),
+                "partial_correlation": round(_partial_corr(R, t_idx, i, cond), 12),
+                "p_value": p,
+                "passed": p > alpha,
+            })
+
+    note = (
+        f"grow-shrink Markov blanket of {target!r}: "
+        f"{{{', '.join(blanket) if blanket else '∅'}}} "
+        f"({len(blanket)} of {len(pool)} candidates) at α={alpha}. "
+        "The blanket is the local shield (parents, children, spouses) — a "
+        "screening set for building a DAG, NOT an adjustment set (do not "
+        "condition on children/spouses when estimating an effect)."
+    )
+
+    return MarkovBlanketResult(
+        target=target,
+        blanket=blanket,
+        columns=cols,
+        method=method,
+        alpha=alpha,
+        sample_size=n,
+        data_hash=contract.data_hash,
+        correlation=tuple(tuple(float(v) for v in row) for row in R),
+        tests=tuple(tests),
+        note=note,
+    )
+
+
+def markov_blanket_to_dict(result: MarkovBlanketResult) -> dict:
+    """JSON-serialisable view of a ``MarkovBlanketResult`` — the artifact
+    ``verify_markov_blanket`` consumes and the MCP tool returns."""
+    return {
+        "kind": "markov_blanket",
+        "target": result.target,
+        "blanket": list(result.blanket),
+        "columns": list(result.columns),
+        "method": result.method,
+        "alpha": result.alpha,
+        "sample_size": result.sample_size,
+        "data_hash": result.data_hash,
+        "correlation": [list(row) for row in result.correlation],
+        "tests": [dict(t) for t in result.tests],
+        "note": result.note,
+    }

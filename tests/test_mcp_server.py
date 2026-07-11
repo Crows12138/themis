@@ -38,8 +38,10 @@ def test_server_constructs_with_expected_tools(app):
         "themis_verify",
         "themis_verify_data_gap_report",
         "themis_verify_bounds_result",  # iter 133
+        "themis_verify_markov_blanket",  # borrow-list #4
         "themis_estimate",
         "themis_discover",
+        "themis_markov_blanket",  # borrow-list #4
         "themis_report",  # deterministic analyze → verify → Markdown report
         "themis_submit_verdict",  # v0.1.5 Fix 2A
         "themis_list_resources",
@@ -116,6 +118,36 @@ def test_themis_verify_tool_returns_error_on_bad_result(app):
     assert out["ok"] is False
     assert "error" in out
     assert isinstance(out["error"], str) and out["error"]
+
+
+def test_themis_markov_blanket_tool_round_trips(app, tmp_path):
+    """themis_markov_blanket screens a target from a CSV; the emitted result
+    passes themis_verify_markov_blanket, and a tampered one is rejected."""
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(0)
+    n = 3000
+    x1 = rng.standard_normal(n)
+    t = 1.5 * x1 + 0.5 * rng.standard_normal(n)
+    y = 1.3 * t + 0.5 * rng.standard_normal(n)
+    noise = rng.standard_normal(n)
+    csv = tmp_path / "mb.csv"
+    pd.DataFrame({"T": t, "X1": x1, "Y": y, "noise": noise}).to_csv(csv, index=False)
+
+    mb = _call_tool(
+        app, "themis_markov_blanket",
+        {"csv_path": str(csv), "target": "T"},
+    )
+    assert mb["kind"] == "markov_blanket"
+    assert set(mb["blanket"]) == {"X1", "Y"}
+
+    ok = _call_tool(app, "themis_verify_markov_blanket", {"result": mb})
+    assert ok == {"ok": True}
+
+    mb["blanket"] = sorted(mb["blanket"] + ["noise"])  # fabricate a member
+    bad = _call_tool(app, "themis_verify_markov_blanket", {"result": mb})
+    assert bad["ok"] is False and bad["error"]
 
 
 def _atom(predicate: str) -> dict:

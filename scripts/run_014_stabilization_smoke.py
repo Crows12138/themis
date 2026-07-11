@@ -513,8 +513,10 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_verify",
         "themis_verify_data_gap_report",
         "themis_verify_bounds_result",  # iter 133
+        "themis_verify_markov_blanket",  # borrow-list #4
         "themis_estimate",
         "themis_discover",
+        "themis_markov_blanket",  # borrow-list #4
         "themis_report",  # deterministic analyze → verify → Markdown report
         "themis_submit_verdict",  # v0.1.5 Fix 2A
         "themis_list_resources",

@@ -86,6 +86,7 @@ from .kernel import (
     verify,
     verify_bounds_result,
     verify_data_gap_report,
+    verify_markov_blanket,
 )
 from .output.analysis_report import build_analysis_report
 
@@ -99,4 +100,5 @@ __all__ = [
     "verify",
     "verify_bounds_result",
     "verify_data_gap_report",
+    "verify_markov_blanket",
 ]
