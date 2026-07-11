@@ -113,8 +113,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
 - `themis.build_analysis_report(result, program=...)` / MCP `themis_report`：把一次分析（问题 / 因果图 + 边来源 / 答案 / **验证状态** / 假设账本 / 数据缺口）确定性组装成一份中文 Markdown 报告——无需 LLM / API key，前置突出 Themis 独有的「验证 + 还缺什么数据」
+- 前置数据诊断：`themis.estimate(...)` 会把每个变量**声明的测量尺度**（`scale` = binary/discrete/continuous，或枚举 `domain`）与**实际数据列**核对——声明连续却只有 2 个取值、或声明二元却 5 个取值，都作为 `declared_type_data_mismatch` 缺口当场提醒，避免闷头算出一个答非所问的数；证据记进 `extensions.type_reconciliation`，由 `verify_type_reconciliation` 从充分统计量独立重导判决。未正向声明的变量不检查（"没说" ≠ "说了连续"），一致的程序完全静默
 
-当前全量测试基线：**2755 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2777 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -168,7 +169,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2755 passed / 144 skipped（2026-07-11）
+- **测试套件**：2777 passed / 144 skipped（2026-07-11）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

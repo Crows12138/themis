@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2755 passed / 144 skipped, warning-clean
+2777 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -50,6 +50,27 @@ Causal-Copilot 报告的根本差别 = 前置了它没有的「验证 + 缺什�
 +15 测试（14 报告 + 1 MCP 工具端到端）；MCP 工具 9→10（同步 test/README/
 COVERAGE_MAP/smoke 四处清单守卫）；基线 2740→**2755**。这是「借鉴
 Causal-Copilot」清单 #2。
+
+**前置数据诊断层（declared_type_data_mismatch + VariableDeclaration.scale，
+2026-07-11）**：借鉴清单 #3。这是**第一个由实际数据（而非程序结构）驱动
+的 gap**——`themis.estimate(...)` 在末尾把每个变量声明的测量类型与实际列
+核对（`themis/estimation/dispatch.py:_attach_type_reconciliation`，用**原始
+未强转数据**分类以保留整数离散性）。根因勘定：Themis 此前**没有正向的连续
+声明**（「连续」= 没写 `domain`，而「没写」歧义于「懒得写」，靠它报警会在
+海量二元-无-domain 用例上误报），故加**可选 `scale` 字段**（binary/discrete/
+continuous）作为正向声明的单一真相源（与 `domain` 互补，不是并列第二真相
+源）。两种判决：`declared_continuous_data_discrete`（声明连续、数据仅 k 个
+离散值 → 估计量塌成离散对比而非剂量曲线，blocks interpretation）、
+`domain_violated`（声明二元/离散、数据取值更多或越界，blocks point_estimate）。
+**只在正向声明被数据违反时触发**，未声明变量与一致程序完全静默（零既有测试
+破坏）。证据记进 `extensions.type_reconciliation`（记 n_unique/dtype_kind/
+distinct-value 集作充分统计量），`verify_type_reconciliation` 从零重导分类+
+判决+gap 对应（独立性 pin，不 import 生产侧），接进顶层
+`themis.verify_data_gap_report` 故现有 MCP 工具自动带上、**零新 MCP 工具**。
+硬同步：GapKind 枚举 ↔ query_result schema ↔ verifier `_KIND_ACCEPTS_REF`
+三方 + GAP_KINDS_REFERENCE 行 + COVERAGE_MAP 计数 31→32；`scale` round-trip
+过 `_statement_to_dict` + `_to_statement` + kernel_ast schema。+22 测试；
+基线 2755→**2777**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
