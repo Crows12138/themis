@@ -40,6 +40,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_verify_bounds_result",  # iter 133
         "themis_estimate",
         "themis_discover",
+        "themis_report",  # deterministic analyze → verify → Markdown report
         "themis_submit_verdict",  # v0.1.5 Fix 2A
         "themis_list_resources",
     }
@@ -157,6 +158,17 @@ def test_themis_verify_data_gap_report_accepts_diagnostic_result(app):
 
     out = _call_tool(app, "themis_verify_data_gap_report", {"result": result})
     assert out == {"ok": True}
+
+
+def test_themis_report_tool_renders_markdown(app):
+    """themis_report runs + verifies + returns one Markdown report per query."""
+    fixture = REPO_ROOT / "tests" / "test_e2e" / "fixtures" / "assoc_canonical.json"
+    program = json.loads(fixture.read_text(encoding="utf-8"))
+
+    out = _call_tool(app, "themis_report", {"program": program})
+    assert "reports" in out and isinstance(out["reports"], list) and out["reports"]
+    assert out["reports"][0].startswith("# 因果分析报告")
+    assert "statuses" in out and out["statuses"]
 
 
 def test_themis_list_resources_tool_returns_uri_catalog(app):

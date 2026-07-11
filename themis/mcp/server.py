@@ -9,6 +9,8 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None)`` → wraps :func:`themis.estimate`; loads CSV from disk
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
+- ``themis_report(program, csv_path=None, run_verify=True)`` → deterministic
+  analyze → (verify) → one Markdown report per query (no LLM, no API key)
 - ``themis_submit_verdict(verdict, question, ...)`` → Fix 2A (v0.1.5):
   schema-validated yes/no/needs_more_info commitment channel. Removes
   token-level reliability risk when downstream consumers (benchmark
@@ -182,6 +184,64 @@ def build_server():
             raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
         df = pd.read_csv(path)
         return themis.estimate(program, df, **(options or {}))
+
+    @app.tool()
+    def themis_report(
+        program: dict | str,
+        csv_path: str | None = None,
+        options: dict | None = None,
+        run_verify: bool = True,
+    ) -> dict:
+        """Run (or estimate on data) + optionally verify + render one
+        human-readable Markdown analysis report per query.
+
+        The deterministic, end-to-end "analyze → verify → report" surface:
+        unlike the LLM render bridge it needs no API key, and unlike a
+        generic causal report it foregrounds Themis's differentiators —
+        the answer first, then the verification status and the
+        assumptions / data gaps.
+
+        ``program``: kernel_ast dict or JSON string. ``csv_path``: if
+        given, run numeric estimation on the CSV; otherwise a structural
+        run. ``options``: forwarded to ``themis.estimate`` when csv_path
+        is set. ``run_verify``: independently verify each result (where it
+        carries a derivation) and stamp the report ✓/✗ — verification is a
+        separate re-derivation; the report assembler never re-runs
+        reasoning itself.
+
+        Returns ``{"reports": [markdown, ...], "statuses": [...]}``.
+        """
+        from themis.output.analysis_report import build_analysis_report
+
+        if csv_path is not None:
+            import pandas as pd
+
+            path = Path(csv_path)
+            if not path.is_absolute():
+                path = (REPO_ROOT / csv_path).resolve()
+            if not path.is_file():
+                raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
+            df = pd.read_csv(path)
+            env = themis.estimate(program, df, **(options or {}))
+        else:
+            env = themis.run(program)
+
+        prog_dict = env.get("program") or env.get("merged_program") or program
+        reports: list[str] = []
+        statuses: list[str] = []
+        for result in env.get("results", []):
+            verified = None
+            if run_verify and result.get("derivation") is not None:
+                try:
+                    themis.verify(prog_dict, result)
+                    verified = True
+                except Exception:
+                    verified = False
+            reports.append(
+                build_analysis_report(result, program=prog_dict, verified=verified)
+            )
+            statuses.append(result.get("status"))
+        return {"reports": reports, "statuses": statuses}
 
     @app.tool()
     def themis_discover(

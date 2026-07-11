@@ -87,11 +87,13 @@ from .kernel import (
     verify_bounds_result,
     verify_data_gap_report,
 )
+from .output.analysis_report import build_analysis_report
 
 __version__ = "0.15.0-dev"
 __all__ = [
     "AdmgVerificationPending",
     "apply_patch_and_run",
+    "build_analysis_report",
     "estimate",
     "run",
     "verify",
