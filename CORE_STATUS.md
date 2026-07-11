@@ -32,8 +32,24 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2740 passed / 144 skipped, warning-clean
+2755 passed / 144 skipped, warning-clean
 ```
+
+**统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
+「一份可读报告」的思路，但做成**确定性、无 LLM** 的组装器
+（`themis/output/analysis_report.py`；顶层 `themis.build_analysis_report` +
+MCP `themis_report`）。把一次分析缝成六节：问题 / 因果图（含边来源：用户
+断言 vs `discovery:*` vs `llm_proposal` + bootstrap 稳定度）/ 答案（按状态
+分支：数值 point+CI+method+精度+E-value 稳健性 / 结构 bool / bounds 区间 /
+可识别但需数据 / 需补充）/ **验证** / 假设账本（严重度排序）/ 数据缺口 +
+下一步。**被动组装、绝不重跑推理、绝不内部调 verify**（守 output 层铁律）：
+「验证」节展示 derivation 存在性（可 `themis.verify` 独立复核；无 derivation
+→指向 `verify_data_gap_report`），调用方可把 *另做* 的 verify verdict 传进来
+打 ✓/✗。前置顺序遵 `response_rendering.md`（答案优先→假设→缺口）。**与
+Causal-Copilot 报告的根本差别 = 前置了它没有的「验证 + 缺什么数据」两节**。
++15 测试（14 报告 + 1 MCP 工具端到端）；MCP 工具 9→10（同步 test/README/
+COVERAGE_MAP/smoke 四处清单守卫）；基线 2740→**2755**。这是「借鉴
+Causal-Copilot」清单 #2。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

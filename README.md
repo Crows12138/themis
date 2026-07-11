@@ -112,8 +112,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 在有数据时通过 `themis.estimate(...)` 给出 backdoor / front-door / IV（含 Anderson-Rubin 弱工具稳健置信集，工具再弱也有效、并如实返回无界集）/ mediation / dose-response / 通用-ID / 近端 proximal / PN·PS·PNS 归因概率（Tian-Pearl，单调下点识别 + 无假设界）/ 反事实合取的数值估计
 - 在不能给点估计时生成 `data_gap_report`，告诉用户还缺什么数据或假设
 - 通过 workflow / prompt / KB / MCP 层，把 NL 输入、补录、验证、估计串成可组合流程
+- `themis.build_analysis_report(result, program=...)` / MCP `themis_report`：把一次分析（问题 / 因果图 + 边来源 / 答案 / **验证状态** / 假设账本 / 数据缺口）确定性组装成一份中文 Markdown 报告——无需 LLM / API key，前置突出 Themis 独有的「验证 + 还缺什么数据」
 
-当前全量测试基线：**2740 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2755 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -167,7 +168,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2740 passed / 144 skipped（2026-07-11）
+- **测试套件**：2755 passed / 144 skipped（2026-07-11）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
