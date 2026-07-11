@@ -198,6 +198,31 @@ def _maybe_estimate_longitudinal(
     if target is None:
         return
 
+    # Honest gate: if the structural pass found the strategy effect is NOT
+    # g-formula-identified (an unblocked back-door from some A_k to Y —
+    # unmeasured / mis-declared time-varying confounding), the estimator's
+    # number would be biased. Refuse it (mirrors missing-data recovery's
+    # not_recoverable), attaching an estimator_failure instead of shipping a
+    # number the structure doesn't support.
+    ident = (target.get("extensions") or {}).get("longitudinal_identification")
+    if isinstance(ident, dict) and ident.get("identified") is False:
+        target["estimator_failure"] = {
+            "estimator": (
+                "longitudinal_ipw_msm"
+                if spec.get("estimator") == "ipw_msm"
+                else "longitudinal_gformula"
+            ),
+            "failure_type": "not_identified",
+            "reason": (
+                "the time-varying strategy effect is not identified by the "
+                "g-formula: sequential exchangeability fails (an unblocked "
+                "back-door from a treatment to the outcome given the measured "
+                "history). No number is produced — the g-formula estimate "
+                "would be biased."
+            ),
+        }
+        return
+
     from .longitudinal import (
         estimate_longitudinal_gformula,
         estimate_longitudinal_ipw_msm,
@@ -308,11 +333,23 @@ def _maybe_estimate_longitudinal(
         }
     target["numeric_estimate"] = numeric_estimate
     _attach_precision_budget(target["numeric_estimate"])
+    # Flip to numerically_solved, preserving the g-formula structural
+    # derivation (identify_via_gformula) the scheduler attached — the same
+    # pattern transport uses (structural identify terminal + numeric value).
+    # The verifier accepts that terminal for a longitudinal-numeric result
+    # and additionally re-derives the number via verify_longitudinal_numeric.
+    _finalise_numeric_result(target)
 
 
 def _longitudinal_target_result(output: dict):
-    """First effect-query result, else the first result, else None."""
+    """The result carrying the g-formula structural identification (the
+    scheduler attaches ``extensions.longitudinal_identification`` to the
+    longitudinal strategy query), else the first effect-query result, else
+    the first result, else None."""
     results = output.get("results", [])
+    for result in results:
+        if (result.get("extensions") or {}).get("longitudinal_identification"):
+            return result
     for result in results:
         if result.get("query_kind") == "effect":
             return result

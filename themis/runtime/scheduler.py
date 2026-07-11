@@ -3201,12 +3201,211 @@ def _dispatch_joint_effect(
     )
 
 
+def _longitudinal_spec_matches(q: EffectQuery, spec: dict) -> bool:
+    """Does this effect query designate the program's longitudinal
+    strategy question?
+
+    The longitudinal spec lives in ``options.longitudinal`` (it needs the
+    time ordering the cross-sectional query grammar can't express), so a
+    plain ``do(A_k)`` effect query is the syntactic stand-in for the
+    strategy contrast. We treat the query as the longitudinal one iff its
+    outcome is the spec's outcome and its (single) intervention is one of
+    the spec's time-ordered treatments — with no mediator / transport /
+    joint layer stacked on top (those are separate identifications).
+    """
+    treatments = spec.get("treatments") or []
+    outcome = spec.get("outcome")
+    if q.mediator is not None or getattr(q, "target_population", None) is not None:
+        return False
+    if q.extra_interventions:
+        return False
+    return (
+        q.target.atom.predicate == outcome
+        and q.intervention.atom.predicate in treatments
+    )
+
+
+# Structural identification assumptions for the g-formula / sequential
+# back-door (Hernán & Robins, What If, ch.21). These are the UNTESTABLE
+# identification premises — distinct from the parametric-model
+# assumptions the estimator surfaces (correct transition / outcome / IP
+# models). The graph confirms the DECLARED measured history is sufficient;
+# it cannot confirm there is no UNMEASURED time-varying confounder.
+_LONGITUDINAL_STRUCTURAL_ASSUMPTIONS = (
+    "sequential_exchangeability_no_unmeasured_time_varying_confounding",
+    "positivity_each_treatment_level_observed_within_history_strata",
+    "consistency_well_defined_sustained_treatment_strategy",
+)
+
+
+def _dispatch_longitudinal(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: EffectQuery,
+    spec: dict,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    """Phase 7.L structural — identify a time-varying treatment STRATEGY
+    effect via the g-formula (sequential back-door criterion).
+
+    The longitudinal spec (``options.longitudinal``) supplies the time-
+    ordered treatments A_0..A_K and the covariate blocks measured before
+    each (``confounders_by_time``). The strategy contrast
+    ``E[Y_{ā=treated}] − E[Y_{ā=control}]`` is point-identified by the
+    g-formula iff, at each time k, the measured history
+    ``H_k = {L_0..L_k, A_0..A_{k-1}}`` blocks every back-door path from
+    A_k to Y (Pearl-Robins sequential back-door / sequential
+    exchangeability). Future covariates are deliberately excluded from
+    H_k, so a causal path A_k → L_{k+1} → Y is never mistaken for a
+    back-door and blocked.
+
+    Emits STRUCTURALLY_SOLVED with an ``identify_via_gformula`` derivation
+    when every time point passes (the estimation dispatch then attaches
+    the g-formula / IPW-MSM number and flips to numerically_solved,
+    mirroring transport). On a failing time point — an unblocked back-door
+    from some A_k to Y, i.e. an unmeasured / mis-declared time-varying
+    confounder — returns NEEDS_INVESTIGATION naming which treatment is
+    confounded, and attaches the extension with ``identified: False`` so
+    the numeric layer refuses to ship a biased number.
+    """
+    treatment_names = list(spec.get("treatments") or [])
+    conf_blocks_names = [list(b) for b in (spec.get("confounders_by_time") or [])]
+    outcome_name = spec.get("outcome")
+
+    pred2node = {n.predicate: n for n in graph.nodes}
+    all_names = [*treatment_names, outcome_name,
+                 *[c for blk in conf_blocks_names for c in blk]]
+    missing_names = [nm for nm in all_names if nm not in pred2node]
+    if missing_names:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            missing_information=tuple(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"longitudinal:atom_not_in_graph:{nm}",
+                    priority=Priority.HIGH,
+                    reason=(
+                        f"longitudinal spec references {nm!r}, which is not a "
+                        f"declared variable in the graph"
+                    ),
+                )
+                for nm in missing_names
+            ),
+        )
+
+    treatments = tuple(pred2node[nm] for nm in treatment_names)
+    y = pred2node[outcome_name]
+    conf_blocks = tuple(tuple(pred2node[c] for c in blk) for blk in conf_blocks_names)
+
+    # Per-time sequential back-door admissibility. H_k accumulates the
+    # measured covariates up to and including time k plus the past
+    # treatments A_0..A_{k-1}; each A_k must have every back-door path to Y
+    # blocked by H_k. `frozenset() in minimal_adjustment_sets(..., given=H_k)`
+    # holds iff H_k itself satisfies the back-door criterion for (A_k, Y)
+    # — that bundles the no-descendant precondition with the blocking test.
+    per_time = []
+    history: list[Atom] = []
+    first_failed = None
+    for k, a_k in enumerate(treatments):
+        history.extend(conf_blocks[k])  # L_k measured BEFORE A_k
+        h_k = tuple(history)
+        adj = structural_solver.minimal_adjustment_sets(
+            graph, a_k, y, given=h_k, bidirected=bidirected or None,
+        )
+        ok_k = frozenset() in adj
+        per_time.append((k, a_k, ok_k))
+        if not ok_k and first_failed is None:
+            first_failed = (k, a_k)
+        history.append(a_k)  # A_k enters the history for later times
+
+    identified = first_failed is None
+
+    identification_ext = {
+        "estimand": "time_varying_strategy_contrast",
+        "treatments": [_atom_to_str(t) for t in treatments],
+        "outcome": _atom_to_str(y),
+        "confounders_by_time": [
+            [_atom_to_str(a) for a in blk] for blk in conf_blocks
+        ],
+        "identified": identified,
+        "assumptions": list(_LONGITUDINAL_STRUCTURAL_ASSUMPTIONS),
+    }
+
+    if not identified:
+        k, a_k = first_failed
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            structural_result=StructuralResult(value=False),
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"longitudinal:sequential_exchangeability_fails:{_atom_to_str(a_k)}",
+                    priority=Priority.HIGH,
+                    reason=(
+                        f"treatment {_atom_to_str(a_k)} (time {k}) has an open "
+                        f"back-door path to {_atom_to_str(y)} that the measured "
+                        f"history does not block — sequential exchangeability "
+                        f"fails, so the g-formula would return a biased number. "
+                        f"Measure the confounder or revise the graph."
+                    ),
+                ),
+            ),
+            extensions={"longitudinal_identification": identification_ext},
+        )
+
+    structural_result = StructuralResult(value=True)
+    derivation = (
+        DerivationStep(
+            rule="graph_is_dag",
+            inputs={"graph": graph},
+            output=True,
+            step_id="s0",
+        ),
+        DerivationStep(
+            rule="longitudinal_sequential_exchangeability_check",
+            inputs={
+                "graph": graph,
+                "treatments": treatments,
+                "confounders_by_time": conf_blocks,
+                "y": y,
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="identify_via_gformula",
+            inputs={
+                "check": StepRef(step_id="s1"),
+                "y": y,
+                "treatments": treatments,
+            },
+            output=structural_result,
+            step_id="s2",
+        ),
+    )
+
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        query_id=stmt.id,
+        structural_result=structural_result,
+        derivation=derivation,
+        extensions={"longitudinal_identification": identification_ext},
+    )
+
+
 def _dispatch_effect(
     stmt: QueryStatement,
     graph: nx.DiGraph,
     theta: Theta,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
     selection_nodes: "tuple[Statement, ...]" = (),
+    longitudinal_spec: dict | None = None,
 ) -> QueryResult:
     q: EffectQuery = stmt.query  # type: ignore[assignment]
     x = q.intervention.atom
@@ -3233,6 +3432,17 @@ def _dispatch_effect(
                 )
                 for a in missing_atoms
             ),
+        )
+
+    # Phase 7.L: a time-varying treatment STRATEGY query, declared via
+    # options.longitudinal (the cross-sectional query grammar can't carry
+    # the time ordering). Short-circuit into g-formula / sequential
+    # back-door identification before the single-treatment back-door path
+    # — the latter would silently compute the biased static-adjustment
+    # ATE. The estimation dispatch attaches the g-formula / IPW-MSM number.
+    if longitudinal_spec is not None and _longitudinal_spec_matches(q, longitudinal_spec):
+        return _dispatch_longitudinal(
+            stmt, graph, q, longitudinal_spec, bidirected=bidirected,
         )
 
     # Joint interventions: do(A=a, B=b, ...) over a treatment SET.
@@ -4047,9 +4257,15 @@ def dispatch(
         else:
             from ..types import SelectionNode as _SN
             sel_nodes = tuple(s for s in program.statements if isinstance(s, _SN))
+            long_spec = None
+            if program.options:
+                _ls = program.options.get("longitudinal")
+                if isinstance(_ls, dict):
+                    long_spec = _ls
             result = _dispatch_effect(
                 stmt, graph, theta,
                 bidirected=bidirected, selection_nodes=sel_nodes,
+                longitudinal_spec=long_spec,
             )
     elif isinstance(q, ProbabilityQuery):
         strict_items = _check_strict_framing(program, stmt)

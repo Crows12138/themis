@@ -30,6 +30,7 @@ from ..types import (
     CausationQuery,
     ConstantExpr,
     CounterfactualQuery,
+    EffectQuery,
     SCMCounterfactualQuery,
     FormulaExpr,
     FractionExpr,
@@ -1741,6 +1742,180 @@ def _rule_identify_via_mediation(
             f"identify_via_mediation output.value must be {any_identifiable!r} "
             f"(nde_nie={nde_out!r}, cde={cde_out!r}), got {claimed_output.value!r}",
             step_index=step_index, rule="identify_via_mediation",
+        )
+
+
+def _rule_longitudinal_sequential_exchangeability_check(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Independently re-check Pearl-Robins sequential exchangeability for a
+    time-varying treatment strategy (g-formula / sequential back-door
+    identification, Hernán & Robins ch.21).
+
+    For each treatment A_k in temporal order, the measured history
+    ``H_k = {L_0..L_k, A_0..A_{k-1}}`` must
+
+    (i)  contain no descendant of A_k (can't adjust for A_k's own
+         consequences), and
+    (ii) block every back-door path from A_k to Y.
+
+    Future covariates are intentionally NOT in H_k, so a causal path
+    A_k → L_{k+1} → Y is never mistaken for a back-door. Output is True iff
+    every time point passes. Verifier-local m-separation — never calls
+    structural_solver, so it is an independent re-derivation of the
+    producer's ``minimal_adjustment_sets`` check.
+    """
+    rule = "longitudinal_sequential_exchangeability_check"
+    graph = _require(inputs, "graph", step_index, rule)
+    _assert_same_graph(graph, ctx.graph, step_index, rule)
+    y = _require_atom(inputs, "y", step_index, rule)
+    treatments_raw = _require(inputs, "treatments", step_index, rule)
+    conf_raw = _require(inputs, "confounders_by_time", step_index, rule)
+
+    if not isinstance(treatments_raw, tuple) or not all(
+        isinstance(a, Atom) for a in treatments_raw
+    ):
+        raise UnknownRuleInputError(
+            f"{rule}.treatments must be a tuple of Atom",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(conf_raw, tuple) or not all(
+        isinstance(blk, tuple) and all(isinstance(a, Atom) for a in blk)
+        for blk in conf_raw
+    ):
+        raise UnknownRuleInputError(
+            f"{rule}.confounders_by_time must be a tuple of tuples of Atom",
+            step_index=step_index, rule=rule,
+        )
+    if len(conf_raw) != len(treatments_raw):
+        raise RuleCheckFailed(
+            f"{rule}: confounders_by_time length {len(conf_raw)} must equal "
+            f"treatments length {len(treatments_raw)}",
+            step_index=step_index, rule=rule,
+        )
+    if not treatments_raw:
+        raise RuleCheckFailed(
+            f"{rule}: treatments must be non-empty",
+            step_index=step_index, rule=rule,
+        )
+    if y not in graph:
+        raise RuleCheckFailed(
+            f"{rule}: outcome {y!r} not in graph",
+            step_index=step_index, rule=rule,
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+
+    all_ok = True
+    history: set[Atom] = set()
+    for k, a_k in enumerate(treatments_raw):
+        if a_k not in graph:
+            raise RuleCheckFailed(
+                f"{rule}: treatment {a_k!r} not in graph",
+                step_index=step_index, rule=rule,
+            )
+        if a_k == y:
+            raise RuleCheckFailed(
+                f"{rule}: treatment {a_k!r} equals the outcome",
+                step_index=step_index, rule=rule,
+            )
+        history |= set(conf_raw[k])  # L_k measured BEFORE A_k
+        h_k = frozenset(history)
+        # (i) H_k has no descendant of A_k
+        no_descendant = h_k.isdisjoint(_verifier_directed_descendants(graph, a_k))
+        # (ii) every back-door path from A_k to Y is blocked by H_k
+        backdoor_blocked = not _verifier_is_admg_backdoor_connected(
+            graph, bidir, a_k, y, h_k
+        )
+        if not (no_descendant and backdoor_blocked):
+            all_ok = False
+        history.add(a_k)  # A_k enters the history for later times
+
+    if bool(claimed_output) is not all_ok:
+        raise RuleCheckFailed(
+            f"{rule} claimed {claimed_output!r}, recomputed {all_ok!r}",
+            step_index=step_index, rule=rule,
+        )
+
+
+def _rule_identify_via_gformula(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Consume a ``longitudinal_sequential_exchangeability_check`` and
+    conclude g-formula (sequential back-door) identifiability of the time-
+    varying strategy contrast.
+
+    Binds to the active effect query: the derivation's outcome must be the
+    query target and the query's intervention must be one of the declared
+    treatments — so a valid longitudinal proof for a DIFFERENT query is
+    rejected. ``claimed_output.value`` must equal the referenced check's
+    all-times-admissible verdict.
+    """
+    rule = "identify_via_gformula"
+    check_ref = _require(inputs, "check", step_index, rule)
+    y = _require_atom(inputs, "y", step_index, rule)
+    treatments_raw = _require(inputs, "treatments", step_index, rule)
+    if not isinstance(check_ref, StepRef):
+        raise UnknownRuleInputError(
+            f"{rule}.check must be a StepRef",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(treatments_raw, tuple) or not all(
+        isinstance(a, Atom) for a in treatments_raw
+    ):
+        raise UnknownRuleInputError(
+            f"{rule}.treatments must be a tuple of Atom",
+            step_index=step_index, rule=rule,
+        )
+
+    check_step = step_by_id.get(check_ref.step_id)
+    check_out = step_output_by_id.get(check_ref.step_id)
+    if check_step is None:
+        raise RuleCheckFailed(
+            f"{rule}: referenced check step missing",
+            step_index=step_index, rule=rule,
+        )
+    if check_step.rule != "longitudinal_sequential_exchangeability_check":
+        raise RuleCheckFailed(
+            f"{rule}: check must reference "
+            f"longitudinal_sequential_exchangeability_check",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            f"{rule} output must be a StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+
+    # Query binding: this must prove the ACTIVE query, not another.
+    q = ctx.query
+    if isinstance(q, EffectQuery):
+        if y != q.target.atom:
+            raise RuleCheckFailed(
+                f"{rule}.y {y!r} does not match the query target "
+                f"{q.target.atom!r}",
+                step_index=step_index, rule=rule,
+            )
+        if q.intervention.atom not in set(treatments_raw):
+            raise RuleCheckFailed(
+                f"{rule}: query intervention {q.intervention.atom!r} is not "
+                f"among the declared treatments",
+                step_index=step_index, rule=rule,
+            )
+
+    if claimed_output.value is not bool(check_out):
+        raise RuleCheckFailed(
+            f"{rule} output.value must equal the sequential-exchangeability "
+            f"check verdict ({check_out!r}), got {claimed_output.value!r}",
+            step_index=step_index, rule=rule,
         )
 
 
@@ -6794,6 +6969,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 6.mediation S.M.3
     "mediation_nde_nie_check": _rule_mediation_nde_nie_check,
     "mediation_cde_check": _rule_mediation_cde_check,
+    # Phase 7.L — longitudinal g-formula / sequential back-door: independent
+    # per-time sequential-exchangeability re-check (single-step aggregate).
+    "longitudinal_sequential_exchangeability_check": _rule_longitudinal_sequential_exchangeability_check,
     # Phase 6.mediation Fix 1 (v0.1.4) — numeric evaluation
     "mediation_numeric_evaluate": _rule_mediation_numeric_evaluate,
     # Phase 9 §T9.1.4 — independent transport audit
@@ -6839,6 +7017,8 @@ _STEP_REF_RULES = {
     "numeric_proximal_estimate",
     # Phase 9 §T9.1.4 — transport identification
     "identify_via_transport",
+    # Phase 7.L — longitudinal g-formula (sequential back-door) terminal
+    "identify_via_gformula",
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
     "identify_via_tian",
     "tian_hedge_witness",
@@ -6952,6 +7132,11 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_joint_backdoor":
         _rule_identify_via_joint_backdoor(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_gformula":
+        _rule_identify_via_gformula(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

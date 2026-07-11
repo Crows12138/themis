@@ -54,7 +54,12 @@ Public surface (re-exports from sub-modules):
   result: the VanderWeele ratio-scale four-way split re-derived from the
   recorded logistic coefficients, plus construction-identity checks on the
   difference-scale four-way and the Imai NDE/NIE decomposition whose
-  simulation-based values aren't re-derivable)
+  simulation-based values aren't re-derivable),
+  ``verify_longitudinal_numeric`` (the time-varying strategy contrast riding
+  on a g-formula / sequential-back-door identification: the IPW-MSM contrast
+  re-derived from the recorded marginal-structural-model coefficients, plus
+  construction-identity checks on the black-box g-formula Monte-Carlo means
+  that aren't re-derivable)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -108,6 +113,7 @@ from .verify import (
     verify_e_value,
     verify_effect_structural,
     verify_identify,
+    verify_longitudinal_numeric,
     verify_mediation_numeric,
     verify_missing_data_recovery,
     verify_numeric,
@@ -147,6 +153,7 @@ __all__ = [
     "verify_effect_structural",
     "verify_balke_pearl_iv_bounds_result",
     "verify_identify",
+    "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",
     "verify_mediation_numeric",

@@ -727,6 +727,13 @@ def verify_numeric_estimate(
         # at the relaxed numeric level rather than crashing on the
         # numerically_solved flip.
         "identify_via_transport",
+        # Longitudinal g-formula / IPW-MSM (Phase 7.L) — same pattern as
+        # transport: the derivation ends in the structural
+        # identify_via_gformula terminal and the estimation dispatch flips
+        # the result to numerically_solved with the strategy-contrast
+        # number attached. The number's own re-derivation is verify_
+        # longitudinal_numeric (called from the kernel), not this terminal.
+        "identify_via_gformula",
     )
     if derivation[-1].rule not in allowed_finals:
         raise VerificationError(
@@ -1192,6 +1199,130 @@ def verify_mediation_numeric(estimate: dict) -> None:
                    "decomposition")
 
 
+_LONGITUDINAL_TOL = 1e-6
+
+
+def verify_longitudinal_numeric(estimate: dict) -> None:
+    """Audit the numeric answer riding on a longitudinal g-formula /
+    IPW-MSM structural identification and reject on violation.
+
+    The structural side (``identify_via_gformula``) is re-checked by the
+    derivation verifier; this audits the NUMBER that rides on top — the
+    time-varying strategy contrast ``E[Y_{ā=treated}] − E[Y_{ā=control}]``.
+    Two estimators, two audit tiers:
+
+    - ``longitudinal_ipw_msm`` (contrast re-derived from the recorded
+      marginal-structural-model coefficients): the reported point and both
+      strategy means are exact closed forms of the per-time MSM
+      coefficients β — ``point = (treated − control)·Σβ_k``,
+      ``E[Y_{ā=v}] = β0 + v·Σβ_k``. Recompute them from the recorded β
+      vector and reject a mismatch, so a tampered point / mean / single
+      coefficient is caught. A fully self-consistent forgery of the whole
+      β vector plus its derived quantities is the honest ceiling — the
+      verifier does not re-fit the weighted least squares from data.
+    - ``longitudinal_gformula`` (construction invariants only): the two
+      strategy means come from a black-box Monte-Carlo forward simulation
+      over fitted transition + outcome models — not re-derivable without a
+      re-fit (the ceiling every data-refit estimator sits at). What IS
+      checkable is the construction identity ``point = E_treated −
+      E_control`` and the simulation/bootstrap counts; a self-consistent
+      forgery of the two means is not caught.
+
+    Both: the nested block's point must equal the headline point, and its
+    treatments / outcome must match the headline metadata. ``estimate`` is
+    the full ``numeric_estimate`` dict; audited only when a longitudinal
+    block is present.
+    """
+    import math
+
+    def _fail(msg):
+        raise VerificationError(msg, step_index=None, rule="longitudinal_numeric")
+
+    def _close(a, b, name):
+        if a is None or b is None:
+            if a is None and b is None:
+                return
+            _fail(f"longitudinal.{name}: recomputed {a!r}, recorded {b!r}")
+        if not math.isfinite(a):
+            _fail(f"longitudinal.{name}: recomputed non-finite {a}")
+        if abs(a - b) > _LONGITUDINAL_TOL + 1e-6 * abs(b):
+            _fail(f"longitudinal.{name}: recomputed {a}, recorded {b}")
+
+    method = estimate.get("method")
+    block = estimate.get("longitudinal_ipw_msm") or estimate.get(
+        "longitudinal_gformula"
+    )
+    if block is None:
+        return
+
+    point = block.get("point")
+    e1 = block.get("e_y_treated")
+    e0 = block.get("e_y_control")
+
+    # Headline / block agreement — the nested answer is the shipped answer.
+    _close(point, estimate.get("point"), "block_point==headline_point")
+    if block.get("outcome") is not None and estimate.get("outcome") is not None:
+        if block["outcome"] != estimate["outcome"]:
+            _fail(
+                f"block outcome {block['outcome']!r} != headline outcome "
+                f"{estimate['outcome']!r}"
+            )
+    treatments = block.get("treatments")
+    if treatments is not None and estimate.get("treatment") is not None:
+        if ",".join(treatments) != estimate["treatment"]:
+            _fail(
+                f"block treatments {treatments!r} do not match headline "
+                f"treatment {estimate['treatment']!r}"
+            )
+
+    # Construction identity shared by both estimators.
+    if e1 is not None and e0 is not None:
+        _close(e1 - e0, point, "point==e_y_treated-e_y_control")
+
+    if "longitudinal_ipw_msm" in estimate:
+        betas = block.get("msm_coefficients")
+        if betas is None:
+            _fail("longitudinal_ipw_msm.msm_coefficients missing — cannot "
+                  "re-derive the contrast")
+        treated = block.get("strategy_treated")
+        control = block.get("strategy_control")
+        if treated is None or control is None:
+            _fail("longitudinal_ipw_msm: strategy_treated / strategy_control "
+                  "missing")
+        if treatments is not None and len(betas) != len(treatments) + 1:
+            _fail(
+                f"longitudinal_ipw_msm.msm_coefficients has {len(betas)} "
+                f"entries; expected len(treatments)+1 = {len(treatments) + 1} "
+                f"(β0 + one per treatment)"
+            )
+        beta0 = betas[0]
+        sum_beta = sum(betas[1:])
+        _close((treated - control) * sum_beta, point,
+               "ipw_msm.point==(treated-control)*sum_beta")
+        _close(beta0 + treated * sum_beta, e1,
+               "ipw_msm.e_y_treated==b0+treated*sum_beta")
+        _close(beta0 + control * sum_beta, e0,
+               "ipw_msm.e_y_control==b0+control*sum_beta")
+        # Weights are inverse probabilities: strictly positive, and the max
+        # can't sit below the mean.
+        w_mean = block.get("weight_mean")
+        w_max = block.get("weight_max")
+        if w_mean is not None and w_mean <= 0:
+            _fail(f"ipw_msm.weight_mean must be positive, got {w_mean}")
+        if w_mean is not None and w_max is not None and w_max + _LONGITUDINAL_TOL < w_mean:
+            _fail(f"ipw_msm.weight_max {w_max} < weight_mean {w_mean}")
+
+    if "longitudinal_gformula" in estimate:
+        # MC black box — only the construction identity (checked above) and
+        # the simulation/bootstrap counts are auditable.
+        n_sim = block.get("n_sim")
+        if n_sim is not None and n_sim <= 0:
+            _fail(f"gformula.n_sim must be positive, got {n_sim}")
+        nb = block.get("n_bootstrap")
+        if nb is not None and nb < 0:
+            _fail(f"gformula.n_bootstrap must be non-negative, got {nb}")
+
+
 def verify_selection_recovery(block: dict, graph) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 
@@ -1627,11 +1758,17 @@ def verify_effect_structural(
         "identify_via_mediation",
         "identify_via_transport",
         "identify_via_joint_backdoor",
+        # Phase 7.L — longitudinal g-formula (sequential back-door) of a
+        # time-varying strategy contrast. Structurally identified before the
+        # estimation dispatch attaches (and flips to numerically_solved) the
+        # g-formula / IPW-MSM number; verified structurally when no number
+        # attaches (data absent).
+        "identify_via_gformula",
     ):
         raise VerificationError(
             "structural effect derivation must end in identify_via_mediation, "
-            "identify_via_transport, or identify_via_joint_backdoor; got "
-            + repr(last_rule),
+            "identify_via_transport, identify_via_joint_backdoor, or "
+            "identify_via_gformula; got " + repr(last_rule),
             step_index=len(derivation) - 1, rule=last_rule,
         )
 

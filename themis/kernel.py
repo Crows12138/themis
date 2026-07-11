@@ -97,6 +97,7 @@ from .verifier import (
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
     verify_e_value,
+    verify_longitudinal_numeric,
     verify_mediation_numeric,
     verify_scm_counterfactual,
     verify_effect_structural,
@@ -967,6 +968,17 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # answer object otherwise ships checked for JSON shape only.
             if num_est.get("dose_response_curve") is not None:
                 verify_dose_response_curve(num_est)
+            # Phase 7.L — a longitudinal g-formula / IPW-MSM estimate rides on
+            # an identify_via_gformula structural terminal (accepted above),
+            # but its strategy-contrast number is otherwise unaudited: the
+            # relaxed metadata audit doesn't re-derive it. Re-derive the
+            # IPW-MSM contrast from the recorded MSM coefficients + check the
+            # g-formula construction identities.
+            if (
+                num_est.get("longitudinal_ipw_msm") is not None
+                or num_est.get("longitudinal_gformula") is not None
+            ):
+                verify_longitudinal_numeric(num_est)
         else:
             if "numeric_result" not in result:
                 raise ValueError(
