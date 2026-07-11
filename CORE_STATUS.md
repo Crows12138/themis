@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2686 passed / 144 skipped, warning-clean
+2703 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -678,6 +678,25 @@ schema,验证器从系数经 VanderWeele 闭式(§3.4/§3.3)重导每个 err_*/p
 total_rr−1=total_err、各 prop=分量比)独立复核;②**差值 four_way + NDE/NIE
 decomposition 内部不变量**(TE=各部分和、prop=比)——其充分统计量(cell means/
 模拟)未记录不可重导=诚实天花板,只逮单component篡改非自洽伪造(有测试钉住)。
+
+**followup(2026-07-11)：longitudinal g-methods 全栈结构识别 + 数值验证器**。
+此前时变处理(g-formula / IPW-MSM 策略对比数)骑在 `needs_investigation` 且**无
+derivation** 的结果上——结构层对时变处理零识别,顶层 `themis.verify` 因 no-
+derivation 守卫**直接拒审**,这个数完全在「没复核过的数不出门」契约之外(比漏验更
+彻底的洞)。修法照 transport 先例给它一等公民结构识别:①**scheduler `_dispatch_
+longitudinal`**(触发器=`options.longitudinal`,像 mediation/transport/joint)——
+序贯后门可容许检查(每个 A_k 在测得历史 H_k={L_0..L_k, A_0..A_{k-1}} 条件下到 Y
+无开放后门,未来协变量不入 H_k 故不误挡因果路径 A_k→L_{k+1}→Y),成功→`identify_
+via_gformula` 终端 + STRUCTURALLY_SOLVED + `longitudinal_identification` 扩展;
+②**numeric 层挂数翻 numerically_solved 保留结构 derivation**;③**验证器**:
+`longitudinal_sequential_exchangeability_check` 规则用验证器本地 m-分离(mutilate
+出边 + `_verifier_is_admg_backdoor_connected`,不调 structural_solver)独立重跑逐时
+判据 + `verify_longitudinal_numeric` 从记录的 MSM 系数重导 IPW-MSM contrast/e_y
+(逮孤立篡 point/mean/系数;整体系数向量自洽伪造=天花板,WLS 不重跑)、g-formula 只
+构造不变量(point=E_treated−E_control,MC 黑盒=天花板)。**honest gate**:未测混杂
+(bidirected A_k↔Y)→序贯可交换性失败→needs_investigation + `not_identified`
+estimator_failure,**拒绝出有偏数**(遵循 missing_recovery 先例)。derivation 输入用
+atom_tuple/atom_paths/单-StepRef 全可序列化(避开不支持的 tuple-of-StepRef)。
 
 **Schema 扩展**：`numeric_estimate` 顶层字段 + `estimation_context`
 + `decomposition` 子块（mediation 用）。method enum 8 个值
