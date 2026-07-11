@@ -152,6 +152,13 @@ def estimate_program(
         random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
 
+    # Pre-flight data diagnostic (borrow-list #3): reconcile each variable's
+    # declared measurement type (scale / domain) against the supplied
+    # column. Runs last so the reconciliation gap joins any data_gap_report
+    # the estimators already attached. Uses the ORIGINAL data (not the
+    # coerced contract) so integer discreteness survives.
+    _attach_type_reconciliation(program, identification_output, data)
+
     return identification_output
 
 
@@ -3860,3 +3867,225 @@ def _ensure_dict(program: dict | str | bytes) -> dict:
     if isinstance(program, (str, bytes)):
         return json.loads(program)
     return program
+
+
+# --------------------------------------------------------------------------
+# 2026-07-11 pre-flight data diagnostic (borrow-list #3): reconcile each
+# model variable's DECLARED measurement type against the supplied column.
+# --------------------------------------------------------------------------
+
+
+def _json_safe_value(v):
+    """Numpy scalar -> Python scalar so distinct-value sets serialize."""
+    import numpy as np
+    if isinstance(v, np.generic):
+        return v.item()
+    return v
+
+
+def _declared_scale(scale, domain) -> str | None:
+    """Resolve the POSITIVE declared measurement type, or None for
+    'didn't say'. ``scale`` (binary/discrete/continuous) wins when set;
+    otherwise an enumerated ``domain`` implies binary (<=2 levels) or
+    discrete (>2). Neither declared → None (never reconciled, no noise)."""
+    if scale in ("binary", "discrete", "continuous"):
+        return scale
+    if domain is not None:
+        return "binary" if len(domain) <= 2 else "discrete"
+    return None
+
+
+def _dtype_kind(col) -> str:
+    """Coarse dtype family recorded as a verifier sufficient statistic so
+    the observed-scale classification can be re-derived without the data."""
+    import pandas as pd
+    if pd.api.types.is_bool_dtype(col):
+        return "bool"
+    if pd.api.types.is_integer_dtype(col):
+        return "integer"
+    if pd.api.types.is_float_dtype(col):
+        return "float"
+    if pd.api.types.is_categorical_dtype(col):
+        return "categorical"
+    if pd.api.types.is_object_dtype(col):
+        return "object"
+    return "other"
+
+
+def _classify_observed(n_unique: int, dtype_kind: str) -> str:
+    """Pure (n_unique, dtype_kind) -> observed scale. Isolated so the
+    verifier's independent twin re-derives the identical rule."""
+    if n_unique <= 2:
+        return "binary"
+    if n_unique <= 20 and dtype_kind in (
+        "integer", "bool", "object", "categorical"
+    ):
+        return "discrete"
+    return "continuous"
+
+
+def _observe_column(col):
+    """Classify a real column by cardinality (mirrors discovery
+    ``_classify_column`` but on the ORIGINAL, un-coerced data so integer
+    discreteness survives). Returns (observed_scale, n_unique,
+    observed_values, dtype_kind) — observed_values is the distinct set when
+    small (verifier substrate) else None."""
+    import pandas as pd
+
+    n_unique = int(col.nunique(dropna=True))
+    dtype_kind = _dtype_kind(col)
+    observed = _classify_observed(n_unique, dtype_kind)
+    if n_unique <= 20:
+        observed_values = sorted(
+            _json_safe_value(v) for v in pd.unique(col.dropna())
+        )
+    else:
+        observed_values = None
+    return observed, n_unique, observed_values, dtype_kind
+
+
+def _reconcile_declared_observed(declared, domain, observed, n_unique,
+                                 observed_values):
+    """Compare declared vs observed. Returns (verdict, detail) — verdict is
+    'ok' | 'declared_continuous_data_discrete' | 'domain_violated'."""
+    if declared == "continuous":
+        if observed in ("binary", "discrete"):
+            return (
+                "declared_continuous_data_discrete",
+                f"declared scale='continuous' but the column has only "
+                f"{n_unique} distinct value(s) {observed_values} — any "
+                f"dose-response estimand collapses to a discrete contrast, "
+                f"not a continuous curve",
+            )
+        return ("ok", "")
+    if declared == "binary":
+        if n_unique > 2:
+            return (
+                "domain_violated",
+                f"declared binary (2 levels) but the column has {n_unique} "
+                f"distinct value(s) — the g-formula silently treats it as a "
+                f"multi-level / continuous exposure, not a two-arm contrast",
+            )
+        return ("ok", "")
+    if declared == "discrete":
+        if observed == "continuous":
+            return (
+                "domain_violated",
+                f"declared discrete but the column has {n_unique} distinct "
+                f"value(s) on a continuous scale",
+            )
+        if domain is not None and observed_values is not None:
+            domain_set = {_json_safe_value(x) for x in domain}
+            extra = [v for v in observed_values if v not in domain_set]
+            if extra:
+                return (
+                    "domain_violated",
+                    f"the column contains value(s) {extra} outside the "
+                    f"declared domain {sorted(domain_set)}",
+                )
+        return ("ok", "")
+    return ("ok", "")
+
+
+def _attach_type_reconciliation(program, output, data) -> None:
+    """Reconcile every model variable's declared measurement type
+    (``scale`` / ``domain``) against the supplied column and, on
+    disagreement, attach a ``declared_type_data_mismatch`` gap plus the
+    reconciliation evidence in ``extensions.type_reconciliation`` (so the
+    verifier can independently re-derive the verdict).
+
+    Silent on consistent programs: only variables with a POSITIVE
+    declaration (a ``scale`` or an enumerated ``domain``) are checked, and
+    only genuine disagreements produce a gap. An undeclared variable is
+    'didn't say', never 'said continuous' — it is skipped, so this adds
+    nothing to the overwhelmingly common consistent case.
+    """
+    import pandas as pd
+
+    if not isinstance(data, pd.DataFrame):
+        return
+    ast = _ensure_dict(program)
+    declarations: dict[str, tuple] = {}
+    for stmt in ast.get("statements", []):
+        if stmt.get("kind") == "variable":
+            pred = stmt.get("predicate")
+            if isinstance(pred, str):
+                declarations[pred] = (stmt.get("scale"), stmt.get("domain"))
+    if not declarations:
+        return
+
+    checks: list[dict] = []
+    for pred, (scale, domain) in sorted(declarations.items()):
+        if pred not in data.columns:
+            continue
+        declared = _declared_scale(scale, domain)
+        if declared is None:
+            continue  # no positive declaration → nothing to reconcile
+        observed, n_unique, observed_values, dtype_kind = _observe_column(
+            data[pred]
+        )
+        verdict, detail = _reconcile_declared_observed(
+            declared, domain, observed, n_unique, observed_values
+        )
+        if verdict == "ok":
+            continue
+        checks.append({
+            "predicate": pred,
+            "declared_scale": declared,
+            "declared_domain": list(domain) if domain is not None else None,
+            "observed_scale": observed,
+            "n_unique": n_unique,
+            "observed_values": observed_values,
+            "dtype_kind": dtype_kind,
+            "verdict": verdict,
+            "detail": detail,
+        })
+    if not checks:
+        return
+
+    blocks_by_verdict = {
+        "declared_continuous_data_discrete": "interpretation",
+        "domain_violated": "point_estimate",
+    }
+    gaps = []
+    for c in checks:
+        gaps.append({
+            "kind": "declared_type_data_mismatch",
+            "signature": c["verdict"],
+            "severity": "important",
+            "blocks": blocks_by_verdict[c["verdict"]],
+            "description": (
+                f"Variable {c['predicate']!r}: {c['detail']}. The estimate is "
+                f"still computed on the coerced data, but it answers a "
+                f"different estimand than the declaration promises — reconcile "
+                f"the declared scale/domain with the data before trusting the "
+                f"number as the declared quantity."
+            ),
+            "alternative_paths": [
+                f"if {c['predicate']!r} really is "
+                f"{c['declared_scale']}, fix the data column (the supplied "
+                f"values disagree)",
+                f"if the data is right, correct the declaration "
+                f"(scale/domain) so the estimand matches what you can measure",
+            ],
+            "provenance": [{
+                "ref_kind": "verifier_check",
+                "ref_id": f"type_reconciliation:{c['predicate']}",
+            }],
+        })
+
+    for result in output.get("results", []):
+        ext = result.get("extensions")
+        if not isinstance(ext, dict):
+            ext = {}
+            result["extensions"] = ext
+        ext["type_reconciliation"] = {"checks": [dict(c) for c in checks]}
+        report = result.get("data_gap_report")
+        if report is None:
+            result["data_gap_report"] = {
+                "summary": "声明的变量类型与数据不符",
+                "gaps": [dict(g) for g in gaps],
+                "actionable_next_steps": [],
+            }
+        else:
+            report.setdefault("gaps", []).extend(dict(g) for g in gaps)

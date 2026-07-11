@@ -60,6 +60,12 @@ Public surface (re-exports from sub-modules):
   re-derived from the recorded marginal-structural-model coefficients, plus
   construction-identity checks on the black-box g-formula Monte-Carlo means
   that aren't re-derivable)
+- Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
+  borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
+  the recorded sufficient statistics in extensions.type_reconciliation
+  [n_unique / dtype_kind / observed_values] and confirms the attached gaps
+  match; catches a producer that mis-classifies a column, mislabels a
+  verdict, or fabricates / drops a gap)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -129,6 +135,7 @@ from .bounds_rules import (
     verify_manski_natural_bounds_result,
     verify_manski_tamer_bounds_result,
 )
+from .type_reconciliation_rules import verify_type_reconciliation
 
 __all__ = [
     "DerivationSerializationError",
@@ -165,4 +172,5 @@ __all__ = [
     "verify_proximal_numeric",
     "verify_scm_counterfactual",
     "verify_selection_recovery",
+    "verify_type_reconciliation",
 ]

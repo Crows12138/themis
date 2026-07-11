@@ -381,7 +381,7 @@ def _statement_to_dict(s) -> dict:
             d["domain"] = list(s.domain)
         for field in ("time_window", "measurement", "threshold",
                       "observability", "unit",
-                      "direction", "baseline", "state_vs_event"):
+                      "direction", "baseline", "state_vs_event", "scale"):
             v = getattr(s, field)
             if v is not None:
                 d[field] = v
@@ -1226,3 +1226,11 @@ def verify_data_gap_report(result: dict) -> None:
         investigation_requests=result.get("investigation_requests", []),
         framing_notes=result.get("framing_notes", []),
     )
+
+    # 2026-07-11 pre-flight data diagnostic: independently re-derive any
+    # declared_type_data_mismatch verdicts from the recorded sufficient
+    # statistics and confirm the attached gaps match. No-op when the result
+    # carries no reconciliation block.
+    from .verifier.type_reconciliation_rules import verify_type_reconciliation
+
+    verify_type_reconciliation(result)

@@ -313,6 +313,7 @@ def _to_statement(d: dict):
             direction=d.get("direction"),
             baseline=d.get("baseline"),
             state_vs_event=d.get("state_vs_event"),
+            scale=d.get("scale"),
         )
     raise SemanticError(f"unknown statement kind: {k}")
 

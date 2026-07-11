@@ -372,6 +372,14 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # step — program-shape detection like measurement_error / ill_defined).
     # Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127.
     "dichotomized_continuous_measure": frozenset({"verifier_check"}),
+    # 2026-07-11 pre-flight data diagnostic: CSV data contradicts a
+    # variable's declared scale / domain. Provenance is a verifier_check ref
+    # naming the offending predicate; the reconciliation evidence lives in
+    # extensions.type_reconciliation and is independently re-derived by
+    # verify_type_reconciliation (no derivation step — data-vs-declaration
+    # detection on the estimate path, like the iter 121/123 estimator-runtime
+    # diagnostics).
+    "declared_type_data_mismatch": frozenset({"verifier_check"}),
 }
 
 

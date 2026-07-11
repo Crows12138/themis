@@ -70,6 +70,7 @@ const GAP_TITLE: Record<string, string> = {
   ill_defined_intervention_versions: '干预没定义清楚',
   graph_theta_independence_mismatch: '图与提供的分布不一致',
   dichotomized_continuous_measure: '连续变量被二分了',
+  declared_type_data_mismatch: '声明的变量类型与数据不符',
 }
 export function gapTitle(kind: string): string {
   return GAP_TITLE[kind] ?? kind.replace(/_/g, ' ')

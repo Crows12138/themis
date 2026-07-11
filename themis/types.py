@@ -491,6 +491,18 @@ class VariableDeclaration:
     direction: str | None = None
     baseline: str | None = None
     state_vs_event: str | None = None
+    # 2026-07-11 pre-flight data diagnostic: a POSITIVE declaration of the
+    # variable's measurement scale — "binary" | "discrete" | "continuous".
+    # Complementary to ``domain`` (which enumerates the levels of a discrete
+    # / binary variable): ``scale`` is the only way to positively mark a
+    # variable continuous, since "no domain" is ambiguous between "meant
+    # continuous" and "didn't bother to declare". When set, the estimate
+    # path reconciles it against the supplied data and raises a
+    # ``declared_type_data_mismatch`` gap on disagreement (e.g. declared
+    # continuous but the column has 2 distinct values). Optional advisory
+    # metadata like the other framing fields — unset never gates reasoning
+    # and never fires a gap.
+    scale: str | None = None
 
 
 Statement = Union[
@@ -1054,6 +1066,34 @@ class GapKind(str, Enum):
     # library structure-routes this from a variable-level threshold field —
     # Themis owns the variable schema where ``threshold`` is first-class.
     DICHOTOMIZED_CONTINUOUS_MEASURE = "dichotomized_continuous_measure"
+    # 2026-07-11 pre-flight data diagnostic (borrow-list #3): the CSV /
+    # DataFrame supplied to ``themis.estimate`` disagrees with the declared
+    # measurement type of a model variable. Two shapes, both surfaced here:
+    # (a) the variable positively declares ``scale`` (binary / discrete /
+    # continuous) or an enumerated ``domain``, and the data violates it —
+    # e.g. declared ``scale="continuous"`` but the column has only 2 distinct
+    # values (so any "dose-response" estimand is really a binary contrast),
+    # or declared ``domain=[true,false]`` but the column carries 5 distinct
+    # values (so the g-formula silently treated a multi-level exposure as
+    # continuous). (b) declared discrete ``domain`` whose data contains
+    # values outside the enumerated set. Distinct from
+    # dichotomized_continuous_measure (which is a program-shape signal read
+    # from the ``threshold`` field, no data involved) and from
+    # measurement_error_concern: this gap ONLY fires when actual data is
+    # present and contradicts a POSITIVE declaration — it never fires on an
+    # undeclared variable (absence of ``scale``/``domain`` is "didn't say",
+    # not "said continuous"), so it is silent on every consistent program.
+    # Severity IMPORTANT when the produced number answers a different
+    # estimand than declared (blocks=point_estimate / interpretation); the
+    # estimate is still computed on the coerced data, but the report must
+    # lead with the contradiction so the number is not read as the declared
+    # quantity. The reconciliation evidence (declared vs observed scale,
+    # distinct-value count / set) is recorded in
+    # ``extensions.type_reconciliation`` so the verifier can independently
+    # re-derive the verdict. No external causal library reconciles declared
+    # variable scale against supplied data — Themis owns the variable schema
+    # (``scale`` / ``domain``) and the data contract, so it can.
+    DECLARED_TYPE_DATA_MISMATCH = "declared_type_data_mismatch"
 
 
 class GapSeverity(str, Enum):
