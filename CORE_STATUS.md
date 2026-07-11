@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2713 passed / 144 skipped, warning-clean
+2734 passed / 144 skipped, warning-clean
 ```
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
@@ -721,7 +721,7 @@ atom_tuple/atom_paths/单-StepRef 全可序列化(避开不支持的 tuple-of-St
 
 | Slice | 状态 | 落地 commits |
 |---|---|---|
-| 8.1 discovery (PC/FCI/LiNGAM) | ✅ | e2b2677 → 48a7e6f |
+| 8.1 discovery (PC/FCI/GES/LiNGAM) | ✅ | e2b2677 → 48a7e6f；stronger-proposer followup |
 | 8.2 sensitivity (E-value) | ✅ | e1d8bdc → 97daad6 |
 
 **8.1 Discovery**：
@@ -737,6 +737,40 @@ atom_tuple/atom_paths/单-StepRef 全可序列化(避开不支持的 tuple-of-St
   ambiguous_orientation]`，附 disambiguation_ask
 - 5 条 API gate 审计：causal-learn ⚠ track record 4 年（接近但未达
   5 年门槛），其他 4 条满足；定为 production-with-caution，pin 版本
+
+**8.1.2 更强的提议器（stronger proposer followup，2026-07-11）**：
+- 定位：因果发现早已存在（proposer→已验证核心，学出的图隔离成待审提案）；
+  这一档是把「提议」本身做得更好/更宽，不改护城河
+- **GES**（score-based，Chickering 2002）作为第四个算法接入，
+  `_run_ges` 复用 `_extract_edges`（返回 CPDAG 同 PC）；离散数据用
+  `local_score_BDeu`、连续用 `local_score_BIC`
+- **诊断驱动的确定性选择器**：`_diagnose_data`（样本量 / 变量类型 /
+  连续列 D'Agostino 正态性 → `frac_non_gaussian`）→ `_select_algorithm`
+  规则（连续+非高斯+N≥500→LiNGAM；全类别→PC+chisq；否则 PC+fisherz），
+  返回 `Selection(algorithm, indep_test, score_func, rationale)`。选择是
+  **数据的纯函数、可复现、可被验证器重算** —— 有别于 Causal-Copilot
+  把 LLM 塞进选择回路
+- **离散适配的检验 / 打分**：PC/FCI 在全类别数据上自动用 chi-square
+  CI 检验（而非 Fisher-Z），GES 用 BDeu —— 修掉「在类别数据上跑高斯
+  检验」这个静默误用
+- **bootstrap 每条边稳定度**：`n_bootstrap>0`（默认 0 关闭）对行重采样
+  重跑同一算法，`annotations.confidence∈[0,1]` = 该边重现比例；真链边
+  ≈1.0、伪边低（逮伪边）。子种子由 `random_state` 派生 → 可复现。
+  这是 data-refit 量（诚实天花板：可复现但不能独立重导），故作为
+  proposal 上的 confidence 元数据、不当已验证结论
+- 全链路：confidence 经 `_to_annotation` 进 `Annotation.confidence` →
+  `discovery_to_kernel_ast` 挂到每条 cause/bidirected 边 + 歧义边的
+  `skeleton_confidence` + `discovery_metadata.{diagnostics,
+  selection_rationale,indep_test,score_func,n_bootstrap}`；data-gap 报告
+  在发现边描述里追加「自助法稳定度 X%」；MCP `themis_discover` 加
+  `n_bootstrap` 透传
+- 取舍声明：仅在 causal-learn 既有算法内扩（GES 白拿，未引 gcastle/
+  tigramite 新库）；选择器是规则式确定性（LLM 只在 agent 侧提先验）；
+  bootstrap 是诚实天花板不可独立重导
+- 测试：`tests/test_discovery_smart_proposer.py` +21（诊断 / 选择理由 /
+  小样本回退 / 离散 chisq+BDeu / GES 骨架 / bootstrap 稳定度+可复现+
+  逮伪边 / kernel_ast confidence + metadata / gap 报告显示稳定度）；
+  基线 2713→**2734**
 
 **8.2 Sensitivity**：
 - `e_value_for_risk_ratio(rr)`：VanderWeele & Ding 2017 closed form
