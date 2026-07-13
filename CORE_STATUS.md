@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2879 passed / 144 skipped, warning-clean
+2902 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -181,6 +181,33 @@ gap_kind 32→33）。schema 加 `iv_2sls_overid` method+`over_identification` �
 sufficient_statistics 残差矩阵）；取舍（声明）=齐方差 Sargan（Hansen 稳健 J 推迟，
 仿齐方差 AR）·单内生变量·多工具弱识别 AR 集推迟（q>1 几何 LARGE）。MCP 工具数
 不变（走 kernel.verify 无需新工具）；+27 测试→**2879**。
+
+**测量误差混淆矩阵求逆（2026-07-13，候选 E）**：测量误差此前**只有定性 gap 警告**
+（`measurement_error_concern`：识别路径上有变量声明自报/问卷/单次测量→挂 ⚠"回归稀
+释使你的估计有偏，做 RCT/重测/衰减敏感性"），估计层**零校正**（`rogan|gladen|
+misclassif|confusion` 全仓零命中）；实测坐实：即便用户手握验证研究给的误分类率，
+Themis 也无法把真效应反解回来，gap 描述明写"不做去衰减估计"。落地=真正的新能力：
+被误分类的**离散结局**给定验证过的混淆矩阵 M（列随机 M[i][j]=P(Y=state_i|Y*=state_j)），
+在**非差异误分类**假设下（Y⊥(X,Z)|Y*，各臂各层同一 M）逐后门层求逆 p_true=M⁻¹p_obs
+恢复真实分布，再对目标值 y* 做后门标准化 ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)；
+二值结局即逐层 **Rogan-Gladen (1978)**，整体塌成 naive_ATE/det(M)（det=Se+Sp−1=经典
+衰减因子，反着用）。接口=`estimate(misclassification={outcome:{confusion_matrix,
+states}})`，混淆矩阵是**载荷性外部输入**（验证研究），与 `reference_data` 平行、只在
+estimate 时用、噪声数据本身识别不出——不碰 AST/新 statement 类型（VariableDeclaration
+契约明说"不改数值输出"故放不得）。估计器 `estimate_measurement_correction`（`measurement.py`）
+含奇异矩阵拒绝（|det|<1e-6 仿 proximal rank guard）、out_of_simplex 诊断（报矩估计不裁剪）、
+positivity 拒绝、M 固定的 bootstrap CI。dispatch 按结局是否有 spec 路由（抢在朴素后门前；
+拒绝记 estimator_failure 不悄悄吐衰减朴素点）。双层验证：派生终端
+`numeric_measurement_correction_estimate`（元数据+`backdoor_criterion` 结构许可）+ 强数值端
+`verify_measurement_correction_numeric`（从记录的混淆矩阵+每层值计数向量+边际计数**独立
+重新求逆**重导校正点/朴素点/det，拒伪造点、非列随机或 det 不符的矩阵、丢层、篡改计数、
+缺臂；矩阵不进 derivation-input 序列化故由 kernel.verify 对 measurement_error_correction
+单独调用，仿 iv_overid/longitudinal 先例）。gap 描述软化为"有验证混淆矩阵则数值层可去衰减
+校正"。取舍（声明）=仅结局误分类·仅非差异·矩阵视为固定（验证研究对 M 的不确定性不传播）·
+仅离散结局（暴露误分类/差异矩阵/连续误测的 regression calibration/SIMEX 仍属 gap 领域）。
+D1=合成 SCM 模拟潜在真结局，真后门 RD 已知；校正估计（只见 Se/Sp 信道后的观测 Y）恢复它、
+朴素被 det 衰减；交叉验证=全 M⁻¹+取目标分量==代数独立的标量 Rogan-Gladen naive/det。MCP
+工具数不变（走 kernel.verify）；+23 测试→**2902**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
