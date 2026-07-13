@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2932 passed / 144 skipped, warning-clean
+2949 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -254,6 +254,32 @@ response_rendering：优先稳健 Hansen p 值，Sargan/Hansen 分歧本身有�
 oracle（step1 全矩阵 2SLS、Ŝ 显式残差化）重导 Hansen J + GMM 点 <1e-7；同方差重合、
 异方差发散；verify 拒伪造 hansen_j/GMM 点/dof、非 PSD/非对称/缺失 Ŝ、不符拒绝标志；
 聚类 CR0 权异于 HC0 且自洽。+15 测试→**2932**。
+
+**多工具弱识别 Anderson-Rubin 置信集（2026-07-13）**：过度识别路径能**检测**
+联合弱识别（联合 F），但它唯一的区间是 bootstrap CI——与恰好识别情形一样，工具
+联合弱时 bootstrap **失效**（这正是单工具 AR `b2c07d4` 要替换的问题），过度识别侧
+此前没有对应的弱识别稳健集。关键认识：对**单个内生回归元** + q 个工具，AR 统计量
+仍是 β0 的**二次式之比**——q 维投影只改系数不改代数——故集合仍是一条二次不等式
+的解，同样五种 Dufour 形态（向量-β 的二次曲面几何只在**多个内生回归元**时才出现，
+而过度识别路径本就单内生）。补上 `anderson_rubin_overid_set`：投影二次型
+`P_yy/P_xy/P_xx=z·'(Z'Z)⁻¹z·` 给出 `N(β0)=e'P_Z e`，临界值 `κ=q·F(q,m)`
+（m=n−|W|−q−1，单工具的 `F(1,m)` 的推广），反演 `AR≤F(q,m)` 得
+`A·β0²+B·β0+C≤0`，复用 `_ar_solve_set`。q=1 时**精确**退化为单工具 AR。与恰好识别
+集不同，过度识别集可为**空**（无 β0 满足全部 q 条矩约束=过度识别拒绝**显现在集合
+几何里**），且 2SLS 点**不必**落在集合内（违反时 N(point)=û'P_Z û>0）。①iv.py：
+`OverIDARConfidenceSet` + `anderson_rubin_overid_set`（moments 字典的纯闭式）+
+`OverIDIVEstimate.anderson_rubin` 字段。②dispatch.py：发射
+`anderson_rubin_confidence_set`（kind/lower/upper/point/kappa/dof_num/dof_denom），
+联合 F 弱时 `weak_iv_instrument` gap 指向 AR 集作为 bootstrap CI 的诚实替代（与单
+工具 `_attach_weak_iv_warning_if_low_f` 对齐）。③verify.py：`verify_iv_overid_numeric`
+增独立 AR 重导——从**同一批**记录矩阵重导 P_yy/P_xy/P_xx，用验证器自有二次分类器
+（rules `_ar_solve_set_verifier`）重解，核对 kind+端点+`κ=q·F(q,m)`+2SLS 点（**不**
+强制点在集内）；条件于 AR 块存在故退化设计无 AR 集仍验。④schema：kappa/dof_num/
+dof_denom 全可选（单工具路径不发），描述含 empty 形态与「点不必在集内」。取舍（声明）=
+齐方差 AR·单内生·单 β 标量集（向量-β 二次曲面推迟）。D1=网格反演（6001 点，闭式集
+== 直接 AR 测试成员，含条件集 W）+ q=1 精确退化 + 覆盖率仿真（有效工具 95% AR 集
+覆盖真值 ~96.5%）+ 空集⟺Sargan 拒绝；verify 拒伪造 kind/lower/upper/kappa/point/
+dof。+17 测试→**2949**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

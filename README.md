@@ -122,8 +122,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 测量误差混淆矩阵求逆（候选 E）：测量误差过去只有定性 gap 警告（`measurement_error_concern`：识别路径有自报/问卷/单次测量→挂 ⚠"估计有偏"），估计层零校正——即便用户手握验证研究的误分类率也反解不出真效应。现在被误分类的**离散结局**给定验证过的混淆矩阵 M，在**非差异误分类**假设下逐后门层求逆 `p_true=M⁻¹p_obs` 恢复真分布并做后门标准化（二值即 **Rogan-Gladen 1978**，整体=naive/det(M)，det=Se+Sp−1 衰减因子）。接口 `estimate(misclassification={outcome:{confusion_matrix,states}})`，混淆矩阵是载荷性外部输入（噪声数据本身识别不出），拒奇异/非列随机矩阵、拒非后门识别，refusal 记 estimator_failure 不悄悄吐衰减朴素点；`verify_measurement_correction_numeric` 从记录的矩阵+每层值计数**独立重新求逆**重导校正/朴素点拒伪造点、篡改矩阵、丢层、缺臂。仅结局误分类·仅非差异·矩阵视为固定（暴露误分类/差异矩阵/连续误测仍属 gap 领域）
 - 非二值处理 Manski 自然界限（候选 C）：partial-identification（bounds）层此前对**非布尔处理**整层跳过——调度器顶部 `if not intervention_is_bool: return` 把多值处理（如 `do(dose=2)`）连无假设的 Manski 下限都挡掉，尽管单臂自然界 `P(Y=y|do(X=x)) ∈ [P(Y=y,X=x), P(Y=y,X=x)+P(X≠x)]` 与处理基数无关（这是"门控非数学"：数值算术早已对，符号层却吐废字符串、验证器硬门拒审）。现在解顶层门（BP/MTR 仍各自门控在布尔——多值落到无假设 Manski 地板）+ 新增处理侧离散门（未声明离散域的连续点干预不挂平凡 `[0,1]`）；符号补臂对多值渲染为汇总不等式 `P(X≠x)`（布尔仍 `P(X=¬x)`）；数值层记录三个臂计数作充分统计量，`verify_manski_natural_bounds_result` 从记录计数**独立重导** lower=n_joint/n、upper=(n_joint+n_other)/n + 臂划分不变量（把 Manski 数值端从仅元数据审计升级为强重导——多值汇总补臂质量元数据审计验不出伪造宽度，重导能）。仅 Manski 自然界·多值处理 MTR/Balke-Pearl（二值构造）与多层对比界推迟
 - 异方差稳健 Hansen J 过度识别检验：过度识别 2SLS 此前只算**同方差 Sargan (1958) J**（iv.py 明写「Hansen 稳健 J 推迟」）。异方差/聚类数据下 Sargan 用了错误的权重矩阵，其对工具集的证伪不可信（探针：3 工具异方差设计 Sargan J=0.038 vs Hansen J=0.032，同方差重合）。现补上高效两步 GMM 的 **Hansen (1982) J**——同 H0/同 χ²(q−1)，但用稳健矩方差矩阵 `Ŝ=(1/n)Σûᵢ²zᵢzᵢ'`（聚类声明下走聚类稳健 CR0）替代同方差 σ²(Z'Z)。头条点估计仍 2SLS（同方差下相同），高效 GMM 点作诊断记录；Hansen 是附加项，Ŝ 奇异时 2SLS+Sargan 原样保留。**过度识别 gap 改由稳健 Hansen 驱动**（复用既有 `overidentification_rejected` kind），`verify_iv_overid_numeric` 增独立 Hansen 重导（从记录的 Ŝ + 交叉矩第二次转写重导高效 GMM 点 + J，加 Ŝ 对称-PSD 校验）。仅单内生·HC0/CR0 无有限样本乘子·多内生推迟
+- 多工具弱识别 Anderson-Rubin 置信集：过度识别路径能**检测**联合弱识别（联合 F），但唯一的区间是 bootstrap CI——工具联合弱时它失效（正是单工具 AR 要替换的问题），过度识别侧此前没有弱识别稳健集。关键认识：对**单个内生回归元** + q 个工具，AR 统计量仍是 β0 的**二次式之比**（q 维投影只改系数不改代数），故集合仍是一条二次不等式的解、同样五种形态（向量-β 的二次曲面几何只在多个内生回归元时才出现，而过度识别本就单内生）。补上 `anderson_rubin_overid_set`：投影二次型给出 `N(β0)=e'P_Z e`，临界值 `κ=q·F(q,m)`（单工具 `F(1,m)` 的推广），反演 `AR≤F(q,m)` 得 `A·β0²+B·β0+C≤0`，q=1 时**精确**退化为单工具 AR。与恰好识别集不同，过度识别集可为**空**（无 β0 满足全部 q 条矩约束=过度识别拒绝显现在集合几何里）、且 2SLS 点**不必**落在集内。联合 F 弱时 `weak_iv_instrument` gap 指向 AR 集作为 bootstrap CI 的诚实替代；`verify_iv_overid_numeric` 从**同一批**记录矩阵独立重导投影二次型、用验证器自有二次分类器重解、核对 kind+端点+κ+点。仅齐方差 AR·单内生·单 β 标量集（向量-β 二次曲面推迟）。D1=网格反演（闭式集==直接 AR 测试成员）+ q=1 精确退化 + 覆盖率仿真（~96.5%）+ 空集⟺Sargan 拒绝
 
-当前全量测试基线：**2932 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2949 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -177,7 +178,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2932 passed / 144 skipped（2026-07-13）
+- **测试套件**：2949 passed / 144 skipped（2026-07-13）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
