@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2917 passed / 144 skipped, warning-clean
+2932 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -230,6 +230,30 @@ lower=n_joint/n、upper=(n_joint+n_other)/n + 臂划分不变量 n_joint+n_other
 `[L_a−U_b, U_a−L_b]`（需对比查询类型=结构改动）推迟。D1=合成 3 值 dose SCM，数值端逐位对
 手算 `n_joint/n`、`(n_joint+n_other)/n` 一致；verify 接受诚实、拒篡改补臂表达式/伪造 off-arm
 计数/臂划分违反/计数-样本量不符。MCP 工具数不变；+15 测试→**2917**。
+
+**异方差稳健 Hansen J 过度识别检验（2026-07-13）**：过度识别 2SLS 此前只算
+**同方差 Sargan (1958) J**——iv.py 白纸黑字写着「the heteroskedasticity-robust
+Hansen J is deferred (declared)」。异方差（或聚类）数据下 Sargan 用了**错误的
+权重矩阵**，其对工具集的证伪不可信。探针坐实非装饰性：3 工具异方差设计下
+Sargan J=0.038 vs Hansen J=0.032（差 ~17%）、高效 GMM 点(1.433)异于 2SLS(1.431)，
+同方差下两者重合。补上高效两步 GMM 的 **Hansen (1982) J**（Sargan 的稳健推广）：
+同 H0（q 个工具联合有效）、同 χ²(q−1) 零分布，但用稳健矩方差矩阵
+`Ŝ=(1/n)Σûᵢ²zᵢzᵢ'`（聚类声明下走聚类稳健 CR0 和）替代同方差 σ²(Z'Z)。头条 `point`
+仍 2SLS（同方差下相同），高效 GMM 点作诊断副产品记录；Hansen 是**附加项**，Ŝ 奇异
+时 2SLS+Sargan 估计原样保留（hansen=None，向后兼容零破坏）。①iv.py：`HansenJTest`
++ `hansen` 字段，残差化抽成 `_residualise_iv_columns`/`_moments_from_arrays`，
+`_robust_weight_matrix`（HC0/聚类 CR0）、`solve_hansen_from_s`（producer 转写）、
+`_hansen_robust_j` 把 Ŝ 记进矩字典。②dispatch.py：发射 hansen_* 五字段；
+**过度识别 gap 改由稳健 Hansen J 驱动**（可用时，复用既有 `overidentification_rejected`
+kind=不新增 GapKind），Sargan 并列显示，Ŝ 奇异才回退 Sargan。③verify.py：
+`verify_iv_overid_numeric` 增独立 Hansen 重导——从记录的 Ŝ + 交叉矩**第二次独立转写**
+重导高效 GMM 点 + J，加 Ŝ 对称-PSD 校验（否则重导 J 非合法 χ²）；条件于 hansen_j 存在
+故老的仅-Sargan 块仍验；从 kernel 自动触发。④schema：hansen_* + s_robust 全可选；
+response_rendering：优先稳健 Hansen p 值，Sargan/Hansen 分歧本身有信息（结论依赖同方差）。
+取舍（声明）=单内生回归元·HC0/CR0 无有限样本乘子·多内生推迟。D1=独立高效两步 GMM
+oracle（step1 全矩阵 2SLS、Ŝ 显式残差化）重导 Hansen J + GMM 点 <1e-7；同方差重合、
+异方差发散；verify 拒伪造 hansen_j/GMM 点/dof、非 PSD/非对称/缺失 Ŝ、不符拒绝标志；
+聚类 CR0 权异于 HC0 且自洽。+15 测试→**2932**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

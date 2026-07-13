@@ -118,11 +118,12 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 选择偏倚数值端（§S9.1）：样本被限制在选择对撞上时，普通后门会算出**悄悄有偏**的数——`themis.estimate` 不再吐它。若给了外部无偏参考数据 `reference_data=`，则按 Bareinboim-Pearl 选择后门公式（定理3.5）从有偏样本 + 参考权重算出**恢复后的 ATE**；否则明确拒绝并点名所缺的外部数据（真选择对撞下这些权重永远无法从有偏样本本身估出，故外部数据是硬需求，非可选）。`themis.verify_selection_recovery_numeric(...)` 从记录的每层计数 + 权重表独立重跑公式核对（二值处理 + 离散调整集）
 - 中介 four-way 验证器强化：差值尺度分解 `four_way_decomposition` 现在把它本就是闭式函数的六个标准化 cell means 记为**充分统计量**，`verify_mediation_numeric` 用 VanderWeele 14.1b 的独立转写从中重导每个分量，连**完全自洽的伪造**也拒（对标 four_way_ratio 锚定拟合系数）；线性结局下同一组 cell means 也逐位钉死 NDE/NIE，logit 结局下 NDE/NIE 来自蒙特卡洛积分故保持不变量级（诚实天花板）
 - 缺失数据 recovered-ATE 数值验证器（§S9.2）：`estimate_recovered_ate` 的数挂在无 derivation 的 `needs_investigation` 结果上，derivation 门控的 `themis.verify` 够不到它——过去伪造 point 无人审。现在估计器把 g-formula 求和所用的每层充分统计量（conditional `{z,arm,n,y_sum}` + marginal `{z,count}`）记进 `recovered_ate.sufficient_statistics`，公开验证器 `themis.verify_missing_data_numeric(result)` 独立重跑 `Σ_z (E[Y|1,z]−E[Y|0,z])·P(z)` 核对 point、朴素对照、归一与丢层，拒伪造 point 或篡改层（MCP 新增 `themis_verify_missing_data_numeric`，13→14）
-- 过度识别 IV + Sargan 检验（候选 F）：IV 层过去硬锁单工具，图里两个合法工具只用第一个、默默丢弃其余、也从不做过度识别检验。现在同一 conditioning 下 ≥2 工具走**过度识别 2SLS**（`estimate_iv_overid`）并跑 **Sargan (1958) 过度识别检验**——**小 p 值反驳工具集的联合有效性**（数据能否证伪工具集，是线性/连续版的 Balke-Pearl 工具不等式，孟德尔随机化的杀手场景）。派生终端做结构许可，`verify_iv_overid_numeric` 从记录的残差矩阵独立重导点 + Sargan J + p 拒伪造；Sargan 拒绝时挂 `overidentification_rejected` gap。单工具路径逐字不变；齐方差 Sargan（Hansen 稳健 J 推迟）
+- 过度识别 IV + Sargan 检验（候选 F）：IV 层过去硬锁单工具，图里两个合法工具只用第一个、默默丢弃其余、也从不做过度识别检验。现在同一 conditioning 下 ≥2 工具走**过度识别 2SLS**（`estimate_iv_overid`）并跑 **Sargan (1958) 过度识别检验**——**小 p 值反驳工具集的联合有效性**（数据能否证伪工具集，是线性/连续版的 Balke-Pearl 工具不等式，孟德尔随机化的杀手场景）。派生终端做结构许可，`verify_iv_overid_numeric` 从记录的残差矩阵独立重导点 + Sargan J + p 拒伪造；Sargan 拒绝时挂 `overidentification_rejected` gap。单工具路径逐字不变（异方差稳健 Hansen J 见下条）
 - 测量误差混淆矩阵求逆（候选 E）：测量误差过去只有定性 gap 警告（`measurement_error_concern`：识别路径有自报/问卷/单次测量→挂 ⚠"估计有偏"），估计层零校正——即便用户手握验证研究的误分类率也反解不出真效应。现在被误分类的**离散结局**给定验证过的混淆矩阵 M，在**非差异误分类**假设下逐后门层求逆 `p_true=M⁻¹p_obs` 恢复真分布并做后门标准化（二值即 **Rogan-Gladen 1978**，整体=naive/det(M)，det=Se+Sp−1 衰减因子）。接口 `estimate(misclassification={outcome:{confusion_matrix,states}})`，混淆矩阵是载荷性外部输入（噪声数据本身识别不出），拒奇异/非列随机矩阵、拒非后门识别，refusal 记 estimator_failure 不悄悄吐衰减朴素点；`verify_measurement_correction_numeric` 从记录的矩阵+每层值计数**独立重新求逆**重导校正/朴素点拒伪造点、篡改矩阵、丢层、缺臂。仅结局误分类·仅非差异·矩阵视为固定（暴露误分类/差异矩阵/连续误测仍属 gap 领域）
 - 非二值处理 Manski 自然界限（候选 C）：partial-identification（bounds）层此前对**非布尔处理**整层跳过——调度器顶部 `if not intervention_is_bool: return` 把多值处理（如 `do(dose=2)`）连无假设的 Manski 下限都挡掉，尽管单臂自然界 `P(Y=y|do(X=x)) ∈ [P(Y=y,X=x), P(Y=y,X=x)+P(X≠x)]` 与处理基数无关（这是"门控非数学"：数值算术早已对，符号层却吐废字符串、验证器硬门拒审）。现在解顶层门（BP/MTR 仍各自门控在布尔——多值落到无假设 Manski 地板）+ 新增处理侧离散门（未声明离散域的连续点干预不挂平凡 `[0,1]`）；符号补臂对多值渲染为汇总不等式 `P(X≠x)`（布尔仍 `P(X=¬x)`）；数值层记录三个臂计数作充分统计量，`verify_manski_natural_bounds_result` 从记录计数**独立重导** lower=n_joint/n、upper=(n_joint+n_other)/n + 臂划分不变量（把 Manski 数值端从仅元数据审计升级为强重导——多值汇总补臂质量元数据审计验不出伪造宽度，重导能）。仅 Manski 自然界·多值处理 MTR/Balke-Pearl（二值构造）与多层对比界推迟
+- 异方差稳健 Hansen J 过度识别检验：过度识别 2SLS 此前只算**同方差 Sargan (1958) J**（iv.py 明写「Hansen 稳健 J 推迟」）。异方差/聚类数据下 Sargan 用了错误的权重矩阵，其对工具集的证伪不可信（探针：3 工具异方差设计 Sargan J=0.038 vs Hansen J=0.032，同方差重合）。现补上高效两步 GMM 的 **Hansen (1982) J**——同 H0/同 χ²(q−1)，但用稳健矩方差矩阵 `Ŝ=(1/n)Σûᵢ²zᵢzᵢ'`（聚类声明下走聚类稳健 CR0）替代同方差 σ²(Z'Z)。头条点估计仍 2SLS（同方差下相同），高效 GMM 点作诊断记录；Hansen 是附加项，Ŝ 奇异时 2SLS+Sargan 原样保留。**过度识别 gap 改由稳健 Hansen 驱动**（复用既有 `overidentification_rejected` kind），`verify_iv_overid_numeric` 增独立 Hansen 重导（从记录的 Ŝ + 交叉矩第二次转写重导高效 GMM 点 + J，加 Ŝ 对称-PSD 校验）。仅单内生·HC0/CR0 无有限样本乘子·多内生推迟
 
-当前全量测试基线：**2917 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2932 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -176,7 +177,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2917 passed / 144 skipped（2026-07-13）
+- **测试套件**：2932 passed / 144 skipped（2026-07-13）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
