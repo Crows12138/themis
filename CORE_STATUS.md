@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2852 passed / 144 skipped, warning-clean
+2879 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -162,6 +162,25 @@ kernel 函数 + MCP 工具 `themis_verify_missing_data_numeric`（MCP 13→**14*
 清单镜像同步），与 `verify_selection_recovery_numeric` 对等；schema 加
 recovered_ate.sufficient_statistics（新 $def gformulaFactorStats）；+20 测试；
 基线 2832→**2852**。
+
+**过度识别 IV + Sargan 检验（2026-07-13，候选 F）**：IV 层此前**硬锁单工具**
+（`iv.py` `instrument: str`、2SLS 单列、AR 标量二次；`sargan|hansen|overid|gmm`
+全仓零命中）。实测坐实：图里声明两个合法工具时，dispatch 取 `iv_sets()[0]` 只用
+z1、**默默丢弃 z2**，也从不做过度识别检验（数据无从反驳工具集）。落地=真正的新
+能力：估计器 `estimate_iv_overid`（多工具 2SLS + **Sargan (1958) 过度识别检验**
+J=n·(û'P_Z û)/(û'û)~χ²(q−1)，**小 p 值反驳工具集的联合有效性=线性/连续版的
+Balke-Pearl 工具不等式**；点、J、联合 first-stage F 都是残差二阶矩的闭式，D1 用
+独立全矩阵 2SLS+Sargan oracle 钉到 1e-8）。dispatch 按**相同最小 W 分组**：同一
+conditioning 下 ≥2 工具→过度识别路径（退化则回退单工具，单工具路径逐字不变）。
+验证器双层：派生终端 `numeric_iv_overid_estimate`（元数据+结构许可：每个工具都要
+有 `iv_criterion_check` 见证）+ 强数值端 `verify_iv_overid_numeric`（从记录的残差
+矩阵**独立转写**重导点+J+p，拒伪造点/篡改 J/篡改矩；因矩阵不进 derivation-input
+序列化故由 kernel.verify 对 iv_2sls_overid 单独调用，仿 longitudinal 先例）。
+Sargan 拒绝时挂 `overidentification_rejected` gap（新 GapKind，important 必披露，
+gap_kind 32→33）。schema 加 `iv_2sls_overid` method+`over_identification` 块（含
+sufficient_statistics 残差矩阵）；取舍（声明）=齐方差 Sargan（Hansen 稳健 J 推迟，
+仿齐方差 AR）·单内生变量·多工具弱识别 AR 集推迟（q>1 几何 LARGE）。MCP 工具数
+不变（走 kernel.verify 无需新工具）；+27 测试→**2879**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
