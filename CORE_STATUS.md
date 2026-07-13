@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2902 passed / 144 skipped, warning-clean
+2917 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -208,6 +208,28 @@ positivity 拒绝、M 固定的 bootstrap CI。dispatch 按结局是否有 spec 
 D1=合成 SCM 模拟潜在真结局，真后门 RD 已知；校正估计（只见 Se/Sp 信道后的观测 Y）恢复它、
 朴素被 det 衰减；交叉验证=全 M⁻¹+取目标分量==代数独立的标量 Rogan-Gladen naive/det。MCP
 工具数不变（走 kernel.verify）；+23 测试→**2902**。
+
+**非二值处理 Manski 自然界限（候选 C，2026-07-13）**：partial-identification（bounds）
+层此前对**非布尔处理**整层跳过——调度器 `_attach_bounds_result` 顶部 `if not
+intervention_is_bool: return` 把多值处理（如 `do(dose=2)`）连无假设的 Manski 下限都挡掉，
+尽管单臂自然界 `P(Y=y|do(X=x)) ∈ [P(Y=y,X=x), P(Y=y,X=x)+P(X≠x)]` 与处理基数无关。这是
+「门控非数学」：数值算术 `_manski_natural_arm` 用 `~x_eq`（`X≠x`）对多值**已对**，符号层
+`_negate` 却吐废字符串 `NOT_2`（`P(X=NOT_2)` 错，应是全体其它臂汇总的 `P(X≠2)`），验证器也
+硬门 `if not isinstance(intervention_val, bool): raise`。四层协调修正：①调度器解顶层门，
+BP（16 型响应函数）/MTR（有序层单调包络）仍各自门控在布尔——多值处理落到无假设 Manski 地板；
+新增**处理侧离散门** `_intervention_arm_is_discrete`（把 `_target_event_is_discrete` 抽成
+共用 `_event_is_discrete`），未声明离散域的连续点干预不挂平凡 `[0,1]` 界。②符号层
+`_complement_mass` 助手：布尔→单一另一臂 `P(X=¬x)`（不变），多值→汇总不等式 `P(X≠x)`。
+③数值层 `evaluate_manski_natural_bounds` 记录三个臂计数 `{n, n_joint_target_arm,
+n_other_arm}` 作充分统计量。④验证器 `verify_manski_natural_bounds_result` 接受非布尔干预、
+镜像补臂表达式，并新增 `_rederive_manski_natural_numeric` 从记录计数**独立重导**
+lower=n_joint/n、upper=(n_joint+n_other)/n + 臂划分不变量 n_joint+n_other≤n + n==sample_size
+（把 Manski 数值端从仅元数据审计升级为强重导；对多值尤其关键——汇总补臂质量 `P(X≠x)` 是多个
+层之和，元数据审计验不出伪造宽度，重导能）。取舍（声明）=仅 Manski 自然界·多值处理 MTR
+（单调包络）与 Balke-Pearl（16 型响应函数）仍是二值处理构造故推迟·多层**对比**界
+`[L_a−U_b, U_a−L_b]`（需对比查询类型=结构改动）推迟。D1=合成 3 值 dose SCM，数值端逐位对
+手算 `n_joint/n`、`(n_joint+n_other)/n` 一致；verify 接受诚实、拒篡改补臂表达式/伪造 off-arm
+计数/臂划分违反/计数-样本量不符。MCP 工具数不变；+15 测试→**2917**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
