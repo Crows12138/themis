@@ -899,6 +899,12 @@ class GapKind(str, Enum):
     # estimation context — DoWhy/EconML report F sometimes but don't
     # auto-route it as a structured data-gap entry.
     WEAK_IV_INSTRUMENT = "weak_iv_instrument"
+    # Over-identified 2SLS (q >= 2 instruments): the Sargan over-identification
+    # test REJECTS the instruments' joint validity — the data refute at least
+    # one exclusion restriction. A falsification, not a data-quantity gap:
+    # IMPORTANT severity (the point rests on a refuted assumption), must-disclose,
+    # and it will not go away with more of the same data.
+    OVERIDENTIFICATION_REJECTED = "overidentification_rejected"
     # iter 121: backdoor estimate (g-formula / outcome regression / IPW)
     # was produced but the estimated propensity score P(X=1 | Z) is
     # bounded away from {0,1} for too few observations. The "positivity"

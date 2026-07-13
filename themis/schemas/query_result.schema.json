@@ -511,7 +511,7 @@
             "backdoor_linear", "backdoor_logistic",
             "aipw", "tmle", "ipw_stabilized", "ipw_ht",
             "frontdoor_linear", "frontdoor_logistic",
-            "iv_wald", "iv_2sls",
+            "iv_wald", "iv_2sls", "iv_2sls_overid",
             "mediation_linear_imai", "mediation_logit_imai",
             "joint_backdoor_linear", "joint_backdoor_logistic",
             "dose_response_linear_dml",
@@ -534,10 +534,46 @@
         "adjustment": { "type": "array", "items": { "type": "string" } },
         "mediators": { "type": "array", "items": { "type": "string" } },
         "instrument": { "type": "string" },
+        "instruments": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "iv_2sls_overid only: the q >= 2 instruments jointly used in over-identified 2SLS (all valid under the same conditioning set). The just-identified paths use the singular `instrument` instead."
+        },
+        "n_instruments": { "type": "integer", "minimum": 2 },
         "conditioning": { "type": "array", "items": { "type": "string" } },
         "first_stage_f_stat": {
           "type": ["number", "null"],
-          "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold for single-instrument 2SLS / Wald. Null when computation was degenerate (e.g. n too small, instrument variance ~0)."
+          "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold. Single-instrument for iv_wald / iv_2sls; the JOINT first-stage F for all instruments under iv_2sls_overid. Null when computation was degenerate (e.g. n too small, instrument variance ~0)."
+        },
+        "over_identification": {
+          "type": "object",
+          "description": "iv_2sls_overid only: the Sargan (1958) over-identification test of the q instruments' JOINT validity (homoskedastic). A small p-value REFUTES the joint exclusion restrictions — the linear / continuous analogue of the Balke-Pearl instrumental inequalities; the data refute the instrument set. sufficient_statistics carries the residualised second moments the point + J are closed forms of, so verify_iv_overid_numeric re-derives both without the raw data.",
+          "required": ["test", "sargan_j", "sargan_dof", "sargan_p_value", "sufficient_statistics"],
+          "additionalProperties": false,
+          "properties": {
+            "test": { "const": "sargan" },
+            "sargan_j": { "type": "number" },
+            "sargan_dof": { "type": "integer", "minimum": 1 },
+            "sargan_p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+            "rejected_at_0_05": { "type": "boolean", "description": "Mechanical flag: sargan_p_value < 0.05." },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "Residualised (FWL, on [1, W]) second moments: Z'Z (q x q), Z'x (q), Z'y (q), and the scalars x'x / x'y / y'y, plus n / n_exog (|W|) / q.",
+              "required": ["zz", "zx", "zy", "xx", "xy", "yy", "n", "n_exog", "q"],
+              "additionalProperties": false,
+              "properties": {
+                "zz": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                "zx": { "type": "array", "items": { "type": "number" } },
+                "zy": { "type": "array", "items": { "type": "number" } },
+                "xx": { "type": "number" },
+                "xy": { "type": "number" },
+                "yy": { "type": "number" },
+                "n": { "type": "integer", "minimum": 1 },
+                "n_exog": { "type": "integer", "minimum": 0 },
+                "q": { "type": "integer", "minimum": 2 }
+              }
+            }
+          }
         },
         "anderson_rubin_confidence_set": {
           "type": "object",
@@ -1685,6 +1721,7 @@
             "unmeasured_confounder_risk",
             "unattempted_layer_due_to_dispatch_conflict",
             "weak_iv_instrument",
+            "overidentification_rejected",
             "propensity_overlap_violation",
             "collider_conditioning_opens_backdoor",
             "outcome_model_quasi_separation",

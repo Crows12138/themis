@@ -862,6 +862,27 @@ def _estimate_effect_queries(
                 continue
 
             chosen_iv = iv_candidates[0]  # already sorted by |W| asc
+            # Over-identification: every instrument valid under the SAME
+            # (smallest) conditioning set forms one over-identified system.
+            # With >= 2 such instruments, run over-identified 2SLS + the
+            # Sargan test rather than discarding the extra instruments and
+            # their falsification power — a small Sargan p-value REFUTES the
+            # instruments' joint validity (the linear analogue of the
+            # Balke-Pearl instrumental inequalities). Falls through to the
+            # just-identified path when the over-ID design is degenerate.
+            w0 = chosen_iv.conditioning
+            overid_instruments = tuple(sorted(
+                (c.instrument for c in iv_candidates if c.conditioning == w0),
+                key=lambda a: a.predicate,
+            ))
+            if len(overid_instruments) >= 2 and _try_iv_overid_estimate(
+                result, contract, graph,
+                x=x_atom, y=y_atom,
+                instruments=overid_instruments, conditioning=w0,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
+            ):
+                continue
             try:
                 iv_estimate = estimate_iv_ate(
                     contract.data,
@@ -3610,6 +3631,216 @@ def _ar_derivation_inputs(ar) -> dict:
         "ar_n_obs": ar.n_obs,
         "ar_n_exog": ar.n_exog,
     }
+
+
+def _try_iv_overid_estimate(
+    result, contract, graph, *, x, y, instruments, conditioning,
+    random_state, ci_bootstrap, cluster,
+) -> bool:
+    """Over-identified 2SLS (q ≥ 2 instruments) + Sargan test. Attaches the
+    numeric block (with the Sargan over-identification test and the moment
+    sufficient statistics), builds a derivation ending in
+    ``numeric_iv_overid_estimate``, and finalises. Returns False on a
+    degenerate design so the caller falls back to the just-identified path.
+
+    ``instruments`` / ``conditioning`` are tuples of Atoms."""
+    import numpy as np
+
+    from .iv import estimate_iv_overid
+
+    instrument_preds = tuple(a.predicate for a in instruments)
+    cond_preds = tuple(a.predicate for a in conditioning)
+    try:
+        est = estimate_iv_overid(
+            contract.data,
+            treatment=x.predicate, outcome=y.predicate,
+            instruments=instrument_preds, conditioning=cond_preds,
+            ci_bootstrap=ci_bootstrap, random_state=random_state, cluster=cluster,
+        )
+    except (ValueError, np.linalg.LinAlgError):
+        return False
+
+    numeric = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "instruments": list(est.instruments),
+        "conditioning": list(est.conditioning),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "n_instruments": est.n_instruments,
+        "over_identification": {
+            "test": "sargan",
+            "sargan_j": est.sargan.j_stat,
+            "sargan_dof": est.sargan.dof,
+            "sargan_p_value": est.sargan.p_value,
+            "rejected_at_0_05": bool(est.sargan.p_value < 0.05),
+            # Residualised second moments the point + J are closed forms of —
+            # the verifier re-derives both from these without the raw data.
+            "sufficient_statistics": est.moments,
+        },
+    }
+    if est.first_stage_f_stat is not None:
+        numeric["first_stage_f_stat"] = est.first_stage_f_stat
+
+    result["numeric_estimate"] = numeric
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+    result["derivation"] = _build_iv_overid_numeric_derivation_dict(
+        graph=graph, x=x, y=y,
+        instruments=instruments, conditioning=conditioning, estimate=est,
+    )
+    _attach_e_value_if_binary(
+        result, contract, outcome=y.predicate, treatment=x.predicate,
+    )
+    _attach_overid_iv_warnings(result, est)
+    _finalise_numeric_result(result)
+    return True
+
+
+def _build_iv_overid_numeric_derivation_dict(
+    *, graph, x, y, instruments, conditioning, estimate,
+):
+    """Derivation for an over-identified 2SLS estimate:
+
+        s_iv_0 .. s_iv_{q-1}: iv_criterion_check (one structural witness per
+                              instrument — each independently re-verified)
+        s_num:                numeric_iv_overid_estimate (metadata + structural
+                              licensing; the Sargan / point re-derivation from
+                              the recorded moments is verify_iv_overid_numeric,
+                              called from the kernel — the moments are matrices
+                              that don't fit derivation-input serialization)
+    """
+    from ..types import DerivationStep, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = []
+    for i, z in enumerate(instruments):
+        steps.append(DerivationStep(
+            rule="iv_criterion_check",
+            inputs={
+                "graph": graph, "x": x, "y": y,
+                "instrument": z,
+                "conditioning": frozenset(conditioning),
+            },
+            output=True,
+            step_id=f"s_iv_{i}",
+        ))
+    steps.append(DerivationStep(
+        rule="numeric_iv_overid_estimate",
+        inputs={
+            "treatment": x, "outcome": y,
+            "instruments": frozenset(instruments),
+            "conditioning": frozenset(conditioning),
+            "method": estimate.method,
+            "data_hash": estimate.data_hash,
+            "sample_size": estimate.sample_size,
+            "point": estimate.point,
+            "ci_lower": estimate.ci_lower,
+            "ci_upper": estimate.ci_upper,
+            "ci_level": estimate.ci_level,
+            "n_instruments": estimate.n_instruments,
+        },
+        output=StructuralResult(value=True),
+        step_id="s_num",
+    ))
+    return derivation_to_dict(tuple(steps))
+
+
+def _attach_overid_iv_warnings(result: dict, est) -> None:
+    """Surface two IV diagnostics for an over-identified estimate as
+    must-disclose gaps (+ explanation mirror): a weak JOINT first stage
+    (F < Stock-Yogo) and a REJECTED Sargan over-identification test (the data
+    refute the instruments' joint validity). Both are informational — the
+    point is still reported; these add the caveat."""
+    inst = ", ".join(f"`{z}`" for z in est.instruments)
+    gaps: list[dict] = []
+    headlines: list[str] = []
+
+    f_stat = est.first_stage_f_stat
+    if f_stat is not None and f_stat < WEAK_IV_F_THRESHOLD:
+        gaps.append({
+            "kind": "weak_iv_instrument",
+            "severity": "informational",
+            "blocks": "interpretation",
+            "description": (
+                f"Joint first-stage F = {f_stat:.2f} for instruments {inst} "
+                f"falls below the Stock-Yogo (2005) threshold of "
+                f"{WEAK_IV_F_THRESHOLD:.0f}. The over-identified 2SLS estimate "
+                "is biased toward OLS and the bootstrap CI is unreliable when "
+                "the instruments are jointly weak."
+            ),
+            "alternative_paths": [
+                "find stronger instruments (higher joint first-stage partial "
+                "correlation with the treatment)",
+                "fall back to a bounds-only answer (weak-instrument robust)",
+            ],
+            "provenance": [{
+                "ref_kind": "verifier_check",
+                "ref_id": f"weak_iv_joint:{est.treatment}",
+            }],
+        })
+        headlines.append(
+            f"⚠ 工具变量 {inst} 联合 first-stage F = {f_stat:.2f} 低于 "
+            f"Stock-Yogo 弱工具阈值 {WEAK_IV_F_THRESHOLD:.0f}"
+        )
+
+    sg = est.sargan
+    if sg is not None and sg.p_value < 0.05:
+        gaps.append({
+            "kind": "overidentification_rejected",
+            "severity": "important",
+            "blocks": "interpretation",
+            "description": (
+                f"The Sargan over-identification test REJECTS the joint "
+                f"validity of instruments {inst} (J = {sg.j_stat:.2f}, "
+                f"df = {sg.dof}, p = {sg.p_value:.4g}). At least one exclusion "
+                "restriction is inconsistent with the others in the data — the "
+                "IV point estimate rests on an instrument set the data refute. "
+                "This is a falsification, not a data-quantity gap: it will not "
+                "go away with more of the same data."
+            ),
+            "alternative_paths": [
+                "drop the instrument(s) whose exclusion is suspect and re-run "
+                "(a subset may pass)",
+                "reconsider the causal graph — a rejected over-ID test often "
+                "means an assumed Z→X-only path actually reaches Y directly",
+                "fall back to a bounds-only answer that does not assume "
+                "exclusion (Manski natural)",
+            ],
+            "provenance": [{
+                "ref_kind": "verifier_check",
+                "ref_id": f"sargan:{est.treatment}",
+            }],
+        })
+        headlines.append(
+            f"⚠ Sargan 过度识别检验拒绝工具 {inst} 的联合有效性 "
+            f"(J = {sg.j_stat:.2f}, df = {sg.dof}, p = {sg.p_value:.4g})；"
+            "数据反驳了该工具集"
+        )
+
+    if not gaps:
+        return
+    report = result.get("data_gap_report")
+    if report is None:
+        result["data_gap_report"] = {
+            "summary": "过度识别 IV 诊断",
+            "gaps": gaps,
+            "actionable_next_steps": [],
+        }
+    else:
+        report.setdefault("gaps", []).extend(gaps)
+
+    existing = result.get("explanation") or ""
+    for headline in headlines:
+        if headline not in existing:
+            existing = f"{headline}\n{existing}".strip() if existing else headline
+    result["explanation"] = existing
 
 
 def _build_frontdoor_numeric_derivation_dict(

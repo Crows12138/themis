@@ -534,6 +534,301 @@ def _bootstrap_ci_iv(
     )
 
 
+# --- Over-identified 2SLS + Sargan over-identification test --------------------
+
+
+@dataclass(frozen=True)
+class SarganTest:
+    """Sargan (1958) over-identification test — homoskedastic form.
+
+    With q > 1 instruments for a single endogenous regressor the model has
+    q − 1 over-identifying restrictions. The statistic
+
+        ``J = n · (û'P_Z û) / (û'û)``
+
+    (û the 2SLS structural residual, P_Z the projection onto the residualised
+    instrument space) is ``χ²(q − 1)`` under H0 that the instruments are
+    JOINTLY valid (exclusion + exogeneity all hold). A small p-value REFUTES
+    that joint validity — a data falsification of the IV model, the linear /
+    continuous analogue of the Balke-Pearl instrumental inequalities. It does
+    NOT move the point estimate (like the weak-instrument F, it is a
+    diagnostic). Homoskedastic: the heteroskedasticity-robust Hansen J is
+    deferred (declared), mirroring the homoskedastic Anderson-Rubin set.
+    """
+
+    j_stat: float
+    dof: int          # q − 1
+    p_value: float
+
+
+@dataclass(frozen=True)
+class OverIDIVEstimate:
+    """Over-identified two-stage least squares (q ≥ 2 instruments, single
+    endogenous treatment) + the Sargan over-identification test.
+
+    ``point`` is the 2SLS coefficient on the treatment; ``sargan`` is the
+    joint-validity falsification test. ``first_stage_f_stat`` is the JOINT F
+    for all instruments (the multi-instrument weak-IV signal). The
+    residualised second-moment matrices are retained so an independent
+    verifier can re-derive both the point and the Sargan statistic without the
+    raw data.
+    """
+
+    point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    ci_level: float
+    method: str                       # "iv_2sls_overid"
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    instruments: tuple[str, ...]
+    conditioning: tuple[str, ...]
+    treatment: str
+    outcome: str
+    n_instruments: int
+    first_stage_f_stat: float | None
+    sargan: SarganTest | None
+    # Residualised (FWL, on [1, W]) second moments — the verifier's inputs.
+    # zz: (q, q) list-of-lists; zx, zy: length-q lists; xx/xy/yy: scalars.
+    moments: dict
+    cluster: str | None = None
+
+
+def _overid_moments(
+    df: pd.DataFrame,
+    treatment: str,
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...],
+) -> dict:
+    """Residualise Y, X, and each instrument on ``[1, W]`` (FWL) and return
+    the second-moment matrices the 2SLS point and Sargan statistic are closed
+    forms of."""
+    n = len(df)
+    w_cols = list(conditioning)
+    w = df[w_cols].to_numpy(dtype=float) if w_cols else np.empty((n, 0))
+    yr = _residualise(df[outcome].to_numpy(dtype=float), w)
+    xr = _residualise(df[treatment].to_numpy(dtype=float), w)
+    zr = np.column_stack([
+        _residualise(df[z].to_numpy(dtype=float), w) for z in instruments
+    ])  # (n, q)
+    zz = zr.T @ zr
+    zx = zr.T @ xr
+    zy = zr.T @ yr
+    return {
+        "zz": zz.tolist(),
+        "zx": zx.tolist(),
+        "zy": zy.tolist(),
+        "xx": float(xr @ xr),
+        "xy": float(xr @ yr),
+        "yy": float(yr @ yr),
+        "n": int(n),
+        "n_exog": len(w_cols),
+        "q": len(instruments),
+    }
+
+
+def solve_overid_from_moments(m: dict) -> dict:
+    """2SLS point + Sargan J + joint first-stage F, as closed forms of the
+    residualised moments. The PRODUCER-side transcription (used by the
+    estimator and its bootstrap); the verifier re-derives the same quantities
+    with its OWN independent transcription of these formulas (never importing
+    this one), so a bug here is caught rather than mirrored.
+
+    Raises ``np.linalg.LinAlgError`` when Z'Z is singular (collinear
+    instruments) and ``ValueError`` when the first stage is degenerate
+    (x'P_Z x ≈ 0) or the residual variance is non-positive.
+    """
+    zz = np.asarray(m["zz"], dtype=float).reshape(m["q"], m["q"])
+    zx = np.asarray(m["zx"], dtype=float).reshape(m["q"])
+    zy = np.asarray(m["zy"], dtype=float).reshape(m["q"])
+    xx, xy, yy = float(m["xx"]), float(m["xy"]), float(m["yy"])
+    n, n_exog, q = int(m["n"]), int(m["n_exog"]), int(m["q"])
+
+    zz_inv = np.linalg.inv(zz)
+    x_pz_x = float(zx @ zz_inv @ zx)          # x'P_Z x
+    x_pz_y = float(zx @ zz_inv @ zy)          # x'P_Z y
+    if not math.isfinite(x_pz_x) or abs(x_pz_x) < 1e-12:
+        raise ValueError("first stage degenerate: x'P_Z x ~ 0")
+    beta = x_pz_y / x_pz_x
+
+    # Sargan: û = ỹ − β·x̃ ; J = n · (û'P_Z û)/(û'û).
+    a = zy - beta * zx                        # Z'û
+    u_pz_u = float(a @ zz_inv @ a)            # û'P_Z û
+    u_u = yy - 2.0 * beta * xy + beta * beta * xx   # û'û
+    if not math.isfinite(u_u) or u_u <= 0:
+        raise ValueError("non-positive structural residual sum of squares")
+    j_stat = n * u_pz_u / u_u
+    dof = q - 1
+
+    # Joint first-stage F for all q instruments: SSR restricted = x̃'x̃ = xx,
+    # SSR full = xx − x'P_Z x. F = ((SSR_R − SSR_F)/q)/(SSR_F/(n − q − n_exog − 1)).
+    ssr_full = xx - x_pz_x
+    df_resid = n - q - n_exog - 1
+    if ssr_full > 1e-12 and df_resid >= 1:
+        joint_f = (x_pz_x / q) / (ssr_full / df_resid)
+    else:
+        joint_f = None
+
+    return {
+        "beta": beta,
+        "j_stat": j_stat,
+        "dof": dof,
+        "u_u": u_u,
+        "joint_f": joint_f,
+    }
+
+
+def estimate_iv_overid(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...] = (),
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> OverIDIVEstimate:
+    """Over-identified 2SLS (q ≥ 2 instruments) + Sargan over-identification
+    test for a single endogenous ``treatment``.
+
+    Stage 1 regresses ``X`` on ``[Z_1..Z_q, W]``; stage 2 the 2SLS point is the
+    coefficient on the fitted X. The Sargan J tests whether the q instruments
+    are JOINTLY valid — a small p-value means the data refute the over-identifying
+    restrictions the graph asserts. Bootstrap percentile CI on the point (parity
+    with the just-identified path). Raises ``ValueError`` on a degenerate design
+    (collinear instruments / no first stage), which the caller treats as "fall
+    back to the just-identified estimate".
+    """
+    from scipy.stats import chi2 as _chi2
+
+    if len(instruments) < 2:
+        raise ValueError(
+            "estimate_iv_overid requires ≥ 2 instruments; use estimate_iv_ate "
+            "for the just-identified case"
+        )
+
+    required = {treatment, outcome, *instruments, *conditioning}
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None else None
+    )
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
+    df = contract.data
+
+    m = _overid_moments(df, treatment, outcome, instruments, conditioning)
+    try:
+        solved = solve_overid_from_moments(m)
+    except np.linalg.LinAlgError as exc:
+        raise ValueError(f"over-identified 2SLS design is singular: {exc}")
+
+    point = solved["beta"]
+    j_stat = solved["j_stat"]
+    dof = solved["dof"]
+    p_value = float(_chi2.sf(j_stat, dof)) if dof >= 1 else float("nan")
+    sargan = SarganTest(j_stat=float(j_stat), dof=int(dof), p_value=p_value)
+
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if ci_bootstrap > 0:
+        ci_lower, ci_upper = _bootstrap_ci_overid(
+            df, treatment, outcome, instruments, conditioning,
+            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            random_state=random_state, groups=groups,
+        )
+
+    assumptions = (
+        "iv1_relevance_instruments_affect_treatment",
+        "iv2_exclusion_instruments_affect_outcome_only_via_treatment",
+        "iv3_independence_instruments_independent_of_latent_confounders",
+        "linearity_of_first_and_second_stage",
+        "constant_treatment_effect_else_estimand_is_weighted_average",
+        "overidentifying_restrictions_testable_via_sargan_homoskedastic",
+    )
+    if conditioning:
+        assumptions = assumptions + (
+            "conditioning_set_blocks_instrument_outcome_backdoor_given_W",
+        )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
+
+    return OverIDIVEstimate(
+        point=float(point),
+        ci_lower=float(ci_lower) if ci_lower is not None else None,
+        ci_upper=float(ci_upper) if ci_upper is not None else None,
+        ci_level=ci_level,
+        method="iv_2sls_overid",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        instruments=tuple(instruments),
+        conditioning=tuple(conditioning),
+        treatment=treatment,
+        outcome=outcome,
+        n_instruments=len(instruments),
+        first_stage_f_stat=solved["joint_f"],
+        sargan=sargan,
+        moments=m,
+        cluster=cluster,
+    )
+
+
+def _overid_point(
+    df: pd.DataFrame,
+    treatment: str,
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...],
+) -> float:
+    """Just the 2SLS point (for the bootstrap loop)."""
+    m = _overid_moments(df, treatment, outcome, instruments, conditioning)
+    return float(solve_overid_from_moments(m)["beta"])
+
+
+def _bootstrap_ci_overid(
+    df: pd.DataFrame,
+    treatment: str,
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...],
+    *,
+    ci_bootstrap: int,
+    ci_level: float,
+    random_state: int,
+    groups: np.ndarray | None = None,
+) -> tuple[float, float]:
+    rng = np.random.default_rng(random_state)
+    n = len(df)
+    estimates = np.empty(ci_bootstrap)
+    for i in range(ci_bootstrap):
+        idx = resample_indices(n, rng, groups=groups)
+        try:
+            estimates[i] = _overid_point(
+                df.iloc[idx], treatment, outcome, instruments, conditioning,
+            )
+        except (ValueError, np.linalg.LinAlgError):
+            estimates[i] = np.nan
+    estimates = estimates[~np.isnan(estimates)]
+    if len(estimates) == 0:
+        raise ValueError(
+            "all bootstrap iterations failed — data is pathological for "
+            "over-identified 2SLS"
+        )
+    alpha = (1 - ci_level) / 2
+    return (
+        float(np.quantile(estimates, alpha)),
+        float(np.quantile(estimates, 1 - alpha)),
+    )
+
+
 def _assumptions_for(model: str, n_conditioning: int) -> tuple[str, ...]:
     common = (
         "iv1_relevance_instrument_affects_treatment",

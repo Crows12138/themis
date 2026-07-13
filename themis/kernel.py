@@ -97,6 +97,7 @@ from .verifier import (
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
     verify_e_value,
+    verify_iv_overid_numeric,
     verify_longitudinal_numeric,
     verify_mediation_numeric,
     verify_scm_counterfactual,
@@ -962,6 +963,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             num_est = result.get("numeric_estimate") or {}
             if num_est.get("sensitivity_analysis") is not None:
                 verify_e_value(num_est)
+            # Over-identified 2SLS (q >= 2 instruments): its derivation terminal
+            # (numeric_iv_overid_estimate) does metadata + structural licensing
+            # only — the Sargan test and the point are re-derived here from the
+            # recorded residualised moment matrices (which don't fit the
+            # derivation-input serialization).
+            if num_est.get("method") == "iv_2sls_overid":
+                verify_iv_overid_numeric(num_est)
             # A dose-response estimate carries a curve array that the
             # metadata audit doesn't inspect (it only sees the headline
             # scalar). Audit the curve's construction invariants — the

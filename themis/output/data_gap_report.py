@@ -120,6 +120,10 @@ to inspect):
   (2005) threshold; appended to data_gap_report by
   themis/estimation/dispatch.py._attach_weak_iv_warning_if_low_f after
   estimate_iv_ate returns.
+- overidentification_rejected — the Sargan over-identification test rejected
+  the q >= 2 instruments' joint validity (the data refute an exclusion
+  restriction); appended by themis/estimation/dispatch.py._attach_overid_iv_warnings
+  after estimate_iv_overid returns.
 - propensity_overlap_violation (iter 121) — > 5% of sample has
   estimated P(X=1|Z) outside [0.05, 0.95]; appended by
   themis/estimation/dispatch.py._attach_propensity_overlap_warning

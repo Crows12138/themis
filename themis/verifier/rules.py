@@ -3141,6 +3141,137 @@ def _rule_numeric_iv_estimate(
         _check_anderson_rubin(inputs, point, step_index)
 
 
+def _rule_numeric_iv_overid_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Over-identified 2SLS terminal — metadata self-consistency + structural
+    licensing.
+
+    Each of the q ≥ 2 instruments must be witnessed by an ``iv_criterion_check``
+    step (claimed output True, independently re-verified) with the SAME
+    (x, y, conditioning), so the over-identified system rests only on
+    structurally valid instruments. The numeric re-derivation — the 2SLS point,
+    the Sargan J, and its p-value from the recorded residualised moment matrices
+    — is ``verify_iv_overid_numeric`` (called from the kernel), because those
+    matrices don't fit the derivation-input serialization.
+    """
+    RULE = "numeric_iv_overid_estimate"
+    treatment = _require_atom(inputs, "treatment", step_index, RULE)
+    outcome = _require_atom(inputs, "outcome", step_index, RULE)
+    instruments = _require_atom_set(inputs, "instruments", step_index, RULE)
+    conditioning = _require_atom_set(inputs, "conditioning", step_index, RULE)
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+    n_instruments = inputs.get("n_instruments")
+
+    if method != "iv_2sls_overid":
+        raise RuleCheckFailed(
+            f"{RULE}.method must be 'iv_2sls_overid'; got {method!r}",
+            step_index=step_index, rule=RULE,
+        )
+    if len(instruments) < 2:
+        raise RuleCheckFailed(
+            f"{RULE} requires >= 2 instruments; got {len(instruments)}",
+            step_index=step_index, rule=RULE,
+        )
+    if n_instruments != len(instruments):
+        raise RuleCheckFailed(
+            f"{RULE}.n_instruments {n_instruments!r} != |instruments| "
+            f"{len(instruments)}",
+            step_index=step_index, rule=RULE,
+        )
+    if treatment == outcome or treatment in instruments or outcome in instruments:
+        raise RuleCheckFailed(
+            f"{RULE}: treatment/outcome/instruments must be distinct",
+            step_index=step_index, rule=RULE,
+        )
+    if conditioning & ({treatment, outcome} | set(instruments)):
+        raise RuleCheckFailed(
+            f"{RULE}.conditioning must be disjoint from treatment/outcome/instruments",
+            step_index=step_index, rule=RULE,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN \
+            or not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{RULE}.data_hash must be a {_SHA256_HEX_LEN}-char lowercase "
+            "SHA-256 hex string",
+            step_index=step_index, rule=RULE,
+        )
+    if (
+        not isinstance(sample_size, int) or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{RULE}.sample_size must be an int >= {_MIN_NUMERIC_SAMPLE_SIZE}; "
+            f"got {sample_size!r}",
+            step_index=step_index, rule=RULE,
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"{RULE}.point must be a number; got {point!r}",
+            step_index=step_index, rule=RULE,
+        )
+    if ci_lower is not None or ci_upper is not None:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                f"{RULE}: ci_lower and ci_upper must both be present or absent",
+                step_index=step_index, rule=RULE,
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"{RULE}: point {point} outside [{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=RULE,
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"{RULE}.ci_level must be in (0, 1); got {ci_level!r}",
+                step_index=step_index, rule=RULE,
+            )
+
+    # Structural licensing: every instrument is witnessed by an
+    # iv_criterion_check step (claimed True, independently re-verified in the
+    # walk) with matching (x, y, conditioning).
+    for z in instruments:
+        matched = False
+        for sid, step in step_by_id.items():
+            if getattr(step, "rule", None) != "iv_criterion_check":
+                continue
+            si = getattr(step, "inputs", {})
+            if (
+                si.get("instrument") == z
+                and si.get("x") == treatment
+                and si.get("y") == outcome
+                and frozenset(si.get("conditioning", frozenset()))
+                == frozenset(conditioning)
+            ):
+                out = step_output_by_id.get(sid, getattr(step, "output", None))
+                if out is True:
+                    matched = True
+                    break
+        if not matched:
+            raise RuleCheckFailed(
+                f"{RULE}: instrument {z.predicate!r} has no iv_criterion_check "
+                "witness (output True) with matching (x, y, conditioning)",
+                step_index=step_index, rule=RULE,
+            )
+
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"{RULE} output must be a StructuralResult(value=True)",
+            step_index=step_index, rule=RULE,
+        )
+
+
 def _rule_numeric_general_id_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -7006,6 +7137,8 @@ _STEP_REF_RULES = {
     "numeric_frontdoor_estimate",
     # Phase 7.3 S.IVN.3
     "numeric_iv_estimate",
+    # Over-identified 2SLS (q >= 2 instruments) + Sargan test terminal.
+    "numeric_iv_overid_estimate",
     # General-ID (c-factor) plug-in numeric estimate — same c-factor
     # identification witness (general_id_criterion), plug-in terminal.
     "numeric_general_id_estimate",
@@ -7087,6 +7220,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_iv_estimate":
         _rule_numeric_iv_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_iv_overid_estimate":
+        _rule_numeric_iv_overid_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

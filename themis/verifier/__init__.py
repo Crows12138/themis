@@ -60,6 +60,13 @@ Public surface (re-exports from sub-modules):
   re-derived from the recorded marginal-structural-model coefficients, plus
   construction-identity checks on the black-box g-formula Monte-Carlo means
   that aren't re-derivable),
+  ``verify_iv_overid_numeric`` (over-identified 2SLS: the 2SLS point AND the
+  Sargan over-identification test — J and its p-value — re-derived by an
+  independent transcription of the closed forms from the recorded residualised
+  moment matrices Z'Z / Z'x / Z'y / xx / xy / yy; rejects a tampered point, a
+  forged Sargan statistic, or a corrupted moment. Its derivation terminal
+  ``numeric_iv_overid_estimate`` does only metadata + structural licensing
+  because the moment matrices don't fit derivation-input serialization),
   ``verify_selection_recovery_numeric`` (§S9.1 numeric end — the ATE recovered
   from selection bias by the Bareinboim-Pearl selection-backdoor formula
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
@@ -142,6 +149,7 @@ from .verify import (
     verify_e_value,
     verify_effect_structural,
     verify_identify,
+    verify_iv_overid_numeric,
     verify_longitudinal_numeric,
     verify_mediation_numeric,
     verify_missing_data_recovery,
@@ -190,6 +198,7 @@ __all__ = [
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",
     "verify_markov_blanket",
+    "verify_iv_overid_numeric",
     "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",

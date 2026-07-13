@@ -711,6 +711,10 @@ def verify_numeric_estimate(
         "numeric_ipw_estimate",
         "numeric_frontdoor_estimate",
         "numeric_iv_estimate",
+        # Over-identified 2SLS (q >= 2 instruments) — metadata + structural
+        # licensing terminal; the Sargan / point re-derivation from the
+        # recorded moment matrices is verify_iv_overid_numeric (kernel-called).
+        "numeric_iv_overid_estimate",
         # General-ID (c-factor) non-parametric plug-in — the effect is
         # point-identified only through the general ID algorithm (e.g. the
         # napkin); the derivation ends in the plug-in terminal atop a
@@ -1261,6 +1265,106 @@ def verify_mediation_numeric(estimate: dict) -> None:
         if pm is not None and abs(te) > _MEDIATION_TOL:
             _close(nie / te, pm["point"], "decomposition.proportion_mediated",
                    "decomposition")
+
+
+_IV_OVERID_TOL = 1e-6
+
+
+def verify_iv_overid_numeric(estimate: dict) -> None:
+    """Re-derive an over-identified 2SLS estimate — the point, the Sargan J,
+    and its p-value — from the recorded residualised moment matrices, and
+    reject on mismatch.
+
+    Over-identified 2SLS rides on a ``numerically_solved`` IV result whose
+    derivation ends in ``numeric_iv_overid_estimate`` (metadata + structural
+    licensing only — the moment MATRICES don't fit the derivation-input
+    serialization). This is the strong numeric counterpart: a SECOND,
+    independent transcription of the closed forms
+
+        β = (Z'x)' (Z'Z)⁻¹ (Z'y) / (Z'x)' (Z'Z)⁻¹ (Z'x)
+        J = n · (a' (Z'Z)⁻¹ a) / (û'û),  a = Z'y − β·Z'x,  û'û = yy − 2β·xy + β²·xx
+
+    from the recorded ``over_identification.sufficient_statistics`` (the
+    residualised second moments Z'Z / Z'x / Z'y / xx / xy / yy). It never
+    imports the producer's solve and never touches the raw data. A result that
+    isn't an ``iv_2sls_overid`` estimate is a no-op.
+
+    ``estimate`` is the full ``numeric_estimate`` dict.
+    """
+    import math
+
+    import numpy as np
+    from scipy.stats import chi2 as _chi2
+
+    if not isinstance(estimate, dict) or estimate.get("method") != "iv_2sls_overid":
+        return
+
+    def _fail(msg):
+        raise VerificationError(
+            f"iv_overid_numeric: {msg}", step_index=None, rule="iv_overid_numeric",
+        )
+
+    oid = estimate.get("over_identification")
+    if not isinstance(oid, dict):
+        _fail("numeric_estimate carries no over_identification block")
+    suff = oid.get("sufficient_statistics")
+    if not isinstance(suff, dict):
+        _fail("over_identification carries no sufficient_statistics")
+
+    try:
+        q = int(suff["q"]); n = int(suff["n"])
+        zz = np.asarray(suff["zz"], dtype=float).reshape(q, q)
+        zx = np.asarray(suff["zx"], dtype=float).reshape(q)
+        zy = np.asarray(suff["zy"], dtype=float).reshape(q)
+        xx = float(suff["xx"]); xy = float(suff["xy"]); yy = float(suff["yy"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail(f"ill-formed sufficient statistics: {exc}")
+
+    if q < 2:
+        _fail(f"over-identified system needs q >= 2 instruments; got q={q}")
+
+    try:
+        zz_inv = np.linalg.inv(zz)
+    except np.linalg.LinAlgError:
+        _fail("recorded Z'Z is singular — cannot re-derive")
+
+    x_pz_x = float(zx @ zz_inv @ zx)
+    x_pz_y = float(zx @ zz_inv @ zy)
+    if not math.isfinite(x_pz_x) or abs(x_pz_x) < 1e-12:
+        _fail("degenerate first stage (x'P_Z x ~ 0)")
+    beta = x_pz_y / x_pz_x
+
+    a = zy - beta * zx
+    u_pz_u = float(a @ zz_inv @ a)
+    u_u = yy - 2.0 * beta * xy + beta * beta * xx
+    if not math.isfinite(u_u) or u_u <= 0:
+        _fail("non-positive structural residual sum of squares")
+    j_stat = n * u_pz_u / u_u
+    dof = q - 1
+    p_value = float(_chi2.sf(j_stat, dof))
+
+    point = estimate.get("point")
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        _fail(f"missing / non-numeric point {point!r}")
+    if abs(beta - float(point)) > _IV_OVERID_TOL * (1 + abs(beta)):
+        _fail(f"point mismatch — re-derived 2SLS {beta}, recorded {point}")
+
+    for key, recomputed in (("sargan_j", j_stat), ("sargan_p_value", p_value)):
+        claimed = oid.get(key)
+        if claimed is None:
+            _fail(f"over_identification.{key} missing")
+        if abs(recomputed - float(claimed)) > _IV_OVERID_TOL * (1 + abs(recomputed)):
+            _fail(f"{key} mismatch — re-derived {recomputed}, recorded {claimed}")
+
+    if oid.get("sargan_dof") != dof:
+        _fail(f"sargan_dof mismatch — re-derived {dof}, recorded {oid.get('sargan_dof')}")
+
+    claimed_rej = oid.get("rejected_at_0_05")
+    if claimed_rej is not None and bool(claimed_rej) != (p_value < 0.05):
+        _fail(
+            f"rejected_at_0_05={claimed_rej} inconsistent with re-derived "
+            f"p-value {p_value}"
+        )
 
 
 _LONGITUDINAL_TOL = 1e-6

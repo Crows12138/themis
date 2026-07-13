@@ -18,6 +18,14 @@ Landed scope:
   to ``IVEstimate``. Valid regardless of first-stage strength — unlike the
   bootstrap CI — and honestly returns an unbounded set when the data cannot
   bound the effect.
+- Over-identified IV — ``estimate_iv_overid`` (returning ``OverIDIVEstimate``
+  with a ``SarganTest``): multi-instrument 2SLS (q ≥ 2 instruments valid under
+  a shared conditioning set) plus the Sargan (1958) over-identification test,
+  whose small p-value REFUTES the instruments' joint validity — the linear /
+  continuous analogue of the Balke-Pearl instrumental inequalities. The point,
+  the Sargan J, and the joint first-stage F are closed forms of the recorded
+  residualised second moments, so the verifier re-derives them (with its own
+  independent transcription) without the raw data.
 - Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
   ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
   ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via
@@ -186,8 +194,11 @@ from .discovery import (
 from .iv import (
     ARConfidenceSet,
     IVEstimate,
+    OverIDIVEstimate,
+    SarganTest,
     anderson_rubin_confidence_set,
     estimate_iv_ate,
+    estimate_iv_overid,
 )
 from .joint import JointEffectEstimate, estimate_joint_effect
 from .longitudinal import (
@@ -232,6 +243,9 @@ __all__ = [
     "DataDiagnostics",
     "DiscoveryResult",
     "ARConfidenceSet",
+    "OverIDIVEstimate",
+    "SarganTest",
+    "estimate_iv_overid",
     "EValueResult",
     "FourWayRatioComponents",
     "FourWayRatioEstimate",

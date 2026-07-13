@@ -509,6 +509,7 @@ df)`, not from symbolic Theta.
 | `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale | "服药使收缩压平均下降 9.83 个单位（按 outcome 列单位）" |
 | `iv_wald` | LATE = local risk difference among compliers | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点"（point ∈ [-1,1] 时 ×100） |
 | `iv_2sls` | linear ATE | "ATE = X.X（线性假设下的人群平均效应）" |
+| `iv_2sls_overid` | linear ATE from ≥2 instruments jointly (over-identified 2SLS) + a Sargan over-identification test | "ATE = X.X（用 N 个工具联合估计）。Sargan 过度识别检验 p = P：**p 大 → 工具彼此一致，未被证伪；p < 0.05 → 数据反驳了工具集，至少一个 exclusion 不成立，这个点估计不可信**" |
 | `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale | "把 M 固定在 m 时 X 对 Y 的直接效应是 X.X 个单位" |
 | `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale | "经过 M 这条路径贡献的部分是 X.X（NIE）" |
 | `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases | (covered there) |
@@ -772,9 +773,9 @@ point estimates is amateur meta-analysis and breaks the audit chain.
 
 **Trigger**: any of —
 - `extensions.iv_identification` is present (structural identify path)
-- `numeric_estimate.method ∈ {"iv_wald", "iv_2sls"}` (numeric path;
-  pull `instrument` / `conditioning` / `assumptions` from
-  `numeric_estimate`)
+- `numeric_estimate.method ∈ {"iv_wald", "iv_2sls", "iv_2sls_overid"}`
+  (numeric path; pull `instrument` / `instruments` / `conditioning` /
+  `assumptions` from `numeric_estimate`)
 
 When IV is in play, identification fell back to it after backdoor and
 front-door both failed. Three things follow that the rendering must
@@ -818,6 +819,33 @@ If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
 ambiguity disclosure block will surface that aspect — don't double-
 render. The IV section focuses on *what the answer is*; the ambiguity
 section focuses on *what could go wrong*.
+
+**Over-identified IV (`method == "iv_2sls_overid"`).** When the graph
+declares ≥ 2 valid instruments under the same conditioning set, Themis
+uses them jointly (over-identified 2SLS) instead of throwing the extra
+ones away — and, crucially, runs the **Sargan over-identification test**
+(`over_identification` block), which the just-identified case cannot: with
+q instruments you get q − 1 testable restrictions. This is a
+**falsification** the moat can offer here that DoWhy/EconML don't route as
+a verdict — the linear/continuous sibling of the Balke-Pearl instrumental
+inequalities. Render it as a first-class part of the answer, not a
+footnote:
+
+- `over_identification.sargan_p_value` **≥ 0.05** — the instruments are
+  mutually consistent; report the ATE and say the over-identifying
+  restrictions were **not** refuted (this is evidence *for* the design, not
+  proof of validity — the test has no power against errors shared by all
+  instruments).
+- `over_identification.sargan_p_value` **< 0.05** (and the
+  `overidentification_rejected` gap is present) — the data **REFUTE** the
+  instrument set: at least one exclusion restriction is inconsistent with
+  the others. Lead with this. The point estimate is still shown but it rests
+  on an instrument set the data contradict — do not present it as a clean
+  number. Point the user to the gap's `alternative_paths` (drop the suspect
+  instrument, reconsider the graph, or fall back to assumption-light bounds).
+- `first_stage_f_stat` is the JOINT first stage for all instruments; the
+  Stock-Yogo weak-IV caveat applies to it the same way (a `weak_iv_instrument`
+  gap is attached when it is below the threshold).
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 
