@@ -858,6 +858,19 @@ footnote:
   alongside the Sargan/Hansen verdict, which says the same thing). Unlike the
   just-identified set the 2SLS `point` need not lie inside the set, so do not
   "correct" the point to the nearest endpoint.
+- When a `robust_anderson_rubin_confidence_set` block is present it is the
+  **heteroskedasticity-robust** weak-ID set (Stock-Wright S / Kleibergen), and it
+  — not the homoskedastic `anderson_rubin_confidence_set` — is the one to report
+  under a weak joint first stage, because it is valid under weak identification
+  **and** heteroskedasticity (or clustering) at once. The homoskedastic AR set
+  relates to it as Sargan relates to the robust Hansen J: fine when the error is
+  homoskedastic, mis-weighted otherwise. It is reported as a `segments` list
+  (`kind` summarises the shape: `bounded`, `disconnected` = two rays,
+  `whole_line`, `empty`, or `union` of more than two pieces). Read the shapes the
+  same way — an unbounded shape (`asymptote ≤ crit`) is the honest signal the data
+  cannot bound the effect; a bounded interval is a clean identification. When the
+  two AR sets disagree materially, trust the robust one and note that the
+  conclusion hinges on the homoskedasticity assumption.
 - When `over_identification.hansen_*` is present it is the
   **heteroskedasticity-robust** over-identification test (the efficient
   two-step GMM Hansen J), and it — not the Sargan — is what drives the

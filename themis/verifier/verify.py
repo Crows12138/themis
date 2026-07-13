@@ -1301,9 +1301,16 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
     projection quadratic forms are re-derived from the SAME recorded moments and
     the set is re-solved with the verifier's own quadratic classifier — its kind,
     endpoints, ``kappa = q·F(q, m)``, and 2SLS point are all confirmed (the point
-    need NOT lie in the set, so membership is not enforced). It never imports the
-    producer's solve and never touches the raw data. A result that isn't an
-    ``iv_2sls_overid`` estimate is a no-op.
+    need NOT lie in the set, so membership is not enforced). When it also carries a
+    ``robust_anderson_rubin_confidence_set`` (the heteroskedasticity-robust
+    Stock-Wright S set), the robust statistic ``AR_r(β0) = n·ḡ'Ŝ(β0)⁻¹ḡ`` is
+    re-transcribed from the recorded ``S0/S1/S2`` (``Ŝ(β0) = S0 − β0·S1 + β0²·S2``);
+    each reported crossing is confirmed on the boundary, ``crit = χ²(q)`` and the
+    tail asymptote are re-derived, the segments are rebuilt from the crossings, and
+    an independent dense-grid membership scan (a different method from the
+    producer's exact polynomial roots) confirms nothing was missed. It never
+    imports the producer's solve and never touches the raw data. A result that
+    isn't an ``iv_2sls_overid`` estimate is a no-op.
 
     ``estimate`` is the full ``numeric_estimate`` dict.
     """
@@ -1532,6 +1539,135 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
                 f"AR point mismatch — 2SLS P_xy/P_xx = {beta}, recorded "
                 f"{claimed_pt}"
             )
+
+    # --- heteroskedasticity-robust (Stock-Wright S) AR set ---------------------
+    # Present when the numeric_estimate carries a robust_anderson_rubin_confidence_set.
+    # The verifier re-transcribes AR_r(β0) = n·ḡ(β0)'Ŝ(β0)⁻¹ḡ(β0) from the recorded
+    # robust matrices Ŝ(β0) = S0 − β0·S1 + β0²·S2 (never the producer's evaluator),
+    # then (a) confirms each reported crossing is on the boundary AR_r ≈ crit, (b)
+    # re-derives crit = χ²(q) and the shared tail asymptote (1/n)·zx'S2⁻¹zx, (c)
+    # rebuilds the segments from the crossings + asymptote and matches them + the
+    # kind, and (d) runs an INDEPENDENT dense-grid membership scan (a different
+    # method from the producer's exact polynomial roots) to confirm no crossing
+    # was missed and the tails are right. Conditional on the block being present.
+    rar = estimate.get("robust_anderson_rubin_confidence_set")
+    if isinstance(rar, dict) and rar.get("kind") is not None:
+        try:
+            s0 = np.asarray(suff["s0"], dtype=float).reshape(q, q)
+            s1 = np.asarray(suff["s1"], dtype=float).reshape(q, q)
+            s2 = np.asarray(suff["s2"], dtype=float).reshape(q, q)
+        except (KeyError, TypeError, ValueError) as exc:
+            _fail(f"robust AR set present but sufficient_statistics.s0/s1/s2 missing: {exc}")
+
+        def _arr(b0):
+            g = (zy - b0 * zx) / n
+            S = s0 - b0 * s1 + b0 * b0 * s2
+            return float(n * (g @ np.linalg.solve(S, g)))
+
+        try:
+            ci_level_r = float(rar["ci_level"])
+        except (KeyError, TypeError, ValueError):
+            _fail("robust AR set missing / non-numeric ci_level")
+        crit = float(_chi2.ppf(ci_level_r, q))
+        claimed_crit = rar.get("crit")
+        if claimed_crit is None or abs(crit - float(claimed_crit)) > _IV_OVERID_TOL * (1 + crit):
+            _fail(f"robust AR crit mismatch — re-derived χ²({q}) {crit}, recorded {claimed_crit}")
+        if rar.get("dof") is not None and int(rar["dof"]) != q:
+            _fail(f"robust AR dof mismatch — q = {q}, recorded {rar.get('dof')}")
+
+        try:
+            asym = float((zx @ np.linalg.solve(s2, zx)) / n)
+        except np.linalg.LinAlgError:
+            asym = 0.0
+        claimed_asym = rar.get("asymptote")
+        if claimed_asym is None or abs(asym - float(claimed_asym)) > 1e-5 * (1 + abs(asym)):
+            _fail(f"robust AR asymptote mismatch — re-derived {asym}, recorded {claimed_asym}")
+
+        # Parse reported segments + crossings.
+        seg_raw = rar.get("segments")
+        if not isinstance(seg_raw, list):
+            _fail("robust AR set carries no segments list")
+        reported_segs = []
+        for s in seg_raw:
+            if not isinstance(s, dict):
+                _fail("robust AR segment is not an object")
+            reported_segs.append((s.get("lower"), s.get("upper")))
+        reported_cross = sorted(float(c) for c in rar.get("crossings", []))
+
+        # (a) each reported crossing is a genuine boundary point AR_r ≈ crit.
+        for c in reported_cross:
+            try:
+                v = _arr(c)
+            except np.linalg.LinAlgError:
+                _fail(f"robust AR: Ŝ singular at reported crossing {c}")
+            if abs(v - crit) > 1e-3 * (1 + crit):
+                _fail(f"robust AR crossing {c} not on the boundary — AR_r={v}, crit={crit}")
+
+        # (c) rebuild segments from crossings + asymptote; must match reported.
+        tails_in = asym <= crit
+        rebuilt, member, prev = [], tails_in, None
+        for c in reported_cross:
+            if member:
+                rebuilt.append((prev, c))
+            member = not member
+            prev = c
+        if member:
+            rebuilt.append((prev, None))
+
+        def _seg_eq(a, b):
+            (alo, ahi), (blo, bhi) = a, b
+            def _c(x, y):
+                if x is None or y is None:
+                    return x is None and y is None
+                return abs(float(x) - float(y)) <= 1e-6 * (1 + abs(float(x)))
+            return _c(alo, blo) and _c(ahi, bhi)
+
+        if len(rebuilt) != len(reported_segs) or not all(
+            _seg_eq(a, b) for a, b in zip(rebuilt, reported_segs)
+        ):
+            _fail(
+                f"robust AR segments inconsistent with crossings+asymptote — "
+                f"rebuilt {rebuilt}, recorded {reported_segs}"
+            )
+
+        # (d) INDEPENDENT dense-grid membership scan (a different method from the
+        # producer's exact polynomial roots): {AR_r ≤ crit} on the grid must match
+        # the reported cover everywhere, catching a missing/extra crossing or a
+        # wrong tail. Far-tail probes pin the asymptote-driven tail membership.
+        def _in_reported(b0):
+            for lo, hi in reported_segs:
+                if (lo is None or b0 >= float(lo) - 1e-9) and (hi is None or b0 <= float(hi) + 1e-9):
+                    return True
+            return False
+
+        if reported_cross:
+            span = max(reported_cross) - min(reported_cross)
+            margin = max(1.0, 0.5 * span)
+            grid = np.linspace(min(reported_cross) - margin,
+                               max(reported_cross) + margin, 4001)
+        else:
+            centre = float(rar.get("point") or 0.0)
+            grid = np.linspace(centre - 50.0, centre + 50.0, 4001)
+        for b0 in grid:
+            try:
+                v = _arr(float(b0))
+            except np.linalg.LinAlgError:
+                continue
+            if (v <= crit) != _in_reported(float(b0)):
+                if abs(v - crit) > 1e-3 * (1 + crit):   # not a boundary sliver
+                    _fail(
+                        f"robust AR membership scan disagrees at β0={b0}: "
+                        f"AR_r={v} vs reported-in={_in_reported(float(b0))}"
+                    )
+        # far tails
+        centre = float(rar.get("point") or 0.0)
+        for far in (centre - 1e6, centre + 1e6):
+            try:
+                v = _arr(far)
+            except np.linalg.LinAlgError:
+                continue
+            if (v <= crit) != _in_reported(far) and abs(v - crit) > 1e-3 * (1 + crit):
+                _fail(f"robust AR tail membership wrong at β0={far}: AR_r={v}")
 
 
 _MEASUREMENT_CORRECTION_TOL = 1e-6

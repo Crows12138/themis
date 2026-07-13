@@ -21,7 +21,12 @@ Landed scope:
   ``OverIDARConfidenceSet`` is its multi-instrument (q ≥ 2) counterpart,
   attached to ``OverIDIVEstimate``: still one quadratic inequality (the
   q-dimensional projection only changes the coefficients), with critical value
-  ``q·F(q, m)``.
+  ``q·F(q, m)``. iter 246 — ``robust_anderson_rubin_overid_set`` returning
+  ``RobustARConfidenceSet`` is the heteroskedasticity-robust (Stock-Wright S /
+  Kleibergen) version, valid under weak identification AND heteroskedasticity /
+  clustering at once: it inverts ``AR_r(β0) = n·ḡ'Ŝ(β0)⁻¹ḡ ~ χ²(q)`` with the
+  β0-dependent robust weight, via exact polynomial root-finding (the set can be
+  bounded / disconnected / whole-line / empty / a union of pieces).
 - Over-identified IV — ``estimate_iv_overid`` (returning ``OverIDIVEstimate``
   with a ``SarganTest``): multi-instrument 2SLS (q ≥ 2 instruments valid under
   a shared conditioning set) plus the Sargan (1958) over-identification test,
@@ -209,11 +214,13 @@ from .iv import (
     IVEstimate,
     OverIDARConfidenceSet,
     OverIDIVEstimate,
+    RobustARConfidenceSet,
     SarganTest,
     anderson_rubin_confidence_set,
     anderson_rubin_overid_set,
     estimate_iv_ate,
     estimate_iv_overid,
+    robust_anderson_rubin_overid_set,
 )
 from .joint import JointEffectEstimate, estimate_joint_effect
 from .measurement import (
@@ -264,6 +271,7 @@ __all__ = [
     "ARConfidenceSet",
     "OverIDARConfidenceSet",
     "OverIDIVEstimate",
+    "RobustARConfidenceSet",
     "SarganTest",
     "estimate_iv_overid",
     "EValueResult",
@@ -288,6 +296,7 @@ __all__ = [
     "TransportEstimate",
     "anderson_rubin_confidence_set",
     "anderson_rubin_overid_set",
+    "robust_anderson_rubin_overid_set",
     "discover_graph",
     "discovery_to_kernel_ast",
     "e_value_for_risk_ratio",

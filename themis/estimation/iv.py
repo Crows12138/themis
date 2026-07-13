@@ -633,6 +633,54 @@ class OverIDARConfidenceSet:
 
 
 @dataclass(frozen=True)
+class RobustARConfidenceSet:
+    """Heteroskedasticity-robust Anderson-Rubin confidence set (Stock-Wright 2000
+    S-statistic / Kleibergen 2005 robust AR) for the over-identified IV
+    coefficient -- valid under weak identification AND heteroskedasticity (or
+    clustering) at once.
+
+    The homoskedastic AR set (``OverIDARConfidenceSet``) weights the moments by
+    the homoskedastic residual variance; under heteroskedasticity that weighting
+    is wrong (the same defect Sargan has vs the robust Hansen J), so its coverage
+    is off. The robust AR inverts the identification-robust statistic
+
+        ``AR_r(beta0) = n * gbar(beta0)' Shat(beta0)^-1 gbar(beta0) ~ chi^2(q)``
+        ``gbar(beta0) = (1/n) Z'(y - beta0*x)``
+        ``Shat(beta0) = (1/n) sum_i (y_i - beta0*x_i)^2 z_i z_i'``   (HC0)
+                      = (1/n) sum_c (sum_{i in c} (..) z_i)(..)'      (cluster CR0)
+
+    (all residualised on ``[1, W]``). Because ``Shat(beta0)`` depends on beta0,
+    ``AR_r`` is NOT a ratio of quadratics -- but the boundary ``{AR_r = crit}`` is
+    exactly the real roots of the degree-``<=2q`` polynomial
+    ``P(beta0) = N(beta0) - crit*D(beta0)`` (``D = det Shat``,
+    ``N = n*gbar'adj(Shat)gbar``), so the set is found by EXACT polynomial
+    root-finding, not a grid. ``Shat(beta0)`` is a sum of PSD rank-1 terms for
+    every beta0, so ``AR_r`` is finite everywhere and BOTH tails share the same
+    finite asymptote ``asymptote = (1/n) zx' S2^-1 zx``, which sets the tail
+    membership (``asymptote <= crit`` -> the set is unbounded -- the honest
+    weak-identification signal). ``crit = chi^2(q; ci_level)``.
+
+    ``segments`` is the set as a tuple of ``(lower, upper)`` intervals (``None`` on
+    an open side); ``crossings`` the sorted finite boundary points; ``kind`` a
+    summary label (``bounded`` / ``disconnected`` = two rays / ``whole_line`` /
+    ``empty`` / ``union`` = >2 segments / one-sided rays). The robust second-moment
+    matrices ``S0/S1/S2`` (``Shat(beta0) = S0 - beta0*S1 + beta0^2*S2``) are retained
+    in the estimate's ``moments`` so an independent verifier can re-evaluate
+    ``AR_r`` at any beta0 and re-solve without the raw data.
+    """
+
+    kind: str
+    segments: tuple
+    crossings: tuple
+    asymptote: float
+    crit: float
+    ci_level: float
+    dof: int                  # q
+    point: float | None
+    cluster_robust: bool
+
+
+@dataclass(frozen=True)
 class OverIDIVEstimate:
     """Over-identified two-stage least squares (q ≥ 2 instruments, single
     endogenous treatment) + the Sargan over-identification test.
@@ -671,6 +719,11 @@ class OverIDIVEstimate:
     # interval the bootstrap CI cannot give when the instruments are jointly
     # weak. None when the AR test is undefined (residual df < 1, or Z'Z singular).
     anderson_rubin: OverIDARConfidenceSet | None = None
+    # iter 246: the heteroskedasticity-robust (Stock-Wright S / Kleibergen) AR
+    # set — valid under weak identification AND heteroskedasticity/clustering at
+    # once. None when the robust inversion is degenerate (leaves the rest of the
+    # estimate standing, like the homoskedastic AR set).
+    robust_anderson_rubin: "RobustARConfidenceSet | None" = None
 
 
 def _residualise_iv_columns(
@@ -938,6 +991,247 @@ def anderson_rubin_overid_set(
     )
 
 
+# --- heteroskedasticity-robust Anderson-Rubin (Stock-Wright S) set ------------
+
+
+def _robust_moment_matrices(
+    zr: np.ndarray, xr: np.ndarray, yr: np.ndarray,
+    groups: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The three q×q matrices with ``Ŝ(β0) = S0 − β0·S1 + β0²·S2`` the robust GMM
+    weight at the residual ``ỹ − β0·x̃`` for EVERY β0 (not just the 2SLS point).
+
+    HC0 (``groups is None``): ``S0 = (1/n)Σ ỹ²zz'``, ``S1 = 2(1/n)Σ x̃ỹ zz'``,
+    ``S2 = (1/n)Σ x̃² zz'`` — so ``Ŝ(β0) = (1/n)Σ(ỹ−β0x̃)² zz'``. Cluster-robust
+    CR0 (``groups`` given): the same expansion of the cluster-sum outer products,
+    ``S0 = (1/n)Σ_c a_c a_c'``, ``S1 = (1/n)Σ_c (a_c b_c' + b_c a_c')``,
+    ``S2 = (1/n)Σ_c b_c b_c'`` with ``a_c = Σ_{i∈c} ỹ_i z_i``, ``b_c = Σ_{i∈c} x̃_i z_i``.
+
+    Raises ``ValueError`` if cluster labels are misaligned (caller degrades to no
+    robust-AR set)."""
+    n = len(xr)
+    if groups is None:
+        gy = zr * yr[:, None]
+        gx = zr * xr[:, None]
+        s0 = gy.T @ gy / n
+        s2 = gx.T @ gx / n
+        s1 = 2.0 * (gx.T @ gy) / n
+    else:
+        groups = np.asarray(groups)
+        if len(groups) != n:
+            raise ValueError("cluster labels misaligned with residualised rows")
+        q = zr.shape[1]
+        s0 = np.zeros((q, q)); s1 = np.zeros((q, q)); s2 = np.zeros((q, q))
+        for c in np.unique(groups):
+            mask = groups == c
+            a = (zr[mask] * yr[mask, None]).sum(axis=0)
+            b = (zr[mask] * xr[mask, None]).sum(axis=0)
+            s0 += np.outer(a, a)
+            s2 += np.outer(b, b)
+            s1 += np.outer(a, b) + np.outer(b, a)
+        s0 /= n; s1 /= n; s2 /= n
+    return s0, s1, s2
+
+
+def robust_ar_statistic(
+    beta0: float, zx: np.ndarray, zy: np.ndarray,
+    s0: np.ndarray, s1: np.ndarray, s2: np.ndarray, n: int,
+) -> float:
+    """``AR_r(β0) = n · ḡ(β0)' Ŝ(β0)⁻¹ ḡ(β0)`` with ``ḡ(β0) = (1/n)(Z'y − β0·Z'x)``
+    and ``Ŝ(β0) = S0 − β0·S1 + β0²·S2``. Raises ``np.linalg.LinAlgError`` if
+    ``Ŝ(β0)`` is singular (measure-zero; the caller skips that β0)."""
+    g = (zy - beta0 * zx) / n
+    s = s0 - beta0 * s1 + beta0 * beta0 * s2
+    return float(n * (g @ np.linalg.solve(s, g)))
+
+
+def _classify_robust_ar_segments(segments: list) -> str:
+    """Summary label for the robust-AR set from its ``(lo, hi)`` segment list."""
+    if not segments:
+        return "empty"
+    if len(segments) == 1:
+        lo, hi = segments[0]
+        if lo is None and hi is None:
+            return "whole_line"
+        if lo is None:
+            return "unbounded_below"
+        if hi is None:
+            return "unbounded_above"
+        return "bounded"
+    if (len(segments) == 2 and segments[0][0] is None
+            and segments[-1][1] is None):
+        return "disconnected"
+    return "union"
+
+
+def _robust_ar_interval_probe(lo, hi):
+    """A test β0 strictly inside the interval ``(lo, hi)`` (None = ±∞)."""
+    if lo is None and hi is None:
+        return 0.0
+    if lo is None:
+        return hi - 1.0
+    if hi is None:
+        return lo + 1.0
+    return 0.5 * (lo + hi)
+
+
+def _solve_robust_ar_set(
+    zx, zy, s0, s1, s2, n, q, crit, point,
+):
+    """Invert ``{β0 : AR_r(β0) ≤ crit}`` exactly via polynomial roots.
+
+    Returns ``(kind, segments, crossings, asymptote)`` or ``None`` on a
+    degenerate / self-inconsistent inversion. The boundary is the real roots of
+    ``P(β0) = N(β0) − crit·D(β0)`` (degree ``≤ 2q``); ``P`` is recovered exactly by
+    a well-conditioned Chebyshev fit of ``P(β0) = det(Ŝ)·(AR_r − crit)`` at
+    ``2q+1`` nodes, then ``chebroots``. Tail membership comes from the shared
+    finite asymptote ``(1/n) zx' S2⁻¹ zx``. A self-consistency check (interior of
+    every claimed interval ``≤ crit``, exterior ``> crit``) guards the numerics."""
+    from numpy.polynomial import chebyshev as _cheb
+
+    def arv(b):
+        return robust_ar_statistic(b, zx, zy, s0, s1, s2, n)
+
+    # Shared tail asymptote (S2 PSD; singular only if instruments carry no
+    # residual x-variation at all -> no tail information -> tail in the set).
+    try:
+        asymptote = float((zx @ np.linalg.solve(s2, zx)) / n)
+    except np.linalg.LinAlgError:
+        asymptote = 0.0
+    tails_in = asymptote <= crit
+
+    # Local scale: fit a parabola through AR_r at point, point ± h.
+    try:
+        a0 = arv(point)
+    except np.linalg.LinAlgError:
+        return None
+    h = 0.5 * (abs(point) + 1.0)
+    ap = am = None
+    for _ in range(8):
+        try:
+            ap, am = arv(point + h), arv(point - h)
+            break
+        except np.linalg.LinAlgError:
+            h *= 0.5
+    if ap is None:
+        return None
+    curv = (ap + am - 2.0 * a0) / (2.0 * h * h)          # ≈ AR_r''(point)/...
+    if curv > 1e-9 and crit > a0:
+        width = math.sqrt((crit - a0) / curv)
+    else:
+        width = 4.0 * (abs(point) + 1.0)                 # flat / weak -> wide
+    span = max(width, h) * 10.0
+
+    # Chebyshev-fit P over point ± span (exact: P is degree ≤ 2q).
+    deg = 2 * q
+    nodes = point + span * np.cos(np.linspace(0.0, math.pi, deg + 1))
+    xs, ps = [], []
+    for t in nodes:
+        s = s0 - t * s1 + t * t * s2
+        try:
+            d = float(np.linalg.det(s))
+            ar = arv(t)
+        except np.linalg.LinAlgError:
+            continue
+        xs.append(t); ps.append(d * (ar - crit))
+    if len(xs) < deg + 1:
+        return None
+    try:
+        coeffs = _cheb.chebfit(np.asarray(xs), np.asarray(ps), deg)
+        roots = _cheb.chebroots(coeffs)
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+
+    crossings = []
+    for r in roots:
+        if abs(r.imag) > 1e-6 * (1.0 + abs(r.real)):
+            continue
+        b = float(r.real)
+        try:
+            val = arv(b)
+        except np.linalg.LinAlgError:
+            continue
+        if abs(val - crit) <= 1e-4 * (1.0 + crit):       # a genuine crossing
+            crossings.append(b)
+    crossings.sort()
+    deduped = []
+    for b in crossings:
+        if not deduped or abs(b - deduped[-1]) > 1e-7 * (1.0 + abs(b)):
+            deduped.append(b)
+    crossings = deduped
+
+    # Build segments by walking membership from -inf, flipping at each crossing.
+    segments, member, prev = [], tails_in, None
+    for c in crossings:
+        if member:
+            segments.append((prev, c))
+        member = not member
+        prev = c
+    if member:
+        segments.append((prev, None))
+
+    # Self-consistency: each of the k+1 intervals must have AR_r on the claimed
+    # side of crit at an interior probe (the exact polynomial should guarantee
+    # this; the guard rejects a numerically unreliable inversion -> None).
+    bounds = [None, *crossings, None]
+    expect = tails_in
+    for i in range(len(bounds) - 1):
+        b = _robust_ar_interval_probe(bounds[i], bounds[i + 1])
+        try:
+            v = arv(b)
+        except np.linalg.LinAlgError:
+            return None
+        if (v <= crit) != expect and abs(v - crit) > 1e-4 * (1.0 + crit):
+            return None
+        expect = not expect
+
+    kind = _classify_robust_ar_segments(segments)
+    return kind, tuple(segments), tuple(crossings), asymptote
+
+
+def robust_anderson_rubin_overid_set(
+    m: dict, ci_level: float = 0.95, cluster_robust: bool = False,
+) -> "RobustARConfidenceSet | None":
+    """Heteroskedasticity-robust (Stock-Wright S / Kleibergen) Anderson-Rubin
+    confidence set as a closed form of the residualised moments in ``m`` — which
+    must carry the robust second-moment matrices ``s0`` / ``s1`` / ``s2`` (added by
+    :func:`estimate_iv_overid`) alongside ``zz`` / ``zx`` / ``zy`` / ``n`` / ``q``.
+
+    The 2SLS point (from ``zz``) centres the polynomial root search. Returns
+    ``None`` when the inversion is degenerate (first stage exactly degenerate,
+    ``Ŝ`` singular, or the numeric inversion fails its self-consistency check),
+    leaving the rest of the estimate standing."""
+    from scipy.stats import chi2 as _chi2
+
+    q = int(m["q"]); n = int(m["n"])
+    zz = np.asarray(m["zz"], dtype=float).reshape(q, q)
+    zx = np.asarray(m["zx"], dtype=float).reshape(q)
+    zy = np.asarray(m["zy"], dtype=float).reshape(q)
+    s0 = np.asarray(m["s0"], dtype=float).reshape(q, q)
+    s1 = np.asarray(m["s1"], dtype=float).reshape(q, q)
+    s2 = np.asarray(m["s2"], dtype=float).reshape(q, q)
+
+    crit = float(_chi2.ppf(ci_level, q))
+    try:
+        zz_inv = np.linalg.inv(zz)
+    except np.linalg.LinAlgError:
+        return None
+    denom = float(zx @ zz_inv @ zx)
+    if not math.isfinite(denom) or abs(denom) < 1e-12:
+        return None
+    point = float(zx @ zz_inv @ zy) / denom
+
+    solved = _solve_robust_ar_set(zx, zy, s0, s1, s2, n, q, crit, point)
+    if solved is None:
+        return None
+    kind, segments, crossings, asymptote = solved
+    return RobustARConfidenceSet(
+        kind=kind, segments=segments, crossings=crossings, asymptote=asymptote,
+        crit=crit, ci_level=ci_level, dof=q, point=point,
+        cluster_robust=cluster_robust,
+    )
+
+
 def estimate_iv_overid(
     data: pd.DataFrame,
     *,
@@ -1009,6 +1303,23 @@ def estimate_iv_overid(
     # undefined (residual df < 1 / Z'Z singular), leaving the estimate standing.
     ar_set = anderson_rubin_overid_set(m, ci_level=ci_level)
 
+    # Heteroskedasticity-robust (Stock-Wright S) AR set — valid under weak
+    # identification AND heteroskedasticity/clustering at once. Its β0-dependent
+    # robust weight needs the three matrices S0/S1/S2 (Ŝ(β0) = S0 − β0·S1 + β0²·S2),
+    # recorded into `m` for the verifier. Degenerate inversion -> None (add-on).
+    robust_ar_set = None
+    try:
+        zr_r, xr_r, yr_r, _ = _residualise_iv_columns(
+            df, treatment, outcome, instruments, conditioning,
+        )
+        s0, s1, s2 = _robust_moment_matrices(zr_r, xr_r, yr_r, groups)
+        m["s0"] = s0.tolist(); m["s1"] = s1.tolist(); m["s2"] = s2.tolist()
+        robust_ar_set = robust_anderson_rubin_overid_set(
+            m, ci_level=ci_level, cluster_robust=cluster is not None,
+        )
+    except (np.linalg.LinAlgError, ValueError):
+        robust_ar_set = None
+
     ci_lower: float | None = None
     ci_upper: float | None = None
     if ci_bootstrap > 0:
@@ -1060,6 +1371,7 @@ def estimate_iv_overid(
         moments=m,
         cluster=cluster,
         anderson_rubin=ar_set,
+        robust_anderson_rubin=robust_ar_set,
     )
 
 

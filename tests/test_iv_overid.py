@@ -859,3 +859,233 @@ def test_ar_verifier_backward_compatible_without_ar(ar_overid_ne):
     ne = copy.deepcopy(ar_overid_ne)
     ne.pop("anderson_rubin_confidence_set")
     verify_iv_overid_numeric(ne)  # no raise
+
+
+# ============================================= iter 246 — heteroskedasticity-
+# robust (Stock-Wright S / Kleibergen) Anderson-Rubin confidence set.
+#
+# D1 oracle: AR_r(β0) computed straight from the raw residualised arrays
+# (n·ḡ'Ŝ(β0)⁻¹ḡ, Ŝ(β0)=(1/n)Σ(ỹ−β0x̃)²z̃z̃') — a different code path from the
+# estimator's S0/S1/S2 matrix form — matches the reported set's membership at a
+# dense grid, and every crossing sits on the AR_r=crit boundary. The point of the
+# whole exercise: under heteroskedasticity the robust set covers the truth ~95%
+# while the homoskedastic AR set does not.
+
+from themis.estimation.iv import (
+    robust_ar_statistic,
+    _residualise_iv_columns,
+)
+
+
+def _oracle_robust_ar(b0, df, treatment, outcome, instruments, groups=None):
+    """AR_r(β0) straight from raw residualised arrays — independent of S0/S1/S2."""
+    zr, xr, yr, _ = _residualise_iv_columns(df, treatment, outcome, instruments, ())
+    n = len(xr)
+    u = yr - b0 * xr
+    g = (zr * u[:, None]).sum(0) / n
+    if groups is None:
+        S = (zr * (u ** 2)[:, None]).T @ zr / n
+    else:
+        groups = np.asarray(groups)
+        q = zr.shape[1]
+        S = np.zeros((q, q))
+        for c in np.unique(groups):
+            m = groups == c
+            gc = (zr[m] * u[m, None]).sum(0)
+            S += np.outer(gc, gc)
+        S /= n
+    return float(n * (g @ np.linalg.solve(S, g)))
+
+
+def _in_robust_segments(b0, segments, tol=1e-7):
+    for lo, hi in segments:
+        if (lo is None or b0 >= lo - tol) and (hi is None or b0 <= hi + tol):
+            return True
+    return False
+
+
+def test_robust_ar_present_and_grid_oracle():
+    """The reported robust set's membership == the raw-data AR_r test at a dense
+    grid, and every crossing is on the AR_r=crit boundary."""
+    df = _hetero_3iv(n=4000, seed=1)
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    r = est.robust_anderson_rubin
+    assert r is not None and r.kind == "bounded"
+    crit = r.crit
+    grid = np.linspace(r.point - 10, r.point + 10, 20001)
+    mism = 0
+    for b in grid:
+        arv = _oracle_robust_ar(b, df, "x", "y", ("z1", "z2", "z3"))
+        if (arv <= crit) != _in_robust_segments(b, r.segments):
+            if abs(arv - crit) > 1e-4 * (1 + crit):
+                mism += 1
+    assert mism == 0
+    for c in r.crossings:
+        assert abs(_oracle_robust_ar(c, df, "x", "y", ("z1", "z2", "z3")) - crit) < 1e-3 * (1 + crit)
+
+
+def test_robust_ar_matrix_form_matches_raw():
+    """AR_r from the recorded S0/S1/S2 matrices == AR_r from raw arrays."""
+    df = _hetero_3iv(n=3000, seed=2)
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    m = est.moments
+    zx = np.asarray(m["zx"]); zy = np.asarray(m["zy"])
+    s0 = np.asarray(m["s0"]); s1 = np.asarray(m["s1"]); s2 = np.asarray(m["s2"])
+    n = m["n"]
+    for b in np.linspace(est.point - 3, est.point + 3, 25):
+        a = robust_ar_statistic(b, zx, zy, s0, s1, s2, n)
+        b_raw = _oracle_robust_ar(b, df, "x", "y", ("z1", "z2", "z3"))
+        assert abs(a - b_raw) < 1e-7 * (1 + abs(b_raw))
+
+
+def test_robust_ar_covers_under_heteroskedasticity():
+    """THE point: under heteroskedasticity the robust AR set covers the true
+    effect ~95%, while the homoskedastic AR set under-covers."""
+    beta = 1.5
+    ns = 200
+    cov_r = cov_h = 0
+    for seed in range(ns):
+        df = _hetero_3iv(n=600, seed=3000 + seed, beta=beta)
+        est = estimate_iv_overid(df, treatment="x", outcome="y",
+                                 instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+        r = est.robust_anderson_rubin
+        if r is not None and _in_robust_segments(beta, r.segments):
+            cov_r += 1
+        h = est.anderson_rubin
+        if h is not None and _ar_member(h.kind, h.lower, h.upper, beta):
+            cov_h += 1
+    assert 0.90 <= cov_r / ns <= 1.0            # robust: nominal coverage
+    assert cov_h / ns < cov_r / ns              # homoskedastic under-covers here
+
+
+def test_robust_ar_asymptote_and_unbounded_signal():
+    """Near-useless instruments → asymptote ≤ crit → the set is unbounded (the
+    honest 'cannot bound the effect' signal), not a finite bootstrap interval."""
+    rng = np.random.default_rng(0)
+    n = 400
+    z1, z2, z3 = (rng.standard_normal(n) for _ in range(3))
+    u = rng.standard_normal(n)
+    x = 0.02 * (z1 + z2 + z3) + 1.0 * u + rng.standard_normal(n)
+    eps = rng.standard_normal(n) * (1.0 + 2.0 * np.abs(z1))
+    y = 1.5 * x + 1.0 * u + eps
+    df = pd.DataFrame({"z1": z1, "z2": z2, "z3": z3, "x": x, "y": y})
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    r = est.robust_anderson_rubin
+    assert r is not None
+    assert r.asymptote <= r.crit
+    assert r.kind in {"whole_line", "disconnected", "unbounded_below", "unbounded_above"}
+
+
+def test_robust_ar_cluster_cr0_differs_from_hc0():
+    """A declared cluster → the robust weight uses the CR0 cluster sums, which
+    differ from HC0; the set stays self-consistent."""
+    df = _hetero_3iv(n=6000, seed=5)
+    rng = np.random.default_rng(0)
+    df = df.assign(cl=rng.integers(0, 40, size=len(df)))
+    est_hc0 = estimate_iv_overid(df, treatment="x", outcome="y",
+                                 instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    est_cr0 = estimate_iv_overid(df, treatment="x", outcome="y",
+                                 instruments=("z1", "z2", "z3"), ci_bootstrap=0,
+                                 cluster="cl")
+    assert est_cr0.robust_anderson_rubin is not None
+    assert est_cr0.robust_anderson_rubin.cluster_robust is True
+    assert not np.allclose(np.asarray(est_hc0.moments["s0"]),
+                           np.asarray(est_cr0.moments["s0"]))
+    # CR0 set membership matches its own raw-data AR_r
+    r = est_cr0.robust_anderson_rubin
+    grp = df["cl"].to_numpy()
+    for b in (r.point, r.point + 0.05, r.point - 0.05):
+        arv = _oracle_robust_ar(b, df, "x", "y", ("z1", "z2", "z3"), groups=grp)
+        assert (arv <= r.crit) == _in_robust_segments(b, r.segments)
+
+
+# --- dispatch + verifier round-trip -----------------------------------------
+
+
+def test_dispatch_overid_carries_robust_ar_set():
+    df = _hetero_3iv(n=3000, seed=7)
+    ast = _overid_ast(instruments=("z1", "z2", "z3"))
+    ne = themis.estimate(ast, df, ci_bootstrap=0)["results"][0]["numeric_estimate"]
+    rar = ne["robust_anderson_rubin_confidence_set"]
+    assert rar["dof"] == 3
+    assert isinstance(rar["segments"], list) and "crossings" in rar
+    assert "asymptote" in rar and "crit" in rar
+    suff = ne["over_identification"]["sufficient_statistics"]
+    assert "s0" in suff and "s1" in suff and "s2" in suff
+
+
+@pytest.fixture(scope="module")
+def robust_ar_ne(hetero_overid_ne):
+    """hetero_overid_ne is _hetero_3iv(n=5000, seed=9) — a bounded robust set."""
+    assert hetero_overid_ne["robust_anderson_rubin_confidence_set"]["kind"] == "bounded"
+    return hetero_overid_ne
+
+
+def test_robust_ar_verifier_accepts_genuine(robust_ar_ne):
+    verify_iv_overid_numeric(robust_ar_ne)  # no raise
+
+
+def test_robust_ar_verifier_rejects_forged_crossing(robust_ar_ne):
+    ne = copy.deepcopy(robust_ar_ne)
+    ne["robust_anderson_rubin_confidence_set"]["crossings"][0] += 0.3
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_robust_ar_verifier_rejects_forged_segment(robust_ar_ne):
+    ne = copy.deepcopy(robust_ar_ne)
+    ne["robust_anderson_rubin_confidence_set"]["segments"][0]["lower"] += 0.3
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_robust_ar_verifier_rejects_forged_asymptote(robust_ar_ne):
+    ne = copy.deepcopy(robust_ar_ne)
+    ne["robust_anderson_rubin_confidence_set"]["asymptote"] *= 0.5
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_robust_ar_verifier_rejects_forged_crit(robust_ar_ne):
+    ne = copy.deepcopy(robust_ar_ne)
+    ne["robust_anderson_rubin_confidence_set"]["crit"] *= 1.2
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_robust_ar_verifier_rejects_corrupted_S0(robust_ar_ne):
+    ne = copy.deepcopy(robust_ar_ne)
+    ne["over_identification"]["sufficient_statistics"]["s0"][0][0] *= 1.5
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_robust_ar_verifier_rejects_dropped_crossing(robust_ar_ne):
+    """Drop one crossing + widen the claimed set → the dense-grid completeness
+    scan catches the region where AR_r disagrees with the reported cover."""
+    ne = copy.deepcopy(robust_ar_ne)
+    rr = ne["robust_anderson_rubin_confidence_set"]
+    assert len(rr["crossings"]) == 2
+    lo = rr["crossings"][0]
+    rr["crossings"] = [lo]
+    rr["segments"] = [{"lower": lo, "upper": None}]
+    rr["kind"] = "unbounded_above"
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_robust_ar_verifier_rejects_missing_S_matrices(robust_ar_ne):
+    ne = copy.deepcopy(robust_ar_ne)
+    for k in ("s0", "s1", "s2"):
+        ne["over_identification"]["sufficient_statistics"].pop(k, None)
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_robust_ar_verifier_backward_compatible_without_robust_ar(robust_ar_ne):
+    ne = copy.deepcopy(robust_ar_ne)
+    ne.pop("robust_anderson_rubin_confidence_set")
+    verify_iv_overid_numeric(ne)  # no raise

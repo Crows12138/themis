@@ -3181,6 +3181,43 @@ def _overid_ar_set_to_dict(ar) -> dict:
     }
 
 
+def _robust_ar_set_to_dict(r) -> dict:
+    """Serialise a heteroskedasticity-robust RobustARConfidenceSet to the
+    numeric_estimate sub-block. ``segments`` is the set as a list of intervals
+    (``lower``/``upper`` null on an open side); ``crossings`` the finite boundary
+    points; ``asymptote`` the shared tail value of ``AR_r``; ``crit = χ²(q)``. The
+    verifier re-evaluates ``AR_r`` from the recorded S0/S1/S2 matrices."""
+    return {
+        "kind": r.kind,
+        "segments": [{"lower": lo, "upper": hi} for (lo, hi) in r.segments],
+        "crossings": list(r.crossings),
+        "asymptote": r.asymptote,
+        "crit": r.crit,
+        "ci_level": r.ci_level,
+        "dof": r.dof,
+        "point": r.point,
+        "cluster_robust": r.cluster_robust,
+    }
+
+
+def _render_robust_ar_set(r) -> str:
+    """Human-readable rendering of a robust-AR set, honouring its segment list."""
+    def fmt(v):
+        return "−∞" if v is None else (f"{v:.4g}")
+    if r.kind == "empty":
+        return "∅"
+    if r.kind == "whole_line":
+        return "(−∞, +∞) — 工具太弱无法约束效应"
+    parts = []
+    for lo, hi in r.segments:
+        lo_s = "−∞" if lo is None else f"{lo:.4g}"
+        hi_s = "+∞" if hi is None else f"{hi:.4g}"
+        left = "(" if lo is None else "["
+        right = ")" if hi is None else "]"
+        parts.append(f"{left}{lo_s}, {hi_s}{right}")
+    return " ∪ ".join(parts)
+
+
 def _render_ar_set(ar) -> str:
     """Human-readable rendering of an Anderson-Rubin confidence set,
     honouring its shape (bounded / disconnected / ray / whole line)."""
@@ -3924,6 +3961,13 @@ def _try_iv_overid_estimate(
         numeric["anderson_rubin_confidence_set"] = _overid_ar_set_to_dict(
             est.anderson_rubin,
         )
+    # Heteroskedasticity-robust (Stock-Wright S) AR set — valid under weak-ID AND
+    # heteroskedasticity/clustering. The robust weight matrices S0/S1/S2 the
+    # verifier re-evaluates AR_r from are recorded in sufficient_statistics.
+    if est.robust_anderson_rubin is not None:
+        numeric["robust_anderson_rubin_confidence_set"] = _robust_ar_set_to_dict(
+            est.robust_anderson_rubin,
+        )
     if est.first_stage_f_stat is not None:
         numeric["first_stage_f_stat"] = est.first_stage_f_stat
 
@@ -4028,6 +4072,26 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 "bootstrap CI"
             )
             headline_ar = f"；Anderson-Rubin {pct}% 稳健集 = {rendered}"
+        # Prefer the heteroskedasticity-robust (Stock-Wright S) AR set when it was
+        # computed: it is valid under weak identification AND heteroskedasticity /
+        # clustering, so it is the strongest interval to report here.
+        rar = est.robust_anderson_rubin
+        if rar is not None:
+            rrendered = _render_robust_ar_set(rar)
+            pct = int(round(rar.ci_level * 100))
+            ar_clause = (
+                f"{ar_clause} The heteroskedasticity-robust Anderson-Rubin {pct}% "
+                f"set (valid under weak instruments AND heteroskedasticity) is "
+                f"{rrendered}."
+            )
+            ar_alt = (
+                f"use the heteroskedasticity-robust Anderson-Rubin {pct}% set "
+                f"{rrendered} (valid under weak instruments and heteroskedasticity) "
+                "instead of the bootstrap CI"
+            )
+            headline_ar = (
+                f"{headline_ar}；异方差稳健 AR {pct}% 集 = {rrendered}"
+            )
         gaps.append({
             "kind": "weak_iv_instrument",
             "severity": "informational",

@@ -564,7 +564,7 @@
             "hansen_rejected_at_0_05": { "type": "boolean", "description": "Mechanical flag: hansen_p_value < 0.05." },
             "sufficient_statistics": {
               "type": "object",
-              "description": "Residualised (FWL, on [1, W]) second moments: Z'Z (q x q), Z'x (q), Z'y (q), and the scalars x'x / x'y / y'y, plus n / n_exog (|W|) / q. When Hansen J was computed, also s_robust: the (q x q) robust weight matrix Ŝ = (1/n) Σ û_i² z_i z_i' (cluster-robust sum under a declared cluster).",
+              "description": "Residualised (FWL, on [1, W]) second moments: Z'Z (q x q), Z'x (q), Z'y (q), and the scalars x'x / x'y / y'y, plus n / n_exog (|W|) / q. When Hansen J was computed, also s_robust: the (q x q) robust weight matrix Ŝ = (1/n) Σ û_i² z_i z_i' (cluster-robust sum under a declared cluster). When the heteroskedasticity-robust AR set was computed, also s0/s1/s2: the three (q x q) matrices with Ŝ(β0) = s0 − β0·s1 + β0²·s2 the robust GMM weight at any β0, from which verify_iv_overid_numeric re-evaluates AR_r(β0).",
               "required": ["zz", "zx", "zy", "xx", "xy", "yy", "n", "n_exog", "q"],
               "additionalProperties": false,
               "properties": {
@@ -577,7 +577,10 @@
                 "n": { "type": "integer", "minimum": 1 },
                 "n_exog": { "type": "integer", "minimum": 0 },
                 "q": { "type": "integer", "minimum": 2 },
-                "s_robust": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "The (q x q) robust GMM weight matrix Ŝ; present iff hansen_* is." }
+                "s_robust": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "The (q x q) robust GMM weight matrix Ŝ; present iff hansen_* is." },
+                "s0": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "The (q x q) β0⁰ coefficient of Ŝ(β0); present iff the robust AR set is." },
+                "s1": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "The (q x q) β0¹ coefficient of Ŝ(β0); present iff the robust AR set is." },
+                "s2": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "The (q x q) β0² coefficient of Ŝ(β0); present iff the robust AR set is." }
               }
             }
           }
@@ -656,6 +659,35 @@
             "kappa": { "type": "number", "description": "iv_2sls_overid only: the AR critical value q*F(q, m) (m = n - |W| - q - 1). Absent on the single-instrument path (its kappa = F(1, m) rides on the ar_kappa derivation input)." },
             "dof_num": { "type": "integer", "minimum": 1, "description": "iv_2sls_overid only: numerator df q (number of instruments)." },
             "dof_denom": { "type": "integer", "minimum": 1, "description": "iv_2sls_overid only: denominator df m = n - |W| - q - 1." }
+          }
+        },
+        "robust_anderson_rubin_confidence_set": {
+          "type": "object",
+          "description": "iter 246 / iv_2sls_overid only: the HETEROSKEDASTICITY-ROBUST Anderson-Rubin confidence set (Stock-Wright 2000 S-statistic / Kleibergen 2005 robust AR) — valid under weak identification AND heteroskedasticity (or clustering) at once, where the homoskedastic anderson_rubin_confidence_set has the wrong weighting (the same defect Sargan has vs the robust Hansen J). It inverts AR_r(β0) = n·ḡ(β0)'Ŝ(β0)⁻¹ḡ(β0) ~ χ²(q) with the β0-dependent robust weight Ŝ(β0) = s0 − β0·s1 + β0²·s2. Because AR_r is not a ratio of quadratics, the set is the real roots of a degree-≤2q polynomial (exact, not a grid) and is reported as a list of segments; it can be bounded, disconnected (two rays), the whole line, empty, or a union of more than two pieces. Both tails share the finite asymptote (1/n)·zx'·s2⁻¹·zx, which governs whether the set is unbounded (asymptote ≤ crit → the honest weak-identification signal). verify_iv_overid_numeric re-evaluates AR_r from the recorded s0/s1/s2 and independently re-checks the crossings, asymptote, segments, and completeness.",
+          "required": ["kind", "segments", "crossings", "asymptote", "crit", "ci_level", "dof"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["bounded", "disconnected", "unbounded_below", "unbounded_above", "whole_line", "empty", "union"] },
+            "segments": {
+              "type": "array",
+              "description": "The set as a list of intervals; lower/upper null on an open side.",
+              "items": {
+                "type": "object",
+                "required": ["lower", "upper"],
+                "additionalProperties": false,
+                "properties": {
+                  "lower": { "type": ["number", "null"] },
+                  "upper": { "type": ["number", "null"] }
+                }
+              }
+            },
+            "crossings": { "type": "array", "items": { "type": "number" }, "description": "Sorted finite boundary points where AR_r(β0) = crit." },
+            "asymptote": { "type": "number", "description": "The shared tail value (1/n)·zx'·s2⁻¹·zx of AR_r as β0 → ±∞." },
+            "crit": { "type": "number", "description": "The χ²(q; ci_level) critical value." },
+            "ci_level": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+            "dof": { "type": "integer", "minimum": 2, "description": "q (number of instruments)." },
+            "point": { "type": ["number", "null"], "description": "The 2SLS point the polynomial root search is centred on; need not lie inside the set." },
+            "cluster_robust": { "type": "boolean", "description": "True if Ŝ(β0) used the cluster-robust (CR0) sum under a declared cluster; else HC0." }
           }
         },
         "mediator": { "type": "string" },
