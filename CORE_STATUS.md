@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2827 passed / 144 skipped, warning-clean
+2832 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -128,6 +128,21 @@ E[Y|x,z,S]，参考样本给权重，`estimation/selection.py` 按定理3.5 求
 +themis_verify_selection_recovery_numeric，四处清单镜像同步）；schema 加
 selection_backdoor_recovery method + selection_recovery_numeric 子块 +
 external_data_required 等 failure_type；+16 测试；基线 2811→**2827**。
+
+**中介 four-way 验证器强化（2026-07-13）**：差值尺度 `four_way_decomposition`
+与 Imai NDE/NIE 此前只做构造不变量检查（TE = 各部分之和；比例 = 比值），
+一个**完全自洽的伪造**（各分量与 te 同乘一个因子）能原样通过 verify——已被
+一个「通过」的测试固化的洞。修法=记录该分解本就是其闭式函数的**充分统计量**：
+估计器现在把六个标准化 cell means（p_am=E[Y|A,M]、q_a=E[M|A]，g-formula 标准化）
+记进 `four_way_decomposition.sufficient_statistics.cell_means`，验证器用
+VanderWeele 14.1b 的**独立转写**从中重导 CDE/INTref/INTmed/PIE/TE 并拒任何篡改
+（对标 four_way_ratio 锚定拟合系数）。同一组 cell means 在**线性**路径上也钉死
+NDE/NIE（PNDE=CDE+INTref、TNIE=INTmed+PIE 与报告值逐位相等，1e-16；线性使
+plug-in E[M|X] 等于 m∈{0,1} 混合）；**logit** 路径的 NDE/NIE 来自对 M 的
+蒙特卡洛积分，{0,1} cell means 钉不住，故该块保持不变量级——诚实天花板，
+现在显式声明而非套用到两块。cell means 缺失（手搓/旧块）时回退到构造不变量，
+不强制任何生产者提供。schema 给 four_way_decomposition 加 sufficient_statistics
+子对象；+5 测试；基线 2827→**2832**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
