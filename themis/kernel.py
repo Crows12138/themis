@@ -99,6 +99,7 @@ from .verifier import (
     verify_e_value,
     verify_iv_overid_numeric,
     verify_longitudinal_numeric,
+    verify_measurement_correction_numeric,
     verify_mediation_numeric,
     verify_scm_counterfactual,
     verify_effect_structural,
@@ -970,6 +971,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # derivation-input serialization).
             if num_est.get("method") == "iv_2sls_overid":
                 verify_iv_overid_numeric(num_est)
+            # Measurement-error correction (frontier E): its derivation terminal
+            # (numeric_measurement_correction_estimate) does metadata +
+            # structural licensing only — the confusion-matrix inversion and the
+            # corrected/naive point are re-derived here from the recorded matrix
+            # + per-stratum value-count vectors (which don't fit derivation-input
+            # serialization).
+            if num_est.get("method") == "measurement_error_correction":
+                verify_measurement_correction_numeric(num_est)
             # A dose-response estimate carries a curve array that the
             # metadata audit doesn't inspect (it only sees the headline
             # scalar). Audit the curve's construction invariants — the

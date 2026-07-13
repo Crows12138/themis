@@ -3693,6 +3693,124 @@ def _rule_numeric_proximal_estimate(
         )
 
 
+_NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({"measurement_error_correction"})
+
+
+def _rule_numeric_measurement_correction_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Relaxed audit for a confusion-matrix-corrected effect estimate.
+
+    Method enum + CI bounds + data_hash + sample_size checks, plus structural
+    licensing: the referenced ``criterion`` step must be a ``backdoor_criterion``
+    (the correction standardises over a back-door adjustment set). The matrix
+    inversion / point re-derivation from the recorded confusion matrix +
+    per-stratum value-count vectors is ``verify_measurement_correction_numeric``,
+    called from the kernel — those matrices don't fit derivation-input
+    serialization, so they live in the numeric_estimate block, not here.
+    """
+    rule = "numeric_measurement_correction_estimate"
+    criterion_ref = _require(inputs, "criterion", step_index, rule)
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "numeric_measurement_correction_estimate.criterion must be a StepRef",
+            step_index=step_index, rule=rule,
+        )
+    method = inputs.get("method")
+    data_hash = inputs.get("data_hash")
+    sample_size = inputs.get("sample_size")
+    point = inputs.get("point")
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    ci_level = inputs.get("ci_level")
+
+    if method not in _NUMERIC_MEASUREMENT_CORRECTION_METHODS:
+        raise RuleCheckFailed(
+            f"numeric_measurement_correction_estimate.method must be one of "
+            f"{sorted(_NUMERIC_MEASUREMENT_CORRECTION_METHODS)}; got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"numeric_measurement_correction_estimate.data_hash must be a "
+            f"{_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule=rule,
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            "numeric_measurement_correction_estimate.data_hash must be "
+            "lowercase hex",
+            step_index=step_index, rule=rule,
+        )
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"numeric_measurement_correction_estimate.sample_size must be an int "
+            f">= {_MIN_NUMERIC_SAMPLE_SIZE}; got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"numeric_measurement_correction_estimate.point must be a number; "
+            f"got {point!r}",
+            step_index=step_index, rule=rule,
+        )
+    ci_present = ci_lower is not None or ci_upper is not None
+    if ci_present:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                "numeric_measurement_correction_estimate: ci_lower and ci_upper "
+                "must both be present or both absent",
+                step_index=step_index, rule=rule,
+            )
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"numeric_measurement_correction_estimate: point {point} outside "
+                f"[{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=rule,
+            )
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"numeric_measurement_correction_estimate.ci_level must be in "
+                f"(0, 1); got {ci_level!r}",
+                step_index=step_index, rule=rule,
+            )
+
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_step is None:
+        raise RuleCheckFailed(
+            f"numeric_measurement_correction_estimate: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule=rule,
+        )
+    if criterion_step.rule != "backdoor_criterion":
+        raise RuleCheckFailed(
+            "numeric_measurement_correction_estimate.criterion must reference a "
+            "backdoor_criterion step",
+            step_index=step_index, rule=rule,
+        )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            "numeric_measurement_correction_estimate output must be a "
+            "StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "numeric_measurement_correction_estimate output.value must be True",
+            step_index=step_index, rule=rule,
+        )
+
+
 _NUMERIC_CAUSATION_METHODS = frozenset({"causation_plugin"})
 
 
@@ -7148,6 +7266,9 @@ _STEP_REF_RULES = {
     # Proximal matrix plug-in numeric estimate — same proximal identification
     # witness (proximal_criterion), plug-in terminal.
     "numeric_proximal_estimate",
+    # Measurement-error correction (frontier E) — confusion-matrix inversion
+    # atop a back-door identification witness (backdoor_criterion).
+    "numeric_measurement_correction_estimate",
     # Phase 9 §T9.1.4 — transport identification
     "identify_via_transport",
     # Phase 7.L — longitudinal g-formula (sequential back-door) terminal
@@ -7240,6 +7361,11 @@ def dispatch_rule(
         return
     if rule_name == "numeric_proximal_estimate":
         _rule_numeric_proximal_estimate(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "numeric_measurement_correction_estimate":
+        _rule_numeric_measurement_correction_estimate(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

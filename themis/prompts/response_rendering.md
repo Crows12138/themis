@@ -524,6 +524,7 @@ df)`, not from symbolic Theta.
 | `proximal_matrix` | do-effect `P(Y=1\|do(X))` risk difference recovered by PROXIMAL causal inference (Miao 2018) when the confounder U is UNMEASURED but two proxies exist — a treatment-side proxy Z and an outcome-side proxy W. Identified by a discrete matrix formula `P(y\|Z,x)·P(W\|Z,x)⁻¹·P(W)`, NOT by adjustment — so it needs neither U itself nor a back-door set. Lead with the point; note the naive back-door number would be biased (U is not observed). Weak proxies widen the CI (near-singular bridge matrix) rather than being rejected. | "X→Y 有未观测混杂 U，但有两个代理变量（Z、W）；近端因果用矩阵公式绕过 U 识别了效应：ATE = X.X（直接按可观测变量做后门校正会有偏）" |
 | `causation_plugin` | probabilities of causation (Tian-Pearl 2000) estimated from data — the `probabilities_of_causation` block carries PN (necessity), PS (sufficiency), PNS (both), each with bounds and, under monotonicity, a point. The headline `point` is PN. These are ATTRIBUTION probabilities ("was it X that caused Y?"), NOT an ATE. Report the specific quantity the user asked for; if the answer is a bound (no monotonicity), say so — do not collapse it to a point. | "PN = X.X（必要性概率：已知 X、Y 都发生，若当初 X 没发生则 Y 也不会发生的概率）；PS/PNS 见 probabilities_of_causation 子块。单调假设不成立时给的是区间而非点" |
 | `ctf_conjunction_plugin` | the identified probability of a COUNTERFACTUAL CONJUNCTION (Shpitser-Pearl ID*/IDC*), estimated non-parametrically from data. `estimand` renders the exact target, e.g. `P(y_{x=True}=True, y_{x=False}=False)` (a unit whose outcome flips between two interventions) or, when `conditional` is true, a conditional `P(γ\|δ)`. The `point` is that probability, NOT an ATE — keep the counterfactual-world subscripts in the phrasing so the reader knows it is Layer-3. | "反事实合取概率 P(γ) = X.X（例如 P(y_{x=1}=1, y_{x=0}=0)：同一单位在两种干预下结局相反的概率）；条件版 P(γ\|δ) 时按 estimand 渲染" |
+| `measurement_error_correction` | back-door ATE on a MISCLASSIFIED discrete outcome, DE-ATTENUATED by inverting a validated confusion matrix per stratum (Rogan-Gladen for the binary case) under non-differential misclassification — see §"Measurement-error correction". `point` is the corrected effect; the `measurement_correction` block carries `naive_point` (the attenuated back-door number it replaces), `det` (= Se+Sp−1 for a binary outcome — the attenuation factor), and `out_of_simplex`. Requires the caller to supply the matrix (`estimate(misclassification=…)`); it is NOT identified from the noisy data alone. | "校正误分类后 ATE = X.X（用验证研究的混淆矩阵逐层矩阵求逆去衰减）；直接用被误测的结局得 Y.Y —— 那个数被 non-differential 误分类向 0 衰减了（衰减因子 det = Se+Sp−1）" |
 
 **Backdoor template**:
 
@@ -846,6 +847,36 @@ footnote:
 - `first_stage_f_stat` is the JOINT first stage for all instruments; the
   Stock-Yogo weak-IV caveat applies to it the same way (a `weak_iv_instrument`
   gap is attached when it is below the threshold).
+
+**Measurement-error correction (`method == "measurement_error_correction"`).**
+When a variable's noisy measurement raised the `measurement_error_concern` gap,
+the structural layer only flags it. If the caller then supplies a **validated
+confusion matrix** for the misclassified *discrete outcome*
+(`estimate(…, misclassification={outcome: {confusion_matrix, states}})`), the
+numeric end DE-ATTENUATES the estimate by inverting the matrix per back-door
+stratum (`p_true = M⁻¹ p_obs`; the binary case is Rogan-Gladen 1978). Render the
+correction, not just the corrected number:
+
+- Lead with `point` (the corrected effect) and contrast the
+  `measurement_correction.naive_point` — the attenuated back-door number the
+  correction replaces. `det` (= Se+Sp−1 for a binary outcome) is the attenuation
+  factor; for a binary outcome `point = naive_point / det`, so a small `det`
+  (barely-better-than-coin measurement) means a large correction and a wide CI.
+- This rests on strong, LOAD-BEARING assumptions the reader must see:
+  **non-differential** misclassification (the same matrix in every arm/stratum)
+  and a **known** confusion matrix (treated as fixed — the CI does NOT propagate
+  validation-study uncertainty in M). Name them; the number is only as good as
+  the matrix.
+- `measurement_correction.out_of_simplex == true` is an honest warning that a
+  recovered probability landed outside [0,1] — the matrix is weakly informative
+  or non-differential is violated. Do not hide it.
+- If instead there is a `measurement_error_correction` `estimator_failure`
+  (singular / non-stochastic matrix, positivity, or the effect isn't back-door
+  identified), report the refusal — the corrected number was withheld, NOT the
+  biased naive point silently shipped.
+- Scope: outcome misclassification only (exposure misclassification,
+  differential matrices, and continuous mismeasurement are out of scope and stay
+  in the `measurement_error_concern` gap's territory).
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

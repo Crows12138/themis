@@ -67,6 +67,15 @@ Public surface (re-exports from sub-modules):
   forged Sargan statistic, or a corrupted moment. Its derivation terminal
   ``numeric_iv_overid_estimate`` does only metadata + structural licensing
   because the moment matrices don't fit derivation-input serialization),
+  ``verify_measurement_correction_numeric`` (frontier E — the de-attenuated
+  effect on a misclassified discrete outcome: the corrected point, the naive
+  (attenuated) point, and det(M) re-derived by an independent transcription of
+  the per-stratum confusion-matrix inversion p_true=M⁻¹p_obs from the recorded
+  matrix + value-count vectors; rejects a tampered point, a non-stochastic or
+  det-inconsistent matrix, a dropped stratum, or a missing arm. Its derivation
+  terminal ``numeric_measurement_correction_estimate`` does only metadata +
+  structural licensing because the matrix + count vectors don't fit
+  derivation-input serialization),
   ``verify_selection_recovery_numeric`` (§S9.1 numeric end — the ATE recovered
   from selection bias by the Bareinboim-Pearl selection-backdoor formula
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
@@ -151,6 +160,7 @@ from .verify import (
     verify_identify,
     verify_iv_overid_numeric,
     verify_longitudinal_numeric,
+    verify_measurement_correction_numeric,
     verify_mediation_numeric,
     verify_missing_data_recovery,
     verify_numeric,
@@ -199,6 +209,7 @@ __all__ = [
     "verify_manski_tamer_bounds_result",
     "verify_markov_blanket",
     "verify_iv_overid_numeric",
+    "verify_measurement_correction_numeric",
     "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",

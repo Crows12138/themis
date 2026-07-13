@@ -525,7 +525,8 @@
             "ctf_conjunction_plugin",
             "proximal_matrix",
             "causation_plugin",
-            "selection_backdoor_recovery"
+            "selection_backdoor_recovery",
+            "measurement_error_correction"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -571,6 +572,64 @@
                 "n": { "type": "integer", "minimum": 1 },
                 "n_exog": { "type": "integer", "minimum": 0 },
                 "q": { "type": "integer", "minimum": 2 }
+              }
+            }
+          }
+        },
+        "measurement_correction": {
+          "type": "object",
+          "description": "measurement_error_correction only: de-attenuation of a misclassified discrete OUTCOME by inverting a validated confusion matrix per back-door stratum (Rogan-Gladen for the binary case), under non-differential misclassification. `point` (top-level) is the corrected effect on the target value; `naive_point` is the attenuated back-door number the correction replaces; `det` = det(M) (= Se+Sp-1 for a binary outcome). sufficient_statistics carries the matrix + per-(arm, stratum) outcome value-count vectors + covariate marginal counts, from which verify_measurement_correction_numeric re-inverts the point without the raw data.",
+          "required": ["naive_point", "det", "confusion_matrix", "states", "target_value", "sufficient_statistics"],
+          "additionalProperties": false,
+          "properties": {
+            "naive_point": { "type": "number" },
+            "det": { "type": "number" },
+            "out_of_simplex": { "type": "boolean", "description": "True if any recovered p_true=M^-1 p_obs landed outside [0,1] — a signal the matrix is weakly informative or non-differential is violated. The point is still the method-of-moments estimator (unclipped)." },
+            "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Column-stochastic k x k: M[i][j] = P(Y=states[i] | Y*=states[j])." },
+            "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+            "target_value": { "type": ["boolean", "integer", "number", "string"] },
+            "differential": { "type": "boolean" },
+            "form": { "type": "string" },
+            "model_assumption": { "type": "string" },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "Everything verify_measurement_correction_numeric re-inverts: the confusion matrix, the per-(arm, stratum) full outcome value-count vectors, and the covariate marginal counts.",
+              "required": ["confusion_matrix", "states", "target_value", "target_index", "adjustment_vars", "strata", "marginal_counts", "marginal_total", "det"],
+              "additionalProperties": false,
+              "properties": {
+                "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+                "target_value": { "type": ["boolean", "integer", "number", "string"] },
+                "target_index": { "type": "integer", "minimum": 0 },
+                "adjustment_vars": { "type": "array", "items": { "type": "string" } },
+                "strata": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["arm", "z", "counts", "n"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
+                      "z": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+                      "counts": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                      "n": { "type": "integer", "minimum": 1 }
+                    }
+                  }
+                },
+                "marginal_counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["z", "count"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "z": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+                      "count": { "type": "integer", "minimum": 1 }
+                    }
+                  }
+                },
+                "marginal_total": { "type": "integer", "minimum": 1 },
+                "det": { "type": "number" }
               }
             }
           }

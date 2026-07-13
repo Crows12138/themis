@@ -35,6 +35,7 @@ def estimate_program(
     cluster: str | None = None,
     ate_estimator: str = "gformula",
     reference_data: Any = None,
+    misclassification: dict | None = None,
 ) -> dict:
     """See ``themis.estimate`` for the full contract.
 
@@ -63,6 +64,17 @@ def estimate_program(
     supplies the S-conditioned risks and ``reference_data`` supplies the
     adjustment weights P(z⁺)/P(z⁻|x,z⁺). Ordinary (no-selection) programs never
     touch it.
+
+    ``misclassification`` is an optional dict keyed by outcome variable name,
+    each value a validated confusion-matrix spec ``{"confusion_matrix": [[…]],
+    "states": [...], "target_value": …?, "differential": False?, "source": …?}``
+    from a validation study. When an effect query's OUTCOME has a spec, the
+    numeric end de-attenuates the misclassification by inverting the confusion
+    matrix per back-door stratum (Rogan-Gladen for a binary outcome) instead of
+    shipping the attenuated naive g-formula number. Like ``reference_data`` it is
+    a load-bearing external input used only at estimate time; ordinary programs
+    never touch it. Deferred: exposure misclassification, differential (per-arm)
+    matrices, continuous mismeasurement.
     """
     from ..kernel import run as _run
 
@@ -125,6 +137,7 @@ def estimate_program(
         random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
         cluster=cluster, ate_estimator=ate_estimator,
         reference_data=reference_data,
+        misclassification=misclassification,
     )
 
     # Numeric end for the counterfactual rung: evaluate an ID*/IDC*-identified
@@ -578,6 +591,7 @@ def _estimate_effect_queries(
     cluster: str | None = None,
     ate_estimator: str = "gformula",
     reference_data: Any = None,
+    misclassification: dict | None = None,
 ) -> None:
     """For each effect query result, attach a numeric_estimate when a
     supported identification strategy is available. Mutates ``output``
@@ -686,6 +700,24 @@ def _estimate_effect_queries(
             given=given_atoms,
             bidirected=bidirected or None,
         )
+        # Measurement-error correction (frontier E): when the caller supplied a
+        # validated confusion matrix for THIS query's outcome, de-attenuate the
+        # misclassification by inverting the matrix per back-door stratum
+        # instead of shipping the attenuated naive g-formula number. The spec is
+        # a load-bearing external input (validation study), used only here;
+        # ordinary programs never reach this branch. A refusal (singular / non-
+        # stochastic matrix, positivity, non-backdoor identification) records an
+        # estimator_failure rather than silently falling back to the biased
+        # naive point — the caller explicitly asked for the corrected number.
+        mc_spec = (misclassification or {}).get(y_atom.predicate)
+        if mc_spec is not None:
+            _try_measurement_correction_estimate(
+                q_stmt, result, contract, graph,
+                adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
+            )
+            continue
         # Phase 14 slice a: when the program flagged a dose-response
         # query AND identification clears via backdoor, fit the curve
         # estimator instead of the binary-effect ATE estimator. Other
@@ -2673,6 +2705,177 @@ def _try_selection_recovery_estimate(
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _finalise_numeric_result(result)
+
+
+def _try_measurement_correction_estimate(
+    q_stmt, result: dict, contract, graph, *,
+    adjustment_sets, given, spec: dict,
+    random_state: int, ci_bootstrap: int, cluster: str | None = None,
+) -> None:
+    """Frontier E numeric end + honest gate for a misclassified outcome.
+
+    Fires when the caller supplied a validated confusion matrix for this
+    query's outcome. Two outcomes, neither a silently-attenuated back-door
+    number:
+
+    - Not back-door identified, or the correction refuses (singular / non-
+      stochastic matrix, positivity, non-binary treatment) → ``estimator_
+      failure`` (no number); the caller asked for the corrected point, so the
+      biased naive g-formula is withheld, not shipped.
+    - Back-door identified AND the correction succeeds → invert the confusion
+      matrix per stratum, attach the de-attenuated ``numeric_estimate`` (with
+      the naive point kept for contrast), flip to numerically_solved.
+    """
+    from .measurement import estimate_measurement_correction
+    from .dose_response import EstimatorFailure
+
+    x_atom = q_stmt.query.intervention.atom
+    y_atom = q_stmt.query.target.atom
+    target_value = q_stmt.query.target.value
+
+    if not adjustment_sets:
+        result["estimator_failure"] = {
+            "estimator": "measurement_error_correction",
+            "failure_type": "requires_backdoor_identification",
+            "reason": (
+                "confusion-matrix correction composes with back-door "
+                "standardisation, but P(y|do(x)) is not back-door identified "
+                "here; no corrected number is produced."
+            ),
+        }
+        return
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        est = estimate_measurement_correction(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            confusion_matrix=spec.get("confusion_matrix"),
+            states=spec.get("states"),
+            target_value=(
+                spec["target_value"] if "target_value" in spec else target_value
+            ),
+            differential=bool(spec.get("differential", False)),
+            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": "measurement_error_correction",
+            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = {
+            "estimator": "measurement_error_correction",
+            "failure_type": "invalid_input",
+            "reason": str(exc),
+        }
+        return
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        # Confusion-matrix correction detail (audit trail + verifier inputs).
+        # The matrix + per-stratum value-count vectors don't fit derivation-
+        # input serialization, so they live here and are re-inverted by
+        # verify_measurement_correction_numeric (kernel-called).
+        "measurement_correction": {
+            "naive_point": est.naive_point,
+            "det": est.det,
+            "out_of_simplex": est.out_of_simplex,
+            "confusion_matrix": [list(row) for row in est.confusion_matrix],
+            "states": list(est.states),
+            "target_value": est.target_value,
+            "differential": False,
+            "form": est.form,
+            "model_assumption": est.model_assumption,
+            "sufficient_statistics": est.sufficient_statistics,
+        },
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import build_mechanism_audit
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
+        form=est.form,
+        method=est.method,
+        assumption=est.model_assumption,
+        provenance="default",
+    )
+
+    result["derivation"] = _build_measurement_correction_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
+        given=frozenset(given), estimate=est,
+    )
+    _finalise_numeric_result(result)
+
+
+def _build_measurement_correction_derivation_dict(
+    *, graph, x, y, adjustment, given, estimate,
+):
+    """Two-step derivation for a confusion-matrix-corrected estimate:
+
+        s1: backdoor_criterion (structural witness — P(y|do(x)) is back-door
+            identified with this adjustment set; the correction standardises
+            over it)
+        s2: numeric_measurement_correction_estimate (metadata + structural
+            licensing terminal; the matrix inversion / point re-derivation from
+            the recorded confusion matrix + value-count vectors is
+            verify_measurement_correction_numeric, called from the kernel —
+            those matrices don't fit derivation-input serialization)
+    """
+    from ..types import DerivationStep, StepRef, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="backdoor_criterion",
+            inputs={
+                "graph": graph,
+                "x": x, "y": y,
+                "z": frozenset(adjustment),
+                "given": given,
+            },
+            output=True,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="numeric_measurement_correction_estimate",
+            inputs={
+                "criterion": StepRef(step_id="s1"),
+                "treatment": x,
+                "outcome": y,
+                "adjustment": frozenset(adjustment),
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
 
 
 def _extract_program_extensions(program) -> dict:

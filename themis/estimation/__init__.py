@@ -26,6 +26,15 @@ Landed scope:
   the Sargan J, and the joint first-stage F are closed forms of the recorded
   residualised second moments, so the verifier re-derives them (with its own
   independent transcription) without the raw data.
+- Measurement-error correction — ``estimate_measurement_correction`` (returning
+  ``MeasurementCorrectionEstimate``): de-attenuates a MISCLASSIFIED discrete
+  outcome by inverting a validated confusion matrix per back-door stratum
+  (``p_true = M⁻¹ p_obs``; Rogan-Gladen 1978 for the binary case), under
+  non-differential misclassification. The corrected point, the naive
+  (attenuated) point, and det(M) are closed forms of the recorded matrix +
+  per-stratum value-count vectors, so the verifier re-inverts them independently
+  without the raw data. Deferred: exposure misclassification, differential
+  (per-arm) matrices, continuous mismeasurement.
 - Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
   ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
   ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via
@@ -201,6 +210,10 @@ from .iv import (
     estimate_iv_overid,
 )
 from .joint import JointEffectEstimate, estimate_joint_effect
+from .measurement import (
+    MeasurementCorrectionEstimate,
+    estimate_measurement_correction,
+)
 from .longitudinal import (
     LongitudinalGFormulaEstimate,
     LongitudinalIPWMSMEstimate,
@@ -254,6 +267,8 @@ __all__ = [
     "IPWEstimate",
     "IVEstimate",
     "JointEffectEstimate",
+    "MeasurementCorrectionEstimate",
+    "estimate_measurement_correction",
     "LongitudinalGFormulaEstimate",
     "LongitudinalIPWMSMEstimate",
     "MediationEstimate",

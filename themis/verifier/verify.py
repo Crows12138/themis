@@ -720,6 +720,13 @@ def verify_numeric_estimate(
         # napkin); the derivation ends in the plug-in terminal atop a
         # general_id_criterion structural witness.
         "numeric_general_id_estimate",
+        # Measurement-error correction (frontier E) — confusion-matrix inversion
+        # atop a back-door identification (backdoor_criterion witness). Metadata
+        # + structural-licensing terminal; the matrix inversion / point
+        # re-derivation from the recorded confusion matrix + value-count vectors
+        # is verify_measurement_correction_numeric (kernel-called), since those
+        # matrices don't fit derivation-input serialization.
+        "numeric_measurement_correction_estimate",
         # Joint (treatment-set) back-door data estimate — joint contrast
         # + treatment×treatment interaction via the joint g-formula.
         "numeric_joint_backdoor_estimate",
@@ -1365,6 +1372,170 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
             f"rejected_at_0_05={claimed_rej} inconsistent with re-derived "
             f"p-value {p_value}"
         )
+
+
+_MEASUREMENT_CORRECTION_TOL = 1e-6
+
+
+def verify_measurement_correction_numeric(estimate: dict) -> None:
+    """Re-derive a confusion-matrix-corrected effect — the corrected point, the
+    naive (attenuated) point, and det(M) — from the recorded confusion matrix +
+    per-stratum outcome value-count vectors, and reject on mismatch.
+
+    The correction rides on a ``numerically_solved`` back-door result whose
+    derivation ends in ``numeric_measurement_correction_estimate`` (metadata +
+    structural licensing only — the confusion matrix and per-stratum count
+    vectors don't fit the derivation-input serialization). This is the strong
+    numeric counterpart: a SECOND, independent transcription of the inversion
+
+        p_true(· | x, z) = M⁻¹ p_obs(· | x, z)
+        effect = Σ_z [ p_true(y* | 1, z) − p_true(y* | 0, z) ] · P(z)
+
+    from the recorded ``measurement_correction.sufficient_statistics`` (the
+    matrix, per-(arm, stratum) value counts, and covariate marginal counts). It
+    never imports the producer's estimator and never touches the raw data. A
+    result that isn't a ``measurement_error_correction`` estimate is a no-op.
+
+    Tamper checks: forged corrected/naive point, a confusion matrix whose det
+    disagrees with the recorded det, a non-column-stochastic matrix, a stratum
+    whose counts don't sum to n, a marginal that doesn't sum to the total (a
+    dropped stratum), or a covariate stratum missing an arm — each is rejected.
+
+    ``estimate`` is the full ``numeric_estimate`` dict.
+    """
+    import numpy as np
+
+    if (
+        not isinstance(estimate, dict)
+        or estimate.get("method") != "measurement_error_correction"
+    ):
+        return
+
+    def _fail(msg):
+        raise VerificationError(
+            f"measurement_correction_numeric: {msg}",
+            step_index=None, rule="measurement_correction_numeric",
+        )
+
+    mc = estimate.get("measurement_correction")
+    if not isinstance(mc, dict):
+        _fail("numeric_estimate carries no measurement_correction block")
+    suff = mc.get("sufficient_statistics")
+    if not isinstance(suff, dict):
+        _fail("measurement_correction carries no sufficient_statistics")
+
+    try:
+        M = np.asarray(suff["confusion_matrix"], dtype=float)
+        states = list(suff["states"])
+        target_value = suff["target_value"]
+        strata = list(suff["strata"])
+        marginal_counts = list(suff["marginal_counts"])
+        marginal_total = int(suff["marginal_total"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail(f"ill-formed sufficient statistics: {exc}")
+
+    k = len(states)
+    if M.shape != (k, k):
+        _fail(f"confusion matrix {M.shape} does not match {k} states")
+    if len(set(map(_state_key, states))) != k:
+        _fail("outcome states are not distinct")
+    col_sums = M.sum(axis=0)
+    if not np.allclose(col_sums, 1.0, atol=1e-6):
+        _fail(
+            "confusion matrix is not column-stochastic "
+            f"(column sums {[round(float(c), 6) for c in col_sums]})"
+        )
+
+    det = float(np.linalg.det(M))
+    for key in ("det",):
+        claimed_det = mc.get(key)
+        if claimed_det is not None and abs(det - float(claimed_det)) > 1e-9:
+            _fail(f"det mismatch — re-derived {det}, recorded {claimed_det}")
+    if abs(suff.get("det", det) - det) > 1e-9:
+        _fail(
+            f"sufficient_statistics.det {suff.get('det')} inconsistent with the "
+            f"recorded confusion matrix (det {det})"
+        )
+    if abs(det) < 1e-12:
+        _fail("recorded confusion matrix is singular — cannot re-invert")
+    Minv = np.linalg.inv(M)
+
+    # Independent target index — do not trust the recorded one.
+    try:
+        target_index = [_state_key(s) for s in states].index(_state_key(target_value))
+    except ValueError:
+        _fail(f"target value {target_value!r} not among states {states!r}")
+
+    # Marginal P(z) from the recorded covariate counts; a marginal that doesn't
+    # sum to the total means a stratum was dropped from the standardisation.
+    marg: dict = {}
+    total = 0
+    for rec in marginal_counts:
+        zk = _z_key(rec["z"])
+        marg[zk] = int(rec["count"])
+        total += int(rec["count"])
+    if total != marginal_total:
+        _fail(
+            f"marginal counts sum to {total}, not the recorded total "
+            f"{marginal_total} (a covariate stratum was dropped)"
+        )
+
+    # Per-(arm, z) recovered target risk from the recorded value-count vectors.
+    by_z: dict = {}
+    for rec in strata:
+        zk = _z_key(rec["z"])
+        counts = np.asarray(rec["counts"], dtype=float)
+        n = int(rec["n"])
+        if counts.shape != (k,):
+            _fail(f"stratum count vector length {counts.shape} != {k} states")
+        if int(counts.sum()) != n:
+            _fail(
+                f"stratum arm={rec['arm']} z={rec['z']} counts sum to "
+                f"{int(counts.sum())}, not n={n}"
+            )
+        if n <= 0:
+            _fail(f"stratum arm={rec['arm']} z={rec['z']} has n={n}")
+        p_obs = counts / n
+        p_true = Minv @ p_obs
+        by_z.setdefault(zk, {})[int(rec["arm"])] = (
+            float(p_true[target_index]), float(p_obs[target_index]),
+        )
+
+    corrected = 0.0
+    naive = 0.0
+    for zk, p_z_count in marg.items():
+        p_z = p_z_count / marginal_total
+        arms = by_z.get(zk)
+        if arms is None or 1 not in arms or 0 not in arms:
+            _fail(f"covariate stratum {list(zk)} missing an arm in the strata records")
+        corrected += (arms[1][0] - arms[0][0]) * p_z
+        naive += (arms[1][1] - arms[0][1]) * p_z
+
+    point = estimate.get("point")
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        _fail(f"missing / non-numeric point {point!r}")
+    if abs(corrected - float(point)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(corrected)):
+        _fail(f"point mismatch — re-derived corrected {corrected}, recorded {point}")
+
+    claimed_naive = mc.get("naive_point")
+    if claimed_naive is None:
+        _fail("measurement_correction.naive_point missing")
+    if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
+        _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
+
+
+def _state_key(v):
+    """Hashable, bool/int-collision-free key for an outcome state value."""
+    if isinstance(v, bool):
+        return ("b", v)
+    if isinstance(v, (int, float)):
+        return ("n", float(v))
+    return ("s", str(v))
+
+
+def _z_key(z):
+    """Order-preserving hashable key for a covariate-stratum value list."""
+    return tuple(_state_key(v) for v in z)
 
 
 _LONGITUDINAL_TOL = 1e-6
