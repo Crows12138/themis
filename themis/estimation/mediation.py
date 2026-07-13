@@ -81,6 +81,13 @@ class FourWayDecomposition:
     ci_level: float
     scale: str
     cde_mediator_reference: object
+    # The six standardized quantities the split was built from:
+    # p00/p01/p10/p11 = E[Y|A,M] and q0/q1 = E[M|A], g-formula standardized
+    # over the sample covariates. Recorded as the difference-scale sufficient
+    # statistics so the verifier can re-derive every component from them (the
+    # analog of four_way_ratio recording the fitted coefficients) — turning
+    # the block from invariant-only into a strong re-derivation.
+    cell_means: dict
 
 
 @dataclass(frozen=True)
@@ -302,9 +309,11 @@ def estimate_mediation(
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
 
+    fw_inputs = (
+        _four_way_inputs(om_point, mm_point, fit_df) if four_way_valid else None
+    )
     fw_point = (
-        four_way_decomposition(**_four_way_inputs(om_point, mm_point, fit_df))
-        if four_way_valid else None
+        four_way_decomposition(**fw_inputs) if fw_inputs is not None else None
     )
     fw_pm_p = (
         (fw_point.intmed + fw_point.pie) / fw_point.te
@@ -391,6 +400,7 @@ def estimate_mediation(
         ci_level=ci_level,
         scale="risk_difference",
         cde_mediator_reference=0,
+        cell_means={k: float(v) for k, v in fw_inputs.items()},
     )
 
     return MediationEstimate(

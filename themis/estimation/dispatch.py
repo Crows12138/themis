@@ -1892,6 +1892,11 @@ def _try_mediation_estimate(
             "additive_interaction": fw.additive_interaction_point,
             "scale": fw.scale,
             "cde_mediator_reference": fw.cde_mediator_reference,
+            # The standardized cell means the split was built from. Recorded
+            # as sufficient statistics so verify_mediation_numeric re-derives
+            # every component (and, on the linear path, NDE/NIE) from them —
+            # the difference-scale analog of four_way_ratio's coefficients.
+            "sufficient_statistics": {"cell_means": dict(fw.cell_means)},
             "reference": (
                 "VanderWeele 2014 (Explanation in Causal Inference Ch.14); "
                 "TE = CDE + INTref + INTmed + PIE"

@@ -7,15 +7,22 @@ attached to it — the Imai NDE/NIE decomposition and the two four-way splits �
 shipped with no numeric audit: a tampered err_cde or prop_mediated passed
 ``themis.verify``.
 
-Two levels of check:
+Levels of check:
 - ``four_way_ratio`` (STRONG): every ERR component is a closed form of the
   fitted logistic coefficients (now recorded), so the verifier re-derives
   them and catches ANY tamper, even a self-consistent one — including a
   tampered coefficient.
-- ``four_way_decomposition`` / ``decomposition`` (INVARIANTS): sufficient
-  statistics not recorded / simulation-based, so only the construction
-  identities (TE = sum of parts; proportion = ratio) are checked; a
-  self-consistent forgery of those two is the honest ceiling.
+- ``four_way_decomposition`` (STRONG when the cell means are recorded): the
+  split is a closed form of six standardized cell means, now recorded under
+  ``sufficient_statistics.cell_means``; the verifier re-derives every
+  component from them and catches even a self-consistent forgery. Without the
+  means (hand-built / older block) it falls back to the construction
+  identities.
+- ``decomposition`` (Imai NDE/NIE): STRONG on the LINEAR path (nde/nie equal
+  the cell-mean bridge PNDE=CDE+INTref, TNIE=INTmed+PIE exactly); INVARIANTS
+  on the LOGIT path (nde/nie are Monte-Carlo, not re-derivable from the {0,1}
+  cell means — a self-consistent forgery of the logit nde/nie is the honest
+  ceiling).
 """
 from __future__ import annotations
 
@@ -100,6 +107,16 @@ def test_binary_result_has_all_three_blocks(binary_result):
     assert "decomposition" in ne
 
 
+def test_four_way_decomposition_records_cell_means(continuous_result):
+    """The difference-scale block now carries the six standardized cell means
+    the split is a closed form of — the sufficient statistics the strong
+    re-derivation reads."""
+    fw = continuous_result["numeric_estimate"]["four_way_decomposition"]
+    cells = fw["sufficient_statistics"]["cell_means"]
+    assert set(cells) == {"p00", "p01", "p10", "p11", "q0", "q1"}
+    assert all(isinstance(v, float) for v in cells.values())
+
+
 def test_binary_round_trips(binary_result):
     assert themis.verify(_mediation_ast(), binary_result) is None
 
@@ -153,7 +170,7 @@ def test_rejects_missing_coefficients(binary_result):
         verify_mediation_numeric(ne)
 
 
-# --- four_way_decomposition + decomposition: construction identities ---------
+# --- four_way_decomposition: STRONG re-derivation from recorded cell means ---
 
 
 def test_rejects_tampered_difference_scale_cde(continuous_result):
@@ -177,20 +194,73 @@ def test_rejects_tampered_decomposition_proportion(continuous_result):
         verify_mediation_numeric(ne)
 
 
-# --- honest ceiling: a self-consistent forgery of an invariant-only block ----
-
-
-def test_self_consistent_difference_scale_forgery_not_caught(continuous_result):
+def test_self_consistent_difference_scale_forgery_now_caught(continuous_result):
     """Scaling every difference-scale component AND te by the same factor
     keeps TE = sum-of-parts and every proportion = its ratio, so the
-    invariant-only check passes it. Catching this would need the recorded
-    cell means (not stored) — the honest ceiling for that block, unlike the
-    coefficient-anchored four_way_ratio."""
+    invariant-only check would pass it. With the recorded cell means the
+    verifier re-derives the true components and the doubled values no longer
+    match — the hole the sufficient-statistics upgrade closes."""
     ne = _ne(continuous_result)
     fw = ne["four_way_decomposition"]
     for k in ("cde", "intref", "intmed", "pie", "te"):
         fw[k]["point"] *= 2.0
-    verify_mediation_numeric(ne)  # passes — documented limitation
+    with pytest.raises(VerificationError):
+        verify_mediation_numeric(ne)
+
+
+def test_rejects_tampered_cell_mean(continuous_result):
+    """Moving a recorded cell mean re-derives different components, so the
+    (untampered) reported points no longer match — proving the block is tied
+    to the standardized means, not merely internally consistent (the
+    difference-scale analog of the tampered-coefficient test)."""
+    ne = _ne(continuous_result)
+    ne["four_way_decomposition"]["sufficient_statistics"]["cell_means"]["p11"] += 0.3
+    with pytest.raises(VerificationError):
+        verify_mediation_numeric(ne)
+
+
+def test_missing_cell_means_falls_back_to_invariants(continuous_result):
+    """Without recorded cell means the block degrades to the construction
+    identities: a self-consistent forgery passes (documented fallback), but a
+    single-component tamper is still caught."""
+    ne = _ne(continuous_result)
+    del ne["four_way_decomposition"]["sufficient_statistics"]
+    fw = ne["four_way_decomposition"]
+    forged = _ne(continuous_result)
+    del forged["four_way_decomposition"]["sufficient_statistics"]
+    for k in ("cde", "intref", "intmed", "pie", "te"):
+        forged["four_way_decomposition"][k]["point"] *= 2.0
+    verify_mediation_numeric(forged)  # self-consistent forgery: fallback ceiling
+    fw["cde"]["point"] += 5.0  # single-component tamper still breaks sum == te
+    with pytest.raises(VerificationError):
+        verify_mediation_numeric(ne)
+
+
+# --- decomposition (Imai NDE/NIE): STRONG on linear, INVARIANTS on logit -----
+
+
+def test_linear_self_consistent_nde_forgery_now_caught(continuous_result):
+    """On the LINEAR path nde/nie equal the cell-mean bridge exactly, so a
+    forgery that scales nde, nie AND te together (self-consistent under
+    nde+nie==te) is caught by the bridge cross-check."""
+    ne = _ne(continuous_result)
+    assert ne["method"] == "mediation_linear_imai"
+    for k in ("nde", "nie", "te"):
+        ne["decomposition"][k]["point"] *= 2.0
+    with pytest.raises(VerificationError):
+        verify_mediation_numeric(ne)
+
+
+def test_logit_self_consistent_nde_forgery_is_honest_ceiling(binary_result):
+    """On the LOGIT path nde/nie come from a Monte-Carlo integration over M
+    and are not re-derivable from the {0,1} cell means, so a self-consistent
+    forgery of nde/nie/te passes — the documented ceiling for that block. The
+    four-way split on the same result stays strong (cell means recorded)."""
+    ne = _ne(binary_result)
+    assert ne["method"] == "mediation_logit_imai"
+    for k in ("nde", "nie", "te"):
+        ne["decomposition"][k]["point"] *= 2.0
+    verify_mediation_numeric(ne)  # passes — Monte-Carlo ceiling
 
 
 # --- unit-level + no-op ------------------------------------------------------

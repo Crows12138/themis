@@ -1079,14 +1079,27 @@ def verify_mediation_numeric(estimate: dict) -> None:
       identities are re-checked: the four ERR pieces sum to total_err,
       total_err = total_rr − 1, and each proportion equals its component
       ratio.
-    - ``four_way_decomposition`` (difference scale) and ``decomposition``
-      (Imai NDE/NIE) (INVARIANTS): their sufficient statistics — standardized
-      cell means, and a Monte-Carlo simulation over the data — are not
-      recorded / not re-derivable without a re-fit, the ceiling every
-      data-refit estimator sits at. What IS checkable is the construction
-      identities (TE = sum of parts; each proportion = its ratio). These
-      catch a single-component tamper (the demonstrated hole) but not a
-      fully self-consistent forgery.
+    - ``four_way_decomposition`` (difference scale) (STRONG when the cell
+      means are recorded): the split is a closed form of six standardized
+      cell means — p_am = E[Y|A=a,M=m] and q_a = E[M|A=a]. Those means are
+      now recorded under ``sufficient_statistics.cell_means``, so the
+      verifier re-derives CDE / INTref / INTmed / PIE / TE from them with an
+      independent transcription of VanderWeele 14.1b and rejects any tamper —
+      even a fully self-consistent one, because it no longer agrees with the
+      recorded means. When the means are absent (a hand-built or older block)
+      it falls back to the construction identities (TE = sum of parts; each
+      proportion = its ratio), which catch only a single-component tamper.
+    - ``decomposition`` (Imai NDE/NIE) (STRONG on the linear path, INVARIANTS
+      on the logit path): the difference-scale PNDE = CDE + INTref and TNIE =
+      INTmed + PIE are exact closed forms of the SAME cell means, and on a
+      LINEAR outcome they equal the reported nde / nie byte-for-byte
+      (linearity makes the plug-in E[M|X] equal the m∈{0,1} mixture). So for
+      ``mediation_linear_imai`` the verifier cross-checks nde / nie against
+      the cell-mean bridge. On the logit path the reported nde / nie
+      integrate M by Monte Carlo and legitimately differ from the {0,1}
+      grid — not re-derivable from the cell means without re-running the
+      simulation — so only the construction identities are checked there (a
+      self-consistent forgery of the logit nde / nie is the honest ceiling).
 
     ``estimate`` is the full ``numeric_estimate`` dict; each block is
     audited only when present.
@@ -1171,12 +1184,51 @@ def verify_mediation_numeric(estimate: dict) -> None:
             _close((er + em + ep) / te, fr["prop_eliminated"]["point"],
                    "four_way_ratio.prop_eliminated_identity", "four_way_ratio")
 
-    # ---- four_way_decomposition (difference scale): construction identities --
+    # ---- four_way_decomposition (difference scale) --------------------------
     fw = estimate.get("four_way_decomposition")
+    # PNDE / TNIE re-derived from the cell means, shared with the NDE/NIE
+    # cross-check below. None unless the cell means were recorded.
+    pnde_cells = tnie_cells = None
     if fw is not None:
         cde, ir = fw["cde"]["point"], fw["intref"]["point"]
         im, pie = fw["intmed"]["point"], fw["pie"]["point"]
         te = fw["te"]["point"]
+
+        cells = (fw.get("sufficient_statistics") or {}).get("cell_means")
+        if cells is not None:
+            # STRONG: independent transcription of VanderWeele 14.1b
+            # (four_way.py's oracle) — re-derive every component from the
+            # recorded standardized cell means. A self-consistent tamper of
+            # the reported components no longer passes: it must also rewrite
+            # the cell means it claims to have been computed from.
+            p00, p01 = cells["p00"], cells["p01"]
+            p10, p11 = cells["p10"], cells["p11"]
+            q0, q1 = cells["q0"], cells["q1"]
+            ai = p11 - p10 - p01 + p00
+            r_cde = p10 - p00
+            r_intref = ai * q0
+            r_intmed = ai * (q1 - q0)
+            r_pie = (p01 - p00) * (q1 - q0)
+            r_te = r_cde + r_intref + r_intmed + r_pie
+            _close(r_cde, cde, "four_way_decomposition.cde",
+                   "four_way_decomposition")
+            _close(r_intref, ir, "four_way_decomposition.intref",
+                   "four_way_decomposition")
+            _close(r_intmed, im, "four_way_decomposition.intmed",
+                   "four_way_decomposition")
+            _close(r_pie, pie, "four_way_decomposition.pie",
+                   "four_way_decomposition")
+            _close(r_te, te, "four_way_decomposition.te",
+                   "four_way_decomposition")
+            ai_rec = fw.get("additive_interaction")
+            if ai_rec is not None:
+                _close(ai, ai_rec,
+                       "four_way_decomposition.additive_interaction",
+                       "four_way_decomposition")
+            pnde_cells = r_cde + r_intref   # = NDE on the difference scale
+            tnie_cells = r_intmed + r_pie   # = NIE on the difference scale
+
+        # Construction identities — also cover the no-cell-means fallback.
         _close(cde + ir + im + pie, te, "four_way_decomposition.sum==te",
                "four_way_decomposition")
         if abs(te) > _MEDIATION_TOL:
@@ -1187,11 +1239,23 @@ def verify_mediation_numeric(estimate: dict) -> None:
                    "four_way_decomposition.prop_interaction",
                    "four_way_decomposition")
 
-    # ---- decomposition (Imai NDE/NIE): construction identities --------------
+    # ---- decomposition (Imai NDE/NIE) --------------------------------------
     dec = estimate.get("decomposition")
     if dec is not None and {"nde", "nie", "te"} <= dec.keys():
         nde, nie = dec["nde"]["point"], dec["nie"]["point"]
         te = dec["te"]["point"]
+        # STRONG (linear path only): the reported nde/nie equal the
+        # cell-mean bridge exactly for a linear outcome. On the logit path
+        # they come from a Monte-Carlo integration over M and legitimately
+        # differ, so the bridge is not applied there.
+        if (
+            pnde_cells is not None
+            and estimate.get("method") == "mediation_linear_imai"
+        ):
+            _close(pnde_cells, nde,
+                   "decomposition.nde==PNDE(cell_means)", "decomposition")
+            _close(tnie_cells, nie,
+                   "decomposition.nie==TNIE(cell_means)", "decomposition")
         _close(nde + nie, te, "decomposition.nde+nie==te", "decomposition")
         pm = dec.get("proportion_mediated")
         if pm is not None and abs(te) > _MEDIATION_TOL:

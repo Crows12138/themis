@@ -954,6 +954,27 @@
             "additive_interaction": { "type": "number" },
             "scale": { "type": "string" },
             "cde_mediator_reference": {},
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "The standardized cell means the difference-scale split was built from — the sufficient statistics verify_mediation_numeric re-derives every component (and, on the linear-outcome path, NDE/NIE) from, turning the block from invariant-only into a strong re-derivation (the difference-scale analog of four_way_ratio.coefficients). cell_means: p00/p01/p10/p11 = E[Y|A,M] and q0/q1 = E[M|A], g-formula standardized over the sample covariates.",
+              "required": ["cell_means"],
+              "additionalProperties": false,
+              "properties": {
+                "cell_means": {
+                  "type": "object",
+                  "required": ["p00", "p01", "p10", "p11", "q0", "q1"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "p00": { "type": "number" },
+                    "p01": { "type": "number" },
+                    "p10": { "type": "number" },
+                    "p11": { "type": "number" },
+                    "q0": { "type": "number" },
+                    "q1": { "type": "number" }
+                  }
+                }
+              }
+            },
             "reference": { "type": "string" }
           }
         },

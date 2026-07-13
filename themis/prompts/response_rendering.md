@@ -937,15 +937,19 @@ mediation". Two scales:
   proportion mediated + the structural identifiability verdict.
 
 These numbers ride on a `structurally_solved` result, so the kernel's
-`verify_mediation_numeric` audits them: it re-derives every `four_way_ratio`
-`err_*` / `prop_*` from the recorded `coefficients` (the fitted logistic
-t1/t2/t3/b0/b1 the VanderWeele closed form was evaluated at), so a tampered
-ratio component — even a self-consistent one — is rejected. The
-difference-scale `four_way_decomposition` and the Imai `decomposition`
-(NDE/NIE) get construction-identity checks only (TE = sum of parts;
-proportion = ratio); their values are cell-mean / simulation based and not
-re-derivable without a re-fit, so disclose them at the estimator's own
-precision, not more.
+`verify_mediation_numeric` audits them. Both four-way scales are now
+re-derived from a recorded sufficient statistic, so a tampered component —
+even a self-consistent one — is rejected: `four_way_ratio` from the fitted
+logistic `coefficients` (t1/t2/t3/b0/b1), and `four_way_decomposition` from
+the recorded `sufficient_statistics.cell_means` (the six standardized cell
+means p_am / q_a the difference-scale split is a closed form of). The Imai
+`decomposition` (NDE/NIE) is re-derived from those same cell means on the
+**linear** outcome path — where PNDE = CDE + INTref and TNIE = INTmed + PIE
+equal nde / nie exactly — and gets construction-identity checks only on the
+**logit** path, where nde / nie come from a Monte-Carlo integration over M
+that the {0,1} cell means don't pin. Report all of it at the estimator's own
+precision; the headline stays the proportion mediated + the structural
+identifiability verdict.
 
 ### Transport identification (Phase 9 §T9.1)
 
