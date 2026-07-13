@@ -1264,3 +1264,26 @@ def verify_markov_blanket(result: dict) -> None:
     )
 
     _verify_mb(result)
+
+
+def verify_selection_recovery_numeric(result: dict) -> None:
+    """Independently audit a selection-backdoor recovered ATE (§S9.1 numeric).
+
+    The artifact is a query_result whose ``numeric_estimate`` was produced by
+    the selection-backdoor recovery estimator (method
+    ``selection_backdoor_recovery``). This re-runs the Bareinboim-Pearl
+    Theorem-3.5 formula from the recorded sufficient statistics — the
+    per-stratum biased ``(n, y_sum)`` counts and the external unbiased weight
+    tables P(z⁺) / P(z⁻|x,z⁺) — as a second, standalone transcription, and
+    checks the reported ATE and the two arms match, and that the weight tables
+    are proper distributions. It never imports the producer estimator and never
+    re-touches the raw data; a result carrying no such numeric_estimate is a
+    no-op. Raises :class:`themis.verifier.errors.VerificationError` on mismatch.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.selection_numeric_rules import (
+        verify_selection_recovery_numeric as _verify_sel,
+    )
+
+    _verify_sel(result)

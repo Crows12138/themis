@@ -34,6 +34,7 @@ def estimate_program(
     model: str = "auto",
     cluster: str | None = None,
     ate_estimator: str = "gformula",
+    reference_data: Any = None,
 ) -> dict:
     """See ``themis.estimate`` for the full contract.
 
@@ -54,6 +55,14 @@ def estimate_program(
     OR the propensity model is correct). May also be set via the program
     AST's ``options.ate_estimator``. Only the backdoor branch honours it;
     front-door / IV / mediation keep their own estimators.
+
+    ``reference_data`` is an optional second DataFrame — the external
+    *unbiased* sample T required to recover a causal effect under selection
+    bias (Bareinboim-Pearl selection backdoor). It is used ONLY when a query's
+    result carries a ``selection_recovery`` block: the biased primary ``data``
+    supplies the S-conditioned risks and ``reference_data`` supplies the
+    adjustment weights P(z⁺)/P(z⁻|x,z⁺). Ordinary (no-selection) programs never
+    touch it.
     """
     from ..kernel import run as _run
 
@@ -115,6 +124,7 @@ def estimate_program(
         program, identification_output, contract,
         random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
         cluster=cluster, ate_estimator=ate_estimator,
+        reference_data=reference_data,
     )
 
     # Numeric end for the counterfactual rung: evaluate an ID*/IDC*-identified
@@ -563,6 +573,7 @@ def _estimate_effect_queries(
     model: str,
     cluster: str | None = None,
     ate_estimator: str = "gformula",
+    reference_data: Any = None,
 ) -> None:
     """For each effect query result, attach a numeric_estimate when a
     supported identification strategy is available. Mutates ``output``
@@ -591,6 +602,11 @@ def _estimate_effect_queries(
 
     dose_response_query_ids, dose_response_warnings = _dose_response_routing_plan(prog)
     _append_data_contract_warnings(output, dose_response_warnings)
+
+    # Selection-bias recovery (§S9.1 numeric end): the value that defines
+    # "selected" for each ObservationStatement, so the recovery estimator can
+    # restrict the biased sample to S = selected.
+    selection_values = _collect_selection_observation_values(prog)
 
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None:
@@ -637,6 +653,22 @@ def _estimate_effect_queries(
                 random_state=random_state,
                 ci_bootstrap=ci_bootstrap,
                 ci_level=0.95,
+                cluster=cluster,
+            )
+            continue
+
+        # §S9.1 numeric end + honest gate: when the identification pass attached
+        # a selection_recovery block, the sample is restricted on a selection
+        # collider and the ORDINARY back-door number below would be silently
+        # biased (it standardizes over a collider-conditioned sample). Route to
+        # the selection-backdoor recovery estimator instead — which produces the
+        # recovered number from the biased sample + external reference data, or
+        # refuses (naming the external data needed) rather than shipping a
+        # biased point. Either way, never fall through to estimate_backdoor_ate.
+        if (result.get("extensions") or {}).get("selection_recovery") is not None:
+            _try_selection_recovery_estimate(
+                q_stmt, result, contract, reference_data, selection_values,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
             )
             continue
@@ -2480,6 +2512,137 @@ def _coerce_target_marginal_keys(target_marginal: dict) -> dict:
         else:
             coerced[k] = v
     return {**target_marginal, "marginal": coerced}
+
+
+def _collect_selection_observation_values(prog) -> dict:
+    """Map each ObservationStatement predicate → its observed value.
+
+    These are the values that define "selected" for the selection-bias
+    recovery estimator (it restricts the biased sample to S = selected)."""
+    from ..types import ObservationStatement
+    out: dict = {}
+    for st in getattr(prog, "statements", ()):
+        if isinstance(st, ObservationStatement):
+            out[st.atom.predicate] = st.value
+    return out
+
+
+def _try_selection_recovery_estimate(
+    q_stmt, result: dict, contract, reference_data, selection_values: dict,
+    *, random_state: int, ci_bootstrap: int, cluster: str | None = None,
+) -> None:
+    """§S9.1 numeric end + honest gate for selection bias.
+
+    Fires when the result carries a ``selection_recovery`` block (the sample is
+    restricted on a selection collider). Three outcomes, none of which is a
+    silently-biased back-door number:
+
+    - NOT recoverable via SBD → ``estimator_failure`` (no number); the
+      structural non-recoverability verdict stands.
+    - Recoverable but the required external unbiased data was not supplied
+      (no ``reference_data``) → ``estimator_failure`` naming exactly the
+      external data the ledger demands. This is the bug fix: the ordinary
+      back-door point on the biased sample is withheld, not shipped.
+    - Recoverable AND ``reference_data`` supplied → evaluate the Theorem-3.5
+      recovery formula, attach the recovered ``numeric_estimate``, flip to
+      numerically_solved.
+    """
+    from .selection import estimate_selection_recovery
+    from .dose_response import EstimatorFailure
+
+    block = (result.get("extensions") or {}).get("selection_recovery") or {}
+    x = q_stmt.query.intervention.atom.predicate
+    y = q_stmt.query.target.atom.predicate
+
+    if not block.get("recoverable"):
+        result["estimator_failure"] = {
+            "estimator": "selection_backdoor_recovery",
+            "failure_type": "not_recoverable",
+            "reason": (
+                block.get("failure_reason")
+                or "P(y|do(x)) is not recoverable from the selection bias via "
+                   "the selection-backdoor criterion; no number is produced."
+            ),
+        }
+        return
+
+    external = list(block.get("external_data_needed") or [])
+    z_plus = tuple(block.get("z_plus") or ())
+    z_minus = tuple(block.get("z_minus") or ())
+    selection_nodes = tuple(block.get("selection_nodes") or ())
+
+    if reference_data is None:
+        # Recoverable only with external unbiased data we don't have. Refuse —
+        # the biased back-door number would be silently wrong.
+        need = "; ".join(external) if external else "external unbiased weights"
+        result["estimator_failure"] = {
+            "estimator": "selection_backdoor_recovery",
+            "failure_type": "external_data_required",
+            "reason": (
+                f"P(y|do(x)) is recoverable from this selection bias only with "
+                f"external unbiased data ({need}). Supply it as reference_data= "
+                f"to compute the recovered ATE. The ordinary back-door estimate "
+                f"on the collider-restricted sample would be biased and is "
+                f"withheld."
+            ),
+            "external_data_needed": external,
+            "recovery_formula": block.get("recovery_formula"),
+        }
+        return
+
+    sel_vals = {s: selection_values.get(s, True) for s in selection_nodes}
+    try:
+        est = estimate_selection_recovery(
+            contract.data, reference_data,
+            treatment=x, outcome=y,
+            z_plus=z_plus, z_minus=z_minus,
+            selection_nodes=selection_nodes, selected_values=sel_vals,
+            ci_bootstrap=ci_bootstrap, random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": "selection_backdoor_recovery",
+            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, KeyError) as exc:
+        result["estimator_failure"] = {
+            "estimator": "selection_backdoor_recovery",
+            "failure_type": "invalid_input",
+            "reason": str(exc),
+        }
+        return
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "adjustment": list(est.z_plus) + list(est.z_minus),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        # selection-backdoor recovery detail (audit trail + verifier inputs)
+        "selection_recovery_numeric": {
+            "reference_sample_size": est.reference_sample_size,
+            "reference_data_hash": est.reference_data_hash,
+            "z_plus": list(est.z_plus),
+            "z_minus": list(est.z_minus),
+            "selected_values": est.selected_values,
+            "mu_treated": est.mu_treated,
+            "mu_control": est.mu_control,
+            "form": est.form,
+            "model_assumption": est.model_assumption,
+            "sufficient_statistics": est.sufficient_statistics,
+        },
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _finalise_numeric_result(result)
 
 
 def _extract_program_extensions(program) -> dict:

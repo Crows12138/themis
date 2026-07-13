@@ -39,6 +39,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_verify_data_gap_report",
         "themis_verify_bounds_result",  # iter 133
         "themis_verify_markov_blanket",  # borrow-list #4
+        "themis_verify_selection_recovery_numeric",  # §S9.1 numeric end
         "themis_estimate",
         "themis_discover",
         "themis_markov_blanket",  # borrow-list #4

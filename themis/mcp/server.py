@@ -8,7 +8,8 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
-- ``themis_estimate(program, csv_path, options=None)`` → wraps :func:`themis.estimate`; loads CSV from disk
+- ``themis_verify_selection_recovery_numeric(result)`` → §S9.1 numeric end, wraps :func:`themis.verify_selection_recovery_numeric`; returns ``{"ok": bool, "error": str?}``
+- ``themis_estimate(program, csv_path, options=None, reference_csv_path=None)`` → wraps :func:`themis.estimate`; loads CSV(s) from disk (reference = external unbiased sample for selection-bias recovery)
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_markov_blanket(csv_path, target, ...)`` → borrow-list #4, wraps :func:`themis.estimation.discovery.markov_blanket`; local Markov-blanket screen from CSV
 - ``themis_report(program, csv_path=None, run_verify=True)`` → deterministic
@@ -187,23 +188,53 @@ def build_server():
         program: dict | str,
         csv_path: str,
         options: dict | None = None,
+        reference_csv_path: str | None = None,
     ) -> dict:
         """Run Phase 7 numeric estimation on a CSV-backed dataset.
 
         ``csv_path`` is loaded with pandas. ``options`` are forwarded as
         kwargs to :func:`themis.estimate` (e.g. ``{"random_state": 42}``).
-        Returns the estimate envelope (point / CI / method / assumptions /
-        sensitivity_analysis if binary outcome).
+        ``reference_csv_path`` (optional) is the external *unbiased* sample
+        needed to recover a causal effect under selection bias (§S9.1); it is
+        loaded and passed as ``reference_data=`` and used ONLY when a result
+        carries a ``selection_recovery`` block. Returns the estimate envelope
+        (point / CI / method / assumptions / sensitivity_analysis if binary
+        outcome).
         """
         import pandas as pd
 
-        path = Path(csv_path)
-        if not path.is_absolute():
-            path = (REPO_ROOT / csv_path).resolve()
-        if not path.is_file():
-            raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
-        df = pd.read_csv(path)
-        return themis.estimate(program, df, **(options or {}))
+        def _load(p: str):
+            path = Path(p)
+            if not path.is_absolute():
+                path = (REPO_ROOT / p).resolve()
+            if not path.is_file():
+                raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
+            return pd.read_csv(path)
+
+        df = _load(csv_path)
+        opts = dict(options or {})
+        if reference_csv_path is not None:
+            opts["reference_data"] = _load(reference_csv_path)
+        return themis.estimate(program, df, **opts)
+
+    @app.tool()
+    def themis_verify_selection_recovery_numeric(result: dict) -> dict:
+        """Independently audit a selection-backdoor recovered ATE (§S9.1).
+
+        The artifact is a query_result whose ``numeric_estimate`` was produced
+        by the selection-backdoor recovery estimator
+        (``selection_backdoor_recovery``). Re-runs the Bareinboim-Pearl
+        Theorem-3.5 recovery formula from the recorded sufficient statistics
+        (per-stratum biased counts + external unbiased weight tables) as a
+        second, standalone transcription and checks the ATE, the two arms, and
+        the weight-table normalisation — rejecting a forged point or tampered
+        stratum. A result carrying no such numeric_estimate is a no-op.
+        """
+        try:
+            themis.verify_selection_recovery_numeric(result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     @app.tool()
     def themis_report(

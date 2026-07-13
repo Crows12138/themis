@@ -1036,9 +1036,11 @@ sample, and how?* (Bareinboim-Pearl selection-backdoor criterion.) When
 both are present, render the gap's warning first, then this verdict — the
 gap is the diagnosis, this is the prognosis.
 
-Like §T9.1 it is **structural only** — it hands back a recovery *formula*
-and a *data ledger*, never a number. Do not present `recovery_formula` as
-an answer; present it as "here is what would recover it, and what it costs".
+The `selection_recovery` block itself is **structural** — a recovery
+*formula* plus a *data ledger*. Do not present `recovery_formula` as an
+answer; present it as "here is what would recover it, and what it costs".
+A **numeric end** rides on top of it when data is supplied (see below), but
+the formula/ledger stay the honest lead.
 
 Read `recoverable` first, then branch on it:
 
@@ -1064,6 +1066,24 @@ outcome) lands here as `recoverable: false` — that is the *structural
 confirmation* of Hernán's own point ("no covariate adjustment closes the
 path"), so say so: the kernel independently re-derived what the paper
 asserts.
+
+**Numeric end (§S9.1, `estimate`).** For a selection-biased effect query,
+the ordinary back-door number would be *silently biased* (it standardizes
+over a collider-conditioned sample), so the estimator never ships it.
+Instead:
+
+- If the analyst supplies the external unbiased sample as `reference_data`,
+  `numeric_estimate.method = "selection_backdoor_recovery"` carries the
+  **recovered ATE** (Theorem-3.5 formula evaluated on data), with the
+  biased sample giving the S-conditioned risks and the reference giving the
+  weights. `themis.verify_selection_recovery_numeric` re-derives it from the
+  recorded per-stratum counts + weights. Present it as a genuine number.
+- Otherwise an `estimator_failure` appears instead of a number:
+  `failure_type = "external_data_required"` (recoverable, but the unbiased
+  data named in the message is missing — the whole point of the ledger) or
+  `"not_recoverable"` (SBD-non-recoverable, e.g. the Hernán collider). This
+  refusal is a *feature*: render it as "a number here would be biased, so it
+  is withheld — here is what would unlock it", never as a failure to try.
 
 ### Missing-data recovery (Phase 9 §S9.2)
 

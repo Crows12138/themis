@@ -524,7 +524,8 @@
             "general_id_plugin",
             "ctf_conjunction_plugin",
             "proximal_matrix",
-            "causation_plugin"
+            "causation_plugin",
+            "selection_backdoor_recovery"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -654,6 +655,28 @@
             "pn": { "$ref": "#/$defs/causationQuantity" },
             "ps": { "$ref": "#/$defs/causationQuantity" },
             "pns": { "$ref": "#/$defs/causationQuantity" }
+          }
+        },
+        "selection_recovery_numeric": {
+          "type": "object",
+          "description": "selection_backdoor_recovery only (§S9.1 numeric end): the detail behind the ATE recovered from selection bias by the Bareinboim-Pearl selection-backdoor formula (Theorem 3.5). The top-level numeric_estimate point/ci is μ(1)−μ(0); mu_treated/mu_control are the two arms; sufficient_statistics carries the per-stratum biased (n, y_sum) counts and the external unbiased weight tables P(z⁺)/P(z⁻|x,z⁺) that verify_selection_recovery_numeric re-runs the formula on.",
+          "required": ["reference_sample_size", "reference_data_hash", "z_plus", "z_minus", "mu_treated", "mu_control", "sufficient_statistics"],
+          "additionalProperties": false,
+          "properties": {
+            "reference_sample_size": { "type": "integer", "minimum": 1 },
+            "reference_data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "z_plus": { "type": "array", "items": { "type": "string" }, "description": "Non-descendants of X in the adjustment set (confounding control, weighted by external P(z⁺))." },
+            "z_minus": { "type": "array", "items": { "type": "string" }, "description": "Descendants of X in the adjustment set (selection control, reweighted by external P(z⁻|x,z⁺))." },
+            "selected_values": { "type": "object", "description": "The value that defines 'selected' for each selection node S the biased sample is restricted on." },
+            "mu_treated": { "type": "number", "description": "μ(1) = E[Y|do(X=1)] recovered by the Theorem-3.5 sum." },
+            "mu_control": { "type": "number", "description": "μ(0) = E[Y|do(X=0)] recovered by the Theorem-3.5 sum." },
+            "form": { "type": "string" },
+            "model_assumption": { "type": "string" },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "Audit trail the numeric verifier re-derives the point from: z_plus_vars / z_minus_vars, ref_p_zplus (external P(z⁺) records), ref_p_zminus_given (external P(z⁻|x,z⁺) records), biased_strata (per-(arm, z⁺, z⁻) n + y_sum on the S-restricted sample), and the recomputed mu_treated / mu_control.",
+              "additionalProperties": true
+            }
           }
         },
         "sensitivity_analysis": {
@@ -995,16 +1018,25 @@
     },
     "estimator_failure": {
       "type": "object",
-      "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result. ``not_recoverable`` is the §S9.2 missing-data case: identification decided the estimand cannot be recovered from this response process, so the estimator refuses to produce a number.",
+      "description": "Phase 14: structured failure when an estimator is reachable but produces an unusable answer (overlap insufficient, convergence failure, etc.). Mutually exclusive with numeric_estimate on the same result. ``not_recoverable`` is the §S9.2 missing-data case (and the §S9.1 selection-backdoor-non-recoverable case): identification decided the estimand cannot be recovered, so the estimator refuses to produce a number. ``external_data_required`` is the §S9.1 selection-bias case where the effect IS recoverable but only with external unbiased data (``external_data_needed``) the caller has not supplied — the ordinary (biased) number is withheld rather than shipped.",
       "required": ["estimator", "failure_type", "reason"],
       "additionalProperties": false,
       "properties": {
         "estimator": { "type": "string" },
         "failure_type": {
-          "enum": ["overlap_insufficient", "convergence_failure", "not_recoverable", "unknown"]
+          "enum": ["overlap_insufficient", "convergence_failure", "not_recoverable", "external_data_required", "continuous_adjustment", "treatment_not_binary", "reference_missing_column", "insufficient_support", "invalid_input", "unknown"]
         },
         "reason": { "type": "string" },
-        "details": { "type": "object" }
+        "details": { "type": "object" },
+        "external_data_needed": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "§S9.1 external_data_required only: the unbiased distributions (e.g. 'unbiased P(z)') the selection-backdoor recovery formula needs beyond the biased sample."
+        },
+        "recovery_formula": {
+          "type": "string",
+          "description": "§S9.1 external_data_required only: the selection-backdoor recovery formula that would produce the number once the external data is supplied."
+        }
       }
     },
     "estimator_dependency_missing": {
