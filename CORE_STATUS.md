@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2811 passed / 144 skipped, warning-clean
+2827 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -104,6 +104,30 @@ COVERAGE_MAP 计数四处守卫）；+21 测试；基线 2777→**2798**。
 手推毯 [X1,X2,X3,Y] + 3 水平无关变量正确排除 + `_chi_square_from_joint` p 值对齐
 causal-learn CIT chisq（跨实现锚定，含多值/多条件）。MCP 工具数不变（复用同
 两工具）；+13 测试；基线 2798→**2811**。
+
+**选择偏倚数值端 + 诚实门（§S9.1，2026-07-13）**：结构层
+`selection_recovery`（Bareinboim-Pearl 选择后门，定理3.5）此前只出**恢复公式**，
+从不出数；且 estimate() 在选择偏倚在场时会**悄悄跑普通后门、吐一个有偏数**
+（实测 X→Y,X→W,Y→M,M→W 限制在 W：真 ATE 0.40，却吐 backdoor_logistic 0.28，
+还标 numerically_solved，跟同结果自己的 selection_recovery 判决矛盾）。先实测
+坐实此 bug，再修：**结构定理**——真选择对撞下 X、Y 都是 S 的祖先，堵被打开的
+S–Y 路径只能调整 S 的祖先，祖先必与 S 相关，故 P(z⁺)/P(z⁻|x,z⁺) 权重**永远**
+无法从有偏样本本身估出（暴力搜 1385 个对撞场景，「有偏样本独立可算」的=0），
+必须外部无偏参考数据。故 `estimate(program, biased, reference_data=ref)` 新增第二
+DataFrame 通道（论文的 unbiased sample T）：有偏样本给 S 条件分层均值
+E[Y|x,z,S]，参考样本给权重，`estimation/selection.py` 按定理3.5 求
+μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)、ATE=μ(1)−μ(0)。
+**诚实门**：选择偏倚在场 → 永不落到普通后门；不可恢复(Hernán)→`not_recoverable`、
+可恢复但没给参考数据→`external_data_required`（点名所缺外部数据、withhold 有偏
+数），仅在给了参考数据且离散可算时出恢复数并翻 numerically_solved。
+`verify_selection_recovery_numeric` 从记录的每层 (n,y_sum) 计数 + 外部权重表**独立
+重跑定理3.5 求和**核对 ATE/两臂/权重归一，拒伪造点/篡改层（不 import 生产器、
+不碰原数据）。取舍：二值处理 X（多值推迟）、离散调整集、数值/二值结局；参考数据
+需带权重列。D1 双 oracle：∅,Z⁻（真 0.40）+ Z⁺,Z⁻ 带混杂（真 0.30），两法一致而
+朴素有偏偏离；12-seed 无偏（均值 0.4004）。MCP 12→**13**（+reference_csv_path、
++themis_verify_selection_recovery_numeric，四处清单镜像同步）；schema 加
+selection_backdoor_recovery method + selection_recovery_numeric 子块 +
+external_data_required 等 failure_type；+16 测试；基线 2811→**2827**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

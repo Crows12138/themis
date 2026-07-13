@@ -115,8 +115,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - `themis.build_analysis_report(result, program=...)` / MCP `themis_report`：把一次分析（问题 / 因果图 + 边来源 / 答案 / **验证状态** / 假设账本 / 数据缺口）确定性组装成一份中文 Markdown 报告——无需 LLM / API key，前置突出 Themis 独有的「验证 + 还缺什么数据」
 - 前置数据诊断：`themis.estimate(...)` 会把每个变量**声明的测量尺度**（`scale` = binary/discrete/continuous，或枚举 `domain`）与**实际数据列**核对——声明连续却只有 2 个取值、或声明二元却 5 个取值，都作为 `declared_type_data_mismatch` 缺口当场提醒，避免闷头算出一个答非所问的数；证据记进 `extensions.type_reconciliation`，由 `verify_type_reconciliation` 从充分统计量独立重导判决。未正向声明的变量不检查（"没说" ≠ "说了连续"），一致的程序完全静默
 - 因果发现 + **发现层首个逐数验证**：`themis.estimation.discovery` 有 PC/FCI/GES/GRaSP/LiNGAM 五个整图学习器（causal-learn，输出为待人工审的建议），另加 `markov_blanket(data, target)`——用 grow-shrink 到不动点找目标的马尔可夫毯（局部屏蔽集，供**筛变量建 DAG**，非调整集）。按数据类型分派：连续用 Fisher-Z（充分统计量=相关矩阵）、离散用卡方（充分统计量=稀疏联合列联表）；两条路径下 `themis.verify_markov_blanket(...)` 都能从记录的充分统计量**独立重算**完备性/最小性定义、拒伪造或裁剪的毯（混合连续+离散类型报错，未做）
+- 选择偏倚数值端（§S9.1）：样本被限制在选择对撞上时，普通后门会算出**悄悄有偏**的数——`themis.estimate` 不再吐它。若给了外部无偏参考数据 `reference_data=`，则按 Bareinboim-Pearl 选择后门公式（定理3.5）从有偏样本 + 参考权重算出**恢复后的 ATE**；否则明确拒绝并点名所缺的外部数据（真选择对撞下这些权重永远无法从有偏样本本身估出，故外部数据是硬需求，非可选）。`themis.verify_selection_recovery_numeric(...)` 从记录的每层计数 + 权重表独立重跑公式核对（二值处理 + 离散调整集）
 
-当前全量测试基线：**2811 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2827 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -170,7 +171,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2811 passed / 144 skipped（2026-07-11）
+- **测试套件**：2827 passed / 144 skipped（2026-07-13）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
