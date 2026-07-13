@@ -5,17 +5,22 @@ return a ``BoundsResult`` if the method applies, ``None`` otherwise.
 
 Charter §3 priority — implemented in this module:
 - ``attempt_manski_natural`` (S.12.2): no assumptions; works on any
-  binary-outcome effect query.
+  effect query whose target is a discrete event. The intervened
+  treatment may be binary OR multi-valued — the natural bound is on a
+  single arm ``P(Y=y | do(X=x))`` and its width is the pooled off-arm
+  mass ``P(X≠x)``, so it is cardinality-agnostic in the treatment.
 - ``attempt_balke_pearl_iv`` (S.12.3, separate function): requires a
   binary IV with valid IV1/IV2/IV3.
 - ``attempt_manski_tamer_monotonicity`` (Phase 12.MT, post-saturation
   iter 119): tightens one side of the Manski natural interval when
   the user asserts monotone treatment response (Manski 1997 MTR;
-  binary outcome). Triggered via ``program.extensions['monotonicity']``
+  binary treatment). Triggered via ``program.extensions['monotonicity']``
   declaration — no kernel surface change.
 
 Out of scope this phase: frontdoor partial, non-binary outcomes
-(charter §6).
+(charter §6); Manski-Tamer / Balke-Pearl for a multi-valued treatment
+(MTR's monotone envelope over ordered levels and BP's 16-type
+response function are both binary-treatment constructions).
 """
 from __future__ import annotations
 
@@ -44,6 +49,14 @@ def attempt_manski_natural(
     Likert 1-5 scale, BP=140 on a fixed grid) — as long as
     ``P(Y=value)`` is a non-degenerate probability.
 
+    It is likewise independent of the TREATMENT's cardinality: the bound
+    is on the single arm ``do(X=x)``, and the unconstrained sub-population
+    is everyone with ``X≠x`` — whether that is one other arm (binary X) or
+    several (multi-valued X). For a binary treatment the complement is
+    rendered as the single concrete other arm ``P(X=¬x)``; for a
+    multi-valued treatment there is no single other arm to name, so the
+    honest width is the pooled inequality ``P(X≠x)``.
+
     Caller passes ``outcome_event_is_discrete=True`` when the target
     predicate is bool OR has a declared discrete numeric domain;
     ``False`` for unbounded continuous outcomes where ``P(Y=specific)``
@@ -61,14 +74,15 @@ def attempt_manski_natural(
     target_val = _fmt_value(query.target.value)
     intervention_pred = query.intervention.atom.predicate
     intervention_val = _fmt_value(query.intervention.value)
-    other_arm_val = _fmt_value(_negate(query.intervention.value))
+    other_arm_mass = _complement_mass(
+        intervention_pred, query.intervention.value,
+    )
 
     obs_term = (
         f"P({target_pred}={target_val} | "
         f"{intervention_pred}={intervention_val})"
         f" · P({intervention_pred}={intervention_val})"
     )
-    other_arm_mass = f"P({intervention_pred}={other_arm_val})"
 
     lower = obs_term
     upper = f"{obs_term} + {other_arm_mass}"
@@ -84,9 +98,9 @@ def attempt_manski_natural(
         width_when_uninformative=False,  # symbolic phase — width depends on data
         notes=(
             "Manski (1990) natural bounds. No assumptions. "
-            f"Width = P({intervention_pred}={other_arm_val}) — "
-            "tight when the untreated arm is small, trivial [0,1] when "
-            "no one was treated."
+            f"Width = {other_arm_mass} — "
+            "tight when the off-arm mass is small, trivial [0,1] when "
+            "no one got this treatment level."
         ),
     )
 
@@ -224,7 +238,9 @@ def attempt_manski_tamer_monotonicity(
     target_val = _fmt_value(query.target.value)
     intervention_pred = query.intervention.atom.predicate
     intervention_val = _fmt_value(query.intervention.value)
-    other_arm_val = _fmt_value(_negate(query.intervention.value))
+    # MTR is binary-treatment only (guarded above), so the complement is
+    # the single concrete other arm ``¬x``.
+    other_arm_val = _fmt_value(not query.intervention.value)
 
     # Same-arm contribution: P(Y=y | X=x) · P(X=x) — observed exactly.
     same_arm = (
@@ -296,13 +312,18 @@ def attempt_manski_tamer_monotonicity(
 # ---------------------------------------------------------------------------
 
 
-def _negate(v) -> object:
-    """Negate a bool. Non-bool values fall through unchanged with a
-    placeholder — Manski for non-binary domain is out of scope so this
-    only fires on accidental misuse."""
-    if isinstance(v, bool):
-        return not v
-    return f"NOT_{v}"
+def _complement_mass(pred: str, value: object) -> str:
+    """Symbolic mass of the sub-population NOT at the intervened level —
+    ``P(X≠x)``, the width of the Manski natural interval.
+
+    For a BINARY treatment the complement is the single concrete other arm,
+    rendered ``P(X=¬x)`` (names the one alternative, matching the historical
+    binary output). For a MULTI-VALUED treatment there is no single other
+    arm to name; the honest form is the pooled inequality ``P(X≠x)`` over
+    all other levels (= ``1 − P(X=x)``)."""
+    if isinstance(value, bool):
+        return f"P({pred}={_fmt_value(not value)})"
+    return f"P({pred}≠{_fmt_value(value)})"
 
 
 def _fmt_value(v) -> str:

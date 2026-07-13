@@ -4749,13 +4749,25 @@ def _attach_bounds_result(
 
     target_is_bool = isinstance(query.target.value, bool)
     intervention_is_bool = isinstance(query.intervention.value, bool)
-    if not intervention_is_bool:
-        return result
 
     target_event_is_discrete = _target_event_is_discrete(program, query)
     if not target_event_is_discrete:
         return result
 
+    # The intervened arm P(X=x) must itself be a non-degenerate discrete
+    # event: a bool treatment, or a multi-valued treatment whose declared
+    # domain contains the intervened level. An undeclared continuous
+    # treatment gives a vacuous [0,1] arm bound, so it is not bounded here.
+    if not _intervention_arm_is_discrete(program, query):
+        return result
+
+    # Manski natural bounds a single arm P(Y=y | do(X=x)) and are
+    # cardinality-agnostic in the treatment (the off-arm mass is P(X≠x),
+    # be it one other level or several). Balke-Pearl (16-type response
+    # function) and Manski-Tamer (monotone envelope over ordered levels)
+    # are both binary-TREATMENT constructions, so they stay gated on a
+    # bool intervention value; a multi-valued treatment falls through to
+    # the assumption-free Manski natural floor.
     bounds = None
     # 1. Try kernel-emitted IV identification first (richest).
     #    BP-IV's 8-term formula assumes Y ∈ {0,1} so it gates on bool
@@ -4769,7 +4781,7 @@ def _attach_bounds_result(
         instrument_pred = _detect_iv_candidate_structural(
             program, query,
         )
-    if instrument_pred and target_is_bool:
+    if intervention_is_bool and instrument_pred and target_is_bool:
         bounds = attempt_balke_pearl_iv(
             query,
             instrument_predicate=instrument_pred,
@@ -4781,9 +4793,9 @@ def _attach_bounds_result(
     # 3. Manski-Tamer (MTR) — tighter than Manski natural when the user
     #    asserts monotone treatment response. Triggered via
     #    program.extensions['monotonicity'] dict matching this query's
-    #    target+treatment pair. Falls back to Manski natural if no MTR
-    #    declaration applies.
-    if bounds is None:
+    #    target+treatment pair. Binary treatment only; falls back to
+    #    Manski natural if no MTR declaration applies.
+    if bounds is None and intervention_is_bool:
         mtr_direction = _detect_monotonicity_for_query(program, query)
         if mtr_direction is not None:
             bounds = attempt_manski_tamer_monotonicity(
@@ -4792,7 +4804,8 @@ def _attach_bounds_result(
                 outcome_event_is_discrete=True,
             )
 
-    # 4. Always-available fallback (works for bool OR discrete-numeric)
+    # 4. Always-available fallback (any treatment cardinality; bool OR
+    #    discrete-numeric outcome event).
     if bounds is None:
         bounds = attempt_manski_natural(
             query, outcome_event_is_discrete=True,
@@ -4856,30 +4869,29 @@ def _detect_monotonicity_for_query(program, query):
     return None
 
 
-def _target_event_is_discrete(program: Program, query) -> bool:
-    """Check whether ``P(target.atom = target.value)`` is a non-degenerate
-    discrete event — needed before invoking Manski-style bounds whose
-    formula assumes a well-defined event probability.
+def _event_is_discrete(program: Program, predicate: str, value) -> bool:
+    """Check whether ``P(predicate = value)`` is a non-degenerate discrete
+    event — needed before invoking Manski-style bounds whose formula
+    assumes a well-defined event probability for both the target event
+    ``P(Y=y)`` and the intervened arm ``P(X=x)``.
 
-    True iff target.value is bool, OR target.value is numeric (int/float
-    not bool) AND the target predicate's variable declaration carries a
-    discrete numeric ``domain`` of length ≥2 containing the value.
+    True iff ``value`` is bool, OR ``value`` is numeric (int/float not
+    bool) AND the predicate's variable declaration carries a discrete
+    numeric ``domain`` of length ≥2 containing the value. A value with no
+    declared discrete domain is treated as an unbounded continuous point
+    (degenerate point mass) and rejected.
     """
-    from ..types import EffectQuery, VariableDeclaration
+    from ..types import VariableDeclaration
 
-    if not isinstance(query, EffectQuery):
-        return False
-    val = query.target.value
-    if isinstance(val, bool):
+    if isinstance(value, bool):
         return True
-    if not isinstance(val, (int, float)):
-        return False  # string targets fall here — out of scope this phase
+    if not isinstance(value, (int, float)):
+        return False  # string values fall here — out of scope this phase
 
-    target_pred = query.target.atom.predicate
     decl = next(
         (
             s for s in program.statements
-            if isinstance(s, VariableDeclaration) and s.predicate == target_pred
+            if isinstance(s, VariableDeclaration) and s.predicate == predicate
         ),
         None,
     )
@@ -4893,7 +4905,36 @@ def _target_event_is_discrete(program: Program, query) -> bool:
         for v in domain
     ):
         return False
-    return val in domain
+    return value in domain
+
+
+def _target_event_is_discrete(program: Program, query) -> bool:
+    """Whether ``P(target.atom = target.value)`` is a non-degenerate
+    discrete event (see :func:`_event_is_discrete`)."""
+    from ..types import EffectQuery
+
+    if not isinstance(query, EffectQuery):
+        return False
+    return _event_is_discrete(
+        program, query.target.atom.predicate, query.target.value,
+    )
+
+
+def _intervention_arm_is_discrete(program: Program, query) -> bool:
+    """Whether the intervened arm ``P(X = intervention.value)`` is a
+    non-degenerate discrete event — the treatment-side analogue of
+    :func:`_target_event_is_discrete`. A bool treatment is always
+    discrete; a multi-valued treatment must declare a discrete numeric
+    domain containing the intervened level; an undeclared continuous
+    treatment yields a degenerate point mass and is rejected (its Manski
+    arm bound would be a vacuous [0, 1])."""
+    from ..types import EffectQuery
+
+    if not isinstance(query, EffectQuery):
+        return False
+    return _event_is_discrete(
+        program, query.intervention.atom.predicate, query.intervention.value,
+    )
 
 
 _BOUNDS_HINT_TOKENS = ("Balke-Pearl bounds", "Manski", "bounds")

@@ -93,9 +93,14 @@ class NumericBounds:
     # point interval [lower_value, upper_value] independently, rather than
     # only metadata-auditing it. Balke-Pearl records the empirical
     # P(X=x, Y=y | Z=z) table ({"P_xyz": nested 2x2x2 list}) — the verifier
-    # re-runs the response-function LP over it. None for methods whose bound
-    # is a trivial closed form already anchored by the width/range invariants
-    # (Manski natural / tamer).
+    # re-runs the response-function LP over it. Manski natural records the
+    # three arm counts ({"n", "n_joint_target_arm", "n_other_arm"}) — the
+    # verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n
+    # (this matters most for a MULTI-VALUED treatment, where the width
+    # P(X≠x) pools several off-arm levels and a metadata-only audit cannot
+    # tell an honest complement from a fabricated one). None for Manski-Tamer,
+    # whose one-sided tightening to the observed marginal is anchored by the
+    # width/range invariants.
     sufficient_statistics: dict | None = None
 
 
@@ -144,6 +149,16 @@ def evaluate_manski_natural_bounds(
         )
 
     lower, upper = bounds_from(x_series, y_series)
+    # Sufficient statistics for the verifier's INDEPENDENT re-derivation of
+    # the closed form (from the SAME arrays the bound was computed on):
+    #   lower = n_joint/n,  upper = (n_joint + n_other)/n,  width = n_other/n.
+    # Cardinality-agnostic: n_other counts EVERY row with X≠x, so for a
+    # multi-valued treatment the verifier can confirm the pooled off-arm
+    # mass is honest rather than fabricated.
+    x_eq = _eq(x_series, treatment_value)
+    n_used = int(len(x_series))
+    n_joint = int((x_eq & _eq(y_series, outcome_value)).sum())
+    n_other = int((~x_eq).sum())
     ci_lower, ci_upper = _bootstrap_outer_band(
         df, treatment, outcome, bounds_from,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
@@ -169,6 +184,11 @@ def evaluate_manski_natural_bounds(
         instrument=None,
         assumptions=(),
         cluster=cluster,
+        sufficient_statistics={
+            "n": n_used,
+            "n_joint_target_arm": n_joint,
+            "n_other_arm": n_other,
+        },
     )
 
 

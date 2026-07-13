@@ -210,13 +210,20 @@ def verify_manski_natural_bounds_result(
     ``P(Y=y | do(X=x)) ∈ [P(Y=y|X=x)·P(X=x),
                           P(Y=y|X=x)·P(X=x) + P(X≠x)]``
 
+    Cardinality-agnostic in the treatment (candidate C): the bound is on a
+    single arm, so the intervention may be a bool OR a multi-valued numeric
+    level. For a bool treatment the off-arm mass is the single concrete
+    other arm ``P(X=¬x)``; for a multi-valued level it is the pooled
+    inequality ``P(X≠x)``.
+
     Raises ``VerificationError`` on:
     - method-field mismatch
-    - non-bool intervention value (Manski natural for non-binary X is
-      out of scope per the producer)
+    - non-bool, non-numeric intervention value (no well-defined arm event)
     - lower / upper expression doesn't match the canonical pattern
     - assumptions tuple is non-empty (Manski natural by definition
       makes no claim — non-empty signals tampering)
+    - (numeric end) a lower / upper value that isn't what the recorded arm
+      counts yield, or counts that violate the arm partition
     """
     if bounds_result.get("method") != "manski_natural":
         raise VerificationError(
@@ -235,25 +242,26 @@ def verify_manski_natural_bounds_result(
     target_val = target.get("value")
     intervention_val = intervention.get("value")
 
-    if not isinstance(intervention_val, bool):
+    # bool is a subtype of int, so check bool FIRST — a bool treatment is a
+    # valid arm; a non-bool numeric value is a valid multi-valued arm; a
+    # string / other has no well-defined arm event.
+    if not isinstance(intervention_val, (bool, int, float)):
         raise VerificationError(
-            "Manski natural bounds require a boolean intervention value; "
-            f"got {intervention_val!r}",
+            "Manski natural bounds require a bool or numeric intervention "
+            f"value (a discrete arm); got {intervention_val!r}",
             step_index=None, rule="bounds_manski_natural",
         )
 
     target_val_str = _fmt_value(target_val)
     intervention_val_str = _fmt_value(intervention_val)
-    other_arm_val_str = _fmt_value(not intervention_val)
+    other_arm_mass = _complement_mass_expr(intervention_pred, intervention_val)
 
     expected_lower = (
         f"P({target_pred}={target_val_str} | "
         f"{intervention_pred}={intervention_val_str})"
         f" · P({intervention_pred}={intervention_val_str})"
     )
-    expected_upper = (
-        f"{expected_lower} + P({intervention_pred}={other_arm_val_str})"
-    )
+    expected_upper = f"{expected_lower} + {other_arm_mass}"
 
     actual_lower = bounds_result.get("lower_expression")
     actual_upper = bounds_result.get("upper_expression")
@@ -287,6 +295,110 @@ def verify_manski_natural_bounds_result(
     _audit_numeric_bounds(
         bounds_result, method="manski_natural", rule="bounds_manski_natural",
     )
+    _rederive_manski_natural_numeric(bounds_result)
+
+
+def _complement_mass_expr(pred: str, value) -> str:
+    """Independently transcribed off-arm mass ``P(X≠x)`` for the Manski
+    natural interval's width. Bool → the single concrete other arm
+    ``P(X=¬x)``; numeric multi-valued level → the pooled inequality
+    ``P(X≠x)``. Mirrors ``output/bounds._complement_mass`` but re-derived
+    here (verifier independence pin — must not import the producer)."""
+    if isinstance(value, bool):
+        return f"P({pred}={_fmt_value(not value)})"
+    return f"P({pred}≠{_fmt_value(value)})"
+
+
+def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
+    """Strong re-derivation of the Manski natural arm interval from the
+    recorded arm counts — the treatment-cardinality-agnostic analogue of
+    the Balke-Pearl P_xyz re-derivation.
+
+    The producer records ``sufficient_statistics``
+    ``{"n", "n_joint_target_arm", "n_other_arm"}`` — the three counts the
+    closed form consumes: ``lower = n_joint/n``, ``upper = (n_joint +
+    n_other)/n``, ``width = n_other/n``. This verifier re-derives the
+    interval from those counts alone (no DataFrame, no producer import) and
+    rejects a reported bound that doesn't match, plus the partition
+    invariant ``n_joint + n_other ≤ n`` (the target arm and the off-arm are
+    disjoint, and the joint count is a subset of the target arm). This is
+    what makes a MULTI-VALUED treatment's pooled off-arm mass auditable: a
+    fabricated width that a metadata-only audit would pass is caught because
+    ``n_other`` must reproduce it. Skipped when no counts are recorded
+    (symbolic-only, or an older producer / a different method's stats).
+
+    A self-consistent forgery of the counts + interval is the honest ceiling
+    (the verifier has no data to re-count from) — same posture as
+    ``_rederive_balke_pearl_numeric``.
+    """
+    stats = bounds_result.get("sufficient_statistics")
+    if not isinstance(stats, dict):
+        return
+    if "n_joint_target_arm" not in stats and "n_other_arm" not in stats:
+        return  # not the Manski-natural shape (e.g. Balke-Pearl's P_xyz)
+
+    rule = "bounds_manski_natural"
+    n = stats.get("n")
+    n_joint = stats.get("n_joint_target_arm")
+    n_other = stats.get("n_other_arm")
+    for name, v in (
+        ("n", n), ("n_joint_target_arm", n_joint), ("n_other_arm", n_other),
+    ):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+            raise VerificationError(
+                f"Manski natural sufficient_statistics.{name} must be a "
+                f"non-negative int; got {v!r}", step_index=None, rule=rule,
+            )
+    if n == 0:
+        raise VerificationError(
+            "Manski natural sufficient_statistics.n is 0 (empty sample); the "
+            "arm interval is undefined", step_index=None, rule=rule,
+        )
+    # The recorded count total must match the audited sample_size (both are
+    # len(data)); a divergence signals tampered statistics.
+    sample_size = bounds_result.get("sample_size")
+    if isinstance(sample_size, int) and not isinstance(sample_size, bool) \
+            and sample_size != n:
+        raise VerificationError(
+            f"Manski natural sufficient_statistics.n ({n}) disagrees with "
+            f"sample_size ({sample_size}); both should be the row count",
+            step_index=None, rule=rule,
+        )
+    if n_joint + n_other > n:
+        raise VerificationError(
+            f"Manski natural counts violate the arm partition: "
+            f"n_joint_target_arm ({n_joint}) + n_other_arm ({n_other}) "
+            f"exceeds n ({n}); the target arm and off-arm are disjoint and "
+            "the joint count is a subset of the target arm",
+            step_index=None, rule=rule,
+        )
+
+    exp_lower = n_joint / n
+    exp_upper = (n_joint + n_other) / n
+    reported_lo = bounds_result.get("lower_value")
+    reported_hi = bounds_result.get("upper_value")
+    if reported_lo is None or reported_hi is None:
+        raise VerificationError(
+            "Manski natural recorded sufficient_statistics but no numeric "
+            "lower_value / upper_value to verify against",
+            step_index=None, rule=rule,
+        )
+    tol = 1e-9
+    if abs(exp_lower - reported_lo) > tol + 1e-9 * abs(reported_lo):
+        raise VerificationError(
+            f"Manski natural lower_value {reported_lo} does not match the "
+            f"value re-derived from the recorded arm counts "
+            f"(n_joint/n = {exp_lower}); the reported bound is not what the "
+            "closed form yields on those counts",
+            step_index=None, rule=rule,
+        )
+    if abs(exp_upper - reported_hi) > tol + 1e-9 * abs(reported_hi):
+        raise VerificationError(
+            f"Manski natural upper_value {reported_hi} does not match the "
+            f"value re-derived from the recorded arm counts "
+            f"((n_joint+n_other)/n = {exp_upper})",
+            step_index=None, rule=rule,
+        )
 
 
 _BP_EXPECTED_ASSUMPTIONS = frozenset({

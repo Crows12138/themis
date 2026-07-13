@@ -99,6 +99,37 @@ def _confounded_data(n=20000, seed=0):
     return pd.DataFrame({"x": X.astype(bool), "y": Y.astype(bool)})
 
 
+def _multivalued_query(intervention_val=2):
+    return {"kind": "query", "id": "q", "query": {
+        "kind": "effect",
+        "intervention": {"atom": _atom("x"), "value": intervention_val},
+        "target": {"atom": _atom("y"), "value": True}, "given": []}}
+
+
+def _multivalued_bow_program(intervention_val=2):
+    # x is a 3-level discrete treatment {0,1,2} with a bow-arc confounder;
+    # point ID fails, so the assumption-free Manski natural floor fires on
+    # the single arm do(x=intervention_val).
+    return {"version": "0.1", "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [0, 1, 2]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "bidirected", "left": _atom("x"), "right": _atom("y"),
+             "annotations": {"source": "llm_proposal"}},
+            _multivalued_query(intervention_val)]}
+
+
+def _multivalued_confounded_data(n=20000, seed=0):
+    rng = np.random.default_rng(seed)
+    U = rng.integers(0, 2, n)
+    base = rng.integers(0, 3, n)
+    X = np.where(U == 1, np.minimum(base + 1, 2), base)  # confounded dose
+    Y = (rng.random(n) < np.clip(0.1 + 0.25 * X + 0.3 * U, 0, 1)).astype(int)
+    return pd.DataFrame({"x": X.astype(int), "y": Y.astype(bool)})
+
+
 # =============================================================== fill-in
 def test_iv_graph_fills_balke_pearl_numeric():
     env = themis.estimate(_iv_program(), _iv_data(), ci_bootstrap=50)
@@ -119,6 +150,52 @@ def test_bow_arc_fills_manski_numeric():
     assert b["estimand"] == "arm_probability"
     assert b.get("instrument") is None
     assert 0.0 <= b["lower_value"] <= b["upper_value"] <= 1.0
+
+
+def test_multivalued_treatment_fills_manski_numeric():
+    # Candidate C: a MULTI-VALUED treatment do(x=2) gets the assumption-free
+    # Manski natural arm floor — before, the bool-treatment gate blocked it.
+    prog = _multivalued_bow_program(2)
+    df = _multivalued_confounded_data()
+    env = themis.estimate(prog, df, ci_bootstrap=50)
+    b = env["results"][0]["bounds_result"]
+    assert b["method"] == "manski_natural"
+    assert b["estimand"] == "arm_probability"
+    # off-arm mass pooled over all levels != 2, matching P(x != 2) exactly.
+    n = len(df)
+    n_joint = int(((df.x == 2) & df.y).sum())
+    n_other = int((df.x != 2).sum())
+    assert b["lower_value"] == pytest.approx(n_joint / n, abs=1e-9)
+    assert b["upper_value"] == pytest.approx((n_joint + n_other) / n, abs=1e-9)
+    assert b["sufficient_statistics"] == {
+        "n": n, "n_joint_target_arm": n_joint, "n_other_arm": n_other}
+    assert "P(x≠2)" in b["upper_expression"]
+
+
+def test_multivalued_bounds_verify_round_trip():
+    prog = _multivalued_bow_program(2)
+    env = themis.estimate(prog, _multivalued_confounded_data(), ci_bootstrap=0)
+    verify_bounds_result(prog, env["results"][0])  # accepts honest
+
+
+def test_multivalued_verify_rejects_fabricated_off_arm_count():
+    # The strong count re-derivation catches a fabricated pooled off-arm
+    # mass that a metadata-only audit (direction / range / width) would pass.
+    prog = _multivalued_bow_program(2)
+    env = themis.estimate(prog, _multivalued_confounded_data(), ci_bootstrap=0)
+    res = copy.deepcopy(env["results"][0])
+    ss = res["bounds_result"]["sufficient_statistics"]
+    ss["n_other_arm"] = ss["n_other_arm"] - 500  # shrink pooled off-arm mass
+    with pytest.raises(VerificationError, match="does not match"):
+        verify_bounds_result(prog, res)
+
+
+def test_multivalued_symbolic_only_verify_when_no_data():
+    prog = _multivalued_bow_program(2)
+    res = themis.run(prog)["results"][0]
+    assert res["bounds_result"]["method"] == "manski_natural"
+    assert res["bounds_result"].get("lower_value") is None
+    verify_bounds_result(prog, res)  # symbolic-only still accepts
 
 
 def test_mtr_program_fills_manski_tamer_numeric():

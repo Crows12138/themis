@@ -67,14 +67,25 @@ def _query_dict(target_pred="y", target_val=True,
     }
 
 
+def _v(val):
+    if isinstance(val, bool):
+        return "true" if val else "false"
+    return str(val)
+
+
 def _expected_mn_bounds(target_val=True, intervention_val=True):
     target_str = "true" if target_val else "false"
-    int_str = "true" if intervention_val else "false"
-    other_str = "false" if intervention_val else "true"
+    int_str = _v(intervention_val)
+    # Bool treatment → single concrete other arm P(x=¬x); multi-valued
+    # numeric level → pooled inequality P(x≠x).
+    if isinstance(intervention_val, bool):
+        other = f"P(x={'false' if intervention_val else 'true'})"
+    else:
+        other = f"P(x≠{int_str})"
     lower = (
         f"P(y={target_str} | x={int_str}) · P(x={int_str})"
     )
-    upper = f"{lower} + P(x={other_str})"
+    upper = f"{lower} + {other}"
     return {
         "method": "manski_natural",
         "lower_expression": lower,
@@ -84,6 +95,27 @@ def _expected_mn_bounds(target_val=True, intervention_val=True):
         "width_when_uninformative": False,
         "notes": "Manski (1990) natural bounds...",
     }
+
+
+def _numeric_mn_bounds(n, n_joint, n_other, *, target_val=True,
+                       intervention_val=True):
+    """A Manski natural bounds_result carrying the numeric end + the arm
+    counts, for exercising the strong count re-derivation."""
+    b = _expected_mn_bounds(target_val, intervention_val)
+    lower = n_joint / n
+    upper = (n_joint + n_other) / n
+    b.update({
+        "estimand": "arm_probability",
+        "lower_value": lower,
+        "upper_value": upper,
+        "width": upper - lower,
+        "numeric_uninformative": (n_other / n) >= 1.0 - 1e-9,
+        "sample_size": n,
+        "numeric_data_hash": "a" * 64,
+        "sufficient_statistics": {
+            "n": n, "n_joint_target_arm": n_joint, "n_other_arm": n_other},
+    })
+    return b
 
 
 # ---------------------------------------------------------------------------
@@ -167,12 +199,129 @@ def test_rejects_wrong_method_field():
         )
 
 
-def test_rejects_non_bool_intervention_value():
-    bounds = _expected_mn_bounds()
+def test_rejects_binary_shaped_expr_for_multivalued_intervention():
+    # A multi-valued intervention paired with binary-shaped expressions
+    # (P(x=false)) is a genuine mismatch — the complement is P(x≠42).
+    bounds = _expected_mn_bounds()  # binary shape
     query = _query_dict(intervention_val=42)
-    with pytest.raises(VerificationError, match="boolean intervention"):
+    with pytest.raises(VerificationError, match="expression mismatch"):
         verify_manski_natural_bounds_result(
             bounds, query_dict=query,
+        )
+
+
+def test_rejects_string_intervention_value():
+    # A non-bool, non-numeric intervention has no well-defined arm event.
+    bounds = _expected_mn_bounds(intervention_val="high")
+    query = _query_dict(intervention_val="high")
+    with pytest.raises(VerificationError, match="bool or numeric"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=query,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Multi-valued treatment (candidate C) — symbolic
+# ---------------------------------------------------------------------------
+
+
+def test_accepts_multivalued_intervention():
+    # do(x=2) on a 3-level treatment: complement is the pooled P(x≠2).
+    bounds = _expected_mn_bounds(intervention_val=2)
+    assert bounds["upper_expression"].endswith("+ P(x≠2)")
+    verify_manski_natural_bounds_result(
+        bounds, query_dict=_query_dict(intervention_val=2),
+    )
+
+
+def test_multivalued_rejects_wrong_complement_level():
+    # Tamper the pooled complement to a different level P(x≠1).
+    bounds = _expected_mn_bounds(intervention_val=2)
+    bounds["upper_expression"] = bounds["upper_expression"].replace(
+        "P(x≠2)", "P(x≠1)")
+    with pytest.raises(VerificationError, match="upper_expression mismatch"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=_query_dict(intervention_val=2),
+        )
+
+
+def test_multivalued_rejects_binary_complement_form():
+    # A multi-valued arm must NOT render the binary "P(x=<other>)" form.
+    bounds = _expected_mn_bounds(intervention_val=2)
+    bounds["upper_expression"] = bounds["upper_expression"].replace(
+        "P(x≠2)", "P(x=0)")
+    with pytest.raises(VerificationError, match="upper_expression mismatch"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=_query_dict(intervention_val=2),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Numeric end — strong count re-derivation
+# ---------------------------------------------------------------------------
+
+
+def test_numeric_rederivation_accepts_honest_counts():
+    bounds = _numeric_mn_bounds(4000, 1605, 2005, intervention_val=2)
+    verify_manski_natural_bounds_result(
+        bounds, query_dict=_query_dict(intervention_val=2),
+    )
+
+
+def test_numeric_rederivation_rejects_fabricated_count():
+    bounds = _numeric_mn_bounds(4000, 1605, 2005, intervention_val=2)
+    # Keep lower/upper but lie about the off-arm count → re-derivation fails.
+    bounds["sufficient_statistics"]["n_other_arm"] = 1500
+    with pytest.raises(VerificationError, match="does not match"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=_query_dict(intervention_val=2),
+        )
+
+
+def test_numeric_rederivation_rejects_partition_violation():
+    # Honest in-range interval, but the recorded counts are inflated so
+    # n_joint + n_other > n — the metadata audit (range/width) passes and
+    # only the partition invariant in the re-derivation catches it.
+    bounds = _numeric_mn_bounds(4000, 1605, 2005, intervention_val=2)
+    bounds["sufficient_statistics"]["n_joint_target_arm"] = 3000
+    bounds["sufficient_statistics"]["n_other_arm"] = 2000  # 5000 > 4000
+    with pytest.raises(VerificationError, match="arm partition"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=_query_dict(intervention_val=2),
+        )
+
+
+def test_numeric_rederivation_rejects_count_sample_size_mismatch():
+    bounds = _numeric_mn_bounds(4000, 1605, 2005, intervention_val=2)
+    bounds["sample_size"] = 3999  # disagrees with recorded n
+    with pytest.raises(VerificationError, match="disagrees with sample_size"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=_query_dict(intervention_val=2),
+        )
+
+
+def test_numeric_rederivation_rejects_negative_count():
+    bounds = _numeric_mn_bounds(4000, 1605, 2005, intervention_val=2)
+    bounds["sufficient_statistics"]["n_other_arm"] = -5
+    with pytest.raises(VerificationError, match="non-negative int"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=_query_dict(intervention_val=2),
+        )
+
+
+def test_numeric_rederivation_binary_case_also_covered():
+    # The count re-derivation applies to the binary arm too (strengthens the
+    # pre-existing metadata-only audit). Tamper the joint count while the
+    # reported interval stays self-consistent (width = n_other/n untouched):
+    # only the re-derivation catches the divergence from the reported point.
+    bounds = _numeric_mn_bounds(2000, 700, 900, intervention_val=True)
+    verify_manski_natural_bounds_result(
+        bounds, query_dict=_query_dict(intervention_val=True),
+    )
+    bounds["sufficient_statistics"]["n_joint_target_arm"] = 500
+    with pytest.raises(VerificationError, match="does not match"):
+        verify_manski_natural_bounds_result(
+            bounds, query_dict=_query_dict(intervention_val=True),
         )
 
 
@@ -248,6 +397,30 @@ def test_real_manski_natural_tampered_caught_e2e():
             result["bounds_result"],
             query_dict=program["statements"][-1]["query"],
         )
+
+
+def _confounded_multivalued_program(intervention_val=2):
+    """Hidden u → x and u → y, plus x → y, with x a 3-level discrete
+    treatment {0,1,2}. Point ID fails; Manski natural fires on do(x=2)."""
+    prog = _confounded_program()
+    prog["statements"].insert(
+        0, {"kind": "variable", "predicate": "x", "domain": [0, 1, 2]})
+    prog["statements"][-1]["query"]["intervention"]["value"] = intervention_val
+    return prog
+
+
+def test_real_multivalued_manski_natural_bounds_pass_verifier_e2e():
+    import themis
+
+    program = _confounded_multivalued_program(2)
+    out = themis.run(program)
+    result = out["results"][0]
+    assert result.get("bounds_result", {}).get("method") == "manski_natural"
+    assert "P(x≠2)" in result["bounds_result"]["upper_expression"]
+    verify_manski_natural_bounds_result(
+        result["bounds_result"],
+        query_dict=program["statements"][-1]["query"],
+    )
 
 
 def test_re_exported_from_themis_verifier():
