@@ -3883,11 +3883,22 @@ def _try_iv_overid_estimate(
             "sargan_dof": est.sargan.dof,
             "sargan_p_value": est.sargan.p_value,
             "rejected_at_0_05": bool(est.sargan.p_value < 0.05),
-            # Residualised second moments the point + J are closed forms of —
-            # the verifier re-derives both from these without the raw data.
+            # Residualised second moments the point + J are closed forms of (plus
+            # the robust weight matrix Ŝ when Hansen J was computed) — the
+            # verifier re-derives everything from these without the raw data.
             "sufficient_statistics": est.moments,
         },
     }
+    # Heteroskedasticity-robust (efficient two-step GMM) Hansen J, when the
+    # robust weight matrix was non-singular. The headline point stays 2SLS;
+    # hansen_gmm_point is the efficient-GMM byproduct.
+    if est.hansen is not None:
+        oid = numeric["over_identification"]
+        oid["hansen_j"] = est.hansen.j_stat
+        oid["hansen_dof"] = est.hansen.dof
+        oid["hansen_p_value"] = est.hansen.p_value
+        oid["hansen_gmm_point"] = est.hansen.gmm_point
+        oid["hansen_rejected_at_0_05"] = bool(est.hansen.p_value < 0.05)
     if est.first_stage_f_stat is not None:
         numeric["first_stage_f_stat"] = est.first_stage_f_stat
 
@@ -3993,16 +4004,42 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             f"Stock-Yogo 弱工具阈值 {WEAK_IV_F_THRESHOLD:.0f}"
         )
 
+    # Over-identification falsification. Prefer the heteroskedasticity-robust
+    # Hansen J (the correct weight matrix) when it was computed; fall back to the
+    # homoskedastic Sargan only when the robust weight was singular. Same
+    # GapKind either way. Under homoskedasticity the two coincide, so this does
+    # not change the conclusion on well-behaved data; on heteroskedastic data it
+    # makes the falsification robust rather than reporting a test whose weighting
+    # the data violate.
     sg = est.sargan
-    if sg is not None and sg.p_value < 0.05:
+    hj = est.hansen
+    if hj is not None:
+        test_label, J_used, dof_used, p_used = (
+            "Hansen J (heteroskedasticity-robust)", hj.j_stat, hj.dof, hj.p_value,
+        )
+    elif sg is not None:
+        test_label, J_used, dof_used, p_used = (
+            "Sargan", sg.j_stat, sg.dof, sg.p_value,
+        )
+    else:
+        test_label = None
+    if test_label is not None and p_used < 0.05:
+        also = ""
+        also_cn = ""
+        if hj is not None and sg is not None:
+            also = (
+                f" (the homoskedastic Sargan gives J = {sg.j_stat:.2f}, "
+                f"p = {sg.p_value:.4g})"
+            )
+            also_cn = f"（同方差 Sargan：J = {sg.j_stat:.2f}, p = {sg.p_value:.4g}）"
         gaps.append({
             "kind": "overidentification_rejected",
             "severity": "important",
             "blocks": "interpretation",
             "description": (
-                f"The Sargan over-identification test REJECTS the joint "
-                f"validity of instruments {inst} (J = {sg.j_stat:.2f}, "
-                f"df = {sg.dof}, p = {sg.p_value:.4g}). At least one exclusion "
+                f"The {test_label} over-identification test REJECTS the joint "
+                f"validity of instruments {inst} (J = {J_used:.2f}, "
+                f"df = {dof_used}, p = {p_used:.4g}){also}. At least one exclusion "
                 "restriction is inconsistent with the others in the data — the "
                 "IV point estimate rests on an instrument set the data refute. "
                 "This is a falsification, not a data-quantity gap: it will not "
@@ -4018,12 +4055,12 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
             ],
             "provenance": [{
                 "ref_kind": "verifier_check",
-                "ref_id": f"sargan:{est.treatment}",
+                "ref_id": f"overid:{est.treatment}",
             }],
         })
         headlines.append(
-            f"⚠ Sargan 过度识别检验拒绝工具 {inst} 的联合有效性 "
-            f"(J = {sg.j_stat:.2f}, df = {sg.dof}, p = {sg.p_value:.4g})；"
+            f"⚠ {test_label} 过度识别检验拒绝工具 {inst} 的联合有效性 "
+            f"(J = {J_used:.2f}, df = {dof_used}, p = {p_used:.4g}){also_cn}；"
             "数据反驳了该工具集"
         )
 

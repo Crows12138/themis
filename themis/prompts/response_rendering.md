@@ -509,7 +509,7 @@ df)`, not from symbolic Theta.
 | `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale | "服药使收缩压平均下降 9.83 个单位（按 outcome 列单位）" |
 | `iv_wald` | LATE = local risk difference among compliers | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点"（point ∈ [-1,1] 时 ×100） |
 | `iv_2sls` | linear ATE | "ATE = X.X（线性假设下的人群平均效应）" |
-| `iv_2sls_overid` | linear ATE from ≥2 instruments jointly (over-identified 2SLS) + a Sargan over-identification test | "ATE = X.X（用 N 个工具联合估计）。Sargan 过度识别检验 p = P：**p 大 → 工具彼此一致，未被证伪；p < 0.05 → 数据反驳了工具集，至少一个 exclusion 不成立，这个点估计不可信**" |
+| `iv_2sls_overid` | linear ATE from ≥2 instruments jointly (over-identified 2SLS) + an over-identification test (robust Hansen J when available, else Sargan) | "ATE = X.X（用 N 个工具联合估计）。过度识别检验（异方差稳健 Hansen J）p = P：**p 大 → 工具彼此一致，未被证伪；p < 0.05 → 数据反驳了工具集，至少一个 exclusion 不成立，这个点估计不可信**" |
 | `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale | "把 M 固定在 m 时 X 对 Y 的直接效应是 X.X 个单位" |
 | `mediation_nde` / `mediation_nie` | natural direct / indirect effect; outcome scale | "经过 M 这条路径贡献的部分是 X.X（NIE）" |
 | `mediation_*` (other) | see §"Mediation decomposition" for structural-only cases | (covered there) |
@@ -847,6 +847,19 @@ footnote:
 - `first_stage_f_stat` is the JOINT first stage for all instruments; the
   Stock-Yogo weak-IV caveat applies to it the same way (a `weak_iv_instrument`
   gap is attached when it is below the threshold).
+- When `over_identification.hansen_*` is present it is the
+  **heteroskedasticity-robust** over-identification test (the efficient
+  two-step GMM Hansen J), and it — not the Sargan — is what drives the
+  `overidentification_rejected` verdict. The Sargan assumes a homoskedastic
+  error; the Hansen J uses the correct robust weight matrix, so it is the more
+  defensible falsification when the error variance is not constant (or the
+  design is clustered). Lead with the Hansen J's p-value; the two coincide when
+  the error is homoskedastic, and a **disagreement** (one rejects, the other
+  doesn't) is itself informative — it says the over-ID conclusion hinges on the
+  homoskedasticity assumption. `hansen_gmm_point` is the efficient-GMM point the
+  robust J is built at; the headline `point` stays 2SLS (identical under
+  homoskedasticity), so keep reporting the 2SLS number and treat the GMM point
+  as a diagnostic, not a second answer.
 
 **Measurement-error correction (`method == "measurement_error_correction"`).**
 When a variable's noisy measurement raised the `measurement_error_concern` gap,

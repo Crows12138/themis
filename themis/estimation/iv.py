@@ -552,13 +552,40 @@ class SarganTest:
     that joint validity — a data falsification of the IV model, the linear /
     continuous analogue of the Balke-Pearl instrumental inequalities. It does
     NOT move the point estimate (like the weak-instrument F, it is a
-    diagnostic). Homoskedastic: the heteroskedasticity-robust Hansen J is
-    deferred (declared), mirroring the homoskedastic Anderson-Rubin set.
+    diagnostic). This is the HOMOSKEDASTIC form; its heteroskedasticity-robust
+    (efficient two-step GMM) generalisation is the companion ``HansenJTest``,
+    which uses the robust weight matrix and is the more defensible falsification
+    under heteroskedasticity / clustering.
     """
 
     j_stat: float
     dof: int          # q − 1
     p_value: float
+
+
+@dataclass(frozen=True)
+class HansenJTest:
+    """Hansen (1982) over-identification test — the heteroskedasticity-robust
+    (efficient two-step GMM) generalisation of the homoskedastic Sargan.
+
+    Whereas Sargan weights the moments by the homoskedastic ``σ̂²·(Z'Z)``, the
+    Hansen J uses the robust weight matrix ``Ŝ = (1/n) Σ û_i² z_i z_i'`` (or its
+    cluster-robust sum), which is the CORRECT weighting when the structural error
+    is heteroskedastic (or clustered). The statistic
+
+        ``J = n · ḡ(β̂₂)' Ŝ⁻¹ ḡ(β̂₂)``,  ḡ(β) = (1/n)(Z'y − β·Z'x)
+
+    evaluated at the efficient two-step GMM point ``β̂₂`` (the minimiser of the
+    robustly-weighted objective) is ``χ²(q − 1)`` under the same H0 that the q
+    instruments are JOINTLY valid. It coincides with Sargan under homoskedasticity
+    and is the more defensible over-identification falsification otherwise. Like
+    Sargan it does NOT move the headline point (which stays 2SLS); ``gmm_point``
+    is the efficient GMM byproduct, reported for transparency."""
+
+    j_stat: float
+    dof: int          # q − 1
+    p_value: float
+    gmm_point: float  # efficient two-step GMM coefficient on the treatment
 
 
 @dataclass(frozen=True)
@@ -589,10 +616,55 @@ class OverIDIVEstimate:
     n_instruments: int
     first_stage_f_stat: float | None
     sargan: SarganTest | None
+    hansen: HansenJTest | None
     # Residualised (FWL, on [1, W]) second moments — the verifier's inputs.
-    # zz: (q, q) list-of-lists; zx, zy: length-q lists; xx/xy/yy: scalars.
+    # zz: (q, q) list-of-lists; zx, zy: length-q lists; xx/xy/yy: scalars; and
+    # (when Hansen J was computed) s_robust: (q, q) robust weight matrix Ŝ.
     moments: dict
     cluster: str | None = None
+
+
+def _residualise_iv_columns(
+    df: pd.DataFrame,
+    treatment: str,
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    """Residualise Y, X, and each instrument on ``[1, W]`` (FWL). Returns the
+    ``(n,)`` residual arrays ``(zr (n, q), xr, yr)`` and ``|W|``. The residualised
+    columns feed both the second-moment matrices (2SLS point + Sargan) and the
+    per-observation robust weight matrix Ŝ (Hansen J)."""
+    n = len(df)
+    w_cols = list(conditioning)
+    w = df[w_cols].to_numpy(dtype=float) if w_cols else np.empty((n, 0))
+    yr = _residualise(df[outcome].to_numpy(dtype=float), w)
+    xr = _residualise(df[treatment].to_numpy(dtype=float), w)
+    zr = np.column_stack([
+        _residualise(df[z].to_numpy(dtype=float), w) for z in instruments
+    ])  # (n, q)
+    return zr, xr, yr, len(w_cols)
+
+
+def _moments_from_arrays(
+    zr: np.ndarray, xr: np.ndarray, yr: np.ndarray, n_exog: int,
+) -> dict:
+    """Second-moment matrices from residualised columns — the 2SLS point and
+    Sargan statistic are closed forms of these."""
+    zz = zr.T @ zr
+    zx = zr.T @ xr
+    zy = zr.T @ yr
+    return {
+        "zz": zz.tolist(),
+        "zx": zx.tolist(),
+        "zy": zy.tolist(),
+        "xx": float(xr @ xr),
+        "xy": float(xr @ yr),
+        "yy": float(yr @ yr),
+        "n": int(len(xr)),
+        "n_exog": int(n_exog),
+        "q": int(zr.shape[1]),
+    }
 
 
 def _overid_moments(
@@ -605,28 +677,106 @@ def _overid_moments(
     """Residualise Y, X, and each instrument on ``[1, W]`` (FWL) and return
     the second-moment matrices the 2SLS point and Sargan statistic are closed
     forms of."""
-    n = len(df)
-    w_cols = list(conditioning)
-    w = df[w_cols].to_numpy(dtype=float) if w_cols else np.empty((n, 0))
-    yr = _residualise(df[outcome].to_numpy(dtype=float), w)
-    xr = _residualise(df[treatment].to_numpy(dtype=float), w)
-    zr = np.column_stack([
-        _residualise(df[z].to_numpy(dtype=float), w) for z in instruments
-    ])  # (n, q)
-    zz = zr.T @ zr
-    zx = zr.T @ xr
-    zy = zr.T @ yr
-    return {
-        "zz": zz.tolist(),
-        "zx": zx.tolist(),
-        "zy": zy.tolist(),
-        "xx": float(xr @ xr),
-        "xy": float(xr @ yr),
-        "yy": float(yr @ yr),
-        "n": int(n),
-        "n_exog": len(w_cols),
-        "q": len(instruments),
-    }
+    zr, xr, yr, n_exog = _residualise_iv_columns(
+        df, treatment, outcome, instruments, conditioning,
+    )
+    return _moments_from_arrays(zr, xr, yr, n_exog)
+
+
+def _robust_weight_matrix(
+    zr: np.ndarray,
+    xr: np.ndarray,
+    yr: np.ndarray,
+    beta: float,
+    groups: np.ndarray | None = None,
+) -> np.ndarray:
+    """The robust GMM weight-variance estimator Ŝ, an estimate of
+    ``Avar(√n · (1/n) Z'û)`` at the step-1 (2SLS) residuals ``û = ỹ − β·x̃``.
+
+    - ``groups is None`` → heteroskedasticity-robust HC0:
+      ``Ŝ = (1/n) Σ_i û_i² z_i z_i'`` (a sum of rank-1 PSD terms).
+    - ``groups`` given → cluster-robust CR0:
+      ``Ŝ = (1/n) Σ_c (Σ_{i∈c} û_i z_i)(Σ_{i∈c} û_i z_i)'`` — the correct object
+      when the design is clustered; under a declared cluster a heteroskedasticity-
+      only Ŝ would wrongly assume within-cluster independence.
+
+    No small-sample HC1/CR1 multiplier (declared). Raises ``ValueError`` if the
+    cluster labels are misaligned with the residualised rows (caller degrades to
+    no-Hansen)."""
+    n = len(xr)
+    u = yr - beta * xr
+    g = zr * u[:, None]                       # (n, q): per-obs moment z_i · û_i
+    if groups is None:
+        s = g.T @ g / n
+    else:
+        groups = np.asarray(groups)
+        if len(groups) != n:
+            raise ValueError("cluster labels misaligned with residualised rows")
+        gsum = np.array([g[groups == c].sum(axis=0) for c in np.unique(groups)])
+        s = gsum.T @ gsum / n
+    return s
+
+
+def solve_hansen_from_s(m: dict) -> dict:
+    """Efficient two-step GMM point + Hansen (1982) J as closed forms of the
+    robust weight matrix Ŝ (``s_robust``) and the residualised cross-moments
+    Z'x / Z'y. The PRODUCER-side transcription; the verifier re-derives with its
+    OWN independent one (never importing this), so a bug here is caught.
+
+        β̂₂ = (Z'x)' Ŝ⁻¹ (Z'y) / (Z'x)' Ŝ⁻¹ (Z'x)          (efficient GMM point)
+        ḡ  = (1/n)(Z'y − β̂₂·Z'x)                            (moment vector at β̂₂)
+        J  = n · ḡ' Ŝ⁻¹ ḡ  ~  χ²(q − 1)                      (Hansen J)
+
+    Reduces to the homoskedastic Sargan when Ŝ = σ̂²·(Z'Z)/n. Raises
+    ``np.linalg.LinAlgError`` when Ŝ is singular, ``ValueError`` when the
+    efficient first stage is degenerate."""
+    q = int(m["q"]); n = int(m["n"])
+    zx = np.asarray(m["zx"], dtype=float).reshape(q)
+    zy = np.asarray(m["zy"], dtype=float).reshape(q)
+    s = np.asarray(m["s_robust"], dtype=float).reshape(q, q)
+    s_inv = np.linalg.inv(s)
+    denom = float(zx @ s_inv @ zx)
+    if not math.isfinite(denom) or abs(denom) < 1e-12:
+        raise ValueError("efficient-GMM first stage degenerate: x'Ŝ⁻¹x ~ 0")
+    beta2 = float(zx @ s_inv @ zy) / denom
+    g = (zy - beta2 * zx) / n
+    j = float(n * (g @ s_inv @ g))
+    return {"gmm_point": beta2, "j_stat": j, "dof": q - 1}
+
+
+def _hansen_robust_j(
+    df: pd.DataFrame,
+    treatment: str,
+    outcome: str,
+    instruments: tuple[str, ...],
+    conditioning: tuple[str, ...],
+    *,
+    m: dict,
+    beta: float,
+    groups: np.ndarray | None,
+) -> tuple["HansenJTest | None", list | None]:
+    """Compute the efficient two-step GMM Hansen J from the robust weight matrix
+    at the 2SLS residuals. Returns ``(HansenJTest, s_robust_list)`` or
+    ``(None, None)`` when Ŝ is singular / degenerate — Hansen is an ADD-ON
+    diagnostic, so a degenerate robust weight leaves the 2SLS + Sargan estimate
+    standing rather than failing it."""
+    from scipy.stats import chi2 as _chi2
+
+    zr, xr, yr, _ = _residualise_iv_columns(
+        df, treatment, outcome, instruments, conditioning,
+    )
+    try:
+        s = _robust_weight_matrix(zr, xr, yr, beta, groups)
+        solved = solve_hansen_from_s({**m, "s_robust": s.tolist()})
+    except (np.linalg.LinAlgError, ValueError):
+        return None, None
+    dof = int(solved["dof"])
+    p = float(_chi2.sf(solved["j_stat"], dof)) if dof >= 1 else float("nan")
+    hansen = HansenJTest(
+        j_stat=float(solved["j_stat"]), dof=dof, p_value=p,
+        gmm_point=float(solved["gmm_point"]),
+    )
+    return hansen, s.tolist()
 
 
 def solve_overid_from_moments(m: dict) -> dict:
@@ -734,6 +884,17 @@ def estimate_iv_overid(
     p_value = float(_chi2.sf(j_stat, dof)) if dof >= 1 else float("nan")
     sargan = SarganTest(j_stat=float(j_stat), dof=int(dof), p_value=p_value)
 
+    # Heteroskedasticity-robust (cluster-robust under a declared cluster) Hansen
+    # J via efficient two-step GMM. An add-on diagnostic: a degenerate robust
+    # weight leaves the 2SLS + Sargan estimate standing (hansen stays None). Its
+    # robust weight matrix Ŝ is recorded into `m` for the verifier.
+    hansen, s_robust = _hansen_robust_j(
+        df, treatment, outcome, instruments, conditioning,
+        m=m, beta=point, groups=groups,
+    )
+    if s_robust is not None:
+        m["s_robust"] = s_robust
+
     ci_lower: float | None = None
     ci_upper: float | None = None
     if ci_bootstrap > 0:
@@ -743,13 +904,18 @@ def estimate_iv_overid(
             random_state=random_state, groups=groups,
         )
 
+    overid_test_assumption = (
+        "overidentifying_restrictions_testable_via_sargan_and_robust_hansen_j"
+        if hansen is not None
+        else "overidentifying_restrictions_testable_via_sargan_homoskedastic"
+    )
     assumptions = (
         "iv1_relevance_instruments_affect_treatment",
         "iv2_exclusion_instruments_affect_outcome_only_via_treatment",
         "iv3_independence_instruments_independent_of_latent_confounders",
         "linearity_of_first_and_second_stage",
         "constant_treatment_effect_else_estimand_is_weighted_average",
-        "overidentifying_restrictions_testable_via_sargan_homoskedastic",
+        overid_test_assumption,
     )
     if conditioning:
         assumptions = assumptions + (
@@ -776,6 +942,7 @@ def estimate_iv_overid(
         n_instruments=len(instruments),
         first_stage_f_stat=solved["joint_f"],
         sargan=sargan,
+        hansen=hansen,
         moments=m,
         cluster=cluster,
     )

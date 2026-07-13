@@ -548,7 +548,7 @@
         },
         "over_identification": {
           "type": "object",
-          "description": "iv_2sls_overid only: the Sargan (1958) over-identification test of the q instruments' JOINT validity (homoskedastic). A small p-value REFUTES the joint exclusion restrictions — the linear / continuous analogue of the Balke-Pearl instrumental inequalities; the data refute the instrument set. sufficient_statistics carries the residualised second moments the point + J are closed forms of, so verify_iv_overid_numeric re-derives both without the raw data.",
+          "description": "iv_2sls_overid only: the over-identification test(s) of the q instruments' JOINT validity. sargan_* is the homoskedastic Sargan (1958); hansen_* (present when the robust weight matrix was non-singular) is its heteroskedasticity-robust efficient-two-step-GMM generalisation, the Hansen (1982) J, which uses the robust weight Ŝ and is the more defensible falsification under heteroskedasticity / clustering. A small p-value REFUTES the joint exclusion restrictions — the linear / continuous analogue of the Balke-Pearl instrumental inequalities; the data refute the instrument set. sufficient_statistics carries the residualised second moments (plus Ŝ when Hansen was computed) that the point + both J statistics are closed forms of, so verify_iv_overid_numeric re-derives everything without the raw data.",
           "required": ["test", "sargan_j", "sargan_dof", "sargan_p_value", "sufficient_statistics"],
           "additionalProperties": false,
           "properties": {
@@ -557,9 +557,14 @@
             "sargan_dof": { "type": "integer", "minimum": 1 },
             "sargan_p_value": { "type": "number", "minimum": 0, "maximum": 1 },
             "rejected_at_0_05": { "type": "boolean", "description": "Mechanical flag: sargan_p_value < 0.05." },
+            "hansen_j": { "type": "number", "description": "Heteroskedasticity-robust (efficient two-step GMM) Hansen (1982) J; present when the robust weight matrix Ŝ was non-singular. Coincides with sargan_j under homoskedasticity." },
+            "hansen_dof": { "type": "integer", "minimum": 1, "description": "q - 1, same as sargan_dof." },
+            "hansen_p_value": { "type": "number", "minimum": 0, "maximum": 1 },
+            "hansen_gmm_point": { "type": "number", "description": "The efficient two-step GMM coefficient on the treatment (byproduct of the Hansen J). The headline `point` stays 2SLS; the two coincide under homoskedasticity." },
+            "hansen_rejected_at_0_05": { "type": "boolean", "description": "Mechanical flag: hansen_p_value < 0.05." },
             "sufficient_statistics": {
               "type": "object",
-              "description": "Residualised (FWL, on [1, W]) second moments: Z'Z (q x q), Z'x (q), Z'y (q), and the scalars x'x / x'y / y'y, plus n / n_exog (|W|) / q.",
+              "description": "Residualised (FWL, on [1, W]) second moments: Z'Z (q x q), Z'x (q), Z'y (q), and the scalars x'x / x'y / y'y, plus n / n_exog (|W|) / q. When Hansen J was computed, also s_robust: the (q x q) robust weight matrix Ŝ = (1/n) Σ û_i² z_i z_i' (cluster-robust sum under a declared cluster).",
               "required": ["zz", "zx", "zy", "xx", "xy", "yy", "n", "n_exog", "q"],
               "additionalProperties": false,
               "properties": {
@@ -571,7 +576,8 @@
                 "yy": { "type": "number" },
                 "n": { "type": "integer", "minimum": 1 },
                 "n_exog": { "type": "integer", "minimum": 0 },
-                "q": { "type": "integer", "minimum": 2 }
+                "q": { "type": "integer", "minimum": 2 },
+                "s_robust": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "The (q x q) robust GMM weight matrix Ŝ; present iff hansen_* is." }
               }
             }
           }

@@ -13,9 +13,11 @@ import pandas as pd
 import pytest
 
 from themis.estimation.iv import (
+    HansenJTest,
     OverIDIVEstimate,
     SarganTest,
     estimate_iv_overid,
+    solve_hansen_from_s,
     solve_overid_from_moments,
 )
 
@@ -371,3 +373,214 @@ def test_public_api_exposed():
     assert hasattr(themis, "estimate")
     from themis.verifier import verify_iv_overid_numeric as _v
     assert callable(_v)
+
+
+# ============================================ Hansen (1982) robust J
+#
+# D1 oracle: an INDEPENDENT efficient two-step GMM — β̂₁ from the full-matrix
+# 2SLS, Ŝ = (1/n)Σ û₁² z̃ z̃' from explicitly residualised instruments, then
+# β̂₂ = (Z'x)'Ŝ⁻¹(Z'y)/(Z'x)'Ŝ⁻¹(Z'x) and J = n·ḡ'Ŝ⁻¹ḡ — a different code path
+# from the estimator's solve_hansen_from_s. Hansen J is the heteroskedasticity-
+# robust generalisation of Sargan: it must COINCIDE with Sargan under a
+# homoskedastic error and DIFFER materially under a heteroskedastic one.
+
+
+def _oracle_hansen_j(df, treatment, outcome, instruments, conditioning=()):
+    from scipy.stats import chi2
+
+    n = len(df)
+    ones = np.ones((n, 1))
+    w = df[list(conditioning)].to_numpy(float) if conditioning else np.empty((n, 0))
+    design = np.hstack([ones, w])
+
+    def resid(col):
+        v = df[col].to_numpy(float)
+        coef, *_ = np.linalg.lstsq(design, v, rcond=None)
+        return v - design @ coef
+
+    yr = resid(outcome)
+    xr = resid(treatment)
+    zr = np.column_stack([resid(z) for z in instruments])
+    zz = zr.T @ zr
+    zx = zr.T @ xr
+    zy = zr.T @ yr
+    zzi = np.linalg.inv(zz)
+    b1 = (zx @ zzi @ zy) / (zx @ zzi @ zx)          # 2SLS (step 1)
+    u = yr - b1 * xr
+    S = (zr * (u ** 2)[:, None]).T @ zr / n          # robust weight Ŝ
+    Si = np.linalg.inv(S)
+    b2 = (zx @ Si @ zy) / (zx @ Si @ zx)             # efficient GMM point
+    g = (zy - b2 * zx) / n
+    J = n * (g @ Si @ g)
+    q = len(instruments)
+    return b2, J, q - 1, float(chi2.sf(J, q - 1))
+
+
+def _hetero_3iv(n=4000, seed=7, beta=1.5):
+    """Three VALID instruments, but the structural error is heteroskedastic
+    (variance rises with |z1|) — Sargan's homoskedastic weight is wrong here."""
+    rng = np.random.default_rng(seed)
+    z1 = rng.standard_normal(n)
+    z2 = rng.standard_normal(n)
+    z3 = rng.standard_normal(n)
+    u = rng.standard_normal(n)
+    x = 0.8 * z1 + 0.6 * z2 + 0.5 * z3 + 1.2 * u + rng.standard_normal(n)
+    eps = rng.standard_normal(n) * (1.0 + 3.0 * np.abs(z1))
+    y = beta * x + 1.0 * u + eps
+    return pd.DataFrame({"z1": z1, "z2": z2, "z3": z3, "x": x, "y": y})
+
+
+def test_hansen_present_and_matches_oracle():
+    df = _hetero_3iv()
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    assert est.hansen is not None
+    b2_o, j_o, dof_o, p_o = _oracle_hansen_j(df, "x", "y", ("z1", "z2", "z3"))
+    assert est.hansen.dof == dof_o == 2
+    assert abs(est.hansen.gmm_point - b2_o) < 1e-8
+    assert abs(est.hansen.j_stat - j_o) < 1e-7
+    assert abs(est.hansen.p_value - p_o) < 1e-9
+    # headline point stays 2SLS, distinct from the efficient-GMM point here
+    assert abs(est.point - est.hansen.gmm_point) > 1e-4
+
+
+def test_hansen_coincides_with_sargan_under_homoskedasticity():
+    """Homoskedastic error → Hansen J and Sargan J agree asymptotically."""
+    df = _valid_2iv(n=20000, seed=11)
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2"), ci_bootstrap=0)
+    assert est.hansen is not None
+    # both are χ²(1) draws from the same null; at n=20000 they track closely
+    assert abs(est.hansen.j_stat - est.sargan.j_stat) < 0.15
+    assert abs(est.hansen.gmm_point - est.point) < 1e-2
+
+
+def test_hansen_differs_from_sargan_under_heteroskedasticity():
+    """Heteroskedastic error → the robust weight matters; J's diverge."""
+    df = _hetero_3iv(n=8000, seed=3)
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    assert est.hansen is not None
+    rel = abs(est.hansen.j_stat - est.sargan.j_stat) / (1 + abs(est.sargan.j_stat))
+    assert rel > 0.02  # materially different, not a cosmetic duplicate
+
+
+def test_hansen_solve_round_trips_from_recorded_s():
+    """solve_hansen_from_s on the recorded moments reproduces the estimate."""
+    df = _hetero_3iv()
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    solved = solve_hansen_from_s(est.moments)
+    assert abs(solved["j_stat"] - est.hansen.j_stat) < 1e-9
+    assert abs(solved["gmm_point"] - est.hansen.gmm_point) < 1e-9
+    assert solved["dof"] == est.hansen.dof
+
+
+def test_hansen_cluster_robust_weight_differs_and_is_consistent():
+    """A declared cluster → the robust weight is the cluster-robust (CR0) sum,
+    which differs from the HC0 weight and stays internally consistent."""
+    df = _hetero_3iv(n=6000, seed=5)
+    rng = np.random.default_rng(0)
+    df = df.assign(cl=rng.integers(0, 40, size=len(df)))
+    est_hc0 = estimate_iv_overid(df, treatment="x", outcome="y",
+                                 instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    est_cr0 = estimate_iv_overid(df, treatment="x", outcome="y",
+                                 instruments=("z1", "z2", "z3"), ci_bootstrap=0,
+                                 cluster="cl")
+    assert est_cr0.hansen is not None
+    s_hc0 = np.asarray(est_hc0.moments["s_robust"])
+    s_cr0 = np.asarray(est_cr0.moments["s_robust"])
+    assert not np.allclose(s_hc0, s_cr0)                      # genuinely CR0
+    solved = solve_hansen_from_s(est_cr0.moments)             # self-consistent
+    assert abs(solved["j_stat"] - est_cr0.hansen.j_stat) < 1e-9
+
+
+# --- dispatch + verifier round-trip for the Hansen block --------------------
+
+
+def test_dispatch_overid_carries_hansen_block():
+    df = _valid_2iv(n=3000)
+    ne = themis.estimate(_overid_ast(), df, ci_bootstrap=0)["results"][0]["numeric_estimate"]
+    oid = ne["over_identification"]
+    assert "hansen_j" in oid and "hansen_gmm_point" in oid
+    assert oid["hansen_dof"] == 1
+    assert "s_robust" in oid["sufficient_statistics"]
+
+
+@pytest.fixture(scope="module")
+def hetero_overid_ne():
+    df = _hetero_3iv(n=5000, seed=9)
+    ast = _overid_ast(instruments=("z1", "z2", "z3"))
+    out = themis.estimate(ast, df, ci_bootstrap=0)
+    return out["results"][0]["numeric_estimate"]
+
+
+def test_hansen_verifier_accepts_genuine(hetero_overid_ne):
+    verify_iv_overid_numeric(hetero_overid_ne)  # no raise
+
+
+def test_hansen_verifier_rejects_forged_hansen_j(hetero_overid_ne):
+    ne = copy.deepcopy(hetero_overid_ne)
+    ne["over_identification"]["hansen_j"] = 42.0
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_hansen_verifier_rejects_forged_gmm_point(hetero_overid_ne):
+    ne = copy.deepcopy(hetero_overid_ne)
+    ne["over_identification"]["hansen_gmm_point"] = 9.9
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_hansen_verifier_rejects_wrong_hansen_dof(hetero_overid_ne):
+    ne = copy.deepcopy(hetero_overid_ne)
+    ne["over_identification"]["hansen_dof"] = 5
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_hansen_verifier_rejects_non_psd_weight(hetero_overid_ne):
+    ne = copy.deepcopy(hetero_overid_ne)
+    q = ne["over_identification"]["sufficient_statistics"]["q"]
+    ne["over_identification"]["sufficient_statistics"]["s_robust"] = [
+        [-1.0 if i == j else 0.0 for j in range(q)] for i in range(q)
+    ]
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_hansen_verifier_rejects_asymmetric_weight(hetero_overid_ne):
+    ne = copy.deepcopy(hetero_overid_ne)
+    S = np.asarray(ne["over_identification"]["sufficient_statistics"]["s_robust"])
+    S[0, 1] += 5.0
+    ne["over_identification"]["sufficient_statistics"]["s_robust"] = S.tolist()
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_hansen_verifier_rejects_missing_s_robust(hetero_overid_ne):
+    ne = copy.deepcopy(hetero_overid_ne)
+    ne["over_identification"]["sufficient_statistics"].pop("s_robust")
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_hansen_verifier_rejects_inconsistent_rejected_flag(hetero_overid_ne):
+    ne = copy.deepcopy(hetero_overid_ne)
+    # genuine p is large here (valid instruments); claim rejection
+    ne["over_identification"]["hansen_rejected_at_0_05"] = True
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_hansen_verifier_backward_compatible_without_hansen(overid_result):
+    """A block with no hansen_j (e.g. an older result) still verifies via the
+    Sargan path alone."""
+    ne = copy.deepcopy(overid_result["numeric_estimate"])
+    oid = ne["over_identification"]
+    for k in ("hansen_j", "hansen_dof", "hansen_p_value",
+              "hansen_gmm_point", "hansen_rejected_at_0_05"):
+        oid.pop(k, None)
+    oid["sufficient_statistics"].pop("s_robust", None)
+    verify_iv_overid_numeric(ne)  # no raise

@@ -1278,9 +1278,9 @@ _IV_OVERID_TOL = 1e-6
 
 
 def verify_iv_overid_numeric(estimate: dict) -> None:
-    """Re-derive an over-identified 2SLS estimate — the point, the Sargan J,
-    and its p-value — from the recorded residualised moment matrices, and
-    reject on mismatch.
+    """Re-derive an over-identified 2SLS estimate — the point, the Sargan J, its
+    p-value, and (when present) the heteroskedasticity-robust Hansen J — from the
+    recorded residualised moment matrices, and reject on mismatch.
 
     Over-identified 2SLS rides on a ``numerically_solved`` IV result whose
     derivation ends in ``numeric_iv_overid_estimate`` (metadata + structural
@@ -1292,9 +1292,13 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
         J = n · (a' (Z'Z)⁻¹ a) / (û'û),  a = Z'y − β·Z'x,  û'û = yy − 2β·xy + β²·xx
 
     from the recorded ``over_identification.sufficient_statistics`` (the
-    residualised second moments Z'Z / Z'x / Z'y / xx / xy / yy). It never
-    imports the producer's solve and never touches the raw data. A result that
-    isn't an ``iv_2sls_overid`` estimate is a no-op.
+    residualised second moments Z'Z / Z'x / Z'y / xx / xy / yy). When the block
+    also carries a Hansen J (``hansen_j`` + ``s_robust``), the efficient two-step
+    GMM point and the robust J are re-derived from the recorded weight matrix Ŝ
+    with their own independent transcription, and Ŝ is checked to be a valid
+    (symmetric PSD) weight-variance matrix. It never imports the producer's solve
+    and never touches the raw data. A result that isn't an ``iv_2sls_overid``
+    estimate is a no-op.
 
     ``estimate`` is the full ``numeric_estimate`` dict.
     """
@@ -1372,6 +1376,68 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
             f"rejected_at_0_05={claimed_rej} inconsistent with re-derived "
             f"p-value {p_value}"
         )
+
+    # --- Hansen (1982) robust J ------------------------------------------------
+    # Present only when the producer's robust weight matrix Ŝ was non-singular.
+    # A SECOND, independent transcription of the efficient two-step GMM closed
+    # forms from the recorded Ŝ (s_robust) + cross-moments Z'x / Z'y:
+    #
+    #     β̂₂ = (Z'x)' Ŝ⁻¹ (Z'y) / (Z'x)' Ŝ⁻¹ (Z'x)
+    #     J  = n · ḡ' Ŝ⁻¹ ḡ,   ḡ = (1/n)(Z'y − β̂₂·Z'x)
+    #
+    # As with the Sargan block, this audits that the reported J / GMM point are
+    # the correct closed forms of the recorded sufficient statistics — not that
+    # Ŝ matches raw data the verifier never sees (the declared honest ceiling of
+    # the sufficient-statistics pattern). The extra teeth here: Ŝ must be a valid
+    # (symmetric, PSD) weight-variance matrix, else the re-derived J is not a
+    # legitimate χ² statistic.
+    if oid.get("hansen_j") is not None:
+        s_raw = suff.get("s_robust")
+        if s_raw is None:
+            _fail("hansen_j reported but sufficient_statistics.s_robust missing")
+        try:
+            S = np.asarray(s_raw, dtype=float).reshape(q, q)
+        except (TypeError, ValueError) as exc:
+            _fail(f"ill-formed robust weight matrix s_robust: {exc}")
+        if not np.allclose(S, S.T, atol=1e-8):
+            _fail("recorded robust weight matrix Ŝ is not symmetric")
+        eig = np.linalg.eigvalsh((S + S.T) / 2.0)
+        if float(eig.min()) < -1e-8 * (1.0 + abs(float(eig.max()))):
+            _fail("recorded robust weight matrix Ŝ is not positive semidefinite")
+        try:
+            s_inv = np.linalg.inv(S)
+        except np.linalg.LinAlgError:
+            _fail("recorded robust weight matrix Ŝ is singular — cannot re-derive")
+        denom = float(zx @ s_inv @ zx)
+        if not math.isfinite(denom) or abs(denom) < 1e-12:
+            _fail("degenerate efficient-GMM first stage (x'Ŝ⁻¹x ~ 0)")
+        gmm_point = float(zx @ s_inv @ zy) / denom
+        g = (zy - gmm_point * zx) / n
+        hansen_j = float(n * (g @ s_inv @ g))
+        hansen_dof = q - 1
+        hansen_p = float(_chi2.sf(hansen_j, hansen_dof))
+
+        for key, recomputed in (
+            ("hansen_j", hansen_j),
+            ("hansen_p_value", hansen_p),
+            ("hansen_gmm_point", gmm_point),
+        ):
+            claimed = oid.get(key)
+            if claimed is None:
+                _fail(f"over_identification.{key} missing")
+            if abs(recomputed - float(claimed)) > _IV_OVERID_TOL * (1 + abs(recomputed)):
+                _fail(f"{key} mismatch — re-derived {recomputed}, recorded {claimed}")
+        if oid.get("hansen_dof") != hansen_dof:
+            _fail(
+                f"hansen_dof mismatch — re-derived {hansen_dof}, recorded "
+                f"{oid.get('hansen_dof')}"
+            )
+        claimed_hrej = oid.get("hansen_rejected_at_0_05")
+        if claimed_hrej is not None and bool(claimed_hrej) != (hansen_p < 0.05):
+            _fail(
+                f"hansen_rejected_at_0_05={claimed_hrej} inconsistent with "
+                f"re-derived p-value {hansen_p}"
+            )
 
 
 _MEASUREMENT_CORRECTION_TOL = 1e-6
