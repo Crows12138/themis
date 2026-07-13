@@ -846,7 +846,18 @@ footnote:
   instrument, reconsider the graph, or fall back to assumption-light bounds).
 - `first_stage_f_stat` is the JOINT first stage for all instruments; the
   Stock-Yogo weak-IV caveat applies to it the same way (a `weak_iv_instrument`
-  gap is attached when it is below the threshold).
+  gap is attached when it is below the threshold). When the joint F is weak, an
+  `anderson_rubin_confidence_set` block is the honest interval to report —
+  it is the multi-instrument AR set (critical value `q·F(q, m)`), valid
+  whatever the instruments' joint strength, whereas the bootstrap CI is not.
+  Same reading as the single-instrument set: a **bounded** interval is a clean
+  identification, an **unbounded** shape (ray / whole line) is the honest signal
+  the data cannot bound the effect, and — unique to the over-identified set —
+  an **empty** set means no β0 satisfies all q moment restrictions at once, i.e.
+  the over-identifying restrictions are rejected *in the set geometry* (read it
+  alongside the Sargan/Hansen verdict, which says the same thing). Unlike the
+  just-identified set the 2SLS `point` need not lie inside the set, so do not
+  "correct" the point to the nearest endpoint.
 - When `over_identification.hansen_*` is present it is the
   **heteroskedasticity-robust** over-identification test (the efficient
   two-step GMM Hansen J), and it — not the Sargan — is what drives the

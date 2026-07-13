@@ -17,7 +17,11 @@ Landed scope:
   confidence set for the single-instrument IV coefficient, always attached
   to ``IVEstimate``. Valid regardless of first-stage strength — unlike the
   bootstrap CI — and honestly returns an unbounded set when the data cannot
-  bound the effect.
+  bound the effect. iter 240 — ``anderson_rubin_overid_set`` returning
+  ``OverIDARConfidenceSet`` is its multi-instrument (q ≥ 2) counterpart,
+  attached to ``OverIDIVEstimate``: still one quadratic inequality (the
+  q-dimensional projection only changes the coefficients), with critical value
+  ``q·F(q, m)``.
 - Over-identified IV — ``estimate_iv_overid`` (returning ``OverIDIVEstimate``
   with a ``SarganTest``): multi-instrument 2SLS (q ≥ 2 instruments valid under
   a shared conditioning set) plus the Sargan (1958) over-identification test,
@@ -203,9 +207,11 @@ from .discovery import (
 from .iv import (
     ARConfidenceSet,
     IVEstimate,
+    OverIDARConfidenceSet,
     OverIDIVEstimate,
     SarganTest,
     anderson_rubin_confidence_set,
+    anderson_rubin_overid_set,
     estimate_iv_ate,
     estimate_iv_overid,
 )
@@ -256,6 +262,7 @@ __all__ = [
     "DataDiagnostics",
     "DiscoveryResult",
     "ARConfidenceSet",
+    "OverIDARConfidenceSet",
     "OverIDIVEstimate",
     "SarganTest",
     "estimate_iv_overid",
@@ -280,6 +287,7 @@ __all__ = [
     "TMLEEstimate",
     "TransportEstimate",
     "anderson_rubin_confidence_set",
+    "anderson_rubin_overid_set",
     "discover_graph",
     "discovery_to_kernel_ast",
     "e_value_for_risk_ratio",

@@ -589,6 +589,50 @@ class HansenJTest:
 
 
 @dataclass(frozen=True)
+class OverIDARConfidenceSet:
+    """Anderson-Rubin weak-identification-robust confidence set for the
+    OVER-IDENTIFIED IV coefficient (q ≥ 2 instruments, single endogenous
+    treatment) — the multi-instrument counterpart of ``ARConfidenceSet``.
+
+    The over-identified path detects a weak JOINT first stage (the joint F) but
+    its only interval is the bootstrap CI, which — exactly as in the just-
+    identified case — is invalid when the instruments are jointly weak. The AR
+    set inverts a test whose size is correct regardless of instrument strength:
+    ``beta0`` is IN the set iff we cannot reject that the q instruments are
+    jointly uncorrelated with the structural residual ``Y − beta0·X`` (after
+    partialing out ``W``). For a single endogenous regressor that statistic is
+    still a RATIO OF QUADRATICS in ``beta0`` — the q-dimensional projection only
+    changes the coefficients, not the algebra — so the set is again the solution
+    of one quadratic inequality and takes the same five Dufour (1997) shapes:
+
+        ``AR(beta0) = [N(beta0)/q] / [(T(beta0)−N(beta0))/m] ~ F(q, m)``
+        ``N(beta0)  = (ỹ − beta0·x̃)' P_Z (ỹ − beta0·x̃)``   (q-dim projection)
+        ``T(beta0)  = (ỹ − beta0·x̃)'(ỹ − beta0·x̃)``,   ``m = n − |W| − q − 1``
+
+    Inverted, ``{beta0 : AR ≤ F(q,m)}`` is ``A·beta0² + B·beta0 + C ≤ 0`` with
+    ``kappa = q·F(q, m)`` (the multi-instrument generalisation of the single-
+    instrument ``F(1, m)``). Unlike the just-identified set, the 2SLS ``point``
+    need NOT lie in this set — when the over-identifying restrictions are
+    violated ``N(point) = û'P_Z û`` (the Sargan numerator) is strictly positive,
+    so the point can fall outside its own AR set. The residualised second-moment
+    MATRICES live in the estimate's ``moments`` dict, so an independent verifier
+    re-derives ``A/B/C`` and re-solves without the raw data.
+
+    ``dof_num = q``; ``dof_denom = m``. ``point`` is the 2SLS coefficient
+    (``= x'P_Z y / x'P_Z x``); ``None`` if the first stage is exactly degenerate.
+    """
+
+    kind: str
+    lower: float | None
+    upper: float | None
+    ci_level: float
+    point: float | None
+    kappa: float
+    dof_num: int
+    dof_denom: int
+
+
+@dataclass(frozen=True)
 class OverIDIVEstimate:
     """Over-identified two-stage least squares (q ≥ 2 instruments, single
     endogenous treatment) + the Sargan over-identification test.
@@ -622,6 +666,11 @@ class OverIDIVEstimate:
     # (when Hansen J was computed) s_robust: (q, q) robust weight matrix Ŝ.
     moments: dict
     cluster: str | None = None
+    # iter 240: the multi-instrument Anderson-Rubin weak-identification-robust
+    # confidence set. Valid whatever the JOINT first-stage strength — the honest
+    # interval the bootstrap CI cannot give when the instruments are jointly
+    # weak. None when the AR test is undefined (residual df < 1, or Z'Z singular).
+    anderson_rubin: OverIDARConfidenceSet | None = None
 
 
 def _residualise_iv_columns(
@@ -830,6 +879,65 @@ def solve_overid_from_moments(m: dict) -> dict:
     }
 
 
+def anderson_rubin_overid_set(
+    m: dict, ci_level: float = 0.95,
+) -> "OverIDARConfidenceSet | None":
+    """Multi-instrument (q ≥ 2, single endogenous) homoskedastic Anderson-Rubin
+    confidence set, as a pure closed form of the residualised second moments in
+    ``m`` (the same ``moments`` dict the 2SLS point + Sargan J ride on).
+
+    The q-dimensional projection quadratic forms
+    ``P_yy = (Z'y)'(Z'Z)⁻¹(Z'y)``, ``P_xy = (Z'x)'(Z'Z)⁻¹(Z'y)``,
+    ``P_xx = (Z'x)'(Z'Z)⁻¹(Z'x)`` give ``N(beta0) = P_yy − 2β0·P_xy + β0²·P_xx``
+    and ``T(beta0) = yy − 2β0·xy + β0²·xx``. Inverting ``AR(beta0) ≤ F(q, m)``
+    (``m = n − |W| − q − 1``) with ``kappa = q·F(q, m; ci_level)``,
+    ``G = m + kappa`` yields ``A·β0² + B·β0 + C ≤ 0``:
+
+        ``A = G·P_xx − kappa·xx``
+        ``B = 2·(kappa·xy − G·P_xy)``
+        ``C = G·P_yy − kappa·yy``
+
+    solved (into the five Dufour shapes) by :func:`_ar_solve_set`. For ``q = 1``
+    this reduces to :func:`anderson_rubin_confidence_set` exactly. Returns
+    ``None`` when the test is undefined: residual df ``m < 1``, or ``Z'Z``
+    singular (collinear instruments)."""
+    from scipy.stats import f as _f_dist
+
+    q = int(m["q"]); n = int(m["n"]); n_exog = int(m["n_exog"])
+    m_denom = n - n_exog - q - 1
+    if m_denom < 1:
+        return None
+
+    zz = np.asarray(m["zz"], dtype=float).reshape(q, q)
+    zx = np.asarray(m["zx"], dtype=float).reshape(q)
+    zy = np.asarray(m["zy"], dtype=float).reshape(q)
+    xx, xy, yy = float(m["xx"]), float(m["xy"]), float(m["yy"])
+
+    try:
+        zz_inv = np.linalg.inv(zz)
+    except np.linalg.LinAlgError:
+        return None
+
+    p_yy = float(zy @ zz_inv @ zy)
+    p_xy = float(zx @ zz_inv @ zy)
+    p_xx = float(zx @ zz_inv @ zx)
+
+    kappa = float(q) * float(_f_dist.ppf(ci_level, q, m_denom))
+    g = m_denom + kappa
+    a = g * p_xx - kappa * xx
+    b = 2.0 * (kappa * xy - g * p_xy)
+    c = g * p_yy - kappa * yy
+    a_scale = abs(g * p_xx) + abs(kappa * xx) + 1.0
+    kind, lower, upper = _ar_solve_set(a, b, c, atol=1e-9 * a_scale)
+
+    point = p_xy / p_xx if abs(p_xx) > 1e-12 else None
+
+    return OverIDARConfidenceSet(
+        kind=kind, lower=lower, upper=upper, ci_level=ci_level,
+        point=point, kappa=kappa, dof_num=q, dof_denom=m_denom,
+    )
+
+
 def estimate_iv_overid(
     data: pd.DataFrame,
     *,
@@ -895,6 +1003,12 @@ def estimate_iv_overid(
     if s_robust is not None:
         m["s_robust"] = s_robust
 
+    # Multi-instrument Anderson-Rubin weak-ID-robust confidence set — a pure
+    # closed form of the moments already in `m`. Valid whatever the joint first
+    # stage strength (the bootstrap CI below is not). None when the AR test is
+    # undefined (residual df < 1 / Z'Z singular), leaving the estimate standing.
+    ar_set = anderson_rubin_overid_set(m, ci_level=ci_level)
+
     ci_lower: float | None = None
     ci_upper: float | None = None
     if ci_bootstrap > 0:
@@ -945,6 +1059,7 @@ def estimate_iv_overid(
         hansen=hansen,
         moments=m,
         cluster=cluster,
+        anderson_rubin=ar_set,
     )
 
 

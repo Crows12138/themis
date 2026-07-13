@@ -3163,6 +3163,24 @@ def _ar_set_to_dict(ar) -> dict:
     }
 
 
+def _overid_ar_set_to_dict(ar) -> dict:
+    """Serialise a multi-instrument OverIDARConfidenceSet to the numeric_estimate
+    sub-block. Same shape as the single-instrument set plus the ``F(q, m)``
+    critical value ``kappa = q·F(q, m)`` and its degrees of freedom — the
+    verifier re-derives the set from the recorded moment matrices and cross-checks
+    kappa against F(dof_num, dof_denom)."""
+    return {
+        "kind": ar.kind,
+        "lower": ar.lower,
+        "upper": ar.upper,
+        "ci_level": ar.ci_level,
+        "point": ar.point,
+        "kappa": ar.kappa,
+        "dof_num": ar.dof_num,
+        "dof_denom": ar.dof_denom,
+    }
+
+
 def _render_ar_set(ar) -> str:
     """Human-readable rendering of an Anderson-Rubin confidence set,
     honouring its shape (bounded / disconnected / ray / whole line)."""
@@ -3899,6 +3917,13 @@ def _try_iv_overid_estimate(
         oid["hansen_p_value"] = est.hansen.p_value
         oid["hansen_gmm_point"] = est.hansen.gmm_point
         oid["hansen_rejected_at_0_05"] = bool(est.hansen.p_value < 0.05)
+    # Multi-instrument Anderson-Rubin weak-ID-robust set — the honest interval
+    # when the joint first stage is weak (the bootstrap CI is not). The verifier
+    # re-solves the quadratic from the moments already in sufficient_statistics.
+    if est.anderson_rubin is not None:
+        numeric["anderson_rubin_confidence_set"] = _overid_ar_set_to_dict(
+            est.anderson_rubin,
+        )
     if est.first_stage_f_stat is not None:
         numeric["first_stage_f_stat"] = est.first_stage_f_stat
 
@@ -3978,6 +4003,31 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
 
     f_stat = est.first_stage_f_stat
     if f_stat is not None and f_stat < WEAK_IV_F_THRESHOLD:
+        # When the joint first stage is weak, point to the multi-instrument
+        # Anderson-Rubin set — the interval that stays valid whatever the
+        # instrument strength — instead of the unreliable bootstrap CI (parity
+        # with the just-identified _attach_weak_iv_warning_if_low_f).
+        ar = est.anderson_rubin
+        ar_clause = ""
+        ar_alt = (
+            "report the Anderson-Rubin confidence set — it inverts a test with "
+            "correct size regardless of joint first-stage strength"
+        )
+        headline_ar = ""
+        if ar is not None:
+            rendered = _render_ar_set(ar)
+            pct = int(round(ar.ci_level * 100))
+            ar_clause = (
+                f" The multi-instrument Anderson-Rubin {pct}% weak-robust "
+                f"confidence set (valid whatever the instruments' joint strength) "
+                f"is {rendered}."
+            )
+            ar_alt = (
+                f"use the Anderson-Rubin {pct}% weak-robust set {rendered} "
+                "(already computed; valid under weak instruments) instead of the "
+                "bootstrap CI"
+            )
+            headline_ar = f"；Anderson-Rubin {pct}% 稳健集 = {rendered}"
         gaps.append({
             "kind": "weak_iv_instrument",
             "severity": "informational",
@@ -3987,11 +4037,12 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
                 f"falls below the Stock-Yogo (2005) threshold of "
                 f"{WEAK_IV_F_THRESHOLD:.0f}. The over-identified 2SLS estimate "
                 "is biased toward OLS and the bootstrap CI is unreliable when "
-                "the instruments are jointly weak."
+                f"the instruments are jointly weak.{ar_clause}"
             ),
             "alternative_paths": [
                 "find stronger instruments (higher joint first-stage partial "
                 "correlation with the treatment)",
+                ar_alt,
                 "fall back to a bounds-only answer (weak-instrument robust)",
             ],
             "provenance": [{
@@ -4001,7 +4052,7 @@ def _attach_overid_iv_warnings(result: dict, est) -> None:
         })
         headlines.append(
             f"⚠ 工具变量 {inst} 联合 first-stage F = {f_stat:.2f} 低于 "
-            f"Stock-Yogo 弱工具阈值 {WEAK_IV_F_THRESHOLD:.0f}"
+            f"Stock-Yogo 弱工具阈值 {WEAK_IV_F_THRESHOLD:.0f}{headline_ar}"
         )
 
     # Over-identification falsification. Prefer the heteroskedasticity-robust

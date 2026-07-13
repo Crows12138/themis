@@ -584,3 +584,278 @@ def test_hansen_verifier_backward_compatible_without_hansen(overid_result):
         oid.pop(k, None)
     oid["sufficient_statistics"].pop("s_robust", None)
     verify_iv_overid_numeric(ne)  # no raise
+
+
+# ================================================ iter 240 — multi-instrument
+# Anderson-Rubin weak-identification-robust confidence set.
+#
+# D1 oracle: grid-inversion — evaluate AR(β0) = [N/q]/[(T−N)/m] straight from
+# the residualised arrays via the FULL n×n projection matrix P_Z (a different
+# code path from the estimator's (Z'Z)⁻¹ moment shortcut) at a dense grid of
+# β0, and confirm membership {AR ≤ F(q,m)} matches the closed-form set exactly.
+# Plus the EXACT reduction to the single-instrument AR at q=1, coverage of the
+# truth near nominal, and empty ⟺ over-ID rejection.
+
+from themis.estimation.iv import (
+    anderson_rubin_confidence_set,
+    anderson_rubin_overid_set,
+    _overid_moments,
+)
+
+
+def _ar_member(kind, lo, hi, b, tol=1e-9):
+    if kind == "bounded":
+        return lo - tol <= b <= hi + tol
+    if kind == "disconnected":
+        return b <= lo + tol or b >= hi - tol
+    if kind == "unbounded_below":
+        return b <= hi + tol
+    if kind == "unbounded_above":
+        return b >= lo - tol
+    if kind == "whole_line":
+        return True
+    return False  # empty
+
+
+def _ar_grid_mismatches(df, treatment, outcome, instruments, ar,
+                        ci_level=0.95, conditioning=(), half=1.5, npts=6001):
+    """Independent grid inversion. Builds the actual projection P_Z (via lstsq
+    residualisation), precomputes P_Z·ỹ and P_Z·x̃ once, and evaluates
+    N(β0) = (ỹ−β0·x̃)'(P_Zỹ − β0·P_Zx̃) per grid point — never the estimator's
+    quadratic-moment shortcut. Counts β0 where the direct test membership and the
+    closed-form set disagree (outside a razor-thin boundary band)."""
+    from scipy.stats import f as fdist
+
+    n = len(df)
+    ones = np.ones((n, 1))
+    w = df[list(conditioning)].to_numpy(float) if conditioning else np.empty((n, 0))
+    design = np.hstack([ones, w])
+
+    def resid(col):
+        v = df[col].to_numpy(float)
+        coef, *_ = np.linalg.lstsq(design, v, rcond=None)
+        return v - design @ coef
+
+    yr, xr = resid(outcome), resid(treatment)
+    zr = np.column_stack([resid(z) for z in instruments])
+    q = len(instruments)
+    m = n - w.shape[1] - q - 1
+    Pz = zr @ np.linalg.inv(zr.T @ zr) @ zr.T
+    py, px = Pz @ yr, Pz @ xr          # projected vectors, computed once
+    yy = float(yr @ yr)
+    fcrit = float(fdist.ppf(ci_level, q, m))
+
+    center = ar.point if ar.point is not None else 0.0
+    grid = np.linspace(center - half, center + half, npts)
+    mism = 0
+    for b in grid:
+        e = yr - b * xr
+        N = float(e @ (py - b * px))
+        T = yy - 2 * b * float(yr @ xr) + b * b * float(xr @ xr)
+        arval = (N / q) / ((T - N) / m)
+        if (arval <= fcrit) != _ar_member(ar.kind, ar.lower, ar.upper, b):
+            if abs(arval - fcrit) > 1e-6 * (1 + fcrit):
+                mism += 1
+    return mism
+
+
+def test_overid_ar_grid_inversion_oracle():
+    """The closed-form set == the direct AR test membership at 6001 grid points."""
+    df = _valid_2iv(n=1500, seed=2)
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2"), ci_bootstrap=0)
+    ar = est.anderson_rubin
+    assert ar is not None and ar.kind == "bounded"
+    assert _ar_grid_mismatches(df, "x", "y", ("z1", "z2"), ar) == 0
+
+
+def test_overid_ar_grid_inversion_oracle_with_conditioning():
+    """Grid oracle holds with a conditioning set W (FWL residualisation)."""
+    rng = np.random.default_rng(4)
+    n = 1500
+    w = rng.standard_normal(n)
+    u = rng.standard_normal(n)
+    z1 = 0.5 * w + rng.standard_normal(n)
+    z2 = rng.standard_normal(n)
+    x = 0.8 * z1 + 0.7 * z2 + 0.5 * w + 0.8 * u + rng.standard_normal(n) * 0.3
+    y = 1.2 * x + 0.6 * w + 2.0 * u + rng.standard_normal(n) * 0.5
+    df = pd.DataFrame({"z1": z1, "z2": z2, "w": w, "x": x, "y": y})
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2"), conditioning=("w",),
+                             ci_bootstrap=0)
+    ar = est.anderson_rubin
+    assert ar is not None
+    assert _ar_grid_mismatches(df, "x", "y", ("z1", "z2"), ar,
+                               conditioning=("w",)) == 0
+
+
+def test_overid_ar_reduces_to_single_instrument_exactly():
+    """anderson_rubin_overid_set with q=1 EQUALS the single-instrument set."""
+    rng = np.random.default_rng(7)
+    n = 500
+    u = rng.standard_normal(n)
+    z0 = rng.standard_normal(n)
+    x = 0.9 * z0 + 0.8 * u + rng.standard_normal(n) * 0.3
+    y = 1.5 * x + 2.0 * u + rng.standard_normal(n) * 0.5
+    df = pd.DataFrame({"z0": z0, "x": x, "y": y})
+    single = anderson_rubin_confidence_set(df, treatment="x", outcome="y",
+                                           instrument="z0", ci_level=0.95)
+    multi = anderson_rubin_overid_set(_overid_moments(df, "x", "y", ("z0",), ()))
+    assert multi.kind == single.kind
+    assert abs(multi.kappa - single.kappa) < 1e-9 * (1 + abs(single.kappa))
+    assert abs(multi.lower - single.lower) < 1e-8 * (1 + abs(single.lower))
+    assert abs(multi.upper - single.upper) < 1e-8 * (1 + abs(single.upper))
+    assert abs(multi.point - single.point) < 1e-8 * (1 + abs(single.point))
+
+
+def test_overid_ar_bounded_contains_truth_when_strong():
+    """Strong instruments → a tight bounded set that brackets the true effect."""
+    df = _valid_2iv(n=2500, seed=0, beta=1.5)
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2"), ci_bootstrap=0)
+    ar = est.anderson_rubin
+    assert ar.kind == "bounded"
+    assert ar.lower < 1.5 < ar.upper
+    assert ar.dof_num == 2
+
+
+def test_overid_ar_whole_line_when_instruments_useless():
+    """Near-zero-strength instruments cannot bound the effect → whole line —
+    the honest signal the bootstrap CI (a finite interval) cannot give."""
+    rng = np.random.default_rng(0)
+    n = 400
+    z1, z2, z3 = (rng.standard_normal(n) for _ in range(3))
+    u = rng.standard_normal(n)
+    x = 0.03 * (z1 + z2 + z3) + 1.0 * u + rng.standard_normal(n)
+    y = 1.5 * x + 1.0 * u + rng.standard_normal(n)
+    df = pd.DataFrame({"z1": z1, "z2": z2, "z3": z3, "x": x, "y": y})
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2", "z3"), ci_bootstrap=0)
+    assert est.first_stage_f_stat < 10.0
+    assert est.anderson_rubin.kind == "whole_line"
+
+
+def test_overid_ar_empty_coincides_with_sargan_rejection():
+    """An invalid instrument → the AR set is EMPTY (no β0 satisfies all moment
+    restrictions) exactly when the over-ID (Sargan) test rejects."""
+    df = _invalid_2iv(n=6000, seed=3)
+    est = estimate_iv_overid(df, treatment="x", outcome="y",
+                             instruments=("z1", "z2"), ci_bootstrap=0)
+    assert est.sargan.p_value < 1e-3          # over-ID rejected
+    assert est.anderson_rubin.kind == "empty"  # ... and the AR set collapses
+
+
+def test_overid_ar_coverage_of_truth_near_nominal():
+    """Coverage sim: with valid instruments the 95% AR set contains the true
+    effect ~95% of the time — the property the weak-ID bootstrap CI lacks."""
+    beta = 1.5
+    ns = 120
+    cover = empty = 0
+    for seed in range(ns):
+        df = _valid_2iv(n=400, seed=2000 + seed, beta=beta)
+        ar = estimate_iv_overid(df, treatment="x", outcome="y",
+                                instruments=("z1", "z2"), ci_bootstrap=0).anderson_rubin
+        if ar.kind == "empty":
+            empty += 1
+        if _ar_member(ar.kind, ar.lower, ar.upper, beta):
+            cover += 1
+    assert 0.90 <= cover / ns <= 1.0          # nominal 95% ± sampling
+    assert empty / ns < 0.10                   # empty is rare on valid IVs
+
+
+# --- dispatch + weak-IV warning ---------------------------------------------
+
+
+def test_dispatch_overid_carries_ar_set():
+    df = _valid_2iv(n=3000)
+    ne = themis.estimate(_overid_ast(), df, ci_bootstrap=0)["results"][0]["numeric_estimate"]
+    ar = ne["anderson_rubin_confidence_set"]
+    assert ar["kind"] in {"bounded", "disconnected", "unbounded_below",
+                          "unbounded_above", "whole_line", "empty"}
+    assert ar["dof_num"] == 2 and ar["dof_denom"] == len(df) - 3  # n - |W| - q - 1
+    assert "kappa" in ar
+
+
+def _weak_overid_ast():
+    return _overid_ast(instruments=("z1", "z2", "z3"))
+
+
+def test_weak_joint_iv_warning_mentions_ar_set():
+    """When the joint first stage is weak, the weak_iv_instrument gap points to
+    the Anderson-Rubin set as the honest alternative to the bootstrap CI."""
+    rng = np.random.default_rng(0)
+    n = 400
+    z1, z2, z3 = (rng.standard_normal(n) for _ in range(3))
+    u = rng.standard_normal(n)
+    x = 0.03 * (z1 + z2 + z3) + 1.0 * u + rng.standard_normal(n)
+    y = 1.5 * x + 1.0 * u + rng.standard_normal(n)
+    df = pd.DataFrame({"z1": z1, "z2": z2, "z3": z3, "x": x, "y": y})
+    res = themis.estimate(_weak_overid_ast(), df, ci_bootstrap=0)["results"][0]
+    gaps = (res.get("data_gap_report") or {}).get("gaps", [])
+    gap = next(g for g in gaps if g["kind"] == "weak_iv_instrument")
+    assert "Anderson-Rubin" in gap["description"]
+    assert any("Anderson-Rubin" in p for p in gap["alternative_paths"])
+
+
+# --- verify_iv_overid_numeric: independent AR re-derivation ------------------
+
+
+@pytest.fixture(scope="module")
+def ar_overid_ne(overid_result):
+    """The bounded-AR numeric block (module fixture is _valid_2iv(n=2500))."""
+    ne = overid_result["numeric_estimate"]
+    assert ne["anderson_rubin_confidence_set"]["kind"] == "bounded"
+    return ne
+
+
+def test_ar_verifier_accepts_genuine(ar_overid_ne):
+    verify_iv_overid_numeric(ar_overid_ne)  # no raise
+
+
+def test_ar_verifier_rejects_forged_kind(ar_overid_ne):
+    ne = copy.deepcopy(ar_overid_ne)
+    ne["anderson_rubin_confidence_set"]["kind"] = "whole_line"
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_ar_verifier_rejects_forged_lower(ar_overid_ne):
+    ne = copy.deepcopy(ar_overid_ne)
+    ne["anderson_rubin_confidence_set"]["lower"] += 0.5
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_ar_verifier_rejects_forged_upper(ar_overid_ne):
+    ne = copy.deepcopy(ar_overid_ne)
+    ne["anderson_rubin_confidence_set"]["upper"] -= 0.3
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_ar_verifier_rejects_forged_kappa(ar_overid_ne):
+    ne = copy.deepcopy(ar_overid_ne)
+    ne["anderson_rubin_confidence_set"]["kappa"] *= 1.1
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_ar_verifier_rejects_forged_point(ar_overid_ne):
+    ne = copy.deepcopy(ar_overid_ne)
+    ne["anderson_rubin_confidence_set"]["point"] += 0.4
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_ar_verifier_rejects_wrong_dof_denom(ar_overid_ne):
+    ne = copy.deepcopy(ar_overid_ne)
+    ne["anderson_rubin_confidence_set"]["dof_denom"] += 3
+    with pytest.raises(VerificationError):
+        verify_iv_overid_numeric(ne)
+
+
+def test_ar_verifier_backward_compatible_without_ar(ar_overid_ne):
+    """A block with no AR set (degenerate design / older result) still verifies."""
+    ne = copy.deepcopy(ar_overid_ne)
+    ne.pop("anderson_rubin_confidence_set")
+    verify_iv_overid_numeric(ne)  # no raise

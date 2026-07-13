@@ -1296,9 +1296,14 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
     also carries a Hansen J (``hansen_j`` + ``s_robust``), the efficient two-step
     GMM point and the robust J are re-derived from the recorded weight matrix Ŝ
     with their own independent transcription, and Ŝ is checked to be a valid
-    (symmetric PSD) weight-variance matrix. It never imports the producer's solve
-    and never touches the raw data. A result that isn't an ``iv_2sls_overid``
-    estimate is a no-op.
+    (symmetric PSD) weight-variance matrix. When the numeric_estimate carries a
+    multi-instrument ``anderson_rubin_confidence_set``, the q-dimensional
+    projection quadratic forms are re-derived from the SAME recorded moments and
+    the set is re-solved with the verifier's own quadratic classifier — its kind,
+    endpoints, ``kappa = q·F(q, m)``, and 2SLS point are all confirmed (the point
+    need NOT lie in the set, so membership is not enforced). It never imports the
+    producer's solve and never touches the raw data. A result that isn't an
+    ``iv_2sls_overid`` estimate is a no-op.
 
     ``estimate`` is the full ``numeric_estimate`` dict.
     """
@@ -1437,6 +1442,95 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
             _fail(
                 f"hansen_rejected_at_0_05={claimed_hrej} inconsistent with "
                 f"re-derived p-value {hansen_p}"
+            )
+
+    # --- multi-instrument Anderson-Rubin weak-ID-robust set --------------------
+    # Present when the numeric_estimate carries an anderson_rubin_confidence_set.
+    # A SECOND, independent transcription: re-derive the q-dimensional projection
+    # quadratic forms P_yy / P_xy / P_xx from the SAME recorded moments the Sargan
+    # rode on, re-solve {β0 : A·β0² + B·β0 + C ≤ 0} with the verifier's OWN
+    # quadratic classifier (rules._ar_solve_set_verifier, never the producer's),
+    # and confirm the set's kind + endpoints, the F(q, m) critical value
+    # kappa = q·F(q, m), and the 2SLS point. Unlike the just-identified AR set,
+    # the point need NOT lie in this set (a violated over-identifying restriction
+    # pushes N(point) = û'P_Z û > 0, so the point can fall outside) — membership
+    # is therefore NOT enforced. Conditional on the block being present, so an
+    # estimate without an AR set (degenerate design) still verifies.
+    ar = estimate.get("anderson_rubin_confidence_set")
+    if isinstance(ar, dict) and ar.get("kind") is not None:
+        from scipy.stats import f as _f_dist
+        from .rules import _ar_solve_set_verifier
+
+        try:
+            n_exog = int(suff["n_exog"])
+        except (KeyError, TypeError, ValueError) as exc:
+            _fail(f"AR set present but n_exog missing from sufficient statistics: {exc}")
+        m_denom = n - n_exog - q - 1
+        if m_denom < 1:
+            _fail("AR set present but residual df m = n - |W| - q - 1 < 1")
+
+        # Projection quadratic forms. x_pz_x = x'P_Z x and x_pz_y = x'P_Z y were
+        # already re-derived above (and beta = x_pz_y / x_pz_x verified against the
+        # headline point); only y'P_Z y is new.
+        p_xx = x_pz_x
+        p_xy = x_pz_y
+        p_yy = float(zy @ zz_inv @ zy)
+
+        try:
+            ci_level = float(ar["ci_level"])
+        except (KeyError, TypeError, ValueError):
+            _fail("AR set missing / non-numeric ci_level")
+        kappa = float(q) * float(_f_dist.ppf(ci_level, q, m_denom))
+        claimed_kappa = ar.get("kappa")
+        if claimed_kappa is not None and abs(float(claimed_kappa) - kappa) > _IV_OVERID_TOL * (1 + abs(kappa)):
+            _fail(
+                f"AR kappa mismatch — re-derived q·F(q,m) = {kappa}, recorded "
+                f"{claimed_kappa}"
+            )
+        if ar.get("dof_num") is not None and int(ar["dof_num"]) != q:
+            _fail(f"AR dof_num mismatch — q = {q}, recorded {ar.get('dof_num')}")
+        if ar.get("dof_denom") is not None and int(ar["dof_denom"]) != m_denom:
+            _fail(
+                f"AR dof_denom mismatch — m = {m_denom}, recorded "
+                f"{ar.get('dof_denom')}"
+            )
+
+        G = m_denom + kappa
+        A = G * p_xx - kappa * xx
+        B = 2.0 * (kappa * xy - G * p_xy)
+        C = G * p_yy - kappa * yy
+        a_scale = abs(G * p_xx) + abs(kappa * xx) + 1.0
+        kind, lower, upper = _ar_solve_set_verifier(A, B, C, atol=1e-9 * a_scale)
+
+        if kind != ar.get("kind"):
+            _fail(
+                f"AR set kind mismatch — re-solve {kind!r} vs recorded "
+                f"{ar.get('kind')!r}"
+            )
+        for name, recomputed, claimed in (
+            ("lower", lower, ar.get("lower")),
+            ("upper", upper, ar.get("upper")),
+        ):
+            if recomputed is None and claimed is None:
+                continue
+            if (recomputed is None) != (claimed is None):
+                _fail(
+                    f"AR {name} presence mismatch — re-solve {recomputed} vs "
+                    f"recorded {claimed}"
+                )
+            if abs(recomputed - float(claimed)) > _IV_OVERID_TOL * (1 + abs(recomputed)):
+                _fail(
+                    f"AR {name} mismatch — re-solve {recomputed} vs recorded "
+                    f"{claimed}"
+                )
+
+        # The set is centred on the 2SLS point P_xy/P_xx = beta (already verified
+        # against the headline point). Cross-check the AR block's own copy.
+        claimed_pt = ar.get("point")
+        if claimed_pt is not None and abs(beta - float(claimed_pt)) > _IV_OVERID_TOL * (1 + abs(beta)):
+            _fail(
+                f"AR point mismatch — 2SLS P_xy/P_xx = {beta}, recorded "
+                f"{claimed_pt}"
             )
 
 
