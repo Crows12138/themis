@@ -508,6 +508,10 @@ def _maybe_estimate_missing_recovery(
             "n_strata": est.n_strata,
             "missing_columns": list(est.missing_columns),
             "n_bootstrap": est.n_bootstrap,
+            # Per-stratum sufficient statistics for the numeric verifier:
+            # verify_missing_data_numeric re-derives the recovered (and naive)
+            # ATE from these counts + marginal tables independently.
+            "sufficient_statistics": est.sufficient_statistics,
         },
     }
     target["numeric_estimate"] = numeric_estimate

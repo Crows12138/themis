@@ -65,7 +65,15 @@ Public surface (re-exports from sub-modules):
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
   from the recorded per-stratum biased counts + external unbiased weight
   tables, and checks the two arms, the point, and the weight-table
-  normalisation; rejects a forged point or a tampered stratum)
+  normalisation; rejects a forged point or a tampered stratum),
+  ``verify_missing_data_numeric`` (§S9.2 numeric end — the back-door ATE
+  recovered from data that itself has missing values by the Mohan-Pearl-Tian
+  ordered factorization: re-runs the g-formula Σ_z (E[Y|1,z]−E[Y|0,z])·P(z)
+  from the recorded per-stratum {n, y_sum} conditionals + {z, count} marginal
+  tables (the recovered estimate and, when present, the naive listwise foil),
+  and checks the reported point, the marginal normalisation, and that no
+  contributing stratum was dropped; rejects a forged point or a tampered
+  stratum)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -153,6 +161,7 @@ from .bounds_rules import (
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .selection_numeric_rules import verify_selection_recovery_numeric
+from .missing_numeric_rules import verify_missing_data_numeric
 
 __all__ = [
     "DerivationSerializationError",
@@ -184,6 +193,7 @@ __all__ = [
     "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",
+    "verify_missing_data_numeric",
     "verify_missing_data_recovery",
     "verify_ovb_sensitivity",
     "verify_proximal_effect",

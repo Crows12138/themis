@@ -9,6 +9,7 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_selection_recovery_numeric(result)`` → §S9.1 numeric end, wraps :func:`themis.verify_selection_recovery_numeric`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_missing_data_numeric(result)`` → §S9.2 numeric end, wraps :func:`themis.verify_missing_data_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_estimate(program, csv_path, options=None, reference_csv_path=None)`` → wraps :func:`themis.estimate`; loads CSV(s) from disk (reference = external unbiased sample for selection-bias recovery)
 - ``themis_discover(csv_path, ...)`` → wraps :mod:`themis.estimation.discovery` (Phase 8.1); skeleton from CSV
 - ``themis_markov_blanket(csv_path, target, ...)`` → borrow-list #4, wraps :func:`themis.estimation.discovery.markov_blanket`; local Markov-blanket screen from CSV
@@ -232,6 +233,27 @@ def build_server():
         """
         try:
             themis.verify_selection_recovery_numeric(result)
+            return {"ok": True}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.tool()
+    def themis_verify_missing_data_numeric(result: dict) -> dict:
+        """Independently audit a recovered-from-missing-data ATE (§S9.2).
+
+        The artifact is a query_result whose ``numeric_estimate`` was produced
+        by the missing-data recovery estimator
+        (``missing_data_recovery_gformula``). Re-runs the Mohan-Pearl-Tian
+        g-formula Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from the recorded per-stratum
+        sufficient statistics (the {n, y_sum} conditionals + {z, count} marginal
+        tables for the recovered estimate and the naive listwise foil) as a
+        second, standalone transcription and checks the reported point, the
+        marginal normalisation, and that no contributing stratum was dropped —
+        rejecting a forged point or a tampered stratum. A result carrying no
+        such numeric_estimate is a no-op.
+        """
+        try:
+            themis.verify_missing_data_numeric(result)
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}

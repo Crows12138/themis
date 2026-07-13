@@ -1287,3 +1287,29 @@ def verify_selection_recovery_numeric(result: dict) -> None:
     )
 
     _verify_sel(result)
+
+
+def verify_missing_data_numeric(result: dict) -> None:
+    """Independently audit a recovered-from-missing-data ATE (§S9.2 numeric).
+
+    The artifact is a query_result whose ``numeric_estimate`` was produced by
+    the missing-data recovery estimator (method
+    ``missing_data_recovery_gformula``). This re-runs the Mohan-Pearl-Tian
+    g-formula Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from the recorded per-stratum
+    sufficient statistics — the {n, y_sum} conditionals and {z, count} marginal
+    tables for the recovered estimate and, when present, the naive listwise foil
+    — as a second, standalone transcription, and checks the reported point, the
+    marginal normalisation, and that no contributing stratum was dropped. It
+    never imports the producer estimator and never re-touches the raw data; the
+    numeric result carries no derivation (it is ``needs_investigation``), so this
+    is the audit path — the derivation-gated ``themis.verify`` cannot reach it. A
+    result carrying no such numeric_estimate is a no-op. Raises
+    :class:`themis.verifier.errors.VerificationError` on mismatch.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.missing_numeric_rules import (
+        verify_missing_data_numeric as _verify_md,
+    )
+
+    _verify_md(result)

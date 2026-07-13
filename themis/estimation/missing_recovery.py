@@ -99,6 +99,13 @@ class RecoveredATEEstimate:
     assumptions: tuple[str, ...]
     n_bootstrap: int                 # valid (non-degenerate) resamples
     data_hash: str
+    # Per-stratum sufficient statistics the point was summed from — the
+    # record an independent verifier re-derives Σ_z (E[Y|1,z]−E[Y|0,z])·P(z)
+    # from without re-touching the data. Two parallel factor tables, one for
+    # the recovered estimate and (when it exists) one for the naive listwise
+    # foil; each carries conditional_strata {z,arm,n,y_sum} and
+    # marginal_counts {z,count} + marginal_total.
+    sufficient_statistics: dict = None  # type: ignore[assignment]
     cluster: str | None = None
 
 
@@ -142,6 +149,7 @@ def _gformula_ate(
     treatment: str,
     outcome: str,
     adjustment: tuple[str, ...],
+    stats: dict | None = None,
 ) -> float:
     """E[Y|do(1)] − E[Y|do(0)] = Σ_z (E[Y|1,z] − E[Y|0,z])·P(z).
 
@@ -150,13 +158,25 @@ def _gformula_ate(
     gives the naive listwise g-formula; passing each factor's own
     complete-case frame gives the recovered estimate. Raises
     ``EstimatorFailure`` when a needed treatment×stratum cell is empty.
+
+    When ``stats`` is a dict it is filled with the per-stratum sufficient
+    statistics the sum was built from — ``conditional_strata`` (one
+    ``{z, arm, n, y_sum}`` per contributing (arm, z) cell, so
+    E[Y|arm,z] = y_sum/n), ``marginal_counts`` (``{z, count}`` per z) and
+    ``marginal_total`` (so P(z) = count/total) — the record a verifier
+    re-derives the point from. Left None in the bootstrap hot loop so it
+    stays allocation-free there.
     """
+    collect = stats is not None
+    cond_strata: list[dict] = []
+    marg_counts: list[dict] = []
     zt = list(adjustment)
     tx = cond_rows[treatment].to_numpy()
     yv = cond_rows[outcome].to_numpy()
 
     if not zt:
         ate = 0.0
+        total = int(yv.size)
         for x, sign in ((1.0, 1.0), (0.0, -1.0)):
             cell = yv[tx == x]
             if cell.size == 0:
@@ -166,6 +186,15 @@ def _gformula_ate(
                     treatment=treatment,
                 )
             ate += sign * float(cell.mean())
+            if collect:
+                cond_strata.append({
+                    "z": [], "arm": int(x),
+                    "n": int(cell.size), "y_sum": float(cell.sum()),
+                })
+        if collect:
+            stats["conditional_strata"] = cond_strata
+            stats["marginal_counts"] = [{"z": [], "count": int(len(marg_rows))}]
+            stats["marginal_total"] = int(len(marg_rows))
         return ate
 
     grp = marg_rows.groupby(zt, sort=True).size()
@@ -178,6 +207,10 @@ def _gformula_ate(
         in_stratum = np.logical_and.reduce(
             [z_cols[i] == z_vals[i] for i in range(len(zt))]
         )
+        if collect:
+            marg_counts.append(
+                {"z": [float(v) for v in z_vals], "count": int(cnt)}
+            )
         eff = 0.0
         for x, sign in ((1.0, 1.0), (0.0, -1.0)):
             cell = yv[in_stratum & (tx == x)]
@@ -190,30 +223,41 @@ def _gformula_ate(
                     treatment=treatment,
                 )
             eff += sign * float(cell.mean())
+            if collect:
+                cond_strata.append({
+                    "z": [float(v) for v in z_vals], "arm": int(x),
+                    "n": int(cell.size), "y_sum": float(cell.sum()),
+                })
         ate += eff * pz
+    if collect:
+        stats["conditional_strata"] = cond_strata
+        stats["marginal_counts"] = marg_counts
+        stats["marginal_total"] = total
     return ate
 
 
 def _recovered_ate(
     frame: pd.DataFrame, treatment: str, outcome: str,
-    adjustment: tuple[str, ...],
+    adjustment: tuple[str, ...], stats: dict | None = None,
 ) -> float:
     """Multi-factor recovery: each factor from its OWN complete cases."""
     cond_rows = frame.dropna(subset=[outcome, treatment, *adjustment])
     marg_rows = (
         frame.dropna(subset=list(adjustment)) if adjustment else cond_rows
     )
-    return _gformula_ate(cond_rows, marg_rows, treatment, outcome, adjustment)
+    return _gformula_ate(
+        cond_rows, marg_rows, treatment, outcome, adjustment, stats=stats
+    )
 
 
 def _naive_listwise_ate(
     frame: pd.DataFrame, treatment: str, outcome: str,
-    adjustment: tuple[str, ...],
+    adjustment: tuple[str, ...], stats: dict | None = None,
 ) -> float | None:
     """Listwise deletion: BOTH factors from the fully-complete subset."""
     cc = frame.dropna(subset=[outcome, treatment, *adjustment])
     try:
-        return _gformula_ate(cc, cc, treatment, outcome, adjustment)
+        return _gformula_ate(cc, cc, treatment, outcome, adjustment, stats=stats)
     except EstimatorFailure:
         return None
 
@@ -286,8 +330,14 @@ def estimate_recovered_ate(
     for z in adjustment:
         _check_discrete(frame, z, treatment)
 
-    point = _recovered_ate(frame, treatment, outcome, adjustment)
-    naive = _naive_listwise_ate(frame, treatment, outcome, adjustment)
+    rec_stats: dict = {}
+    point = _recovered_ate(frame, treatment, outcome, adjustment, stats=rec_stats)
+    naive_stats: dict = {}
+    naive = _naive_listwise_ate(
+        frame, treatment, outcome, adjustment, stats=naive_stats
+    )
+    if naive is None:
+        naive_stats = None  # type: ignore[assignment]
 
     missing_columns = tuple(c for c in model_cols if frame[c].isna().any())
     n_conditional = int(len(frame.dropna(subset=[outcome, treatment, *adjustment])))
@@ -354,5 +404,10 @@ def estimate_recovered_ate(
         assumptions=assumptions,
         n_bootstrap=n_boot,
         data_hash=_hash_frame(frame),
+        sufficient_statistics={
+            "adjustment_vars": list(adjustment),
+            "recovered": rec_stats,
+            "naive": naive_stats,
+        },
         cluster=cluster,
     )

@@ -882,7 +882,23 @@
             "n_marginal_rows": { "type": "integer", "minimum": 0 },
             "n_strata": { "type": "integer", "minimum": 1 },
             "missing_columns": { "type": "array", "items": { "type": "string" } },
-            "n_bootstrap": { "type": "integer", "minimum": 0 }
+            "n_bootstrap": { "type": "integer", "minimum": 0 },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "Per-stratum sufficient statistics the g-formula sum was built from — the record verify_missing_data_numeric re-derives Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from without re-touching the data. `recovered` (and, when the naive listwise foil exists, `naive`) each carry conditional_strata ({z,arm,n,y_sum} per contributing (arm,z) cell, so E[Y|arm,z]=y_sum/n), marginal_counts ({z,count} per z) and marginal_total (P(z)=count/total). `adjustment_vars` pins the z-key arity.",
+              "required": ["adjustment_vars", "recovered"],
+              "additionalProperties": false,
+              "properties": {
+                "adjustment_vars": { "type": "array", "items": { "type": "string" } },
+                "recovered": { "$ref": "#/$defs/gformulaFactorStats" },
+                "naive": {
+                  "oneOf": [
+                    { "type": "null" },
+                    { "$ref": "#/$defs/gformulaFactorStats" }
+                  ]
+                }
+              }
+            }
           }
         },
         "decomposition": {
@@ -1098,6 +1114,41 @@
         "point": { "type": ["number", "null"] },
         "ci_lower": { "type": ["number", "null"] },
         "ci_upper": { "type": ["number", "null"] }
+      }
+    },
+    "gformulaFactorStats": {
+      "type": "object",
+      "description": "The per-stratum sufficient statistics one g-formula ATE was summed from: conditional_strata (one {z, arm, n, y_sum} per contributing (arm, z) cell, so E[Y|arm,z] = y_sum/n) and the covariate marginal as marginal_counts ({z, count} per z) + marginal_total (P(z) = count/total). z is the adjustment-value key (empty array in the no-adjustment case).",
+      "required": ["conditional_strata", "marginal_counts", "marginal_total"],
+      "additionalProperties": false,
+      "properties": {
+        "conditional_strata": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["z", "arm", "n", "y_sum"],
+            "additionalProperties": false,
+            "properties": {
+              "z": { "type": "array", "items": { "type": "number" } },
+              "arm": { "type": "integer", "enum": [0, 1] },
+              "n": { "type": "integer", "minimum": 0 },
+              "y_sum": { "type": "number" }
+            }
+          }
+        },
+        "marginal_counts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["z", "count"],
+            "additionalProperties": false,
+            "properties": {
+              "z": { "type": "array", "items": { "type": "number" } },
+              "count": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "marginal_total": { "type": "integer", "minimum": 0 }
       }
     },
     "componentEstimate": {
