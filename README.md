@@ -117,8 +117,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 因果发现 + **发现层首个逐数验证**：`themis.estimation.discovery` 有 PC/FCI/GES/GRaSP/LiNGAM 五个整图学习器（causal-learn，输出为待人工审的建议），另加 `markov_blanket(data, target)`——用 grow-shrink 到不动点找目标的马尔可夫毯（局部屏蔽集，供**筛变量建 DAG**，非调整集）。按数据类型分派：连续用 Fisher-Z（充分统计量=相关矩阵）、离散用卡方（充分统计量=稀疏联合列联表）；两条路径下 `themis.verify_markov_blanket(...)` 都能从记录的充分统计量**独立重算**完备性/最小性定义、拒伪造或裁剪的毯（混合连续+离散类型报错，未做）
 - 选择偏倚数值端（§S9.1）：样本被限制在选择对撞上时，普通后门会算出**悄悄有偏**的数——`themis.estimate` 不再吐它。若给了外部无偏参考数据 `reference_data=`，则按 Bareinboim-Pearl 选择后门公式（定理3.5）从有偏样本 + 参考权重算出**恢复后的 ATE**；否则明确拒绝并点名所缺的外部数据（真选择对撞下这些权重永远无法从有偏样本本身估出，故外部数据是硬需求，非可选）。`themis.verify_selection_recovery_numeric(...)` 从记录的每层计数 + 权重表独立重跑公式核对（二值处理 + 离散调整集）
 - 中介 four-way 验证器强化：差值尺度分解 `four_way_decomposition` 现在把它本就是闭式函数的六个标准化 cell means 记为**充分统计量**，`verify_mediation_numeric` 用 VanderWeele 14.1b 的独立转写从中重导每个分量，连**完全自洽的伪造**也拒（对标 four_way_ratio 锚定拟合系数）；线性结局下同一组 cell means 也逐位钉死 NDE/NIE，logit 结局下 NDE/NIE 来自蒙特卡洛积分故保持不变量级（诚实天花板）
+- 缺失数据 recovered-ATE 数值验证器（§S9.2）：`estimate_recovered_ate` 的数挂在无 derivation 的 `needs_investigation` 结果上，derivation 门控的 `themis.verify` 够不到它——过去伪造 point 无人审。现在估计器把 g-formula 求和所用的每层充分统计量（conditional `{z,arm,n,y_sum}` + marginal `{z,count}`）记进 `recovered_ate.sufficient_statistics`，公开验证器 `themis.verify_missing_data_numeric(result)` 独立重跑 `Σ_z (E[Y|1,z]−E[Y|0,z])·P(z)` 核对 point、朴素对照、归一与丢层，拒伪造 point 或篡改层（MCP 新增 `themis_verify_missing_data_numeric`，13→14）
 
-当前全量测试基线：**2832 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2852 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -172,7 +173,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2832 passed / 144 skipped（2026-07-13）
+- **测试套件**：2852 passed / 144 skipped（2026-07-13）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

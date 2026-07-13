@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2832 passed / 144 skipped, warning-clean
+2852 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -143,6 +143,25 @@ plug-in E[M|X] 等于 m∈{0,1} 混合）；**logit** 路径的 NDE/NIE 来自�
 现在显式声明而非套用到两块。cell means 缺失（手搓/旧块）时回退到构造不变量，
 不强制任何生产者提供。schema 给 four_way_decomposition 加 sufficient_statistics
 子对象；+5 测试；基线 2827→**2832**。
+
+**缺失数据 recovered-ATE 数值验证器（2026-07-13）**：§S9.2 的
+`estimate_recovered_ate` 出的数此前**零逐数审计**——它挂在 `needs_investigation`
+结果上、**无 derivation**，所以 derivation 门控的 `themis.verify` 直接以"没有
+推理链无法审计"退出、够不到它；结构验证器 `verify_missing_data_recovery` 只重导
+m-graph/可恢复性判决，从不碰那个数。**伪造 point 原样通过**（实测坐实）。照
+选择偏倚数值端同法补：估计器现在把 g-formula 求和所用的**每层充分统计量**记进
+`recovered_ate.sufficient_statistics`——恢复估计（+朴素 listwise 对照）各一张
+conditional_strata（每个 (arm,z) 一条 `{z,arm,n,y_sum}`，故 E[Y|arm,z]=y_sum/n）
++marginal（`{z,count}`+marginal_total，故 P(z)=count/total），是 `_gformula_ate`
+**实际求和的那些格**（穿参收集，bootstrap 热循环跳过零开销）。新公开验证器
+`verify_missing_data_numeric` 独立重跑 `Σ_z (E[Y|1,z]−E[Y|0,z])·P(z)`（第二份
+独立转写、不 import 生产器也不碰原数据），核对 point、recovered_ate.point 回显、
+朴素对照、marginal 归一（计数须等于 total→丢层被抓）、每层两臂齐全，拒伪造 point
+或篡改层。诚实边界：记录的计数取信（由 data_hash 锚定）不从数据重算。接成公开
+kernel 函数 + MCP 工具 `themis_verify_missing_data_numeric`（MCP 13→**14**，四处
+清单镜像同步），与 `verify_selection_recovery_numeric` 对等；schema 加
+recovered_ate.sufficient_statistics（新 $def gformulaFactorStats）；+20 测试；
+基线 2832→**2852**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
