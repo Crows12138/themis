@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2949 passed / 144 skipped, warning-clean
+2964 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -280,6 +280,32 @@ dof_denom 全可选（单工具路径不发），描述含 empty 形态与「点
 == 直接 AR 测试成员，含条件集 W）+ q=1 精确退化 + 覆盖率仿真（有效工具 95% AR 集
 覆盖真值 ~96.5%）+ 空集⟺Sargan 拒绝；verify 拒伪造 kind/lower/upper/kappa/point/
 dof。+17 测试→**2949**。
+
+**异方差稳健 Anderson-Rubin 置信集（Stock-Wright S，2026-07-13）**：上一条的多工具
+AR 集 docstring 白纸黑字写「homoskedastic」——异方差（或聚类）下它和 Sargan 一样用
+错权重（Sargan vs 稳健 Hansen J 的同一缺陷），覆盖率失准。补上**异方差稳健 AR 集**
+（Stock-Wright 2000 S / Kleibergen 2005），同时对**弱识别和异方差**稳健：反演
+`AR_r(β0)=n·ḡ(β0)'Ŝ(β0)⁻¹ḡ(β0) ~ χ²(q)`，稳健权
+`Ŝ(β0)=(1/n)Σ(yᵢ−β0xᵢ)²zᵢzᵢ' = S0 − β0·S1 + β0²·S2`（三个 q×q 矩阵；聚类下走 CR0
+簇和）。**关键=可验证性**：因 Ŝ(β0) 依赖 β0，AR_r 非二次式之比、集合无闭式——但
+边界 `{AR_r=crit}` 恰是**一个 ≤2q 次多项式 P=N−crit·D 的实根**（`np.roots` 精确且
+完备，不漏根），且 Ŝ(β0)=Σ(非负)²zz' 对所有 β0 PSD → AR_r 处处有限、两侧共享有限
+渐近线 `L∞=(1/n)zx'S2⁻¹zx`（弱识别信号：L∞≤crit → 集合无界）。集合表示为 **segments
+区间列表**（可 bounded/disconnected 双射线/whole_line/empty/union）。①iv.py：
+`RobustARConfidenceSet`+`robust_anderson_rubin_overid_set`（Chebyshev 拟合 P 系数→
+chebroots→按渐近线分类；自洽守卫拒不可靠数值→None）+`_robust_moment_matrices`(HC0/CR0)
++`robust_ar_statistic`；`robust_anderson_rubin` 字段。②dispatch.py：发射
+`robust_anderson_rubin_confidence_set`+联合 F 弱时 `weak_iv_instrument` gap **优先**指向
+稳健 AR 集（弱识别 AND 异方差都稳健）。③verify.py：`verify_iv_overid_numeric` 增独立
+稳健重导——从记录的 S0/S1/S2 **第二次转写** AR_r，(a) 每 crossing 核在边界 AR_r≈crit、
+(b) 重导 crit=χ²(q)+渐近线、(c) 从 crossings+渐近线重建 segments 核对、(d) **独立密集
+网格成员扫描**（与生产者精确多项式根**不同方法**）核完备性防漏根。④schema：s0/s1/s2
+进 sufficient_statistics + robust_ar 块全可选；response_rendering：弱工具下优先稳健 AR，
+与同方差分歧则结论依赖同方差假设。取舍（声明）=χ²(q) 渐近（无有限样本 F 修正）·单内生·
+单 β 标量集。D1=网格反演 vs 闭集（raw-data AR_r 与 S 矩阵形式 1e-7 一致）+ 异方差覆盖率
+仿真（**稳健 0.955 vs 同方差 0.855**=收官全部价值）+ 空⟺无界渐近线信号 + 聚类 CR0；
+verify 拒伪造 crossing/segment/asymptote/crit、篡改 S0、**漏 crossing（网格扫描逮）**、
+缺 S 矩阵。+15→**2964**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
