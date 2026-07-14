@@ -124,8 +124,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 异方差稳健 Hansen J 过度识别检验：过度识别 2SLS 此前只算**同方差 Sargan (1958) J**（iv.py 明写「Hansen 稳健 J 推迟」）。异方差/聚类数据下 Sargan 用了错误的权重矩阵，其对工具集的证伪不可信（探针：3 工具异方差设计 Sargan J=0.038 vs Hansen J=0.032，同方差重合）。现补上高效两步 GMM 的 **Hansen (1982) J**——同 H0/同 χ²(q−1)，但用稳健矩方差矩阵 `Ŝ=(1/n)Σûᵢ²zᵢzᵢ'`（聚类声明下走聚类稳健 CR0）替代同方差 σ²(Z'Z)。头条点估计仍 2SLS（同方差下相同），高效 GMM 点作诊断记录；Hansen 是附加项，Ŝ 奇异时 2SLS+Sargan 原样保留。**过度识别 gap 改由稳健 Hansen 驱动**（复用既有 `overidentification_rejected` kind），`verify_iv_overid_numeric` 增独立 Hansen 重导（从记录的 Ŝ + 交叉矩第二次转写重导高效 GMM 点 + J，加 Ŝ 对称-PSD 校验）。仅单内生·HC0/CR0 无有限样本乘子·多内生推迟
 - 多工具弱识别 Anderson-Rubin 置信集：过度识别路径能**检测**联合弱识别（联合 F），但唯一的区间是 bootstrap CI——工具联合弱时它失效（正是单工具 AR 要替换的问题），过度识别侧此前没有弱识别稳健集。关键认识：对**单个内生回归元** + q 个工具，AR 统计量仍是 β0 的**二次式之比**（q 维投影只改系数不改代数），故集合仍是一条二次不等式的解、同样五种形态（向量-β 的二次曲面几何只在多个内生回归元时才出现，而过度识别本就单内生）。补上 `anderson_rubin_overid_set`：投影二次型给出 `N(β0)=e'P_Z e`，临界值 `κ=q·F(q,m)`（单工具 `F(1,m)` 的推广），反演 `AR≤F(q,m)` 得 `A·β0²+B·β0+C≤0`，q=1 时**精确**退化为单工具 AR。与恰好识别集不同，过度识别集可为**空**（无 β0 满足全部 q 条矩约束=过度识别拒绝显现在集合几何里）、且 2SLS 点**不必**落在集内。联合 F 弱时 `weak_iv_instrument` gap 指向 AR 集作为 bootstrap CI 的诚实替代；`verify_iv_overid_numeric` 从**同一批**记录矩阵独立重导投影二次型、用验证器自有二次分类器重解、核对 kind+端点+κ+点。仅齐方差 AR·单内生·单 β 标量集（向量-β 二次曲面推迟）。D1=网格反演（闭式集==直接 AR 测试成员）+ q=1 精确退化 + 覆盖率仿真（~96.5%）+ 空集⟺Sargan 拒绝
 - 异方差稳健 Anderson-Rubin 置信集（Stock-Wright S / Kleibergen）：上一条的多工具 AR 集是**同方差**的——异方差/聚类下它和 Sargan 一样用错权重（Sargan vs 稳健 Hansen J 的同一缺陷），覆盖率失准。补上**异方差稳健 AR 集**，同时对**弱识别和异方差**稳健：反演 `AR_r(β0)=n·ḡ(β0)'Ŝ(β0)⁻¹ḡ(β0)~χ²(q)`，稳健权 `Ŝ(β0)=(1/n)Σ(yᵢ−β0xᵢ)²zᵢzᵢ'=S0−β0·S1+β0²·S2`（聚类下走 CR0 簇和）。**关键=可验证性**：因 Ŝ(β0) 依赖 β0，AR_r 非二次式之比、集合无闭式——但边界 `{AR_r=crit}` 恰是**一个 ≤2q 次多项式的实根**（`np.roots` 精确且完备不漏根），且 Ŝ(β0)=Σ(非负)²zz' 对所有 β0 PSD → AR_r 处处有限、两侧共享有限渐近线 `L∞=(1/n)zx'S2⁻¹zx`（弱识别信号：L∞≤crit→集合无界）。集合表示为 segments 区间列表（bounded/disconnected/whole_line/empty/union）。联合 F 弱时 `weak_iv_instrument` gap **优先**指向稳健 AR 集；`verify_iv_overid_numeric` 从记录的 S0/S1/S2 独立重导 AR_r，核对每个 crossing 在边界+crit+渐近线+segments，并用**独立密集网格成员扫描**（与生产者精确多项式根不同方法）核完备性防漏根。仅 χ²(q) 渐近·单内生·单 β 标量集。D1=网格反演 vs 闭集 + 异方差覆盖率仿真（**稳健 0.955 vs 同方差 0.855**）+ 空⟺无界渐近线信号 + 聚类 CR0
+- 暴露误分类矩阵法（Barron/Greenland/Marshall）：测量误差校正此前只做**结局**误分类（Rogan-Gladen），暴露侧被明确推迟。缺口是"静默错误答案"：潜 X*→Y SCM 下把 `misclassification` 按暴露变量名给，themis 静默忽略→照发衰减的 `backdoor_logistic` 点（探针：真值 0.198，朴素后门 0.137，衰减 ~31%）。补上**矩阵法**——非差异（X⊥(Y,Z)|X*）下沿暴露轴对 (X,Y) 联合逐结局列求逆 `p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z)`，再用**恢复的真实暴露**做后门标准化。**关键**：暴露侧分母 P(X*=x|z) 本身也是求逆结果（非观测计数）→**无 naive/det 捷径**，故做独立估计器；恢复暴露边际≤0 时 `degenerate_recovered_exposure` 拒。`misclassification` 按变量名键分派（暴露名走暴露校正，X+Y 都给→组合校正推迟拒）；`verify_exposure_measurement_correction_numeric` 从记录的混淆矩阵 + per-stratum 2×k 联合表**第二次独立求逆**重导校正/朴素点，拒伪造点/非列随机矩阵/篡改联合表/丢层/空臂。仅二值暴露·非差异·已知固定矩阵·离散结局·后门识别；多值暴露/组合(X+Y)/差异矩阵/连续误测(regression calibration/SIMEX)推迟。D1=潜 X* SCM 逐位恢复真 RD（矩阵法 0.197 vs 朴素 0.137 vs 真 0.198）
 
-当前全量测试基线：**2964 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**2990 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -179,7 +180,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：2964 passed / 144 skipped（2026-07-13）
+- **测试套件**：2990 passed / 144 skipped（2026-07-14）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

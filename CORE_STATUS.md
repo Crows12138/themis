@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2964 passed / 144 skipped, warning-clean
+2990 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -306,6 +306,33 @@ chebroots→按渐近线分类；自洽守卫拒不可靠数值→None）+`_robu
 仿真（**稳健 0.955 vs 同方差 0.855**=收官全部价值）+ 空⟺无界渐近线信号 + 聚类 CR0；
 verify 拒伪造 crossing/segment/asymptote/crit、篡改 S0、**漏 crossing（网格扫描逮）**、
 缺 S 矩阵。+15→**2964**。
+
+**暴露误分类矩阵法（2026-07-14）**：测量误差校正此前只做**结局**误分类（Rogan-Gladen
+`a64fc38`），docstring 明写"暴露误分类是不同的校正、推迟"。探针坐实缺口：潜 X*→Y SCM +
+混杂 Z，暴露非差异误分类，themis 对 `misclassification={暴露变量名:...}` **静默忽略**→
+照发 `backdoor_logistic` 衰减点 0.137（真值 0.198，衰减 ~31%），只挂软
+`measurement_error_concern` gap——正是护城河要拦的"静默错误答案"。补**矩阵法**
+（Barron 1977 / Greenland 1988 / Marshall 1990）：非差异（X⊥(Y,Z)|X*）下沿暴露轴对
+(X,Y) 联合**逐结局列求逆** p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z)，再用**恢复的真实暴露**做后门
+标准化 ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。**关键=暴露侧分母 P(X*=x|z) 本身
+也是求逆结果**（非观测计数）→无 naive/det 捷径，故做独立估计器而非结局侧开关；衰减量随
+混杂结构变（det 只守可逆性）。①measurement.py：`ExposureMeasurementCorrectionEstimate`
++`estimate_exposure_measurement_correction`（复用矩阵校验/离散/边际助手），新守卫
+`degenerate_recovered_exposure`（恢复暴露边际≤0→条件风险未定义→拒）、
+`exposure_not_binary`、`continuous_outcome`、positivity。②dispatch.py：`misclassification`
+按**变量名**键分派——键=暴露名走 `_try_exposure_measurement_correction_estimate`，
+X+Y 都给→`combined_misclassification_deferred` 拒；发 measurement_correction 块
+side=exposure + per-stratum 2×k 联合表。③verify.py：
+`verify_exposure_measurement_correction_numeric` 从记录的 M+2×k 联合表**第二次转写**沿
+暴露轴求逆重导校正/朴素点+det，拒伪造点/非列随机或 det 不符矩阵/篡改联合表/丢层/空臂/
+side 篡改；kernel 按 method 触发；复用 `numeric_measurement_correction_estimate` 派生
+终端（方法加进白名单）。④schema：method enum + side + outcome_states + strata `oneOf`
+（结局 arm/counts/n | 暴露 z/joint_counts）全可选；估计/verifier `__init__` 导出+docstring
+清单同步；response_rendering 暴露侧渲染（无 naive/det）；data_gap_report
+`measurement_error_concern` 文本升级（结局**或暴露**）。取舍（声明）=仅二值暴露·非差异·
+已知固定矩阵·离散结局·后门识别；多值暴露/组合(X+Y)/差异矩阵/连续误测
+(regression calibration/SIMEX) 推迟。D1=潜 X* SCM 数值端逐位恢复真 RD（矩阵法 0.197 vs
+朴素 0.137 vs 真 0.198）·无 naive/det 捷径核·退化恢复暴露拒。+26→**2990**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
