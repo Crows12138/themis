@@ -911,9 +911,29 @@ correction, not just the corrected number:
   (singular / non-stochastic matrix, positivity, or the effect isn't back-door
   identified), report the refusal — the corrected number was withheld, NOT the
   biased naive point silently shipped.
-- Scope: outcome misclassification only (exposure misclassification,
-  differential matrices, and continuous mismeasurement are out of scope and stay
-  in the `measurement_error_concern` gap's territory).
+
+**Exposure misclassification (`method == "exposure_measurement_error_correction"`,
+`measurement_correction.side == "exposure"`).** The same de-attenuation when the
+validated confusion matrix names the *binary exposure* instead
+(`estimate(…, misclassification={<exposure>: {confusion_matrix, states}})`). Here
+the matrix method inverts M on the exposure margin of the (X, Y) joint per
+stratum, recovers the true joint, then standardises the recovered true exposure.
+Render it the same way — lead with `point`, contrast `naive_point` — but with two
+differences the reader must see:
+
+- There is **no `naive/det` shortcut**: the exposure attenuation depends on the
+  confounding structure, so `det` is NOT the attenuation factor here (it only
+  guards invertibility). Do not present `point ≈ naive/det`.
+- The recovered exposure marginal `P(X*=x|z)` is itself an inversion; a
+  `degenerate_recovered_exposure` failure (a non-positive recovered marginal)
+  means the matrix is too weakly informative to identify the effect in a stratum
+  — report the refusal, don't ship a wild number.
+
+Scope for both sides: the correction covers **outcome** and **binary-exposure**
+misclassification, **non-differential** and with a **known** (fixed) matrix. A
+multi-level exposure, a combined (exposure AND outcome) correction, differential
+matrices, and continuous mismeasurement (regression calibration / SIMEX) are out
+of scope and stay in the `measurement_error_concern` gap's territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

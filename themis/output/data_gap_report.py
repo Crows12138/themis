@@ -1404,17 +1404,19 @@ def _classify_measurement_error_concern(
             "问卷暴露的 non-differential mis-classification 同样使 "
             "估计值低估真效应；Fuller 1987 Measurement Error Models "
             "给出 attenuation theorem 的形式定义。结构层只做识别 + 缺口诊断；"
-            "但若被误分类的**离散结局**有验证研究给出的混淆矩阵，数值层可做"
-            "去衰减校正（estimate(..., misclassification={outcome: {confusion_matrix, "
-            "states}})），在非差异误分类假设下逐后门层做矩阵求逆 "
-            "p_true=M⁻¹p_obs（二值即 Rogan-Gladen 1978），并由 "
-            "verify_measurement_correction_numeric 独立重算校正值。"
+            "但若被误分类的**离散结局**或**二值暴露**有验证研究给出的混淆矩阵，"
+            "数值层可做去衰减校正（estimate(..., misclassification={<结局或暴露变量名>: "
+            "{confusion_matrix, states}})），在非差异误分类假设下逐后门层做矩阵求逆——"
+            "结局侧 p_true=M⁻¹p_obs（二值即 Rogan-Gladen 1978），暴露侧用矩阵法"
+            "沿暴露轴对 (X,Y) 联合逐结局列求逆（Barron 1977 / Greenland 1988 / "
+            "Marshall 1990），并由 verify_measurement_correction_numeric / "
+            "verify_exposure_measurement_correction_numeric 独立重算校正值。"
         ),
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=(
-            "若拿到 (a) 被误分类离散结局的**验证过混淆矩阵**（Se/Sp 或整张 "
-            "confusion matrix），可经 estimate(misclassification=...) 逐后门层"
-            "矩阵求逆去衰减；或 (b) 重复测量子样本（test-retest reliability），"
+            "若拿到 (a) 被误分类离散结局**或二值暴露**的**验证过混淆矩阵**"
+            "（Se/Sp 或整张 confusion matrix），可经 estimate(misclassification=...) "
+            "逐后门层矩阵求逆去衰减；或 (b) 重复测量子样本（test-retest reliability），"
             "用 regression calibration / SIMEX 校准连续误差；或 (c) gold-standard "
             "亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）做校准"
         ),

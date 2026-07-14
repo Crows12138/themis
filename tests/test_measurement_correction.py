@@ -430,3 +430,376 @@ def test_dispatch_non_backdoor_identified_refuses():
     fail = r.get("estimator_failure")
     assert fail is not None
     assert fail["failure_type"] == "requires_backdoor_identification"
+
+
+# ============================================================================
+# Exposure (treatment) misclassification — the matrix method.
+# ============================================================================
+#
+# The channel now sits on the EXPOSURE. A latent true X* -> Y SCM with a
+# confounder Z; X* is misclassified into the observed X non-differentially. The
+# corrected estimate (which sees only the observed X) must recover the latent-
+# true RD on X*, while the naive back-door RD on the observed X is attenuated.
+
+from themis.estimation.measurement import (
+    estimate_exposure_measurement_correction,
+    ExposureMeasurementCorrectionEstimate,
+)
+from themis.verifier import verify_exposure_measurement_correction_numeric
+
+
+def _make_exposure_data(
+    *, n=80000, effect=0.20, seed=7, se=0.90, sp=0.85, differential=False,
+):
+    """Z->X*, Z->Y, X*->Y; observed X = X* through an Se/Sp channel.
+
+    Returns (df_with_observed_X, empirical_true_RD, se, sp). ``se`` = P(X=1|X*=1),
+    ``sp`` = P(X=0|X*=0). With ``differential`` the sensitivity depends on the
+    outcome (for the differential-refusal data)."""
+    rng = np.random.default_rng(seed)
+    z = rng.integers(0, 2, size=n)
+    pxs = 0.30 + 0.40 * z
+    xstar = (rng.random(n) < pxs).astype(int)
+    py = 0.25 + effect * xstar + 0.20 * z
+    y = (rng.random(n) < py).astype(int)
+
+    true_rd = 0.0
+    for zv in (0, 1):
+        m = z == zv
+        pz = m.mean()
+        true_rd += (y[m & (xstar == 1)].mean() - y[m & (xstar == 0)].mean()) * pz
+
+    u = rng.random(n)
+    if differential:
+        se_arm = np.where(y == 1, se, se - 0.15)   # depends on Y -> differential
+        keep1 = u < se_arm
+    else:
+        keep1 = u < se
+    x = np.where(xstar == 1, keep1.astype(int), (u < (1 - sp)).astype(int))
+    df = pd.DataFrame({"x": x, "z": z, "y": y})
+    return df, float(true_rd), se, sp
+
+
+# --- D1: recovery of the latent-true RD (exposure side) ----------------------
+
+
+def test_exposure_corrected_recovers_latent_true_rd_while_naive_attenuates():
+    df, true_rd, se, sp = _make_exposure_data(effect=0.20)
+    est = estimate_exposure_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
+        ci_bootstrap=0,
+    )
+    assert isinstance(est, ExposureMeasurementCorrectionEstimate)
+    # Corrected estimate recovers the latent-true RD (sees only observed x).
+    assert est.point == pytest.approx(true_rd, abs=0.02)
+    # Naive back-door RD on the observed exposure is attenuated toward the null.
+    assert abs(est.naive_point) < abs(est.point) - 0.01
+    assert est.det == pytest.approx(se + sp - 1, abs=1e-9)
+    assert est.method == "exposure_measurement_error_correction"
+
+
+def test_exposure_has_no_naive_over_det_shortcut():
+    """Unlike the OUTCOME case, exposure attenuation is not point = naive/det;
+    the correction is a genuine matrix inversion of the (X, Y) joint."""
+    df, _true_rd, se, sp = _make_exposure_data(effect=0.20, seed=3)
+    est = estimate_exposure_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
+        ci_bootstrap=0,
+    )
+    det = se + sp - 1
+    # The outcome-side shortcut naive/det would give a different number here.
+    assert abs(est.point - est.naive_point / det) > 0.005
+
+
+def test_exposure_sufficient_statistics_shape():
+    df, _true_rd, se, sp = _make_exposure_data(effect=0.20, seed=9, n=6000)
+    est = estimate_exposure_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        confusion_matrix=_binary_M(se, sp), states=[False, True], target_value=True,
+        ci_bootstrap=0,
+    )
+    ss = est.sufficient_statistics
+    assert ss["side"] == "exposure"
+    assert ss["states"] == [False, True]
+    assert list(ss["outcome_states"]) == list(est.outcome_states)
+    assert ss["target_value"] is True
+    assert ss["adjustment_vars"] == ["z"]
+    # One record per z-level (2 levels), each a full 2xk joint table.
+    assert len(ss["strata"]) == 2
+    k = len(est.outcome_states)
+    for rec in ss["strata"]:
+        assert set(rec) == {"z", "joint_counts"}
+        jc = rec["joint_counts"]
+        assert len(jc) == 2 and all(len(row) == k for row in jc)
+    assert sum(m["count"] for m in ss["marginal_counts"]) == ss["marginal_total"]
+
+
+def test_exposure_bootstrap_ci_brackets_point():
+    df, _true_rd, se, sp = _make_exposure_data(effect=0.20, seed=5, n=8000)
+    est = estimate_exposure_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
+        ci_bootstrap=200, random_state=1,
+    )
+    assert est.ci_lower is not None and est.ci_upper is not None
+    assert est.ci_lower <= est.point <= est.ci_upper
+
+
+# --- guards (exposure side) --------------------------------------------------
+
+
+def test_exposure_singular_matrix_refuses():
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=[[0.5, 0.5], [0.5, 0.5]], states=[0, 1],
+            target_value=1, ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "singular_confusion_matrix"
+
+
+def test_exposure_non_stochastic_matrix_refuses():
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=[[0.9, 0.1], [0.2, 0.8]],  # col 0 sums to 1.1
+            states=[0, 1], target_value=1, ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "invalid_confusion_matrix"
+
+
+def test_exposure_differential_refuses():
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
+            differential=True, ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "differential_misclassification"
+
+
+def test_exposure_multi_level_refuses():
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    df = df.copy()
+    df.loc[df.index[:100], "x"] = 2   # a third exposure level
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
+            ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "exposure_not_binary"
+
+
+def test_exposure_non_binary_states_refuses():
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=[[0.9, 0.05, 0.05], [0.05, 0.9, 0.05],
+                              [0.05, 0.05, 0.9]],
+            states=[0, 1, 2], target_value=1, ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "exposure_not_binary"
+
+
+def test_exposure_continuous_outcome_refuses():
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    df = df.copy()
+    rng = np.random.default_rng(0)
+    df["y"] = rng.random(len(df))   # continuous outcome
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
+            ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "continuous_outcome"
+
+
+def test_exposure_target_value_absent_refuses():
+    df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=9,
+            ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "target_value_absent"
+
+
+def test_exposure_positivity_violation_refuses():
+    # z=1 only ever has x=1 (observed) — the naive contrast is undefined there.
+    df = pd.DataFrame({
+        "x": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1],
+        "z": [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+        "y": [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+    })
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=_binary_M(0.9, 0.85), states=[0, 1],
+            target_value=1, ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "insufficient_support"
+
+
+def test_exposure_degenerate_recovered_marginal_refuses():
+    """A weakly-informative matrix + a stratum skewed toward observed X=0 makes
+    the recovered P(X*=1|z) non-positive — the conditional risk is undefined."""
+    # sp=0.6 weak: recovered P(X*=1) = (sp*P(X=1) - (1-sp)*P(X=0)) / det < 0 when
+    # observed X is mostly 0. 30 ones / 70 zeros, single z-stratum.
+    x = [1] * 30 + [0] * 70
+    df = pd.DataFrame({
+        "x": x,
+        "z": [0] * 100,
+        "y": ([1, 0] * 15) + ([1, 0] * 35),
+    })
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            confusion_matrix=_binary_M(0.9, 0.6), states=[0, 1],
+            target_value=1, ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "degenerate_recovered_exposure"
+
+
+# --- end-to-end dispatch + kernel.verify (exposure side) ---------------------
+
+
+def _exposure_spec(se, sp):
+    return {"x": {"confusion_matrix": _binary_M(se, sp), "states": [False, True]}}
+
+
+def _bool_exposure_frame(**kw):
+    df, true_rd, se, sp = _make_exposure_data(**kw)
+    return df.astype(bool), true_rd, se, sp
+
+
+def test_exposure_dispatch_e2e_corrects_and_flips_status():
+    df, true_rd, se, sp = _bool_exposure_frame(effect=0.20)
+    out = themis.estimate(_program(), df, ci_bootstrap=0,
+                          misclassification=_exposure_spec(se, sp))
+    r = out["results"][0]
+    ne = r["numeric_estimate"]
+    assert r["status"] == "numerically_solved"
+    assert ne["method"] == "exposure_measurement_error_correction"
+    assert ne["measurement_correction"]["side"] == "exposure"
+    assert ne["point"] == pytest.approx(true_rd, abs=0.02)
+    assert abs(ne["measurement_correction"]["naive_point"]) < abs(ne["point"]) - 0.01
+
+
+def _exposure_estimate_result(seed=4, effect=0.20):
+    df, _t, se, sp = _bool_exposure_frame(effect=effect, seed=seed)
+    prog = _program()
+    out = themis.estimate(prog, df, ci_bootstrap=0,
+                          misclassification=_exposure_spec(se, sp))
+    return prog, out["results"][0]
+
+
+def test_exposure_verify_accepts_honest_e2e():
+    prog, r = _exposure_estimate_result()
+    themis.verify(prog, r)  # must not raise
+
+
+def test_exposure_verify_rejects_forged_point():
+    prog, r = _exposure_estimate_result()
+    r["numeric_estimate"]["point"] = 0.05
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_exposure_verify_rejects_forged_naive():
+    prog, r = _exposure_estimate_result()
+    r["numeric_estimate"]["measurement_correction"]["naive_point"] = 0.999
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_exposure_verify_rejects_forged_matrix():
+    prog, r = _exposure_estimate_result()
+    r["numeric_estimate"]["measurement_correction"][
+        "sufficient_statistics"]["confusion_matrix"] = [[0.99, 0.01], [0.01, 0.99]]
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_exposure_verify_rejects_tampered_joint_count():
+    prog, r = _exposure_estimate_result()
+    ss = r["numeric_estimate"]["measurement_correction"]["sufficient_statistics"]
+    ss["strata"][0]["joint_counts"][1][1] += 500   # change the recovered point
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_exposure_verify_rejects_dropped_stratum():
+    prog, r = _exposure_estimate_result()
+    ss = r["numeric_estimate"]["measurement_correction"]["sufficient_statistics"]
+    ss["marginal_counts"] = ss["marginal_counts"][:1]
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_exposure_verify_rejects_wrong_side_tag():
+    prog, r = _exposure_estimate_result()
+    r["numeric_estimate"]["measurement_correction"]["side"] = "outcome"
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_exposure_verifier_noop_on_other_methods():
+    # A no-op on anything that isn't an exposure correction.
+    verify_exposure_measurement_correction_numeric(
+        {"method": "backdoor_linear", "point": 0.3})
+    verify_exposure_measurement_correction_numeric(
+        {"method": "measurement_error_correction", "point": 0.2})
+
+
+def test_exposure_dispatch_singular_matrix_surfaces_estimator_failure():
+    df, _t, se, sp = _bool_exposure_frame(effect=0.20, seed=8)
+    spec = {"x": {"confusion_matrix": [[0.5, 0.5], [0.5, 0.5]],
+                  "states": [False, True]}}
+    out = themis.estimate(_program(), df, ci_bootstrap=0, misclassification=spec)
+    r = out["results"][0]
+    fail = r.get("estimator_failure")
+    assert fail is not None
+    assert fail["failure_type"] == "singular_confusion_matrix"
+
+
+def test_exposure_dispatch_non_backdoor_identified_refuses():
+    df, _t, se, sp = _bool_exposure_frame(effect=0.20, seed=10)
+    out = themis.estimate(_program(bidirected=True), df, ci_bootstrap=0,
+                          misclassification=_exposure_spec(se, sp))
+    r = out["results"][0]
+    fail = r.get("estimator_failure")
+    assert fail is not None
+    assert fail["failure_type"] == "requires_backdoor_identification"
+
+
+def test_combined_exposure_and_outcome_spec_deferred():
+    """A confusion matrix for BOTH X and Y is a combined correction — deferred."""
+    df, _t, se, sp = _bool_exposure_frame(effect=0.20, seed=6)
+    spec = {
+        "x": {"confusion_matrix": _binary_M(se, sp), "states": [False, True]},
+        "y": {"confusion_matrix": _binary_M(se, sp), "states": [False, True]},
+    }
+    out = themis.estimate(_program(), df, ci_bootstrap=0, misclassification=spec)
+    r = out["results"][0]
+    fail = r.get("estimator_failure")
+    assert fail is not None
+    assert fail["failure_type"] == "combined_misclassification_deferred"
+
+
+def test_outcome_side_still_works_alongside_exposure():
+    """Backward compat: a y-keyed spec still routes to the OUTCOME correction."""
+    df, true_rd, se, sp = _bool_frame(effect=0.20, seed=4)
+    out = themis.estimate(_program(), df, ci_bootstrap=0,
+                          misclassification=_spec(se, sp))
+    r = out["results"][0]
+    assert r["numeric_estimate"]["method"] == "measurement_error_correction"
+    assert r["numeric_estimate"]["measurement_correction"].get("side") in (None, "outcome")

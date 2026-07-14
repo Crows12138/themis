@@ -76,6 +76,14 @@ Public surface (re-exports from sub-modules):
   terminal ``numeric_measurement_correction_estimate`` does only metadata +
   structural licensing because the matrix + count vectors don't fit
   derivation-input serialization),
+  ``verify_exposure_measurement_correction_numeric`` (frontier E, exposure side
+  — the de-attenuated effect of a misclassified binary EXPOSURE: the corrected
+  point, the naive (attenuated) point, and det(M) re-derived by an independent
+  transcription of the matrix method p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z) applied on
+  the exposure margin, from the recorded matrix + per-stratum 2×k joint tables;
+  rejects a tampered point, a non-stochastic or det-inconsistent matrix, a
+  dropped stratum, an empty observed arm, or a degenerate recovered exposure
+  marginal. Shares the ``numeric_measurement_correction_estimate`` terminal),
   ``verify_selection_recovery_numeric`` (§S9.1 numeric end — the ATE recovered
   from selection bias by the Bareinboim-Pearl selection-backdoor formula
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
@@ -157,6 +165,7 @@ from .verify import (
     verify_dose_response_curve,
     verify_e_value,
     verify_effect_structural,
+    verify_exposure_measurement_correction_numeric,
     verify_identify,
     verify_iv_overid_numeric,
     verify_longitudinal_numeric,
@@ -202,6 +211,7 @@ __all__ = [
     "verify_dose_response_curve",
     "verify_e_value",
     "verify_effect_structural",
+    "verify_exposure_measurement_correction_numeric",
     "verify_balke_pearl_iv_bounds_result",
     "verify_identify",
     "verify_longitudinal_numeric",

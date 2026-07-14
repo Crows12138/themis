@@ -42,8 +42,18 @@ Landed scope:
   non-differential misclassification. The corrected point, the naive
   (attenuated) point, and det(M) are closed forms of the recorded matrix +
   per-stratum value-count vectors, so the verifier re-inverts them independently
-  without the raw data. Deferred: exposure misclassification, differential
-  (per-arm) matrices, continuous mismeasurement.
+  without the raw data.
+- Exposure measurement-error correction —
+  ``estimate_exposure_measurement_correction`` (returning
+  ``ExposureMeasurementCorrectionEstimate``): the same de-attenuation for a
+  MISCLASSIFIED BINARY EXPOSURE via the matrix method (Barron 1977, Greenland
+  1988, Marshall 1990) — invert M on the exposure margin of the (X, Y) joint per
+  back-door stratum, recover the true joint, then standardise the recovered true
+  exposure. The recovered exposure marginal is itself an inversion (no naive/det
+  shortcut), so the verifier re-derives the point from the recorded matrix +
+  per-stratum 2xk joint tables. Deferred: multi-level exposure, combined
+  (exposure AND outcome) correction, differential matrices, continuous
+  mismeasurement (regression calibration / SIMEX).
 - Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
   ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
   ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via
@@ -224,7 +234,9 @@ from .iv import (
 )
 from .joint import JointEffectEstimate, estimate_joint_effect
 from .measurement import (
+    ExposureMeasurementCorrectionEstimate,
     MeasurementCorrectionEstimate,
+    estimate_exposure_measurement_correction,
     estimate_measurement_correction,
 )
 from .longitudinal import (
@@ -282,7 +294,9 @@ __all__ = [
     "IPWEstimate",
     "IVEstimate",
     "JointEffectEstimate",
+    "ExposureMeasurementCorrectionEstimate",
     "MeasurementCorrectionEstimate",
+    "estimate_exposure_measurement_correction",
     "estimate_measurement_correction",
     "LongitudinalGFormulaEstimate",
     "LongitudinalIPWMSMEstimate",

@@ -710,10 +710,39 @@ def _estimate_effect_queries(
         # estimator_failure rather than silently falling back to the biased
         # naive point — the caller explicitly asked for the corrected number.
         mc_spec = (misclassification or {}).get(y_atom.predicate)
+        mc_spec_x = (misclassification or {}).get(x_atom.predicate)
+        if mc_spec is not None and mc_spec_x is not None:
+            # A validated matrix for BOTH the exposure and the outcome is a
+            # combined correction (the two channels compose) — deferred. Refuse
+            # rather than silently applying only one and shipping a half-
+            # corrected point.
+            result["estimator_failure"] = {
+                "estimator": "measurement_error_correction",
+                "failure_type": "combined_misclassification_deferred",
+                "reason": (
+                    "a confusion matrix was supplied for BOTH the exposure "
+                    f"{x_atom.predicate!r} and the outcome {y_atom.predicate!r}; "
+                    "the combined (exposure AND outcome) correction is deferred. "
+                    "Supply a matrix for exactly one of them."
+                ),
+            }
+            continue
         if mc_spec is not None:
             _try_measurement_correction_estimate(
                 q_stmt, result, contract, graph,
                 adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
+            )
+            continue
+        if mc_spec_x is not None:
+            # Frontier E (exposure side): the confusion matrix names THIS query's
+            # exposure. De-attenuate the misclassified binary exposure by the
+            # matrix method (invert M on the X-margin per back-door stratum)
+            # instead of shipping the attenuated naive back-door number.
+            _try_exposure_measurement_correction_estimate(
+                q_stmt, result, contract, graph,
+                adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec_x,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
             )
@@ -2800,6 +2829,129 @@ def _try_measurement_correction_estimate(
             "out_of_simplex": est.out_of_simplex,
             "confusion_matrix": [list(row) for row in est.confusion_matrix],
             "states": list(est.states),
+            "target_value": est.target_value,
+            "differential": False,
+            "form": est.form,
+            "model_assumption": est.model_assumption,
+            "sufficient_statistics": est.sufficient_statistics,
+        },
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import build_mechanism_audit
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
+        form=est.form,
+        method=est.method,
+        assumption=est.model_assumption,
+        provenance="default",
+    )
+
+    result["derivation"] = _build_measurement_correction_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
+        given=frozenset(given), estimate=est,
+    )
+    _finalise_numeric_result(result)
+
+
+def _try_exposure_measurement_correction_estimate(
+    q_stmt, result: dict, contract, graph, *,
+    adjustment_sets, given, spec: dict,
+    random_state: int, ci_bootstrap: int, cluster: str | None = None,
+) -> None:
+    """Frontier E numeric end + honest gate for a misclassified binary EXPOSURE.
+
+    Fires when the caller supplied a validated confusion matrix for this query's
+    exposure. Mirrors the outcome handler; two outcomes, neither a silently-
+    attenuated back-door number:
+
+    - Not back-door identified, or the correction refuses (singular / non-
+      stochastic matrix, positivity, non-binary exposure, degenerate recovered
+      exposure) → ``estimator_failure`` (no number); the caller asked for the
+      corrected point, so the biased naive back-door number is withheld.
+    - Back-door identified AND the correction succeeds → invert the confusion
+      matrix on the exposure margin per stratum, attach the de-attenuated
+      ``numeric_estimate`` (with the naive point kept for contrast), flip to
+      numerically_solved.
+    """
+    from .measurement import estimate_exposure_measurement_correction
+    from .dose_response import EstimatorFailure
+
+    x_atom = q_stmt.query.intervention.atom
+    y_atom = q_stmt.query.target.atom
+    target_value = q_stmt.query.target.value
+
+    if not adjustment_sets:
+        result["estimator_failure"] = {
+            "estimator": "exposure_measurement_error_correction",
+            "failure_type": "requires_backdoor_identification",
+            "reason": (
+                "confusion-matrix correction composes with back-door "
+                "standardisation, but P(y|do(x)) is not back-door identified "
+                "here; no corrected number is produced."
+            ),
+        }
+        return
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        est = estimate_exposure_measurement_correction(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            confusion_matrix=spec.get("confusion_matrix"),
+            states=spec.get("states"),
+            target_value=(
+                spec["target_value"] if "target_value" in spec else target_value
+            ),
+            differential=bool(spec.get("differential", False)),
+            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": "exposure_measurement_error_correction",
+            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = {
+            "estimator": "exposure_measurement_error_correction",
+            "failure_type": "invalid_input",
+            "reason": str(exc),
+        }
+        return
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        # Exposure confusion-matrix correction detail (audit trail + verifier
+        # inputs). The matrix + per-stratum joint tables don't fit derivation-
+        # input serialization, so they live here and are re-inverted by
+        # verify_exposure_measurement_correction_numeric (kernel-called).
+        "measurement_correction": {
+            "side": "exposure",
+            "naive_point": est.naive_point,
+            "det": est.det,
+            "out_of_simplex": est.out_of_simplex,
+            "confusion_matrix": [list(row) for row in est.confusion_matrix],
+            "states": list(est.states),
+            "outcome_states": list(est.outcome_states),
             "target_value": est.target_value,
             "differential": False,
             "form": est.form,

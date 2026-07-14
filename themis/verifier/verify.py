@@ -1820,6 +1820,180 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
         _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
 
 
+def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
+    """Re-derive an EXPOSURE confusion-matrix-corrected effect — the corrected
+    point, the naive (attenuated) point, and det(M) — from the recorded matrix +
+    per-stratum full 2×k (X, Y) joint count tables, and reject on mismatch.
+
+    The exposure correction rides on a ``numerically_solved`` back-door result
+    whose derivation ends in ``numeric_measurement_correction_estimate``
+    (metadata + structural licensing only). This is the strong numeric
+    counterpart: a SECOND, independent transcription of the matrix method
+
+        p_true(X*, Y | z) = M⁻¹ p_obs(X, Y | z)          (per outcome column)
+        P(Y=y* | X*=x, z) = p_true(x, y* | z) / Σ_y p_true(x, y | z)
+        effect = Σ_z [ P(Y=y* | X*=1, z) − P(Y=y* | X*=0, z) ] · P(z)
+
+    from the recorded ``measurement_correction.sufficient_statistics`` (the
+    matrix, per-stratum 2×k joint tables, outcome states, and covariate marginal
+    counts). It never imports the producer's estimator and never touches the raw
+    data. A result that isn't an ``exposure_measurement_error_correction``
+    estimate is a no-op.
+
+    Tamper checks: forged corrected/naive point, a confusion matrix whose det
+    disagrees with the recorded det, a non-column-stochastic matrix, a joint
+    table whose cells don't sum consistently, a marginal that doesn't sum to the
+    total (a dropped stratum), a covariate stratum missing from the tables, an
+    empty observed arm (positivity), or a degenerate recovered exposure marginal
+    — each is rejected.
+
+    ``estimate`` is the full ``numeric_estimate`` dict.
+    """
+    import numpy as np
+
+    if (
+        not isinstance(estimate, dict)
+        or estimate.get("method") != "exposure_measurement_error_correction"
+    ):
+        return
+
+    def _fail(msg):
+        raise VerificationError(
+            f"exposure_measurement_correction_numeric: {msg}",
+            step_index=None, rule="exposure_measurement_correction_numeric",
+        )
+
+    mc = estimate.get("measurement_correction")
+    if not isinstance(mc, dict):
+        _fail("numeric_estimate carries no measurement_correction block")
+    if mc.get("side") != "exposure":
+        _fail("measurement_correction.side is not 'exposure'")
+    suff = mc.get("sufficient_statistics")
+    if not isinstance(suff, dict):
+        _fail("measurement_correction carries no sufficient_statistics")
+
+    try:
+        M = np.asarray(suff["confusion_matrix"], dtype=float)
+        states = list(suff["states"])
+        outcome_states = list(suff["outcome_states"])
+        target_value = suff["target_value"]
+        strata = list(suff["strata"])
+        marginal_counts = list(suff["marginal_counts"])
+        marginal_total = int(suff["marginal_total"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail(f"ill-formed sufficient statistics: {exc}")
+
+    if len(states) != 2 or len(set(map(_state_key, states))) != 2:
+        _fail(f"exposure states must be a distinct binary pair; got {states!r}")
+    if M.shape != (2, 2):
+        _fail(f"exposure confusion matrix {M.shape} is not 2×2")
+    k = len(outcome_states)
+    if k < 1:
+        _fail("no outcome states recorded")
+    if len(set(map(_state_key, outcome_states))) != k:
+        _fail("outcome states are not distinct")
+    col_sums = M.sum(axis=0)
+    if not np.allclose(col_sums, 1.0, atol=1e-6):
+        _fail(
+            "confusion matrix is not column-stochastic "
+            f"(column sums {[round(float(c), 6) for c in col_sums]})"
+        )
+
+    det = float(np.linalg.det(M))
+    claimed_det = mc.get("det")
+    if claimed_det is not None and abs(det - float(claimed_det)) > 1e-9:
+        _fail(f"det mismatch — re-derived {det}, recorded {claimed_det}")
+    if abs(suff.get("det", det) - det) > 1e-9:
+        _fail(
+            f"sufficient_statistics.det {suff.get('det')} inconsistent with the "
+            f"recorded confusion matrix (det {det})"
+        )
+    if abs(det) < 1e-12:
+        _fail("recorded confusion matrix is singular — cannot re-invert")
+    Minv = np.linalg.inv(M)
+
+    # Independent target index — do not trust the recorded one.
+    try:
+        target_index = [_state_key(s) for s in outcome_states].index(
+            _state_key(target_value)
+        )
+    except ValueError:
+        _fail(f"target value {target_value!r} not among states {outcome_states!r}")
+
+    # Marginal P(z); a marginal that doesn't sum to the total means a stratum
+    # was dropped from the standardisation.
+    marg: dict = {}
+    total = 0
+    for rec in marginal_counts:
+        zk = _z_key(rec["z"])
+        marg[zk] = int(rec["count"])
+        total += int(rec["count"])
+    if total != marginal_total:
+        _fail(
+            f"marginal counts sum to {total}, not the recorded total "
+            f"{marginal_total} (a covariate stratum was dropped)"
+        )
+
+    # Per-z recovered target risks (corrected + naive) from the 2×k joint tables.
+    by_z: dict = {}
+    for rec in strata:
+        zk = _z_key(rec["z"])
+        joint = np.asarray(rec["joint_counts"], dtype=float)
+        if joint.shape != (2, k):
+            _fail(f"joint table shape {joint.shape} != (2, {k}) for z={rec['z']}")
+        if (joint < -1e-9).any():
+            _fail(f"joint table for z={rec['z']} has a negative count")
+        arm_n = joint.sum(axis=1)                 # observed size of each exposure arm
+        if arm_n[0] <= 0 or arm_n[1] <= 0:
+            _fail(
+                f"covariate stratum {rec['z']} has an empty observed exposure arm "
+                f"(arm sizes {[int(a) for a in arm_n]}); positivity is violated"
+            )
+        Nz = joint.sum()
+        p_obs = joint / Nz
+        p_true = np.empty_like(p_obs)
+        for j in range(k):
+            p_true[:, j] = Minv @ p_obs[:, j]
+        px1 = float(p_true[1, :].sum())
+        px0 = float(p_true[0, :].sum())
+        if px1 <= 1e-12 or px0 <= 1e-12:
+            _fail(
+                f"stratum {rec['z']} recovers a non-positive true exposure "
+                f"marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g})"
+            )
+        corrected_rd = (
+            float(p_true[1, target_index]) / px1
+            - float(p_true[0, target_index]) / px0
+        )
+        naive_rd = (
+            float(joint[1, target_index]) / float(arm_n[1])
+            - float(joint[0, target_index]) / float(arm_n[0])
+        )
+        by_z[zk] = (corrected_rd, naive_rd)
+
+    corrected = 0.0
+    naive = 0.0
+    for zk, p_z_count in marg.items():
+        p_z = p_z_count / marginal_total
+        rd = by_z.get(zk)
+        if rd is None:
+            _fail(f"covariate stratum {list(zk)} missing from the joint tables")
+        corrected += rd[0] * p_z
+        naive += rd[1] * p_z
+
+    point = estimate.get("point")
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        _fail(f"missing / non-numeric point {point!r}")
+    if abs(corrected - float(point)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(corrected)):
+        _fail(f"point mismatch — re-derived corrected {corrected}, recorded {point}")
+
+    claimed_naive = mc.get("naive_point")
+    if claimed_naive is None:
+        _fail("measurement_correction.naive_point missing")
+    if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
+        _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
+
+
 def _state_key(v):
     """Hashable, bool/int-collision-free key for an outcome state value."""
     if isinstance(v, bool):

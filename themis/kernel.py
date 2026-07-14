@@ -97,6 +97,7 @@ from .verifier import (
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
     verify_e_value,
+    verify_exposure_measurement_correction_numeric,
     verify_iv_overid_numeric,
     verify_longitudinal_numeric,
     verify_measurement_correction_numeric,
@@ -979,6 +980,11 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # serialization).
             if num_est.get("method") == "measurement_error_correction":
                 verify_measurement_correction_numeric(num_est)
+            # Exposure (treatment) misclassification — the matrix method inverts
+            # the channel on the exposure margin of the (X, Y) joint; re-derived
+            # here from the recorded matrix + per-stratum 2×k joint tables.
+            if num_est.get("method") == "exposure_measurement_error_correction":
+                verify_exposure_measurement_correction_numeric(num_est)
             # A dose-response estimate carries a curve array that the
             # metadata audit doesn't inspect (it only sees the headline
             # scalar). Audit the curve's construction invariants — the

@@ -526,7 +526,8 @@
             "proximal_matrix",
             "causation_plugin",
             "selection_backdoor_recovery",
-            "measurement_error_correction"
+            "measurement_error_correction",
+            "exposure_measurement_error_correction"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -587,42 +588,61 @@
         },
         "measurement_correction": {
           "type": "object",
-          "description": "measurement_error_correction only: de-attenuation of a misclassified discrete OUTCOME by inverting a validated confusion matrix per back-door stratum (Rogan-Gladen for the binary case), under non-differential misclassification. `point` (top-level) is the corrected effect on the target value; `naive_point` is the attenuated back-door number the correction replaces; `det` = det(M) (= Se+Sp-1 for a binary outcome). sufficient_statistics carries the matrix + per-(arm, stratum) outcome value-count vectors + covariate marginal counts, from which verify_measurement_correction_numeric re-inverts the point without the raw data.",
+          "description": "measurement_error_correction (outcome) / exposure_measurement_error_correction (binary exposure) only: de-attenuation of a misclassified variable by inverting a validated confusion matrix per back-door stratum, under non-differential misclassification. OUTCOME side: invert M on the outcome margin (Rogan-Gladen for the binary case). EXPOSURE side (`side` = 'exposure'): the matrix method — invert M on the exposure margin of the (X, Y) joint per stratum, then standardise the recovered true exposure; there is no naive/det shortcut, and `sufficient_statistics.strata` carries full 2xk joint tables instead of per-arm value-count vectors. `point` (top-level) is the corrected effect on the target value; `naive_point` is the attenuated back-door number the correction replaces; `det` = det(M). verify_measurement_correction_numeric (outcome) / verify_exposure_measurement_correction_numeric (exposure) re-inverts the point from sufficient_statistics without the raw data.",
           "required": ["naive_point", "det", "confusion_matrix", "states", "target_value", "sufficient_statistics"],
           "additionalProperties": false,
           "properties": {
+            "side": { "enum": ["outcome", "exposure"], "description": "Which margin the channel sits on. Absent (or 'outcome') for the outcome correction; 'exposure' for the binary-exposure matrix method." },
             "naive_point": { "type": "number" },
             "det": { "type": "number" },
             "out_of_simplex": { "type": "boolean", "description": "True if any recovered p_true=M^-1 p_obs landed outside [0,1] — a signal the matrix is weakly informative or non-differential is violated. The point is still the method-of-moments estimator (unclipped)." },
-            "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Column-stochastic k x k: M[i][j] = P(Y=states[i] | Y*=states[j])." },
-            "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+            "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Column-stochastic: M[i][j] = P(observed=states[i] | true=states[j]). k x k over the outcome states (outcome side) or 2 x 2 over the exposure states (exposure side)." },
+            "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "The confusion-matrix states: outcome states (outcome side) or the two exposure states in [control, treated] order (exposure side)." },
+            "outcome_states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "exposure side only: the k outcome states in the joint-table column order." },
             "target_value": { "type": ["boolean", "integer", "number", "string"] },
             "differential": { "type": "boolean" },
             "form": { "type": "string" },
             "model_assumption": { "type": "string" },
             "sufficient_statistics": {
               "type": "object",
-              "description": "Everything verify_measurement_correction_numeric re-inverts: the confusion matrix, the per-(arm, stratum) full outcome value-count vectors, and the covariate marginal counts.",
+              "description": "Everything the numeric verifier re-inverts. Outcome side: the confusion matrix, per-(arm, stratum) outcome value-count vectors, covariate marginal counts. Exposure side: the confusion matrix, per-stratum full 2xk (X, Y) joint tables (`joint_counts`), the outcome states, and the covariate marginal counts.",
               "required": ["confusion_matrix", "states", "target_value", "target_index", "adjustment_vars", "strata", "marginal_counts", "marginal_total", "det"],
               "additionalProperties": false,
               "properties": {
+                "side": { "enum": ["outcome", "exposure"] },
                 "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
                 "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+                "outcome_states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "exposure side only: the k outcome states in joint-table column order." },
                 "target_value": { "type": ["boolean", "integer", "number", "string"] },
                 "target_index": { "type": "integer", "minimum": 0 },
                 "adjustment_vars": { "type": "array", "items": { "type": "string" } },
                 "strata": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "required": ["arm", "z", "counts", "n"],
-                    "additionalProperties": false,
-                    "properties": {
-                      "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
-                      "z": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
-                      "counts": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
-                      "n": { "type": "integer", "minimum": 1 }
-                    }
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "description": "Outcome side: one record per (arm, covariate stratum) with the full outcome value-count vector.",
+                        "required": ["arm", "z", "counts", "n"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
+                          "z": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+                          "counts": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                          "n": { "type": "integer", "minimum": 1 }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "description": "Exposure side: one record per covariate stratum with the full 2xk (X, Y) joint count table (row 0 = control exposure, row 1 = treated exposure; columns = outcome states).",
+                        "required": ["z", "joint_counts"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "z": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
+                          "joint_counts": { "type": "array", "items": { "type": "array", "items": { "type": "integer", "minimum": 0 } } }
+                        }
+                      }
+                    ]
                   }
                 },
                 "marginal_counts": {

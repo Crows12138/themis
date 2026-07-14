@@ -3693,7 +3693,10 @@ def _rule_numeric_proximal_estimate(
         )
 
 
-_NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({"measurement_error_correction"})
+_NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
+    "measurement_error_correction",
+    "exposure_measurement_error_correction",
+})
 
 
 def _rule_numeric_measurement_correction_estimate(
