@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-2990 passed / 144 skipped, warning-clean
+3004 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -333,6 +333,26 @@ side 篡改；kernel 按 method 触发；复用 `numeric_measurement_correction_
 已知固定矩阵·离散结局·后门识别；多值暴露/组合(X+Y)/差异矩阵/连续误测
 (regression calibration/SIMEX) 推迟。D1=潜 X* SCM 数值端逐位恢复真 RD（矩阵法 0.197 vs
 朴素 0.137 vs 真 0.198）·无 naive/det 捷径核·退化恢复暴露拒。+26→**2990**。
+
+**差异误分类矩阵法（differential misclassification）**：测量误差校正此前只做**非差异**
+（各条件层同一矩阵 M），docstring 明写差异矩阵"改变几何、推迟"。探针坐实缺口是**静默做错**
+非缺功能：结局误分类**随暴露臂而异**（detection bias）的 SCM 上，今天能做的最好（用"池化
+单矩阵"非差异校正）把真值 0.30 "校正"到 0.48（误差 +0.18，**比不校正的 0.36 还差**）——
+而且差异误分类可**朝远离零方向偏**（naive 0.36 > 真 0.30），非差异永远朝零衰减，这正是差异
+版必须逐层求逆的科学理由。补两个规范差异型：①**结局侧逐暴露臂**矩阵 M_x（detection bias，
+`p_true(·|x,z)=M_x⁻¹p_obs`）；②**暴露侧逐结局层**矩阵 M_y（recall bias，对结局 y 的列用
+M_y⁻¹ 求逆）。接口=`differential=True` + `confusion_matrices`（对齐 list）+
+`differential_levels`（条件变量取值，避 JSON string-key 类型坍缩）；内部统一成 `Minv_by_level`
+字典（非差异=各 level 同一矩阵，代码路径归一）。**关键工程坑**：数据契约把二值列强转 bool，
+故 `_level_key` 按**值**匹配（0≡False）、记录**规范**结局值让 verifier 对齐。护城河=两个
+`verify_*_measurement_correction_numeric` 分支 `suff.differential`，从记录的**每层矩阵**
++2×k/计数表**第二次独立逐层求逆**重导校正点，拒伪造点/篡改某层矩阵（det 不符）/差异标志翻转/
+层不覆盖全臂或全结局。schema：top+suff 放开 `confusion_matrices`(_by_arm/_by_outcome)+
+`differential`，单 `confusion_matrix`/`det` 改可选（非差异不变）。取舍（声明）=仅二值暴露·
+仅结局/暴露轴差异（**协变量差异**推迟）·已知固定矩阵·离散结局·后门识别；组合(X+Y)、多值暴露、
+连续误测仍推迟。D1=detection-bias SCM 逐臂恢复真 RD 0.197 vs 真 0.199·recall-bias SCM
+0.198 vs 真 0.195·单矩阵校正显著偏（>0.03）·e2e numerically_solved+verify 接受+四类篡改
+被拒。+14→**3004**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
