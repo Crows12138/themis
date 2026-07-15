@@ -59,12 +59,23 @@ Guards (honest, not silent):
 Scope (declared tradeoffs):
 
 - **Outcome** and **binary-exposure** misclassification are both point-identified
-  here. A **multi-level exposure** confusion matrix, and a **combined** (exposure
-  AND outcome misclassified at once) correction, are deferred.
-- **Non-differential** only. A differential matrix (per-arm / outcome-dependent
-  M) changes the geometry — deferred.
-- **Known** confusion matrix, treated as FIXED. The bootstrap propagates the
-  main-sample sampling variability only; validation-study uncertainty in M
+  here, under EITHER non-differential OR **differential** misclassification:
+
+  - non-differential — one matrix everywhere (Y ⊥ (X,Z) | Y*, resp. X ⊥ (Y,Z) | X*);
+  - differential — the outcome channel may depend on the exposure arm (a per-arm
+    matrix M_x, "detection bias"); the exposure channel may depend on the outcome
+    (a per-outcome-level matrix M_y, "recall bias"). The correction inverts the
+    LEVEL-SPECIFIC matrix within each conditioning level. Differential
+    misclassification can bias AWAY from the null (non-differential only
+    attenuates toward it), so it gets a per-level inversion rather than a single
+    de-attenuation factor det(M) — there is no ``naive/det`` shortcut differential.
+
+  A **multi-level exposure** confusion matrix, a **combined** (exposure AND outcome
+  misclassified at once) correction, a matrix that is differential in a COVARIATE
+  (beyond the exposure / outcome that identify the two channels), and a differential
+  matrix set that does not cover every observed conditioning level are deferred.
+- **Known** confusion matrix / matrices, treated as FIXED. The bootstrap propagates
+  the main-sample sampling variability only; validation-study uncertainty in M
   itself (a second bootstrap / Bayesian layer) is deferred.
 - **Discrete** outcome (a confusion matrix is a discrete-misclassification
   object); continuous mismeasurement (regression calibration / SIMEX) is the
@@ -105,6 +116,12 @@ class MeasurementCorrectionEstimate:
     a recovered probability outside [0, 1]. ``sufficient_statistics`` carries the
     confusion matrix, per-(arm, stratum) value-count vectors, and the covariate
     marginal counts — everything the numeric verifier re-inverts the point from.
+
+    Under **differential** (per-exposure-arm) misclassification ``differential`` is
+    True, ``confusion_matrix`` / ``det`` are the sentinel empty / NaN (there is no
+    single matrix), and ``confusion_matrices`` carries one ``(arm, matrix, det)``
+    entry per treatment arm — the per-arm matrices the inversion actually used and
+    the verifier re-inverts from.
     """
     point: float
     naive_point: float
@@ -127,6 +144,11 @@ class MeasurementCorrectionEstimate:
     cluster: str | None = None
     form: str = "confusion_matrix_inversion_backdoor_standardised"
     model_assumption: str = ""
+    differential: bool = False
+    # Per-level matrices when ``differential`` — a tuple of
+    # (level, matrix, det); empty for the non-differential single-matrix case.
+    confusion_matrices: tuple = ()
+    differential_levels: tuple = ()
 
 
 # --- public entry -------------------------------------------------------------
@@ -138,10 +160,12 @@ def estimate_measurement_correction(
     treatment: str,
     outcome: str,
     adjustment: tuple[str, ...],
-    confusion_matrix,
+    confusion_matrix=None,
     states,
     target_value,
     differential: bool = False,
+    confusion_matrices=None,
+    differential_levels=None,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
@@ -155,31 +179,30 @@ def estimate_measurement_correction(
     data: the main sample carrying the *observed* (misclassified) outcome.
     treatment / outcome: binary X and discrete Y column names.
     adjustment: the back-door adjustment covariates Z (discrete).
-    confusion_matrix: k×k, ``M[i][j] = P(Y=states[i] | Y*=states[j])``, each
-        column summing to 1.
-    states: the k outcome states in the row/column order of ``confusion_matrix``
-        (must cover every observed outcome value).
+    confusion_matrix: (non-differential) k×k, ``M[i][j] = P(Y=states[i] |
+        Y*=states[j])``, each column summing to 1.
+    states: the k outcome states in the row/column order of the confusion
+        matrix/matrices (must cover every observed outcome value).
     target_value: the query's target outcome value y* — the effect is the
         corrected risk difference of ``P(Y*=y*)``.
-    differential: must be False; a per-arm matrix is deferred.
+    differential: when True, the outcome misclassification is **differential by
+        the exposure arm** (detection bias) — supply ``confusion_matrices`` +
+        ``differential_levels`` instead of ``confusion_matrix``.
+    confusion_matrices / differential_levels: (differential) a list of two k×k
+        matrices and the two treatment values they apply to, aligned 1:1;
+        ``M_x[i][j] = P(Y=states[i] | Y*=states[j], X=x)``. The correction inverts
+        the arm-specific matrix within each arm.
     ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
-        controls (M is held fixed across resamples).
+        controls (the matrices are held fixed across resamples).
 
     Raises
     ------
-    EstimatorFailure: differential requested; non-binary treatment; continuous
+    EstimatorFailure: differential requested but the matrix set is incomplete /
+        misaligned / does not cover both arms; non-binary treatment; continuous
         adjustment covariate; malformed / non-stochastic / singular confusion
         matrix; states not covering the observed outcome; target value absent;
         a positivity violation (a contributing stratum empty in an arm).
     """
-    if differential:
-        raise EstimatorFailure(
-            "differential_misclassification",
-            "a differential (per-arm) confusion matrix is deferred; this "
-            "estimator assumes non-differential misclassification "
-            "(Y ⊥ (X,Z) | Y*).",
-        )
-
     states = tuple(_py(s) for s in states)
     k = len(states)
     if k < 2:
@@ -200,16 +223,43 @@ def estimate_measurement_correction(
             f"outcome states {states!r}.",
         )
 
-    M = _validate_matrix(confusion_matrix, k)
-    det = float(np.linalg.det(M))
-    if abs(det) < _DET_FLOOR:
-        raise EstimatorFailure(
-            "singular_confusion_matrix",
-            f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
-            f"{_DET_FLOOR:g}); the measurement carries no usable information "
-            f"about the true outcome and the correction is undefined.",
+    if differential:
+        prepared = _prepare_differential(
+            confusion_matrices, differential_levels, k, level_name="exposure arm",
         )
-    Minv = np.linalg.inv(M)
+        arm_bools = {bool(lvl) for (lvl, *_rest) in prepared}
+        if len(prepared) != 2 or arm_bools != {False, True}:
+            raise EstimatorFailure(
+                "differential_levels_mismatch",
+                "outcome differential misclassification is by the binary exposure "
+                "arm: `differential_levels` must be the two treatment values (one "
+                f"falsy, one truthy); got "
+                f"{[lvl for (lvl, *_r) in prepared]!r}.",
+            )
+        Minv_by_arm = {bool(lvl): Minv for (lvl, _M, _d, Minv) in prepared}
+        diff_records = [
+            {"arm": int(bool(lvl)),
+             "matrix": [[float(v) for v in row] for row in _M],
+             "det": _d}
+            for (lvl, _M, _d, _inv) in sorted(prepared, key=lambda t: bool(t[0]))
+        ]
+        M = None
+        det = float("nan")
+        confusion_matrix_out: tuple = ()
+    else:
+        M = _validate_matrix(confusion_matrix, k)
+        det = float(np.linalg.det(M))
+        if abs(det) < _DET_FLOOR:
+            raise EstimatorFailure(
+                "singular_confusion_matrix",
+                f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
+                f"{_DET_FLOOR:g}); the measurement carries no usable information "
+                f"about the true outcome and the correction is undefined.",
+            )
+        Minv = np.linalg.inv(M)
+        Minv_by_arm = {True: Minv, False: Minv}
+        diff_records = None
+        confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
 
     adjustment = tuple(sorted(adjustment))
     presence = (cluster,) if cluster is not None else ()
@@ -241,18 +291,46 @@ def estimate_measurement_correction(
     target_index = states.index(target_value)
     point, naive, oos, suff = _formula(
         df, treatment=treatment, outcome=outcome, adjustment=adjustment,
-        states=states, Minv=Minv, target_index=target_index,
+        states=states, Minv_by_arm=Minv_by_arm, target_index=target_index,
     )
 
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
-            states=states, Minv=Minv, target_index=target_index, groups=groups,
+            states=states, Minv_by_arm=Minv_by_arm, target_index=target_index,
+            groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
-    assumptions = _assumptions(adjustment, cluster)
+    if differential:
+        suff_extra = {
+            "differential": True,
+            "confusion_matrices_by_arm": diff_records,
+        }
+        model_assumption = (
+            "被误分类的离散结局 Y 有验证研究给出的**逐暴露臂**混淆矩阵 "
+            "M_x（列随机，M_x[i][j]=P(Y=state_i|Y*=state_j,X=x)）。在差异误分类"
+            "（detection bias，各臂矩阵不同）下，逐层用**本臂**矩阵求逆恢复真实分布 "
+            "p_true(·|x,z)=M_x⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
+            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。各臂 det(M_x) 不同，"
+            "无单一去衰减因子；差异误分类可朝远离零方向偏，故须逐臂求逆。"
+        )
+    else:
+        suff_extra = {
+            "confusion_matrix": [[float(v) for v in row] for row in M],
+            "det": det,
+        }
+        model_assumption = (
+            "被误分类的离散结局 Y 有验证研究给出的混淆矩阵 M（列随机，"
+            "M[i][j]=P(Y=state_i|Y*=state_j)）。在非差异误分类假设下"
+            "（Y⊥(X,Z)|Y*，各臂各层同一 M）逐层求逆恢复真实分布 "
+            "p_true(·|x,z)=M⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
+            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。二值结局即逐层 "
+            "Rogan-Gladen，去衰减因子 det(M)=Se+Sp−1。"
+        )
+
+    assumptions = _assumptions(adjustment, cluster, differential=differential)
     return MeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -265,25 +343,23 @@ def estimate_measurement_correction(
         adjustment=adjustment,
         target_value=target_value,
         states=states,
-        confusion_matrix=tuple(tuple(float(v) for v in row) for row in M),
+        confusion_matrix=confusion_matrix_out,
         det=det,
         out_of_simplex=oos,
         sufficient_statistics={
             **suff,
-            "confusion_matrix": [[float(v) for v in row] for row in M],
+            **suff_extra,
             "states": [_py(s) for s in states],
             "target_value": target_value,
             "target_index": target_index,
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
-        model_assumption=(
-            "被误分类的离散结局 Y 有验证研究给出的混淆矩阵 M（列随机，"
-            "M[i][j]=P(Y=state_i|Y*=state_j)）。在非差异误分类假设下"
-            "（Y⊥(X,Z)|Y*，各臂各层同一 M）逐层求逆恢复真实分布 "
-            "p_true(·|x,z)=M⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
-            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。二值结局即逐层 "
-            "Rogan-Gladen，去衰减因子 det(M)=Se+Sp−1。"
+        model_assumption=model_assumption,
+        differential=differential,
+        confusion_matrices=tuple(diff_records) if differential else (),
+        differential_levels=(
+            tuple(_py(v) for v in differential_levels) if differential else ()
         ),
     )
 
@@ -293,15 +369,18 @@ def estimate_measurement_correction(
 
 def _formula(
     df: pd.DataFrame, *, treatment: str, outcome: str,
-    adjustment: tuple[str, ...], states: tuple, Minv: np.ndarray,
+    adjustment: tuple[str, ...], states: tuple, Minv_by_arm: dict,
     target_index: int,
 ) -> tuple[float, float, bool, dict]:
     """Corrected + naive standardised effect on the target value, plus the
     per-stratum sufficient statistics.
 
     Enumeration is driven by the covariate marginal P(z); each contributing z
-    must have support in BOTH arms (positivity). ``out_of_simplex`` is True if
-    any recovered p_true component lands outside [0, 1]."""
+    must have support in BOTH arms (positivity). Each arm is inverted with its
+    OWN matrix ``Minv_by_arm[arm]`` — the same one for both arms in the
+    non-differential case, distinct matrices under detection bias.
+    ``out_of_simplex`` is True if any recovered p_true component lands outside
+    [0, 1]."""
     x = _as_binary(df[treatment])
     yvals = df[outcome].map(_py)
     n_total = len(df)
@@ -331,7 +410,7 @@ def _formula(
                 )
             counts = _value_counts(yvals[mask.to_numpy()], states)
             p_obs = counts.astype(float) / n
-            p_true = Minv @ p_obs
+            p_true = Minv_by_arm[bool(arm)] @ p_obs
             if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
                 oos = True
             arm_true[arm] = float(p_true[target_index])
@@ -355,7 +434,6 @@ def _formula(
             for k, c in sorted(marginal_counts.items(), key=lambda kv: str(kv[0]))
         ],
         "marginal_total": n_total,
-        "det": float(np.linalg.det(np.linalg.inv(Minv))),
     }
     return corrected, naive, oos, suff
 
@@ -399,13 +477,14 @@ def _marginal_counts(df: pd.DataFrame, vars_: tuple[str, ...]) -> dict[tuple, in
 
 def _bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
-    adjustment: tuple[str, ...], states: tuple, Minv: np.ndarray,
+    adjustment: tuple[str, ...], states: tuple, Minv_by_arm: dict,
     target_index: int, groups: np.ndarray | None,
     ci_bootstrap: int, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected effect — resample rows (or
-    clusters), recompute the per-stratum correction with M held FIXED, collect
-    the point. Draws that induce a positivity failure are skipped."""
+    clusters), recompute the per-stratum correction with the matrix/matrices held
+    FIXED, collect the point. Draws that induce a positivity failure are
+    skipped."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     pts: list[float] = []
@@ -415,7 +494,7 @@ def _bootstrap(
         try:
             pt, _naive, _oos, _suff = _formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
-                states=states, Minv=Minv, target_index=target_index,
+                states=states, Minv_by_arm=Minv_by_arm, target_index=target_index,
             )
         except EstimatorFailure:
             continue
@@ -463,6 +542,72 @@ def _validate_matrix(confusion_matrix, k: int) -> np.ndarray:
             f"{[round(float(c), 4) for c in col_sums]}.",
         )
     return M
+
+
+def _level_key(v):
+    """Value-based hashable key for a conditioning-variable level.
+
+    Conditioning levels are matched to observed data values BY VALUE, so a bool
+    is collapsed onto its numeric image (``False`` ≡ ``0``, ``True`` ≡ ``1``) —
+    the data contract coerces a binary column to bool, and a caller who wrote the
+    levels as ``[0, 1]`` must still match. This is deliberately the opposite of
+    the verifier's type-strict ``_state_key``: here 0 and False are the same
+    conditioning level; a caller who lists both is flagged as a duplicate."""
+    if isinstance(v, bool):
+        return ("n", float(v))
+    if isinstance(v, (int, float)):
+        return ("n", float(v))
+    return ("s", str(v))
+
+
+def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
+                          level_name: str) -> list[tuple]:
+    """Validate a differential (per-level) matrix set: a list of column-stochastic,
+    invertible k×k matrices aligned 1:1 with a list of conditioning-variable
+    levels. Returns ``[(level_py, M, det, Minv), ...]`` in the given order.
+
+    Raises ``EstimatorFailure`` on a missing / misaligned / malformed / singular
+    set — never falls back to a single matrix."""
+    if confusion_matrices is None or differential_levels is None:
+        raise EstimatorFailure(
+            "differential_spec_incomplete",
+            "differential misclassification needs both `confusion_matrices` and "
+            "`differential_levels` (one matrix per conditioning level); got "
+            f"confusion_matrices={confusion_matrices!r}, "
+            f"differential_levels={differential_levels!r}.",
+        )
+    mats = list(confusion_matrices)
+    levels = [_py(v) for v in differential_levels]
+    if len(mats) != len(levels):
+        raise EstimatorFailure(
+            "differential_levels_mismatch",
+            f"got {len(mats)} confusion matrices but {len(levels)} {level_name} "
+            f"levels; they must align 1:1.",
+        )
+    if len(mats) < 2:
+        raise EstimatorFailure(
+            "differential_spec_incomplete",
+            f"differential misclassification needs at least 2 {level_name} levels; "
+            f"got {levels!r}.",
+        )
+    if len({_level_key(v) for v in levels}) != len(levels):
+        raise EstimatorFailure(
+            "differential_levels_mismatch",
+            f"{level_name} levels must be distinct; got {levels!r}.",
+        )
+    out: list[tuple] = []
+    for lvl, cm in zip(levels, mats):
+        M = _validate_matrix(cm, k)
+        det = float(np.linalg.det(M))
+        if abs(det) < _DET_FLOOR:
+            raise EstimatorFailure(
+                "singular_confusion_matrix",
+                f"the confusion matrix for {level_name}={lvl!r} is non-invertible "
+                f"(|det|={abs(det):.3g} < {_DET_FLOOR:g}); the correction is "
+                f"undefined in that level.",
+            )
+        out.append((lvl, M, det, np.linalg.inv(M)))
+    return out
 
 
 def _require_binary(col: pd.Series, name: str) -> None:
@@ -526,10 +671,20 @@ def _stratum_sort(rec: dict):
     return (rec["arm"], [str(v) for v in rec["z"]])
 
 
-def _assumptions(adjustment: tuple[str, ...], cluster: str | None) -> tuple[str, ...]:
+def _assumptions(
+    adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
+) -> tuple[str, ...]:
     out = [
-        "non_differential_misclassification_Y_indep_XZ_given_Ytrue",
-        "known_confusion_matrix_from_validation_study",
+        (
+            "differential_misclassification_by_exposure_arm_M_depends_on_X"
+            if differential else
+            "non_differential_misclassification_Y_indep_XZ_given_Ytrue"
+        ),
+        (
+            "known_per_arm_confusion_matrices_from_validation_study"
+            if differential else
+            "known_confusion_matrix_from_validation_study"
+        ),
         "confusion_matrix_invertible",
         "consistency_of_potential_outcomes",
         "positivity_every_contributing_stratum_has_support",
@@ -590,6 +745,12 @@ class ExposureMeasurementCorrectionEstimate:
     recovered joint cell outside [0, 1]. ``sufficient_statistics`` carries the
     matrix, per-stratum full 2×k (X, Y) joint count tables, and the covariate
     marginal counts — everything the numeric verifier re-inverts the point from.
+
+    Under **differential** (outcome-dependent) exposure misclassification — recall
+    bias — ``differential`` is True, ``confusion_matrix`` / ``det`` are the
+    sentinel empty / NaN, and ``confusion_matrices`` carries one
+    ``(outcome_value, matrix, det)`` entry per outcome level: the column of the
+    joint for outcome y is inverted with M_y.
     """
     point: float
     naive_point: float
@@ -613,6 +774,11 @@ class ExposureMeasurementCorrectionEstimate:
     cluster: str | None = None
     form: str = "exposure_confusion_matrix_inversion_backdoor_standardised"
     model_assumption: str = ""
+    differential: bool = False
+    # Per-outcome-level matrices when ``differential`` — a tuple of
+    # (outcome_value, matrix, det); empty for the non-differential case.
+    confusion_matrices: tuple = ()
+    differential_levels: tuple = ()
 
 
 def estimate_exposure_measurement_correction(
@@ -621,10 +787,12 @@ def estimate_exposure_measurement_correction(
     treatment: str,
     outcome: str,
     adjustment: tuple[str, ...],
-    confusion_matrix,
+    confusion_matrix=None,
     states,
     target_value,
     differential: bool = False,
+    confusion_matrices=None,
+    differential_levels=None,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
@@ -638,35 +806,34 @@ def estimate_exposure_measurement_correction(
     data: the main sample carrying the *observed* (misclassified) exposure.
     treatment / outcome: binary X and discrete Y column names.
     adjustment: the back-door adjustment covariates Z (discrete).
-    confusion_matrix: 2×2, ``M[i][j] = P(X=states[i] | X*=states[j])``, each
-        column summing to 1.
-    states: the two exposure states in the row/column order of
-        ``confusion_matrix``, in ``[control, treated]`` order (so ``states[1]``
-        is the intervened value do(X)=treated).
+    confusion_matrix: (non-differential) 2×2, ``M[i][j] = P(X=states[i] |
+        X*=states[j])``, each column summing to 1.
+    states: the two exposure states in the row/column order of the confusion
+        matrix/matrices, in ``[control, treated]`` order (so ``states[1]`` is the
+        intervened value do(X)=treated).
     target_value: the query's target outcome value y* — the effect is the
         corrected risk difference of ``P(Y=y*)`` between the recovered exposures.
-    differential: must be False; an outcome-dependent (per-Y) matrix is deferred.
+    differential: when True, the exposure misclassification is **differential by
+        the outcome** (recall bias) — supply ``confusion_matrices`` +
+        ``differential_levels`` instead of ``confusion_matrix``.
+    confusion_matrices / differential_levels: (differential) a list of 2×2
+        matrices and the outcome values they apply to, aligned 1:1 and covering
+        every observed outcome level; ``M_y[i][j] = P(X=states[i] | X*=states[j],
+        Y=y)``. The joint's column for outcome y is inverted with M_y.
     ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
-        controls (M is held fixed across resamples).
+        controls (the matrices are held fixed across resamples).
 
     Raises
     ------
-    EstimatorFailure: differential requested; exposure states not a binary
-        ``[control, treated]`` pair; observed exposure not covered by the states;
-        continuous / high-cardinality outcome; continuous adjustment covariate;
-        malformed / non-stochastic / singular confusion matrix; target value
-        absent; a positivity violation (a contributing stratum empty in an
+    EstimatorFailure: differential requested but the matrix set is incomplete /
+        misaligned / does not cover every observed outcome level; exposure states
+        not a binary ``[control, treated]`` pair; observed exposure not covered by
+        the states; continuous / high-cardinality outcome; continuous adjustment
+        covariate; malformed / non-stochastic / singular confusion matrix; target
+        value absent; a positivity violation (a contributing stratum empty in an
         observed arm); a degenerate recovered exposure marginal (≤ 0, the
         conditional risk is undefined).
     """
-    if differential:
-        raise EstimatorFailure(
-            "differential_misclassification",
-            "a differential (outcome-dependent) confusion matrix is deferred; "
-            "this estimator assumes non-differential misclassification "
-            "(X ⊥ (Y,Z) | X*).",
-        )
-
     states = tuple(_py(s) for s in states)
     if len(states) != 2 or len(set(states)) != 2:
         raise EstimatorFailure(
@@ -683,16 +850,23 @@ def estimate_exposure_measurement_correction(
         )
     target_value = _py(target_value)
 
-    M = _validate_matrix(confusion_matrix, 2)
-    det = float(np.linalg.det(M))
-    if abs(det) < _DET_FLOOR:
-        raise EstimatorFailure(
-            "singular_confusion_matrix",
-            f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
-            f"{_DET_FLOOR:g}); the measurement carries no usable information "
-            f"about the true exposure and the correction is undefined.",
-        )
-    Minv = np.linalg.inv(M)
+    # Non-differential: validate the single matrix now. Differential: the matrices
+    # are keyed by outcome value, so they are prepared AFTER the observed outcome
+    # levels are read from the data (below), to check coverage.
+    if not differential:
+        M = _validate_matrix(confusion_matrix, 2)
+        det = float(np.linalg.det(M))
+        if abs(det) < _DET_FLOOR:
+            raise EstimatorFailure(
+                "singular_confusion_matrix",
+                f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
+                f"{_DET_FLOOR:g}); the measurement carries no usable information "
+                f"about the true exposure and the correction is undefined.",
+            )
+        Minv = np.linalg.inv(M)
+    else:
+        M = None
+        det = float("nan")
 
     adjustment = tuple(sorted(adjustment))
     presence = (cluster,) if cluster is not None else ()
@@ -733,6 +907,42 @@ def estimate_exposure_measurement_correction(
             f"outcome values {list(outcome_states)!r}.",
         )
 
+    # Build the per-outcome-column inverse map. Non-differential: the same M for
+    # every column. Differential (recall bias): a distinct M_y per outcome level,
+    # which must cover every observed outcome value.
+    if differential:
+        prepared = _prepare_differential(
+            confusion_matrices, differential_levels, 2, level_name="outcome value",
+        )
+        # Map each supplied level onto the canonical observed outcome value (by
+        # value — the contract may have coerced Y to bool), and require the set to
+        # cover every observed outcome level exactly.
+        canon = {_level_key(y): y for y in outcome_states}
+        level_keys = {_level_key(lvl) for (lvl, *_r) in prepared}
+        if level_keys != set(canon):
+            raise EstimatorFailure(
+                "differential_levels_mismatch",
+                "exposure differential misclassification is by the outcome: "
+                "`differential_levels` must be exactly the observed outcome values "
+                f"{list(outcome_states)!r}; got "
+                f"{[lvl for (lvl, *_r) in prepared]!r}.",
+            )
+        Minv_by_outcome = {
+            _level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared
+        }
+        diff_records = sorted(
+            ({"outcome": canon[_level_key(lvl)],
+              "matrix": [[float(v) for v in row] for row in _M],
+              "det": _d}
+             for (lvl, _M, _d, _inv) in prepared),
+            key=lambda r: str(r["outcome"]),
+        )
+        confusion_matrix_out: tuple = ()
+    else:
+        Minv_by_outcome = {_level_key(y): Minv for y in outcome_states}
+        diff_records = None
+        confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
+
     groups = (
         cluster_labels(df, cluster, expected_n=len(df))
         if cluster is not None else None
@@ -741,20 +951,48 @@ def estimate_exposure_measurement_correction(
     target_index = outcome_states.index(target_value)
     point, naive, oos, suff = _exposure_formula(
         df, treatment=treatment, outcome=outcome, adjustment=adjustment,
-        states=states, outcome_states=outcome_states, Minv=Minv,
-        target_index=target_index,
+        states=states, outcome_states=outcome_states,
+        Minv_by_outcome=Minv_by_outcome, target_index=target_index,
     )
 
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _exposure_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
-            states=states, outcome_states=outcome_states, Minv=Minv,
+            states=states, outcome_states=outcome_states,
+            Minv_by_outcome=Minv_by_outcome,
             target_index=target_index, groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
-    assumptions = _exposure_assumptions(adjustment, cluster)
+    if differential:
+        suff_extra = {
+            "differential": True,
+            "confusion_matrices_by_outcome": diff_records,
+        }
+        model_assumption = (
+            "被误分类的二值暴露 X 有验证研究给出的**逐结局**混淆矩阵 "
+            "M_y（列随机，M_y[i][j]=P(X=state_i|X*=state_j,Y=y)）。在差异误分类"
+            "（recall bias，各结局矩阵不同）下，逐层沿暴露轴对结局 y 的列用**本结局**"
+            "矩阵 M_y⁻¹ 求逆恢复真实联合分布，再用恢复的真实暴露做后门标准化 "
+            "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。暴露侧分母 P(X*=x|z) "
+            "本身也是求逆结果，故无 naive/det 捷径；差异误分类可朝远离零方向偏。"
+        )
+    else:
+        suff_extra = {
+            "confusion_matrix": [[float(v) for v in row] for row in M],
+            "det": det,
+        }
+        model_assumption = (
+            "被误分类的二值暴露 X 有验证研究给出的混淆矩阵 M（列随机，"
+            "M[i][j]=P(X=state_i|X*=state_j)）。在非差异误分类假设下"
+            "（X⊥(Y,Z)|X*，各结局各层同一 M）逐层沿暴露轴对每个结局列求逆"
+            "恢复真实联合分布 p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z)，再用恢复的真实"
+            "暴露做后门标准化 ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。"
+            "暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
+        )
+
+    assumptions = _exposure_assumptions(adjustment, cluster, differential=differential)
     return ExposureMeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -768,13 +1006,13 @@ def estimate_exposure_measurement_correction(
         target_value=target_value,
         states=states,
         outcome_states=outcome_states,
-        confusion_matrix=tuple(tuple(float(v) for v in row) for row in M),
+        confusion_matrix=confusion_matrix_out,
         det=det,
         out_of_simplex=oos,
         sufficient_statistics={
             **suff,
+            **suff_extra,
             "side": "exposure",
-            "confusion_matrix": [[float(v) for v in row] for row in M],
             "states": [_py(s) for s in states],
             "outcome_states": [_py(s) for s in outcome_states],
             "target_value": target_value,
@@ -782,13 +1020,11 @@ def estimate_exposure_measurement_correction(
             "adjustment_vars": list(adjustment),
         },
         cluster=cluster,
-        model_assumption=(
-            "被误分类的二值暴露 X 有验证研究给出的混淆矩阵 M（列随机，"
-            "M[i][j]=P(X=state_i|X*=state_j)）。在非差异误分类假设下"
-            "（X⊥(Y,Z)|X*，各结局各层同一 M）逐层沿暴露轴对每个结局列求逆"
-            "恢复真实联合分布 p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z)，再用恢复的真实"
-            "暴露做后门标准化 ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。"
-            "暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
+        model_assumption=model_assumption,
+        differential=differential,
+        confusion_matrices=tuple(diff_records) if differential else (),
+        differential_levels=(
+            tuple(_py(v) for v in differential_levels) if differential else ()
         ),
     )
 
@@ -796,7 +1032,7 @@ def estimate_exposure_measurement_correction(
 def _exposure_formula(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
-    Minv: np.ndarray, target_index: int,
+    Minv_by_outcome: dict, target_index: int,
 ) -> tuple[float, float, bool, dict]:
     """Corrected + naive standardised effect on the target value, plus the
     per-stratum sufficient statistics (the full 2×k (X, Y) joint count tables).
@@ -804,8 +1040,10 @@ def _exposure_formula(
     Enumeration is driven by the covariate marginal P(z); each contributing z
     must have observed support in BOTH exposure arms (positivity), and its
     recovered exposure marginal P(X*=x|z) must be strictly positive (else the
-    conditional risk is undefined). ``out_of_simplex`` is True if any recovered
-    joint cell lands outside [0, 1]."""
+    conditional risk is undefined). The joint's column for outcome y is inverted
+    with ``Minv_by_outcome[y]`` — the same matrix for every column in the
+    non-differential case, a distinct M_y under recall bias. ``out_of_simplex``
+    is True if any recovered joint cell lands outside [0, 1]."""
     k = len(outcome_states)
     xvals = df[treatment].map(_py)
     yvals = df[outcome].map(_py)
@@ -845,7 +1083,7 @@ def _exposure_formula(
         p_obs = joint / Nz
         p_true = np.empty_like(p_obs)
         for yj in range(k):
-            p_true[:, yj] = Minv @ p_obs[:, yj]
+            p_true[:, yj] = Minv_by_outcome[_level_key(outcome_states[yj])] @ p_obs[:, yj]
         if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
             oos = True
 
@@ -881,7 +1119,6 @@ def _exposure_formula(
             for k2, c in sorted(marginal_counts.items(), key=lambda kv: str(kv[0]))
         ],
         "marginal_total": n_total,
-        "det": float(np.linalg.det(np.linalg.inv(Minv))),
     }
     return corrected, naive, oos, suff
 
@@ -889,12 +1126,13 @@ def _exposure_formula(
 def _exposure_bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
-    Minv: np.ndarray, target_index: int, groups: np.ndarray | None,
+    Minv_by_outcome: dict, target_index: int, groups: np.ndarray | None,
     ci_bootstrap: int, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected effect — resample rows (or
-    clusters), recompute the per-stratum correction with M held FIXED. Draws
-    that induce a positivity / degenerate-recovery failure are skipped."""
+    clusters), recompute the per-stratum correction with the matrix/matrices held
+    FIXED. Draws that induce a positivity / degenerate-recovery failure are
+    skipped."""
     rng = np.random.default_rng(random_state)
     n = len(df)
     pts: list[float] = []
@@ -904,7 +1142,8 @@ def _exposure_bootstrap(
         try:
             pt, _naive, _oos, _suff = _exposure_formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
-                states=states, outcome_states=outcome_states, Minv=Minv,
+                states=states, outcome_states=outcome_states,
+                Minv_by_outcome=Minv_by_outcome,
                 target_index=target_index,
             )
         except EstimatorFailure:
@@ -918,11 +1157,19 @@ def _exposure_bootstrap(
 
 
 def _exposure_assumptions(
-    adjustment: tuple[str, ...], cluster: str | None,
+    adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
 ) -> tuple[str, ...]:
     out = [
-        "non_differential_misclassification_X_indep_YZ_given_Xtrue",
-        "known_confusion_matrix_from_validation_study",
+        (
+            "differential_misclassification_by_outcome_M_depends_on_Y"
+            if differential else
+            "non_differential_misclassification_X_indep_YZ_given_Xtrue"
+        ),
+        (
+            "known_per_outcome_confusion_matrices_from_validation_study"
+            if differential else
+            "known_confusion_matrix_from_validation_study"
+        ),
         "confusion_matrix_invertible",
         "recovered_true_exposure_marginal_positive",
         "consistency_of_potential_outcomes",

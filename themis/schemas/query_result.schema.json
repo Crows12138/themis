@@ -588,15 +588,30 @@
         },
         "measurement_correction": {
           "type": "object",
-          "description": "measurement_error_correction (outcome) / exposure_measurement_error_correction (binary exposure) only: de-attenuation of a misclassified variable by inverting a validated confusion matrix per back-door stratum, under non-differential misclassification. OUTCOME side: invert M on the outcome margin (Rogan-Gladen for the binary case). EXPOSURE side (`side` = 'exposure'): the matrix method — invert M on the exposure margin of the (X, Y) joint per stratum, then standardise the recovered true exposure; there is no naive/det shortcut, and `sufficient_statistics.strata` carries full 2xk joint tables instead of per-arm value-count vectors. `point` (top-level) is the corrected effect on the target value; `naive_point` is the attenuated back-door number the correction replaces; `det` = det(M). verify_measurement_correction_numeric (outcome) / verify_exposure_measurement_correction_numeric (exposure) re-inverts the point from sufficient_statistics without the raw data.",
-          "required": ["naive_point", "det", "confusion_matrix", "states", "target_value", "sufficient_statistics"],
+          "description": "measurement_error_correction (outcome) / exposure_measurement_error_correction (binary exposure) only: de-attenuation of a misclassified variable by inverting a validated confusion matrix per back-door stratum. OUTCOME side: invert M on the outcome margin (Rogan-Gladen for the binary case). EXPOSURE side (`side` = 'exposure'): the matrix method — invert M on the exposure margin of the (X, Y) joint per stratum, then standardise the recovered true exposure; there is no naive/det shortcut, and `sufficient_statistics.strata` carries full 2xk joint tables instead of per-arm value-count vectors. Under NON-differential misclassification a single `confusion_matrix` (+ `det`) applies everywhere. Under DIFFERENTIAL misclassification (`differential` = true) those are replaced by `confusion_matrices`: per-exposure-arm matrices (outcome side / detection bias) or per-outcome-level matrices (exposure side / recall bias), and the inversion uses the level-specific matrix. `point` (top-level) is the corrected effect on the target value; `naive_point` is the attenuated back-door number the correction replaces. verify_measurement_correction_numeric (outcome) / verify_exposure_measurement_correction_numeric (exposure) re-inverts the point from sufficient_statistics without the raw data.",
+          "required": ["naive_point", "states", "target_value", "differential", "sufficient_statistics"],
           "additionalProperties": false,
           "properties": {
             "side": { "enum": ["outcome", "exposure"], "description": "Which margin the channel sits on. Absent (or 'outcome') for the outcome correction; 'exposure' for the binary-exposure matrix method." },
             "naive_point": { "type": "number" },
-            "det": { "type": "number" },
+            "det": { "type": "number", "description": "det(M) — non-differential only; absent under differential (there is no single matrix)." },
             "out_of_simplex": { "type": "boolean", "description": "True if any recovered p_true=M^-1 p_obs landed outside [0,1] — a signal the matrix is weakly informative or non-differential is violated. The point is still the method-of-moments estimator (unclipped)." },
-            "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Column-stochastic: M[i][j] = P(observed=states[i] | true=states[j]). k x k over the outcome states (outcome side) or 2 x 2 over the exposure states (exposure side)." },
+            "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Non-differential only. Column-stochastic: M[i][j] = P(observed=states[i] | true=states[j]). k x k over the outcome states (outcome side) or 2 x 2 over the exposure states (exposure side)." },
+            "confusion_matrices": {
+              "type": "array",
+              "description": "Differential only: the per-conditioning-level matrices the inversion used. Outcome side (detection bias): one entry per exposure arm (`arm`). Exposure side (recall bias): one entry per outcome level (`outcome`).",
+              "items": {
+                "type": "object",
+                "required": ["matrix", "det"],
+                "additionalProperties": false,
+                "properties": {
+                  "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
+                  "outcome": { "type": ["boolean", "integer", "number", "string"] },
+                  "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                  "det": { "type": "number" }
+                }
+              }
+            },
             "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "The confusion-matrix states: outcome states (outcome side) or the two exposure states in [control, treated] order (exposure side)." },
             "outcome_states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "exposure side only: the k outcome states in the joint-table column order." },
             "target_value": { "type": ["boolean", "integer", "number", "string"] },
@@ -605,12 +620,42 @@
             "model_assumption": { "type": "string" },
             "sufficient_statistics": {
               "type": "object",
-              "description": "Everything the numeric verifier re-inverts. Outcome side: the confusion matrix, per-(arm, stratum) outcome value-count vectors, covariate marginal counts. Exposure side: the confusion matrix, per-stratum full 2xk (X, Y) joint tables (`joint_counts`), the outcome states, and the covariate marginal counts.",
-              "required": ["confusion_matrix", "states", "target_value", "target_index", "adjustment_vars", "strata", "marginal_counts", "marginal_total", "det"],
+              "description": "Everything the numeric verifier re-inverts. Outcome side: the confusion matrix (non-differential) or per-arm matrices (`confusion_matrices_by_arm`, differential), per-(arm, stratum) outcome value-count vectors, covariate marginal counts. Exposure side: the confusion matrix (non-differential) or per-outcome matrices (`confusion_matrices_by_outcome`, differential), per-stratum full 2xk (X, Y) joint tables (`joint_counts`), the outcome states, and the covariate marginal counts.",
+              "required": ["states", "target_value", "target_index", "adjustment_vars", "strata", "marginal_counts", "marginal_total"],
               "additionalProperties": false,
               "properties": {
                 "side": { "enum": ["outcome", "exposure"] },
-                "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                "differential": { "type": "boolean", "description": "True under differential misclassification: the single confusion_matrix/det are absent and replaced by the per-level matrices below." },
+                "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Non-differential only." },
+                "det": { "type": "number", "description": "det(M) — non-differential only." },
+                "confusion_matrices_by_arm": {
+                  "type": "array",
+                  "description": "Differential outcome side (detection bias): one column-stochastic matrix per exposure arm.",
+                  "items": {
+                    "type": "object",
+                    "required": ["arm", "matrix", "det"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
+                      "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                      "det": { "type": "number" }
+                    }
+                  }
+                },
+                "confusion_matrices_by_outcome": {
+                  "type": "array",
+                  "description": "Differential exposure side (recall bias): one column-stochastic 2x2 matrix per outcome level.",
+                  "items": {
+                    "type": "object",
+                    "required": ["outcome", "matrix", "det"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "outcome": { "type": ["boolean", "integer", "number", "string"] },
+                      "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                      "det": { "type": "number" }
+                    }
+                  }
+                },
                 "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] } },
                 "outcome_states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "exposure side only: the k outcome states in joint-table column order." },
                 "target_value": { "type": ["boolean", "integer", "number", "string"] },

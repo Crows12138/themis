@@ -205,7 +205,10 @@ def test_wrong_shape_matrix_refuses():
     assert ei.value.failure_type == "invalid_confusion_matrix"
 
 
-def test_differential_refuses():
+def test_differential_without_matrices_refuses():
+    """differential=True but only a single confusion_matrix (no per-arm set) is
+    an incomplete spec — refuse rather than silently apply one matrix to both
+    arms."""
     df, _t, se, sp = _make_data(seed=2, n=2000)
     with pytest.raises(EstimatorFailure) as ei:
         estimate_measurement_correction(
@@ -213,7 +216,7 @@ def test_differential_refuses():
             confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
             differential=True, ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "differential_misclassification"
+    assert ei.value.failure_type == "differential_spec_incomplete"
 
 
 def test_target_value_absent_refuses():
@@ -572,7 +575,9 @@ def test_exposure_non_stochastic_matrix_refuses():
     assert ei.value.failure_type == "invalid_confusion_matrix"
 
 
-def test_exposure_differential_refuses():
+def test_exposure_differential_without_matrices_refuses():
+    """differential=True but only a single confusion_matrix (no per-outcome set)
+    is an incomplete spec — refuse."""
     df, _t, se, sp = _make_exposure_data(seed=2, n=2000)
     with pytest.raises(EstimatorFailure) as ei:
         estimate_exposure_measurement_correction(
@@ -580,7 +585,7 @@ def test_exposure_differential_refuses():
             confusion_matrix=_binary_M(se, sp), states=[0, 1], target_value=1,
             differential=True, ci_bootstrap=0,
         )
-    assert ei.value.failure_type == "differential_misclassification"
+    assert ei.value.failure_type == "differential_spec_incomplete"
 
 
 def test_exposure_multi_level_refuses():
@@ -803,3 +808,271 @@ def test_outcome_side_still_works_alongside_exposure():
     r = out["results"][0]
     assert r["numeric_estimate"]["method"] == "measurement_error_correction"
     assert r["numeric_estimate"]["measurement_correction"].get("side") in (None, "outcome")
+
+
+# ============================================================================
+# Differential misclassification — per-level matrix inversion.
+# ============================================================================
+#
+# OUTCOME side (detection bias): the outcome channel depends on the exposure arm
+# — a distinct M_x per arm. EXPOSURE side (recall bias): the exposure channel
+# depends on the outcome — a distinct M_y per outcome level. Differential
+# misclassification can bias AWAY from the null, so a single (pooled) matrix
+# gives a WRONG corrected number; only the per-level inversion recovers truth.
+
+import math
+
+# arm/outcome-specific (Se, Sp) used by the generators below.
+_D_OUT = ((0.70, 0.95), (0.90, 0.85))   # (arm0, arm1) for outcome detection bias
+_D_EXP = ((0.75, 0.95), (0.95, 0.80))   # (Y=0, Y=1) for exposure recall bias
+
+
+def _diff_outcome_data(*, n=60000, effect=0.20, seed=7):
+    """Outcome misclassification DIFFERENTIAL by exposure arm (detection bias).
+    Returns (bool df carrying observed y, empirical latent-true RD)."""
+    (se0, sp0), (se1, sp1) = _D_OUT
+    rng = np.random.default_rng(seed)
+    z = rng.integers(0, 2, n)
+    x = (rng.random(n) < 0.30 + 0.40 * z).astype(int)
+    yt = (rng.random(n) < 0.25 + effect * x + 0.20 * z).astype(int)
+    true_rd = sum((yt[(z == v) & (x == 1)].mean() - yt[(z == v) & (x == 0)].mean())
+                  * (z == v).mean() for v in (0, 1))
+    se_a = np.where(x == 1, se1, se0)
+    sp_a = np.where(x == 1, sp1, sp0)
+    u = rng.random(n)
+    yo = np.where(yt == 1, (u < se_a).astype(int), (u < 1 - sp_a).astype(int))
+    return pd.DataFrame({"x": x, "z": z, "y": yo}).astype(bool), float(true_rd)
+
+
+def _diff_exposure_data(*, n=60000, effect=0.20, seed=11):
+    """Exposure misclassification DIFFERENTIAL by outcome (recall bias).
+    Returns (bool df carrying observed x, empirical latent-true RD)."""
+    (se0, sp0), (se1, sp1) = _D_EXP
+    rng = np.random.default_rng(seed)
+    z = rng.integers(0, 2, n)
+    xs = (rng.random(n) < 0.30 + 0.40 * z).astype(int)
+    y = (rng.random(n) < 0.25 + effect * xs + 0.20 * z).astype(int)
+    true_rd = sum((y[(z == v) & (xs == 1)].mean() - y[(z == v) & (xs == 0)].mean())
+                  * (z == v).mean() for v in (0, 1))
+    se_y = np.where(y == 1, se1, se0)
+    sp_y = np.where(y == 1, sp1, sp0)
+    u = rng.random(n)
+    xo = np.where(xs == 1, (u < se_y).astype(int), (u < 1 - sp_y).astype(int))
+    return pd.DataFrame({"x": xo, "z": z, "y": y}).astype(bool), float(true_rd)
+
+
+def _out_matrices():
+    return [_binary_M(*_D_OUT[0]), _binary_M(*_D_OUT[1])]
+
+
+def _exp_matrices():
+    return [_binary_M(*_D_EXP[0]), _binary_M(*_D_EXP[1])]
+
+
+def _diff_outcome_spec():
+    return {"y": {"differential": True, "confusion_matrices": _out_matrices(),
+                  "differential_levels": [False, True], "states": [False, True]}}
+
+
+def _diff_exposure_spec():
+    return {"x": {"differential": True, "confusion_matrices": _exp_matrices(),
+                  "differential_levels": [False, True], "states": [False, True]}}
+
+
+# --- D1: recovery (outcome / detection bias) ---------------------------------
+
+
+def test_diff_outcome_recovers_true_rd():
+    df, true_rd = _diff_outcome_data()
+    est = estimate_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        states=[False, True], target_value=True, differential=True,
+        confusion_matrices=_out_matrices(), differential_levels=[0, 1],
+        ci_bootstrap=0,
+    )
+    assert est.differential is True
+    assert math.isnan(est.det)                       # no single det under differential
+    assert est.confusion_matrix == ()                # no single matrix
+    assert est.point == pytest.approx(true_rd, abs=0.02)
+    # Differential misclassification biases AWAY from the null here.
+    assert abs(est.naive_point - true_rd) > 0.05
+    ss = est.sufficient_statistics
+    assert ss["differential"] is True
+    arms = {r["arm"] for r in ss["confusion_matrices_by_arm"]}
+    assert arms == {0, 1}
+    assert "confusion_matrix" not in ss
+
+
+def test_diff_outcome_single_matrix_correction_is_wrong():
+    """The gap this closes: a single (arm-1) matrix applied to genuinely
+    differential data gives a materially wrong corrected point; the per-arm
+    inversion recovers truth."""
+    df, true_rd = _diff_outcome_data(seed=3)
+    (se1, sp1) = _D_OUT[1]
+    wrong = estimate_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        confusion_matrix=_binary_M(se1, sp1), states=[False, True],
+        target_value=True, ci_bootstrap=0,
+    )
+    right = estimate_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        states=[False, True], target_value=True, differential=True,
+        confusion_matrices=_out_matrices(), differential_levels=[0, 1],
+        ci_bootstrap=0,
+    )
+    assert abs(wrong.point - true_rd) > 0.03
+    assert abs(right.point - true_rd) < 0.02
+
+
+def test_diff_outcome_e2e_and_verify_accepts():
+    df, true_rd = _diff_outcome_data(seed=5)
+    prog = _program()
+    out = themis.estimate(prog, df, ci_bootstrap=0, misclassification=_diff_outcome_spec())
+    r = out["results"][0]
+    assert r["status"] == "numerically_solved"
+    ne = r["numeric_estimate"]
+    assert ne["point"] == pytest.approx(true_rd, abs=0.02)
+    mc = ne["measurement_correction"]
+    assert mc["differential"] is True
+    assert "confusion_matrix" not in mc and "det" not in mc
+    assert {e["arm"] for e in mc["confusion_matrices"]} == {0, 1}
+    themis.verify(prog, r)   # must not raise
+
+
+def _diff_outcome_result(seed=5):
+    df, _t = _diff_outcome_data(seed=seed)
+    prog = _program()
+    out = themis.estimate(prog, df, ci_bootstrap=0, misclassification=_diff_outcome_spec())
+    return prog, out["results"][0]
+
+
+def test_diff_outcome_verify_rejects_forged_point():
+    prog, r = _diff_outcome_result()
+    r["numeric_estimate"]["point"] = 0.05
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_diff_outcome_verify_rejects_tampered_arm_matrix():
+    prog, r = _diff_outcome_result()
+    recs = r["numeric_estimate"]["measurement_correction"][
+        "sufficient_statistics"]["confusion_matrices_by_arm"]
+    recs[0]["matrix"] = [[0.99, 0.01], [0.01, 0.99]]   # det now disagrees
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_diff_outcome_verify_rejects_flipped_differential_flag():
+    prog, r = _diff_outcome_result()
+    r["numeric_estimate"]["measurement_correction"]["differential"] = False
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+# --- guards (outcome differential) -------------------------------------------
+
+
+def test_diff_outcome_levels_not_covering_both_arms_refuses():
+    df, _t = _diff_outcome_data(seed=2, n=4000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            states=[False, True], target_value=True, differential=True,
+            confusion_matrices=_out_matrices(), differential_levels=[1, 2],
+            ci_bootstrap=0,   # both truthy -> only arm 1
+        )
+    assert ei.value.failure_type == "differential_levels_mismatch"
+
+
+def test_diff_outcome_misaligned_lengths_refuse():
+    df, _t = _diff_outcome_data(seed=2, n=4000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            states=[False, True], target_value=True, differential=True,
+            confusion_matrices=_out_matrices(), differential_levels=[0, 1, 2],
+            ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "differential_levels_mismatch"
+
+
+def test_diff_outcome_singular_arm_matrix_refuses():
+    df, _t = _diff_outcome_data(seed=2, n=4000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            states=[False, True], target_value=True, differential=True,
+            confusion_matrices=[_binary_M(0.70, 0.95), [[0.5, 0.5], [0.5, 0.5]]],
+            differential_levels=[0, 1], ci_bootstrap=0,
+        )
+    assert ei.value.failure_type == "singular_confusion_matrix"
+
+
+# --- D1 + e2e (exposure / recall bias) ---------------------------------------
+
+
+def test_diff_exposure_recovers_true_rd():
+    df, true_rd = _diff_exposure_data()
+    est = estimate_exposure_measurement_correction(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        states=[False, True], target_value=True, differential=True,
+        confusion_matrices=_exp_matrices(), differential_levels=[0, 1],
+        ci_bootstrap=0,
+    )
+    assert est.differential is True
+    assert math.isnan(est.det)
+    assert est.point == pytest.approx(true_rd, abs=0.02)
+    assert abs(est.naive_point - true_rd) > 0.05
+    ss = est.sufficient_statistics
+    assert ss["side"] == "exposure" and ss["differential"] is True
+    assert "confusion_matrix" not in ss
+    assert len(ss["confusion_matrices_by_outcome"]) == 2
+
+
+def test_diff_exposure_e2e_and_verify_accepts():
+    df, true_rd = _diff_exposure_data(seed=13)
+    prog = _program()
+    out = themis.estimate(prog, df, ci_bootstrap=0, misclassification=_diff_exposure_spec())
+    r = out["results"][0]
+    assert r["status"] == "numerically_solved"
+    ne = r["numeric_estimate"]
+    assert ne["point"] == pytest.approx(true_rd, abs=0.02)
+    mc = ne["measurement_correction"]
+    assert mc["side"] == "exposure" and mc["differential"] is True
+    assert "confusion_matrix" not in mc
+    themis.verify(prog, r)
+
+
+def _diff_exposure_result(seed=13):
+    df, _t = _diff_exposure_data(seed=seed)
+    prog = _program()
+    out = themis.estimate(prog, df, ci_bootstrap=0, misclassification=_diff_exposure_spec())
+    return prog, out["results"][0]
+
+
+def test_diff_exposure_verify_rejects_forged_point():
+    prog, r = _diff_exposure_result()
+    r["numeric_estimate"]["point"] = 0.02
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_diff_exposure_verify_rejects_tampered_outcome_matrix():
+    prog, r = _diff_exposure_result()
+    recs = r["numeric_estimate"]["measurement_correction"][
+        "sufficient_statistics"]["confusion_matrices_by_outcome"]
+    recs[0]["matrix"] = [[0.99, 0.01], [0.01, 0.99]]
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_diff_exposure_levels_not_covering_outcomes_refuses():
+    df, _t = _diff_exposure_data(seed=2, n=6000)
+    with pytest.raises(EstimatorFailure) as ei:
+        estimate_exposure_measurement_correction(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            states=[False, True], target_value=True, differential=True,
+            confusion_matrices=_exp_matrices(), differential_levels=[0, 5],
+            ci_bootstrap=0,   # 5 is not an observed outcome
+        )
+    assert ei.value.failure_type == "differential_levels_mismatch"

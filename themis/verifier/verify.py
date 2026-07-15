@@ -1721,7 +1721,6 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
         _fail("measurement_correction carries no sufficient_statistics")
 
     try:
-        M = np.asarray(suff["confusion_matrix"], dtype=float)
         states = list(suff["states"])
         target_value = suff["target_value"]
         strata = list(suff["strata"])
@@ -1731,30 +1730,66 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
         _fail(f"ill-formed sufficient statistics: {exc}")
 
     k = len(states)
-    if M.shape != (k, k):
-        _fail(f"confusion matrix {M.shape} does not match {k} states")
     if len(set(map(_state_key, states))) != k:
         _fail("outcome states are not distinct")
-    col_sums = M.sum(axis=0)
-    if not np.allclose(col_sums, 1.0, atol=1e-6):
+
+    differential = bool(suff.get("differential"))
+    if bool(mc.get("differential")) != differential:
         _fail(
-            "confusion matrix is not column-stochastic "
-            f"(column sums {[round(float(c), 6) for c in col_sums]})"
+            f"measurement_correction.differential {mc.get('differential')} "
+            f"disagrees with sufficient_statistics.differential {differential}"
         )
 
-    det = float(np.linalg.det(M))
-    for key in ("det",):
-        claimed_det = mc.get(key)
+    # Build the per-arm inverse map. Non-differential: one matrix for both arms
+    # (an independent second inversion of the recorded matrix). Differential
+    # (detection bias): a distinct matrix per exposure arm, each re-inverted.
+    if differential:
+        recs = suff.get("confusion_matrices_by_arm")
+        if not isinstance(recs, list) or not recs:
+            _fail("differential estimate carries no confusion_matrices_by_arm")
+        Minv_by_arm: dict = {}
+        for r in recs:
+            try:
+                arm = int(r["arm"])
+                mat = r["matrix"]
+                rec_det = r.get("det")
+            except (KeyError, TypeError, ValueError) as exc:
+                _fail(f"ill-formed per-arm confusion-matrix record: {exc}")
+            Minv_arm, _d = _reinvert_stochastic(
+                mat, k, rec_det, _fail, label=f"arm {arm}",
+            )
+            Minv_by_arm[arm] = Minv_arm
+        if set(Minv_by_arm) != {0, 1}:
+            _fail(
+                "differential outcome correction must carry a matrix for each of "
+                f"arm 0 and arm 1; got arms {sorted(Minv_by_arm)}"
+            )
+    else:
+        try:
+            M = np.asarray(suff["confusion_matrix"], dtype=float)
+        except (KeyError, TypeError, ValueError) as exc:
+            _fail(f"ill-formed sufficient statistics: {exc}")
+        if M.shape != (k, k):
+            _fail(f"confusion matrix {M.shape} does not match {k} states")
+        col_sums = M.sum(axis=0)
+        if not np.allclose(col_sums, 1.0, atol=1e-6):
+            _fail(
+                "confusion matrix is not column-stochastic "
+                f"(column sums {[round(float(c), 6) for c in col_sums]})"
+            )
+        det = float(np.linalg.det(M))
+        claimed_det = mc.get("det")
         if claimed_det is not None and abs(det - float(claimed_det)) > 1e-9:
             _fail(f"det mismatch — re-derived {det}, recorded {claimed_det}")
-    if abs(suff.get("det", det) - det) > 1e-9:
-        _fail(
-            f"sufficient_statistics.det {suff.get('det')} inconsistent with the "
-            f"recorded confusion matrix (det {det})"
-        )
-    if abs(det) < 1e-12:
-        _fail("recorded confusion matrix is singular — cannot re-invert")
-    Minv = np.linalg.inv(M)
+        if abs(suff.get("det", det) - det) > 1e-9:
+            _fail(
+                f"sufficient_statistics.det {suff.get('det')} inconsistent with the "
+                f"recorded confusion matrix (det {det})"
+            )
+        if abs(det) < 1e-12:
+            _fail("recorded confusion matrix is singular — cannot re-invert")
+        Minv = np.linalg.inv(M)
+        Minv_by_arm = {0: Minv, 1: Minv}
 
     # Independent target index — do not trust the recorded one.
     try:
@@ -1791,9 +1826,12 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
             )
         if n <= 0:
             _fail(f"stratum arm={rec['arm']} z={rec['z']} has n={n}")
+        arm = int(rec["arm"])
+        if arm not in Minv_by_arm:
+            _fail(f"stratum arm={arm} has no confusion matrix in the recorded set")
         p_obs = counts / n
-        p_true = Minv @ p_obs
-        by_z.setdefault(zk, {})[int(rec["arm"])] = (
+        p_true = Minv_by_arm[arm] @ p_obs
+        by_z.setdefault(zk, {})[arm] = (
             float(p_true[target_index]), float(p_obs[target_index]),
         )
 
@@ -1873,7 +1911,6 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
         _fail("measurement_correction carries no sufficient_statistics")
 
     try:
-        M = np.asarray(suff["confusion_matrix"], dtype=float)
         states = list(suff["states"])
         outcome_states = list(suff["outcome_states"])
         target_value = suff["target_value"]
@@ -1885,32 +1922,72 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
 
     if len(states) != 2 or len(set(map(_state_key, states))) != 2:
         _fail(f"exposure states must be a distinct binary pair; got {states!r}")
-    if M.shape != (2, 2):
-        _fail(f"exposure confusion matrix {M.shape} is not 2×2")
     k = len(outcome_states)
     if k < 1:
         _fail("no outcome states recorded")
     if len(set(map(_state_key, outcome_states))) != k:
         _fail("outcome states are not distinct")
-    col_sums = M.sum(axis=0)
-    if not np.allclose(col_sums, 1.0, atol=1e-6):
+
+    differential = bool(suff.get("differential"))
+    if bool(mc.get("differential")) != differential:
         _fail(
-            "confusion matrix is not column-stochastic "
-            f"(column sums {[round(float(c), 6) for c in col_sums]})"
+            f"measurement_correction.differential {mc.get('differential')} "
+            f"disagrees with sufficient_statistics.differential {differential}"
         )
 
-    det = float(np.linalg.det(M))
-    claimed_det = mc.get("det")
-    if claimed_det is not None and abs(det - float(claimed_det)) > 1e-9:
-        _fail(f"det mismatch — re-derived {det}, recorded {claimed_det}")
-    if abs(suff.get("det", det) - det) > 1e-9:
-        _fail(
-            f"sufficient_statistics.det {suff.get('det')} inconsistent with the "
-            f"recorded confusion matrix (det {det})"
-        )
-    if abs(det) < 1e-12:
-        _fail("recorded confusion matrix is singular — cannot re-invert")
-    Minv = np.linalg.inv(M)
+    # Per-outcome-column inverse map. Non-differential: one 2×2 matrix for every
+    # column (an independent second inversion). Differential (recall bias): a
+    # distinct M_y per outcome level, which must cover every recorded outcome
+    # level exactly.
+    if differential:
+        recs = suff.get("confusion_matrices_by_outcome")
+        if not isinstance(recs, list) or not recs:
+            _fail("differential estimate carries no confusion_matrices_by_outcome")
+        Minv_by_outcome: dict = {}
+        for r in recs:
+            try:
+                lvl = r["outcome"]
+                mat = r["matrix"]
+                rec_det = r.get("det")
+            except (KeyError, TypeError, ValueError) as exc:
+                _fail(f"ill-formed per-outcome confusion-matrix record: {exc}")
+            Minv_y, _d = _reinvert_stochastic(
+                mat, 2, rec_det, _fail, label=f"outcome {lvl!r}",
+            )
+            Minv_by_outcome[_level_key_v(lvl)] = Minv_y
+        needed = {_level_key_v(y) for y in outcome_states}
+        if set(Minv_by_outcome) != needed:
+            _fail(
+                "differential exposure correction must carry a matrix for every "
+                f"outcome level {outcome_states!r}; got matrices for "
+                f"{sorted(str(kk) for kk in Minv_by_outcome)}"
+            )
+    else:
+        try:
+            M = np.asarray(suff["confusion_matrix"], dtype=float)
+        except (KeyError, TypeError, ValueError) as exc:
+            _fail(f"ill-formed sufficient statistics: {exc}")
+        if M.shape != (2, 2):
+            _fail(f"exposure confusion matrix {M.shape} is not 2×2")
+        col_sums = M.sum(axis=0)
+        if not np.allclose(col_sums, 1.0, atol=1e-6):
+            _fail(
+                "confusion matrix is not column-stochastic "
+                f"(column sums {[round(float(c), 6) for c in col_sums]})"
+            )
+        det = float(np.linalg.det(M))
+        claimed_det = mc.get("det")
+        if claimed_det is not None and abs(det - float(claimed_det)) > 1e-9:
+            _fail(f"det mismatch — re-derived {det}, recorded {claimed_det}")
+        if abs(suff.get("det", det) - det) > 1e-9:
+            _fail(
+                f"sufficient_statistics.det {suff.get('det')} inconsistent with the "
+                f"recorded confusion matrix (det {det})"
+            )
+        if abs(det) < 1e-12:
+            _fail("recorded confusion matrix is singular — cannot re-invert")
+        Minv = np.linalg.inv(M)
+        Minv_by_outcome = {_level_key_v(y): Minv for y in outcome_states}
 
     # Independent target index — do not trust the recorded one.
     try:
@@ -1953,7 +2030,7 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
         p_obs = joint / Nz
         p_true = np.empty_like(p_obs)
         for j in range(k):
-            p_true[:, j] = Minv @ p_obs[:, j]
+            p_true[:, j] = Minv_by_outcome[_level_key_v(outcome_states[j])] @ p_obs[:, j]
         px1 = float(p_true[1, :].sum())
         px0 = float(p_true[0, :].sum())
         if px1 <= 1e-12 or px0 <= 1e-12:
@@ -2006,6 +2083,41 @@ def _state_key(v):
 def _z_key(z):
     """Order-preserving hashable key for a covariate-stratum value list."""
     return tuple(_state_key(v) for v in z)
+
+
+def _level_key_v(v):
+    """Value-based key mirroring the estimator's ``_level_key`` — a conditioning
+    level's bool is collapsed onto its numeric image so a matrix keyed ``0``
+    matches an outcome the contract coerced to ``False``. Independent of the
+    producer (a second transcription of the same convention)."""
+    if isinstance(v, bool):
+        return ("n", float(v))
+    if isinstance(v, (int, float)):
+        return ("n", float(v))
+    return ("s", str(v))
+
+
+def _reinvert_stochastic(mat, k, recorded_det, fail, *, label):
+    """Independently re-validate + invert one column-stochastic k×k confusion
+    matrix from the recorded sufficient statistics. Rejects a wrong shape, a
+    non-column-stochastic matrix, a recorded det that disagrees with the matrix,
+    and a singular matrix. Returns ``(Minv, det)``."""
+    import numpy as np
+    M = np.asarray(mat, dtype=float)
+    if M.shape != (k, k):
+        fail(f"{label} confusion matrix {M.shape} does not match {k} states")
+    col_sums = M.sum(axis=0)
+    if not np.allclose(col_sums, 1.0, atol=1e-6):
+        fail(
+            f"{label} confusion matrix is not column-stochastic "
+            f"(column sums {[round(float(c), 6) for c in col_sums]})"
+        )
+    det = float(np.linalg.det(M))
+    if recorded_det is not None and abs(det - float(recorded_det)) > 1e-9:
+        fail(f"{label} det mismatch — re-derived {det}, recorded {recorded_det}")
+    if abs(det) < 1e-12:
+        fail(f"{label} confusion matrix is singular — cannot re-invert")
+    return np.linalg.inv(M), det
 
 
 _LONGITUDINAL_TOL = 1e-6

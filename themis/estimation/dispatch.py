@@ -2788,6 +2788,8 @@ def _try_measurement_correction_estimate(
                 spec["target_value"] if "target_value" in spec else target_value
             ),
             differential=bool(spec.get("differential", False)),
+            confusion_matrices=spec.get("confusion_matrices"),
+            differential_levels=spec.get("differential_levels"),
             ci_bootstrap=ci_bootstrap, ci_level=0.95,
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
@@ -2823,18 +2825,7 @@ def _try_measurement_correction_estimate(
         # The matrix + per-stratum value-count vectors don't fit derivation-
         # input serialization, so they live here and are re-inverted by
         # verify_measurement_correction_numeric (kernel-called).
-        "measurement_correction": {
-            "naive_point": est.naive_point,
-            "det": est.det,
-            "out_of_simplex": est.out_of_simplex,
-            "confusion_matrix": [list(row) for row in est.confusion_matrix],
-            "states": list(est.states),
-            "target_value": est.target_value,
-            "differential": False,
-            "form": est.form,
-            "model_assumption": est.model_assumption,
-            "sufficient_statistics": est.sufficient_statistics,
-        },
+        "measurement_correction": _measurement_correction_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
@@ -2854,6 +2845,33 @@ def _try_measurement_correction_estimate(
         given=frozenset(given), estimate=est,
     )
     _finalise_numeric_result(result)
+
+
+def _measurement_correction_block(est) -> dict:
+    """The ``measurement_correction`` audit/verifier block for an outcome- or
+    exposure-side estimate, differential or not. Under differential
+    misclassification the single ``confusion_matrix`` / ``det`` are replaced by
+    the per-level ``confusion_matrices`` the inversion actually used."""
+    block = {
+        "naive_point": est.naive_point,
+        "out_of_simplex": est.out_of_simplex,
+        "states": list(est.states),
+        "target_value": est.target_value,
+        "differential": bool(est.differential),
+        "form": est.form,
+        "model_assumption": est.model_assumption,
+        "sufficient_statistics": est.sufficient_statistics,
+    }
+    side = getattr(est, "form", "").startswith("exposure")
+    if side:
+        block["side"] = "exposure"
+        block["outcome_states"] = list(est.outcome_states)
+    if est.differential:
+        block["confusion_matrices"] = [dict(r) for r in est.confusion_matrices]
+    else:
+        block["det"] = est.det
+        block["confusion_matrix"] = [list(row) for row in est.confusion_matrix]
+    return block
 
 
 def _try_exposure_measurement_correction_estimate(
@@ -2909,6 +2927,8 @@ def _try_exposure_measurement_correction_estimate(
                 spec["target_value"] if "target_value" in spec else target_value
             ),
             differential=bool(spec.get("differential", False)),
+            confusion_matrices=spec.get("confusion_matrices"),
+            differential_levels=spec.get("differential_levels"),
             ci_bootstrap=ci_bootstrap, ci_level=0.95,
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
@@ -2944,20 +2964,7 @@ def _try_exposure_measurement_correction_estimate(
         # inputs). The matrix + per-stratum joint tables don't fit derivation-
         # input serialization, so they live here and are re-inverted by
         # verify_exposure_measurement_correction_numeric (kernel-called).
-        "measurement_correction": {
-            "side": "exposure",
-            "naive_point": est.naive_point,
-            "det": est.det,
-            "out_of_simplex": est.out_of_simplex,
-            "confusion_matrix": [list(row) for row in est.confusion_matrix],
-            "states": list(est.states),
-            "outcome_states": list(est.outcome_states),
-            "target_value": est.target_value,
-            "differential": False,
-            "form": est.form,
-            "model_assumption": est.model_assumption,
-            "sufficient_statistics": est.sufficient_statistics,
-        },
+        "measurement_correction": _measurement_correction_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])

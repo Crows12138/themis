@@ -929,11 +929,26 @@ differences the reader must see:
   means the matrix is too weakly informative to identify the effect in a stratum
   — report the refusal, don't ship a wild number.
 
+**Differential misclassification (`measurement_correction.differential == true`).**
+Both sides also handle DIFFERENTIAL misclassification, where the channel depends on
+the other variable: the outcome channel may differ by exposure arm (per-arm matrix,
+*detection bias*), the exposure channel by outcome level (per-outcome matrix, *recall
+bias*). When `differential` is true, the single `confusion_matrix`/`det` are absent;
+`confusion_matrices` lists the per-level matrices the inversion used. Two things the
+reader must see: (1) the correction inverted the LEVEL-SPECIFIC matrix within each
+level — say so; (2) unlike non-differential, differential misclassification can bias
+**away from the null**, so the naive number may be inflated rather than attenuated —
+do not describe the correction as "un-attenuating toward a larger effect" by default;
+read the sign of `point − naive_point`. Supply it with
+`estimate(…, misclassification={<var>: {differential: true, confusion_matrices: […],
+differential_levels: […], states}})`.
+
 Scope for both sides: the correction covers **outcome** and **binary-exposure**
-misclassification, **non-differential** and with a **known** (fixed) matrix. A
-multi-level exposure, a combined (exposure AND outcome) correction, differential
-matrices, and continuous mismeasurement (regression calibration / SIMEX) are out
-of scope and stay in the `measurement_error_concern` gap's territory.
+misclassification, **non-differential OR differential**, with a **known** (fixed)
+matrix / matrices. A multi-level exposure, a combined (exposure AND outcome)
+correction, a matrix differential in a COVARIATE (beyond the exposure / outcome), and
+continuous mismeasurement (regression calibration / SIMEX) are out of scope and stay
+in the `measurement_error_concern` gap's territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

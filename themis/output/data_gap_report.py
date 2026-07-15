@@ -1406,10 +1406,13 @@ def _classify_measurement_error_concern(
             "给出 attenuation theorem 的形式定义。结构层只做识别 + 缺口诊断；"
             "但若被误分类的**离散结局**或**二值暴露**有验证研究给出的混淆矩阵，"
             "数值层可做去衰减校正（estimate(..., misclassification={<结局或暴露变量名>: "
-            "{confusion_matrix, states}})），在非差异误分类假设下逐后门层做矩阵求逆——"
+            "{confusion_matrix, states}})），逐后门层做矩阵求逆——"
             "结局侧 p_true=M⁻¹p_obs（二值即 Rogan-Gladen 1978），暴露侧用矩阵法"
             "沿暴露轴对 (X,Y) 联合逐结局列求逆（Barron 1977 / Greenland 1988 / "
-            "Marshall 1990），并由 verify_measurement_correction_numeric / "
+            "Marshall 1990）。误分类可为非差异（单一矩阵），也可为**差异性**"
+            "（differential=True + 每个条件层一个矩阵：结局侧按暴露臂=detection bias，"
+            "暴露侧按结局层=recall bias；差异误分类可朝远离零方向偏，故须逐层求逆）；"
+            "两种都由 verify_measurement_correction_numeric / "
             "verify_exposure_measurement_correction_numeric 独立重算校正值。"
         ),
         blocks=GapBlocks.IDENTIFICATION,
