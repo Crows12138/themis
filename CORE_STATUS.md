@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3004 passed / 144 skipped, warning-clean
+3023 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -353,6 +353,31 @@ M_y⁻¹ 求逆）。接口=`differential=True` + `confusion_matrices`（对齐 
 连续误测仍推迟。D1=detection-bias SCM 逐臂恢复真 RD 0.197 vs 真 0.199·recall-bias SCM
 0.198 vs 真 0.195·单矩阵校正显著偏（>0.03）·e2e numerically_solved+verify 接受+四类篡改
 被拒。+14→**3004**。
+
+**连续误测（regression calibration，2026-07-16）**：测量误差校正此前全是**离散**（混淆
+矩阵求逆：结局 Rogan-Gladen、暴露矩阵法、差异矩阵），`measurement.py`/`response_rendering.md`
+/`__init__.py` **三处**明写连续误测（regression calibration / SIMEX）推迟、留给
+`measurement_error_concern` gap"告诉用户自己去做"。探针坐实是**静默错误答案**非缺功能：连续
+暴露被经典加性误差污染（观测 W=X*+U，真值 X*），今天最好的做法（W 上的后门 OLS 斜率）把真值
+0.8 的每单位因果斜率发成 **0.398（衰减 ~50%）**、还标 numerically_solved，连混杂 Z 的系数也
+被带偏（1.2 vs 真 1.0），且**没有任何校正通道**（`misclassification=` 只吃离散混淆矩阵）。补
+**regression calibration 的精确矩量校正**（Carroll 2006 / Rosner-Willett-Spiegelman 1989）：
+经典误差只抬高设计协方差中 W 的方差（Σ_WZ=Σ_{X*Z}+E，E=diag(σ²_u,0,…)），而 Cov((W,Z),Y)
+不变，故真实结构系数是朴素系数的精确校正 **β_true=(Σ_WZ−E)⁻¹Σ_WZ·b_naive**——离散 M⁻¹ 的连续
+对应。暴露分量 βx=对 Z 调整后每单位真实暴露的因果斜率；单暴露即 **βx=b_naive/λ**，λ=1−σ²_u
+/Var(W|Z) 是**连续版 det(M)**（可靠比）。接口=**新 kwarg** `measurement_error={暴露名:
+{error_variance:σ²_u}}`（与 `misclassification=` 平行、载荷性外部输入），暴露侧；结局/组合连续
+误测**诚实拒绝**非静默忽略。守卫：σ²_u≤0、σ²_u≥Var(W|Z)（λ≤0=退化可靠比、Σ_WZ−E 非 PD）、
+近离散暴露（指向混淆矩阵法）、奇异设计——全部 refuse 不吐衰减朴素点。derivation **复用**
+`numeric_measurement_correction_estimate` 终端（方法白名单加一项，避新终端多处 allowed-finals
+同步）；护城河=`verify_regression_calibration_numeric` 从记录的设计协方差 Σ_WZ+Cov((W,Z),Y)
++σ²_u **第二次独立**重解 b=Σ⁻¹cov_DY、β=(Σ−E)⁻¹cov_DY、λ，拒伪造点/naive/reliability、
+非对称协方差、σ²_u 令 Σ−E 非 PD 却出点、斜率向量与协方差不符（逮未传播的篡改协方差）；kernel
+按 method 自动触发（**MCP 数不变**，无新工具）。取舍（声明）=连续暴露·经典加性误差·**线性**
+结局（矩量校正对线性精确）·已知固定 σ²_u·数值协变量；Berkson/差异误差·误测结局或协变量·非线性
+结局（SIMEX，模拟外推非闭式故不合逐数复核契约）推迟。D1 双 oracle：矩阵形式 βx=0.7982==单变量
+可靠比 b_naive/λ=0.7982（逐位）·恢复真斜率 0.80 vs 朴素 0.40 vs 真 0.8·CI 覆盖·五类篡改被拒。
++19→**3023**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
