@@ -739,6 +739,15 @@ def _query_to_dict(q) -> dict:
         }
         if q.mediator is not None:
             d["mediator"] = _atom_to_dict(q.mediator)
+        # Joint multi-treatment do(A, B, …): the extra simultaneous
+        # interventions. Emitted only when present so single-treatment
+        # effect queries serialize byte-identically. The verifier's joint
+        # general-ID / joint back-door checks read the treatment SET from
+        # ctx.query, so this must round-trip.
+        if q.extra_interventions:
+            d["extra_interventions"] = [
+                _intervention_to_dict(iv) for iv in q.extra_interventions
+            ]
         return d
     if isinstance(q, ProbabilityQuery):
         return {
@@ -925,6 +934,11 @@ def _decode_query(d: dict):
         if not isinstance(given_raw, list):
             raise DerivationSerializationError("effect_query.given must be a list")
         mediator_raw = d.get("mediator")
+        extra_raw = d.get("extra_interventions", [])
+        if not isinstance(extra_raw, list):
+            raise DerivationSerializationError(
+                "effect_query.extra_interventions must be a list"
+            )
         return EffectQuery(
             target=_decode_literal_valued_atom(d["target"], "effect_query.target"),
             intervention=_decode_intervention(d["intervention"]),
@@ -934,6 +948,9 @@ def _decode_query(d: dict):
             ),
             mediator=(
                 _decode_atom(mediator_raw) if mediator_raw is not None else None
+            ),
+            extra_interventions=tuple(
+                _decode_intervention(iv) for iv in extra_raw
             ),
         )
     if kind == "probability_query":

@@ -1356,6 +1356,95 @@ def _try_general_id_estimate(
     return True
 
 
+def _try_joint_general_id_estimate(
+    result: dict, contract, graph, bidirected, *,
+    treatment_atoms, y_atom, random_state: int,
+    ci_bootstrap: int = 500, cluster: str | None = None,
+) -> bool:
+    """Joint general-ID fallback: a latent-confounded JOINT effect
+    do(A, B, …) with NO adjustment set, point-identified by the set-valued
+    Shpitser-Pearl ID (front-door / c-component for a treatment SET) and
+    evaluated by the non-parametric plug-in.
+
+    The joint analog of :func:`_try_general_id_estimate`. Reports the uniform
+    all-hi / all-lo CONTRAST only — the K-way interaction needs a mixed
+    corner (per-atom value binding), out of v1 scope. Purely additive:
+    attaches a joint general-ID numeric estimate and returns True only when
+    the joint effect is c-factor point-identified AND the data support it; on
+    any refusal returns False and touches nothing, so the structural refusal
+    (joint_not_identifiable) stands byte-identical.
+    """
+    from .dose_response import EstimatorFailure
+    from .general_id import estimate_joint_general_id_ate
+
+    df = contract.data
+    treatment_names = tuple(t.predicate for t in treatment_atoms)
+    if any(t not in df.columns for t in treatment_names):
+        return False
+    if y_atom.predicate not in df.columns:
+        return False
+
+    try:
+        estimate = estimate_joint_general_id_ate(
+            df, graph=graph, bidirected=bidirected,
+            treatment_atoms=treatment_atoms, outcome_atom=y_atom,
+            ci_bootstrap=ci_bootstrap, random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
+        )
+    except (EstimatorFailure, ValueError, NotImplementedError):
+        # Not (non-parametrically) set-ID identified here, out of the plug-in's
+        # binary scope, or a positivity refusal — leave the result untouched
+        # so the structural joint refusal stands.
+        return False
+
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "treatment": estimate.treatment,
+        "treatments": list(estimate.treatments),
+        "outcome": estimate.outcome,
+        "treatment_high": estimate.treatment_high,
+        "treatment_low": estimate.treatment_low,
+        "outcome_high": estimate.outcome_high,
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=estimate.outcome,
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+
+    # Reuse the single-treatment general-ID derivation: the criterion step
+    # (general_id_criterion) re-runs the SET ID off ctx.query, and the
+    # primary treatment atom labels the x / treatment slots (matching the
+    # numeric terminal's cross-check against the criterion's x).
+    result["derivation"] = _build_general_id_numeric_derivation_dict(
+        graph=graph, x=treatment_atoms[0], y=y_atom, estimate=estimate,
+    )
+    _finalise_numeric_result(result)
+    return True
+
+
 def _build_general_id_numeric_derivation_dict(*, graph, x, y, estimate):
     """Two-step derivation for a general-ID (c-factor plug-in) estimate:
 
@@ -2249,6 +2338,20 @@ def _try_joint_estimate(
         given=given_atoms, bidirected=bidirected or None,
     )
     if not joint_sets:
+        # Adjustment fails — but the joint effect may still be point-
+        # identified by the set-valued Shpitser-Pearl ID (latent confounding
+        # neutralized with NO adjustment set). Try the joint general-ID
+        # plug-in as the escape layer, mirroring the single-treatment
+        # general-ID fallback. Unconditional only (v1). Purely additive: a
+        # no-op leaves the structural refusal (joint_not_identifiable)
+        # standing byte-identical.
+        if not given_atoms:
+            _try_joint_general_id_estimate(
+                result, contract, graph, bidirected,
+                treatment_atoms=treatment_atoms, y_atom=y_atom,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
+            )
         return
 
     chosen = min(joint_sets, key=len)

@@ -632,6 +632,60 @@ def _rule_identify_via_joint_backdoor(
         )
 
 
+def _rule_identify_via_general_id(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Combine a proven ``general_id_criterion`` step into the claimed
+    StructuralResult(value=True) — the structural terminal for a JOINT
+    (or single) general-ID identification.
+
+    Mirrors ``identify_via_joint_backdoor``: the referenced criterion step
+    (``general_id_criterion``) carries the real, independently re-run
+    identifiability check (the set-valued Shpitser-Pearl ID over the query's
+    treatment set). This terminal only certifies that the criterion proved
+    True and that the effect is therefore point-identified — the identifying
+    formula is the c-factor estimand the data-based estimator evaluates
+    numerically, so there is no symbolic formula tree to re-check here."""
+    criterion_ref = _require(
+        inputs, "criterion", step_index, "identify_via_general_id",
+    )
+    if not isinstance(criterion_ref, StepRef):
+        raise UnknownRuleInputError(
+            "identify_via_general_id.criterion must be a StepRef",
+            step_index=step_index, rule="identify_via_general_id",
+        )
+    criterion_out = step_output_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.step_id)
+    if criterion_out is None or criterion_step is None:
+        raise RuleCheckFailed(
+            "identify_via_general_id: referenced criterion step "
+            f"{criterion_ref.step_id!r} missing",
+            step_index=step_index, rule="identify_via_general_id",
+        )
+    if criterion_step.rule != "general_id_criterion":
+        raise RuleCheckFailed(
+            "identify_via_general_id.criterion must reference a "
+            "general_id_criterion step",
+            step_index=step_index, rule="identify_via_general_id",
+        )
+    if criterion_out is not True:
+        raise RuleCheckFailed(
+            "identify_via_general_id: criterion step did not prove True "
+            f"(got {criterion_out!r})",
+            step_index=step_index, rule="identify_via_general_id",
+        )
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            "identify_via_general_id must claim StructuralResult(value=True)",
+            step_index=step_index, rule="identify_via_general_id",
+        )
+
+
 def _rule_numeric_joint_backdoor_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -1174,6 +1228,13 @@ def _rule_general_id_criterion(
       stricter IDC check. The conditioning set is read from the QUERY
       (ctx.query.given), not from a producer input — a producer cannot
       under-report ``given`` to dodge the IDC licence.
+    - Joint ``P(Y | do(A, B, …))`` — re-executes
+      ``c_factor.identify_via_tian_joint`` on the treatment SET read from
+      the QUERY (intervention ∪ extra_interventions). The set is taken from
+      ctx.query, never a producer input, so a producer cannot drop a
+      treatment to make a harder joint effect look identifiable. v1 joint
+      general-ID is unconditional only: a conditioning set on a joint query
+      recomputes False (no supported estimand).
 
     Confirms the routed engine reports ``identifiable`` with a well-formed
     formula. This is the safety-critical check: a number is produced ONLY
@@ -1207,20 +1268,46 @@ def _rule_general_id_criterion(
     # query's value when available, else a boolean placeholder.
     x_value = True
     given_atoms: tuple = ()
+    extra_atoms: tuple = ()
     q = getattr(ctx, "query", None)
     if q is not None and getattr(q, "intervention", None) is not None:
         x_value = q.intervention.value
     if q is not None and getattr(q, "given", None):
         given_atoms = tuple(g.atom for g in q.given)
-    if given_atoms:
+    if q is not None and getattr(q, "extra_interventions", None):
+        extra_atoms = tuple(iv.atom for iv in q.extra_interventions)
+
+    if extra_atoms and given_atoms:
+        # Conditional JOINT effect P(Y | do(A, B, …), Z): out of v1 scope —
+        # there is no supported estimand, so no derivation can ever license a
+        # number here. Recompute False so a tampered "identifiable" claim on
+        # a conditional joint query is rejected.
+        recomputed = False
+    elif extra_atoms:
+        # Joint intervention do(X, extras…) → set-valued Shpitser-Pearl ID.
+        # The treatment SET is read from the QUERY (never a producer input),
+        # so a producer cannot drop a treatment to make a harder joint effect
+        # look identifiable. The declared primary x must be one of the query's
+        # joint treatments.
+        x_set = frozenset({q.intervention.atom, *extra_atoms})
+        if x not in x_set:
+            raise RuleCheckFailed(
+                "general_id_criterion: joint criterion's x must be one of the "
+                "query's joint treatments",
+                step_index=step_index, rule="general_id_criterion",
+            )
+        res = c_factor.identify_via_tian_joint(graph, bidir, x_set, y, x_value)
+        recomputed = bool(res.identifiable and res.formula is not None)
+    elif given_atoms:
         # Conditional query → IDC licence (see docstring). Read the
         # conditioning from the query itself, so the check is against the
         # real P(Y | do(X), Z) — never a producer-narrowed one.
         res = c_factor.identify_via_idc(
             graph, bidir, x, y, given_atoms, x_value)
+        recomputed = bool(res.identifiable and res.formula is not None)
     else:
         res = c_factor.identify_via_tian(graph, bidir, x, y, x_value)
-    recomputed = bool(res.identifiable and res.formula is not None)
+        recomputed = bool(res.identifiable and res.formula is not None)
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
             f"general_id_criterion claimed {claimed_output!r}, but the ID "
@@ -2326,6 +2413,12 @@ _NUMERIC_GENERAL_ID_METHODS = frozenset({
     # stratum. Same terminal / criterion; the criterion re-runs IDC when the
     # query carries a conditioning set.
     "general_id_idc_plugin",
+    # Joint effect P(Y | do(A, B, …)) identified via the set-valued
+    # Shpitser–Pearl ID (identify_via_tian_joint) and evaluated by the same
+    # non-parametric plug-in on the uniform all-hi / all-lo contrast. Same
+    # terminal / criterion; the criterion re-runs the set ID when the query
+    # carries extra_interventions.
+    "joint_general_id_plugin",
 })
 
 # Counterfactual-conjunction (ID*/IDC*) non-parametric plug-in — the
@@ -7478,6 +7571,10 @@ _STEP_REF_RULES = {
     # Joint (treatment-set) back-door identification + numeric estimate
     "identify_via_joint_backdoor",
     "numeric_joint_backdoor_estimate",
+    # Joint (treatment-set) general-ID identification terminal — same
+    # c-factor identification witness (general_id_criterion), structural
+    # terminal for a latent-confounded joint effect with no adjustment set.
+    "identify_via_general_id",
     # Phase 7.2 S.FDN.3
     "numeric_frontdoor_estimate",
     # Phase 7.3 S.IVN.3
@@ -7623,6 +7720,11 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_joint_backdoor":
         _rule_identify_via_joint_backdoor(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_general_id":
+        _rule_identify_via_general_id(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

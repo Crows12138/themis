@@ -3003,11 +3003,18 @@ def verify_effect_structural(
         # g-formula / IPW-MSM number; verified structurally when no number
         # attaches (data absent).
         "identify_via_gformula",
+        # Joint general-ID: a latent-confounded joint effect do(A, B, …)
+        # with no adjustment set, point-identified by the set-valued
+        # Shpitser-Pearl ID. Structurally identified before the estimation
+        # dispatch attaches the joint general-ID plug-in number; verified
+        # structurally when no data attaches.
+        "identify_via_general_id",
     ):
         raise VerificationError(
             "structural effect derivation must end in identify_via_mediation, "
-            "identify_via_transport, identify_via_joint_backdoor, or "
-            "identify_via_gformula; got " + repr(last_rule),
+            "identify_via_transport, identify_via_joint_backdoor, "
+            "identify_via_gformula, or identify_via_general_id; got "
+            + repr(last_rule),
             step_index=len(derivation) - 1, rule=last_rule,
         )
 

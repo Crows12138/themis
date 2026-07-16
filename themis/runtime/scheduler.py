@@ -3124,7 +3124,59 @@ def _dispatch_joint_effect(
         given=observed_atoms, bidirected=bidirected or None,
     )
 
+    treatments_set = frozenset(treatments)
+
     if not joint_sets:
+        # Adjustment fails — but the joint effect may still be non-
+        # parametrically point-identified by the set-valued Shpitser-Pearl
+        # ID: latent confounding neutralized without any adjustment set
+        # (front-door / c-component for the treatment SET). This is the
+        # joint analog of the single-treatment general-ID escape layer.
+        # v1 scope: unconditional only (a conditioning set on a joint query
+        # has no supported general-ID estimand).
+        from . import c_factor
+
+        if not observed_atoms:
+            gid_res = c_factor.identify_via_tian_joint(
+                graph, bidirected or frozenset(), treatments_set, y_atom,
+                q.intervention.value,
+            )
+            if gid_res.identifiable and gid_res.formula is not None:
+                structural_result = StructuralResult(value=True)
+                derivation = (
+                    DerivationStep(
+                        rule="general_id_criterion",
+                        inputs={"graph": graph, "x": x, "y": y_atom},
+                        output=True,
+                        step_id="s1",
+                    ),
+                    DerivationStep(
+                        rule="identify_via_general_id",
+                        inputs={"criterion": StepRef(step_id="s1")},
+                        output=structural_result,
+                        step_id="s2",
+                    ),
+                )
+                annotation = {
+                    "pattern": "joint_general_id",
+                    "treatments": sorted(
+                        _atom_to_str(t) for t in treatments
+                    ),
+                    "note": (
+                        "latent-confounded joint effect with no adjustment "
+                        "set; identified by the set-valued Shpitser-Pearl ID "
+                        "(front-door / c-component for the treatment set)"
+                    ),
+                }
+                return QueryResult(
+                    status=ResultStatus.STRUCTURALLY_SOLVED,
+                    query_kind=QueryKind.EFFECT,
+                    query_id=stmt.id,
+                    structural_result=structural_result,
+                    derivation=derivation,
+                    extensions={"joint_identification": annotation},
+                )
+
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=QueryKind.EFFECT,
@@ -3138,14 +3190,14 @@ def _dispatch_joint_effect(
                     reason=(
                         "no valid joint (treatment-set) back-door adjustment "
                         "set blocks all proper non-causal paths from the "
-                        "treatment vector to the target"
+                        "treatment vector to the target, and the joint effect "
+                        "is not point-identified by the set-valued ID either"
                     ),
                 ),
             ),
         )
 
     chosen = min(joint_sets, key=len)
-    treatments_set = frozenset(treatments)
     given_set = frozenset(observed_atoms)
     structural_result = StructuralResult(value=True)
 

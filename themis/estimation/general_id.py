@@ -105,6 +105,10 @@ class GeneralIdEstimate:
     data_hash: str
     treatment: str
     outcome: str
+    # Joint general-ID only: the full treatment vector do(A,B,...) the
+    # contrast intervenes on simultaneously. Empty for the single-treatment
+    # estimate (whose one treatment is in ``treatment``).
+    treatments: tuple[str, ...] = ()
     # The two contrasted treatment levels and the outcome level the
     # contrast is taken on — makes the ATE definition explicit in the
     # audit trail (do(X=x_hi) vs do(X=x_lo), outcome = y_hi).
@@ -492,6 +496,192 @@ def estimate_general_id_conditional_ate(
             "ID(Y∪Z_rem, X')/ID(Z_rem, X') 之比）识别，再按非参数 plug-in "
             "在 Z=z 分层内求两 do-臂之差；每个条件概率用其所属数据层的经验"
             "频率，无函数形式假设（饱和估计）"
+        ),
+        form="nonparametric_plug_in",
+        identification_assumptions=identification_assumptions,
+        cluster=cluster,
+    )
+
+
+def estimate_joint_general_id_ate(
+    data: pd.DataFrame,
+    *,
+    graph,
+    bidirected,
+    treatment_atoms: tuple[Atom, ...],
+    outcome_atom: Atom,
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> GeneralIdEstimate:
+    """Plug-in JOINT contrast for a general-ID (c-factor) identified
+    effect of a SET of treatments do(A, B, …).
+
+    The joint interventional distribution ``P(Y | do(A, B, …))`` is
+    identified by the set-valued Shpitser–Pearl ID
+    (:func:`themis.runtime.c_factor.identify_via_tian_joint`) — the escape
+    layer that fires when the joint effect is confounded by latent common
+    causes so no ADMG adjustment set exists (front-door / c-component for
+    sets), yet the effect is still non-parametrically point-identified.
+    The identified estimand is turned into a number by the SAME plug-in
+    the single-treatment general-ID path uses; the reported point is the
+    joint CONTRAST between the all-hi and all-lo treatment corners::
+
+        joint = P(Y=y_hi | do(A=hi, B=hi, …)) − P(Y=y_hi | do(A=lo, B=lo, …))
+
+    Each corner is uniform (every treatment at the same level), so the
+    single-value threading of ``identify_via_tian_joint`` applies directly.
+
+    v1 scope (declared): binary treatments that share one common two-level
+    set (the uniform corner value must be well-defined); binary outcome;
+    the CONTRAST only — the K-way interaction (which needs mixed corners /
+    per-atom value binding) and asymmetric contrasts do(A=1, B=0) are out
+    of scope; compact-shortcut-expressible estimands only (napkin-style
+    joint nested-ID PUNTs to not-identifiable → the caller refuses).
+
+    Raises
+    ------
+    EstimatorFailure: a treatment / the outcome is non-binary, the
+        treatments do not share one common two-level set, the joint effect
+        is not point-identified by the set ID algorithm, or a positivity
+        violation (empty conditioning stratum).
+    DataContractError (ValueError): missing column, NaN, or too-small
+        sample.
+    """
+    from ..runtime import c_factor
+
+    if len(treatment_atoms) < 2:
+        raise EstimatorFailure(
+            "not_a_joint_intervention",
+            f"the joint general-ID plug-in needs at least two treatments; "
+            f"got {len(treatment_atoms)}.",
+        )
+    t_cols = tuple(t.predicate for t in treatment_atoms)
+    y_col = outcome_atom.predicate
+    for t_col in t_cols:
+        if t_col not in data.columns:
+            raise EstimatorFailure(
+                "missing_column",
+                f"treatment column {t_col!r} not present in the data",
+                treatment=t_col,
+            )
+    if y_col not in data.columns:
+        raise EstimatorFailure(
+            "missing_column",
+            f"outcome column {y_col!r} not present in the data",
+            outcome=y_col,
+        )
+
+    # Every treatment must be binary AND share one common two-level set, so
+    # the uniform corner (all treatments at hi / all at lo) is well-defined.
+    level_sets = {tuple(_sorted_levels(data[t])) for t in t_cols}
+    if len(level_sets) != 1 or len(next(iter(level_sets))) != 2:
+        raise EstimatorFailure(
+            "treatment_not_binary",
+            f"the joint general-ID plug-in requires every treatment to be "
+            f"binary with one common two-level set; got level sets "
+            f"{sorted(level_sets)} for {list(t_cols)}. A uniform do-corner "
+            f"is undefined otherwise.",
+        )
+    t_levels = next(iter(level_sets))
+    y_levels = _sorted_levels(data[y_col])
+    if len(y_levels) != 2:
+        raise EstimatorFailure(
+            "outcome_not_binary",
+            f"outcome {y_col!r} has {len(y_levels)} observed levels "
+            f"({y_levels}); v1 of the general-ID plug-in requires a binary "
+            f"outcome.",
+            outcome=y_col,
+        )
+    x_lo, x_hi = t_levels[0], t_levels[1]
+    y_hi = y_levels[-1]
+
+    x_set = frozenset(treatment_atoms)
+    # Identify the JOINT estimand once per uniform corner (data-independent;
+    # only the do-literal baked into every outer X slot differs).
+    res_hi = c_factor.identify_via_tian_joint(
+        graph, bidirected, x_set, outcome_atom, x_hi)
+    res_lo = c_factor.identify_via_tian_joint(
+        graph, bidirected, x_set, outcome_atom, x_lo)
+    if not (res_hi.identifiable and res_lo.identifiable
+            and res_hi.formula is not None and res_lo.formula is not None):
+        raise EstimatorFailure(
+            "not_identifiable_by_general_id",
+            f"the joint effect of {list(t_cols)} on {y_col!r} is not "
+            f"point-identified by the set ID algorithm on this ADMG — there "
+            f"is no c-factor estimand to evaluate.",
+            outcome=y_col,
+        )
+    f_hi = _bind_target_value(res_hi.formula, outcome_atom, y_hi)
+    f_lo = _bind_target_value(res_lo.formula, outcome_atom, y_hi)
+
+    required = (
+        _referenced_predicates(f_hi)
+        | _referenced_predicates(f_lo)
+        | set(t_cols) | {y_col}
+    )
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None
+        else None
+    )
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
+    df = contract.data
+
+    domains = _domains_from_data(graph, df)
+    point = _point_ate(df, f_hi, f_lo, domains)
+
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if ci_bootstrap > 0:
+        ci_lower, ci_upper = _bootstrap_ci(
+            df, f_hi, f_lo, domains,
+            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            random_state=random_state, groups=groups,
+        )
+
+    assumptions = (
+        "admg_structure_correct_including_latent_confounders",
+        "positivity_every_conditioning_stratum_has_support",
+        "consistency_of_potential_outcomes_under_joint_intervention",
+        "discrete_variables_saturated_nonparametric_plug_in",
+        "joint_effect_point_identified_by_set_id_no_adjustment_set_exists",
+    )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
+    identification_assumptions = (
+        {"claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+        {"claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
+         "layer": "identification", "severity": "invalidating", "testable": True},
+        {"claim": "一致性：联合干预定义明确，potential outcomes 良定义",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+    )
+    return GeneralIdEstimate(
+        point=float(point),
+        ci_lower=float(ci_lower) if ci_lower is not None else None,
+        ci_upper=float(ci_upper) if ci_upper is not None else None,
+        ci_level=ci_level,
+        method="joint_general_id_plugin",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        treatment=t_cols[0],
+        treatments=t_cols,
+        outcome=y_col,
+        treatment_high=_py(x_hi),
+        treatment_low=_py(x_lo),
+        outcome_high=_py(y_hi),
+        model_assumption=(
+            "联合效应经集合值 ID 识别（latent 混杂下无调整集，走前门/c-factor "
+            "识别）：识别公式按非参数 plug-in 求值，每个条件概率用其所属数据层"
+            "的经验频率，无函数形式假设（饱和估计）"
         ),
         form="nonparametric_plug_in",
         identification_assumptions=identification_assumptions,

@@ -119,13 +119,61 @@ def identify_via_tian(
     or by the implicit query target (target = y_atom, value passed in
     by the query).
     """
+    return _run_tian_id(
+        graph, bidirected, frozenset({x_atom}), y_atom, x_value,
+        allow_full_line7=True,
+    )
+
+
+def identify_via_tian_joint(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    x_atoms: "frozenset[Atom] | tuple[Atom, ...]",
+    y_atom: Atom,
+    x_value,
+) -> TianResult:
+    """Run Shpitser-Pearl ID for a JOINT intervention do(X) on a SET of
+    treatments, single target. The recursion is already set-based (``x``,
+    ``do_atoms`` are sets); this exposes it for |X| ≥ 1.
+
+    A single ``x_value`` is threaded into EVERY do-atom's outer occurrence
+    — so this returns the estimand for the uniform corner do(X = x_value
+    for all X ∈ x_atoms). The joint g-formula CONTRAST between the all-hi
+    and all-lo corners uses two calls (x_value = hi, x_value = lo), each a
+    uniform corner. A mixed corner (do(A=1, B=0)) would need per-atom
+    binding — out of v1 scope (the joint general-ID path reports the
+    contrast, not the K-way interaction).
+
+    Compact-shortcut only: a joint estimand the shortcut cannot express
+    (napkin-style nested ID) PUNTs to ``identifiable=False`` rather than
+    invoking the full nested Identify, whose numeric self-check is
+    single-atom. This keeps the set path safe (no wrong answers) in v1.
+    """
+    return _run_tian_id(
+        graph, bidirected, frozenset(x_atoms), y_atom, x_value,
+        allow_full_line7=False,
+    )
+
+
+def _run_tian_id(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    x_set: frozenset[Atom],
+    y_atom: Atom,
+    x_value,
+    *,
+    allow_full_line7: bool,
+) -> TianResult:
+    """Shared core for :func:`identify_via_tian` (single X, full nested
+    Identify enabled) and :func:`identify_via_tian_joint` (set X, compact
+    shortcut only). ``x_set`` is the do-set; all its atoms take the single
+    ``x_value`` literal in the outer occurrence."""
     V = frozenset(graph.nodes()) | {a for pair in bidirected for a in pair}
-    x_set = frozenset({x_atom})
     y_set = frozenset({y_atom})
 
-    if x_atom not in V or y_atom not in V:
+    if not x_set or not (x_set <= V) or y_atom not in V:
         return TianResult(identifiable=False, formula=None)
-    if x_atom == y_atom:
+    if y_atom in x_set:
         return TianResult(identifiable=False, formula=None)
 
     # Pick a stable ADMG-wide topological order once. The c-factor
@@ -153,10 +201,13 @@ def identify_via_tian(
     # MALFORMED formula (a free, unbound sum variable from a variable that
     # leaked out of S'). The canonical example is Pearl's napkin graph
     # (W→Z→X→Y, W↔X, W↔Y). In either case, retry with Tian's full nested
-    # Identify, which expresses the estimand as the required ratio.
+    # Identify, which expresses the estimand as the required ratio. The
+    # full path's numeric self-check is single-atom, so joint (set) callers
+    # disable it (``allow_full_line7=False``) and PUNT instead.
     shortcut_ok = formula is not None and _formula_is_well_formed(formula)
     if (
-        not shortcut_ok
+        allow_full_line7
+        and not shortcut_ok
         and state.hedge is None
         and graph.number_of_nodes() <= _FULL_LINE7_MAX_NODES
     ):
@@ -175,11 +226,12 @@ def identify_via_tian(
             # Line-7 recursion, avoids double-binding a mediator an outer
             # Line-4 sum already owns.
             full_formula = _bind_free_params(full_state, full_formula, keep=y_set)
+        x_atom_single = next(iter(x_set))
         if (
             full_formula is not None
             and _formula_is_well_formed(full_formula)
             and _full_line7_numerically_sound(
-                graph, bidirected, x_atom, y_atom, x_value, full_formula
+                graph, bidirected, x_atom_single, y_atom, x_value, full_formula
             )
         ):
             return TianResult(

@@ -523,6 +523,7 @@
             "missing_data_recovery_gformula",
             "general_id_plugin",
             "general_id_idc_plugin",
+            "joint_general_id_plugin",
             "ctf_conjunction_plugin",
             "proximal_matrix",
             "causation_plugin",
@@ -848,7 +849,7 @@
         "treatment": { "type": "string" },
         "treatments": {
           "type": "array",
-          "description": "Joint interventions: the full treatment vector {A, B, ...} intervened on simultaneously. Present only for joint_backdoor_* methods.",
+          "description": "Joint interventions: the full treatment vector {A, B, ...} intervened on simultaneously. Present for joint_backdoor_* methods and joint_general_id_plugin.",
           "items": { "type": "string" }
         },
         "joint_effect": {
