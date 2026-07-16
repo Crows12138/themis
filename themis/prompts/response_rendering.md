@@ -931,11 +931,12 @@ differences the reader must see:
 
 **Differential misclassification (`measurement_correction.differential == true`).**
 Both sides also handle DIFFERENTIAL misclassification, where the channel depends on
-another variable: the outcome channel may differ by exposure arm (per-arm matrix,
-*detection bias*) or by a back-door **covariate** (per-covariate-stratum matrix, e.g.
-misclassification accuracy that varies by site/age — `measurement_correction.
-differential_by` names the covariate); the exposure channel may differ by outcome
-level (per-outcome matrix, *recall bias*). When `differential` is true, the single
+another variable — `measurement_correction.differential_by` names the axis. The
+outcome channel may differ by exposure arm (per-arm matrix, *detection bias*, the
+default) or by a back-door **covariate** (per-covariate-stratum matrix, e.g.
+accuracy that varies by site/age); the exposure channel may differ by outcome level
+(per-outcome matrix, *recall bias*, the default) or by a back-door **covariate**
+(per-covariate-stratum matrix). When `differential` is true, the single
 `confusion_matrix`/`det` are absent; `confusion_matrices` lists the per-level matrices
 the inversion used (keyed by `arm`, `level`, or `outcome`). Two things the reader must
 see: (1) the correction inverted the LEVEL-SPECIFIC matrix within each level — say so,
@@ -980,16 +981,16 @@ note what is different:
   slope silently shipped.
 
 Scope: the correction covers **outcome** and **binary-exposure** misclassification
-(discrete, confusion-matrix) **non-differential OR differential** — the outcome-side
-differential axis may be the exposure arm OR a back-door covariate (`differential_by`)
+(discrete, confusion-matrix) **non-differential OR differential** — the differential
+axis may be the exposure arm (outcome side) / the outcome (exposure side) OR, on
+either side, a back-door covariate (`differential_by`)
 — and a **continuous exposure and/or covariate** with classical additive error
 (regression calibration), all with **known** (fixed) matrix / matrices / error
-variance. A multi-level exposure, a combined (exposure AND outcome) correction, an
-EXPOSURE-side (recall) matrix differential in a covariate or a matrix jointly
-differential in arm AND covariate, a mismeasured **outcome** on the
-continuous side, Berkson / differential continuous error, and a nonlinear outcome
-(SIMEX) are out of scope and stay in the `measurement_error_concern` gap's
-territory.
+variance. A multi-level exposure, a combined (exposure AND outcome) correction, a
+matrix jointly differential in the arm/outcome AND a covariate, a mismeasured
+**outcome** on the continuous side, Berkson / differential continuous error, and a
+nonlinear outcome (SIMEX) are out of scope and stay in the
+`measurement_error_concern` gap's territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

@@ -1926,12 +1926,20 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
     data. A result that isn't an ``exposure_measurement_error_correction``
     estimate is a no-op.
 
+    Under **differential** misclassification the single matrix is replaced by a
+    per-level set. By the OUTCOME (recall bias) a distinct M_y inverts each outcome
+    column; by a COVARIATE (``differential_by`` names it) a single M_z, selected by
+    that covariate's value in each stratum's z, inverts every column — each matrix
+    re-inverted here independently.
+
     Tamper checks: forged corrected/naive point, a confusion matrix whose det
     disagrees with the recorded det, a non-column-stochastic matrix, a joint
     table whose cells don't sum consistently, a marginal that doesn't sum to the
     total (a dropped stratum), a covariate stratum missing from the tables, an
-    empty observed arm (positivity), or a degenerate recovered exposure marginal
-    — each is rejected.
+    empty observed arm (positivity), a degenerate recovered exposure marginal, a
+    tampered per-level matrix, a ``differential_by`` that disagrees between block
+    and sufficient statistics, or a stratum whose covariate value has no matrix —
+    each is rejected.
 
     ``estimate`` is the full ``numeric_estimate`` dict.
     """
@@ -1983,15 +1991,53 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
             f"disagrees with sufficient_statistics.differential {differential}"
         )
 
-    # Per-outcome-column inverse map. Non-differential: one 2×2 matrix for every
-    # column (an independent second inversion). Differential (recall bias): a
-    # distinct M_y per outcome level, which must cover every recorded outcome
-    # level exactly.
-    if differential:
+    # Per-column inverse map. Non-differential: one 2×2 matrix for every column
+    # (an independent second inversion). Differential by the OUTCOME (recall bias):
+    # a distinct M_y per outcome level, covering every recorded outcome level
+    # exactly, each outcome column inverted with its own matrix. Differential by a
+    # COVARIATE: a distinct M_z per covariate level, selected per stratum by that
+    # covariate's value and applied to every column — each matrix re-inverted here.
+    differential_by = suff.get("differential_by")
+    covariate_differential = differential and differential_by is not None
+    Minv_by_outcome: dict | None = None
+    Minv_by_level: dict | None = None
+    cov_idx = None
+    if covariate_differential:
+        if mc.get("differential_by") not in (None, differential_by):
+            _fail(
+                f"measurement_correction.differential_by {mc.get('differential_by')!r} "
+                f"disagrees with sufficient_statistics.differential_by {differential_by!r}"
+            )
+        adjustment_vars = list(suff.get("adjustment_vars") or [])
+        if differential_by not in adjustment_vars:
+            _fail(
+                f"differential_by {differential_by!r} is not among the recorded "
+                f"adjustment_vars {adjustment_vars}"
+            )
+        cov_idx = adjustment_vars.index(differential_by)
+        recs = suff.get("confusion_matrices_by_level")
+        if not isinstance(recs, list) or not recs:
+            _fail("covariate-differential exposure estimate carries no confusion_matrices_by_level")
+        Minv_by_level = {}
+        for r in recs:
+            try:
+                lvl = r["level"]
+                mat = r["matrix"]
+                rec_det = r.get("det")
+            except (KeyError, TypeError, ValueError) as exc:
+                _fail(f"ill-formed per-level confusion-matrix record: {exc}")
+            Minv_lvl, _d = _reinvert_stochastic(
+                mat, 2, rec_det, _fail, label=f"{differential_by}={lvl!r}",
+            )
+            key = _level_key_v(lvl)
+            if key in Minv_by_level:
+                _fail(f"duplicate differential level {lvl!r} for {differential_by}")
+            Minv_by_level[key] = Minv_lvl
+    elif differential:
         recs = suff.get("confusion_matrices_by_outcome")
         if not isinstance(recs, list) or not recs:
             _fail("differential estimate carries no confusion_matrices_by_outcome")
-        Minv_by_outcome: dict = {}
+        Minv_by_outcome = {}
         for r in recs:
             try:
                 lvl = r["outcome"]
@@ -2077,8 +2123,18 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
         Nz = joint.sum()
         p_obs = joint / Nz
         p_true = np.empty_like(p_obs)
-        for j in range(k):
-            p_true[:, j] = Minv_by_outcome[_level_key_v(outcome_states[j])] @ p_obs[:, j]
+        if covariate_differential:
+            lvl_val = rec["z"][cov_idx]
+            Minv_sel = Minv_by_level.get(_level_key_v(lvl_val))
+            if Minv_sel is None:
+                _fail(
+                    f"stratum z={rec['z']} has no confusion matrix for "
+                    f"{differential_by}={lvl_val!r} in the recorded set"
+                )
+            p_true = Minv_sel @ p_obs        # one M_z for every outcome column
+        else:
+            for j in range(k):
+                p_true[:, j] = Minv_by_outcome[_level_key_v(outcome_states[j])] @ p_obs[:, j]
         px1 = float(p_true[1, :].sum())
         px0 = float(p_true[0, :].sum())
         if px1 <= 1e-12 or px0 <= 1e-12:

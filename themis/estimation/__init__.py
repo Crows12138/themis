@@ -51,12 +51,15 @@ Landed scope:
   MISCLASSIFIED BINARY EXPOSURE via the matrix method (Barron 1977, Greenland
   1988, Marshall 1990) — invert M on the exposure margin of the (X, Y) joint per
   back-door stratum, recover the true joint, then standardise the recovered true
-  exposure. Under DIFFERENTIAL misclassification (``differential=True``) a
-  distinct matrix per outcome level (recall bias) inverts that outcome's column.
-  The recovered exposure marginal is itself an inversion (no naive/det shortcut),
-  so the verifier re-derives the point from the recorded matrix / matrices +
-  per-stratum 2xk joint tables. Deferred: multi-level exposure, combined
-  (exposure AND outcome) correction, and a matrix differential in a COVARIATE.
+  exposure. Under DIFFERENTIAL misclassification (``differential=True``) the axis
+  is named by ``differential_by``: by the outcome (recall bias, the default — a
+  distinct matrix per outcome level inverts that outcome's column) or by a
+  back-door COVARIATE (the rate varies by e.g. site — a distinct M_z per covariate
+  level inverts every column in that stratum). The recovered exposure marginal is
+  itself an inversion (no naive/det shortcut), so the verifier re-derives the point
+  from the recorded matrix / matrices + per-stratum 2xk joint tables. Deferred:
+  multi-level exposure, combined (exposure AND outcome) correction, and a matrix
+  jointly differential in the outcome AND a covariate.
 - Continuous mismeasurement — ``estimate_regression_calibration`` (returning
   ``RegressionCalibrationEstimate``): the CONTINUOUS counterpart of the confusion-
   matrix method — de-attenuates one or more continuously-mismeasured design

@@ -62,21 +62,21 @@ Scope (declared tradeoffs):
   here, under EITHER non-differential OR **differential** misclassification:
 
   - non-differential — one matrix everywhere (Y ⊥ (X,Z) | Y*, resp. X ⊥ (Y,Z) | X*);
-  - differential — the outcome channel may depend on the exposure arm (a per-arm
-    matrix M_x, "detection bias") or on a back-door **covariate** (a per-covariate-
-    stratum matrix M_z, via ``differential_by=<covariate>`` — the misclassification
-    rate varies by e.g. site/age); the exposure channel may depend on the outcome
-    (a per-outcome-level matrix M_y, "recall bias"). The correction inverts the
-    LEVEL-SPECIFIC matrix within each conditioning level. Differential
-    misclassification can bias AWAY from the null (non-differential only
-    attenuates toward it), so it gets a per-level inversion rather than a single
-    de-attenuation factor det(M) — there is no ``naive/det`` shortcut differential.
+  - differential — the axis a matrix varies over is named by ``differential_by``.
+    The OUTCOME channel may depend on the exposure arm (a per-arm matrix M_x,
+    "detection bias", the default) or on a back-door **covariate** (a per-covariate-
+    stratum matrix M_z — the rate varies by e.g. site/age). The EXPOSURE channel
+    may depend on the outcome (a per-outcome-level matrix M_y, "recall bias", the
+    default) or on a back-door **covariate** (a per-covariate-stratum matrix M_z).
+    The correction inverts the LEVEL-SPECIFIC matrix within each conditioning
+    level. Differential misclassification can bias AWAY from the null (non-
+    differential only attenuates toward it), so it gets a per-level inversion
+    rather than a single de-attenuation factor det(M) — no ``naive/det`` shortcut.
 
   A **multi-level exposure** confusion matrix, a **combined** (exposure AND outcome
-  misclassified at once) correction, an EXPOSURE-side matrix that is differential in
-  a covariate (recall bias by a covariate) or a matrix jointly differential in the
-  arm AND a covariate, and a differential matrix set that does not cover every
-  observed conditioning level are deferred.
+  misclassified at once) correction, a matrix jointly differential in the arm/outcome
+  AND a covariate, and a differential matrix set that does not cover every observed
+  conditioning level are deferred.
 - **Known** confusion matrix / matrices, treated as FIXED. The bootstrap propagates
   the main-sample sampling variability only; validation-study uncertainty in M
   itself (a second bootstrap / Bayesian layer) is deferred.
@@ -824,11 +824,15 @@ class ExposureMeasurementCorrectionEstimate:
     matrix, per-stratum full 2×k (X, Y) joint count tables, and the covariate
     marginal counts — everything the numeric verifier re-inverts the point from.
 
-    Under **differential** (outcome-dependent) exposure misclassification — recall
-    bias — ``differential`` is True, ``confusion_matrix`` / ``det`` are the
-    sentinel empty / NaN, and ``confusion_matrices`` carries one
-    ``(outcome_value, matrix, det)`` entry per outcome level: the column of the
-    joint for outcome y is inverted with M_y.
+    Under **differential** exposure misclassification ``differential`` is True,
+    ``confusion_matrix`` / ``det`` are the sentinel empty / NaN, and
+    ``confusion_matrices`` carries the per-level matrices the inversion used. The
+    differential axis is named by ``differential_by``: by the **outcome** (recall
+    bias, the default — one ``(outcome_value, matrix, det)`` entry per outcome
+    level, the joint's column for outcome y inverted with M_y) or by a back-door
+    **covariate** (the matrix varies by e.g. site — one ``(level, matrix, det)``
+    entry per covariate level, every column within a stratum inverted with that
+    stratum's M_z).
     """
     point: float
     naive_point: float
@@ -853,8 +857,11 @@ class ExposureMeasurementCorrectionEstimate:
     form: str = "exposure_confusion_matrix_inversion_backdoor_standardised"
     model_assumption: str = ""
     differential: bool = False
-    # Per-outcome-level matrices when ``differential`` — a tuple of
-    # (outcome_value, matrix, det); empty for the non-differential case.
+    # The variable the differential matrices vary over (the outcome by default —
+    # recall bias — or a back-door covariate); None for the non-differential case.
+    differential_by: str | None = None
+    # Per-level matrices when ``differential`` — a tuple of (level, matrix, det);
+    # empty for the non-differential case.
     confusion_matrices: tuple = ()
     differential_levels: tuple = ()
 
@@ -869,6 +876,7 @@ def estimate_exposure_measurement_correction(
     states,
     target_value,
     differential: bool = False,
+    differential_by: str | None = None,
     confusion_matrices=None,
     differential_levels=None,
     ci_bootstrap: int = 500,
@@ -891,26 +899,34 @@ def estimate_exposure_measurement_correction(
         intervened value do(X)=treated).
     target_value: the query's target outcome value y* — the effect is the
         corrected risk difference of ``P(Y=y*)`` between the recovered exposures.
-    differential: when True, the exposure misclassification is **differential by
-        the outcome** (recall bias) — supply ``confusion_matrices`` +
+    differential: when True, the exposure misclassification is **differential**
+        along ``differential_by`` — supply ``confusion_matrices`` +
         ``differential_levels`` instead of ``confusion_matrix``.
+    differential_by: which variable the differential matrices vary over. Defaults
+        to the **outcome** (recall bias, ``M_y``). May instead be a back-door
+        adjustment covariate, in which case the exposure-misclassification rate
+        varies by that covariate stratum (e.g. by measurement site), and the
+        matrix that inverts a stratum's joint is that stratum's own ``M_z``.
     confusion_matrices / differential_levels: (differential) a list of 2×2
-        matrices and the outcome values they apply to, aligned 1:1 and covering
-        every observed outcome level; ``M_y[i][j] = P(X=states[i] | X*=states[j],
-        Y=y)``. The joint's column for outcome y is inverted with M_y.
+        matrices and the ``differential_by`` values they apply to, aligned 1:1;
+        ``M[i][j] = P(X=states[i] | X*=states[j], differential_by=level)``. By the
+        outcome the levels must be exactly the observed outcome values (each
+        outcome column inverted with its M_y); by a covariate they must cover
+        every observed covariate value (each stratum inverted with its M_z).
     ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
         controls (the matrices are held fixed across resamples).
 
     Raises
     ------
     EstimatorFailure: differential requested but the matrix set is incomplete /
-        misaligned / does not cover every observed outcome level; exposure states
-        not a binary ``[control, treated]`` pair; observed exposure not covered by
-        the states; continuous / high-cardinality outcome; continuous adjustment
-        covariate; malformed / non-stochastic / singular confusion matrix; target
-        value absent; a positivity violation (a contributing stratum empty in an
-        observed arm); a degenerate recovered exposure marginal (≤ 0, the
-        conditional risk is undefined).
+        misaligned / does not cover every observed differential level; a
+        ``differential_by`` that is neither the outcome nor an adjustment
+        covariate; exposure states not a binary ``[control, treated]`` pair;
+        observed exposure not covered by the states; continuous / high-cardinality
+        outcome; continuous adjustment covariate; malformed / non-stochastic /
+        singular confusion matrix; target value absent; a positivity violation (a
+        contributing stratum empty in an observed arm); a degenerate recovered
+        exposure marginal (≤ 0, the conditional risk is undefined).
     """
     states = tuple(_py(s) for s in states)
     if len(states) != 2 or len(set(states)) != 2:
@@ -985,40 +1001,77 @@ def estimate_exposure_measurement_correction(
             f"outcome values {list(outcome_states)!r}.",
         )
 
-    # Build the per-outcome-column inverse map. Non-differential: the same M for
-    # every column. Differential (recall bias): a distinct M_y per outcome level,
-    # which must cover every observed outcome value.
+    # Build the inverse-matrix map. Non-differential: the same M for every column
+    # and stratum. Differential: distinct matrices along ``differential_by`` — by
+    # the OUTCOME (recall bias, the default; a distinct M_y per outcome level, each
+    # outcome column inverted with its own matrix) or by a back-door COVARIATE (the
+    # rate varies by e.g. site; a distinct M_z per covariate level, every column in
+    # a stratum inverted with that stratum's matrix). Maps are keyed by
+    # ``_level_key`` so a bool/0-1 level matches the value the contract coerced.
+    differential_axis: str | None = None
+    by_outcome_records = None
+    by_level_records = None
     if differential:
-        prepared = _prepare_differential(
-            confusion_matrices, differential_levels, 2, level_name="outcome value",
-        )
-        # Map each supplied level onto the canonical observed outcome value (by
-        # value — the contract may have coerced Y to bool), and require the set to
-        # cover every observed outcome level exactly.
-        canon = {_level_key(y): y for y in outcome_states}
-        level_keys = {_level_key(lvl) for (lvl, *_r) in prepared}
-        if level_keys != set(canon):
+        axis = differential_by if differential_by is not None else outcome
+        if axis == treatment:
             raise EstimatorFailure(
-                "differential_levels_mismatch",
-                "exposure differential misclassification is by the outcome: "
-                "`differential_levels` must be exactly the observed outcome values "
-                f"{list(outcome_states)!r}; got "
-                f"{[lvl for (lvl, *_r) in prepared]!r}.",
+                "differential_by_unknown",
+                f"differential_by={axis!r} is the mismeasured exposure itself; the "
+                f"exposure confusion matrix is already indexed by the true exposure "
+                f"state. The exposure channel may be differential by the OUTCOME "
+                f"(recall bias, the default) or by a back-door covariate; set "
+                f"differential_by to one of those.",
             )
-        Minv_by_outcome = {
-            _level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared
-        }
-        diff_records = sorted(
-            ({"outcome": canon[_level_key(lvl)],
-              "matrix": [[float(v) for v in row] for row in _M],
-              "det": _d}
-             for (lvl, _M, _d, _inv) in prepared),
-            key=lambda r: str(r["outcome"]),
+        if axis != outcome and axis not in adjustment:
+            raise EstimatorFailure(
+                "differential_by_unknown",
+                f"differential_by={axis!r} is neither the outcome {outcome!r} nor a "
+                f"back-door adjustment covariate {list(adjustment)!r}; the "
+                f"differential axis must be a variable the correction conditions on.",
+            )
+        differential_axis = axis
+        axis_is_outcome = axis == outcome
+        level_name = "outcome value" if axis_is_outcome else f"covariate {axis!r}"
+        prepared = _prepare_differential(
+            confusion_matrices, differential_levels, 2, level_name=level_name,
         )
+        Minv_by_level = {_level_key(lvl): Minv for (lvl, _M, _d, Minv) in prepared}
+        if axis_is_outcome:
+            # Recall bias: map each supplied level onto the canonical observed
+            # outcome value (by value — the contract may have coerced Y to bool),
+            # and require the set to cover every observed outcome level exactly.
+            canon = {_level_key(y): y for y in outcome_states}
+            level_keys = {_level_key(lvl) for (lvl, *_r) in prepared}
+            if level_keys != set(canon):
+                raise EstimatorFailure(
+                    "differential_levels_mismatch",
+                    "exposure differential misclassification by the outcome: "
+                    "`differential_levels` must be exactly the observed outcome "
+                    f"values {list(outcome_states)!r}; got "
+                    f"{[lvl for (lvl, *_r) in prepared]!r}. For misclassification "
+                    f"that varies by a COVARIATE, set `differential_by=<covariate>`.",
+                )
+            by_outcome_records = sorted(
+                ({"outcome": canon[_level_key(lvl)],
+                  "matrix": [[float(v) for v in row] for row in _M],
+                  "det": _d}
+                 for (lvl, _M, _d, _inv) in prepared),
+                key=lambda r: str(r["outcome"]),
+            )
+        else:
+            # Covariate-differential: coverage of every observed covariate value is
+            # enforced per stratum in ``_exposure_formula`` (differential_level_
+            # uncovered), so an unused extra matrix is harmless.
+            by_level_records = [
+                {"level": _py(lvl),
+                 "matrix": [[float(v) for v in row] for row in _M],
+                 "det": _d}
+                for (lvl, _M, _d, _inv) in prepared
+            ]
         confusion_matrix_out: tuple = ()
     else:
-        Minv_by_outcome = {_level_key(y): Minv for y in outcome_states}
-        diff_records = None
+        Minv_by_level = {_level_key(y): Minv for y in outcome_states}
+        differential_axis = outcome
         confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
 
     groups = (
@@ -1030,7 +1083,8 @@ def estimate_exposure_measurement_correction(
     point, naive, oos, suff = _exposure_formula(
         df, treatment=treatment, outcome=outcome, adjustment=adjustment,
         states=states, outcome_states=outcome_states,
-        Minv_by_outcome=Minv_by_outcome, target_index=target_index,
+        Minv_by_level=Minv_by_level, differential_axis=differential_axis,
+        target_index=target_index,
     )
 
     ci_lower = ci_upper = None
@@ -1038,15 +1092,15 @@ def estimate_exposure_measurement_correction(
         ci_lower, ci_upper = _exposure_bootstrap(
             df, treatment=treatment, outcome=outcome, adjustment=adjustment,
             states=states, outcome_states=outcome_states,
-            Minv_by_outcome=Minv_by_outcome,
+            Minv_by_level=Minv_by_level, differential_axis=differential_axis,
             target_index=target_index, groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
-    if differential:
+    if differential and by_outcome_records is not None:
         suff_extra = {
             "differential": True,
-            "confusion_matrices_by_outcome": diff_records,
+            "confusion_matrices_by_outcome": by_outcome_records,
         }
         model_assumption = (
             "被误分类的二值暴露 X 有验证研究给出的**逐结局**混淆矩阵 "
@@ -1055,6 +1109,21 @@ def estimate_exposure_measurement_correction(
             "矩阵 M_y⁻¹ 求逆恢复真实联合分布，再用恢复的真实暴露做后门标准化 "
             "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。暴露侧分母 P(X*=x|z) "
             "本身也是求逆结果，故无 naive/det 捷径；差异误分类可朝远离零方向偏。"
+        )
+    elif differential:
+        suff_extra = {
+            "differential": True,
+            "differential_by": differential_axis,
+            "confusion_matrices_by_level": by_level_records,
+        }
+        model_assumption = (
+            f"被误分类的二值暴露 X 有验证研究给出的**逐协变量 {differential_axis} 分层**"
+            "混淆矩阵 M_z（列随机，M_z[i][j]=P(X=state_i|X*=state_j,"
+            f"{differential_axis}=z)）。暴露误分类率随该协变量而异（如随测量地点），"
+            "在每个后门层内用**本层**矩阵 M_z⁻¹ 对每个结局列求逆恢复真实联合分布 "
+            "p_true(X*,Y|z)=M_z⁻¹p_obs(X,Y|z)，再用恢复的真实暴露做后门标准化 "
+            "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。各层 M_z 不同，"
+            "池化单矩阵会做错；暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
         )
     else:
         suff_extra = {
@@ -1070,7 +1139,10 @@ def estimate_exposure_measurement_correction(
             "暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
         )
 
-    assumptions = _exposure_assumptions(adjustment, cluster, differential=differential)
+    assumptions = _exposure_assumptions(
+        adjustment, cluster, differential=differential,
+        differential_axis=differential_axis, outcome=outcome,
+    )
     return ExposureMeasurementCorrectionEstimate(
         point=point,
         naive_point=naive,
@@ -1100,7 +1172,12 @@ def estimate_exposure_measurement_correction(
         cluster=cluster,
         model_assumption=model_assumption,
         differential=differential,
-        confusion_matrices=tuple(diff_records) if differential else (),
+        differential_by=(differential_axis if by_level_records is not None else None),
+        confusion_matrices=(
+            tuple(by_outcome_records if by_outcome_records is not None
+                  else by_level_records)
+            if differential else ()
+        ),
         differential_levels=(
             tuple(_py(v) for v in differential_levels) if differential else ()
         ),
@@ -1110,7 +1187,7 @@ def estimate_exposure_measurement_correction(
 def _exposure_formula(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
-    Minv_by_outcome: dict, target_index: int,
+    Minv_by_level: dict, differential_axis: str, target_index: int,
 ) -> tuple[float, float, bool, dict]:
     """Corrected + naive standardised effect on the target value, plus the
     per-stratum sufficient statistics (the full 2×k (X, Y) joint count tables).
@@ -1118,9 +1195,12 @@ def _exposure_formula(
     Enumeration is driven by the covariate marginal P(z); each contributing z
     must have observed support in BOTH exposure arms (positivity), and its
     recovered exposure marginal P(X*=x|z) must be strictly positive (else the
-    conditional risk is undefined). The joint's column for outcome y is inverted
-    with ``Minv_by_outcome[y]`` — the same matrix for every column in the
-    non-differential case, a distinct M_y under recall bias. ``out_of_simplex``
+    conditional risk is undefined). Each column of a stratum's joint is inverted
+    with the matrix selected by ``differential_axis``'s value:
+    ``Minv_by_level[_level_key(value)]`` — the same matrix for every column in the
+    non-differential case, a distinct M_y per outcome column under recall bias
+    (axis = the outcome), a single per-stratum M_z applied to every column when
+    the axis is a covariate (its value read from ``z_key``). ``out_of_simplex``
     is True if any recovered joint cell lands outside [0, 1]."""
     k = len(outcome_states)
     xvals = df[treatment].map(_py)
@@ -1129,6 +1209,9 @@ def _exposure_formula(
 
     marginal = _marginal(df, adjustment)              # {z_key: prob}
     marginal_counts = _marginal_counts(df, adjustment)  # {z_key: count}
+
+    axis_is_outcome = differential_axis == outcome
+    axis_idx = None if axis_is_outcome else adjustment.index(differential_axis)
 
     strata_records: list[dict] = []
     corrected = 0.0
@@ -1161,7 +1244,16 @@ def _exposure_formula(
         p_obs = joint / Nz
         p_true = np.empty_like(p_obs)
         for yj in range(k):
-            p_true[:, yj] = Minv_by_outcome[_level_key(outcome_states[yj])] @ p_obs[:, yj]
+            lvl_value = outcome_states[yj] if axis_is_outcome else _py(z_key[axis_idx])
+            Minv = Minv_by_level.get(_level_key(lvl_value))
+            if Minv is None:
+                raise EstimatorFailure(
+                    "differential_level_uncovered",
+                    f"no confusion matrix supplied for {differential_axis}="
+                    f"{lvl_value!r}; the differential matrix set must cover every "
+                    f"observed level of the differential axis.",
+                )
+            p_true[:, yj] = Minv @ p_obs[:, yj]
         if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
             oos = True
 
@@ -1204,7 +1296,8 @@ def _exposure_formula(
 def _exposure_bootstrap(
     df: pd.DataFrame, *, treatment: str, outcome: str,
     adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
-    Minv_by_outcome: dict, target_index: int, groups: np.ndarray | None,
+    Minv_by_level: dict, differential_axis: str, target_index: int,
+    groups: np.ndarray | None,
     ci_bootstrap: int, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected effect — resample rows (or
@@ -1221,7 +1314,7 @@ def _exposure_bootstrap(
             pt, _naive, _oos, _suff = _exposure_formula(
                 sub, treatment=treatment, outcome=outcome, adjustment=adjustment,
                 states=states, outcome_states=outcome_states,
-                Minv_by_outcome=Minv_by_outcome,
+                Minv_by_level=Minv_by_level, differential_axis=differential_axis,
                 target_index=target_index,
             )
         except EstimatorFailure:
@@ -1236,18 +1329,20 @@ def _exposure_bootstrap(
 
 def _exposure_assumptions(
     adjustment: tuple[str, ...], cluster: str | None, *, differential: bool = False,
+    differential_axis: str | None = None, outcome: str | None = None,
 ) -> tuple[str, ...]:
+    if not differential:
+        mech = "non_differential_misclassification_X_indep_YZ_given_Xtrue"
+        known = "known_confusion_matrix_from_validation_study"
+    elif differential_axis == outcome:
+        mech = "differential_misclassification_by_outcome_M_depends_on_Y"
+        known = "known_per_outcome_confusion_matrices_from_validation_study"
+    else:
+        mech = f"differential_misclassification_by_covariate_{differential_axis}"
+        known = "known_per_covariate_stratum_confusion_matrices_from_validation_study"
     out = [
-        (
-            "differential_misclassification_by_outcome_M_depends_on_Y"
-            if differential else
-            "non_differential_misclassification_X_indep_YZ_given_Xtrue"
-        ),
-        (
-            "known_per_outcome_confusion_matrices_from_validation_study"
-            if differential else
-            "known_confusion_matrix_from_validation_study"
-        ),
+        mech,
+        known,
         "confusion_matrix_invertible",
         "recovered_true_exposure_marginal_positive",
         "consistency_of_potential_outcomes",

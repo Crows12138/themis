@@ -2998,6 +2998,7 @@ def _try_exposure_measurement_correction_estimate(
                 spec["target_value"] if "target_value" in spec else target_value
             ),
             differential=bool(spec.get("differential", False)),
+            differential_by=spec.get("differential_by"),
             confusion_matrices=spec.get("confusion_matrices"),
             differential_levels=spec.get("differential_levels"),
             ci_bootstrap=ci_bootstrap, ci_level=0.95,

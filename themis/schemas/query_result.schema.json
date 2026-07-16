@@ -589,7 +589,7 @@
         },
         "measurement_correction": {
           "type": "object",
-          "description": "measurement_error_correction (outcome) / exposure_measurement_error_correction (binary exposure) only: de-attenuation of a misclassified variable by inverting a validated confusion matrix per back-door stratum. OUTCOME side: invert M on the outcome margin (Rogan-Gladen for the binary case). EXPOSURE side (`side` = 'exposure'): the matrix method — invert M on the exposure margin of the (X, Y) joint per stratum, then standardise the recovered true exposure; there is no naive/det shortcut, and `sufficient_statistics.strata` carries full 2xk joint tables instead of per-arm value-count vectors. Under NON-differential misclassification a single `confusion_matrix` (+ `det`) applies everywhere. Under DIFFERENTIAL misclassification (`differential` = true) those are replaced by `confusion_matrices`: per-exposure-arm matrices (outcome side / detection bias) or per-outcome-level matrices (exposure side / recall bias), and the inversion uses the level-specific matrix. `point` (top-level) is the corrected effect on the target value; `naive_point` is the attenuated back-door number the correction replaces. verify_measurement_correction_numeric (outcome) / verify_exposure_measurement_correction_numeric (exposure) re-inverts the point from sufficient_statistics without the raw data.",
+          "description": "measurement_error_correction (outcome) / exposure_measurement_error_correction (binary exposure) only: de-attenuation of a misclassified variable by inverting a validated confusion matrix per back-door stratum. OUTCOME side: invert M on the outcome margin (Rogan-Gladen for the binary case). EXPOSURE side (`side` = 'exposure'): the matrix method — invert M on the exposure margin of the (X, Y) joint per stratum, then standardise the recovered true exposure; there is no naive/det shortcut, and `sufficient_statistics.strata` carries full 2xk joint tables instead of per-arm value-count vectors. Under NON-differential misclassification a single `confusion_matrix` (+ `det`) applies everywhere. Under DIFFERENTIAL misclassification (`differential` = true) those are replaced by `confusion_matrices`: per-exposure-arm matrices (outcome side / detection bias), per-outcome-level matrices (exposure side / recall bias), or per-covariate-stratum matrices on either side (`differential_by` names the covariate), and the inversion uses the level-specific matrix. `point` (top-level) is the corrected effect on the target value; `naive_point` is the attenuated back-door number the correction replaces. verify_measurement_correction_numeric (outcome) / verify_exposure_measurement_correction_numeric (exposure) re-inverts the point from sufficient_statistics without the raw data.",
           "required": ["naive_point", "states", "target_value", "differential", "sufficient_statistics"],
           "additionalProperties": false,
           "properties": {
@@ -600,7 +600,7 @@
             "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Non-differential only. Column-stochastic: M[i][j] = P(observed=states[i] | true=states[j]). k x k over the outcome states (outcome side) or 2 x 2 over the exposure states (exposure side)." },
             "confusion_matrices": {
               "type": "array",
-              "description": "Differential only: the per-conditioning-level matrices the inversion used. Outcome side (detection bias): one entry per exposure arm (`arm`). Outcome side by a COVARIATE: one entry per covariate level (`level`), with `differential_by` naming the covariate. Exposure side (recall bias): one entry per outcome level (`outcome`).",
+              "description": "Differential only: the per-conditioning-level matrices the inversion used. Outcome side (detection bias): one entry per exposure arm (`arm`). Outcome side by a COVARIATE: one entry per covariate level (`level`), with `differential_by` naming the covariate. Exposure side (recall bias): one entry per outcome level (`outcome`). Exposure side by a COVARIATE: one entry per covariate level (`level`), with `differential_by` naming the covariate.",
               "items": {
                 "type": "object",
                 "required": ["matrix", "det"],
@@ -608,13 +608,13 @@
                 "properties": {
                   "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
                   "outcome": { "type": ["boolean", "integer", "number", "string"] },
-                  "level": { "type": ["boolean", "integer", "number", "string"], "description": "Outcome side differential by a covariate: the covariate value this matrix applies to." },
+                  "level": { "type": ["boolean", "integer", "number", "string"], "description": "Differential by a covariate (outcome or exposure side): the covariate value this matrix applies to." },
                   "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
                   "det": { "type": "number" }
                 }
               }
             },
-            "differential_by": { "type": "string", "description": "Outcome side, differential by a COVARIATE: the back-door covariate whose value selects the confusion matrix within each stratum (default/absent = the exposure arm)." },
+            "differential_by": { "type": "string", "description": "Differential by a COVARIATE: the back-door covariate whose value selects the confusion matrix within each stratum. Absent/default = the exposure arm (outcome side) or the outcome (exposure side)." },
             "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "The confusion-matrix states: outcome states (outcome side) or the two exposure states in [control, treated] order (exposure side)." },
             "outcome_states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "exposure side only: the k outcome states in the joint-table column order." },
             "target_value": { "type": ["boolean", "integer", "number", "string"] },
@@ -623,7 +623,7 @@
             "model_assumption": { "type": "string" },
             "sufficient_statistics": {
               "type": "object",
-              "description": "Everything the numeric verifier re-inverts. Outcome side: the confusion matrix (non-differential) or per-arm matrices (`confusion_matrices_by_arm`, differential), per-(arm, stratum) outcome value-count vectors, covariate marginal counts. Exposure side: the confusion matrix (non-differential) or per-outcome matrices (`confusion_matrices_by_outcome`, differential), per-stratum full 2xk (X, Y) joint tables (`joint_counts`), the outcome states, and the covariate marginal counts.",
+              "description": "Everything the numeric verifier re-inverts. Outcome side: the confusion matrix (non-differential), per-arm matrices (`confusion_matrices_by_arm`, detection bias), or per-covariate-stratum matrices (`confusion_matrices_by_level` + `differential_by`), per-(arm, stratum) outcome value-count vectors, covariate marginal counts. Exposure side: the confusion matrix (non-differential), per-outcome matrices (`confusion_matrices_by_outcome`, recall bias), or per-covariate-stratum matrices (`confusion_matrices_by_level` + `differential_by`), per-stratum full 2xk (X, Y) joint tables (`joint_counts`), the outcome states, and the covariate marginal counts.",
               "required": ["states", "target_value", "target_index", "adjustment_vars", "strata", "marginal_counts", "marginal_total"],
               "additionalProperties": false,
               "properties": {
@@ -645,10 +645,10 @@
                     }
                   }
                 },
-                "differential_by": { "type": "string", "description": "Differential outcome side by a COVARIATE: the back-door covariate whose value selects the matrix within each stratum. The verifier finds it via adjustment_vars and reads the value from each stratum's z." },
+                "differential_by": { "type": "string", "description": "Differential (outcome OR exposure side) by a COVARIATE: the back-door covariate whose value selects the matrix within each stratum. The verifier finds it via adjustment_vars and reads the value from each stratum's z." },
                 "confusion_matrices_by_level": {
                   "type": "array",
-                  "description": "Differential outcome side by a COVARIATE: one column-stochastic matrix per covariate level (must cover every observed value of differential_by).",
+                  "description": "Differential (outcome OR exposure side) by a COVARIATE: one column-stochastic matrix per covariate level (must cover every observed value of differential_by).",
                   "items": {
                     "type": "object",
                     "required": ["level", "matrix", "det"],
