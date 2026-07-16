@@ -295,10 +295,13 @@ def test_verify_rejects_k3_interaction_point_outside_ci():
 # ============================================ latent joint still honest
 
 
-def test_k3_latent_still_honest_refusal():
-    """A bidirected (latent) edge in a K=3 joint query keeps the honest
-    refusal — joint ADMG adjustment is unbuilt, so NO numeric estimate is
-    fabricated and the structural result flags the out-of-scope reason."""
+def test_k3_latent_unadjustable_honest_refusal():
+    """A latent common cause of a treatment and the outcome (A<->Y) in a
+    K=3 joint query has NO valid ADMG adjustment set, so the joint
+    criterion honestly refuses — needs_investigation with
+    joint_not_identifiable and NO fabricated number. (Latent joint effects
+    that ARE adjustment-identifiable are solved; see
+    tests/test_joint_latent_admg.py.)"""
     ast = _kjoint_ast(("a", "b", "c"), bidirected=[("a", "y")])
     df = _dgp3()
     out = themis.estimate(ast, df, ci_bootstrap=0, random_state=1)
@@ -306,4 +309,4 @@ def test_k3_latent_still_honest_refusal():
     assert "numeric_estimate" not in r
     assert r["status"] == "needs_investigation"
     names = [m["name"] for m in r.get("missing_information", [])]
-    assert any("bidirected_out_of_scope" in n for n in names)
+    assert any("joint_not_identifiable" in n for n in names)

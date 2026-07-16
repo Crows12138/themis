@@ -2208,9 +2208,15 @@ def _try_joint_estimate(
     numeric path: status flips to numerically_solved with an independent
     joint derivation the verifier re-checks.
 
+    Latent (bidirected) confounding is supported when the joint effect is
+    adjustment-identifiable: ``minimal_adjustment_sets_joint`` returns a
+    valid ADMG adjustment set (m-separation) and the g-formula plug-in
+    standardizes over it exactly as in the DAG case. A latent joint effect
+    with no valid adjustment set returns no set → silent no-op below.
+
     Silent no-op (leaves the structural result untouched) when:
-    - bidirected (latent) edges are present — joint ADMG is out of scope;
-    - no joint adjustment set exists;
+    - no joint adjustment set exists (incl. latent effects that are not
+      adjustment-identifiable);
     - a treatment is non-binary (v1 scope);
     - the treatment vector has fewer than two distinct atoms, or more than
       the estimator's cap (NotImplementedError → honest capability gap,
@@ -2238,13 +2244,10 @@ def _try_joint_estimate(
     if len(set(treatment_atoms)) < 2 or len(set(treatment_atoms)) != len(treatment_atoms):
         return
 
-    try:
-        joint_sets = structural_solver.minimal_adjustment_sets_joint(
-            graph, treatment_atoms, y_atom,
-            given=given_atoms, bidirected=bidirected or None,
-        )
-    except NotImplementedError:
-        return
+    joint_sets = structural_solver.minimal_adjustment_sets_joint(
+        graph, treatment_atoms, y_atom,
+        given=given_atoms, bidirected=bidirected or None,
+    )
     if not joint_sets:
         return
 

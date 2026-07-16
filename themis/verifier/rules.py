@@ -486,6 +486,25 @@ def _verifier_set_d_connected(
     return False
 
 
+def _verifier_set_m_connected(
+    graph: nx.DiGraph,
+    bidirected: frozenset[frozenset[Atom]],
+    sources: frozenset[Atom],
+    dst: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """ADMG analogue of :func:`_verifier_set_d_connected`: True iff some
+    source has an open m-path to dst given conditioning in the ADMG.
+    Independently reimplemented on the verifier's own m-connection helper
+    so the joint-criterion re-derivation never imports the runtime."""
+    for s in sources:
+        if s == dst:
+            continue
+        if _verifier_is_m_connected(graph, bidirected, s, dst, conditioning):
+            return True
+    return False
+
+
 def _rule_joint_backdoor_criterion(
     ctx: VerificationContext,
     inputs: dict,
@@ -497,9 +516,10 @@ def _rule_joint_backdoor_criterion(
 
     (i)  (Z ∪ given) ∩ forbidden = ∅, where forbidden = treatments ∪
          (nodes on proper causal paths) ∪ (their descendants), and
-    (ii) Z ∪ given d-separates the treatment set from Y in the proper
+    (ii) Z ∪ given separates the treatment set from Y in the proper
          back-door graph (G with the first edge of every proper causal
-         path removed).
+         path removed) — d-separation for a pure DAG, m-separation when a
+         bidirected (latent) context is present.
 
     inputs:
         graph, treatments (atom set), y (atom), z (atom set),
@@ -507,9 +527,12 @@ def _rule_joint_backdoor_criterion(
     output:
         True iff (i) ∧ (ii).
 
-    v1 scope: directed DAGs. A non-empty bidirected context is rejected
-    (joint ADMG adjustment is unbuilt) so the verifier never silently
-    accepts a latent-confounded joint claim.
+    ADMG scope: a non-empty bidirected context switches leg (ii) to
+    m-separation in the proper back-door graph (the generalized adjustment
+    criterion), independently reimplemented on the verifier's own
+    m-connection helper. Leg (i) stays directed-only (proper causal paths
+    and their descendants are directed). Empty bidirected → bit-identical
+    to the DAG check.
     """
     graph = _require(inputs, "graph", step_index, "joint_backdoor_criterion")
     _assert_same_graph(graph, ctx.graph, step_index, "joint_backdoor_criterion")
@@ -524,12 +547,6 @@ def _rule_joint_backdoor_criterion(
     )
 
     bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
-    if bidir:
-        raise RuleCheckFailed(
-            "joint_backdoor_criterion: bidirected (latent) context is out "
-            "of v1 scope — joint ADMG adjustment is not supported",
-            step_index=step_index, rule="joint_backdoor_criterion",
-        )
 
     if not treatments or y in treatments or y not in graph:
         recomputed = False
@@ -547,9 +564,14 @@ def _rule_joint_backdoor_criterion(
         if leg_i:
             g_pbd = graph.copy()
             g_pbd.remove_edges_from(first_edges)
-            leg_ii = not _verifier_set_d_connected(
-                g_pbd, treatments, y, conditioning,
-            )
+            if bidir:
+                leg_ii = not _verifier_set_m_connected(
+                    g_pbd, bidir, treatments, y, conditioning,
+                )
+            else:
+                leg_ii = not _verifier_set_d_connected(
+                    g_pbd, treatments, y, conditioning,
+                )
             recomputed = leg_ii
         else:
             recomputed = False

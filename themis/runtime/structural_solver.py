@@ -605,6 +605,29 @@ def _set_d_connected(
     return False
 
 
+def _set_m_connected(
+    graph: nx.DiGraph,
+    bidirected: "BidirectedEdgeSet",
+    sources: frozenset[Atom],
+    dst: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """ADMG analogue of :func:`_set_d_connected`: True iff some node in
+    ``sources`` has an open m-path to ``dst`` given ``conditioning`` in the
+    ADMG (directed ``graph`` + ``bidirected`` latent edges). Other source
+    nodes on a path are ordinary intermediate nodes, NOT implicitly
+    conditioned. When ``bidirected`` is empty this reduces to
+    ``_set_d_connected`` (the empty-bidirected invariant of
+    ``is_m_connected``)."""
+    cond = tuple(conditioning)
+    for s in sources:
+        if s == dst:
+            continue
+        if is_m_connected(graph, bidirected, s, dst, cond):
+            return True
+    return False
+
+
 def minimal_adjustment_sets_joint(
     graph: nx.DiGraph,
     treatments: "tuple[Atom, ...] | frozenset[Atom]",
@@ -625,17 +648,23 @@ def minimal_adjustment_sets_joint(
     forbidden region). Returns ``(frozenset(),)`` when ``given`` alone
     already blocks all proper non-causal paths.
 
-    v1 scope: directed DAGs only. ``bidirected`` non-empty raises
-    ``NotImplementedError`` — joint ADMG (latent-confounded) adjustment
-    is a follow-up; the caller falls back / surfaces the limitation.
+    ADMG (latent-confounded) case: when ``bidirected`` is non-empty the
+    proper-non-causal-path blocking check (ii) switches from d-separation
+    to **m-separation** in the proper back-door graph — the generalized
+    (treatment-SET) back-door / adjustment criterion for ADMGs (van der
+    Zander, Liśkiewicz & Textor 2019; Perković et al. 2018, the same
+    complete criterion the section header cites). Condition (i) — the
+    forbidden region — stays directed-only (a proper causal path and its
+    descendants are defined by directed edges; a bidirected edge is a
+    latent common cause, not causal). The empty / ``None`` bidirected case
+    is bit-identical to the directed-only implementation (regression). The
+    criterion is SOUND — any returned ``Z`` makes the joint g-formula
+    Σ_z P(Y|X,Z=z)P(z) equal P(Y|do(X)) — but only covers the
+    adjustment-identifiable subset; latent-confounded joint effects that
+    are ID-identifiable but not adjustment-identifiable (front-door /
+    c-component for sets) return ``()`` and the caller honestly refuses.
     """
     from itertools import combinations
-
-    if bidirected:
-        raise NotImplementedError(
-            "joint adjustment with bidirected (latent) edges is out of "
-            "v1 scope; only directed-DAG joint back-door is supported"
-        )
 
     x_set = frozenset(treatments)
     if not x_set or y in x_set:
@@ -663,8 +692,13 @@ def minimal_adjustment_sets_joint(
     g_pbd = graph.copy()
     g_pbd.remove_edges_from(first_edges)
 
-    def blocks_all(z: frozenset[Atom]) -> bool:
-        return not _set_d_connected(g_pbd, x_set, y, z | given_set)
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
+    if bidir_eff:
+        def blocks_all(z: frozenset[Atom]) -> bool:
+            return not _set_m_connected(g_pbd, bidir_eff, x_set, y, z | given_set)
+    else:
+        def blocks_all(z: frozenset[Atom]) -> bool:
+            return not _set_d_connected(g_pbd, x_set, y, z | given_set)
 
     candidates = [
         n for n in graph.nodes

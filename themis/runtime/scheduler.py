@@ -3072,7 +3072,12 @@ def _dispatch_joint_effect(
     - ``mediator`` / ``target_population`` set together with a joint
       intervention (mediation / transport decompose a single X→Y effect;
       a joint decomposition is a separate, unbuilt operation).
-    - bidirected (latent) edges — joint ADMG adjustment is a follow-up.
+
+    Latent (bidirected) confounding is in scope: the joint adjustment
+    criterion below uses m-separation for ADMGs, so an adjustment-
+    identifiable latent-confounded joint effect is solved. A latent joint
+    effect with no valid adjustment set (front-door / c-component for
+    sets) falls through to the ``not joint_sets`` honest refusal.
     """
     treatments = (x, *extra_atoms)
 
@@ -3114,28 +3119,10 @@ def _dispatch_joint_effect(
             ),
         )
 
-    try:
-        joint_sets = structural_solver.minimal_adjustment_sets_joint(
-            graph, treatments, y_atom,
-            given=observed_atoms, bidirected=bidirected or None,
-        )
-    except NotImplementedError:
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.EFFECT,
-            query_id=stmt.id,
-            missing_information=(
-                MissingItem(
-                    kind=MissingKind.STRUCTURE,
-                    name="joint:bidirected_out_of_scope",
-                    priority=Priority.HIGH,
-                    reason=(
-                        "joint adjustment with bidirected / latent edges is "
-                        "out of v1 scope (directed-DAG joint back-door only)"
-                    ),
-                ),
-            ),
-        )
+    joint_sets = structural_solver.minimal_adjustment_sets_joint(
+        graph, treatments, y_atom,
+        given=observed_atoms, bidirected=bidirected or None,
+    )
 
     if not joint_sets:
         return QueryResult(
