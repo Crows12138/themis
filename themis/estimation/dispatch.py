@@ -178,6 +178,16 @@ def estimate_program(
         random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
 
+    # Numeric end for the deterministic-counterfactual rung: fit a recursive
+    # linear SCM from the DataFrame (per-node OLS) and compute the queried
+    # unit's counterfactual value under the intervention. Purely additive —
+    # attaches a number only when the mechanisms are fittable and the unit is
+    # fully observed; the coefficient-declared structural path stays primary.
+    _estimate_scm_counterfactual_queries(
+        program, identification_output, contract,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
+    )
+
     # Numeric end for the partial-identification layer: when point ID failed
     # and the kernel attached a SYMBOLIC bounds_result, evaluate it on data.
     # Runs after the point-estimate loop so it only ever ADDS numeric fields
@@ -1653,6 +1663,215 @@ def _build_ctf_conjunction_numeric_derivation_dict(*, graph, estimate):
             },
             output=StructuralResult(value=True),
             step_id="s2",
+        ),
+    )
+    return derivation_to_dict(steps)
+
+
+def _pair_scm_counterfactual_queries(prog, output):
+    """Yield (QueryStatement, result_dict) pairs whose query is a
+    SCMCounterfactualQuery. Alignment uses query_id."""
+    from ..types import SCMCounterfactualQuery, QueryStatement
+
+    id_to_stmt = {
+        s.id: s for s in prog.statements
+        if isinstance(s, QueryStatement)
+        and isinstance(s.query, SCMCounterfactualQuery)
+    }
+    for result in output.get("results", []):
+        if result.get("query_kind") != "scm_counterfactual":
+            continue
+        qid = result.get("query_id")
+        yield id_to_stmt.get(qid), result
+
+
+def _scm_observation_unit(prog) -> dict:
+    """The unit's numeric factual values (Pearl's E=e) from the program's
+    ObservationStatements — the same source the structural SCM-counterfactual
+    path reads. Non-numeric observations are skipped (linear SCM = real-valued
+    nodes)."""
+    from ..types import ObservationStatement
+    unit: dict = {}
+    for s in prog.statements:
+        if isinstance(s, ObservationStatement):
+            try:
+                unit[s.atom] = float(s.value)
+            except (TypeError, ValueError):
+                continue
+    return unit
+
+
+def _estimate_scm_counterfactual_queries(
+    program: dict | str | bytes,
+    output: dict,
+    contract: DataContract,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    cluster: str | None = None,
+) -> None:
+    """For each SCM-counterfactual result, attach a data-fitted
+    ``numeric_estimate`` of the unit's counterfactual value: fit each linear
+    structural equation from the DataFrame (per-node OLS on graph parents),
+    abduct the unit's exogenous terms from its ObservationStatements, and
+    predict under the intervention. Mutates ``output`` in place.
+
+    Purely additive — the structural path (which needs the coefficients
+    DECLARED on the edges) stays primary; this attaches a number only when
+    the mechanisms are fittable from data and the unit is fully observed. On
+    any refusal it touches nothing."""
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
+
+    ast = _ensure_dict(program)
+    ast = validate_ast(ast)
+    prog = validate_program(ast)
+    graph = project(instantiate(prog))
+    observed_unit = _scm_observation_unit(prog)
+
+    for q_stmt, result in _pair_scm_counterfactual_queries(prog, output):
+        if q_stmt is None:
+            continue
+        _try_scm_counterfactual_estimate(
+            q_stmt, result, contract, graph, observed_unit,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+
+
+def _try_scm_counterfactual_estimate(
+    q_stmt, result: dict, contract, graph, observed_unit, *,
+    random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
+) -> bool:
+    """Fit a recursive linear SCM from data and compute the queried unit's
+    counterfactual point (the data end of the abduction-action-prediction
+    structural path). Returns True only when it ATTACHES a numeric estimate;
+    on any refusal (query atoms missing, unit under-observed, rank-deficient
+    fit, or the data can't support the fit) it returns False and touches
+    nothing, so the structural result stays primary."""
+    from .dose_response import EstimatorFailure
+    from .scm_counterfactual import estimate_scm_counterfactual_point
+
+    q = q_stmt.query
+    x_atom = q.intervention.atom
+    y_atom = q.target
+
+    try:
+        estimate = estimate_scm_counterfactual_point(
+            contract.data, graph=graph, observed_unit=observed_unit,
+            intervention_atom=x_atom, intervention_value=float(q.intervention.value),
+            target_atom=y_atom, ci_bootstrap=ci_bootstrap,
+            random_state=random_state,
+            cluster=cluster if (
+                cluster is None or cluster in contract.data.columns
+            ) else None,
+        )
+    except (EstimatorFailure, ValueError, NotImplementedError):
+        return False
+
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "target": estimate.target,
+        "intervention_var": estimate.intervention_var,
+        "intervention_value": estimate.intervention_value,
+        # Verifier substrate: the per-node OLS moment matrices to re-solve and
+        # the unit's observed values to re-run abduction-action-prediction.
+        "node_fits": [
+            {
+                "node": f.node,
+                "parents": list(f.parents),
+                "coefficients": list(f.coefficients),
+                "xtx": [list(row) for row in f.xtx],
+                "xty": list(f.xty),
+            }
+            for f in estimate.node_fits
+        ],
+        "observed_unit": [[p, v] for p, v in estimate.observed_unit],
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=estimate.target,
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+    # Human display copy (parity with the structural path's extension): the
+    # counterfactual value + the abducted noise + post-intervention values.
+    # Display-only — the verifier's authority is numeric_estimate; kernel.verify
+    # cross-checks target_value == numeric_estimate.point so this cannot drift.
+    ext["scm_counterfactual"] = {
+        "target": estimate.target,
+        "target_value": estimate.point,
+        "intervention": {
+            "variable": estimate.intervention_var,
+            "value": estimate.intervention_value,
+        },
+        "abducted_noise": {a: v for a, v in estimate.abducted_noise},
+        "counterfactual_values": {a: v for a, v in estimate.counterfactual_values},
+        "estimated_from_data": True,
+        "reference": (
+            "Pearl, Glymour & Jewell (2016) Primer §4.2 "
+            "abduction-action-prediction; coefficients fitted by per-node OLS"
+        ),
+    }
+
+    result["derivation"] = _build_scm_counterfactual_numeric_derivation_dict(
+        x=x_atom, y=y_atom, estimate=estimate,
+    )
+    _finalise_numeric_result(result)
+    return True
+
+
+def _build_scm_counterfactual_numeric_derivation_dict(*, x, y, estimate):
+    """Single-step derivation for a data-fitted SCM counterfactual:
+
+        s1: numeric_scm_counterfactual_estimate (metadata audit — the strong
+            re-solve of the OLS moments + re-run abduction-action-prediction
+            lives in kernel.verify's verify_scm_counterfactual_numeric, since
+            the moment matrices don't fit derivation-input serialization).
+    """
+    from ..types import DerivationStep, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="numeric_scm_counterfactual_estimate",
+            inputs={
+                "target": y,
+                "intervention_var": x,
+                "intervention_value": estimate.intervention_value,
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "point": estimate.point,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
+                "ci_level": estimate.ci_level,
+            },
+            output=StructuralResult(value=True),
+            step_id="s1",
         ),
     )
     return derivation_to_dict(steps)

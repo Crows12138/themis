@@ -3376,6 +3376,203 @@ def verify_scm_counterfactual(
         )
 
 
+_SCM_FIT_TOL = 1e-6
+
+
+def verify_scm_counterfactual_numeric(
+    derivation: tuple[DerivationStep, ...],
+    context: VerificationContext,
+    claimed_result,
+    num_est: dict,
+) -> None:
+    """Verify a DATA-fitted linear-SCM counterfactual (``themis.estimate``).
+
+    Two independent layers:
+
+    1. Walk the single ``numeric_scm_counterfactual_estimate`` terminal
+       (metadata audit + query binding), pin the terminal, and check its
+       output equals the claimed ``StructuralResult``.
+    2. STRONG re-derivation from the recorded sufficient statistics: for every
+       relevant node re-solve its OLS ``β=(XᵀX)⁻¹Xᵀy`` from the recorded moment
+       matrices, confirm the parent set matches ``ctx.graph`` and the re-solved
+       slopes match the recorded coefficients, then re-run Pearl's
+       abduction–action–prediction from the re-solved slopes + the recorded
+       unit and confirm the counterfactual point. Deliberately does NOT import
+       the estimator or ``runtime.scm_counterfactual`` — the verifier carries
+       the arithmetic; only the moment matrices (anchored by ``data_hash``) and
+       the unit are taken on trust (the data-refit ceiling).
+    """
+    if not isinstance(context.query, SCMCounterfactualQuery):
+        raise VerificationError(
+            "verify_scm_counterfactual_numeric requires a SCMCounterfactualQuery",
+            step_index=None, rule=None,
+        )
+    _walk(derivation, context, _assert_scm_query_binding)
+    if derivation[-1].rule != "numeric_scm_counterfactual_estimate":
+        raise VerificationError(
+            "scm_counterfactual numeric derivation must end in "
+            "'numeric_scm_counterfactual_estimate'",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    if derivation[-1].output != claimed_result:
+        raise VerificationError(
+            "last derivation step output does not equal claimed result",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    _recheck_scm_counterfactual_fit(context, num_est)
+
+
+def _recheck_scm_counterfactual_fit(
+    context: VerificationContext, num_est: dict,
+) -> None:
+    """Independent re-solve of the OLS moments + re-run of abduction-action-
+    prediction. Raises VerificationError on any mismatch."""
+    import numpy as np
+    import networkx as nx
+
+    graph = context.graph
+    q = context.query
+    x_atom = q.intervention.atom
+    y_atom = q.target
+    if x_atom not in graph or y_atom not in graph:
+        raise VerificationError(
+            "scm_counterfactual numeric: query atoms not in graph",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+
+    # Relevant set + topo, independently from the graph (mirrors the estimator).
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(graph.in_edges(x_atom)))
+    relevant = set(nx.ancestors(mutilated, y_atom)) | {y_atom}
+    fit_nodes = [v for v in relevant if v != x_atom]
+
+    name_to_atom: dict[str, object] = {}
+    for a in relevant:
+        if a.predicate in name_to_atom:
+            raise VerificationError(
+                "scm_counterfactual numeric: ambiguous predicate in relevant set",
+                step_index=None, rule="numeric_scm_counterfactual_estimate",
+            )
+        name_to_atom[a.predicate] = a
+
+    node_fits = num_est.get("node_fits")
+    if not isinstance(node_fits, list):
+        raise VerificationError(
+            "scm_counterfactual numeric: node_fits must be a list",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+    fits_by_node = {f.get("node"): f for f in node_fits}
+    if set(fits_by_node) != {v.predicate for v in fit_nodes}:
+        raise VerificationError(
+            "scm_counterfactual numeric: recorded fits do not match the "
+            "graph-derived relevant node set",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+
+    equations: dict = {}
+    for v in fit_nodes:
+        f = fits_by_node[v.predicate]
+        parents = f.get("parents")
+        recorded_coef = f.get("coefficients")
+        if not isinstance(parents, list) or not isinstance(recorded_coef, list):
+            raise VerificationError(
+                "scm_counterfactual numeric: parents / coefficients malformed",
+                step_index=None, rule="numeric_scm_counterfactual_estimate",
+            )
+        # Parent SET must match the graph independently.
+        if set(parents) != {p.predicate for p in graph.predecessors(v)}:
+            raise VerificationError(
+                f"scm_counterfactual numeric: recorded parents for {v.predicate!r} "
+                f"do not match the graph",
+                step_index=None, rule="numeric_scm_counterfactual_estimate",
+            )
+        k = len(parents)
+        xtx = np.array(f.get("xtx"), dtype=float)
+        xty = np.array(f.get("xty"), dtype=float)
+        if xtx.shape != (k + 1, k + 1) or xty.shape != (k + 1,) \
+                or len(recorded_coef) != k:
+            raise VerificationError(
+                "scm_counterfactual numeric: moment-matrix shapes inconsistent "
+                f"with parent count for {v.predicate!r}",
+                step_index=None, rule="numeric_scm_counterfactual_estimate",
+            )
+        try:
+            beta = np.linalg.solve(xtx, xty)
+        except np.linalg.LinAlgError:
+            raise VerificationError(
+                f"scm_counterfactual numeric: recorded XtX for {v.predicate!r} is "
+                f"singular — slopes are not re-solvable",
+                step_index=None, rule="numeric_scm_counterfactual_estimate",
+            )
+        slopes = [float(b) for b in beta[1:]]
+        for got, claimed in zip(slopes, recorded_coef):
+            if abs(got - float(claimed)) > _SCM_FIT_TOL:
+                raise VerificationError(
+                    f"scm_counterfactual numeric: re-solved OLS slope for "
+                    f"{v.predicate!r} ({got}) != recorded coefficient ({claimed})",
+                    step_index=None, rule="numeric_scm_counterfactual_estimate",
+                )
+        # Build the equation from the verifier's OWN re-solved slopes.
+        equations[v] = tuple(
+            (name_to_atom[p], s) for p, s in zip(parents, slopes)
+        )
+
+    # The unit's observed values (relevant set must be fully covered).
+    observed_raw = num_est.get("observed_unit")
+    if not isinstance(observed_raw, list):
+        raise VerificationError(
+            "scm_counterfactual numeric: observed_unit must be a list",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+    observed: dict = {}
+    for pair in observed_raw:
+        name, val = pair[0], pair[1]
+        if name not in name_to_atom:
+            raise VerificationError(
+                f"scm_counterfactual numeric: observed_unit names a non-relevant "
+                f"variable {name!r}",
+                step_index=None, rule="numeric_scm_counterfactual_estimate",
+            )
+        observed[name_to_atom[name]] = float(val)
+    for v in relevant:
+        if v not in observed:
+            raise VerificationError(
+                f"scm_counterfactual numeric: unit missing relevant variable "
+                f"{v.predicate!r}",
+                step_index=None, rule="numeric_scm_counterfactual_estimate",
+            )
+
+    iv_val = float(num_est.get("intervention_value"))
+    if abs(iv_val - float(q.intervention.value)) > _SCM_FIT_TOL:
+        raise VerificationError(
+            "scm_counterfactual numeric: intervention_value does not match the query",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+
+    # (i) Abduction — intercept absorbed into each recovered exogenous term.
+    noise = {
+        v: observed[v] - sum(coef * observed[p] for p, coef in terms)
+        for v, terms in equations.items()
+    }
+    # (ii) Action + (iii) Prediction.
+    topo = [n for n in nx.topological_sort(graph) if n in relevant]
+    cf: dict = {}
+    for v in topo:
+        if v == x_atom:
+            cf[v] = iv_val
+        else:
+            cf[v] = noise[v] + sum(coef * cf[p] for p, coef in equations[v])
+    expected = cf[y_atom]
+
+    point = num_est.get("point")
+    if point is None or abs(float(point) - expected) > _SCM_FIT_TOL:
+        raise VerificationError(
+            f"scm_counterfactual numeric: recorded point {point} != independently "
+            f"recomputed {expected}",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+
+
 def _assert_ctf_query_binding(
     step: DerivationStep,
     context: VerificationContext,

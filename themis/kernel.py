@@ -104,6 +104,7 @@ from .verifier import (
     verify_mediation_numeric,
     verify_regression_calibration_numeric,
     verify_scm_counterfactual,
+    verify_scm_counterfactual_numeric,
     verify_effect_structural,
     verify_identify,
     verify_numeric,
@@ -744,6 +745,26 @@ def _verify_causation_extensions_match(result: dict, derivation) -> None:
             _fail()
 
 
+def _verify_scm_counterfactual_extensions_match(result: dict) -> None:
+    """The data path's ``extensions.scm_counterfactual`` display copy carries a
+    ``target_value`` (the counterfactual value a reader sees). It must equal the
+    audited ``numeric_estimate.point`` — otherwise a tamper of the display copy
+    alone would slip past ``verify_scm_counterfactual_numeric`` (which audits the
+    numeric_estimate, not the extension). Skips quietly when absent."""
+    ext = (result.get("extensions") or {}).get("scm_counterfactual")
+    if ext is None:
+        return
+    num_est = result.get("numeric_estimate") or {}
+    point = num_est.get("point")
+    tv = ext.get("target_value")
+    if point is None or tv is None or abs(float(tv) - float(point)) > 1e-9:
+        raise VerificationError(
+            "extensions.scm_counterfactual.target_value does not match the "
+            "audited numeric_estimate.point (display copy diverges)",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+
+
 def _verify_causation_numeric_extensions_match(result: dict, derivation) -> None:
     """Numeric analogue of ``_verify_causation_extensions_match``.
 
@@ -1052,12 +1073,31 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # audited, so a tamper of the display copy alone cannot pass.
             _verify_causation_extensions_match(result, derivation)
     elif kind == "scm_counterfactual":
-        if "numeric_result" not in result:
-            raise ValueError(
-                "verify(): scm_counterfactual result must carry a numeric_result"
-            )
-        claimed = _decode_numeric_result_json(result["numeric_result"])
-        verify_scm_counterfactual(derivation, ctx, claimed)
+        if (
+            result.get("status") == "numerically_solved"
+            and "numeric_estimate" in result
+        ):
+            # Data path (themis.estimate): the linear SCM's coefficients were
+            # FITTED from a DataFrame (per-node OLS) rather than declared on the
+            # edges, then abduction-action-prediction for the unit. The single
+            # numeric_scm_counterfactual_estimate terminal is a metadata audit;
+            # the point + fitted coefficients are re-derived here from the
+            # recorded per-node moment matrices + observed unit (which don't fit
+            # derivation-input serialization).
+            claimed = _decode_structural_result_json(result["structural_result"])
+            num_est = result.get("numeric_estimate")
+            verify_scm_counterfactual_numeric(derivation, ctx, claimed, num_est)
+            # The extensions.scm_counterfactual display copy (the counterfactual
+            # value a reader sees) must agree with the audited numeric point, so
+            # a tamper of the display copy alone cannot pass.
+            _verify_scm_counterfactual_extensions_match(result)
+        else:
+            if "numeric_result" not in result:
+                raise ValueError(
+                    "verify(): scm_counterfactual result must carry a numeric_result"
+                )
+            claimed = _decode_numeric_result_json(result["numeric_result"])
+            verify_scm_counterfactual(derivation, ctx, claimed)
     elif kind == "counterfactual_conjunction":
         claimed = _decode_structural_result_json(result["structural_result"])
         if (

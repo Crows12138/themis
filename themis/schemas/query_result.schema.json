@@ -496,8 +496,21 @@
             "required": ["method"],
             "properties": { "method": { "const": "ctf_conjunction_plugin" } }
           },
-          "then": { "required": ["conditional", "estimand"] },
-          "else": { "required": ["treatment", "outcome"] }
+          "then": { "required": ["conditional", "estimand"] }
+        },
+        {
+          "if": {
+            "required": ["method"],
+            "properties": { "method": { "const": "scm_counterfactual_linear_fit" } }
+          },
+          "then": { "required": ["target", "intervention_var", "intervention_value", "node_fits", "observed_unit"] }
+        },
+        {
+          "if": {
+            "required": ["method"],
+            "properties": { "method": { "not": { "enum": ["ctf_conjunction_plugin", "scm_counterfactual_linear_fit"] } } }
+          },
+          "then": { "required": ["treatment", "outcome"] }
         }
       ],
       "additionalProperties": false,
@@ -527,6 +540,7 @@
             "ctf_conjunction_plugin",
             "proximal_matrix",
             "causation_plugin",
+            "scm_counterfactual_linear_fit",
             "selection_backdoor_recovery",
             "measurement_error_correction",
             "exposure_measurement_error_correction",
@@ -851,6 +865,30 @@
           "type": "array",
           "description": "Joint interventions: the full treatment vector {A, B, ...} intervened on simultaneously. Present for joint_backdoor_* methods and joint_general_id_plugin.",
           "items": { "type": "string" }
+        },
+        "target": { "type": "string", "description": "scm_counterfactual_linear_fit only: the counterfactual target variable Y whose value under the intervention is computed for the unit." },
+        "intervention_var": { "type": "string", "description": "scm_counterfactual_linear_fit only: the intervened variable X in do(X=value)." },
+        "intervention_value": { "type": "number", "description": "scm_counterfactual_linear_fit only: the value x the intervention pins X to." },
+        "node_fits": {
+          "type": "array",
+          "description": "scm_counterfactual_linear_fit only: the per-node fitted linear structural equations + the OLS moment matrices verify_scm_counterfactual_numeric independently re-solves. One entry per relevant endogenous node (the intervened variable excluded). xtx / xty are the augmented normal-equation moments over the design [1, parents].",
+          "items": {
+            "type": "object",
+            "required": ["node", "parents", "coefficients", "xtx", "xty"],
+            "additionalProperties": false,
+            "properties": {
+              "node": { "type": "string" },
+              "parents": { "type": "array", "items": { "type": "string" } },
+              "coefficients": { "type": "array", "items": { "type": "number" } },
+              "xtx": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+              "xty": { "type": "array", "items": { "type": "number" } }
+            }
+          }
+        },
+        "observed_unit": {
+          "type": "array",
+          "description": "scm_counterfactual_linear_fit only: the unit's factual values (Pearl's E=e) over the relevant set as [variable, value] pairs, in topological order — the abduction input.",
+          "items": { "type": "array", "minItems": 2, "maxItems": 2 }
         },
         "joint_effect": {
           "type": "object",

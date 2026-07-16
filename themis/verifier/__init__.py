@@ -16,6 +16,9 @@ Public surface (re-exports from sub-modules):
   ``verify_scm_counterfactual`` (linear-SCM point, Pearl Primer §4.2 —
   independently re-runs abduction-action-prediction from the edge
   coefficients + the unit's observations) /
+  ``verify_scm_counterfactual_numeric`` (the DATA end: re-solves each
+  node's OLS from the recorded moment matrices and re-runs abduction-
+  action-prediction from the fitted slopes + the unit) /
   ``verify_counterfactual_conjunction`` (general counterfactual
   identification, Shpitser-Pearl ID* R-336 — pins the id_star terminal
   rule and runs an independent Monte-Carlo semantic probe: samples SCMs
@@ -188,6 +191,7 @@ from .verify import (
     verify_proximal_numeric,
     verify_regression_calibration_numeric,
     verify_scm_counterfactual,
+    verify_scm_counterfactual_numeric,
     verify_selection_recovery,
 )
 from .bounds_rules import (
@@ -240,6 +244,7 @@ __all__ = [
     "verify_proximal_numeric",
     "verify_regression_calibration_numeric",
     "verify_scm_counterfactual",
+    "verify_scm_counterfactual_numeric",
     "verify_selection_recovery",
     "verify_selection_recovery_numeric",
     "verify_type_reconciliation",

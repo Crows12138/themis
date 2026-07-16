@@ -3553,6 +3553,104 @@ def _rule_numeric_general_id_estimate(
         )
 
 
+def _rule_numeric_scm_counterfactual_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Metadata audit for a data-fitted linear-SCM counterfactual estimate.
+
+    Method enum + data_hash + sample_size + CI bracket checks, and binds the
+    intervention / target to the QUERY (not a producer input, so a mislabelled
+    terminal is caught). The STRONG re-derivation — re-solving each node's OLS
+    from the recorded moment matrices and re-running abduction-action-
+    prediction — is prohibitively shaped for derivation-input serialization
+    (nested matrices), so it lives in ``verify_scm_counterfactual_numeric``
+    (kernel.verify calls it on the numeric_estimate directly), mirroring the
+    iv_2sls_overid / regression_calibration split."""
+    rule = "numeric_scm_counterfactual_estimate"
+    q = getattr(ctx, "query", None)
+    if not isinstance(q, SCMCounterfactualQuery):
+        raise RuleCheckFailed(
+            f"{rule} requires a SCMCounterfactualQuery context",
+            step_index=step_index, rule=rule,
+        )
+    target = _require_atom(inputs, "target", step_index, rule)
+    intervention_var = _require_atom(inputs, "intervention_var", step_index, rule)
+    # Bind to the QUERY, never trust the producer's claimed atoms.
+    if target != q.target or intervention_var != q.intervention.atom:
+        raise RuleCheckFailed(
+            f"{rule}: target / intervention_var must match the query",
+            step_index=step_index, rule=rule,
+        )
+    if target not in ctx.graph or intervention_var not in ctx.graph:
+        raise RuleCheckFailed(
+            f"{rule}: query atoms are not in the graph",
+            step_index=step_index, rule=rule,
+        )
+    if target == intervention_var:
+        raise RuleCheckFailed(
+            f"{rule}: target and intervention must differ",
+            step_index=step_index, rule=rule,
+        )
+
+    method = inputs.get("method")
+    if method != "scm_counterfactual_linear_fit":
+        raise RuleCheckFailed(
+            f"{rule}.method must be 'scm_counterfactual_linear_fit'; got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    data_hash = inputs.get("data_hash")
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN \
+            or not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be a {_SHA256_HEX_LEN}-char lowercase SHA-256 hex",
+            step_index=step_index, rule=rule,
+        )
+    sample_size = inputs.get("sample_size")
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.sample_size must be an int >= {_MIN_NUMERIC_SAMPLE_SIZE}; "
+            f"got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+    point = inputs.get("point")
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        raise RuleCheckFailed(
+            f"{rule}.point must be a number; got {point!r}",
+            step_index=step_index, rule=rule,
+        )
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    if (ci_lower is None) != (ci_upper is None):
+        raise RuleCheckFailed(
+            f"{rule}: ci_lower and ci_upper must both be present or both absent",
+            step_index=step_index, rule=rule,
+        )
+    if ci_lower is not None:
+        if not (ci_lower <= point <= ci_upper):
+            raise RuleCheckFailed(
+                f"{rule}: point {point} outside [{ci_lower}, {ci_upper}]",
+                step_index=step_index, rule=rule,
+            )
+        ci_level = inputs.get("ci_level")
+        if not isinstance(ci_level, (int, float)) or not (0 < ci_level < 1):
+            raise RuleCheckFailed(
+                f"{rule}.ci_level must be in (0, 1); got {ci_level!r}",
+                step_index=step_index, rule=rule,
+            )
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"{rule} output must be a StructuralResult(value=True)",
+            step_index=step_index, rule=rule,
+        )
+
+
 def _rule_numeric_ctf_conjunction_estimate(
     ctx: VerificationContext,
     inputs: dict,
@@ -7516,6 +7614,10 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "numeric_causation_estimate": _rule_numeric_causation_estimate,
     # Linear-SCM counterfactual point (Pearl Primer §4.2)
     "scm_abduction_action_prediction": _rule_scm_abduction_action_prediction,
+    # Data-fitted linear-SCM counterfactual — metadata terminal; the strong
+    # re-solve (OLS moments) + abduction-action-prediction re-run lives in
+    # verify_scm_counterfactual_numeric (kernel.verify).
+    "numeric_scm_counterfactual_estimate": _rule_numeric_scm_counterfactual_estimate,
     # General counterfactual identification (Shpitser-Pearl ID*, R-336) —
     # structural licence for a counterfactual-conjunction estimand.
     "id_star_identification": _rule_id_star_identification,
