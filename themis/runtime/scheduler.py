@@ -3545,7 +3545,14 @@ def _dispatch_effect(
             tian = _c_factor.identify_via_tian(
                 graph, bidirected, x, y_atom, q.intervention.value,
             )
-            if tian.identifiable:
+            # UNCONDITIONAL do(X) only. identify_via_tian ignores the
+            # conditioning atoms, so for a CONDITIONAL query (given non-empty)
+            # its formula is the MARGINAL P(Y|do(X)) — shipping it would
+            # silently drop `given` and label the marginal solved (it can differ
+            # sharply from the true conditional when `given` modifies the
+            # effect). A conditional general-ID (IDC) numeric end is deferred, so
+            # refuse below rather than ship the marginal in its place.
+            if tian.identifiable and not observed_atoms:
                 # Bind q.target.value into the Tian formula's outer Y
                 # ProbRefs (c_factor leaves them None for the
                 # IdentifyQuery caller). Without this, the evaluator
@@ -3598,6 +3605,32 @@ def _dispatch_effect(
                     stmt, bound_formula, theta, QueryKind.EFFECT,
                     structural_prefix=structural_prefix,
                     graph=graph, bidirected=bidirected,
+                )
+
+            # A conditional query whose UNCONDITIONAL margin IS Tian-identifiable
+            # is (very likely) IDC-identifiable too, but the conditional numeric
+            # end is deferred — say so, and mark it structurally identifiable so
+            # the marginal is understood to be withheld, not unavailable.
+            if tian.identifiable and observed_atoms:
+                return QueryResult(
+                    status=ResultStatus.NEEDS_INVESTIGATION,
+                    query_kind=QueryKind.EFFECT,
+                    query_id=stmt.id,
+                    missing_information=(
+                        MissingItem(
+                            kind=MissingKind.STRUCTURE,
+                            name="query:effect_admg_conditional",
+                            priority=Priority.HIGH,
+                            reason=(
+                                "conditional general-ID (IDC) effect: do(X) is "
+                                "Tian-identifiable but the query conditions on a "
+                                "given context, and the conditional (IDC) numeric "
+                                "end is not yet supported. The marginal P(Y|do(X)) "
+                                "is withheld rather than shipped in place of the "
+                                "conditional P(Y|do(X), given)."
+                            ),
+                        ),
+                    ),
                 )
 
             return QueryResult(

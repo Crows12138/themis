@@ -16,6 +16,7 @@ will activate transparently when a real Tian-only case surfaces.
 from __future__ import annotations
 
 import networkx as nx
+import pytest
 
 import themis
 from themis.runtime.formula_builder import bind_target_value
@@ -142,6 +143,79 @@ def test_hedge_admg_effect_stays_needs_investigation():
     out = themis.run(_hedge_program())
     r = out["results"][0]
     assert r["status"] == "needs_investigation"
+
+
+# ---------------------------------------------------------------------------
+# Conditional ADMG effect must not ship the MARGINAL (stop-the-bleed).
+# ---------------------------------------------------------------------------
+
+
+def _p(tp, tv, given, val):
+    def atom(p): return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+    return {"kind": "probability",
+            "target": {"atom": atom(tp), "value": tv},
+            "given": [{"atom": atom(g), "value": v} for g, v in given],
+            "value": val}
+
+
+def _frontdoor_modifier_program(given) -> dict:
+    """Front-door ADMG X→M→Y with X↔Y latent + an effect-modifier C→Y (a c*m
+    interaction so the conditional effect differs from the marginal). do(X) is
+    front-door / Tian identifiable; the CONDITIONAL query P(Y|do(X), C=c) is NOT
+    the marginal. Full theta supplied so the marginal query is numerically
+    solvable — isolating the conditional's behavior."""
+    def atom(p): return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+    st = [
+        {"kind": "variable", "predicate": "x", "domain": [True, False]},
+        {"kind": "variable", "predicate": "c", "domain": [True, False]},
+        {"kind": "variable", "predicate": "m", "domain": [True, False]},
+        {"kind": "variable", "predicate": "y", "domain": [True, False]},
+        {"kind": "cause", "from": atom("x"), "to": atom("m")},
+        {"kind": "cause", "from": atom("m"), "to": atom("y")},
+        {"kind": "cause", "from": atom("c"), "to": atom("y")},
+        {"kind": "bidirected", "left": atom("x"), "right": atom("y")},
+        _p("x", True, [], 0.5), _p("x", False, [], 0.5),
+        _p("c", True, [], 0.5), _p("c", False, [], 0.5),
+    ]
+    pm = {(True, True): 0.8, (False, True): 0.2, (True, False): 0.3, (False, False): 0.7}
+    for xv in (True, False):
+        for mv in (True, False):
+            st.append(_p("m", mv, [("x", xv)], pm[(mv, xv)]))
+    for cv in (True, False):
+        for mv in (True, False):
+            for xv in (True, False):
+                pr = 0.1 + 0.3 * mv + 0.2 * (mv and cv) + 0.1 * cv
+                st.append(_p("y", True, [("c", cv), ("m", mv), ("x", xv)], pr))
+                st.append(_p("y", False, [("c", cv), ("m", mv), ("x", xv)], 1 - pr))
+    st.append({"kind": "query", "id": "q", "query": {
+        "kind": "effect",
+        "intervention": {"atom": atom("x"), "value": True},
+        "target": {"atom": atom("y"), "value": True},
+        "given": [{"atom": atom(g), "value": v} for g, v in given]}})
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "me"}]},
+            "statements": st}
+
+
+def test_conditional_admg_effect_refuses_instead_of_shipping_marginal():
+    """A conditional effect query on an ADMG whose UNCONDITIONAL margin is
+    front-door / Tian identifiable must NOT ship the marginal (which silently
+    drops `given` — it can differ sharply from the true conditional). It refuses
+    with the conditional marker instead."""
+    r = themis.run(_frontdoor_modifier_program([("c", True)]))["results"][0]
+    assert r["status"] == "needs_investigation"
+    assert r.get("numeric_result") is None
+    names = [m.get("name") for m in r.get("missing_information", [])]
+    assert "query:effect_admg_conditional" in names
+
+
+def test_marginal_admg_effect_still_solves_alongside():
+    """Control: the UNCONDITIONAL margin of the same program still solves — the
+    refusal is specific to the conditional, not a blanket break of the Tian /
+    front-door numeric path."""
+    r = themis.run(_frontdoor_modifier_program([]))["results"][0]
+    assert r["status"] == "numerically_solved"
+    assert r["numeric_result"]["value"] == pytest.approx(0.47, abs=1e-9)
 
 
 # ---------------------------------------------------------------------------
