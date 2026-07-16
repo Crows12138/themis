@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3034 passed / 144 skipped, warning-clean
+3044 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -395,6 +395,24 @@ PD 检验**（多列时逐列 λ>0 必要不充分）。dispatch 收集非暴露
 =连续误测变量（暴露和/或混杂）·经典加性·线性·已知固定 σ²_u；误测结局、Berkson/差异、非线性
 SIMEX 仍推迟。D1=潜混杂 SCM 恢复真 0.50 vs 残差混淆朴素 0.835·矩量方程残差交叉核·组合 X+Z 恢复
 ·四守卫·验证器拒伪造点/篡改 σ²_uz。+11→**3034**。
+
+**协变量差异误分类（differential_by，2026-07-16 续）**：差异误分类此前的差异轴**硬编码为暴露臂**
+（`Minv_by_arm`，detection bias）；混淆矩阵**随协变量分层而异**（如误分类率随测量地点/年龄）无
+校正通道，line 74-75 明写推迟。探针坐实是**静默错误答案**且暴露一枚潜藏 bug：站点 z∈{0,1} 与暴露臂
+bool{False,True} **碰撞**→`differential_levels_mismatch` 守卫不触发→把逐站点矩阵 [M0,M1] **静默误读
+为逐臂**（M0→control、M1→treated），真 ATE 0.2004 发成 **0.2613（高估 30%）**、标 numerically_solved
+无 error。泛化=把差异轴从"永远是暴露臂"推广到**任意命名变量**（新 `differential_by` 字段），与上一档
+RC 的 E-列泛化同构：`differential_by=<协变量>` 时 `_formula` 在每个后门层按该协变量取值选矩阵
+`Minv_by_level[_level_key(z 中该列值)]`（暴露臂路径 byte-identical 保持，走 `Minv_by_arm`）。混杂-only
+时暴露可非二值。守卫：`differential_by_unknown`（非暴露非调整协变量）、`differential_level_uncovered`
+（某观测层无矩阵）。**踩坑：数据契约把二值协变量转 np.bool_，`_level_key` 的 isinstance(v,bool) 不认
+numpy bool→键 ("s","False") 漏配 ("n",0.0)，须先 `_py()` 归一**（老 bool-coercion 坑复现）。
+`verify_measurement_correction_numeric` 加协变量分支：从记录的 `confusion_matrices_by_level`（名→矩阵）
+按 adjustment_vars 定位 differential_by 索引、逐层从 z 取该协变量值选矩阵**第二次独立重求逆**，拒伪造点/
+篡改层矩阵/differential_by 不符/层未覆盖。取舍（声明）=仅**结局侧**协变量差异；暴露侧（recall）协变量
+差异、臂×协变量联合差异、多值暴露仍推迟。D1=逐站点 SCM 恢复真 0.200 vs 池化单矩阵 0.259（RD 随站点
+异故池化 mis-weight，恒定 RD 下会抵消）·naive 0.16·e2e flip·verify 拒伪造点/篡改层矩阵/differential_by
+翻转。+10→**3044**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

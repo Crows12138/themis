@@ -129,7 +129,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 - 连续误测（regression calibration）：测量误差校正此前全是**离散**（混淆矩阵求逆），连续误测在 `measurement.py`/`response_rendering.md`/`__init__.py` **三处**明写推迟、留给 `measurement_error_concern` gap 让用户自己做。缺口是"静默错误答案"：连续暴露被经典加性误差污染（观测 W=X*+U），今天最好的做法（W 上的后门 OLS 斜率）把真值 0.8 的每单位因果斜率发成 **0.398（衰减 ~50%）**还标 numerically_solved，且**无任何校正通道**（`misclassification=` 只吃离散矩阵）。补 **regression calibration 精确矩量校正**（Carroll 2006）：经典误差只抬高设计协方差中 W 的方差（Σ_WZ=Σ_{X*Z}+E，E=diag(σ²_u,0,…)），Cov((W,Z),Y) 不变，故真实系数=朴素系数的精确校正 **β_true=(Σ_WZ−E)⁻¹Σ_WZ·b_naive**——离散 M⁻¹ 的连续对应；单暴露即 **βx=b_naive/λ**，λ=1−σ²_u/Var(W|Z) 是**连续版 det(M)**。接口=新 kwarg `measurement_error={暴露名:{error_variance:σ²_u}}`（与 `misclassification=` 平行的载荷性外部输入），暴露侧；结局/组合连续误测**诚实拒绝**非静默忽略。守卫：σ²_u≤0、σ²_u≥Var(W|Z)（退化可靠比）、近离散暴露（指向混淆矩阵法）、奇异设计，全 refuse 不吐衰减朴素点。`verify_regression_calibration_numeric` 从记录的设计协方差+σ²_u **第二次独立**重解 b/β/λ，拒伪造点/naive/reliability、非对称协方差、退化 σ²_u 出点、斜率与协方差不符；derivation 复用既有终端、kernel 按 method 触发（**MCP 数不变**）。仅连续暴露·经典加性误差·**线性**结局·已知固定 σ²_u·数值协变量；Berkson/差异误差·误测结局或协变量·非线性结局（SIMEX）推迟。D1 双 oracle：矩阵形式 0.7982==可靠比 b_naive/λ 0.7982（逐位）·恢复真斜率 0.80 vs 朴素 0.40·五类篡改被拒
 - 连续误测扩到误测协变量/混杂：上一条 regression calibration 把误差矩阵 E 硬编码在**暴露列**（E=diag(σ²_u,0,…)），误测**混杂**没有校正通道——又是"静默错误答案"：真混杂 z→x、z→y，只观测噪声代理 W_z=z+U_z，对 W_z 做后门调整留下**残差混淆**→朴素斜率 0.835（真 0.5，高估 67% 且**偏离零方向**，与暴露衰减朝零相反）、标 numerically_solved、`measurement_error={z:…}` 被静默忽略。泛化=把 E 从"暴露列"推广到**设计矩阵任意列**：同一条 `β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive`，E=diag(σ²_u 放在被误测列)。`error_variance` 参数多态（float=暴露 sugar / dict={变量名:σ²_u}），暴露+混杂组合=E 多个对角非零。**误测混杂无标量可靠比捷径**（矩阵求逆必需），每列各报 λ_v=1−σ²_uv/Var(V|rest)；退化守卫升级为 **Σ_obs−E 的 Cholesky 正定检验**（多列时逐列 λ>0 必要不充分）。dispatch 优先选含全部命名混杂的后门集，命名变量不在设计中→`mismeasured_covariate_not_in_adjustment` 诚实拒绝。`verify_regression_calibration_numeric` 从记录的 `error_variances`（名→σ²_uv）按 design_vars 索引**重建 E**（关键：否则用 E=0 重导朴素 β 会误拒诚实校正点），去掉"暴露 σ²_u>0"要求（改为 Σe>0）、校标量 error_variance==暴露对角、逐列 λ 交叉核对。仅连续误测变量（暴露和/或混杂）·经典加性·线性·已知固定 σ²_u；误测**结局**、Berkson/差异、非线性 SIMEX 仍推迟。D1=潜混杂 SCM 恢复真 0.50 vs 残差混淆朴素 0.835·矩量方程残差交叉核·组合 X+Z 恢复·验证器拒伪造点/篡改 σ²_uz
 
-当前全量测试基线：**3034 passed / 144 skipped**，warning-clean。
+- 协变量差异误分类（differential_by）：差异误分类此前的差异轴**硬编码为暴露臂**（detection bias / recall bias）；混淆矩阵**随一个协变量分层而异**（如误分类率随测量地点/年龄）没有校正通道。缺口除了能力缺失，还藏一个静默 bug：站点 z∈{0,1} 与暴露臂 bool{False,True} **碰撞**，`differential_levels_mismatch` 守卫不触发，逐站点矩阵被**静默误读为逐臂**——真 ATE 0.2004 发成 0.2613（高估 30%）还标 numerically_solved。现在把差异轴从"永远是暴露臂"泛化到**任意命名变量**（新 `differential_by` 字段，与上一条 RC 的 E-列泛化同构）：`differential_by=<协变量>` 时逐后门层按该协变量取值选矩阵 `Minv_by_level`（暴露臂默认路径保持不变）。守卫 `differential_by_unknown` / `differential_level_uncovered`（某观测层无矩阵）。`verify_measurement_correction_numeric` 加协变量分支从记录的逐层矩阵按 adjustment_vars 定位 differential_by、逐层第二次独立重求逆，拒伪造点/篡改层矩阵/differential_by 不符/层未覆盖。仅**结局侧**协变量差异；暴露侧（recall）协变量差异、臂×协变量联合差异推迟。D1=逐站点 SCM 恢复真 0.200 vs 池化单矩阵 0.259
+
+当前全量测试基线：**3044 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -183,7 +185,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3034 passed / 144 skipped（2026-07-16）
+- **测试套件**：3044 passed / 144 skipped（2026-07-16）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
