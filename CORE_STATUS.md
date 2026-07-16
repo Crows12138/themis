@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3055 passed / 144 skipped, warning-clean
+3057 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -429,6 +429,19 @@ z_key[axis_idx] 对应的 M_z（`_py()` 归一防 np.bool_ 漏配）。守卫：
 门控），仅拓宽描述。取舍（声明）=仅暴露侧协变量差异；臂/结局×协变量联合、组合(暴露+结局)、多值暴露仍推迟。
 D1=逐站点 SCM 恢复真 0.20 vs by-outcome 误读 0.32·naive 0.17·e2e flip·verify 拒伪造点/篡改层矩阵/
 differential_by 翻转。+11→**3055**。
+
+**条件效应在 ADMG 上静默丢 given（止血，2026-07-16 pivot 后）**：测量误差方向"戏剧性静默错答"矿脉挖尽后转攻更高价值前沿；4 条并行探针
+（条件前门/条件 IV/general-ID 条件/ADMG 上 cause·probability）里**前门探针揪出一条戏剧性静默错答**。机制：`scheduler._dispatch_effect` 的 bidirected 分支里
+**Tian-in-effect fallback（scheduler.py:3544）无 `observed_atoms` 守卫**——前门分支被 `if not observed_atoms`（3491）门控、IV-in-effect 内部对 conditioning
+bail，但 Tian fallback 对**任意** given 都触发；`identify_via_tian` 只算无条件 do(X)、**忽略 given**，识别成功就绑定目标值发数标 numerically_solved。故任何
+非后门识别的**条件**效应查询（前门最典型）→静默丢 given→**发边际值当条件值**。独立复现（4M 行 SCM，C 是效应修饰）：`P(Y=1|do(X=1),C=1)`
+发 **0.545=边际**（真条件 0.675），ATE 尺度报 0.240（边际）vs 真条件 0.300（~25% 偏）、且 C=0/C=1 报**同一个数**；更糟——`themis.verify` 直接崩溃
+（RuleCheckFailed `identify_via_tian requires IdentifyQuery context`）而非拒绝。**止血**=给 Tian fallback 加 `and not observed_atoms` 守卫：条件查询
+**诚实拒绝**（needs_investigation，新 MissingItem `query:effect_admg_conditional`，reason 明说"边际被 withheld 而非顶替条件值发出"）而非发边际。非
+bidirected 分支/后门条件（`minimal_adjustment_sets(...,given=)`）本就正确处理 given，故止血只动 bidirected Tian fallback 一处。这是分阶段前沿的 **Phase 1
+（纠正性）**；Phase 2=条件 general-ID（IDC*）数值端（`identify_via_idc` 已在、验证到 1e-9），把拒绝翻成正确条件值。+2 回归测试（条件拒绝+边际仍解）→**3057**。
+（4 探针结论：条件 IV data 路径 2SLS 已正确/仅 theta 拒绝；general-ID 条件诚实拒绝但天真删门=戏剧错答；ADMG 上 cause·probability 是**过度阻断**
+——答案本已正确算出，低价值 gate 移除；前门/条件 IDC 是赢家。）
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
