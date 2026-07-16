@@ -137,7 +137,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 条件 general-ID（IDC*）数值端（Phase 2，纠正性完成）：把上一条 Phase 1 的诚实拒绝翻成**正确条件值**。`observed_atoms` 非空时走 `identify_via_idc`（Rule-2 exchange + `ID(Y∪Z_rem,X')/ID(Z_rem,X')` 归一化）+ 新 `bind_idc_values`（target 与 given 两侧绑 Y/Z）+ `_try_numeric`；派生 `idc_rule2_exchange`+`identify_via_idc`+`idc_formula_ast`+`formula_evaluation`+`numeric_result`。验证器泛化 `_rule_identify_via_idc` 接 EffectQuery、加 `_rule_idc_formula_ast` 独立重绑、`_evaluate_formula` 加 FractionExpr 分支、见证清单纳入 IDC。潜变量-SCM 分数条件恢复到 **1e-9**、手算非分数 `P(Y=1|do(X=1),C=1)`=**0.60**（≠边际 0.47）；+2 篡改测试（伪造数值/顶替绑定公式均被独立验证器拒）。顺带堵 `_try_iv_wald_in_effect` 同类相邻静默错答（条件查询带工具+单调性时发无条件 Wald LATE 丢 given）：加 `if q.given: return None` 守卫
 
-当前全量测试基线：**3064 passed / 144 skipped**，warning-clean。
+- 条件 general-ID（IDC）**data/pandas 端**（Phase 2 声明的 follow-on）：Phase 2 只做 theta 路径，这一档补 **DataFrame** 路径（此前 `dispatch.py:_try_general_id_estimate` `if given_atoms: return False` 诚实 bail=能力缺口）。新 `estimate_general_id_conditional_ate`：两 do-臂各 `identify_via_idc` + `bind_idc_values`，复用无条件路径的 VE plug-in（`ve_estimate_formula` 早支持 FractionExpr），出**层内条件-ATE 对比** `P(Y=y_hi|do(x_hi),Z=z)−P(Y=y_hi|do(x_lo),Z=z)`（镜像无条件 data 路径出 ATE）。验证深度**对齐无条件 data 路径**：泛化 `_rule_general_id_criterion` 按 `ctx.query.given` 路由（有 given→重跑 `identify_via_idc` 确认可识别=安全关键，conditioning 读自 query 防低报绕过），method 枚举加 `general_id_idc_plugin`；plug-in 算术是共享的 data-refit 天花板（元数据审计）。D1 双 DGP 落为数据：效应修饰图恢复 ATE(C=1)=0.30/ATE(C=0)=0.18/边际=0.24 三者皆异；潜-SCM 分数端恢复 0.375。+14 测试
+
+当前全量测试基线：**3078 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -191,7 +193,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3064 passed / 144 skipped（2026-07-16）
+- **测试套件**：3078 passed / 144 skipped（2026-07-16）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

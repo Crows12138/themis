@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3064 passed / 144 skipped, warning-clean
+3078 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -458,6 +458,8 @@ Y/Z（含 FractionExpr、given 位）比对；(3) `_evaluate_formula` 加 Fracti
 `_try_iv_wald_in_effect`（在条件路由里跑在 IDC 之前）的 Wald LATE 是**无条件** complier 效应（查 P(Y|Z)/P(X|Z) 无 given 项），此前对**带 given** 的查询
 （有工具+单调性时）会发无条件 LATE 静默丢 given（实证：`P(Y=1|do(X=1),C=1)` 发 0.50=无条件 LATE、丢 C=1）；加 `if q.given: return None` 守卫，
 条件查询落到 IDC/诚实拒绝，无条件 IV 查询不受影响仍发 LATE。+回归测试。+新增测试 →**3064**。
+
+**条件 general-ID（IDC）data/pandas 端（2026-07-16，Phase 2 声明的 follow-on）**：Phase 2 把条件效应 `P(Y|do(X),Z=z)` 在 **theta** 路径翻成正确条件值；这一档补 **DataFrame** 路径（`estimation/dispatch.py:_try_general_id_estimate` 此前 `if given_atoms: return False` 诚实 bail=有能力缺口非静默错答）。新 `estimation/general_id.py:estimate_general_id_conditional_ate`：对 do(X) 两臂各调 `c_factor.identify_via_idc(...)` → `bind_idc_values(formula, {Y:y_hi, Z:z...})` 绑值 → 复用无条件路径的 `_point_ate`/`_bootstrap_ci`/`_prob_do`（VE plug-in，`ve_estimate_formula`/`referenced_keys` 早已支持 FractionExpr 含零分母 positivity 守卫），返回**层内条件-ATE 对比** `P(Y=y_hi|do(x_hi),Z=z)−P(Y=y_hi|do(x_lo),Z=z)`（镜像无条件 data 路径出 ATE 而非 theta 路径出点值）。dispatch 按 `given_atoms` 路由（有=IDC/无=Tian，共享下游），numeric_estimate 记 `given` 分层。**验证深度对齐无条件 data 路径**（data-refit 诚实天花板共享——plug-in 算术不重导）：泛化 `_rule_general_id_criterion` 按 **ctx.query.given** 路由（有 given→重跑 `identify_via_idc` 确认可识别=安全关键，无→`identify_via_tian`；conditioning 读自 query 非 producer 输入，防低报 given 绕过更严的 IDC 门），method 枚举加 `general_id_idc_plugin`（rules + schema + response_rendering 三处同步）。取舍（声明）=离散·二值处理/结局·层内对比（与无条件 plug-in 同）·验证器元数据审计（非重导，同所有 data 路径 plug-in）。D1 双 DGP 均落地为**数据**：效应修饰 DGP（前门+C→Y 修饰+X↔Y，C 交换掉=非分数）恢复 ATE(C=1)=0.30/ATE(C=0)=0.18/边际=0.24 三者皆异（对比才暴露的 anti-silent-wrong，加性图会抹平）；潜-SCM DGP（Z 存活=真分数）走 VE 分数端恢复 0.375。+篡改（criterion 谎称不可识别→重跑 IDC 拒、错 method、点越出 CI）+非 IDC 可识别诚实拒绝+无条件仍走前门回归。+14 →**3078**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
