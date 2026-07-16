@@ -931,17 +931,21 @@ differences the reader must see:
 
 **Differential misclassification (`measurement_correction.differential == true`).**
 Both sides also handle DIFFERENTIAL misclassification, where the channel depends on
-the other variable: the outcome channel may differ by exposure arm (per-arm matrix,
-*detection bias*), the exposure channel by outcome level (per-outcome matrix, *recall
-bias*). When `differential` is true, the single `confusion_matrix`/`det` are absent;
-`confusion_matrices` lists the per-level matrices the inversion used. Two things the
-reader must see: (1) the correction inverted the LEVEL-SPECIFIC matrix within each
-level — say so; (2) unlike non-differential, differential misclassification can bias
-**away from the null**, so the naive number may be inflated rather than attenuated —
-do not describe the correction as "un-attenuating toward a larger effect" by default;
-read the sign of `point − naive_point`. Supply it with
-`estimate(…, misclassification={<var>: {differential: true, confusion_matrices: […],
-differential_levels: […], states}})`.
+another variable: the outcome channel may differ by exposure arm (per-arm matrix,
+*detection bias*) or by a back-door **covariate** (per-covariate-stratum matrix, e.g.
+misclassification accuracy that varies by site/age — `measurement_correction.
+differential_by` names the covariate); the exposure channel may differ by outcome
+level (per-outcome matrix, *recall bias*). When `differential` is true, the single
+`confusion_matrix`/`det` are absent; `confusion_matrices` lists the per-level matrices
+the inversion used (keyed by `arm`, `level`, or `outcome`). Two things the reader must
+see: (1) the correction inverted the LEVEL-SPECIFIC matrix within each level — say so,
+naming the differential axis (arm / covariate / outcome); (2) unlike non-differential,
+differential misclassification can bias **away from the null**, so the naive number may
+be inflated rather than attenuated — do not describe the correction as "un-attenuating
+toward a larger effect" by default; read the sign of `point − naive_point`. Supply it
+with `estimate(…, misclassification={<var>: {differential: true, differential_by:
+<covariate>?, confusion_matrices: […], differential_levels: […], states}})` — omit
+`differential_by` for the per-arm (detection-bias) default.
 
 **Continuous mismeasurement (`method == "regression_calibration"`).** The
 CONTINUOUS counterpart, when a *continuously-mismeasured design column* carries
@@ -976,11 +980,13 @@ note what is different:
   slope silently shipped.
 
 Scope: the correction covers **outcome** and **binary-exposure** misclassification
-(discrete, confusion-matrix) **non-differential OR differential**, and a
-**continuous exposure and/or covariate** with classical additive error (regression
-calibration), all with **known** (fixed) matrix / matrices / error variance. A
-multi-level exposure, a combined (exposure AND outcome) correction, a matrix
-differential in a COVARIATE (discrete side), a mismeasured **outcome** on the
+(discrete, confusion-matrix) **non-differential OR differential** — the outcome-side
+differential axis may be the exposure arm OR a back-door covariate (`differential_by`)
+— and a **continuous exposure and/or covariate** with classical additive error
+(regression calibration), all with **known** (fixed) matrix / matrices / error
+variance. A multi-level exposure, a combined (exposure AND outcome) correction, an
+EXPOSURE-side (recall) matrix differential in a covariate or a matrix jointly
+differential in arm AND covariate, a mismeasured **outcome** on the
 continuous side, Berkson / differential continuous error, and a nonlinear outcome
 (SIMEX) are out of scope and stay in the `measurement_error_concern` gap's
 territory.

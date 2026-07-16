@@ -600,7 +600,7 @@
             "confusion_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "Non-differential only. Column-stochastic: M[i][j] = P(observed=states[i] | true=states[j]). k x k over the outcome states (outcome side) or 2 x 2 over the exposure states (exposure side)." },
             "confusion_matrices": {
               "type": "array",
-              "description": "Differential only: the per-conditioning-level matrices the inversion used. Outcome side (detection bias): one entry per exposure arm (`arm`). Exposure side (recall bias): one entry per outcome level (`outcome`).",
+              "description": "Differential only: the per-conditioning-level matrices the inversion used. Outcome side (detection bias): one entry per exposure arm (`arm`). Outcome side by a COVARIATE: one entry per covariate level (`level`), with `differential_by` naming the covariate. Exposure side (recall bias): one entry per outcome level (`outcome`).",
               "items": {
                 "type": "object",
                 "required": ["matrix", "det"],
@@ -608,11 +608,13 @@
                 "properties": {
                   "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
                   "outcome": { "type": ["boolean", "integer", "number", "string"] },
+                  "level": { "type": ["boolean", "integer", "number", "string"], "description": "Outcome side differential by a covariate: the covariate value this matrix applies to." },
                   "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
                   "det": { "type": "number" }
                 }
               }
             },
+            "differential_by": { "type": "string", "description": "Outcome side, differential by a COVARIATE: the back-door covariate whose value selects the confusion matrix within each stratum (default/absent = the exposure arm)." },
             "states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "The confusion-matrix states: outcome states (outcome side) or the two exposure states in [control, treated] order (exposure side)." },
             "outcome_states": { "type": "array", "items": { "type": ["boolean", "integer", "number", "string"] }, "description": "exposure side only: the k outcome states in the joint-table column order." },
             "target_value": { "type": ["boolean", "integer", "number", "string"] },
@@ -638,6 +640,21 @@
                     "additionalProperties": false,
                     "properties": {
                       "arm": { "type": "integer", "minimum": 0, "maximum": 1 },
+                      "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                      "det": { "type": "number" }
+                    }
+                  }
+                },
+                "differential_by": { "type": "string", "description": "Differential outcome side by a COVARIATE: the back-door covariate whose value selects the matrix within each stratum. The verifier finds it via adjustment_vars and reads the value from each stratum's z." },
+                "confusion_matrices_by_level": {
+                  "type": "array",
+                  "description": "Differential outcome side by a COVARIATE: one column-stochastic matrix per covariate level (must cover every observed value of differential_by).",
+                  "items": {
+                    "type": "object",
+                    "required": ["level", "matrix", "det"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "level": { "type": ["boolean", "integer", "number", "string"] },
                       "matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
                       "det": { "type": "number" }
                     }

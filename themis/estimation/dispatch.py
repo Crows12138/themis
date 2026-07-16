@@ -2856,6 +2856,7 @@ def _try_measurement_correction_estimate(
                 spec["target_value"] if "target_value" in spec else target_value
             ),
             differential=bool(spec.get("differential", False)),
+            differential_by=spec.get("differential_by"),
             confusion_matrices=spec.get("confusion_matrices"),
             differential_levels=spec.get("differential_levels"),
             ci_bootstrap=ci_bootstrap, ci_level=0.95,
@@ -2936,6 +2937,8 @@ def _measurement_correction_block(est) -> dict:
         block["outcome_states"] = list(est.outcome_states)
     if est.differential:
         block["confusion_matrices"] = [dict(r) for r in est.confusion_matrices]
+        if getattr(est, "differential_by", None) is not None:
+            block["differential_by"] = est.differential_by
     else:
         block["det"] = est.det
         block["confusion_matrix"] = [list(row) for row in est.confusion_matrix]
