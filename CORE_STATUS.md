@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3044 passed / 144 skipped, warning-clean
+3055 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -413,6 +413,22 @@ numpy bool→键 ("s","False") 漏配 ("n",0.0)，须先 `_py()` 归一**（老 
 差异、臂×协变量联合差异、多值暴露仍推迟。D1=逐站点 SCM 恢复真 0.200 vs 池化单矩阵 0.259（RD 随站点
 异故池化 mis-weight，恒定 RD 下会抵消）·naive 0.16·e2e flip·verify 拒伪造点/篡改层矩阵/differential_by
 翻转。+10→**3044**。
+
+**协变量差异误分类·暴露侧（differential_by，2026-07-16 再续）**：上一档只闭了**结局侧**协变量差异；
+**暴露侧**（矩阵法，混淆矩阵随后门协变量分层而异——如暴露测量准确度随地点变）此前差异轴**硬编码为结局**
+（recall bias，`Minv_by_outcome` 逐结局列求逆），无协变量差异通道。探针坐实同型**静默错答+潜藏 bug**：站点
+z∈{0,1} 与结局值 {0,1} 碰撞→per-site 矩阵 [M0,M1] 经 by-outcome 通道通过覆盖检查、被**静默当 per-outcome
+列求逆**，真后门 RD 0.298 发成 **0.324**（冲过头）、标 numerically_solved 无 error（naive 0.173 严重衰减）。
+泛化=与结局侧同构：`estimate_exposure_measurement_correction` 加 `differential_by`（默认=结局/recall；
+`differential_by=<协变量>` 时每个后门层内用**本层单一 M_z** 对所有结局列求逆）；`_exposure_formula` 统一成
+按 `differential_axis` 逐列选矩阵 `Minv_by_level[_level_key(值)]`——结局轴逐列取 M_y，协变量轴每列取
+z_key[axis_idx] 对应的 M_z（`_py()` 归一防 np.bool_ 漏配）。守卫：`differential_by_unknown`（=暴露自身/非
+结局非调整协变量）、`differential_level_uncovered`。`verify_exposure_measurement_correction_numeric` 加协变量
+分支：从 `confusion_matrices_by_level` 按 adjustment_vars 定位 differential_by、逐层从 z 取值选 M_z**第二次
+独立重求逆**，拒伪造点/篡改层矩阵/differential_by 不符/层未覆盖。schema 结构本已允许（suff 属性不按 side
+门控），仅拓宽描述。取舍（声明）=仅暴露侧协变量差异；臂/结局×协变量联合、组合(暴露+结局)、多值暴露仍推迟。
+D1=逐站点 SCM 恢复真 0.20 vs by-outcome 误读 0.32·naive 0.17·e2e flip·verify 拒伪造点/篡改层矩阵/
+differential_by 翻转。+11→**3055**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

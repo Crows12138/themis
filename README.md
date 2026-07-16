@@ -131,7 +131,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 协变量差异误分类（differential_by）：差异误分类此前的差异轴**硬编码为暴露臂**（detection bias / recall bias）；混淆矩阵**随一个协变量分层而异**（如误分类率随测量地点/年龄）没有校正通道。缺口除了能力缺失，还藏一个静默 bug：站点 z∈{0,1} 与暴露臂 bool{False,True} **碰撞**，`differential_levels_mismatch` 守卫不触发，逐站点矩阵被**静默误读为逐臂**——真 ATE 0.2004 发成 0.2613（高估 30%）还标 numerically_solved。现在把差异轴从"永远是暴露臂"泛化到**任意命名变量**（新 `differential_by` 字段，与上一条 RC 的 E-列泛化同构）：`differential_by=<协变量>` 时逐后门层按该协变量取值选矩阵 `Minv_by_level`（暴露臂默认路径保持不变）。守卫 `differential_by_unknown` / `differential_level_uncovered`（某观测层无矩阵）。`verify_measurement_correction_numeric` 加协变量分支从记录的逐层矩阵按 adjustment_vars 定位 differential_by、逐层第二次独立重求逆，拒伪造点/篡改层矩阵/differential_by 不符/层未覆盖。仅**结局侧**协变量差异；暴露侧（recall）协变量差异、臂×协变量联合差异推迟。D1=逐站点 SCM 恢复真 0.200 vs 池化单矩阵 0.259
 
-当前全量测试基线：**3044 passed / 144 skipped**，warning-clean。
+- 协变量差异误分类·暴露侧（differential_by 续）：上一条只闭了结局侧；**暴露侧**（矩阵法）的差异轴此前硬编码为**结局**（recall bias），暴露误分类**随后门协变量分层而异**（如暴露测量准确度随地点变）无通道。同型静默错答+潜藏碰撞 bug：站点 z∈{0,1} 与结局值 {0,1} 碰撞→per-site 矩阵经 by-outcome 通道通过覆盖检查、被**静默当 per-outcome 列求逆**，真后门 RD 0.298 发成 0.324（冲过头）还标 numerically_solved（naive 0.173 严重衰减）。与结局侧同构地给 `estimate_exposure_measurement_correction` 加 `differential_by`（默认=结局/recall；`differential_by=<协变量>` 时每个后门层内用**本层单一 M_z** 对所有结局列求逆）；`_exposure_formula` 统一成按 `differential_axis` 逐列选矩阵。守卫 `differential_by_unknown`（=暴露自身/非结局非调整协变量）/`differential_level_uncovered`。`verify_exposure_measurement_correction_numeric` 加协变量分支从 `confusion_matrices_by_level` 按 adjustment_vars 定位 differential_by、逐层从 z 取值选 M_z 第二次独立重求逆，拒伪造点/篡改层矩阵/differential_by 不符/层未覆盖。仅暴露侧协变量差异；臂/结局×协变量联合、组合(暴露+结局)、多值暴露推迟。D1=逐站点 SCM 恢复真 0.20 vs by-outcome 误读 0.32
+
+当前全量测试基线：**3055 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -185,7 +187,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3044 passed / 144 skipped（2026-07-16）
+- **测试套件**：3055 passed / 144 skipped（2026-07-16）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
