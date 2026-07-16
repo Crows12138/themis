@@ -561,23 +561,29 @@ structural and the numeric (`iv_wald` / `iv_2sls`) paths.
 
 ### Joint interventions (`joint_backdoor_linear` / `joint_backdoor_logistic`)
 
-When the query intervened on a SET of treatments simultaneously
-(`do(A=a, B=b, ...)`), `numeric_estimate` carries a `joint_effect` block
-(the joint contrast over the whole treatment vector, with the `treated`
-/ `control` cells it was taken between) AND an `interaction` block (the
-additive-scale treatment×treatment interaction, `scale: "difference"`).
-This is NOT two single-treatment effects — the joint contrast and the
-interaction cannot be reconstructed from separate single-treatment
-queries (a single-treatment ATE averages over the other treatment's
-natural distribution; the joint contrast fixes both).
+When the query intervened on a SET of K treatments simultaneously
+(`do(A=a, B=b, C=c, ...)`), `numeric_estimate` carries a `joint_effect`
+block (the joint contrast over the whole treatment vector, with the
+`treated` / `control` cells it was taken between) AND an `interaction`
+block. The interaction is the **highest-order (K-way) interaction** —
+`interaction.order` gives K — on the additive scale (`scale:
+"difference"`): the K-th mixed finite difference over the 2^K treatment
+corners. For K=2 that is the ordinary A×B interaction; for K=3 it is the
+three-way interaction (how the A×B interaction itself shifts with C), and
+so on. It is NOT the sum of the lower-order interactions and NOT
+reconstructable from separate single-treatment queries (a single-
+treatment ATE averages over the other treatments' natural distributions;
+the joint contrast fixes them all). Only the top-order interaction is
+reported — the full 2..(K−1)-way hierarchy is not.
 
 > 同时干预 `<treatments>`（联合后门识别，调整集 = `<adjustment>`）：
 >
 > - 联合效应 = **`<joint_effect.point>`**（把 `<treated>` 相对
 >   `<control>` 一起设定时 `<outcome>` 的变化），
 >   `<ci_level>` 区间 [`<joint_effect.ci_lower>`, `<joint_effect.ci_upper>`]
-> - 交互作用（加法尺度）= **`<interaction.point>`** —— 两个处理的效应
->   是否可叠加：>0 协同、<0 拮抗、≈0 可加
+> - `<interaction.order>` 阶交互作用（加法尺度）= **`<interaction.point>`**
+>   —— 最高阶交互：这几个处理的联合效应能否由各自单独效应叠加得到；
+>   >0 协同、<0 拮抗、≈0 可加。K=2 时即普通的两处理交互。
 >
 > 关键假设：联合可交换性 / 每个处理组合都有重叠 / 一致性。
 

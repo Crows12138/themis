@@ -2212,6 +2212,9 @@ def _try_joint_estimate(
     - bidirected (latent) edges are present — joint ADMG is out of scope;
     - no joint adjustment set exists;
     - a treatment is non-binary (v1 scope);
+    - the treatment vector has fewer than two distinct atoms, or more than
+      the estimator's cap (NotImplementedError → honest capability gap,
+      structural result stands);
     - the joint estimator refuses (EstimatorFailure → estimator_failure
       block, mirroring transport / dose-response).
     """
@@ -2226,10 +2229,13 @@ def _try_joint_estimate(
     treatment_atoms = (x_atom, *extra_atoms)
     given_atoms = tuple(g.atom for g in q.given)
 
-    # v1 scope: exactly two binary treatments, no mediator / transport.
+    # v1 scope: K ≥ 2 distinct binary treatments, no mediator / transport.
+    # A repeated atom is a malformed joint vector (handled honestly by the
+    # structural dispatch); the K upper bound is enforced by the estimator
+    # (NotImplementedError, caught below).
     if q.mediator is not None or q.target_population is not None:
         return
-    if len(set(treatment_atoms)) != 2:
+    if len(set(treatment_atoms)) < 2 or len(set(treatment_atoms)) != len(treatment_atoms):
         return
 
     try:
@@ -2309,6 +2315,9 @@ def _try_joint_estimate(
             "ci_lower": estimate.interaction_ci_lower,
             "ci_upper": estimate.interaction_ci_upper,
             "scale": "difference",
+            # Interaction order = number of treatments (K-way, the highest-
+            # order mixed finite difference). 2 for the classic A×B case.
+            "order": len(estimate.treatments),
         },
     }
     # Cluster-bootstrap provenance (both the joint contrast and the

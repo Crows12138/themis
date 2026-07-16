@@ -10,18 +10,25 @@ treatments simultaneously:
         = (1/n) Σ_i [ Ê(Y | A=a,  B=b,  Z=Z_i)
                      − Ê(Y | A=a', B=b', Z=Z_i) ]
 
-and the causal interaction on the difference scale (VanderWeele 2015
-ch.14 "interaction"):
+and the highest-order causal interaction on the difference scale
+(VanderWeele 2015 ch.14 "interaction"). For K treatments this is the
+K-th-order mixed finite difference over the 2^K treatment corners — the
+alternating-sign standardized sum
 
-    interaction
+    interaction_K
+        = Σ_{s ∈ ∏_k {hi_k, lo_k}} (−1)^{#{k: s_k = lo_k}} E[Y | do(s)]
+
+which for K=2 collapses to the familiar 2×2 form
+
         = [E[Y|do(A=1,B=1)] − E[Y|do(A=1,B=0)]]
-        − [E[Y|do(A=0,B=1)] − E[Y|do(A=0,B=0)]]
-        = (1/n) Σ_i { [Ê(Y|1,1,Z_i) − Ê(Y|1,0,Z_i)]
-                    − [Ê(Y|0,1,Z_i) − Ê(Y|0,0,Z_i)] }
+        − [E[Y|do(A=0,B=1)] − E[Y|do(A=0,B=0)]] .
 
-The outcome model E[Y | A, B, Z] is fit INCLUDING the A:B interaction
-term, so the standardization can recover both the joint contrast and
-the interaction. ``LinearRegression`` for continuous outcomes,
+The outcome model E[Y | A, B, …, Z] is fit INCLUDING the *saturated*
+treatment-interaction basis (a product term for every non-empty subset
+of the treatments — for K=2 exactly the single A:B term), so the
+standardization can recover both the joint contrast and the highest-
+order interaction under arbitrary interaction structure among the
+treatments. ``LinearRegression`` for continuous outcomes,
 ``LogisticRegression`` for bool outcomes. Confidence intervals via the
 non-parametric percentile bootstrap; deterministic given
 ``random_state`` (a seeded numpy Generator), with the joint contrast
@@ -35,8 +42,13 @@ quantity from data rests on the generalized (treatment-set) back-door
 criterion — see ``structural_solver.minimal_adjustment_sets_joint``.
 
 Scope (v1):
-- Binary treatments (exactly two supported here; the design generalizes
-  but >2 multiplies the counterfactual cells and is deferred).
+- Binary treatments. Two to ``_MAX_JOINT_TREATMENTS`` (default 5)
+  supported; the saturated basis has 2^K − 1 treatment columns and the
+  interaction is a 2^K-corner finite difference, so K is capped to bound
+  the design matrix / corner enumeration. Beyond the cap the estimator
+  raises ``NotImplementedError`` (the dispatch then leaves the
+  structural result untouched — an honest capability gap, never a wrong
+  number). The cap is a resource bound, not a fundamental limit.
 - Bool or continuous outcome.
 - Adjustment set ``adjustment`` enters the outcome regression as linear
   features (same backend / restriction as ``backdoor.py``).
@@ -45,13 +57,14 @@ API:
 
     from themis.estimation.joint import estimate_joint_effect
     est = estimate_joint_effect(
-        data, treatments=("a", "b"), outcome="y", adjustment=("z",),
+        data, treatments=("a", "b", "c"), outcome="y", adjustment=("z",),
     )
-    print(est.joint_point, est.interaction_point)
+    print(est.joint_point, est.interaction_point)  # interaction is K-way
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import combinations, product
 from typing import Literal
 
 import numpy as np
@@ -66,6 +79,13 @@ from .resample import cluster_labels, resample_indices
 
 ModelName = Literal["auto", "linear", "logistic"]
 
+# Resource bound on the joint estimator: the saturated treatment basis is
+# 2^K − 1 columns and the K-way interaction is a 2^K-corner finite
+# difference. Cap K so neither blows up. Not a fundamental limit — the
+# identification (``minimal_adjustment_sets_joint``) has no such cap; this
+# only bounds the numeric plug-in. Beyond it: honest NotImplementedError.
+_MAX_JOINT_TREATMENTS = 5
+
 
 @dataclass(frozen=True)
 class JointEffectEstimate:
@@ -73,7 +93,9 @@ class JointEffectEstimate:
 
     - ``joint_*``: point + CI for the joint contrast
       E[Y|do(A=a,B=b)] − E[Y|do(A=a',B=b')].
-    - ``interaction_*``: point + CI for the additive-scale
+    - ``interaction_*``: point + CI for the additive-scale highest-order
+      (K-way) treatment interaction — the K-th mixed finite difference
+      over the 2^K treatment corners. For K=2 this is the ordinary
       treatment×treatment interaction.
     - ``treated`` / ``control``: the {treatment: value} cells the joint
       contrast is taken between.
@@ -120,12 +142,12 @@ def estimate_joint_effect(
     Parameters
     ----------
     data: DataFrame with treatment / outcome / adjustment columns.
-    treatments: ordered tuple of exactly two binary treatment column
-        names (A, B).
+    treatments: ordered tuple of 2..``_MAX_JOINT_TREATMENTS`` binary
+        treatment column names (A, B, …).
     outcome: outcome column name (bool or continuous).
     adjustment: adjustment-set column names (may be empty).
-    treated_values / control_values: {name: value} for the (a, b) and
-        (a', b') cells of the joint contrast. Default treated = all-True,
+    treated_values / control_values: {name: value} for the treated and
+        control cells of the joint contrast. Default treated = all-True,
         control = all-False.
     model: 'auto' → logistic for bool outcome, linear otherwise.
     ci_bootstrap: bootstrap resamples; 0 skips CIs.
@@ -141,10 +163,21 @@ def estimate_joint_effect(
         of the causal model: it never enters the outcome regression or the
         data hash.
     """
-    if len(treatments) != 2:
+    if len(treatments) < 2:
         raise NotImplementedError(
-            f"estimate_joint_effect v1 supports exactly two treatments; "
-            f"got {len(treatments)} ({treatments!r})"
+            f"estimate_joint_effect needs at least two treatments to form a "
+            f"joint intervention; got {len(treatments)} ({treatments!r})"
+        )
+    if len(treatments) > _MAX_JOINT_TREATMENTS:
+        raise NotImplementedError(
+            f"estimate_joint_effect caps at {_MAX_JOINT_TREATMENTS} "
+            f"treatments (the saturated basis is 2^K − 1 columns and the "
+            f"interaction is a 2^K-corner finite difference); got "
+            f"{len(treatments)} ({treatments!r})"
+        )
+    if len(set(treatments)) != len(treatments):
+        raise ValueError(
+            f"joint treatment vector repeats a column: {treatments!r}"
         )
 
     required = {*treatments, outcome, *adjustment}
@@ -160,9 +193,8 @@ def estimate_joint_effect(
     )
     df = contract.data
 
-    a_name, b_name = treatments
-    treated_values = treated_values or {a_name: True, b_name: True}
-    control_values = control_values or {a_name: False, b_name: False}
+    treated_values = treated_values or {t: True for t in treatments}
+    control_values = control_values or {t: False for t in treatments}
 
     # Positivity / overlap precondition: the joint g-formula contrasts
     # across treatment cells, so each treatment must vary in the data.
@@ -187,25 +219,35 @@ def estimate_joint_effect(
     )
     method = f"joint_backdoor_{resolved}"
 
-    a_hi = float(treated_values[a_name]); a_lo = float(control_values[a_name])
-    b_hi = float(treated_values[b_name]); b_lo = float(control_values[b_name])
+    K = len(treatments)
+    hi = tuple(float(treated_values[t]) for t in treatments)
+    lo = tuple(float(control_values[t]) for t in treatments)
 
     def _joint_and_interaction(sample: pd.DataFrame) -> tuple[float, float]:
-        predict = _fit(sample, a_name, b_name, outcome, adjustment, resolved)
-        # Counterfactual predictions at each (A, B) cell, averaged over
-        # the empirical Z distribution of the sample (g-formula plug-in).
-        m11 = float(np.mean(predict(sample, a_hi, b_hi)))
-        m10 = float(np.mean(predict(sample, a_hi, b_lo)))
-        m01 = float(np.mean(predict(sample, a_lo, b_hi)))
-        m00 = float(np.mean(predict(sample, a_lo, b_lo)))
-        # Joint contrast between the requested treated / control cells.
-        treated_pred = float(np.mean(predict(sample, a_hi, b_hi)))
-        control_pred = float(np.mean(predict(sample, a_lo, b_lo)))
-        joint = treated_pred - control_pred
-        # Additive-scale interaction is defined on the canonical 2×2
-        # corners (1,1)/(1,0)/(0,1)/(0,0) regardless of which cells the
-        # joint contrast used.
-        interaction = (m11 - m10) - (m01 - m00)
+        predict = _fit(sample, treatments, outcome, adjustment, resolved)
+        # Standardized counterfactual mean at each of the 2^K treatment
+        # corners (g-formula plug-in), averaged over the sample's empirical
+        # Z distribution. A corner is a per-treatment choice of hi / lo.
+        # ``mask`` marks which treatments are at their hi level.
+        corner_mean: dict[tuple[bool, ...], float] = {}
+        for mask in product((True, False), repeat=K):
+            cell = tuple(hi[k] if mask[k] else lo[k] for k in range(K))
+            corner_mean[mask] = float(np.mean(predict(sample, cell)))
+        all_hi = (True,) * K
+        all_lo = (False,) * K
+        # Joint contrast between the requested treated (all-hi) and control
+        # (all-lo) cells.
+        joint = corner_mean[all_hi] - corner_mean[all_lo]
+        # Highest-order (K-way) interaction: the K-th mixed finite
+        # difference — the alternating-sign sum over all 2^K corners, with
+        # sign (−1)^{#treatments at lo}. For K=2 this is exactly
+        # (m11 − m10) − (m01 − m00); the sum annihilates every lower-order
+        # term (main effects, pairwise …) and the Z contribution, isolating
+        # the top-order interaction.
+        interaction = 0.0
+        for mask, val in corner_mean.items():
+            n_lo = mask.count(False)
+            interaction += (-1.0 if n_lo % 2 else 1.0) * val
         return joint, interaction
 
     joint_point, interaction_point = _joint_and_interaction(df)
@@ -265,25 +307,46 @@ def estimate_joint_effect(
 # --- internals --------------------------------------------------------------
 
 
+def _treatment_subsets(k: int) -> tuple[tuple[int, ...], ...]:
+    """All non-empty subsets of ``range(k)`` as index tuples, ordered by
+    size then lexicographically — the columns of the saturated treatment
+    basis. For k=2: ((0,), (1,), (0, 1)) ⇒ [A, B, A·B]."""
+    subsets: list[tuple[int, ...]] = []
+    for size in range(1, k + 1):
+        subsets.extend(combinations(range(k), size))
+    return tuple(subsets)
+
+
 def _fit(
     df: pd.DataFrame,
-    a_name: str,
-    b_name: str,
+    treatments: tuple[str, ...],
     outcome: str,
     adjustment: tuple[str, ...],
     model: str,
 ):
-    """Fit E[Y | A, B, A·B, Z] and return a callable
-    ``predict(sample, a_val, b_val) -> yhat`` that standardizes the
-    counterfactual cell over the sample's adjustment values."""
-    a = df[a_name].to_numpy(dtype=float)
-    b = df[b_name].to_numpy(dtype=float)
-    inter = a * b
+    """Fit E[Y | (saturated treatment basis), Z] and return a callable
+    ``predict(sample, cell) -> yhat`` that standardizes the counterfactual
+    treatment cell over the sample's adjustment values.
+
+    The treatment block is fully saturated: one product column for every
+    non-empty subset of the treatments (main effects + all interactions).
+    For two treatments this is exactly [A, B, A·B] — byte-identical to the
+    original two-treatment fit."""
+    subsets = _treatment_subsets(len(treatments))
+    T = np.column_stack([df[t].to_numpy(dtype=float) for t in treatments])
+
+    def _basis(Tmat: np.ndarray) -> np.ndarray:
+        # np.prod over the subset's columns; a singleton subset reproduces
+        # the raw main-effect column.
+        return np.column_stack(
+            [np.prod(Tmat[:, list(s)], axis=1) for s in subsets]
+        )
+
     if adjustment:
         z = df[list(adjustment)].to_numpy(dtype=float)
-        X = np.column_stack([a, b, inter, z])
+        X = np.column_stack([_basis(T), z])
     else:
-        X = np.column_stack([a, b, inter])
+        X = _basis(T)
     y = df[outcome].to_numpy()
     if y.dtype == bool:
         y = y.astype(int)
@@ -301,16 +364,14 @@ def _fit(
     else:
         raise ValueError(f"unknown model {model!r}")
 
-    def predict(sample: pd.DataFrame, a_val: float, b_val: float):
+    def predict(sample: pd.DataFrame, cell: tuple[float, ...]):
         n = len(sample)
-        a_col = np.full(n, a_val)
-        b_col = np.full(n, b_val)
-        inter_col = a_col * b_col
+        Tc = np.column_stack([np.full(n, v) for v in cell])
         if adjustment:
             z = sample[list(adjustment)].to_numpy(dtype=float)
-            M = np.column_stack([a_col, b_col, inter_col, z])
+            M = np.column_stack([_basis(Tc), z])
         else:
-            M = np.column_stack([a_col, b_col, inter_col])
+            M = _basis(Tc)
         return base(M)
 
     return predict
@@ -324,9 +385,13 @@ def _assumptions_for(model: str, n_adj: int) -> tuple[str, ...]:
         "no_directed_edge_between_treatments",
     )
     if model == "linear":
-        common = common + ("linear_outcome_regression_with_AxB_interaction",)
+        common = common + (
+            "linear_outcome_regression_with_saturated_treatment_interactions",
+        )
     elif model == "logistic":
-        common = common + ("logit_outcome_regression_with_AxB_interaction",)
+        common = common + (
+            "logit_outcome_regression_with_saturated_treatment_interactions",
+        )
     if n_adj == 0:
         common = common + (
             "unconditional_exchangeability_treatments_marginally_randomized",

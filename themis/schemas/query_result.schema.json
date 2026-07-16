@@ -867,7 +867,7 @@
         },
         "interaction": {
           "type": "object",
-          "description": "Joint interventions: the treatment×treatment causal interaction on the additive (difference) scale — [do(1,1)−do(1,0)] − [do(0,1)−do(0,0)] (VanderWeele 2015 ch.14). Present only for joint_backdoor_* methods.",
+          "description": "Joint interventions: the highest-order (K-way) causal interaction on the additive (difference) scale — the K-th mixed finite difference over the 2^K treatment corners, Σ_s (−1)^{#lo(s)} E[Y|do(s)] (VanderWeele 2015 ch.14). For K=2 treatments this is the ordinary treatment×treatment interaction [do(1,1)−do(1,0)] − [do(0,1)−do(0,0)]. Present only for joint_backdoor_* methods; ``order`` gives K.",
           "required": ["point", "scale"],
           "additionalProperties": false,
           "properties": {
@@ -875,6 +875,7 @@
             "ci_lower": { "type": ["number", "null"] },
             "ci_upper": { "type": ["number", "null"] },
             "scale": { "type": "string", "enum": ["difference"] },
+            "order": { "type": "integer", "minimum": 2, "description": "The interaction order K = number of treatments in the joint vector (the finite difference is K-th order)." },
             "precision_budget": { "$ref": "#/$defs/precisionBudget" }
           }
         },
