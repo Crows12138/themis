@@ -2071,6 +2071,148 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
         _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
 
 
+def verify_regression_calibration_numeric(estimate: dict) -> None:
+    """Re-derive a regression-calibration-corrected slope — the corrected point,
+    the naive (attenuated) slope, and the reliability λ — from the recorded
+    design covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u, and reject on mismatch.
+
+    The correction rides on a ``numerically_solved`` back-door result whose
+    derivation ends in ``numeric_measurement_correction_estimate`` (a shared
+    terminal — metadata + structural licensing only; the covariance matrix
+    doesn't fit derivation-input serialization). This is the strong numeric
+    counterpart: a SECOND, independent transcription of the moment correction
+
+        b_naive = Σ_WZ⁻¹ Cov((W,Z), Y)                          (attenuated)
+        β_true  = (Σ_WZ − E)⁻¹ Cov((W,Z), Y),  E = diag(σ²_u, 0, …)
+        λ       = 1 − σ²_u / Var(W|Z)                           (continuous det(M))
+
+    from the recorded ``regression_calibration.sufficient_statistics`` (the
+    design covariance, the Cov((W,Z),Y) vector, and σ²_u). It never imports the
+    producer's estimator and never touches the raw data. A result that isn't a
+    ``regression_calibration`` estimate is a no-op.
+
+    Tamper checks: a forged corrected / naive point, a forged reliability, a
+    non-symmetric or wrong-shape covariance, a non-positive σ²_u, a σ²_u that
+    makes Σ_WZ − E non-positive-definite (a degenerate reliability the estimator
+    would have refused) yet a point still shipped, or a recorded naive / corrected
+    slope vector that disagrees with the covariance re-derivation (which catches a
+    tampered covariance entry that wasn't propagated to the slopes) — each is
+    rejected.
+
+    ``estimate`` is the full ``numeric_estimate`` dict.
+    """
+    import numpy as np
+
+    if (
+        not isinstance(estimate, dict)
+        or estimate.get("method") != "regression_calibration"
+    ):
+        return
+
+    def _fail(msg):
+        raise VerificationError(
+            f"regression_calibration_numeric: {msg}",
+            step_index=None, rule="regression_calibration_numeric",
+        )
+
+    rc = estimate.get("regression_calibration")
+    if not isinstance(rc, dict):
+        _fail("numeric_estimate carries no regression_calibration block")
+    suff = rc.get("sufficient_statistics")
+    if not isinstance(suff, dict):
+        _fail("regression_calibration carries no sufficient_statistics")
+
+    try:
+        design_vars = list(suff["design_vars"])
+        Sigma = np.asarray(suff["cov_matrix"], dtype=float)
+        cov_Dy = np.asarray(suff["cov_design_y"], dtype=float)
+        su2 = float(suff["error_variance"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail(f"ill-formed sufficient statistics: {exc}")
+
+    p = len(design_vars)
+    if p < 1:
+        _fail("design must carry at least the exposure column")
+    if Sigma.shape != (p, p):
+        _fail(f"cov_matrix {Sigma.shape} does not match {p} design vars")
+    if cov_Dy.shape != (p,):
+        _fail(f"cov_design_y {cov_Dy.shape} does not match {p} design vars")
+    if not np.allclose(Sigma, Sigma.T, atol=1e-8):
+        _fail("cov_matrix is not symmetric")
+    if not (np.isfinite(su2) and su2 > 0):
+        _fail(f"error_variance must be a positive finite number; got {su2!r}")
+
+    # Naive OLS slope from the recorded covariance — an independent second solve.
+    try:
+        b = np.linalg.solve(Sigma, cov_Dy)
+    except np.linalg.LinAlgError:
+        _fail("recorded cov_matrix is singular — cannot re-derive the naive slope")
+
+    # Var(W|Z) (Schur complement of the covariate block) ⇒ the reliability ratio.
+    if p == 1:
+        var_w_given_z = float(Sigma[0, 0])
+    else:
+        s_wz = Sigma[0, 1:]
+        s_zz = Sigma[1:, 1:]
+        try:
+            var_w_given_z = float(Sigma[0, 0] - s_wz @ np.linalg.solve(s_zz, s_wz))
+        except np.linalg.LinAlgError:
+            _fail("covariate block Σ_ZZ is singular — cannot re-derive Var(W|Z)")
+    lam = 1.0 - su2 / var_w_given_z
+    if lam <= 1e-12:
+        _fail(
+            f"reliability λ = {lam} ≤ 0 (σ²_u {su2} ≥ Var(W|Z) {var_w_given_z}): the "
+            f"corrected design Σ_WZ − E is not positive definite, so no corrected "
+            f"slope should have been produced"
+        )
+
+    E = np.zeros((p, p))
+    E[0, 0] = su2
+    Sigma_star = Sigma - E
+    try:
+        beta = np.linalg.solve(Sigma_star, cov_Dy)
+    except np.linalg.LinAlgError:
+        _fail("corrected design Σ_WZ − E is singular — cannot re-derive the point")
+
+    # Recorded reliability / slope vectors must agree with the covariance
+    # re-derivation — a tampered covariance not propagated here is caught.
+    rec_lam = rc.get("reliability")
+    if rec_lam is not None and abs(lam - float(rec_lam)) > 1e-9 * (1 + abs(lam)):
+        _fail(f"reliability mismatch — re-derived {lam}, recorded {rec_lam}")
+    rec_naive_slope = suff.get("naive_slope")
+    if rec_naive_slope is not None and not np.allclose(
+        b, np.asarray(rec_naive_slope, dtype=float), atol=1e-6,
+    ):
+        _fail(
+            f"naive slope mismatch — re-derived {b.tolist()}, recorded "
+            f"{rec_naive_slope}"
+        )
+    rec_corr_slope = suff.get("corrected_slope")
+    if rec_corr_slope is not None and not np.allclose(
+        beta, np.asarray(rec_corr_slope, dtype=float), atol=1e-6,
+    ):
+        _fail(
+            f"corrected slope mismatch — re-derived {beta.tolist()}, recorded "
+            f"{rec_corr_slope}"
+        )
+
+    # Headline point = corrected exposure slope; naive_point = naive exposure slope.
+    corrected = float(beta[0])
+    naive = float(b[0])
+
+    point = estimate.get("point")
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        _fail(f"missing / non-numeric point {point!r}")
+    if abs(corrected - float(point)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(corrected)):
+        _fail(f"point mismatch — re-derived corrected {corrected}, recorded {point}")
+
+    claimed_naive = rc.get("naive_point")
+    if claimed_naive is None:
+        _fail("regression_calibration.naive_point missing")
+    if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
+        _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
+
+
 def _state_key(v):
     """Hashable, bool/int-collision-free key for an outcome state value."""
     if isinstance(v, bool):

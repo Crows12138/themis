@@ -36,6 +36,7 @@ def estimate_program(
     ate_estimator: str = "gformula",
     reference_data: Any = None,
     misclassification: dict | None = None,
+    measurement_error: dict | None = None,
 ) -> dict:
     """See ``themis.estimate`` for the full contract.
 
@@ -73,8 +74,18 @@ def estimate_program(
     matrix per back-door stratum (Rogan-Gladen for a binary outcome) instead of
     shipping the attenuated naive g-formula number. Like ``reference_data`` it is
     a load-bearing external input used only at estimate time; ordinary programs
-    never touch it. Deferred: exposure misclassification, differential (per-arm)
-    matrices, continuous mismeasurement.
+    never touch it. Deferred: combined (exposure AND outcome) misclassification.
+
+    ``measurement_error`` is the CONTINUOUS counterpart, an optional dict keyed by
+    EXPOSURE variable name, each value ``{"error_variance": σ²_u, "source": …?}``
+    — the known classical additive measurement-error variance of a continuously-
+    mismeasured exposure (W = X* + U). When an effect query's exposure has a spec,
+    the numeric end de-attenuates the regression dilution by the regression-
+    calibration moment correction β_true = (Σ_WZ − E)⁻¹ Σ_WZ b_naive instead of
+    shipping the attenuated naive back-door slope. Like ``misclassification`` it is
+    a load-bearing external input used only at estimate time. Deferred: Berkson /
+    differential error, a mismeasured outcome / covariate, a nonlinear outcome
+    (SIMEX).
     """
     from ..kernel import run as _run
 
@@ -138,6 +149,7 @@ def estimate_program(
         cluster=cluster, ate_estimator=ate_estimator,
         reference_data=reference_data,
         misclassification=misclassification,
+        measurement_error=measurement_error,
     )
 
     # Numeric end for the counterfactual rung: evaluate an ID*/IDC*-identified
@@ -592,6 +604,7 @@ def _estimate_effect_queries(
     ate_estimator: str = "gformula",
     reference_data: Any = None,
     misclassification: dict | None = None,
+    measurement_error: dict | None = None,
 ) -> None:
     """For each effect query result, attach a numeric_estimate when a
     supported identification strategy is available. Mutates ``output``
@@ -743,6 +756,46 @@ def _estimate_effect_queries(
             _try_exposure_measurement_correction_estimate(
                 q_stmt, result, contract, graph,
                 adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec_x,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
+            )
+            continue
+        # Continuous mismeasurement (regression calibration): the caller supplied
+        # a known classical additive error variance σ²_u for THIS query's
+        # continuous exposure. De-attenuate the regression dilution by the RC
+        # moment correction instead of shipping the attenuated naive back-door
+        # slope. Exposure-side only in v1; a continuous outcome / combined error
+        # is refused (honestly) rather than silently ignored.
+        me_spec_x = (measurement_error or {}).get(x_atom.predicate)
+        me_spec_y = (measurement_error or {}).get(y_atom.predicate)
+        if me_spec_x is not None and me_spec_y is not None:
+            result["estimator_failure"] = {
+                "estimator": "regression_calibration",
+                "failure_type": "combined_mismeasurement_deferred",
+                "reason": (
+                    "a measurement-error variance was supplied for BOTH the "
+                    f"exposure {x_atom.predicate!r} and the outcome "
+                    f"{y_atom.predicate!r}; the combined correction is deferred. "
+                    "Supply an error variance for exactly one of them."
+                ),
+            }
+            continue
+        if me_spec_y is not None:
+            result["estimator_failure"] = {
+                "estimator": "regression_calibration",
+                "failure_type": "continuous_outcome_mismeasurement_deferred",
+                "reason": (
+                    "a classical measurement-error variance was supplied for the "
+                    f"OUTCOME {y_atom.predicate!r}; continuous outcome "
+                    "mismeasurement is deferred (regression calibration here is "
+                    "exposure-side)."
+                ),
+            }
+            continue
+        if me_spec_x is not None:
+            _try_regression_calibration_estimate(
+                q_stmt, result, contract, graph,
+                adjustment_sets=adjustment_sets, given=given_atoms, spec=me_spec_x,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
             )
@@ -2973,6 +3026,130 @@ def _try_exposure_measurement_correction_estimate(
     ext = result.setdefault("extensions", {})
     ext["mechanism_audit"] = build_mechanism_audit(
         target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
+        form=est.form,
+        method=est.method,
+        assumption=est.model_assumption,
+        provenance="default",
+    )
+
+    result["derivation"] = _build_measurement_correction_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
+        given=frozenset(given), estimate=est,
+    )
+    _finalise_numeric_result(result)
+
+
+def _regression_calibration_block(est) -> dict:
+    """The ``regression_calibration`` audit/verifier block: the naive
+    (attenuated) slope, the reliability ratio λ (continuous det(M)), σ²_u, the
+    design variable order, and the sufficient statistics
+    ``verify_regression_calibration_numeric`` re-derives the corrected point
+    from (the design covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u)."""
+    return {
+        "naive_point": est.naive_point,
+        "reliability": est.reliability,
+        "error_variance": est.error_variance,
+        "exposure": est.treatment,
+        "design_vars": list(est.design_vars),
+        "naive_slope": list(est.naive_slope),
+        "corrected_slope": list(est.corrected_slope),
+        "form": est.form,
+        "model_assumption": est.model_assumption,
+        "sufficient_statistics": est.sufficient_statistics,
+    }
+
+
+def _try_regression_calibration_estimate(
+    q_stmt, result: dict, contract, graph, *,
+    adjustment_sets, given, spec: dict,
+    random_state: int, ci_bootstrap: int, cluster: str | None = None,
+) -> None:
+    """Continuous-mismeasurement numeric end + honest gate for a mismeasured
+    continuous EXPOSURE (regression calibration).
+
+    Fires when the caller supplied a known classical additive error variance
+    σ²_u for this query's exposure. Two outcomes, neither a silently-attenuated
+    back-door slope:
+
+    - Not back-door identified, or the correction refuses (non-positive /
+      degenerate σ²_u, near-discrete exposure, singular design) →
+      ``estimator_failure`` (no number); the caller asked for the corrected
+      slope, so the biased naive slope is withheld, not shipped.
+    - Back-door identified AND the correction succeeds → de-attenuate by the RC
+      moment correction, attach the corrected ``numeric_estimate`` (with the
+      naive slope kept for contrast), flip to numerically_solved.
+    """
+    from .regression_calibration import estimate_regression_calibration
+    from .dose_response import EstimatorFailure
+
+    x_atom = q_stmt.query.intervention.atom
+    y_atom = q_stmt.query.target.atom
+
+    if not adjustment_sets:
+        result["estimator_failure"] = {
+            "estimator": "regression_calibration",
+            "failure_type": "requires_backdoor_identification",
+            "reason": (
+                "regression calibration composes with back-door adjustment, but "
+                "P(y|do(x)) is not back-door identified here; no corrected slope "
+                "is produced."
+            ),
+        }
+        return
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        est = estimate_regression_calibration(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            error_variance=spec.get("error_variance"),
+            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": "regression_calibration",
+            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = {
+            "estimator": "regression_calibration",
+            "failure_type": "invalid_input",
+            "reason": str(exc),
+        }
+        return
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        # Regression-calibration detail (audit trail + verifier inputs). The
+        # design covariance matrix + Cov((W,Z),Y) + σ²_u don't fit derivation-
+        # input serialization, so they live here and the corrected/naive slope
+        # is re-derived by verify_regression_calibration_numeric (kernel-called).
+        "regression_calibration": _regression_calibration_block(est),
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import build_mechanism_audit
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
         form=est.form,
         method=est.method,
         assumption=est.model_assumption,

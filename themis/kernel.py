@@ -102,6 +102,7 @@ from .verifier import (
     verify_longitudinal_numeric,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
+    verify_regression_calibration_numeric,
     verify_scm_counterfactual,
     verify_effect_structural,
     verify_identify,
@@ -985,6 +986,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # here from the recorded matrix + per-stratum 2×k joint tables.
             if num_est.get("method") == "exposure_measurement_error_correction":
                 verify_exposure_measurement_correction_numeric(num_est)
+            # Continuous mismeasurement (regression calibration): the
+            # de-attenuated slope is re-derived here from the recorded design
+            # covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u (which don't fit
+            # derivation-input serialization).
+            if num_est.get("method") == "regression_calibration":
+                verify_regression_calibration_numeric(num_est)
             # A dose-response estimate carries a curve array that the
             # metadata audit doesn't inspect (it only sees the headline
             # scalar). Audit the curve's construction invariants — the

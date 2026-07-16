@@ -3696,6 +3696,11 @@ def _rule_numeric_proximal_estimate(
 _NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
     "measurement_error_correction",
     "exposure_measurement_error_correction",
+    # Continuous mismeasurement (regression calibration) shares this terminal —
+    # metadata + back-door structural licensing; the moment-correction point is
+    # re-derived from the recorded design covariance by
+    # verify_regression_calibration_numeric (kernel-called).
+    "regression_calibration",
 })
 
 

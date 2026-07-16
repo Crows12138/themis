@@ -84,6 +84,15 @@ Public surface (re-exports from sub-modules):
   rejects a tampered point, a non-stochastic or det-inconsistent matrix, a
   dropped stratum, an empty observed arm, or a degenerate recovered exposure
   marginal. Shares the ``numeric_measurement_correction_estimate`` terminal),
+  ``verify_regression_calibration_numeric`` (continuous mismeasurement — the
+  de-attenuated slope of a continuously-mismeasured EXPOSURE by regression
+  calibration: the corrected point, the naive (attenuated) slope, and the
+  reliability λ=1−σ²_u/Var(W|Z) re-derived by an independent transcription of the
+  moment correction β=(Σ_WZ−E)⁻¹Cov((W,Z),Y) from the recorded design covariance
+  matrix + σ²_u; rejects a forged point / naive / reliability, a non-symmetric
+  covariance, a degenerate reliability (σ²_u≥Var(W|Z)) that shipped a point, or a
+  slope vector inconsistent with the covariance. Shares the
+  ``numeric_measurement_correction_estimate`` terminal),
   ``verify_selection_recovery_numeric`` (§S9.1 numeric end — the ATE recovered
   from selection bias by the Bareinboim-Pearl selection-backdoor formula
   (Theorem 3.5): re-runs the sum μ(x)=Σ_{z⁺}[Σ_{z⁻} E_biased[Y|x,z,S]·P_ref(z⁻|x,z⁺)]·P_ref(z⁺)
@@ -177,6 +186,7 @@ from .verify import (
     verify_ovb_sensitivity,
     verify_proximal_effect,
     verify_proximal_numeric,
+    verify_regression_calibration_numeric,
     verify_scm_counterfactual,
     verify_selection_recovery,
 )
@@ -228,6 +238,7 @@ __all__ = [
     "verify_ovb_sensitivity",
     "verify_proximal_effect",
     "verify_proximal_numeric",
+    "verify_regression_calibration_numeric",
     "verify_scm_counterfactual",
     "verify_selection_recovery",
     "verify_selection_recovery_numeric",

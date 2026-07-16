@@ -527,7 +527,8 @@
             "causation_plugin",
             "selection_backdoor_recovery",
             "measurement_error_correction",
-            "exposure_measurement_error_correction"
+            "exposure_measurement_error_correction",
+            "regression_calibration"
           ]
         },
         "assumptions": { "type": "array", "items": { "type": "string" } },
@@ -704,6 +705,42 @@
                 },
                 "marginal_total": { "type": "integer", "minimum": 1 },
                 "det": { "type": "number" }
+              }
+            }
+          }
+        },
+        "regression_calibration": {
+          "type": "object",
+          "description": "regression_calibration only: de-attenuation of a continuously-mismeasured exposure (classical additive error W = X* + U with a known error variance sigma^2_u) by the regression-calibration moment correction beta_true = (Sigma_WZ - E)^-1 Sigma_WZ b_naive, with E = diag(sigma^2_u, 0, ...) (error only inflates the W-variance). `point` (top-level) is the corrected per-unit exposure slope beta_x on the true exposure X* adjusting for Z; `naive_point` is the attenuated naive back-door OLS slope the correction replaces. `reliability` lambda = 1 - sigma^2_u / Var(W|Z) is the continuous analogue of det(M) (the factor the naive slope is divided by). verify_regression_calibration_numeric re-derives the corrected/naive slope + lambda from sufficient_statistics (the design covariance matrix Sigma_WZ + Cov((W,Z),Y) + sigma^2_u) without the raw data.",
+          "required": ["naive_point", "reliability", "error_variance", "exposure", "design_vars", "sufficient_statistics"],
+          "additionalProperties": false,
+          "properties": {
+            "naive_point": { "type": "number" },
+            "reliability": { "type": "number" },
+            "error_variance": { "type": "number", "exclusiveMinimum": 0 },
+            "exposure": { "type": "string" },
+            "design_vars": { "type": "array", "items": { "type": "string" }, "description": "The design column order [exposure, ...back-door covariates Z] the covariance matrix and slopes are indexed by; the exposure is index 0." },
+            "naive_slope": { "type": "array", "items": { "type": "number" } },
+            "corrected_slope": { "type": "array", "items": { "type": "number" } },
+            "form": { "type": "string" },
+            "model_assumption": { "type": "string" },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "Everything verify_regression_calibration_numeric re-derives the corrected/naive slope from. cov_matrix is the (p x p) sample covariance Sigma_WZ of the design (design_vars order, exposure first); cov_design_y is Cov((W,Z), Y); error_variance is sigma^2_u. From these the naive slope Sigma^-1 cov_design_y, the corrected slope (Sigma - E)^-1 cov_design_y, and lambda = 1 - sigma^2_u/Var(W|Z) are closed forms.",
+              "required": ["design_vars", "cov_matrix", "cov_design_y", "error_variance", "n"],
+              "additionalProperties": false,
+              "properties": {
+                "design_vars": { "type": "array", "items": { "type": "string" } },
+                "cov_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                "cov_design_y": { "type": "array", "items": { "type": "number" } },
+                "var_y": { "type": "number" },
+                "error_variance": { "type": "number", "exclusiveMinimum": 0 },
+                "n": { "type": "integer", "minimum": 1 },
+                "exposure_index": { "type": "integer", "minimum": 0 },
+                "reliability": { "type": "number" },
+                "naive_slope": { "type": "array", "items": { "type": "number" } },
+                "corrected_slope": { "type": "array", "items": { "type": "number" } },
+                "adjustment_vars": { "type": "array", "items": { "type": "string" } }
               }
             }
           }
