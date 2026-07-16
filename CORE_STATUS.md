@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3023 passed / 144 skipped, warning-clean
+3034 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -378,6 +378,23 @@ M_y⁻¹ 求逆）。接口=`differential=True` + `confusion_matrices`（对齐 
 结局（SIMEX，模拟外推非闭式故不合逐数复核契约）推迟。D1 双 oracle：矩阵形式 βx=0.7982==单变量
 可靠比 b_naive/λ=0.7982（逐位）·恢复真斜率 0.80 vs 朴素 0.40 vs 真 0.8·CI 覆盖·五类篡改被拒。
 +19→**3023**。
+
+**连续误测扩到误测协变量/混杂（2026-07-16 续）**：上一档 RC 把 E 硬编码在暴露列
+（E=diag(σ²_u,0,…)），误测**混杂**没有校正通道。探针坐实又是**静默错误答案**：真混杂 z→x、
+z→y，观测 W_z=z+U_z，对噪声代理 W_z 做后门调整留下**残差混淆**→朴素斜率 **0.835**（真 0.5，
+**高估 67% 且偏离零**，与暴露衰减朝零相反）、标 numerically_solved、`measurement_error={z:…}`
+被**静默忽略**。泛化=把 E 从"暴露列"推广到**设计矩阵任意列**：同一条
+**β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive**，E=diag(σ²_u 放在被误测列)。`error_variance` 参数**多态**
+（float=暴露 sugar / dict={变量名:σ²_u}），暴露+混杂组合=E 多个对角非零。**混杂误测无标量可靠比
+捷径**（矩阵求逆必需），每列各报 λ_v=1−σ²_uv/Var(V|rest)；退化守卫升级为 **Σ_obs−E 的 Cholesky
+PD 检验**（多列时逐列 λ>0 必要不充分）。dispatch 收集非暴露非结局的 spec 为混杂误差、优先选含全部
+命名混杂的后门集，命名变量不在设计中→`mismeasured_covariate_not_in_adjustment` 诚实拒绝。
+`verify_regression_calibration_numeric` 从记录的 `error_variances`（名→σ²_uv）按 design_vars
+索引**重建 E**（关键：否则用 E=0 重导出朴素 β 误拒诚实校正点），去掉"暴露 σ²_u>0"要求（改为
+Σe>0）、校标量 error_variance==暴露对角、逐列 λ 交叉核对；误测**结局**/组合仍诚实拒。取舍（声明）
+=连续误测变量（暴露和/或混杂）·经典加性·线性·已知固定 σ²_u；误测结局、Berkson/差异、非线性
+SIMEX 仍推迟。D1=潜混杂 SCM 恢复真 0.50 vs 残差混淆朴素 0.835·矩量方程残差交叉核·组合 X+Z 恢复
+·四守卫·验证器拒伪造点/篡改 σ²_uz。+11→**3034**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
