@@ -141,7 +141,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - K-treatment 联合干预**数值端**（2026-07-16）：联合 `do(A,B,C,…)` 此前分层不对称——结构层 `minimal_adjustment_sets_joint` 本就支持任意 K，但数值层硬锁 exactly-2（K≥3 静默 no-op=结构证到、数值给不出的诚实缺口）。`estimate_joint_effect` 泛化：结局回归纳入**饱和 treatment 交互基**（所有非空子集乘积项，K=2 即 `[A,B,A·B]` 字节级等价），交互泛化为 **K 阶最高阶混合有限差** `Σ_s (−1)^{#lo(s)} μ(s)`（2^K 角点交替求和，湮灭所有 <K 阶项，隔离最高阶交互）；`interaction.order`=K 入 schema。**验证器零改动**（两条 joint 规则本就 atom-set·K-agnostic）。取舍：二值·K≤5·只报最高阶交互·latent 联合仍诚实拒绝。D1：K=3 真 3-way 恢复对比 5/交互 2；anti-silent-wrong=有 2-way 无 3-way 时 3 阶交互恢复 ~0；K=4 恢复 5.5/1.5。+14 测试
 
-当前全量测试基线：**3092 passed / 144 skipped**，warning-clean。
+- joint **ADMG/latent** 调整（2026-07-16，K-treatment 续）：联合前沿第二半。`minimal_adjustment_sets_joint` 此前 `if bidirected: raise NotImplementedError` 拒 latent（能力缺口）。把广义（treatment-SET）后门/调整准则从 d-分离**广义为 m-分离**（van der Zander 2019 / Perković 2018）：proper back-door graph 阻断检查按 bidirected 路由 m-分离/d-分离（**DAG 路径字节级不变**）。**关键洞察=联合干预中和 latent**：`Z→{A,B,Y}, A→Y, B→Y, A↔B` 里 G_pbd 移除 A→Y/B→Y 后 A↔B 后门路被 collider B 阻断→`{Z}` 有效，而单 do(A) 需 `{B,Z}`——集合准则≠单处理准则之并。数值端零改动（有效调整集喂 `estimate_joint_effect`，g-formula 在 latent 下无偏）。**soundness 非完备声明**：只覆盖可调整识别子集；ID-可识别但非调整-可识别（前门/c-component for sets）诚实拒绝，联合 general-ID 留 follow-on（ID 引擎内部本就集合式）。D1：潜 SCM（U→A,B=A↔B）恢复真对比 4.02/交互 2.02；A↔Y 无调整集诚实拒绝；篡改丢 Z 被 m-分离重导拒。+8 测试
+
+当前全量测试基线：**3100 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -195,7 +197,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3092 passed / 144 skipped（2026-07-16）
+- **测试套件**：3100 passed / 144 skipped（2026-07-16）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
