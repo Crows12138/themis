@@ -135,7 +135,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 条件效应在 ADMG 上静默丢 given（止血）：测量误差方向的戏剧性静默错答挖尽后转攻更高价值前沿，4 条并行探针里前门探针揪出一条**戏剧性静默错答**。`scheduler._dispatch_effect` 的 bidirected 分支里 Tian-in-effect fallback **无 `observed_atoms` 守卫**——`identify_via_tian` 只算无条件 do(X)、忽略 given，识别成功就发数标 numerically_solved。故任何非后门识别的**条件**效应查询（前门最典型）静默丢 given、**发边际值当条件值**：`P(Y=1|do(X=1),C=1)` 发 0.545=边际（真条件 0.675），C=0/C=1 报同一个数，且 `themis.verify` 直接崩溃而非拒绝。止血=Tian fallback 加 `and not observed_atoms` 守卫，条件查询**诚实拒绝**（`query:effect_admg_conditional`，reason 明说边际被 withheld）。非 bidirected/后门条件本就正确处理 given。分阶段前沿 Phase 1（纠正性）；Phase 2=条件 general-ID（IDC*）数值端。+2 回归测试
 
-当前全量测试基线：**3057 passed / 144 skipped**，warning-clean。
+- 条件 general-ID（IDC*）数值端（Phase 2，纠正性完成）：把上一条 Phase 1 的诚实拒绝翻成**正确条件值**。`observed_atoms` 非空时走 `identify_via_idc`（Rule-2 exchange + `ID(Y∪Z_rem,X')/ID(Z_rem,X')` 归一化）+ 新 `bind_idc_values`（target 与 given 两侧绑 Y/Z）+ `_try_numeric`；派生 `idc_rule2_exchange`+`identify_via_idc`+`idc_formula_ast`+`formula_evaluation`+`numeric_result`。验证器泛化 `_rule_identify_via_idc` 接 EffectQuery、加 `_rule_idc_formula_ast` 独立重绑、`_evaluate_formula` 加 FractionExpr 分支、见证清单纳入 IDC。潜变量-SCM 分数条件恢复到 **1e-9**、手算非分数 `P(Y=1|do(X=1),C=1)`=**0.60**（≠边际 0.47）；+2 篡改测试（伪造数值/顶替绑定公式均被独立验证器拒）。顺带堵 `_try_iv_wald_in_effect` 同类相邻静默错答（条件查询带工具+单调性时发无条件 Wald LATE 丢 given）：加 `if q.given: return None` 守卫
+
+当前全量测试基线：**3064 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -189,7 +191,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3057 passed / 144 skipped（2026-07-16）
+- **测试套件**：3064 passed / 144 skipped（2026-07-16）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

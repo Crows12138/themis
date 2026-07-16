@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3057 passed / 144 skipped, warning-clean
+3064 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -442,6 +442,22 @@ bidirected 分支/后门条件（`minimal_adjustment_sets(...,given=)`）本就�
 （纠正性）**；Phase 2=条件 general-ID（IDC*）数值端（`identify_via_idc` 已在、验证到 1e-9），把拒绝翻成正确条件值。+2 回归测试（条件拒绝+边际仍解）→**3057**。
 （4 探针结论：条件 IV data 路径 2SLS 已正确/仅 theta 拒绝；general-ID 条件诚实拒绝但天真删门=戏剧错答；ADMG 上 cause·probability 是**过度阻断**
 ——答案本已正确算出，低价值 gate 移除；前门/条件 IDC 是赢家。）
+
+**条件 general-ID（IDC*）数值端（Phase 2，纠正性完成）**：把 Phase 1 的诚实拒绝翻成**正确条件值**。`scheduler._dispatch_effect` 的 bidirected 分支
+里，Phase 1 的 `query:effect_admg_conditional` 拒绝换成 IDC-in-effect 数值分支：`observed_atoms` 非空时调 `c_factor.identify_via_idc(graph, bidirected,
+x, y, z_atoms, x_value)` 拿到条件估计量（Rule-2 exchange 把可交换 Z 移入 do-set，余项归一化为 `ID(Y∪Z_rem, X') / ID(Z_rem, X')`），再用**新** `c_factor.
+bind_idc_values(formula, {Y:y, Z:z...})` 把查询的 Y/Z 值绑进公式（**target 与 given 两侧都绑**——交换掉的 Z 落在 do-context 侧、留下的 Z_rem 既是分子
+target 又是链式 conditioning），最后走 `_try_numeric` 对 theta 求值。派生 = `idc_rule2_exchange`(s1) + `identify_via_idc`(s2, 不动符号公式) +
+`idc_formula_ast`(s3, 绑值) + `formula_evaluation` + `numeric_result`，镜像 Tian-in-effect 三步前缀。验证器五处接线：(1) `_rule_identify_via_idc` 泛化
+接受 **EffectQuery** 上下文（从 ValuedAtom 抽 atom，核心 Rule-2 重放不变）；(2) 新 `_rule_idc_formula_ast` + `_verifier_bind_idc_values` 独立重绑
+Y/Z（含 FractionExpr、given 位）比对；(3) `_evaluate_formula` 加 FractionExpr 分支（num/den + positivity 守卫，镜像 runtime）；(4) `formula_evaluation`
+类型检查 + `IDENTIFICATION_FORMULA_RULES` 纳入 `idc_formula_ast`；(5) 效应见证清单纳入 `identify_via_idc`。两独立 oracle：潜变量-SCM
+（Z→X→M→Y、X↔Y、Z↔Y，Z 存活=真分数）条件恢复到 **1e-9**（`_scm_ground_truth`）；手算前门+效应修饰（C→Y、C 交换掉=非分数）`P(Y=1|do(X=1),C=1)`
+=0.8·0.7+0.2·0.2=**0.60**、C=0=0.34、边际=0.47（条件≠边际=Phase 1 拒发的那个戏剧差）。+2 篡改测试（伪造数值→formula_evaluation 独立重算 0.60 拒
+0.47；用 unbound holes 顶替 idc_formula_ast 输出→独立重绑拒）。Phase 1 的"条件拒绝"回归测试改判为"IDC 正确求解"。**顺带堵一个同类相邻静默错答**：
+`_try_iv_wald_in_effect`（在条件路由里跑在 IDC 之前）的 Wald LATE 是**无条件** complier 效应（查 P(Y|Z)/P(X|Z) 无 given 项），此前对**带 given** 的查询
+（有工具+单调性时）会发无条件 LATE 静默丢 given（实证：`P(Y=1|do(X=1),C=1)` 发 0.50=无条件 LATE、丢 C=1）；加 `if q.given: return None` 守卫，
+条件查询落到 IDC/诚实拒绝，无条件 IV 查询不受影响仍发 LATE。+回归测试。+新增测试 →**3064**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
