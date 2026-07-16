@@ -139,7 +139,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 条件 general-ID（IDC）**data/pandas 端**（Phase 2 声明的 follow-on）：Phase 2 只做 theta 路径，这一档补 **DataFrame** 路径（此前 `dispatch.py:_try_general_id_estimate` `if given_atoms: return False` 诚实 bail=能力缺口）。新 `estimate_general_id_conditional_ate`：两 do-臂各 `identify_via_idc` + `bind_idc_values`，复用无条件路径的 VE plug-in（`ve_estimate_formula` 早支持 FractionExpr），出**层内条件-ATE 对比** `P(Y=y_hi|do(x_hi),Z=z)−P(Y=y_hi|do(x_lo),Z=z)`（镜像无条件 data 路径出 ATE）。验证深度**对齐无条件 data 路径**：泛化 `_rule_general_id_criterion` 按 `ctx.query.given` 路由（有 given→重跑 `identify_via_idc` 确认可识别=安全关键，conditioning 读自 query 防低报绕过），method 枚举加 `general_id_idc_plugin`；plug-in 算术是共享的 data-refit 天花板（元数据审计）。D1 双 DGP 落为数据：效应修饰图恢复 ATE(C=1)=0.30/ATE(C=0)=0.18/边际=0.24 三者皆异；潜-SCM 分数端恢复 0.375。+14 测试
 
-当前全量测试基线：**3078 passed / 144 skipped**，warning-clean。
+- K-treatment 联合干预**数值端**（2026-07-16）：联合 `do(A,B,C,…)` 此前分层不对称——结构层 `minimal_adjustment_sets_joint` 本就支持任意 K，但数值层硬锁 exactly-2（K≥3 静默 no-op=结构证到、数值给不出的诚实缺口）。`estimate_joint_effect` 泛化：结局回归纳入**饱和 treatment 交互基**（所有非空子集乘积项，K=2 即 `[A,B,A·B]` 字节级等价），交互泛化为 **K 阶最高阶混合有限差** `Σ_s (−1)^{#lo(s)} μ(s)`（2^K 角点交替求和，湮灭所有 <K 阶项，隔离最高阶交互）；`interaction.order`=K 入 schema。**验证器零改动**（两条 joint 规则本就 atom-set·K-agnostic）。取舍：二值·K≤5·只报最高阶交互·latent 联合仍诚实拒绝。D1：K=3 真 3-way 恢复对比 5/交互 2；anti-silent-wrong=有 2-way 无 3-way 时 3 阶交互恢复 ~0；K=4 恢复 5.5/1.5。+14 测试
+
+当前全量测试基线：**3092 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -193,7 +195,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3078 passed / 144 skipped（2026-07-16）
+- **测试套件**：3092 passed / 144 skipped（2026-07-16）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
