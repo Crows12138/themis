@@ -2073,8 +2073,9 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
 
 def verify_regression_calibration_numeric(estimate: dict) -> None:
     """Re-derive a regression-calibration-corrected slope — the corrected point,
-    the naive (attenuated) slope, and the reliability λ — from the recorded
-    design covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u, and reject on mismatch.
+    the naive (biased) slope, and the reliabilities λ_v — from the recorded
+    design covariance matrix Σ_obs + Cov(D,Y) + the per-variable error variances,
+    and reject on mismatch.
 
     The correction rides on a ``numerically_solved`` back-door result whose
     derivation ends in ``numeric_measurement_correction_estimate`` (a shared
@@ -2082,22 +2083,25 @@ def verify_regression_calibration_numeric(estimate: dict) -> None:
     doesn't fit derivation-input serialization). This is the strong numeric
     counterpart: a SECOND, independent transcription of the moment correction
 
-        b_naive = Σ_WZ⁻¹ Cov((W,Z), Y)                          (attenuated)
-        β_true  = (Σ_WZ − E)⁻¹ Cov((W,Z), Y),  E = diag(σ²_u, 0, …)
-        λ       = 1 − σ²_u / Var(W|Z)                           (continuous det(M))
+        b_naive = Σ_obs⁻¹ Cov(D, Y)                             (biased)
+        β_true  = (Σ_obs − E)⁻¹ Cov(D, Y),  E = diag(σ²_u at the mismeasured columns)
+        λ_v     = 1 − σ²_uv / Var(V|rest)                       (continuous det(M))
 
     from the recorded ``regression_calibration.sufficient_statistics`` (the
-    design covariance, the Cov((W,Z),Y) vector, and σ²_u). It never imports the
-    producer's estimator and never touches the raw data. A result that isn't a
-    ``regression_calibration`` estimate is a no-op.
+    design covariance, the Cov(D,Y) vector, and the per-variable error variances
+    ``error_variances``). It never imports the producer's estimator and never
+    touches the raw data. The mismeasured column may be the exposure and/or a
+    back-door covariate, so E is rebuilt at each mismeasured column's index. A
+    result that isn't a ``regression_calibration`` estimate is a no-op.
 
     Tamper checks: a forged corrected / naive point, a forged reliability, a
-    non-symmetric or wrong-shape covariance, a non-positive σ²_u, a σ²_u that
-    makes Σ_WZ − E non-positive-definite (a degenerate reliability the estimator
-    would have refused) yet a point still shipped, or a recorded naive / corrected
-    slope vector that disagrees with the covariance re-derivation (which catches a
-    tampered covariance entry that wasn't propagated to the slopes) — each is
-    rejected.
+    non-symmetric or wrong-shape covariance, an error variance keyed by a
+    non-design variable, a scalar ``error_variance`` inconsistent with the
+    exposure's diagonal, a σ²_u that makes Σ_obs − E non-positive-definite (a
+    degenerate reliability the estimator would have refused) yet a point still
+    shipped, or a recorded naive / corrected slope vector that disagrees with the
+    covariance re-derivation (which catches a tampered covariance entry that
+    wasn't propagated to the slopes) — each is rejected.
 
     ``estimate`` is the full ``numeric_estimate`` dict.
     """
@@ -2126,7 +2130,6 @@ def verify_regression_calibration_numeric(estimate: dict) -> None:
         design_vars = list(suff["design_vars"])
         Sigma = np.asarray(suff["cov_matrix"], dtype=float)
         cov_Dy = np.asarray(suff["cov_design_y"], dtype=float)
-        su2 = float(suff["error_variance"])
     except (KeyError, TypeError, ValueError) as exc:
         _fail(f"ill-formed sufficient statistics: {exc}")
 
@@ -2139,8 +2142,39 @@ def verify_regression_calibration_numeric(estimate: dict) -> None:
         _fail(f"cov_design_y {cov_Dy.shape} does not match {p} design vars")
     if not np.allclose(Sigma, Sigma.T, atol=1e-8):
         _fail("cov_matrix is not symmetric")
-    if not (np.isfinite(su2) and su2 > 0):
-        _fail(f"error_variance must be a positive finite number; got {su2!r}")
+
+    # Reconstruct the error diagonal E from the recorded per-variable error
+    # variances (name → σ²_uv) at each mismeasured column's design index — the
+    # general form E = diag(σ²_u at mismeasured columns, 0 elsewhere). A
+    # scalar-only record (legacy exposure-side) falls back to E[0,0]=σ²_u.
+    e_vec = np.zeros(p)
+    ev_map = suff.get("error_variances")
+    if isinstance(ev_map, dict) and ev_map:
+        for name, val in ev_map.items():
+            if name not in design_vars:
+                _fail(f"error variance for {name!r} not among design vars {design_vars}")
+            v = float(val)
+            if not (np.isfinite(v) and v > 0):
+                _fail(f"error variance for {name!r} must be positive finite; got {val!r}")
+            e_vec[design_vars.index(name)] = v
+    else:
+        try:
+            e_vec[0] = float(suff["error_variance"])
+        except (KeyError, TypeError, ValueError) as exc:
+            _fail(f"no usable error variance in sufficient statistics: {exc}")
+    if e_vec.sum() <= 0:
+        _fail("no positive measurement-error variance recorded")
+
+    # The scalar error_variance must equal the exposure's diagonal entry.
+    exposure_su2 = float(e_vec[0])
+    rec_scalar = suff.get("error_variance")
+    if rec_scalar is not None and abs(
+        float(rec_scalar) - exposure_su2
+    ) > 1e-9 * (1 + abs(exposure_su2)):
+        _fail(
+            f"error_variance {rec_scalar} disagrees with the exposure diagonal "
+            f"{exposure_su2}"
+        )
 
     # Naive OLS slope from the recorded covariance — an independent second solve.
     try:
@@ -2148,37 +2182,68 @@ def verify_regression_calibration_numeric(estimate: dict) -> None:
     except np.linalg.LinAlgError:
         _fail("recorded cov_matrix is singular — cannot re-derive the naive slope")
 
-    # Var(W|Z) (Schur complement of the covariate block) ⇒ the reliability ratio.
-    if p == 1:
-        var_w_given_z = float(Sigma[0, 0])
-    else:
-        s_wz = Sigma[0, 1:]
-        s_zz = Sigma[1:, 1:]
+    # Per-mismeasured-column reliability λ_v = 1 − σ²_uv / Var(V|rest); ≤ 0 is a
+    # degenerate reliability the estimator would have refused. Var(V|rest) is the
+    # Schur complement of the other design columns.
+    def _cond_var(idx):
+        if p == 1:
+            return float(Sigma[0, 0])
+        others = [j for j in range(p) if j != idx]
+        s_io = Sigma[idx, others]
+        s_oo = Sigma[np.ix_(others, others)]
         try:
-            var_w_given_z = float(Sigma[0, 0] - s_wz @ np.linalg.solve(s_zz, s_wz))
+            return float(Sigma[idx, idx] - s_io @ np.linalg.solve(s_oo, s_io))
         except np.linalg.LinAlgError:
-            _fail("covariate block Σ_ZZ is singular — cannot re-derive Var(W|Z)")
-    lam = 1.0 - su2 / var_w_given_z
-    if lam <= 1e-12:
-        _fail(
-            f"reliability λ = {lam} ≤ 0 (σ²_u {su2} ≥ Var(W|Z) {var_w_given_z}): the "
-            f"corrected design Σ_WZ − E is not positive definite, so no corrected "
-            f"slope should have been produced"
-        )
+            _fail(f"design block for column {idx} is singular — cannot re-derive Var(V|rest)")
 
-    E = np.zeros((p, p))
-    E[0, 0] = su2
+    reliabilities: dict = {}
+    for i in range(p):
+        if e_vec[i] > 0:
+            var_i = _cond_var(i)
+            lam_i = 1.0 - e_vec[i] / var_i
+            reliabilities[design_vars[i]] = lam_i
+            if lam_i <= 1e-12:
+                _fail(
+                    f"reliability λ = {lam_i} ≤ 0 for {design_vars[i]!r} (σ²_u "
+                    f"{e_vec[i]} ≥ Var(V|rest) {var_i}): the corrected design "
+                    f"Σ_obs − E is not positive definite, so no corrected slope "
+                    f"should have been produced"
+                )
+
+    E = np.diag(e_vec)
     Sigma_star = Sigma - E
+    # Positive-definiteness is the general degeneracy condition (per-column λ > 0
+    # is necessary but not sufficient once several columns are mismeasured).
+    try:
+        np.linalg.cholesky(Sigma_star)
+    except np.linalg.LinAlgError:
+        _fail(
+            "corrected design Σ_obs − E is not positive definite — no corrected "
+            "slope should have been produced"
+        )
     try:
         beta = np.linalg.solve(Sigma_star, cov_Dy)
     except np.linalg.LinAlgError:
-        _fail("corrected design Σ_WZ − E is singular — cannot re-derive the point")
+        _fail("corrected design Σ_obs − E is singular — cannot re-derive the point")
+
+    # Exposure reliability λ_x (1.0 when the exposure is measured accurately).
+    lam = reliabilities.get(design_vars[0], 1.0)
 
     # Recorded reliability / slope vectors must agree with the covariance
     # re-derivation — a tampered covariance not propagated here is caught.
     rec_lam = rc.get("reliability")
     if rec_lam is not None and abs(lam - float(rec_lam)) > 1e-9 * (1 + abs(lam)):
         _fail(f"reliability mismatch — re-derived {lam}, recorded {rec_lam}")
+    rec_rels = suff.get("reliabilities")
+    if isinstance(rec_rels, dict):
+        for name, lam_v in reliabilities.items():
+            if name in rec_rels and abs(
+                lam_v - float(rec_rels[name])
+            ) > 1e-9 * (1 + abs(lam_v)):
+                _fail(
+                    f"reliability mismatch for {name!r} — re-derived {lam_v}, "
+                    f"recorded {rec_rels[name]}"
+                )
     rec_naive_slope = suff.get("naive_slope")
     if rec_naive_slope is not None and not np.allclose(
         b, np.asarray(rec_naive_slope, dtype=float), atol=1e-6,

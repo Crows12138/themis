@@ -2,81 +2,93 @@
 
 The confusion-matrix module (``measurement.py``) corrects a *discrete*
 misclassified variable by inverting a known column-stochastic matrix. This
-module is its **continuous** counterpart: a continuous exposure measured with
-**classical additive error** — we observe ``W = X* + U`` instead of the true
-``X*``, with ``U`` mean-zero, independent of ``(X*, Z)`` and of the outcome
-given ``X*``, and a *known* error variance ``σ²_u`` (from a validation substudy,
-replicate measurements, or the literature — the exact analogue of a known
-confusion matrix).
+module is its **continuous** counterpart: one or more continuous design
+variables measured with **classical additive error** — we observe ``W = V + U``
+instead of the true ``V``, with ``U`` mean-zero, independent of the other design
+variables and of the outcome given the truth, and a *known* error variance
+``σ²_u`` (from a validation substudy, replicate measurements, or the literature —
+the exact analogue of a known confusion matrix). The mismeasured variable may be
+the **exposure** (regression dilution → attenuation toward zero) OR a **back-door
+covariate / confounder** (imperfect adjustment → *residual confounding*, a bias
+in EITHER direction), or several at once.
 
 Model (Carroll, Ruppert, Stefanski & Crainiceanu 2006 *Measurement Error in
 Nonlinear Models* §3; Rosner, Willett & Spiegelman 1989; Fuller 1987). Linear
-structural outcome model, back-door adjustment set Z:
+structural outcome model, back-door adjustment set Z, design D = (X*, Z):
 
     Y = β0 + βx · X* + βz'·Z + ε ,   E[ε | X*, Z] = 0
-    W = X* + U ,                     U ⟂ (X*, Z, ε),  Var(U) = σ²_u  (known)
+    W_v = V + U_v  for each mismeasured design column V ∈ D ,
+                                     U_v ⟂ (other design cols, ε),  Var(U_v) = σ²_uv  (known)
 
-The naive OLS of Y on the *observed* (W, Z) is attenuated: the classical error
-inflates only the W-variance, so the whole design covariance is
+The naive OLS of Y on the *observed* design is biased: classical error inflates
+only the mismeasured columns' variances, so the whole design covariance is
 
-    Σ_WZ = Σ_{X*Z} + E ,   E = diag(σ²_u, 0, …, 0)   (error only on W)
+    Σ_obs = Σ_true + E ,   E = diag(σ²_u placed on each mismeasured column, 0 elsewhere)
 
-while Cov((W, Z), Y) = Cov((X*, Z), Y) is unchanged (U ⟂ Y). Hence the true
+while Cov(D_obs, Y) = Cov(D_true, Y) is unchanged (each U_v ⟂ Y). Hence the true
 structural coefficients are an EXACT moment correction of the naive ones — the
-continuous analogue of the confusion-matrix inversion M⁻¹:
+continuous analogue of the confusion-matrix inversion M⁻¹, with E a *diagonal of
+the error variances at the mismeasured columns* instead of a single exposure
+entry:
 
-    b_naive = Σ_WZ⁻¹ Cov((W, Z), Y)                      (attenuated)
-    β_true  = Σ_{X*Z}⁻¹ Cov((W, Z), Y)
-            = (Σ_WZ − E)⁻¹ Σ_WZ b_naive                  (de-attenuated)
+    b_naive = Σ_obs⁻¹ Cov(D_obs, Y)                       (biased)
+    β_true  = Σ_true⁻¹ Cov(D_obs, Y)
+            = (Σ_obs − E)⁻¹ Σ_obs b_naive                 (corrected)
 
 The corrected causal effect is ``βx = β_true[exposure]`` — the effect on Y per
-unit of the *true* exposure X*, adjusting for Z. For a single exposure this
-reduces to the classic reliability-ratio correction ``βx_true = b_naive / λ``
-with the covariate-adjusted reliability ratio
+unit of the *true* exposure X*, adjusting for the *true* Z. When only the
+exposure is mismeasured this reduces to the classic reliability-ratio correction
+``βx_true = b_naive / λ`` with the covariate-adjusted reliability ratio
 
-    λ = Var(X*|Z) / Var(W|Z) = 1 − σ²_u / Var(W|Z)       (continuous "det(M)")
+    λ = Var(X*|Z) / Var(W|Z) = 1 − σ²_u / Var(W|Z)        (continuous "det(M)")
 
 where ``Var(W|Z)`` is the residual variance of W after regressing on Z. λ plays
 exactly the role det(M) = Se+Sp−1 plays for a binary outcome: the factor the
-naive estimate is divided by. For the linear model this is regression
-calibration (replace X* by Ê[X*|W,Z] and refit) and the moment correction
-coincide, so the recovery is exact (no normality assumption needed).
+naive estimate is divided by. When a *confounder* is the mismeasured column there
+is no such scalar shortcut for the exposure slope — the matrix inversion is
+essential (adjusting for a noisy proxy of Z leaves residual confounding that the
+full (Σ_obs − E)⁻¹ removes). Each mismeasured column carries its own reliability
+λ_v = 1 − σ²_uv / Var(V | rest). For the linear model this is regression
+calibration (replace each mismeasured V by Ê[V|observed] and refit) and the
+moment correction coincide, so the recovery is exact (no normality needed).
 
 Guards (honest, not silent):
 
-- **Degenerate reliability.** σ²_u ≥ Var(W|Z) ⇒ λ ≤ 0 ⇒ Σ_{X*Z} is not positive
-  definite: the claimed error variance meets or exceeds the observed conditional
-  variance, so the measurement carries no usable signal about X* ⇒ refuse
-  (``EstimatorFailure``), mirroring the singular-matrix guard in ``measurement``.
-- **Non-positive error variance.** σ²_u ≤ 0 is not a variance ⇒ refuse.
-- **Non-continuous exposure.** A near-discrete exposure (≤ ``_MIN_CONTINUOUS_
-  DISTINCT`` distinct values) is a misclassification object, not classical
-  additive error ⇒ refuse, pointing at the confusion-matrix method.
-- **Singular design.** A collinear covariate set (Σ_WZ not invertible) ⇒ refuse.
+- **Degenerate reliability.** σ²_uv ≥ Var(V|rest) for some mismeasured V ⇒ λ_v ≤ 0,
+  or more generally Σ_obs − E not positive definite: the claimed error variance
+  meets or exceeds the observed conditional variance, so the measurement carries
+  no usable signal ⇒ refuse (``EstimatorFailure``), mirroring the singular-matrix
+  guard in ``measurement``.
+- **Non-positive error variance.** σ²_uv ≤ 0 is not a variance ⇒ refuse.
+- **Non-continuous mismeasured variable.** A near-discrete column (≤
+  ``_MIN_CONTINUOUS_DISTINCT`` distinct values) is a misclassification object, not
+  classical additive error ⇒ refuse, pointing at the confusion-matrix method.
+- **Mismeasured variable not in the design.** An error variance keyed by a
+  variable that is neither the exposure nor an adjustment covariate ⇒ refuse.
+- **Singular design.** A collinear covariate set (Σ_obs not invertible) ⇒ refuse.
 
 Scope (declared tradeoffs):
 
-- **Continuous exposure**, **classical additive** error (``W = X* + U``,
-  ``U ⟂``); Berkson error, differential error, and a mismeasured *outcome* /
-  *covariate* are deferred (this estimator is exposure-side).
+- **Continuous** mismeasured variables, **classical additive** error (``W = V + U``,
+  ``U ⟂``) — the exposure and/or one or more back-door covariates. Berkson error,
+  differential error, and a mismeasured *outcome* are deferred.
 - **Linear** structural outcome model — the moment correction is exact for a
   linear Y (or the linear-probability projection of a binary Y). A nonlinear
   outcome (logistic, Cox) would need the approximate RC "replace-and-refit" or
   SIMEX; both are deferred. SIMEX in particular is a simulation-extrapolation
   heuristic (a tuned extrapolant, not a closed form), so it does not fit the
   per-number re-derivation contract and is out of scope.
-- **Known, FIXED** error variance σ²_u (a validation-study / replicate quantity),
+- **Known, FIXED** error variances σ²_uv (validation-study / replicate quantities),
   exactly as the confusion matrix is fixed. Propagating validation-study
-  uncertainty in σ²_u itself (a second layer) is deferred; the bootstrap
+  uncertainty in σ²_uv itself (a second layer) is deferred; the bootstrap
   propagates the main-sample sampling variability only.
-- **Numeric** back-door adjustment covariates Z; a categorical Z (dummy coding)
-  is deferred.
+- **Numeric** design columns; a categorical covariate (dummy coding) is deferred.
 
 The sufficient statistics recorded on the estimate (the design covariance matrix
-Σ_WZ, the Cov((W,Z), Y) vector, σ²_u, and n) are exactly what
-``themis.verify_regression_calibration_numeric`` re-derives the corrected point,
-the naive point, and the reliability from — it never re-touches the raw data and
-never imports this module.
+Σ_obs, the Cov(D, Y) vector, the per-variable error variances, and n) are exactly
+what ``themis.verify_regression_calibration_numeric`` re-derives the corrected
+point, the naive point, and the reliabilities from — it never re-touches the raw
+data and never imports this module.
 """
 from __future__ import annotations
 
@@ -89,8 +101,8 @@ from .contract import validate_data
 from .dose_response import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
-# An exposure with fewer than this many distinct values is treated as discrete
-# (a misclassification object) rather than a continuously-mismeasured one.
+# A mismeasured variable with fewer than this many distinct values is treated as
+# discrete (a misclassification object) rather than a continuously-mismeasured one.
 _MIN_CONTINUOUS_DISTINCT = 10
 # λ (reliability ratio) at or below this ⇒ the corrected design is not positive
 # definite ⇒ refuse.
@@ -101,15 +113,17 @@ _TOL = 1e-9
 @dataclass(frozen=True)
 class RegressionCalibrationEstimate:
     """Regression-calibration-corrected effect of a continuously-mismeasured
-    exposure, with a bootstrap CI.
+    exposure and/or back-door covariate, with a bootstrap CI.
 
     ``point`` is the corrected per-unit slope βx of the true exposure X* on Y
-    adjusting for Z. ``naive_point`` is the attenuated naive OLS slope of Y on
-    the observed W adjusting for Z — the biased number the correction replaces.
-    ``reliability`` is λ = 1 − σ²_u/Var(W|Z), the continuous analogue of det(M).
-    ``sufficient_statistics`` carries the design covariance matrix Σ_WZ, the
-    Cov((W,Z), Y) vector, σ²_u, and n — everything the numeric verifier
-    re-derives the point from.
+    adjusting for the *true* Z. ``naive_point`` is the biased naive OLS slope of
+    Y on the observed design — the number the correction replaces. ``reliability``
+    is the exposure's λ = 1 − σ²_u/Var(W|Z) (the continuous analogue of det(M));
+    it is 1.0 when the exposure is measured accurately (only a covariate is
+    mismeasured). ``error_variances`` maps each mismeasured design variable to its
+    known σ²_uv; ``reliabilities`` maps each to its λ_v. ``sufficient_statistics``
+    carries the design covariance matrix Σ_obs, the Cov(D, Y) vector, the error
+    variances, and n — everything the numeric verifier re-derives the point from.
     """
     point: float
     naive_point: float
@@ -128,6 +142,8 @@ class RegressionCalibrationEstimate:
     naive_slope: tuple[float, ...]
     corrected_slope: tuple[float, ...]
     design_vars: tuple[str, ...]
+    error_variances: dict = field(default_factory=dict)
+    reliabilities: dict = field(default_factory=dict)
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
     form: str = "regression_calibration_backdoor_linear"
@@ -143,42 +159,57 @@ def estimate_regression_calibration(
     treatment: str,
     outcome: str,
     adjustment: tuple[str, ...],
-    error_variance: float,
+    error_variance: float | dict,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> RegressionCalibrationEstimate:
     """De-attenuate the linear back-door effect of a continuously-mismeasured
-    exposure by the regression-calibration moment correction.
+    exposure and/or covariate by the regression-calibration moment correction.
 
     Parameters
     ----------
-    data: the main sample carrying the *observed* (error-prone) exposure W.
-    treatment / outcome: continuous exposure W and (linear) outcome Y columns.
+    data: the main sample carrying the *observed* (error-prone) columns.
+    treatment / outcome: exposure and (linear) outcome columns.
     adjustment: the back-door adjustment covariates Z (numeric).
-    error_variance: the KNOWN classical additive measurement-error variance σ²_u
-        (from a validation study / replicates), held fixed across bootstraps.
+    error_variance: the KNOWN classical additive error variance(s) σ²_u. A scalar
+        is sugar for ``{treatment: σ²_u}`` (a mismeasured exposure); a dict maps
+        each mismeasured design variable name (the exposure and/or any adjustment
+        covariate) to its known σ²_uv. Held fixed across bootstraps.
     ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
-        controls (σ²_u is held fixed across resamples).
+        controls (the error variances are held fixed across resamples).
 
     Raises
     ------
-    EstimatorFailure: non-positive / non-finite error variance; a near-discrete
-        exposure; a collinear (singular) design; or a degenerate reliability
-        (σ²_u ≥ Var(W|Z), so the corrected design is not positive definite).
+    EstimatorFailure: non-positive / non-finite error variance; a mismeasured
+        variable that is near-discrete or not among the design columns; a
+        collinear (singular) design; or a degenerate reliability (σ²_uv ≥
+        Var(V|rest), so the corrected design is not positive definite).
     """
-    if (
-        not isinstance(error_variance, (int, float))
-        or isinstance(error_variance, bool)
-        or not np.isfinite(error_variance)
-        or error_variance <= 0
-    ):
+    # Normalize the error spec: a scalar σ²_u is sugar for {exposure: σ²_u}; a
+    # dict maps design-variable names → their known classical error variance.
+    if isinstance(error_variance, dict):
+        raw_error = {str(k): v for k, v in error_variance.items()}
+    else:
+        raw_error = {treatment: error_variance}
+    if not raw_error:
         raise EstimatorFailure(
             "non_positive_error_variance",
-            f"the classical measurement-error variance σ²_u must be a positive "
-            f"finite number; got {error_variance!r}.",
+            "no measurement-error variance σ²_u was supplied.",
         )
+    for name, ev in raw_error.items():
+        if (
+            not isinstance(ev, (int, float))
+            or isinstance(ev, bool)
+            or not np.isfinite(ev)
+            or ev <= 0
+        ):
+            raise EstimatorFailure(
+                "non_positive_error_variance",
+                f"the classical measurement-error variance σ²_u for {name!r} must "
+                f"be a positive finite number; got {ev!r}.",
+            )
 
     adjustment = tuple(sorted(adjustment))
     presence = (cluster,) if cluster is not None else ()
@@ -188,48 +219,60 @@ def estimate_regression_calibration(
     )
     df = contract.data
 
-    n_distinct = int(df[treatment].dropna().nunique())
-    if n_distinct < _MIN_CONTINUOUS_DISTINCT:
+    design_vars = (treatment, *adjustment)
+    unknown = [k for k in raw_error if k not in design_vars]
+    if unknown:
         raise EstimatorFailure(
-            "exposure_not_continuous",
-            f"exposure {treatment!r} has only {n_distinct} distinct values; "
-            f"regression calibration is for a CONTINUOUS exposure with classical "
-            f"additive error. A discrete / binary exposure is a misclassification "
-            f"object — use the confusion-matrix method (misclassification=) "
-            f"instead.",
+            "mismeasured_variable_not_in_design",
+            f"measurement error was supplied for {unknown!r}, which is not among "
+            f"the design variables {list(design_vars)!r} (the exposure and its "
+            f"back-door adjustment set). A confounder must be adjusted for to be "
+            f"corrected.",
         )
 
-    design_vars = (treatment, *adjustment)
+    for name in raw_error:
+        n_distinct = int(df[name].dropna().nunique())
+        if n_distinct < _MIN_CONTINUOUS_DISTINCT:
+            role = "exposure" if name == treatment else "covariate"
+            ftype = (
+                "exposure_not_continuous" if name == treatment
+                else "mismeasured_covariate_not_continuous"
+            )
+            raise EstimatorFailure(
+                ftype,
+                f"{role} {name!r} has only {n_distinct} distinct values; regression "
+                f"calibration is for a CONTINUOUS variable with classical additive "
+                f"error. A discrete / binary variable is a misclassification object "
+                f"— use the confusion-matrix method (misclassification=) instead.",
+            )
+
     D = np.column_stack([df[v].to_numpy(dtype=float) for v in design_vars])
     y = df[outcome].to_numpy(dtype=float)
     n = len(df)
+    # Error variance aligned to the design columns (0 for accurately-measured).
+    e_vec = np.array([float(raw_error.get(v, 0.0)) for v in design_vars])
 
     groups = (
         cluster_labels(df, cluster, expected_n=n)
         if cluster is not None else None
     )
 
-    point, naive, beta, b, lam, Sigma, cov_Dy = _formula(
-        D, y, float(error_variance),
+    point, naive, beta, b, reliabilities, Sigma, cov_Dy = _formula(
+        D, y, e_vec, design_vars,
     )
+    reliability_x = reliabilities.get(treatment, 1.0)
 
     ci_lower = ci_upper = None
     if ci_bootstrap > 0:
         ci_lower, ci_upper = _bootstrap(
-            D, y, float(error_variance), groups=groups,
+            D, y, e_vec, design_vars, groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
-    model_assumption = (
-        "被经典加性误差污染的连续暴露 W=X*+U（U 均值 0、与 (X*,Z) 及给定 X* 的 Y "
-        "独立），误差方差 σ²_u 由验证研究/重复测量已知且固定。经典误差只抬高设计"
-        "协方差中 W 的方差：Σ_WZ=Σ_{X*Z}+E，E=diag(σ²_u,0,…)，而 Cov((W,Z),Y) 不"
-        "变。故真实结构系数是朴素系数的精确矩量校正 β_true=(Σ_WZ−E)⁻¹Σ_WZ·b_naive"
-        "（=(Σ_WZ−E)⁻¹Cov((W,Z),Y)），暴露分量 βx 即对 Z 调整后每单位真实暴露对 Y "
-        "的因果斜率。单暴露即可靠比校正 βx_true=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续"
-        "版 det(M)。线性结局下 regression calibration 与矩量校正一致，恢复精确。"
-    )
-    assumptions = _assumptions(adjustment, cluster)
+    mismeasured = [v for v in design_vars if raw_error.get(v, 0.0) > 0]
+    model_assumption = _model_assumption(treatment, mismeasured)
+    assumptions = _assumptions(adjustment, mismeasured, treatment, cluster)
+    error_variances = {v: float(raw_error[v]) for v in design_vars if v in raw_error}
     return RegressionCalibrationEstimate(
         point=point,
         naive_point=naive,
@@ -240,20 +283,24 @@ def estimate_regression_calibration(
         data_hash=contract.data_hash,
         treatment=treatment, outcome=outcome,
         adjustment=adjustment,
-        error_variance=float(error_variance),
-        reliability=lam,
+        error_variance=float(raw_error.get(treatment, 0.0)),
+        reliability=reliability_x,
         naive_slope=tuple(float(v) for v in b),
         corrected_slope=tuple(float(v) for v in beta),
         design_vars=design_vars,
+        error_variances=error_variances,
+        reliabilities={k: float(v) for k, v in reliabilities.items()},
         sufficient_statistics={
             "design_vars": list(design_vars),
             "cov_matrix": [[float(v) for v in row] for row in Sigma],
             "cov_design_y": [float(v) for v in cov_Dy],
             "var_y": float(np.var(y, ddof=1)),
-            "error_variance": float(error_variance),
+            "error_variance": float(raw_error.get(treatment, 0.0)),
+            "error_variances": error_variances,
             "n": int(n),
             "exposure_index": 0,
-            "reliability": lam,
+            "reliability": reliability_x,
+            "reliabilities": {k: float(v) for k, v in reliabilities.items()},
             "naive_slope": [float(v) for v in b],
             "corrected_slope": [float(v) for v in beta],
             "adjustment_vars": list(adjustment),
@@ -266,74 +313,95 @@ def estimate_regression_calibration(
 # --- formula core -------------------------------------------------------------
 
 
-def _conditional_var_w(Sigma: np.ndarray) -> float:
-    """Residual variance of W (design index 0) after regressing on Z (the rest):
-    Var(W|Z) = Σ_WW − Σ_WZ Σ_ZZ⁻¹ Σ_ZW (the Schur complement). No covariates ⇒
-    Var(W|Z) = Var(W)."""
-    if Sigma.shape[0] == 1:
+def _conditional_var(Sigma: np.ndarray, idx: int) -> float:
+    """Residual variance of design column ``idx`` after regressing on the others:
+    Var(V_idx | rest) = Σ_ii − Σ_i,rest Σ_rest,rest⁻¹ Σ_rest,i (the Schur
+    complement). A single column ⇒ Var(V) = Σ_ii."""
+    p = Sigma.shape[0]
+    if p == 1:
         return float(Sigma[0, 0])
-    s_ww = float(Sigma[0, 0])
-    s_wz = Sigma[0, 1:]
-    s_zz = Sigma[1:, 1:]
-    return s_ww - float(s_wz @ np.linalg.solve(s_zz, s_wz))
+    others = [j for j in range(p) if j != idx]
+    s_ii = float(Sigma[idx, idx])
+    s_io = Sigma[idx, others]
+    s_oo = Sigma[np.ix_(others, others)]
+    return s_ii - float(s_io @ np.linalg.solve(s_oo, s_io))
 
 
-def _formula(D: np.ndarray, y: np.ndarray, error_variance: float):
-    """Corrected + naive exposure slope from the design (W, Z) and outcome y.
+def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
+    """Corrected + naive slope vector from the design D and outcome y with the
+    per-column error variances ``e_vec``.
 
-    Returns (point, naive, corrected_slope, naive_slope, reliability, Σ_WZ,
-    Cov((W,Z), y)). Raises on a singular design or a degenerate reliability."""
+    Returns (point, naive, corrected_slope, naive_slope, reliabilities, Σ_obs,
+    Cov(D, y)) where ``point`` / ``naive`` are the exposure components. Raises on
+    a singular design or a degenerate reliability (any Σ_obs − E non-PD)."""
     p = D.shape[1]
     Dc = D - D.mean(axis=0)
     yc = y - y.mean()
-    Sigma = (Dc.T @ Dc) / (len(y) - 1)              # Σ_WZ
-    cov_Dy = (Dc.T @ yc) / (len(y) - 1)             # Cov((W,Z), y)
+    Sigma = (Dc.T @ Dc) / (len(y) - 1)              # Σ_obs
+    cov_Dy = (Dc.T @ yc) / (len(y) - 1)             # Cov(D, y)
 
     try:
         b = np.linalg.solve(Sigma, cov_Dy)          # naive OLS slopes
     except np.linalg.LinAlgError:
         raise EstimatorFailure(
             "singular_design",
-            "the design covariance Σ_WZ is singular (collinear covariates); the "
+            "the design covariance Σ_obs is singular (collinear covariates); the "
             "naive regression — and so the correction — is undefined.",
         )
 
-    var_w_given_z = _conditional_var_w(Sigma)
-    lam = 1.0 - error_variance / var_w_given_z      # reliability ratio (det(M) analogue)
-    if lam <= _LAMBDA_FLOOR:
+    # Per-mismeasured-column reliability λ_v = 1 − σ²_uv / Var(V|rest); ≤ 0 means
+    # the claimed error meets/exceeds the conditional variance ⇒ refuse.
+    reliabilities: dict = {}
+    for i in range(p):
+        if e_vec[i] > 0:
+            var_i = _conditional_var(Sigma, i)
+            lam_i = 1.0 - e_vec[i] / var_i
+            reliabilities[design_vars[i]] = float(lam_i)
+            if lam_i <= _LAMBDA_FLOOR:
+                raise EstimatorFailure(
+                    "degenerate_reliability",
+                    f"the measurement-error variance σ²_u = {e_vec[i]:.6g} for "
+                    f"{design_vars[i]!r} meets or exceeds Var({design_vars[i]}|rest) "
+                    f"= {var_i:.6g} (reliability λ = {lam_i:.6g} ≤ 0); the corrected "
+                    f"design Σ_obs − E is not positive definite and the measurement "
+                    f"carries no usable information about the true value.",
+                )
+
+    E = np.diag(e_vec)
+    Sigma_star = Sigma - E                          # Σ_true
+    # Positive-definiteness is the general degeneracy condition (per-column λ > 0
+    # is necessary but not sufficient once several columns are mismeasured).
+    try:
+        np.linalg.cholesky(Sigma_star)
+    except np.linalg.LinAlgError:
         raise EstimatorFailure(
             "degenerate_reliability",
-            f"the measurement-error variance σ²_u = {error_variance:.6g} meets or "
-            f"exceeds Var(W|Z) = {var_w_given_z:.6g} (reliability λ = {lam:.6g} ≤ 0); "
-            f"the corrected design Σ_WZ − E is not positive definite and the "
-            f"measurement carries no usable information about the true exposure.",
+            "the corrected design Σ_obs − E is not positive definite for the given "
+            "error variances; the correction is undefined.",
         )
-
-    E = np.zeros((p, p))
-    E[0, 0] = error_variance
-    Sigma_star = Sigma - E                          # Σ_{X*Z}
-    beta = np.linalg.solve(Sigma_star, cov_Dy)      # de-attenuated slopes
+    beta = np.linalg.solve(Sigma_star, cov_Dy)      # corrected slopes
 
     return (
-        float(beta[0]), float(b[0]), beta, b, float(lam), Sigma, cov_Dy,
+        float(beta[0]), float(b[0]), beta, b, reliabilities, Sigma, cov_Dy,
     )
 
 
 def _bootstrap(
-    D: np.ndarray, y: np.ndarray, error_variance: float, *,
+    D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars, *,
     groups: np.ndarray | None,
     ci_bootstrap: int, ci_level: float, random_state: int,
 ) -> tuple[float | None, float | None]:
     """Percentile bootstrap of the corrected exposure slope — resample rows (or
-    clusters), recompute the correction with σ²_u held FIXED, collect βx. Draws
-    that induce a degenerate reliability / singular design are skipped."""
+    clusters), recompute the correction with the error variances held FIXED,
+    collect βx. Draws that induce a degenerate reliability / singular design are
+    skipped."""
     rng = np.random.default_rng(random_state)
     n = len(y)
     pts: list[float] = []
     for _ in range(ci_bootstrap):
         idx = resample_indices(n, rng, groups=groups)
         try:
-            point, *_ = _formula(D[idx], y[idx], error_variance)
+            point, *_ = _formula(D[idx], y[idx], e_vec, design_vars)
         except EstimatorFailure:
             continue
         pts.append(point)
@@ -345,14 +413,55 @@ def _bootstrap(
     return lo, hi
 
 
-def _assumptions(adjustment: tuple[str, ...], cluster: str | None) -> tuple[str, ...]:
+def _model_assumption(treatment: str, mismeasured: list[str]) -> str:
+    names = "、".join(mismeasured)
+    if mismeasured == [treatment]:
+        subject = f"被经典加性误差污染的连续暴露 W=X*+U"
+        tail = (
+            "暴露分量 βx 即对 Z 调整后每单位真实暴露对 Y 的因果斜率。单暴露即可靠比"
+            "校正 βx_true=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)。"
+        )
+    elif treatment in mismeasured:
+        subject = f"被经典加性误差污染的连续设计变量 {names}（含暴露与混杂）"
+        tail = (
+            "暴露分量 βx 由整条 (Σ_obs−E)⁻¹ 求解，混杂列的误差经残差混淆一并纠正，"
+            "无单变量可靠比捷径。"
+        )
+    else:
+        subject = f"被经典加性误差污染的连续混杂 {names}"
+        tail = (
+            "暴露本身测量准确，但对噪声代理 W_z 后门调整留下残差混淆偏倚（可朝任意"
+            "方向，非仅衰减）；矩阵求逆 β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive 恢复对真实"
+            "混杂调整后的暴露斜率，无单变量可靠比捷径。"
+        )
+    return (
+        f"{subject}（U 均值 0、与其余设计列及给定真值的 Y 独立），误差方差 σ²_u 由"
+        "验证研究/重复测量已知且固定。经典误差只抬高设计协方差中被误测列的方差："
+        "Σ_obs=Σ_true+E，E=diag(σ²_u 在被误测列)，而 Cov(设计,Y) 不变。故真实结构"
+        "系数是朴素系数的精确矩量校正 β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive"
+        f"（=(Σ_obs−E)⁻¹Cov(设计,Y)）。{tail}线性结局下 regression calibration 与矩量"
+        "校正一致，恢复精确。"
+    )
+
+
+def _assumptions(
+    adjustment: tuple[str, ...], mismeasured: list[str], treatment: str,
+    cluster: str | None,
+) -> tuple[str, ...]:
     adj = ", ".join(adjustment) if adjustment else "∅"
+    names = ", ".join(mismeasured)
     out = [
-        "经典加性测量误差 W=X*+U，U 均值 0 且与 (X*,Z,ε) 独立；误差方差 σ²_u 已知且固定。",
+        f"经典加性测量误差 W=V+U（U 均值 0 且与其余设计列及 ε 独立）作用于 {{{names}}}；"
+        "误差方差 σ²_u 已知且固定。",
         "线性结构结局模型 Y=β0+βx·X*+βz'·Z+ε（矩量校正对线性结局精确）。",
         f"后门可识别，调整集 Z = {{{adj}}}（数值协变量）。",
-        "暴露连续；朴素后门 OLS 因回归稀释向零衰减，校正后 βx=b_naive/λ。",
     ]
+    if mismeasured == [treatment]:
+        out.append("暴露连续；朴素后门 OLS 因回归稀释向零衰减，校正后 βx=b_naive/λ。")
+    elif treatment in mismeasured:
+        out.append("暴露与部分混杂连续误测；校正由整条矩阵求逆去偏，无标量可靠比捷径。")
+    else:
+        out.append("暴露测准、混杂连续误测；对噪声代理调整的残差混淆经矩阵求逆去偏。")
     if cluster is not None:
         out.append(f"聚类 bootstrap（按 {cluster} 重采样簇）传播抽样不确定性。")
     return tuple(out)

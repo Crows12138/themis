@@ -59,15 +59,19 @@ Landed scope:
   (exposure AND outcome) correction, and a matrix differential in a COVARIATE.
 - Continuous mismeasurement — ``estimate_regression_calibration`` (returning
   ``RegressionCalibrationEstimate``): the CONTINUOUS counterpart of the confusion-
-  matrix method — de-attenuates a continuously-mismeasured EXPOSURE under
-  classical additive error (``W = X* + U``, known error variance σ²_u) by the
-  regression-calibration moment correction ``β_true = (Σ_WZ − E)⁻¹ Σ_WZ b_naive``,
-  ``E = diag(σ²_u, 0, …)`` (Carroll et al. 2006; Rosner-Willett-Spiegelman 1989).
-  The corrected slope, the naive (attenuated) slope, and the reliability
-  ``λ = 1 − σ²_u/Var(W|Z)`` (the continuous analogue of det(M)) are closed forms
-  of the recorded design covariance + σ²_u, so the verifier re-derives them
-  without the raw data. Deferred: Berkson / differential error, a mismeasured
-  outcome / covariate, a nonlinear outcome (SIMEX).
+  matrix method — de-attenuates one or more continuously-mismeasured design
+  columns under classical additive error (``W = V + U``, known error variance
+  σ²_u) by the regression-calibration moment correction
+  ``β_true = (Σ_obs − E)⁻¹ Σ_obs b_naive``, ``E = diag(σ²_u at the mismeasured
+  columns)`` (Carroll et al. 2006; Rosner-Willett-Spiegelman 1989). The
+  mismeasured column may be the EXPOSURE (regression dilution → attenuation) and/
+  or a back-door COVARIATE (imperfect adjustment → residual confounding, a bias
+  in either direction) — ``error_variance`` accepts a scalar (exposure) or a
+  ``{name: σ²_u}`` dict. The corrected slope, the naive (biased) slope, and each
+  reliability ``λ_v = 1 − σ²_uv/Var(V|rest)`` (the continuous analogue of det(M))
+  are closed forms of the recorded design covariance + error variances, so the
+  verifier re-derives them without the raw data. Deferred: Berkson / differential
+  error, a mismeasured outcome, a nonlinear outcome (SIMEX).
 - Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
   ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
   ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via

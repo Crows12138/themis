@@ -944,36 +944,46 @@ read the sign of `point − naive_point`. Supply it with
 differential_levels: […], states}})`.
 
 **Continuous mismeasurement (`method == "regression_calibration"`).** The
-CONTINUOUS counterpart, when the misclassified variable is a *continuously-
-mismeasured exposure* under classical additive error (`W = X* + U`) rather than a
-discrete one. If the caller supplies a **known error variance** σ²_u
-(`estimate(…, measurement_error={<exposure>: {error_variance}})`), the numeric end
-DE-ATTENUATES the regression dilution by the regression-calibration moment
-correction `β_true = (Σ_WZ − E)⁻¹ Σ_WZ b_naive`. Render it like the discrete case
-but note what is different:
+CONTINUOUS counterpart, when a *continuously-mismeasured design column* carries
+classical additive error (`W = V + U`) rather than a discrete one. The
+mismeasured column may be the **exposure** (regression dilution → attenuation) and/
+or a back-door **covariate / confounder** (imperfect adjustment → *residual
+confounding*, a bias in EITHER direction). If the caller supplies **known error
+variances** σ²_u (`estimate(…, measurement_error={<var>: {error_variance}})`,
+keyed by the exposure and/or covariate name), the numeric end DE-BIASES by the
+regression-calibration moment correction `β_true = (Σ_obs − E)⁻¹ Σ_obs b_naive`,
+`E = diag(σ²_u at the mismeasured columns)`. Render it like the discrete case but
+note what is different:
 
 - `point` is the corrected per-unit slope βx of the *true* exposure on the outcome
   (not a risk difference on a target value); contrast
-  `regression_calibration.naive_point`, the attenuated naive back-door OLS slope.
-- `regression_calibration.reliability` λ = 1 − σ²_u/Var(W|Z) is the continuous
-  analogue of `det(M)`: for a single exposure `point = naive_point / λ`, so a low
-  reliability (large error relative to the signal) means a large correction and a
-  wide CI. Name the LOAD-BEARING assumptions: **classical additive** error, a
-  **linear** outcome model, and a **known/fixed** σ²_u (the CI does not propagate
-  validation-study uncertainty in σ²_u).
+  `regression_calibration.naive_point`, the biased naive back-door OLS slope.
+- `regression_calibration.reliability` λ = 1 − σ²_u/Var(W|Z) is the **exposure's**
+  continuous analogue of `det(M)` (1.0 when the exposure is measured accurately and
+  only a covariate is noisy); `regression_calibration.reliabilities` gives λ_v per
+  mismeasured variable. When ONLY the exposure is mismeasured `point = naive_point
+  / λ`; when a **confounder** is mismeasured there is no scalar shortcut — the
+  matrix inversion removes the residual confounding, and the bias it corrects can
+  point in either direction (unlike the always-toward-zero exposure attenuation).
+  Name the LOAD-BEARING assumptions: **classical additive** error, a **linear**
+  outcome model, and **known/fixed** σ²_u (the CI does not propagate validation-
+  study uncertainty in σ²_u).
 - A `regression_calibration` `estimator_failure` (`degenerate_reliability` when
-  σ²_u ≥ Var(W|Z), `non_positive_error_variance`, `exposure_not_continuous`, or
-  the effect isn't back-door identified) is a refusal — the corrected slope was
-  withheld, NOT the biased naive slope silently shipped.
+  σ²_u ≥ Var(V|rest), `non_positive_error_variance`, `exposure_not_continuous` /
+  `mismeasured_covariate_not_continuous`, `mismeasured_covariate_not_in_adjustment`
+  when a named confounder isn't in the back-door set, or the effect isn't back-door
+  identified) is a refusal — the corrected slope was withheld, NOT the biased naive
+  slope silently shipped.
 
 Scope: the correction covers **outcome** and **binary-exposure** misclassification
 (discrete, confusion-matrix) **non-differential OR differential**, and a
-**continuous exposure** with classical additive error (regression calibration),
-all with **known** (fixed) matrix / matrices / error variance. A multi-level
-exposure, a combined (exposure AND outcome) correction, a matrix / error
-differential in a COVARIATE (beyond the exposure / outcome), a mismeasured
-outcome / covariate on the continuous side, and a nonlinear outcome (SIMEX) are
-out of scope and stay in the `measurement_error_concern` gap's territory.
+**continuous exposure and/or covariate** with classical additive error (regression
+calibration), all with **known** (fixed) matrix / matrices / error variance. A
+multi-level exposure, a combined (exposure AND outcome) correction, a matrix
+differential in a COVARIATE (discrete side), a mismeasured **outcome** on the
+continuous side, Berkson / differential continuous error, and a nonlinear outcome
+(SIMEX) are out of scope and stay in the `measurement_error_concern` gap's
+territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

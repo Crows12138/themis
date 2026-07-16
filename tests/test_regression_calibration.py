@@ -290,3 +290,214 @@ def test_combined_mismeasurement_deferred():
     fail = out["results"][0].get("estimator_failure")
     assert fail is not None
     assert fail["failure_type"] == "combined_mismeasurement_deferred"
+
+
+# --- mismeasured CONFOUNDER / covariate (E placed off the exposure column) -----
+
+
+def _make_confounder_error_data(*, n=200_000, bx=0.5, bz=1.0, a=1.0, su2z=1.0, seed=7):
+    """z (true confounder) → x (exposure, measured accurately) and → y; observed
+    W_z = z + U_z with Var(U_z)=σ²_uz. The frame carries the NOISY W_z as ``z``;
+    the true z is never seen. Adjusting for the noisy W_z leaves residual
+    confounding, so the naive back-door slope on x is biased AWAY from the true
+    bx (in either direction — here upward). Returns (df, bx, bz, lam_z) with
+    lam_z = Var(z|x)/Var(W_z|x) = (1/(a²+1)) / (1/(a²+1)+σ²_uz)."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(0, 1, n)
+    x = a * z + rng.normal(0, 1.0, n)
+    y = 0.3 + bx * x + bz * z + rng.normal(0, 1.0, n)
+    wz = z + rng.normal(0, np.sqrt(su2z), n)
+    df = pd.DataFrame({"x": x, "y": y, "z": wz})
+    var_z_given_x = 1.0 / (a ** 2 + 1.0)
+    lam_z = var_z_given_x / (var_z_given_x + su2z)
+    return df, bx, bz, lam_z
+
+
+def test_confounder_error_recovers_true_slope_while_naive_residual_confounds():
+    """A mismeasured CONFOUNDER: adjusting for the noisy proxy leaves residual
+    confounding (naive biased away from bx); the moment correction with E at the
+    confounder column recovers the true exposure slope."""
+    df, bx, _bz, lam_z = _make_confounder_error_data(su2z=1.0, a=1.0)
+    est = estimate_regression_calibration(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        error_variance={"z": 1.0}, ci_bootstrap=0,
+    )
+    assert isinstance(est, RegressionCalibrationEstimate)
+    # Corrected exposure slope recovers the latent-true bx.
+    assert est.point == pytest.approx(bx, abs=0.02)
+    # Naive back-door slope on x is residual-confounded — biased AWAY from bx
+    # (not merely attenuated toward zero).
+    assert abs(est.naive_point - bx) > 0.1
+    # The exposure is measured accurately ⇒ its reliability is 1.0; the confounder
+    # carries the reliability.
+    assert est.reliability == pytest.approx(1.0, abs=1e-12)
+    assert est.error_variance == 0.0
+    assert est.reliabilities["z"] == pytest.approx(lam_z, abs=0.02)
+    assert "z" in est.error_variances and "x" not in est.error_variances
+
+
+def test_confounder_correction_satisfies_moment_equations():
+    """Algebraic cross-oracle: the corrected slope vector solves the corrected
+    moment system (Σ_obs − E) β = Cov(D, Y), reconstructed from the recorded
+    sufficient statistics — a route independent of np.linalg.solve's path."""
+    df, *_ = _make_confounder_error_data(seed=3, su2z=0.8, a=0.7)
+    est = estimate_regression_calibration(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        error_variance={"z": 0.8}, ci_bootstrap=0,
+    )
+    suff = est.sufficient_statistics
+    Sigma = np.asarray(suff["cov_matrix"], float)
+    cov_Dy = np.asarray(suff["cov_design_y"], float)
+    design = list(suff["design_vars"])
+    E = np.zeros_like(Sigma)
+    E[design.index("z"), design.index("z")] = suff["error_variances"]["z"]
+    beta = np.asarray(est.corrected_slope, float)
+    assert np.allclose((Sigma - E) @ beta, cov_Dy, atol=1e-8)
+    # And it is NOT the naive/λ scalar shortcut (that route is exposure-only).
+    assert est.point != pytest.approx(est.naive_point, abs=1e-3)
+
+
+def _make_combined_error_data(*, n=200_000, bx=0.6, bz=1.0, a=0.7,
+                              taux2=1.0, su2x=0.6, su2z=0.7, seed=13):
+    """Both the exposure and the confounder are mismeasured: observed W_x=X*+U_x,
+    W_z=z+U_z. E has a nonzero entry at each. Returns (df, bx, bz)."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(0, 1, n)
+    xstar = a * z + rng.normal(0, np.sqrt(taux2), n)
+    y = 0.3 + bx * xstar + bz * z + rng.normal(0, 1.0, n)
+    wx = xstar + rng.normal(0, np.sqrt(su2x), n)
+    wz = z + rng.normal(0, np.sqrt(su2z), n)
+    df = pd.DataFrame({"x": wx, "y": y, "z": wz})
+    return df, bx, bz
+
+
+def test_combined_exposure_and_confounder_error_recovers_truth():
+    """E with a nonzero entry at BOTH the exposure and the confounder column:
+    the joint correction recovers the true exposure slope where the naive slope
+    (biased by attenuation AND residual confounding) does not."""
+    df, bx, _bz = _make_combined_error_data(su2x=0.6, su2z=0.7)
+    est = estimate_regression_calibration(
+        df, treatment="x", outcome="y", adjustment=("z",),
+        error_variance={"x": 0.6, "z": 0.7}, ci_bootstrap=0,
+    )
+    assert est.point == pytest.approx(bx, abs=0.03)
+    # The joint correction moved the estimate off the naive slope (attenuation and
+    # residual confounding can partly cancel, so the naive bias magnitude alone is
+    # not the signal — that the correction recovers bx from a wrong naive is).
+    assert abs(est.point - est.naive_point) > 0.03
+    # Exposure reliability < 1 (it is mismeasured); both variables carry λ_v.
+    assert 0.0 < est.reliability < 1.0
+    assert set(est.error_variances) == {"x", "z"}
+    assert set(est.reliabilities) == {"x", "z"}
+
+
+def test_mismeasured_covariate_not_continuous_refuses():
+    """A near-discrete covariate is a misclassification object, not classical
+    additive error ⇒ refuse (distinct failure type from the exposure guard)."""
+    df, *_ = _make_confounder_error_data(n=5000)
+    df = df.copy()
+    df["z"] = (df["z"] > 0).astype(float)  # binarise the covariate
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_regression_calibration(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            error_variance={"z": 0.1}, ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == "mismeasured_covariate_not_continuous"
+
+
+def test_mismeasured_variable_not_in_design_refuses():
+    """An error variance keyed by a variable that is neither the exposure nor an
+    adjustment covariate ⇒ refuse (a confounder must be adjusted for)."""
+    df, *_ = _make_confounder_error_data(n=5000)
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_regression_calibration(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            error_variance={"q_not_a_column": 0.5}, ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == "mismeasured_variable_not_in_design"
+
+
+def test_confounder_degenerate_reliability_refuses():
+    """σ²_uz exceeding the observed Var(W_z|x) ⇒ Σ_obs − E not positive definite
+    ⇒ refuse rather than ship a number."""
+    df, *_ = _make_confounder_error_data(n=5000, su2z=1.0)
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_regression_calibration(
+            df, treatment="x", outcome="y", adjustment=("z",),
+            error_variance={"z": 100.0}, ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == "degenerate_reliability"
+
+
+def _confounder_spec(su2z=1.0):
+    return {"z": {"error_variance": su2z}}
+
+
+def test_dispatch_e2e_confounder_corrects_and_flips_status():
+    """The silent-wrong-answer path: measurement_error keyed by the CONFOUNDER
+    was ignored → naive residual-confounded back-door slope shipped. Now it
+    routes to the correction and recovers the true slope."""
+    df, bx, _bz, _lam = _make_confounder_error_data(n=60_000)
+    out = themis.estimate(
+        _program(), df, ci_bootstrap=0, measurement_error=_confounder_spec(),
+    )
+    r = out["results"][0]
+    assert r["status"] == "numerically_solved"
+    ne = r["numeric_estimate"]
+    assert ne["method"] == "regression_calibration"
+    assert ne["point"] == pytest.approx(bx, abs=0.03)
+    # residual confounding biased the naive slope away from the truth
+    assert abs(ne["regression_calibration"]["naive_point"] - bx) > 0.1
+    assert ne["regression_calibration"]["error_variances"] == {"z": 1.0}
+
+
+def test_dispatch_confounder_not_in_adjustment_refuses():
+    """A σ²_u keyed by a variable that isn't in the back-door adjustment set is
+    refused honestly, not silently ignored."""
+    df, *_ = _make_confounder_error_data(n=20_000)
+    df = df.copy()
+    df["q"] = 0.0  # a declared descendant of y, never a back-door covariate
+    prog = _program()
+    # q is a descendant of the outcome ⇒ not in any back-door set.
+    prog["statements"].insert(3, {"kind": "variable", "predicate": "q"})
+    prog["statements"].insert(
+        -1, {"kind": "cause", "from": _atom("y"), "to": _atom("q")})
+    out = themis.estimate(
+        prog, df, ci_bootstrap=0, measurement_error={"q": {"error_variance": 0.5}},
+    )
+    r = out["results"][0]
+    assert r.get("status") != "numerically_solved"
+    fail = r.get("estimator_failure")
+    assert fail is not None
+    assert fail["failure_type"] == "mismeasured_covariate_not_in_adjustment"
+
+
+def test_verify_accepts_honest_confounder_e2e():
+    df, *_ = _make_confounder_error_data(seed=11, n=40_000)
+    prog = _program()
+    out = themis.estimate(prog, df, ci_bootstrap=0, measurement_error=_confounder_spec())
+    themis.verify(prog, out["results"][0])  # must not raise
+
+
+def _confounder_result(seed=11, n=40_000):
+    df, *_ = _make_confounder_error_data(seed=seed, n=n)
+    prog = _program()
+    out = themis.estimate(prog, df, ci_bootstrap=0, measurement_error=_confounder_spec())
+    return prog, out["results"][0]
+
+
+def test_verify_rejects_forged_confounder_point():
+    prog, r = _confounder_result()
+    r["numeric_estimate"]["point"] = 0.9  # honest corrected point is ~0.50
+    with pytest.raises(Exception):
+        themis.verify(prog, r)
+
+
+def test_verify_rejects_tampered_confounder_error_variance():
+    """Tampering the recorded confounder σ²_u (without re-deriving the slopes)
+    changes the re-derived correction and is caught."""
+    prog, r = _confounder_result()
+    r["numeric_estimate"]["regression_calibration"][
+        "sufficient_statistics"]["error_variances"]["z"] = 0.2
+    with pytest.raises(Exception):
+        themis.verify(prog, r)

@@ -761,41 +761,56 @@ def _estimate_effect_queries(
             )
             continue
         # Continuous mismeasurement (regression calibration): the caller supplied
-        # a known classical additive error variance σ²_u for THIS query's
-        # continuous exposure. De-attenuate the regression dilution by the RC
-        # moment correction instead of shipping the attenuated naive back-door
-        # slope. Exposure-side only in v1; a continuous outcome / combined error
-        # is refused (honestly) rather than silently ignored.
-        me_spec_x = (measurement_error or {}).get(x_atom.predicate)
-        me_spec_y = (measurement_error or {}).get(y_atom.predicate)
-        if me_spec_x is not None and me_spec_y is not None:
-            result["estimator_failure"] = {
-                "estimator": "regression_calibration",
-                "failure_type": "combined_mismeasurement_deferred",
-                "reason": (
-                    "a measurement-error variance was supplied for BOTH the "
-                    f"exposure {x_atom.predicate!r} and the outcome "
-                    f"{y_atom.predicate!r}; the combined correction is deferred. "
-                    "Supply an error variance for exactly one of them."
-                ),
-            }
-            continue
+        # a known classical additive error variance σ²_u for one or more of THIS
+        # query's continuous design columns — the exposure (regression dilution)
+        # and/or a back-door covariate (residual confounding). De-attenuate by the
+        # RC moment correction instead of shipping the biased naive back-door
+        # slope. A continuous OUTCOME error is deferred; any spec touching the
+        # outcome is refused (honestly) rather than silently ignored.
+        me = measurement_error or {}
+        me_spec_x = me.get(x_atom.predicate)
+        me_spec_y = me.get(y_atom.predicate)
+        me_spec_cov = {
+            k: v for k, v in me.items()
+            if k != x_atom.predicate and k != y_atom.predicate
+        }
         if me_spec_y is not None:
-            result["estimator_failure"] = {
-                "estimator": "regression_calibration",
-                "failure_type": "continuous_outcome_mismeasurement_deferred",
-                "reason": (
-                    "a classical measurement-error variance was supplied for the "
-                    f"OUTCOME {y_atom.predicate!r}; continuous outcome "
-                    "mismeasurement is deferred (regression calibration here is "
-                    "exposure-side)."
-                ),
-            }
+            if me_spec_x is not None or me_spec_cov:
+                result["estimator_failure"] = {
+                    "estimator": "regression_calibration",
+                    "failure_type": "combined_mismeasurement_deferred",
+                    "reason": (
+                        "a measurement-error variance was supplied for the OUTCOME "
+                        f"{y_atom.predicate!r} together with another variable; the "
+                        "combined correction is deferred. Supply error variances "
+                        "for the exposure and/or covariates only."
+                    ),
+                }
+            else:
+                result["estimator_failure"] = {
+                    "estimator": "regression_calibration",
+                    "failure_type": "continuous_outcome_mismeasurement_deferred",
+                    "reason": (
+                        "a classical measurement-error variance was supplied for "
+                        f"the OUTCOME {y_atom.predicate!r}; continuous outcome "
+                        "mismeasurement is deferred (regression calibration here "
+                        "corrects the exposure and/or its covariates)."
+                    ),
+                }
             continue
-        if me_spec_x is not None:
+        if me_spec_x is not None or me_spec_cov:
+            # Build the {design variable name → σ²_u} error map; the exposure
+            # and/or any named covariate. The handler validates the covariate
+            # keys against the chosen back-door set.
+            error_map: dict = {}
+            if me_spec_x is not None:
+                error_map[x_atom.predicate] = (me_spec_x or {}).get("error_variance")
+            for name, s in me_spec_cov.items():
+                error_map[name] = (s or {}).get("error_variance")
             _try_regression_calibration_estimate(
                 q_stmt, result, contract, graph,
-                adjustment_sets=adjustment_sets, given=given_atoms, spec=me_spec_x,
+                adjustment_sets=adjustment_sets, given=given_atoms,
+                error_map=error_map,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
             )
@@ -3049,6 +3064,8 @@ def _regression_calibration_block(est) -> dict:
         "naive_point": est.naive_point,
         "reliability": est.reliability,
         "error_variance": est.error_variance,
+        "error_variances": dict(est.error_variances),
+        "reliabilities": dict(est.reliabilities),
         "exposure": est.treatment,
         "design_vars": list(est.design_vars),
         "naive_slope": list(est.naive_slope),
@@ -3061,20 +3078,21 @@ def _regression_calibration_block(est) -> dict:
 
 def _try_regression_calibration_estimate(
     q_stmt, result: dict, contract, graph, *,
-    adjustment_sets, given, spec: dict,
+    adjustment_sets, given, error_map: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
 ) -> None:
     """Continuous-mismeasurement numeric end + honest gate for a mismeasured
-    continuous EXPOSURE (regression calibration).
+    continuous EXPOSURE and/or back-door COVARIATE (regression calibration).
 
-    Fires when the caller supplied a known classical additive error variance
-    σ²_u for this query's exposure. Two outcomes, neither a silently-attenuated
-    back-door slope:
+    Fires when the caller supplied known classical additive error variances σ²_u
+    for this query's exposure and/or covariates (``error_map`` = {name → σ²_u}).
+    Two outcomes, neither a silently-biased back-door slope:
 
-    - Not back-door identified, or the correction refuses (non-positive /
-      degenerate σ²_u, near-discrete exposure, singular design) →
-      ``estimator_failure`` (no number); the caller asked for the corrected
-      slope, so the biased naive slope is withheld, not shipped.
+    - Not back-door identified, a named mismeasured covariate absent from the
+      adjustment set, or the correction refuses (non-positive / degenerate σ²_u,
+      near-discrete variable, singular design) → ``estimator_failure`` (no
+      number); the caller asked for the corrected slope, so the biased naive
+      slope is withheld, not shipped.
     - Back-door identified AND the correction succeeds → de-attenuate by the RC
       moment correction, attach the corrected ``numeric_estimate`` (with the
       naive slope kept for contrast), flip to numerically_solved.
@@ -3097,15 +3115,39 @@ def _try_regression_calibration_estimate(
         }
         return
 
-    chosen = min(adjustment_sets, key=len)
+    # A mismeasured covariate must be adjusted for to be corrected; prefer a
+    # back-door set that contains every named covariate, else fall back to the
+    # smallest and let the design check below refuse.
+    named_covs = {k for k in error_map if k != x_atom.predicate}
+
+    def _covers(aset):
+        return named_covs <= {a.predicate for a in aset}
+
+    candidates = [a for a in adjustment_sets if _covers(a)] or list(adjustment_sets)
+    chosen = min(candidates, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    design_names = {x_atom.predicate, *adjustment_names}
+    not_in_design = sorted(k for k in error_map if k not in design_names)
+    if not_in_design:
+        result["estimator_failure"] = {
+            "estimator": "regression_calibration",
+            "failure_type": "mismeasured_covariate_not_in_adjustment",
+            "reason": (
+                f"a measurement-error variance was supplied for {not_in_design!r}, "
+                f"which is neither the exposure nor a covariate in the back-door "
+                f"adjustment set {list(adjustment_names)!r}; a confounder must be "
+                f"adjusted for to be corrected."
+            ),
+        }
+        return
 
     try:
         est = estimate_regression_calibration(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             adjustment=adjustment_names,
-            error_variance=spec.get("error_variance"),
+            error_variance=error_map,
             ci_bootstrap=ci_bootstrap, ci_level=0.95,
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,

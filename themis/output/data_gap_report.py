@@ -1414,21 +1414,23 @@ def _classify_measurement_error_concern(
             "暴露侧按结局层=recall bias；差异误分类可朝远离零方向偏，故须逐层求逆）；"
             "两种都由 verify_measurement_correction_numeric / "
             "verify_exposure_measurement_correction_numeric 独立重算校正值。"
-            "若被误测的是**连续暴露**且有已知的经典加性误差方差 σ²_u"
+            "若被误测的是**连续暴露或连续混杂**且有已知的经典加性误差方差 σ²_u"
             "（验证研究 / 重复测量），数值层可经 estimate(..., measurement_error="
-            "{<暴露变量名>: {error_variance}}) 用 regression calibration 的矩量校正"
-            " β_true=(Σ_WZ−E)⁻¹Σ_WZ·b_naive 去回归稀释（Carroll 2006；单暴露即 "
-            "βx=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)），"
-            "由 verify_regression_calibration_numeric 独立重导。"
+            "{<变量名>: {error_variance}}) 用 regression calibration 的矩量校正"
+            " β_true=(Σ_obs−E)⁻¹Σ_obs·b_naive 去偏（Carroll 2006；误测暴露=回归稀释"
+            "向零衰减，单暴露即 βx=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)；"
+            "误测混杂=对噪声代理调整留下的残差混淆偏倚，可朝任意方向，由整条矩阵"
+            "求逆去偏无标量捷径），由 verify_regression_calibration_numeric 独立重导。"
         ),
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=(
             "若拿到 (a) 被误分类离散结局**或二值暴露**的**验证过混淆矩阵**"
             "（Se/Sp 或整张 confusion matrix），可经 estimate(misclassification=...) "
-            "逐后门层矩阵求逆去衰减；或 (b) 连续暴露的已知经典加性误差方差 σ²_u"
-            "（重复测量 test-retest / 验证子样本），可经 "
-            "estimate(measurement_error={<暴露名>: {error_variance}}) 用 regression "
-            "calibration 去衰减（非线性结局的 SIMEX 仍推迟）；或 (c) gold-standard "
+            "逐后门层矩阵求逆去衰减；或 (b) 连续暴露**或连续混杂**的已知经典加性误差"
+            "方差 σ²_u（重复测量 test-retest / 验证子样本），可经 "
+            "estimate(measurement_error={<暴露或混杂名>: {error_variance}}) 用 "
+            "regression calibration 去偏（误测混杂纠正残差混淆；非线性结局的 SIMEX "
+            "与误测结局仍推迟）；或 (c) gold-standard "
             "亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）做校准"
         ),
         alternative_paths=(
