@@ -1265,24 +1265,39 @@ def _try_general_id_estimate(
     stays byte-identical when the plug-in doesn't apply.
     """
     from .dose_response import EstimatorFailure
-    from .general_id import estimate_general_id_ate
+    from .general_id import (
+        estimate_general_id_ate,
+        estimate_general_id_conditional_ate,
+    )
 
-    # v1 scope: unconditional effect only (IDC plug-in deferred).
-    if given_atoms:
-        return False
     df = contract.data
     if x_atom.predicate not in df.columns or y_atom.predicate not in df.columns:
         return False
 
+    # Conditional query P(Y | do(X), Z=z) → IDC plug-in (Shpitser–Pearl);
+    # unconditional → the Tian c-factor plug-in. Both share the downstream
+    # machinery (VE plug-in, bootstrap CI, derivation, metadata audit); only
+    # the identification (identify_via_idc vs identify_via_tian) and the
+    # recorded Z=z stratum differ.
+    conditional = bool(given_atoms)
     try:
-        estimate = estimate_general_id_ate(
-            df, graph=graph, bidirected=bidirected,
-            treatment_atom=x_atom, outcome_atom=y_atom,
-            ci_bootstrap=ci_bootstrap, random_state=random_state,
-            cluster=cluster if (cluster is None or cluster in df.columns) else None,
-        )
+        if conditional:
+            estimate = estimate_general_id_conditional_ate(
+                df, graph=graph, bidirected=bidirected,
+                treatment_atom=x_atom, outcome_atom=y_atom,
+                given=tuple(q_stmt.query.given),
+                ci_bootstrap=ci_bootstrap, random_state=random_state,
+                cluster=cluster if (cluster is None or cluster in df.columns) else None,
+            )
+        else:
+            estimate = estimate_general_id_ate(
+                df, graph=graph, bidirected=bidirected,
+                treatment_atom=x_atom, outcome_atom=y_atom,
+                ci_bootstrap=ci_bootstrap, random_state=random_state,
+                cluster=cluster if (cluster is None or cluster in df.columns) else None,
+            )
     except (EstimatorFailure, ValueError, NotImplementedError):
-        # Not (non-parametrically) c-factor identified here, out of the
+        # Not (non-parametrically) c-factor / IDC identified here, out of the
         # plug-in's binary scope, or a positivity refusal — leave the
         # result untouched and fall through to the IV escalation.
         return False
@@ -1302,6 +1317,13 @@ def _try_general_id_estimate(
         "treatment_low": estimate.treatment_low,
         "outcome_high": estimate.outcome_high,
     }
+    if conditional:
+        # Record the Z=z stratum the contrast is taken within — makes the
+        # conditional estimand P(Y | do(X), Z=z) explicit in the trail. The
+        # values are [predicate, value] pairs (JSON tuples).
+        result["numeric_estimate"]["given"] = [
+            [pred, val] for pred, val in estimate.given
+        ]
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _attach_precision_budget(result["numeric_estimate"])
 

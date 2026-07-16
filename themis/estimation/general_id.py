@@ -38,8 +38,11 @@ Scope (declared):
   none of them reach.
 - Binary treatment, binary outcome (the ATE contrast is on the high
   outcome level). Multi-level / E[Y] contrasts are a future extension.
-- Unconditional effect (``given`` empty). Conditional general-ID (IDC)
-  plug-in is a natural follow-up.
+- Unconditional effect (``estimate_general_id_ate``) AND conditional
+  ``P(Y | do(X), Z=z)`` (``estimate_general_id_conditional_ate``, identified
+  via Shpitser–Pearl IDC — the Rule-2 exchange + ratio normalization). The
+  conditional path is a two-do-level contrast taken WITHIN the queried
+  ``Z=z`` stratum; the plug-in machinery is shared.
 - An empty conditioning stratum is a positivity violation and raises
   ``EstimatorFailure`` rather than fabricating a value. Because the
   c-factor form can condition on a long predecessor sequence, the strata
@@ -108,6 +111,10 @@ class GeneralIdEstimate:
     treatment_high: object = None
     treatment_low: object = None
     outcome_high: object = None
+    # Conditional (IDC) estimate only: the Z=z stratum the contrast is
+    # taken WITHIN — a tuple of (predicate, value) pairs. Empty for the
+    # unconditional effect. Makes P(Y | do(X), Z=z) explicit in the trail.
+    given: tuple = ()
     # Mechanism + structured identification assumptions (assumption-ledger
     # parity with the back-door / dose-response estimators).
     model_assumption: str = ""
@@ -283,6 +290,208 @@ def estimate_general_id_ate(
         model_assumption=(
             "识别公式按非参数 plug-in 求值：每个条件概率用其所属数据层的"
             "经验频率，无函数形式假设（饱和估计）"
+        ),
+        form="nonparametric_plug_in",
+        identification_assumptions=identification_assumptions,
+        cluster=cluster,
+    )
+
+
+def estimate_general_id_conditional_ate(
+    data: pd.DataFrame,
+    *,
+    graph,
+    bidirected,
+    treatment_atom: Atom,
+    outcome_atom: Atom,
+    given: tuple,
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> GeneralIdEstimate:
+    """Plug-in CONDITIONAL ATE for a general-ID effect identified via IDC.
+
+    The conditional interventional distribution ``P(Y | do(X), Z=z)`` is
+    identified by Shpitser–Pearl IDC (:func:`themis.runtime.c_factor.
+    identify_via_idc`): a Rule-2 exchange moves every exchangeable ``Z``
+    into the do-set, and the survivors normalize the estimand into the
+    ratio ``ID(Y ∪ Z_rem, X') / ID(Z_rem, X')`` (a ``FractionExpr``; the
+    bare numerator when every conditioned ``Z`` exchanges away). This turns
+    that identified estimand into a number on data by the SAME
+    non-parametric plug-in the unconditional path uses — the contrast is
+    taken WITHIN the queried ``Z=z`` stratum::
+
+        ATE(z) = P(Y=y_hi | do(X=x_hi), Z=z) − P(Y=y_hi | do(X=x_lo), Z=z)
+
+    mirroring :func:`estimate_general_id_ate` exactly, with the conditioning
+    ``Z=z`` bound into both do-levels. Every ``P(v | v_predecessors)`` in
+    each identified formula is the empirical conditional from its own data
+    stratum, and the sums / products / ratio the formula prescribes are
+    carried out by variable elimination (the shared ``_prob_do``); the
+    number is a plug-in of the *identified* IDC estimand, never an
+    independent re-derivation.
+
+    Parameters mirror :func:`estimate_general_id_ate`, plus:
+
+    given: the conditioning ``Z=z`` — a tuple of ``ValuedAtom`` (the
+        query's ``given``). Each atom must be a graph node with a data
+        column; each value pins the stratum the contrast is taken within.
+
+    Scope (declared): identical to the unconditional plug-in — DISCRETE
+    variables, binary treatment / outcome, an empty conditioning stratum is
+    a positivity ``EstimatorFailure``. The verifier depth also mirrors the
+    unconditional path: the IDC identifiability is independently re-confirmed
+    (``general_id_criterion`` re-runs ``identify_via_idc``), while the plug-in
+    arithmetic itself is the shared data-refit ceiling (a metadata audit, not
+    re-derived from raw data).
+
+    Raises
+    ------
+    EstimatorFailure: treatment / outcome not binary, the conditional
+        effect not IDC-identifiable on this ADMG, or a positivity failure
+        (an empty ``Z=z`` / predecessor stratum).
+    DataContractError (ValueError): the data violates the estimation
+        contract (missing column, NaN, or too-small sample).
+    """
+    from ..runtime import c_factor
+
+    t_col = treatment_atom.predicate
+    y_col = outcome_atom.predicate
+    if t_col not in data.columns:
+        raise EstimatorFailure(
+            "missing_column",
+            f"treatment column {t_col!r} not present in the data",
+            treatment=t_col,
+        )
+    if y_col not in data.columns:
+        raise EstimatorFailure(
+            "missing_column",
+            f"outcome column {y_col!r} not present in the data",
+            outcome=y_col,
+        )
+
+    t_levels = _sorted_levels(data[t_col])
+    if len(t_levels) != 2:
+        raise EstimatorFailure(
+            "treatment_not_binary",
+            f"treatment {t_col!r} has {len(t_levels)} observed levels "
+            f"({t_levels}); the general-ID plug-in ATE is a two-level "
+            f"contrast. Supply a binary treatment.",
+            treatment=t_col,
+        )
+    y_levels = _sorted_levels(data[y_col])
+    if len(y_levels) != 2:
+        raise EstimatorFailure(
+            "outcome_not_binary",
+            f"outcome {y_col!r} has {len(y_levels)} observed levels "
+            f"({y_levels}); v1 of the general-ID plug-in ATE requires a "
+            f"binary outcome.",
+            outcome=y_col,
+        )
+    x_lo, x_hi = t_levels[0], t_levels[1]
+    y_hi = y_levels[-1]
+
+    given_atoms = tuple(va.atom for va in given)
+
+    # Identify P(Y | do(X'), Z=z) via IDC once per do-level (the exchange
+    # and the fraction structure are value-independent; only the do-literal
+    # baked into the outer X slot differs).
+    idc_hi = c_factor.identify_via_idc(
+        graph, bidirected, treatment_atom, outcome_atom, given_atoms, x_hi)
+    idc_lo = c_factor.identify_via_idc(
+        graph, bidirected, treatment_atom, outcome_atom, given_atoms, x_lo)
+    if not (idc_hi.identifiable and idc_lo.identifiable
+            and idc_hi.formula is not None and idc_lo.formula is not None):
+        raise EstimatorFailure(
+            "not_identifiable_by_idc",
+            f"the conditional effect of {t_col!r} on {y_col!r} given "
+            f"{[a.predicate for a in given_atoms]} is not point-identified "
+            f"by IDC on this ADMG — there is no c-factor estimand to "
+            f"evaluate.",
+            treatment=t_col,
+            outcome=y_col,
+        )
+
+    # Bind Y to the contrast level and every conditioned Z to its queried
+    # value — reaches BOTH target and given positions (an exchanged Z sits
+    # on the do-context side; a surviving Z_rem is a numerator target AND a
+    # chain-rule conditioning atom). Same binder the theta path proved to
+    # 1e-9 in ``test_idc_conditional_effect``.
+    value_map: dict = {outcome_atom: y_hi}
+    for va in given:
+        value_map[va.atom] = _py(va.value)
+    f_hi = c_factor.bind_idc_values(idc_hi.formula, value_map)
+    f_lo = c_factor.bind_idc_values(idc_lo.formula, value_map)
+
+    required = (
+        _referenced_predicates(f_hi)
+        | _referenced_predicates(f_lo)
+        | {t_col, y_col}
+        | {a.predicate for a in given_atoms}
+    )
+    presence = (cluster,) if cluster is not None else ()
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None
+        else None
+    )
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
+    df = contract.data
+
+    domains = _domains_from_data(graph, df)
+    point = _point_ate(df, f_hi, f_lo, domains)
+
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    if ci_bootstrap > 0:
+        ci_lower, ci_upper = _bootstrap_ci(
+            df, f_hi, f_lo, domains,
+            ci_bootstrap=ci_bootstrap, ci_level=ci_level,
+            random_state=random_state, groups=groups,
+        )
+
+    assumptions = (
+        "admg_structure_correct_including_latent_confounders",
+        "positivity_every_conditioning_stratum_has_support",
+        "consistency_of_potential_outcomes",
+        "discrete_variables_saturated_nonparametric_plug_in",
+        "conditional_effect_identified_via_idc_rule2_exchange",
+    )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
+    identification_assumptions = (
+        {"claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+        {"claim": "positivity：识别公式条件到的每个前驱层（含 Z=z 分层）在数据中都有样本",
+         "layer": "identification", "severity": "invalidating", "testable": True},
+        {"claim": "一致性：干预定义明确，potential outcomes 良定义",
+         "layer": "identification", "severity": "invalidating", "testable": False},
+    )
+    return GeneralIdEstimate(
+        point=float(point),
+        ci_lower=float(ci_lower) if ci_lower is not None else None,
+        ci_upper=float(ci_upper) if ci_upper is not None else None,
+        ci_level=ci_level,
+        method="general_id_idc_plugin",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        treatment=t_col,
+        outcome=y_col,
+        treatment_high=_py(x_hi),
+        treatment_low=_py(x_lo),
+        outcome_high=_py(y_hi),
+        given=tuple((va.atom.predicate, _py(va.value)) for va in given),
+        model_assumption=(
+            "条件效应 P(Y | do(X), Z=z) 经 IDC（Rule-2 交换 + 归一化为 "
+            "ID(Y∪Z_rem, X')/ID(Z_rem, X') 之比）识别，再按非参数 plug-in "
+            "在 Z=z 分层内求两 do-臂之差；每个条件概率用其所属数据层的经验"
+            "频率，无函数形式假设（饱和估计）"
         ),
         form="nonparametric_plug_in",
         identification_assumptions=identification_assumptions,

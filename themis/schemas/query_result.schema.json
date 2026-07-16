@@ -522,6 +522,7 @@
             "longitudinal_ipw_msm",
             "missing_data_recovery_gformula",
             "general_id_plugin",
+            "general_id_idc_plugin",
             "ctf_conjunction_plugin",
             "proximal_matrix",
             "causation_plugin",
@@ -826,6 +827,15 @@
         "outcome_high": {
           "type": ["boolean", "number", "string", "null"],
           "description": "general_id_plugin only: the outcome level the binary P(Y=outcome_high|do(X)) contrast is taken on."
+        },
+        "given": {
+          "type": "array",
+          "description": "general_id_idc_plugin only: the Z=z stratum the conditional ATE P(Y|do(X),Z=z) is taken within. Each entry is a [predicate, value] pair.",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2
+          }
         },
         "conditional": {
           "type": "boolean",

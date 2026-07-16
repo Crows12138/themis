@@ -1135,21 +1135,34 @@ def _rule_general_id_criterion(
     claimed_output: Any,
     step_index: int,
 ) -> None:
-    """Verify that P(Y | do(X)) is point-identified by the general ID
+    """Verify that the effect is point-identified by the general ID
     (Tian–Shpitser c-factor) algorithm on this ADMG — the structural
     licence for a general-ID plug-in numeric estimate.
 
-    Re-executes ``c_factor.identify_via_tian`` on the context's
-    (graph, bidirected) and confirms it reports ``identifiable`` with a
-    well-formed formula. This is the safety-critical check: a number is
-    produced ONLY for a genuinely identified effect, never for a hedge.
+    Routes on the query's conditioning, so it licenses BOTH data-path
+    plug-ins:
+
+    - Unconditional ``P(Y | do(X))`` — re-executes
+      ``c_factor.identify_via_tian``.
+    - Conditional ``P(Y | do(X), Z)`` — re-executes
+      ``c_factor.identify_via_idc`` (Shpitser–Pearl IDC: the Rule-2
+      exchange + ratio normalization). IDC is the load-bearing licence
+      here: the unconditional Tian criterion can succeed where the
+      conditional IDC one FAILS, so a conditional estimate must clear the
+      stricter IDC check. The conditioning set is read from the QUERY
+      (ctx.query.given), not from a producer input — a producer cannot
+      under-report ``given`` to dodge the IDC licence.
+
+    Confirms the routed engine reports ``identifiable`` with a well-formed
+    formula. This is the safety-critical check: a number is produced ONLY
+    for a genuinely identified effect, never for a hedge.
 
     It re-runs the ID engine rather than reimplementing it — the deep,
-    fully-independent c-factor replay lives in ``_rule_identify_via_tian``
-    on the identify-query path. Here the relaxed numeric audit confirms
-    identifiability, matching the cost trade-off the other numeric rules
-    make (verify_numeric_estimate: numerical reproduction is prohibitively
-    expensive for a verifier pass).
+    fully-independent c-factor / IDC replay lives in ``_rule_identify_via_tian``
+    / ``_rule_identify_via_idc`` on the identify-query path. Here the relaxed
+    numeric audit confirms identifiability, matching the cost trade-off the
+    other numeric rules make (verify_numeric_estimate: numerical reproduction
+    is prohibitively expensive for a verifier pass).
 
     inputs: graph, x, y
     output: bool
@@ -1171,10 +1184,20 @@ def _rule_general_id_criterion(
     # Identifiability is independent of the intervention value; use the
     # query's value when available, else a boolean placeholder.
     x_value = True
+    given_atoms: tuple = ()
     q = getattr(ctx, "query", None)
     if q is not None and getattr(q, "intervention", None) is not None:
         x_value = q.intervention.value
-    res = c_factor.identify_via_tian(graph, bidir, x, y, x_value)
+    if q is not None and getattr(q, "given", None):
+        given_atoms = tuple(g.atom for g in q.given)
+    if given_atoms:
+        # Conditional query → IDC licence (see docstring). Read the
+        # conditioning from the query itself, so the check is against the
+        # real P(Y | do(X), Z) — never a producer-narrowed one.
+        res = c_factor.identify_via_idc(
+            graph, bidir, x, y, given_atoms, x_value)
+    else:
+        res = c_factor.identify_via_tian(graph, bidir, x, y, x_value)
     recomputed = bool(res.identifiable and res.formula is not None)
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
@@ -2274,7 +2297,14 @@ _NUMERIC_JOINT_METHODS = frozenset({
 
 # General-ID (c-factor) non-parametric plug-in — the crown-jewel
 # identification made numeric on discrete data.
-_NUMERIC_GENERAL_ID_METHODS = frozenset({"general_id_plugin"})
+_NUMERIC_GENERAL_ID_METHODS = frozenset({
+    "general_id_plugin",
+    # Conditional effect P(Y | do(X), Z=z) identified via Shpitser–Pearl
+    # IDC and evaluated by the same non-parametric plug-in within the Z=z
+    # stratum. Same terminal / criterion; the criterion re-runs IDC when the
+    # query carries a conditioning set.
+    "general_id_idc_plugin",
+})
 
 # Counterfactual-conjunction (ID*/IDC*) non-parametric plug-in — the
 # counterfactual rung made numeric on discrete data.
