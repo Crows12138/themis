@@ -2897,6 +2897,15 @@ def _try_iv_wald_in_effect(
     Wald demands boolean treatment + boolean instrument; non-boolean
     falls through to None and the next strategy gets a try.
     """
+    # Conditional guard: the Wald LATE below is the UNCONDITIONAL complier
+    # effect — it looks up P(Y|Z), P(X|Z) with no `given` term, so shipping it
+    # for a query that conditions on a context would silently drop `given` and
+    # answer the wrong question (the same silent-drop class Phase 1 closed on
+    # the Tian path). Bail so a conditional query falls through to the IDC
+    # branch (correct conditional) or an honest refusal — never an unconditional
+    # LATE in place of the conditional. Unconditional IV queries are unaffected.
+    if q.given:
+        return None
     # MVP gate: boolean treatment, boolean instrument
     x_treated = q.intervention.value
     if not isinstance(x_treated, bool):
@@ -3607,11 +3616,75 @@ def _dispatch_effect(
                     graph=graph, bidirected=bidirected,
                 )
 
-            # A conditional query whose UNCONDITIONAL margin IS Tian-identifiable
-            # is (very likely) IDC-identifiable too, but the conditional numeric
-            # end is deferred — say so, and mark it structurally identifiable so
-            # the marginal is understood to be withheld, not unavailable.
-            if tian.identifiable and observed_atoms:
+            # Phase 2 (conditional general-ID, IDC): a CONDITIONAL effect query
+            # P(Y | do(X), Z) that ADMG-aware backdoor-with-given could not
+            # block is handled by Shpitser-Pearl IDC. The Rule-2 exchange moves
+            # exchangeable Z into the do-set and normalizes the remainder as
+            # ID(Y ∪ Z_rem, X') / ID(Z_rem, X'). identify_via_idc builds the
+            # symbolic estimand (X bound, Y and every conditioned Z left as
+            # value=None holes); bind the query's Y and Z values in BOTH target
+            # and given positions, then evaluate against theta. The IDC fraction
+            # is numerically validated to 1e-9 against latent-SCM ground truth
+            # (test_idc_fraction_matches_latent_scm_ground_truth). Phase 1
+            # (fix b742fbd) previously WITHHELD the marginal here; Phase 2 turns
+            # that honest refusal into the correct conditional number.
+            if observed_atoms:
+                idc = _c_factor.identify_via_idc(
+                    graph, bidirected, x, y_atom, observed_atoms,
+                    q.intervention.value,
+                )
+                if idc.identifiable and idc.formula is not None:
+                    value_map = {g.atom: g.value for g in q.given}
+                    value_map[y_atom] = q.target.value
+                    bound_formula = _c_factor.bind_idc_values(
+                        idc.formula, value_map,
+                    )
+                    validate_formula(bound_formula)
+                    # Three-step structural prefix, parallel to the Tian-in-
+                    # effect path: s1 idc_rule2_exchange (verifier replays the
+                    # exchange), s2 identify_via_idc (verifier re-checks the
+                    # numerator/denominator shape against its own replay), s3
+                    # idc_formula_ast (verifier re-binds Y/Z values). Then
+                    # _try_numeric adds formula_evaluation + numeric_result.
+                    structural_prefix = (
+                        DerivationStep(
+                            rule="idc_rule2_exchange",
+                            inputs={"graph": graph, "x": x, "y": y_atom},
+                            output=True,
+                            step_id="s_idc_exchange",
+                        ),
+                        DerivationStep(
+                            rule="identify_via_idc",
+                            inputs={
+                                "exchange": StepRef(step_id="s_idc_exchange"),
+                                "formula": idc.formula,
+                            },
+                            output=StructuralResult(value=True),
+                            step_id="s_idc_id",
+                        ),
+                        DerivationStep(
+                            rule="idc_formula_ast",
+                            inputs={
+                                "target": q.target,
+                                "intervention": ValuedAtom(
+                                    atom=x, value=q.intervention.value,
+                                ),
+                                "given": q.given,
+                                "unbound_formula": idc.formula,
+                            },
+                            output=bound_formula,
+                            step_id="s_idc_ast",
+                        ),
+                    )
+                    return _try_numeric(
+                        stmt, bound_formula, theta, QueryKind.EFFECT,
+                        structural_prefix=structural_prefix,
+                        graph=graph, bidirected=bidirected,
+                    )
+                # Conditioning present but IDC did not identify the conditional
+                # (a hedge on the conditional estimand even where the marginal
+                # margin was Tian-identifiable): honest structural refusal
+                # naming the conditional path — never the marginal in its place.
                 return QueryResult(
                     status=ResultStatus.NEEDS_INVESTIGATION,
                     query_kind=QueryKind.EFFECT,
@@ -3622,12 +3695,11 @@ def _dispatch_effect(
                             name="query:effect_admg_conditional",
                             priority=Priority.HIGH,
                             reason=(
-                                "conditional general-ID (IDC) effect: do(X) is "
-                                "Tian-identifiable but the query conditions on a "
-                                "given context, and the conditional (IDC) numeric "
-                                "end is not yet supported. The marginal P(Y|do(X)) "
-                                "is withheld rather than shipped in place of the "
-                                "conditional P(Y|do(X), given)."
+                                "conditional general-ID (IDC) effect: the "
+                                "conditional P(Y|do(X), given) is not identifiable "
+                                "in this ADMG (the Rule-2 exchange plus ID recursion "
+                                "hit a hedge on the conditional estimand). No "
+                                "marginal is shipped in its place."
                             ),
                         ),
                     ),

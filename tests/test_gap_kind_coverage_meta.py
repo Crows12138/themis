@@ -374,6 +374,8 @@ def test_identification_formula_witness_set_synced_with_scheduler():
     - backdoor_adjustment_formula
     - front_door_adjustment_formula
     - transport_formula_ast (Fix 3+4 §T9.2)
+    - tian_formula_ast (Fix 5)
+    - idc_formula_ast (Phase 2 conditional general-ID)
 
     transport_formula (string repr step, separate from
     transport_formula_ast) emits a STRING repr (not FormulaExpr) and
@@ -388,6 +390,9 @@ def test_identification_formula_witness_set_synced_with_scheduler():
         # Fix 5 (v0.1.5, audit follow-up): Tian-in-effect bound
         # formula step. Parallel to transport_formula_ast.
         "tian_formula_ast",
+        # Phase 2 (conditional general-ID): IDC-in-effect bound formula
+        # step (Y/Z value substitution onto the identify_via_idc estimand).
+        "idc_formula_ast",
     })
     assert IDENTIFICATION_FORMULA_RULES == expected, (
         f"IDENTIFICATION_FORMULA_RULES drift: got "

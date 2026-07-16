@@ -4204,6 +4204,26 @@ def _evaluate_formula(
                 graph=graph, bidirected=bidirected,
             )
         return total
+    if isinstance(expr, FractionExpr):
+        # Conditional interventional estimand P(Y|do(X),Z) =
+        # ID(Y∪Z_rem, X') / ID(Z_rem, X') (IDC). Independent mirror of the
+        # runtime numeric_estimator's FractionExpr branch, positivity guard
+        # included: a zero denominator is a zero-probability conditioning
+        # event, not a value.
+        num = _evaluate_formula(
+            expr.numerator, theta, subs,
+            graph=graph, bidirected=bidirected,
+        )
+        den = _evaluate_formula(
+            expr.denominator, theta, subs,
+            graph=graph, bidirected=bidirected,
+        )
+        if den == 0.0:
+            raise _NonConcreteValue(
+                "fraction denominator evaluated to 0 — positivity violation "
+                "(the conditioning event P_x(z) has zero probability)"
+            )
+        return num / den
     raise _NonConcreteValue(f"unknown formula node: {type(expr).__name__}")
 
 
@@ -4542,7 +4562,7 @@ def _rule_formula_evaluation(
             step_index=step_index, rule="formula_evaluation",
         )
     formula = _require(inputs, "formula", step_index, "formula_evaluation")
-    if not isinstance(formula, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr)):
+    if not isinstance(formula, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)):
         raise UnknownRuleInputError(
             f"formula_evaluation.formula must be a FormulaExpr, "
             f"got {type(formula).__name__}",
@@ -6711,6 +6731,138 @@ def _verifier_bind_target_value(
     )
 
 
+def _rule_idc_formula_ast(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify the bound (Y- and Z-value-applied) IDC formula step emitted
+    by the conditional general-ID effect dispatch (Phase 2).
+
+    Inputs:
+      - ``target``: ValuedAtom — the query target Y with its concrete value
+      - ``intervention``: ValuedAtom — the do(X=x) value (checked well-formed;
+        X is already bound inside unbound_formula by identify_via_idc)
+      - ``given``: tuple[ValuedAtom] — the conditioning Z, each with its value
+      - ``unbound_formula``: FormulaExpr — the identify_via_idc output, with Y
+        and every conditioned Z left as ``value=None`` holes (X already bound)
+
+    Output:
+      FormulaExpr — the unbound_formula walked with every ``value=None`` Y/Z
+      hole rebound to its query value, in BOTH target AND given positions (an
+      exchanged Z sits on the do-context side; a surviving Z_rem appears as a
+      numerator target and as a chain-rule conditioning atom). The verifier
+      re-runs the identical binding independently and compares structurally.
+
+    Independence note: same posture as ``tian_formula_ast``. The preceding
+    ``idc_rule2_exchange`` + ``identify_via_idc`` steps verify the exchange and
+    the numerator/denominator SHAPE against an independent replay; the
+    following ``formula_evaluation`` re-evaluates the bound estimand against
+    theta. This rule pins the value substitution — a runtime that bound the
+    wrong Y/Z value (or bound X's do-value onto a Z hole) is caught here.
+    """
+    from ..types import FractionExpr
+
+    target = _require(inputs, "target", step_index, "idc_formula_ast")
+    if not isinstance(target, ValuedAtom):
+        raise RuleCheckFailed(
+            "idc_formula_ast: target must be a ValuedAtom",
+            step_index=step_index, rule="idc_formula_ast",
+        )
+    intervention = _require(
+        inputs, "intervention", step_index, "idc_formula_ast",
+    )
+    if not isinstance(intervention, ValuedAtom):
+        raise RuleCheckFailed(
+            "idc_formula_ast: intervention must be a ValuedAtom",
+            step_index=step_index, rule="idc_formula_ast",
+        )
+    given = _require(inputs, "given", step_index, "idc_formula_ast")
+    if not isinstance(given, tuple) or not given:
+        raise RuleCheckFailed(
+            "idc_formula_ast: given must be a non-empty tuple of ValuedAtoms",
+            step_index=step_index, rule="idc_formula_ast",
+        )
+    for g in given:
+        if not isinstance(g, ValuedAtom):
+            raise RuleCheckFailed(
+                "idc_formula_ast: every given entry must be a ValuedAtom",
+                step_index=step_index, rule="idc_formula_ast",
+            )
+    unbound = _require(
+        inputs, "unbound_formula", step_index, "idc_formula_ast",
+    )
+    if not isinstance(unbound, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)):
+        raise RuleCheckFailed(
+            "idc_formula_ast: unbound_formula must be a FormulaExpr",
+            step_index=step_index, rule="idc_formula_ast",
+        )
+
+    # Value map: the query target Y and every conditioned Z, keyed by atom.
+    value_map = {g.atom: g.value for g in given}
+    value_map[target.atom] = target.value
+
+    expected = _verifier_bind_idc_values(unbound, value_map)
+
+    if not isinstance(claimed_output, (ConstantExpr, ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr)):
+        raise RuleCheckFailed(
+            "idc_formula_ast: claimed output must be a FormulaExpr",
+            step_index=step_index, rule="idc_formula_ast",
+        )
+    if expected != claimed_output:
+        raise RuleCheckFailed(
+            "idc_formula_ast: claimed bound formula does not match the "
+            "verifier's independent re-bind of unbound_formula at the query "
+            "Y and Z values",
+            step_index=step_index, rule="idc_formula_ast",
+        )
+
+
+def _verifier_bind_idc_values(formula, value_map: dict):
+    """Verifier-side independent re-implementation of
+    ``c_factor.bind_idc_values``. Walks the tree and binds every
+    ``value=None`` hole whose atom is in ``value_map`` — in BOTH target and
+    given positions — to its mapped value; recurses through FractionExpr.
+    Structurally identical to ``c_factor._map_valued_atoms`` (target + given
+    reconstruction, no population kwarg — IDC estimands carry none) so the
+    equality check against the runtime output is exact. No runtime imports."""
+    from ..types import FractionExpr
+
+    def fix(va):
+        if va.value is None and va.atom in value_map:
+            return ValuedAtom(atom=va.atom, value=value_map[va.atom])
+        return va
+
+    if isinstance(formula, ConstantExpr):
+        return formula
+    if isinstance(formula, ProbabilityRefExpr):
+        return ProbabilityRefExpr(
+            target=fix(formula.target),
+            given=tuple(fix(g) for g in formula.given),
+        )
+    if isinstance(formula, ProductExpr):
+        return ProductExpr(
+            terms=tuple(
+                _verifier_bind_idc_values(t, value_map) for t in formula.terms
+            )
+        )
+    if isinstance(formula, SumExpr):
+        return SumExpr(
+            bind=formula.bind,
+            over=formula.over,
+            body=_verifier_bind_idc_values(formula.body, value_map),
+        )
+    if isinstance(formula, FractionExpr):
+        return FractionExpr(
+            numerator=_verifier_bind_idc_values(formula.numerator, value_map),
+            denominator=_verifier_bind_idc_values(formula.denominator, value_map),
+        )
+    raise TypeError(
+        f"unknown FormulaExpr node: {type(formula).__name__}"
+    )
+
+
 def _rule_identify_via_transport(
     ctx: VerificationContext,
     inputs: dict,
@@ -7119,10 +7271,25 @@ def _rule_identify_via_idc(
             step_index=step_index, rule="identify_via_idc",
         )
 
+    # IDC identification is licensed from either an IdentifyQuery (structural
+    # P(Y|do(X),Z) with value-less atoms) or an EffectQuery (the conditional
+    # effect numeric end, Phase 2 — target/given carry concrete values). Both
+    # reduce to the same atom-level check: extract the atoms and replay the
+    # Rule-2 exchange. The numeric correctness of the bound estimand is the
+    # separate responsibility of the following idc_formula_ast +
+    # formula_evaluation steps.
     q = ctx.query
-    if not isinstance(q, IdentifyQuery):
+    if isinstance(q, IdentifyQuery):
+        x = q.intervention.atom
+        y = q.target
+        z_set = frozenset(q.given)
+    elif isinstance(q, EffectQuery):
+        x = q.intervention.atom
+        y = q.target.atom
+        z_set = frozenset(g.atom for g in q.given)
+    else:
         raise RuleCheckFailed(
-            "identify_via_idc requires IdentifyQuery context",
+            "identify_via_idc requires IdentifyQuery or EffectQuery context",
             step_index=step_index, rule="identify_via_idc",
         )
     if not q.given:
@@ -7131,9 +7298,6 @@ def _rule_identify_via_idc(
             "(given); empty-given identification is plain ID, not IDC",
             step_index=step_index, rule="identify_via_idc",
         )
-    x = q.intervention.atom
-    y = q.target
-    z_set = frozenset(q.given)
 
     try:
         validate_formula(formula)
@@ -7238,6 +7402,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "transport_formula_ast": _rule_transport_formula_ast,
     # Fix 5 (v0.1.5, audit follow-up) — Tian-in-effect bound formula
     "tian_formula_ast": _rule_tian_formula_ast,
+    # Phase 2 (conditional general-ID) — IDC-in-effect bound formula: the
+    # Y/Z value substitution onto the identify_via_idc estimand.
+    "idc_formula_ast": _rule_idc_formula_ast,
     # Phase 2.latent ext §S3.b.2 — Tian / Shpitser ID
     "tian_c_decomposition": _rule_tian_c_decomposition,
     # IDC — conditional identification P(Y | do(X), Z)

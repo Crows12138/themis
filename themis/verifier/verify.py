@@ -115,6 +115,13 @@ IDENTIFICATION_FORMULA_RULES: frozenset[str] = frozenset({
     # tian_formula_ast emits the q.target.value-bound version that
     # formula_evaluation matches against for the effect path.
     "tian_formula_ast",
+    # Phase 2 (conditional general-ID): IDC-in-effect FormulaExpr witness —
+    # the identify_via_idc estimand with the query's Y and Z values bound
+    # (in both target and given positions). Parallels tian_formula_ast: the
+    # identify_via_idc step carries the unbound formula for the identify
+    # path; idc_formula_ast emits the value-bound version that
+    # formula_evaluation matches against for the conditional-effect path.
+    "idc_formula_ast",
 })
 
 
@@ -3067,14 +3074,15 @@ def verify_numeric(
                 "identify_via_transport",  # Fix 3+4 §T9.2 numeric
                 "identify_via_tian",       # Fix 5 audit follow-up
                 "identify_via_iv",         # Fix 6 audit follow-up
+                "identify_via_idc",        # Phase 2 conditional general-ID
             )
             for step in derivation
         ):
             raise VerificationError(
                 "effect derivation is missing an identify_via_backdoor, "
                 "identify_via_front_door, identify_via_mediation, "
-                "identify_via_transport, identify_via_tian, or "
-                "identify_via_iv witness",
+                "identify_via_transport, identify_via_tian, identify_via_iv, "
+                "or identify_via_idc witness",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
 

@@ -146,7 +146,10 @@ def test_hedge_admg_effect_stays_needs_investigation():
 
 
 # ---------------------------------------------------------------------------
-# Conditional ADMG effect must not ship the MARGINAL (stop-the-bleed).
+# Conditional ADMG effect: Phase 1 refused (never shipped the MARGINAL); Phase 2
+# solves it correctly via IDC. The dedicated numeric coverage lives in
+# tests/test_idc_conditional_effect.py; here we pin the dispatch-level behaviour
+# (correct conditional, NOT the marginal) alongside the marginal control.
 # ---------------------------------------------------------------------------
 
 
@@ -197,16 +200,20 @@ def _frontdoor_modifier_program(given) -> dict:
             "statements": st}
 
 
-def test_conditional_admg_effect_refuses_instead_of_shipping_marginal():
+def test_conditional_admg_effect_solves_via_idc_not_marginal():
     """A conditional effect query on an ADMG whose UNCONDITIONAL margin is
-    front-door / Tian identifiable must NOT ship the marginal (which silently
-    drops `given` — it can differ sharply from the true conditional). It refuses
-    with the conditional marker instead."""
-    r = themis.run(_frontdoor_modifier_program([("c", True)]))["results"][0]
-    assert r["status"] == "needs_investigation"
-    assert r.get("numeric_result") is None
-    names = [m.get("name") for m in r.get("missing_information", [])]
-    assert "query:effect_admg_conditional" in names
+    front-door / Tian identifiable is now solved by IDC (Phase 2), NOT the
+    marginal. P(Y=1|do(X=1),C=1) = 0.8·0.7 + 0.2·0.2 = 0.60 (the effect-modifier
+    c·m interaction makes it differ sharply from the marginal 0.47). Phase 1
+    withheld the marginal here; Phase 2 ships the correct conditional."""
+    prog = _frontdoor_modifier_program([("c", True)])
+    r = themis.run(prog)["results"][0]
+    assert r["status"] == "numerically_solved"
+    assert r["numeric_result"]["value"] == pytest.approx(0.60, abs=1e-9)
+    rules = [s["rule"] for s in r["derivation"]["steps"]]
+    assert "identify_via_idc" in rules
+    assert r["numeric_result"]["value"] != pytest.approx(0.47, abs=1e-3)  # not the marginal
+    themis.verify(prog, r)
 
 
 def test_marginal_admg_effect_still_solves_alongside():

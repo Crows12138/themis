@@ -1331,6 +1331,37 @@ def _apply_idc_values(
     return _map_valued_atoms(formula, fix)
 
 
+def bind_idc_values(
+    formula: FormulaExpr,
+    value_map: "dict[Atom, object]",
+) -> FormulaExpr:
+    """Fill the query-bound holes (``value=None``) that ``identify_via_idc``
+    left on the free targets Y and each conditioned Z with the concrete
+    values an EffectQuery supplies.
+
+    ``identify_via_idc`` binds the intervention X to its do-value but leaves
+    Y and every conditioned Z as ``value=None`` holes — the IdentifyQuery
+    caller carries no values. An EffectQuery ``P(Y=y | do(X=x), Z=z)`` DOES;
+    binding them grounds every ProbRef so the evaluator can compute a number.
+
+    A hole is filled iff it is ``value is None`` AND its atom is a key of
+    ``value_map``. This reaches BOTH target and given positions on purpose:
+    an exchanged Z sits on the do-context (given) side, and a surviving
+    ``Z_rem`` can appear as a numerator target AND as a chain-rule
+    conditioning atom. Genuinely-summed ``VarRef`` occurrences (value is a
+    VarRef, not None) and already-bound literals (X's do-value) are left
+    untouched — this is the same discipline ``_apply_idc_values`` used to
+    stamp the holes in the first place, run in reverse. Mirrors the binder
+    proved correct to 1e-9 in ``test_idc_fraction_matches_latent_scm_ground_truth``.
+    """
+    def fix(va: ValuedAtom) -> ValuedAtom:
+        if va.value is None and va.atom in value_map:
+            return ValuedAtom(atom=va.atom, value=value_map[va.atom])
+        return va
+
+    return _map_valued_atoms(formula, fix)
+
+
 def _map_valued_atoms(formula: FormulaExpr, fn) -> FormulaExpr:
     """Structure-preserving map over every ``ValuedAtom`` in a formula."""
     from ..types import ConstantExpr
