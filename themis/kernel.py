@@ -1336,6 +1336,33 @@ def verify_markov_blanket(result: dict) -> None:
     _verify_mb(result)
 
 
+def verify_orientation_propagation(result: dict) -> None:
+    """Independently audit a Meek orientation-propagation result (Phase 1 of
+    interactive equivalence-class resolution).
+
+    Parallel to :func:`verify_markov_blanket`: the artifact is a standalone
+    ``orientation_propagation`` dict (from
+    :func:`themis.estimation.orientation.orientation_to_dict`), not a
+    query_result envelope, so it has a dedicated public entry rather than the
+    :func:`verify` path.
+
+    Re-derives the Meek closure from the recorded input CPDAG and constraints
+    with a second, standalone transcription of rules R1-R3 and the
+    constraint-application / conflict-detection logic (no call to the producer,
+    no causal-learn). Returns ``None`` on accept; raises
+    :class:`themis.verifier.errors.VerificationError` when the ``oriented`` set
+    disagrees with the independent closure, a data-contradicting constraint was
+    silently applied instead of flagged, or a provenance entry is unjustified.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.orientation_rules import (
+        verify_orientation_propagation as _verify_orient,
+    )
+
+    _verify_orient(result)
+
+
 def verify_selection_recovery_numeric(result: dict) -> None:
     """Independently audit a selection-backdoor recovered ATE (§S9.1 numeric).
 

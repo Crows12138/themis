@@ -125,6 +125,14 @@ Public surface (re-exports from sub-modules):
   independent reimplementation, without re-running the grow-shrink search;
   rejects a fabricated / trimmed blanket, a corrupted sufficient statistic, or a
   recorded test that disagrees with the recomputation)
+- Discovery-layer verifier: ``verify_orientation_propagation`` (2026-07-17,
+  interactive equivalence-class resolution — Phase 1. Re-derives the Meek
+  closure of a CPDAG under direction constraints from the recorded input CPDAG
+  + constraints, with a second standalone transcription of rules R1-R3 and the
+  constraint-application / conflict-detection logic — no producer call, no
+  causal-learn. Rejects an ``oriented`` set that disagrees with the independent
+  closure, a data-contradicting constraint that was silently applied instead of
+  surfaced as a conflict, or an unjustified provenance entry)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -201,6 +209,7 @@ from .bounds_rules import (
 )
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
+from .orientation_rules import verify_orientation_propagation
 from .selection_numeric_rules import verify_selection_recovery_numeric
 from .missing_numeric_rules import verify_missing_data_numeric
 
@@ -232,6 +241,7 @@ __all__ = [
     "verify_manski_natural_bounds_result",
     "verify_manski_tamer_bounds_result",
     "verify_markov_blanket",
+    "verify_orientation_propagation",
     "verify_iv_overid_numeric",
     "verify_measurement_correction_numeric",
     "verify_mediation_numeric",

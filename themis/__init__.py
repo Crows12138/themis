@@ -88,6 +88,7 @@ from .kernel import (
     verify_data_gap_report,
     verify_markov_blanket,
     verify_missing_data_numeric,
+    verify_orientation_propagation,
     verify_selection_recovery_numeric,
 )
 from .output.analysis_report import build_analysis_report
@@ -104,5 +105,6 @@ __all__ = [
     "verify_data_gap_report",
     "verify_markov_blanket",
     "verify_missing_data_numeric",
+    "verify_orientation_propagation",
     "verify_selection_recovery_numeric",
 ]

@@ -149,6 +149,17 @@ Landed scope:
   ``algorithm="auto"`` runs a deterministic diagnostics-driven selector
   (``DataDiagnostics``); ``n_bootstrap>0`` attaches per-edge stability
   scores
+- Orientation propagation — ``propagate_orientations`` (returning
+  ``OrientationResult``; ``orientation_to_dict`` for the verifier;
+  ``OrientationError`` on ill-formed input): the algorithm-agnostic Meek (1995)
+  closure over a CPDAG under external direction constraints (a temporal order,
+  a domain fact, a human/LLM answer). Applies rules R1-R3 to a fixpoint on the
+  FIXED skeleton — no re-run of the discovery algorithm — and does two things a
+  re-run does not: it FLAGS (rather than silently applies) a constraint that
+  contradicts a data-established collider, and it records per-edge provenance
+  tracing each propagated orientation back to the root constraints it rests on.
+  CPDAG scope (causal sufficiency), where R1-R3 are the complete procedure;
+  parity-checked against causal-learn's reference Meek in the test suite
 - Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
   ``e_value_from_ate_binary`` / ``e_value_from_ate_continuous``
   (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
@@ -240,6 +251,12 @@ from .discovery import (
     discover_graph,
     discovery_to_kernel_ast,
 )
+from .orientation import (
+    OrientationError,
+    OrientationResult,
+    orientation_to_dict,
+    propagate_orientations,
+)
 from .iv import (
     ARConfidenceSet,
     IVEstimate,
@@ -327,6 +344,8 @@ __all__ = [
     "LongitudinalIPWMSMEstimate",
     "MediationEstimate",
     "NumericBounds",
+    "OrientationError",
+    "OrientationResult",
     "OVBBenchmark",
     "OVBSensitivity",
     "PropensitySummary",
@@ -357,6 +376,8 @@ __all__ = [
     "estimate_iv_ate",
     "estimate_joint_effect",
     "four_way_ratio_decomposition_continuous",
+    "orientation_to_dict",
+    "propagate_orientations",
     "estimate_longitudinal_gformula",
     "estimate_longitudinal_ipw_msm",
     "estimate_mediation",
