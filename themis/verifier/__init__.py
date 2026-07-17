@@ -150,6 +150,14 @@ Public surface (re-exports from sub-modules):
   own, ``deferred`` is exactly the still-open unknowns, the source trail credits
   every applied answer with its true entailment and no rejected one, and the
   status is correct — all re-derived from the answers, no producer call)
+- Discovery-layer verifier: ``verify_orientation_ledger_export`` (2026-07-17,
+  interactive equivalence-class resolution — Phase 5, ledger wiring. Audits an
+  ``orientation_ledger_export`` artifact: delegates the embedded session to
+  ``verify_orientation_session``, then independently re-derives every oriented
+  edge's ledger ``source`` — with a second transcription of the ``llm_proposal``
+  taint propagation through the Meek closure — and checks the ``edges``,
+  ``proposal_edges``, ``cause_statements`` sources, and ``graph_learned_from_data``
+  match; under-disclosure of a proposal-rooted edge is what it catches)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -229,6 +237,7 @@ from .markov_blanket_rules import verify_markov_blanket
 from .orientation_rules import verify_orientation_propagation
 from .orientation_question_rules import verify_orientation_questions
 from .orientation_session_rules import verify_orientation_session
+from .orientation_ledger_rules import verify_orientation_ledger_export
 from .selection_numeric_rules import verify_selection_recovery_numeric
 from .missing_numeric_rules import verify_missing_data_numeric
 
@@ -263,6 +272,7 @@ __all__ = [
     "verify_orientation_propagation",
     "verify_orientation_questions",
     "verify_orientation_session",
+    "verify_orientation_ledger_export",
     "verify_iv_overid_numeric",
     "verify_measurement_correction_numeric",
     "verify_mediation_numeric",

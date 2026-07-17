@@ -180,6 +180,14 @@ Landed scope:
   (latest-wins); each applied answer is recorded with its source and the edges it
   entailed. ``status`` is ``resolved`` / ``open`` / ``blocked``. Audited by
   ``verify_orientation_session``
+- Orientation ledger export — ``orientation_ledger_export``: bridges a resolved
+  session into the query-side assumption ledger. Maps each oriented edge to the
+  ``source`` string the ``data_gap_report`` machinery recognises, with the
+  ``llm_proposal`` taint propagated through the Meek closure (an edge forced from
+  an LLM-proposed answer is disclosed ``llm_proposal`` too), and emits
+  source-annotated ``cause_statements`` so the resolved graph, dropped into a
+  program, fires ``UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH`` unchanged. Audited by
+  ``verify_orientation_ledger_export``
 - Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
   ``e_value_from_ate_binary`` / ``e_value_from_ate_continuous``
   (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
@@ -292,6 +300,7 @@ from .orientation_session import (
     session_to_dict,
     start_orientation_session,
 )
+from .orientation_ledger import orientation_ledger_export
 from .iv import (
     ARConfidenceSet,
     IVEstimate,
@@ -392,6 +401,7 @@ __all__ = [
     "next_questions",
     "session_to_dict",
     "start_orientation_session",
+    "orientation_ledger_export",
     "OVBBenchmark",
     "OVBSensitivity",
     "PropensitySummary",

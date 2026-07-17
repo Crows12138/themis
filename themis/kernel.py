@@ -1414,6 +1414,30 @@ def verify_orientation_session(result: dict) -> None:
     _verify_sess(result)
 
 
+def verify_orientation_ledger_export(result: dict) -> None:
+    """Independently audit an orientation-session ledger export (Phase 5 of
+    interactive equivalence-class resolution — the assumption-ledger wiring).
+
+    The artifact is a standalone ``orientation_ledger_export`` dict (from
+    :func:`themis.estimation.orientation_ledger.orientation_ledger_export`). It
+    embeds a Phase 3 ``orientation_session`` dict; the verifier delegates that to
+    :func:`verify_orientation_session` and then independently re-derives every
+    oriented edge's ledger ``source`` — propagating the ``llm_proposal`` taint
+    through the Meek closure — checking the ``edges``, ``proposal_edges``,
+    ``cause_statements`` sources, and ``graph_learned_from_data`` match. Returns
+    ``None`` on accept; raises
+    :class:`themis.verifier.errors.VerificationError` on any mismatch (notably an
+    edge that rests on an LLM-proposed answer but is disclosed as anything else).
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.orientation_ledger_rules import (
+        verify_orientation_ledger_export as _verify_led,
+    )
+
+    _verify_led(result)
+
+
 def verify_selection_recovery_numeric(result: dict) -> None:
     """Independently audit a selection-backdoor recovered ATE (§S9.1 numeric).
 
