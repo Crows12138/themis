@@ -158,8 +158,16 @@ Landed scope:
   re-run does not: it FLAGS (rather than silently applies) a constraint that
   contradicts a data-established collider, and it records per-edge provenance
   tracing each propagated orientation back to the root constraints it rests on.
-  CPDAG scope (causal sufficiency), where R1-R3 are the complete procedure;
+  CPDAG scope (causal sufficiency), where R1-R4 are applied to a fixpoint;
   parity-checked against causal-learn's reference Meek in the test suite
+- Orientation question compiler — ``compile_orientation_questions`` (returning
+  ``QuestionSet`` of ``OrientationQuestion``; ``question_set_to_dict`` for the
+  verifier): Phase 2 of interactive equivalence-class resolution. Turns a Phase 1
+  ``OrientationResult`` into the ranked set of questions to put to the human /
+  LLM next — conflicts to adjudicate first, then one leverage-ranked question per
+  still-undetermined edge, where leverage is the best-case Meek cascade an answer
+  triggers (measured with the Phase 1 propagation engine). Audited by
+  ``verify_orientation_questions``
 - Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
   ``e_value_from_ate_binary`` / ``e_value_from_ate_continuous``
   (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
@@ -257,6 +265,12 @@ from .orientation import (
     orientation_to_dict,
     propagate_orientations,
 )
+from .orientation_questions import (
+    OrientationQuestion,
+    QuestionSet,
+    compile_orientation_questions,
+    question_set_to_dict,
+)
 from .iv import (
     ARConfidenceSet,
     IVEstimate,
@@ -346,6 +360,10 @@ __all__ = [
     "NumericBounds",
     "OrientationError",
     "OrientationResult",
+    "OrientationQuestion",
+    "QuestionSet",
+    "compile_orientation_questions",
+    "question_set_to_dict",
     "OVBBenchmark",
     "OVBSensitivity",
     "PropensitySummary",

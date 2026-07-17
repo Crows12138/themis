@@ -1347,7 +1347,7 @@ def verify_orientation_propagation(result: dict) -> None:
     :func:`verify` path.
 
     Re-derives the Meek closure from the recorded input CPDAG and constraints
-    with a second, standalone transcription of rules R1-R3 and the
+    with a second, standalone transcription of rules R1-R4 and the
     constraint-application / conflict-detection logic (no call to the producer,
     no causal-learn). Returns ``None`` on accept; raises
     :class:`themis.verifier.errors.VerificationError` when the ``oriented`` set
@@ -1361,6 +1361,32 @@ def verify_orientation_propagation(result: dict) -> None:
     )
 
     _verify_orient(result)
+
+
+def verify_orientation_questions(result: dict) -> None:
+    """Independently audit a compiled orientation question set (Phase 2 of
+    interactive equivalence-class resolution).
+
+    Parallel to :func:`verify_orientation_propagation`: the artifact is a
+    standalone ``orientation_question_set`` dict (from
+    :func:`themis.estimation.orientation_questions.question_set_to_dict`), not a
+    query_result envelope, so it has a dedicated public entry.
+
+    Re-enumerates the equivalence class from the recorded post-propagation CPDAG
+    with a second, standalone transcription (no call to the producer), and checks
+    every conflict question echoes a real conflict, every leverage number matches
+    the recomputed coverage gain, and the orientation questions form a genuine
+    cover of the undetermined edges. Minimality is not certified (the cover is
+    greedy). Returns ``None`` on accept; raises
+    :class:`themis.verifier.errors.VerificationError` on any mismatch.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.orientation_question_rules import (
+        verify_orientation_questions as _verify_q,
+    )
+
+    _verify_q(result)
 
 
 def verify_selection_recovery_numeric(result: dict) -> None:
