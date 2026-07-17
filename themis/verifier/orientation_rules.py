@@ -6,8 +6,10 @@ plus direction constraints and returns the Meek closure, the constraints it
 could not apply (conflicts with the data), and the per-edge provenance. This
 verifier re-derives all of it from the recorded inputs — the input CPDAG and
 the constraints — with a SECOND, standalone transcription of Meek's rules
-R1-R3 and the constraint-application / conflict-detection logic. It never calls
-the producer and never imports causal-learn.
+R1-R4 and the constraint-application / conflict-detection logic. It never calls
+the producer and never imports causal-learn. (R4 matters: once a constraint is
+applied, R1-R3 alone are incomplete, so a verifier that stopped at R3 would
+wrongly reject the producer's genuinely-forced R4 orientations.)
 
 What it guarantees, given the recorded inputs:
 - the ``oriented`` set is exactly the Meek closure (soundness — no orientation
@@ -57,7 +59,7 @@ def _is_ancestor(directed: set, x: str, y: str) -> bool:
 
 
 def _forces(directed: set, undirected: set, adj: dict, a: str, b: str):
-    """Second transcription of Meek R1-R3 (see the producer for the rule
+    """Second transcription of Meek R1-R4 (see the producer for the rule
     statements). Returns the rule name that forces ``a→b`` or ``None``."""
     for z in adj[a]:
         if z != b and (z, a) in directed and z not in adj[b]:
@@ -70,6 +72,12 @@ def _forces(directed: set, undirected: set, adj: dict, a: str, b: str):
         for z2 in cand[i + 1:]:
             if z2 not in adj[z1]:
                 return "R3"
+    for c in adj[a]:
+        if c == b or _pair(a, c) not in undirected or c in adj[b]:
+            continue
+        for d in adj[b]:
+            if (d, b) in directed and (c, d) in directed and d in adj[a]:
+                return "R4"
     return None
 
 
@@ -110,7 +118,7 @@ def _recompute(nodes, input_directed, input_undirected, constraints):
     return D, U, adj, conflicts
 
 
-_RULE_NAMES = {"collider_input", "constraint", "R1", "R2", "R3"}
+_RULE_NAMES = {"collider_input", "constraint", "R1", "R2", "R3", "R4"}
 
 
 def verify_orientation_propagation(result: dict) -> None:

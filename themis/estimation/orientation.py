@@ -25,12 +25,20 @@ things a re-run of the discovery algorithm does not:
   therefore explicit — the edges resting on it can be found and revisited.
 
 Scope (stated tradeoffs): the CPDAG setting (causal sufficiency — no latent
-confounders), where Meek's rules R1-R3 are the complete orientation procedure
-(Meek 1995; only R1-R3 are needed to complete a pattern from its colliders).
-The PAG / latent-confounder case (FCI) needs the larger Zhang (2008) rule set
-and is deliberately deferred rather than run with an incomplete rule set.
-The rules here are validated against causal-learn's reference Meek engine as a
-parity oracle in the test suite; the runtime carries no library dependency.
+confounders). Meek's four rules R1-R4 are applied to a fixpoint. R1-R3 alone
+complete a *bare* pattern from its colliders (Meek 1995), but this module's job
+is to apply external constraints — background knowledge — and once a constraint
+orients an edge the data left open, R4 is required for completeness: without it
+some genuinely-forced orientations are missed (the result stays sound, but
+incomplete). The rules are validated to a fixpoint against a brute-force
+equivalence-class oracle (enumerate every DAG consistent with the skeleton, the
+colliders and the constraints; an edge is forced iff all of them agree), which
+catches both an unsound orientation and an R4-style completeness gap.
+causal-learn's reference Meek — which itself implements only R1-R3 — is a
+secondary cross-check for the bare, no-constraint completion only, and cannot
+certify the constrained case. The PAG / latent-confounder case (FCI) needs the
+larger Zhang (2008) rule set and is deliberately deferred rather than run with
+an incomplete rule set. The runtime carries no library dependency.
 """
 from __future__ import annotations
 
@@ -66,7 +74,8 @@ class OrientationResult:
     - ``provenance``: one entry per oriented edge —
       ``{"from": a, "to": b, "rule": r, "roots": [[a, b], ...]}`` where ``r`` is
       ``"collider_input"`` (from the data), ``"constraint"`` (applied directly),
-      or ``"R1"`` / ``"R2"`` / ``"R3"`` (forced by that Meek rule), and ``roots``
+      or ``"R1"`` / ``"R2"`` / ``"R3"`` / ``"R4"`` (forced by that Meek rule),
+      and ``roots``
       lists the constraint edges the orientation ultimately rests on (empty for
       data-established edges).
     - ``note``: human-readable summary.
@@ -118,6 +127,11 @@ def _forces(directed: set[Edge], undirected: set[tuple[str, str]],
     - **R2** (acyclicity): ∃ z with a→z→b ⟹ a→b (else a—b closes a cycle).
     - **R3** (kite / no new collider): ∃ two non-adjacent z1, z2 with a—z1,
       a—z2 undirected and z1→b, z2→b ⟹ a→b.
+    - **R4** (kite with a directed path; needed once constraints are present —
+      Meek 1995): ∃ c, d with a—c undirected, c→d, d→b, c and b non-adjacent,
+      and a adjacent to d ⟹ a→b. R1-R3 alone are incomplete under background
+      knowledge; R4 recovers the orientations they miss. The witness edges are
+      the two directed edges c→d and d→b it rests on.
     """
     # R1
     for z in adj[a]:
@@ -133,6 +147,13 @@ def _forces(directed: set[Edge], undirected: set[tuple[str, str]],
         for z2 in cand[i + 1:]:
             if z2 not in adj[z1]:
                 return ("R3", ((z1, b), (z2, b)))
+    # R4
+    for c in adj[a]:
+        if c == b or _pair(a, c) not in undirected or c in adj[b]:
+            continue
+        for d in adj[b]:
+            if (d, b) in directed and (c, d) in directed and d in adj[a]:
+                return ("R4", ((c, d), (d, b)))
     return None
 
 
@@ -158,7 +179,8 @@ def propagate_orientations(
     constraints=(),
 ) -> OrientationResult:
     """Apply direction ``constraints`` to a CPDAG and propagate the forced
-    orientations by Meek's rules R1-R3.
+    orientations by Meek's rules R1-R4 (R4 is what makes the propagation
+    complete once a constraint has been applied).
 
     ``directed`` are the data-established orientations (a, b) = a→b (the
     unshielded colliders); ``undirected`` are the undetermined edges (pairs);
@@ -222,7 +244,7 @@ def propagate_orientations(
         prov[(a, b)] = ("constraint", ())
         applied.append((a, b))
 
-    # --- Meek closure R1-R3 to a fixpoint -------------------------------------
+    # --- Meek closure R1-R4 to a fixpoint -------------------------------------
     changed = True
     while changed:
         changed = False

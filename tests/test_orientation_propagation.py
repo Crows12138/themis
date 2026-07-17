@@ -1,6 +1,10 @@
-"""Phase 1 — Meek orientation propagation + constraint-consistency, and the
-independent verifier. Parity-checked against causal-learn's reference Meek.
+"""Phase 1 — Meek orientation propagation (R1-R4) + constraint-consistency, and
+the independent verifier. The authoritative check is a brute-force
+equivalence-class oracle; causal-learn's reference Meek (R1-R3 only) is a
+secondary cross-check on the bare, no-constraint completion.
 """
+import itertools
+
 import numpy as np
 import pytest
 
@@ -13,7 +17,7 @@ from themis.verifier.errors import VerificationError
 from themis.verifier.orientation_rules import verify_orientation_propagation
 
 
-# --- the three Meek rules in isolation ----------------------------------------
+# --- the Meek rules in isolation ----------------------------------------------
 
 def test_r1_avoids_new_collider():
     # A->B, B-C, A not adjacent C  =>  B->C
@@ -48,6 +52,26 @@ def test_r3_kite():
     assert ("I", "L") in r.oriented
     p = {(e["from"], e["to"]): e["rule"] for e in r.provenance}
     assert p[("I", "L")] == "R3"
+    verify_orientation_propagation(orientation_to_dict(r))
+
+
+def test_r4_completes_under_constraint():
+    # Regression for the R1-R3 completeness gap under background knowledge.
+    # Skeleton A-B, A-C, B-C, B-D, C-D, C-E, D-E ; no colliders. The single
+    # answer A->B forces C->D by R4 (R1-R3 alone leave it undirected), which then
+    # unlocks C->E (R2) and D->E (R1). Without R4 the whole chain is missed.
+    r = propagate_orientations(
+        ["A", "B", "C", "D", "E"],
+        undirected=[("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"),
+                    ("C", "D"), ("C", "E"), ("D", "E")],
+        constraints=[("A", "B")],
+    )
+    oriented = set(r.oriented)
+    assert {("C", "D"), ("C", "E"), ("D", "E"), ("B", "D")} <= oriented
+    prov = {(e["from"], e["to"]): e for e in r.provenance}
+    assert prov[("C", "D")]["rule"] == "R4"          # the edge R1-R3 could not reach
+    assert prov[("C", "D")]["roots"] == [["A", "B"]]  # rests on the one answer
+    assert set(r.remaining_undirected) == {("A", "C"), ("B", "C")}
     verify_orientation_propagation(orientation_to_dict(r))
 
 
@@ -140,7 +164,137 @@ def test_verifier_rejects_dropped_conflict_entry():
         verify_orientation_propagation(d)
 
 
-# --- parity against causal-learn's reference Meek engine ----------------------
+def test_verifier_rejects_dropped_r4_orientation():
+    # drop a genuinely-forced R4 edge (and its provenance): the verifier's
+    # independent R1-R4 closure must still force it and flag the omission.
+    r = propagate_orientations(
+        ["A", "B", "C", "D", "E"],
+        undirected=[("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"),
+                    ("C", "D"), ("C", "E"), ("D", "E")],
+        constraints=[("A", "B")],
+    )
+    d = orientation_to_dict(r)
+    d["oriented"] = [e for e in d["oriented"] if e != ["C", "D"]]
+    d["provenance"] = [p for p in d["provenance"]
+                       if [p["from"], p["to"]] != ["C", "D"]]
+    d["remaining_undirected"] = d["remaining_undirected"] + [["C", "D"]]
+    with pytest.raises(VerificationError):
+        verify_orientation_propagation(d)
+
+
+# --- brute-force equivalence-class oracle (the authoritative check) -----------
+
+def _unshielded_colliders(directed, skel, nodes):
+    cols = set()
+    for z in nodes:
+        parents = [x for x in nodes if (x, z) in directed]
+        for x, y in itertools.combinations(parents, 2):
+            if frozenset((x, y)) not in skel:
+                cols.add((frozenset((x, y)), z))
+    return cols
+
+
+def _is_acyclic(directed, nodes):
+    ch = {}
+    for (u, v) in directed:
+        ch.setdefault(u, []).append(v)
+    color = {}
+
+    def dfs(u):
+        color[u] = 0
+        for w in ch.get(u, ()):
+            c = color.get(w)
+            if c == 0:
+                return False
+            if c is None and not dfs(w):
+                return False
+        color[u] = 1
+        return True
+
+    return all(color.get(u) is not None or dfs(u) for u in nodes)
+
+
+def _ground_truth_forced(nodes, skel, colliders, constraints):
+    """An edge is forced iff every DAG with this skeleton, exactly these
+    unshielded colliders, acyclic, and respecting the constraints agrees on it."""
+    edges = [tuple(sorted(tuple(pr))) for pr in skel]
+    members = []
+    for bits in itertools.product((0, 1), repeat=len(edges)):
+        O = {(u, v) if bits[i] == 0 else (v, u) for i, (u, v) in enumerate(edges)}
+        if not _is_acyclic(O, nodes):
+            continue
+        if _unshielded_colliders(O, skel, nodes) != colliders:
+            continue
+        if not all((a, b) in O for (a, b) in constraints):
+            continue
+        members.append(O)
+    forced = set()
+    for (u, v) in edges:
+        dirs = {((u, v) if (u, v) in O else (v, u)) for O in members}
+        if len(dirs) == 1:
+            forced.add(next(iter(dirs)))
+    return forced, len(members)
+
+
+def test_ground_truth_oracle_sound_and_complete():
+    """Over many random small CPDAGs + a consistent constraint, the propagation
+    equals the brute-force forced set exactly — sound (no unforced orientation)
+    AND complete (no forced orientation missed, which is what R4 guarantees)."""
+    rng = np.random.default_rng(20260717)
+    checked = r4_fired = 0
+    for _ in range(600):
+        n = int(rng.integers(4, 7))
+        dag = {(i, j) for i in range(n) for j in range(i + 1, n)
+               if rng.random() < 0.5}
+        if not dag:
+            continue
+        nodes = list(range(n))
+        skel = {frozenset(e) for e in dag}
+        if len(skel) > 10:
+            continue
+        colliders = _unshielded_colliders(dag, skel, nodes)
+        arms = set()
+        for (pair, z) in colliders:
+            for x in pair:
+                arms.add((x, z))
+        undirected = [tuple(sorted(tuple(pr))) for pr in skel
+                      if not ({(tuple(pr)[0], tuple(pr)[1]),
+                               (tuple(pr)[1], tuple(pr)[0])} & arms)]
+        if not undirected:
+            continue
+        k = int(rng.integers(1, 4))
+        idx = rng.choice(len(undirected), size=min(k, len(undirected)), replace=False)
+        constraints = []
+        for j in idx:
+            u, v = undirected[j]
+            constraints.append((u, v) if (u, v) in dag else (v, u))
+
+        smap = {i: f"N{i}" for i in nodes}
+        res = propagate_orientations(
+            [smap[i] for i in nodes],
+            directed=[(smap[a], smap[b]) for (a, b) in arms],
+            undirected=[(smap[u], smap[v]) for (u, v) in undirected],
+            constraints=[(smap[a], smap[b]) for (a, b) in constraints],
+        )
+        if res.conflicts:
+            continue
+        forced, nmembers = _ground_truth_forced(nodes, skel, colliders, constraints)
+        if nmembers == 0:
+            continue
+        checked += 1
+        mine = {(int(a[1:]), int(b[1:])) for (a, b) in res.oriented}
+        assert mine == forced, (
+            f"n={n} dag={sorted(dag)} constraints={constraints}: "
+            f"unsound(extra)={sorted(mine - forced)} incomplete(missed)={sorted(forced - mine)}"
+        )
+        verify_orientation_propagation(orientation_to_dict(res))
+        if any(p["rule"] == "R4" for p in res.provenance):
+            r4_fired += 1
+    assert checked >= 100, f"too few usable oracle trials ({checked})"
+    assert r4_fired >= 1, "R4 never exercised — oracle regime too narrow to guard it"
+
+
+# --- parity against causal-learn's reference Meek (bare completion only) -------
 
 def _random_dag(p, ep, rng):
     order = rng.permutation(p); A = np.zeros((p, p))
@@ -166,13 +320,15 @@ def _simulate(A, n, rng):
     return X
 
 
-def test_parity_with_causal_learn_meek():
+def test_parity_with_causal_learn_bare_cpdag():
+    """Cross-library check of the R1-R3 core: feed the raw unshielded colliders
+    of a PC-discovered CPDAG (no constraint, so R4 stays dormant) and confirm
+    our closure reproduces causal-learn's completed CPDAG edge-for-edge.
+    causal-learn implements only R1-R3, so it is a valid oracle only here — not
+    for the constrained case, which the brute-force oracle above covers."""
     causallearn = pytest.importorskip("causallearn")
     from causallearn.search.ConstraintBased.PC import pc
-    from causallearn.utils.PCUtils import Meek
-    from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
     from causallearn.graph.Endpoint import Endpoint
-    from copy import deepcopy
     import warnings
 
     def edges_of(cg):
@@ -186,43 +342,35 @@ def test_parity_with_causal_learn_meek():
         return d, u
 
     p = 7; names = [f"X{i}" for i in range(p)]
-    matches = 0; trials = 0
+    trials = 0
     for seed in range(500, 540):
         rng = np.random.default_rng(seed)
         A = _random_dag(p, 0.35, rng); X = _simulate(A, 1500, rng)
-        true_dir = {(names[i], names[j]) for i in range(p) for j in range(p) if A[i, j] != 0}
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cg0 = pc(X, 0.05, "fisherz", node_names=names, show_progress=False)
         d0, u0 = edges_of(cg0)
-        cand = [fs for fs in u0 if (tuple(fs) in true_dir or tuple(fs)[::-1] in true_dir)]
-        if not cand:
-            continue
-        a, b = tuple(sorted(cand, key=lambda x: tuple(sorted(x)))[0])
-        if (b, a) in true_dir:
-            a, b = b, a
-        trials += 1
-
-        # our implementation
-        mine = propagate_orientations(
-            names, directed=d0, undirected=[tuple(x) for x in u0], constraints=[(a, b)],
-        )
-        # causal-learn reference: orient a->b on a copy, close under its Meek
-        cg = deepcopy(cg0)
-        cn = {x.get_name(): x for x in cg.G.get_nodes()}
-        e_ab = cg.G.get_edge(cn[a], cn[b])
-        if e_ab is not None:
-            cg.G.remove_edge(e_ab)
-        cg.G.add_directed_edge(cn[a], cn[b])
-        bk = BackgroundKnowledge(); bk.add_required_by_node(cn[a], cn[b])
-        cg = Meek.meek(cg, bk)
-        dref, _ = edges_of(cg)
-
-        assert set(mine.oriented) == dref, (
-            f"seed {seed}: ours {sorted(set(mine.oriented) - dref)} "
-            f"vs causal-learn {sorted(dref - set(mine.oriented))}"
+        skel = {frozenset(e) for e in d0} | u0
+        nodes = names
+        # recover the unshielded colliders of the CPDAG from its directed edges
+        adj = {}
+        for pr in skel:
+            a, b = tuple(pr); adj.setdefault(a, set()).add(b); adj.setdefault(b, set()).add(a)
+        arms = set()
+        for z in nodes:
+            parents = [x for x in nodes if (x, z) in d0]
+            for x, y in itertools.combinations(parents, 2):
+                if frozenset((x, y)) not in skel:
+                    arms.add((x, z)); arms.add((y, z))
+        undirected = [tuple(pr) for pr in skel
+                      if not ({(tuple(pr)[0], tuple(pr)[1]),
+                               (tuple(pr)[1], tuple(pr)[0])} & arms)]
+        # our R1-R4 closure from raw colliders, NO constraint (R4 dormant)
+        mine = propagate_orientations(nodes, directed=list(arms), undirected=undirected)
+        assert set(mine.oriented) == d0, (
+            f"seed {seed}: ours-only {sorted(set(mine.oriented) - d0)} "
+            f"causal-learn-only {sorted(d0 - set(mine.oriented))}"
         )
         verify_orientation_propagation(orientation_to_dict(mine))
-        matches += 1
+        trials += 1
     assert trials >= 20, f"too few usable parity trials ({trials})"
-    assert matches == trials
