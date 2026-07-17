@@ -95,10 +95,11 @@ class QuestionSet:
     """The compiled, ranked question set for one equivalence class.
 
     Echoes the Phase 1 inputs (``input_directed`` / ``input_undirected`` /
-    ``constraints``) and the post-propagation state (``oriented`` /
-    ``remaining_undirected``) so the verifier can re-derive every number without
-    the producer. ``questions`` lists conflicts first, then orientation questions
-    by descending leverage.
+    ``constraints`` / ``asserted_adjacencies``) and the post-propagation state
+    (``oriented`` / ``remaining_undirected``) so the verifier can re-derive every
+    number — including the CI-side adjacency conflicts — without the producer.
+    ``questions`` lists conflicts first, then orientation questions by descending
+    leverage.
     """
 
     nodes: tuple[str, ...]
@@ -108,6 +109,7 @@ class QuestionSet:
     oriented: tuple[Edge, ...]
     remaining_undirected: tuple[Pair, ...]
     questions: tuple[OrientationQuestion, ...]
+    asserted_adjacencies: tuple[Pair, ...] = ()
     note: str = ""
 
 
@@ -124,8 +126,24 @@ def _cascade(nodes, directed, undirected, u_set: set[frozenset], answer: Edge) -
 
 
 def _conflict_prompt(c: dict) -> str:
-    a, b = c["constraint"]
     reason = c.get("reason")
+    if "assertion" in c:
+        a, b = c["assertion"]
+        if reason == "undermines_collider":
+            apex = ", ".join(f"{a}→{c0}←{b}" for c0 in c.get("colliders", []))
+            return (f"Knowledge says {a} and {b} are directly connected, but the data "
+                    f"found them independent — the unshielded premise of the collider(s) "
+                    f"{apex}. If they are adjacent those orientations are not "
+                    f"data-supported. Trust the data's independence test, or the "
+                    f"asserted edge?")
+        if reason == "contradicts_independence":
+            return (f"Knowledge says {a} and {b} are directly connected, but the data "
+                    f"found them conditionally independent (no edge). Trust the data's "
+                    f"independence test, or the asserted edge?")
+        if reason == "unknown_node":
+            return f"Asserted adjacency {a}–{b} names a variable not in the graph."
+        return f"Asserted adjacency {a}–{b} conflicts with the data ({reason})."
+    a, b = c["constraint"]
     if reason == "contradicts_data_orientation":
         d = c.get("data_edge", [b, a])
         return (f"The data establishes {d[0]}→{d[1]} (an unshielded collider), but "
@@ -159,9 +177,13 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
     questions: list[OrientationQuestion] = []
 
     # --- conflict questions (rank first) --------------------------------------
+    # A conflict is keyed "constraint" (a direction that contradicts the data) or
+    # "assertion" (an adjacency that contradicts the data's CI structure); both
+    # become adjudication questions a human must resolve first.
     for c in result.conflicts:
-        pair = tuple(c["constraint"])
-        detail = {k: v for k, v in c.items() if k not in ("constraint", "reason")}
+        key = "assertion" if "assertion" in c else "constraint"
+        pair = tuple(c[key])
+        detail = {k: v for k, v in c.items() if k not in (key, "reason")}
         questions.append(OrientationQuestion(
             kind="conflict", edge=(pair[0], pair[1]), leverage=0, guaranteed=0,
             unlocks=(), reason=c.get("reason", ""), detail=detail,
@@ -208,6 +230,7 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
         oriented=tuple(result.oriented),
         remaining_undirected=tuple(result.remaining_undirected),
         questions=tuple(questions),
+        asserted_adjacencies=tuple(result.asserted_adjacencies),
         note=note,
     )
 
@@ -223,6 +246,7 @@ def question_set_to_dict(qs: QuestionSet) -> dict:
         "constraints": [list(e) for e in qs.constraints],
         "oriented": [list(e) for e in qs.oriented],
         "remaining_undirected": [list(e) for e in qs.remaining_undirected],
+        "asserted_adjacencies": [list(e) for e in qs.asserted_adjacencies],
         "questions": [
             {
                 "kind": q.kind,

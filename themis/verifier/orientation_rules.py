@@ -15,9 +15,14 @@ What it guarantees, given the recorded inputs:
 - the ``oriented`` set is exactly the Meek closure (soundness — no orientation
   that is not forced; completeness — no forced orientation missing);
 - ``remaining_undirected`` is exactly what stays undetermined;
-- ``conflicts`` names exactly the constraints that contradict the data
-  (a data-established orientation, a non-edge, or an earlier constraint) —
-  a producer that silently applied a data-contradicting answer is caught;
+- ``conflicts`` names exactly the inputs that contradict the data — both the
+  orientation constraints that do (a data-established orientation, a non-edge, an
+  earlier constraint, or a cycle) AND the asserted adjacencies that contradict
+  the data's independence structure (a plain ``contradicts_independence``, or an
+  ``undermines_collider`` naming the exact collider apexes whose unshielded
+  premise the assertion would break) — a producer that silently applied a
+  data-contradicting answer, or under-reported which colliders an asserted edge
+  undermines, is caught;
 - every provenance entry is well-formed and its claimed rule genuinely fires
   in the returned graph, and its ``roots`` are actual applied constraints.
 
@@ -120,6 +125,33 @@ def _recompute(nodes, input_directed, input_undirected, constraints):
     return D, U, adj, conflicts
 
 
+def _adjacency_conflicts(node_set, input_directed, adj, asserted):
+    """Independent second transcription of the CI-independence-side conflict
+    detection (see the producer). Returns tuples ``(reason, a, b, colliders)``
+    with ``a<=b`` and ``colliders`` a sorted tuple (empty unless
+    ``undermines_collider``)."""
+    directed = set(input_directed)
+    conflicts = []
+    seen = set()
+    for (a, b) in asserted:
+        p = _pair(a, b)
+        if p in seen:
+            continue
+        seen.add(p)
+        if a not in node_set or b not in node_set:
+            conflicts.append(("unknown_node", p[0], p[1], ()))
+            continue
+        if b in adj[a]:
+            continue
+        colliders = tuple(sorted(
+            c for c in node_set if (a, c) in directed and (b, c) in directed))
+        if colliders:
+            conflicts.append(("undermines_collider", p[0], p[1], colliders))
+        else:
+            conflicts.append(("contradicts_independence", p[0], p[1], ()))
+    return conflicts
+
+
 _RULE_NAMES = {"collider_input", "constraint", "R1", "R2", "R3", "R4"}
 
 
@@ -173,8 +205,20 @@ def verify_orientation_propagation(result: dict) -> None:
             f"input pair {{{a}, {b}}} is both directed and undirected",
         )
 
+    # asserted adjacencies (may name unknown nodes — those become conflicts —
+    # so they are NOT routed through _edges, which requires known nodes)
+    raw_asserted = result.get("asserted_adjacencies", [])
+    _require(isinstance(raw_asserted, list), "asserted_adjacencies must be a list")
+    asserted = []
+    for e in raw_asserted:
+        _require(isinstance(e, list) and len(e) == 2,
+                 f"asserted_adjacencies entry {e!r} is not a pair")
+        _require(e[0] != e[1], f"asserted_adjacencies has a self-loop {e!r}")
+        asserted.append((e[0], e[1]))
+
     # --- independent recomputation --------------------------------------------
     D, U, adj, conflicts = _recompute(nodes, input_directed, input_undirected, constraints)
+    adj_conflicts = _adjacency_conflicts(node_set, input_directed, adj, asserted)
 
     claimed_D = set(claimed_oriented)
     _require(len(claimed_D) == len(claimed_oriented), "duplicate edge in 'oriented'")
@@ -190,21 +234,37 @@ def verify_orientation_propagation(result: dict) -> None:
         f"producer-only {sorted(claimed_U - U)}, recompute-only {sorted(U - claimed_U)}",
     )
 
-    # --- conflicts ------------------------------------------------------------
+    # --- conflicts (orientation-side and CI-independence-side, partitioned) ---
     claimed_conflicts = result.get("conflicts")
     _require(isinstance(claimed_conflicts, list), "conflicts must be a list")
-    claimed_norm = []
+    claimed_orient = []
+    claimed_adj = []
     for c in claimed_conflicts:
-        _require(isinstance(c, dict) and "constraint" in c and "reason" in c,
-                 f"ill-formed conflict entry {c!r}")
-        pair = c["constraint"]
-        _require(isinstance(pair, list) and len(pair) == 2, f"bad conflict constraint {pair!r}")
-        claimed_norm.append((c["reason"], pair[0], pair[1]))
+        _require(isinstance(c, dict) and "reason" in c, f"ill-formed conflict entry {c!r}")
+        if "constraint" in c:
+            pair = c["constraint"]
+            _require(isinstance(pair, list) and len(pair) == 2,
+                     f"bad conflict constraint {pair!r}")
+            claimed_orient.append((c["reason"], pair[0], pair[1]))
+        elif "assertion" in c:
+            pair = c["assertion"]
+            _require(isinstance(pair, list) and len(pair) == 2,
+                     f"bad conflict assertion {pair!r}")
+            p = _pair(pair[0], pair[1])
+            claimed_adj.append((c["reason"], p[0], p[1], tuple(sorted(c.get("colliders", [])))))
+        else:
+            _require(False, f"conflict entry {c!r} has neither 'constraint' nor 'assertion'")
     _require(
-        sorted(claimed_norm) == sorted(conflicts),
-        f"conflict set disagrees with the recomputation: "
-        f"producer-only {sorted(set(claimed_norm) - set(conflicts))}, "
-        f"recompute-only {sorted(set(conflicts) - set(claimed_norm))}",
+        sorted(claimed_orient) == sorted(conflicts),
+        f"orientation-conflict set disagrees with the recomputation: "
+        f"producer-only {sorted(set(claimed_orient) - set(conflicts))}, "
+        f"recompute-only {sorted(set(conflicts) - set(claimed_orient))}",
+    )
+    _require(
+        sorted(claimed_adj) == sorted(adj_conflicts),
+        f"adjacency-conflict set disagrees with the recomputation: "
+        f"producer-only {sorted(set(claimed_adj) - set(adj_conflicts))}, "
+        f"recompute-only {sorted(set(adj_conflicts) - set(claimed_adj))}",
     )
 
     # --- provenance -----------------------------------------------------------

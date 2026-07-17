@@ -22,9 +22,10 @@ introduces — all re-derived independently from the recorded answers:
   (revisions dropped). A producer that applied a stale or extra constraint is
   caught.
 - **the embedded artifacts are the session's.** The propagation and question-set
-  dicts are over the session's own input CPDAG and derived constraints, and share
-  one ``oriented`` / ``remaining_undirected`` — not some other consistent graph
-  smuggled in.
+  dicts are over the session's own input CPDAG, derived constraints, and asserted
+  adjacencies, and share one ``oriented`` / ``remaining_undirected`` — not some
+  other consistent graph smuggled in. (The CI-side adjacency conflicts those
+  assertions raise are audited inside the delegated verifiers.)
 - **unknown → deferred.** ``deferred`` is exactly the edges whose latest answer
   was "unknown" and that are still undetermined — no forced edge hidden as
   deferred, no unknown silently asked again.
@@ -86,6 +87,18 @@ def verify_orientation_session(result: dict) -> None:
     input_directed = _edges(result.get("input_directed"), "input_directed")
     input_undirected = _edges(result.get("input_undirected"), "input_undirected")
 
+    # asserted adjacencies may name unknown nodes (they become CI-side conflicts),
+    # so they are not routed through _edges; the embedded verifiers classify them.
+    raw_asserted = result.get("asserted_adjacencies", [])
+    _require(isinstance(raw_asserted, list), "asserted_adjacencies must be a list")
+    asserted = []
+    for e in raw_asserted:
+        _require(isinstance(e, list) and len(e) == 2,
+                 f"asserted_adjacencies entry {e!r} is not a pair")
+        _require(e[0] != e[1], f"asserted_adjacencies has a self-loop {e!r}")
+        asserted.append((e[0], e[1]))
+    asserted_set = {_pair(a, b) for (a, b) in asserted}
+
     # --- parse + validate answers, re-derive constraints (latest-wins) --------
     raw_answers = result.get("answers")
     _require(isinstance(raw_answers, list), "answers must be a list")
@@ -145,6 +158,10 @@ def verify_orientation_session(result: dict) -> None:
              "question set and propagation disagree on the oriented edges")
     _require(_pset(qset["remaining_undirected"]) == remaining,
              "question set and propagation disagree on the remaining edges")
+    _require(_pset(prop.get("asserted_adjacencies", [])) == asserted_set,
+             "embedded propagation is over different asserted adjacencies")
+    _require(_pset(qset.get("asserted_adjacencies", [])) == asserted_set,
+             "question set and propagation disagree on the asserted adjacencies")
 
     # --- unknown → deferred ---------------------------------------------------
     deferred_recompute = {e for (e, (_i, d, _s, _n)) in latest.items()
@@ -156,7 +173,7 @@ def verify_orientation_session(result: dict) -> None:
 
     # --- source trail + rejected ----------------------------------------------
     conflict_pairs = {_pair(c["constraint"][0], c["constraint"][1])
-                      for c in prop["conflicts"]}
+                      for c in prop["conflicts"] if "constraint" in c}
     prov_roots = {(p["from"], p["to"]): {tuple(r) for r in p["roots"]}
                   for p in prop["provenance"]}
     exp_trail, exp_rejected = {}, {}

@@ -13,12 +13,26 @@ This module owns that propagation as a deterministic, algorithm-agnostic
 primitive (any CPDAG — PC / GES / GRaSP — feeds in the same way), and does two
 things a re-run of the discovery algorithm does not:
 
-- **Conflict detection.** A constraint that contradicts a data-established
-  orientation (an unshielded collider) is NOT silently applied. It is surfaced
-  as a conflict — the answer disagrees with what the data proved, and a human
-  must adjudicate (keep the data, or override it knowingly). Re-running a
-  discovery algorithm with the constraint as background knowledge would bury
-  that conflict inside the search.
+- **Conflict detection (direction side).** A constraint that contradicts a
+  data-established orientation (an unshielded collider) is NOT silently applied.
+  It is surfaced as a conflict — the answer disagrees with what the data proved,
+  and a human must adjudicate (keep the data, or override it knowingly).
+  Re-running a discovery algorithm with the constraint as background knowledge
+  would bury that conflict inside the search.
+- **Conflict detection (CI-independence side).** An unshielded collider a→C←b
+  rests on TWO data facts: the collision at C, and the *non-adjacency* of a and b
+  — the conditional independence the discovery's CI test found, which is exactly
+  what makes the collider *unshielded* and therefore orientable at all. The
+  direction check above audits the first fact; ``asserted_adjacencies`` audits the
+  second. When a knowledge source asserts an adjacency the data found absent (a
+  missing edge is a data independence finding under faithfulness), it is surfaced
+  as a conflict — ``contradicts_independence`` in general, or
+  ``undermines_collider`` (naming the collider apexes) when the contradicted
+  non-adjacency is the premise of one or more data colliders, because those
+  orientations would lose their data support if the pair were truly adjacent. As
+  on the direction side, the assertion is NOT applied — applying it would edit the
+  skeleton and amount to re-running discovery — it is surfaced for a human to
+  adjudicate.
 - **Provenance.** Every propagated orientation records the rule that forced it
   and the witness edges; from those, each oriented edge is traced back to the
   root constraints it ultimately rests on. A wrong answer's blast radius is
@@ -68,9 +82,16 @@ class OrientationResult:
       in the order given.
     - ``oriented``: the final directed edges after closure (a, b) = a→b.
     - ``remaining_undirected``: edges still undetermined after propagation.
-    - ``conflicts``: constraints not applied because they contradicted the
-      input (a data-established orientation, a non-edge, or another
-      constraint). Each is ``{"constraint": [a, b], "reason": ..., ...}``.
+    - ``conflicts``: inputs not applied because they contradicted the data.
+      An orientation-constraint conflict is
+      ``{"constraint": [a, b], "reason": ...}`` (a data-established orientation, a
+      non-edge, another constraint, or a cycle); an asserted-adjacency conflict is
+      ``{"assertion": [a, b], "reason": ...}`` where ``reason`` is
+      ``"contradicts_independence"`` / ``"undermines_collider"`` (with a
+      ``"colliders"`` list of apexes) / ``"unknown_node"``.
+    - ``asserted_adjacencies``: the adjacencies external knowledge asserted,
+      echoed canonical and de-duplicated so the verifier can re-derive the
+      CI-side conflicts — pairs, never applied to the graph.
     - ``provenance``: one entry per oriented edge —
       ``{"from": a, "to": b, "rule": r, "roots": [[a, b], ...]}`` where ``r`` is
       ``"collider_input"`` (from the data), ``"constraint"`` (applied directly),
@@ -89,6 +110,7 @@ class OrientationResult:
     remaining_undirected: tuple[tuple[str, str], ...]
     conflicts: tuple[dict, ...]
     provenance: tuple[dict, ...]
+    asserted_adjacencies: tuple[tuple[str, str], ...] = ()
     note: str = ""
 
 
@@ -171,12 +193,58 @@ def _roots(edge: Edge, prov: dict[Edge, tuple]) -> frozenset[Edge]:
     return frozenset(roots)
 
 
+def _asserted_adjacency_conflicts(
+    node_set: set[str],
+    directed_in: set[Edge],
+    adj: dict[str, set[str]],
+    asserted: list[tuple[str, str]],
+) -> list[dict]:
+    """CI-independence-side conflicts (see the module docstring).
+
+    A pair the data left non-adjacent is a data independence finding (under
+    faithfulness); asserting it is adjacent contradicts that. If the contradicted
+    non-adjacency is the unshielded premise of one or more data colliders
+    (``a→C`` and ``b→C`` both in ``directed_in``, with ``a``, ``b`` non-adjacent),
+    the assertion would SHIELD them — those orientations would lose their data
+    support — a higher-stakes ``undermines_collider`` naming the apexes; a pair
+    with no such collider is a plain ``contradicts_independence``. An assertion on
+    a pair that IS already adjacent agrees with the data and is no conflict.
+    ``directed_in`` is taken to be the data collider orientations (the module's
+    input contract), so the apex test is exactly the unshielded-collider test.
+    """
+    conflicts: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for (a, b) in asserted:
+        p = _pair(a, b)
+        if p in seen:
+            continue
+        seen.add(p)
+        if a not in node_set or b not in node_set:
+            conflicts.append({"assertion": [p[0], p[1]], "reason": "unknown_node"})
+            continue
+        if b in adj[a]:
+            continue  # already adjacent — the assertion agrees with the data
+        colliders = sorted(
+            c for c in node_set if (a, c) in directed_in and (b, c) in directed_in
+        )
+        if colliders:
+            conflicts.append({
+                "assertion": [p[0], p[1]], "reason": "undermines_collider",
+                "colliders": colliders,
+            })
+        else:
+            conflicts.append(
+                {"assertion": [p[0], p[1]], "reason": "contradicts_independence"})
+    return conflicts
+
+
 def propagate_orientations(
     nodes,
     *,
     directed=(),
     undirected=(),
     constraints=(),
+    asserted_adjacencies=(),
 ) -> OrientationResult:
     """Apply direction ``constraints`` to a CPDAG and propagate the forced
     orientations by Meek's rules R1-R4 (R4 is what makes the propagation
@@ -190,6 +258,13 @@ def propagate_orientations(
     cycle with an already-established orientation (``reason="creates_cycle"``) is
     recorded in ``conflicts`` and NOT applied — the established orientation is
     left intact for a human to adjudicate.
+
+    ``asserted_adjacencies`` are pairs external knowledge claims are directly
+    connected. Each is checked against the data's independence structure (the CI
+    side, see the module docstring): an asserted adjacency the data found absent
+    is recorded in ``conflicts`` (``contradicts_independence``, or
+    ``undermines_collider`` when it would shield a data collider) and — like a
+    conflicting constraint — is NOT applied; the skeleton is left intact.
     """
     nodes = tuple(sorted(nodes))
     node_set = set(nodes)
@@ -250,6 +325,20 @@ def propagate_orientations(
         prov[(a, b)] = ("constraint", ())
         applied.append((a, b))
 
+    # --- asserted adjacencies (CI-independence-side conflict detection) -------
+    # These never touch the closure — applying an adjacency would edit the
+    # skeleton (re-run discovery); they only surface conflicts with the data's CI
+    # structure, using the data colliders (directed_in) and the data skeleton (adj).
+    asserted_pairs: list[tuple[str, str]] = []
+    for e in asserted_adjacencies:
+        a, b = tuple(e)
+        if a == b:
+            raise OrientationError(f"asserted adjacency {e!r} is a self-loop")
+        asserted_pairs.append((a, b))
+    conflicts.extend(
+        _asserted_adjacency_conflicts(node_set, directed_in, adj, asserted_pairs))
+    asserted_out = tuple(sorted({_pair(a, b) for (a, b) in asserted_pairs}))
+
     # --- Meek closure R1-R4 to a fixpoint -------------------------------------
     changed = True
     while changed:
@@ -275,12 +364,20 @@ def propagate_orientations(
     )
     n_from_constraints = len(applied)
     n_propagated = len(D) - len(directed_in) - n_from_constraints
+    n_adj_conflict = sum(1 for c in conflicts if "assertion" in c)
+    n_con_conflict = len(conflicts) - n_adj_conflict
+    conflict_note = ""
+    if conflicts:
+        parts = []
+        if n_con_conflict:
+            parts.append(f"{n_con_conflict} constraint")
+        if n_adj_conflict:
+            parts.append(f"{n_adj_conflict} adjacency")
+        conflict_note = f"; {' + '.join(parts)} conflict(s) with the data"
     note = (
         f"Meek propagation: {len(directed_in)} data-oriented + "
         f"{n_from_constraints} constraint + {n_propagated} propagated edges "
-        f"directed, {len(remaining)} still undetermined"
-        + (f"; {len(conflicts)} constraint(s) conflicted with the data"
-           if conflicts else "")
+        f"directed, {len(remaining)} still undetermined" + conflict_note
     )
     return OrientationResult(
         nodes=nodes,
@@ -291,6 +388,7 @@ def propagate_orientations(
         remaining_undirected=remaining,
         conflicts=tuple(conflicts),
         provenance=provenance,
+        asserted_adjacencies=asserted_out,
         note=note,
     )
 
@@ -306,6 +404,7 @@ def orientation_to_dict(result: OrientationResult) -> dict:
         "constraints": [list(e) for e in result.constraints],
         "oriented": [list(e) for e in result.oriented],
         "remaining_undirected": [list(e) for e in result.remaining_undirected],
+        "asserted_adjacencies": [list(e) for e in result.asserted_adjacencies],
         "conflicts": [dict(c) for c in result.conflicts],
         "provenance": [dict(p) for p in result.provenance],
         "note": result.note,
