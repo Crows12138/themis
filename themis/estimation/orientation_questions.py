@@ -134,6 +134,9 @@ def _conflict_prompt(c: dict) -> str:
     if reason == "non_adjacent_pair":
         return (f"{a} and {b} are not adjacent in the graph, so {a}→{b} cannot be "
                 f"applied. Is an edge {a}–{b} missing, or is the direction spurious?")
+    if reason == "creates_cycle":
+        return (f"{a}→{b} would close a directed cycle with orientations already "
+                f"established — the answers so far cannot all hold. Which to revise?")
     if reason == "unknown_node":
         return f"{a}→{b} names a variable not in the graph."
     return f"Constraint {a}→{b} could not be applied ({reason})."

@@ -1389,6 +1389,31 @@ def verify_orientation_questions(result: dict) -> None:
     _verify_q(result)
 
 
+def verify_orientation_session(result: dict) -> None:
+    """Independently audit an interactive orientation-resolution session (Phase 3
+    of interactive equivalence-class resolution).
+
+    The artifact is a standalone ``orientation_session`` dict (from
+    :func:`themis.estimation.orientation_session.session_to_dict`). It embeds a
+    Phase 1 ``orientation_propagation`` dict and a Phase 2
+    ``orientation_question_set`` dict; the verifier delegates those to their own
+    auditors and then certifies the session glue — that the constraints are the
+    latest-wins projection of the recorded answers, the embedded artifacts are the
+    session's own, ``deferred`` is exactly the still-open unknowns, the source
+    trail credits every applied answer with its true entailment, and the status is
+    correct — all re-derived from the answers (no producer call). Returns ``None``
+    on accept; raises :class:`themis.verifier.errors.VerificationError` on any
+    mismatch.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    from .verifier.orientation_session_rules import (
+        verify_orientation_session as _verify_sess,
+    )
+
+    _verify_sess(result)
+
+
 def verify_selection_recovery_numeric(result: dict) -> None:
     """Independently audit a selection-backdoor recovered ATE (§S9.1 numeric).
 

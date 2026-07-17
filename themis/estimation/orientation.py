@@ -186,9 +186,10 @@ def propagate_orientations(
     unshielded colliders); ``undirected`` are the undetermined edges (pairs);
     ``constraints`` are required directions (a, b) = require a→b, applied in
     order. A constraint that contradicts a data-established orientation, names
-    a non-edge, or contradicts an earlier constraint is recorded in
-    ``conflicts`` and NOT applied — the data's orientation is left intact for a
-    human to adjudicate.
+    a non-edge, contradicts an earlier constraint, or would close a directed
+    cycle with an already-established orientation (``reason="creates_cycle"``) is
+    recorded in ``conflicts`` and NOT applied — the established orientation is
+    left intact for a human to adjudicate.
     """
     nodes = tuple(sorted(nodes))
     node_set = set(nodes)
@@ -238,6 +239,11 @@ def propagate_orientations(
             continue
         if p not in U:
             conflicts.append({"constraint": [a, b], "reason": "non_adjacent_pair"})
+            continue
+        if _is_ancestor(D, b, a):
+            # applying a→b would close a directed cycle with an already-established
+            # orientation (data or an earlier answer) — the answer set is not a DAG
+            conflicts.append({"constraint": [a, b], "reason": "creates_cycle"})
             continue
         U.discard(p)
         D.add((a, b))

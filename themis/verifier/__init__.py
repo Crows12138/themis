@@ -141,6 +141,15 @@ Public surface (re-exports from sub-modules):
   ``unlocks`` number, that conflicts are echoed exactly, that there is one
   question per remaining edge, and that the ranking is by descending leverage —
   no producer call)
+- Discovery-layer verifier: ``verify_orientation_session`` (2026-07-17,
+  interactive equivalence-class resolution — Phase 3. Audits an
+  ``orientation_session`` artifact: delegates to ``verify_orientation_propagation``
+  and ``verify_orientation_questions`` for the embedded Phase 1 / Phase 2 dicts,
+  then certifies the session glue — that the constraints are the latest-wins
+  projection of the recorded answers, the embedded artifacts are the session's
+  own, ``deferred`` is exactly the still-open unknowns, the source trail credits
+  every applied answer with its true entailment and no rejected one, and the
+  status is correct — all re-derived from the answers, no producer call)
 - Bounds-result verifiers (iter 126/127/130) — trilogy complete for
   the 3 implemented BoundsMethod producers:
   * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
@@ -219,6 +228,7 @@ from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .orientation_rules import verify_orientation_propagation
 from .orientation_question_rules import verify_orientation_questions
+from .orientation_session_rules import verify_orientation_session
 from .selection_numeric_rules import verify_selection_recovery_numeric
 from .missing_numeric_rules import verify_missing_data_numeric
 
@@ -252,6 +262,7 @@ __all__ = [
     "verify_markov_blanket",
     "verify_orientation_propagation",
     "verify_orientation_questions",
+    "verify_orientation_session",
     "verify_iv_overid_numeric",
     "verify_measurement_correction_numeric",
     "verify_mediation_numeric",

@@ -110,6 +110,23 @@ def test_constraint_contradicting_data_collider_is_flagged_not_applied():
     verify_orientation_propagation(orientation_to_dict(r))
 
 
+def test_constraint_closing_a_cycle_is_flagged_not_applied():
+    # triangle A-B, B-C, A-C undirected; answers A->B, B->C, then C->A would close
+    # the cycle A->B->C->A — the third is flagged creates_cycle, not applied, and
+    # Meek's R2 then orients A->C (acyclicity) from the two that WERE applied.
+    r = propagate_orientations(
+        ["A", "B", "C"],
+        undirected=[("A", "B"), ("B", "C"), ("A", "C")],
+        constraints=[("A", "B"), ("B", "C"), ("C", "A")],
+    )
+    assert {("A", "B"), ("B", "C"), ("A", "C")} == set(r.oriented)
+    assert ("C", "A") not in r.oriented
+    assert len(r.conflicts) == 1
+    assert r.conflicts[0]["reason"] == "creates_cycle"
+    assert r.conflicts[0]["constraint"] == ["C", "A"]
+    verify_orientation_propagation(orientation_to_dict(r))
+
+
 def test_constraint_on_non_edge_is_flagged():
     r = propagate_orientations(
         ["A", "B", "C"], undirected=[("A", "B")], constraints=[("A", "C")],

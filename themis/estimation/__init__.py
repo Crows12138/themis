@@ -168,6 +168,18 @@ Landed scope:
   still-undetermined edge, where leverage is the best-case Meek cascade an answer
   triggers (measured with the Phase 1 propagation engine). Audited by
   ``verify_orientation_questions``
+- Orientation resolution session — ``start_orientation_session`` /
+  ``ingest_orientation_answers`` (returning ``OrientationSession`` of
+  ``OrientationAnswer``; ``OrientationSessionError`` on ill-formed input;
+  ``next_questions`` for the askable subset; ``session_to_dict`` for the
+  verifier): Phase 3 of interactive equivalence-class resolution — the loop.
+  Event-sourced: it stores the input CPDAG + the ordered answers and replays the
+  Phase 1 closure, re-compiling the Phase 2 questions over what remains. An
+  answer may decline (``direction=None``) → the edge is *deferred* (unknown
+  escape, never re-asked); a later answer for an edge replaces an earlier one
+  (latest-wins); each applied answer is recorded with its source and the edges it
+  entailed. ``status`` is ``resolved`` / ``open`` / ``blocked``. Audited by
+  ``verify_orientation_session``
 - Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
   ``e_value_from_ate_binary`` / ``e_value_from_ate_continuous``
   (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
@@ -271,6 +283,15 @@ from .orientation_questions import (
     compile_orientation_questions,
     question_set_to_dict,
 )
+from .orientation_session import (
+    OrientationAnswer,
+    OrientationSession,
+    OrientationSessionError,
+    ingest_orientation_answers,
+    next_questions,
+    session_to_dict,
+    start_orientation_session,
+)
 from .iv import (
     ARConfidenceSet,
     IVEstimate,
@@ -364,6 +385,13 @@ __all__ = [
     "QuestionSet",
     "compile_orientation_questions",
     "question_set_to_dict",
+    "OrientationAnswer",
+    "OrientationSession",
+    "OrientationSessionError",
+    "ingest_orientation_answers",
+    "next_questions",
+    "session_to_dict",
+    "start_orientation_session",
     "OVBBenchmark",
     "OVBSensitivity",
     "PropensitySummary",

@@ -103,6 +103,8 @@ def _recompute(nodes, input_directed, input_undirected, constraints):
             conflicts.append(("contradicts_data_orientation", a, b)); continue
         if p not in U:
             conflicts.append(("non_adjacent_pair", a, b)); continue
+        if _is_ancestor(D, b, a):
+            conflicts.append(("creates_cycle", a, b)); continue
         U.discard(p); D.add((a, b))
 
     changed = True

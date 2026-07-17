@@ -90,6 +90,7 @@ from .kernel import (
     verify_missing_data_numeric,
     verify_orientation_propagation,
     verify_orientation_questions,
+    verify_orientation_session,
     verify_selection_recovery_numeric,
 )
 from .output.analysis_report import build_analysis_report
@@ -108,5 +109,6 @@ __all__ = [
     "verify_missing_data_numeric",
     "verify_orientation_propagation",
     "verify_orientation_questions",
+    "verify_orientation_session",
     "verify_selection_recovery_numeric",
 ]
