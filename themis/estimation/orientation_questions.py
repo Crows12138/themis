@@ -95,9 +95,10 @@ class QuestionSet:
     """The compiled, ranked question set for one equivalence class.
 
     Echoes the Phase 1 inputs (``input_directed`` / ``input_undirected`` /
-    ``constraints`` / ``asserted_adjacencies``) and the post-propagation state
-    (``oriented`` / ``remaining_undirected``) so the verifier can re-derive every
-    number — including the CI-side adjacency conflicts — without the producer.
+    ``constraints`` / ``asserted_adjacencies`` / ``asserted_absences``) and the
+    post-propagation state (``oriented`` / ``remaining_undirected``) so the
+    verifier can re-derive every number — including the CI-side adjacency and
+    drop-edge conflicts — without the producer.
     ``questions`` lists conflicts first, then orientation questions by descending
     leverage.
     """
@@ -110,6 +111,7 @@ class QuestionSet:
     remaining_undirected: tuple[Pair, ...]
     questions: tuple[OrientationQuestion, ...]
     asserted_adjacencies: tuple[Pair, ...] = ()
+    asserted_absences: tuple[Pair, ...] = ()
     note: str = ""
 
 
@@ -127,6 +129,21 @@ def _cascade(nodes, directed, undirected, u_set: set[frozenset], answer: Edge) -
 
 def _conflict_prompt(c: dict) -> str:
     reason = c.get("reason")
+    if "absence" in c:
+        a, b = c["absence"]
+        if reason == "undermines_collider":
+            arm = ", ".join(f"{a if x == b else b}→{x}" for x in c.get("colliders", []))
+            return (f"Knowledge says {a} and {b} are independent (drop the edge), but "
+                    f"the data orients {arm} as an arm of an unshielded collider. "
+                    f"Dropping the edge removes that arm and the collider loses its "
+                    f"data support. Trust the data's collider, or drop the edge?")
+        if reason == "contradicts_dependence":
+            return (f"Knowledge says {a} and {b} are independent (no edge), but the data "
+                    f"found them dependent — an edge {a}–{b} is in the skeleton. Trust "
+                    f"the data's dependence finding, or drop the edge as asserted?")
+        if reason == "unknown_node":
+            return f"Asserted absence {a}–{b} names a variable not in the graph."
+        return f"Asserted absence {a}–{b} conflicts with the data ({reason})."
     if "assertion" in c:
         a, b = c["assertion"]
         if reason == "undermines_collider":
@@ -177,11 +194,13 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
     questions: list[OrientationQuestion] = []
 
     # --- conflict questions (rank first) --------------------------------------
-    # A conflict is keyed "constraint" (a direction that contradicts the data) or
-    # "assertion" (an adjacency that contradicts the data's CI structure); both
-    # become adjudication questions a human must resolve first.
+    # A conflict is keyed "constraint" (a direction that contradicts the data),
+    # "assertion" (an adjacency that contradicts the data's CI structure), or
+    # "absence" (a drop-edge that contradicts the data's dependence structure);
+    # all become adjudication questions a human must resolve first.
     for c in result.conflicts:
-        key = "assertion" if "assertion" in c else "constraint"
+        key = ("assertion" if "assertion" in c
+               else "absence" if "absence" in c else "constraint")
         pair = tuple(c[key])
         detail = {k: v for k, v in c.items() if k not in (key, "reason")}
         questions.append(OrientationQuestion(
@@ -231,6 +250,7 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
         remaining_undirected=tuple(result.remaining_undirected),
         questions=tuple(questions),
         asserted_adjacencies=tuple(result.asserted_adjacencies),
+        asserted_absences=tuple(result.asserted_absences),
         note=note,
     )
 
@@ -247,6 +267,7 @@ def question_set_to_dict(qs: QuestionSet) -> dict:
         "oriented": [list(e) for e in qs.oriented],
         "remaining_undirected": [list(e) for e in qs.remaining_undirected],
         "asserted_adjacencies": [list(e) for e in qs.asserted_adjacencies],
+        "asserted_absences": [list(e) for e in qs.asserted_absences],
         "questions": [
             {
                 "kind": q.kind,

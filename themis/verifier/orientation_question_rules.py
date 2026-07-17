@@ -11,11 +11,12 @@ edge's two cascades itself; it never calls the producer or ``propagate_orientati
 
 What it certifies, given the recorded CPDAG:
 
-- **Conflicts are echoed exactly.** Re-deriving both the constraint application
-  and the CI-side adjacency check independently, every conflict — an orientation
-  constraint that contradicts the data, or an asserted adjacency that contradicts
-  its independence structure — becomes exactly one conflict question, and none is
-  invented.
+- **Conflicts are echoed exactly.** Re-deriving the constraint application, the
+  CI-side adjacency check, and the drop-edge absence check independently, every
+  conflict — an orientation constraint that contradicts the data, an asserted
+  adjacency that contradicts its independence structure, or an asserted absence
+  that contradicts its dependence structure — becomes exactly one conflict
+  question, and none is invented.
 - **Every leverage number is honest.** For each orientation question the claimed
   ``leverage`` (best-case cascade), ``guaranteed`` (worst-case cascade), and
   ``unlocks`` (edges determined regardless of the answer) equal the two Meek
@@ -179,6 +180,33 @@ def _adjacency_conflict_pairs(node_set, input_directed, adj, asserted):
     return out
 
 
+def _asserted_absence_conflict_pairs(node_set, input_directed, adj, asserted):
+    """Independent second transcription of the drop-edge conflict detection, at the
+    granularity a conflict question carries — ``(reason, a, b)`` with ``a<=b``.
+    (The collider apex an ``undermines_collider`` names is audited in
+    ``verify_orientation_propagation``; here every conflict is one question.)"""
+    directed = set(input_directed)
+    out = []
+    seen = set()
+    for (a, b) in asserted:
+        p = _pair(a, b)
+        if p in seen:
+            continue
+        seen.add(p)
+        if a not in node_set or b not in node_set:
+            out.append(("unknown_node", p[0], p[1]))
+            continue
+        if b not in adj[a]:
+            continue
+        if any((tail, head) in directed
+               and any(x != tail and (x, head) in directed for x in node_set)
+               for (tail, head) in ((a, b), (b, a))):
+            out.append(("undermines_collider", p[0], p[1]))
+        else:
+            out.append(("contradicts_dependence", p[0], p[1]))
+    return out
+
+
 def verify_orientation_questions(result: dict) -> None:
     """Independently audit an orientation-question-set dict (the artifact from
     ``question_set_to_dict``).
@@ -219,6 +247,14 @@ def verify_orientation_questions(result: dict) -> None:
                  f"asserted_adjacencies entry {e!r} is not a pair")
         _require(e[0] != e[1], f"asserted_adjacencies has a self-loop {e!r}")
         asserted.append((e[0], e[1]))
+    raw_absences = result.get("asserted_absences", [])
+    _require(isinstance(raw_absences, list), "asserted_absences must be a list")
+    absences = []
+    for e in raw_absences:
+        _require(isinstance(e, list) and len(e) == 2,
+                 f"asserted_absences entry {e!r} is not a pair")
+        _require(e[0] != e[1], f"asserted_absences has a self-loop {e!r}")
+        absences.append((e[0], e[1]))
     D0 = set(_edges("oriented"))
     U0 = {_pair(a, b) for (a, b) in _edges("remaining_undirected")}
     u_set = {frozenset(e) for e in U0}
@@ -242,12 +278,14 @@ def verify_orientation_questions(result: dict) -> None:
         _require(isinstance(q, dict) and "kind" in q, f"ill-formed question {q!r}")
 
     # --- conflict questions: exact echo of the recomputed conflicts -----------
-    # Both the orientation-constraint conflicts and the CI-side adjacency
-    # conflicts become one conflict question each; the granularity here is
-    # (reason, a, b) (the collider apexes are audited in the propagation verifier).
+    # The orientation-constraint conflicts, the CI-side adjacency conflicts, and
+    # the drop-edge absence conflicts each become one conflict question; the
+    # granularity here is (reason, a, b) (collider apexes are audited in the
+    # propagation verifier).
     recomputed = (
         _recompute_conflicts(nodes, input_directed, input_undirected, constraints)
         + _adjacency_conflict_pairs(node_set, input_directed, adj, asserted)
+        + _asserted_absence_conflict_pairs(node_set, input_directed, adj, absences)
     )
     claimed_conflicts = []
     for q in questions:

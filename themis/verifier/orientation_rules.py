@@ -15,12 +15,15 @@ What it guarantees, given the recorded inputs:
 - the ``oriented`` set is exactly the Meek closure (soundness — no orientation
   that is not forced; completeness — no forced orientation missing);
 - ``remaining_undirected`` is exactly what stays undetermined;
-- ``conflicts`` names exactly the inputs that contradict the data — both the
+- ``conflicts`` names exactly the inputs that contradict the data — the
   orientation constraints that do (a data-established orientation, a non-edge, an
-  earlier constraint, or a cycle) AND the asserted adjacencies that contradict
-  the data's independence structure (a plain ``contradicts_independence``, or an
+  earlier constraint, or a cycle), the asserted adjacencies that contradict the
+  data's independence structure (a plain ``contradicts_independence``, or an
   ``undermines_collider`` naming the exact collider apexes whose unshielded
-  premise the assertion would break) — a producer that silently applied a
+  premise the assertion would break), AND the asserted absences (edges to drop)
+  that contradict the data's dependence structure (a plain
+  ``contradicts_dependence``, or an ``undermines_collider`` naming the apex when
+  the edge dropped is a data collider arm) — a producer that silently applied a
   data-contradicting answer, or under-reported which colliders an asserted edge
   undermines, is caught;
 - every provenance entry is well-formed and its claimed rule genuinely fires
@@ -152,6 +155,35 @@ def _adjacency_conflicts(node_set, input_directed, adj, asserted):
     return conflicts
 
 
+def _asserted_absence_conflicts(node_set, input_directed, adj, asserted):
+    """Independent second transcription of the drop-edge (asserted-non-adjacency)
+    conflict detection (see the producer). Returns ``(reason, a, b, colliders)``
+    with ``a<=b``; ``colliders`` is the sorted apex tuple, non-empty only when the
+    edge asserted absent is a data collider arm."""
+    directed = set(input_directed)
+    conflicts = []
+    seen = set()
+    for (a, b) in asserted:
+        p = _pair(a, b)
+        if p in seen:
+            continue
+        seen.add(p)
+        if a not in node_set or b not in node_set:
+            conflicts.append(("unknown_node", p[0], p[1], ()))
+            continue
+        if b not in adj[a]:
+            continue  # already non-adjacent — agrees with the data
+        apexes = tuple(sorted(
+            head for (tail, head) in ((a, b), (b, a))
+            if (tail, head) in directed
+            and any(x != tail and (x, head) in directed for x in node_set)))
+        if apexes:
+            conflicts.append(("undermines_collider", p[0], p[1], apexes))
+        else:
+            conflicts.append(("contradicts_dependence", p[0], p[1], ()))
+    return conflicts
+
+
 _RULE_NAMES = {"collider_input", "constraint", "R1", "R2", "R3", "R4"}
 
 
@@ -216,9 +248,19 @@ def verify_orientation_propagation(result: dict) -> None:
         _require(e[0] != e[1], f"asserted_adjacencies has a self-loop {e!r}")
         asserted.append((e[0], e[1]))
 
+    raw_absences = result.get("asserted_absences", [])
+    _require(isinstance(raw_absences, list), "asserted_absences must be a list")
+    absences = []
+    for e in raw_absences:
+        _require(isinstance(e, list) and len(e) == 2,
+                 f"asserted_absences entry {e!r} is not a pair")
+        _require(e[0] != e[1], f"asserted_absences has a self-loop {e!r}")
+        absences.append((e[0], e[1]))
+
     # --- independent recomputation --------------------------------------------
     D, U, adj, conflicts = _recompute(nodes, input_directed, input_undirected, constraints)
     adj_conflicts = _adjacency_conflicts(node_set, input_directed, adj, asserted)
+    abs_conflicts = _asserted_absence_conflicts(node_set, input_directed, adj, absences)
 
     claimed_D = set(claimed_oriented)
     _require(len(claimed_D) == len(claimed_oriented), "duplicate edge in 'oriented'")
@@ -239,6 +281,7 @@ def verify_orientation_propagation(result: dict) -> None:
     _require(isinstance(claimed_conflicts, list), "conflicts must be a list")
     claimed_orient = []
     claimed_adj = []
+    claimed_abs = []
     for c in claimed_conflicts:
         _require(isinstance(c, dict) and "reason" in c, f"ill-formed conflict entry {c!r}")
         if "constraint" in c:
@@ -252,8 +295,15 @@ def verify_orientation_propagation(result: dict) -> None:
                      f"bad conflict assertion {pair!r}")
             p = _pair(pair[0], pair[1])
             claimed_adj.append((c["reason"], p[0], p[1], tuple(sorted(c.get("colliders", [])))))
+        elif "absence" in c:
+            pair = c["absence"]
+            _require(isinstance(pair, list) and len(pair) == 2,
+                     f"bad conflict absence {pair!r}")
+            p = _pair(pair[0], pair[1])
+            claimed_abs.append((c["reason"], p[0], p[1], tuple(sorted(c.get("colliders", [])))))
         else:
-            _require(False, f"conflict entry {c!r} has neither 'constraint' nor 'assertion'")
+            _require(False,
+                     f"conflict entry {c!r} has none of 'constraint' / 'assertion' / 'absence'")
     _require(
         sorted(claimed_orient) == sorted(conflicts),
         f"orientation-conflict set disagrees with the recomputation: "
@@ -265,6 +315,12 @@ def verify_orientation_propagation(result: dict) -> None:
         f"adjacency-conflict set disagrees with the recomputation: "
         f"producer-only {sorted(set(claimed_adj) - set(adj_conflicts))}, "
         f"recompute-only {sorted(set(adj_conflicts) - set(claimed_adj))}",
+    )
+    _require(
+        sorted(claimed_abs) == sorted(abs_conflicts),
+        f"absence-conflict set disagrees with the recomputation: "
+        f"producer-only {sorted(set(claimed_abs) - set(abs_conflicts))}, "
+        f"recompute-only {sorted(set(abs_conflicts) - set(claimed_abs))}",
     )
 
     # --- provenance -----------------------------------------------------------

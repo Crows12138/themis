@@ -22,10 +22,11 @@ introduces — all re-derived independently from the recorded answers:
   (revisions dropped). A producer that applied a stale or extra constraint is
   caught.
 - **the embedded artifacts are the session's.** The propagation and question-set
-  dicts are over the session's own input CPDAG, derived constraints, and asserted
-  adjacencies, and share one ``oriented`` / ``remaining_undirected`` — not some
-  other consistent graph smuggled in. (The CI-side adjacency conflicts those
-  assertions raise are audited inside the delegated verifiers.)
+  dicts are over the session's own input CPDAG, derived constraints, asserted
+  adjacencies, and asserted absences, and share one ``oriented`` /
+  ``remaining_undirected`` — not some other consistent graph smuggled in. (The
+  CI-side adjacency conflicts and the drop-edge absence conflicts those assertions
+  raise are audited inside the delegated verifiers.)
 - **unknown → deferred.** ``deferred`` is exactly the edges whose latest answer
   was "unknown" and that are still undetermined — no forced edge hidden as
   deferred, no unknown silently asked again.
@@ -99,6 +100,16 @@ def verify_orientation_session(result: dict) -> None:
         asserted.append((e[0], e[1]))
     asserted_set = {_pair(a, b) for (a, b) in asserted}
 
+    raw_absences = result.get("asserted_absences", [])
+    _require(isinstance(raw_absences, list), "asserted_absences must be a list")
+    absences = []
+    for e in raw_absences:
+        _require(isinstance(e, list) and len(e) == 2,
+                 f"asserted_absences entry {e!r} is not a pair")
+        _require(e[0] != e[1], f"asserted_absences has a self-loop {e!r}")
+        absences.append((e[0], e[1]))
+    absence_set = {_pair(a, b) for (a, b) in absences}
+
     # --- parse + validate answers, re-derive constraints (latest-wins) --------
     raw_answers = result.get("answers")
     _require(isinstance(raw_answers, list), "answers must be a list")
@@ -162,6 +173,10 @@ def verify_orientation_session(result: dict) -> None:
              "embedded propagation is over different asserted adjacencies")
     _require(_pset(qset.get("asserted_adjacencies", [])) == asserted_set,
              "question set and propagation disagree on the asserted adjacencies")
+    _require(_pset(prop.get("asserted_absences", [])) == absence_set,
+             "embedded propagation is over different asserted absences")
+    _require(_pset(qset.get("asserted_absences", [])) == absence_set,
+             "question set and propagation disagree on the asserted absences")
 
     # --- unknown → deferred ---------------------------------------------------
     deferred_recompute = {e for (e, (_i, d, _s, _n)) in latest.items()

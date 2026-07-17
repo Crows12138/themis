@@ -43,12 +43,17 @@ each audited by its own verifier; the session verifier adds only the glue checks
 directional answer that contradicts a data-established orientation is NOT applied
 — it flows into the Phase 1 conflict list and surfaces as a conflict question for
 a human, never silently overriding the data. ``asserted_adjacencies`` — adjacencies
-external knowledge claims — are a session-level input fixed at ``start``: those the
-data found absent surface as CI-side conflict questions (``contradicts_independence``
-/ ``undermines_collider``), the independence-side analogue of a direction conflict.
-Scope tradeoff (stated): they are session-level upfront knowledge, not yet a
-per-turn, revisable answer type like an orientation — an adjacency as a first-class
-loop answer (with its own unknown-escape and latest-wins) is a follow-on. Wiring
+external knowledge claims — and ``asserted_absences`` — non-adjacencies (edges to
+drop) external knowledge claims — are session-level inputs fixed at ``start``: an
+asserted adjacency the data found absent surfaces as a CI-side conflict question
+(``contradicts_independence`` / ``undermines_collider``); an asserted absence the
+data found present surfaces as a drop-edge conflict question
+(``contradicts_dependence`` / ``undermines_collider``) — together the two polarities
+of the independence-side analogue of a direction conflict. Both are surfaced, never
+applied (applying either would edit the skeleton). Scope tradeoff (stated): they are
+session-level upfront knowledge, not yet a per-turn, revisable answer type like an
+orientation — an adjacency (either polarity) as a first-class loop answer (with its
+own unknown-escape and latest-wins) is the remaining follow-on. Wiring
 the source trail into the
 query-level ``assumption_ledger`` (the existing ``GRAPH_LEARNED_FROM_DATA`` /
 ``llm_proposal`` gap-kind path) happens when a resolved graph is USED in a query,
@@ -116,6 +121,9 @@ class OrientationSession:
     - ``asserted_adjacencies``: session-level adjacencies external knowledge claims
       (fixed at ``start``); those the data found absent surface as CI-side conflict
       questions. Not a per-answer input in this version (see the module docstring).
+    - ``asserted_absences``: session-level non-adjacencies (edges to drop) external
+      knowledge claims (fixed at ``start``); those the data found present surface as
+      drop-edge conflict questions. Also not a per-answer input in this version.
     - ``status``: ``"resolved"`` (nothing undetermined), ``"open"`` (askable
       questions remain), or ``"blocked"`` (only deferred edges remain).
     """
@@ -132,6 +140,7 @@ class OrientationSession:
     rejected: tuple[dict, ...]
     status: str
     asserted_adjacencies: tuple[Pair, ...] = ()
+    asserted_absences: tuple[Pair, ...] = ()
     note: str = ""
 
 
@@ -189,13 +198,14 @@ def _derive_constraints(answers: tuple[OrientationAnswer, ...]):
 
 def _build(nodes, input_directed, input_undirected,
            answers: tuple[OrientationAnswer, ...],
-           asserted_adjacencies=()) -> OrientationSession:
+           asserted_adjacencies=(), asserted_absences=()) -> OrientationSession:
     node_set = set(nodes)
     constraints, latest_by_edge = _derive_constraints(answers)
 
     result = propagate_orientations(
         nodes, directed=input_directed, undirected=input_undirected,
         constraints=constraints, asserted_adjacencies=asserted_adjacencies,
+        asserted_absences=asserted_absences,
     )
     question_set = compile_orientation_questions(result)
 
@@ -268,6 +278,7 @@ def _build(nodes, input_directed, input_undirected,
         rejected=tuple(rejected),
         status=status,
         asserted_adjacencies=tuple(result.asserted_adjacencies),
+        asserted_absences=tuple(result.asserted_absences),
         note=note,
     )
 
@@ -277,19 +288,23 @@ def _p(pair) -> Pair:
 
 
 def start_orientation_session(nodes, *, directed=(), undirected=(),
-                              asserted_adjacencies=()) -> OrientationSession:
+                              asserted_adjacencies=(),
+                              asserted_absences=()) -> OrientationSession:
     """Open a session on a CPDAG (data colliders ``directed`` + undetermined
     ``undirected``) with no answers yet — the initial questions are Phase 2's
     ranking over the whole undetermined part, plus any conflict question raised by
     ``asserted_adjacencies`` (adjacencies external knowledge claims that the data's
-    independence structure contradicts)."""
+    independence structure contradicts) or ``asserted_absences`` (non-adjacencies /
+    edges to drop that the data's dependence structure contradicts)."""
     nodes = tuple(sorted(nodes))
     # normalise input edges through a trivial propagate to reuse its guards
     directed = tuple((a, b) for (a, b) in directed)
     undirected = tuple((a, b) for (a, b) in undirected)
     asserted_adjacencies = tuple((a, b) for (a, b) in asserted_adjacencies)
+    asserted_absences = tuple((a, b) for (a, b) in asserted_absences)
     return _build(nodes, directed, undirected, (),
-                  asserted_adjacencies=asserted_adjacencies)
+                  asserted_adjacencies=asserted_adjacencies,
+                  asserted_absences=asserted_absences)
 
 
 def ingest_orientation_answers(session: OrientationSession, answers) -> OrientationSession:
@@ -301,7 +316,8 @@ def ingest_orientation_answers(session: OrientationSession, answers) -> Orientat
     coerced = tuple(_coerce_answer(a, node_set) for a in answers)
     return _build(session.nodes, session.input_directed, session.input_undirected,
                   session.answers + coerced,
-                  asserted_adjacencies=session.asserted_adjacencies)
+                  asserted_adjacencies=session.asserted_adjacencies,
+                  asserted_absences=session.asserted_absences)
 
 
 def next_questions(session: OrientationSession) -> tuple:
@@ -334,6 +350,7 @@ def session_to_dict(session: OrientationSession) -> dict:
         ],
         "constraints": [list(e) for e in session.constraints],
         "asserted_adjacencies": [list(e) for e in session.asserted_adjacencies],
+        "asserted_absences": [list(e) for e in session.asserted_absences],
         "propagation": orientation_to_dict(session.result),
         "question_set": question_set_to_dict(session.question_set),
         "deferred": [list(e) for e in session.deferred],
