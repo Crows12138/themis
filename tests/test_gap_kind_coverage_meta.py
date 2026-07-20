@@ -989,10 +989,9 @@ def test_no_windows_absolute_paths_in_committed_files():
             # Skip hidden dirs (e.g. .git, .venv) and this self-test
             if any(part.startswith(".") for part in p.parts):
                 continue
-            # node_modules = vendored deps; Themis_Demo = the reference-demo
-            # scratch the web product was extracted from — neither is the
-            # shipping Themis source this portability audit governs.
-            if any(part in ("node_modules", "Themis_Demo") for part in p.parts):
+            # node_modules = vendored deps, not the shipping Themis source this
+            # portability audit governs.
+            if any(part == "node_modules" for part in p.parts):
                 continue
             if p.resolve() == Path(__file__).resolve():
                 continue
