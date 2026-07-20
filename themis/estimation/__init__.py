@@ -175,9 +175,13 @@ Landed scope:
   verifier): Phase 3 of interactive equivalence-class resolution — the loop.
   Event-sourced: it stores the input CPDAG + the ordered answers and replays the
   Phase 1 closure, re-compiling the Phase 2 questions over what remains. An
-  answer may decline (``direction=None``) → the edge is *deferred* (unknown
-  escape, never re-asked); a later answer for an edge replaces an earlier one
-  (latest-wins); each applied answer is recorded with its source and the edges it
+  answer makes one claim about a pair — a direction (a constraint), an adjacency
+  polarity (``"present"`` / ``"absent"``, feeding the CI-side / drop-edge conflict
+  detection, surfaced not applied), or nothing (``direction=None`` and
+  ``adjacency=None``) → the edge is *deferred* (unknown escape, never re-asked);
+  a later answer for a pair replaces an earlier one, latest-wins across all three
+  kinds (per-turn adjacency answers override the start-time asserted-set base);
+  each applied directional answer is recorded with its source and the edges it
   entailed. ``status`` is ``resolved`` / ``open`` / ``blocked``. Audited by
   ``verify_orientation_session``
 - Orientation ledger export — ``orientation_ledger_export``: bridges a resolved

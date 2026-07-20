@@ -17,19 +17,23 @@ fourth time — it delegates:
 On top of those, this verifier certifies the SESSION GLUE — the parts only Phase 3
 introduces — all re-derived independently from the recorded answers:
 
-- **answers → constraints.** The constraints fed to the closure are exactly each
-  edge's LATEST directional answer, in the order that latest answer appeared
-  (revisions dropped). A producer that applied a stale or extra constraint is
-  caught.
+- **answers → constraints (and asserted sets).** An answer makes exactly one claim
+  about its pair — a direction, an adjacency polarity (``"present"`` / ``"absent"``),
+  or nothing — and latest-wins is per pair across all three. The constraints fed to
+  the closure are exactly each pair's latest *directional* answer, in the order that
+  latest answer appeared; the *effective* asserted-adjacency / asserted-absence sets
+  are the session's base (turn-0 knowledge) with every answered pair re-projected
+  from its latest answer. A producer that applied a stale constraint, or fed the raw
+  base instead of the answer-projected effective sets, is caught.
 - **the embedded artifacts are the session's.** The propagation and question-set
-  dicts are over the session's own input CPDAG, derived constraints, asserted
-  adjacencies, and asserted absences, and share one ``oriented`` /
+  dicts are over the session's own input CPDAG, derived constraints, and *effective*
+  asserted adjacencies / absences, and share one ``oriented`` /
   ``remaining_undirected`` — not some other consistent graph smuggled in. (The
   CI-side adjacency conflicts and the drop-edge absence conflicts those assertions
   raise are audited inside the delegated verifiers.)
 - **unknown → deferred.** ``deferred`` is exactly the edges whose latest answer
-  was "unknown" and that are still undetermined — no forced edge hidden as
-  deferred, no unknown silently asked again.
+  was "unknown" (neither a direction nor an adjacency) and that are still
+  undetermined — no forced edge hidden as deferred, no unknown silently asked again.
 - **source trail.** Every applied directional answer appears once with its source
   and its true entailment (the edges the closure forced from it, from the recorded
   provenance); every non-applied directional answer appears in ``rejected`` with
@@ -88,8 +92,10 @@ def verify_orientation_session(result: dict) -> None:
     input_directed = _edges(result.get("input_directed"), "input_directed")
     input_undirected = _edges(result.get("input_undirected"), "input_undirected")
 
-    # asserted adjacencies may name unknown nodes (they become CI-side conflicts),
-    # so they are not routed through _edges; the embedded verifiers classify them.
+    # The top-level asserted_* are the session BASE (turn-0 knowledge); per-turn
+    # adjacency answers re-project them into the effective sets below. They may name
+    # unknown nodes (which become CI-side conflicts), so they are not routed through
+    # _edges; the embedded verifiers classify them.
     raw_asserted = result.get("asserted_adjacencies", [])
     _require(isinstance(raw_asserted, list), "asserted_adjacencies must be a list")
     asserted = []
@@ -111,6 +117,9 @@ def verify_orientation_session(result: dict) -> None:
     absence_set = {_pair(a, b) for (a, b) in absences}
 
     # --- parse + validate answers, re-derive constraints (latest-wins) --------
+    # An answer makes exactly ONE claim about its pair: a direction, an adjacency
+    # polarity ("present" / "absent"), or nothing ("unknown"). Latest-wins is per
+    # pair across all three.
     raw_answers = result.get("answers")
     _require(isinstance(raw_answers, list), "answers must be a list")
     answers = []
@@ -122,23 +131,41 @@ def verify_orientation_session(result: dict) -> None:
                  f"answer edge {edge!r} not a pair of known nodes")
         e = _pair(edge[0], edge[1])
         direction = a.get("direction")
+        adjacency = a.get("adjacency")
         if direction is not None:
             _require(isinstance(direction, list) and len(direction) == 2
                      and {direction[0], direction[1]} == {e[0], e[1]},
                      f"direction {direction!r} not an orientation of edge {e!r}")
             direction = (direction[0], direction[1])
-        answers.append((e, direction, a.get("source", "unspecified"), a.get("note", "")))
+            _require(adjacency is None,
+                     f"answer for {e!r} states both a direction and an adjacency")
+        if adjacency is not None:
+            _require(adjacency in ("present", "absent"),
+                     f"adjacency must be 'present' or 'absent', got {adjacency!r}")
+        answers.append((e, direction, adjacency,
+                        a.get("source", "unspecified"), a.get("note", "")))
 
     latest = {}
-    for i, (e, d, src, note) in enumerate(answers):
-        latest[e] = (i, d, src, note)
+    for i, (e, d, adj, src, note) in enumerate(answers):
+        latest[e] = (i, d, adj, src, note)
     ordered = sorted(latest.items(), key=lambda kv: kv[1][0])
-    constraints = [list(d) for (_e, (_i, d, _s, _n)) in ordered if d is not None]
+    constraints = [list(d) for (_e, (_i, d, _adj, _s, _n)) in ordered if d is not None]
 
     claimed_constraints = [list(c) for c in _edges(result.get("constraints"), "constraints")]
     _require(constraints == claimed_constraints,
              f"constraints are not the latest-wins projection of the answers: "
              f"recomputed {constraints}, claimed {claimed_constraints}")
+
+    # effective asserted sets = base (the session's top-level asserted_* — turn-0
+    # knowledge) with every ANSWERED pair re-projected from its latest answer: an
+    # adjacency answer overrides the pair's base membership, a direction / unknown
+    # answer drops it from both bases. The producer feeds THESE to the closure, so
+    # this — not the base — is what the embedded artifacts must echo.
+    answered = set(latest)
+    adj_answers = {e for e, (_i, _d, adj, _s, _n) in latest.items() if adj == "present"}
+    abs_answers = {e for e, (_i, _d, adj, _s, _n) in latest.items() if adj == "absent"}
+    eff_adjacencies = {p for p in asserted_set if p not in answered} | adj_answers
+    eff_absences = {p for p in absence_set if p not in answered} | abs_answers
 
     # --- embedded artifacts: each passes its own verifier ---------------------
     prop = result.get("propagation")
@@ -169,18 +196,21 @@ def verify_orientation_session(result: dict) -> None:
              "question set and propagation disagree on the oriented edges")
     _require(_pset(qset["remaining_undirected"]) == remaining,
              "question set and propagation disagree on the remaining edges")
-    _require(_pset(prop.get("asserted_adjacencies", [])) == asserted_set,
-             "embedded propagation is over different asserted adjacencies")
-    _require(_pset(qset.get("asserted_adjacencies", [])) == asserted_set,
+    _require(_pset(prop.get("asserted_adjacencies", [])) == eff_adjacencies,
+             "embedded propagation is not over the effective asserted adjacencies "
+             "(base re-projected by the answers)")
+    _require(_pset(qset.get("asserted_adjacencies", [])) == eff_adjacencies,
              "question set and propagation disagree on the asserted adjacencies")
-    _require(_pset(prop.get("asserted_absences", [])) == absence_set,
-             "embedded propagation is over different asserted absences")
-    _require(_pset(qset.get("asserted_absences", [])) == absence_set,
+    _require(_pset(prop.get("asserted_absences", [])) == eff_absences,
+             "embedded propagation is not over the effective asserted absences "
+             "(base re-projected by the answers)")
+    _require(_pset(qset.get("asserted_absences", [])) == eff_absences,
              "question set and propagation disagree on the asserted absences")
 
     # --- unknown → deferred ---------------------------------------------------
-    deferred_recompute = {e for (e, (_i, d, _s, _n)) in latest.items()
-                          if d is None and e in remaining}
+    # "unknown" = a latest answer that is neither a direction nor an adjacency
+    deferred_recompute = {e for (e, (_i, d, adj, _s, _n)) in latest.items()
+                          if d is None and adj is None and e in remaining}
     claimed_deferred = _pset(_edges(result.get("deferred"), "deferred"))
     _require(claimed_deferred == deferred_recompute,
              f"deferred set wrong: recomputed {sorted(deferred_recompute)}, "
@@ -193,7 +223,7 @@ def verify_orientation_session(result: dict) -> None:
                   for p in prop["provenance"]}
     exp_trail, exp_rejected = {}, {}
     for e in sorted(latest):
-        _i, d, src, note = latest[e]
+        _i, d, _adj, src, note = latest[e]
         if d is None:
             continue
         if d in oriented and _pair(d[0], d[1]) not in conflict_pairs:
