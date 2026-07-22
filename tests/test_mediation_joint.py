@@ -312,6 +312,146 @@ def test_verifier_rejects_tampered_coefficient():
 
 
 # =====================================================================
+# the disclosure layer sees the block
+#
+# Every producer below used to read `extensions.mediation_decomposition`
+# — the SINGLE-mediator key — so a block, which lands under
+# `mediation_joint_decomposition`, was invisible to the whole gap layer:
+# its identification assumptions never surfaced, and "可识别" on the human
+# side read as unconditional. The invariant these pin is parity: on the
+# same graph, asking through a block must disclose whatever asking through
+# one mediator discloses.
+# =====================================================================
+
+
+def _single_ast_from(joint_ast: dict, keep: str = "m1") -> dict:
+    """The same program asked through ONE mediator instead of the block."""
+    ast = copy.deepcopy(joint_ast)
+    for stmt in ast["statements"]:
+        if stmt.get("kind") == "query":
+            stmt["query"].pop("mediators")
+            stmt["query"]["mediator"] = _atom(keep)
+    return ast
+
+
+def _gap_kinds(res: dict) -> list[str]:
+    return [g["kind"] for g in (res.get("data_gap_report") or {}).get("gaps", [])]
+
+
+def test_block_surfaces_its_identification_assumptions():
+    res = themis.run(_joint_ast())["results"][0]
+    caveats = [
+        g for g in res["data_gap_report"]["gaps"]
+        if g["kind"] == "mediation_identification_assumption_required"
+    ]
+    assert len(caveats) == 2                       # NDE/NIE + CDE branches
+    joined = " ".join(g["description"] for g in caveats)
+    # The block's own premises, not the single-mediator ones.
+    assert "vanderweele_vansteelandt_2014_joint_natural_effect_conditions" in joined
+    assert "controlled_direct_effect_holds_mediator_set_at_a_reference_level" in joined
+    # And what the block does NOT claim.
+    assert "不拆到单条路径" in joined
+    assert "m1(me)" in joined and "m2(me)" in joined
+    # The caveat must also reach the human-facing text, not only the report.
+    assert "中介分解 NDE/NIE 标识为可识别" in res["explanation"]
+
+
+def test_block_and_single_mediator_are_disclosed_alike():
+    """The parity invariant. Same graph, same query, one asked through a
+    block and one through a single mediator: the gap layer must not go
+    quiet just because the answer came back under a different key."""
+    joint = themis.run(_joint_ast())["results"][0]
+    single = themis.run(_single_ast_from(_joint_ast()))["results"][0]
+    def counts(res):
+        kinds = _gap_kinds(res)
+        return {k: kinds.count(k) for k in set(kinds)}
+    assert counts(joint) == counts(single)
+
+
+def _tainted_ast(joint: bool) -> dict:
+    """X→{M1,M2}→Y with W confounding the mediators and the outcome; the
+    W→Y edge is an unverified LLM proposal. W reaches the query-relevant
+    predicate set ONLY through the decomposition's adjustment list."""
+    ast = _joint_ast()
+    stmts = ast["statements"]
+    stmts.insert(4, {"kind": "variable", "predicate": "w",
+                     "domain": [True, False]})
+    for a, b in (("w", "m1"), ("w", "m2")):
+        stmts.insert(-1, {"kind": "cause", "from": _atom(a), "to": _atom(b)})
+    stmts.insert(-1, {"kind": "cause", "from": _atom("w"), "to": _atom("y"),
+                      "annotations": {"source": "llm_proposal"}})
+    return ast if joint else _single_ast_from(ast)
+
+
+def test_proposal_edge_on_the_blocks_adjustment_set_is_disclosed():
+    """An unverified proposal edge among the adjustment covariates is a
+    provenance leak the single-mediator path already caught. The block
+    inherits the same disclosure."""
+    for joint in (False, True):
+        res = themis.run(_tainted_ast(joint))["results"][0]
+        ext = res["extensions"]
+        dec = (ext.get("mediation_joint_decomposition")
+               or ext["mediation_decomposition"])
+        assert dec["nde_nie"]["adjustment"] == ["w(me)"], "premise: W is adjusted for"
+        assert "unverified_proposal_edge_on_query_path" in _gap_kinds(res), (
+            f"proposal edge undisclosed for joint={joint}"
+        )
+
+
+def test_block_dispatch_conflict_is_disclosed():
+    """mediator + target_population silently skips a layer; the honesty gap
+    is gated on the query naming a mediator, and a block names one too."""
+    import json
+    import pathlib
+
+    path = (pathlib.Path(themis.__file__).parent.parent / "docs"
+            / "l3_simulation" / "case_009_mediation_x_transport.json")
+    program = json.loads(path.read_text(encoding="utf-8"))
+    for stmt in program["statements"]:
+        q = stmt.get("query") if stmt.get("kind") == "query" else None
+        if q and q.get("mediator") is not None:
+            q["mediators"] = [q.pop("mediator")]
+    res = themis.run(program)["results"][0]
+    assert "unattempted_layer_due_to_dispatch_conflict" in _gap_kinds(res)
+    gap = next(g for g in res["data_gap_report"]["gaps"]
+               if g["kind"] == "unattempted_layer_due_to_dispatch_conflict")
+    assert "`mediators`" in gap["description"]     # names the field it saw
+
+
+def test_a_block_of_one_is_still_answered():
+    """`mediators: [m]` used to route nowhere: not to the joint path (which
+    demanded >= 2) and not to the single-mediator path (which reads the
+    singular field), so the decomposition simply did not happen and nothing
+    said so. A set of one is a set."""
+    ast = _joint_ast()
+    for stmt in ast["statements"]:
+        if stmt.get("kind") == "query":
+            stmt["query"]["mediators"] = [_atom("m1")]
+    res = themis.run(ast)["results"][0]
+    mjd = res["extensions"]["mediation_joint_decomposition"]
+    assert mjd["mediators"] == ["m1(me)"]
+    assert mjd["mediator_set_valid"] is True
+    assert mjd["nde_nie"]["identifiable"] is True
+    assert _gap_kinds(res).count(
+        "mediation_identification_assumption_required") == 2
+    themis.verify(ast, res)
+
+
+def test_block_data_estimate_headlines_its_mediated_share():
+    """The share through the block is computed either way; only the single
+    mediator used to say so out loud."""
+    df, _truth = _joint_scm(n=4000, seed=7)
+    res = themis.estimate(_joint_ast(), df, random_state=42)["results"][0]
+    pm = res["numeric_estimate"]["decomposition"]["proportion_mediated"]
+    assert pm["point"] is not None
+    head = (res.get("explanation") or "").splitlines()[0]
+    assert head.startswith("中介比例 (NIE/TE")
+    assert f"{pm['point'] * 100:.1f}%" in head
+    # a block's share is the share through the SET, never a per-mediator split
+    assert "整组" in head and "m1" in head and "m2" in head
+
+
+# =====================================================================
 # latent / ADMG-aware joint
 # =====================================================================
 

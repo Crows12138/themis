@@ -454,7 +454,7 @@
         },
         "mediators": {
           "type": "array",
-          "description": "Joint multi-mediator decomposition (VanderWeele-Vansteelandt 2014): when present with two or more atoms, the query asks for the JOINT natural-effect split (joint NDE / joint NIE / proportion mediated) through the mediator SET taken as one block, rather than a single-mediator split. Treating the set as a block makes it identifiable without assuming the causal ordering among the mediators; a path-specific split through one individual mediator is deliberately not supported (it hits a recanting-witness non-identifiability). Mutually exclusive with the singular `mediator`. Omitting the field (or an empty array) preserves single-mediator / total-effect semantics byte-for-byte.",
+          "description": "Joint multi-mediator decomposition (VanderWeele-Vansteelandt 2014): when non-empty, the query asks for the JOINT natural-effect split (joint NDE / joint NIE / proportion mediated) through the mediator SET taken as one block, rather than a single-mediator split. A one-element set is answered here too — it reduces to the classical single-mediator decomposition rather than being dropped. Treating the set as a block makes it identifiable without assuming the causal ordering among the mediators; a path-specific split through one individual mediator is deliberately not supported (it hits a recanting-witness non-identifiability). Mutually exclusive with the singular `mediator`. Omitting the field (or an empty array) preserves single-mediator / total-effect semantics byte-for-byte.",
           "items": {
             "$ref": "atom.schema.json#/$defs/atom"
           }

@@ -2838,6 +2838,10 @@ def _try_mediation_joint_estimate(
         result["numeric_estimate"]["decomposition"]["cde"] = est.cde
 
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _prepend_proportion_mediated_headline(
+        result, est,
+        through=tuple(str(m) for m in (decomp.get("mediators") or ())),
+    )
 
     # NOTE: status stays "structurally_solved" — the joint identification
     # answer is primary; the numeric_estimate is supplementary, mirroring
@@ -3139,7 +3143,7 @@ def _build_joint_numeric_derivation_dict(
 
 
 def _prepend_proportion_mediated_headline(
-    result: dict, med_estimate,
+    result: dict, med_estimate, *, through: tuple[str, ...] = (),
 ) -> None:
     """Surface NIE / TE as a headline at the top of result.explanation.
 
@@ -3148,14 +3152,22 @@ def _prepend_proportion_mediated_headline(
     decomposition.proportion_mediated; without a headline the renderer
     has to construct it from raw NIE/TE/CI fields. Prepending it here
     gives the renderer a deterministic single-line answer to quote.
+
+    ``through`` names a mediator BLOCK. A block's share is the share through
+    the set taken as a whole and is NOT the sum of per-mediator shares (those
+    are not identified at all), so the headline says which it is rather than
+    letting a bare percentage be read as either.
     """
     point = med_estimate.proportion_mediated_point
     lo = med_estimate.proportion_mediated_ci_lower
     hi = med_estimate.proportion_mediated_ci_upper
     if point is None:
         return
+    subject = (
+        f"，通过 {{{', '.join(through)}}} 这一整组" if through else ""
+    )
     headline = (
-        f"中介比例 (NIE/TE): {point * 100:.1f}% "
+        f"中介比例 (NIE/TE{subject}): {point * 100:.1f}% "
         f"(95% CI [{lo * 100:.1f}%, {hi * 100:.1f}%])"
     )
     existing = result.get("explanation") or ""

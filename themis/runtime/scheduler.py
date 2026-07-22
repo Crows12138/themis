@@ -1001,7 +1001,9 @@ def _dispatch_mediation_joint(
 ) -> QueryResult:
     """Joint multi-mediator identification — VanderWeele-Vansteelandt 2014.
 
-    Invoked from ``_dispatch_effect`` when ``q.mediators`` holds >= 2 atoms.
+    Invoked from ``_dispatch_effect`` whenever ``q.mediators`` is non-empty
+    (a block of one included; the set check reduces to the classical
+    single-mediator one there).
     Runs the block NDE/NIE four-condition check over the mediator SET via
     ``structural_solver.mediation_sets_joint`` and packages the result
     with ``extensions.mediation_joint_decomposition``.
@@ -3953,12 +3955,19 @@ def _dispatch_effect(
     # treatment is boolean and theta is sufficient, the kernel computes
     # TE / NDE / NIE / CDE end-to-end rather than emitting structural-
     # only identification and leaving numeric assembly to callers.
-    # Joint multi-mediator (>= 2 atoms): the JOINT natural-effect
+    # A non-empty ``mediators`` asks for the JOINT natural-effect
     # decomposition through the mediator SET as one block
     # (VanderWeele-Vansteelandt 2014). Short-circuit BEFORE the single-
     # mediator path — treating the set as a block is what makes it
     # identifiable without assuming the ordering among the mediators.
-    if len(q.mediators) >= 2:
+    #
+    # A block of ONE is still a block, and routes here rather than being
+    # dropped: the set machinery reduces exactly to the classical
+    # single-mediator case at k=1 (the estimator is byte-identical), so
+    # the alternative would be answering nothing at all for a query that
+    # plainly asked for a decomposition — a silent capability drop, not a
+    # refusal the user could see.
+    if q.mediators:
         return _dispatch_mediation_joint(
             stmt, graph, q, theta, bidirected=bidirected,
         )

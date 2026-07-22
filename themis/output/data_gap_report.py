@@ -136,7 +136,7 @@ to inspect):
 """
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 from .sample_size import (
     estimate_min_n_single_proportion,
@@ -670,16 +670,16 @@ def _query_relevant_predicates_for_path_walk(
     for entry in iv.get("conditioning") or ():
         base.add(str(entry).split("(", 1)[0])
 
-    mediation = (extensions or {}).get("mediation_decomposition") or {}
-    nde = mediation.get("nde_nie") or {}
-    cde = mediation.get("cde") or {}
-    for entry in (nde.get("adjustment") or ()):
-        base.add(str(entry).split("(", 1)[0])
-    for entry in (cde.get("adjustment") or ()):
-        base.add(str(entry).split("(", 1)[0])
-    mediator = mediation.get("mediator")
-    if mediator:
-        base.add(str(mediator).split("(", 1)[0])
+    view = _mediation_view(extensions)
+    if view is not None:
+        nde = view.block.get("nde_nie") or {}
+        cde = view.block.get("cde") or {}
+        for entry in (nde.get("adjustment") or ()):
+            base.add(str(entry).split("(", 1)[0])
+        for entry in (cde.get("adjustment") or ()):
+            base.add(str(entry).split("(", 1)[0])
+        for mediator in view.mediators:
+            base.add(mediator.split("(", 1)[0])
 
     return frozenset(base)
 
@@ -711,41 +711,96 @@ def _classify_iv_assumption(extensions: dict) -> Iterable[DataGap]:
     )
 
 
+class _MediationView(NamedTuple):
+    """One mediation decomposition, normalized across its two shapes.
+
+    The gap layer asks the same four things of a decomposition however it was
+    asked for — is it well formed, which mediators is it about, which branches
+    identified, on what assumptions. The scheduler writes the two shapes under
+    DIFFERENT extension keys, with ``mediator`` / ``mediators`` and
+    ``mediator_valid`` / ``mediator_set_valid``. Binding the producers below to
+    this view rather than to a key is what keeps the next mediation variant
+    from silently dropping out of the disclosure layer the way the block did.
+    """
+
+    key: str                      # the extension key, for provenance refs
+    joint: bool
+    block: dict
+    valid: bool
+    mediators: tuple[str, ...]
+    subject: str                  # display form: `M` or `{M₁, M₂}`
+
+
+def _mediation_view(extensions: dict) -> "_MediationView | None":
+    """The mediation decomposition on this result, whichever shape it took."""
+    ext = extensions or {}
+    for key, joint in (
+        ("mediation_decomposition", False),
+        ("mediation_joint_decomposition", True),
+    ):
+        block = ext.get(key)
+        if not isinstance(block, dict):
+            continue
+        if joint:
+            mediators = tuple(str(m) for m in (block.get("mediators") or ()))
+            subject = (
+                "{" + ", ".join(mediators) + "}" if mediators
+                else "<unknown mediator set>"
+            )
+            valid = bool(block.get("mediator_set_valid"))
+        else:
+            one = block.get("mediator")
+            mediators = (str(one),) if one else ()
+            subject = str(one) if one else "<unknown mediator>"
+            valid = bool(block.get("mediator_valid"))
+        return _MediationView(
+            key=key, joint=joint, block=block, valid=valid,
+            mediators=mediators, subject=subject,
+        )
+    return None
+
+
 def _classify_mediation_assumptions(
     extensions: dict,
 ) -> Iterable[DataGap]:
     """NDE/NIE / CDE identification each carry a non-empty `assumptions`
     list when identifiable. Surface a single caveat per identifiable
     branch so the renderer cannot read 'identifiable: true' as
-    unconditional."""
-    mediation = (extensions or {}).get("mediation_decomposition") or {}
-    if not mediation.get("mediator_valid"):
+    unconditional.
+
+    A mediator BLOCK rests on different premises than a single mediator
+    (VanderWeele-Vansteelandt joint conditions; the block CDE holds the whole
+    set at a reference level), and it carries them in its own ``assumptions``
+    list — so the substance comes from the block and only the subject differs.
+    The block's naming also has to say what it does NOT claim: the set is
+    decomposed as a whole, never split into per-path shares.
+    """
+    view = _mediation_view(extensions)
+    if view is None or not view.valid:
         return
-    for branch_name, branch in (
-        ("NDE/NIE", mediation.get("nde_nie") or {}),
-        ("CDE", mediation.get("cde") or {}),
-    ):
+    for branch_name, branch_key in (("NDE/NIE", "nde_nie"), ("CDE", "cde")):
+        branch = view.block.get(branch_key) or {}
         if not branch.get("identifiable"):
             continue
         assumptions = branch.get("assumptions") or ()
         if not assumptions:
             continue
+        subject_clause = (
+            f"（中介组 {view.subject}，作为一整组分解，不拆到单条路径）"
+            if view.joint else f"（中介 {view.subject}）"
+        )
         yield DataGap(
             kind=GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED,
             severity=GapSeverity.INFORMATIONAL,
             description=(
                 f"中介分解 {branch_name} 标识为可识别，前提是以下假设成立："
-                f"{', '.join(assumptions)}。"
+                f"{', '.join(assumptions)}。{subject_clause}"
             ),
             blocks=GapBlocks.INTERPRETATION,
             provenance=(
                 GapProvenanceRef(
                     ref_kind=GapRefKind.VERIFIER_CHECK,
-                    ref_id=(
-                        "extensions.mediation_decomposition."
-                        f"{'nde_nie' if branch_name == 'NDE/NIE' else 'cde'}"
-                        ".assumptions"
-                    ),
+                    ref_id=f"extensions.{view.key}.{branch_key}.assumptions",
                 ),
             ),
         )
@@ -1973,18 +2028,21 @@ def _classify_missing_mediator(
     extensions: dict,
     requests: tuple[InvestigationRequest, ...],
 ) -> Iterable[DataGap]:
-    block = extensions.get("mediation_decomposition")
-    if not block or not block.get("mediator_valid"):
+    view = _mediation_view(extensions)
+    if view is None or not view.valid:
         return
-    mediator = block.get("mediator", "<unknown mediator>")
-    # Surface only when there's a parameter request whose target hits the
-    # mediator atom — otherwise mediation is fully solved.
+    # Surface only when there's a parameter request whose target hits one of
+    # the mediators — otherwise mediation is fully solved. A block's request
+    # typically names several at once, so each item yields ONE gap listing the
+    # mediators it actually touches, not one gap per mediator.
     for req in requests:
         if req.group != "parameter":
             continue
         for item in req.items:
-            if mediator not in item.target:
+            touched = tuple(m for m in view.mediators if m in item.target)
+            if not touched:
                 continue
+            mediator = ", ".join(touched)
             min_n, precision = _estimate_sample_size_for_mediator(item.target)
             yield DataGap(
                 kind=GapKind.MISSING_MEDIATOR_DATA,
@@ -1995,7 +2053,7 @@ def _classify_missing_mediator(
                 blocks=GapBlocks.POINT_ESTIMATE,
                 required_data=GapRequiredData(
                     data_type=RequiredDataType.IPD,
-                    variables=(mediator,),
+                    variables=touched,
                     min_sample_size=min_n,
                     precision_target=precision,
                 ),
@@ -2726,10 +2784,11 @@ def _classify_unattempted_layer_dispatch_conflict(
     operations, not a single dispatch.
 
     Trigger pairs (when both fields set on the query but only one
-    extension populated):
-    - mediator + target_population, transport_identification populated
-      but mediation_decomposition missing/invalid → mediation skipped
-    - mediator + target_population, mediation_decomposition populated
+    extension populated; ``mediator`` and ``mediators`` count alike —
+    a mediator BLOCK is skipped just as silently as a single one):
+    - mediator(s) + target_population, transport_identification populated
+      but the mediation decomposition missing/invalid → mediation skipped
+    - mediator(s) + target_population, mediation decomposition populated
       but transport_identification missing → transport skipped
 
     Severity: IMPORTANT — the dispatched layer is structurally valid
@@ -2739,26 +2798,31 @@ def _classify_unattempted_layer_dispatch_conflict(
     if stmt is None:
         return
     q = getattr(stmt, "query", None)
-    has_mediator = getattr(q, "mediator", None) is not None
+    has_mediator = (
+        getattr(q, "mediator", None) is not None
+        or bool(getattr(q, "mediators", None))
+    )
     has_target_pop = getattr(q, "target_population", None) is not None
     if not (has_mediator and has_target_pop):
         return
     ext = extensions or {}
     transport_done = bool(ext.get("transport_identification"))
-    mediation_done = bool(
-        (ext.get("mediation_decomposition") or {}).get("mediator_valid")
-    )
+    view = _mediation_view(ext)
+    mediation_done = bool(view is not None and view.valid)
     if transport_done and not mediation_done:
         attempted, skipped = "transport", "mediation"
     elif mediation_done and not transport_done:
         attempted, skipped = "mediation", "transport"
     else:
         return
+    mediator_field = (
+        "`mediators`" if getattr(q, "mediators", None) else "`mediator`"
+    )
     yield DataGap(
         kind=GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
         severity=GapSeverity.IMPORTANT,
         description=(
-            f"Query 同时设了 `mediator` 和 `target_population` 字段；"
+            f"Query 同时设了 {mediator_field} 和 `target_population` 字段；"
             f"当前 dispatch 只跑了 **{attempted}**，**{skipped}** 被静默"
             f"跳过。"
             f"Cole & Stuart 2010 / VanderWeele 2016 §6.2: mediation × "
@@ -2774,10 +2838,10 @@ def _classify_unattempted_layer_dispatch_conflict(
         ),
         alternative_paths=(
             f"如果只想要 {attempted} 结果，从 query 删除"
-            f" {'`target_population`' if attempted == 'mediation' else '`mediator`'}"
+            f" {'`target_population`' if attempted == 'mediation' else mediator_field}"
             f" 字段使 dispatch 唯一",
             f"如果只想要 {skipped} 结果，从 query 删除"
-            f" {'`target_population`' if skipped == 'mediation' else '`mediator`'}"
+            f" {'`target_population`' if skipped == 'mediation' else mediator_field}"
             f" 字段使 dispatch 唯一",
         ),
         provenance=(
