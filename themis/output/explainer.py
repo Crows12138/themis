@@ -329,7 +329,49 @@ def _explain_probability_zh(result: QueryResult, stmt) -> str:
     return f"{quantity}：结果未分类。"
 
 
+_CF_RISK_PROVENANCE_ZH = {
+    "not_required": "两个世界重合，一致性直接给出，不涉及干预风险",
+    "pinned_by_monotonicity": "干预风险不可得，本格由所声明的单调性直接钉死",
+    "user_experimental": "干预风险由随机实验数据直接给出",
+    "exogenous": "干预风险=外生性下的条件概率（无后门路径）",
+    "backdoor_adjustment": "干预风险由后门标准化（g-formula）从数据算得",
+}
+
+
+def _explain_counterfactual_cell_data_zh(cell: dict) -> str:
+    """Render the DATA-recovered cell. Reads ``extensions.counterfactual_cell``
+    (attached by the estimation dispatch); re-runs nothing."""
+    prov = _CF_RISK_PROVENANCE_ZH.get(
+        cell.get("interventional_risk_provenance"), "干预风险来源未标注"
+    )
+    point = cell.get("point")
+    if point is not None:
+        head = f"反事实单格 = {_format_number(point)}（点识别）"
+    else:
+        head = (
+            f"反事实单格 ∈ [{_format_number(cell.get('lower'))}, "
+            f"{_format_number(cell.get('upper'))}]（区间，非点）"
+        )
+    ci_lo, ci_hi = cell.get("ci_lower"), cell.get("ci_upper")
+    if ci_lo is not None and ci_hi is not None:
+        band = "置信区间" if point is not None else "区间自身的抽样带"
+        head += f"，{band} [{_format_number(ci_lo)}, {_format_number(ci_hi)}]"
+    refuted = cell.get("bootstrap_draws_infeasible") or 0
+    used = cell.get("bootstrap_draws_used") or 0
+    tail = ""
+    if refuted and (used + refuted):
+        share = refuted / (used + refuted)
+        tail = (
+            f"注意：{_format_number(share * 100)}% 的重抽样在所声明的单调性下"
+            f"无解，说明这条假设离被数据推翻很近。"
+        )
+    return f"{head}（从数据算得，{prov}）。{tail}"
+
+
 def _explain_counterfactual_zh(result: QueryResult) -> str:
+    cell = (result.extensions or {}).get("counterfactual_cell")
+    if cell:
+        return _explain_counterfactual_cell_data_zh(cell)
     if result.status is ResultStatus.COUNTERFACTUAL_SOLVED and result.numeric_result is not None:
         return (
             "反事实查询已得到点值结果。"

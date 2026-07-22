@@ -10,19 +10,15 @@ EMPIRICAL estimates of exactly those inputs into the SAME oracle and adds a
 non-parametric percentile-bootstrap CI. Nothing here re-derives a formula — the
 Tian-Pearl transcription lives once, in the oracle, and is reused.
 
-Two quantities have to be estimated from data before the oracle runs:
-
-- the four observational cells P(X=x, Y=y) — empirical frequencies;
-- the two interventional risks P(Y=1 | do(X=x)) — the two ARMS of the causal
-  risk. For binary Y, E[Y | do(X=x)] = P(Y=1 | do(X=x)) exactly, so each arm is
-  the back-door standardized (g-formula) mean
-  ``Σ_z P̂(Y=1 | X=x, Z=z) · P̂(Z=z)`` over the minimal back-door adjustment
-  set Z. Z=∅ (exogeneity / randomization) reduces this to P̂(Y=1 | X=x). When
-  the confounder is UNMEASURED (no admissible Z) the risks are not identified
-  from the observational frame — the caller must supply
-  ``experimental_risk_treated`` / ``experimental_risk_control`` from a
-  randomized experiment (Tian-Pearl's drug example), which pass straight
-  through.
+Two quantities have to be estimated from data before the oracle runs — the
+four observational cells P(X=x, Y=y) and the two interventional risks
+P(Y=1 | do(X=x)), both recovered by :mod:`themis.estimation.binary_do_risk`
+(shared with the counterfactual-cell estimator, which needs the same two
+inputs for a different theorem). When the confounder is UNMEASURED (no
+admissible adjustment set) the risks are not identified from the
+observational frame — the caller must supply ``experimental_risk_treated`` /
+``experimental_risk_control`` from a randomized experiment (Tian-Pearl's drug
+example), which pass straight through.
 
 Reference: Tian & Pearl 2000, "Probabilities of Causation: Bounds and
 Identification" (Annals of Math & AI 28:287-313); Hernán & Robins 2020 ch.13
@@ -58,9 +54,14 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from ..runtime import structural_solver
 from ..runtime.probabilities_of_causation import probabilities_of_causation
 from ..types import Atom
+from .binary_do_risk import (
+    as_binary_column,
+    backdoor_do_risk,
+    minimal_backdoor_adjustment,
+    observational_joint_xy,
+)
 from .contract import validate_data
 from .dose_response import EstimatorFailure
 from .resample import cluster_labels, resample_indices
@@ -186,7 +187,7 @@ def estimate_causation_probabilities(
         provenance = "user_experimental"
         adjustment: tuple[str, ...] = ()
     else:
-        adjustment = _backdoor_adjustment(graph, cause, effect, bidirected)
+        adjustment = minimal_backdoor_adjustment(graph, cause, effect, bidirected)
         provenance = "exogenous" if not adjustment else "backdoor_adjustment"
 
     required = {xcol, ycol, *adjustment}
@@ -202,18 +203,18 @@ def estimate_causation_probabilities(
     df = contract.data
 
     # 2. Binary cause & effect only (PN/PS/PNS are undefined otherwise).
-    x = _as_binary(df[xcol], xcol)
-    y = _as_binary(df[ycol], ycol)
+    x = as_binary_column(df[xcol], xcol)
+    y = as_binary_column(df[ycol], ycol)
 
     # 3. Point estimate: empirical joint + g-formula do-risks → oracle.
     def _run(x_arr, y_arr, frame) -> "tuple":
-        joint = _observational_joint(x_arr, y_arr)
+        joint = observational_joint_xy(x_arr, y_arr)
         if supplied:
             r1 = float(experimental_risk_treated)
             r0 = float(experimental_risk_control)
         else:
-            r1 = _do_risk(x_arr, y_arr, frame, adjustment, arm=True)
-            r0 = _do_risk(x_arr, y_arr, frame, adjustment, arm=False)
+            r1 = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=True)
+            r0 = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=False)
         poc = probabilities_of_causation(
             p_x1_y1=joint[(True, True)], p_x1_y0=joint[(True, False)],
             p_x0_y1=joint[(False, True)], p_x0_y0=joint[(False, False)],
@@ -276,89 +277,6 @@ def estimate_causation_probabilities(
 # --- internals ----------------------------------------------------------------
 
 
-def _backdoor_adjustment(graph, cause: Atom, effect: Atom, bidirected) -> tuple[str, ...]:
-    """The minimal back-door adjustment set for the do-risks, as column names.
-
-    Raises ``EstimatorFailure`` when no admissible set exists (an unmeasured
-    confounder — the do-risks are not identified from the observational frame,
-    and the caller must supply experimental risks)."""
-    sets = structural_solver.minimal_adjustment_sets(
-        graph, cause, effect, bidirected=bidirected or None,
-    )
-    if not sets:
-        raise EstimatorFailure(
-            "do_risk_not_identifiable",
-            "P(Y=1|do(X)) is not back-door identifiable from the observational "
-            "data (no admissible adjustment set — likely an unmeasured "
-            "confounder). Supply experimental_risk_treated / "
-            "experimental_risk_control from a randomized experiment.",
-        )
-    # Prefer the smallest set (fewest strata → most support per cell).
-    best = min(sets, key=len)
-    return tuple(sorted(a.predicate for a in best))
-
-
-def _as_binary(col: pd.Series, name: str) -> np.ndarray:
-    """Coerce a column to a boolean numpy array, refusing non-binary data."""
-    vals = set(pd.unique(col.dropna()))
-    if not vals <= {0, 1, True, False, 0.0, 1.0}:
-        raise EstimatorFailure(
-            "cause_or_effect_not_binary",
-            f"probabilities of causation require a binary column {name!r}; got "
-            f"values {sorted(vals, key=str)}",
-        )
-    return col.to_numpy().astype(bool)
-
-
-def _observational_joint(
-    x: np.ndarray, y: np.ndarray,
-) -> dict[tuple[bool, bool], float]:
-    """Empirical P(X=x, Y=y) — the four cells as sample frequencies."""
-    n = len(x)
-    return {
-        (xv, yv): float(np.count_nonzero((x == xv) & (y == yv))) / n
-        for xv in (True, False)
-        for yv in (True, False)
-    }
-
-
-def _do_risk(
-    x: np.ndarray, y: np.ndarray, frame: pd.DataFrame,
-    adjustment: tuple[str, ...], *, arm: bool,
-) -> float:
-    """P(Y=1 | do(X=arm)) by back-door standardization (discrete g-formula).
-
-    ``Σ_z P̂(Y=1 | X=arm, Z=z) · P̂(Z=z)`` over the empirical distribution of
-    the adjustment set Z. Z=∅ reduces to P̂(Y=1 | X=arm). A stratum present in
-    the marginal Z but empty under this treatment arm is a positivity
-    violation — raises rather than fabricating a mean."""
-    if not adjustment:
-        mask = x == arm
-        if not mask.any():
-            raise EstimatorFailure(
-                "insufficient_support",
-                f"no rows with X={arm}; cannot estimate P(Y=1|do(X={arm})).",
-            )
-        return float(y[mask].mean())
-
-    z = frame[list(adjustment)]
-    n = len(frame)
-    total = 0.0
-    # Standardize over every stratum that occurs in the full sample.
-    for _key, idx in z.groupby(list(adjustment), sort=False, observed=True).indices.items():
-        p_z = len(idx) / n
-        arm_rows = idx[x[idx] == arm]
-        if arm_rows.size == 0:
-            raise EstimatorFailure(
-                "insufficient_support",
-                f"stratum has no X={arm} rows (positivity violation); "
-                f"P(Y=1|do(X={arm})) is not estimable by standardization.",
-            )
-        p_y_given = float(y[arm_rows].mean())
-        total += p_y_given * p_z
-    return total
-
-
 def _bootstrap_cis(
     x: np.ndarray, y: np.ndarray, frame: pd.DataFrame,
     adjustment: tuple[str, ...], supplied: bool,
@@ -387,13 +305,13 @@ def _bootstrap_cis(
         bx = x_arr[idx]
         by = y_arr[idx]
         bframe = frame.iloc[idx]
-        joint = _observational_joint(bx, by)
+        joint = observational_joint_xy(bx, by)
         try:
             if supplied:
                 br1, br0 = float(r1_fixed), float(r0_fixed)
             else:
-                br1 = _do_risk(bx, by, bframe, adjustment, arm=True)
-                br0 = _do_risk(bx, by, bframe, adjustment, arm=False)
+                br1 = backdoor_do_risk(bx, by, bframe, adjustment, arm=True)
+                br0 = backdoor_do_risk(bx, by, bframe, adjustment, arm=False)
         except EstimatorFailure:
             continue
         poc = probabilities_of_causation(

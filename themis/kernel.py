@@ -91,6 +91,7 @@ from .verifier import (
     verify_assoc,
     verify_causation,
     verify_causation_numeric,
+    verify_counterfactual_cell_numeric,
     verify_cause,
     verify_counterfactual,
     verify_counterfactual_conjunction,
@@ -824,6 +825,50 @@ def _verify_causation_numeric_extensions_match(result: dict, derivation) -> None
             _fail()
 
 
+def _verify_counterfactual_cell_extensions_match(result: dict, derivation) -> None:
+    """The data path's ``extensions.counterfactual_cell`` display copy must
+    agree with the ``numeric_counterfactual_cell_estimate`` step's inputs,
+    which ``verify_counterfactual_cell_numeric`` already re-derived
+    independently. Skips quietly when no such extension is present.
+    """
+    ext = (result.get("extensions") or {}).get("counterfactual_cell")
+    if ext is None:
+        return
+    inp = derivation[-1].inputs
+    if not isinstance(inp, dict):
+        raise VerificationError(
+            "counterfactual-cell numeric derivation inputs are not a dict; "
+            "cannot cross-check extensions",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+    tol = 1e-9
+
+    def _fail() -> None:
+        raise VerificationError(
+            "extensions.counterfactual_cell does not match the verified "
+            "numeric derivation inputs (display copy diverges from the "
+            "audited answer)",
+            step_index=len(derivation) - 1, rule=derivation[-1].rule,
+        )
+
+    def _num_eq(a, b) -> bool:
+        if a is None or b is None:
+            return a is None and b is None
+        return abs(float(a) - float(b)) <= tol
+
+    for k in ("lower", "upper", "point", "p_y_do_x_cf"):
+        if not _num_eq(ext.get(k), inp.get(k)):
+            _fail()
+    if ext.get("interventional_risk_provenance") != inp.get(
+        "interventional_risk_provenance"
+    ):
+        _fail()
+    joint = ext.get("observational_joint") or {}
+    for k in ("p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"):
+        if not _num_eq(joint.get(k), inp.get(k)):
+            _fail()
+
+
 def verify(program: dict | str | bytes, result: dict) -> None:
     """Independently re-verify one result against its source program.
 
@@ -1061,12 +1106,28 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             if num_est is not None:
                 verify_mediation_numeric(num_est)
     elif kind == "counterfactual":
-        if "numeric_result" not in result:
-            raise ValueError(
-                "verify(): counterfactual result must carry a numeric_result"
-            )
-        claimed = _decode_numeric_result_json(result["numeric_result"])
-        verify_counterfactual(derivation, ctx, claimed)
+        if (
+            result.get("status") == "numerically_solved"
+            and "numeric_estimate" in result
+        ):
+            # Data path (themis.estimate): the cell was re-solved from the
+            # EMPIRICAL joint + a g-formula do-risk rather than from theta. The
+            # single numeric_counterfactual_cell_estimate rule re-solves the
+            # consistency identity on the reported inputs and re-derives, from
+            # the query alone, whether the cell needed a do-risk at all.
+            claimed = _decode_structural_result_json(result["structural_result"])
+            verify_counterfactual_cell_numeric(derivation, ctx, claimed)
+            # The extensions.counterfactual_cell display copy (the interval and
+            # the inputs a reader sees only there) must agree with the audited
+            # derivation, so a tamper of the display copy alone cannot pass.
+            _verify_counterfactual_cell_extensions_match(result, derivation)
+        else:
+            if "numeric_result" not in result:
+                raise ValueError(
+                    "verify(): counterfactual result must carry a numeric_result"
+                )
+            claimed = _decode_numeric_result_json(result["numeric_result"])
+            verify_counterfactual(derivation, ctx, claimed)
     elif kind == "causation":
         if (
             result.get("status") == "numerically_solved"

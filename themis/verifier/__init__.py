@@ -52,6 +52,8 @@ Public surface (re-exports from sub-modules):
   numbers from the recorded sufficient statistics, not the raw data):
   ``verify_proximal_effect`` / ``verify_proximal_numeric`` (Miao-2018
   proximal do-effect), ``verify_causation_numeric`` (PN/PS/PNS plug-in),
+  ``verify_counterfactual_cell_numeric`` (the single binary counterfactual
+  cell re-solved from the reported empirical joint + interventional risk),
   ``verify_ctf_conjunction_numeric`` (ID*/IDC* counterfactual conjunction),
   ``verify_mediation_numeric`` (the numbers riding on a mediation structural
   result: the VanderWeele ratio-scale four-way split re-derived from the
@@ -205,6 +207,7 @@ from .verify import (
     verify_causation_numeric,
     verify_cause,
     verify_counterfactual,
+    verify_counterfactual_cell_numeric,
     verify_counterfactual_conjunction,
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
@@ -257,6 +260,7 @@ __all__ = [
     "verify_causation_numeric",
     "verify_cause",
     "verify_counterfactual",
+    "verify_counterfactual_cell_numeric",
     "verify_counterfactual_conjunction",
     "verify_ctf_conjunction_numeric",
     "verify_dose_response_curve",

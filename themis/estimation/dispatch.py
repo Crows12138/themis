@@ -178,6 +178,15 @@ def estimate_program(
         random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
     )
 
+    # Numeric end for the single binary counterfactual cell — the same
+    # consistency identity the theta path solves, on empirical inputs, plus a
+    # bootstrap the theta path cannot express. Purely additive: on any refusal
+    # the structural (theta) answer stays primary.
+    _estimate_counterfactual_cell_queries(
+        program, identification_output, contract,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
+    )
+
     # Numeric end for the deterministic-counterfactual rung: fit a recursive
     # linear SCM from the DataFrame (per-node OLS) and compute the queried
     # unit's counterfactual value under the intervention. Purely additive —
@@ -2324,6 +2333,215 @@ def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
                 "sample_size": estimate.sample_size,
                 "ci_lower": head_ci_lower,
                 "ci_upper": head_ci_upper,
+            },
+            output=StructuralResult(value=True),
+            step_id="s1",
+        ),
+    )
+    return derivation_to_dict(steps)
+
+
+def _pair_counterfactual_cell_queries(prog, output):
+    """Yield (QueryStatement, result_dict) pairs whose query is a
+    CounterfactualQuery. Alignment uses query_id."""
+    from ..types import CounterfactualQuery, QueryStatement
+
+    id_to_stmt = {
+        s.id: s for s in prog.statements
+        if isinstance(s, QueryStatement) and isinstance(s.query, CounterfactualQuery)
+    }
+    for result in output.get("results", []):
+        if result.get("query_kind") != "counterfactual":
+            continue
+        qid = result.get("query_id")
+        yield id_to_stmt.get(qid), result
+
+
+def _estimate_counterfactual_cell_queries(
+    program: dict | str | bytes,
+    output: dict,
+    contract: DataContract,
+    *,
+    random_state: int,
+    ci_bootstrap: int,
+    cluster: str | None = None,
+) -> None:
+    """For each binary counterfactual-cell result, attach a data-based
+    ``numeric_estimate``. Mutates ``output`` in place.
+
+    Purely additive: on any estimator refusal — non-binary, the needed do-risk
+    neither back-door identifiable nor supplied, empirical inputs that admit no
+    SCM — the structural answer is left untouched."""
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
+    from ..runtime import structural_solver
+
+    ast = _ensure_dict(program)
+    ast = validate_ast(ast)
+    prog = validate_program(ast)
+    ground_statements = instantiate(prog)
+    graph = project(ground_statements)
+    bidirected = structural_solver.bidirected_from_ground(ground_statements)
+
+    for q_stmt, result in _pair_counterfactual_cell_queries(prog, output):
+        if q_stmt is None:
+            continue
+        _try_counterfactual_cell_estimate(
+            q_stmt, result, contract, graph, bidirected,
+            random_state=random_state, ci_bootstrap=ci_bootstrap,
+            cluster=cluster,
+        )
+
+
+def _try_counterfactual_cell_estimate(
+    q_stmt, result: dict, contract, graph, bidirected, *,
+    random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
+) -> bool:
+    """Recover one binary counterfactual cell on data (empirical joint +
+    g-formula do-risk → the consistency identity) and attach it as the numeric
+    answer, with a bootstrap the theta path cannot produce.
+
+    The answer is a point when the identified set collapses (the consistency
+    case, the ETT identity, or an interval a declared monotonicity pins) and an
+    interval otherwise — mirroring the theta path, which likewise returns
+    COUNTERFACTUAL_BOUNDED rather than declining when there is no point.
+
+    Returns True only when it ATTACHES an estimate; on a refusal it returns
+    False and touches nothing."""
+    from .counterfactual_cell import estimate_counterfactual_cell
+    from .dose_response import EstimatorFailure
+
+    df = contract.data
+    try:
+        estimate = estimate_counterfactual_cell(
+            df, graph=graph, bidirected=bidirected, query=q_stmt.query,
+            ci_bootstrap=ci_bootstrap, random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in df.columns) else None,
+        )
+    except (EstimatorFailure, ValueError, NotImplementedError):
+        return False
+
+    is_point = estimate.point is not None
+    cell_block = {
+        "observed_x": estimate.x_observed,
+        "counterfactual_x": estimate.x_counterfactual,
+        "target_y": estimate.y_star,
+        "factual_y": estimate.factual_target_known,
+        "monotonicity": estimate.monotonicity,
+        "interventional_risk_provenance": estimate.interventional_risk_provenance,
+        "adjustment": list(estimate.adjustment),
+        "p_y_do_x_cf": estimate.p_y_do_x_cf,
+        "observational_joint": {
+            "p_x1_y1": estimate.p_x1_y1, "p_x1_y0": estimate.p_x1_y0,
+            "p_x0_y1": estimate.p_x0_y1, "p_x0_y0": estimate.p_x0_y0,
+        },
+        "lower": estimate.low,
+        "upper": estimate.high,
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "bootstrap_draws_used": estimate.bootstrap_draws_used,
+        "bootstrap_draws_infeasible": estimate.bootstrap_draws_infeasible,
+    }
+    numeric_estimate = {
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "treatment": estimate.cause,
+        "outcome": estimate.effect,
+        "counterfactual_cell": cell_block,
+    }
+    if is_point:
+        numeric_estimate["point"] = estimate.point
+        numeric_estimate["ci_lower"] = estimate.ci_lower
+        numeric_estimate["ci_upper"] = estimate.ci_upper
+    result["numeric_estimate"] = numeric_estimate
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    if is_point:
+        _attach_precision_budget(result["numeric_estimate"])
+
+    # Headline numeric_result reflects the DATA cell, replacing the theta one.
+    # The interval answer keeps its interval here (not only inside
+    # numeric_estimate) because that is the channel the counterfactual rung's
+    # answer_tier and renderers read.
+    if is_point:
+        result["numeric_result"] = {"value": estimate.point}
+    else:
+        result["numeric_result"] = {
+            "value": None,
+            "interval": {"low": estimate.low, "high": estimate.high},
+        }
+
+    # Display copy: the explainer reads extensions.counterfactual_cell and
+    # prefers it over the status-only rendering, so every surface shows the
+    # same audited numbers.
+    ext = result.setdefault("extensions", {})
+    ext["counterfactual_cell"] = cell_block
+
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=(
+            f"P({estimate.effect}_{{{estimate.cause}="
+            f"{int(estimate.x_counterfactual)}}}={int(estimate.y_star)}"
+            f"|{estimate.cause}={int(estimate.x_observed)})"
+        ),
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+
+    result["derivation"] = _build_counterfactual_cell_numeric_derivation_dict(
+        estimate=estimate,
+    )
+    if is_point:
+        _finalise_numeric_result(result)
+    else:
+        _finalise_numeric_bounds_result(result)
+    return True
+
+
+def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
+    """Single-step derivation for a data-based counterfactual cell:
+
+        numeric_counterfactual_cell_estimate — re-solves the consistency
+        identity (the verifier's own transcription) on the reported empirical
+        joint + do-risk, re-derives the adjustment set on the graph, and
+        re-checks that the declared risk provenance survives an independent
+        reading of whether this cell needs a do-risk at all.
+    """
+    from ..types import DerivationStep, StructuralResult
+    from ..verifier.serialization import derivation_to_dict
+
+    steps = (
+        DerivationStep(
+            rule="numeric_counterfactual_cell_estimate",
+            inputs={
+                "p_x1_y1": estimate.p_x1_y1, "p_x1_y0": estimate.p_x1_y0,
+                "p_x0_y1": estimate.p_x0_y1, "p_x0_y0": estimate.p_x0_y0,
+                "p_y_do_x_cf": estimate.p_y_do_x_cf,
+                "interventional_risk_provenance": estimate.interventional_risk_provenance,
+                # comma-joined scalar (serializer does not take a str tuple).
+                "adjustment": ",".join(estimate.adjustment),
+                "lower": estimate.low, "upper": estimate.high,
+                "point": estimate.point,
+                "method": estimate.method,
+                "data_hash": estimate.data_hash,
+                "sample_size": estimate.sample_size,
+                "ci_lower": estimate.ci_lower,
+                "ci_upper": estimate.ci_upper,
             },
             output=StructuralResult(value=True),
             step_id="s1",

@@ -966,14 +966,20 @@ def _classify_counterfactual_assumptions(
     status: ResultStatus,
     query_kind: QueryKind,
 ) -> Iterable[DataGap]:
-    """Counterfactual identification (twin network / monotone bounds)
-    rests on consistency + composition axioms (and binary + monotonicity
-    when bounds are used). The user asking a counterfactual question is
-    itself the trigger — the assumptions apply whether the kernel
-    reached COUNTERFACTUAL_SOLVED, returned bounds, or stopped at
-    NEEDS_ASSUMPTION. Without this caveat a NEEDS_ASSUMPTION counterfactual
-    surfaces only as a generic 'missing assumption' gap and the
-    L3 vs L2 distinction is lost in rendering."""
+    """Counterfactual identification rests on premises no data can check,
+    and the list is layered: consistency + composition always; the source
+    of the interventional risk whenever the two worlds differ (a cell
+    across worlds is solved from P(Y=1|do x'), so whatever licences that
+    number — an adjustment set being sufficient, or a randomized
+    experiment — is carried into the answer); and monotonicity only when
+    it was declared, where it sharpens an interval into a point rather
+    than being what makes an answer possible at all.
+
+    The user asking a counterfactual question is itself the trigger — the
+    caveat applies whether the kernel solved the cell, bounded it, or
+    stopped for missing inputs. Without it a stalled counterfactual
+    surfaces only as a generic 'missing assumption' gap and the L3 vs L2
+    distinction is lost in rendering."""
     triggering = next(
         (
             step for step in derivation
@@ -998,8 +1004,10 @@ def _classify_counterfactual_assumptions(
         severity=GapSeverity.INFORMATIONAL,
         description=(
             "反事实推理的有效性以 consistency（观察值 = do(实际取值) 下的潜在结果）"
-            "+ composition 公理为前提；当走 monotone bounds 时还需要二值结果"
-            "+ X 对 Y 的单调性。这些假设无法从数据本身验证。"
+            "+ composition 公理为前提；跨世界的格子还要用到一臂干预风险 "
+            "P(Y=1|do X)，它凭什么成立（调整集充分 / 来自随机实验）也一并被继承；"
+            "单调性若声明，只是把区间收紧成点的额外前提。"
+            "这些假设都无法从数据本身验证。"
         ),
         blocks=GapBlocks.INTERPRETATION,
         provenance=(

@@ -6327,16 +6327,32 @@ def _cf_cell_needs_risk_for_verifier(query: CounterfactualQuery) -> bool:
     return factual_y not in _cf_monotonicity_pins_for_verifier(query)
 
 
-def _expected_counterfactual_numeric_result(
-    graph: nx.DiGraph,
+def _assert_counterfactual_cell_boolean(
+    query: CounterfactualQuery, step_index: int, rule: str,
+) -> None:
+    """The counterfactual cell is indexed by boolean coordinates; anything
+    else is outside the verifier's scope for this family."""
+    for value in (
+        query.observed.value,
+        query.counterfactual_intervention.value,
+        query.counterfactual_target.value,
+        query.factual_target_known,
+    ):
+        if value is not None and not isinstance(value, bool):
+            raise RuleCheckFailed(
+                f"{rule}: current verifier scope is boolean-only",
+                step_index=step_index, rule=rule,
+            )
+
+
+def _solve_counterfactual_cell_for_verifier(
     query: CounterfactualQuery,
-    theta: Theta,
+    joint: dict[tuple[bool, bool], float],
     *,
-    bidirected: frozenset[frozenset[Atom]] = frozenset(),
     p_y_do_x_cf: float | None,
     step_index: int,
     rule: str,
-) -> NumericResult:
+) -> tuple[float, float]:
     """Recompute one binary counterfactual cell, independently of the producer.
 
     Same theorem, transcribed here from the identity rather than imported:
@@ -6347,28 +6363,13 @@ def _expected_counterfactual_numeric_result(
     since the left side is P(Y_{x'}=1 | X=x) * P(x) and consistency gives
     P(Y_{x'}=1, X=x') = P(Y=1, X=x'). Solve for the requested cell inside the
     [0, 1] box, tightened by any monotonicity pin on the other one.
-    """
-    values = (
-        query.observed.value,
-        query.counterfactual_intervention.value,
-        query.counterfactual_target.value,
-        query.factual_target_known,
-    )
-    for value in values:
-        if value is not None and not isinstance(value, bool):
-            raise RuleCheckFailed(
-                f"{rule}: current verifier scope is boolean-only",
-                step_index=step_index, rule=rule,
-            )
 
-    joint = _counterfactual_joint_xy_for_verifier(
-        graph,
-        theta,
-        query,
-        bidirected=bidirected,
-        step_index=step_index,
-        rule=rule,
-    )
+    ``joint`` is the four observational cells, whose ORIGIN is the caller's
+    business: the theta path recovers them symbolically, the data path reports
+    them as empirical frequencies. The identity is the same either way, so it
+    is transcribed here once. Returns ``(low, high)``.
+    """
+    _assert_counterfactual_cell_boolean(query, step_index, rule)
     x_obs = query.observed.value
     x_cf = query.counterfactual_intervention.value
     y_star = query.counterfactual_target.value
@@ -6386,7 +6387,7 @@ def _expected_counterfactual_numeric_result(
         else:
             p_y1 = joint[(x_obs, True)] / p_x_obs
             point = p_y1 if y_star else 1.0 - p_y1
-        return NumericResult(value=point)
+        return point, point
 
     pins = _cf_monotonicity_pins_for_verifier(query)
 
@@ -6399,7 +6400,7 @@ def _expected_counterfactual_numeric_result(
             )
         pinned = pins[factual_y]
         value = pinned if y_star else 1.0 - pinned
-        return NumericResult(value=value)
+        return value, value
 
     k = p_y_do_x_cf - joint[(x_cf, True)]
     if not (-_NUMERIC_TOL <= k <= p_x_obs + _NUMERIC_TOL):
@@ -6412,7 +6413,7 @@ def _expected_counterfactual_numeric_result(
     if factual_y is None:
         point = min(1.0, max(0.0, k / p_x_obs))
         value = point if y_star else 1.0 - point
-        return NumericResult(value=value)
+        return value, value
 
     w_target = joint[(x_obs, factual_y)]
     w_other = joint[(x_obs, not factual_y)]
@@ -6437,12 +6438,37 @@ def _expected_counterfactual_numeric_result(
     high = max(high, low)
 
     if y_star:
-        interval = NumericInterval(low=low, high=high)
-    else:
-        interval = NumericInterval(low=1.0 - high, high=1.0 - low)
-    if abs(interval.low - interval.high) <= _NUMERIC_TOL:
-        return NumericResult(value=interval.low)
-    return NumericResult(value=None, interval=interval)
+        return low, high
+    return 1.0 - high, 1.0 - low
+
+
+def _expected_counterfactual_numeric_result(
+    graph: nx.DiGraph,
+    query: CounterfactualQuery,
+    theta: Theta,
+    *,
+    bidirected: frozenset[frozenset[Atom]] = frozenset(),
+    p_y_do_x_cf: float | None,
+    step_index: int,
+    rule: str,
+) -> NumericResult:
+    """Theta entry point: recover the observational joint symbolically, then
+    solve the cell with the verifier's own transcription of the identity."""
+    _assert_counterfactual_cell_boolean(query, step_index, rule)
+    joint = _counterfactual_joint_xy_for_verifier(
+        graph,
+        theta,
+        query,
+        bidirected=bidirected,
+        step_index=step_index,
+        rule=rule,
+    )
+    low, high = _solve_counterfactual_cell_for_verifier(
+        query, joint, p_y_do_x_cf=p_y_do_x_cf, step_index=step_index, rule=rule,
+    )
+    if abs(low - high) <= _NUMERIC_TOL:
+        return NumericResult(value=low)
+    return NumericResult(value=None, interval=NumericInterval(low=low, high=high))
 
 
 def _numeric_result_matches(
@@ -6556,6 +6582,267 @@ def _rule_counterfactual_cell_bounds(
     if not _numeric_result_matches(claimed_output, expected):
         raise RuleCheckFailed(
             f"{rule} claimed output does not match the recomputed cell",
+            step_index=step_index, rule=rule,
+        )
+
+
+_NUMERIC_COUNTERFACTUAL_CELL_METHODS = frozenset({"counterfactual_cell_plugin"})
+
+_CF_CELL_RISK_PROVENANCES = frozenset({
+    "not_required", "pinned_by_monotonicity",
+    "user_experimental", "exogenous", "backdoor_adjustment",
+})
+
+
+def _rule_numeric_counterfactual_cell_estimate(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Independent audit of a data-based binary counterfactual cell.
+
+    The numeric counterpart of ``counterfactual_cell_bounds``: the identity is
+    the same, but the observational joint and the interventional risk are now
+    EMPIRICAL, so the theta-recovery leg does not apply and the reported inputs
+    take its place. Four independent re-checks:
+
+    1. Identity re-application — the reported ``lower``/``upper``/``point``
+       must equal the verifier's own solution of the consistency identity on
+       the reported joint + risk. The CELL COORDINATES are read off
+       ``ctx.query``, never off the step inputs, so a producer cannot quietly
+       answer an easier cell than the one that was asked.
+    2. Risk provenance — every value of ``interventional_risk_provenance``
+       makes a checkable claim, and the two that mean "no risk was used" make
+       the strongest one. ``not_required`` asserts the two worlds coincide;
+       ``pinned_by_monotonicity`` asserts the declared monotonicity determines
+       this cell outright. Both are re-derived from ``ctx.query`` here, so
+       neither can certify itself.
+    3. Identification structure — when the risk was back-door standardized (or
+       exogenous), the claimed adjustment set is re-derived from ``ctx.graph``
+       and must be genuinely admissible; catches standardizing over a WRONG
+       set.
+    4. Metadata self-consistency — method enum, data_hash hex, sample_size,
+       probabilities in range, and a CI that brackets the point (or is a valid
+       probability interval when the answer is an interval).
+
+    Like the other numeric verifiers this does not re-fit on the raw data (the
+    verifier holds only the ``data_hash``); the arithmetic, the cell identity
+    and the graph licence are what it re-derives.
+    """
+    from ..runtime import structural_solver
+
+    rule = "numeric_counterfactual_cell_estimate"
+    if not isinstance(ctx.query, CounterfactualQuery):
+        raise RuleCheckFailed(
+            f"{rule} requires a CounterfactualQuery context",
+            step_index=step_index, rule=rule,
+        )
+    query = ctx.query
+    _assert_counterfactual_cell_boolean(query, step_index, rule)
+
+    method = inputs.get("method")
+    if method not in _NUMERIC_COUNTERFACTUAL_CELL_METHODS:
+        raise RuleCheckFailed(
+            f"{rule}.method must be one of "
+            f"{sorted(_NUMERIC_COUNTERFACTUAL_CELL_METHODS)}; got {method!r}",
+            step_index=step_index, rule=rule,
+        )
+    data_hash = inputs.get("data_hash")
+    if not isinstance(data_hash, str) or len(data_hash) != _SHA256_HEX_LEN:
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be a {_SHA256_HEX_LEN}-char SHA-256 hex string",
+            step_index=step_index, rule=rule,
+        )
+    if not all(c in "0123456789abcdef" for c in data_hash):
+        raise RuleCheckFailed(
+            f"{rule}.data_hash must be lowercase hex",
+            step_index=step_index, rule=rule,
+        )
+    sample_size = inputs.get("sample_size")
+    if (
+        not isinstance(sample_size, int)
+        or isinstance(sample_size, bool)
+        or sample_size < _MIN_NUMERIC_SAMPLE_SIZE
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.sample_size must be an int >= {_MIN_NUMERIC_SAMPLE_SIZE}; "
+            f"got {sample_size!r}",
+            step_index=step_index, rule=rule,
+        )
+
+    cells = {
+        "p_x1_y1": float(_require(inputs, "p_x1_y1", step_index, rule)),
+        "p_x1_y0": float(_require(inputs, "p_x1_y0", step_index, rule)),
+        "p_x0_y1": float(_require(inputs, "p_x0_y1", step_index, rule)),
+        "p_x0_y0": float(_require(inputs, "p_x0_y0", step_index, rule)),
+    }
+    if abs(sum(cells.values()) - 1.0) > 1e-6:
+        raise RuleCheckFailed(
+            f"{rule}: the four observational cells must sum to 1; "
+            f"got {sum(cells.values()):.6g}",
+            step_index=step_index, rule=rule,
+        )
+    if any(v < 0.0 or v > 1.0 for v in cells.values()):
+        raise RuleCheckFailed(
+            f"{rule}: the observational cells must all be probabilities",
+            step_index=step_index, rule=rule,
+        )
+    joint = {
+        (True, True): cells["p_x1_y1"], (True, False): cells["p_x1_y0"],
+        (False, True): cells["p_x0_y1"], (False, False): cells["p_x0_y0"],
+    }
+
+    # 2. Provenance. Each value makes a claim about WHY the reported risk is
+    #    present or absent, and every one of those claims is re-derived from
+    #    the query rather than taken on the producer's word.
+    provenance = _require(
+        inputs, "interventional_risk_provenance", step_index, rule,
+    )
+    if provenance not in _CF_CELL_RISK_PROVENANCES:
+        raise RuleCheckFailed(
+            f"{rule}: unknown interventional_risk_provenance {provenance!r}",
+            step_index=step_index, rule=rule,
+        )
+    raw_risk = inputs.get("p_y_do_x_cf")
+    risk = None if raw_risk is None else float(raw_risk)
+    if risk is not None and not (0.0 <= risk <= 1.0):
+        raise RuleCheckFailed(
+            f"{rule}: p_y_do_x_cf={risk} is not a probability in [0, 1]",
+            step_index=step_index, rule=rule,
+        )
+    risk_free = provenance in ("not_required", "pinned_by_monotonicity")
+    if risk_free != (risk is None):
+        raise RuleCheckFailed(
+            f"{rule}: provenance {provenance!r} disagrees with the presence "
+            f"of p_y_do_x_cf",
+            step_index=step_index, rule=rule,
+        )
+    same_world = (
+        query.counterfactual_intervention.value == query.observed.value
+    )
+    if provenance == "not_required" and not same_world:
+        raise RuleCheckFailed(
+            f"{rule}: provenance 'not_required' claims the two worlds "
+            f"coincide, but do(X={query.counterfactual_intervention.value}) "
+            f"differs from the observed X={query.observed.value}",
+            step_index=step_index, rule=rule,
+        )
+    if provenance == "pinned_by_monotonicity":
+        factual_y = query.factual_target_known
+        pins = _cf_monotonicity_pins_for_verifier(query)
+        if same_world or factual_y is None or factual_y not in pins:
+            raise RuleCheckFailed(
+                f"{rule}: provenance 'pinned_by_monotonicity' claims the "
+                f"declared monotonicity determines this cell outright, but it "
+                f"does not",
+                step_index=step_index, rule=rule,
+            )
+    if not risk_free and same_world:
+        raise RuleCheckFailed(
+            f"{rule}: an interventional risk is reported for a cell whose two "
+            f"worlds coincide — consistency answers it and the risk is not an "
+            f"input to the answer",
+            step_index=step_index, rule=rule,
+        )
+
+    # 1. Identity re-application on the reported empirical inputs.
+    exp_low, exp_high = _solve_counterfactual_cell_for_verifier(
+        query, joint, p_y_do_x_cf=risk, step_index=step_index, rule=rule,
+    )
+    reported_low = float(_require(inputs, "lower", step_index, rule))
+    reported_high = float(_require(inputs, "upper", step_index, rule))
+    for label, reported_v, expected_v in (
+        ("lower", reported_low, exp_low),
+        ("upper", reported_high, exp_high),
+    ):
+        if abs(reported_v - expected_v) > 1e-9:
+            raise RuleCheckFailed(
+                f"{rule}: {label} {reported_v} does not match the "
+                f"independently re-solved cell value {expected_v}",
+                step_index=step_index, rule=rule,
+            )
+    reported_point = inputs.get("point")
+    collapsed = abs(exp_high - exp_low) <= 1e-9
+    if collapsed:
+        if reported_point is None or abs(float(reported_point) - exp_low) > 1e-9:
+            raise RuleCheckFailed(
+                f"{rule}: the identified set collapses to {exp_low}, but the "
+                f"estimate reports point={reported_point!r}",
+                step_index=step_index, rule=rule,
+            )
+    elif reported_point is not None:
+        raise RuleCheckFailed(
+            f"{rule}: point {reported_point} claimed, but the identified set "
+            f"[{exp_low}, {exp_high}] does not collapse",
+            step_index=step_index, rule=rule,
+        )
+
+    # 3. Identification-structure re-check (skip for external experiments and
+    #    for the cells that consume no risk at all).
+    adjustment_str = _require(inputs, "adjustment", step_index, rule)
+    if provenance in ("backdoor_adjustment", "exogenous"):
+        sets = structural_solver.minimal_adjustment_sets(
+            ctx.graph,
+            query.observed.atom,
+            query.counterfactual_target.atom,
+            bidirected=(ctx.bidirected or None),
+        )
+        if not sets:
+            raise RuleCheckFailed(
+                f"{rule}: no admissible back-door adjustment set exists on the "
+                "graph, yet the estimate claims a data-identified do-risk",
+                step_index=step_index, rule=rule,
+            )
+        claimed = frozenset(p for p in str(adjustment_str).split(",") if p)
+        admissible = {frozenset(a.predicate for a in s) for s in sets}
+        if claimed not in admissible:
+            raise RuleCheckFailed(
+                f"{rule}: claimed adjustment set {sorted(claimed)} is not an "
+                f"admissible minimal back-door set on the graph",
+                step_index=step_index, rule=rule,
+            )
+    elif str(adjustment_str):
+        raise RuleCheckFailed(
+            f"{rule}: provenance {provenance!r} standardizes over nothing, yet "
+            f"an adjustment set {str(adjustment_str)!r} is claimed",
+            step_index=step_index, rule=rule,
+        )
+
+    # 4. CI (present only when a bootstrap ran). A point must sit inside its
+    #    percentile CI; the interval answer's OUTER band is a bootstrap
+    #    artifact (not re-derivable from a data_hash) so it is checked only for
+    #    validity as a probability interval.
+    ci_lower = inputs.get("ci_lower")
+    ci_upper = inputs.get("ci_upper")
+    if ci_lower is not None or ci_upper is not None:
+        if ci_lower is None or ci_upper is None:
+            raise RuleCheckFailed(
+                f"{rule}: ci_lower and ci_upper must both be present or absent",
+                step_index=step_index, rule=rule,
+            )
+        if reported_point is not None:
+            if not (ci_lower <= float(reported_point) <= ci_upper):
+                raise RuleCheckFailed(
+                    f"{rule}: point {reported_point} outside CI "
+                    f"[{ci_lower}, {ci_upper}]",
+                    step_index=step_index, rule=rule,
+                )
+        elif not (0.0 <= ci_lower <= ci_upper <= 1.0):
+            raise RuleCheckFailed(
+                f"{rule}: outer band [{ci_lower}, {ci_upper}] is not a valid "
+                "probability interval",
+                step_index=step_index, rule=rule,
+            )
+
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            f"{rule} output must be a StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.value is not True:
+        raise RuleCheckFailed(
+            f"{rule} output.value must be True",
             step_index=step_index, rule=rule,
         )
 
@@ -8004,6 +8291,7 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Data-based PN/PS/PNS — numeric counterpart (empirical joint + g-formula
     # do-risks → the same Tian-Pearl theorem, re-derived independently).
     "numeric_causation_estimate": _rule_numeric_causation_estimate,
+    "numeric_counterfactual_cell_estimate": _rule_numeric_counterfactual_cell_estimate,
     # Linear-SCM counterfactual point (Pearl Primer §4.2)
     "scm_abduction_action_prediction": _rule_scm_abduction_action_prediction,
     # Data-fitted linear-SCM counterfactual — metadata terminal; the strong
