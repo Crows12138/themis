@@ -1015,10 +1015,17 @@ nonlinear outcome (SIMEX) are out of scope and stay in the
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 
 When `extensions.mediation_decomposition` is present, the query asked
-for an effect decomposition through a mediator. The numeric path
+for an effect decomposition through a single mediator. The numeric path
 (``numeric_estimate.method ∈ {"mediation_linear_imai",
 "mediation_logit_imai"}``) wraps statsmodels' Imai 2010 algorithms
 1+2 for natural direct / indirect / total effects.
+
+When the query names a mediator **set** (a block), the extension is
+`extensions.mediation_joint_decomposition` instead and the numeric
+methods are ``numeric_estimate.method ∈ {"mediation_joint_linear",
+"mediation_joint_logit"}`` (VanderWeele-Vansteelandt 2014 joint NDE/NIE
++ block CDE for the whole set). Render it the same way — the block just
+reports the effect "through {M₁, …, M_k} as a whole".
 
 Identifiability is a property of the graph: "可识别" means the graph
 permits decomposition under the declared assumptions, not that the
