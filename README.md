@@ -147,7 +147,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 反事实单格的干预风险接上 **general ID**（2026-07-22）：跨世界的格子消费一臂 `P(Y=1|do x')`，此前它只能来自后门调整集或随机实验——没有调整集就等于没有风险，这一格于是只在单调性把它整个钉死时才答得出。但「没有调整集」不等于「不可识别」：general ID（c-factor 分解）能到达任何协变量集都表达不出的估计量（潜混杂下的前门结构就是最干净的例子：调整可证失败、ID 可证成功）。回退是纯加法——后门优先（有调整集时逐字节不变），后门失败才试 ID，ID 也失败才落回单调性。provenance 多出 `general_id_plug_in`，并且和其余五值一样**是可复核的断言**：验证器重算「确实没有可容许调整集」，再对 `ctx.query` 问的**那一臂**重跑 ID，把自己导出的估计量与记录的逐节点比对——**算了另一臂却当成本格上报**是会静默给错答案的真实故障模式，这一步正好抓它。取舍：IV 识别的风险未接（Wald 比是 ATE 不是单臂风险）·估计量条件到的每层须有支撑。D1：真值 oracle 仍是数生成器的潜在结果；三类篡改各因该抓的原因被拒且原因钉进测试。+11 测试
 
-当前全量测试基线：**3367 passed / 144 skipped**，warning-clean。
+- 中介**块**对披露层是瞎的（2026-07-22，修复型）：同一张图、同一个查询，问单个中介时人看的输出带两条识别假设 caveat，换成中介块后**一条都没有**。根因是缺口层的生产者绑在 `extensions.mediation_decomposition` 这个单中介专用 key 上，而不是绑在「做了中介分解」这件事上。归一化成一个 `_mediation_view`，四处漏一起闭：识别假设 caveat 完全不出（最重——「可识别」读起来成了无条件的，而块的前提与单中介严格不同）、调整集谓词不进「查询相关」集导致协变量上的 `llm_proposal` 边逃过披露、数据需求永不列出、静默跳层的诚实 gap 只认单数字段。另加同源两处：数据端联合估计算了中介比例却不出 headline；`mediators` 只写一个中介时两条路由都不接，**整个中介分析被静默跳过且无任何信号**（集合就是集合，一个元素也是）。D1：五条新测试先在改前代码上跑成红的；核心不变量是 parity——问块与问单中介必须披露同样的东西。+6 测试
+
+当前全量测试基线：**3373 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -201,7 +203,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3367 passed / 144 skipped（2026-07-22）
+- **测试套件**：3373 passed / 144 skipped（2026-07-22）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

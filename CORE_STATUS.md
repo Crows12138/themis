@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3367 passed / 144 skipped, warning-clean
+3373 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -537,7 +537,15 @@ a·P(x, Y=1) + b·P(x, Y=0) = P(Y=1 | do(x')) − P(x', Y=1)
 
 取舍（声明）=IV 识别的风险未接（Wald 比是 ATE，不是本格消费的单臂风险）·ID 的 plug-in 要求估计量条件到的每一层都有支撑（前门结构里 `M` 对 `X` 若是确定性的，另一层就是真的 positivity 违反，如实拒绝）·离散饱和估计。D1：**独立真值 oracle 仍是数生成器的潜在结果**（阈值型单调前门 SCM，单调 PN 点恢复真值到 0.01；无单调性时区间覆盖真值）·先证「后门在这张图上确实拿不到调整集」再证本格出数·有调整集时仍走后门且不记公式·bow arc 照样诚实拒绝（回退不许无中生有）·端到端 estimate + schema + verify·三类篡改各因**该抓的原因**被拒并把原因钉进测试（谎称无调整集 / 记录另一臂的估计量 / 干脆不记）。+11 →**3367**。
 
-**基线**：3356 → **3367**（上一档 3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**中介块对披露层是瞎的（2026-07-22）**：修复型。**现象**——同一张图、同一个查询，问单个中介时人看的输出带两条识别假设 caveat，把 `mediator` 换成 `mediators`（中介块）后**一条都没有**。**根因**——`data_gap_report` 里的生产者绑在 `extensions.mediation_decomposition` 这个**单中介专用的 extension key** 上，而不是绑在「这次做了中介分解」这件事上；联合块写在 `mediation_joint_decomposition`，于是整个缺口 / 披露层对它不可见。只在渲染层补一句话不解决问题：审计通道（data_gap_report → assumption_ledger → 报告）仍然缺，而且下一个中介变体会第三次踩同一个坑。
+
+结构性改动是一个归一化视图 `_mediation_view(extensions)`：两种形状（`mediator` / `mediators`、`mediator_valid` / `mediator_set_valid`、两个 key）归一成同一个东西，四个生产者改成消费它而不是消费某个 key。实测坐实的四处漏：**① 识别假设 caveat 完全不出**（最重——「可识别」在人看的一面读起来是无条件的，而块的前提与单中介**严格不同**：VanderWeele-Vansteelandt 联合条件、块-CDE 把**整组**固定在参考值）；**② 调整集谓词不进「查询相关」集**，于是调整协变量上的 `llm_proposal` 边逃过 `unverified_proposal_edge_on_query_path` 披露（单中介同图会被抓）；③ `missing_mediator_data` 数据需求永不列出；④ `mediator + target_population` 的静默跳层诚实 gap 只认单数字段。措辞只多一个主语，实质仍来自块自带的 assumptions 列表——块还必须说清它**不**主张什么：整组分解，不拆到单条路径（拆开是 recanting witness，真不可识别）。
+
+同源第五处在估计端：数据路径的联合估计**算了** `proportion_mediated` 却从不出 headline，单中介出。第六处最危险，是核实过程中撞见的：`mediators` 只写**一个**中介时，联合路由要求 ≥2、单中介路由读单数字段，两边都不接——**整个中介分析被静默跳过，无 extension、无 caveat、无任何信号**。集合就是集合，一个元素也是（k=1 时集合机制精确退化到经典单中介，估计器早有逐位相等的测试），改成非空即路由。
+
+D1：五条新测试**先在改前的代码上跑成红的**（`git stash` 实测：JOINT 分支 0 条 caveat、`llm_proposal` 边 ABSENT），改后全绿；核心不变量是**parity**——同一张图，问块与问单中介必须披露同样的东西（`counts(joint) == counts(single)`），这条不变量正是当初能挡住这个 bug 的那条。+6 →**3373**。
+
+**基线**：3367 → **3373**（更早 3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
