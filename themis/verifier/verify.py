@@ -1318,6 +1318,26 @@ def verify_mediation_numeric(estimate: dict) -> None:
             _close(nie_rd, nie,
                    "decomposition.nie==joint_bridge(coeffs,means)",
                    "decomposition")
+            # STRONG (JOINT linear path) CDE-for-a-set: holding every mediator
+            # fixed at m*, the linear outcome gives CDE(m*) = beta_x + sum_j
+            # gamma_j * m* exactly (the covariates cancel in the difference).
+            # So CDE(m*=0) = beta_x and CDE(m*=1) = beta_x + sum_j gamma_j —
+            # re-derived here from the SAME recorded coefficients, independent
+            # of the estimator (a self-consistent forgery of a cde point is
+            # caught). On the joint LOGIT path CDE is a plug-in over the
+            # covariates and is not re-derivable here (construction ceiling).
+            cde_blk = dec.get("cde")
+            if cde_blk is not None:
+                sum_g = sum(float(gammas[name]) for name in betas)
+                ctrl = cde_blk.get("reference_control")
+                trt = cde_blk.get("reference_treated")
+                if ctrl is not None:
+                    _close(float(beta_x), ctrl["point"],
+                           "decomposition.cde[m*=0]==beta_x", "decomposition")
+                if trt is not None:
+                    _close(float(beta_x) + sum_g, trt["point"],
+                           "decomposition.cde[m*=1]==beta_x+sum_gamma",
+                           "decomposition")
         _close(nde + nie, te, "decomposition.nde+nie==te", "decomposition")
         pm = dec.get("proportion_mediated")
         if pm is not None and abs(te) > _MEDIATION_TOL:

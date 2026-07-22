@@ -34,7 +34,7 @@ model, same backend as ``themis/estimation/backdoor.py``.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -498,6 +498,18 @@ class MediationJointEstimate:
     # re-checkable there — the honest ceiling, same as the single-mediator
     # logit path.
     sufficient_statistics: dict
+    # Controlled direct effect for the mediator SET held fixed at a reference
+    # level (the VanderWeele CDE generalized to the whole block). Reported at
+    # the two binary corner references m*=0 (all mediators at control) and
+    # m*=1 (all at treated):
+    #   {"reference_control": {"mediator_level": 0.0, "point", "ci_lower",
+    #    "ci_upper"}, "reference_treated": {"mediator_level": 1.0, ...}}
+    # On the LINEAR path CDE(m*) = beta_x + sum_j gamma_j * m* is an exact
+    # functional of the recorded outcome coefficients (m*=0 -> beta_x), which
+    # verify_mediation_numeric re-derives independently; on the LOGIT path it
+    # is a Monte-Carlo plug-in over the sample covariates (construction
+    # ceiling). Arbitrary / observed-grid reference values are a follow-on.
+    cde: dict = field(default_factory=dict)
     cluster: str | None = None
 
 
@@ -656,6 +668,24 @@ def estimate_mediation_joint(
         nie = float(np.mean(_EY(1.0, m1, frame) - _EY(1.0, m0, frame)))
         return nde, nie
 
+    def _cde_at(om, frame: pd.DataFrame, mstar: float) -> float:
+        """CDE-for-the-set holding EVERY mediator fixed at ``mstar``:
+        E[Y | do(X=1, M=m*)] - E[Y | do(X=0, M=m*)], g-formula plug-in
+        over the sample covariates. Linear outcome collapses to the exact
+        beta_x + sum_j gamma_j * m* (Z cancels); logit is the MC-free
+        analytic plug-in over the empirical Z (the covariate integration is
+        the sample mean of predicted probabilities), no mediator draw needed
+        because the mediators are HELD at m* rather than integrated out.
+        """
+        d1 = frame.copy()
+        d0 = frame.copy()
+        d1[treatment] = 1.0
+        d0[treatment] = 0.0
+        for name in mediators:
+            d1[name] = mstar
+            d0[name] = mstar
+        return float(np.mean(np.asarray(om.predict(d1)) - np.asarray(om.predict(d0))))
+
     def _coef(params, *cands) -> float:
         for c in cands:
             if c in params.index:
@@ -666,6 +696,8 @@ def estimate_mediation_joint(
     nde_p, nie_p = _nde_nie(om_point, mms_point, fit_df)
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
+    cde0_p = _cde_at(om_point, fit_df, 0.0)
+    cde1_p = _cde_at(om_point, fit_df, 1.0)
 
     # Sufficient statistics for the linear-path strong re-derivation.
     params = om_point.params
@@ -694,12 +726,16 @@ def estimate_mediation_joint(
     nie_s: list[float] = []
     te_s: list[float] = []
     pm_s: list[float] = []
+    cde0_s: list[float] = []
+    cde1_s: list[float] = []
     for _ in range(n_rep):
         idx = resample_indices(n_rows, rng, groups=groups)
         bframe = fit_df.iloc[idx].reset_index(drop=True)
         try:
             om_b, mms_b = _fit(bframe)
             nb, ib = _nde_nie(om_b, mms_b, bframe)
+            c0b = _cde_at(om_b, bframe, 0.0)
+            c1b = _cde_at(om_b, bframe, 1.0)
         except Exception:
             continue
         tb = nb + ib
@@ -707,6 +743,8 @@ def estimate_mediation_joint(
         nie_s.append(ib)
         te_s.append(tb)
         pm_s.append(ib / tb if tb != 0 else float("nan"))
+        cde0_s.append(c0b)
+        cde1_s.append(c1b)
 
     half = (1.0 - ci_level) / 2.0
 
@@ -722,6 +760,18 @@ def estimate_mediation_joint(
     nie_lo, nie_hi = _ci(nie_s, nie_p)
     te_lo, te_hi = _ci(te_s, te_p)
     pm_lo, pm_hi = _ci(pm_s, pm_p)
+    cde0_lo, cde0_hi = _ci(cde0_s, cde0_p)
+    cde1_lo, cde1_hi = _ci(cde1_s, cde1_p)
+    cde = {
+        "reference_control": {
+            "mediator_level": 0.0,
+            "point": cde0_p, "ci_lower": cde0_lo, "ci_upper": cde0_hi,
+        },
+        "reference_treated": {
+            "mediator_level": 1.0,
+            "point": cde1_p, "ci_lower": cde1_lo, "ci_upper": cde1_hi,
+        },
+    }
 
     return MediationJointEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
@@ -743,6 +793,7 @@ def estimate_mediation_joint(
         outcome=outcome,
         n_rep=n_rep,
         sufficient_statistics=suff,
+        cde=cde,
         cluster=cluster,
     )
 

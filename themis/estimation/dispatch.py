@@ -2447,9 +2447,13 @@ def _try_mediation_joint_estimate(
 
     extensions = result.get("extensions") or {}
     decomp = extensions.get("mediation_joint_decomposition")
-    if decomp is None or decomp.get("strategy") != "nde_nie":
+    if decomp is None:
         return
 
+    # The joint natural-effect numeric rides on the NDE/NIE block being
+    # structurally identified (strategy is "nde_nie" or "nde_nie+cde"); the
+    # CDE-for-a-set numeric is attached below as a sub-block of the same
+    # estimate when it too is identified with a compatible adjustment.
     nde_nie_block = decomp.get("nde_nie", {})
     if not nde_nie_block.get("identifiable"):
         return
@@ -2523,6 +2527,25 @@ def _try_mediation_joint_estimate(
             ),
         },
     }
+
+    # CDE-for-a-set (controlled direct effect holding the whole block fixed
+    # at a reference level), reported at m*=0 / m*=1. Attach the numeric only
+    # when the CDE is structurally identified with the SAME adjustment the
+    # joint model was fit under, so the reported numbers correspond to a
+    # back-door-valid W. When the CDE needs a different adjustment than the
+    # NDE/NIE, its structural identifiability is still surfaced in the
+    # mediation_joint_decomposition extension; the numeric at that other
+    # adjustment is a declared follow-on. On the LINEAR path
+    # verify_mediation_numeric re-derives CDE(m*=0)=beta_x and
+    # CDE(m*=1)=beta_x+sum_j gamma_j from the recorded coefficients.
+    cde_ext = decomp.get("cde") or {}
+    if (
+        cde_ext.get("identifiable")
+        and sorted(cde_ext.get("adjustment", []))
+        == sorted(nde_nie_block.get("adjustment", []))
+    ):
+        result["numeric_estimate"]["decomposition"]["cde"] = est.cde
+
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
 
     # NOTE: status stays "structurally_solved" — the joint identification

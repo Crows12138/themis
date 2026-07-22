@@ -32,6 +32,7 @@ from themis.runtime.structural_solver import (
 )
 from themis.verifier.rules import (
     _rule_identify_via_mediation_joint,
+    _rule_mediation_cde_joint_check,
     _rule_mediation_nde_nie_joint_check,
 )
 
@@ -239,10 +240,14 @@ def test_run_routes_to_joint_and_verifies():
     assert res["status"] == "structurally_solved"
     mjd = res["extensions"]["mediation_joint_decomposition"]
     assert mjd["mediator_set_valid"] is True
-    assert mjd["strategy"] == "nde_nie"
+    # clean parallel graph: both the joint natural effects AND the
+    # CDE-for-a-set identify.
+    assert mjd["strategy"] == "nde_nie+cde"
     assert mjd["nde_nie"]["identifiable"] is True
+    assert mjd["cde"]["identifiable"] is True
     rules = [s["rule"] for s in res["derivation"]["steps"]]
     assert "mediation_nde_nie_joint_check" in rules
+    assert "mediation_cde_joint_check" in rules
     assert "identify_via_mediation_joint" in rules
     # verify must not raise
     themis.verify(ast, res)
@@ -260,8 +265,10 @@ def test_invalid_set_run_reports_needs_investigation():
     out = themis.run(ast)
     res = out["results"][0]
     assert res["status"] == "needs_investigation"
-    assert res["extensions"]["mediation_joint_decomposition"][
-        "mediator_set_valid"] is False
+    mjd = res["extensions"]["mediation_joint_decomposition"]
+    assert mjd["mediator_set_valid"] is False
+    # both blocks surfaced (non-identifiable) even on a degenerate set
+    assert mjd["cde"]["identifiable"] is False
 
 
 def test_estimate_attaches_joint_decomposition_and_verifies():
@@ -353,9 +360,142 @@ def test_joint_verifier_rules_do_not_reference_structural_solver():
     }
     for fn in (
         _rule_mediation_nde_nie_joint_check,
+        _rule_mediation_cde_joint_check,
         _rule_identify_via_mediation_joint,
     ):
         names = set(fn.__code__.co_names)
         assert not (names & forbidden), (
             f"{fn.__name__} references forbidden symbol: {names & forbidden}"
         )
+
+
+# =====================================================================
+# CDE-for-a-set (controlled direct effect holding the whole block fixed)
+# =====================================================================
+
+
+def test_cde_for_set_identifiable_clean_parallel():
+    """Clean parallel mediators: the CDE-for-a-set identifies with no
+    adjustment, alongside the joint NDE/NIE."""
+    g = nx.DiGraph([("X", "M1"), ("M1", "Y"), ("X", "M2"), ("M2", "Y")])
+    r = mediation_sets_joint(g, "X", "Y", {"M1", "M2"})
+    assert r.cde.identifiable is True
+    assert r.cde.adjustment == frozenset()
+
+
+def test_cde_identifiable_where_nde_fails_under_latent_x_m():
+    """A LATENT X<->M2 confounder sinks the joint natural effects (the M2
+    no-confounding condition fails), but the CDE-for-a-set is still
+    identifiable — it never needs that condition. The whole point of a
+    separate CDE branch."""
+    g = nx.DiGraph([("X", "M1"), ("M1", "Y"), ("X", "M2"), ("M2", "Y")])
+    bidir = frozenset({frozenset({"X", "M2"})})
+    r = mediation_sets_joint(g, "X", "Y", {"M1", "M2"}, bidirected=bidir)
+    assert r.nde_nie.identifiable is False
+    assert r.cde.identifiable is True
+    assert r.cde.adjustment == frozenset()
+
+
+def test_cde_needs_baseline_confounder_in_adjustment():
+    """C→X, C→Y baseline confounder: CDE-for-a-set needs W={C}, same as
+    the joint natural effects."""
+    g = nx.DiGraph(
+        [("C", "X"), ("C", "Y"), ("X", "M1"), ("M1", "Y"),
+         ("X", "M2"), ("M2", "Y")]
+    )
+    r = mediation_sets_joint(g, "X", "Y", {"M1", "M2"})
+    assert r.cde.identifiable is True
+    assert r.cde.adjustment == frozenset({"C"})
+
+
+def test_cde_post_treatment_confounder_not_backdoor_identifiable():
+    """A post-treatment (intermediate) confounder L of the M2→Y edge that is
+    itself affected by X: neither the joint natural effects nor the backdoor
+    CDE-for-a-set identify (L needs the longitudinal g-formula — honest
+    limitation of the backdoor-only method)."""
+    g = nx.DiGraph(
+        [("X", "M1"), ("M1", "Y"), ("X", "M2"), ("M2", "Y"),
+         ("X", "L"), ("L", "M2"), ("L", "Y")]
+    )
+    r = mediation_sets_joint(g, "X", "Y", {"M1", "M2"})
+    assert r.nde_nie.identifiable is False
+    assert r.cde.identifiable is False
+
+
+def test_cde_invalid_set_empty_attempt():
+    g = nx.DiGraph([("X", "M1"), ("M1", "Y"), ("X", "M2")])
+    r = mediation_sets_joint(g, "X", "Y", {"M1", "M2"})
+    assert r.mediator_set_valid is False
+    assert r.cde.identifiable is False
+
+
+def _joint_cde_truth(seed=0):
+    """The same SCM as _joint_scm, exposing the structural CDE truth:
+    CDE(m*) = beta_x + g1*m1* + g2*m2*  (m1*=m2*=m*)."""
+    bx, g1, g2 = 0.5, 0.3, -0.2
+    return {"cde0": bx, "cde1": bx + g1 + g2}
+
+
+def test_joint_cde_recovers_truth():
+    df, _ = _joint_scm()
+    est = estimate_mediation_joint(
+        df, treatment="x", outcome="y", mediators=("m1", "m2"), n_rep=40,
+    )
+    truth = _joint_cde_truth()
+    c0 = est.cde["reference_control"]["point"]
+    c1 = est.cde["reference_treated"]["point"]
+    assert abs(c0 - truth["cde0"]) < 0.03
+    assert abs(c1 - truth["cde1"]) < 0.03
+    assert est.cde["reference_control"]["mediator_level"] == 0.0
+    assert est.cde["reference_treated"]["mediator_level"] == 1.0
+
+
+def test_joint_cde_bridge_reproduces_point():
+    """CDE(m*=0)=beta_x and CDE(m*=1)=beta_x+sum_j gamma_j are exact
+    functionals of the recorded coefficients — the bridge the verifier
+    re-derives on the linear path."""
+    df, _ = _joint_scm(n=8000)
+    est = estimate_mediation_joint(
+        df, treatment="x", outcome="y", mediators=("m1", "m2"), n_rep=10,
+    )
+    oc = est.sufficient_statistics["outcome_coefficients"]
+    beta_x = oc["treatment"]
+    sum_g = sum(oc["interactions"].values())
+    assert abs(est.cde["reference_control"]["point"] - beta_x) < 1e-9
+    assert abs(est.cde["reference_treated"]["point"] - (beta_x + sum_g)) < 1e-9
+
+
+def test_estimate_attaches_cde_and_verifies():
+    df, _ = _joint_scm(n=6000, seed=1)
+    ast = _joint_ast()
+    res = themis.estimate(ast, df, random_state=42)["results"][0]
+    d = res["numeric_estimate"]["decomposition"]
+    assert "cde" in d
+    assert "reference_control" in d["cde"] and "reference_treated" in d["cde"]
+    # linear CDE(m*=0) equals the recorded treatment coefficient
+    beta_x = d["sufficient_statistics"]["outcome_coefficients"]["treatment"]
+    assert abs(d["cde"]["reference_control"]["point"] - beta_x) < 1e-9
+    # verify must not raise (re-derives the cde from the coefficients)
+    themis.verify(ast, res)
+
+
+def test_verifier_rejects_tampered_cde():
+    """Strong verification: corrupting a reported CDE point mismatches the
+    coefficient re-derivation."""
+    df, _ = _joint_scm(n=4000, seed=2)
+    ast = _joint_ast()
+    res = themis.estimate(ast, df, random_state=42)["results"][0]
+    bad = copy.deepcopy(res)
+    bad["numeric_estimate"]["decomposition"]["cde"][
+        "reference_control"]["point"] += 0.5
+    with pytest.raises(Exception):
+        themis.verify(ast, bad)
+
+
+def test_run_surfaces_cde_identifiability_and_verifies():
+    ast = _joint_ast()
+    res = themis.run(ast)["results"][0]
+    mjd = res["extensions"]["mediation_joint_decomposition"]
+    assert mjd["cde"]["identifiable"] is True
+    assert mjd["cde"]["adjustment"] == []
+    themis.verify(ast, res)

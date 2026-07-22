@@ -164,6 +164,12 @@ def _structural_mediation_assumptions(
             "no_confounder_of_mediatorset_outcome_affected_by_treatment_outside_the_set",
             "consistency_of_potential_outcomes",
         )
+    if strategy == "joint_cde":
+        return (
+            "adjustment_set_blocks_mediatorset_outcome_backdoor_given_treatment",
+            "controlled_direct_effect_holds_mediator_set_at_a_reference_level",
+            "consistency_of_potential_outcomes",
+        )
     return ()
 
 
@@ -1025,6 +1031,17 @@ def _dispatch_mediation_joint(
             if mediation.nde_nie.identifiable else ()
         ),
     }
+    cde_info = {
+        "identifiable": mediation.cde.identifiable,
+        "adjustment": sorted(
+            _atom_to_str(a) for a in mediation.cde.adjustment
+        ),
+        "failed_condition": mediation.cde.failed_condition,
+        "assumptions": list(
+            _structural_mediation_assumptions("joint_cde")
+            if mediation.cde.identifiable else ()
+        ),
+    }
     mediators_str = sorted(_atom_to_str(a) for a in ms)
 
     if not mediation.mediator_set_valid:
@@ -1051,13 +1068,20 @@ def _dispatch_mediation_joint(
                     "mediators": mediators_str,
                     "mediator_set_valid": False,
                     "nde_nie": nde_nie_info,
+                    "cde": cde_info,
                 }
             },
         )
 
-    # Two-step derivation:
+    any_identifiable = (
+        mediation.nde_nie.identifiable or mediation.cde.identifiable
+    )
+
+    # Three-step derivation (mirrors the single-mediator mediation path,
+    # which independently checks NDE/NIE and CDE):
     #   s1: mediation_nde_nie_joint_check — block four-condition check
-    #   s2: identify_via_mediation_joint  — decomposition decision
+    #   s2: mediation_cde_joint_check     — back-door check for CDE-for-a-set
+    #   s3: identify_via_mediation_joint  — decomposition decision (either)
     derivation = (
         DerivationStep(
             rule="mediation_nde_nie_joint_check",
@@ -1072,21 +1096,42 @@ def _dispatch_mediation_joint(
             step_id="s1",
         ),
         DerivationStep(
-            rule="identify_via_mediation_joint",
-            inputs={"nde_nie": StepRef(step_id="s1")},
-            output=StructuralResult(value=mediation.nde_nie.identifiable),
+            rule="mediation_cde_joint_check",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+                "mediators": ms,
+                "adjustment": mediation.cde.adjustment,
+            },
+            output=mediation.cde.identifiable,
             step_id="s2",
+        ),
+        DerivationStep(
+            rule="identify_via_mediation_joint",
+            inputs={
+                "nde_nie": StepRef(step_id="s1"),
+                "cde": StepRef(step_id="s2"),
+            },
+            output=StructuralResult(value=any_identifiable),
+            step_id="s3",
         ),
     )
 
+    strategy = (
+        "nde_nie+cde"
+        if (mediation.nde_nie.identifiable and mediation.cde.identifiable)
+        else "nde_nie" if mediation.nde_nie.identifiable
+        else "cde" if mediation.cde.identifiable
+        else "none"
+    )
     extensions = {
         "mediation_joint_decomposition": {
             "mediators": mediators_str,
             "mediator_set_valid": True,
             "nde_nie": nde_nie_info,
-            "strategy": (
-                "nde_nie" if mediation.nde_nie.identifiable else "none"
-            ),
+            "cde": cde_info,
+            "strategy": strategy,
         }
     }
 
@@ -1094,9 +1139,7 @@ def _dispatch_mediation_joint(
         status=ResultStatus.STRUCTURALLY_SOLVED,
         query_kind=QueryKind.EFFECT,
         query_id=stmt.id,
-        structural_result=StructuralResult(
-            value=mediation.nde_nie.identifiable
-        ),
+        structural_result=StructuralResult(value=any_identifiable),
         derivation=derivation,
         extensions=extensions,
     )

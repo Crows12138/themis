@@ -990,8 +990,11 @@ def _search_mediation_adjustment(
 # one block. Treating the set as a block is what makes the decomposition
 # identifiable without knowing the causal ORDERING among the mediators: a
 # recanting witness INSIDE the set does not break the joint split (only a
-# path-SPECIFIC split through one member would). CDE-for-a-set is a
-# distinct quantity and is not identified here.
+# path-SPECIFIC split through one member would). The CDE-for-a-set (holding
+# the whole block fixed at a reference level) is a distinct quantity and is
+# identified here too, by the ordinary back-door criterion for the joint
+# intervention do(X, M_set) — it needs strictly WEAKER conditions than the
+# joint natural effects (no X-M_set no-confounding requirement).
 # =====================================================================
 
 
@@ -1002,6 +1005,9 @@ class MediationJointResult(NamedTuple):
     - ``mediators``: the mediator set queried.
     - ``nde_nie``: the joint NDE/NIE ``MediationAttempt`` (identifiable +
       adjustment W + failing condition on the smallest attempted W).
+    - ``cde``: the CDE-for-a-set ``MediationAttempt`` — back-door
+      identifiability of the controlled direct effect holding the whole
+      block fixed (weaker conditions than ``nde_nie``).
     - ``mediator_set_valid``: False if some M_j does not mediate X→Y
       (no X→M_j directed path or no M_j→Y directed path) or the set is
       degenerate (empty, or contains X / Y).
@@ -1010,6 +1016,16 @@ class MediationJointResult(NamedTuple):
     mediators: frozenset[Atom]
     nde_nie: MediationAttempt
     mediator_set_valid: bool
+    # CDE-for-a-set: back-door identifiability of the controlled direct
+    # effect that holds the WHOLE mediator block fixed (the joint
+    # intervention do(X, M_set)). Identifiable under strictly weaker
+    # conditions than nde_nie — a LATENT X<->M_j edge that sinks the joint
+    # natural effects still leaves the controlled effect adjustable. Default
+    # is the non-identifiable empty attempt so callers that predate the CDE
+    # branch stay valid.
+    cde: MediationAttempt = MediationAttempt(
+        identifiable=False, adjustment=frozenset(), failed_condition=None,
+    )
 
 
 def _mutilate_outgoing_set(graph: nx.DiGraph, nodes) -> nx.DiGraph:
@@ -1076,6 +1092,55 @@ def _check_nde_nie_joint_with_w(
     return None
 
 
+def _check_cde_set_with_w(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    ms: "frozenset[Atom]",
+    w: frozenset[Atom],
+    bidirected: "BidirectedEdgeSet",
+) -> str | None:
+    """Return None iff the CDE(m*) back-door adjustment conditions hold for
+    the mediator SET ``ms`` under W; else the first failing label.
+
+    The single-mediator CDE conditions (``_check_cde_with_w``) with M
+    replaced by the vector M_set — the ordinary back-door criterion for the
+    JOINT intervention do(X, M_1..M_k) that holds the whole block fixed:
+
+      C2: W contains no descendant of X or of any M_j.
+      C1: in G\\bar{X,M_set} (outgoing edges of X AND every M_j removed),
+          Y is m-separated from X given W AND from each M_j given W.
+
+    Holding every mediator fixed is what makes CDE-for-a-set identifiable in
+    strictly MORE graphs than the joint NDE/NIE: the CDE never needs the
+    X–M_set no-confounding condition (M2), so a LATENT X<->M_j edge that
+    sinks the joint natural effects still leaves the controlled effect
+    adjustable. Back-door only, mirroring the single-mediator CDE — a
+    post-treatment (intermediate) confounder of the mediator-outcome edge is
+    honestly reported non-identifiable here (it needs the longitudinal
+    g-formula, out of scope).
+    """
+    # C2: W excludes descendants of X and of any set member.
+    x_desc = nx.descendants(graph, x)
+    m_desc: set = set()
+    for m in ms:
+        m_desc |= nx.descendants(graph, m)
+    if w & (x_desc | m_desc):
+        return "C2"
+
+    w_tuple = tuple(w)
+
+    # C1: in G\bar{X,M_set}, Y m-sep from X and from each M_j given W.
+    g_bar = _mutilate_outgoing_set(graph, ms | {x})
+    if is_m_connected(g_bar, bidirected, x, y, w_tuple):
+        return "C1"
+    for m in ms:
+        if is_m_connected(g_bar, bidirected, m, y, w_tuple):
+            return "C1"
+
+    return None
+
+
 def mediation_sets_joint(
     graph: nx.DiGraph,
     x: Atom,
@@ -1085,13 +1150,20 @@ def mediation_sets_joint(
     bidirected: "BidirectedEdgeSet | None" = None,
     max_adjustment_size: int = 3,
 ) -> MediationJointResult:
-    """Identify the JOINT natural effects (joint NDE / joint NIE) through a
-    mediator SET {M_1..M_k}, treated as one block.
+    """Identify the JOINT natural effects (joint NDE / joint NIE) AND the
+    CDE-for-a-set through a mediator SET {M_1..M_k}, treated as one block.
 
-    Only the NDE/NIE (natural-effect) block strategy is attempted — the
-    joint decomposition of the total effect into "through the set" and
-    "not through the set". CDE-for-a-set is a distinct quantity and is not
-    identified here.
+    Two strategies, attempted independently (mirroring the single-mediator
+    ``mediation_sets``):
+
+    1. **Joint NDE/NIE** — the natural-effect block decomposition of the
+       total effect into "through the set" and "not through the set"
+       (Pearl's four conditions with M a vector).
+    2. **CDE-for-a-set** — the controlled direct effect holding the whole
+       block fixed at a reference level, by the ordinary back-door criterion
+       for the joint intervention do(X, M_set). Weaker conditions than the
+       natural effects: it may identify where the joint NDE/NIE fails (e.g.
+       under a latent X-M confounder).
 
     Structural prerequisite: every M_j must mediate — a directed
     ``X -> ... -> M_j`` and ``M_j -> ... -> Y`` path must both exist — the
@@ -1120,15 +1192,15 @@ def mediation_sets_joint(
         )
     )
 
+    empty_attempt = MediationAttempt(
+        identifiable=False, adjustment=frozenset(), failed_condition=None,
+    )
     if not mediator_set_ok:
         return MediationJointResult(
             mediators=ms,
-            nde_nie=MediationAttempt(
-                identifiable=False,
-                adjustment=frozenset(),
-                failed_condition=None,
-            ),
+            nde_nie=empty_attempt,
             mediator_set_valid=False,
+            cde=empty_attempt,
         )
 
     bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
@@ -1148,10 +1220,27 @@ def mediation_sets_joint(
         default_failed="M4",
     )
 
+    # CDE-for-a-set: back-door for the joint do(X, M_set). Its W pool also
+    # excludes every mediator's descendants (C2 pre-filter).
+    m_desc: set = set()
+    for m in ms:
+        m_desc |= nx.descendants(graph, m)
+    cde_w_pool = [
+        n for n in graph.nodes
+        if n != x and n != y and n not in ms
+        and n not in x_desc and n not in m_desc
+    ]
+    cde_attempt = _search_mediation_adjustment(
+        graph, x, y, ms, cde_w_pool, bidir_eff,
+        max_adjustment_size, _check_cde_set_with_w,
+        default_failed="C1",
+    )
+
     return MediationJointResult(
         mediators=ms,
         nde_nie=attempt,
         mediator_set_valid=True,
+        cde=cde_attempt,
     )
 
 

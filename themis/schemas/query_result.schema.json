@@ -1292,6 +1292,15 @@
                 }
               }
             },
+            "cde": {
+              "type": "object",
+              "description": "Joint multi-mediator decomposition only (method mediation_joint_*): the controlled direct effect holding the WHOLE mediator block fixed at a reference level, reported at m*=0 (all mediators at control) and m*=1 (all at treated). On the linear path verify_mediation_numeric re-derives CDE(m*=0)=beta_x and CDE(m*=1)=beta_x+sum_j gamma_j from the recorded outcome coefficients; on the logit path it is a plug-in over the covariates (construction ceiling). Attached only when the CDE-for-a-set is structurally identified with the same adjustment the joint model was fit under.",
+              "additionalProperties": false,
+              "properties": {
+                "reference_control": { "$ref": "#/$defs/cdeReferenceEstimate" },
+                "reference_treated": { "$ref": "#/$defs/cdeReferenceEstimate" }
+              }
+            },
             "reference": { "type": "string" }
           }
         },
@@ -1498,6 +1507,18 @@
       "required": ["point", "ci_lower", "ci_upper"],
       "additionalProperties": false,
       "properties": {
+        "point": { "type": "number" },
+        "ci_lower": { "type": "number" },
+        "ci_upper": { "type": "number" }
+      }
+    },
+    "cdeReferenceEstimate": {
+      "type": "object",
+      "description": "CDE-for-a-set at one reference level: the mediator level the whole block is held fixed at (0 = all at control, 1 = all at treated), the point CDE, and its bootstrap percentile CI.",
+      "required": ["mediator_level", "point", "ci_lower", "ci_upper"],
+      "additionalProperties": false,
+      "properties": {
+        "mediator_level": { "type": "number" },
         "point": { "type": "number" },
         "ci_lower": { "type": "number" },
         "ci_upper": { "type": "number" }
