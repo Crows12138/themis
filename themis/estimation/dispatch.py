@@ -673,6 +673,16 @@ def _estimate_effect_queries(
                 model=model, cluster=cluster,
             )
             continue
+        # Joint multi-mediator (>= 2): the JOINT natural-effect
+        # decomposition through the mediator SET. Routes to
+        # estimate_mediation_joint, gated on the joint identification
+        # extension. Precedes the single-mediator branch.
+        if len(q_stmt.query.mediators) >= 2:
+            _try_mediation_joint_estimate(
+                q_stmt, result, contract, graph, bidirected,
+                random_state=random_state,
+            )
+            continue
         # Phase 7.4: mediation queries route to the Imai-via-statsmodels
         # estimator, gated on the identification layer's strategy result.
         if q_stmt.query.mediator is not None:
@@ -2415,6 +2425,109 @@ def _try_mediation_estimate(
     # mediation derivation (mediation_*_check + identify_via_mediation)
     # already passes verify_effect_structural. Flipping to
     # numerically_solved would break that round-trip.
+
+
+def _try_mediation_joint_estimate(
+    q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
+    cluster: str | None = None,
+) -> None:
+    """Attach a JOINT multi-mediator numeric estimate when the joint
+    identification layer has cleared the block NDE/NIE for the mediator
+    set (VanderWeele-Vansteelandt 2014).
+
+    Reads ``result.extensions.mediation_joint_decomposition``; proceeds
+    only when its ``strategy`` is ``nde_nie``. Serializes a ``decomposition``
+    block whose ``sufficient_statistics`` (outcome coefficients + per-
+    mediator standardized means) let verify_mediation_numeric re-derive the
+    joint NDE/NIE independently on the linear path. No four-way block — that
+    split is single-mediator-specific. Status stays ``structurally_solved``,
+    same as the single-mediator path.
+    """
+    from .mediation import estimate_mediation_joint
+
+    extensions = result.get("extensions") or {}
+    decomp = extensions.get("mediation_joint_decomposition")
+    if decomp is None or decomp.get("strategy") != "nde_nie":
+        return
+
+    nde_nie_block = decomp.get("nde_nie", {})
+    if not nde_nie_block.get("identifiable"):
+        return
+    adjustment = tuple(
+        a.split("(", 1)[0] for a in nde_nie_block.get("adjustment", ())
+    )
+
+    x_pred = q_stmt.query.intervention.atom.predicate
+    y_pred = q_stmt.query.target.atom.predicate
+    m_preds = tuple(a.predicate for a in q_stmt.query.mediators)
+
+    needed = [*m_preds, *adjustment]
+    missing_cols = [c for c in needed if c not in contract.data.columns]
+    if missing_cols:
+        return
+
+    try:
+        est = estimate_mediation_joint(
+            contract.data,
+            treatment=x_pred,
+            outcome=y_pred,
+            mediators=m_preds,
+            adjustment=adjustment,
+            random_state=random_state,
+            cluster=cluster,
+        )
+    except (ValueError, NotImplementedError):
+        return
+
+    result["numeric_estimate"] = {
+        "method": est.method,
+        "ci_level": est.ci_level,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        "mediators": list(est.mediators),
+        "adjustment": list(est.adjustment),
+        "n_rep": est.n_rep,
+        "decomposition": {
+            "nde": {
+                "point": est.nde_point,
+                "ci_lower": est.nde_ci_lower,
+                "ci_upper": est.nde_ci_upper,
+            },
+            "nie": {
+                "point": est.nie_point,
+                "ci_lower": est.nie_ci_lower,
+                "ci_upper": est.nie_ci_upper,
+            },
+            "te": {
+                "point": est.te_point,
+                "ci_lower": est.te_ci_lower,
+                "ci_upper": est.te_ci_upper,
+            },
+            "proportion_mediated": {
+                "point": est.proportion_mediated_point,
+                "ci_lower": est.proportion_mediated_ci_lower,
+                "ci_upper": est.proportion_mediated_ci_upper,
+            },
+            # Outcome coefficients + per-mediator standardized means. On the
+            # LINEAR path verify_mediation_numeric re-derives NDE / NIE from
+            # these independently (the joint analog of four_way_ratio's
+            # recorded coefficients); on the logit path only the construction
+            # identities are re-checkable (the honest ceiling).
+            "sufficient_statistics": est.sufficient_statistics,
+            "reference": (
+                "VanderWeele & Vansteelandt 2014 (Mediation analysis with "
+                "multiple mediators); joint NDE/NIE through the mediator set."
+            ),
+        },
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+
+    # NOTE: status stays "structurally_solved" — the joint identification
+    # answer is primary; the numeric_estimate is supplementary, mirroring
+    # the single-mediator path.
 
 
 # Upper bound on the supplementary ratio-scale four-way bootstrap (a

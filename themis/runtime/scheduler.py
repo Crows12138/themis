@@ -157,6 +157,13 @@ def _structural_mediation_assumptions(
             "adjustment_set_blocks_mediator_outcome_backdoor_given_treatment",
             "consistency_of_potential_outcomes",
         )
+    if strategy == "joint_nde_nie":
+        return (
+            "vanderweele_vansteelandt_2014_joint_natural_effect_conditions",
+            "sequential_ignorability_treatment_and_mediator_set",
+            "no_confounder_of_mediatorset_outcome_affected_by_treatment_outside_the_set",
+            "consistency_of_potential_outcomes",
+        )
     return ()
 
 
@@ -971,6 +978,125 @@ def _dispatch_mediation(
         query_id=stmt.id,
         structural_result=structural_result,
         numeric_result=numeric_result,
+        derivation=derivation,
+        extensions=extensions,
+    )
+
+
+def _dispatch_mediation_joint(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: EffectQuery,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+) -> QueryResult:
+    """Joint multi-mediator identification — VanderWeele-Vansteelandt 2014.
+
+    Invoked from ``_dispatch_effect`` when ``q.mediators`` holds >= 2 atoms.
+    Runs the block NDE/NIE four-condition check over the mediator SET via
+    ``structural_solver.mediation_sets_joint`` and packages the result
+    with ``extensions.mediation_joint_decomposition``.
+
+    Structural identification only. The joint natural effects are numeric
+    against DATA (``themis.estimate`` → ``estimate_mediation_joint``); the
+    THETA/SCM numeric end (declaring the joint mediator distribution as
+    structural coefficients) is a deliberately separate, unbuilt operation,
+    so this stays STRUCTURALLY_SOLVED (matching the single-mediator path's
+    behaviour for a non-boolean treatment). The path-SPECIFIC split through
+    an individual mediator is out of scope (recanting-witness
+    non-identifiability).
+    """
+    x = q.intervention.atom
+    y = q.target.atom
+    ms = frozenset(q.mediators)
+
+    mediation = structural_solver.mediation_sets_joint(
+        graph, x, y, ms, bidirected=bidirected or None
+    )
+
+    nde_nie_info = {
+        "identifiable": mediation.nde_nie.identifiable,
+        "adjustment": sorted(
+            _atom_to_str(a) for a in mediation.nde_nie.adjustment
+        ),
+        "failed_condition": mediation.nde_nie.failed_condition,
+        "assumptions": list(
+            _structural_mediation_assumptions("joint_nde_nie")
+            if mediation.nde_nie.identifiable else ()
+        ),
+    }
+    mediators_str = sorted(_atom_to_str(a) for a in ms)
+
+    if not mediation.mediator_set_valid:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            structural_result=StructuralResult(value=False),
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="mediation_joint:invalid_mediator_set",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "at least one mediator does not lie on a directed "
+                        "path X → ... → M → ... → Y (or the set is empty / "
+                        "contains X or Y); check the mediator declarations "
+                        "or the graph edges"
+                    ),
+                ),
+            ),
+            extensions={
+                "mediation_joint_decomposition": {
+                    "mediators": mediators_str,
+                    "mediator_set_valid": False,
+                    "nde_nie": nde_nie_info,
+                }
+            },
+        )
+
+    # Two-step derivation:
+    #   s1: mediation_nde_nie_joint_check — block four-condition check
+    #   s2: identify_via_mediation_joint  — decomposition decision
+    derivation = (
+        DerivationStep(
+            rule="mediation_nde_nie_joint_check",
+            inputs={
+                "graph": graph,
+                "x": x,
+                "y": y,
+                "mediators": ms,
+                "adjustment": mediation.nde_nie.adjustment,
+            },
+            output=mediation.nde_nie.identifiable,
+            step_id="s1",
+        ),
+        DerivationStep(
+            rule="identify_via_mediation_joint",
+            inputs={"nde_nie": StepRef(step_id="s1")},
+            output=StructuralResult(value=mediation.nde_nie.identifiable),
+            step_id="s2",
+        ),
+    )
+
+    extensions = {
+        "mediation_joint_decomposition": {
+            "mediators": mediators_str,
+            "mediator_set_valid": True,
+            "nde_nie": nde_nie_info,
+            "strategy": (
+                "nde_nie" if mediation.nde_nie.identifiable else "none"
+            ),
+        }
+    }
+
+    return QueryResult(
+        status=ResultStatus.STRUCTURALLY_SOLVED,
+        query_kind=QueryKind.EFFECT,
+        query_id=stmt.id,
+        structural_result=StructuralResult(
+            value=mediation.nde_nie.identifiable
+        ),
         derivation=derivation,
         extensions=extensions,
     )
@@ -3081,7 +3207,11 @@ def _dispatch_joint_effect(
     """
     treatments = (x, *extra_atoms)
 
-    if q.mediator is not None or q.target_population is not None:
+    if (
+        q.mediator is not None
+        or q.mediators
+        or q.target_population is not None
+    ):
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=QueryKind.EFFECT,
@@ -3521,6 +3651,16 @@ def _dispatch_effect(
     # treatment is boolean and theta is sufficient, the kernel computes
     # TE / NDE / NIE / CDE end-to-end rather than emitting structural-
     # only identification and leaving numeric assembly to callers.
+    # Joint multi-mediator (>= 2 atoms): the JOINT natural-effect
+    # decomposition through the mediator SET as one block
+    # (VanderWeele-Vansteelandt 2014). Short-circuit BEFORE the single-
+    # mediator path — treating the set as a block is what makes it
+    # identifiable without assuming the ordering among the mediators.
+    if len(q.mediators) >= 2:
+        return _dispatch_mediation_joint(
+            stmt, graph, q, bidirected=bidirected,
+        )
+
     if q.mediator is not None:
         return _dispatch_mediation(
             stmt, graph, q, theta, bidirected=bidirected,

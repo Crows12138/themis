@@ -1274,6 +1274,50 @@ def verify_mediation_numeric(estimate: dict) -> None:
                    "decomposition.nde==PNDE(cell_means)", "decomposition")
             _close(tnie_cells, nie,
                    "decomposition.nie==TNIE(cell_means)", "decomposition")
+        # STRONG (JOINT linear path): re-derive the joint NDE/NIE from the
+        # recorded outcome coefficients + per-mediator standardized means,
+        # independently of the estimator. For a linear outcome with only
+        # X:M_j interactions (no M_j:M_l), the joint natural effects are
+        #   NDE = beta_x + sum_j gamma_j * q_j0
+        #   NIE = sum_j (beta_j + gamma_j) * (q_j1 - q_j0)
+        # (the cross-mediator correlation cancels in the expectation). On the
+        # joint LOGIT path the reported NDE/NIE come from a Monte-Carlo joint
+        # integration over M and are not re-derivable here — only the
+        # construction identities below apply (the honest ceiling).
+        if estimate.get("method") == "mediation_joint_linear":
+            ss = dec.get("sufficient_statistics")
+            if ss is None:
+                _fail(
+                    "mediation_joint_linear decomposition missing "
+                    "sufficient_statistics — cannot re-derive",
+                    "decomposition",
+                )
+            oc = ss.get("outcome_coefficients") or {}
+            mmeans = ss.get("mediator_means") or {}
+            beta_x = oc.get("treatment")
+            betas = oc.get("mediators") or {}
+            gammas = oc.get("interactions") or {}
+            if beta_x is None or not betas or set(betas) != set(mmeans):
+                _fail(
+                    "mediation_joint_linear sufficient_statistics malformed "
+                    "(missing treatment / mediators / mediator_means mismatch)",
+                    "decomposition",
+                )
+            nde_rd = float(beta_x) + sum(
+                float(gammas[name]) * float(mmeans[name]["m0"])
+                for name in betas
+            )
+            nie_rd = sum(
+                (float(betas[name]) + float(gammas[name]))
+                * (float(mmeans[name]["m1"]) - float(mmeans[name]["m0"]))
+                for name in betas
+            )
+            _close(nde_rd, nde,
+                   "decomposition.nde==joint_bridge(coeffs,means)",
+                   "decomposition")
+            _close(nie_rd, nie,
+                   "decomposition.nie==joint_bridge(coeffs,means)",
+                   "decomposition")
         _close(nde + nie, te, "decomposition.nde+nie==te", "decomposition")
         pm = dec.get("proportion_mediated")
         if pm is not None and abs(te) > _MEDIATION_TOL:
@@ -2995,6 +3039,11 @@ def verify_effect_structural(
     last_rule = derivation[-1].rule
     if last_rule not in (
         "identify_via_mediation",
+        # Joint multi-mediator block decomposition (VanderWeele-Vansteelandt
+        # 2014). Structurally identified before the estimation dispatch
+        # attaches the joint estimate_mediation_joint number; verified
+        # structurally when no data attaches.
+        "identify_via_mediation_joint",
         "identify_via_transport",
         "identify_via_joint_backdoor",
         # Phase 7.L — longitudinal g-formula (sequential back-door) of a
@@ -3012,8 +3061,9 @@ def verify_effect_structural(
     ):
         raise VerificationError(
             "structural effect derivation must end in identify_via_mediation, "
-            "identify_via_transport, identify_via_joint_backdoor, "
-            "identify_via_gformula, or identify_via_general_id; got "
+            "identify_via_mediation_joint, identify_via_transport, "
+            "identify_via_joint_backdoor, identify_via_gformula, or "
+            "identify_via_general_id; got "
             + repr(last_rule),
             step_index=len(derivation) - 1, rule=last_rule,
         )

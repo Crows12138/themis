@@ -2930,6 +2930,9 @@ def _query_referenced_predicates(stmt) -> frozenset[str]:
     _add_atom(getattr(q, "intervention", None))
     _add_atom(getattr(q, "target", None))
     _add_atom(getattr(q, "mediator", None))
+    # Joint multi-mediator set: each M_j is a referenced column too.
+    for _m in (getattr(q, "mediators", None) or ()):
+        _add_atom(_m)
     given = getattr(q, "given", None)
     if given:
         for entry in given:

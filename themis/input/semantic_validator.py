@@ -168,12 +168,14 @@ def _to_query(d: dict):
                 monotonicity=Monotonicity(mono) if mono else None,
             )
         extra_raw = d.get("extra_interventions") or ()
+        mediators_raw = d.get("mediators") or ()
         return EffectQuery(
             target=_to_grounded(d["target"]),
             intervention=_to_intervention(d["intervention"]),
             extra_interventions=tuple(_to_intervention(iv) for iv in extra_raw),
             given=tuple(_to_grounded(a) for a in d["given"]),
             mediator=_to_atom(mediator_raw) if mediator_raw is not None else None,
+            mediators=tuple(_to_atom(a) for a in mediators_raw),
             target_population=d.get("target_population"),
             assumptions=eq_assumptions,
         )

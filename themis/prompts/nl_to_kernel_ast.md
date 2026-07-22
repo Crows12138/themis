@@ -611,8 +611,32 @@ Distinction from front-door: front-door **identifies TE** when X-Y is
 confounded; mediation **decomposes TE** into direct + indirect. The
 decision point: does the user want one number or a split?
 
-First version supports a single mediator only. For a chain
-`M1 → M2`, pick the proximal-to-Y mediator and flag the other.
+**Multiple mediators.** When the narrative names two or more mediators
+and the user asks how much of the effect runs through them *together*
+("通过代谢改善**和**食欲下降一共占多少", "这几条中介合起来占比"), set
+`query.mediators` to the SET (a list of mediator atoms) instead of the
+singular `query.mediator`:
+
+```json
+"query": {
+  "kind": "effect",
+  "intervention": {"atom": <x>, "value": true},
+  "target": {"atom": <y>, "value": true},
+  "given": [],
+  "mediators": [<m1>, <m2>]
+}
+```
+
+`mediators` decomposes the effect through the whole set as one **block**
+— a joint direct effect and a joint indirect effect. This is what the
+kernel can identify without knowing the causal ordering among the
+mediators. It does **not** split the indirect effect into "how much
+through M1 alone vs M2 alone" — that path-specific attribution is a
+different, generally non-identifiable question (a recanting-witness
+problem), so don't promise it. If the user asks to separate individual
+mediators' contributions, still emit the set and let the kernel report
+the joint split. Use singular `mediator` for one mediator, `mediators`
+for two or more — never both.
 
 ##### Front-door
 

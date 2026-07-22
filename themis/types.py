@@ -237,6 +237,15 @@ class EffectQuery:
     # than a plain total effect. Default None preserves pre-mediation
     # semantics and JSON schema compatibility.
     mediator: Atom | None = None
+    # Joint multi-mediator: when this holds >= 2 atoms, the query asks for
+    # the JOINT natural-effect decomposition (joint NDE/NIE) through the
+    # mediator SET taken as one block (VanderWeele-Vansteelandt 2014),
+    # rather than a single-mediator split. Mutually exclusive with a
+    # single ``mediator``: the scheduler routes k>=2 here and a lone
+    # ``mediator`` through the single-mediator path. DEFAULT empty tuple
+    # keeps every single-mediator / plain-effect program byte-identical —
+    # the field is omitted from serialization when empty.
+    mediators: tuple[Atom, ...] = ()
     # Phase 9 §T9.1: when set, asks for the effect in this target
     # population (transport identification path). None preserves
     # pre-transport semantics.

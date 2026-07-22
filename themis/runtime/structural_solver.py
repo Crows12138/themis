@@ -985,6 +985,177 @@ def _search_mediation_adjustment(
 
 
 # =====================================================================
+# Joint multi-mediator natural effects — VanderWeele-Vansteelandt 2014.
+# The natural direct/indirect effects through a SET of mediators taken as
+# one block. Treating the set as a block is what makes the decomposition
+# identifiable without knowing the causal ORDERING among the mediators: a
+# recanting witness INSIDE the set does not break the joint split (only a
+# path-SPECIFIC split through one member would). CDE-for-a-set is a
+# distinct quantity and is not identified here.
+# =====================================================================
+
+
+class MediationJointResult(NamedTuple):
+    """Identification result for the JOINT natural effects through a
+    mediator SET (X, {M_1..M_k}, Y).
+
+    - ``mediators``: the mediator set queried.
+    - ``nde_nie``: the joint NDE/NIE ``MediationAttempt`` (identifiable +
+      adjustment W + failing condition on the smallest attempted W).
+    - ``mediator_set_valid``: False if some M_j does not mediate X→Y
+      (no X→M_j directed path or no M_j→Y directed path) or the set is
+      degenerate (empty, or contains X / Y).
+    """
+
+    mediators: frozenset[Atom]
+    nde_nie: MediationAttempt
+    mediator_set_valid: bool
+
+
+def _mutilate_outgoing_set(graph: nx.DiGraph, nodes) -> nx.DiGraph:
+    """Return a copy of ``graph`` with all edges leaving EVERY node in
+    ``nodes`` removed — the block-mediator analog of ``_mutilate_outgoing``
+    (Pearl's ``G_{\\overline{M_set}}``). Cutting every set member's
+    outgoing edges is what removes the intra-set confounding path a
+    recanting witness would otherwise open.
+    """
+    g = graph.copy()
+    for n in nodes:
+        g.remove_edges_from(list(g.out_edges(n)))
+    return g
+
+
+def _check_nde_nie_joint_with_w(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    ms: "frozenset[Atom]",
+    w: frozenset[Atom],
+    bidirected: "BidirectedEdgeSet",
+) -> str | None:
+    """Return None iff the joint NDE/NIE conditions hold for the mediator
+    SET ``ms`` under adjustment set W; else the first failing label.
+
+    The single-mediator four conditions (Pearl 2001, Theorem 2) with M
+    replaced by the vector M_set (VanderWeele-Vansteelandt 2014):
+
+      M4: W contains no descendant of X.
+      M1: Y _|_ X | W        in G_Xbar.
+      M2: M_set _|_ X | W     in G_Xbar        (checked per member).
+      M3: Y _|_ M_set | X, W  in G_Msetbar     (ALL set outgoing removed).
+
+    Treating the set as a block is what tolerates a recanting witness
+    INSIDE the set: cutting every set member's outgoing edges removes the
+    intra-set confounding path, so M3 passes where the single-mediator M4
+    check would fail on the confounded member.
+    """
+    # M4: W contains no descendant of X.
+    x_desc = nx.descendants(graph, x)
+    if w & x_desc:
+        return "M4"
+
+    w_tuple = tuple(w)
+
+    # M1: Y _|_ X | W in G_Xbar.
+    g_bar_x = _mutilate_outgoing(graph, x)
+    if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
+        return "M1"
+
+    # M2: each M_j _|_ X | W in G_Xbar.
+    for m in ms:
+        if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
+            return "M2"
+
+    # M3: each M_j _|_ Y | X, W in G_Msetbar (all set outgoing removed).
+    g_bar_ms = _mutilate_outgoing_set(graph, ms)
+    xw_tuple = tuple(w | {x})
+    for m in ms:
+        if is_m_connected(g_bar_ms, bidirected, m, y, xw_tuple):
+            return "M3"
+
+    return None
+
+
+def mediation_sets_joint(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    mediators: "frozenset[Atom] | tuple[Atom, ...]",
+    *,
+    bidirected: "BidirectedEdgeSet | None" = None,
+    max_adjustment_size: int = 3,
+) -> MediationJointResult:
+    """Identify the JOINT natural effects (joint NDE / joint NIE) through a
+    mediator SET {M_1..M_k}, treated as one block.
+
+    Only the NDE/NIE (natural-effect) block strategy is attempted — the
+    joint decomposition of the total effect into "through the set" and
+    "not through the set". CDE-for-a-set is a distinct quantity and is not
+    identified here.
+
+    Structural prerequisite: every M_j must mediate — a directed
+    ``X -> ... -> M_j`` and ``M_j -> ... -> Y`` path must both exist — the
+    set must be non-empty, and no member may be X or Y. Otherwise
+    ``mediator_set_valid`` is False and the attempt is non-identifiable
+    with no specific failure code.
+
+    Subset-minimal search over the adjustment set W (smallest first);
+    returns the first W satisfying the joint conditions. The W pool
+    excludes X, Y, every mediator, and X-descendants (M4 pre-filter).
+
+    Reference: VanderWeele & Vansteelandt 2014 "Mediation analysis with
+    multiple mediators" (Epidemiologic Methods); Pearl 2001 is the k=1
+    special case.
+    """
+    ms = frozenset(mediators)
+
+    mediator_set_ok = (
+        len(ms) >= 1
+        and x in graph and y in graph and x != y
+        and x not in ms and y not in ms
+        and all(m in graph for m in ms)
+        and all(
+            nx.has_path(graph, x, m) and nx.has_path(graph, m, y)
+            for m in ms
+        )
+    )
+
+    if not mediator_set_ok:
+        return MediationJointResult(
+            mediators=ms,
+            nde_nie=MediationAttempt(
+                identifiable=False,
+                adjustment=frozenset(),
+                failed_condition=None,
+            ),
+            mediator_set_valid=False,
+        )
+
+    bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
+
+    x_desc = nx.descendants(graph, x)
+    w_pool = [
+        n for n in graph.nodes
+        if n != x and n != y and n not in ms and n not in x_desc
+    ]
+
+    # Reuse the single-mediator subset searcher: it passes its ``m``
+    # argument straight through to the checker, so handing it the mediator
+    # SET and the joint checker performs the joint search unchanged.
+    attempt = _search_mediation_adjustment(
+        graph, x, y, ms, w_pool, bidir_eff,
+        max_adjustment_size, _check_nde_nie_joint_with_w,
+        default_failed="M4",
+    )
+
+    return MediationJointResult(
+        mediators=ms,
+        nde_nie=attempt,
+        mediator_set_valid=True,
+    )
+
+
+# =====================================================================
 # Phase 2.latent S2 — ADMG primitives (solver-only, no scheduler hookup)
 #
 # m-separation and c-component decomposition on a mixed graph. Charter:

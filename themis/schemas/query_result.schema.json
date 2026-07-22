@@ -526,6 +526,7 @@
             "frontdoor_linear", "frontdoor_logistic",
             "iv_wald", "iv_2sls", "iv_2sls_overid",
             "mediation_linear_imai", "mediation_logit_imai",
+            "mediation_joint_linear", "mediation_joint_logit",
             "joint_backdoor_linear", "joint_backdoor_logistic",
             "dose_response_linear_dml",
             "dose_response_causal_forest_dml",
@@ -1251,7 +1252,7 @@
             },
             "proportion_mediated": {
               "type": "object",
-              "description": "NIE / TE — the fraction of the total effect that flows through the mediator. Renderer surfaces this directly as the answer to attribution-flavored questions ('X 占多大份额', '是不是因为 M').",
+              "description": "NIE / TE — the fraction of the total effect that flows through the mediator (or, for a mediator SET, through the set as a block). Renderer surfaces this directly as the answer to attribution-flavored questions ('X 占多大份额', '是不是因为 M').",
               "required": ["point", "ci_lower", "ci_upper"],
               "additionalProperties": false,
               "properties": {
@@ -1260,7 +1261,38 @@
                 "ci_upper": { "type": "number" },
                 "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
-            }
+            },
+            "sufficient_statistics": {
+              "type": "object",
+              "description": "Joint multi-mediator decomposition only (method mediation_joint_*): the outcome-model coefficients and per-mediator standardized means from which verify_mediation_numeric re-derives the joint NDE/NIE independently on the linear path (NDE = beta_x + sum_j gamma_j * q_j0; NIE = sum_j (beta_j + gamma_j)(q_j1 - q_j0)).",
+              "properties": {
+                "outcome_coefficients": {
+                  "type": "object",
+                  "properties": {
+                    "treatment": { "type": "number" },
+                    "mediators": {
+                      "type": "object",
+                      "additionalProperties": { "type": "number" }
+                    },
+                    "interactions": {
+                      "type": "object",
+                      "additionalProperties": { "type": "number" }
+                    }
+                  }
+                },
+                "mediator_means": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "m0": { "type": "number" },
+                      "m1": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            },
+            "reference": { "type": "string" }
           }
         },
         "four_way_decomposition": {

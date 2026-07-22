@@ -1877,6 +1877,143 @@ def _rule_identify_via_mediation(
         )
 
 
+def _rule_mediation_nde_nie_joint_check(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+) -> None:
+    """Verify the JOINT NDE/NIE four-condition check for a mediator SET
+    (VanderWeele-Vansteelandt 2014) — Pearl's conditions with M a vector:
+
+    M1: Y m-separated from X given W            in G\\bar{X}
+    M2: each M_j m-separated from X given W     in G\\bar{X}
+    M3: each M_j m-separated from Y given {X}∪W in G\\bar{M_set}
+        (outgoing edges of EVERY set member removed)
+    M4: W contains no descendants of X in G
+
+    Treating the set as a block is what tolerates a recanting witness
+    inside the set: removing every member's outgoing edges cuts the
+    intra-set confounding path, so M3 passes where a single-mediator M4
+    would fail. Independent reimplementation — does not call
+    structural_solver.
+    """
+    rule = "mediation_nde_nie_joint_check"
+    graph = _require(inputs, "graph", step_index, rule)
+    _assert_same_graph(graph, ctx.graph, step_index, rule)
+    x = _require_atom(inputs, "x", step_index, rule)
+    y = _require_atom(inputs, "y", step_index, rule)
+    ms = _require_atom_set(inputs, "mediators", step_index, rule)
+    w = _require_atom_set(inputs, "adjustment", step_index, rule)
+
+    if not ms:
+        raise RuleCheckFailed(
+            f"{rule}: mediator set must be non-empty",
+            step_index=step_index, rule=rule,
+        )
+    if x not in graph or y not in graph or not (ms <= set(graph.nodes)):
+        raise RuleCheckFailed(
+            f"{rule}: x, y, or a mediator missing from graph",
+            step_index=step_index, rule=rule,
+        )
+    if x == y or x in ms or y in ms:
+        raise RuleCheckFailed(
+            f"{rule}: x, y, and every mediator must be distinct",
+            step_index=step_index, rule=rule,
+        )
+    if w & ({x, y} | ms):
+        raise RuleCheckFailed(
+            f"{rule}: adjustment must not contain x, y, or any mediator",
+            step_index=step_index, rule=rule,
+        )
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+
+    # M4: W has no X-descendants.
+    x_desc = _verifier_directed_descendants(graph, x)
+    m4 = not (w & x_desc)
+
+    w_tuple = tuple(w)
+
+    # G\bar{X}
+    g_bar_x = graph.copy()
+    g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
+
+    # M1: Y ⊥ X | W
+    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w_tuple)
+    # M2: each M_j ⊥ X | W
+    m2 = all(
+        not _verifier_is_m_connected(g_bar_x, bidir, x, m, w_tuple)
+        for m in ms
+    )
+
+    # G\bar{M_set}: remove outgoing edges of EVERY mediator.
+    g_bar_ms = graph.copy()
+    for m in ms:
+        g_bar_ms.remove_edges_from(list(g_bar_ms.out_edges(m)))
+    xw_tuple = tuple(w | {x})
+    # M3: each M_j ⊥ Y | {X}∪W
+    m3 = all(
+        not _verifier_is_m_connected(g_bar_ms, bidir, m, y, xw_tuple)
+        for m in ms
+    )
+
+    recomputed = m1 and m2 and m3 and m4
+    if recomputed != bool(claimed_output):
+        raise RuleCheckFailed(
+            f"{rule} claimed {claimed_output!r}, recomputed {recomputed!r} "
+            f"(M1={m1}, M2={m2}, M3={m3}, M4={m4})",
+            step_index=step_index, rule=rule,
+        )
+
+
+def _rule_identify_via_mediation_joint(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
+    """Consume a mediation_nde_nie_joint_check and conclude structural
+    identifiability of the joint natural-effect decomposition.
+
+    ``claimed_output.value`` must equal the referenced joint-check output
+    (there is no CDE branch for a mediator set — the joint block strategy
+    is the only one attempted).
+    """
+    rule = "identify_via_mediation_joint"
+    nde_ref = _require(inputs, "nde_nie", step_index, rule)
+    if not isinstance(nde_ref, StepRef):
+        raise UnknownRuleInputError(
+            f"{rule} nde_nie input must be StepRef",
+            step_index=step_index, rule=rule,
+        )
+    nde_step = step_by_id.get(nde_ref.step_id)
+    nde_out = step_output_by_id.get(nde_ref.step_id)
+    if nde_step is None:
+        raise RuleCheckFailed(
+            f"{rule}: referenced step missing",
+            step_index=step_index, rule=rule,
+        )
+    if nde_step.rule != "mediation_nde_nie_joint_check":
+        raise RuleCheckFailed(
+            f"{rule}: nde_nie must reference mediation_nde_nie_joint_check",
+            step_index=step_index, rule=rule,
+        )
+    if not isinstance(claimed_output, StructuralResult):
+        raise RuleCheckFailed(
+            f"{rule} output must be a StructuralResult",
+            step_index=step_index, rule=rule,
+        )
+    if claimed_output.value is not bool(nde_out):
+        raise RuleCheckFailed(
+            f"{rule} output.value must be {bool(nde_out)!r} "
+            f"(nde_nie={nde_out!r}), got {claimed_output.value!r}",
+            step_index=step_index, rule=rule,
+        )
+
+
 def _rule_longitudinal_sequential_exchangeability_check(
     ctx: VerificationContext,
     inputs: dict,
@@ -7637,6 +7774,9 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 6.mediation S.M.3
     "mediation_nde_nie_check": _rule_mediation_nde_nie_check,
     "mediation_cde_check": _rule_mediation_cde_check,
+    # Joint multi-mediator (VanderWeele-Vansteelandt 2014) — the block
+    # NDE/NIE four-condition check over a mediator SET.
+    "mediation_nde_nie_joint_check": _rule_mediation_nde_nie_joint_check,
     # Phase 7.L — longitudinal g-formula / sequential back-door: independent
     # per-time sequential-exchangeability re-check (single-step aggregate).
     "longitudinal_sequential_exchangeability_check": _rule_longitudinal_sequential_exchangeability_check,
@@ -7662,6 +7802,8 @@ _STEP_REF_RULES = {
     "identify_via_front_door",
     "identify_via_iv",
     "identify_via_mediation",
+    # Joint multi-mediator block decomposition terminal (no CDE branch).
+    "identify_via_mediation_joint",
     "numeric_result",
     # Phase 7.1 S.N.4
     "numeric_backdoor_estimate",
@@ -7737,6 +7879,11 @@ def dispatch_rule(
         return
     if rule_name == "identify_via_mediation":
         _rule_identify_via_mediation(
+            ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
+        )
+        return
+    if rule_name == "identify_via_mediation_joint":
+        _rule_identify_via_mediation_joint(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
         )
         return

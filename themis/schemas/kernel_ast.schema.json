@@ -450,7 +450,14 @@
         },
         "mediator": {
           "$ref": "atom.schema.json#/$defs/atom",
-          "description": "Phase 6.mediation: when present, the query asks for a mediation decomposition (NDE/NIE/CDE) through this mediator atom rather than a plain total effect. Omitting the field preserves total-effect semantics."
+          "description": "Phase 6.mediation: when present, the query asks for a mediation decomposition (NDE/NIE/CDE) through this single mediator atom rather than a plain total effect. Omitting the field preserves total-effect semantics. For two or more mediators, use `mediators` instead."
+        },
+        "mediators": {
+          "type": "array",
+          "description": "Joint multi-mediator decomposition (VanderWeele-Vansteelandt 2014): when present with two or more atoms, the query asks for the JOINT natural-effect split (joint NDE / joint NIE / proportion mediated) through the mediator SET taken as one block, rather than a single-mediator split. Treating the set as a block makes it identifiable without assuming the causal ordering among the mediators; a path-specific split through one individual mediator is deliberately not supported (it hits a recanting-witness non-identifiability). Mutually exclusive with the singular `mediator`. Omitting the field (or an empty array) preserves single-mediator / total-effect semantics byte-for-byte.",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/atom"
+          }
         },
         "target_population": {
           "$ref": "#/$defs/populationName",

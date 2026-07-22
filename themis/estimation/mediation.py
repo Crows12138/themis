@@ -430,6 +430,324 @@ def estimate_mediation(
 
 
 @dataclass(frozen=True)
+class MediationJointEstimate:
+    """VanderWeele-Vansteelandt 2014 joint natural-effect decomposition
+    through a SET of mediators M = {M_1, ..., M_k} treated as one block.
+
+    Answers "how much of X's effect on Y flows through the mediators
+    {M_1, ..., M_k} TAKEN TOGETHER" — the joint NDE, joint NIE, total
+    effect, and proportion mediated. Treating the mediators as one block
+    is exactly what makes the decomposition identifiable WITHOUT knowing
+    (or assuming) the causal ordering AMONG the mediators: a "recanting
+    witness" inside the set (a mediator that also confounds another
+    mediator's effect) does not break the JOINT split — only a
+    path-SPECIFIC split through one individual mediator would, and that
+    is deliberately out of scope (it hits genuine non-identifiability).
+
+    Scope (v1):
+    - k >= 1 mediators. k == 1 is a valid degenerate that reproduces
+      ``estimate_mediation``'s point on the linear path (both plug in the
+      marginal mediator mean); dispatch routes k == 1 through the single-
+      mediator estimator and only k >= 2 here.
+    - Binary treatment; bool or continuous outcome (logit / OLS).
+    - Outcome model ``Y ~ X + sum(M_j) + sum(X:M_j) [+ Z]``: the exposure
+      × each-mediator interactions are INCLUDED (so the joint natural
+      effects are correct under X-M interaction). Mediator × mediator
+      interactions are NOT modelled — declared v1 scope. Under a LINEAR
+      outcome this makes the joint NDE/NIE depend only on the marginal
+      mediator means E[M_j|X] (the cross-mediator correlation drops out),
+      so the plug-in is exact. Under a LOGIT outcome the nonlinearity
+      makes the correlation matter, so the mediators are drawn JOINTLY
+      (Gaussian residual copula on the k mediator models) to preserve it.
+    - No four-way (CDE/INTref/INTmed/PIE) split: that construction is
+      single-mediator-specific and does not generalize to a set.
+    """
+
+    nde_point: float
+    nde_ci_lower: float
+    nde_ci_upper: float
+    nie_point: float
+    nie_ci_lower: float
+    nie_ci_upper: float
+    te_point: float
+    te_ci_lower: float
+    te_ci_upper: float
+    proportion_mediated_point: float
+    proportion_mediated_ci_lower: float
+    proportion_mediated_ci_upper: float
+    ci_level: float
+    method: str            # "mediation_joint_linear" | "mediation_joint_logit"
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    adjustment: tuple[str, ...]
+    mediators: tuple[str, ...]
+    treatment: str
+    outcome: str
+    n_rep: int
+    # Sufficient statistics for the verifier's STRONG re-derivation on the
+    # LINEAR path: the outcome-model coefficients (beta_x; per-mediator main
+    # beta_j and interaction gamma_j) plus each mediator's standardized means
+    # q_j0 = E[M_j|X=0], q_j1 = E[M_j|X=1]. From these the verifier re-derives
+    #   NDE = beta_x + sum_j gamma_j * q_j0
+    #   NIE = sum_j (beta_j + gamma_j) * (q_j1 - q_j0)
+    # independently (the joint analog of four_way_ratio recording its
+    # coefficients). On the logit path these still record the fit, but the
+    # reported NDE/NIE come from a Monte-Carlo joint integration over M, so
+    # only the construction identities (TE = NDE+NIE, prop = NIE/TE) are
+    # re-checkable there — the honest ceiling, same as the single-mediator
+    # logit path.
+    sufficient_statistics: dict
+    cluster: str | None = None
+
+
+def _joint_mediation_assumptions(
+    model: str, n_adj: int, is_logit: bool, cluster: str | None,
+) -> tuple[str, ...]:
+    a = (
+        "sequential_ignorability_treatment_and_mediator_set",
+        "no_confounder_of_mediatorset_outcome_affected_by_treatment_outside_the_set",
+        "vanderweele_vansteelandt_2014_joint_natural_effect_conditions",
+        "no_mediator_mediator_interaction_in_outcome_model",
+    )
+    if model == "linear":
+        a = a + ("linear_outcome_regression",)
+    elif model == "logit":
+        a = a + ("logit_outcome_regression",)
+    if is_logit:
+        a = a + ("mediators_drawn_jointly_via_gaussian_residual_copula",)
+    if n_adj > 0:
+        a = a + (
+            "adjustment_set_blocks_mediatorset_outcome_backdoor_given_treatment",
+        )
+    if cluster is not None:
+        a = a + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
+    return a
+
+
+def estimate_mediation_joint(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    mediators: tuple[str, ...],
+    adjustment: tuple[str, ...] = (),
+    model: str = "auto",
+    n_rep: int = 200,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> MediationJointEstimate:
+    """Joint natural-effect decomposition through a mediator SET.
+
+    See ``MediationJointEstimate`` for scope. The estimator mirrors
+    ``estimate_mediation`` but with M a vector:
+
+    - Outcome model ``Y ~ X + sum(M_j) + sum(X:M_j) [+ Z]``.
+    - One mediator model ``M_j ~ X [+ Z]`` per mediator.
+    - g-formula natural effects: NDE = E[Y_{1,M0} - Y_{0,M0}],
+      NIE = E[Y_{1,M1} - Y_{1,M0}] with M_x drawn from P(M | X=x). On a
+      LINEAR outcome the marginal means E[M_j|X] are plugged in (exact,
+      correlation-free). On a LOGIT outcome the k mediators are drawn
+      JOINTLY from a Gaussian residual copula (mean = fitted E[M_j|X],
+      covariance = the k×k residual covariance of the mediator models),
+      preserving their conditional correlation through the nonlinearity.
+    - Percentile bootstrap CIs (optionally cluster bootstrap).
+
+    Raises ``ValueError`` on an empty mediator set or a duplicate.
+    """
+    mediators = tuple(mediators)
+    if len(mediators) == 0:
+        raise ValueError(
+            "estimate_mediation_joint requires at least one mediator"
+        )
+    if len(set(mediators)) != len(mediators):
+        raise ValueError(f"duplicate mediator in {mediators!r}")
+
+    required = {treatment, outcome, *mediators, *adjustment}
+    groups = (
+        cluster_labels(data, cluster, expected_n=len(data))
+        if cluster is not None else None
+    )
+    contract = validate_data(
+        data, required_columns=required,
+        presence_columns=(cluster,) if cluster is not None else (),
+    )
+    df = contract.data
+
+    is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
+    resolved = (
+        ("logit" if is_bool_outcome else "linear")
+        if model == "auto" else model
+    )
+
+    fit_df = df.copy()
+    for c in [c for c in fit_df.columns if fit_df[c].dtype == bool]:
+        fit_df[c] = fit_df[c].astype(float)
+
+    adj_term = " + ".join(adjustment) if adjustment else ""
+    sep = " + " if adj_term else ""
+
+    med_main = " + ".join(mediators)
+    med_inter = " + ".join(f"{treatment}:{m}" for m in mediators)
+    outcome_formula = (
+        f"{outcome} ~ {treatment} + {med_main} + {med_inter}{sep}{adj_term}"
+    )
+    if resolved == "logit":
+        is_logit = True
+        method = "mediation_joint_logit"
+    elif resolved == "linear":
+        is_logit = False
+        method = "mediation_joint_linear"
+    else:
+        raise ValueError(f"unknown model {model!r}")
+
+    mediator_formulas = [f"{m} ~ {treatment}{sep}{adj_term}" for m in mediators]
+
+    rng = np.random.default_rng(random_state)
+    n_sim = 100
+
+    def _fit(frame: pd.DataFrame):
+        if is_logit:
+            om = sm.Logit.from_formula(outcome_formula, data=frame).fit(disp=0)
+        else:
+            om = sm.OLS.from_formula(outcome_formula, data=frame).fit()
+        mms = [
+            sm.OLS.from_formula(f, data=frame).fit() for f in mediator_formulas
+        ]
+        return om, mms
+
+    def _mu(mm, frame: pd.DataFrame, xval: float):
+        d = frame.copy()
+        d[treatment] = xval
+        return np.asarray(mm.predict(d))
+
+    def _nde_nie(om, mms, frame: pd.DataFrame) -> tuple[float, float]:
+        def _EY(xval: float, m_vecs, base: pd.DataFrame):
+            d = base.copy()
+            d[treatment] = xval
+            for name, vals in zip(mediators, m_vecs):
+                d[name] = vals
+            return np.asarray(om.predict(d))
+
+        if is_logit:
+            mu0 = [_mu(mm, frame, 0.0) for mm in mms]
+            mu1 = [_mu(mm, frame, 1.0) for mm in mms]
+            # Joint residual covariance across the k mediator models — the
+            # cross-mediator dependence the nonlinear outcome is sensitive to.
+            resid = np.column_stack([np.asarray(mm.resid) for mm in mms])
+            sigma = np.atleast_2d(np.cov(resid, rowvar=False, ddof=1))
+            k = len(frame)
+            zeros = np.zeros(len(mediators))
+            big = pd.concat([frame] * n_sim, ignore_index=True)
+            d0 = rng.multivariate_normal(zeros, sigma, size=n_sim * k)
+            d1 = rng.multivariate_normal(zeros, sigma, size=n_sim * k)
+            m0 = [np.tile(mu0[i], n_sim) + d0[:, i] for i in range(len(mediators))]
+            m1 = [np.tile(mu1[i], n_sim) + d1[:, i] for i in range(len(mediators))]
+            nde = float(np.mean(_EY(1.0, m0, big) - _EY(0.0, m0, big)))
+            nie = float(np.mean(_EY(1.0, m1, big) - _EY(1.0, m0, big)))
+            return nde, nie
+        # Linear outcome: E[Y|X,M] linear in each M_j and no M_j:M_l term,
+        # so plugging in the marginal means E[M_j|X] is exact (the
+        # cross-mediator correlation cancels in the expectation).
+        m0 = [_mu(mm, frame, 0.0) for mm in mms]
+        m1 = [_mu(mm, frame, 1.0) for mm in mms]
+        nde = float(np.mean(_EY(1.0, m0, frame) - _EY(0.0, m0, frame)))
+        nie = float(np.mean(_EY(1.0, m1, frame) - _EY(1.0, m0, frame)))
+        return nde, nie
+
+    def _coef(params, *cands) -> float:
+        for c in cands:
+            if c in params.index:
+                return float(params[c])
+        raise KeyError(f"none of {cands} in fitted outcome coefficients")
+
+    om_point, mms_point = _fit(fit_df)
+    nde_p, nie_p = _nde_nie(om_point, mms_point, fit_df)
+    te_p = nde_p + nie_p
+    pm_p = nie_p / te_p if te_p != 0 else float("nan")
+
+    # Sufficient statistics for the linear-path strong re-derivation.
+    params = om_point.params
+    suff = {
+        "outcome_coefficients": {
+            "treatment": _coef(params, treatment),
+            "mediators": {
+                m: _coef(params, m) for m in mediators
+            },
+            "interactions": {
+                m: _coef(params, f"{treatment}:{m}", f"{m}:{treatment}")
+                for m in mediators
+            },
+        },
+        "mediator_means": {
+            m: {
+                "m0": float(np.mean(_mu(mm, fit_df, 0.0))),
+                "m1": float(np.mean(_mu(mm, fit_df, 1.0))),
+            }
+            for m, mm in zip(mediators, mms_point)
+        },
+    }
+
+    n_rows = len(fit_df)
+    nde_s: list[float] = []
+    nie_s: list[float] = []
+    te_s: list[float] = []
+    pm_s: list[float] = []
+    for _ in range(n_rep):
+        idx = resample_indices(n_rows, rng, groups=groups)
+        bframe = fit_df.iloc[idx].reset_index(drop=True)
+        try:
+            om_b, mms_b = _fit(bframe)
+            nb, ib = _nde_nie(om_b, mms_b, bframe)
+        except Exception:
+            continue
+        tb = nb + ib
+        nde_s.append(nb)
+        nie_s.append(ib)
+        te_s.append(tb)
+        pm_s.append(ib / tb if tb != 0 else float("nan"))
+
+    half = (1.0 - ci_level) / 2.0
+
+    def _ci(samples: list[float], point: float) -> tuple[float, float]:
+        arr = np.array([s for s in samples if np.isfinite(s)], dtype=float)
+        if arr.size < 2:
+            return point, point
+        lo = float(np.quantile(arr, half))
+        hi = float(np.quantile(arr, 1.0 - half))
+        return min(lo, point), max(hi, point)
+
+    nde_lo, nde_hi = _ci(nde_s, nde_p)
+    nie_lo, nie_hi = _ci(nie_s, nie_p)
+    te_lo, te_hi = _ci(te_s, te_p)
+    pm_lo, pm_hi = _ci(pm_s, pm_p)
+
+    return MediationJointEstimate(
+        nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
+        nie_point=nie_p, nie_ci_lower=nie_lo, nie_ci_upper=nie_hi,
+        te_point=te_p, te_ci_lower=te_lo, te_ci_upper=te_hi,
+        proportion_mediated_point=pm_p,
+        proportion_mediated_ci_lower=pm_lo,
+        proportion_mediated_ci_upper=pm_hi,
+        ci_level=ci_level,
+        method=method,
+        assumptions=_joint_mediation_assumptions(
+            resolved, len(adjustment), is_logit, cluster,
+        ),
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        adjustment=tuple(adjustment),
+        mediators=tuple(mediators),
+        treatment=treatment,
+        outcome=outcome,
+        n_rep=n_rep,
+        sufficient_statistics=suff,
+        cluster=cluster,
+    )
+
+
+@dataclass(frozen=True)
 class CDEEstimate:
     """Phase 7.5 (iter 125) — Controlled Direct Effect at fixed M=m*.
 

@@ -739,6 +739,10 @@ def _query_to_dict(q) -> dict:
         }
         if q.mediator is not None:
             d["mediator"] = _atom_to_dict(q.mediator)
+        # Joint multi-mediator set: emitted only when present so single-
+        # mediator / plain-effect queries serialize byte-identically.
+        if q.mediators:
+            d["mediators"] = [_atom_to_dict(a) for a in q.mediators]
         # Joint multi-treatment do(A, B, …): the extra simultaneous
         # interventions. Emitted only when present so single-treatment
         # effect queries serialize byte-identically. The verifier's joint
@@ -934,6 +938,11 @@ def _decode_query(d: dict):
         if not isinstance(given_raw, list):
             raise DerivationSerializationError("effect_query.given must be a list")
         mediator_raw = d.get("mediator")
+        mediators_raw = d.get("mediators", [])
+        if not isinstance(mediators_raw, list):
+            raise DerivationSerializationError(
+                "effect_query.mediators must be a list"
+            )
         extra_raw = d.get("extra_interventions", [])
         if not isinstance(extra_raw, list):
             raise DerivationSerializationError(
@@ -949,6 +958,7 @@ def _decode_query(d: dict):
             mediator=(
                 _decode_atom(mediator_raw) if mediator_raw is not None else None
             ),
+            mediators=tuple(_decode_atom(a) for a in mediators_raw),
             extra_interventions=tuple(
                 _decode_intervention(iv) for iv in extra_raw
             ),
