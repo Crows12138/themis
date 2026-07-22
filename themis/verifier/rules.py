@@ -6283,44 +6283,48 @@ def _recover_boolean_theta_value_for_verifier(
     return 1.0 - float(complement)
 
 
-def _cf_bounds_non_decreasing_for_verifier(
-    *,
-    x_obs: bool,
-    p_y1_given_xobs: float,
-    factual_y: bool | None,
-) -> tuple[float, float]:
-    if not x_obs:
-        if factual_y is True:
-            return 1.0, 1.0
-        if factual_y is False:
-            return 0.0, 1.0
-        return p_y1_given_xobs, 1.0
+def _cf_monotonicity_pins_for_verifier(
+    query: CounterfactualQuery,
+) -> dict[bool, float]:
+    """The verifier's own reading of which cell monotonicity determines.
 
-    if factual_y is True:
-        return 0.0, 1.0
-    if factual_y is False:
-        return 0.0, 0.0
-    return 0.0, p_y1_given_xobs
+    Deliberately re-derived here rather than imported from
+    ``runtime.counterfactual``: consistency fixes the unit's outcome under
+    its OWN treatment, and the monotone order then forces the other world.
+    With ``x`` observed and ``y`` factual,
+
+      non-decreasing (Y_0 <= Y_1): x=1 gives Y_1=y, so y=0 forces Y_0=0;
+                                   x=0 gives Y_0=y, so y=1 forces Y_1=1.
+      non-increasing (Y_1 <= Y_0): x=1 gives Y_1=y, so y=1 forces Y_0=1;
+                                   x=0 gives Y_0=y, so y=0 forces Y_1=0.
+
+    Keyed by the factual ``y``, valued by P(Y_{x'}=1 | X=x, Y=y).
+    """
+    if query.assumptions is None or query.assumptions.monotonicity is None:
+        return {}
+    x_obs = query.observed.value
+    kind = query.assumptions.monotonicity.value
+    if kind == "non_decreasing":
+        return {False: 0.0} if x_obs else {True: 1.0}
+    if kind == "non_increasing":
+        return {True: 1.0} if x_obs else {False: 0.0}
+    return {}
 
 
-def _cf_bounds_non_increasing_for_verifier(
-    *,
-    x_obs: bool,
-    p_y1_given_xobs: float,
-    factual_y: bool | None,
-) -> tuple[float, float]:
-    if not x_obs:
-        if factual_y is True:
-            return 0.0, 1.0
-        if factual_y is False:
-            return 0.0, 0.0
-        return 0.0, p_y1_given_xobs
+def _cf_cell_needs_risk_for_verifier(query: CounterfactualQuery) -> bool:
+    """Does this cell's value depend on P(Y=1 | do(x')) at all?
 
-    if factual_y is True:
-        return 1.0, 1.0
-    if factual_y is False:
-        return 0.0, 1.0
-    return p_y1_given_xobs, 1.0
+    No when both worlds coincide (consistency answers it) or when
+    monotonicity pins the requested cell outright. This is what makes a
+    producer's ``interventional_risk_provenance = "not_required"`` claim
+    auditable rather than self-certifying.
+    """
+    if query.counterfactual_intervention.value == query.observed.value:
+        return False
+    factual_y = query.factual_target_known
+    if factual_y is None:
+        return True
+    return factual_y not in _cf_monotonicity_pins_for_verifier(query)
 
 
 def _expected_counterfactual_numeric_result(
@@ -6329,15 +6333,21 @@ def _expected_counterfactual_numeric_result(
     theta: Theta,
     *,
     bidirected: frozenset[frozenset[Atom]] = frozenset(),
+    p_y_do_x_cf: float | None,
     step_index: int,
     rule: str,
 ) -> NumericResult:
-    if query.assumptions is None or query.assumptions.monotonicity is None:
-        raise RuleCheckFailed(
-            f"{rule}: query must carry an explicit monotonicity assumption",
-            step_index=step_index, rule=rule,
-        )
+    """Recompute one binary counterfactual cell, independently of the producer.
 
+    Same theorem, transcribed here from the identity rather than imported:
+    with ``a = P(Y_{x'}=1 | X=x, Y=1)`` and ``b = P(Y_{x'}=1 | X=x, Y=0)``,
+
+        a * P(x, Y=1) + b * P(x, Y=0) = P(Y=1 | do(x')) - P(x', Y=1)
+
+    since the left side is P(Y_{x'}=1 | X=x) * P(x) and consistency gives
+    P(Y_{x'}=1, X=x') = P(Y=1, X=x'). Solve for the requested cell inside the
+    [0, 1] box, tightened by any monotonicity pin on the other one.
+    """
     values = (
         query.observed.value,
         query.counterfactual_intervention.value,
@@ -6369,28 +6379,67 @@ def _expected_counterfactual_numeric_result(
             f"{rule}: zero factual mass for observed value",
             step_index=step_index, rule=rule,
         )
-    p_y1_given_xobs = joint[(x_obs, True)] / p_x_obs
 
     if x_cf == x_obs:
         if factual_y is not None:
             point = 1.0 if factual_y == y_star else 0.0
         else:
-            point = p_y1_given_xobs if y_star else 1.0 - p_y1_given_xobs
+            p_y1 = joint[(x_obs, True)] / p_x_obs
+            point = p_y1 if y_star else 1.0 - p_y1
         return NumericResult(value=point)
 
-    if query.assumptions.monotonicity.value == "non_decreasing":
-        low_true, high_true = _cf_bounds_non_decreasing_for_verifier(
-            x_obs=x_obs, p_y1_given_xobs=p_y1_given_xobs, factual_y=factual_y,
-        )
-    else:
-        low_true, high_true = _cf_bounds_non_increasing_for_verifier(
-            x_obs=x_obs, p_y1_given_xobs=p_y1_given_xobs, factual_y=factual_y,
+    pins = _cf_monotonicity_pins_for_verifier(query)
+
+    if p_y_do_x_cf is None:
+        if factual_y is None or factual_y not in pins:
+            raise RuleCheckFailed(
+                f"{rule}: this cell is not determined without "
+                f"P(Y=1|do(X={x_cf})), but the step declares none",
+                step_index=step_index, rule=rule,
+            )
+        pinned = pins[factual_y]
+        value = pinned if y_star else 1.0 - pinned
+        return NumericResult(value=value)
+
+    k = p_y_do_x_cf - joint[(x_cf, True)]
+    if not (-_NUMERIC_TOL <= k <= p_x_obs + _NUMERIC_TOL):
+        raise RuleCheckFailed(
+            f"{rule}: P(Y=1|do(X={x_cf}))={p_y_do_x_cf} contradicts the "
+            f"theta-recovered observational joint via consistency",
+            step_index=step_index, rule=rule,
         )
 
+    if factual_y is None:
+        point = min(1.0, max(0.0, k / p_x_obs))
+        value = point if y_star else 1.0 - point
+        return NumericResult(value=value)
+
+    w_target = joint[(x_obs, factual_y)]
+    w_other = joint[(x_obs, not factual_y)]
+    lo_other = pins.get(not factual_y, 0.0)
+    hi_other = pins.get(not factual_y, 1.0)
+    low = pins.get(factual_y, 0.0)
+    high = pins.get(factual_y, 1.0)
+    if w_target > 0.0:
+        low = max(low, (k - hi_other * w_other) / w_target)
+        high = min(high, (k - lo_other * w_other) / w_target)
+    # Emptiness first, clamping second — the other order silently folds an
+    # empty feasible set onto the boundary and certifies a confident 0 or 1.
+    if low > high + _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"{rule}: no distribution satisfies the observational joint, "
+            f"P(Y=1|do(X={x_cf}))={p_y_do_x_cf} and the declared "
+            f"monotonicity at once",
+            step_index=step_index, rule=rule,
+        )
+    low = min(1.0, max(0.0, low))
+    high = min(1.0, max(0.0, high))
+    high = max(high, low)
+
     if y_star:
-        interval = NumericInterval(low=low_true, high=high_true)
+        interval = NumericInterval(low=low, high=high)
     else:
-        interval = NumericInterval(low=1.0 - high_true, high=1.0 - low_true)
+        interval = NumericInterval(low=1.0 - high, high=1.0 - low)
     if abs(interval.low - interval.high) <= _NUMERIC_TOL:
         return NumericResult(value=interval.low)
     return NumericResult(value=None, interval=interval)
@@ -6416,39 +6465,83 @@ def _numeric_result_matches(
     )
 
 
-def _rule_counterfactual_bounds_binary_monotone(
+def _rule_counterfactual_cell_bounds(
     ctx: VerificationContext,
     inputs: dict,
     claimed_output: Any,
     step_index: int,
 ) -> None:
-    """Phase 5 §C verifier rule for the currently landed narrow fragment.
+    """Independent audit of one binary counterfactual cell.
 
-    Recomputes the binary monotone counterfactual point value / bounds
-    directly from the verification context:
-    - query must be CounterfactualQuery
-    - theta must support either
-      (a) ancestral BN recovery on the directed ancestral subgraph of
-          {X, Y}, or
-      (b) the older local chain-rule fallback
-    - monotonicity must be explicit on the query
+    Three re-checks, each catching a distinct producer bug:
+
+    1. The observational joint is recovered from ``ctx.theta`` again by the
+       verifier (ancestral BN factorization, local chain-rule fallback) and
+       the cell is re-solved from the consistency identity — catches a
+       mis-wired joint or a mis-applied formula.
+    2. The declared ``interventional_risk_provenance`` must agree with
+       whether the cell actually depends on P(Y=1|do(x')). A step claiming
+       ``not_required`` while carrying a risk, or carrying none while the
+       cell needs one, is refused — otherwise "not required" would be a
+       self-certifying claim.
+    3. The declared risk must be a probability and must not contradict the
+       theta-recovered joint (nor, with monotonicity declared, leave an
+       empty feasible set).
+
+    Scope boundary, mirroring the causation rule: when the risk came from
+    ``derived_identification`` it was produced by the effect-identification
+    subsystem, which has its own independent verifier. This rule audits the
+    joint recovery, the identity, and internal consistency; it does not
+    re-run that cascade.
     """
-    graph = _require(inputs, "graph", step_index, "counterfactual_bounds_binary_monotone")
-    _assert_same_graph(graph, ctx.graph, step_index, "counterfactual_bounds_binary_monotone")
+    rule = "counterfactual_cell_bounds"
+    graph = _require(inputs, "graph", step_index, rule)
+    _assert_same_graph(graph, ctx.graph, step_index, rule)
     if not isinstance(ctx.query, CounterfactualQuery):
         raise RuleCheckFailed(
-            "counterfactual_bounds_binary_monotone requires CounterfactualQuery context",
-            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+            f"{rule} requires CounterfactualQuery context",
+            step_index=step_index, rule=rule,
         )
     if ctx.theta is None:
         raise RuleCheckFailed(
-            "counterfactual_bounds_binary_monotone requires theta in context",
-            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+            f"{rule} requires theta in context",
+            step_index=step_index, rule=rule,
         )
     if not isinstance(claimed_output, NumericResult):
         raise RuleCheckFailed(
-            "counterfactual_bounds_binary_monotone output must be NumericResult",
-            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+            f"{rule} output must be NumericResult",
+            step_index=step_index, rule=rule,
+        )
+
+    provenance = _require(
+        inputs, "interventional_risk_provenance", step_index, rule
+    )
+    if provenance not in {
+        "not_required", "user_experimental", "derived_identification",
+    }:
+        raise RuleCheckFailed(
+            f"{rule}: unknown interventional_risk_provenance {provenance!r}",
+            step_index=step_index, rule=rule,
+        )
+
+    raw_risk = inputs.get("p_y_do_x_cf")
+    risk = None if raw_risk is None else float(raw_risk)
+    if risk is not None and not (0.0 <= risk <= 1.0):
+        raise RuleCheckFailed(
+            f"{rule}: p_y_do_x_cf={risk} is not a probability in [0, 1]",
+            step_index=step_index, rule=rule,
+        )
+    if (provenance == "not_required") != (risk is None):
+        raise RuleCheckFailed(
+            f"{rule}: provenance {provenance!r} disagrees with the presence "
+            f"of p_y_do_x_cf",
+            step_index=step_index, rule=rule,
+        )
+    if risk is None and _cf_cell_needs_risk_for_verifier(ctx.query):
+        raise RuleCheckFailed(
+            f"{rule}: the step declares no interventional risk, but neither "
+            f"consistency nor the declared monotonicity determines this cell",
+            step_index=step_index, rule=rule,
         )
 
     expected = _expected_counterfactual_numeric_result(
@@ -6456,14 +6549,14 @@ def _rule_counterfactual_bounds_binary_monotone(
         ctx.query,
         ctx.theta,
         bidirected=ctx.bidirected,
+        p_y_do_x_cf=risk,
         step_index=step_index,
-        rule="counterfactual_bounds_binary_monotone",
+        rule=rule,
     )
     if not _numeric_result_matches(claimed_output, expected):
         raise RuleCheckFailed(
-            "counterfactual_bounds_binary_monotone claimed output does not "
-            "match the recomputed narrow monotone bounds",
-            step_index=step_index, rule="counterfactual_bounds_binary_monotone",
+            f"{rule} claimed output does not match the recomputed cell",
+            step_index=step_index, rule=rule,
         )
 
 
@@ -7905,7 +7998,7 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     "T2_lag_bound": _rule_t2_lag_bound,
     "T3_unroll_acyclic": _rule_t3_unroll_acyclic,
     # Phase 5 §C
-    "counterfactual_bounds_binary_monotone": _rule_counterfactual_bounds_binary_monotone,
+    "counterfactual_cell_bounds": _rule_counterfactual_cell_bounds,
     # Probabilities of causation — PN / PS / PNS (Tian & Pearl 2000)
     "probabilities_of_causation_tian_pearl": _rule_probabilities_of_causation_tian_pearl,
     # Data-based PN/PS/PNS — numeric counterpart (empirical joint + g-formula

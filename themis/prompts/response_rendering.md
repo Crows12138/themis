@@ -378,8 +378,7 @@ the *cost of the decision* shift:
   这个人在反事实里会怎样'，我答的是人群在该干预下的平均效应——
   这是答错了一类问题，不是同一个问题的弱版本。要拿到个体反事实
   需要 abduction-action-prediction 三步流程，Themis 当前只在最简单
-  的 binary monotone 情形下提供（见 `kind: counterfactual` 直接路径
-  会返回 needs_assumption + monotonicity grant request）。"
+  的二值情形下提供（见 `kind: counterfactual` 直接路径）。"
 
 **Omit** when `extensions.ambiguities` is absent or empty — don't
 invent ambiguity. Users hate false alarms.

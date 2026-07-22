@@ -210,6 +210,8 @@ def _to_query(d: dict):
             counterfactual_target=_to_grounded(d["counterfactual_target"]),
             assumptions=assumptions,
             factual_target_known=d.get("factual_target_known"),
+            experimental_risk_treated=d.get("experimental_risk_treated"),
+            experimental_risk_control=d.get("experimental_risk_control"),
         )
     if k == "causation":
         return CausationQuery(

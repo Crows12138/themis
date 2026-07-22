@@ -313,11 +313,29 @@ class EffectQueryAssumptions:
 
 @dataclass(frozen=True)
 class CounterfactualQuery:
+    """One binary counterfactual cell: P(Y_{x'} = y* | X = x [, Y = y]).
+
+    ``observed`` is the factual treatment X = x, ``counterfactual_intervention``
+    the world we ask about (do(X = x')), ``counterfactual_target`` the event
+    Y = y* whose probability is wanted, and ``factual_target_known`` the
+    factual outcome y when it is part of the evidence.
+
+    Answering it needs the observational joint P(X, Y) — recovered from theta
+    — AND the interventional risk P(Y=1 | do(x')), which is either DERIVED by
+    running the existing effect identification, or supplied directly via
+    ``experimental_risk_treated`` / ``experimental_risk_control`` when X is
+    confounded but a randomized experiment measured the risk (parallel to
+    ``CausationQuery``). ``assumptions.monotonicity``, when declared, is an
+    extra constraint that can sharpen the interval to a point — never a
+    precondition for answering.
+    """
     observed: "ValuedAtom"
     counterfactual_intervention: Intervention
     counterfactual_target: "ValuedAtom"
     assumptions: CounterfactualAssumptions | None = None
     factual_target_known: AtomValue | None = None
+    experimental_risk_treated: float | None = None   # P(Y=1 | do(X=1))
+    experimental_risk_control: float | None = None   # P(Y=1 | do(X=0))
 
 
 @dataclass(frozen=True)
@@ -625,6 +643,13 @@ class ResultStatus(str, Enum):
     OUTSIDE_LANGUAGE = "outside_language"
     COUNTERFACTUAL_SOLVED = "counterfactual_solved"
     COUNTERFACTUAL_BOUNDED = "counterfactual_bounded"
+    # "identification works IF you grant this named untestable premise."
+    # No dispatcher currently produces it: its only producer was the
+    # counterfactual monotonicity gate, and monotonicity turned out to be a
+    # constraint that sharpens an answer rather than a precondition for
+    # having one. Kept in the envelope contract — consumers still handle it
+    # and a future query kind may genuinely need it — but the handling in
+    # data_gap_report / explainer is unreachable today.
     NEEDS_ASSUMPTION = "needs_assumption"
 
 

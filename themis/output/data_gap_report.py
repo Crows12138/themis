@@ -208,6 +208,7 @@ def compute_data_gap_report(
     stmt=None,
     structural_result=None,
     bounds_result=None,
+    numeric_result=None,
     confidence: float | None = None,
 ) -> DataGapReport | None:
     """Synthesize a DataGapReport from the result-envelope signals.
@@ -294,7 +295,9 @@ def compute_data_gap_report(
 
     gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
     gaps.sort(key=_gap_sort_key)
-    answer_tier = _compute_answer_tier(query_kind, gaps, bounds_result, status)
+    answer_tier = _compute_answer_tier(
+        query_kind, gaps, bounds_result, status, numeric_result,
+    )
     summary = _make_summary(gaps, answer_tier)
     actionable = _make_actionable_steps(gaps)
     return DataGapReport(
@@ -320,6 +323,7 @@ def _compute_answer_tier(
     gaps: list[DataGap],
     bounds_result,
     status: ResultStatus,
+    numeric_result=None,
 ) -> AnswerTier | None:
     """The strongest answer available, orthogonal to gap severity.
 
@@ -337,8 +341,13 @@ def _compute_answer_tier(
     If not blocked, a point estimand is in hand — solved, or
     identifiable-but-missing-θ (a data gap, still a point).
 
-    Second, when blocked, an INFORMATIVE ``bounds_result`` makes it an
-    INTERVAL; otherwise (no bounds, or trivial [0,1]) NONE.
+    Second, when blocked, an interval in hand makes it INTERVAL; otherwise
+    (nothing, or a trivial [0, 1]) NONE. An interval can arrive by either
+    of two channels and both count: ``bounds_result``, the effect query's
+    Manski / IV floor, and ``numeric_result.interval``, where a bounded
+    counterfactual carries its own Tian-Pearl interval. Reading only the
+    first reported "no answer available" for counterfactuals that had a
+    perfectly good interval sitting in the envelope.
     """
     if query_kind not in _ESTIMAND_QUERY_KINDS:
         return None
@@ -355,6 +364,11 @@ def _compute_answer_tier(
         return AnswerTier.POINT
     if bounds_result is not None and not getattr(
         bounds_result, "width_when_uninformative", False
+    ):
+        return AnswerTier.INTERVAL
+    interval = getattr(numeric_result, "interval", None)
+    if interval is not None and not (
+        interval.low <= 0.0 and interval.high >= 1.0
     ):
         return AnswerTier.INTERVAL
     return AnswerTier.NONE
@@ -941,7 +955,7 @@ def _has_front_door_pattern(program, stmt) -> bool:
 
 
 _COUNTERFACTUAL_DERIVATION_RULES: frozenset[str] = frozenset({
-    "counterfactual_bounds_binary_monotone",
+    "counterfactual_cell_bounds",
     "counterfactual_twin_network",
     "counterfactual_consistency",
 })

@@ -219,9 +219,10 @@ def test_answer_tier_point_when_identifiable_even_with_manski_floor():
     assert result["data_gap_report"]["answer_tier"] == "point"
 
 
-def test_answer_tier_none_for_counterfactual_needs_assumption():
-    """A counterfactual that stops at NEEDS_ASSUMPTION (no bounds) yields
-    neither a point nor an interval → 'none'."""
+def test_answer_tier_none_for_counterfactual_missing_its_distribution():
+    """A counterfactual that never reaches a number — here because theta
+    supplies no distribution at all — yields neither a point nor an
+    interval → 'none'."""
     program = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -259,8 +260,63 @@ def test_answer_tier_none_for_counterfactual_needs_assumption():
         ],
     }
     result = themis.run(program)["results"][0]
-    assert result["status"] == "needs_assumption"
-    assert result["data_gap_report"]["answer_tier"] == "none"
+    # The cell is point-identifiable on this graph; what is missing is the
+    # distribution, so the tier reports the point that theta would unlock.
+    assert result["status"] == "needs_investigation"
+    assert result["data_gap_report"]["answer_tier"] == "point"
+
+
+def test_answer_tier_interval_for_a_bounded_counterfactual():
+    """A bounded counterfactual carries its interval in ``numeric_result``,
+    not in the effect query's ``bounds_result`` channel. Reading only the
+    latter reported 'none' while a real Tian-Pearl interval was in hand."""
+    def _atom(pred):
+        return {"predicate": pred, "args": [{"type": "const", "name": "me"}]}
+
+    def _p(pred, value, given, v):
+        return {
+            "kind": "probability",
+            "target": {"atom": _atom(pred), "value": value},
+            "given": [
+                {"atom": _atom(g), "value": gv} for g, gv in given
+            ],
+            "value": v,
+        }
+
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "study", "domain": [True, False]},
+            {"kind": "variable", "predicate": "job", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("study"), "to": _atom("job")},
+            _p("study", False, [], 0.6),
+            _p("study", True, [], 0.4),
+            _p("job", True, [("study", False)], 0.3),
+            _p("job", False, [("study", False)], 0.7),
+            _p("job", True, [("study", True)], 0.8),
+            _p("job", False, [("study", True)], 0.2),
+            {
+                "kind": "query", "id": "q",
+                "query": {
+                    "kind": "counterfactual",
+                    "observed": {"atom": _atom("study"), "value": True},
+                    "counterfactual_intervention": {
+                        "atom": _atom("study"), "value": False,
+                    },
+                    "counterfactual_target": {
+                        "atom": _atom("job"), "value": False,
+                    },
+                    "factual_target_known": True,
+                },
+            },
+        ],
+    }
+    result = themis.run(program)["results"][0]
+    assert result["status"] == "counterfactual_bounded"
+    assert result["numeric_result"]["interval"]["low"] == 0.6250000000000001
+    assert result["numeric_result"]["interval"]["high"] == 0.8750000000000001
+    assert result["data_gap_report"]["answer_tier"] == "interval"
 
 
 def test_iv_bounds_drop_self_contradictory_find_instrument_advice():

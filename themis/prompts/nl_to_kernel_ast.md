@@ -394,9 +394,9 @@ index — the detailed subsections below expand each. All edges are
 
 7. **Counterfactual.** *Trigger*: contrary-to-fact past ("如果当初 / 要
    是没"). *Shape*: `X→Y`. *Query*: `kind: counterfactual` (observed +
-   cf_intervention + cf_target). *Kernel*: Layer-3; returns
-   `needs_assumption` asking monotonicity (the correct answer, not a
-   degraded one).
+   cf_intervention + cf_target, plus `factual_target_known` when the NL
+   says how it actually turned out). *Kernel*: Layer-3 cell bounds off
+   the observational joint and the interventional risk.
 
 8. **Temporal lag.** *Trigger*: 昨晚X今早Y / 前一天…第二天. *Shape*:
    `X→Y` with `time_index` -1 / 0 on the atoms. *Kernel*: t-1→t. No
@@ -688,20 +688,33 @@ three slots take the same wrapper. `value` carries the world's truth
 value (e.g. `observed` = what actually happened,
 `counterfactual_intervention.value` = the contrary alternative).
 
+Add `factual_target_known` whenever the NL states how the outcome
+actually turned out ("我当初熬了夜，而且确实病了" — 熬夜 is `observed`,
+病了 is `factual_target_known`). It is not decoration: conditioning on
+the factual outcome is what makes the question one of attribution
+("是不是它害的") rather than of prospect ("换一条路会怎样"), and the
+kernel answers the two differently. Omit it when the NL only says what
+the person did.
+
 Do **not** include `assumptions.monotonicity` unless the user
-explicitly named a direction. The kernel will return
-`status: needs_assumption` asking for monotonicity — that is the
-geometrically correct answer (Layer-3 individual counterfactuals
-need an extra assumption beyond Layer-2 effects), not a degraded
-one. The renderer treats `needs_assumption` as a first-class
-headline ("如果你愿意接受 X 这个假设，我能给区间").
+explicitly named a direction ("这药只会帮忙不会害人"). Monotonicity is
+one more constraint the kernel can use to sharpen its answer, never a
+precondition for getting one — asserting a direction the user did not
+claim buys precision by fabricating a premise.
+
+What the kernel does need is the same thing an effect query needs: the
+distribution. Give it the observational CPTs and, when the graph leaves
+the effect of X on Y unidentifiable, either the data that identifies it
+or a measured `experimental_risk_treated` / `experimental_risk_control`
+from a randomized experiment. Whatever is missing comes back as a named
+gap, so an absent number is never silently guessed.
 
 **When to compress to effect proxy instead** (then flag
 `counterfactual_query` ambiguity):
 - Nested counterfactuals ("如果 A 的话 B 就会怎样")
 - Counterfactual chains spanning multiple do-operations
-- Counterfactual on a target the kernel cannot reach Layer-3 for
-  (e.g. continuous outcome with no monotone bounds)
+- Counterfactual on a non-binary antecedent or outcome (the cell solver
+  is binary; there is no continuous version to fall back on)
 
 Compression is a fallback. Default for clean individual
 counterfactuals is direct `kind: counterfactual` emission. On the

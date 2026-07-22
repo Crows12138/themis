@@ -480,8 +480,8 @@ def test_counterfactual_query_kind_alone_fires_assumption_caveat_e2e():
 
 
 def test_derivation_less_counterfactual_gap_report_passes_own_auditor():
-    """Dual-surface invariant: a NEEDS_ASSUMPTION counterfactual carries
-    no derivation chain, so its counterfactual caveat must cite a
+    """Dual-surface invariant: a counterfactual that stops short of a number
+    carries no derivation chain, so its counterfactual caveat must cite a
     verifier_check (status-derived) provenance — NOT a synthetic
     derivation_step. Citing a derivation_step produced a report the
     kernel's OWN T10-1 auditor rejected as dangling provenance (and the
@@ -515,7 +515,7 @@ def test_derivation_less_counterfactual_gap_report_passes_own_auditor():
     # Round-trip through JSON to mirror the MCP consumer path (the probe
     # surfaced this via the serialized envelope).
     result = json.loads(json.dumps(out["results"][0]))
-    assert result["status"] == "needs_assumption"
+    assert result["status"] == "needs_investigation"
     # Precondition that made the old code dangle: no derivation chain.
     assert "derivation" not in result
     cf_gap = next(

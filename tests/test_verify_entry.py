@@ -178,7 +178,7 @@ def _counterfactual_program_with_theta() -> dict:
     (_assoc_program,                    "structurally_solved"),
     (_effect_program_with_theta,        "numerically_solved"),
     (_probability_program_with_theta,   "numerically_solved"),
-    (_counterfactual_program_with_theta, "counterfactual_bounded"),
+    (_counterfactual_program_with_theta, "counterfactual_solved"),
 ], ids=["cause", "identify", "assoc", "effect", "probability", "counterfactual"])
 def test_verify_accepts_run_output_round_trip(program_factory, expected_status):
     """For each query kind, a result produced by ``themis.run`` must
@@ -209,9 +209,27 @@ def test_verify_rejects_numeric_value_mismatch():
         themis.verify(program, result)
 
 
-def test_verify_rejects_counterfactual_interval_mismatch():
+def test_verify_rejects_counterfactual_value_mismatch():
     program = _counterfactual_program_with_theta()
     result = copy.deepcopy(themis.run(program)["results"][0])
+    result["numeric_result"]["value"] = result["numeric_result"]["value"] + 0.1
+    with pytest.raises(VerificationError):
+        themis.verify(program, result)
+
+
+def test_verify_rejects_counterfactual_interval_mismatch():
+    """A cell with a known factual outcome and no monotonicity is bounded,
+    not point-identified — its interval must be tamper-checked too."""
+    program = _counterfactual_program_with_theta()
+    query = next(
+        s for s in program["statements"] if s.get("kind") == "query"
+    )["query"]
+    query["observed"]["value"] = True
+    query["counterfactual_intervention"]["value"] = False
+    query["factual_target_known"] = True
+    query.pop("assumptions", None)
+    result = copy.deepcopy(themis.run(program)["results"][0])
+    assert result["status"] == "counterfactual_bounded"
     result["numeric_result"]["interval"]["low"] = (
         result["numeric_result"]["interval"]["low"] + 0.1
     )

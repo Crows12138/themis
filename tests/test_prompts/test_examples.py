@@ -179,12 +179,10 @@ def test_counterfactual_example_lifts_case17_into_counterfactual_query():
 
     out = themis.run(ast)
     r = out["results"][0]
-    assert r["status"] == "needs_assumption"
-    assert r["missing_information"] == [
-        {
-            "kind": "assumption",
-            "name": "assumptions.monotonicity",
-            "priority": "high",
-            "reason": "首版反事实 bounds 只支持显式 monotonicity 假设",
-        }
-    ]
+    # The example declares no monotonicity, which no longer blocks anything:
+    # what it is short of is the distribution.
+    assert r["status"] == "needs_investigation"
+    assert r["missing_information"]
+    assert all(
+        item["kind"] == "parameter" for item in r["missing_information"]
+    )

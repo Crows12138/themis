@@ -1,16 +1,16 @@
-"""Phase 5 §C / S.C.2: twin-network projection primitive.
+"""Twin-network projection + single-cell binary counterfactual solving.
 
-This module does **not** solve counterfactual queries yet. It only
-materializes the structural object that later slices consume:
+``project_twin_network`` materializes the structural object: the base
+graph duplicated into factual / counterfactual worlds, incoming edges
+into the counterfactual intervention node cut, and bidirected coupling
+extended across worlds so both copies share the same exogenous
+background.
 
-- duplicate the base graph into factual / counterfactual worlds
-- cut incoming edges into the counterfactual intervention node
-- extend bidirected coupling across worlds so both copies share the
-  same exogenous background
-
-The projection is intentionally narrow and self-contained. No scheduler
-integration lands here; callers import ``project_twin_network`` directly
-and pin its shape in tests.
+``counterfactual_cell_interval`` answers ``P(Y_{x'} = y* | X = x [, Y =
+y])`` for binary X, Y from the observational joint plus the
+interventional risk ``P(Y=1 | do(x'))``, with monotonicity — when
+declared — as an optional extra constraint rather than a precondition.
+Its docstring carries the single identity everything else follows from.
 """
 from __future__ import annotations
 
@@ -56,6 +56,31 @@ class TwinNetwork:
 
 class CounterfactualBoundsError(ValueError):
     """Raised when the narrow S.C.3 solver preconditions are not met."""
+
+
+class InterventionalRiskRequired(CounterfactualBoundsError):
+    """The requested counterfactual cell cannot be bounded from the
+    observational joint alone — it needs ``P(Y=1 | do(X=x_cf))``.
+
+    Carries the intervention arm that is needed so the caller can go and
+    identify exactly that one (and only that one). Raised instead of
+    returning a vacuous ``[0, 1]``: an uninformative interval that *looks*
+    like an answer is worse than a gap that names its own remedy.
+    """
+
+    def __init__(self, message: str, *, needed_x_value: bool) -> None:
+        super().__init__(message)
+        self.needed_x_value = needed_x_value
+
+
+class CounterfactualInfeasible(CounterfactualBoundsError):
+    """The supplied quantities admit no SCM at all.
+
+    Either the interventional risk contradicts the observational joint via
+    consistency, or the declared monotonicity is refuted by them jointly.
+    Distinct from a malformed input so callers can report "your data sources
+    disagree" instead of "this query is outside the language".
+    """
 
 
 def project_twin_network(
@@ -144,25 +169,59 @@ def project_twin_network(
     )
 
 
-def balke_pearl_bounds_binary_monotone(
+
+_TOL = 1e-9
+
+
+def _clamp01(v: float) -> float:
+    return 0.0 if v < 0.0 else 1.0 if v > 1.0 else v
+
+
+def monotonicity_pins(query: CounterfactualQuery) -> dict[bool, float]:
+    """Which counterfactual cells does monotonicity pin *deterministically*?
+
+    A cell here is ``P(Y_{x'}=1 | X=x, Y=y)`` indexed by the factual ``y``;
+    ``x'`` is the counterfactual intervention and ``x != x'``. Monotonicity
+    plus consistency fixes exactly one of the two cells at 0 or 1, because
+    consistency already tells us the unit's potential outcome under its OWN
+    treatment, and the monotone order then forces the other one:
+
+        non-decreasing (Y_{x=0} <= Y_{x=1}), observed x=1  ->  Y_1 = y
+            y = 0 forces Y_0 = 0            -> cell(y=0) = 0
+        non-decreasing, observed x=0        ->  Y_0 = y
+            y = 1 forces Y_1 = 1            -> cell(y=1) = 1
+        non-increasing (Y_{x=1} <= Y_{x=0}), observed x=1  ->  Y_1 = y
+            y = 1 forces Y_0 = 1            -> cell(y=1) = 1
+        non-increasing, observed x=0        ->  Y_0 = y
+            y = 0 forces Y_1 = 0            -> cell(y=0) = 0
+
+    The OTHER cell is exactly the one monotonicity says nothing about on its
+    own — for (x=1, y=1) that cell is PN, for (x=0, y=0) it is PS. Those are
+    the cells that need the interventional risk, and the linear consistency
+    constraint in :func:`counterfactual_cell_interval` is what turns the pin
+    on one cell into a point on the other (recovering Tian-Pearl's monotone
+    point identification as a consequence rather than a second formula).
+
+    Returns ``{}`` when the query declares no monotonicity.
+    """
+    if query.assumptions is None or query.assumptions.monotonicity is None:
+        return {}
+    x_obs = query.observed.value
+    monotonicity = query.assumptions.monotonicity
+    if monotonicity is Monotonicity.NON_DECREASING:
+        return {False: 0.0} if x_obs else {True: 1.0}
+    if monotonicity is Monotonicity.NON_INCREASING:
+        return {True: 1.0} if x_obs else {False: 0.0}
+    raise CounterfactualBoundsError(
+        f"unsupported monotonicity assumption {monotonicity!r}"
+    )
+
+
+def _validate_cell_inputs(
     twin: TwinNetwork,
     query: CounterfactualQuery,
     observed_joint_xy: dict[tuple[bool, bool], float],
-) -> NumericInterval:
-    """Narrow S.C.3 primitive for binary monotone bounds.
-
-    Scope:
-    - binary observed/intervention/target values only
-    - explicit monotonicity already present on the query
-    - input observational data supplied as the factual joint table
-      ``P(X=x, Y=y)``
-
-    This is intentionally not scheduler-integrated yet. S.C.4 decides
-    when a missing monotonicity assumption becomes
-    ``needs_assumption``; S.C.5 wires the primitive into runtime
-    results.
-    """
-
+) -> None:
     if twin.observed.atom != query.observed.atom:
         raise CounterfactualBoundsError(
             "twin network/query mismatch: observed atom differs"
@@ -174,11 +233,6 @@ def balke_pearl_bounds_binary_monotone(
     if twin.counterfactual_target.atom != query.counterfactual_target.atom:
         raise CounterfactualBoundsError(
             "twin network/query mismatch: target atom differs"
-        )
-
-    if query.assumptions is None or query.assumptions.monotonicity is None:
-        raise CounterfactualBoundsError(
-            "balke_pearl_bounds_binary_monotone requires an explicit monotonicity assumption"
         )
 
     values = (
@@ -205,7 +259,7 @@ def balke_pearl_bounds_binary_monotone(
         )
 
     total = sum(observed_joint_xy.values())
-    if abs(total - 1.0) > 1e-9:
+    if abs(total - 1.0) > _TOL:
         raise CounterfactualBoundsError(
             f"observed_joint_xy must sum to 1, got {total}"
         )
@@ -214,83 +268,132 @@ def balke_pearl_bounds_binary_monotone(
             "observed_joint_xy probabilities must all lie in [0, 1]"
         )
 
+
+def counterfactual_cell_interval(
+    twin: TwinNetwork,
+    query: CounterfactualQuery,
+    observed_joint_xy: dict[tuple[bool, bool], float],
+    *,
+    p_y_do_x_cf: float | None = None,
+) -> NumericInterval:
+    """Bounds (or a point) for one binary counterfactual cell.
+
+    The quantity is ``P(Y_{x'} = y* | X = x [, Y = y])`` where ``x`` is the
+    observed factual treatment, ``x'`` the counterfactual intervention,
+    ``y*`` the counterfactual target value, and ``y`` the optional factual
+    outcome (``query.factual_target_known``).
+
+    Everything below the ``x' == x`` shortcut rests on ONE identity. Write
+    ``a = P(Y_{x'}=1 | X=x, Y=1)`` and ``b = P(Y_{x'}=1 | X=x, Y=0)``. Then
+
+        a * P(x, Y=1) + b * P(x, Y=0)  =  P(Y=1 | do(x'))  -  P(x', Y=1)
+
+    because the left-hand side is ``P(Y_{x'}=1 | X=x) * P(x)`` and, by
+    consistency, ``P(Y_{x'}=1, X=x') = P(Y=1, X=x')`` carves the rest of
+    ``P(Y_{x'}=1)`` off. So one linear equation ties the two cells together,
+    each of them lives in ``[0, 1]``, and monotonicity — when declared —
+    pins one of them outright (see :func:`monotonicity_pins`). Every answer
+    this function gives is that little program solved for the cell asked for:
+
+    - ``y`` unknown: the target IS the left-hand side over ``P(x)``, so it
+      is point-identified outright (the ETT identity) — not bounded.
+    - ``y`` known, other cell free: the box ``[0, 1]`` on the other cell
+      maps through the equation to an interval. For (x=1, y=1, y*=0) this
+      reproduces the Tian-Pearl PN bounds (eq. 25) term for term, and for
+      (x=0, y=0, y*=1) the PS bounds (eq. 26).
+    - ``y`` known, other cell pinned by monotonicity: the equation leaves a
+      single value — Tian-Pearl's monotone point identification (eqs. 41-42)
+      falls out, rather than being transcribed a second time.
+
+    ``p_y_do_x_cf`` is ``P(Y=1 | do(X=x'))``, however the caller obtained it
+    (identification from theta, or a randomized experiment). It may be
+    omitted only when the answer does not depend on it — the ``x' == x``
+    consistency case and a cell monotonicity pins directly. Otherwise
+    :class:`InterventionalRiskRequired` names the arm that is needed.
+    """
+    _validate_cell_inputs(twin, query, observed_joint_xy)
+
     x_obs = query.observed.value
     x_cf = query.counterfactual_intervention.value
     y_star = query.counterfactual_target.value
     factual_y = query.factual_target_known
-    monotonicity = query.assumptions.monotonicity
 
     p_x_obs = observed_joint_xy[(x_obs, False)] + observed_joint_xy[(x_obs, True)]
     if p_x_obs == 0:
         raise CounterfactualBoundsError(
             f"observed_joint_xy assigns zero mass to X={x_obs}"
         )
-    p_y1_given_xobs = observed_joint_xy[(x_obs, True)] / p_x_obs
 
+    # Same world on both sides: consistency answers it outright, and no
+    # interventional information is involved.
     if x_cf == x_obs:
         if factual_y is not None:
             point = 1.0 if factual_y == y_star else 0.0
         else:
-            point = p_y1_given_xobs if y_star else 1.0 - p_y1_given_xobs
+            p_y1 = observed_joint_xy[(x_obs, True)] / p_x_obs
+            point = p_y1 if y_star else 1.0 - p_y1
         return NumericInterval(low=point, high=point)
 
-    if monotonicity is Monotonicity.NON_DECREASING:
-        low_true, high_true = _bounds_non_decreasing(
-            x_obs=x_obs,
-            p_y1_given_xobs=p_y1_given_xobs,
-            factual_y=factual_y,
+    pins = monotonicity_pins(query)
+
+    if p_y_do_x_cf is None:
+        if factual_y is not None and factual_y in pins:
+            pinned = pins[factual_y]
+            value = pinned if y_star else 1.0 - pinned
+            return NumericInterval(low=value, high=value)
+        raise InterventionalRiskRequired(
+            f"P(Y=1 | do(X={x_cf})) is needed to bound this counterfactual "
+            f"cell: the observational joint alone leaves it at [0, 1]",
+            needed_x_value=bool(x_cf),
         )
-    elif monotonicity is Monotonicity.NON_INCREASING:
-        low_true, high_true = _bounds_non_increasing(
-            x_obs=x_obs,
-            p_y1_given_xobs=p_y1_given_xobs,
-            factual_y=factual_y,
-        )
-    else:
+
+    if not (0.0 <= p_y_do_x_cf <= 1.0):
         raise CounterfactualBoundsError(
-            f"unsupported monotonicity assumption {monotonicity!r}"
+            f"P(Y=1 | do(X={x_cf}))={p_y_do_x_cf} is not a probability"
         )
+
+    # K = P(Y_{x'}=1 | X=x) * P(x), the right-hand side of the identity.
+    k = p_y_do_x_cf - observed_joint_xy[(x_cf, True)]
+    if not (-_TOL <= k <= p_x_obs + _TOL):
+        raise CounterfactualInfeasible(
+            f"P(Y=1 | do(X={x_cf}))={p_y_do_x_cf:.6g} contradicts the "
+            f"observational joint: consistency forces it into "
+            f"[{observed_joint_xy[(x_cf, True)]:.6g}, "
+            f"{observed_joint_xy[(x_cf, True)] + p_x_obs:.6g}]"
+        )
+
+    if factual_y is None:
+        point = _clamp01(k / p_x_obs)
+        value = point if y_star else 1.0 - point
+        return NumericInterval(low=value, high=value)
+
+    w_target = observed_joint_xy[(x_obs, factual_y)]
+    w_other = observed_joint_xy[(x_obs, not factual_y)]
+    lo_other, hi_other = pins.get(not factual_y, 0.0), pins.get(not factual_y, 1.0)
+    lo_target, hi_target = pins.get(factual_y, 0.0), pins.get(factual_y, 1.0)
+
+    if w_target > 0.0:
+        # target = (K - other * w_other) / w_target, decreasing in `other`.
+        lo_target = max(lo_target, (k - hi_other * w_other) / w_target)
+        hi_target = min(hi_target, (k - lo_other * w_other) / w_target)
+    # w_target == 0 means the conditioning event {X=x, Y=y} has zero mass, so
+    # the cell is undefined; the box (plus any pin) is all there is to say.
+
+    # Emptiness is decided BEFORE clamping: clamping first would fold an
+    # empty feasible set back onto the boundary and report a confident
+    # 0 or 1 for a cell no distribution can produce. Without a pin the
+    # intersection is provably non-empty, so reaching here means the
+    # declared monotonicity is what the data refute.
+    if lo_target > hi_target + _TOL:
+        raise CounterfactualInfeasible(
+            f"no distribution satisfies both the observational joint and "
+            f"P(Y=1 | do(X={x_cf}))={p_y_do_x_cf:.6g} under the declared "
+            f"assumptions (the feasible set for this cell is empty) — the "
+            f"monotonicity assumption is refuted by the data"
+        )
+    lo_target, hi_target = _clamp01(lo_target), _clamp01(hi_target)
+    hi_target = max(hi_target, lo_target)
 
     if y_star:
-        return NumericInterval(low=low_true, high=high_true)
-    return NumericInterval(low=1.0 - high_true, high=1.0 - low_true)
-
-
-def _bounds_non_decreasing(
-    *,
-    x_obs: bool,
-    p_y1_given_xobs: float,
-    factual_y: bool | None,
-) -> tuple[float, float]:
-    if not x_obs:
-        if factual_y is True:
-            return 1.0, 1.0
-        if factual_y is False:
-            return 0.0, 1.0
-        return p_y1_given_xobs, 1.0
-
-    if factual_y is True:
-        return 0.0, 1.0
-    if factual_y is False:
-        return 0.0, 0.0
-    return 0.0, p_y1_given_xobs
-
-
-def _bounds_non_increasing(
-    *,
-    x_obs: bool,
-    p_y1_given_xobs: float,
-    factual_y: bool | None,
-) -> tuple[float, float]:
-    if not x_obs:
-        if factual_y is True:
-            return 0.0, 1.0
-        if factual_y is False:
-            return 0.0, 0.0
-        return 0.0, p_y1_given_xobs
-
-    if factual_y is True:
-        return 1.0, 1.0
-    if factual_y is False:
-        return 0.0, 1.0
-    return p_y1_given_xobs, 1.0
+        return NumericInterval(low=lo_target, high=hi_target)
+    return NumericInterval(low=1.0 - hi_target, high=1.0 - lo_target)

@@ -640,18 +640,23 @@ def _program_ast_with_ancestral_marginalization() -> dict:
     }
 
 
-def test_counterfactual_with_monotonicity_and_theta_returns_bounded_interval():
+def test_counterfactual_without_a_factual_outcome_is_point_identified():
+    """P(Y_{x=1}=1 | X=0) is exact once the interventional risk is known.
+
+    The joint is P(0,0)=.42 P(0,1)=.18 P(1,0)=.08 P(1,1)=.32 and X -> Y is
+    unconfounded, so the effect identification returns P(y|do(x=1)) = 0.8
+    and the ETT identity gives (0.8 - 0.32) / 0.6. The old path, which
+    never asked for an interventional risk, could only bound this at
+    [0.3, 1.0].
+    """
     out = run(_program_ast())
 
     assert len(out["results"]) == 1
     result = out["results"][0]
     validate_result(result)
     assert result["query_kind"] == "counterfactual"
-    assert result["status"] == "counterfactual_bounded"
-    assert result["numeric_result"] == {
-        "value": None,
-        "interval": {"low": 0.3, "high": 1.0},
-    }
+    assert result["status"] == "counterfactual_solved"
+    assert result["numeric_result"]["value"] == pytest.approx(0.8)
 
 
 def test_counterfactual_collapses_to_point_when_factual_target_is_known():
@@ -672,23 +677,19 @@ def test_counterfactual_recovers_missing_boolean_complements():
     result = out["results"][0]
     validate_result(result)
     assert result["query_kind"] == "counterfactual"
-    assert result["status"] == "counterfactual_bounded"
-    assert result["numeric_result"] == {
-        "value": None,
-        "interval": {"low": 0.3, "high": 1.0},
-    }
+    assert result["status"] == "counterfactual_solved"
+    assert result["numeric_result"]["value"] == pytest.approx(0.8)
 
 
 def test_counterfactual_recovers_joint_by_ancestral_marginalization():
+    """Z -> X, Z -> Y, X -> Y: the joint comes from marginalizing over Z and
+    the interventional risk from the back-door adjustment on Z,
+    0.3*0.5 + 0.7*0.9 = 0.78, giving (0.78 - 0.408) / 0.52."""
     out = run(_program_ast_with_ancestral_marginalization())
 
     assert len(out["results"]) == 1
     result = out["results"][0]
     validate_result(result)
     assert result["query_kind"] == "counterfactual"
-    assert result["status"] == "counterfactual_bounded"
-    assert result["numeric_result"]["value"] is None
-    assert result["numeric_result"]["interval"]["low"] == pytest.approx(
-        0.4153846153846154
-    )
-    assert result["numeric_result"]["interval"]["high"] == 1.0
+    assert result["status"] == "counterfactual_solved"
+    assert result["numeric_result"]["value"] == pytest.approx(0.372 / 0.52)

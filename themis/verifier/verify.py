@@ -3255,12 +3255,12 @@ def verify_counterfactual(
     context: VerificationContext,
     claimed_result: NumericResult,
 ) -> None:
-    """Verify a narrow counterfactual derivation.
+    """Verify a binary counterfactual-cell derivation.
 
-    Current Phase 5 §C scope has a single witness family:
-    ``counterfactual_bounds_binary_monotone``. The rule independently
-    recomputes the currently landed binary monotone bounds / point value
-    from ``ctx.query`` + ``ctx.theta``.
+    Single witness family: ``counterfactual_cell_bounds``. The rule
+    independently recovers the observational joint from ``ctx.theta``,
+    re-solves the cell from the consistency identity, and audits the
+    declared interventional risk and its provenance.
     """
     if not isinstance(context.query, CounterfactualQuery):
         raise VerificationError(
@@ -3275,10 +3275,10 @@ def verify_counterfactual(
 
     _walk(derivation, context, _assert_counterfactual_query_binding)
 
-    if derivation[-1].rule != "counterfactual_bounds_binary_monotone":
+    if derivation[-1].rule != "counterfactual_cell_bounds":
         raise VerificationError(
             "counterfactual derivation must end in "
-            "'counterfactual_bounds_binary_monotone'",
+            "'counterfactual_cell_bounds'",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
     final = derivation[-1].output

@@ -144,7 +144,7 @@ def test_counterfactual_result_json_carries_derivation():
     assert "derivation" in r
     assert r["derivation"]["kind"] == "derivation"
     assert [s["rule"] for s in r["derivation"]["steps"]] == [
-        "counterfactual_bounds_binary_monotone"
+        "counterfactual_cell_bounds"
     ]
 
 

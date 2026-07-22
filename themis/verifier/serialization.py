@@ -776,6 +776,12 @@ def _query_to_dict(q) -> dict:
             }
         if q.factual_target_known is not None:
             d["factual_target_known"] = q.factual_target_known
+        # The verifier re-derives whether the cell needs an interventional
+        # risk from the query itself, so these must survive the round-trip.
+        if q.experimental_risk_treated is not None:
+            d["experimental_risk_treated"] = float(q.experimental_risk_treated)
+        if q.experimental_risk_control is not None:
+            d["experimental_risk_control"] = float(q.experimental_risk_control)
         return d
     raise DerivationSerializationError(
         f"don't know how to serialize query type {type(q).__name__}"
@@ -1030,6 +1036,8 @@ def _decode_query(d: dict):
             ),
             assumptions=assumptions,
             factual_target_known=d.get("factual_target_known"),
+            experimental_risk_treated=d.get("experimental_risk_treated"),
+            experimental_risk_control=d.get("experimental_risk_control"),
         )
     raise DerivationSerializationError(f"unknown query kind: {kind!r}")
 

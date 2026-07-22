@@ -515,7 +515,7 @@ def test_counterfactual_derivation_verifies_from_fully_serialized_payload():
     r = next(
         x for x in results
         if x.query_kind is QueryKind.COUNTERFACTUAL
-        and x.status is ResultStatus.COUNTERFACTUAL_BOUNDED
+        and x.status is ResultStatus.COUNTERFACTUAL_SOLVED
     )
     ctx = VerificationContext(
         graph=graph, query=stmt_by_id[r.query_id].query, theta=theta,
@@ -593,7 +593,7 @@ def test_tampering_counterfactual_theta_entry_is_rejected_after_decode():
     r = next(
         x for x in results
         if x.query_kind is QueryKind.COUNTERFACTUAL
-        and x.status is ResultStatus.COUNTERFACTUAL_BOUNDED
+        and x.status is ResultStatus.COUNTERFACTUAL_SOLVED
     )
     ctx = VerificationContext(
         graph=graph, query=stmt_by_id[r.query_id].query, theta=theta,

@@ -579,6 +579,18 @@
             "string",
             "null"
           ]
+        },
+        "experimental_risk_treated": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Optional directly-supplied P(Y=1 | do(X=1)) from a randomized experiment. Only the arm matching counterfactual_intervention is consulted. Use when the effect of X on Y is NOT identifiable from observational data alone (confounded) but an RCT measured the interventional risk separately. When absent, the risk is derived from theta via effect identification."
+        },
+        "experimental_risk_control": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Optional directly-supplied P(Y=1 | do(X=0)). Counterpart to experimental_risk_treated."
         }
       }
     },

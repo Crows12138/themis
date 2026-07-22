@@ -2030,37 +2030,19 @@ def _dispatch_counterfactual(
     theta: Theta,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    selection_nodes: "tuple[Statement, ...]" = (),
 ) -> QueryResult:
-    q: CounterfactualQuery = stmt.query  # type: ignore[assignment]
+    """One binary counterfactual cell P(Y_{x'}=y* | X=x [, Y=y]).
 
-    if q.assumptions is None or q.assumptions.monotonicity is None:
-        assumption_gap = MissingItem(
-            kind=MissingKind.ASSUMPTION,
-            name="assumptions.monotonicity",
-            priority=Priority.HIGH,
-            reason="首版反事实 bounds 只支持显式 monotonicity 假设",
-        )
-        return QueryResult(
-            status=ResultStatus.NEEDS_ASSUMPTION,
-            query_kind=QueryKind.COUNTERFACTUAL,
-            query_id=stmt.id,
-            missing_information=(assumption_gap,),
-            investigation_requests=(
-                InvestigationRequest(
-                    action=InvestigationAction.DEFINE_ASSUMPTION,
-                    target=assumption_gap.name,
-                    priority=assumption_gap.priority,
-                    note=assumption_gap.reason,
-                    group=MissingKind.ASSUMPTION.value,
-                    items=(
-                        InvestigationItem(
-                            target=assumption_gap.name,
-                            reason=assumption_gap.reason,
-                        ),
-                    ),
-                ),
-            ),
-        )
+    Recovers the observational joint P(X, Y) from theta, obtains the ONE
+    interventional risk P(Y=1 | do(x')) the cell depends on — user-supplied
+    experimental value, or derived by running the effect identification —
+    and hands both to ``counterfactual.counterfactual_cell_interval``, whose
+    single linear consistency identity covers every cell. Monotonicity, when
+    declared, is an extra constraint that can collapse the interval to a
+    point; it is not required to answer.
+    """
+    q: CounterfactualQuery = stmt.query  # type: ignore[assignment]
 
     try:
         joint_xy, missing, skeletons = _counterfactual_joint_xy(
@@ -2084,10 +2066,77 @@ def _dispatch_counterfactual(
             ),
         )
 
+    # The interventional risk for the counterfactual arm. Fetched only for the
+    # arm actually asked about — the other one is information this answer does
+    # not depend on, and requiring it would manufacture a gap. Fetched even
+    # when monotonicity would pin the cell outright, because with the risk in
+    # hand the solver can also detect that the two sources contradict.
+    x_obs_value = q.observed.value
+    x_cf_value = q.counterfactual_intervention.value
+    risk: float | None = None
+    risk_provenance = "not_required"
+    arm_missing: tuple[MissingItem, ...] = ()
+    arm_requests: tuple[InvestigationRequest, ...] = ()
+    if isinstance(x_cf_value, bool) and x_cf_value != x_obs_value:
+        supplied = (
+            q.experimental_risk_treated if x_cf_value
+            else q.experimental_risk_control
+        )
+        if supplied is not None:
+            risk = float(supplied)
+            risk_provenance = "user_experimental"
+        else:
+            risk, arm_missing, arm_requests = _derive_interventional_risk_arm(
+                stmt, graph, theta,
+                q.observed.atom, q.counterfactual_target.atom, x_cf_value,
+                bidirected=bidirected, selection_nodes=selection_nodes,
+            )
+            if risk is not None:
+                risk_provenance = "derived_identification"
+
     try:
         twin = counterfactual.project_twin_network(graph, bidirected, q)
-        interval = counterfactual.balke_pearl_bounds_binary_monotone(
-            twin, q, joint_xy
+        interval = counterfactual.counterfactual_cell_interval(
+            twin, q, joint_xy, p_y_do_x_cf=risk,
+        )
+    except counterfactual.InterventionalRiskRequired as need:
+        # Neither consistency nor monotonicity determines this cell, and
+        # P(Y=1|do(x')) could not be obtained. Report the gap that names the
+        # remedy rather than the vacuous [0, 1] that would look like an answer.
+        escape = MissingItem(
+            kind=MissingKind.ASSUMPTION,
+            name="counterfactual:interventional_risk_unavailable",
+            priority=Priority.HIGH,
+            reason=(
+                f"P(Y=1|do(X={need.needed_x_value})) could not be derived (the "
+                "effect is not identifiable from the supplied data), and this "
+                "counterfactual cell is not determined without it. Supply "
+                "experimental_risk_treated / experimental_risk_control from a "
+                "randomized experiment, or add the data needed to identify "
+                "the effect."
+            ),
+        )
+        merged = tuple(arm_missing) + (escape,)
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.COUNTERFACTUAL,
+            query_id=stmt.id,
+            missing_information=merged,
+            investigation_requests=tuple(arm_requests),
+        )
+    except counterfactual.CounterfactualInfeasible as exc:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.COUNTERFACTUAL,
+            query_id=stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.ASSUMPTION,
+                    name="counterfactual:inputs_infeasible",
+                    priority=Priority.HIGH,
+                    reason=str(exc),
+                ),
+            ),
         )
     except counterfactual.CounterfactualBoundsError as exc:
         return QueryResult(
@@ -2103,10 +2152,16 @@ def _dispatch_counterfactual(
     )
     solved_result = NumericResult(value=interval.low)
     derivation_output = solved_result if interval.low == interval.high else bounded_result
+    step_inputs: dict = {
+        "graph": graph,
+        "interventional_risk_provenance": risk_provenance,
+    }
+    if risk is not None:
+        step_inputs["p_y_do_x_cf"] = risk
     derivation = (
         DerivationStep(
-            rule="counterfactual_bounds_binary_monotone",
-            inputs={"graph": graph},
+            rule="counterfactual_cell_bounds",
+            inputs=step_inputs,
             output=derivation_output,
             step_id="s1",
         ),
@@ -2141,6 +2196,47 @@ def _poc_quantity(lower: float, upper: float, point: "float | None") -> dict:
     return d
 
 
+def _derive_interventional_risk_arm(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    x_atom: Atom,
+    y_atom: Atom,
+    x_val: bool,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    selection_nodes: "tuple[Statement, ...]" = (),
+) -> "tuple[float | None, tuple[MissingItem, ...], tuple[InvestigationRequest, ...]]":
+    """Derive ONE interventional risk P(Y=1 | do(X=x_val)) via the existing
+    effect identification.
+
+    Split out from ``_derive_interventional_risks`` because a counterfactual
+    cell needs only the arm it is actually asking about: fetching the other
+    one would manufacture a gap for information the answer does not depend
+    on. Returns ``(risk, (), ())`` on success, ``(None, missing, requests)``
+    otherwise.
+    """
+    internal = QueryStatement(
+        id=f"{stmt.id}::do_x{'1' if x_val else '0'}",
+        query=EffectQuery(
+            target=ValuedAtom(atom=y_atom, value=True),
+            intervention=Intervention(atom=x_atom, value=x_val),
+            given=(),
+        ),
+    )
+    sub = _dispatch_effect(
+        internal, graph, theta,
+        bidirected=bidirected, selection_nodes=selection_nodes,
+    )
+    if (
+        sub.status == ResultStatus.NUMERICALLY_SOLVED
+        and sub.numeric_result is not None
+        and sub.numeric_result.value is not None
+    ):
+        return float(sub.numeric_result.value), (), ()
+    return None, sub.missing_information, sub.investigation_requests
+
+
 def _derive_interventional_risks(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -2165,29 +2261,17 @@ def _derive_interventional_risks(
     merged_missing: list[MissingItem] = []
     merged_requests: list[InvestigationRequest] = []
     for x_val in (True, False):
-        internal = QueryStatement(
-            id=f"{stmt.id}::do_x{'1' if x_val else '0'}",
-            query=EffectQuery(
-                target=ValuedAtom(atom=y_atom, value=True),
-                intervention=Intervention(atom=x_atom, value=x_val),
-                given=(),
-            ),
-        )
-        sub = _dispatch_effect(
-            internal, graph, theta,
+        risk, arm_missing, arm_requests = _derive_interventional_risk_arm(
+            stmt, graph, theta, x_atom, y_atom, x_val,
             bidirected=bidirected, selection_nodes=selection_nodes,
         )
-        if (
-            sub.status == ResultStatus.NUMERICALLY_SOLVED
-            and sub.numeric_result is not None
-            and sub.numeric_result.value is not None
-        ):
-            risks.append(float(sub.numeric_result.value))
+        if risk is not None:
+            risks.append(risk)
         else:
-            for item in sub.missing_information:
+            for item in arm_missing:
                 if item.name not in {m.name for m in merged_missing}:
                     merged_missing.append(item)
-            merged_requests.extend(sub.investigation_requests)
+            merged_requests.extend(arm_requests)
     if len(risks) == 2:
         return (risks[0], risks[1]), None
 
@@ -4783,8 +4867,11 @@ def dispatch(
                 stmt, graph, theta, bidirected=bidirected,
             )
     elif isinstance(q, CounterfactualQuery):
+        from ..types import SelectionNode as _SN
+        sel_nodes = tuple(s for s in program.statements if isinstance(s, _SN))
         result = _dispatch_counterfactual(
-            stmt, graph, theta, bidirected=bidirected
+            stmt, graph, theta,
+            bidirected=bidirected, selection_nodes=sel_nodes,
         )
     elif isinstance(q, CausationQuery):
         from ..types import SelectionNode as _SN
@@ -4891,6 +4978,7 @@ def _attach_data_gap_report(
         extensions=result.extensions,
         structural_result=result.structural_result,
         bounds_result=result.bounds_result,
+        numeric_result=result.numeric_result,
         confidence=result.confidence,
     )
     if report is None and result.data_gap_report is None:
