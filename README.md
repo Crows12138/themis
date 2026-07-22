@@ -145,7 +145,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 反事实单格**数据端**（2026-07-22）：theta 端刚重建的一致性恒等式，现在也能吃 DataFrame——四个观测格用经验频率、被问格子真正依赖的**那一臂** do-风险用后门标准化，喂进**同一个求解器**（公式不再转写第二遍；先把「二值联合 + 后门 do-风险」抽成 `estimation/binary_do_risk.py` 与 PN/PS/PNS 估计器共用，两边各自只剩自己那条定理）。数据端多出来的两样：**抽样不确定性**（点给百分位 CI，区间给区间自身的外带）和**单调性推翻率**（求解器在空可行集时报拒绝，跨 bootstrap 的被推翻占比 = 这条「不可检验」假设离被数据推翻有多近，theta 端表达不出来）。`interventional_risk_provenance` 五值全部可复核——`not_required` / `pinned_by_monotonicity` 声称「没用干预风险」，验证器自己重算这两条理由成不成立。取舍：二值·须干预被观测的同一变量·do-风险只走后门。D1：两扇门在同一份 DataFrame 上逐位一致（1e-12）；**真值 oracle 是数生成器的潜在结果**而不是再跑一遍恒等式；构造「另一臂有 positivity 空洞」的数据坐实只取被依赖的那一臂。+32 测试
 
-当前全量测试基线：**3356 passed / 144 skipped**，warning-clean。
+- 反事实单格的干预风险接上 **general ID**（2026-07-22）：跨世界的格子消费一臂 `P(Y=1|do x')`，此前它只能来自后门调整集或随机实验——没有调整集就等于没有风险，这一格于是只在单调性把它整个钉死时才答得出。但「没有调整集」不等于「不可识别」：general ID（c-factor 分解）能到达任何协变量集都表达不出的估计量（潜混杂下的前门结构就是最干净的例子：调整可证失败、ID 可证成功）。回退是纯加法——后门优先（有调整集时逐字节不变），后门失败才试 ID，ID 也失败才落回单调性。provenance 多出 `general_id_plug_in`，并且和其余五值一样**是可复核的断言**：验证器重算「确实没有可容许调整集」，再对 `ctx.query` 问的**那一臂**重跑 ID，把自己导出的估计量与记录的逐节点比对——**算了另一臂却当成本格上报**是会静默给错答案的真实故障模式，这一步正好抓它。取舍：IV 识别的风险未接（Wald 比是 ATE 不是单臂风险）·估计量条件到的每层须有支撑。D1：真值 oracle 仍是数生成器的潜在结果；三类篡改各因该抓的原因被拒且原因钉进测试。+11 测试
+
+当前全量测试基线：**3367 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -199,7 +201,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3356 passed / 144 skipped（2026-07-22）
+- **测试套件**：3367 passed / 144 skipped（2026-07-22）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
