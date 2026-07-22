@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3324 passed / 144 skipped, warning-clean
+3356 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -512,7 +512,24 @@ a·P(x, Y=1) + b·P(x, Y=0) = P(Y=1 | do(x')) − P(x', Y=1)
 
 取舍（声明）=二值原因/结局（非二值无退路可落，越界即压成 effect 代理）·单世界一次 do·`ResultStatus.NEEDS_ASSUMPTION` 因此**再无生产者**（唯一的生产者就是被拆掉的这道门；状态保留在 envelope 契约里且消费端仍处理，但 data_gap_report/explainer 的三处分支今天不可达，已在枚举处写明）·DataFrame 数据端仍未建（theta 端本档收口，数据端是 `37a2ea0` 的镜像 follow-on）。D1：PN/PS 两扇门逐位一致（无假设界与单调点各一测）·ETT 出点 0.8 而旧路径只能给 [0.3,1.0]·混杂图诚实报缺再由实验风险救回·只供被依赖的那一臂即足·被钉死的格子在效应不可识别时照样出点·消费不了的实验风险（违 consistency）与**被数据推翻的单调性**分别报出而不是 clamp 到边界（判空必须在 clamp **之前**，反序会把空可行集折到边界上报出一个自信的 0 或 1）·四种可答形态全部过独立验证·篡改申报风险与谎称"不需要风险"均被拒。+42 →**3324**。
 
-**基线**：3221 → **3324**。注意这个跳幅还吸收了上个 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**反事实单格数据端（2026-07-22）**：上一档声明的镜像 follow-on，本档收口。theta 端从 `theta` 恢复观测联合、跑识别拿一臂 do-风险、交给 `counterfactual_cell_interval` 的一致性恒等式；数据端把**同一个求解器**的两项输入换成经验量——四个观测格用频率，被问格子真正依赖的**那一臂**干预风险用后门标准化（饱和 g-formula）——公式一次都没有再转写。
+
+结构上先做了一步抽取：`estimation/binary_do_risk.py` 拿走 `causation.py` 里的「二值观测联合 + 后门 do-风险」四个函数（`minimal_backdoor_adjustment` / `as_binary_column` / `observational_joint_xy` / `backdoor_do_risk`）。理由不是去重本身：g-formula 在这两个模块里**都不是被检验的定理**（一个检验 Tian-Pearl，一个检验一致性恒等式），把它放在共用的地基上，两边就都只剩下自己那条定理。`causation.py` 行为逐字节不变。
+
+新 `estimation/counterfactual_cell.py`（`estimate_counterfactual_cell` → `CounterfactualCellEstimate`）。数据端相对 theta 端多出来的两样东西都不是装饰：
+
+- **抽样不确定性**。theta 端从声明的分布回答，根本没有抽样误差可言。这里点识别时给点的百分位 CI，区间时给 `[lower, upper]` 的**外带**（Manski / Balke-Pearl 数据界惯例，与 `causation.py` 同一约定）——「区间外面的一条带」和「点外面的一条区间」是两回事，prompt 里专门点名不要混。
+- **单调性的推翻率**。求解器在联合与 do-风险在所声明单调性下无解时报空可行集。点估计上这是拒绝；跨 bootstrap 重抽样时，**被推翻的那部分抽样占比**是「这条通常被称作不可检验的假设，离被这份数据推翻有多近」的有限样本度量——theta 端根本表达不出来。它被计数上报（`bootstrap_draws_infeasible`），不是静默跳过。
+
+`interventional_risk_provenance` 五值，且每一个都是**可复核的断言**而非自述：`not_required`（两世界重合，一致性直接回答）/ `pinned_by_monotonicity`（do-风险不可得，但单调性把这一格钉死了）/ `user_experimental` / `exogenous` / `backdoor_adjustment`。前两个是「没用干预风险」，验证器从 `ctx.query` 自己重算这两条理由成不成立——否则「不需要」就是自证。
+
+接线：`dispatch._estimate_counterfactual_cell_queries` 纯加法（任何拒绝都原样保留结构答案）；派生 `numeric_counterfactual_cell_estimate`；`numeric_estimate.counterfactual_cell` 子块 + schema；`extensions.counterfactual_cell` 显示副本 + 解释器渲染（此前 `numerically_solved` 的反事实会掉进「结果未分类」）；kernel.verify 按 status 路由到新的 `verify_counterfactual_cell_numeric` + 显示副本一致性检查。验证器侧把上一档的恒等式转写抽成 `_solve_counterfactual_cell_for_verifier(query, joint, ...)`，两个入口（theta 端符号恢复联合 / 数据端上报经验联合）共用**同一次**转写，新增的数据端规则再独立复核 provenance、调整集可容许性、区间是否真的塌成点、CI 是否夹住点。
+
+顺带修掉上一档自己造成的一处陈述失真：`counterfactual_identification_assumption_required` 这条 caveat 还写着「当走 monotone bounds 时还需要…单调性」——那是 `balke_pearl_bounds_binary_monotone` 时代的因果链（单调性 ⟹ 有界）。重建之后单调性只是收紧区间的可选约束，真正被继承的新前提是**干预风险凭什么成立**（调整集充分 / 来自随机实验）。按「总是需要 / 条件需要」两层重写。
+
+取舍（声明）=二值 X、Y·反事实必须干预**被观测的同一个变量**·干预风险只走后门（前门 / IV / general-ID 数据路径未接，镜像 `causation.py` 的同一边界）·调整集须离散且被问那一臂在每层有支撑。D1：**两扇门在同一份 DataFrame 上逐位一致**（PN 界、PS 界、单调 PN 点各一测，1e-12）·**独立真值 oracle 是数着生成器的潜在结果**而不是再跑一遍恒等式（ETT 点、单调 PN 点各恢复真值到 0.01；非单调 SCM 上无假设区间覆盖真值且下界真的咬得住）·**只取被依赖的那一臂**（构造了一份「另一臂有 positivity 空洞」的数据：本格照样出答案，而需要两臂的 causation 门在同一份数据上正确拒绝）·同世界格完全不取风险·潜混杂下诚实拒绝、被单调性钉死时照样出点、实验风险救回·违 consistency 的风险与被推翻的单调性分别拒绝·bootstrap 推翻率非零·篡改区间 / 风险 / 谎称 not_required / 谎称 pinned / 不可容许调整集 / 非塌区间上claim 点 / 篡改显示副本全部被拒。+32 →**3356**。
+
+**基线**：3324 → **3356**。上一次的跳幅（3221 → 3324）还吸收了更早 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
