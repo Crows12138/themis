@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3282 passed / 144 skipped, warning-clean
+3324 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -496,7 +496,23 @@ P(M1..Mk | X=x, W=w) = ∏_j P(Mj | M_<j, X=x, W=w)
 
 建这一档时浮出两个缺陷，因块的工作使其可达，一并修在本档：**①生产者从不把图传给 `estimate_formula`**，于是边际独立归约走的是 iter 193"信任用户"分支而非 iter 199 的 d-分离守卫——**守卫只接了验证器侧**。在**链式**块（X→M1→M2→Y，正是块识别专门支持的形状）+ 只声明边际 theta 时，运行时拿 `P(M2|X)` 顶替被要求的 `P(M2|M1,X)`，把 te=0.571 当 `numerically_solved` 报了出去（探针复现）。现在诚实拒绝，并点名缺哪个 CPT、为什么边际不能替代。单中介很少暴露这个洞是因为 `P(M|X)` 通常恰好就是被要的量；块使那个条件量变成常规需求。**②`kernel.verify` 按"status 是 numerically_solved **且**存在 numeric_estimate"路由**，把两件正交的事混为一谈。中介结果可以同时带**两条独立数值通道**——终结于 `numeric_result` 的 theta 求值，加上对同一分解的 DataFrame 估计——拿数据估计去比 theta 派生的终端会**拒掉诚实结果**。改成按派生的**实际终端**路由，两条通道各按自己的方式审计。这在"单中介 + theta + 数据"上本就是坏的（已复现），故一并修好。取舍（声明）=布尔处理（同单中介路径）·块 CDE 参考点上限 16 组、超出报 `too_many_reference_points`·穿过块中**某一个**成员的路径专属分解仍然越界（那是 recanting-witness 不可识别，不是没做）。
 
-**基线**：3221 → **3282**。注意这个跳幅还吸收了上个 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**反事实单格从一条一致性恒等式重建（2026-07-22）**：同一个反事实量，经两扇门问会拿到天差地别的答案。经 `causation` 门问 PN = P(Y_{x'}=0 | X=1, Y=1)，得到 Tian-Pearl 无假设界（单调则点）；经 `counterfactual` 门问**同一个量**——没声明 monotonicity 直接 `needs_assumption` 拒绝，声明了则返回 **[0,1] 空洞区间**。**根因不是公式弱，是输入集被人为窄化**：`balke_pearl_bounds_binary_monotone` 只消费观测联合 P(X,Y)，从不索取干预风险 P(Y=1|do(X))，而在那个信息集下 [0,1] 确实是正确答案——单调性单独约束不了 PN。同一内核里 do-风险的识别级联（后门/前门/Tian/ID/IV）一直都在，`causation` 门就在用 `_derive_interventional_risks` 调它，**这条路径没接识别层**。证据在旧代码本身：`_bounds_non_decreasing`/`_bounds_non_increasing` 八个格子中，**返回确定点的四个恰是单调性单独就能定死的格子**（X=1、Y=0、非减 ⟹ Y_0=0），**返回 (0,1) 的两个恰是 PN 格和 PS 格**——空洞与"需要 do-风险"一一对应。
+
+于是不并列写第二套公式，而是把整族归约到一条线性一致性约束。记 `a = P(Y_{x'}=1 | X=x, Y=1)`、`b = P(Y_{x'}=1 | X=x, Y=0)`，则
+
+```text
+a·P(x, Y=1) + b·P(x, Y=0) = P(Y=1 | do(x')) − P(x', Y=1)
+```
+
+左边是 `P(Y_{x'}=1 | X=x)·P(x)`，右边由 consistency `P(Y_{x'}=1, X=x') = P(Y=1, X=x')` 把 `P(Y_{x'}=1)` 的另一半切掉。**一条方程把两个格子拴在一起，各自住在 [0,1] 盒里，单调性（若声明）把其中一个钉死**——所有答案都是这个小规划对被问格子求解的结果：没有 `factual_target_known` 时目标就是左边除以 P(x)，**是点不是界**（ETT 恒等式）；已知时另一格自由则映成区间（PN 格逐项复现式 25、PS 格复现式 26）；已知且另一格被单调性钉死时方程只剩一个值——**Tian-Pearl 的单调点识别（式 41-42）是它的推论而不是第二次转写**。30000 例随机输入对着独立写成的 `probabilities_of_causation` 交叉验证，PN/PS 界与单调点最大偏差 1.8e-14。
+
+接线：`_dispatch_counterfactual` 去掉 monotonicity 硬门，复用 causation 门的识别机制取 do-风险，并且**只取被问格子真正依赖的那一臂**（抽出 `_derive_interventional_risk_arm`——取另一臂会为答案根本不依赖的信息凭空造出缺口）；同一世界的 consistency 格和被单调性钉死的格**完全不取**（`InterventionalRiskRequired` 点名需要哪一臂，取不到时报 `counterfactual:interventional_risk_unavailable` 而不是返回看着像答案的 [0,1]）。`CounterfactualQuery` 与 `CausationQuery` 对齐，新增 `experimental_risk_treated`/`experimental_risk_control`（混杂但有 RCT 的 Tian-Pearl 药物例形态，两处 schema + validator + 序列化 round-trip）。派生规则更名 `counterfactual_bounds_binary_monotone` → `counterfactual_cell_bounds`（旧名在新语义下说谎）。验证器独立第二次转写恒等式与钉死表，并新增一条真正的可靠性检查：**`interventional_risk_provenance = "not_required"` 必须经得起复核**——验证器自己重算这个格子到底依不依赖 do-风险，否则"不需要"就是自证。风险还要是概率、且不得与 theta 重建的联合矛盾。
+
+顺带修掉一个报告缺陷：`answer_tier` 只读 effect 专用的 `bounds_result` 来判断"手里有没有区间"，而反事实的区间住在 `numeric_result.interval`，于是拿着 [0.625, 0.875] 却报 `none`（无答案可给）。改成两条通道都算数。
+
+取舍（声明）=二值原因/结局（非二值无退路可落，越界即压成 effect 代理）·单世界一次 do·`ResultStatus.NEEDS_ASSUMPTION` 因此**再无生产者**（唯一的生产者就是被拆掉的这道门；状态保留在 envelope 契约里且消费端仍处理，但 data_gap_report/explainer 的三处分支今天不可达，已在枚举处写明）·DataFrame 数据端仍未建（theta 端本档收口，数据端是 `37a2ea0` 的镜像 follow-on）。D1：PN/PS 两扇门逐位一致（无假设界与单调点各一测）·ETT 出点 0.8 而旧路径只能给 [0.3,1.0]·混杂图诚实报缺再由实验风险救回·只供被依赖的那一臂即足·被钉死的格子在效应不可识别时照样出点·消费不了的实验风险（违 consistency）与**被数据推翻的单调性**分别报出而不是 clamp 到边界（判空必须在 clamp **之前**，反序会把空可行集折到边界上报出一个自信的 0 或 1）·四种可答形态全部过独立验证·篡改申报风险与谎称"不需要风险"均被拒。+42 →**3324**。
+
+**基线**：3221 → **3324**。注意这个跳幅还吸收了上个 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
