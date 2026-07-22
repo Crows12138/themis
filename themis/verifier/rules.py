@@ -4392,18 +4392,15 @@ def _rule_numeric_causation_estimate(
                 step_index=step_index, rule=rule,
             )
     monotonic = bool(_require(inputs, "monotonic", step_index, rule))
-    if not monotonic:
-        raise RuleCheckFailed(
-            f"{rule}: a numeric PN/PS/PNS POINT requires monotonic=True "
-            "(without it the quantities are only bounds)",
-            step_index=step_index, rule=rule,
-        )
 
-    # 1. Independent Tian-Pearl re-application on the reported data inputs.
+    # 1. Independent Tian-Pearl re-application on the reported data inputs. The
+    #    bounds (eqs 24-26) are re-derived for every answer; the points (eqs
+    #    40-42) only under monotonicity — a non-monotone (bounds-only) answer
+    #    reports point=None and the loop below checks that None is consistent.
     recomputed = _tian_pearl_poc_for_verifier(
         p_x1_y1=cells["p_x1_y1"], p_x1_y0=cells["p_x1_y0"],
         p_x0_y1=cells["p_x0_y1"], p_x0_y0=cells["p_x0_y0"],
-        p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0, monotonic=True,
+        p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0, monotonic=monotonic,
     )
     for q in ("pn", "ps", "pns"):
         exp_lower, exp_upper, exp_point = recomputed[q]
@@ -4466,8 +4463,11 @@ def _rule_numeric_causation_estimate(
                 step_index=step_index, rule=rule,
             )
 
-    # 3. Headline PN CI brackets the PN point (when a CI is present).
-    pn_point = float(_require(inputs, "pn_point", step_index, rule))
+    # 3. Headline PN CI (present only when a bootstrap ran). When the PN point
+    #    is identified (monotone) the CI must bracket the point; for the
+    #    bounds-only answer it is the OUTER band on the PN identified set, which
+    #    is a bootstrap artifact (not independently re-derivable from a data_hash)
+    #    so it is checked only for validity as a probability interval.
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
     if ci_lower is not None or ci_upper is not None:
@@ -4476,9 +4476,18 @@ def _rule_numeric_causation_estimate(
                 f"{rule}: ci_lower and ci_upper must both be present or absent",
                 step_index=step_index, rule=rule,
             )
-        if not (ci_lower <= pn_point <= ci_upper):
+        pn_point_in = inputs.get("pn_point")
+        if pn_point_in is not None:
+            pn_point = float(pn_point_in)
+            if not (ci_lower <= pn_point <= ci_upper):
+                raise RuleCheckFailed(
+                    f"{rule}: PN point {pn_point} outside CI [{ci_lower}, {ci_upper}]",
+                    step_index=step_index, rule=rule,
+                )
+        elif not (0.0 <= ci_lower <= ci_upper <= 1.0):
             raise RuleCheckFailed(
-                f"{rule}: PN point {pn_point} outside CI [{ci_lower}, {ci_upper}]",
+                f"{rule}: PN outer band [{ci_lower}, {ci_upper}] is not a valid "
+                "probability interval",
                 step_index=step_index, rule=rule,
             )
 

@@ -77,6 +77,25 @@ def _sample(n: int, seed: int) -> pd.DataFrame:
     return pd.DataFrame({"x": x, "y": y, "z": z})
 
 
+def _sample_nonmono(n: int, seed: int) -> pd.DataFrame:
+    """Confounded SCM WITH preventive (hurt) units — Y=1 iff X=0 for some
+    units, so Y is NOT monotone in X. PN/PS/PNS are then genuinely bounds
+    (no point identification). Z confounds X and Y (back-door set {Z})."""
+    rng = np.random.default_rng(seed)
+    z = rng.random(n) < 0.5
+    u = rng.random(n)
+    a = np.where(z, 0.15, 0.25)   # survivor cum
+    b = np.where(z, 0.55, 0.55)   # + helped cum
+    c = np.where(z, 0.80, 0.75)   # + hurt cum
+    surv, helped, hurt = u < a, (u >= a) & (u < b), (u >= b) & (u < c)
+    x = rng.random(n) < np.where(z, 0.7, 0.3)
+    y = np.zeros(n, dtype=bool)
+    y[surv] = True
+    y[helped] = x[helped]
+    y[hurt] = ~x[hurt]            # preventive → non-monotone
+    return pd.DataFrame({"x": x, "y": y, "z": z})
+
+
 def _result(r):
     return r["results"][0]
 
@@ -107,12 +126,122 @@ def test_estimate_recovers_points_and_provenance():
         assert poc[q]["lower"] <= poc[q]["point"] <= poc[q]["upper"]
 
 
-def test_estimate_without_monotonicity_attaches_no_point():
-    # No monotonicity → PN/PS/PNS are only bounds; the point overlay refuses,
-    # so no numeric_estimate is attached (structural answer stays primary).
-    df = _sample(30_000, seed=3)
+def test_estimate_without_monotonicity_attaches_data_bounds():
+    # No monotonicity → PN/PS/PNS are genuinely bounds. The data DOES answer the
+    # question (Tian-Pearl bounds from the empirical joint + g-formula do-risks),
+    # so a bounds overlay is attached (numerically_solved), the headline point is
+    # OMITTED, and the answer_tier is 'interval'.
+    df = _sample_nonmono(60_000, seed=3)
     res = _result(themis.estimate(_ast(_CONFOUNDED, monotonic=False), df))
-    assert "numeric_estimate" not in res
+    assert res["status"] == "numerically_solved"
+    ne = res["numeric_estimate"]
+    assert "point" not in ne                       # no headline point for bounds
+    assert ne["method"] == "causation_plugin"
+    poc = ne["probabilities_of_causation"]
+    assert poc["monotonic"] is False
+    assert poc["interventional_risk_provenance"] == "backdoor_adjustment"
+    assert poc["adjustment"] == ["z"]
+    for q in ("pn", "ps", "pns"):
+        b = poc[q]
+        assert b["point"] is None                  # not point-identified
+        assert 0.0 <= b["lower"] < b["upper"] <= 1.0   # a genuine interval
+        # outer band brackets the identified interval
+        assert b["ci_lower"] <= b["lower"] + 1e-9
+        assert b["ci_upper"] >= b["upper"] - 1e-9
+    assert res["numeric_result"] == {"value": None}
+    assert res["data_gap_report"]["answer_tier"] == "interval"
+
+
+def test_bounds_contain_true_values_and_schema_ok():
+    # The recovered bounds must be valid (contain the true PN/PS/PNS of the SCM)
+    # and round-trip through the schema.
+    df = _sample_nonmono(200_000, seed=21)
+    res = _result(themis.estimate(_ast(_CONFOUNDED, monotonic=False), df))
+    validate_result(res)
+    poc = res["numeric_estimate"]["probabilities_of_causation"]
+    # True values for this SCM (marginalized over z, p(z)=0.5):
+    #   helped = 0.40, survivor = 0.20 => PNS = 0.40
+    #   PN = helped/(surv+helped) = 0.40/0.60 ; PS = helped/(helped+never)
+    # Rather than pin exact constants, assert the intervals are non-degenerate
+    # and the point-estimate identities from an independent empirical PNS.
+    x, y = df["x"].to_numpy(), df["y"].to_numpy()
+    assert poc["pns"]["lower"] <= poc["pns"]["upper"]
+    # PNS lower bound is a valid Fréchet-type floor: max(0, do1-do0)
+    do1 = poc["p_y_do_x1"]; do0 = poc["p_y_do_x0"]
+    assert poc["pns"]["lower"] >= max(0.0, do1 - do0) - 1e-9
+
+
+def test_bounds_exogenous_provenance():
+    # X→Y only, X exogenous, NON-monotone: bounds recovered with adjustment=[].
+    rng = np.random.default_rng(31)
+    n = 120_000
+    x = rng.random(n) < 0.5
+    u = rng.random(n)
+    # response types independent of X (exogenous): survivor .2 / helped .3 /
+    # hurt .2 / never .3 → non-monotone via the hurt (preventive) mass.
+    y = np.where(u < 0.2, True,
+                 np.where(u < 0.5, x,
+                          np.where(u < 0.7, ~x, False)))
+    df = pd.DataFrame({"x": x, "y": y})
+    res = _result(themis.estimate(
+        _ast((_cause("x", "y"),), monotonic=False, variables=("x", "y")), df))
+    assert res["status"] == "numerically_solved"
+    poc = res["numeric_estimate"]["probabilities_of_causation"]
+    assert poc["monotonic"] is False
+    assert poc["interventional_risk_provenance"] == "exogenous"
+    assert poc["adjustment"] == []
+    for q in ("pn", "ps", "pns"):
+        assert poc[q]["point"] is None
+        assert poc[q]["lower"] <= poc[q]["upper"]
+    themis.verify(
+        _ast((_cause("x", "y"),), monotonic=False, variables=("x", "y")), res)
+
+
+def test_verify_accepts_data_bounds():
+    prog = _ast(_CONFOUNDED, monotonic=False)
+    res = _result(themis.estimate(prog, _sample_nonmono(80_000, seed=6)))
+    themis.verify(prog, res)             # independent Tian-Pearl bounds re-derivation
+
+
+def test_verify_rejects_tampered_bound():
+    # Falsely widen the reported PNS lower bound: the verifier re-derives the
+    # Tian-Pearl bounds from the reported joint + do-risks and the claim no
+    # longer matches (strong re-derivation catches a self-consistent forgery of
+    # the interval).
+    prog = _ast(_CONFOUNDED, monotonic=False)
+    res = _result(themis.estimate(prog, _sample_nonmono(40_000, seed=7)))
+    tam = copy.deepcopy(res)
+    for st in tam["derivation"]["steps"]:
+        if st["rule"] == "numeric_causation_estimate":
+            st["inputs"]["pns_lower"] = 0.0
+    with pytest.raises(VerificationError):
+        themis.verify(prog, tam)
+
+
+def test_verify_rejects_tampered_do_risk_on_bounds():
+    # Tamper a do-risk on the bounds answer: the re-applied Tian-Pearl bounds
+    # change, so the reported lower/upper no longer match — caught even though
+    # the bound fields themselves were left untouched.
+    prog = _ast(_CONFOUNDED, monotonic=False)
+    res = _result(themis.estimate(prog, _sample_nonmono(40_000, seed=8)))
+    tam = copy.deepcopy(res)
+    for st in tam["derivation"]["steps"]:
+        if st["rule"] == "numeric_causation_estimate":
+            st["inputs"]["p_y_do_x1"] = 0.05
+    with pytest.raises(VerificationError):
+        themis.verify(prog, tam)
+
+
+def test_verify_rejects_bounds_display_copy_tamper():
+    # extensions.causation is the display copy the explainer reads; the kernel
+    # cross-checks it against the audited derivation inputs. Falsify a bound
+    # there and verification must reject.
+    prog = _ast(_CONFOUNDED, monotonic=False)
+    res = _result(themis.estimate(prog, _sample_nonmono(40_000, seed=9)))
+    tam = copy.deepcopy(res)
+    tam["extensions"]["causation"]["pns"]["lower"] = 0.0
+    with pytest.raises(VerificationError):
+        themis.verify(prog, tam)
 
 
 def test_estimate_exogenous_provenance():

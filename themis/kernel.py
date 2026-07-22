@@ -804,8 +804,10 @@ def _verify_causation_numeric_extensions_match(result: dict, derivation) -> None
             _fail()
         if not _num_eq(a.get("upper"), inp.get(f"{q}_upper")):
             _fail()
-        # The data path is monotone (points present), so point must agree.
-        if not _num_eq(a.get("point"), inp.get(f"{q}_point")):
+        # Points exist only under monotonicity; a bounds answer carries point=None
+        # on both sides (consistent). Otherwise the display point must match.
+        ap, ip = a.get("point"), inp.get(f"{q}_point")
+        if (ap is not None or ip is not None) and not _num_eq(ap, ip):
             _fail()
     for k in ("p_y_do_x1", "p_y_do_x0"):
         if not _num_eq(ext.get(k), inp.get(k)):

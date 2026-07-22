@@ -157,6 +157,11 @@ def _render_answer(result: dict) -> str:
     if ne and ne.get("point") is not None:
         return _render_numeric_estimate(ne)
 
+    # 1b. Causation bounds answer (PN/PS/PNS recovered from data, non-monotone):
+    #     no single point, but three identified intervals — render them.
+    if ne and ne.get("probabilities_of_causation"):
+        return _render_causation_bounds(ne["probabilities_of_causation"])
+
     # 2. Symbolic / theta-path numeric value.
     if nr and nr.get("value") is not None:
         line = f"**{_fmt(nr['value'])}**"
@@ -194,6 +199,27 @@ def _render_answer(result: dict) -> str:
     if status == "outside_language":
         return "该问题**超出 Themis 可表达 / 可识别的范围**。"
     return "（无可呈现的答案字段）"
+
+
+def _render_causation_bounds(poc: dict) -> str:
+    """PN/PS/PNS recovered from data without monotonicity — three identified
+    intervals (Tian-Pearl bounds). No point; a point would need monotonicity."""
+    labels = (("pn", "必要性 PN（归因）"), ("ps", "充分性 PS"), ("pns", "必要且充分 PNS"))
+    lines = ["数据可识别的**区间**（无单调性假设，故为界而非点）："]
+    for key, label in labels:
+        q = poc.get(key) or {}
+        lo, hi = q.get("lower"), q.get("upper")
+        if lo is None or hi is None:
+            continue
+        line = f"- {label} ∈ [{_fmt(lo)}, {_fmt(hi)}]"
+        if q.get("ci_lower") is not None and q.get("ci_upper") is not None:
+            line += f"（外带 [{_fmt(q['ci_lower'])}, {_fmt(q['ci_upper'])}]）"
+        lines.append(line)
+    adj = poc.get("adjustment")
+    if adj:
+        lines.append(f"- 干预风险经后门调整集 {{{', '.join(adj)}}} 识别")
+    lines.append("- 若可假设单调性（X 从不阻止 Y），三者可点识别。")
+    return "\n".join(lines)
 
 
 def _render_numeric_estimate(ne: dict) -> str:

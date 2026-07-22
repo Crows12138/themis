@@ -382,7 +382,7 @@ def _explain_causation_zh(result: QueryResult) -> str:
         return "因果概率查询：结果未分类。"
 
     def _q(block: dict) -> str:
-        if "point" in block:
+        if block.get("point") is not None:
             return f"{_format_number(block['point'])}（点识别）"
         return (
             f"[{_format_number(block['lower'])}, "

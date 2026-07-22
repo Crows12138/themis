@@ -2136,12 +2136,16 @@ def _try_causation_estimate(
     except (EstimatorFailure, ValueError, NotImplementedError):
         return False
 
-    # Scope: a numeric POINT only under monotonicity. Otherwise PN/PS/PNS are
-    # genuinely bounds — leave the structural bounds answer primary.
-    if estimate.pn_point is None:
-        return False
+    # The causation data answer is ALWAYS the three Tian-Pearl intervals; under
+    # monotonicity they collapse to points. When a point is point-identified the
+    # reported per-quantity CI is the point's bootstrap CI; otherwise (bounds
+    # only) it is the OUTER band on the identified set (Manski / Balke-Pearl
+    # data-bounds convention). One channel, one status — the monotonicity flag
+    # only decides whether a headline point is present.
+    is_point = estimate.pn_point is not None
 
-    def _quantity(point, lower, upper, ci_lo, ci_hi):
+    def _quantity(point, lower, upper, pt_ci_lo, pt_ci_hi, band_lo, band_hi):
+        ci_lo, ci_hi = (pt_ci_lo, pt_ci_hi) if point is not None else (band_lo, band_hi)
         return {
             "point": point, "lower": lower, "upper": upper,
             "ci_lower": ci_lo, "ci_upper": ci_hi,
@@ -2158,16 +2162,16 @@ def _try_causation_estimate(
             "p_x0_y1": estimate.p_x0_y1, "p_x0_y0": estimate.p_x0_y0,
         },
         "pn": _quantity(estimate.pn_point, estimate.pn_lower, estimate.pn_upper,
-                        estimate.pn_point_ci_lower, estimate.pn_point_ci_upper),
+                        estimate.pn_point_ci_lower, estimate.pn_point_ci_upper,
+                        estimate.pn_bounds_ci_lower, estimate.pn_bounds_ci_upper),
         "ps": _quantity(estimate.ps_point, estimate.ps_lower, estimate.ps_upper,
-                        estimate.ps_point_ci_lower, estimate.ps_point_ci_upper),
+                        estimate.ps_point_ci_lower, estimate.ps_point_ci_upper,
+                        estimate.ps_bounds_ci_lower, estimate.ps_bounds_ci_upper),
         "pns": _quantity(estimate.pns_point, estimate.pns_lower, estimate.pns_upper,
-                         estimate.pns_point_ci_lower, estimate.pns_point_ci_upper),
+                         estimate.pns_point_ci_lower, estimate.pns_point_ci_upper,
+                         estimate.pns_bounds_ci_lower, estimate.pns_bounds_ci_upper),
     }
-    result["numeric_estimate"] = {
-        "point": estimate.pn_point,          # headline = PN (necessity)
-        "ci_lower": estimate.pn_point_ci_lower,
-        "ci_upper": estimate.pn_point_ci_upper,
+    numeric_estimate = {
         "ci_level": estimate.ci_level,
         "method": estimate.method,
         "assumptions": list(estimate.assumptions),
@@ -2177,12 +2181,23 @@ def _try_causation_estimate(
         "outcome": estimate.effect,
         "probabilities_of_causation": poc_block,
     }
+    if is_point:
+        # Headline = PN (necessity) point + its CI. (numeric_estimate.point is
+        # number-only in the schema, so it is OMITTED for the bounds answer.)
+        numeric_estimate["point"] = estimate.pn_point
+        numeric_estimate["ci_lower"] = estimate.pn_point_ci_lower
+        numeric_estimate["ci_upper"] = estimate.pn_point_ci_upper
+    result["numeric_estimate"] = numeric_estimate
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
-    _attach_precision_budget(result["numeric_estimate"])
+    if is_point:
+        _attach_precision_budget(result["numeric_estimate"])
 
     # Headline numeric_result reflects the DATA PN point (not the stale theta
-    # one, if the structural pass produced any).
-    result["numeric_result"] = {"value": float(estimate.pn_point)}
+    # one, if any); for the bounds answer there is no point — value is null and
+    # the identified intervals live in numeric_estimate.probabilities_of_causation.
+    result["numeric_result"] = {
+        "value": float(estimate.pn_point) if is_point else None
+    }
 
     # Display copy: the explainer reads extensions.causation. Overwrite the
     # (theta-based, if any) structural envelope with the data envelope so all
@@ -2220,8 +2235,46 @@ def _try_causation_estimate(
     result["derivation"] = _build_causation_numeric_derivation_dict(
         q_stmt=q_stmt, estimate=estimate,
     )
-    _finalise_numeric_result(result)
+    if is_point:
+        _finalise_numeric_result(result)
+    else:
+        _finalise_numeric_bounds_result(result)
     return True
+
+
+def _finalise_numeric_bounds_result(result: dict) -> None:
+    """Finalise a data-recovered PN/PS/PNS BOUNDS answer (non-monotone).
+
+    Like ``_finalise_numeric_result`` the data DID produce an audited numeric
+    object (the three Tian-Pearl intervals), so the status flips to
+    ``numerically_solved`` and the verifier re-derives it. BUT the answer is an
+    INTERVAL, not a point — so the gap-report is reconciled to
+    ``answer_tier='interval'`` (not 'point'): the distributional gaps the
+    identification pass raised are satisfied by the supplied data, while the
+    bounds framing (a point would need monotonicity) stays honest."""
+    result["status"] = "numerically_solved"
+    result["structural_result"] = {"value": True}
+    result.pop("missing_information", None)
+    report = result.get("data_gap_report")
+    if not isinstance(report, dict):
+        return
+    # The supplied data satisfied the theta-distribution needs (missing_distribution
+    # etc.); drop them and the parameter investigation_requests they cite, but keep
+    # the answer at the INTERVAL tier — a point still needs an untestable assumption.
+    requests = result.get("investigation_requests")
+    if isinstance(requests, list):
+        kept = [r for r in requests if r.get("group") != "parameter"]
+        if kept:
+            result["investigation_requests"] = kept
+        else:
+            result.pop("investigation_requests", None)
+    gaps = [
+        g for g in report.get("gaps", [])
+        if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
+    ]
+    report["gaps"] = gaps
+    report["answer_tier"] = "interval"
+    report["summary"] = _summary_from_gap_dicts(gaps, answer_tier="interval")
 
 
 def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
@@ -2237,6 +2290,13 @@ def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
     from ..verifier.serialization import derivation_to_dict
 
     q = q_stmt.query
+    # Headline CI: the PN point's bootstrap CI when point-identified, else the
+    # PN OUTER band on the identified set — the verifier sanity-checks it against
+    # the reported PN point / interval accordingly.
+    if estimate.pn_point is not None:
+        head_ci_lower, head_ci_upper = estimate.pn_point_ci_lower, estimate.pn_point_ci_upper
+    else:
+        head_ci_lower, head_ci_upper = estimate.pn_bounds_ci_lower, estimate.pn_bounds_ci_upper
     steps = (
         DerivationStep(
             rule="numeric_causation_estimate",
@@ -2258,8 +2318,8 @@ def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
                 "method": estimate.method,
                 "data_hash": estimate.data_hash,
                 "sample_size": estimate.sample_size,
-                "ci_lower": estimate.pn_point_ci_lower,
-                "ci_upper": estimate.pn_point_ci_upper,
+                "ci_lower": head_ci_lower,
+                "ci_upper": head_ci_upper,
             },
             output=StructuralResult(value=True),
             step_id="s1",
@@ -4304,17 +4364,22 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
     report["summary"] = _summary_from_gap_dicts(gaps)
 
 
-def _summary_from_gap_dicts(gaps: list[dict]) -> str:
+def _summary_from_gap_dicts(gaps: list[dict], answer_tier: str = "point") -> str:
     """Mirror ``output.data_gap_report._make_summary`` on already-sorted
-    serialized gaps. Tier is ``point`` here, so no interval/none lead
-    clause applies — just the most-blocking gap's description."""
+    serialized gaps. ``answer_tier='interval'`` leads with the interval-in-hand
+    clause (so a prose renderer is not misled into "no answer"); ``'point'`` /
+    ``'none'`` behave as the identification-time summary."""
     if not gaps:
         return ""
     head = gaps[0]
     blocking = sum(1 for g in gaps if g.get("severity") == "blocking")
     base = head.get("description", "")
     if blocking > 1:
-        return f"{base}（共 {blocking} 个 blocking 缺口）"
+        base = f"{base}（共 {blocking} 个 blocking 缺口）"
+    if answer_tier == "interval":
+        return f"可得区间估计（点识别被阻断，但有信息性 bounds）：{base}"
+    if answer_tier == "none":
+        return f"图+数据无法给出点或区间估计（需补假设或更强数据）：{base}"
     return base
 
 

@@ -117,6 +117,17 @@ class CausationEstimate:
     form: str = "nonparametric_gformula_plug_in"
     identification_assumptions: tuple[dict, ...] = ()
     cluster: str | None = None
+    # Percentile-bootstrap OUTER band on each [lower, upper] identified set —
+    # the sampling uncertainty of the whole interval (parity with the Manski /
+    # Balke-Pearl data-bounds convention in bounds_numeric._bootstrap_outer_band).
+    # Populated when point identification does NOT hold (non-monotone) and a
+    # bootstrap ran; under monotonicity the point CI is the reported CI instead.
+    pn_bounds_ci_lower: float | None = None
+    pn_bounds_ci_upper: float | None = None
+    ps_bounds_ci_lower: float | None = None
+    ps_bounds_ci_upper: float | None = None
+    pns_bounds_ci_lower: float | None = None
+    pns_bounds_ci_upper: float | None = None
 
 
 def estimate_causation_probabilities(
@@ -212,10 +223,14 @@ def estimate_causation_probabilities(
 
     joint, p_y_do_x1, p_y_do_x0, poc = _run(x, y, df)
 
-    # 4. Bootstrap CIs on the three points (percentile).
+    # 4. Bootstrap CIs (percentile). The POINT CIs are meaningful only under
+    #    monotonicity; the OUTER band on each [lower, upper] identified set is
+    #    the sampling uncertainty of the whole interval and is reported for the
+    #    non-monotone (bounds-only) answer. One resampling loop feeds both.
     pn_ci = ps_ci = pns_ci = (None, None)
-    if ci_bootstrap > 0 and monotonic:
-        pn_ci, ps_ci, pns_ci = _bootstrap_point_cis(
+    pn_band = ps_band = pns_band = (None, None)
+    if ci_bootstrap > 0:
+        (pn_ci, ps_ci, pns_ci), (pn_band, ps_band, pns_band) = _bootstrap_cis(
             x, y, df, adjustment, supplied,
             experimental_risk_treated, experimental_risk_control, monotonic,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level,
@@ -230,6 +245,9 @@ def estimate_causation_probabilities(
         ps_point_ci_lower=ps_ci[0], ps_point_ci_upper=ps_ci[1],
         pns_point=poc.pns_point, pns_lower=poc.pns_lower, pns_upper=poc.pns_upper,
         pns_point_ci_lower=pns_ci[0], pns_point_ci_upper=pns_ci[1],
+        pn_bounds_ci_lower=pn_band[0], pn_bounds_ci_upper=pn_band[1],
+        ps_bounds_ci_lower=ps_band[0], ps_bounds_ci_upper=ps_band[1],
+        pns_bounds_ci_lower=pns_band[0], pns_bounds_ci_upper=pns_band[1],
         p_x1_y1=joint[(True, True)], p_x1_y0=joint[(True, False)],
         p_x0_y1=joint[(False, True)], p_x0_y0=joint[(False, False)],
         p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0,
@@ -341,22 +359,27 @@ def _do_risk(
     return total
 
 
-def _bootstrap_point_cis(
+def _bootstrap_cis(
     x: np.ndarray, y: np.ndarray, frame: pd.DataFrame,
     adjustment: tuple[str, ...], supplied: bool,
     r1_fixed, r0_fixed, monotonic: bool, *,
     ci_bootstrap: int, ci_level: float, random_state: int,
     groups: np.ndarray | None,
-) -> tuple[tuple, tuple, tuple]:
-    """Percentile bootstrap of the three point values. Resamples rows (or whole
-    clusters), re-runs the full joint + g-formula + oracle, and collects each
-    point where it is defined on that draw (a draw that induces a positivity
-    failure or a zero conditioning cell is skipped for the affected quantity)."""
+) -> tuple[tuple, tuple]:
+    """Percentile bootstrap of BOTH the three point values and an OUTER band on
+    each [lower, upper] identified set. Resamples rows (or whole clusters),
+    re-runs the full joint + g-formula + oracle, and per draw collects (a) each
+    point where it is defined (monotone; a positivity failure or zero
+    conditioning cell skips the affected quantity) and (b) the interval
+    endpoints (always defined). Returns ``((pn_pt_ci, ps_pt_ci, pns_pt_ci),
+    (pn_band, ps_band, pns_band))``; the outer band of a quantity is
+    ``(low-quantile of its LOWER samples, high-quantile of its UPPER samples)``
+    — the Manski / Balke-Pearl data-bounds convention."""
     rng = np.random.default_rng(random_state)
     n = len(frame)
-    pns_s: list[float] = []
-    pn_s: list[float] = []
-    ps_s: list[float] = []
+    pt_s = {"pn": [], "ps": [], "pns": []}       # point samples (monotone)
+    lo_s = {"pn": [], "ps": [], "pns": []}       # lower-endpoint samples
+    hi_s = {"pn": [], "ps": [], "pns": []}       # upper-endpoint samples
     x_arr = x
     y_arr = y
     for _ in range(ci_bootstrap):
@@ -378,21 +401,39 @@ def _bootstrap_point_cis(
             p_x0_y1=joint[(False, True)], p_x0_y0=joint[(False, False)],
             p_y_do_x1=br1, p_y_do_x0=br0, monotonic=monotonic,
         )
-        if poc.pns_point is not None:
-            pns_s.append(poc.pns_point)
-        if poc.pn_point is not None:
-            pn_s.append(poc.pn_point)
-        if poc.ps_point is not None:
-            ps_s.append(poc.ps_point)
+        for q, pt, lo, hi in (
+            ("pn", poc.pn_point, poc.pn_lower, poc.pn_upper),
+            ("ps", poc.ps_point, poc.ps_lower, poc.ps_upper),
+            ("pns", poc.pns_point, poc.pns_lower, poc.pns_upper),
+        ):
+            if pt is not None:
+                pt_s[q].append(pt)
+            lo_s[q].append(lo)
+            hi_s[q].append(hi)
 
-    def _ci(samples: list[float]) -> tuple:
+    alpha = (1 - ci_level) / 2
+
+    def _pt_ci(samples: list[float]) -> tuple:
         if len(samples) < 2:
             return (None, None)
         arr = np.asarray(samples)
-        alpha = (1 - ci_level) / 2
         return (float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha)))
 
-    return _ci(pn_s), _ci(ps_s), _ci(pns_s)
+    def _band(los: list[float], his: list[float]) -> tuple:
+        if len(los) < 2 or len(his) < 2:
+            return (None, None)
+        return (
+            float(np.quantile(np.asarray(los), alpha)),
+            float(np.quantile(np.asarray(his), 1 - alpha)),
+        )
+
+    point_cis = (_pt_ci(pt_s["pn"]), _pt_ci(pt_s["ps"]), _pt_ci(pt_s["pns"]))
+    bands = (
+        _band(lo_s["pn"], hi_s["pn"]),
+        _band(lo_s["ps"], hi_s["ps"]),
+        _band(lo_s["pns"], hi_s["pns"]),
+    )
+    return point_cis, bands
 
 
 def _assumptions(
