@@ -1,6 +1,7 @@
 import type { DataGapReport } from '../types'
 import { gapTitle, severityLabel } from '../lib/verdict'
 import { Clamp } from './Clamp'
+import { Foldout } from './Foldout'
 
 const SEV_ORDER: Record<string, number> = { blocking: 0, important: 1, informational: 2 }
 
@@ -14,13 +15,10 @@ export function GapReport({ report }: { report: DataGapReport }) {
 
   return (
     <section className="gaps" aria-label="数据缺口报告">
-      <div className="gaps__head">
-        <h3 className="gaps__title">还缺什么</h3>
-        <span className="gaps__sub">
-          {gaps.length} 项{blocking ? ` · ${blocking} 项阻断` : ''}
-        </span>
-      </div>
-
+      <Foldout
+        summary={<span className="gaps__title">还缺什么</span>}
+        count={`${gaps.length} 项${blocking ? ` · ${blocking} 阻断` : ''}`}
+      >
       <ol className="gaplist">
         {gaps.map((g, i) => (
           <li className="gap" key={`${g.kind}-${i}`}>
@@ -61,6 +59,7 @@ export function GapReport({ report }: { report: DataGapReport }) {
           </ol>
         </div>
       ) : null}
+      </Foldout>
     </section>
   )
 }

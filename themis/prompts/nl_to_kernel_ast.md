@@ -455,6 +455,17 @@ attached: U has no column and `themis.estimate` will fail with
 }
 ```
 
+**Query kind on a latent graph.** A `cause` query only checks whether a
+directed path exists — and the kernel does not support it once the graph
+carries a `bidirected` edge (with a latent common cause, path-existence
+is no longer the honest question: the association is confounded by
+construction). So whenever you encode a latent confounder and §1 read the
+intent as `cause` ("X 会 Y 吗"), escalate the query to **`effect`** (the
+identifiable effect, when the user expects an answer) or **`identify`**
+(identifiability only). Reserve `cause` for graphs with no bidirected
+edge; on a latent graph the runnable causal questions are `effect` /
+`identify` / `assoc`.
+
 **Confounder triggers — when to pause and consider**: seasonal
 co-occurrence, group-level correlation, temporal lag without
 mechanism, clinical/ICU setting, education/income correlation,
@@ -639,13 +650,19 @@ Emit:
   "id": "q",
   "query": {
     "kind": "counterfactual",
-    "observed": <factual atom, e.g. chose_humanities=true>,
-    "counterfactual_intervention":
-      { "atom": <same predicate>, "value": <alternative, e.g. false> },
-    "counterfactual_target": <outcome atom, e.g. salary_high=true>
+    "observed":                    {"atom": <atom>, "value": true},
+    "counterfactual_intervention": {"atom": <same predicate>, "value": false},
+    "counterfactual_target":       {"atom": <atom>, "value": true}
   }
 }
 ```
+
+`observed` and `counterfactual_target` are **grounded atoms** — the
+`{"atom": <atom>, "value": ...}` wrapper, exactly like an effect
+target — not a bare `<atom>` and not a `predicate=value` shorthand. All
+three slots take the same wrapper. `value` carries the world's truth
+value (e.g. `observed` = what actually happened,
+`counterfactual_intervention.value` = the contrary alternative).
 
 Do **not** include `assumptions.monotonicity` unless the user
 explicitly named a direction. The kernel will return
@@ -741,6 +758,16 @@ Exactly one `query` statement, `id: "q"`:
 // effect
 { "kind": "effect",
   "target":       {"atom": <atom>, "value": true},
+  "intervention": {"atom": <atom>, "value": true},
+  "given": [] }
+
+// identify — IV / transport / any "is P(Y | do X) identifiable?" query.
+// Shape differs from effect: `target` is a BARE <atom> (no value
+// wrapper). The prose shorthand `identify P(Y|do X)` seen elsewhere is
+// human notation — serialize it as this structured object, never as a
+// "target_distribution" string.
+{ "kind": "identify",
+  "target":       <atom>,
   "intervention": {"atom": <atom>, "value": true},
   "given": [] }
 
@@ -861,7 +888,9 @@ unobserved common causes, not reciprocal directed causation.
 
 ## Schema outline (excerpt)
 
-Full schema: `kernel_ast.schema.json`. Key structure:
+Full schema: `kernel_ast.schema.json`. A minimal, fully-concrete
+document — read the JSON mechanics off this, not off any remembered
+answer:
 
 ```json
 {
@@ -869,13 +898,44 @@ Full schema: `kernel_ast.schema.json`. Key structure:
   "domain": {"objects": [{"kind": "object", "name": "me"}]},
   "options": {"strict_framing": false},
   "statements": [
-    {"kind": "variable", "predicate": "<name>", "domain": [true, false]},
-    { "kind": "cause", "from": <atom>, "to": <atom>,
+    {"kind": "variable", "predicate": "some_cause",  "domain": [true, false]},
+    {"kind": "variable", "predicate": "some_effect", "domain": [true, false]},
+
+    { "kind": "cause",
+      "from": {"predicate": "some_cause",  "args": [{"type": "const", "name": "me"}]},
+      "to":   {"predicate": "some_effect", "args": [{"type": "const", "name": "me"}]},
       "annotations": {"source": "llm_proposal"} },
-    {"kind": "query", "id": "q", "query": <query>}
+
+    { "kind": "query", "id": "q",
+      "query": {
+        "kind": "effect",
+        "intervention": {"atom": {"predicate": "some_cause",  "args": [{"type": "const", "name": "me"}]}, "value": true},
+        "target":       {"atom": {"predicate": "some_effect", "args": [{"type": "const", "name": "me"}]}, "value": true},
+        "given": []
+      } }
   ]
 }
 ```
+
+**Format notes** (this block is the concrete format anchor):
+
+- A `variable` declaration is a **bare predicate** —
+  `{"kind": "variable", "predicate": "...", "domain": [...]}`, with **no
+  `args`**. Every predicate appearing **inside an edge or a query** is an
+  **atom** and carries `args: [{"type": "const", "name": "me"}]`. Do not
+  leak `args` onto a `variable` declaration; do not drop `args` from an
+  atom.
+- `cause` edges use `from` / `to`. A latent common cause is a separate
+  **`bidirected`** statement using `left` / `right` (symmetric):
+  `{"kind": "bidirected", "left": <atom>, "right": <atom>, "annotations": {"source": "llm_proposal"}}`.
+- The skeleton above is a **single edge for format illustration only** —
+  it is **not** a template for how large your graph should be. How many
+  variables and edges to emit is decided entirely by which §Structural
+  unit library shape(s) the question signals: a plain self-selected
+  behavior is a backdoor triangle (`X→Y`, `C→X`, `C→Y`), but a mediation
+  question is `X→M→Y`, an IV question is `Z→X` + `X↔Y`, a front-door
+  question is `X→M`, `M→Y`, `X↔Y`, and so on. Emit the shape the question
+  calls for, at the size it calls for.
 
 `options.strict_framing` (slice #36) is optional. Default false
 (advisory). Set true if the caller wants Themis to refuse a numeric
@@ -885,17 +945,17 @@ gated.
 
 ---
 
-## Worked examples
+## Reference examples (not injected)
 
-Three complete NL → `kernel_ast` pairs live in `docs/prompts/examples/`:
-
-1. `exercise_waist.json` — effect query, intervention-target pair
-2. `sleep_cognition.json` — effect query
-3. `veggies_blood_pressure.json` — effect query
-
-Each file contains: `nl_input` (Chinese question), `reasoning`
-(decisions made), `kernel_ast` (canonical output). Use them as
-few-shot context.
+Illustrative NL → `kernel_ast` pairs live on disk in
+`themis/prompts/examples/` (each: `nl_input`, `reasoning`,
+`kernel_ast`). They are kept for human reference and are **not** passed
+to you as few-shot turns. They deliberately used to be — but the three
+that were injected all shared one shape (a single behavior plus one
+confounder), and as concrete demonstrations they outweighed the prose,
+pulling nearly every answer toward that same triangle. Your shape comes
+from the §Structural unit library and the §Schema outline format notes
+applied to what *this* question signals — not from a remembered exemplar.
 
 ---
 

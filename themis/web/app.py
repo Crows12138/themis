@@ -70,6 +70,11 @@ class ClarifyRequest(BaseModel):
     picks: list[dict]  # [{"predicate": str, "fields": {...7 framing fields...}}]
 
 
+class AssumeRequest(BaseModel):
+    program: dict
+    api_key: str | None = None
+
+
 class RenderRequest(BaseModel):
     program: dict
     nl: str | None = None
@@ -329,6 +334,73 @@ def api_clarify(req: ClarifyRequest):
             "error": "NoPatches", "message": "没有可应用的澄清。",
         })
     bundle = {"version": "0.1", "kind": "framing_skeleton_bundle", "patches": patches}
+    try:
+        out = themis.apply_patch_and_run(req.program, [bundle])
+        return out
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "error": type(exc).__name__, "message": str(exc),
+        })
+
+
+def _probability_skeletons(result: dict) -> list[dict]:
+    """Pull the ``kind == "probability"`` skeletons (value == null) the kernel
+    listed in ``investigation_requests`` — the exact distributions it needs
+    filled to compute a number."""
+    out = []
+    for req in result.get("investigation_requests") or []:
+        for item in req.get("items") or []:
+            sk = item.get("skeleton")
+            if isinstance(sk, dict) and sk.get("kind") == "probability":
+                out.append(sk)
+    return out
+
+
+@app.post("/api/assume")
+def api_assume(req: AssumeRequest):
+    """数据不足时的诚实兜底:让 LLM 给缺的概率分布填一组 common-knowledge
+    先验(``provenance: llm_prior``),重跑得到点估计。
+
+    每个先验都被内核收进 ``extensions.llm_proposed_review``,所以答案会
+    明说"这些数字是 AI 估的,请审核"——这是 opt-in 的估算,不是内核替
+    用户脑补。返回 run-shaped envelope(带点估计 + 披露面板)。
+    """
+    from .llm_bridge import LLMBridgeError, propose_theta_priors
+
+    # 1. Run once to discover exactly which probabilities are missing.
+    try:
+        env0 = themis.run(req.program)
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "error": type(exc).__name__, "message": str(exc),
+        })
+    result0 = (env0.get("results") or [{}])[0]
+    skeletons = _probability_skeletons(result0)
+    if not skeletons:
+        return JSONResponse(status_code=400, content={
+            "error": "NothingToAssume",
+            "message": "这个查询没有缺失的概率分布可供 AI 估算"
+                       "(可能已能算、或缺的是结构/定义而非数值)。",
+        })
+
+    # 2. LLM sources a prior for each (disclosure is the kernel's job).
+    try:
+        filled = propose_theta_priors(
+            req.program, skeletons, api_key=req.api_key or "x")
+    except LLMBridgeError as exc:
+        return JSONResponse(status_code=400, content={
+            "stage": "propose_theta_priors",
+            "error": "LLMBridgeError", "message": str(exc),
+        })
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={
+            "stage": "propose_theta_priors",
+            "error": type(exc).__name__, "message": str(exc),
+        })
+
+    # 3. Fill + re-run through the kernel's multi-turn patch loop.
+    bundle = {"version": "0.1", "kind": "parameter_fill_bundle",
+              "skeletons": filled}
     try:
         out = themis.apply_patch_and_run(req.program, [bundle])
         return out

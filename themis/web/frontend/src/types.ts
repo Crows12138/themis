@@ -77,6 +77,26 @@ export interface StructuralResult {
   supporting_paths?: string[][]
 }
 
+// extensions.llm_proposed_review — the audit surface for everything the LLM
+// proposed (graph edges + θ priors) rather than measured. Present iff at
+// least one such element exists; the disclosure the user must see.
+export interface ProposedEdge {
+  from: string
+  to: string
+  source: string
+}
+export interface ProposedProbability {
+  key: string
+  value: number
+  reason: string
+  population?: string
+}
+export interface LlmProposedReview {
+  edges: ProposedEdge[]
+  probabilities: ProposedProbability[]
+  summary: string
+}
+
 export interface QueryResult {
   status: string
   query_kind: string
@@ -87,8 +107,17 @@ export interface QueryResult {
   data_gap_report?: DataGapReport
   bounds_result?: BoundsResult
   numeric_estimate?: NumericEstimate
+  // Structural-layer point value (themis.run / apply_patch_and_run). Distinct
+  // from numeric_estimate (themis.estimate, data-backed) — this is the number
+  // a plug-in identification formula yields once θ is supplied (incl. via AI
+  // priors). Shown in the verdict when no data-backed estimate is present.
+  numeric_result?: { value: number }
   estimator_failure?: { estimator?: string; failure_type?: string; reason?: string }
-  extensions?: { assumption_ledger?: AssumptionLedger } & Record<string, unknown>
+  investigation_requests?: unknown[]
+  extensions?: {
+    assumption_ledger?: AssumptionLedger
+    llm_proposed_review?: LlmProposedReview
+  } & Record<string, unknown>
 }
 
 export interface Envelope {

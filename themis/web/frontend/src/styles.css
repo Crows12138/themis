@@ -541,6 +541,41 @@ button { font-family: inherit; cursor: pointer; }
 .jsonedit__ta:focus { border-color: var(--accent); }
 .jsonedit__err { font-size: var(--text-sm); color: var(--tier-none); }
 
+/* ---- progressive-disclosure foldout (details/summary) ---- */
+.foldout { margin-top: var(--space-md); }
+.foldout > summary.foldout__summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) 0; color: var(--ink-soft); font-size: var(--text-sm); user-select: none; }
+.foldout__summary::-webkit-details-marker { display: none; }
+.foldout > summary.foldout__summary:hover { color: var(--ink); }
+.foldout__chev { display: inline-block; transition: transform 0.15s var(--ease-out); color: var(--ink-faint); font-size: 0.72rem; }
+.foldout[open] > .foldout__summary .foldout__chev { transform: rotate(90deg); }
+.foldout__label { font-weight: 500; }
+.foldout__count { font-size: var(--text-xs); color: var(--ink-faint); font-family: var(--font-mono); }
+.foldout__body { margin-top: var(--space-sm); padding-left: calc(0.72rem + var(--space-sm)); }
+.foldout--warn > .foldout__summary { color: oklch(0.46 0.09 73); }
+.foldout--warn > .foldout__summary .foldout__chev { color: var(--sev-important); }
+
+/* ---- result: 数据不足 → 用 AI 估算 CTA ---- */
+.assumecta { margin-top: var(--space-lg); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md); background: var(--surface-sunk); border: 1px dashed color-mix(in oklch, var(--accent) 40%, var(--line)); border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg); }
+.assumecta__title { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
+.assumecta__sub { font-size: var(--text-xs); color: var(--ink-soft); line-height: 1.55; max-width: 52ch; margin-top: 2px; }
+.assumecta__go { white-space: nowrap; }
+
+/* ---- result: AI 假设披露卡（坦白面板，ochre caution）---- */
+.proposed { margin-top: var(--space-lg); background: var(--tier-interval-bg); border: 1px solid color-mix(in oklch, var(--tier-interval) 32%, var(--line)); border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-xl); }
+.proposed__head { display: flex; align-items: center; gap: var(--space-sm); }
+.proposed__badge { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.04em; color: var(--paper); background: oklch(0.55 0.11 73); padding: 2px var(--space-xs); border-radius: 5px; white-space: nowrap; }
+.proposed__title { font-size: var(--text-sm); font-weight: 600; color: oklch(0.42 0.09 73); }
+.proposed__intro { font-size: var(--text-sm); color: var(--ink-soft); line-height: 1.6; margin-top: var(--space-xs); max-width: var(--measure); }
+.proposed__group { margin-top: var(--space-md); }
+.proposed__grouphd { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); }
+.proposed__table { display: grid; gap: 0; margin-top: var(--space-xs); }
+.proposed__row { display: grid; grid-template-columns: minmax(0, 2fr) auto minmax(0, 3fr); gap: var(--space-sm); align-items: baseline; padding: var(--space-2xs) 0; border-bottom: 1px solid var(--line-soft); }
+.proposed__key { font-size: 0.78rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.proposed__val { font-size: var(--text-sm); font-weight: 700; color: var(--ink); }
+.proposed__reason { font-size: var(--text-xs); color: var(--ink-faint); line-height: 1.5; }
+.proposed__edges { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-top: var(--space-xs); }
+.proposed__edge { font-size: var(--text-xs); color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 2px var(--space-xs); }
+
 /* ============================================================ footer */
 .footer { border-top: 1px solid var(--line); padding: var(--space-lg) clamp(var(--space-md), 4vw, var(--space-2xl)); display: flex; flex-wrap: wrap; gap: var(--space-md) var(--space-lg); align-items: center; justify-content: space-between; color: var(--ink-faint); font-size: var(--text-xs); }
 .footer__legend { display: flex; gap: var(--space-lg); flex-wrap: wrap; }

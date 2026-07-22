@@ -234,3 +234,153 @@ def test_api_ask_transport_failure_blamed_on_nl_stage(monkeypatch):
     assert r.status_code == 400
     body = r.json()
     assert body["stage"] == "nl_to_kernel_ast"
+
+
+# ============================================ propose_theta_priors (data-scarcity)
+
+
+def _effect_program_missing_data():
+    """X→Y with a confounder Z, an effect query, and NO θ supplied —
+    structurally identifiable (backdoor {Z}) but blocked on missing
+    distributions, so the kernel emits probability skeletons."""
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("x"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("y"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "target": {"atom": _atom("y"), "value": True},
+                "intervention": {"atom": _atom("x"), "value": True},
+                "given": []}},
+        ],
+    }
+
+
+def _prob_skeleton(pred, val, given):
+    return {
+        "kind": "probability",
+        "target": {"atom": _atom(pred), "value": val},
+        "given": [{"atom": _atom(g), "value": v} for g, v in given],
+        "value": None,
+        "annotations": {"source": "TODO"},
+    }
+
+
+def test_propose_theta_priors_fills_skeletons(monkeypatch):
+    """The bridge returns each skeleton with value filled, provenance set to
+    'llm_prior', and the model's reason in annotations.source — ready for a
+    parameter_fill_bundle."""
+    import json as _json
+    skeletons = [
+        _prob_skeleton("y", True, [("x", True)]),
+        _prob_skeleton("x", True, []),
+    ]
+
+    def fake_create(**kw):
+        return _make_message(_json.dumps({"priors": [
+            {"index": 0, "value": 0.7, "reason": "常识:约七成"},
+            {"index": 1, "value": 0.3, "reason": "基线约三成"},
+        ]}))
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+
+    out = llm_bridge.propose_theta_priors({"version": "0.1"}, skeletons)
+    assert [s["value"] for s in out] == [0.7, 0.3]
+    assert all(s["provenance"] == "llm_prior" for s in out)
+    assert out[0]["annotations"]["source"] == "常识:约七成"
+    # Original target/given structure preserved untouched.
+    assert out[0]["target"] == skeletons[0]["target"]
+
+
+def test_propose_theta_priors_rejects_missing_index(monkeypatch):
+    import json as _json
+    skeletons = [_prob_skeleton("y", True, []), _prob_skeleton("x", True, [])]
+
+    def fake_create(**kw):  # returns only index 0
+        return _make_message(_json.dumps({"priors": [{"index": 0, "value": 0.5, "reason": "r"}]}))
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+
+    with pytest.raises(llm_bridge.LLMBridgeError, match="no prior returned for index 1"):
+        llm_bridge.propose_theta_priors({"version": "0.1"}, skeletons)
+
+
+def test_propose_theta_priors_rejects_out_of_range(monkeypatch):
+    import json as _json
+    skeletons = [_prob_skeleton("y", True, [])]
+
+    def fake_create(**kw):
+        return _make_message(_json.dumps({"priors": [{"index": 0, "value": 1.7, "reason": "r"}]}))
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+
+    with pytest.raises(llm_bridge.LLMBridgeError, match="not a\\s+probability|\\[0, 1\\]"):
+        llm_bridge.propose_theta_priors({"version": "0.1"}, skeletons)
+
+
+def test_propose_theta_priors_empty_is_noop():
+    assert llm_bridge.propose_theta_priors({"version": "0.1"}, []) == []
+
+
+# ============================================ /api/assume endpoint (mocked)
+
+
+def test_api_assume_happy_path(monkeypatch):
+    """Data-scarce effect query → AI priors → point estimate + disclosure.
+    The LLM is mocked to return a valid prior per index; the kernel does the
+    real fill + re-run, so numerically_solved and the disclosure surface are
+    the kernel's, not the mock's."""
+    import json as _json
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
+
+    def fake_create(**kw):
+        # Over-provide indices; propose_theta_priors reads only those it needs.
+        priors = [{"index": i, "value": 0.5, "reason": f"先验 {i}"} for i in range(12)]
+        return _make_message(_json.dumps({"priors": priors}))
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+
+    r = client.post("/api/assume", json={"program": _effect_program_missing_data()})
+    assert r.status_code == 200, r.text
+    res = r.json()["results"][0]
+    assert res["status"] == "numerically_solved"
+    assert res["numeric_result"]["value"] is not None
+    review = res["extensions"]["llm_proposed_review"]
+    assert len(review["probabilities"]) >= 1
+    assert "概率参数" in review["summary"]
+
+
+def test_api_assume_nothing_to_assume(monkeypatch):
+    """A query with no missing distributions (a cause query) → 400
+    NothingToAssume, and the LLM is never called."""
+    called = {"n": 0}
+
+    def fake_create(**kw):
+        called["n"] += 1
+        return _make_message("{}")
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+
+    r = client.post("/api/assume", json={"program": _trivial_program()})
+    assert r.status_code == 400
+    assert r.json()["error"] == "NothingToAssume"
+    assert called["n"] == 0  # short-circuited before any LLM call

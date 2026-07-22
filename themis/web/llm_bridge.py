@@ -38,13 +38,20 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _PROMPT_NL_TO_AST = _REPO_ROOT / "themis" / "prompts" / "nl_to_kernel_ast.md"
 _PROMPT_RENDER = _REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
+_PROMPT_PROPOSE_PRIORS = _REPO_ROOT / "themis" / "prompts" / "propose_theta_priors.md"
 _EXAMPLES_DIR = _REPO_ROOT / "themis" / "prompts" / "examples"
-# The worked NL→kernel_ast pairs the prompt references. The prompt only
-# shows placeholder fragments (<atom> = predicate+args, variable = bare
-# <name>); without these concrete pairs as actual few-shot, the model has
-# just one concrete predicate shape (the atom's) and leaks `args` onto
-# variable declarations. Loading them is the fix the prompt already promises.
-_FEWSHOT_NAMES = ("exercise_waist", "sleep_cognition", "veggies_blood_pressure")
+# NL→kernel_ast few-shot: intentionally EMPTY. Three same-shaped worked
+# pairs (one behavior + one confounder) used to live here. As concrete
+# demonstrations they did two jobs at once: anchored the JSON format AND
+# homogenized output SHAPE — the model collapsed almost every question to
+# that confounder triangle regardless of the structural units the NL
+# actually signalled. Format anchoring (variable = bare predicate; atoms
+# carry `args`) now lives in the prompt's §Schema outline as an explicit
+# format note, so the `args`-leak these guarded against stays covered
+# without a shape template biasing every graph. The example files remain on
+# disk under prompts/examples/ for human reference; they are not injected.
+# Repopulate only with genuinely diverse shapes if a real driver appears.
+_FEWSHOT_NAMES: tuple[str, ...] = ()
 
 _DEFAULT_MODEL = os.environ.get("THEMIS_LLM_MODEL", "claude-sonnet-4-6")
 _DEFAULT_PROXY_URL = "http://127.0.0.1:7777"
@@ -68,11 +75,12 @@ _fewshot_cache: "list[dict] | None" = None
 
 
 def _fewshot_messages() -> list[dict]:
-    """The worked NL→kernel_ast pairs the prompt references, as real
+    """The worked NL→kernel_ast pairs named in ``_FEWSHOT_NAMES``, as real
     few-shot turns (user = nl_input, assistant = the kernel_ast JSON).
-    These show concrete variable declarations (bare predicate, no args)
-    beside atoms (predicate + args), anchoring the distinction the
-    placeholder-only prompt can't."""
+    Currently ``_FEWSHOT_NAMES`` is empty (see the note there), so this
+    returns ``[]`` and the prompt's §Schema outline carries the format
+    anchor instead. Retained so a genuinely diverse example set can be
+    reinstated without re-plumbing the call site."""
     global _fewshot_cache
     if _fewshot_cache is None:
         msgs: list[dict] = []
@@ -158,26 +166,42 @@ def nl_to_kernel_ast(
     *,
     api_key: str | None = None,
     model: str = _DEFAULT_MODEL,
+    max_attempts: int = 3,
 ) -> dict:
     """Turn one NL question into a kernel_ast dict via the project's
     canonical prompt. Returns the dict the LLM emits — caller runs
-    ``themis.run`` on it."""
+    ``themis.run`` on it.
+
+    Retries only on a *parse* failure. Emitting malformed JSON is an
+    occasional model slip — most common on the complex query shapes
+    (counterfactual) whose verbose Chinese ambiguity strings occasionally
+    carry an unescaped character — and a fresh sample almost always parses.
+    A ``{"error": ...}`` refusal is a deliberate decision, never retried.
+    """
     system = _load_system_prompt(_PROMPT_NL_TO_AST)
     client = _client(api_key)
-    msg = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        system=system,
-        messages=[*_fewshot_messages(), {"role": "user", "content": nl}],
-    )
-    text = "".join(
-        b.text for b in msg.content if getattr(b, "type", None) == "text"
-    )
-    parsed = _extract_first_json_object(text)
-    if "error" in parsed and "version" not in parsed:
-        # The prompt allows {"error": "..."} as a refusal shape.
-        raise LLMBridgeError(f"LLM refused: {parsed['error']}")
-    return parsed
+    fewshot = _fewshot_messages()
+    last_parse_err: LLMBridgeError | None = None
+    for _ in range(max(1, max_attempts)):
+        msg = client.messages.create(
+            model=model,
+            max_tokens=4000,
+            system=system,
+            messages=[*fewshot, {"role": "user", "content": nl}],
+        )
+        text = "".join(
+            b.text for b in msg.content if getattr(b, "type", None) == "text"
+        )
+        try:
+            parsed = _extract_first_json_object(text)
+        except LLMBridgeError as exc:
+            last_parse_err = exc
+            continue
+        if "error" in parsed and "version" not in parsed:
+            # The prompt allows {"error": "..."} as a refusal shape.
+            raise LLMBridgeError(f"LLM refused: {parsed['error']}")
+        return parsed
+    raise last_parse_err  # type: ignore[misc]  # set once the loop ran ≥1 time
 
 
 def render_reply(
@@ -210,6 +234,111 @@ def render_reply(
     return "".join(
         b.text for b in msg.content if getattr(b, "type", None) == "text"
     ).strip()
+
+
+def _atom_label(atom: dict) -> str:
+    """`{"predicate": "veg", "args": [...]}` -> `veg` (args dropped; the
+    prior is per-unit, the predicate name is what the reader weighs)."""
+    return str((atom or {}).get("predicate", "?"))
+
+
+def _prob_key_repr(skeleton: dict) -> str:
+    """Render a probability skeleton as `P(target=v | g1=v1, g2=v2)` for the
+    prompt so the model reasons about a human-readable quantity, not raw JSON."""
+    tgt = skeleton.get("target", {})
+    head = f"{_atom_label(tgt.get('atom', {}))}={tgt.get('value')}"
+    given = skeleton.get("given") or []
+    if not given:
+        return f"P({head})"
+    conds = ", ".join(
+        f"{_atom_label(g.get('atom', {}))}={g.get('value')}" for g in given
+    )
+    return f"P({head} | {conds})"
+
+
+def propose_theta_priors(
+    program: dict,
+    skeletons: list[dict],
+    *,
+    api_key: str | None = None,
+    model: str = _DEFAULT_MODEL,
+) -> list[dict]:
+    """Ask the LLM for a common-knowledge prior for each missing probability.
+
+    ``skeletons`` are the ``kind == "probability"`` records the kernel
+    emitted in ``investigation_requests`` (value == null). Returns the same
+    skeletons, in the same order, each with ``value`` filled, ``provenance``
+    set to ``"llm_prior"``, and ``annotations.source`` carrying the model's
+    one-line reason — i.e. ready to drop into a ``parameter_fill_bundle``.
+
+    The disclosure is the kernel's job: every ``llm_prior`` value surfaces in
+    ``extensions.llm_proposed_review`` so the answer says which numbers are
+    assumed. This bridge only sources the numbers; it never hides them.
+    """
+    if not skeletons:
+        return []
+    system = _load_system_prompt(_PROMPT_PROPOSE_PRIORS)
+    client = _client(api_key)
+
+    enumerated = [
+        {"index": i, "probability": _prob_key_repr(sk)}
+        for i, sk in enumerate(skeletons)
+    ]
+    user_msg = (
+        "因果图(kernel program):\n"
+        + json.dumps(program, ensure_ascii=False, indent=2)
+        + "\n\n需要你给先验的概率(按 index 逐条填 value + reason,"
+        "全部填满):\n"
+        + json.dumps(enumerated, ensure_ascii=False, indent=2)
+    )
+    msg = client.messages.create(
+        model=model,
+        max_tokens=2000,
+        system=system,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    text = "".join(
+        b.text for b in msg.content if getattr(b, "type", None) == "text"
+    )
+    parsed = _extract_first_json_object(text)
+    priors = parsed.get("priors")
+    if not isinstance(priors, list):
+        raise LLMBridgeError(
+            f"propose_theta_priors: expected a 'priors' list, got: {text[:200]}"
+        )
+
+    by_index: dict[int, dict] = {}
+    for p in priors:
+        if isinstance(p, dict) and isinstance(p.get("index"), int):
+            by_index[p["index"]] = p
+
+    filled: list[dict] = []
+    for i, sk in enumerate(skeletons):
+        p = by_index.get(i)
+        if p is None:
+            raise LLMBridgeError(
+                f"propose_theta_priors: no prior returned for index {i} "
+                f"({_prob_key_repr(sk)})"
+            )
+        try:
+            value = float(p.get("value"))
+        except (TypeError, ValueError) as exc:
+            raise LLMBridgeError(
+                f"propose_theta_priors: non-numeric value for index {i}: "
+                f"{p.get('value')!r}"
+            ) from exc
+        if not (0.0 <= value <= 1.0):
+            raise LLMBridgeError(
+                f"propose_theta_priors: value {value} for index {i} is not a "
+                f"probability in [0, 1]"
+            )
+        reason = str(p.get("reason") or "").strip() or "LLM 常识先验"
+        out = dict(sk)
+        out["value"] = value
+        out["provenance"] = "llm_prior"
+        out["annotations"] = {"source": reason}
+        filled.append(out)
+    return filled
 
 
 def ask(

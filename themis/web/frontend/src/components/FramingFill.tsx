@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FRAMING_FIELDS } from '../lib/verdict'
 import type { ClarifyPick } from '../api'
+import { Foldout } from './Foldout'
 
 type FieldMap = Record<string, string>
 
@@ -23,10 +24,10 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
 
   return (
     <section className="framing" aria-label="补缺口">
-      <div className="framing__head">
-        <h3 className="framing__title">补缺口 · 把变量定义清楚</h3>
-        <span className="framing__sub">{vars.length} 个变量缺操作化定义</span>
-      </div>
+      <Foldout
+        summary={<span className="framing__title">补缺口 · 把变量定义清楚</span>}
+        count={`${vars.length} 个变量缺操作化定义`}
+      >
       <p className="framing__intro">
         每个变量点「补全并重跑」即可用合理默认补上;想更精确,展开「维度」改任意字段——默认是起点,不是牢笼。补完内核会重新核验。
       </p>
@@ -62,6 +63,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
       <button className="btn framing__go" onClick={submit} disabled={busy}>
         {busy ? '重跑中…' : '补全并重跑 →'}
       </button>
+      </Foldout>
     </section>
   )
 }
