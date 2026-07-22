@@ -542,7 +542,7 @@ def _try_marginal_independence_lookup(
     Tries the LARGEST admissible subset first (most informative
     conditioning) so that adding to theta tightens results.
 
-    SAFETY ANALYSIS (iter 195 probe):
+    SAFETY ANALYSIS (iter 195 probe, closed by the iter 199 guard below):
 
     The fallback fires ONLY when direct lookup + marginalization +
     Bayes inversion all fail. In practice this means:
@@ -555,22 +555,21 @@ def _try_marginal_independence_lookup(
       structurally implies the independence.
 
     - Chain X→M1→M2→Y with marginal-only theta (user wrote chain
-      causes but supplied marginal CPTs): if user had supplied chain
-      CPT P(M2|X, M1), Bayes inversion would handle the demand. If
-      they ONLY supplied marginal P(M2|X), this fallback would
-      silently use it — WRONG, since M1 → M2 makes them dependent
-      given X. iter 195 confirmed numerically: returns 0.586 when
-      true front-door answer would be different.
+      causes but supplied marginal CPTs): substituting the marginal
+      P(M2|X) for the demanded P(M2|M1, X) is WRONG, since M1 → M2
+      makes them dependent given X. iter 195 confirmed numerically.
 
-    Themis trusts user-supplied theta per the iter 174 contract
-    ("use what you give me, don't audit my CPT contract"). The
-    risk-mitigated future fix would thread the graph through to
-    this helper and ONLY apply the fallback when d-separation
-    confirms Z ⊥ extras | reduced_given. Iter 196+ scope.
+    Hence the guard below: whenever ``graph`` and ``bidirected`` are
+    supplied, the substitution is allowed ONLY if m-separation confirms
+    the independence the user's marginal implicitly asserts, and the
+    chain case is refused with a diagnostic naming the mismatch. Callers
+    that evaluate against a declared graph MUST pass both — omitting them
+    reverts to iter 193's trust-the-user contract, which is safe only
+    when no graph is available to check against.
 
-    TL;DR: correct for parallel-paths cases (the unlock target);
-    risky for chain-DAGs with marginal-only theta (user mismatch
-    between declared graph and supplied CPTs).
+    TL;DR: graph supplied → sound (licensed substitutions only); graph
+    omitted → trusts the user's CPTs, which silently accepts a
+    graph/CPT mismatch.
     """
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value

@@ -2112,13 +2112,17 @@ def _try_causation_estimate(
     random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
 ) -> bool:
     """Recover PN/PS/PNS on data (empirical joint + g-formula do-risks →
-    Tian-Pearl), attaching a numeric point overlay ONLY when monotonicity
-    point-identifies the quantities.
+    Tian-Pearl) and attach them as the numeric answer.
 
-    Returns True only when it ATTACHES a numeric estimate. Without monotonicity
-    (points are None) or on any refusal — not back-door identifiable, non-binary
-    cause/effect, a positivity hole — it returns False and touches nothing, so
-    the structural bounds answer stays primary."""
+    The answer is always the three identified intervals; monotonicity only
+    decides whether they collapse to points (Tian-Pearl 40-42 vs 24-26), i.e.
+    whether the result carries a headline PN point or is interval-tier. This
+    mirrors the theta path, where ``_dispatch_causation`` likewise returns
+    COUNTERFACTUAL_BOUNDED rather than declining when there is no point.
+
+    Returns True only when it ATTACHES a numeric estimate. On a refusal — not
+    back-door identifiable, non-binary cause/effect, a positivity hole — it
+    returns False and touches nothing, so the structural answer stays primary."""
     from .causation import estimate_causation_probabilities
     from .dose_response import EstimatorFailure
 
@@ -2496,12 +2500,17 @@ def _try_mediation_joint_estimate(
     set (VanderWeele-Vansteelandt 2014).
 
     Reads ``result.extensions.mediation_joint_decomposition``; proceeds
-    only when its ``strategy`` is ``nde_nie``. Serializes a ``decomposition``
+    when its ``nde_nie`` block is identifiable (so both the ``nde_nie`` and
+    ``nde_nie+cde`` strategies qualify). Serializes a ``decomposition``
     block whose ``sufficient_statistics`` (outcome coefficients + per-
     mediator standardized means) let verify_mediation_numeric re-derive the
     joint NDE/NIE independently on the linear path. No four-way block — that
-    split is single-mediator-specific. Status stays ``structurally_solved``,
-    same as the single-mediator path.
+    split is single-mediator-specific.
+
+    Attaching the estimate does not itself change the status, same as the
+    single-mediator path: a theta-evaluated block already arrives
+    ``numerically_solved`` and keeps its numeric derivation, while a block
+    identified structurally only stays ``structurally_solved``.
     """
     from .mediation import estimate_mediation_joint
 

@@ -947,12 +947,14 @@ def _dispatch_mediation(
             x_atom=x,
             x_treated=x_treated_value,
             x_control=x_control_value,
-            mediator=m,
+            mediators=(m,),
             theta=theta,
             nde_nie_adj=nde_nie_adj,
             cde_adj=cde_adj,
             observed=q.given,
             step_id="s4",
+            graph=graph,
+            bidirected=bidirected,
         )
         if numeric_block is not None:
             extensions["mediation_decomposition"]["numeric"] = numeric_block
@@ -993,6 +995,7 @@ def _dispatch_mediation_joint(
     stmt: QueryStatement,
     graph: nx.DiGraph,
     q: EffectQuery,
+    theta: Theta,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
 ) -> QueryResult:
@@ -1003,14 +1006,18 @@ def _dispatch_mediation_joint(
     ``structural_solver.mediation_sets_joint`` and packages the result
     with ``extensions.mediation_joint_decomposition``.
 
-    Structural identification only. The joint natural effects are numeric
-    against DATA (``themis.estimate`` → ``estimate_mediation_joint``); the
-    THETA/SCM numeric end (declaring the joint mediator distribution as
-    structural coefficients) is a deliberately separate, unbuilt operation,
-    so this stays STRUCTURALLY_SOLVED (matching the single-mediator path's
-    behaviour for a non-boolean treatment). The path-SPECIFIC split through
-    an individual mediator is out of scope (recanting-witness
-    non-identifiability).
+    Identification AND, on a boolean treatment, numeric evaluation against
+    theta — the same ``_evaluate_mediation_numerically`` the single-mediator
+    path uses, called with the whole block instead of one atom. No joint
+    mediator distribution has to be declared: the block's law is expanded by
+    the chain rule, which is an identity, and the numeric layer's
+    graph-guarded reduction resolves each factor against whatever CPTs the
+    user did declare. A mediator block therefore answers with a number
+    exactly where a single mediator would, which is the parity this shares
+    with the DATA end (``themis.estimate`` → ``estimate_mediation_joint``).
+
+    The path-SPECIFIC split through an individual mediator remains out of
+    scope (recanting-witness non-identifiability).
     """
     x = q.intervention.atom
     y = q.target.atom
@@ -1135,14 +1142,126 @@ def _dispatch_mediation_joint(
         }
     }
 
+    # Numeric evaluation against theta — the single-mediator path's gate and
+    # closure, applied to the block. Boolean treatment only (a contrast has to
+    # be well defined before NDE/NIE mean anything); non-boolean stays
+    # STRUCTURALLY_SOLVED exactly as the single-mediator path does.
+    status = ResultStatus.STRUCTURALLY_SOLVED
+    numeric_result: NumericResult | None = None
+
+    x_treated_value = q.intervention.value
+    if isinstance(x_treated_value, bool) and any_identifiable:
+        block = _mediator_block_order(graph, tuple(ms))
+        nde_nie_adj = (
+            tuple(sorted(mediation.nde_nie.adjustment, key=_atom_to_str))
+            if mediation.nde_nie.identifiable else None
+        )
+        cde_adj = (
+            tuple(sorted(mediation.cde.adjustment, key=_atom_to_str))
+            if mediation.cde.identifiable else None
+        )
+        numeric_block, numeric_step = _evaluate_mediation_numerically(
+            target=q.target,
+            x_atom=x,
+            x_treated=x_treated_value,
+            x_control=not x_treated_value,
+            mediators=block,
+            theta=theta,
+            nde_nie_adj=nde_nie_adj,
+            cde_adj=cde_adj,
+            observed=q.given,
+            step_id="s4",
+            graph=graph,
+            bidirected=bidirected,
+        )
+        if numeric_block is not None:
+            extensions["mediation_joint_decomposition"]["numeric"] = numeric_block
+            te = numeric_block.get("te")
+            if te is not None and numeric_step is not None:
+                # Same closure invariant as the single-mediator path: promote
+                # to NUMERICALLY_SOLVED only when the total effect closed, so
+                # a numeric_result always terminates a numeric derivation.
+                # Partial cases (CDE-only, or NDE/NIE InsufficientTheta)
+                # surface in extensions but keep the 3-step identification
+                # derivation as the verifier trail.
+                status = ResultStatus.NUMERICALLY_SOLVED
+                numeric_result = NumericResult(value=te)
+                derivation = derivation + (
+                    numeric_step,
+                    DerivationStep(
+                        rule="numeric_result",
+                        inputs={"evaluation": StepRef(step_id=numeric_step.step_id)},
+                        output=numeric_result,
+                        step_id="s5",
+                    ),
+                )
+
     return QueryResult(
-        status=ResultStatus.STRUCTURALLY_SOLVED,
+        status=status,
         query_kind=QueryKind.EFFECT,
         query_id=stmt.id,
         structural_result=StructuralResult(value=any_identifiable),
+        numeric_result=numeric_result,
         derivation=derivation,
         extensions=extensions,
     )
+
+
+# Cap on the number of CDE reference points enumerated for a mediator
+# block. The reference grid is the Cartesian product of the mediators'
+# theta domains, so it grows multiplicatively; past this many combinations
+# the CDE branch reports ``too_many_reference_points`` instead of spending
+# unbounded evaluation on a table nobody will read. NDE/NIE is unaffected
+# (it marginalises the block rather than enumerating references).
+_CDE_REFERENCE_POINT_CAP = 16
+
+
+def _mediator_block_order(
+    graph: nx.DiGraph, mediators: "tuple[Atom, ...]"
+) -> "tuple[Atom, ...]":
+    """Order a mediator block for the chain-rule factorisation of its
+    joint law P(M1..Mk | X, W) = ∏_j P(Mj | M_{<j}, X, W).
+
+    The product is order-invariant mathematically, but the order decides
+    WHICH conditionals get demanded of theta. Topological order w.r.t.
+    the declared graph makes each factor run WITH the structural parent
+    relationships (so a chained M1 → M2 asks for P(M2|M1, ...), the CPT
+    that graph actually names) — the same convention ``adjustment_set``
+    already follows. Ties break on the atom string so the order is
+    deterministic and the verifier can re-derive it independently.
+    """
+    ms = set(mediators)
+    order: list[Atom] = []
+    try:
+        for node in nx.lexicographical_topological_sort(graph, key=_atom_to_str):
+            if node in ms:
+                order.append(node)
+    except (nx.NetworkXUnfeasible, nx.NetworkXError):
+        order = []
+    if len(order) != len(ms):
+        # Cyclic graph, or a mediator absent from it — fall back to a
+        # deterministic name order rather than an arbitrary one.
+        order = sorted(ms, key=_atom_to_str)
+    return tuple(order)
+
+
+def _mediator_reference_key(combo: tuple) -> str:
+    """Canonical key for one CDE reference point of a mediator block.
+
+    Values joined with ``|`` in block order. For a single mediator this
+    is a bare ``str(value)``, so the classical per-mediator-value CDE
+    table keeps exactly the keys it always had.
+    """
+    return "|".join(str(v) for v in combo)
+
+
+def _mediator_reference_points(
+    mediators: "tuple[Atom, ...]", theta: Theta
+) -> "tuple[tuple, ...]":
+    """The CDE reference grid: the Cartesian product of each mediator's
+    theta domain, in block order."""
+    from itertools import product
+    return tuple(product(*(theta.domain_of(m) for m in mediators)))
 
 
 def _evaluate_mediation_numerically(
@@ -1151,14 +1270,23 @@ def _evaluate_mediation_numerically(
     x_atom: Atom,
     x_treated: bool,
     x_control: bool,
-    mediator: Atom,
+    mediators: "tuple[Atom, ...]",
     theta: Theta,
     nde_nie_adj: "tuple[Atom, ...] | None",
     cde_adj: "tuple[Atom, ...] | None",
     observed: tuple[ValuedAtom, ...],
     step_id: str,
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
 ) -> "tuple[dict | None, DerivationStep | None]":
     """v0.1.4 Fix 1 helper — evaluate mediation g-formulas against theta.
+
+    ``mediators`` is the mediator BLOCK, in chain-rule order (see
+    ``_mediator_block_order``). A single-element block is the classical
+    Pearl 2001 single-mediator case and evaluates the identical formulas;
+    a longer block is the VanderWeele-Vansteelandt 2014 joint natural
+    effect through the whole set, which is why this helper serves both
+    the single-mediator and the joint dispatch.
 
     Two independent branches:
 
@@ -1167,11 +1295,17 @@ def _evaluate_mediation_numerically(
        ``formula_builder.mediation_potential_outcome_formula``, evaluate
        three of them — E[Y(treated)], E[Y(control)], E[Y(treated,
        M(control))] — and derive TE / NDE-at-control / NIE-at-treated.
-    2. CDE (when ``cde_adj is not None``): for each mediator value in
-       ``theta.domain_of(mediator)`` build two controlled-outcome
-       formulas via
+       The block's joint law is expanded by the chain rule inside the
+       formula builder, so no joint mediator distribution has to be
+       declared: per-mediator CPTs suffice whenever the graph licenses
+       the reduction.
+    2. CDE (when ``cde_adj is not None``): for each reference point in
+       the Cartesian product of the mediators' theta domains build two
+       controlled-outcome formulas via
        ``formula_builder.mediation_controlled_outcome_formula`` and
-       subtract to produce CDE(m).
+       subtract to produce CDE(m*), the effect holding the whole block
+       fixed. Reference points are keyed by the mediator values joined
+       with ``|`` in block order (a bare ``str(value)`` for k=1).
 
     Each branch's failure (InsufficientTheta on any constituent formula
     evaluation) is independent — a partial result records whichever
@@ -1179,6 +1313,16 @@ def _evaluate_mediation_numerically(
     that failed. Returns ``(None, None)`` only if no branch was even
     attempted (both adjustments None — caller's gate should prevent
     that).
+
+    ``graph`` / ``bidirected`` are threaded into every evaluation so the
+    numeric layer's marginal-independence fallback runs under its
+    d-separation guard. Without them the fallback trusts a declared
+    marginal P(Mj | X, W) in place of the demanded P(Mj | M_<j, X, W) —
+    correct when the graph makes the mediators conditionally independent,
+    a WRONG number when it does not (a chained block M1 → M2 is exactly
+    such a graph, and is a case the block identification supports). With
+    them, an unlicensed substitution surfaces as insufficient_theta
+    instead of a plausible answer.
     """
     treated_va = ValuedAtom(atom=x_atom, value=x_treated)
     control_va = ValuedAtom(atom=x_atom, value=x_control)
@@ -1191,7 +1335,7 @@ def _evaluate_mediation_numerically(
                 target=target,
                 intervention_outer=treated_va,
                 intervention_inner=treated_va,
-                mediator=mediator,
+                mediators=mediators,
                 adjustment_set=nde_nie_adj,
                 observed=observed,
             )
@@ -1199,7 +1343,7 @@ def _evaluate_mediation_numerically(
                 target=target,
                 intervention_outer=control_va,
                 intervention_inner=control_va,
-                mediator=mediator,
+                mediators=mediators,
                 adjustment_set=nde_nie_adj,
                 observed=observed,
             )
@@ -1211,7 +1355,7 @@ def _evaluate_mediation_numerically(
                 target=target,
                 intervention_outer=treated_va,
                 intervention_inner=control_va,
-                mediator=mediator,
+                mediators=mediators,
                 adjustment_set=nde_nie_adj,
                 observed=observed,
             )
@@ -1219,17 +1363,21 @@ def _evaluate_mediation_numerically(
                 target=target,
                 intervention_outer=control_va,
                 intervention_inner=treated_va,
-                mediator=mediator,
+                mediators=mediators,
                 adjustment_set=nde_nie_adj,
                 observed=observed,
             )
-            e_y_treated = numeric_estimator.estimate_formula(f_treated, theta)
-            e_y_control = numeric_estimator.estimate_formula(f_control, theta)
+            e_y_treated = numeric_estimator.estimate_formula(
+                f_treated, theta, graph=graph, bidirected=bidirected
+            )
+            e_y_control = numeric_estimator.estimate_formula(
+                f_control, theta, graph=graph, bidirected=bidirected
+            )
             e_y_cross_treated_outer = numeric_estimator.estimate_formula(
-                f_cross_treated_outer, theta
+                f_cross_treated_outer, theta, graph=graph, bidirected=bidirected
             )
             e_y_cross_control_outer = numeric_estimator.estimate_formula(
-                f_cross_control_outer, theta
+                f_cross_control_outer, theta, graph=graph, bidirected=bidirected
             )
             numeric["e_y_treated"] = e_y_treated
             numeric["e_y_control"] = e_y_control
@@ -1259,33 +1407,53 @@ def _evaluate_mediation_numerically(
             }
 
     if cde_adj is not None:
-        mediator_domain = theta.domain_of(mediator)
+        reference_points = _mediator_reference_points(mediators, theta)
         cde_per_m: dict = {}
         cde_failure = None
-        for m_val in mediator_domain:
-            m_va = ValuedAtom(atom=mediator, value=m_val)
+        if len(reference_points) > _CDE_REFERENCE_POINT_CAP:
+            cde_failure = {
+                "status": "too_many_reference_points",
+                "reference_point_count": len(reference_points),
+                "cap": _CDE_REFERENCE_POINT_CAP,
+                "reason": (
+                    "the CDE reference grid is the Cartesian product of the "
+                    "mediator block's domains; fixing every combination is "
+                    "not reported past the cap"
+                ),
+            }
+            reference_points = ()
+        for combo in reference_points:
+            m_vas = tuple(
+                ValuedAtom(atom=m_atom, value=m_val)
+                for m_atom, m_val in zip(mediators, combo)
+            )
+            m_key = _mediator_reference_key(combo)
             try:
                 f_treated_m = formula_builder.mediation_controlled_outcome_formula(
                     target=target,
                     intervention=treated_va,
-                    mediator=m_va,
+                    mediators=m_vas,
                     adjustment_set=cde_adj,
                     observed=observed,
                 )
                 f_control_m = formula_builder.mediation_controlled_outcome_formula(
                     target=target,
                     intervention=control_va,
-                    mediator=m_va,
+                    mediators=m_vas,
                     adjustment_set=cde_adj,
                     observed=observed,
                 )
-                cde_treated = numeric_estimator.estimate_formula(f_treated_m, theta)
-                cde_control = numeric_estimator.estimate_formula(f_control_m, theta)
-                cde_per_m[str(m_val)] = cde_treated - cde_control
+                cde_treated = numeric_estimator.estimate_formula(
+                    f_treated_m, theta, graph=graph, bidirected=bidirected
+                )
+                cde_control = numeric_estimator.estimate_formula(
+                    f_control_m, theta, graph=graph, bidirected=bidirected
+                )
+                cde_per_m[m_key] = cde_treated - cde_control
             except InsufficientTheta as ite:
                 cde_failure = {
                     "status": "insufficient_theta",
-                    "mediator_value": str(m_val),
+                    "mediator_value": m_key,
                     "missing_key": (
                         format_probability_key(ite.missing_key)
                         if ite.missing_key else None
@@ -1303,14 +1471,21 @@ def _evaluate_mediation_numerically(
 
     # Only include adjustments that were used. Serializer would choke
     # on None values; the absence of a key tells the verifier that
-    # strategy didn't run. Mediator domain is derived by the verifier
+    # strategy didn't run. Mediator domains are derived by the verifier
     # from its own ctx.theta rather than being shipped in inputs (saves
     # a serialization shape and avoids drift if theta domains evolve).
+    #
+    # ``mediators`` ships the ORDERED block (atom_tuple round-trips order)
+    # because the chain-rule factorisation is written against it. The
+    # verifier re-derives the order from the graph and checks the block
+    # against the query's own mediator set, so a producer that silently
+    # dropped or reordered a mediator cannot pass off the resulting
+    # (different, wrong) natural effect as the declared one.
     inputs: dict = {
         "target": target,
         "intervention_treated": treated_va,
         "intervention_control": control_va,
-        "mediator": mediator,
+        "mediators": mediators,
         "observed": observed,
     }
     if nde_nie_adj is not None:
@@ -3701,7 +3876,7 @@ def _dispatch_effect(
     # identifiable without assuming the ordering among the mediators.
     if len(q.mediators) >= 2:
         return _dispatch_mediation_joint(
-            stmt, graph, q, bidirected=bidirected,
+            stmt, graph, q, theta, bidirected=bidirected,
         )
 
     if q.mediator is not None:

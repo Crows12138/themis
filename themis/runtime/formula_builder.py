@@ -215,19 +215,19 @@ def mediation_potential_outcome_formula(
     target: ValuedAtom,
     intervention_outer: ValuedAtom,
     intervention_inner: ValuedAtom,
-    mediator: Atom,
+    mediators: tuple[Atom, ...],
     adjustment_set: tuple[Atom, ...] = (),
     observed: tuple[ValuedAtom, ...] = (),
 ) -> FormulaExpr:
     """Build the g-formula for a (possibly cross-world) potential
     outcome with mediator marginalization.
 
-    Computes::
+    Computes, over the mediator BLOCK M = (M1, ..., Mk)::
 
         E[Y(X=x_outer, M = M(X=x_inner)) | observed]
-          = Σ_w  Σ_m
-                P(Y=y | X=x_outer, M=m, W=w, observed)
-              · P(M=m   | X=x_inner, W=w, observed)
+          = Σ_w  Σ_m1..mk
+                P(Y=y | X=x_outer, M1=m1, .., Mk=mk, W=w, observed)
+              · ∏_j P(Mj=mj | M_{<j}, X=x_inner, W=w, observed)
               · ∏_i P(Wi=wi | W_{<i}, observed)
 
     The cross-world case (``intervention_outer.value != intervention_inner.value``)
@@ -236,13 +236,24 @@ def mediation_potential_outcome_formula(
     agree, this collapses to the standard potential outcome E[Y(X=x)]
     expressed via mediator-marginalised g-formula.
 
+    The joint mediator law P(M1..Mk | X=x_inner, W=w) is expanded by the
+    CHAIN RULE, exactly as P(W1..Wk) already is. That is an identity, not
+    a modelling assumption: it needs no independence among the mediators
+    and no separate declaration of a joint mediator distribution. When the
+    mediators are in fact conditionally independent given (X, W), the
+    numeric layer's graph-guarded reduction resolves each factor against
+    the marginal CPT the user actually declared, so a parallel mediator
+    block evaluates from ordinary per-mediator theta.
+
     ``adjustment_set`` must align with the NDE/NIE identification's W
     per ``structural_solver.mediation_sets(...).nde_nie.adjustment``
     — typically empty in textbook three-node mediation graphs.
 
-    Caller passes ``adjustment_set`` in topological order so the chain-
-    rule factors of P(W1, ..., Wk) align with structural parent
-    relationships (same convention as ``backdoor_formula``).
+    Caller passes ``adjustment_set`` AND ``mediators`` in topological
+    order so the chain-rule factors of P(W1, ..., Wk) and of the mediator
+    block align with structural parent relationships (same convention as
+    ``backdoor_formula``). A single-element ``mediators`` reproduces the
+    classical Pearl 2001 single-mediator formula exactly.
     """
     taken: set[str] = set()
     w_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
@@ -253,27 +264,39 @@ def mediation_potential_outcome_formula(
         w_binds.append((w_atom, bind, w_va))
     w_valueds = tuple(vv for (_, _, vv) in w_binds)
 
-    m_bind = fresh_bind_name(mediator, frozenset(taken))
-    m_va = ValuedAtom(atom=mediator, value=VarRef(name=m_bind.name))
+    m_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for m_atom in mediators:
+        bind = fresh_bind_name(m_atom, frozenset(taken))
+        taken.add(bind.name)
+        m_va = ValuedAtom(atom=m_atom, value=VarRef(name=bind.name))
+        m_binds.append((m_atom, bind, m_va))
+    m_valueds = tuple(vv for (_, _, vv) in m_binds)
 
     y_conditional = _conditional(
         target,
-        (intervention_outer, m_va) + w_valueds + observed,
+        (intervention_outer,) + m_valueds + w_valueds + observed,
     )
-    m_conditional = _conditional(
-        m_va,
-        (intervention_inner,) + w_valueds + observed,
-    )
+    # Chain rule for the joint mediator law: ∏_j P(Mj | M_{<j}, x_inner, w).
+    m_factors: list[ProbabilityRefExpr] = []
+    for j, (_, _, m_va) in enumerate(m_binds):
+        prior = m_valueds[:j]
+        m_factors.append(
+            _conditional(
+                m_va,
+                (intervention_inner,) + prior + w_valueds + observed,
+            )
+        )
     w_factors: list[ProbabilityRefExpr] = []
     for i, (_, _, w_va) in enumerate(w_binds):
         prior = w_valueds[:i]
         w_factors.append(_conditional(w_va, prior + observed))
 
     body: FormulaExpr = ProductExpr(
-        terms=(y_conditional, m_conditional, *w_factors)
+        terms=(y_conditional, *m_factors, *w_factors)
     )
 
-    body = SumExpr(bind=m_bind, over=mediator, body=body)
+    for m_atom, bind, _ in reversed(m_binds):
+        body = SumExpr(bind=bind, over=m_atom, body=body)
     for w_atom, bind, _ in reversed(w_binds):
         body = SumExpr(bind=bind, over=w_atom, body=body)
 
@@ -283,32 +306,33 @@ def mediation_potential_outcome_formula(
 def mediation_controlled_outcome_formula(
     target: ValuedAtom,
     intervention: ValuedAtom,
-    mediator: ValuedAtom,
+    mediators: tuple[ValuedAtom, ...],
     adjustment_set: tuple[Atom, ...] = (),
     observed: tuple[ValuedAtom, ...] = (),
 ) -> FormulaExpr:
     """Build the g-formula for a controlled potential outcome.
 
-    Computes::
+    Computes, with the whole mediator block held fixed at m* ::
 
-        E[Y | do(X=x, M=m), observed]
-          = Σ_w  P(Y=y | X=x, M=m, W=w, observed)
+        E[Y | do(X=x, M1=m1*, .., Mk=mk*), observed]
+          = Σ_w  P(Y=y | X=x, M1=m1*, .., Mk=mk*, W=w, observed)
                 · ∏_i P(Wi=wi | W_{<i}, observed)
 
-    Used by mediation CDE: CDE(m) = E[Y|do(X=1, M=m)] − E[Y|do(X=0, M=m)].
+    Used by mediation CDE: CDE(m*) = E[Y|do(X=1, M=m*)] − E[Y|do(X=0, M=m*)].
     Both X and M are intervened on (do-calculus rule 2 along the
-    X → M → Y path is licensed by the structural CDE identification).
+    X → M → Y paths is licensed by the structural CDE identification).
     Unlike ``mediation_potential_outcome_formula`` there is no inner
-    mediator sum because M is fixed by the do.
+    mediator sum because every mediator is fixed by the do — which is
+    why the block form needs no chain rule here.
 
     ``adjustment_set`` must align with the CDE identification's W per
     ``structural_solver.mediation_sets(...).cde.adjustment``.
 
     When ``adjustment_set`` is empty the formula reduces to a single
-    conditional ``P(Y=y | X=x, M=m, observed)``.
+    conditional ``P(Y=y | X=x, M=m*, observed)``.
     """
     if len(adjustment_set) == 0:
-        return _conditional(target, (intervention, mediator) + observed)
+        return _conditional(target, (intervention,) + mediators + observed)
 
     taken: set[str] = set()
     w_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
@@ -321,7 +345,7 @@ def mediation_controlled_outcome_formula(
 
     y_conditional = _conditional(
         target,
-        (intervention, mediator) + w_valueds + observed,
+        (intervention,) + mediators + w_valueds + observed,
     )
     w_factors: list[ProbabilityRefExpr] = []
     for i, (_, _, w_va) in enumerate(w_binds):

@@ -499,3 +499,471 @@ def test_run_surfaces_cde_identifiability_and_verifies():
     assert mjd["cde"]["identifiable"] is True
     assert mjd["cde"]["adjustment"] == []
     themis.verify(ast, res)
+
+
+# =====================================================================
+# theta / SCM numeric end — the joint block evaluated against declared
+# CPTs, the parity counterpart of the DATA end above
+# =====================================================================
+
+
+def _pr(target, tval, given, value):
+    return {
+        "kind": "probability",
+        "target": {"atom": _atom(target), "value": tval},
+        "given": [{"atom": _atom(g), "value": v} for g, v in given],
+        "value": value,
+    }
+
+
+# Parallel two-mediator SCM with a measured baseline confounder W.
+_P_W = {True: 0.4, False: 0.6}
+_P_X = {True: 0.7, False: 0.25}                    # P(X=1 | W)
+_P_M1 = {(True, True): 0.8, (True, False): 0.35,   # P(M1=1 | X, W)
+         (False, True): 0.5, (False, False): 0.15}
+_P_M2 = {(True, True): 0.6, (True, False): 0.3,    # P(M2=1 | X, W)
+         (False, True): 0.45, (False, False): 0.1}
+
+
+def _p_y(x, m1, m2, w):
+    """P(Y=1 | X, M1, M2, W) — includes an X·M1 interaction so the two
+    Pearl decompositions genuinely differ."""
+    v = 0.05 + 0.30 * x + 0.25 * m1 + 0.20 * m2 + 0.10 * w
+    v += 0.08 * (x and m1)
+    return min(0.98, v)
+
+
+def _joint_theta_ast(with_confounder=True):
+    """Two parallel mediators + a measured confounder, with a FULL theta.
+
+    Crucially theta declares only the per-mediator CPTs P(Mj | X, W) —
+    never a joint mediator distribution. The block's joint law has to come
+    from the chain rule plus the graph-guarded reduction.
+    """
+    stmts = [
+        {"kind": "variable", "predicate": p, "domain": [True, False]}
+        for p in ("w", "x", "m1", "m2", "y")
+    ]
+    edges = [("x", "m1"), ("m1", "y"), ("x", "m2"), ("m2", "y"), ("x", "y")]
+    if with_confounder:
+        edges += [("w", "x"), ("w", "y"), ("w", "m1"), ("w", "m2")]
+    stmts += [{"kind": "cause", "from": _atom(f), "to": _atom(t)}
+              for f, t in edges]
+
+    for wv in (True, False):
+        stmts.append(_pr("w", wv, [], _P_W[wv]))
+        for xv in (True, False):
+            stmts.append(_pr("x", xv, [("w", wv)],
+                             _P_X[wv] if xv else 1 - _P_X[wv]))
+            for mv in (True, False):
+                p1 = _P_M1[(xv, wv)]
+                p2 = _P_M2[(xv, wv)]
+                stmts.append(_pr("m1", mv, [("x", xv), ("w", wv)],
+                                 p1 if mv else 1 - p1))
+                stmts.append(_pr("m2", mv, [("x", xv), ("w", wv)],
+                                 p2 if mv else 1 - p2))
+            for m1v in (True, False):
+                for m2v in (True, False):
+                    py = _p_y(xv, m1v, m2v, wv)
+                    for yv in (True, False):
+                        stmts.append(_pr(
+                            "y", yv,
+                            [("x", xv), ("m1", m1v), ("m2", m2v), ("w", wv)],
+                            py if yv else 1 - py,
+                        ))
+
+    stmts.append({"kind": "query", "id": "q", "query": {
+        "kind": "effect",
+        "intervention": {"atom": _atom("x"), "value": True},
+        "target": {"atom": _atom("y"), "value": True},
+        "given": [],
+        "mediators": [_atom("m1"), _atom("m2")],
+    }})
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": stmts,
+    }
+
+
+def _oracle_potential(x_outer, x_inner):
+    """E[Y(x_outer, M(x_inner))] by DIRECT enumeration of the declared
+    structural CPTs — written from the VanderWeele-Vansteelandt definition,
+    never touching formula_builder or the scheduler."""
+    total = 0.0
+    for w in (True, False):
+        inner = 0.0
+        for m1 in (True, False):
+            for m2 in (True, False):
+                p1 = _P_M1[(x_inner, w)]
+                p2 = _P_M2[(x_inner, w)]
+                inner += (
+                    _p_y(x_outer, m1, m2, w)
+                    * (p1 if m1 else 1 - p1)
+                    * (p2 if m2 else 1 - p2)
+                )
+        total += _P_W[w] * inner
+    return total
+
+
+def _oracle_block_cde(m1v, m2v):
+    t = sum(_P_W[w] * _p_y(True, m1v, m2v, w) for w in (True, False))
+    c = sum(_P_W[w] * _p_y(False, m1v, m2v, w) for w in (True, False))
+    return t - c
+
+
+def test_joint_theta_numeric_matches_enumeration_oracle():
+    """The joint natural effects computed against theta equal an
+    independent brute-force enumeration of the same CPTs."""
+    ast = _joint_theta_ast()
+    res = themis.run(ast)["results"][0]
+    assert res["status"] == "numerically_solved"
+    num = res["extensions"]["mediation_joint_decomposition"]["numeric"]
+
+    e_t = _oracle_potential(True, True)
+    e_c = _oracle_potential(False, False)
+    e_x = _oracle_potential(True, False)
+    for key, expected in (
+        ("e_y_treated", e_t),
+        ("e_y_control", e_c),
+        ("e_y_cross_treated_outer", e_x),
+        ("te", e_t - e_c),
+        ("nde_at_control", e_x - e_c),
+        ("nie_at_treated", e_t - e_x),
+    ):
+        assert abs(num[key] - expected) < 1e-12, key
+    assert abs(res["numeric_result"]["value"] - (e_t - e_c)) < 1e-12
+
+
+def test_joint_theta_block_cde_matches_oracle_over_the_grid():
+    """CDE-for-a-set: one entry per reference point of the block, keyed by
+    the mediator values joined in block order."""
+    res = themis.run(_joint_theta_ast())["results"][0]
+    cde = res["extensions"]["mediation_joint_decomposition"]["numeric"]["cde"]
+    assert set(cde) == {"True|True", "True|False", "False|True", "False|False"}
+    for m1v in (True, False):
+        for m2v in (True, False):
+            got = cde[f"{m1v}|{m2v}"]
+            assert abs(got - _oracle_block_cde(m1v, m2v)) < 1e-12
+
+
+def test_joint_theta_needs_no_declared_joint_mediator_distribution():
+    """The de-risked design claim, pinned: theta declares only the
+    per-mediator CPTs, yet the block's joint law resolves."""
+    ast = _joint_theta_ast()
+    declared = [
+        s for s in ast["statements"]
+        if s["kind"] == "probability"
+        and s["target"]["atom"]["predicate"] in ("m1", "m2")
+    ]
+    # no CPT of one mediator ever conditions on the other
+    for s in declared:
+        given = {g["atom"]["predicate"] for g in s["given"]}
+        assert not ({"m1", "m2"} & given)
+    res = themis.run(ast)["results"][0]
+    assert res["status"] == "numerically_solved"
+
+
+def test_joint_theta_both_pearl_decompositions_close():
+    """TE = NDE_at_control + NIE_at_treated = NDE_at_treated + NIE_at_control."""
+    res = themis.run(_joint_theta_ast())["results"][0]
+    n = res["extensions"]["mediation_joint_decomposition"]["numeric"]
+    assert abs(n["te"] - (n["nde_at_control"] + n["nie_at_treated"])) < 1e-12
+    assert abs(n["te"] - (n["nde_at_treated"] + n["nie_at_control"])) < 1e-12
+
+
+def test_joint_theta_verify_round_trip():
+    ast = _joint_theta_ast()
+    res = themis.run(ast)["results"][0]
+    rules = [s["rule"] for s in res["derivation"]["steps"]]
+    assert "identify_via_mediation_joint" in rules
+    assert rules[-2:] == ["mediation_numeric_evaluate", "numeric_result"]
+    themis.verify(ast, res)
+
+
+def test_joint_theta_verify_rejects_tampered_effect():
+    ast = _joint_theta_ast()
+    res = themis.run(ast)["results"][0]
+    bad = copy.deepcopy(res)
+    for step in bad["derivation"]["steps"]:
+        if step["rule"] == "mediation_numeric_evaluate":
+            step["output"]["items"]["nie_at_treated"] += 0.05
+    with pytest.raises(Exception):
+        themis.verify(ast, bad)
+
+
+def test_joint_theta_verify_rejects_tampered_block_cde():
+    ast = _joint_theta_ast()
+    res = themis.run(ast)["results"][0]
+    bad = copy.deepcopy(res)
+    for step in bad["derivation"]["steps"]:
+        if step["rule"] == "mediation_numeric_evaluate":
+            step["output"]["items"]["cde"]["items"]["True|False"] = 0.999
+    with pytest.raises(Exception):
+        themis.verify(ast, bad)
+
+
+def test_joint_theta_verify_rejects_a_dropped_mediator():
+    """A block that quietly sheds a mediator answers a DIFFERENT question.
+    The numbers would be internally consistent, so only checking them
+    against the query's declared set catches it."""
+    ast = _joint_theta_ast()
+    res = themis.run(ast)["results"][0]
+    bad = copy.deepcopy(res)
+    for step in bad["derivation"]["steps"]:
+        if step["rule"] == "mediation_numeric_evaluate":
+            items = step["inputs"]["mediators"]["items"]
+            assert len(items) == 2
+            step["inputs"]["mediators"]["items"] = items[:1]
+    with pytest.raises(Exception, match="not the ones asked for"):
+        themis.verify(ast, bad)
+
+
+def test_joint_theta_without_theta_stays_structural():
+    """No CPTs declared → honest structural answer, no fabricated number."""
+    res = themis.run(_joint_ast())["results"][0]
+    assert res["status"] == "structurally_solved"
+    assert res.get("numeric_result") is None
+
+
+def test_cde_reference_grid_capped(monkeypatch):
+    """The reference grid is the Cartesian product of the block's domains,
+    so it is bounded rather than enumerated without limit."""
+    from themis.runtime import scheduler as sched
+    monkeypatch.setattr(sched, "_CDE_REFERENCE_POINT_CAP", 2)
+    res = themis.run(_joint_theta_ast())["results"][0]
+    num = res["extensions"]["mediation_joint_decomposition"]["numeric"]
+    assert num["cde_status"]["status"] == "too_many_reference_points"
+    assert num["cde_status"]["reference_point_count"] == 4
+    assert "cde" not in num
+    # the natural effects are unaffected — they marginalise the block
+    assert abs(num["te"] - (_oracle_potential(True, True)
+                            - _oracle_potential(False, False))) < 1e-12
+
+
+def _bare(p):
+    from themis.types import Atom
+    return Atom(predicate=p, args=())
+
+
+def test_mediator_block_order_is_topological():
+    """A chained block M2 → M1 must factorise in that order, so the chain
+    rule asks for P(M1 | M2, ...) — the CPT the graph actually names."""
+    from themis.runtime.scheduler import _mediator_block_order
+    x, y, m1, m2 = _bare("x"), _bare("y"), _bare("m1"), _bare("m2")
+    g = nx.DiGraph([(x, m2), (m2, m1), (m1, y), (x, m1)])
+    assert _mediator_block_order(g, (m1, m2)) == (m2, m1)
+    assert _mediator_block_order(g, (m2, m1)) == (m2, m1)
+
+
+def test_mediator_block_order_falls_back_deterministically():
+    """A mediator absent from the graph must not produce an arbitrary
+    order — name order is the documented fallback."""
+    from themis.runtime.scheduler import _mediator_block_order
+    x, y, m1 = _bare("x"), _bare("y"), _bare("m1")
+    g = nx.DiGraph([(x, m1), (m1, y)])
+    mb, ma = _bare("mb"), _bare("ma")
+    assert _mediator_block_order(g, (mb, ma)) == (ma, mb)
+
+
+def test_joint_potential_outcome_formula_uses_the_chain_rule():
+    """The block's joint law is ∏_j P(Mj | M_<j, x_inner, W) — each factor
+    conditions on the mediators before it, and on the INNER arm."""
+    from themis.runtime.formula_builder import (
+        mediation_potential_outcome_formula,
+    )
+    from themis.types import Atom, ProductExpr, SumExpr, ValuedAtom
+
+    def at(p):
+        return Atom(predicate=p, args=())
+
+    y, x, m1, m2 = at("y"), at("x"), at("m1"), at("m2")
+    f = mediation_potential_outcome_formula(
+        target=ValuedAtom(atom=y, value=True),
+        intervention_outer=ValuedAtom(atom=x, value=True),
+        intervention_inner=ValuedAtom(atom=x, value=False),
+        mediators=(m1, m2),
+    )
+    # two mediator sums wrapping the product
+    assert isinstance(f, SumExpr) and f.over == m1
+    assert isinstance(f.body, SumExpr) and f.body.over == m2
+    body = f.body.body
+    assert isinstance(body, ProductExpr)
+    y_cond, m1_cond, m2_cond = body.terms
+    # outcome conditions on BOTH mediators and the OUTER arm
+    assert y_cond.target.atom == y
+    assert {g.atom for g in y_cond.given} == {x, m1, m2}
+    assert next(g for g in y_cond.given if g.atom == x).value is True
+    # first mediator factor: inner arm, no other mediator
+    assert m1_cond.target.atom == m1
+    assert {g.atom for g in m1_cond.given} == {x}
+    assert next(g for g in m1_cond.given if g.atom == x).value is False
+    # second mediator factor: inner arm AND the first mediator
+    assert m2_cond.target.atom == m2
+    assert {g.atom for g in m2_cond.given} == {x, m1}
+
+
+def test_single_mediator_block_reproduces_the_classical_formula():
+    """k=1 must be the classical Pearl 2001 shape — the generalisation is
+    a superset, not a replacement."""
+    from themis.runtime.formula_builder import (
+        mediation_potential_outcome_formula,
+    )
+    from themis.types import Atom, ProductExpr, SumExpr, ValuedAtom
+
+    def at(p):
+        return Atom(predicate=p, args=())
+
+    y, x, m = at("y"), at("x"), at("m")
+    f = mediation_potential_outcome_formula(
+        target=ValuedAtom(atom=y, value=True),
+        intervention_outer=ValuedAtom(atom=x, value=True),
+        intervention_inner=ValuedAtom(atom=x, value=False),
+        mediators=(m,),
+    )
+    assert isinstance(f, SumExpr) and f.over == m
+    assert isinstance(f.body, ProductExpr)
+    y_cond, m_cond = f.body.terms          # exactly two factors, no extras
+    assert {g.atom for g in y_cond.given} == {x, m}
+    assert {g.atom for g in m_cond.given} == {x}
+
+
+# ---------------------------------------------------------------------
+# anti-silent-wrong: the chain rule demands P(Mj | M_<j, X, W), and a
+# declared marginal may only stand in for it when the GRAPH says so
+# ---------------------------------------------------------------------
+
+
+def _chained_block_marginal_only_ast():
+    """X→M1→M2→Y (+M1→Y, X→Y) with theta declaring only P(M2|X).
+
+    The block's chain rule demands P(M2|M1,X); M1 → M2 makes the marginal
+    an invalid substitute, and theta has no other route to the conditional.
+    There is therefore NO correct natural-effect number to report here.
+    """
+    stmts = [{"kind": "variable", "predicate": p, "domain": [True, False]}
+             for p in ("x", "m1", "m2", "y")]
+    stmts += [{"kind": "cause", "from": _atom(f), "to": _atom(t)} for f, t in
+              [("x", "m1"), ("m1", "m2"), ("m2", "y"), ("m1", "y"), ("x", "y")]]
+    p_m1 = {True: 0.8, False: 0.3}
+    p_m2_given_m1x = {(True, True): 0.9, (True, False): 0.2,
+                      (False, True): 0.7, (False, False): 0.1}
+    for xv in (True, False):
+        stmts.append(_pr("x", xv, [], 0.5))
+        # marginalised over M1 — the ONLY M2 law declared
+        p1 = p_m1[xv]
+        pm2 = p1 * p_m2_given_m1x[(True, xv)] + (1 - p1) * p_m2_given_m1x[(False, xv)]
+        for mv in (True, False):
+            stmts.append(_pr("m1", mv, [("x", xv)],
+                             p_m1[xv] if mv else 1 - p_m1[xv]))
+            stmts.append(_pr("m2", mv, [("x", xv)], pm2 if mv else 1 - pm2))
+        for m1v in (True, False):
+            for m2v in (True, False):
+                py = min(0.98, 0.05 + 0.3 * xv + 0.25 * m1v + 0.2 * m2v)
+                for yv in (True, False):
+                    stmts.append(_pr(
+                        "y", yv, [("x", xv), ("m1", m1v), ("m2", m2v)],
+                        py if yv else 1 - py,
+                    ))
+    stmts.append({"kind": "query", "id": "q", "query": {
+        "kind": "effect",
+        "intervention": {"atom": _atom("x"), "value": True},
+        "target": {"atom": _atom("y"), "value": True},
+        "given": [],
+        "mediators": [_atom("m1"), _atom("m2")],
+    }})
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": stmts,
+    }
+
+
+def test_chained_block_refuses_the_unlicensed_marginal():
+    """The producer must NOT substitute the declared marginal P(M2|X) for
+    the demanded P(M2|M1,X): the graph makes them dependent, so any number
+    would be wrong. Honest refusal, naming the missing CPT and the reason."""
+    ast = _chained_block_marginal_only_ast()
+    res = themis.run(ast)["results"][0]
+    assert res["status"] == "structurally_solved"
+    assert res.get("numeric_result") is None
+    num = res["extensions"]["mediation_joint_decomposition"]["numeric"]
+    assert "te" not in num
+    status = num["nde_nie_status"]
+    assert status["status"] == "insufficient_theta"
+    assert "m2" in status["missing_key"] and "m1" in status["missing_key"]
+    themis.verify(ast, res)
+
+
+def test_chained_block_still_reports_the_block_cde():
+    """CDE fixes the whole block by do, so it never needs the joint
+    mediator law — it stays available exactly where the natural effects
+    cannot be evaluated."""
+    res = themis.run(_chained_block_marginal_only_ast())["results"][0]
+    num = res["extensions"]["mediation_joint_decomposition"]["numeric"]
+    assert set(num["cde"]) == {
+        "True|True", "True|False", "False|True", "False|False"
+    }
+
+
+def test_parallel_block_still_accepts_the_licensed_marginal():
+    """The guard must not over-refuse: when the graph DOES imply the
+    mediators are conditionally independent, the declared marginals are
+    the right quantities and the block evaluates."""
+    res = themis.run(_joint_theta_ast())["results"][0]
+    assert res["status"] == "numerically_solved"
+
+
+# ---------------------------------------------------------------------
+# two numeric channels on one result
+#
+# Once a decomposition evaluates against theta, a query that ALSO carries
+# a DataFrame ends up with two independent numbers for the same split: the
+# derivation's theta evaluation and the attached data estimate. verify has
+# to audit each on its own terms — comparing the data estimate against the
+# theta derivation's terminal would reject an honest result. The
+# single-mediator case is exercised here too, alongside the block, because
+# both ride the same routing.
+# ---------------------------------------------------------------------
+
+
+def _binary_df(n=6000, seed=0):
+    """A DataFrame over the same variables as _joint_theta_ast."""
+    rng = np.random.default_rng(seed)
+    w = rng.random(n) < 0.4
+    x = rng.random(n) < np.where(w, 0.7, 0.25)
+    m1 = rng.random(n) < np.where(x, np.where(w, .8, .35), np.where(w, .5, .15))
+    m2 = rng.random(n) < np.where(x, np.where(w, .6, .3), np.where(w, .45, .1))
+    py = np.clip(.05 + .3 * x + .25 * m1 + .2 * m2 + .1 * w + .08 * (x & m1),
+                 0, .98)
+    return pd.DataFrame({
+        "w": w, "x": x, "m1": m1, "m2": m2, "y": rng.random(n) < py,
+    })
+
+
+def test_block_carries_theta_and_data_channels_and_both_verify():
+    ast = _joint_theta_ast()
+    res = themis.estimate(ast, _binary_df())["results"][0]
+    assert res["status"] == "numerically_solved"
+    # theta channel: exact, terminates the derivation
+    theta_te = res["extensions"]["mediation_joint_decomposition"]["numeric"]["te"]
+    assert abs(res["numeric_result"]["value"] - theta_te) < 1e-12
+    # data channel: a separate estimate of the same split
+    ne = res["numeric_estimate"]
+    assert ne["method"].startswith("mediation_joint_")
+    assert res["derivation"]["steps"][-1]["rule"] == "numeric_result"
+    themis.verify(ast, res)
+
+
+def test_single_mediator_carries_theta_and_data_channels_and_both_verify():
+    """Parity anchor: the same routing serves one mediator and a block."""
+    ast = _joint_theta_ast()
+    for s in ast["statements"]:
+        if s.get("kind") == "query":
+            del s["query"]["mediators"]
+            s["query"]["mediator"] = _atom("m1")
+    res = themis.estimate(ast, _binary_df())["results"][0]
+    assert res["status"] == "numerically_solved"
+    assert res["derivation"]["steps"][-1]["rule"] == "numeric_result"
+    assert res["numeric_estimate"]["method"].startswith("mediation_")
+    themis.verify(ast, res)

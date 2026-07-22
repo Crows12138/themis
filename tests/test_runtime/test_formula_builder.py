@@ -134,7 +134,7 @@ def test_mediation_potential_outcome_no_w_natural_case_structure():
         target=va(y, value=True),
         intervention_outer=va(x, value=True),
         intervention_inner=va(x, value=True),
-        mediator=m,
+        mediators=(m,),
     )
     assert isinstance(f, SumExpr)
     assert f.over == m
@@ -161,7 +161,7 @@ def test_mediation_potential_outcome_cross_world_uses_distinct_x_values():
         target=va(y, value=True),
         intervention_outer=va(x, value=False),  # E[Y | X=0, ...]
         intervention_inner=va(x, value=True),   # M(X=1)
-        mediator=m,
+        mediators=(m,),
     )
     assert isinstance(f, SumExpr)
     y_cond, m_cond = f.body.terms
@@ -180,7 +180,7 @@ def test_mediation_potential_outcome_with_single_w_wraps_in_outer_sum():
         target=va(y, value=True),
         intervention_outer=va(x, value=True),
         intervention_inner=va(x, value=True),
-        mediator=m,
+        mediators=(m,),
         adjustment_set=(w,),
     )
     assert isinstance(f, SumExpr) and f.over == w
@@ -203,7 +203,7 @@ def test_mediation_potential_outcome_is_wellformed():
                 target=va(y, value=True),
                 intervention_outer=va(x, value=outer_v),
                 intervention_inner=va(x, value=inner_v),
-                mediator=m,
+                mediators=(m,),
                 adjustment_set=ws[:n_w],
             )
             validate_formula(f)
@@ -215,7 +215,7 @@ def test_mediation_controlled_outcome_no_w_returns_flat_conditional():
     f = mediation_controlled_outcome_formula(
         target=va(y, value=True),
         intervention=va(x, value=True),
-        mediator=va(m, value=False),
+        mediators=(va(m, value=False),),
     )
     assert isinstance(f, ProbabilityRefExpr)
     assert f.target.atom == y and f.target.value is True
@@ -230,7 +230,7 @@ def test_mediation_controlled_outcome_with_single_w():
     f = mediation_controlled_outcome_formula(
         target=va(y, value=True),
         intervention=va(x, value=True),
-        mediator=va(m, value=False),
+        mediators=(va(m, value=False),),
         adjustment_set=(w,),
     )
     assert isinstance(f, SumExpr) and f.over == w
@@ -253,7 +253,7 @@ def test_mediation_controlled_outcome_is_wellformed():
         f = mediation_controlled_outcome_formula(
             target=va(y, value=True),
             intervention=va(x, value=True),
-            mediator=va(m, value=False),
+            mediators=(va(m, value=False),),
             adjustment_set=ws[:n_w],
         )
         validate_formula(f)
@@ -463,14 +463,14 @@ def test_q1358_nie_evaluates_to_0_11():
         target=va(y, value=True),
         intervention_outer=va(x, value=False),
         intervention_inner=va(x, value=True),
-        mediator=m,
+        mediators=(m,),
     )
     # Build the natural potential E[Y(X=0)] = E[Y(X=0, M(X=0))]
     f_natural = mediation_potential_outcome_formula(
         target=va(y, value=True),
         intervention_outer=va(x, value=False),
         intervention_inner=va(x, value=False),
-        mediator=m,
+        mediators=(m,),
     )
 
     # CLadder Q1358 parameters

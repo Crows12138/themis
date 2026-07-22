@@ -2300,23 +2300,25 @@ def _verifier_build_mediation_potential_outcome_formula(
     target: ValuedAtom,
     intervention_outer: ValuedAtom,
     intervention_inner: ValuedAtom,
-    mediator: Atom,
+    mediators: tuple[Atom, ...],
     adjustment_set: tuple[Atom, ...],
     observed: tuple[ValuedAtom, ...],
 ) -> FormulaExpr:
     """Verifier-side independent reconstruction of the mediation
     potential-outcome g-formula. Does NOT call ``formula_builder``.
 
-    Shape (Pearl 2001 + g-formula expansion)::
+    Shape (Pearl 2001 + g-formula expansion), over the mediator BLOCK::
 
         E[Y(X=x_outer, M = M(X=x_inner))]
-          = Σ_w  Σ_m  P(Y | X=x_outer, M=m, W=w)
-                    · P(M=m | X=x_inner, W=w)
-                    · ∏_i P(Wi=wi | W_{<i})
+          = Σ_w Σ_m1..mk  P(Y | X=x_outer, M1=m1, .., Mk=mk, W=w)
+                        · ∏_j P(Mj=mj | M_{<j}, X=x_inner, W=w)
+                        · ∏_i P(Wi=wi | W_{<i})
 
-    The chain-rule factoring of P(W) and the cross-world M conditional
-    are the two pieces a buggy runtime might get wrong; this
-    independent rebuild lets the verifier detect either failure mode.
+    The chain-rule factoring of P(W), the chain-rule factoring of the
+    joint mediator law, and the cross-world arm on the mediator factors
+    are the pieces a buggy runtime might get wrong; this independent
+    rebuild lets the verifier detect each failure mode. A single-element
+    ``mediators`` reproduces the classical single-mediator formula.
     """
     taken: set = set()
     w_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
@@ -2327,24 +2329,35 @@ def _verifier_build_mediation_potential_outcome_formula(
         w_binds.append((w_atom, b, w_va))
     w_valueds = tuple(vv for (_, _, vv) in w_binds)
 
-    m_bind = _verifier_mediation_bind_for(mediator, taken)
-    m_va = ValuedAtom(atom=mediator, value=VarRef(name=m_bind.name))
+    m_binds: list[tuple[Atom, BindDecl, ValuedAtom]] = []
+    for m_atom in mediators:
+        b = _verifier_mediation_bind_for(m_atom, taken)
+        taken.add(b.name)
+        m_va = ValuedAtom(atom=m_atom, value=VarRef(name=b.name))
+        m_binds.append((m_atom, b, m_va))
+    m_valueds = tuple(vv for (_, _, vv) in m_binds)
 
     y_cond = ProbabilityRefExpr(
         target=target,
-        given=(intervention_outer, m_va) + w_valueds + observed,
+        given=(intervention_outer,) + m_valueds + w_valueds + observed,
     )
-    m_cond = ProbabilityRefExpr(
-        target=m_va,
-        given=(intervention_inner,) + w_valueds + observed,
-    )
+    m_factors: list[ProbabilityRefExpr] = []
+    for j, (_, _, m_va) in enumerate(m_binds):
+        prior = m_valueds[:j]
+        m_factors.append(
+            ProbabilityRefExpr(
+                target=m_va,
+                given=(intervention_inner,) + prior + w_valueds + observed,
+            )
+        )
     w_factors: list[ProbabilityRefExpr] = []
     for i, (_, _, w_va) in enumerate(w_binds):
         prior = w_valueds[:i]
         w_factors.append(ProbabilityRefExpr(target=w_va, given=prior + observed))
 
-    body: FormulaExpr = ProductExpr(terms=(y_cond, m_cond, *w_factors))
-    body = SumExpr(bind=m_bind, over=mediator, body=body)
+    body: FormulaExpr = ProductExpr(terms=(y_cond, *m_factors, *w_factors))
+    for m_atom, b, _ in reversed(m_binds):
+        body = SumExpr(bind=b, over=m_atom, body=body)
     for w_atom, b, _ in reversed(w_binds):
         body = SumExpr(bind=b, over=w_atom, body=body)
     return body
@@ -2353,25 +2366,25 @@ def _verifier_build_mediation_potential_outcome_formula(
 def _verifier_build_mediation_controlled_outcome_formula(
     target: ValuedAtom,
     intervention: ValuedAtom,
-    mediator: ValuedAtom,
+    mediators: tuple[ValuedAtom, ...],
     adjustment_set: tuple[Atom, ...],
     observed: tuple[ValuedAtom, ...],
 ) -> FormulaExpr:
     """Verifier-side independent reconstruction of the CDE g-formula.
     Does NOT call ``formula_builder``.
 
-    Shape::
+    Shape, with the whole mediator block held fixed at m* ::
 
-        E[Y | do(X=x, M=m)]
-          = Σ_w  P(Y | X=x, M=m, W=w) · ∏_i P(Wi=wi | W_{<i})
+        E[Y | do(X=x, M1=m1*, .., Mk=mk*)]
+          = Σ_w  P(Y | X=x, M1=m1*, .., Mk=mk*, W=w) · ∏_i P(Wi=wi | W_{<i})
 
     When ``adjustment_set`` is empty, reduces to a single
-    ``P(Y | X=x, M=m, observed)`` conditional.
+    ``P(Y | X=x, M=m*, observed)`` conditional.
     """
     if not adjustment_set:
         return ProbabilityRefExpr(
             target=target,
-            given=(intervention, mediator) + observed,
+            given=(intervention,) + mediators + observed,
         )
 
     taken: set = set()
@@ -2385,7 +2398,7 @@ def _verifier_build_mediation_controlled_outcome_formula(
 
     y_cond = ProbabilityRefExpr(
         target=target,
-        given=(intervention, mediator) + w_valueds + observed,
+        given=(intervention,) + mediators + w_valueds + observed,
     )
     w_factors: list[ProbabilityRefExpr] = []
     for i, (_, _, w_va) in enumerate(w_binds):
@@ -2432,9 +2445,51 @@ def _rule_mediation_numeric_evaluate(
     control_va = _require(
         inputs, "intervention_control", step_index, "mediation_numeric_evaluate"
     )
-    mediator = _require_atom(
-        inputs, "mediator", step_index, "mediation_numeric_evaluate"
-    )
+    mediators_raw = inputs.get("mediators")
+    if not isinstance(mediators_raw, (tuple, list)) or not mediators_raw:
+        raise RuleCheckFailed(
+            "mediation_numeric_evaluate: 'mediators' must be a non-empty "
+            "tuple of mediator atoms",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
+    mediators = tuple(mediators_raw)
+    if not all(isinstance(a, Atom) for a in mediators):
+        raise RuleCheckFailed(
+            "mediation_numeric_evaluate: every entry of 'mediators' must be "
+            "an Atom",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
+    if len(set(mediators)) != len(mediators):
+        raise RuleCheckFailed(
+            "mediation_numeric_evaluate: 'mediators' repeats an atom — the "
+            "chain-rule factorisation would double-count it",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
+    # The evaluated block must be exactly the mediator set the QUERY
+    # declared. Dropping one changes which paths count as indirect, and the
+    # resulting natural effects are internally consistent while answering a
+    # DIFFERENT question — precisely the failure a numbers-only re-derivation
+    # would confirm rather than catch.
+    #
+    # The block ORDER is deliberately not pinned: the chain rule
+    # ∏_j P(Mj | M_{<j}, ...) is an exact factorisation of the joint law for
+    # any ordering, so every order that evaluates yields the same value. The
+    # order only decides which CPTs theta is asked for. Re-deriving with the
+    # producer's recorded order therefore checks the arithmetic without
+    # rejecting a correct answer that took a different route to it.
+    declared_mediators = set(getattr(ctx.query, "mediators", ()) or ())
+    if not declared_mediators:
+        single = getattr(ctx.query, "mediator", None)
+        if single is not None:
+            declared_mediators = {single}
+    if declared_mediators and set(mediators) != declared_mediators:
+        raise RuleCheckFailed(
+            "mediation_numeric_evaluate: evaluated mediator block "
+            f"{sorted(str(a) for a in mediators)} != the mediator set the "
+            f"query declares {sorted(str(a) for a in declared_mediators)} — "
+            "the reported natural effects are not the ones asked for",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
     observed_raw = inputs.get("observed", ())
     observed: tuple[ValuedAtom, ...] = tuple(observed_raw) if observed_raw else ()
 
@@ -2461,17 +2516,17 @@ def _rule_mediation_numeric_evaluate(
     if nde_nie_adj is not None and "nde_nie_status" not in claimed_output:
         nde_w = tuple(nde_nie_adj)
         f_treated = _verifier_build_mediation_potential_outcome_formula(
-            target, treated_va, treated_va, mediator, nde_w, observed,
+            target, treated_va, treated_va, mediators, nde_w, observed,
         )
         f_control = _verifier_build_mediation_potential_outcome_formula(
-            target, control_va, control_va, mediator, nde_w, observed,
+            target, control_va, control_va, mediators, nde_w, observed,
         )
         # Both cross-world potentials — one per Pearl decomposition.
         f_cross_to = _verifier_build_mediation_potential_outcome_formula(
-            target, treated_va, control_va, mediator, nde_w, observed,
+            target, treated_va, control_va, mediators, nde_w, observed,
         )
         f_cross_co = _verifier_build_mediation_potential_outcome_formula(
-            target, control_va, treated_va, mediator, nde_w, observed,
+            target, control_va, treated_va, mediators, nde_w, observed,
         )
         try:
             e_y_treated = _evaluate_formula(
@@ -2539,13 +2594,20 @@ def _rule_mediation_numeric_evaluate(
                 step_index=step_index, rule="mediation_numeric_evaluate",
             )
         cde_w = tuple(cde_adj)
-        for m_val in theta.domain_of(mediator):
-            m_va = ValuedAtom(atom=mediator, value=m_val)
+        # Independent transcription of the reference grid: the Cartesian
+        # product of the block's theta domains, keyed by the values joined
+        # with '|' in block order (a bare str(value) when k == 1).
+        from itertools import product as _product
+        for combo in _product(*(theta.domain_of(m) for m in mediators)):
+            m_vas = tuple(
+                ValuedAtom(atom=m_atom, value=m_val)
+                for m_atom, m_val in zip(mediators, combo)
+            )
             f_t = _verifier_build_mediation_controlled_outcome_formula(
-                target, treated_va, m_va, cde_w, observed,
+                target, treated_va, m_vas, cde_w, observed,
             )
             f_c = _verifier_build_mediation_controlled_outcome_formula(
-                target, control_va, m_va, cde_w, observed,
+                target, control_va, m_vas, cde_w, observed,
             )
             try:
                 v_t = _evaluate_formula(
@@ -2557,11 +2619,11 @@ def _rule_mediation_numeric_evaluate(
             except _NonConcreteValue as e:
                 raise RuleCheckFailed(
                     f"mediation_numeric_evaluate: CDE re-evaluation failed "
-                    f"for mediator={m_val!r}: {e}",
+                    f"for mediator reference={combo!r}: {e}",
                     step_index=step_index, rule="mediation_numeric_evaluate",
                 )
             recomputed_cde = v_t - v_c
-            m_key = str(m_val)
+            m_key = "|".join(str(v) for v in combo)
             if m_key not in claimed_cde:
                 raise RuleCheckFailed(
                     f"mediation_numeric_evaluate: cde missing mediator value "

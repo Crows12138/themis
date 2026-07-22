@@ -1030,11 +1030,24 @@ reports the effect "through {M₁, …, M_k} as a whole".
 Identifiability is a property of the graph: "可识别" means the graph
 permits decomposition under the declared assumptions, not that the
 mediator factually mediates the effect — the rendering stays
-structural, not existential. When `numeric_estimate` is also present
-(mediation went through `themis.estimate`), render numbers the same
-way as the backdoor / front-door numeric templates: point + CI +
-method + assumptions translated via the glossary. No parallel
-mediation-numeric template lives below — reuse the §"Numeric
+structural, not existential.
+
+A decomposition's numbers reach you by one of two channels, and both
+apply to a single mediator and to a block alike:
+
+- `numeric_estimate` — estimated from a DataFrame via
+  `themis.estimate`. Point + CI, rendered like the backdoor /
+  front-door numeric templates.
+- `extensions.<decomposition>.numeric` — evaluated against declared
+  CPTs by `themis.run`. Exact g-formula values, no CI, keyed `te` /
+  `nde_at_control` / `nie_at_treated` / `nde_at_treated` /
+  `nie_at_control`, plus a `cde` table over the mediator reference
+  points (a block's keys join its mediator values in block order). A
+  `nde_nie_status` / `cde_status` entry means that branch could not be
+  evaluated — surface its reason rather than the absence.
+
+Either way, translate method and assumptions via the glossary. No
+parallel mediation-numeric template lives below — reuse the §"Numeric
 rendering" shape.
 
 `strategy` field branches:

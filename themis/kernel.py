@@ -970,9 +970,22 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             status == "numerically_solved"
             and kind == "effect"
             and "numeric_estimate" in result
+            and bool(derivation)
+            and derivation[-1].rule != "numeric_result"
         ):
             # Phase 7.1: data-based effect estimate. Final step is
             # numeric_backdoor_estimate (relaxed metadata audit).
+            #
+            # Routing keys on the derivation's TERMINAL, not merely on a
+            # numeric_estimate being present: for a back-door style estimate
+            # the data estimate IS the terminal, but a mediation
+            # decomposition can carry two independent numeric channels — a
+            # theta evaluation that terminates in numeric_result, plus a
+            # DataFrame estimate of the same decomposition. Those are
+            # different numbers, so tying one to the other's terminal would
+            # reject an honest result. The numeric_result terminal is handled
+            # in the else branch, which audits both channels on their own
+            # terms.
             claimed = _decode_structural_result_json(result["structural_result"])
             verify_numeric_estimate(derivation, ctx, claimed)
             # A backdoor_linear estimate may carry a Cinelli-Hazlett OVB
@@ -1039,6 +1052,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
                 )
             claimed = _decode_numeric_result_json(result["numeric_result"])
             verify_numeric(derivation, ctx, claimed)
+            # A theta-evaluated mediation decomposition (single mediator or a
+            # joint block) may ALSO carry a DataFrame estimate of the same
+            # split. verify_numeric audited the theta derivation above; audit
+            # the data channel the same way the structurally_solved branch
+            # does, so attaching data never leaves a number unchecked.
+            num_est = result.get("numeric_estimate")
+            if num_est is not None:
+                verify_mediation_numeric(num_est)
     elif kind == "counterfactual":
         if "numeric_result" not in result:
             raise ValueError(

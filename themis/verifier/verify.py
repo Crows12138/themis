@@ -3148,6 +3148,10 @@ def verify_numeric(
                 "identify_via_backdoor",
                 "identify_via_front_door",
                 "identify_via_mediation",
+                # Joint multi-mediator block: the same mediation_numeric_evaluate
+                # closure as the single-mediator path, reached through the block
+                # four-condition check instead of the single-mediator one.
+                "identify_via_mediation_joint",
                 "identify_via_transport",  # Fix 3+4 §T9.2 numeric
                 "identify_via_tian",       # Fix 5 audit follow-up
                 "identify_via_iv",         # Fix 6 audit follow-up
@@ -3158,6 +3162,7 @@ def verify_numeric(
             raise VerificationError(
                 "effect derivation is missing an identify_via_backdoor, "
                 "identify_via_front_door, identify_via_mediation, "
+                "identify_via_mediation_joint, "
                 "identify_via_transport, identify_via_tian, identify_via_iv, "
                 "or identify_via_idc witness",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
