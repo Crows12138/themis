@@ -67,9 +67,9 @@ GAP KINDS:
 EXPLANATION:
 ⚠ 反事实推理的有效性以 consistency（观察值 = do(实际取值) 下的
   潜在结果）+ composition 公理为前提；跨世界的格子还要用到一臂
-  干预风险 P(Y=1|do X)，它凭什么成立（调整集充分 / 来自随机实验）
-  也一并被继承；单调性若声明，只是把区间收紧成点的额外前提。
-  这些假设都无法从数据本身验证。
+  干预风险 P(Y=1|do X)，它凭什么成立（调整集充分 / 图结构正确到
+  general ID 能识别 / 来自随机实验）也一并被继承；单调性若声明，
+  只是把区间收紧成点的额外前提。这些假设都无法从数据本身验证。
 ```
 
 ## 评估：✅ match — Layer 3 advisory + 完整数据规格
@@ -78,8 +78,9 @@ EXPLANATION:
 
 - Layer 3 query 正确分发到 counterfactual handler
 - `counterfactual_identification_assumption_required` ⚠ informational
-  触发：consistency / composition 总是要，干预风险的来源按需要，
-  单调性按是否声明——分层列出，与 Pearl 2009 §7 quote 对齐
+  触发：consistency / composition 总是要，干预风险的来源按需要
+  （调整集 / general ID / 随机实验三选一），单调性按是否声明
+  ——分层列出，与 Pearl 2009 §7 quote 对齐
 - 观测联合需要的 6 个数据点完整列出：
   - 4 个条件分布 P(Y|X=x)
   - 2 个 X 边际分布

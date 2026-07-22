@@ -36,13 +36,15 @@ Scope (declared):
 - BINARY X and Y, and the counterfactual must intervene on the SAME variable
   that is observed (the cell is indexed by that variable's two values).
 - The interventional risk is identified by BACK-DOOR adjustment (the empty set
-  = exogeneity being the special case) or supplied experimentally, mirroring
-  ``causation.py``. Front-door / IV / general-ID data paths for the do-risk are
-  NOT wired here; when back-door admits no set and no experimental risk is
-  given, the cell is answerable only if monotonicity pins it outright, and
-  otherwise the estimator refuses and the structural answer stands.
+  = exogeneity being the special case), by the general ID algorithm when no
+  adjustment set exists, or supplied experimentally. Only when ALL of those
+  fail is the cell answerable purely from a monotonicity that pins it; failing
+  that the estimator refuses and the structural answer stands.
 - The adjustment set must be DISCRETE, and every stratum must have support
-  under the arm being standardized (a positivity violation raises).
+  under the arm being standardized (a positivity violation raises). The
+  general-ID plug-in likewise needs every stratum its estimand conditions on
+  to be present; an IV-identified risk is not wired (a Wald ratio is an ATE,
+  not the single arm risk this cell consumes).
 
 API::
 
@@ -69,6 +71,12 @@ from .binary_do_risk import (
 )
 from .contract import validate_data
 from .dose_response import EstimatorFailure
+from .general_id import (
+    data_domains,
+    evaluate_arm_risk,
+    identify_arm_risk_formula,
+    referenced_predicates,
+)
 from .resample import cluster_labels, resample_indices
 
 
@@ -81,12 +89,15 @@ from .resample import cluster_labels, resample_indices
 #   user_experimental      - supplied from a randomized experiment
 #   exogenous              - back-door standardized over the EMPTY set
 #   backdoor_adjustment    - back-door standardized over a non-empty set
+#   general_id_plug_in     - no adjustment set exists, but the general ID
+#                            algorithm point-identifies the arm anyway
 RISK_PROVENANCES = frozenset({
     "not_required",
     "pinned_by_monotonicity",
     "user_experimental",
     "exogenous",
     "backdoor_adjustment",
+    "general_id_plug_in",
 })
 
 _TOL = 1e-12
@@ -116,6 +127,10 @@ class CounterfactualCellEstimate:
     p_y_do_x_cf: float | None
     interventional_risk_provenance: str
     adjustment: tuple[str, ...]
+    # The general-ID estimand the risk was evaluated from, when that is how it
+    # was identified (None otherwise). Carried into the derivation so the
+    # verifier can re-derive it and check the arm that was actually evaluated.
+    risk_formula: object | None
     # The cell being asked for (the verifier re-reads these off ctx.query).
     x_observed: bool
     x_counterfactual: bool
@@ -209,6 +224,7 @@ def estimate_counterfactual_cell(
     #    demanding it would manufacture a data requirement out of nothing.
     supplied: float | None = None
     adjustment: tuple[str, ...] = ()
+    risk_formula = None
     if x_cf == x_obs:
         provenance = "not_required"
     else:
@@ -224,14 +240,34 @@ def estimate_counterfactual_cell(
                     graph, x_atom, y_atom, bidirected,
                 )
             except EstimatorFailure:
-                # Unmeasured confounding: no do-risk from this frame. The cell
-                # may STILL be determined if monotonicity pins it — the solver
-                # decides, and refuses (InterventionalRiskRequired) if not.
-                provenance = "pinned_by_monotonicity"
+                # No adjustment set. That is NOT the end of identification:
+                # the general ID algorithm reaches estimands no covariate set
+                # blocks (a front-door structure, a napkin), and the cell only
+                # ever needed this ONE arm.
+                try:
+                    risk_formula = identify_arm_risk_formula(
+                        graph, bidirected,
+                        treatment_atom=x_atom, outcome_atom=y_atom,
+                        # The cell's coordinates are booleans and the column is
+                        # binary; True/False and 1/0 compare and hash alike, so
+                        # the literal threaded through the estimand matches the
+                        # data's own levels either way.
+                        arm_value=x_cf, outcome_value=True,
+                    )
+                except EstimatorFailure:
+                    # Genuinely unidentified (a bow arc): no do-risk from this
+                    # frame at all. The cell may STILL be determined if
+                    # monotonicity pins it — the solver decides, and refuses
+                    # (InterventionalRiskRequired) if not.
+                    provenance = "pinned_by_monotonicity"
+                else:
+                    provenance = "general_id_plug_in"
             else:
                 provenance = "exogenous" if not adjustment else "backdoor_adjustment"
 
     required = {xcol, ycol, *adjustment}
+    if risk_formula is not None:
+        required |= referenced_predicates(risk_formula)
     presence = (cluster,) if cluster is not None else ()
     groups = (
         cluster_labels(data, cluster, expected_n=len(data))
@@ -248,6 +284,10 @@ def estimate_counterfactual_cell(
     y = as_binary_column(df[ycol], ycol)
 
     twin = cf.project_twin_network(graph, bidirected, query)
+    # The general-ID estimand is identified ONCE (data-independent) and its
+    # sum ranges are pinned to the FULL-data domains, so every bootstrap draw
+    # evaluates the same estimand rather than a quietly narrower one.
+    domains = data_domains(graph, df) if risk_formula is not None else {}
 
     def _run(x_arr, y_arr, frame):
         """Empirical joint + (if the cell needs it) the one do-risk → solver."""
@@ -256,6 +296,8 @@ def estimate_counterfactual_cell(
             risk = float(supplied)
         elif provenance in ("exogenous", "backdoor_adjustment"):
             risk = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=x_cf)
+        elif provenance == "general_id_plug_in":
+            risk = evaluate_arm_risk(risk_formula, frame, domains=domains)
         else:
             risk = None
         interval = cf.counterfactual_cell_interval(
@@ -269,9 +311,10 @@ def estimate_counterfactual_cell(
     except cf.InterventionalRiskRequired as need:
         raise EstimatorFailure(
             "interventional_risk_not_identifiable",
-            f"P(Y=1|do({xcol}={need.needed_x_value})) is neither back-door "
-            f"identifiable from this data nor supplied, and this cell is not "
-            f"determined without it. Supply experimental_risk_treated / "
+            f"P(Y=1|do({xcol}={need.needed_x_value})) is identified from this "
+            f"graph by neither a back-door adjustment set nor the general ID "
+            f"algorithm, and was not supplied; this cell is not determined "
+            f"without it. Supply experimental_risk_treated / "
             f"experimental_risk_control from a randomized experiment.",
         ) from need
     except cf.CounterfactualInfeasible as exc:
@@ -311,6 +354,7 @@ def estimate_counterfactual_cell(
         p_y_do_x_cf=risk,
         interventional_risk_provenance=provenance,
         adjustment=adjustment,
+        risk_formula=risk_formula,
         x_observed=bool(x_obs), x_counterfactual=bool(x_cf),
         y_star=bool(y_star), factual_target_known=factual_y,
         monotonicity=monotonicity,
@@ -321,13 +365,12 @@ def estimate_counterfactual_cell(
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         cause=xcol, effect=ycol,
-        model_assumption=(
-            "反事实单格 P(Y_{x'}=y*|X=x[,Y=y]) 由一条一致性恒等式求解："
-            "观测联合 P(X,Y) 用经验频率，所需的那一臂干预风险 P(Y=1|do x') "
-            "用后门标准化(饱和 g-formula，无函数形式假设)；"
-            "单调性(若声明)是把区间收紧成点的额外约束，不是回答的前提"
+        model_assumption=_model_assumption(provenance),
+        form=(
+            "nonparametric_c_factor_plug_in"
+            if provenance == "general_id_plug_in"
+            else "nonparametric_gformula_plug_in"
         ),
-        form="nonparametric_gformula_plug_in",
         identification_assumptions=_identification_assumptions(
             provenance, adjustment, monotonicity,
         ),
@@ -390,6 +433,26 @@ def _bootstrap_cell(
     )
 
 
+def _model_assumption(provenance: str) -> str:
+    """The mechanism sentence — one identity, and how its one input was got."""
+    if provenance == "general_id_plug_in":
+        risk = (
+            "所需的那一臂干预风险 P(Y=1|do x') 没有可用的调整集，"
+            "改由 general ID（c-factor 分解）识别出的估计量按非参数 plug-in 求值"
+            "（每个条件概率取其所属数据层的经验频率，无函数形式假设）"
+        )
+    else:
+        risk = (
+            "所需的那一臂干预风险 P(Y=1|do x') "
+            "用后门标准化(饱和 g-formula，无函数形式假设)"
+        )
+    return (
+        "反事实单格 P(Y_{x'}=y*|X=x[,Y=y]) 由一条一致性恒等式求解："
+        "观测联合 P(X,Y) 用经验频率，" + risk + "；"
+        "单调性(若声明)是把区间收紧成点的额外约束，不是回答的前提"
+    )
+
+
 def _assumptions(
     provenance: str, adjustment: tuple[str, ...], monotonicity: str | None,
     cluster: str | None,
@@ -407,6 +470,10 @@ def _assumptions(
             "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient"
         )
         out.append("positivity_the_asked_arm_has_support_in_each_stratum")
+    elif provenance == "general_id_plug_in":
+        out.append("admg_structure_correct_including_latent_confounders")
+        out.append("positivity_every_conditioning_stratum_of_the_estimand_has_support")
+        out.append("discrete_variables_saturated_nonparametric_plug_in")
     elif provenance == "pinned_by_monotonicity":
         # No do-risk was available, so the emptiness check that would have
         # refuted the monotonicity never ran. Say so.
@@ -441,6 +508,14 @@ def _identification_assumptions(
              "layer": "identification", "severity": "invalidating", "testable": False})
         specs.append(
             {"claim": "positivity：每个调整层在被问的那个处理臂下都有样本",
+             "layer": "identification", "severity": "invalidating", "testable": True})
+    elif provenance == "general_id_plug_in":
+        specs.append(
+            {"claim": "没有可用的调整集，干预风险经 general ID（c-factor 分解）识别："
+                      "ADMG 结构正确——所有有向边与潜混杂 (↔) 边如实建模",
+             "layer": "identification", "severity": "invalidating", "testable": False})
+        specs.append(
+            {"claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
              "layer": "identification", "severity": "invalidating", "testable": True})
     elif provenance == "pinned_by_monotonicity":
         specs.append(

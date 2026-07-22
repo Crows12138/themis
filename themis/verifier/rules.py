@@ -6591,6 +6591,7 @@ _NUMERIC_COUNTERFACTUAL_CELL_METHODS = frozenset({"counterfactual_cell_plugin"})
 _CF_CELL_RISK_PROVENANCES = frozenset({
     "not_required", "pinned_by_monotonicity",
     "user_experimental", "exogenous", "backdoor_adjustment",
+    "general_id_plug_in",
 })
 
 
@@ -6621,7 +6622,9 @@ def _rule_numeric_counterfactual_cell_estimate(
     3. Identification structure — when the risk was back-door standardized (or
        exogenous), the claimed adjustment set is re-derived from ``ctx.graph``
        and must be genuinely admissible; catches standardizing over a WRONG
-       set.
+       set. When it was identified by the general ID algorithm instead, the
+       estimand itself is re-derived for the arm ``ctx.query`` asks about and
+       must match the one recorded; catches evaluating the WRONG estimand.
     4. Metadata self-consistency — method enum, data_hash hex, sample_size,
        probabilities in range, and a CI that brackets the point (or is a valid
        probability interval when the answer is an interval).
@@ -6802,12 +6805,17 @@ def _rule_numeric_counterfactual_cell_estimate(
                 f"admissible minimal back-door set on the graph",
                 step_index=step_index, rule=rule,
             )
-    elif str(adjustment_str):
-        raise RuleCheckFailed(
-            f"{rule}: provenance {provenance!r} standardizes over nothing, yet "
-            f"an adjustment set {str(adjustment_str)!r} is claimed",
-            step_index=step_index, rule=rule,
-        )
+    else:
+        if str(adjustment_str):
+            raise RuleCheckFailed(
+                f"{rule}: provenance {provenance!r} standardizes over nothing, "
+                f"yet an adjustment set {str(adjustment_str)!r} is claimed",
+                step_index=step_index, rule=rule,
+            )
+        if provenance == "general_id_plug_in":
+            _check_cf_cell_general_id_risk(
+                ctx, inputs, query, step_index=step_index, rule=rule,
+            )
 
     # 4. CI (present only when a bootstrap ran). A point must sit inside its
     #    percentile CI; the interval answer's OUTER band is a bootstrap
@@ -6843,6 +6851,75 @@ def _rule_numeric_counterfactual_cell_estimate(
     if claimed_output.value is not True:
         raise RuleCheckFailed(
             f"{rule} output.value must be True",
+            step_index=step_index, rule=rule,
+        )
+
+
+def _check_cf_cell_general_id_risk(
+    ctx: VerificationContext,
+    inputs: dict,
+    query,
+    *,
+    step_index: int,
+    rule: str,
+) -> None:
+    """Re-derive the general-ID estimand a counterfactual cell's risk came from.
+
+    ``general_id_plug_in`` says two things: that no covariate set identifies the
+    arm, and that the ID algorithm identifies it anyway. Both are re-checked
+    against ``ctx.graph`` — and, crucially, so is WHICH arm was evaluated. The
+    do-value is read off ``ctx.query`` (the counterfactual intervention), so a
+    producer that identified the easier arm, or bound the outcome to the other
+    level, does not match the verifier's own re-derivation and is rejected.
+
+    Like the back-door branch this is an identification audit, not a re-fit: the
+    verifier holds a ``data_hash``, not the frame, so the plug-in VALUE the
+    estimand evaluates to is beyond reach here (the same data-refit ceiling
+    every numeric rule declares). What it does pin down is that the number was
+    read off the right estimand.
+    """
+    from ..runtime import c_factor, structural_solver
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    x_atom = query.observed.atom
+    y_atom = query.counterfactual_target.atom
+    sets = structural_solver.minimal_adjustment_sets(
+        ctx.graph, x_atom, y_atom, bidirected=(ctx.bidirected or None),
+    )
+    if sets:
+        raise RuleCheckFailed(
+            f"{rule}: provenance 'general_id_plug_in' claims no covariate set "
+            f"identifies the do-risk, but the graph admits back-door "
+            f"adjustment sets",
+            step_index=step_index, rule=rule,
+        )
+    res = c_factor.identify_via_tian(
+        ctx.graph, bidir, x_atom, y_atom,
+        query.counterfactual_intervention.value,
+    )
+    if not res.identifiable or res.formula is None:
+        raise RuleCheckFailed(
+            f"{rule}: the general ID algorithm does not point-identify "
+            f"P({y_atom.predicate} | do({x_atom.predicate}="
+            f"{query.counterfactual_intervention.value})) on this graph, yet "
+            f"the estimate claims a plug-in value for it",
+            step_index=step_index, rule=rule,
+        )
+    # The cell's risk is P(Y=1 | do(x')) — the identity's one input is always
+    # the HIGH outcome level, whatever y* the cell itself asks about.
+    expected = _verifier_bind_target_value(res.formula, y_atom, True)
+    claimed = inputs.get("risk_formula")
+    if claimed is None:
+        raise RuleCheckFailed(
+            f"{rule}: provenance 'general_id_plug_in' must record the estimand "
+            f"the risk was evaluated from",
+            step_index=step_index, rule=rule,
+        )
+    if claimed != expected:
+        raise RuleCheckFailed(
+            f"{rule}: the recorded general-ID estimand is not the one the "
+            f"verifier derives for do({x_atom.predicate}="
+            f"{query.counterfactual_intervention.value}) on this graph",
             step_index=step_index, rule=rule,
         )
 

@@ -39,6 +39,7 @@ import networkx as nx
 X = Atom(predicate="x", args=())
 Y = Atom(predicate="y", args=())
 Z = Atom(predicate="z", args=())
+M = Atom(predicate="m", args=())
 
 
 # ------------------------------------------------------------------ builders
@@ -499,6 +500,233 @@ def test_intervening_on_a_different_variable_than_the_one_observed_is_refused():
             df, graph=_confounded_graph(), query=q, ci_bootstrap=0,
         )
     assert exc.value.failure_type == "counterfactual_cell_cross_variable"
+
+
+# ====================================== the do-risk beyond back-door: general ID
+#
+# A cell across worlds consumes P(Y=1 | do(x')). When no covariate set blocks
+# the back-door paths, that used to end the matter — the cell was answerable
+# only if a declared monotonicity pinned it outright. But "no adjustment set"
+# is not "not identified": the general ID algorithm reaches estimands no set
+# expresses. These cases sit on a front-door structure with an UNMEASURED X-Y
+# confounder, where adjustment provably fails and ID provably succeeds.
+def _frontdoor_graph():
+    g = nx.DiGraph()
+    g.add_edges_from([(X, M), (M, Y)])
+    return g
+
+
+_FRONTDOOR = (_cause("x", "m"), _cause("m", "y"))
+
+
+def _sample_frontdoor(n: int, seed: int):
+    """Front-door SCM with an unmeasured U confounding X and Y, MONOTONE by
+    construction: every mechanism thresholds ONE uniform draw, so a higher
+    input can only raise the output (Y_1 ≥ Y_0 unit by unit).
+
+    Returns the observable frame plus the latent potential outcomes, so the
+    truth oracle counts units in the generator instead of re-running the
+    identity the estimator uses."""
+    rng = np.random.default_rng(seed)
+    u = rng.random(n) < 0.5
+    e_x, e_m, e_y = rng.random(n), rng.random(n), rng.random(n)
+    x = np.where(u, e_x < 0.75, e_x < 0.25)      # U confounds X …
+    m_of = lambda xv: np.where(xv, e_m < 0.8, e_m < 0.25)
+    y_of = lambda mv: np.where(mv, e_y < 0.9, e_y < (0.15 + 0.4 * u))  # … and Y
+    m = m_of(x)
+    df = pd.DataFrame({"x": x, "m": m, "y": y_of(m)})
+    return df, y_of(m_of(np.zeros(n, bool))), y_of(m_of(np.ones(n, bool)))
+
+
+def test_general_id_answers_a_cell_no_adjustment_set_can():
+    df, _y0, _y1 = _sample_frontdoor(20_000, seed=31)
+    from themis.estimation.binary_do_risk import minimal_backdoor_adjustment
+
+    # The premise: adjustment really is unavailable on this ADMG.
+    with pytest.raises(EstimatorFailure) as exc:
+        minimal_backdoor_adjustment(_frontdoor_graph(), X, Y, _LATENT)
+    assert exc.value.failure_type == "do_risk_not_identifiable"
+
+    cell = estimate_counterfactual_cell(
+        df, graph=_frontdoor_graph(), bidirected=_LATENT,
+        query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True,
+                     mono=Monotonicity.NON_DECREASING),
+        ci_bootstrap=0,
+    )
+    assert cell.interventional_risk_provenance == "general_id_plug_in"
+    assert cell.adjustment == ()                 # standardizes over nothing
+    assert cell.p_y_do_x_cf is not None
+    assert cell.risk_formula is not None
+    assert cell.point is not None
+    assert cell.form == "nonparametric_c_factor_plug_in"
+
+
+def test_general_id_cell_recovers_the_counted_truth():
+    """The whole chain — c-factor estimand → plug-in risk → consistency
+    identity — against potential outcomes counted in the generator."""
+    df, y0, _y1 = _sample_frontdoor(200_000, seed=32)
+    x, y = df.x.to_numpy(), df.y.to_numpy()
+    truth = (~y0[x & y]).mean()                  # PN, counted not derived
+    cell = estimate_counterfactual_cell(
+        df, graph=_frontdoor_graph(), bidirected=_LATENT,
+        query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True,
+                     mono=Monotonicity.NON_DECREASING),
+        ci_bootstrap=0,
+    )
+    assert cell.point == pytest.approx(truth, abs=0.01)
+
+
+def test_general_id_interval_without_monotonicity_covers_the_truth():
+    df, y0, _y1 = _sample_frontdoor(60_000, seed=33)
+    x, y = df.x.to_numpy(), df.y.to_numpy()
+    truth = (~y0[x & y]).mean()
+    cell = estimate_counterfactual_cell(
+        df, graph=_frontdoor_graph(), bidirected=_LATENT,
+        query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+        ci_bootstrap=0,
+    )
+    assert cell.point is None
+    assert cell.low - 1e-9 <= truth <= cell.high + 1e-9
+    assert cell.interventional_risk_provenance == "general_id_plug_in"
+
+
+def test_back_door_is_preferred_when_an_adjustment_set_exists():
+    """General ID is the fallback, not a replacement: a graph with an
+    admissible set must still standardize over it."""
+    cell = estimate_counterfactual_cell(
+        _sample_nonmono(8_000, seed=34), graph=_confounded_graph(),
+        query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+        ci_bootstrap=0,
+    )
+    assert cell.interventional_risk_provenance == "backdoor_adjustment"
+    assert cell.adjustment == ("z",)
+    assert cell.risk_formula is None
+
+
+def test_a_bow_arc_is_still_refused():
+    """X→Y with X↔Y is not identified by ANY method; the fallback must not
+    manufacture a risk where none exists."""
+    df = _sample_nonmono(4_000, seed=35)
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_counterfactual_cell(
+            df[["x", "y"]], graph=_latent_graph(), bidirected=_LATENT,
+            query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+            ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == "interventional_risk_not_identifiable"
+
+
+def _general_id_estimated(seed=36, n=20_000, ci_bootstrap=30):
+    df, _y0, _y1 = _sample_frontdoor(n, seed=seed)
+    ast = _ast(_FRONTDOOR, variables=("x", "m", "y"), bidirected=_BIDIRECTED_XY,
+               x_obs=True, x_cf=False, y_star=False, factual_y=True,
+               assumptions={"monotonicity": "non_decreasing"})
+    return ast, _result(themis.estimate(ast, df, ci_bootstrap=ci_bootstrap))
+
+
+def test_general_id_cell_is_wired_end_to_end():
+    ast, res = _general_id_estimated()
+    validate_result(res)
+    assert res["status"] == "numerically_solved"
+    cell = res["numeric_estimate"]["counterfactual_cell"]
+    assert cell["interventional_risk_provenance"] == "general_id_plug_in"
+    assert cell["adjustment"] == []
+    assert res["numeric_result"]["value"] == pytest.approx(cell["point"])
+
+
+def test_verify_accepts_the_general_id_cell():
+    ast, res = _general_id_estimated()
+    themis.verify(ast, res)
+
+
+def test_verify_rejects_general_id_claimed_where_a_back_door_set_exists():
+    """The provenance asserts adjustment was unavailable. On a graph where it
+    IS available that assertion is false, whatever number came out."""
+    ast, res = _estimated()
+    bad = copy.deepcopy(res)
+    step = bad["derivation"]["steps"][0]["inputs"]
+    step["interventional_risk_provenance"] = "general_id_plug_in"
+    step["adjustment"] = ""
+    bad["extensions"]["counterfactual_cell"][
+        "interventional_risk_provenance"] = "general_id_plug_in"
+    with pytest.raises(VerificationError, match="no covariate set"):
+        themis.verify(ast, bad)
+
+
+def _flip_arm_literal(node):
+    """Flip every bare boolean bound to ``x`` inside a serialized formula —
+    turning the recorded estimand into the OTHER arm's."""
+    if isinstance(node, list):
+        return [_flip_arm_literal(v) for v in node]
+    if not isinstance(node, dict):
+        return node
+    out = {k: _flip_arm_literal(v) for k, v in node.items()}
+    if (
+        out.get("kind") == "valued_atom"
+        and (out.get("atom") or {}).get("predicate") == "x"
+        and isinstance(out.get("value"), bool)
+    ):
+        out["value"] = not out["value"]
+    return out
+
+
+def test_verify_rejects_the_other_arms_estimand():
+    """The recorded estimand is re-derived for the arm ``ctx.query`` asks
+    about, so evaluating do(X=1) and reporting it as the do(X=0) cell fails —
+    even though the formula is a perfectly valid identified estimand."""
+    ast, res = _general_id_estimated()
+    bad = copy.deepcopy(res)
+    step = bad["derivation"]["steps"][0]["inputs"]
+    flipped = _flip_arm_literal(step["risk_formula"])
+    assert flipped != step["risk_formula"]        # the tamper really landed
+    step["risk_formula"] = flipped
+    with pytest.raises(VerificationError, match="not the one the verifier derives"):
+        themis.verify(ast, bad)
+
+
+def test_the_provenance_vocabulary_agrees_across_all_three_declarations():
+    """Producer constant, verifier constant, and schema enum list the same
+    values. They are deliberately independent (the verifier must not import
+    the producer's), which is exactly why drift needs pinning: a value the
+    schema rejects is an answer nobody can ship, and one the verifier does not
+    know is an answer nobody re-derives."""
+    import json
+    import pathlib
+
+    from themis.estimation.counterfactual_cell import RISK_PROVENANCES
+    from themis.verifier.rules import _CF_CELL_RISK_PROVENANCES
+
+    schema = json.loads(
+        (pathlib.Path(themis.__file__).parent
+         / "schemas" / "query_result.schema.json").read_text(encoding="utf-8")
+    )
+
+    found: list[set] = []
+
+    def walk(node):
+        if isinstance(node, list):
+            for v in node:
+                walk(v)
+        elif isinstance(node, dict):
+            block = node.get("counterfactual_cell")
+            if isinstance(block, dict) and "properties" in block:
+                found.append(set(
+                    block["properties"]["interventional_risk_provenance"]["enum"]
+                ))
+            for v in node.values():
+                walk(v)
+
+    walk(schema)
+    assert len(found) == 1
+    assert found[0] == set(RISK_PROVENANCES) == set(_CF_CELL_RISK_PROVENANCES)
+
+
+def test_verify_rejects_an_unrecorded_estimand():
+    ast, res = _general_id_estimated()
+    bad = copy.deepcopy(res)
+    bad["derivation"]["steps"][0]["inputs"]["risk_formula"] = None
+    with pytest.raises(VerificationError, match="must record the estimand"):
+        themis.verify(ast, bad)
 
 
 # ============================================================ pipeline wiring

@@ -335,6 +335,9 @@ _CF_RISK_PROVENANCE_ZH = {
     "user_experimental": "干预风险由随机实验数据直接给出",
     "exogenous": "干预风险=外生性下的条件概率（无后门路径）",
     "backdoor_adjustment": "干预风险由后门标准化（g-formula）从数据算得",
+    "general_id_plug_in": (
+        "没有可用的调整集，干预风险由 general ID 识别出的公式从数据算得"
+    ),
 }
 
 

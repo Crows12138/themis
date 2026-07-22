@@ -229,8 +229,8 @@ def estimate_general_id_ate(
     # Contract validation (no NaN, canonical hash). Required columns are
     # exactly the observed variables the estimand references.
     required = (
-        _referenced_predicates(f_hi)
-        | _referenced_predicates(f_lo)
+        referenced_predicates(f_hi)
+        | referenced_predicates(f_lo)
         | {t_col, y_col}
     )
     presence = (cluster,) if cluster is not None else ()
@@ -429,8 +429,8 @@ def estimate_general_id_conditional_ate(
     f_lo = c_factor.bind_idc_values(idc_lo.formula, value_map)
 
     required = (
-        _referenced_predicates(f_hi)
-        | _referenced_predicates(f_lo)
+        referenced_predicates(f_hi)
+        | referenced_predicates(f_lo)
         | {t_col, y_col}
         | {a.predicate for a in given_atoms}
     )
@@ -617,8 +617,8 @@ def estimate_joint_general_id_ate(
     f_lo = _bind_target_value(res_lo.formula, outcome_atom, y_hi)
 
     required = (
-        _referenced_predicates(f_hi)
-        | _referenced_predicates(f_lo)
+        referenced_predicates(f_hi)
+        | referenced_predicates(f_lo)
         | set(t_cols) | {y_col}
     )
     presence = (cluster,) if cluster is not None else ()
@@ -689,6 +689,68 @@ def estimate_joint_general_id_ate(
     )
 
 
+def identify_arm_risk_formula(
+    graph,
+    bidirected,
+    *,
+    treatment_atom: Atom,
+    outcome_atom: Atom,
+    arm_value,
+    outcome_value,
+) -> FormulaExpr:
+    """The general-ID estimand for ONE arm: ``P(Y=y | do(X=arm))``.
+
+    The ATE estimators above contrast two arms; a consumer that needs a single
+    interventional risk (the binary counterfactual cell needs exactly the one
+    arm its cell depends on) takes the same estimand without manufacturing a
+    demand for the other arm's data. Returns the formula with the outcome level
+    already bound, ready for :func:`evaluate_arm_risk`.
+
+    Raises ``EstimatorFailure`` when the ID algorithm does not point-identify
+    this arm on the ADMG — a bow arc (X→Y with X↔Y), for instance, where no
+    estimand exists to evaluate.
+    """
+    from ..runtime import c_factor
+
+    res = c_factor.identify_via_tian(
+        graph, bidirected, treatment_atom, outcome_atom, arm_value,
+    )
+    if not res.identifiable or res.formula is None:
+        raise EstimatorFailure(
+            "not_identifiable_by_general_id",
+            f"P({outcome_atom.predicate} | do({treatment_atom.predicate}="
+            f"{arm_value})) is not point-identified by the general ID algorithm "
+            f"on this ADMG — there is no c-factor estimand to evaluate.",
+            treatment=treatment_atom.predicate,
+            outcome=outcome_atom.predicate,
+        )
+    return _bind_target_value(res.formula, outcome_atom, outcome_value)
+
+
+def evaluate_arm_risk(
+    formula: FormulaExpr, df: pd.DataFrame, *, domains: dict[Atom, tuple],
+) -> float:
+    """Non-parametric plug-in value of an arm estimand on this frame.
+
+    Same evaluator as the ATE path (variable elimination over a theta of
+    empirical conditionals); a stratum with no support raises rather than
+    fabricating a value. ``domains`` comes from :func:`data_domains` and is
+    passed explicitly so a bootstrap cannot accidentally re-derive it per draw.
+    """
+    return _prob_do(formula, df, domains)
+
+
+def data_domains(graph, df: pd.DataFrame) -> dict[Atom, tuple]:
+    """The per-atom value domains an arm estimand sums over, read off ``df``.
+
+    Exposed so a bootstrap can hold the FULL-data domains fixed across
+    resamples: a level missing from one draw must surface as a zero-support
+    stratum (which the positivity guard catches), not silently narrow the sum
+    into a DIFFERENT estimand on that draw.
+    """
+    return _domains_from_data(graph, df)
+
+
 # --- internals ----------------------------------------------------------------
 
 
@@ -745,7 +807,7 @@ def _bind_target_value(
     return walk(formula)
 
 
-def _referenced_predicates(formula: FormulaExpr) -> set[str]:
+def referenced_predicates(formula: FormulaExpr) -> set[str]:
     """Collect every observed-variable predicate the formula references."""
     preds: set[str] = set()
 

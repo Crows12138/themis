@@ -67,7 +67,7 @@ from .dose_response import EstimatorFailure
 from .general_id import (
     _domains_from_data,
     _prob_do,
-    _referenced_predicates,
+    referenced_predicates,
 )
 from .resample import cluster_labels, resample_indices
 
@@ -163,7 +163,7 @@ def estimate_ctf_conjunction_prob(
     event_preds = {e.variable.predicate for e in (*gamma, *delta)} | {
         a.predicate for e in (*gamma, *delta) for (a, _v) in e.subscript
     }
-    required = _referenced_predicates(formula) | event_preds
+    required = referenced_predicates(formula) | event_preds
     presence = (cluster,) if cluster is not None else ()
     groups = (
         cluster_labels(data, cluster, expected_n=len(data))

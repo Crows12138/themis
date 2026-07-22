@@ -979,8 +979,8 @@
             "target_y": { "type": "boolean", "description": "The counterfactual outcome value y* whose probability is asked for." },
             "factual_y": { "type": ["boolean", "null"], "description": "The factual outcome y when it is part of the evidence; null makes the cell the ETT identity, which is point-identified outright." },
             "monotonicity": { "enum": ["non_decreasing", "non_increasing", null] },
-            "interventional_risk_provenance": { "enum": ["not_required", "pinned_by_monotonicity", "user_experimental", "exogenous", "backdoor_adjustment"] },
-            "adjustment": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set standardized over for the do-risk (empty for exogenous / experimental / no-risk-needed)." },
+            "interventional_risk_provenance": { "enum": ["not_required", "pinned_by_monotonicity", "user_experimental", "exogenous", "backdoor_adjustment", "general_id_plug_in"] },
+            "adjustment": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set standardized over for the do-risk (empty for exogenous / experimental / general-ID / no-risk-needed)." },
             "p_y_do_x_cf": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "observational_joint": {
               "type": "object",

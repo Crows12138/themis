@@ -2518,9 +2518,10 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
 
         numeric_counterfactual_cell_estimate — re-solves the consistency
         identity (the verifier's own transcription) on the reported empirical
-        joint + do-risk, re-derives the adjustment set on the graph, and
-        re-checks that the declared risk provenance survives an independent
-        reading of whether this cell needs a do-risk at all.
+        joint + do-risk, re-derives on the graph whatever licensed that risk
+        (the adjustment set, or the general-ID estimand for the arm the query
+        asks about), and re-checks that the declared risk provenance survives
+        an independent reading of whether this cell needs a do-risk at all.
     """
     from ..types import DerivationStep, StructuralResult
     from ..verifier.serialization import derivation_to_dict
@@ -2535,6 +2536,9 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
                 "interventional_risk_provenance": estimate.interventional_risk_provenance,
                 # comma-joined scalar (serializer does not take a str tuple).
                 "adjustment": ",".join(estimate.adjustment),
+                # Present only when the risk came from the general ID
+                # algorithm; the verifier re-derives it for the asked arm.
+                "risk_formula": estimate.risk_formula,
                 "lower": estimate.low, "upper": estimate.high,
                 "point": estimate.point,
                 "method": estimate.method,
