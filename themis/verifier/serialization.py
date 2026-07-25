@@ -186,10 +186,16 @@ def _tuple_to_dict(tpl: tuple) -> dict:
                 [_atom_to_dict(a) for a in path] for path in tpl
             ],
         }
-    raise DerivationSerializationError(
-        f"tuple with mixed / unsupported element types: "
-        f"{[type(x).__name__ for x in tpl]}"
-    )
+    # Generic fallback: a tuple whose elements are each serializable on
+    # their own. The tagged-dict branch above already recurses into
+    # arbitrary values, so refusing the same for tuples was an accident of
+    # order, not a rule — a stratum table (tuple of dicts) has no reason
+    # to be less expressible than a dict of tuples. Placed last so every
+    # shape above keeps its existing tag byte-for-byte.
+    return {
+        "kind": "value_tuple",
+        "items": [_value_to_json(item) for item in tpl],
+    }
 
 
 def _atom_to_dict(atom: Atom) -> dict:
@@ -634,6 +640,13 @@ def _decode_atom_paths(d: dict) -> tuple:
     )
 
 
+def _decode_value_tuple(d: dict) -> tuple:
+    items = d.get("items", [])
+    if not isinstance(items, list):
+        raise DerivationSerializationError("value_tuple.items must be a list")
+    return tuple(_value_from_json(item) for item in items)
+
+
 def _decode_dict(d: dict) -> dict:
     items = d.get("items", {})
     if not isinstance(items, dict):
@@ -658,6 +671,7 @@ _DECODE_BY_KIND = {
     "atom_tuple":         _decode_atom_tuple,
     "valued_atom_tuple":  _decode_valued_atom_tuple,
     "atom_paths":         _decode_atom_paths,
+    "value_tuple":        _decode_value_tuple,
     "dict":               _decode_dict,
 }
 

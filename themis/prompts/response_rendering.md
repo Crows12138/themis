@@ -835,6 +835,19 @@ Pull from `extensions.iv_identification` (structural) or
   其他工具变量候选可选"
 - numeric path: `iv_wald` → "Wald 比率估计 → LATE";
   `iv_2sls` → "2SLS → ATE 假设线性性"
+- `numeric.treatment_shift` — the complier share. A LATE is an effect on
+  a subpopulation, and this says how large that subpopulation is; a
+  reader deciding whether the number matters to them needs it, so state
+  it alongside the effect rather than only warning that LATE ≠ ATE.
+
+**A conditional instrument's per-stratum breakdown** (`numeric.strata`
+with a non-empty `numeric.conditioning_order`). Each stratum's `values`
+line up positionally with `conditioning_order`. The headline `late`
+weights the strata by their own complier shares — the effect among
+compliers — and is *not* the average of the per-stratum LATEs you can
+compute from the same table. Don't present it as one, and don't
+recompute a "simple average" as a cross-check: disagreeing with the
+headline is the expected behaviour, not a discrepancy to report.
 
 If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
 ambiguity disclosure block will surface that aspect — don't double-

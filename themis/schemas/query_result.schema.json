@@ -147,14 +147,36 @@
             },
             "numeric": {
               "type": "object",
-              "description": "Fix 6: Wald LATE numeric breakdown. Present only on numerically-resolved IV results. Exposes the 4 component conditionals + derived LATE so downstream consumers can sanity-check.",
+              "description": "Fix 6: Wald LATE numeric breakdown. Present only on numerically-resolved IV results. One entry per stratum of the instrument's conditioning set W, so downstream consumers can sanity-check every component; a marginal instrument gives exactly one stratum of weight 1 with no W values. `late` aggregates as a RATIO OF AVERAGES — outcome_shift / treatment_shift — which weights each stratum by its own complier share and so is the effect among compliers. The plain average of the per-stratum ratios is a different estimand and is deliberately not reported.",
               "additionalProperties": true,
               "properties": {
-                "p_y_given_z_treated": { "type": "number" },
-                "p_y_given_z_control": { "type": "number" },
-                "p_x_given_z_treated": { "type": "number" },
-                "p_x_given_z_control": { "type": "number" },
-                "late":                { "type": "number" }
+                "conditioning_order": {
+                  "type": "array",
+                  "description": "The conditioning atoms in topological order. Each stratum's `values` is positionally aligned with this list, and the same order fixes the chain-rule factorization of the stratum weight P(W=w). Empty for a marginal instrument.",
+                  "items": { "type": "string" }
+                },
+                "strata": {
+                  "type": "array",
+                  "description": "One entry per assignment of the conditioning set, over the declared domains.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "values": {
+                        "type": "array",
+                        "description": "This stratum's conditioning values, positionally aligned with conditioning_order."
+                      },
+                      "weight":              { "type": "number", "description": "P(W=w), by the chain rule over conditioning_order." },
+                      "p_y_given_z_treated": { "type": "number" },
+                      "p_y_given_z_control": { "type": "number" },
+                      "p_x_given_z_treated": { "type": "number" },
+                      "p_x_given_z_control": { "type": "number" }
+                    }
+                  }
+                },
+                "outcome_shift":   { "type": "number", "description": "Sum over strata of P(w) times the instrument's shift in the outcome." },
+                "treatment_shift": { "type": "number", "description": "Sum over strata of P(w) times the instrument's shift in the treatment — the complier share under the declared monotonicity." },
+                "late":            { "type": "number" }
               }
             }
           }

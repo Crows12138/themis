@@ -243,6 +243,19 @@
         }
       }
     },
+    "value_tuple": {
+      "type": "object",
+      "description": "Generic tagged-tuple: an ordered sequence whose elements each recurse to the value shape. The homogeneous tuple tags above (atom_tuple / valued_atom_tuple / atom_paths) stay the encoding for their shapes; this one carries the rest — e.g. the per-stratum table an instrumental-variable Wald emits, which is a tuple of dicts. Order is meaningful and is preserved.",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "value_tuple" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/value" }
+        }
+      }
+    },
     "dict": {
       "type": "object",
       "description": "Generic tagged-dict carrying a structured multi-quantity payload. Keys are strings; values recurse to the value shape (primitive or tagged). Used by rules whose output is genuinely multi-component — e.g. mediation_numeric_evaluate which returns TE / NDE-at-control / NIE-at-treated plus an optional CDE-per-mediator-value sub-dict. Verifier re-runs and compares the whole payload.",
@@ -294,6 +307,7 @@
         { "$ref": "#/$defs/atom_tuple" },
         { "$ref": "#/$defs/valued_atom_tuple" },
         { "$ref": "#/$defs/atom_paths" },
+        { "$ref": "#/$defs/value_tuple" },
         { "$ref": "#/$defs/dict" }
       ]
     },

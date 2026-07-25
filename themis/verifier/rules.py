@@ -1485,34 +1485,49 @@ def _rule_iv_wald_numeric_evaluate(
     claimed_output: Any,
     step_index: int,
 ) -> None:
-    """Verify the bundled IV Wald LATE numeric step (Fix 6).
+    """Verify the bundled IV Wald LATE numeric step (Fix 6), stratified
+    over a conditional instrument's conditioning set.
 
     Inputs:
       - ``target``: ValuedAtom (Y=y)
       - ``intervention_treated``: ValuedAtom (X=x_treated)
       - ``instrument_treated``: ValuedAtom (Z=z_treated)
       - ``instrument_control``: ValuedAtom (Z=z_control)
-      - ``monotonicity``: string label (just metadata; semantic check
-        lives at scheduler dispatch time, not here)
+      - ``instrument_conditioning``: ordered tuple of Atoms — W, empty
+        for a marginal instrument. The order is what gives each
+        stratum's positional ``values`` a meaning, and it fixes the
+        chain-rule factorization of P(W=w).
+      - ``monotonicity``: string label (just metadata; the semantic
+        check lives at scheduler dispatch time, not here)
 
-    Output dict must contain:
-      - p_y_given_z_treated, p_y_given_z_control,
-        p_x_given_z_treated, p_x_given_z_control, late
+    Output dict: ``strata`` (one entry per W-stratum, carrying its
+    weight and its four conditionals), ``outcome_shift``,
+    ``treatment_shift``, ``late``.
 
-    The verifier independently re-looks-up each of the 4 theta entries
-    and re-computes Wald LATE = (numerator) / (denominator). Compares
-    every component within 1e-9 (paired-implementation pin).
+    Three independent recomputations, none of which take the producer's
+    word for anything:
+
+    1. **(Z, W) is re-checked as an instrument** against ctx.graph here,
+       rather than leaning on the sibling iv_criterion_check step. The
+       arithmetic below is valid only at the W it was actually computed
+       at, and what this catches is a producer that ran the MARGINAL
+       Wald and recorded W = ∅ for a Z that is only conditionally valid.
+    2. **The strata are re-enumerated** from ctx.theta's domains, so a
+       producer that quietly dropped one — the stratum whose theta cell
+       was missing, say — does not get to average over the rest and call
+       it the population.
+    3. **The aggregate is recomputed as a ratio of averages.** The
+       average of the per-stratum ratios is the plausible wrong answer
+       here, and it agrees with the right one exactly when the first
+       stage is constant across strata — which is precisely the case a
+       test would fail to notice.
     """
-    target = _require(inputs, "target", step_index, "iv_wald_numeric_evaluate")
-    treated = _require(
-        inputs, "intervention_treated", step_index, "iv_wald_numeric_evaluate",
-    )
-    z_treated = _require(
-        inputs, "instrument_treated", step_index, "iv_wald_numeric_evaluate",
-    )
-    z_control = _require(
-        inputs, "instrument_control", step_index, "iv_wald_numeric_evaluate",
-    )
+    RULE = "iv_wald_numeric_evaluate"
+    target = _require(inputs, "target", step_index, RULE)
+    treated = _require(inputs, "intervention_treated", step_index, RULE)
+    z_treated = _require(inputs, "instrument_treated", step_index, RULE)
+    z_control = _require(inputs, "instrument_control", step_index, RULE)
+    conditioning = _require(inputs, "instrument_conditioning", step_index, RULE)
 
     for name, va in (
         ("target", target),
@@ -1522,86 +1537,212 @@ def _rule_iv_wald_numeric_evaluate(
     ):
         if not isinstance(va, ValuedAtom):
             raise RuleCheckFailed(
-                f"iv_wald_numeric_evaluate: {name} must be a ValuedAtom",
-                step_index=step_index, rule="iv_wald_numeric_evaluate",
+                f"{RULE}: {name} must be a ValuedAtom",
+                step_index=step_index, rule=RULE,
             )
+    if not isinstance(conditioning, tuple) or any(
+        not isinstance(a, Atom) for a in conditioning
+    ):
+        raise RuleCheckFailed(
+            f"{RULE}: instrument_conditioning must be an ordered tuple of Atoms",
+            step_index=step_index, rule=RULE,
+        )
 
     if not isinstance(claimed_output, dict):
         raise RuleCheckFailed(
-            "iv_wald_numeric_evaluate output must be a dict",
-            step_index=step_index, rule="iv_wald_numeric_evaluate",
+            f"{RULE} output must be a dict", step_index=step_index, rule=RULE,
         )
 
     theta = getattr(ctx, "theta", None)
     if theta is None:
         raise RuleCheckFailed(
-            "iv_wald_numeric_evaluate requires theta in ctx",
-            step_index=step_index, rule="iv_wald_numeric_evaluate",
+            f"{RULE} requires theta in ctx", step_index=step_index, rule=RULE,
         )
-
-    # Independent 4-lookup + arithmetic recompute.
-    def lookup(target_atom, target_val, given_pairs):
-        key = ProbabilityKey(
-            target_atom=target_atom,
-            target_value=target_val,
-            given=frozenset(given_pairs),
-        )
-        return theta.entries.get(key)
 
     y_atom, y_val = target.atom, target.value
     x_atom, x_val = treated.atom, treated.value
     z_atom = z_treated.atom
 
-    expected = {
-        "p_y_given_z_treated": lookup(
-            y_atom, y_val, [(z_atom, z_treated.value)],
-        ),
-        "p_y_given_z_control": lookup(
-            y_atom, y_val, [(z_atom, z_control.value)],
-        ),
-        "p_x_given_z_treated": lookup(
-            x_atom, x_val, [(z_atom, z_treated.value)],
-        ),
-        "p_x_given_z_control": lookup(
-            x_atom, x_val, [(z_atom, z_control.value)],
-        ),
-    }
-    for k, v in expected.items():
-        if v is None:
+    # (1) Re-establish the licence. A Wald ratio computed at the wrong
+    # conditioning set is not a LATE at all, so the instrument check is
+    # part of THIS step's obligation, not a neighbour's.
+    graph = ctx.graph
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    for name, atom in (("target", y_atom), ("treatment", x_atom),
+                       ("instrument", z_atom)):
+        if atom not in graph:
             raise RuleCheckFailed(
-                f"iv_wald_numeric_evaluate: verifier theta lookup failed for {k}",
-                step_index=step_index, rule="iv_wald_numeric_evaluate",
+                f"{RULE}: {name} atom is not in the graph",
+                step_index=step_index, rule=RULE,
             )
-
-    denom = expected["p_x_given_z_treated"] - expected["p_x_given_z_control"]
-    if abs(denom) < 1e-12:
+    if set(conditioning) & {x_atom, y_atom, z_atom}:
         raise RuleCheckFailed(
-            "iv_wald_numeric_evaluate: denominator (instrument shift on X) "
-            "≈ 0; Wald undefined",
-            step_index=step_index, rule="iv_wald_numeric_evaluate",
+            f"{RULE}: the conditioning set must not contain the treatment, "
+            f"outcome or instrument",
+            step_index=step_index, rule=RULE,
         )
-    expected["late"] = (
-        expected["p_y_given_z_treated"] - expected["p_y_given_z_control"]
-    ) / denom
+    w_tuple = tuple(conditioning)
+    if not _verifier_is_m_connected(graph, bidir, z_atom, x_atom, w_tuple):
+        raise RuleCheckFailed(
+            f"{RULE}: instrument is not m-connected to the treatment given "
+            f"the recorded conditioning set — IV1 (relevance) fails, so the "
+            f"first stage is not an instrument shift",
+            step_index=step_index, rule=RULE,
+        )
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(mutilated.out_edges(x_atom)))
+    if _verifier_is_m_connected(mutilated, bidir, z_atom, y_atom, w_tuple):
+        raise RuleCheckFailed(
+            f"{RULE}: instrument is m-connected to the outcome given the "
+            f"recorded conditioning set in G[x-bar] — IV2/IV3 (exclusion + "
+            f"exogeneity) fail, so this ratio is not a LATE at the "
+            f"conditioning set it was computed at",
+            step_index=step_index, rule=RULE,
+        )
 
-    for key, val in expected.items():
-        if key not in claimed_output:
+    def lookup(target_atom, target_val, given_pairs, label):
+        key = ProbabilityKey(
+            target_atom=target_atom,
+            target_value=target_val,
+            given=frozenset(given_pairs),
+        )
+        value = theta.entries.get(key)
+        if value is None:
             raise RuleCheckFailed(
-                f"iv_wald_numeric_evaluate: claimed_output missing {key!r}",
-                step_index=step_index, rule="iv_wald_numeric_evaluate",
+                f"{RULE}: verifier theta lookup failed for {label}",
+                step_index=step_index, rule=RULE,
             )
-        claimed_v = claimed_output[key]
-        if not isinstance(claimed_v, (int, float)):
+        return value
+
+    # (2) Re-enumerate the strata from the declared domains, in the
+    # recorded order, and expand P(W=w) by the chain rule.
+    expected_strata = []
+    for values in product(*(theta.domain_of(w) for w in conditioning)):
+        w_pairs = tuple(zip(conditioning, values))
+        weight = 1.0
+        for i, (w_atom, w_value) in enumerate(w_pairs):
+            weight *= lookup(
+                w_atom, w_value, w_pairs[:i], f"stratum weight factor {i}",
+            )
+        expected_strata.append(
+            {
+                "values": tuple(values),
+                "weight": weight,
+                "p_y_given_z_treated": lookup(
+                    y_atom, y_val, ((z_atom, z_treated.value), *w_pairs),
+                    "p_y_given_z_treated",
+                ),
+                "p_y_given_z_control": lookup(
+                    y_atom, y_val, ((z_atom, z_control.value), *w_pairs),
+                    "p_y_given_z_control",
+                ),
+                "p_x_given_z_treated": lookup(
+                    x_atom, x_val, ((z_atom, z_treated.value), *w_pairs),
+                    "p_x_given_z_treated",
+                ),
+                "p_x_given_z_control": lookup(
+                    x_atom, x_val, ((z_atom, z_control.value), *w_pairs),
+                    "p_x_given_z_control",
+                ),
+            }
+        )
+
+    claimed_strata = claimed_output.get("strata")
+    if not isinstance(claimed_strata, (list, tuple)):
+        raise RuleCheckFailed(
+            f"{RULE}: claimed_output.strata must be a sequence",
+            step_index=step_index, rule=RULE,
+        )
+    if len(claimed_strata) != len(expected_strata):
+        raise RuleCheckFailed(
+            f"{RULE}: claimed {len(claimed_strata)} strata for a conditioning "
+            f"set whose declared domains give {len(expected_strata)} — the "
+            f"weighted average does not run over the population it claims to",
+            step_index=step_index, rule=RULE,
+        )
+
+    for index, (claimed_cell, cell) in enumerate(
+        zip(claimed_strata, expected_strata)
+    ):
+        if not isinstance(claimed_cell, dict):
             raise RuleCheckFailed(
-                f"iv_wald_numeric_evaluate: {key} must be numeric",
-                step_index=step_index, rule="iv_wald_numeric_evaluate",
+                f"{RULE}: strata[{index}] must be a dict",
+                step_index=step_index, rule=RULE,
             )
-        if abs(float(claimed_v) - val) > _NUMERIC_TOL:
+        claimed_values = tuple(claimed_cell.get("values") or ())
+        if claimed_values != cell["values"]:
             raise RuleCheckFailed(
-                f"iv_wald_numeric_evaluate: {key} mismatch — claimed "
-                f"{claimed_v!r}, recomputed {val!r}",
-                step_index=step_index, rule="iv_wald_numeric_evaluate",
+                f"{RULE}: strata[{index}] is recorded at {claimed_values!r} "
+                f"but the enumeration in the recorded conditioning order "
+                f"reaches {cell['values']!r}",
+                step_index=step_index, rule=RULE,
             )
+        for key in (
+            "weight",
+            "p_y_given_z_treated", "p_y_given_z_control",
+            "p_x_given_z_treated", "p_x_given_z_control",
+        ):
+            _pin_number(
+                claimed_cell, key, cell[key],
+                step_index=step_index, rule=RULE, where=f"strata[{index}]",
+            )
+
+    # (3) Ratio of averages — each stratum weighted by its own complier
+    # share, which is what makes the result the effect among compliers.
+    outcome_shift = sum(
+        c["weight"] * (c["p_y_given_z_treated"] - c["p_y_given_z_control"])
+        for c in expected_strata
+    )
+    treatment_shift = sum(
+        c["weight"] * (c["p_x_given_z_treated"] - c["p_x_given_z_control"])
+        for c in expected_strata
+    )
+    if abs(treatment_shift) < 1e-12:
+        raise RuleCheckFailed(
+            f"{RULE}: the weighted first stage (instrument shift on X) ≈ 0; "
+            f"Wald undefined",
+            step_index=step_index, rule=RULE,
+        )
+    for key, val in (
+        ("outcome_shift", outcome_shift),
+        ("treatment_shift", treatment_shift),
+        ("late", outcome_shift / treatment_shift),
+    ):
+        _pin_number(
+            claimed_output, key, val,
+            step_index=step_index, rule=RULE, where="output",
+        )
+
+
+def _pin_number(
+    holder: dict,
+    key: str,
+    expected: float,
+    *,
+    step_index: int,
+    rule: str,
+    where: str,
+) -> None:
+    """Assert ``holder[key]`` is present, numeric, and equals the
+    independently recomputed ``expected`` within the paired-implementation
+    tolerance."""
+    if key not in holder:
+        raise RuleCheckFailed(
+            f"{rule}: {where} missing {key!r}",
+            step_index=step_index, rule=rule,
+        )
+    claimed = holder[key]
+    if isinstance(claimed, bool) or not isinstance(claimed, (int, float)):
+        raise RuleCheckFailed(
+            f"{rule}: {where}.{key} must be numeric",
+            step_index=step_index, rule=rule,
+        )
+    if abs(float(claimed) - expected) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"{rule}: {where}.{key} mismatch — claimed {claimed!r}, "
+            f"recomputed {expected!r}",
+            step_index=step_index, rule=rule,
+        )
 
 
 def _rule_identify_via_iv(

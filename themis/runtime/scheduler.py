@@ -37,6 +37,7 @@ Every in-language query surfaces a result; no silent drops.
 from __future__ import annotations
 
 from itertools import product
+from typing import NamedTuple
 
 import networkx as nx
 
@@ -3294,6 +3295,194 @@ def _dispatch_transport(
     )
 
 
+class _IVWaldAttempt(NamedTuple):
+    """What the IV escalation on the effect path came back with.
+
+    ``result`` is set when the stratified Wald actually ran. Otherwise
+    ``missing`` says why — and saying why is the point. The caller's last
+    resort is a refusal that enumerates the strategies it tried, and IV
+    is not among them, so a bare "could not" turned a graph the identify
+    path calls *identifiable via instrument Z given W* into an effect
+    result claiming nothing reaches it. ``missing`` is empty only when
+    the IV layer genuinely has nothing to add: no valid instrument, or a
+    query shape another branch owns.
+    """
+
+    result: "QueryResult | None" = None
+    missing: tuple[MissingItem, ...] = ()
+
+
+# Stratum weights are a distribution; drift past this is the user's
+# theta disagreeing with itself, not floating-point noise.
+_IV_WEIGHT_TOL = 1e-9
+
+
+def _iv_stratum_table(
+    theta: Theta,
+    *,
+    y: Atom,
+    y_value,
+    x: Atom,
+    x_treated,
+    instrument: Atom,
+    z_treated,
+    z_control,
+    conditioning: tuple[Atom, ...],
+) -> "tuple[dict | None, tuple[MissingItem, ...]]":
+    """The per-stratum Wald ingredients for one (instrument, W) pair.
+
+    Returns ``(table, ())`` when theta covers every cell, else
+    ``(None, missing)`` naming the exact conditional probabilities that
+    are absent.
+
+    ``conditioning`` must already be in topological order: the stratum
+    weight P(W=w) is expanded by the chain rule
+    ``∏_i P(W_i=w_i | W_1=w_1, ..., W_{i-1}=w_{i-1})``, the same
+    convention ``formula_builder.backdoor_formula`` uses for its joint.
+
+    An empty ``conditioning`` produces exactly one stratum, of weight
+    1.0, whose conditionals carry no W term — the classical marginal
+    Wald, reached through this same arithmetic rather than a parallel
+    branch.
+
+    Aggregation is the RATIO OF AVERAGES::
+
+        LATE = Σ_w P(w)·[P(y|z⁺,w) − P(y|z⁻,w)]
+             / Σ_w P(w)·[P(x⁺|z⁺,w) − P(x⁺|z⁻,w)]
+
+    and NOT the average of the per-stratum ratios. Only the first is the
+    complier average causal effect: it weights each stratum by that
+    stratum's own complier share, which is precisely the denominator
+    term (Abadie 2003). Weighting the stratum LATEs by P(w) instead
+    answers a different question — the two coincide only when the
+    instrument moves treatment equally hard everywhere.
+
+    Lookups are direct theta entries, with no marginalization fallback —
+    the same convention the marginal Wald has always used, and the same
+    one the verifier re-derives under. The cost is that a stratified
+    instrument needs every stratum conditional stated outright
+    (including P(W=w) for each w); the benefit is that producer and
+    verifier cannot drift over which derivation filled a hole.
+    """
+    missing: list[MissingItem] = []
+    reason = (
+        "required by the instrumental-variable Wald LATE (instrument "
+        + _atom_to_str(instrument)
+        + (
+            " given " + ", ".join(_atom_to_str(a) for a in conditioning)
+            if conditioning else ""
+        )
+        + ")"
+    )
+
+    def entry(target_atom: Atom, target_value, given_pairs) -> "float | None":
+        key = ProbabilityKey(
+            target_atom=target_atom,
+            target_value=target_value,
+            given=frozenset(given_pairs),
+        )
+        value = theta.entries.get(key)
+        if value is None:
+            missing.append(_missing_parameter_from_key(key, reason))
+        return value
+
+    cells: list[dict] = []
+    for values in product(*(theta.domain_of(w) for w in conditioning)):
+        w_pairs = tuple(zip(conditioning, values))
+        factors = [
+            entry(w_atom, w_value, w_pairs[:i])
+            for i, (w_atom, w_value) in enumerate(w_pairs)
+        ]
+        cells.append(
+            {
+                "values": tuple(values),
+                "factors": factors,
+                "p_y_given_z_treated": entry(
+                    y, y_value, ((instrument, z_treated), *w_pairs),
+                ),
+                "p_y_given_z_control": entry(
+                    y, y_value, ((instrument, z_control), *w_pairs),
+                ),
+                "p_x_given_z_treated": entry(
+                    x, x_treated, ((instrument, z_treated), *w_pairs),
+                ),
+                "p_x_given_z_control": entry(
+                    x, x_treated, ((instrument, z_control), *w_pairs),
+                ),
+            }
+        )
+    if missing:
+        return None, tuple(missing)
+
+    strata = []
+    for cell in cells:
+        weight = 1.0
+        for factor in cell["factors"]:
+            weight *= factor
+        strata.append(
+            {
+                "values": cell["values"],
+                "weight": weight,
+                "p_y_given_z_treated": cell["p_y_given_z_treated"],
+                "p_y_given_z_control": cell["p_y_given_z_control"],
+                "p_x_given_z_treated": cell["p_x_given_z_treated"],
+                "p_x_given_z_control": cell["p_x_given_z_control"],
+            }
+        )
+    strata_t = tuple(strata)
+
+    total_weight = sum(c["weight"] for c in strata_t)
+    if abs(total_weight - 1.0) > _IV_WEIGHT_TOL:
+        return None, (
+            MissingItem(
+                kind=MissingKind.ASSUMPTION,
+                name="effect:iv_stratum_weights_not_normalized",
+                priority=Priority.HIGH,
+                reason=(
+                    "the supplied probabilities for the instrument's "
+                    f"conditioning strata sum to {total_weight}, not 1. The "
+                    "LATE ratio is scale-invariant so it would still come out, "
+                    "but the reported treatment shift is a complier SHARE and "
+                    "means nothing against weights that are not a distribution."
+                ),
+            ),
+        )
+
+    outcome_shift = sum(
+        c["weight"] * (c["p_y_given_z_treated"] - c["p_y_given_z_control"])
+        for c in strata_t
+    )
+    treatment_shift = sum(
+        c["weight"] * (c["p_x_given_z_treated"] - c["p_x_given_z_control"])
+        for c in strata_t
+    )
+    if abs(treatment_shift) < 1e-12:
+        return None, (
+            MissingItem(
+                kind=MissingKind.ASSUMPTION,
+                name="effect:iv_first_stage_degenerate",
+                priority=Priority.HIGH,
+                reason=(
+                    f"instrument {_atom_to_str(instrument)} does not shift the "
+                    "treatment (the weighted first stage is ≈ 0), so the Wald "
+                    "ratio is undefined — there is no complier subpopulation "
+                    "to average over. A different, or stronger, instrument is "
+                    "what would close this."
+                ),
+            ),
+        )
+
+    return (
+        {
+            "strata": strata_t,
+            "outcome_shift": outcome_shift,
+            "treatment_shift": treatment_shift,
+            "late": outcome_shift / treatment_shift,
+        },
+        (),
+    )
+
+
 def _try_iv_wald_in_effect(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -3303,95 +3492,128 @@ def _try_iv_wald_in_effect(
     theta: Theta,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-) -> "QueryResult | None":
-    """Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald LATE.
+) -> _IVWaldAttempt:
+    """Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald LATE —
+    generalized to a CONDITIONAL (Brito-Pearl) instrument.
 
-    Wald estimator (binary treatment + binary instrument, under
-    monotonicity)::
+    ``structural_solver.iv_sets`` has always returned conditional
+    candidates — a Z that is an instrument only once W is held fixed —
+    and the identify path has always reported them. The numeric end took
+    the first candidate and bailed the moment it carried a conditioning
+    set, so exactly those graphs got no number here while the same graph
+    handed to ``themis.estimate`` with a DataFrame got one out of 2SLS.
+    ``_iv_stratum_table`` closes that, with W = ∅ as the one-stratum
+    degenerate case of the same arithmetic, so the marginal answer is
+    unchanged.
 
-        LATE = (E[Y|Z=1] - E[Y|Z=0]) / (E[X=1|Z=1] - E[X=1|Z=0])
+    Candidates are tried in order (subset-minimal W first) instead of
+    only the first: a non-boolean instrument, or a theta short in one
+    candidate's strata, says nothing about the next candidate.
 
-    Returns None when:
-    - no valid instrument found (caller falls through to next strategy)
-    - theta lacks any of the 4 required entries (returns None too;
-      caller falls through — IV-numeric is opportunistic, doesn't
-      block; if instrument exists but data is short, downstream gap
-      report surfaces the missing keys when caller hits final
-      needs_investigation)
-
-    Semantic caveat surfaced via ``extensions.iv_identification.late_caveat``:
-    LATE is the average effect AMONG COMPLIERS (the subpopulation
-    whose treatment is shifted by the instrument), NOT the population
-    ATE. Don't conflate.
-
-    Wald demands boolean treatment + boolean instrument; non-boolean
-    falls through to None and the next strategy gets a try.
+    Out of scope, and left to the caller's refusal rather than claimed:
+    a non-boolean treatment or instrument — Wald is a two-point contrast
+    and widening it is an estimator choice, not a missing number — and a
+    conditional QUERY, which belongs to the IDC branch (an unconditional
+    LATE shipped in its place would answer a different question).
     """
-    # Conditional guard: the Wald LATE below is the UNCONDITIONAL complier
-    # effect — it looks up P(Y|Z), P(X|Z) with no `given` term, so shipping it
-    # for a query that conditions on a context would silently drop `given` and
-    # answer the wrong question (the same silent-drop class Phase 1 closed on
-    # the Tian path). Bail so a conditional query falls through to the IDC
-    # branch (correct conditional) or an honest refusal — never an unconditional
-    # LATE in place of the conditional. Unconditional IV queries are unaffected.
     if q.given:
-        return None
-    # MVP gate: boolean treatment, boolean instrument
+        return _IVWaldAttempt()
     x_treated = q.intervention.value
     if not isinstance(x_treated, bool):
-        return None
-    x_control = not x_treated
+        return _IVWaldAttempt()
 
     iv_candidates = structural_solver.iv_sets(
         graph, x, y, bidirected=bidirected,
     )
     if not iv_candidates:
-        return None
+        return _IVWaldAttempt()
 
-    chosen = iv_candidates[0]
-    z = chosen.instrument
-    # MVP: boolean instrument
-    z_domain = theta.domain_of(z)
-    if z_domain != (True, False) and set(z_domain) != {True, False}:
-        return None
-    z_treated, z_control = True, False
+    mono = q.assumptions.monotonicity if q.assumptions is not None else None
+    if mono is None:
+        return _IVWaldAttempt(missing=(
+            MissingItem(
+                kind=MissingKind.ASSUMPTION,
+                name="effect:iv_monotonicity_undeclared",
+                priority=Priority.HIGH,
+                reason=(
+                    f"{len(iv_candidates)} valid instrument(s) reach this "
+                    "effect — "
+                    + _iv_candidate_label(iv_candidates[0])
+                    + " — but an instrument on its own does not pick an "
+                    "estimator. Declare assumptions.monotonicity to get the "
+                    "Wald LATE among compliers; the kernel will not choose "
+                    "between Wald, 2SLS and bounds on your behalf."
+                ),
+            ),
+        ))
 
-    # 4 theta lookups: P(Y=y_val|Z=z_*), P(X=x_*|Z=z_*).
-    # For W (conditioning), the Wald formula generalises to
-    # P(...|Z=z, W=w) summed over P(W=w). MVP: skip W (require empty
-    # conditioning) — extension hook for later.
-    if chosen.conditioning:
-        return None
-
-    def _lookup(target_atom: Atom, target_val, given_pairs):
-        key = numeric_estimator.ProbabilityKey(
-            target_atom=target_atom,
-            target_value=target_val,
-            given=frozenset(given_pairs),
+    order = {node: i for i, node in enumerate(nx.topological_sort(graph))}
+    first_missing: tuple[MissingItem, ...] = ()
+    for chosen in iv_candidates:
+        z = chosen.instrument
+        if set(theta.domain_of(z)) != {True, False}:
+            continue
+        conditioning = tuple(
+            sorted(chosen.conditioning, key=lambda a: order[a])
         )
-        return theta.entries.get(key)
+        table, missing = _iv_stratum_table(
+            theta,
+            y=y, y_value=q.target.value,
+            x=x, x_treated=x_treated,
+            instrument=z, z_treated=True, z_control=False,
+            conditioning=conditioning,
+        )
+        if table is None:
+            first_missing = first_missing or missing
+            continue
+        return _IVWaldAttempt(
+            result=_build_iv_wald_effect_result(
+                stmt, graph, q, x, y,
+                instrument=z,
+                conditioning=conditioning,
+                table=table,
+                monotonicity=mono.value,
+                alternatives_count=len(iv_candidates),
+            ),
+        )
+    return _IVWaldAttempt(missing=first_missing)
 
-    p_y_given_z1 = _lookup(y, q.target.value, [(z, z_treated)])
-    p_y_given_z0 = _lookup(y, q.target.value, [(z, z_control)])
-    p_x_given_z1 = _lookup(x, x_treated, [(z, z_treated)])
-    p_x_given_z0 = _lookup(x, x_treated, [(z, z_control)])
 
-    if None in (p_y_given_z1, p_y_given_z0, p_x_given_z1, p_x_given_z0):
-        return None  # Opportunistic: let next strategy / final
-        # needs_investigation surface the missing keys.
+def _iv_candidate_label(candidate) -> str:
+    """``z(me)`` / ``z(me) given {w(me)}`` — the instrument as a human
+    reads it off the graph."""
+    label = _atom_to_str(candidate.instrument)
+    if not candidate.conditioning:
+        return label
+    inner = ", ".join(sorted(_atom_to_str(a) for a in candidate.conditioning))
+    return f"{label} given {{{inner}}}"
 
-    denom = p_x_given_z1 - p_x_given_z0
-    if abs(denom) < 1e-12:
-        # Wald undefined when instrument doesn't shift treatment.
-        return None
 
-    late = (p_y_given_z1 - p_y_given_z0) / denom
+def _build_iv_wald_effect_result(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    q: EffectQuery,
+    x: Atom,
+    y: Atom,
+    *,
+    instrument: Atom,
+    conditioning: tuple[Atom, ...],
+    table: dict,
+    monotonicity: str,
+    alternatives_count: int,
+) -> QueryResult:
+    """Wrap a completed stratified Wald into the effect result.
 
-    # Derivation: existing iv_criterion_check + identify_via_iv (from
-    # identify path) + new iv_wald_numeric_evaluate bundled step.
-    treated_va = ValuedAtom(atom=x, value=x_treated)
-    z_treated_va = ValuedAtom(atom=z, value=z_treated)
-    z_control_va = ValuedAtom(atom=z, value=z_control)
+    Derivation: the existing iv_criterion_check + identify_via_iv pair
+    (shared with the identify path) plus the bundled
+    iv_wald_numeric_evaluate step, which records the ordered conditioning
+    set alongside the stratum table — the order is what gives each
+    stratum's positional ``values`` a meaning, and the verifier
+    re-enumerates against it.
+    """
+    treated_va = ValuedAtom(atom=x, value=q.intervention.value)
+    z_treated_va = ValuedAtom(atom=instrument, value=True)
+    z_control_va = ValuedAtom(atom=instrument, value=False)
 
     iv_id_step = DerivationStep(
         rule="iv_criterion_check",
@@ -3399,8 +3621,8 @@ def _try_iv_wald_in_effect(
             "graph": graph,
             "x": x,
             "y": y,
-            "instrument": z,
-            "conditioning": chosen.conditioning,
+            "instrument": instrument,
+            "conditioning": frozenset(conditioning),
         },
         output=True,
         step_id="s_iv_check",
@@ -3418,18 +3640,13 @@ def _try_iv_wald_in_effect(
             "intervention_treated": treated_va,
             "instrument_treated": z_treated_va,
             "instrument_control": z_control_va,
-            "monotonicity": q.assumptions.monotonicity.value,
+            "instrument_conditioning": conditioning,
+            "monotonicity": monotonicity,
         },
-        output={
-            "p_y_given_z_treated": p_y_given_z1,
-            "p_y_given_z_control": p_y_given_z0,
-            "p_x_given_z_treated": p_x_given_z1,
-            "p_x_given_z_control": p_x_given_z0,
-            "late": late,
-        },
+        output=table,
         step_id="s_iv_numeric",
     )
-    numeric_result_obj = NumericResult(value=late)
+    numeric_result_obj = NumericResult(value=table["late"])
     final_step = DerivationStep(
         rule="numeric_result",
         inputs={"evaluation": StepRef(step_id="s_iv_numeric")},
@@ -3437,32 +3654,55 @@ def _try_iv_wald_in_effect(
         step_id="s_iv_final",
     )
 
+    late_caveat = (
+        "LATE = E[Y(X=treated) − Y(X=control) | complier]; "
+        "this is the average effect AMONG COMPLIERS (the "
+        "subpopulation whose treatment is shifted by the "
+        "instrument), NOT the population ATE. Conflating LATE "
+        "with ATE is a known IV-deployment pitfall — surface "
+        "this caveat to the user before stating the answer. "
+        "`treatment_shift` is that subpopulation's share of the "
+        "population under the declared monotonicity."
+    )
+    if conditioning:
+        inner = ", ".join(sorted(_atom_to_str(a) for a in conditioning))
+        late_caveat += (
+            f" The instrument is valid only with {{{inner}}} held fixed, so "
+            "the reported value aggregates the per-stratum LATEs in `strata` "
+            "by each stratum's own complier share — NOT by its population "
+            "share. The two differ whenever the instrument moves treatment by "
+            "different amounts across strata, and only the former is the "
+            "effect among compliers."
+        )
+
     extensions = {
         "iv_identification": {
             "strategy": "iv",
-            "instrument": _atom_to_str(z),
-            "conditioning": sorted(
-                _atom_to_str(a) for a in chosen.conditioning
-            ),
+            "instrument": _atom_to_str(instrument),
+            "conditioning": sorted(_atom_to_str(a) for a in conditioning),
             "required_assumption": (
-                f"monotonicity ({q.assumptions.monotonicity.value}) — "
-                f"Wald LATE estimator"
+                f"monotonicity ({monotonicity}) — Wald LATE estimator"
             ),
-            "alternatives_count": len(iv_candidates),
-            "late_caveat": (
-                "LATE = E[Y(X=treated) − Y(X=control) | complier]; "
-                "this is the average effect AMONG COMPLIERS (the "
-                "subpopulation whose treatment is shifted by the "
-                "instrument), NOT the population ATE. Conflating LATE "
-                "with ATE is a known IV-deployment pitfall — surface "
-                "this caveat to the user before stating the answer."
-            ),
+            "alternatives_count": alternatives_count,
+            "late_caveat": late_caveat,
             "numeric": {
-                "p_y_given_z_treated": p_y_given_z1,
-                "p_y_given_z_control": p_y_given_z0,
-                "p_x_given_z_treated": p_x_given_z1,
-                "p_x_given_z_control": p_x_given_z0,
-                "late": late,
+                "conditioning_order": [
+                    _atom_to_str(a) for a in conditioning
+                ],
+                "strata": [
+                    {
+                        "values": list(cell["values"]),
+                        "weight": cell["weight"],
+                        "p_y_given_z_treated": cell["p_y_given_z_treated"],
+                        "p_y_given_z_control": cell["p_y_given_z_control"],
+                        "p_x_given_z_treated": cell["p_x_given_z_treated"],
+                        "p_x_given_z_control": cell["p_x_given_z_control"],
+                    }
+                    for cell in table["strata"]
+                ],
+                "outcome_shift": table["outcome_shift"],
+                "treatment_shift": table["treatment_shift"],
+                "late": table["late"],
             },
         }
     }
@@ -4016,24 +4256,21 @@ def _dispatch_effect(
                         graph=graph, bidirected=bidirected,
                     )
             # Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald
-            # LATE under monotonicity. Requires the query's
-            # EffectQueryAssumptions.monotonicity to be set; without
-            # it the kernel can't pick an estimator (Wald vs 2SLS vs
-            # bounds differ semantically) and stays at the next
-            # fallback. The numeric is the COMPLIER LATE, not the
+            # LATE under monotonicity, stratified over a conditional
+            # instrument's W. The numeric is the COMPLIER LATE, not the
             # population ATE — extension metadata flags this so the
-            # render layer can disclose.
-            mono = (
-                q.assumptions.monotonicity
-                if q.assumptions is not None else None
+            # render layer can disclose. When it cannot produce a
+            # number, ``missing`` carries why, and the final refusal
+            # below reports that instead of claiming nothing reaches
+            # this graph — the monotonicity gate in particular lives
+            # inside the call now, so "an instrument exists, you just
+            # never declared the assumption it needs" is sayable.
+            iv_attempt = _try_iv_wald_in_effect(
+                stmt, graph, q, x, y_atom, theta,
+                bidirected=bidirected,
             )
-            if mono is not None:
-                iv_result = _try_iv_wald_in_effect(
-                    stmt, graph, q, x, y_atom, theta,
-                    bidirected=bidirected,
-                )
-                if iv_result is not None:
-                    return iv_result
+            if iv_attempt.result is not None:
+                return iv_attempt.result
 
             # Fix 5 (v0.1.5, audit follow-up): Tian-in-effect — last-
             # resort identification via Shpitser-Pearl ID before giving
@@ -4195,6 +4432,15 @@ def _dispatch_effect(
                     ),
                 )
 
+            # Nonparametric point identification failed, and that stays
+            # said: it is what makes any answer here an interval or an
+            # assumption-laden point rather than a point ID, and the
+            # downstream answer tier reads it. When the IV layer also has
+            # something to say — an instrument reaches this graph, it just
+            # could not be run — those items ride ALONGSIDE it rather than
+            # replacing it. The two are different facts, and the IV
+            # escalation being available is not identification.
+            iv_note = iv_attempt.missing
             return QueryResult(
                 status=ResultStatus.NEEDS_INVESTIGATION,
                 query_kind=QueryKind.EFFECT,
@@ -4209,10 +4455,18 @@ def _dispatch_effect(
                             "query is reachable neither by ADMG-aware "
                             "backdoor nor front-door nor Tian / Shpitser "
                             "ID (latter checked since Fix 5 v0.1.5). "
-                            "If a Line-7 case is at play see "
+                            + (
+                                "An instrumental-variable escalation does "
+                                "reach it, but it is assumption-laden and "
+                                "could not be run as it stands — see the "
+                                "items alongside this one. "
+                                if iv_note else ""
+                            )
+                            + "If a Line-7 case is at play see "
                             "PHASE_2_LATENT_CHARTER.md §7."
                         ),
                     ),
+                    *iv_note,
                 ),
             )
     else:
