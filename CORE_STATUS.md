@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3373 passed / 144 skipped, warning-clean
+3389 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -545,7 +545,27 @@ a·P(x, Y=1) + b·P(x, Y=0) = P(Y=1 | do(x')) − P(x', Y=1)
 
 D1：五条新测试**先在改前的代码上跑成红的**（`git stash` 实测：JOINT 分支 0 条 caveat、`llm_proposal` 边 ABSENT），改后全绿；核心不变量是**parity**——同一张图，问块与问单中介必须披露同样的东西（`counts(joint) == counts(single)`），这条不变量正是当初能挡住这个 bug 的那条。+6 →**3373**。
 
-**基线**：3367 → **3373**（更早 3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**条件工具变量接上 theta 端（2026-07-25）**：`structural_solver.iv_sets` 一直会返回**条件**（Brito-Pearl）工具变量——一个 Z 只有在 W 被固定之后才是工具——identify 路径一直照实报它，`estimate_iv_ate` 的 DataFrame 路径也一直用 2SLS 吃 W。只有 theta 端不接：`_try_iv_wald_in_effect` 取 `iv_candidates[0]`，一见 `chosen.conditioning` 非空就 `return None`。于是**同一张图**（`w→z, w→y, z→x, x→y, x↔y`）：identify 问「可识别吗」回 `structurally_solved`「用 z，在 w 之下」，effect 带着完整 theta 和 monotonicity 问「值是多少」回 `needs_investigation`，理由写着「backdoor / front-door / Tian ID **都到不了**」——只字不提工具变量。
+
+补上**分层 Wald**。W=∅ 是同一套算术的单层退化（权重 1、条件里不带 W 项），因此边际答案逐字节不变，不是两条路径。层权 P(W=w) 按链式法则展开，沿用 `backdoor_formula` 联合分布那套拓扑序约定。聚合方式是**比值的平均而不是平均的比值**：
+
+```
+LATE = Σ_w P(w)·[P(y|z⁺,w) − P(y|z⁻,w)]  /  Σ_w P(w)·[P(x⁺|z⁺,w) − P(x⁺|z⁻,w)]
+```
+
+——每层按**它自己的 complier 份额**加权，那正好就是分母项（Abadie 2003），得到的才是 complier 平均因果效应；把各层 LATE 按 P(w) 平均是另一个估计量，两者只在工具在各层推动处理的力度相同时才重合。这是这条路上最像的错答，所以测试直接把两个数都算出来钉住（0.625 对 0.65），验证器也独立重算成比值的平均。`treatment_shift` 顺带成为**报出来的 complier 份额**——LATE 是子人群上的效应，读者要判断这个数与自己有没有关系就需要知道那个子人群多大。
+
+第二半是**说清为什么给不出数**。`None` 不携带信息，于是「monotonicity 没声明」「theta 少一格」「一阶段退化」全塌成同一个「这图没救」。改成返回 `_IVWaldAttempt(result | missing)`：monotonicity 门移进函数内部，于是能说「有 1 个工具变量 z 在 {w} 之下够到了这个效应，但工具本身不挑估计量，请声明 monotonicity」；theta 少一格则直接点名 `parameter:P(y=True|w=False,z=False)`；层权不构成分布时拒绝（LATE 比值对尺度不敏感，照样会出数，但报出去的 complier 份额就没意义了）。候选也改成**逐个试**而不是只试第一个：某个候选 theta 供不上，跟下一个候选能不能用无关。
+
+这些新条目是**并排追加**而不是顶替原来的 `query:effect_admg`——第一版写成顶替，被回归抓住：那条结构项承载「非参数点识别确实失败」，下游 `answer_tier` 读它来决定答案是区间还是点，`unidentifiable_no_admissible_set` 的 `alternative_paths` 早已在有工具时改写成「声明 monotonicity / linearity 把区间收成点」。顶替掉它等于把一个 IV/Wald 估计当点识别发出去。**「有可用的 IV 逃生通道」不等于「可识别」**，两条是不同的事实，都要说；只把结构项的措辞从「IV 也到不了」改掉。
+
+验证器不复读、自己重导三件事：**①（Z, W）在 `ctx.graph` 上确实是工具**——就地重跑而不倚靠相邻的 `iv_criterion_check` 步，因为这段算术只在它真正算的那个 W 上才是 LATE，要抓的正是「算了边际 Wald 却把 W 记成 ∅」这种每个数字都自洽、只有图不同意的故障；**② 层从 `ctx.theta` 的域重新枚举**，少记一层不能当成对全人群求了平均；**③ 聚合按比值的平均重算**。附带把 `_tuple_to_dict` 补上通用 `value_tuple` 分支——tagged-dict 早就任意递归，元组不许放 dict 只是分支顺序的意外，不是规矩。
+
+取舍（声明）=处理与工具须二值（Wald 是两点对比，放宽是选估计量不是补数字，非二值仍落回结构拒绝）·条件**查询**（`q.given`）仍归 IDC 分支·theta 查表不走边缘化回退（沿用边际 Wald 一直以来的约定，代价是分层工具要把每层条件和每个 P(W=w) 都写出来，收益是生产者与验证器不会在「哪个洞被什么推导填上了」这件事上漂移）。**发现但未修**：`_classify_missing_assumption` 以 `status == NEEDS_ASSUMPTION` 为门，而该状态现已无生产者，因此**所有** `MissingKind.ASSUMPTION` 项（含既有的 `counterfactual:interventional_risk_unavailable` 等）都进不了 `data_gap_report`——它们仍经 `investigation_requests`（`define_assumption`）到达用户。这是既有形状、波及多条我未探过的路径，另开一档处理。
+
+D1：16 条新测试**全部先在改前的代码上跑成红的**（`git stash push -- themis/` 实测）；前提先证后证结论（先断言这张图没有可容许调整集、且它给出的工具**全都**带条件集，再断言 effect 出数）；边际 Wald 单层退化逐字段钉死；四类篡改各因该抓的原因被拒（把 W 抹成 ∅ / 删一层 / 把答案换成平均的比值 / 改一层权重）；条件集上的 `llm_proposal` 边照样被披露（W 不在查询里，它只因为「让 Z 成为工具」而进入答案，现在它还承载数值）。+16 →**3389**。
+
+**基线**：3373 → **3389**（更早 3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

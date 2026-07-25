@@ -149,7 +149,9 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 中介**块**对披露层是瞎的（2026-07-22，修复型）：同一张图、同一个查询，问单个中介时人看的输出带两条识别假设 caveat，换成中介块后**一条都没有**。根因是缺口层的生产者绑在 `extensions.mediation_decomposition` 这个单中介专用 key 上，而不是绑在「做了中介分解」这件事上。归一化成一个 `_mediation_view`，四处漏一起闭：识别假设 caveat 完全不出（最重——「可识别」读起来成了无条件的，而块的前提与单中介严格不同）、调整集谓词不进「查询相关」集导致协变量上的 `llm_proposal` 边逃过披露、数据需求永不列出、静默跳层的诚实 gap 只认单数字段。另加同源两处：数据端联合估计算了中介比例却不出 headline；`mediators` 只写一个中介时两条路由都不接，**整个中介分析被静默跳过且无任何信号**（集合就是集合，一个元素也是）。D1：五条新测试先在改前代码上跑成红的；核心不变量是 parity——问块与问单中介必须披露同样的东西。+6 测试
 
-当前全量测试基线：**3373 passed / 144 skipped**，warning-clean。
+- 条件工具变量接上 theta 端（2026-07-25）：`iv_sets` 一直会返回**条件**（Brito-Pearl）工具变量——Z 只有在 W 被固定之后才是工具——identify 路径一直照实报，DataFrame 路径也一直用 2SLS 吃 W；只有 theta 端一见条件集就 `return None`。于是同一张图，identify 说「可识别，用 z 在 w 之下」，effect 带着完整 theta 回「backdoor / front-door / Tian ID 都到不了」，只字不提工具变量。补上**分层 Wald**：W=∅ 是同一套算术的单层退化（边际答案逐字节不变），层权按链式法则展开；聚合是**比值的平均而非平均的比值**——每层按它自己的 complier 份额加权（那正是分母项，Abadie 2003），得到的才是 complier 平均因果效应，把各层 LATE 按 P(w) 平均是另一个估计量，测试把两个数都算出来钉住。`treatment_shift` 顺带成为报出来的 complier 份额。第二半是说清**为什么给不出数**：`None` 不携带信息，于是「没声明 monotonicity」「theta 少一格」「一阶段退化」全塌成「这图没救」；现在各自点名，并排追加在结构项旁边——**「有可用的 IV 逃生通道」不等于「可识别」**，顶替掉结构项会让区间答案被当成点识别（第一版正是这么写的，被回归抓住）。验证器不复读：就地重验 (Z,W) 真是工具（抓「算了边际 Wald 却把 W 记成 ∅」）、从 theta 的域重新枚举层（抓少记一层）、按比值的平均重算聚合。取舍：处理与工具须二值·条件**查询**仍归 IDC·theta 查表不走边缘化回退。D1：16 条新测试全部先在改前代码上跑成红的；前提先证后证结论；四类篡改各因该抓的原因被拒。+16 测试
+
+当前全量测试基线：**3389 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -203,7 +205,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：3373 passed / 144 skipped（2026-07-22）
+- **测试套件**：3389 passed / 144 skipped（2026-07-25）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---
