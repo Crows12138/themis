@@ -3712,13 +3712,21 @@ def _rule_numeric_iv_estimate(
             step_index=step_index, rule="numeric_iv_estimate",
         )
 
+    # The stratified Wald has a closed-form sufficient statistic, so this
+    # one IV path escapes the metadata-audit ceiling: re-aggregate it. Its
+    # weak-robust set is a closed form over the same table, so it is
+    # re-solved rather than audited too.
+    #
+    # Order matters: which set belongs to which method is a routing fact,
+    # and it has to be settled before either set is audited on its own
+    # terms. A linear AR set on a stratified point is wrong because of
+    # what it is, not because its statistics fail to add up.
+    _check_stratified_wald(inputs, point, method, step_index)
+    _check_stratified_anderson_rubin(inputs, point, method, step_index)
+
     # iter 212 — independently re-solve the Anderson-Rubin set when present.
     if inputs.get("ar_kind") is not None:
         _check_anderson_rubin(inputs, point, step_index)
-
-    # The stratified Wald has a closed-form sufficient statistic, so this
-    # one IV path escapes the metadata-audit ceiling: re-aggregate it.
-    _check_stratified_wald(inputs, point, method, step_index)
 
 
 def _check_stratified_wald(
@@ -3761,6 +3769,9 @@ def _check_stratified_wald(
         "stratum_weights": weights,
         "stratum_outcome_shifts": d_y,
         "stratum_treatment_shifts": d_x,
+        "stratum_shift_var_yy": inputs.get("stratum_shift_var_yy"),
+        "stratum_shift_var_xy": inputs.get("stratum_shift_var_xy"),
+        "stratum_shift_var_xx": inputs.get("stratum_shift_var_xx"),
     }
     for name, table in tables.items():
         if not isinstance(table, tuple) or not table:
@@ -3776,10 +3787,10 @@ def _check_stratified_wald(
                 f"{RULE}.{name} must hold numbers",
                 step_index=step_index, rule=RULE,
             )
-    if not (len(weights) == len(d_y) == len(d_x)):
+    lengths = {name: len(table) for name, table in tables.items()}
+    if len(set(lengths.values())) != 1:
         raise RuleCheckFailed(
-            f"{RULE}: stratum table columns disagree on length "
-            f"({len(weights)}, {len(d_y)}, {len(d_x)})",
+            f"{RULE}: stratum table columns disagree on length {lengths!r}",
             step_index=step_index, rule=RULE,
         )
 
@@ -3833,6 +3844,164 @@ def _check_stratified_wald(
             f"{expected!r} implied by the recorded stratum table{hint}",
             step_index=step_index, rule=RULE,
         )
+
+
+def _check_stratified_anderson_rubin(
+    inputs: dict, point, method: str, step_index: int,
+) -> None:
+    """Re-solve the stratified Anderson-Rubin set from the stratum table.
+
+    The set is a closed-form function of the same table the point rests
+    on, so the verifier rebuilds the aggregate moment and its variance
+    coefficients from the per-stratum columns — not from the aggregates
+    the producer recorded — re-solves the quadratic, and pins the claimed
+    shape and endpoints against its own solve.
+
+    The load-bearing pin is that this set's point IS the headline point.
+    A weak-instrument set that brackets a different estimator's estimate
+    is worse than no set at all, and the arithmetic on either side stays
+    self-consistent, so nothing but naming the two and comparing them
+    catches the substitution. For the same reason the linear AR inputs
+    are refused outright on this method: when the strata happen to share
+    a first-stage strength the two points coincide, and a numerical check
+    alone would wave the mismatch through.
+    """
+    from scipy.stats import f as _f_dist
+
+    RULE = "numeric_iv_estimate"
+    present = inputs.get("sar_kind") is not None
+    stratified = method == "iv_stratified_wald"
+
+    if present and not stratified:
+        raise RuleCheckFailed(
+            f"{RULE}: a stratified Anderson-Rubin set is recorded but method "
+            f"is {method!r}; that set inverts the stratified Wald's moment "
+            f"and stands for no other estimand",
+            step_index=step_index, rule=RULE,
+        )
+    if stratified and inputs.get("ar_kind") is not None:
+        raise RuleCheckFailed(
+            f"{RULE}: method 'iv_stratified_wald' carries the LINEAR "
+            f"Anderson-Rubin set, which residualises on [1, W] and inverts a "
+            f"test for the 2SLS coefficient — a confidence set for one "
+            f"estimand beside a point for another",
+            step_index=step_index, rule=RULE,
+        )
+    if not present:
+        return
+
+    try:
+        weights = inputs["stratum_weights"]
+        d_y = inputs["stratum_outcome_shifts"]
+        d_x = inputs["stratum_treatment_shifts"]
+        v_yy = inputs["stratum_shift_var_yy"]
+        v_xy = inputs["stratum_shift_var_xy"]
+        v_xx = inputs["stratum_shift_var_xx"]
+        n_obs = int(inputs["sar_n_obs"])
+        n_strata = int(inputs["sar_n_strata"])
+        dof = int(inputs["sar_dof"])
+        ci_level = float(inputs["sar_ci_level"])
+    except (KeyError, TypeError, ValueError):
+        raise RuleCheckFailed(
+            f"{RULE}: stratified AR set present but the statistics it was "
+            f"solved from are missing or ill-typed",
+            step_index=step_index, rule=RULE,
+        )
+
+    if n_strata != len(weights):
+        raise RuleCheckFailed(
+            f"{RULE}: stratified AR set reports {n_strata} strata but the "
+            f"recorded table holds {len(weights)}",
+            step_index=step_index, rule=RULE,
+        )
+    if dof != n_obs - 2 * n_strata:
+        raise RuleCheckFailed(
+            f"{RULE}: stratified AR degrees of freedom {dof} is not "
+            f"n - 2*S = {n_obs - 2 * n_strata}",
+            step_index=step_index, rule=RULE,
+        )
+    if dof < 1:
+        raise RuleCheckFailed(
+            f"{RULE}: stratified AR set reports {dof} residual degrees of "
+            f"freedom, so the test it inverts is undefined",
+            step_index=step_index, rule=RULE,
+        )
+
+    a_num = math.fsum(w * v for w, v in zip(weights, d_y))
+    b_den = math.fsum(w * v for w, v in zip(weights, d_x))
+    c_yy = math.fsum(w * w * v for w, v in zip(weights, v_yy))
+    c_xy = math.fsum(w * w * v for w, v in zip(weights, v_xy))
+    c_xx = math.fsum(w * w * v for w, v in zip(weights, v_xx))
+    for key, value in (
+        ("sar_outcome_shift", a_num), ("sar_treatment_shift", b_den),
+        ("sar_var_yy", c_yy), ("sar_var_xy", c_xy), ("sar_var_xx", c_xx),
+    ):
+        _pin_number(
+            inputs, key, value,
+            step_index=step_index, rule=RULE, where="the stratum table",
+        )
+
+    kappa = float(_f_dist.ppf(ci_level, 1, dof))
+    _pin_number(
+        inputs, "sar_kappa", kappa,
+        step_index=step_index, rule=RULE,
+        where=f"the F(1,{dof}) critical value",
+    )
+
+    a = b_den * b_den - kappa * c_xx
+    b = 2.0 * (kappa * c_xy - a_num * b_den)
+    c = a_num * a_num - kappa * c_yy
+    a_scale = abs(b_den * b_den) + abs(kappa * c_xx) + 1.0
+    kind, lower, upper = _ar_solve_set_verifier(a, b, c, atol=1e-9 * a_scale)
+
+    if kind != inputs.get("sar_kind"):
+        raise RuleCheckFailed(
+            f"{RULE}: stratified AR set kind mismatch — re-solve {kind!r} vs "
+            f"claimed {inputs.get('sar_kind')!r}",
+            step_index=step_index, rule=RULE,
+        )
+    for name, recomputed, claimed in (
+        ("lower", lower, inputs.get("sar_lower")),
+        ("upper", upper, inputs.get("sar_upper")),
+    ):
+        if recomputed is None and claimed is None:
+            continue
+        if (recomputed is None) != (claimed is None):
+            raise RuleCheckFailed(
+                f"{RULE}: stratified AR {name} presence mismatch — re-solve "
+                f"{recomputed} vs claimed {claimed}",
+                step_index=step_index, rule=RULE,
+            )
+        if abs(recomputed - float(claimed)) > 1e-6 * (1 + abs(recomputed)):
+            raise RuleCheckFailed(
+                f"{RULE}: stratified AR {name} mismatch — re-solve "
+                f"{recomputed} vs claimed {claimed}",
+                step_index=step_index, rule=RULE,
+            )
+
+    if abs(b_den) > 1e-12:
+        expected = a_num / b_den
+        _pin_number(
+            inputs, "sar_point", expected,
+            step_index=step_index, rule=RULE, where="the stratum table",
+        )
+        if isinstance(point, (int, float)) and not isinstance(point, bool):
+            if abs(expected - point) > 1e-6 * (1 + abs(expected)):
+                raise RuleCheckFailed(
+                    f"{RULE}: the stratified AR set is centred on {expected!r} "
+                    f"but the reported point is {point!r}; a confidence set "
+                    f"and a point that disagree are two estimands in one "
+                    f"result",
+                    step_index=step_index, rule=RULE,
+                )
+            if not _point_in_ar_set(
+                kind, lower, upper, point, tol=1e-7 * (1 + abs(point))
+            ):
+                raise RuleCheckFailed(
+                    f"{RULE}: the stratified Wald point is not contained in "
+                    f"its own Anderson-Rubin confidence set",
+                    step_index=step_index, rule=RULE,
+                )
 
 
 def _rule_numeric_iv_overid_estimate(

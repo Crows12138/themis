@@ -386,15 +386,19 @@ def test_stratified_wald_carries_its_own_assumptions():
     )
 
 
-def test_no_anderson_rubin_set_on_the_stratified_path():
-    """The AR set inverts a test for the LINEAR IV coefficient — its own
-    recorded point is the 2SLS one. Attaching it here would put two
-    estimands in one result."""
+def test_the_linear_ar_set_never_rides_on_the_stratified_path():
+    """The set in ``anderson_rubin_confidence_set`` residualises on
+    [1, W] and inverts a test for the LINEAR IV coefficient, so its own
+    recorded point is the 2SLS one. The stratified path gets a set built
+    on its own moment instead — exactly one of the two is ever
+    populated."""
     est = estimate_iv_ate(
         _stratified_iv_dgp(n=20_000), treatment="x", outcome="y",
         instrument="z", conditioning=("w",), ci_bootstrap=0,
     )
     assert est.anderson_rubin is None
+    assert est.stratified_anderson_rubin is not None
+
     linear = estimate_iv_ate(
         _stratified_iv_dgp(n=20_000), treatment="x", outcome="y",
         instrument="z", conditioning=("w",), model="2sls", ci_bootstrap=0,
@@ -402,6 +406,191 @@ def test_no_anderson_rubin_set_on_the_stratified_path():
     assert linear.anderson_rubin is not None, (
         "premise broken: AR is supposed to still be available on the "
         "linear path, so its absence above is a deliberate choice"
+    )
+    assert linear.stratified_anderson_rubin is None
+
+
+def test_stratified_ar_set_is_centred_on_the_reported_point():
+    """A weak-robust set that brackets a different estimator's estimate is
+    worse than no set: both halves stay self-consistent and nothing in the
+    arithmetic gives the substitution away."""
+    est = estimate_iv_ate(
+        _stratified_iv_dgp(n=20_000), treatment="x", outcome="y",
+        instrument="z", conditioning=("w",), ci_bootstrap=0,
+    )
+    sar = est.stratified_anderson_rubin
+    assert sar.point == est.point
+    assert sar.kind == "bounded"
+    assert sar.lower < est.point < sar.upper
+
+
+def test_stratified_ar_set_reports_the_aggregate_moment_it_solved():
+    est = estimate_iv_ate(
+        _stratified_iv_dgp(n=20_000), treatment="x", outcome="y",
+        instrument="z", conditioning=("w",), ci_bootstrap=0,
+    )
+    sar = est.stratified_anderson_rubin
+    assert sar.outcome_shift == pytest.approx(est.outcome_shift)
+    assert sar.treatment_shift == pytest.approx(est.treatment_shift)
+    assert sar.n_strata == len(est.strata)
+    # Two cell means per stratum — one per instrument arm.
+    assert sar.dof == est.sample_size - 2 * len(est.strata)
+    assert sar.var_yy > 0 and sar.var_xx > 0
+
+
+def test_stratified_ar_kappa_is_the_f_critical_value():
+    from scipy.stats import f as f_dist
+
+    est = estimate_iv_ate(
+        _stratified_iv_dgp(n=20_000), treatment="x", outcome="y",
+        instrument="z", conditioning=("w",), ci_bootstrap=0, ci_level=0.9,
+    )
+    sar = est.stratified_anderson_rubin
+    assert sar.ci_level == 0.9
+    assert sar.kappa == pytest.approx(float(f_dist.ppf(0.9, 1, sar.dof)))
+
+
+def test_a_degenerate_first_stage_opens_the_set_to_the_whole_line():
+    """When the instrument moves no compliers the honest answer is that
+    the data cannot bound the effect at all. A percentile bootstrap has no
+    shape that can say this — it returns a finite interval whatever
+    happens."""
+    rng = np.random.default_rng(3)
+    n = 3000
+    w = (rng.random(n) < 0.5).astype(int)
+    z = (rng.random(n) < 0.5).astype(int)
+    x = (rng.random(n) < 0.3).astype(int)      # independent of z
+    y = rng.normal(size=n) + x
+    df = pd.DataFrame({"z": z, "x": x, "y": y, "w": w})
+
+    est = estimate_iv_ate(
+        df, treatment="x", outcome="y", instrument="z",
+        conditioning=("w",), ci_bootstrap=0,
+    )
+    assert est.stratified_anderson_rubin.kind == "whole_line"
+    assert est.stratified_anderson_rubin.lower is None
+    assert est.stratified_anderson_rubin.upper is None
+
+
+def test_arm_robust_variance_separates_from_pooled_on_unbalanced_arms():
+    """The stratum variances are arm-specific, so the set does not assume
+    the two instrument arms are equally noisy.
+
+    With BALANCED arms the pooled and arm-specific estimators of a
+    difference in means coincide, so this only shows up when the arms are
+    unbalanced — and then it moves in both directions: noise in the large
+    arm makes the pooled set too wide, noise in the small arm makes it too
+    narrow. The narrow direction is the dangerous one.
+    """
+    def build(noisy_arm):
+        rng = np.random.default_rng(17)
+        n = 20_000
+        z = (rng.random(n) < 0.85).astype(int)     # unbalanced on purpose
+        comply = rng.random(n) < 0.5
+        x = np.where(comply, z, (rng.random(n) < 0.3).astype(int))
+        y = 0.9 * x + np.where(
+            z == noisy_arm,
+            rng.normal(scale=3.0, size=n),
+            rng.normal(scale=0.3, size=n),
+        )
+        return pd.DataFrame({"z": z, "x": x, "y": y})
+
+    for noisy_arm, direction in ((1, "wider"), (0, "narrower")):
+        df = build(noisy_arm)
+        pooled = estimate_iv_ate(
+            df, treatment="x", outcome="y", instrument="z", ci_bootstrap=0,
+        )
+        robust = estimate_iv_ate(
+            df, treatment="x", outcome="y", instrument="z", ci_bootstrap=0,
+            model="stratified_wald",
+        )
+        assert pooled.point == robust.point, "same estimand, same number"
+        w_pooled = pooled.anderson_rubin.upper - pooled.anderson_rubin.lower
+        w_robust = (robust.stratified_anderson_rubin.upper
+                    - robust.stratified_anderson_rubin.lower)
+        if direction == "wider":
+            assert w_pooled > 2 * w_robust
+        else:
+            assert w_robust > 2 * w_pooled
+
+
+def test_marginal_and_stratified_ar_agree_when_the_arms_are_balanced():
+    """W = () is the one-stratum degenerate case. The two sets are not
+    required to be bit-identical — one pools the residual variance, the
+    other keeps it arm-specific — but with balanced arms and homoskedastic
+    noise the two estimators coincide, so a large gap here would mean the
+    stratified moment is not the same test."""
+    rng = np.random.default_rng(5)
+    n = 5000
+    z = (rng.random(n) < 0.5).astype(int)
+    comply = rng.random(n) < 0.5
+    x = np.where(comply, z, (rng.random(n) < 0.3).astype(int))
+    y = 0.9 * x + rng.normal(size=n)
+    df = pd.DataFrame({"z": z, "x": x, "y": y})
+
+    marginal = estimate_iv_ate(
+        df, treatment="x", outcome="y", instrument="z", ci_bootstrap=0,
+    )
+    stratified = estimate_iv_ate(
+        df, treatment="x", outcome="y", instrument="z", ci_bootstrap=0,
+        model="stratified_wald",
+    )
+    assert marginal.method == "iv_wald"
+    assert stratified.point == marginal.point
+    a = marginal.anderson_rubin
+    b = stratified.stratified_anderson_rubin
+    assert b.lower == pytest.approx(a.lower, rel=1e-3)
+    assert b.upper == pytest.approx(a.upper, rel=1e-3)
+
+
+def test_stratified_ar_covers_at_its_nominal_rate():
+    """Size control that does not depend on first-stage strength is the
+    whole point of inverting a test rather than resampling an estimate.
+    Run at a first stage weak enough that most draws come back unbounded.
+    """
+    def weak(n, seed):
+        rng = np.random.default_rng(seed)
+        w = (rng.random(n) < 0.5).astype(int)
+        z = (rng.random(n) < 0.5).astype(int)
+        comply = rng.random(n) < np.where(w == 1, 0.04, 0.02)
+        always = rng.random(n) < 0.2
+        u = rng.normal(size=n)                      # latent confounder
+        x = np.where(always, 1, np.where(comply, z, 0))
+        x = np.where(u > 1.2, 1, x)                 # u drives x as well
+        tau = np.where(w == 1, 0.5, 1.5)
+        y = tau * x + 1.5 * u + 0.3 * w + rng.normal(scale=0.5, size=n)
+        return pd.DataFrame({"z": z, "x": x, "y": y, "w": w})
+
+    truth = estimate_iv_ate(
+        weak(2_000_000, 1), treatment="x", outcome="y", instrument="z",
+        conditioning=("w",), ci_bootstrap=0,
+    ).point
+
+    def contains(s, v):
+        if s.kind == "bounded":
+            return s.lower <= v <= s.upper
+        if s.kind == "whole_line":
+            return True
+        if s.kind == "disconnected":
+            return v <= s.lower or v >= s.upper
+        if s.kind == "unbounded_below":
+            return v <= s.upper
+        return v >= s.lower
+
+    shapes, hits, reps = set(), 0, 200
+    for r in range(reps):
+        est = estimate_iv_ate(
+            weak(2000, 900_000 + r), treatment="x", outcome="y",
+            instrument="z", conditioning=("w",), ci_bootstrap=0,
+        )
+        s = est.stratified_anderson_rubin
+        shapes.add(s.kind)
+        hits += contains(s, truth)
+
+    assert hits / reps >= 0.90, f"coverage {hits / reps} at nominal 0.95"
+    assert "whole_line" in shapes, (
+        "premise broken: this design is supposed to be weak enough that "
+        "some draws cannot bound the effect at all"
     )
 
 

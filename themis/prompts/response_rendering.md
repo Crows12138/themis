@@ -859,6 +859,19 @@ as one, and don't recompute a "simple average" as a cross-check:
 disagreeing with the headline is the expected behaviour, not a
 discrepancy to report.
 
+That path carries its weak-identification-robust set at
+`stratified_anderson_rubin_confidence_set` rather than at
+`anderson_rubin_confidence_set` — the latter inverts a test for the
+linear IV coefficient, so it belongs to 2SLS and never appears beside a
+stratified point. Read its shapes exactly as you read the other AR sets,
+and under a weak first stage report it in place of the bootstrap CI for
+the same reason. Two things are specific to it. Its `point` **is** the
+headline point, not a second estimate, so never present them as two
+numbers that happen to agree. And it does not test whether the strata
+share one LATE — differing per-stratum effects are what this estimand
+averages over, so an unbounded set means the instrument is weak, never
+that the strata disagree.
+
 **When the estimand fell back** (`iv_estimand_fallback_to_linear` in the
 gap report, with `method == "iv_2sls"` on a design that named a
 conditional instrument). The sample could not be cut into the strata the

@@ -1091,6 +1091,9 @@ def _estimate_effect_queries(
                             "n_instrument_low": s.n_instrument_low,
                             "outcome_shift": s.outcome_shift,
                             "treatment_shift": s.treatment_shift,
+                            "shift_var_yy": s.shift_var_yy,
+                            "shift_var_xy": s.shift_var_xy,
+                            "shift_var_xx": s.shift_var_xx,
                         }
                         for s in iv_estimate.strata
                     ],
@@ -1098,6 +1101,12 @@ def _estimate_effect_queries(
             if iv_estimate.anderson_rubin is not None:
                 iv_numeric_dict["anderson_rubin_confidence_set"] = _ar_set_to_dict(
                     iv_estimate.anderson_rubin
+                )
+            if iv_estimate.stratified_anderson_rubin is not None:
+                iv_numeric_dict["stratified_anderson_rubin_confidence_set"] = (
+                    _stratified_ar_set_to_dict(
+                        iv_estimate.stratified_anderson_rubin
+                    )
                 )
             result["numeric_estimate"] = iv_numeric_dict
             _attach_bootstrap_meta(result["numeric_estimate"], cluster)
@@ -4379,6 +4388,34 @@ def _overid_ar_set_to_dict(ar) -> dict:
     }
 
 
+def _stratified_ar_set_to_dict(s) -> dict:
+    """Serialise a StratifiedARSet to the numeric_estimate sub-block.
+
+    Same five shapes as the single-instrument set, but inverted on the
+    stratified Wald's own moment, so ``point`` here IS the headline point
+    rather than the linear IV coefficient. The aggregate moment and its
+    variance coefficients travel along so the verifier can re-solve the
+    quadratic from the record — and cross-check them against the stratum
+    table, which carries the same quantities per cell.
+    """
+    return {
+        "kind": s.kind,
+        "lower": s.lower,
+        "upper": s.upper,
+        "ci_level": s.ci_level,
+        "point": s.point,
+        "kappa": s.kappa,
+        "outcome_shift": s.outcome_shift,
+        "treatment_shift": s.treatment_shift,
+        "var_yy": s.var_yy,
+        "var_xy": s.var_xy,
+        "var_xx": s.var_xx,
+        "n_obs": s.n_obs,
+        "n_strata": s.n_strata,
+        "dof": s.dof,
+    }
+
+
 def _robust_ar_set_to_dict(r) -> dict:
     """Serialise a heteroskedasticity-robust RobustARConfidenceSet to the
     numeric_estimate sub-block. ``segments`` is the set as a list of intervals
@@ -4542,7 +4579,15 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
     if f_stat >= WEAK_IV_F_THRESHOLD:
         return
 
-    ar = getattr(iv_estimate, "anderson_rubin", None)
+    # Whichever weak-robust set this estimand carries. The linear and the
+    # stratified sets are never both populated, and both render through the
+    # same five shapes — a weak first stage is precisely when the caller
+    # needs the set, so this disclosure must not go blind on the path whose
+    # set is not the linear one.
+    ar = (
+        getattr(iv_estimate, "anderson_rubin", None)
+        or getattr(iv_estimate, "stratified_anderson_rubin", None)
+    )
     ar_clause = ""
     ar_alt = (
         "report the Anderson-Rubin confidence set — it inverts a test "
@@ -5152,6 +5197,9 @@ def _build_iv_numeric_derivation_dict(
                 "ci_level": estimate.ci_level,
                 **_ar_derivation_inputs(estimate.anderson_rubin),
                 **_stratified_wald_derivation_inputs(estimate),
+                **_stratified_ar_derivation_inputs(
+                    estimate.stratified_anderson_rubin
+                ),
             },
             output=StructuralResult(value=True),
             step_id="s2",
@@ -5170,6 +5218,11 @@ def _stratified_wald_derivation_inputs(estimate) -> dict:
     of averages and reject a point that is the average of the per-stratum
     ratios instead, which is the one wrong answer that looks right.
 
+    The per-stratum variance coefficients ride along for the same reason:
+    the stratified Anderson-Rubin set is a closed-form function of them,
+    so recording them lets the verifier re-solve the SET too rather than
+    take the producer's word for its endpoints.
+
     Empty on the marginal-Wald / 2SLS paths.
     """
     if estimate.strata is None:
@@ -5182,8 +5235,44 @@ def _stratified_wald_derivation_inputs(estimate) -> dict:
         "stratum_treatment_shifts": tuple(
             s.treatment_shift for s in estimate.strata
         ),
+        "stratum_shift_var_yy": tuple(
+            s.shift_var_yy for s in estimate.strata
+        ),
+        "stratum_shift_var_xy": tuple(
+            s.shift_var_xy for s in estimate.strata
+        ),
+        "stratum_shift_var_xx": tuple(
+            s.shift_var_xx for s in estimate.strata
+        ),
         "aggregate_outcome_shift": estimate.outcome_shift,
         "aggregate_treatment_shift": estimate.treatment_shift,
+    }
+
+
+def _stratified_ar_derivation_inputs(sar) -> dict:
+    """The stratified Anderson-Rubin set + the aggregate moment it was
+    solved from, as flat derivation inputs. The verifier rebuilds the same
+    aggregates from the stratum table, re-solves the quadratic, and pins
+    the set's point to the headline point — the invariant that fails the
+    moment a linear AR set is attached to a stratified estimate.
+    Empty when no stratified AR set is attached."""
+    if sar is None:
+        return {}
+    return {
+        "sar_kind": sar.kind,
+        "sar_lower": sar.lower,
+        "sar_upper": sar.upper,
+        "sar_ci_level": sar.ci_level,
+        "sar_point": sar.point,
+        "sar_kappa": sar.kappa,
+        "sar_outcome_shift": sar.outcome_shift,
+        "sar_treatment_shift": sar.treatment_shift,
+        "sar_var_yy": sar.var_yy,
+        "sar_var_xy": sar.var_xy,
+        "sar_var_xx": sar.var_xx,
+        "sar_n_obs": sar.n_obs,
+        "sar_n_strata": sar.n_strata,
+        "sar_dof": sar.dof,
     }
 
 

@@ -106,6 +106,16 @@ class IVStratum:
     is this stratum's own complier share, which is also the weight it
     carries into the aggregate — that, and not P(w), is what makes the
     aggregate a LATE.
+
+    ``shift_var_yy`` / ``shift_var_xy`` / ``shift_var_xx`` are the
+    coefficients of the sampling variance of ``outcome_shift - beta *
+    treatment_shift`` read as a quadratic in ``beta``:
+
+        Var = shift_var_yy - 2*beta*shift_var_xy + beta^2*shift_var_xx
+
+    i.e. the two-sample (arm-specific, so heteroskedasticity-robust
+    across arms) variance of the within-stratum contrast. They are what
+    the stratified Anderson-Rubin set is built from.
     """
 
     values: tuple[object, ...]
@@ -115,6 +125,70 @@ class IVStratum:
     n_instrument_low: int
     outcome_shift: float
     treatment_shift: float
+    shift_var_yy: float
+    shift_var_xy: float
+    shift_var_xx: float
+
+
+@dataclass(frozen=True)
+class StratifiedARSet:
+    """Anderson-Rubin set built on the STRATIFIED Wald's own moment.
+
+    The single-instrument AR set in :class:`ARConfidenceSet` residualises
+    Y, X, Z on ``[1, W]`` — the same additive projection that makes 2SLS
+    weight strata by ``Var(Z|w)`` — so its recorded point is the linear
+    IV coefficient. Inverting it around a stratified-Wald point would
+    report an interval for one estimand next to a point for another.
+
+    So this set inverts the estimand's OWN moment. With
+    ``A = sum_w p_w dY(w)`` and ``B = sum_w p_w dX(w)`` (the point being
+    ``A/B``), the null ``beta = beta0`` says ``A - beta0*B`` has mean 0.
+    The strata are independent, so
+
+        Var(A - beta0*B) = c_yy - 2*beta0*c_xy + beta0^2*c_xx,
+        c_.. = sum_w p_w^2 * (this stratum's shift_var_..)
+
+    and ``{beta0 : (A - beta0*B)^2 <= kappa * Var}`` is again one
+    quadratic inequality, ``a*beta0^2 + b*beta0 + c <= 0`` with
+    ``a = B^2 - kappa*c_xx``, ``b = 2*(kappa*c_xy - A*B)``,
+    ``c = A^2 - kappa*c_yy`` — solved by the same
+    :func:`_ar_solve_set`, so the five Dufour shapes and the weak-
+    instrument behaviour carry over unchanged. As ``B -> 0`` the leading
+    coefficient goes negative and the set opens out to the whole line,
+    which is the correct answer when the instrument moves no compliers.
+
+    Only the AGGREGATE moment is inverted, not the ``S`` per-stratum ones.
+    That is deliberate: the stratified Wald is DEFINED as the ratio of
+    averages, so the aggregate is the estimand's own moment, whereas
+    imposing all ``S`` moments would test the much stronger hypothesis
+    that every stratum shares one LATE — and strata whose LATEs genuinely
+    differ are what this estimand averages over, not a failure of it.
+
+    ``kappa`` is ``F(1, dof)`` with ``dof = n - 2*S`` (two cell means per
+    stratum). That is a finite-sample refinement, conservative relative
+    to the asymptotic chi^2(1) reference the robust variance strictly
+    justifies; it is wider, never narrower.
+
+    The weights ``p_w`` are treated as fixed — inference is conditional
+    on the observed stratum sizes, the standard stance for a stratified
+    estimator and what makes the set a closed form over the recorded
+    table rather than something only the raw data can produce.
+    """
+
+    kind: str
+    lower: float | None
+    upper: float | None
+    ci_level: float
+    point: float | None
+    kappa: float
+    outcome_shift: float          # A
+    treatment_shift: float        # B
+    var_yy: float                 # c_yy
+    var_xy: float                 # c_xy
+    var_xx: float                 # c_xx
+    n_obs: int
+    n_strata: int
+    dof: int
 
 
 @dataclass(frozen=True)
@@ -145,6 +219,12 @@ class IVEstimate:
     # test is undefined on this data (residual df < 1, or instrument has ~no
     # residual variance).
     anderson_rubin: ARConfidenceSet | None = None
+    # The same robustness on the stratified-Wald path, inverted on THAT
+    # estimand's moment instead of the linear one. Kept in its own field
+    # rather than reusing ``anderson_rubin`` because the two carry
+    # different sufficient statistics and stand for different nulls —
+    # exactly one of them is populated on any given estimate.
+    stratified_anderson_rubin: StratifiedARSet | None = None
     # Stratified-Wald path only. ``strata`` is the per-cell table the point
     # was aggregated from; ``treatment_shift`` is the reported complier
     # share (the aggregate first stage, and the denominator of the point);
@@ -262,15 +342,18 @@ def estimate_iv_ate(
         df, treatment=treatment, instrument=instrument, conditioning=conditioning,
     )
 
+    ar_set: ARConfidenceSet | None = None
+    stratified_ar_set: StratifiedARSet | None = None
     if resolved == "stratified_wald":
-        # The AR set inverts a test for the LINEAR IV coefficient — its own
-        # recorded ``point`` is the 2SLS one. Attaching it to a stratified
-        # Wald would put two different estimands in one result, which is the
-        # very confusion this path removes. Weak-instrument robustness on
-        # this path needs an AR set built on the stratified moment; until
-        # that exists the F-statistic below is the weak-IV signal, and
-        # ``treatment_shift`` is the estimand-matched strength measure.
-        ar_set = None
+        # The set in ``anderson_rubin_confidence_set`` inverts a test for the
+        # LINEAR IV coefficient — it residualises on [1, W], which is the same
+        # additive projection that gives 2SLS its weighting, and its own
+        # recorded point is that estimator's. Attaching it here would put two
+        # estimands in one result. The stratified moment gets its own set.
+        assert strata is not None
+        stratified_ar_set = stratified_anderson_rubin_set(
+            strata, n_obs=contract.sample_size, ci_level=ci_level,
+        )
     else:
         try:
             ar_set = anderson_rubin_confidence_set(
@@ -312,6 +395,7 @@ def estimate_iv_ate(
         cluster=cluster,
         first_stage_f_stat=f_stat,
         anderson_rubin=ar_set,
+        stratified_anderson_rubin=stratified_ar_set,
         strata=strata,
         outcome_shift=outcome_shift,
         treatment_shift=treatment_shift,
@@ -461,6 +545,19 @@ def _stratified_wald_table(
                 f"population than the one asked about"
             )
         covered += n_w
+        # Variance of this stratum's contrast, as a quadratic in beta. Each
+        # arm contributes its own second moments over its own count, so the
+        # estimator is robust to the two arms (and the strata) having
+        # different residual variances -- which, W being a real covariate,
+        # they generally do. ddof=1 is safe here because _MIN_PER_ARM forbids
+        # an arm of size 1 above.
+        v_yy = v_xy = v_xx = 0.0
+        for arm, n_arm in ((high, n_high), (low, n_low)):
+            v_yy += float(np.var(y[arm], ddof=1)) / n_arm
+            v_xx += float(np.var(x[arm], ddof=1)) / n_arm
+            v_xy += float(
+                np.cov(x[arm], y[arm], ddof=1)[0, 1]
+            ) / n_arm
         rows.append(IVStratum(
             values=tuple(cell),
             weight=n_w / n,
@@ -469,6 +566,9 @@ def _stratified_wald_table(
             n_instrument_low=n_low,
             outcome_shift=float(y[high].mean() - y[low].mean()),
             treatment_shift=float(x[high].mean() - x[low].mean()),
+            shift_var_yy=v_yy,
+            shift_var_xy=v_xy,
+            shift_var_xx=v_xx,
         ))
 
     if not rows:
@@ -656,6 +756,62 @@ def _ar_solve_set(a: float, b: float, c: float, *, atol: float):
     r1, r2 = (-b - sq) / (2 * a), (-b + sq) / (2 * a)
     lo, hi = (r1, r2) if r1 <= r2 else (r2, r1)
     return ("disconnected", lo, hi)                   # <= 0 OUTSIDE (lo, hi)
+
+
+def stratified_anderson_rubin_set(
+    strata: tuple[IVStratum, ...],
+    *,
+    n_obs: int,
+    ci_level: float = 0.95,
+) -> StratifiedARSet | None:
+    """Weak-identification-robust set for the stratified Wald.
+
+    A pure function of the stratum table — the same sufficient statistic
+    the point estimate rests on — so nothing here can drift away from the
+    number it accompanies, and an independent verifier can re-solve it
+    from the record without the raw data. See :class:`StratifiedARSet`
+    for the moment and the algebra.
+
+    Returns ``None`` when the test is undefined: residual df below 1, or a
+    table with no sampling variation at all to invert against.
+    """
+    from scipy.stats import f as _f_dist
+
+    if not strata:
+        return None
+    s = len(strata)
+    dof = n_obs - 2 * s
+    if dof < 1:
+        return None
+
+    a_num = math.fsum(r.weight * r.outcome_shift for r in strata)
+    b_den = math.fsum(r.weight * r.treatment_shift for r in strata)
+    c_yy = math.fsum(r.weight ** 2 * r.shift_var_yy for r in strata)
+    c_xy = math.fsum(r.weight ** 2 * r.shift_var_xy for r in strata)
+    c_xx = math.fsum(r.weight ** 2 * r.shift_var_xx for r in strata)
+
+    if c_yy <= 0.0 and c_xx <= 0.0:
+        # No sampling variation recorded anywhere — there is no test to
+        # invert, and pretending otherwise would return a degenerate point
+        # dressed as a confidence set.
+        return None
+
+    kappa = float(_f_dist.ppf(ci_level, 1, dof))
+    a = b_den * b_den - kappa * c_xx
+    b = 2.0 * (kappa * c_xy - a_num * b_den)
+    c = a_num * a_num - kappa * c_yy
+    a_scale = abs(b_den * b_den) + abs(kappa * c_xx) + 1.0
+    kind, lower, upper = _ar_solve_set(a, b, c, atol=1e-9 * a_scale)
+
+    point = a_num / b_den if abs(b_den) > 1e-12 else None
+
+    return StratifiedARSet(
+        kind=kind, lower=lower, upper=upper, ci_level=ci_level,
+        point=point, kappa=kappa,
+        outcome_shift=a_num, treatment_shift=b_den,
+        var_yy=c_yy, var_xy=c_xy, var_xx=c_xx,
+        n_obs=int(n_obs), n_strata=s, dof=dof,
+    )
 
 
 def anderson_rubin_confidence_set(

@@ -199,6 +199,29 @@ def test_both_ends_publish_the_same_stratum_table_shape():
     ) < 0.01
 
 
+def test_only_the_data_end_carries_sampling_variance():
+    """The one place the two payloads legitimately differ, pinned so it
+    stays a decision rather than a drift.
+
+    The variance columns and the weak-robust set are sampling quantities:
+    they need an n. The theta end is handed probabilities, not a sample,
+    so it has no n to speak of — filling those fields there would mean
+    inventing them, and a confidence set that rests on an invented n is
+    worse than no confidence set.
+    """
+    theta_numeric = themis.run(_theta_program())["results"][0][
+        "extensions"]["iv_identification"]["numeric"]
+    _, result = _data_result()
+    numeric = result["numeric_estimate"]
+
+    assert "stratified_anderson_rubin_confidence_set" in numeric
+    assert "stratified_anderson_rubin_confidence_set" not in theta_numeric
+    for row in numeric["stratified_wald"]["strata"]:
+        assert {"shift_var_yy", "shift_var_xy", "shift_var_xx"} <= set(row)
+    for row in theta_numeric["strata"]:
+        assert not {"shift_var_yy", "shift_var_xy", "shift_var_xx"} & set(row)
+
+
 def test_data_end_reports_the_complier_share():
     _, result = _data_result()
     block = result["numeric_estimate"]["stratified_wald"]
@@ -259,11 +282,25 @@ def test_verifier_rejects_the_average_of_ratios_planted_as_the_point():
 
 def test_verifier_rejects_a_dropped_stratum():
     """Dropping a stratum leaves the arithmetic self-consistent over a
-    NARROWER population than the query asked about."""
+    NARROWER population than the query asked about.
+
+    Every column is trimmed and every aggregate recomputed, so the record
+    is internally consistent; only the weights summing to less than 1
+    still says the average is over a different population.
+    """
     def mutate(result, inputs):
         for key in ("stratum_weights", "stratum_outcome_shifts",
-                    "stratum_treatment_shifts"):
+                    "stratum_treatment_shifts", "stratum_shift_var_yy",
+                    "stratum_shift_var_xy", "stratum_shift_var_xx"):
             inputs[key]["items"] = inputs[key]["items"][:1]
+        for key in ("sar_kind", "sar_lower", "sar_upper", "sar_point",
+                    "sar_kappa", "sar_outcome_shift", "sar_treatment_shift",
+                    "sar_var_yy", "sar_var_xy", "sar_var_xx", "sar_n_obs",
+                    "sar_n_strata", "sar_dof"):
+            inputs.pop(key, None)
+        result["numeric_estimate"].pop(
+            "stratified_anderson_rubin_confidence_set", None,
+        )
         weights = inputs["stratum_weights"]["items"]
         d_y = inputs["stratum_outcome_shifts"]["items"]
         d_x = inputs["stratum_treatment_shifts"]["items"]
@@ -323,6 +360,149 @@ def test_verifier_rejects_a_tampered_aggregate_first_stage():
 
     ast, result = _tampered(mutate)
     with pytest.raises(Exception, match="aggregate_treatment_shift"):
+        themis.verify(ast, result)
+
+
+def test_verifier_rejects_mismatched_stratum_table_lengths():
+    """Six columns of one table. A record where they disagree describes no
+    partition at all, so nothing downstream of it means anything."""
+    def mutate(result, inputs):
+        inputs["stratum_shift_var_xx"]["items"] = (
+            inputs["stratum_shift_var_xx"]["items"][:1]
+        )
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="disagree on length"):
+        themis.verify(ast, result)
+
+
+# --------------------------------------- the stratified weak-robust set
+
+def test_payload_carries_the_stratified_ar_set_and_not_the_linear_one():
+    _, result = _data_result()
+    numeric = result["numeric_estimate"]
+    sar = numeric["stratified_anderson_rubin_confidence_set"]
+    assert "anderson_rubin_confidence_set" not in numeric
+    assert sar["kind"] in {
+        "bounded", "disconnected", "unbounded_below", "unbounded_above",
+        "whole_line", "empty",
+    }
+    assert sar["point"] == pytest.approx(numeric["point"])
+    assert sar["outcome_shift"] == pytest.approx(
+        numeric["stratified_wald"]["outcome_shift"]
+    )
+    assert sar["n_strata"] == len(numeric["stratified_wald"]["strata"])
+    assert sar["dof"] == sar["n_obs"] - 2 * sar["n_strata"]
+
+
+def test_verifier_rejects_a_stratified_ar_set_centred_off_the_point():
+    """The substitution this whole path exists to prevent, in its last
+    remaining hiding place: a set for one estimand beside a point for
+    another."""
+    def mutate(result, inputs):
+        inputs["sar_point"] += 0.05
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="sar_point"):
+        themis.verify(ast, result)
+
+
+def test_verifier_rejects_a_widened_stratified_ar_set():
+    def mutate(result, inputs):
+        inputs["sar_upper"] += 0.2
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="stratified AR upper mismatch"):
+        themis.verify(ast, result)
+
+
+def test_verifier_rejects_a_tampered_stratum_variance():
+    """The endpoints are a closed form of the variance columns, so a
+    verifier that took those on trust would be auditing metadata again."""
+    def mutate(result, inputs):
+        items = list(inputs["stratum_shift_var_yy"]["items"])
+        items[0] *= 0.25
+        inputs["stratum_shift_var_yy"]["items"] = items
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="sar_var_yy"):
+        themis.verify(ast, result)
+
+
+def test_verifier_rejects_a_tampered_stratified_ar_kappa():
+    def mutate(result, inputs):
+        inputs["sar_kappa"] *= 0.5
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="sar_kappa"):
+        themis.verify(ast, result)
+
+
+def test_verifier_rejects_a_wrong_stratum_count_on_the_set():
+    def mutate(result, inputs):
+        inputs["sar_n_strata"] += 1
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="strata but the recorded table"):
+        themis.verify(ast, result)
+
+
+def test_verifier_rejects_the_linear_ar_set_on_a_stratified_method():
+    """Caught structurally rather than numerically: when the strata happen
+    to share a first-stage strength the linear and stratified points
+    coincide, and a value comparison alone would wave this through."""
+    def mutate(result, inputs):
+        inputs["ar_kind"] = "bounded"
+        inputs["ar_lower"] = 0.1
+        inputs["ar_upper"] = 0.9
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="carries the LINEAR"):
+        themis.verify(ast, result)
+
+
+def _weak_sample(n: int = 3000, seed: int = 11) -> pd.DataFrame:
+    """Same graph, first stage weak enough to trip the Stock-Yogo warning."""
+    rng = np.random.default_rng(seed)
+    w = rng.random(n) < _P_W1
+    z = rng.random(n) < np.where(w, 0.5, 0.3)
+    # The instrument barely moves treatment: shift ~0.03 in either stratum.
+    p_x = np.where(w, 0.45, 0.40) + np.where(z, 0.03, 0.0)
+    x = rng.random(n) < p_x
+    p_y = 0.3 + 0.3 * x + 0.2 * w
+    return pd.DataFrame({"w": w, "z": z, "x": x, "y": rng.random(n) < p_y})
+
+
+def test_a_weak_conditional_instrument_surfaces_its_own_robust_set():
+    """A weak first stage is exactly when the caller needs the set, so
+    this disclosure must not go blind on the path whose set is not the
+    linear one. It used to: the warning read the linear field, which the
+    stratified path leaves empty, and offered the AR set as something to
+    go compute rather than something already on the page."""
+    _, result = _data_result(_weak_sample())
+    assert result["numeric_estimate"]["method"] == "iv_stratified_wald"
+
+    gaps = (result.get("data_gap_report") or {}).get("gaps", [])
+    weak = [g for g in gaps if g["kind"] == "weak_iv_instrument"]
+    assert weak, "premise broken: this sample is meant to be weak"
+    assert "Anderson-Rubin" in weak[0]["description"]
+    assert "weak-robust confidence set" in weak[0]["description"]
+    assert "Anderson-Rubin" in (result.get("explanation") or "")
+
+
+def test_verifier_rejects_a_stratified_ar_set_on_a_non_stratified_method():
+    def mutate(result, inputs):
+        for key in ("stratum_weights", "stratum_outcome_shifts",
+                    "stratum_treatment_shifts", "stratum_shift_var_yy",
+                    "stratum_shift_var_xy", "stratum_shift_var_xx",
+                    "aggregate_outcome_shift", "aggregate_treatment_shift"):
+            del inputs[key]
+        inputs["method"] = "iv_2sls"
+        result["numeric_estimate"]["method"] = "iv_2sls"
+        result["numeric_estimate"].pop("stratified_wald", None)
+
+    ast, result = _tampered(mutate)
+    with pytest.raises(Exception, match="stands for no other estimand"):
         themis.verify(ast, result)
 
 

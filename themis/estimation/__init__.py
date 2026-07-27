@@ -27,6 +27,14 @@ Landed scope:
   clustering at once: it inverts ``AR_r(β0) = n·ḡ'Ŝ(β0)⁻¹ḡ ~ χ²(q)`` with the
   β0-dependent robust weight, via exact polynomial root-finding (the set can be
   bounded / disconnected / whole-line / empty / a union of pieces).
+  ``stratified_anderson_rubin_set`` returning ``StratifiedARSet`` is the same
+  inversion on the STRATIFIED Wald's own moment, attached to ``IVEstimate``
+  wherever that estimator ran. The three sets above all residualise on
+  ``[1, W]`` — the additive projection that gives 2SLS its weighting — so
+  their point is the linear IV coefficient and they belong to a different
+  estimand; this one is a pure function of the stratum table, so its point
+  IS the stratified Wald's, and its variance is arm-specific rather than
+  pooled.
 - Over-identified IV — ``estimate_iv_overid`` (returning ``OverIDIVEstimate``
   with a ``SarganTest``): multi-instrument 2SLS (q ≥ 2 instruments valid under
   a shared conditioning set) plus the Sargan (1958) over-identification test,
@@ -312,11 +320,13 @@ from .iv import (
     OverIDIVEstimate,
     RobustARConfidenceSet,
     SarganTest,
+    StratifiedARSet,
     anderson_rubin_confidence_set,
     anderson_rubin_overid_set,
     estimate_iv_ate,
     estimate_iv_overid,
     robust_anderson_rubin_overid_set,
+    stratified_anderson_rubin_set,
 )
 from .joint import JointEffectEstimate, estimate_joint_effect
 from .measurement import (
@@ -375,6 +385,7 @@ __all__ = [
     "OverIDIVEstimate",
     "RobustARConfidenceSet",
     "SarganTest",
+    "StratifiedARSet",
     "estimate_iv_overid",
     "EValueResult",
     "FourWayRatioComponents",
@@ -416,6 +427,7 @@ __all__ = [
     "anderson_rubin_confidence_set",
     "anderson_rubin_overid_set",
     "robust_anderson_rubin_overid_set",
+    "stratified_anderson_rubin_set",
     "discover_graph",
     "discovery_to_kernel_ast",
     "e_value_for_risk_ratio",

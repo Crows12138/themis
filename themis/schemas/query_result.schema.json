@@ -615,7 +615,10 @@
                   "n_instrument_high": { "type": "integer", "minimum": 1 },
                   "n_instrument_low": { "type": "integer", "minimum": 1 },
                   "outcome_shift": { "type": "number", "description": "E[Y|Z=1,w] - E[Y|Z=0,w]." },
-                  "treatment_shift": { "type": "number", "description": "E[X|Z=1,w] - E[X|Z=0,w] — this stratum's own complier share." }
+                  "treatment_shift": { "type": "number", "description": "E[X|Z=1,w] - E[X|Z=0,w] — this stratum's own complier share." },
+                  "shift_var_yy": { "type": "number", "minimum": 0, "description": "Sampling variance of this stratum's outcome_shift, summed over the two instrument arms as V(Y)/n per arm. Together with shift_var_xy / shift_var_xx it gives Var(outcome_shift - beta*treatment_shift) = shift_var_yy - 2*beta*shift_var_xy + beta^2*shift_var_xx, which is what stratified_anderson_rubin_confidence_set inverts." },
+                  "shift_var_xy": { "type": "number", "description": "Covariance term of the same quadratic — Cov(X,Y)/n summed over the two arms. Not sign-constrained." },
+                  "shift_var_xx": { "type": "number", "minimum": 0, "description": "Sampling variance of this stratum's treatment_shift, V(X)/n summed over the two arms." }
                 }
               }
             }
@@ -855,6 +858,30 @@
             "kappa": { "type": "number", "description": "iv_2sls_overid only: the AR critical value q*F(q, m) (m = n - |W| - q - 1). Absent on the single-instrument path (its kappa = F(1, m) rides on the ar_kappa derivation input)." },
             "dof_num": { "type": "integer", "minimum": 1, "description": "iv_2sls_overid only: numerator df q (number of instruments)." },
             "dof_denom": { "type": "integer", "minimum": 1, "description": "iv_2sls_overid only: denominator df m = n - |W| - q - 1." }
+          }
+        },
+        "stratified_anderson_rubin_confidence_set": {
+          "type": "object",
+          "description": "iv_stratified_wald only: the weak-identification-robust confidence set for the STRATIFIED Wald, inverted on that estimand's own moment. anderson_rubin_confidence_set residualises Y, X, Z on [1, W] — the same additive projection that makes 2SLS weight strata by Var(Z|w) — so its point is the linear IV coefficient and it belongs to a different estimand; the two sets are never both present. Here, with A = sum_w P(w)*outcome_shift(w) and B = sum_w P(w)*treatment_shift(w) (the point being A/B), the set is {beta0 : (A - beta0*B)^2 <= kappa * (var_yy - 2*beta0*var_xy + beta0^2*var_xx)} where var_.. = sum_w P(w)^2 * that stratum's shift_var_.. . Same quadratic inversion and therefore the same five shapes; as B -> 0 it opens out to the whole line, which is the honest answer when the instrument moves no compliers. Only the AGGREGATE moment is inverted, not the S per-stratum ones: the estimand IS the ratio of averages, whereas imposing all S moments would test the stronger hypothesis that every stratum shares one LATE — and strata whose LATEs differ are what this estimand averages over. Because the stratum variances are arm-specific, the set does not assume homoskedasticity across arms or strata; with unbalanced instrument arms that matters in both directions. Re-solved by the verifier from the stratum table, which carries the same quantities per cell.",
+          "required": ["kind", "ci_level", "point", "kappa", "outcome_shift", "treatment_shift", "var_yy", "var_xy", "var_xx", "n_obs", "n_strata", "dof"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": ["bounded", "disconnected", "unbounded_below", "unbounded_above", "whole_line", "empty"]
+            },
+            "lower": { "type": ["number", "null"], "description": "Finite lower endpoint where it exists; null on an open side. For a disconnected set this is the upper edge of the left ray (-inf, lower]." },
+            "upper": { "type": ["number", "null"], "description": "Finite upper endpoint where it exists; null on an open side. For a disconnected set this is the lower edge of the right ray [upper, +inf)." },
+            "ci_level": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+            "point": { "type": ["number", "null"], "description": "A/B — which on this path IS the reported point estimate, not a second number. A set centred anywhere else would be a confidence set for one estimand beside a point for another, and the verifier rejects that." },
+            "kappa": { "type": "number", "description": "F(1, dof) critical value. A finite-sample refinement, conservative relative to the asymptotic chi^2(1) the arm-robust variance strictly justifies — wider, never narrower." },
+            "outcome_shift": { "type": "number", "description": "A = sum_w P(w) * outcome_shift(w); equals stratified_wald.outcome_shift." },
+            "treatment_shift": { "type": "number", "description": "B = sum_w P(w) * treatment_shift(w); equals stratified_wald.treatment_shift, the complier share." },
+            "var_yy": { "type": "number", "minimum": 0, "description": "sum_w P(w)^2 * shift_var_yy(w)." },
+            "var_xy": { "type": "number", "description": "sum_w P(w)^2 * shift_var_xy(w). Not sign-constrained." },
+            "var_xx": { "type": "number", "minimum": 0, "description": "sum_w P(w)^2 * shift_var_xx(w)." },
+            "n_obs": { "type": "integer", "minimum": 1 },
+            "n_strata": { "type": "integer", "minimum": 1, "description": "S — must equal the length of the stratified_wald.strata array." },
+            "dof": { "type": "integer", "minimum": 1, "description": "n - 2*S: two cell means per stratum." }
           }
         },
         "robust_anderson_rubin_confidence_set": {
