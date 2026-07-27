@@ -47,6 +47,7 @@ For the LLM-side rendering / decision rules see
 | `unmeasured_confounder_risk` | informational | interpretation | DAG declares confounders but no bidirected edges — measured-covariate adjustment may have residual unmeasured-confounder bias (HRT-CVD / Card 1995 schooling / vitamin D-CVD pattern). Iter 5. |
 | `unattempted_layer_due_to_dispatch_conflict` | important | interpretation | Query specified multiple identification layers (e.g. mediator + target_population) but kernel dispatched only one; the other was silently skipped (mediation × transport must be sequential per Cole & Stuart 2010). Iter 19. |
 | `weak_iv_instrument` | informational | interpretation | Iter 120 — first-stage F-stat below Stock-Yogo (2005) threshold (10); IV estimate's bias toward OLS scales with 1/F and standard 2SLS asymptotic CIs underestimate uncertainty. |
+| `iv_estimand_fallback_to_linear` | informational | interpretation | A binary-Z / binary-X design whose instrument is valid only given W names the stratified Wald (the LATE on compliers), but the sample could not be cut into those strata — W continuous, too many cells, or a cell holding only one instrument arm — so the estimate fell back to 2SLS. 2SLS with W entered additively weights each stratum's effect by the instrument's residual variance there rather than by that stratum's complier share, so the two agree only when the first stage is equally strong everywhere. Discloses the substitution, not a quality loss. |
 | `overidentification_rejected` | important | interpretation | Over-identified 2SLS (q ≥ 2 instruments) — the Sargan over-identification test rejects the instruments' joint validity (p < 0.05); the data refute at least one exclusion restriction. A falsification (linear analogue of the Balke-Pearl instrumental inequalities), not a data-quantity gap: it will not resolve with more of the same data. |
 | `propensity_overlap_violation` | informational | interpretation | Iter 121 — fitted P(X\|Z) outside [0.05, 0.95] for >5% of sample; backdoor / g-formula extrapolates the outcome regression into off-support territory (Hernán & Robins ch.3 positivity). |
 | `collider_conditioning_opens_backdoor` | important | identification | Iter 122 — EffectQuery `given` contains a node where both X and Y are ancestors (collider). Conditioning OPENS the X→…→W←…←Y path per Pearl d-separation; the conditional effect is biased. F27 names the upstream NL pattern. |
@@ -95,6 +96,7 @@ For the LLM-side rendering / decision rules see
 **Estimator-runtime** (attached during ``themis.estimate`` dispatch
 NOT by the classifier; require fitted estimate to inspect):
 ``weak_iv_instrument`` (post-IV first-stage F),
+``iv_estimand_fallback_to_linear`` (post-IV estimator resolution),
 ``propensity_overlap_violation`` (post-backdoor logistic propensity
 fit), ``outcome_model_quasi_separation`` (post-backdoor logistic
 outcome fit).

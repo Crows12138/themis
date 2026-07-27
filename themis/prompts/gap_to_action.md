@@ -60,6 +60,18 @@ estimator-runtime gap_kinds attached at dispatch time):
 These are not data targets. Render their content in plain language but
 do NOT trigger fetch / ask user.
 
+`iv_estimand_fallback_to_linear` is the one estimator-runtime kind that
+IS partly a data target, and it is worth separating from the others: it
+does not say the estimate is imprecise, it says the reported quantity
+changed. The instrument identifies the effect among compliers, the
+sample could not be cut into the strata that estimand needs, and 2SLS
+answers a different question — how much the outcome moves per unit of
+treatment under a linear model, weighting strata by instrument strength
+rather than by complier share. Render that as a change of subject, not
+as a confidence caveat, and note that `required_data` names the strata
+whose missing instrument arm caused it, which the user genuinely can go
+collect.
+
 `severity == "important"` gaps are usually actionable, but
 **check before fetching**:
 - `ambiguous_variable_definition` → Q1-Q3 walk (this is a real

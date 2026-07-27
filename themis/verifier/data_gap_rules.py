@@ -312,6 +312,13 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # validity. Estimator-time falsification signal; provenance is a
     # verifier_check ref naming the treatment, same posture as weak_iv_instrument.
     "overidentification_rejected": frozenset({"verifier_check"}),
+    # A conditional binary IV design could not be stratified on this
+    # sample, so the reported estimand fell back from the LATE to the
+    # linear-IV coefficient. Estimator-time signal; provenance is a
+    # verifier_check ref naming the (instrument | conditioning) pair,
+    # same posture as weak_iv_instrument — no derivation step, because
+    # the trigger fires once the estimator has already chosen.
+    "iv_estimand_fallback_to_linear": frozenset({"verifier_check"}),
     # iter 121: estimator-time signal — propensity P(X=1|Z) bounded
     # away from {0,1} for too few observations under backdoor
     # adjustment. Provenance is a verifier_check ref naming the

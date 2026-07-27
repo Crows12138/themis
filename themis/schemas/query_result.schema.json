@@ -546,7 +546,7 @@
             "backdoor_linear", "backdoor_logistic",
             "aipw", "tmle", "ipw_stabilized", "ipw_ht",
             "frontdoor_linear", "frontdoor_logistic",
-            "iv_wald", "iv_2sls", "iv_2sls_overid",
+            "iv_wald", "iv_stratified_wald", "iv_2sls", "iv_2sls_overid",
             "mediation_linear_imai", "mediation_logit_imai",
             "mediation_joint_linear", "mediation_joint_logit",
             "joint_backdoor_linear", "joint_backdoor_logistic",
@@ -587,6 +587,39 @@
         "first_stage_f_stat": {
           "type": ["number", "null"],
           "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold. Single-instrument for iv_wald / iv_2sls; the JOINT first-stage F for all instruments under iv_2sls_overid. Null when computation was degenerate (e.g. n too small, instrument variance ~0)."
+        },
+        "stratified_wald": {
+          "type": "object",
+          "description": "iv_stratified_wald only: the per-cell table the point was aggregated from. The aggregate is the RATIO OF AVERAGES — sum_w P(w)*outcome_shift(w) divided by sum_w P(w)*treatment_shift(w) — so each stratum enters weighted by its own complier share (the denominator term, Abadie 2003). That is what makes the point an effect among compliers. Averaging the per-stratum ratios instead weights by P(w) and is a DIFFERENT estimand; the two agree only when the instrument moves treatment equally hard in every stratum, so do not recompute a simple average as a cross-check.",
+          "required": ["conditioning_order", "strata", "outcome_shift", "treatment_shift"],
+          "additionalProperties": false,
+          "properties": {
+            "conditioning_order": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Column names of W in the order each stratum's `values` are listed."
+            },
+            "outcome_shift": { "type": "number", "description": "Numerator: sum_w P(w) * outcome_shift(w)." },
+            "treatment_shift": { "type": "number", "description": "Denominator: sum_w P(w) * treatment_shift(w). This is also the reported complier share — a LATE is an effect on a subpopulation, and this is its size." },
+            "strata": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["values", "weight", "n_obs", "n_instrument_high", "n_instrument_low", "outcome_shift", "treatment_shift"],
+                "additionalProperties": false,
+                "properties": {
+                  "values": { "type": "array", "description": "This cell's W values, aligned to conditioning_order." },
+                  "weight": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "P(W = values) in the sample. Weights sum to 1 across strata; a shortfall would mean the average runs over a narrower population than the query asked about." },
+                  "n_obs": { "type": "integer", "minimum": 1 },
+                  "n_instrument_high": { "type": "integer", "minimum": 1 },
+                  "n_instrument_low": { "type": "integer", "minimum": 1 },
+                  "outcome_shift": { "type": "number", "description": "E[Y|Z=1,w] - E[Y|Z=0,w]." },
+                  "treatment_shift": { "type": "number", "description": "E[X|Z=1,w] - E[X|Z=0,w] — this stratum's own complier share." }
+                }
+              }
+            }
+          }
         },
         "over_identification": {
           "type": "object",
@@ -2116,6 +2149,7 @@
             "unmeasured_confounder_risk",
             "unattempted_layer_due_to_dispatch_conflict",
             "weak_iv_instrument",
+            "iv_estimand_fallback_to_linear",
             "overidentification_rejected",
             "propensity_overlap_violation",
             "collider_conditioning_opens_backdoor",

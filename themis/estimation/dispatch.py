@@ -1075,6 +1075,26 @@ def _estimate_effect_queries(
             }
             if iv_estimate.first_stage_f_stat is not None:
                 iv_numeric_dict["first_stage_f_stat"] = iv_estimate.first_stage_f_stat
+            if iv_estimate.strata is not None:
+                iv_numeric_dict["stratified_wald"] = {
+                    "conditioning_order": list(iv_estimate.conditioning),
+                    "outcome_shift": iv_estimate.outcome_shift,
+                    "treatment_shift": iv_estimate.treatment_shift,
+                    "strata": [
+                        {
+                            # _w_levels sources these through .tolist(), so
+                            # they are Python natives, not numpy scalars.
+                            "values": list(s.values),
+                            "weight": s.weight,
+                            "n_obs": s.n_obs,
+                            "n_instrument_high": s.n_instrument_high,
+                            "n_instrument_low": s.n_instrument_low,
+                            "outcome_shift": s.outcome_shift,
+                            "treatment_shift": s.treatment_shift,
+                        }
+                        for s in iv_estimate.strata
+                    ],
+                }
             if iv_estimate.anderson_rubin is not None:
                 iv_numeric_dict["anderson_rubin_confidence_set"] = _ar_set_to_dict(
                     iv_estimate.anderson_rubin
@@ -1094,6 +1114,7 @@ def _estimate_effect_queries(
                 outcome=y_atom.predicate, treatment=x_atom.predicate,
             )
             _attach_weak_iv_warning_if_low_f(result, iv_estimate)
+            _attach_iv_estimand_fallback_warning(result, iv_estimate)
             _finalise_numeric_result(result)
             continue
 
@@ -4413,6 +4434,96 @@ def _render_ar_set(ar) -> str:
     return "∅"
 
 
+def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
+    """Disclose that a conditional binary IV design fell back from the
+    stratified Wald to 2SLS, and that this changed the estimand.
+
+    Same posture as ``_attach_weak_iv_warning_if_low_f``: INFORMATIONAL,
+    the estimate is still surfaced, and the caveat is mirrored into
+    ``explanation`` so the renderer cannot drop it. The point of the
+    disclosure is not that the number is worse — 2SLS is a fine estimator
+    — but that it answers a different question than the identification
+    layer named, and a substitution nobody can see is indistinguishable
+    from an error.
+    """
+    reason = getattr(iv_estimate, "stratification_fallback", None)
+    if reason is None:
+        return
+
+    w = ", ".join(iv_estimate.conditioning) or "∅"
+    gap_entry = {
+        "kind": "iv_estimand_fallback_to_linear",
+        "severity": "informational",
+        "blocks": "interpretation",
+        "description": (
+            f"Instrument `{iv_estimate.instrument}` is valid only given "
+            f"{{{w}}}, which names the stratified Wald — the effect among "
+            f"compliers. This sample cannot be cut that way: {reason}. The "
+            f"reported number is therefore the 2SLS coefficient, which "
+            f"weights each stratum's effect by how strongly the instrument "
+            f"moves treatment there rather than by that stratum's share of "
+            f"compliers. The two coincide only when the first stage is "
+            f"equally strong in every stratum; otherwise they are different "
+            f"quantities, not different estimates of one quantity."
+        ),
+        "required_data": {
+            "data_type": "ipd",
+            "population": (
+                "the strata of the conditioning set that currently carry "
+                "only one instrument arm (or none at all)"
+            ),
+            "variables": [
+                iv_estimate.instrument,
+                iv_estimate.treatment,
+                iv_estimate.outcome,
+                *iv_estimate.conditioning,
+            ],
+        },
+        "if_provided": (
+            "the stratified Wald runs and the reported quantity becomes the "
+            "effect among compliers, the estimand the instrument identifies"
+        ),
+        "alternative_paths": [
+            "collect observations in the strata that are missing an "
+            "instrument arm, which restores the LATE directly",
+            "coarsen the conditioning set (fewer or broader categories) so "
+            "every cell carries both instrument arms — valid only if the "
+            "coarser set still blocks the instrument-outcome backdoor",
+            "report the 2SLS coefficient as-is, stating that it is a "
+            "variance-weighted average of stratum effects rather than the "
+            "effect among compliers",
+        ],
+        "provenance": [{
+            "ref_kind": "verifier_check",
+            "ref_id": (
+                f"iv_estimand_fallback:{iv_estimate.instrument}|{w}"
+            ),
+        }],
+    }
+
+    report = result.get("data_gap_report")
+    if report is None:
+        result["data_gap_report"] = {
+            "summary": "工具变量估计目标回退警告",
+            "gaps": [gap_entry],
+            "actionable_next_steps": [],
+        }
+    else:
+        report.setdefault("gaps", []).append(gap_entry)
+
+    headline = (
+        f"⚠ 工具变量 `{iv_estimate.instrument}` 只在 {{{w}}} 之下有效，"
+        f"本应走分层 Wald（compliers 上的 LATE），但本样本分不了层"
+        f"（{reason}）；报出的是 2SLS 系数，它按各层工具强度加权而非按"
+        f"complier 份额加权——两者只在各层一阶段力度相同时才是同一个量"
+    )
+    existing = result.get("explanation") or ""
+    if headline not in existing:
+        result["explanation"] = (
+            f"{headline}\n{existing}".strip() if existing else headline
+        )
+
+
 def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
     """Iter 120 — when the first-stage F-statistic is below the
     Stock-Yogo (2005) threshold (10 by default for single-instrument
@@ -5040,12 +5151,40 @@ def _build_iv_numeric_derivation_dict(
                 "ci_upper": estimate.ci_upper,
                 "ci_level": estimate.ci_level,
                 **_ar_derivation_inputs(estimate.anderson_rubin),
+                **_stratified_wald_derivation_inputs(estimate),
             },
             output=StructuralResult(value=True),
             step_id="s2",
         ),
     )
     return derivation_to_dict(steps)
+
+
+def _stratified_wald_derivation_inputs(estimate) -> dict:
+    """The per-stratum table as flat derivation inputs.
+
+    Unlike the fitted-model paths, this estimator has a closed-form
+    sufficient statistic: the point is a function of the stratum weights
+    and shifts and nothing else. Recording them lifts the verifier above
+    the usual metadata audit — it can recompute the aggregate as a ratio
+    of averages and reject a point that is the average of the per-stratum
+    ratios instead, which is the one wrong answer that looks right.
+
+    Empty on the marginal-Wald / 2SLS paths.
+    """
+    if estimate.strata is None:
+        return {}
+    return {
+        "stratum_weights": tuple(s.weight for s in estimate.strata),
+        "stratum_outcome_shifts": tuple(
+            s.outcome_shift for s in estimate.strata
+        ),
+        "stratum_treatment_shifts": tuple(
+            s.treatment_shift for s in estimate.strata
+        ),
+        "aggregate_outcome_shift": estimate.outcome_shift,
+        "aggregate_treatment_shift": estimate.treatment_shift,
+    }
 
 
 def _ar_derivation_inputs(ar) -> dict:

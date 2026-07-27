@@ -939,6 +939,19 @@ class GapKind(str, Enum):
     # IMPORTANT severity (the point rests on a refuted assumption), must-disclose,
     # and it will not go away with more of the same data.
     OVERIDENTIFICATION_REJECTED = "overidentification_rejected"
+    # A binary-Z / binary-X design with a conditioning set names the
+    # stratified Wald — the LATE on compliers — but this sample could not
+    # be cut into those strata (W continuous, too many cells, or a cell
+    # with only one instrument arm), so the estimate fell back to 2SLS.
+    # That is not a precision detail: 2SLS with W entered additively
+    # weights each stratum's effect by the instrument's residual variance
+    # there, so it targets a different quantity than the LATE and the two
+    # agree only when the first stage is equally strong everywhere. The
+    # fallback is reported for the same reason the estimand is named at
+    # all — receiving a different number than the one asked for, with
+    # nothing to mark the substitution, is the failure this discloses.
+    # INFORMATIONAL must-disclose; the estimate is still surfaced.
+    IV_ESTIMAND_FALLBACK_TO_LINEAR = "iv_estimand_fallback_to_linear"
     # iter 121: backdoor estimate (g-formula / outcome regression / IPW)
     # was produced but the estimated propensity score P(X=1 | Z) is
     # bounded away from {0,1} for too few observations. The "positivity"

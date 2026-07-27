@@ -2828,7 +2828,7 @@ _NUMERIC_FRONTDOOR_METHODS = frozenset({
     "frontdoor_logistic",
 })
 
-_NUMERIC_IV_METHODS = frozenset({"iv_wald", "iv_2sls"})
+_NUMERIC_IV_METHODS = frozenset({"iv_wald", "iv_stratified_wald", "iv_2sls"})
 
 _NUMERIC_JOINT_METHODS = frozenset({
     "joint_backdoor_linear",
@@ -3715,6 +3715,124 @@ def _rule_numeric_iv_estimate(
     # iter 212 — independently re-solve the Anderson-Rubin set when present.
     if inputs.get("ar_kind") is not None:
         _check_anderson_rubin(inputs, point, step_index)
+
+    # The stratified Wald has a closed-form sufficient statistic, so this
+    # one IV path escapes the metadata-audit ceiling: re-aggregate it.
+    _check_stratified_wald(inputs, point, method, step_index)
+
+
+def _check_stratified_wald(
+    inputs: dict, point: float, method: str, step_index: int,
+) -> None:
+    """Recompute a stratified-Wald point from the recorded stratum table.
+
+    The estimand is the RATIO OF AVERAGES — each stratum weighted by its
+    own complier share, which is the denominator term (Abadie 2003). The
+    plausible wrong answer is the average of the per-stratum ratios, and
+    the two coincide whenever the first stage is equally strong in every
+    stratum, so nothing but an explicit re-aggregation separates them.
+
+    Also pins the table to the method: only the stratified path may carry
+    strata, and the stratified path may not omit them.
+    """
+    RULE = "numeric_iv_estimate"
+    weights = inputs.get("stratum_weights")
+    d_y = inputs.get("stratum_outcome_shifts")
+    d_x = inputs.get("stratum_treatment_shifts")
+    present = weights is not None or d_y is not None or d_x is not None
+
+    if method == "iv_stratified_wald":
+        if not present:
+            raise RuleCheckFailed(
+                f"{RULE}: method 'iv_stratified_wald' must record the stratum "
+                f"table it aggregated — without it the point is uncheckable",
+                step_index=step_index, rule=RULE,
+            )
+    elif present:
+        raise RuleCheckFailed(
+            f"{RULE}: a stratum table is recorded but method is {method!r}; "
+            f"only the stratified Wald aggregates over strata",
+            step_index=step_index, rule=RULE,
+        )
+    else:
+        return
+
+    tables = {
+        "stratum_weights": weights,
+        "stratum_outcome_shifts": d_y,
+        "stratum_treatment_shifts": d_x,
+    }
+    for name, table in tables.items():
+        if not isinstance(table, tuple) or not table:
+            raise RuleCheckFailed(
+                f"{RULE}.{name} must be a non-empty tuple; got {table!r}",
+                step_index=step_index, rule=RULE,
+            )
+        if any(
+            not isinstance(v, (int, float)) or isinstance(v, bool)
+            for v in table
+        ):
+            raise RuleCheckFailed(
+                f"{RULE}.{name} must hold numbers",
+                step_index=step_index, rule=RULE,
+            )
+    if not (len(weights) == len(d_y) == len(d_x)):
+        raise RuleCheckFailed(
+            f"{RULE}: stratum table columns disagree on length "
+            f"({len(weights)}, {len(d_y)}, {len(d_x)})",
+            step_index=step_index, rule=RULE,
+        )
+
+    if any(w <= 0.0 for w in weights):
+        raise RuleCheckFailed(
+            f"{RULE}: every stratum weight must be positive; a zero or "
+            f"negative weight means the aggregate does not run over the "
+            f"population it claims to",
+            step_index=step_index, rule=RULE,
+        )
+    total = math.fsum(weights)
+    if abs(total - 1.0) > _NUMERIC_TOL:
+        raise RuleCheckFailed(
+            f"{RULE}: stratum weights sum to {total!r}, not 1 — a stratum "
+            f"was dropped or reweighted, so the average is over a different "
+            f"population than the query asked about",
+            step_index=step_index, rule=RULE,
+        )
+
+    num = math.fsum(w * v for w, v in zip(weights, d_y))
+    den = math.fsum(w * v for w, v in zip(weights, d_x))
+    _pin_number(
+        inputs, "aggregate_outcome_shift", num,
+        step_index=step_index, rule=RULE, where="the stratum table",
+    )
+    _pin_number(
+        inputs, "aggregate_treatment_shift", den,
+        step_index=step_index, rule=RULE, where="the stratum table",
+    )
+    if abs(den) < 1e-12:
+        raise RuleCheckFailed(
+            f"{RULE}: the aggregate first stage is ~0, so no point estimate "
+            f"can rest on it",
+            step_index=step_index, rule=RULE,
+        )
+
+    expected = num / den
+    if abs(point - expected) > _NUMERIC_TOL:
+        average_of_ratios = math.fsum(
+            w * (a / b) for w, a, b in zip(weights, d_y, d_x) if b
+        )
+        hint = ""
+        if abs(point - average_of_ratios) <= _NUMERIC_TOL:
+            hint = (
+                " — the reported value is the average of the per-stratum "
+                "ratios, which weights each stratum by P(w) instead of by "
+                "its complier share and is a different estimand"
+            )
+        raise RuleCheckFailed(
+            f"{RULE}: point {point!r} is not the ratio of averages "
+            f"{expected!r} implied by the recorded stratum table{hint}",
+            step_index=step_index, rule=RULE,
+        )
 
 
 def _rule_numeric_iv_overid_estimate(

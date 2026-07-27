@@ -1,28 +1,38 @@
 """Phase 7.3 S.IVN.1 — instrumental-variable ATE estimators.
 
-Two hand-rolled estimators covering the standard textbook cases:
+Three hand-rolled estimators covering the standard textbook cases:
 
 - **Wald**: ``(E[Y|Z=1] - E[Y|Z=0]) / (E[X|Z=1] - E[X|Z=0])``.
   Under IV1/IV2/IV3 + monotonicity, recovers the Local Average
   Treatment Effect (LATE) on compliers — NOT the population ATE
   when treatment effects are heterogeneous. Requires binary Z and X.
+- **stratified Wald**: the same contrast cut by a discrete conditioning
+  set W and aggregated as a RATIO OF AVERAGES,
+  ``sum_w P(w) dY(w) / sum_w P(w) dX(w)``. Requires binary Z and X.
 - **2SLS**: two-stage least squares via sklearn LinearRegression.
   Under IV1/IV2/IV3 + linearity + constant treatment effect, recovers
   the ATE. Handles continuous Z / X / W.
 
-Auto selects: binary Z + binary X → Wald; else → 2SLS. Callers can
-override via ``model=...``.
+Auto selects: binary Z + binary X → Wald (no W) or stratified Wald
+(W it can cut); else → 2SLS. Callers can override via ``model=...``.
 
-Conditional IV (``conditioning`` non-empty): both stages of 2SLS /
-the Wald numerator & denominator are residualised against W
-(Frisch-Waugh-Lovell). For the first version we apply this only on
-the 2SLS path; conditional Wald degenerates to the unconditional
-form when Z and X are binary and W is a valid conditioning set.
+Which one runs is not a performance detail — it decides WHICH NUMBER is
+being reported. A conditional instrument does not reduce to the marginal
+Wald, and 2SLS with W entered additively does not target the LATE: it
+weights each stratum's LATE by the instrument's residual variance there,
+so it agrees with the stratified Wald only when the first stage is
+equally strong in every stratum. On a design where it is not, the two
+differ by ~10% in either direction with nothing to signal it. So the
+stratified case gets the estimator that matches the estimand the
+identification layer named, and when W cannot be cut (continuous, too
+many cells, a stratum missing an instrument arm) the fallback to 2SLS is
+reported rather than silent — see ``IVEstimate.stratification_fallback``.
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from itertools import product
 from typing import Literal
 
 import numpy as np
@@ -34,7 +44,13 @@ from .contract import validate_data
 from .resample import cluster_labels, resample_indices
 
 
-ModelName = Literal["auto", "wald", "2sls"]
+ModelName = Literal["auto", "wald", "2sls", "stratified_wald"]
+
+# A stratified Wald needs every cell of W populated in BOTH instrument
+# arms. These caps decide when to stop trying and say so.
+_MAX_STRATA = 64
+_MAX_LEVELS_PER_W = 10
+_MIN_PER_ARM = 2
 
 
 @dataclass(frozen=True)
@@ -83,12 +99,31 @@ class ARConfidenceSet:
 
 
 @dataclass(frozen=True)
+class IVStratum:
+    """One cell of the conditioning set W on the stratified-Wald path.
+
+    ``weight`` is P(W = values) as the sample sees it. ``treatment_shift``
+    is this stratum's own complier share, which is also the weight it
+    carries into the aggregate — that, and not P(w), is what makes the
+    aggregate a LATE.
+    """
+
+    values: tuple[object, ...]
+    weight: float
+    n_obs: int
+    n_instrument_high: int
+    n_instrument_low: int
+    outcome_shift: float
+    treatment_shift: float
+
+
+@dataclass(frozen=True)
 class IVEstimate:
     point: float
     ci_lower: float | None
     ci_upper: float | None
     ci_level: float
-    method: str                       # "iv_wald" | "iv_2sls"
+    method: str      # "iv_wald" | "iv_stratified_wald" | "iv_2sls"
     assumptions: tuple[str, ...]
     sample_size: int
     data_hash: str
@@ -110,6 +145,18 @@ class IVEstimate:
     # test is undefined on this data (residual df < 1, or instrument has ~no
     # residual variance).
     anderson_rubin: ARConfidenceSet | None = None
+    # Stratified-Wald path only. ``strata`` is the per-cell table the point
+    # was aggregated from; ``treatment_shift`` is the reported complier
+    # share (the aggregate first stage, and the denominator of the point);
+    # ``outcome_shift`` its numerator. None on the Wald / 2SLS paths.
+    strata: tuple[IVStratum, ...] | None = None
+    outcome_shift: float | None = None
+    treatment_shift: float | None = None
+    # Set when a conditional binary design COULD have been stratified in
+    # principle but this sample does not support it, so the estimate fell
+    # back to 2SLS. That fallback changes which estimand is reported, so it
+    # travels with the estimate instead of vanishing.
+    stratification_fallback: str | None = None
 
 
 def estimate_iv_ate(
@@ -125,10 +172,17 @@ def estimate_iv_ate(
     random_state: int = 42,
     cluster: str | None = None,
 ) -> IVEstimate:
-    """Instrumental-variable ATE via Wald (binary) or 2SLS (linear).
+    """Instrumental-variable ATE via Wald / stratified Wald / 2SLS.
 
     ``cluster`` (optional column name) switches the bootstrap CI to a
     pairs cluster bootstrap; ``None`` reproduces the i.i.d. bootstrap.
+
+    Under ``model="auto"`` a binary-Z / binary-X design with a discrete
+    conditioning set resolves to the stratified Wald, and falls back to
+    2SLS — recording ``stratification_fallback`` — when this sample
+    cannot support the cut. An EXPLICIT ``model="stratified_wald"`` never
+    falls back: asking for an estimand and silently receiving a different
+    one is the failure this path exists to prevent.
     """
     required = {treatment, outcome, instrument, *conditioning}
     presence = (cluster,) if cluster is not None else ()
@@ -148,12 +202,20 @@ def estimate_iv_ate(
     x_is_bool = pd.api.types.is_bool_dtype(x_series)
 
     if model == "auto":
-        if z_is_bool and x_is_bool and not conditioning:
-            resolved = "wald"
+        if z_is_bool and x_is_bool:
+            # A conditioning set is a reason to STRATIFY, not a reason to
+            # leave the Wald family. Dropping to 2SLS here is what used to
+            # swap the estimand out from under the caller.
+            resolved = "stratified_wald" if conditioning else "wald"
         else:
             resolved = "2sls"
     else:
         resolved = model
+
+    strata: tuple[IVStratum, ...] | None = None
+    outcome_shift: float | None = None
+    treatment_shift: float | None = None
+    fallback: str | None = None
 
     if resolved == "wald":
         if not (z_is_bool and x_is_bool):
@@ -162,10 +224,31 @@ def estimate_iv_ate(
             )
         if conditioning:
             raise NotImplementedError(
-                "Conditional IV with Wald estimator is not supported in v1; "
-                "use model='2sls' when conditioning is non-empty"
+                "The marginal Wald ignores W, which is not the same estimand; "
+                "use model='stratified_wald' (or 'auto') when conditioning is "
+                "non-empty"
             )
         point = _wald_point(df, treatment, outcome, instrument)
+    elif resolved == "stratified_wald":
+        if not (z_is_bool and x_is_bool):
+            raise ValueError(
+                "Stratified Wald requires binary instrument AND binary treatment"
+            )
+        try:
+            strata, point, outcome_shift, treatment_shift = _stratified_wald_table(
+                df, treatment=treatment, outcome=outcome,
+                instrument=instrument, conditioning=conditioning,
+            )
+        except _NotStratifiable as exc:
+            if model != "auto":
+                raise
+            # Fall back, but carry the reason: 2SLS answers a different
+            # question and the caller has to be able to see that it did.
+            fallback = exc.reason
+            resolved = "2sls"
+            point = _two_sls_point(
+                df, treatment, outcome, instrument, conditioning,
+            )
     elif resolved == "2sls":
         point = _two_sls_point(
             df, treatment, outcome, instrument, conditioning,
@@ -179,13 +262,23 @@ def estimate_iv_ate(
         df, treatment=treatment, instrument=instrument, conditioning=conditioning,
     )
 
-    try:
-        ar_set = anderson_rubin_confidence_set(
-            df, treatment=treatment, outcome=outcome, instrument=instrument,
-            conditioning=conditioning, ci_level=ci_level,
-        )
-    except (np.linalg.LinAlgError, ValueError):
+    if resolved == "stratified_wald":
+        # The AR set inverts a test for the LINEAR IV coefficient — its own
+        # recorded ``point`` is the 2SLS one. Attaching it to a stratified
+        # Wald would put two different estimands in one result, which is the
+        # very confusion this path removes. Weak-instrument robustness on
+        # this path needs an AR set built on the stratified moment; until
+        # that exists the F-statistic below is the weak-IV signal, and
+        # ``treatment_shift`` is the estimand-matched strength measure.
         ar_set = None
+    else:
+        try:
+            ar_set = anderson_rubin_confidence_set(
+                df, treatment=treatment, outcome=outcome, instrument=instrument,
+                conditioning=conditioning, ci_level=ci_level,
+            )
+        except (np.linalg.LinAlgError, ValueError):
+            ar_set = None
 
     ci_lower: float | None = None
     ci_upper: float | None = None
@@ -219,6 +312,10 @@ def estimate_iv_ate(
         cluster=cluster,
         first_stage_f_stat=f_stat,
         anderson_rubin=ar_set,
+        strata=strata,
+        outcome_shift=outcome_shift,
+        treatment_shift=treatment_shift,
+        stratification_fallback=fallback,
     )
 
 
@@ -247,6 +344,152 @@ def _wald_point(
             "no measurable first-stage effect on treatment"
         )
     return (ey1 - ey0) / denom
+
+
+class _NotStratifiable(ValueError):
+    """This sample cannot be cut into the strata W asks for.
+
+    Carries ``reason`` because the caller's fallback changes which estimand
+    is reported, and a fallback nobody can see is the failure mode. Derives
+    from ValueError so the bootstrap's degenerate-draw handling and the
+    dispatch layer's existing guards catch it without a special case.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _cell_label(conditioning: tuple[str, ...], cell: tuple[object, ...]) -> str:
+    return "{" + ", ".join(
+        f"{c}={v!r}" for c, v in zip(conditioning, cell)
+    ) + "}"
+
+
+def _w_levels(
+    df: pd.DataFrame, conditioning: tuple[str, ...],
+) -> list[tuple[object, ...]]:
+    """The values each W column takes, or a refusal naming the column."""
+    levels: list[tuple[object, ...]] = []
+    total = 1
+    for col in conditioning:
+        series = df[col]
+        # Cardinality, not dtype, decides whether a column can be cut:
+        # a float column holding 0.0/1.0 is a two-cell factor, and an
+        # integer column with forty codes is not stratifiable. (The data
+        # contract also widens integer columns to float, so a dtype gate
+        # would drop integer-coded categories — the common case.)
+        values = pd.unique(series)
+        if len(values) > _MAX_LEVELS_PER_W:
+            if pd.api.types.is_float_dtype(series):
+                raise _NotStratifiable(
+                    f"conditioning column {col!r} is continuous "
+                    f"({len(values)} distinct values over {len(series)} "
+                    f"rows), so its strata would hold about one "
+                    f"observation each"
+                )
+            raise _NotStratifiable(
+                f"conditioning column {col!r} takes {len(values)} distinct "
+                f"values, past the cap of {_MAX_LEVELS_PER_W}"
+            )
+        try:
+            ordered = tuple(sorted(values.tolist()))
+        except TypeError:                       # mixed types in one column
+            ordered = tuple(sorted(values.tolist(), key=repr))
+        levels.append(ordered)
+        total *= len(ordered)
+        if total > _MAX_STRATA:
+            raise _NotStratifiable(
+                f"conditioning set {list(conditioning)} cuts the sample into "
+                f"more than {_MAX_STRATA} strata"
+            )
+    return levels
+
+
+def _stratified_wald_table(
+    df: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    instrument: str,
+    conditioning: tuple[str, ...],
+) -> tuple[tuple[IVStratum, ...], float, float, float]:
+    """Wald within each cell of W, aggregated as a ratio of averages.
+
+        LATE = sum_w P(w) [E[Y|Z=1,w] - E[Y|Z=0,w]]
+             / sum_w P(w) [E[X|Z=1,w] - E[X|Z=0,w]]
+
+    Each stratum therefore enters weighted by its OWN complier share — the
+    denominator term (Abadie 2003) — which is what makes the aggregate an
+    effect among compliers. Averaging the per-stratum ratios instead gives
+    a different estimand, and the two agree whenever the first stage is
+    equally strong everywhere, so the wrong one survives any test that does
+    not construct the disagreement.
+
+    W = () is the one-stratum degenerate case and reproduces the marginal
+    Wald exactly, which is why there is no second code path for it.
+
+    Returns ``(strata, point, outcome_shift, treatment_shift)``. Raises
+    :class:`_NotStratifiable` when the cut is not available on this sample,
+    and ``ValueError`` when it is available but the instrument moves no
+    compliers — a real degeneracy rather than a stratification limit.
+    """
+    levels = _w_levels(df, conditioning)
+    z = df[instrument].to_numpy(dtype=bool)
+    x = df[treatment].to_numpy(dtype=float)
+    y = df[outcome].to_numpy(dtype=float)
+    n = len(df)
+    w_arrays = [df[col].to_numpy() for col in conditioning]
+
+    rows: list[IVStratum] = []
+    covered = 0
+    for cell in product(*levels):
+        mask = np.ones(n, dtype=bool)
+        for arr, value in zip(w_arrays, cell):
+            mask &= (arr == value)
+        n_w = int(mask.sum())
+        if n_w == 0:
+            continue                      # this cell is simply not populated
+        high, low = mask & z, mask & ~z
+        n_high, n_low = int(high.sum()), int(low.sum())
+        if n_high < _MIN_PER_ARM or n_low < _MIN_PER_ARM:
+            raise _NotStratifiable(
+                f"stratum {_cell_label(conditioning, cell)} holds {n_high} "
+                f"observation(s) with {instrument} high and {n_low} with it "
+                f"low, so the instrument has no measurable contrast there; "
+                f"dropping the stratum would average over a different "
+                f"population than the one asked about"
+            )
+        covered += n_w
+        rows.append(IVStratum(
+            values=tuple(cell),
+            weight=n_w / n,
+            n_obs=n_w,
+            n_instrument_high=n_high,
+            n_instrument_low=n_low,
+            outcome_shift=float(y[high].mean() - y[low].mean()),
+            treatment_shift=float(x[high].mean() - x[low].mean()),
+        ))
+
+    if not rows:
+        raise _NotStratifiable("no stratum of W is populated")
+    if covered != n:
+        # Missing / unrepresentable W values would silently shrink the
+        # population the weights are normalised over.
+        raise _NotStratifiable(
+            f"the strata of {list(conditioning)} cover {covered} of {n} rows; "
+            f"the remainder carry values the cut cannot place"
+        )
+
+    outcome_shift = math.fsum(r.weight * r.outcome_shift for r in rows)
+    treatment_shift = math.fsum(r.weight * r.treatment_shift for r in rows)
+    if abs(treatment_shift) < 1e-12:
+        raise ValueError(
+            "stratified first-stage sum_w P(w)[E[X|Z=1,w] - E[X|Z=0,w]] is "
+            "~0; the instrument moves no compliers, so no contrast it "
+            "induces can be scaled into an effect"
+        )
+    return tuple(rows), outcome_shift / treatment_shift, outcome_shift, treatment_shift
 
 
 def _two_sls_point(
@@ -514,6 +757,11 @@ def _bootstrap_ci_iv(
                 estimates[i] = _wald_point(
                     sample, treatment, outcome, instrument,
                 )
+            elif model == "stratified_wald":
+                estimates[i] = _stratified_wald_table(
+                    sample, treatment=treatment, outcome=outcome,
+                    instrument=instrument, conditioning=conditioning,
+                )[1]
             else:
                 estimates[i] = _two_sls_point(
                     sample, treatment, outcome, instrument, conditioning,
@@ -1433,6 +1681,14 @@ def _assumptions_for(model: str, n_conditioning: int) -> tuple[str, ...]:
         return common + (
             "monotonicity_first_stage_effect_same_sign_for_all_units",
             "estimand_is_LATE_on_compliers_not_population_ATE",
+        )
+    if model == "stratified_wald":
+        return common + (
+            "monotonicity_first_stage_effect_same_sign_for_all_units",
+            "estimand_is_LATE_on_compliers_not_population_ATE",
+            "conditioning_set_blocks_instrument_outcome_backdoor_given_W",
+            "positivity_both_instrument_arms_present_in_every_stratum",
+            "strata_aggregated_by_complier_share_not_by_stratum_probability",
         )
     if model == "2sls":
         extra = (

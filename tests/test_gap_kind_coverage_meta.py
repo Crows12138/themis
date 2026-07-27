@@ -1682,6 +1682,9 @@ def test_must_disclose_gap_kinds_documented_in_gap_to_action():
         "weak_iv_instrument",            # iter 120
         "propensity_overlap_violation",  # iter 121
         "outcome_model_quasi_separation",  # iter 123
+        # Same posture: attached after the estimator has chosen, mirrored
+        # into explanation, outside _MUST_DISCLOSE_GAP_KINDS.
+        "iv_estimand_fallback_to_linear",
     }
     expected = set(_MUST_DISCLOSE_GAP_KINDS) | estimator_runtime_kinds
 

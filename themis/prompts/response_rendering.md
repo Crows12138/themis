@@ -507,6 +507,7 @@ df)`, not from symbolic Theta.
 | `backdoor_logistic` / `frontdoor_logistic` | risk difference (probability) | "服阿司匹林使一年内心脏病发作概率下降约 6.9 个百分点" |
 | `backdoor_linear` / `frontdoor_linear` | unit difference in outcome scale | "服药使收缩压平均下降 9.83 个单位（按 outcome 列单位）" |
 | `iv_wald` | LATE = local risk difference among compliers | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点"（point ∈ [-1,1] 时 ×100） |
+| `iv_stratified_wald` | the same LATE, but from an instrument that is valid only within strata of W; strata aggregate by complier share (see §"IV identification") | "在 compliers 子人群里，X 让 Y 上升 X.X 个百分点（工具变量在 W 各层内才有效，已按各层 complier 份额合并）" |
 | `iv_2sls` | linear ATE | "ATE = X.X（线性假设下的人群平均效应）" |
 | `iv_2sls_overid` | linear ATE from ≥2 instruments jointly (over-identified 2SLS) + an over-identification test (robust Hansen J when available, else Sargan) | "ATE = X.X（用 N 个工具联合估计）。过度识别检验（异方差稳健 Hansen J）p = P：**p 大 → 工具彼此一致，未被证伪；p < 0.05 → 数据反驳了工具集，至少一个 exclusion 不成立，这个点估计不可信**" |
 | `mediation_cde` | CDE(m) — direct effect with M held at a specific value; outcome scale | "把 M 固定在 m 时 X 对 Y 的直接效应是 X.X 个单位" |
@@ -733,12 +734,16 @@ won't be there in those cases anyway.
 **Method-specific caveats** — `n_to_halve_ci` is the formal SE
 scaling number, but what "more N" *means* depends on `method`:
 
-- `iv_wald` / `iv_2sls`: the estimand is LATE on **compliers** (or
-  the linear-2SLS analog). "More N" only buys precision if you
-  recruit more compliers — i.e. units whose treatment status is
-  actually moved by the instrument. Recruiting always-takers /
+- `iv_wald` / `iv_stratified_wald` / `iv_2sls`: the estimand is LATE
+  on **compliers** (or the linear-2SLS analog). "More N" only buys
+  precision if you recruit more compliers — i.e. units whose treatment
+  status is actually moved by the instrument. Recruiting always-takers /
   never-takers does nothing for SE on this estimand. Surface this
   when the user is planning a study, not just when reading a result.
+  Under `iv_stratified_wald` the recruiting is also **targeted**: the
+  strata with the smallest `n_instrument_high` / `n_instrument_low` are
+  the ones that would otherwise force the fallback to 2SLS, so more N
+  there protects the estimand itself and not merely the interval.
 - `mediation_*`: "more N" must include both M and Y measurements;
   recruiting more rows with X but no M defeats the purpose.
 - `frontdoor_*`: more N must include both M and Y on the same units;
@@ -794,9 +799,9 @@ point estimates is amateur meta-analysis and breaks the audit chain.
 
 **Trigger**: any of —
 - `extensions.iv_identification` is present (structural identify path)
-- `numeric_estimate.method ∈ {"iv_wald", "iv_2sls", "iv_2sls_overid"}`
-  (numeric path; pull `instrument` / `instruments` / `conditioning` /
-  `assumptions` from `numeric_estimate`)
+- `numeric_estimate.method ∈ {"iv_wald", "iv_stratified_wald",
+  "iv_2sls", "iv_2sls_overid"}` (numeric path; pull `instrument` /
+  `instruments` / `conditioning` / `assumptions` from `numeric_estimate`)
 
 When IV is in play, identification fell back to it after backdoor and
 front-door both failed. Three things follow that the rendering must
@@ -834,20 +839,36 @@ Pull from `extensions.iv_identification` (structural) or
 - `alternatives_count` (structural) — if > 1, mention "还有 N-1 个
   其他工具变量候选可选"
 - numeric path: `iv_wald` → "Wald 比率估计 → LATE";
+  `iv_stratified_wald` → "分层 Wald → LATE（工具变量只在 W 各层内有效）";
   `iv_2sls` → "2SLS → ATE 假设线性性"
 - `numeric.treatment_shift` — the complier share. A LATE is an effect on
   a subpopulation, and this says how large that subpopulation is; a
   reader deciding whether the number matters to them needs it, so state
   it alongside the effect rather than only warning that LATE ≠ ATE.
 
-**A conditional instrument's per-stratum breakdown** (`numeric.strata`
-with a non-empty `numeric.conditioning_order`). Each stratum's `values`
-line up positionally with `conditioning_order`. The headline `late`
-weights the strata by their own complier shares — the effect among
-compliers — and is *not* the average of the per-stratum LATEs you can
-compute from the same table. Don't present it as one, and don't
-recompute a "simple average" as a cross-check: disagreeing with the
-headline is the expected behaviour, not a discrepancy to report.
+**A conditional instrument's per-stratum breakdown** — at
+`extensions.iv_identification.numeric` on the declared-probability path,
+and at `numeric_estimate.stratified_wald` when the answer came from a
+DataFrame. Both carry the same table under the same names: `strata`,
+each stratum's `values` lining up positionally with
+`conditioning_order`, plus the aggregate `outcome_shift` /
+`treatment_shift`. The headline weights the strata by their own complier
+shares — the effect among compliers — and is *not* the average of the
+per-stratum LATEs you can compute from the same table. Don't present it
+as one, and don't recompute a "simple average" as a cross-check:
+disagreeing with the headline is the expected behaviour, not a
+discrepancy to report.
+
+**When the estimand fell back** (`iv_estimand_fallback_to_linear` in the
+gap report, with `method == "iv_2sls"` on a design that named a
+conditional instrument). The sample could not be cut into the strata the
+instrument needs, so the reported number is the linear-IV coefficient
+instead of the LATE. Say that the question changed, not that the answer
+got noisier — 2SLS weights each stratum by how hard the instrument
+pushes treatment there, the LATE weights by complier share, and the gap
+between them is not uncertainty. The gap's `required_data` names the
+strata that ran out of one instrument arm, which is a concrete thing the
+user can go collect.
 
 If A1 also emitted `extensions.ambiguities[kind=iv_validity]`, the
 ambiguity disclosure block will surface that aspect — don't double-
