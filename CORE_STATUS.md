@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3389 passed / 144 skipped, warning-clean
+3421 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -565,7 +565,21 @@ LATE = Σ_w P(w)·[P(y|z⁺,w) − P(y|z⁻,w)]  /  Σ_w P(w)·[P(x⁺|z⁺,w) �
 
 D1：16 条新测试**全部先在改前的代码上跑成红的**（`git stash push -- themis/` 实测）；前提先证后证结论（先断言这张图没有可容许调整集、且它给出的工具**全都**带条件集，再断言 effect 出数）；边际 Wald 单层退化逐字段钉死；四类篡改各因该抓的原因被拒（把 W 抹成 ∅ / 删一层 / 把答案换成平均的比值 / 改一层权重）；条件集上的 `llm_proposal` 边照样被披露（W 不在查询里，它只因为「让 Z 成为工具」而进入答案，现在它还承载数值）。+16 →**3389**。
 
-**基线**：3373 → **3389**（更早 3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**条件工具变量的数据端对上同一个估计量（2026-07-27）**：修复型，而且是上一档的直接后果。**现象**——同一张图、同一个 DGP、同一个条件工具变量，theta 端给 0.625（complier 份额加权的 LATE），DataFrame 端给 0.5639 或 0.6838（随设计而定）。两个数都自洽、都不报错。**根因**——`iv.py` 的估计量分派把 `not conditioning` 和二值性检查写在同一个条件里，**把「有协变量」当成了放弃 Wald 家族的理由，而那只是分层的理由**；那句 `NotImplementedError("not supported in v1")` 说明它本来就是一次延期，不是设计判断。表象读法是「2SLS 算错了」——不是，2SLS 是标准估计量、连续 Z/X 下还是唯一选择、假设表里也确实写了 `constant_treatment_effect_else_estimand_is_weighted_average`。真问题在分派：**加一个协变量就静默地把估计目标从「compliers 上的 LATE，靠单调性」换成「总体加权平均，靠线性」，连假设表都整个换掉，而没有任何东西告诉读者这是两个不同的目标**。而且在上一档之前，这世上只有一个数（theta 端拒答）；是上一档让第二个数存在的，所以这是必须收口的 follow-on，不是可选前沿。
+
+实测坐实分歧只在特定形状下现身：`Var(Z|w)` 在各层相等时两者重合（0.5/0.5、0.8/0.2、0.2/0.8 三个设计误差都 <0.003），不等时立刻分道且两个方向都能偏（0.9/0.5 → +0.059，0.5/0.1 → −0.061，n=4×10⁶）。2SLS 把 W **加性**放进两阶段（`stage1_X = [Z, W]`，无 Z×W 交互），于是按 `Var(Z|w)` 加权各层 LATE，不是按 complier 份额。
+
+补 `stratified_wald` 估计量：二值 Z/X + 可切的 W 时 `auto` 解析到它，与 theta 端算同一个比值的平均。W=() 是单层退化，与边际 Wald **逐位相同**（`stratified.point == marginal.point`），因此没有第二条代码路径。切不动时（W 连续、层数超帽、某层缺一个工具臂）**退回 2SLS 并把退回本身作为一等事实报出来**——新 GapKind `iv_estimand_fallback_to_linear`，INFORMATIONAL，镜像进 explanation（与 `weak_iv_instrument` 同姿态），`required_data` 点名是哪些层缺臂、缺的是哪几列，那是用户真能去收的数据。**显式** `model="stratified_wald"` 则绝不退回：点名要一个估计量却静默收到另一个，正是这条路要挡的事。空层不是丢掉而是拒绝——丢掉等于在一个更窄的人群上求平均，而算术照样自洽。
+
+两层不共用代码（`themis/runtime` 不 import `themis/estimation`，这个边界值得留着），所以一致性靠**估计量命名 + 两端 parity 测试**保证，新文件 `tests/test_iv_stratified_wald_parity.py` 就是这条契约。验证器这次**越过了 data-refit 天花板**：分层表本身就是充分统计量（点是层权与两个位移的函数，别无其他），把它记进推导输入后，验证器不需要原始数据就能独立重算比值的平均，并在点等于平均的比值时**点名**说出来。表与方法互相钉死：非分层方法不许带表，分层方法不许不带。
+
+我自己踩的坑：`_w_levels` 第一版用 dtype 判断「能不能切」，但真正的判据是**取值个数**——数据契约会把整数列加宽成 float，于是整数编码的离散 W（最常见的类别写法）整个丢掉分层路径。改成只按基数判定，float 且高基数时才说「连续」。
+
+取舍（声明）=处理与工具须二值·**分层路径上不附 Anderson-Rubin 集**：AR 反转的是线性 IV 系数的检验、它自己记录的 `point` 就是 2SLS 那个数，挂上去等于把两个估计量塞进同一个结果，正是这次要消除的混淆；代价是这条路暂时没有弱工具稳健集（一阶段 F 警告与 `treatment_shift` 仍在），**分层矩上的 AR 集**（同一个 `_ar_solve_set` 二次求逆，(A−βB)² ≤ κ·Σ_w p̂²_w[…] 形状一致）是声明的下一步。
+
+D1：30 条新测试先在改前代码上跑成红的（`git stash push -- themis/ docs/ COVERAGE_MAP.md` 实测）；另 3 条是守卫/round-trip（「2SLS 在本设计上确实不等于 LATE」这个前提、verify 不炸），本就两边都绿，不算作红过。+32 →**3421**（31 条新测试 + `test_gap_kind_has_test_coverage` 因新 GapKind 多出的一个参数化用例）。
+
+**基线**：3389 → **3421**（更早 3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
