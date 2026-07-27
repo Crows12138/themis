@@ -25,9 +25,9 @@ A reply is a small ladder, top to bottom:
 
 1. **Headline** — can the question be answered? Possible shapes:
    with-number / with-bounds / structurally / not-yet-because-data /
-   not-yet-because-named-assumption (status `needs_assumption` —
-   identification works *if* the user grants the named assumption,
-   same headline tier as missing-data). The with-number shape
+   not-yet-because-named-assumption (a `missing_assumption` gap —
+   identification works once that premise is settled, same headline
+   tier as missing-data). The with-number shape
    triggers on the *presence of a numeric block*, not on `status`
    alone — a mediation result with
    `numeric_estimate.decomposition.proportion_mediated` is
@@ -427,9 +427,10 @@ they're reasoning on is your hypothesis, not established knowledge.
 
 `investigation_requests[*].group` keys: `parameter`, `observation`,
 `sample`, `structure`, `framing` (slice F1 — variable
-operationalization), `assumption` (identification rests on a named
-assumption the user must explicitly grant — pairs with
-`status == "needs_assumption"`).
+operationalization), `assumption` (something the data cannot settle:
+a premise to grant, a number only an experiment supplies, or a
+declared input contradicting the rest — the item's `reason` says
+which, and each item also appears as a `missing_assumption` gap).
 
 Render grouped by `group`, ordered by `priority` (`high` first), and
 within each group list `items[*].target` with its `items[*].reason`.

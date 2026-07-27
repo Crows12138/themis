@@ -143,6 +143,9 @@ def _verify_t10_1_provenance(
 # ============================================ T10-2 completeness
 
 
+_SOLE_CHANNEL_GROUPS: frozenset[str] = frozenset({"parameter", "assumption"})
+
+
 def _verify_t10_2_completeness(
     report: dict,
     *,
@@ -159,10 +162,20 @@ def _verify_t10_2_completeness(
 
     1. Failed derivation steps → at least one gap with provenance
        derivation_step:<step_id_or_rule>.
-    2. Parameter-group investigation_request items → at least one gap
-       with provenance investigation_request:<item.target>.
+    2. Investigation_request items in a SOLE-CHANNEL group → at least
+       one gap with provenance investigation_request:<item.target>.
     3. Framing notes → at least one gap with provenance
        framing_note:<predicate>.
+
+    Check 2 covers the groups whose items have no second representation
+    anywhere in the report: a parameter names a probability nothing else
+    names, and an assumption names a premise with no derivation step and
+    no framing note behind it. Drop one of those and the remedy is gone
+    from the envelope entirely, which is why they are the ones a
+    completeness rule has to hold. Structure-group items generally
+    restate a derivation failure the report already cites through its
+    step; framing items reach the report through check 3, under their
+    own framing_note ref rather than this one.
     """
     gaps = report.get("gaps", [])
     # Build inverted index: signal_id → set of gap indices that cite it.
@@ -195,9 +208,10 @@ def _verify_t10_2_completeness(
                 step_index=None, rule="data_gap_completeness_check",
             )
 
-    # 2. Parameter-group investigation items must be cited.
+    # 2. Sole-channel investigation items must be cited.
     for req in investigation_requests:
-        if req.get("group") != "parameter":
+        group = req.get("group")
+        if group not in _SOLE_CHANNEL_GROUPS:
             continue
         for item in req.get("items", []) or []:
             target = item.get("target")
@@ -205,7 +219,7 @@ def _verify_t10_2_completeness(
                 continue
             if target not in cited_investigation:
                 raise VerificationError(
-                    f"T10-2: parameter investigation_request "
+                    f"T10-2: {group} investigation_request "
                     f"target={target!r} has no corresponding gap in the report",
                     step_index=None, rule="data_gap_completeness_check",
                 )

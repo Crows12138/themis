@@ -54,13 +54,15 @@ def _structure_request(target: str) -> InvestigationRequest:
     )
 
 
-def _assumption_request(target: str) -> InvestigationRequest:
+def _assumption_request(
+    target: str, reason: str | None = None
+) -> InvestigationRequest:
     return InvestigationRequest(
         action=InvestigationAction.DEFINE_ASSUMPTION,
         target=target,
         priority=Priority.HIGH,
         group="assumption",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(target=target, reason=reason),),
     )
 
 
@@ -214,34 +216,75 @@ def test_missing_distribution_emits_per_item():
 # ============================================ 4. missing_assumption
 
 
-def test_needs_assumption_status_with_assumption_request_emits_specific_gap():
+def _assumption_gaps(report) -> list:
+    return [g for g in report.gaps if g.kind == GapKind.MISSING_ASSUMPTION]
+
+
+def test_an_assumption_request_emits_a_gap_citing_the_item():
     requests = (_assumption_request("assumptions.monotonicity"),)
     report = compute_data_gap_report(
         query_kind=QueryKind.COUNTERFACTUAL,
-        status=ResultStatus.NEEDS_ASSUMPTION,
+        status=ResultStatus.NEEDS_INVESTIGATION,
         investigation_requests=requests,
     )
-    assumption_gaps = [
-        g for g in report.gaps if g.kind == GapKind.MISSING_ASSUMPTION
-    ]
-    assert len(assumption_gaps) == 1
-    assert assumption_gaps[0].severity == GapSeverity.IMPORTANT
-    assert "monotonicity" in assumption_gaps[0].description
+    gaps = _assumption_gaps(report)
+    assert len(gaps) == 1
+    assert gaps[0].severity == GapSeverity.IMPORTANT
+    assert "monotonicity" in gaps[0].description
+    assert gaps[0].provenance[0].ref_kind == GapRefKind.INVESTIGATION_REQUEST
+    assert gaps[0].provenance[0].ref_id == "assumptions.monotonicity"
 
 
-def test_needs_assumption_status_without_request_emits_generic_gap():
-    """Status is the only signal — fall back to a verifier-check ref."""
+@pytest.mark.parametrize(
+    "status",
+    [
+        ResultStatus.NEEDS_INVESTIGATION,
+        ResultStatus.NEEDS_ASSUMPTION,
+        ResultStatus.STRUCTURALLY_SOLVED,
+    ],
+)
+def test_the_assumption_gap_does_not_depend_on_the_status(status):
+    """The channel is the trigger. Keying on ResultStatus.NEEDS_ASSUMPTION
+    made the classifier silent the day that status lost its producer,
+    and the kernel does not produce it today — which is why this reads
+    the same for all three."""
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=status,
+        investigation_requests=(_assumption_request("effect:iv_mono"),),
+    )
+    assert len(_assumption_gaps(report)) == 1
+
+
+def test_a_status_alone_names_no_premise_and_emits_no_gap():
+    """A status says an assumption is wanted; it cannot say which one.
+    The gap that used to be emitted here read '具体假设未在
+    missing_information 标注' — a gap whose content is that the content
+    is missing."""
     report = compute_data_gap_report(
         query_kind=QueryKind.COUNTERFACTUAL,
         status=ResultStatus.NEEDS_ASSUMPTION,
     )
-    assumption_gaps = [
-        g for g in report.gaps if g.kind == GapKind.MISSING_ASSUMPTION
-    ]
-    assert len(assumption_gaps) == 1
-    assert (
-        assumption_gaps[0].provenance[0].ref_kind == GapRefKind.VERIFIER_CHECK
+    assert report is None or not _assumption_gaps(report)
+
+
+def test_the_gap_carries_the_item_reason_over_its_machine_name():
+    """The remedy is written in the reason. A description built from the
+    target alone hands the reader an identifier to go look up."""
+    requests = (
+        _assumption_request(
+            "effect:iv_first_stage_degenerate",
+            "instrument z(me) does not shift the treatment",
+        ),
     )
+    report = compute_data_gap_report(
+        query_kind=QueryKind.EFFECT,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    gaps = _assumption_gaps(report)
+    assert len(gaps) == 1
+    assert "does not shift the treatment" in gaps[0].description
 
 
 # ============================================ 5. missing_iv_candidate

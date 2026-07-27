@@ -124,7 +124,8 @@ Mappings that translator applies:
 | `missing_iv_candidate` | `iv_candidate` |
 | `missing_mediator_data` | `mediator_distribution` |
 | `unidentifiable_no_admissible_set` | (None — structural) |
-| `missing_assumption` | (None — user choice) |
+| `missing_assumption` | (None — a premise to declare, an experiment to
+  run, or a declared input to correct; none of the three is a lookup) |
 | `ambiguous_variable_definition` | (None — user reframing) |
 | `dose_response_data_required` | (None — fully-spec'd locally; fit
   the curve in EconML / DoubleML / GAM, not via KB) |

@@ -65,6 +65,16 @@ def _param_request(items: list[str]) -> dict:
     }
 
 
+def _assumption_request(items: list[str]) -> dict:
+    return {
+        "action": "define_assumption",
+        "target": items[0] if len(items) == 1 else f"assumption:{len(items)}_items",
+        "priority": "high",
+        "group": "assumption",
+        "items": [{"target": t, "reason": "premise not declared"} for t in items],
+    }
+
+
 # ============================================ short-circuit
 
 
@@ -295,6 +305,69 @@ def test_t10_2_rejects_uncited_parameter_investigation_item():
     # Missing coverage of P(z).
     with pytest.raises(VerificationError, match="T10-2"):
         verify_data_gap_report(report, investigation_requests=requests)
+
+
+def test_t10_2_rejects_uncited_assumption_investigation_item():
+    """The generator that stopped emitting assumption gaps stayed green
+    for as long as it did because this rule enumerated the covered
+    groups by hand and assumption was not on the list. An assumption
+    item is the only place its premise is named — no derivation step
+    records it and no framing note carries it — so dropping it drops the
+    remedy out of the envelope."""
+    requests = [_assumption_request(["effect:iv_monotonicity_undeclared"])]
+    unrelated = _gap(
+        kind="unmeasured_confounder_risk",
+        severity="informational",
+        provenance=[{"ref_kind": "verifier_check", "ref_id": "program:shape"}],
+    )
+    with pytest.raises(VerificationError, match="T10-2"):
+        verify_data_gap_report(
+            _report([unrelated]), investigation_requests=requests,
+        )
+
+
+def test_t10_2_accepts_a_cited_assumption_investigation_item():
+    requests = [_assumption_request(["effect:iv_monotonicity_undeclared"])]
+    report = _report(
+        [
+            _gap(
+                kind="missing_assumption",
+                severity="important",
+                provenance=[
+                    {
+                        "ref_kind": "investigation_request",
+                        "ref_id": "effect:iv_monotonicity_undeclared",
+                    }
+                ],
+            )
+        ]
+    )
+    verify_data_gap_report(report, investigation_requests=requests)
+
+
+def test_t10_2_leaves_structure_group_items_to_their_derivation_step():
+    """Scope, pinned so it reads as a decision rather than an oversight.
+    Structure items generally restate a derivation failure the report
+    already cites through the step, so requiring a second citation of
+    the same fact would reject correct reports. Extending the rule to
+    this group is a separate piece of work with its own audit."""
+    requests = [
+        {
+            "action": "run_experiment",
+            "target": "identification:not_identifiable",
+            "priority": "high",
+            "group": "structure",
+            "items": [{"target": "identification:not_identifiable"}],
+        }
+    ]
+    unrelated = _gap(
+        kind="unmeasured_confounder_risk",
+        severity="informational",
+        provenance=[{"ref_kind": "verifier_check", "ref_id": "program:shape"}],
+    )
+    verify_data_gap_report(
+        _report([unrelated]), investigation_requests=requests,
+    )
 
 
 def test_t10_2_rejects_uncited_framing_note():

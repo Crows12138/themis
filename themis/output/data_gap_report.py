@@ -20,7 +20,7 @@ Phase 10 charter §2.2 (initial 8):
 1. unidentifiable_no_admissible_set       — derivation has unidentifiable_*
 2. missing_distribution                   — investigation parameter group
 3. missing_population_distribution        — placeholder for §T9.2/§T9.3
-4. missing_assumption                     — status NEEDS_ASSUMPTION
+4. missing_assumption                     — investigation assumption group
 5. missing_iv_candidate                   — structure group naming an IV gap
 6. missing_mediator_data                  — mediation block valid + parameter
 7. transport_target_distribution_unknown  — transport_identification + non-empty Z
@@ -284,9 +284,7 @@ def compute_data_gap_report(
     )
     gaps.extend(_classify_missing_distribution(investigation_requests, query_kind))
     gaps.extend(_classify_missing_population_distribution(extensions))
-    gaps.extend(_classify_missing_assumption(
-        status, derivation, investigation_requests
-    ))
+    gaps.extend(_classify_missing_assumption(investigation_requests))
     gaps.extend(_classify_missing_iv(investigation_requests, derivation))
     gaps.extend(_classify_missing_mediator(extensions, investigation_requests))
     gaps.extend(_classify_transport_target_distribution(extensions))
@@ -1927,52 +1925,46 @@ def _classify_missing_population_distribution(
 
 
 def _classify_missing_assumption(
-    status: ResultStatus,
-    derivation: tuple[DerivationStep, ...],
     requests: tuple[InvestigationRequest, ...],
 ) -> Iterable[DataGap]:
-    if status == ResultStatus.NEEDS_ASSUMPTION:
-        # Try to find the precise assumption from missing-info channel.
-        for req in requests:
-            if req.group != "assumption":
-                continue
-            for item in req.items:
-                yield DataGap(
-                    kind=GapKind.MISSING_ASSUMPTION,
-                    severity=GapSeverity.IMPORTANT,
-                    description=f"识别需要假设：{item.target}",
-                    blocks=GapBlocks.POINT_ESTIMATE,
-                    if_provided="可给点估计（在该假设成立的前提下）",
-                    alternative_paths=(
-                        "接受 bounds 而非点估计 (Balke-Pearl / Manski)",
-                        "运行 sensitivity analysis 量化假设违反程度",
+    """Assumption-group investigation items.
+
+    Keyed on the channel the kernel actually writes to — a
+    ``MissingKind.ASSUMPTION`` item, which ``investigation_pusher``
+    always groups under ``assumption`` — and not on
+    ``ResultStatus.NEEDS_ASSUMPTION``. That status was a proxy for the
+    same fact and lost its last producer when the counterfactual cell
+    was rebuilt around bounds; a classifier keyed on it goes silent
+    without anything failing, because a status is not where the remedy
+    is written.
+
+    The description carries the item's own ``reason``. What arrives on
+    this channel is not one shape: an undeclared premise the kernel
+    refuses to choose for you (monotonicity), an input only an
+    experiment can supply (P(Y=1|do(x)) under confounding), and
+    declared inputs that contradict each other (interventional risks
+    outside the consistency band, stratum weights that are not a
+    distribution). One sentence of generic advice would be wrong for
+    most of them, so the gap states what the kernel stated and adds
+    nothing the kernel did not derive.
+    """
+    for req in requests:
+        if req.group != "assumption":
+            continue
+        for item in req.items:
+            yield DataGap(
+                kind=GapKind.MISSING_ASSUMPTION,
+                severity=GapSeverity.IMPORTANT,
+                description=f"识别前提待补充或修正：{item.reason or item.target}",
+                blocks=GapBlocks.POINT_ESTIMATE,
+                if_provided="该识别路径可继续走到点估计",
+                provenance=(
+                    GapProvenanceRef(
+                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
+                        ref_id=item.target,
                     ),
-                    provenance=(
-                        GapProvenanceRef(
-                            ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                            ref_id=item.target,
-                        ),
-                    ),
-                )
-            return
-        # No assumption-group request — emit a generic placeholder so the
-        # gap surface still reflects status.
-        yield DataGap(
-            kind=GapKind.MISSING_ASSUMPTION,
-            severity=GapSeverity.IMPORTANT,
-            description="识别需要额外假设（具体假设未在 missing_information 标注）",
-            blocks=GapBlocks.POINT_ESTIMATE,
-            alternative_paths=(
-                "接受 bounds 而非点估计",
-                "运行 sensitivity analysis",
-            ),
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.VERIFIER_CHECK,
-                    ref_id="status:needs_assumption",
                 ),
-            ),
-        )
+            )
 
 
 def _classify_missing_iv(
@@ -3221,7 +3213,10 @@ def _short_label_for(gap: DataGap) -> str:
     if gap.kind == GapKind.MISSING_POPULATION_DISTRIBUTION:
         return "目标人群分布"
     if gap.kind == GapKind.MISSING_ASSUMPTION:
-        return "识别假设"
+        # Not always an assumption to declare — the same channel carries
+        # experimental inputs and contradictory declarations, so the
+        # label names the premise, not the repair.
+        return "识别前提"
     if gap.kind == GapKind.MISSING_IV_CANDIDATE:
         return "有效的工具变量"
     if gap.kind == GapKind.MISSING_MEDIATOR_DATA:
