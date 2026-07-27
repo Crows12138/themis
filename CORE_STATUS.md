@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3439 passed / 144 skipped, warning-clean
+3458 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -599,7 +599,23 @@ D1：30 条新测试先在改前代码上跑成红的（`git stash push -- themi
 
 D1：18 条测试先在改前代码上跑成红的（`git stash push -- themis/` 实测），其中 17 条全新、1 条是原「分层路径无 AR 集」那条改写后加了新断言。另有 1 条既有篡改测试（删一层）因为篡改要多动三列而在旧代码上以 KeyError 变红——那是机械原因，**不算作证明了什么**。+18 →**3439**。
 
-**基线**：3421 → **3439**（更早 3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**假设通道接上缺口报告（2026-07-27）**：修复型。**现象**——全量套件里内核产出的 `MissingKind.ASSUMPTION` 项共 62 次，**61 次从不进 `data_gap_report`**；唯一进去的那 1 条来自生成器单元测试里手工构造的结果。（用一个包住 `compute_data_gap_report` 的临时 conftest 全量跑了一遍才量出来，不是读代码推的。同一次测量里 structure 组 54/166 未被引用、observation 组 3/3 未被引用；framing 组表面 100% 未引用是探针的假阳性——它走 `framing_note` ref，另有覆盖。）
+
+**根因**——`_classify_missing_assumption` 的触发条件写的是 `status == ResultStatus.NEEDS_ASSUMPTION`，一个**代理信号**，而不是断言本身所在的通道。2026-07-22 反事实单格重建（`d1efd3b`）把该状态最后一个生产者移除之后，这个分类器就整体失效了，没有任何东西报警。表象读法是「状态该恢复」，但状态不该恢复：那 7 个生产点返回 `NEEDS_INVESTIGATION` 是对的，它们是缺信息结果而不是一个独立状态。真正的问题是分类器绑在一个**可以消失**的东西上，而它要报告的事实有自己一直存在的通道——`MissingKind.ASSUMPTION` 经 `investigation_pusher` 恒定落到 `group == "assumption"`。
+
+**它为什么能活这么久**——`_verify_t10_2_completeness` 是专门抓 under-disclosure 的那条规则，它逐组枚举「必须被某个 gap 引用」的通道，而只列了 `parameter`（外加派生步骤与 framing note）。`assumption` 从来不在名单上。于是「生成器死了」这件事在验证器眼里完全合法。**生成器和验证器用同一种手工枚举，留下同一个默认值：没列到的等于静默无缺口。** 而分类器唯一那条绿测试，喂给它的是一个内核不产生的状态——所以它从来没有证明过任何事情。这也是本档所有端到端测试都走 `themis.run` 而不是手搓 `QueryResult` 的原因。
+
+**改法**——触发改成通道本身，删掉死状态分支（那条分支产出的 gap 内容是「具体假设未在 missing_information 标注」，即一个内容为「内容缺失」的缺口）。T10-2 把 `assumption` 纳入必须被引用的组，判据写进 docstring：**列进来的是那些条目在报告里没有第二个表示渠道的组**——parameter 名字里的那个概率没有别处会提，assumption 名字里的那条前提既没有派生步骤也没有 framing note 承载；structure 组的条目大多是报告已经通过派生步骤引用过的那次失败的复述，framing 条目走第 3 项检查的 `framing_note` ref。
+
+**描述改成携带条目自己的 `reason`**，因为 remedy 写在那里。这条不是润色：这个通道上到的**不是一种东西**——有内核拒绝替你选的前提（`effect:iv_monotonicity_undeclared`：有工具变量不等于选定了估计量），有只有实验给得出的输入（`causation:` / `counterfactual:interventional_risk_unavailable`），还有**互相矛盾的已声明输入**（`causation:interventional_risks_infeasible` 落在一致性带之外、`effect:iv_stratum_weights_not_normalized`、`effect:iv_first_stage_degenerate`）。原来那两条通用建议（「接受 bounds 而非点估计」「运行 sensitivity analysis」）对后三种是**把读者引过错误而不是引到错误**，所以删掉——缺口只说内核说过的话，不补内核没推导出的建议。`actionable_next_steps` 的标签同步从「识别假设」改成「识别前提」：同一个通道也承载要修的声明，标签只能命名前提，不能命名修法。
+
+**顺带修的陈述失真**（同一个死状态的下游）：`response_rendering.md` 把 assumption 组说成「与 `status == "needs_assumption"` 配对」、headline 阶梯把该状态当触发；`nl_to_kernel_ast.md` 更实质——它告诉上游 LLM「干净的个体反事实内核会返回 `needs_assumption`（请用户授予单调性），那是几何上正确的答案」，而现在返回的是 Tian-Pearl 区间（`counterfactual_bounded`），单调性成立时收紧成点。那句话是在一个**已经不成立的前提**上引导上游的压缩决策。`docs/GAP_KINDS_REFERENCE.md` 的行也改写了。
+
+**声明的边界**——structure 组（54 条未引用，含 `identification:not_identifiable` ×11、`query:counterfactual_unidentifiable` ×3、`query:proximal_not_identifiable` ×2、以及 19 条 `coefficient:*`）与 observation 组（3 条）**没有一并处理**，因为它们不是同一件事：structure 条目多数与一条已被引用的失败派生步骤同源，要求第二次引用会把正确的报告判错；observation 条目（SCM 反事实的单位观测）在 `GapKind` 里没有合适的成员，补它是一次带 schema 变更的独立改动。这条边界钉成了测试而不是留成默认值。
+
+D1：14 条测试先在改前代码上跑成红的（`git stash push -- themis/` 实测）。另有 5 条在新旧两边都绿——4 条是端到端的验证器审计（旧 T10-2 根本不查这组）、1 条是「结构组仍留给它的派生步骤」这个边界钉，**不算作证明了什么**。+19 →**3458**。
+
+**基线**：3439 → **3458**（更早 3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
