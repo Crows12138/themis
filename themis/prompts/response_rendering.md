@@ -488,7 +488,7 @@ df)`, not from symbolic Theta.
 | `point` | always |
 | `ci_lower` / `ci_upper` / `ci_level` | always |
 | `method` | name once in plain Chinese |
-| `assumptions[]` | list 3–5 most relevant; translate via glossary, keep ID parenthetically |
+| `assumptions[]` | folded into `extensions.assumption_ledger` — render from there (ranked by severity); only render this raw list, 3–5 most relevant via the glossary, if no ledger is attached |
 | `adjustment[]` (backdoor) | name explicitly — essential for transparency |
 | `mediators[]` (frontdoor) | name explicitly |
 | `instrument` (IV) | name + IV section applies |
@@ -649,6 +649,10 @@ this is a positivity warning, not a footnote to bury.
 >   单元被裁剪 —— `<n_trimmed 较大时提示正性偏薄>`
 
 #### Assumption glossary (`assumptions[]` translation)
+
+Ledger entries arrive already translated (`claim`), so this table is for
+surfaces that expose the raw IDs and for the entries the ledger could not
+translate — where `claim` came back as snake_case.
 
 | ID | Chinese |
 |---|---|
@@ -1530,10 +1534,15 @@ entry carries `layer` / `provenance` / `severity` / `testable`; name
 the provenance (识别层固有 / 上游 LLM 提的边 / LLM prior / 估计器默认
 形式) so the user knows whom to challenge, and say which are testable
 (form → switch estimator; edge → needs evidence) vs untestable by
-design (identification). The ledger already folds in the LLM-proposed
-edges, theta priors, and functional form, so do NOT separately
-re-render `llm_proposed_review` / `mechanism_audit` when the ledger is
-present — that double-counts.
+design (identification). The ledger folds in all four channels — the
+LLM-proposed edges, theta priors, the functional form, and the
+estimator's own `numeric_estimate.assumptions[]` (those entries carry
+`provenance: estimator_declared` and keep the raw ID in `id`) — so do
+NOT separately re-render `llm_proposed_review` / `mechanism_audit` /
+`assumptions[]` when the ledger is present; that double-counts. An
+entry whose `claim` is still snake_case is one the glossary has not
+reached yet: translate it there and treat its severity as a presumption
+rather than a finding.
 
 When the ledger is absent but `extensions.mechanism_audit` is present,
 fall back to surfacing it directly: its `summary` leads the numeric

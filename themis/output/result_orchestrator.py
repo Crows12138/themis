@@ -574,10 +574,20 @@ def build_assumption_ledger(
             "testable": True,
         })
 
+    return _ledger(entries)
+
+
+def _ledger(entries: list[dict]) -> dict | None:
+    """Sort by severity and write the one-line summary. Shared by the
+    identification-time build and the post-estimate augmentation so the two
+    never drift on ordering or wording."""
     if not entries:
         return None
 
-    entries.sort(key=lambda e: _SEVERITY_RANK.get(e["severity"], 9))
+    # A severity outside the vocabulary sorts FIRST, not last: the renderer
+    # leads with the head of this list, so an unrecognised value must surface
+    # for someone to fix rather than sink below "only affects the interval".
+    entries.sort(key=lambda e: _SEVERITY_RANK.get(e["severity"], -1))
 
     n_inval = sum(1 for e in entries if e["severity"] == "invalidating")
     n_other = len(entries) - n_inval
@@ -594,3 +604,57 @@ def build_assumption_ledger(
     )
 
     return {"assumptions": entries, "summary": summary}
+
+
+def augment_assumption_ledger(result: dict) -> None:
+    """Fold the estimator's own ``numeric_estimate.assumptions`` into the
+    ledger, creating the ledger when the result has none.
+
+    ``build_assumption_ledger`` reads the channels that exist at
+    identification time plus whatever ``identification_specs`` the caller
+    passes in. That leaves the flat ``assumptions`` list — the oldest channel,
+    and the only one EVERY estimator populates — outside the ledger unless the
+    estimator's dispatch path happens to pass structured specs. The ledger is
+    the surface both ``analysis_report`` and ``response_rendering.md`` treat as
+    the lead disclosure, so an estimator that did not opt in produced an answer
+    whose assumptions were nowhere on that surface — silently, and silently
+    again for the next estimator added.
+
+    Called from the one funnel every numeric answer passes through, so the
+    floor holds for estimators that exist today and for those added later.
+
+    An estimator that DID declare structured identification assumptions has
+    already said the same thing in better words: when the ledger carries an
+    ``identification`` entry the flat list is its unstructured twin and is not
+    read, leaving those ledgers byte-identical.
+    """
+    from .assumption_glossary import classify_assumption
+
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, dict):
+        return
+    declared = estimate.get("assumptions") or ()
+    if not declared:
+        return
+
+    extensions = result.setdefault("extensions", {})
+    existing = extensions.get("assumption_ledger")
+    if existing is not None:
+        entries = list(existing.get("assumptions") or ())
+    else:
+        # No ledger yet — the other three channels have never been read for
+        # this result either, so read them all rather than shipping a ledger
+        # that discloses the estimator's assumptions and hides the audited
+        # mechanism sitting next to them.
+        entries = list((build_assumption_ledger(result) or {}).get("assumptions") or ())
+    if any(e.get("layer") == "identification" for e in entries):
+        return
+
+    for item in declared:
+        entry = classify_assumption(item)
+        entry["provenance"] = "estimator_declared"
+        entries.append(entry)
+
+    ledger = _ledger(entries)
+    if ledger is not None:
+        extensions["assumption_ledger"] = ledger

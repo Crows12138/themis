@@ -38,6 +38,42 @@ def estimate_program(
     misclassification: dict | None = None,
     measurement_error: dict | None = None,
 ) -> dict:
+    """Estimate every query in ``program`` on ``data``; see ``themis.estimate``.
+
+    A thin single exit around :func:`_estimate_program`, so that the one thing
+    that must hold for EVERY numeric answer — its declared assumptions reaching
+    the assumption ledger, the surface both the report assembler and the
+    rendering bridge lead with — holds in one place rather than once per
+    estimator family. Doing it per family is what left most of them out: it
+    took remembering two separate things, and forgetting either was silent.
+    """
+    from ..output.result_orchestrator import augment_assumption_ledger
+
+    output = _estimate_program(
+        program, data,
+        random_state=random_state, ci_bootstrap=ci_bootstrap, model=model,
+        cluster=cluster, ate_estimator=ate_estimator,
+        reference_data=reference_data, misclassification=misclassification,
+        measurement_error=measurement_error,
+    )
+    for result in output.get("results", []):
+        augment_assumption_ledger(result)
+    return output
+
+
+def _estimate_program(
+    program: dict | str | bytes,
+    data: Any,
+    *,
+    random_state: int = 42,
+    ci_bootstrap: int = 500,
+    model: str = "auto",
+    cluster: str | None = None,
+    ate_estimator: str = "gformula",
+    reference_data: Any = None,
+    misclassification: dict | None = None,
+    measurement_error: dict | None = None,
+) -> dict:
     """See ``themis.estimate`` for the full contract.
 
     ``cluster`` names a column carrying a cluster / block id (families,

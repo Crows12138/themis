@@ -524,6 +524,6 @@ def _identification_assumptions(
     if monotonicity is not None:
         specs.append(
             {"claim": f"单调性（{monotonicity}）：把本格的区间收紧成点",
-             "layer": "assumption", "severity": "consequential",
+             "layer": "assumption", "severity": "invalidating",
              "testable": provenance not in ("not_required", "pinned_by_monotonicity")})
     return tuple(specs)

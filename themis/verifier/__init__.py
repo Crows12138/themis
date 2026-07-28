@@ -122,7 +122,15 @@ Public surface (re-exports from sub-modules):
   tables (the recovered estimate and, when present, the naive listwise foil),
   and checks the reported point, the marginal normalisation, and that no
   contributing stratum was dropped; rejects a forged point or a tampered
-  stratum)
+  stratum),
+  ``verify_assumption_ledger`` (the disclosure surface the report assembler and
+  the rendering bridge lead with: re-derives what the ledger owes from the four
+  channels that feed it — the estimator's own ``numeric_estimate.assumptions``,
+  load-bearing proposal edges, LLM theta priors, audited mechanisms — and
+  rejects under-disclosure, a fabricated estimator entry, an unsorted ledger, a
+  summary whose counts do not match, or an identification assumption ranked
+  below ``invalidating``. Which severity a given assumption ID deserves is
+  curation, not a fact derivable from the envelope, so it is out of scope)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -247,6 +255,7 @@ from .bounds_rules import (
     verify_manski_natural_bounds_result,
     verify_manski_tamer_bounds_result,
 )
+from .assumption_ledger_rules import verify_assumption_ledger
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .orientation_rules import verify_orientation_propagation
@@ -268,6 +277,7 @@ __all__ = [
     "derivation_from_dict",
     "derivation_to_dict",
     "verify_assoc",
+    "verify_assumption_ledger",
     "verify_causation",
     "verify_causation_numeric",
     "verify_cause",

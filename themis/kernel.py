@@ -89,6 +89,7 @@ from .verifier import (
     VerificationError,
     derivation_from_dict,
     verify_assoc,
+    verify_assumption_ledger as _verify_assumption_ledger_rule,
     verify_causation,
     verify_causation_numeric,
     verify_counterfactual_cell_numeric,
@@ -1232,6 +1233,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             framing_notes=result.get("framing_notes", []),
         )
 
+    # Independent audit of the assumption ledger. Same shape as the gap-report
+    # audit above and for the same reason: the ledger is a disclosure surface,
+    # so its failure mode is one-sided — an assumption that never reaches it
+    # is indistinguishable from an assumption nobody makes.
+    _verify_assumption_ledger_rule(result)
+
     # Iter 126/127/130: independent audit of bounds_result. Each
     # producer has a dedicated verifier; verifier trilogy now complete
     # for the 3 implemented BoundsMethod values.
@@ -1394,6 +1401,24 @@ def verify_data_gap_report(result: dict) -> None:
     from .verifier.type_reconciliation_rules import verify_type_reconciliation
 
     verify_type_reconciliation(result)
+
+
+def verify_assumption_ledger(result: dict) -> None:
+    """Independently audit the ``extensions.assumption_ledger`` of one result.
+
+    The result-only counterpart to :func:`verify`, parallel to
+    :func:`verify_data_gap_report`: the ledger attaches to results whose status
+    never flips to ``numerically_solved`` (a mediation decomposition keeps its
+    structural answer primary), so it must be auditable without a derivation
+    chain.
+
+    Returns ``None`` on accept. Raises ``VerificationError`` when the ledger
+    under-discloses what the envelope's channels declare.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _verify_assumption_ledger_rule(result)
 
 
 def verify_markov_blanket(result: dict) -> None:

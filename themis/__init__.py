@@ -11,6 +11,7 @@ Public entry points::
         verify,
         verify_data_gap_report,
         verify_bounds_result,
+        verify_assumption_ledger,
     )
 
     # Pure symbolic kernel:
@@ -36,6 +37,12 @@ Public entry points::
     #   verify_bounds_result   — audits a bounds answer; applies when the result
     #                            carries a "bounds_result" (Phase 12 Manski
     #                            natural / Balke-Pearl IV / iter 119 Manski-Tamer).
+    #   verify_assumption_ledger
+    #                          — audits the disclosure surface the renderer
+    #                            leads with; always applicable, and the one
+    #                            audit whose failure mode is one-sided (an
+    #                            assumption absent from the ledger reads as an
+    #                            assumption nobody makes).
     #
     # The two most common statuses — needs_investigation (identifiable but
     # missing theta) and needs_assumption (counterfactual) — carry NO
@@ -45,6 +52,7 @@ Public entry points::
     if "derivation" in result:
         verify(program_json, result)            # reasoning-chain audit
     verify_data_gap_report(result)              # gap-report audit (always ok)
+    verify_assumption_ledger(result)            # disclosure audit (always ok)
     if "bounds_result" in result:
         verify_bounds_result(program_json, result)
 
@@ -84,6 +92,7 @@ from .kernel import (
     estimate,
     run,
     verify,
+    verify_assumption_ledger,
     verify_bounds_result,
     verify_data_gap_report,
     verify_markov_blanket,
@@ -104,6 +113,7 @@ __all__ = [
     "estimate",
     "run",
     "verify",
+    "verify_assumption_ledger",
     "verify_bounds_result",
     "verify_data_gap_report",
     "verify_markov_blanket",

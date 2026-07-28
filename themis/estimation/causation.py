@@ -403,5 +403,5 @@ def _identification_assumptions(provenance: str, monotonic: bool) -> tuple[dict,
     if monotonic:
         specs.append(
             {"claim": "单调性：X 从不阻止 Y(Y_x ≥ Y_x')，使 PN/PS/PNS 点识别",
-             "layer": "assumption", "severity": "consequential", "testable": False})
+             "layer": "assumption", "severity": "invalidating", "testable": False})
     return tuple(specs)
