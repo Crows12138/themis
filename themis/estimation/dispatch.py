@@ -22,6 +22,7 @@ import math
 from typing import Any
 
 from ..output.sample_size import estimate_n_for_target_ci_half_width
+from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
 
 
@@ -741,12 +742,12 @@ def _estimate_effect_queries(
         # treatment×treatment interaction). Takes precedence over the
         # single-treatment / mediation / transport branches.
         if q_stmt.query.extra_interventions:
-            _try_joint_estimate(
+            if _try_joint_estimate(
                 q_stmt, result, contract, graph, bidirected,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 model=model, cluster=cluster,
-            )
-            continue
+            ).stops_here:
+                continue
         # The JOINT natural-effect decomposition through the mediator SET.
         # Routes to estimate_mediation_joint, gated on the joint
         # identification extension. Precedes the single-mediator branch.
@@ -770,7 +771,7 @@ def _estimate_effect_queries(
             if _try_mediation_joint_estimate(
                 q_stmt, result, contract, graph, bidirected,
                 random_state=random_state,
-            ):
+            ).stops_here:
                 continue
         # Phase 7.4: mediation queries route to the Imai-via-statsmodels
         # estimator, gated on the identification layer's strategy result.
@@ -781,7 +782,7 @@ def _estimate_effect_queries(
                 q_stmt, result, contract, graph, bidirected,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            ):
+            ).stops_here:
                 continue
 
         # Phase 9 §T9.2 (iter 128): transport queries — when the kernel
@@ -790,14 +791,14 @@ def _estimate_effect_queries(
         # numeric transport. The identification result remains
         # structurally_solved; we add a numeric_estimate block.
         if q_stmt.query.target_population is not None:
-            _try_transport_estimate(
+            if _try_transport_estimate(
                 q_stmt, result, contract, program,
                 random_state=random_state,
                 ci_bootstrap=ci_bootstrap,
                 ci_level=0.95,
                 cluster=cluster,
-            )
-            continue
+            ).stops_here:
+                continue
 
         # §S9.1 numeric end + honest gate: when the identification pass attached
         # a selection_recovery block, the sample is restricted on a selection
@@ -808,12 +809,12 @@ def _estimate_effect_queries(
         # refuses (naming the external data needed) rather than shipping a
         # biased point. Either way, never fall through to estimate_backdoor_ate.
         if (result.get("extensions") or {}).get("selection_recovery") is not None:
-            _try_selection_recovery_estimate(
+            if _try_selection_recovery_estimate(
                 q_stmt, result, contract, reference_data, selection_values,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            )
-            continue
+            ).stops_here:
+                continue
 
         x_atom = q_stmt.query.intervention.atom
         y_atom = q_stmt.query.target.atom
@@ -839,34 +840,34 @@ def _estimate_effect_queries(
             # A validated matrix for BOTH channels: invert both sides of the
             # per-stratum (X, Y) joint at once. Correcting only one and shipping
             # the point would leave the other channel's bias in the number.
-            _try_combined_measurement_correction_estimate(
+            if _try_combined_measurement_correction_estimate(
                 q_stmt, result, contract, graph,
                 adjustment_sets=adjustment_sets, given=given_atoms,
                 spec_x=mc_spec_x, spec_y=mc_spec,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            )
-            continue
+            ).stops_here:
+                continue
         if mc_spec is not None:
-            _try_measurement_correction_estimate(
+            if _try_measurement_correction_estimate(
                 q_stmt, result, contract, graph,
                 adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            )
-            continue
+            ).stops_here:
+                continue
         if mc_spec_x is not None:
             # Frontier E (exposure side): the confusion matrix names THIS query's
             # exposure. De-attenuate the misclassified binary exposure by the
             # matrix method (invert M on the X-margin per back-door stratum)
             # instead of shipping the attenuated naive back-door number.
-            _try_exposure_measurement_correction_estimate(
+            if _try_exposure_measurement_correction_estimate(
                 q_stmt, result, contract, graph,
                 adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec_x,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            )
-            continue
+            ).stops_here:
+                continue
         # Continuous mismeasurement (regression calibration): the caller supplied
         # a known classical additive error variance σ²_u for one or more of THIS
         # query's continuous design columns — the exposure (regression dilution)
@@ -890,11 +891,11 @@ def _estimate_effect_queries(
             # when a spec names the exposure too). What the declared σ²_v buys
             # is the precision cost, assessed and disclosed here. Only a spec
             # the channel or the data refuse stops the query.
-            if not _try_outcome_error_assessment(
+            if _try_outcome_error_assessment(
                 result, contract, graph,
                 x_atom=x_atom, y_atom=y_atom,
                 adjustment_sets=adjustment_sets, spec=me_spec_y,
-            ):
+            ).stops_here:
                 continue
         if me_spec_x is not None or me_spec_cov:
             # Build the {design variable name → σ²_u} error map; the exposure
@@ -905,14 +906,14 @@ def _estimate_effect_queries(
                 error_map[x_atom.predicate] = (me_spec_x or {}).get("error_variance")
             for name, s in me_spec_cov.items():
                 error_map[name] = (s or {}).get("error_variance")
-            _try_regression_calibration_estimate(
+            if _try_regression_calibration_estimate(
                 q_stmt, result, contract, graph,
                 adjustment_sets=adjustment_sets, given=given_atoms,
                 error_map=error_map,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            )
-            continue
+            ).stops_here:
+                continue
         # Phase 14 slice a: when the program flagged a dose-response
         # query AND identification clears via backdoor, fit the curve
         # estimator instead of the binary-effect ATE estimator. Other
@@ -955,7 +956,7 @@ def _estimate_effect_queries(
                 model=dr_model,
                 graph=graph, x=x_atom, y=y_atom, chosen=chosen, given=given_atoms,
                 cluster=cluster,
-            ):
+            ).stops_here:
                 continue
             # Estimator unavailable / failed structurally — fall through
             # to the binary path so the user still gets *something*.
@@ -1078,7 +1079,7 @@ def _estimate_effect_queries(
                 x_atom=x_atom, y_atom=y_atom, given_atoms=given_atoms,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            ):
+            ).stops_here:
                 continue
             # Phase 7.3: try IV when NOT non-parametrically identified.
             iv_candidates = structural_solver.iv_sets(
@@ -1108,7 +1109,7 @@ def _estimate_effect_queries(
                 instruments=overid_instruments, conditioning=w0,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            ):
+            ).stops_here:
                 continue
             try:
                 iv_estimate = estimate_iv_ate(
@@ -1375,7 +1376,7 @@ def _try_general_id_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *,
     x_atom, y_atom, given_atoms, random_state: int,
     ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Final identification fallback: evaluate a general-ID (c-factor)
     identified estimand on data by the non-parametric plug-in.
 
@@ -1400,7 +1401,7 @@ def _try_general_id_estimate(
 
     df = contract.data
     if x_atom.predicate not in df.columns or y_atom.predicate not in df.columns:
-        return False
+        return passed('required_columns_absent')
 
     # Conditional query P(Y | do(X), Z=z) → IDC plug-in (Shpitser–Pearl);
     # unconditional → the Tian c-factor plug-in. Both share the downstream
@@ -1428,7 +1429,7 @@ def _try_general_id_estimate(
         # Not (non-parametrically) c-factor / IDC identified here, out of the
         # plug-in's binary scope, or a positivity refusal — leave the
         # result untouched and fall through to the IV escalation.
-        return False
+        return passed('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": estimate.point,
@@ -1481,14 +1482,14 @@ def _try_general_id_estimate(
         outcome=y_atom.predicate, treatment=x_atom.predicate,
     )
     _finalise_numeric_result(result)
-    return True
+    return answered()
 
 
 def _try_joint_general_id_estimate(
     result: dict, contract, graph, bidirected, *,
     treatment_atoms, y_atom, random_state: int,
     ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Joint general-ID fallback: a latent-confounded JOINT effect
     do(A, B, …) with NO adjustment set, point-identified by the set-valued
     Shpitser-Pearl ID (front-door / c-component for a treatment SET) and
@@ -1508,9 +1509,9 @@ def _try_joint_general_id_estimate(
     df = contract.data
     treatment_names = tuple(t.predicate for t in treatment_atoms)
     if any(t not in df.columns for t in treatment_names):
-        return False
+        return passed('required_columns_absent')
     if y_atom.predicate not in df.columns:
-        return False
+        return passed('required_columns_absent')
 
     try:
         estimate = estimate_joint_general_id_ate(
@@ -1523,7 +1524,7 @@ def _try_joint_general_id_estimate(
         # Not (non-parametrically) set-ID identified here, out of the plug-in's
         # binary scope, or a positivity refusal — leave the result untouched
         # so the structural joint refusal stands.
-        return False
+        return passed('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": estimate.point,
@@ -1570,7 +1571,7 @@ def _try_joint_general_id_estimate(
         graph=graph, x=treatment_atoms[0], y=y_atom, estimate=estimate,
     )
     _finalise_numeric_result(result)
-    return True
+    return answered()
 
 
 def _build_general_id_numeric_derivation_dict(*, graph, x, y, estimate):
@@ -1670,7 +1671,7 @@ def _estimate_ctf_conjunction_queries(
 def _try_ctf_conjunction_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *,
     random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Evaluate an ID*/IDC*-identified counterfactual conjunction on data by
     the non-parametric plug-in (the counterfactual analogue of
     ``_try_general_id_estimate``).
@@ -1707,7 +1708,7 @@ def _try_ctf_conjunction_estimate(
     except (EstimatorFailure, ValueError, NotImplementedError):
         # Not identifiable, UNDEFINED, or a positivity refusal — leave the
         # structural result untouched.
-        return False
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": estimate.point,
@@ -1746,7 +1747,7 @@ def _try_ctf_conjunction_estimate(
         graph=graph, estimate=estimate,
     )
     _finalise_numeric_result(result)
-    return True
+    return answered()
 
 
 def _build_ctf_conjunction_numeric_derivation_dict(*, graph, estimate):
@@ -1862,7 +1863,7 @@ def _estimate_scm_counterfactual_queries(
 def _try_scm_counterfactual_estimate(
     q_stmt, result: dict, contract, graph, observed_unit, *,
     random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Fit a recursive linear SCM from data and compute the queried unit's
     counterfactual point (the data end of the abduction-action-prediction
     structural path). Returns True only when it ATTACHES a numeric estimate;
@@ -1887,7 +1888,7 @@ def _try_scm_counterfactual_estimate(
             ) else None,
         )
     except (EstimatorFailure, ValueError, NotImplementedError):
-        return False
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": estimate.point,
@@ -1959,7 +1960,7 @@ def _try_scm_counterfactual_estimate(
         x=x_atom, y=y_atom, estimate=estimate,
     )
     _finalise_numeric_result(result)
-    return True
+    return answered()
 
 
 def _build_scm_counterfactual_numeric_derivation_dict(*, x, y, estimate):
@@ -2053,7 +2054,7 @@ def _estimate_proximal_queries(
 def _try_proximal_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *,
     random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Recover the proximal ATE on data by Miao's discrete formula (5).
 
     Returns True only when it ATTACHES a numeric estimate. On any refusal —
@@ -2075,7 +2076,7 @@ def _try_proximal_estimate(
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
     except (EstimatorFailure, ValueError, NotImplementedError):
-        return False
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": estimate.point,
@@ -2120,7 +2121,7 @@ def _try_proximal_estimate(
         graph=graph, estimate=estimate,
     )
     _finalise_numeric_result(result)
-    return True
+    return answered()
 
 
 def _build_proximal_numeric_derivation_dict(*, graph, estimate):
@@ -2218,7 +2219,7 @@ def _estimate_causation_queries(
 def _try_causation_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *,
     random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Recover PN/PS/PNS on data (empirical joint + g-formula do-risks →
     Tian-Pearl) and attach them as the numeric answer.
 
@@ -2246,7 +2247,7 @@ def _try_causation_estimate(
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
     except (EstimatorFailure, ValueError, NotImplementedError):
-        return False
+        return blocked('estimator_refused')
 
     # The causation data answer is ALWAYS the three Tian-Pearl intervals; under
     # monotonicity they collapse to points. When a point is point-identified the
@@ -2351,7 +2352,7 @@ def _try_causation_estimate(
         _finalise_numeric_result(result)
     else:
         _finalise_numeric_bounds_result(result)
-    return True
+    return answered()
 
 
 def _finalise_numeric_bounds_result(result: dict) -> None:
@@ -2497,7 +2498,7 @@ def _estimate_counterfactual_cell_queries(
 def _try_counterfactual_cell_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *,
     random_state: int, ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Recover one binary counterfactual cell on data (empirical joint +
     g-formula do-risk → the consistency identity) and attach it as the numeric
     answer, with a bootstrap the theta path cannot produce.
@@ -2520,7 +2521,7 @@ def _try_counterfactual_cell_estimate(
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
     except (EstimatorFailure, ValueError, NotImplementedError):
-        return False
+        return blocked('estimator_refused')
 
     is_point = estimate.point is not None
     cell_block = {
@@ -2609,7 +2610,7 @@ def _try_counterfactual_cell_estimate(
         _finalise_numeric_result(result)
     else:
         _finalise_numeric_bounds_result(result)
-    return True
+    return answered()
 
 
 def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
@@ -2656,7 +2657,7 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
 def _try_mediation_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
     ci_bootstrap: int = 500, cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Phase 7.4 — attach a mediation numeric estimate when the
     identification layer has cleared NDE/NIE for the requested mediator.
 
@@ -2683,13 +2684,13 @@ def _try_mediation_estimate(
     extensions = result.get("extensions") or {}
     decomp = extensions.get("mediation_decomposition")
     if decomp is None:
-        return False
+        return passed('identification_chose_another_strategy')
     if decomp.get("strategy") != "nde_nie":
-        return True
+        return blocked('numeric_end_not_built')
 
     nde_nie_block = decomp.get("nde_nie", {})
     if not nde_nie_block.get("identifiable"):
-        return True
+        return blocked('not_identified')
     # The identification layer emits adjustment atoms in their string
     # form (predicate(args)). Strip back to bare predicates so the
     # estimator can index DataFrame columns.
@@ -2705,7 +2706,7 @@ def _try_mediation_estimate(
     # contract (defensive — should be enforced upstream)
     missing_cols = [c for c in adjustment if c not in contract.data.columns]
     if missing_cols:
-        return True
+        return blocked('required_columns_absent')
 
     try:
         med_estimate = estimate_mediation(
@@ -2718,7 +2719,7 @@ def _try_mediation_estimate(
             cluster=cluster,
         )
     except (ValueError, NotImplementedError):
-        return True
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "method": med_estimate.method,
@@ -2821,13 +2822,13 @@ def _try_mediation_estimate(
     # mediation derivation (mediation_*_check + identify_via_mediation)
     # already passes verify_effect_structural. Flipping to
     # numerically_solved would break that round-trip.
-    return True
+    return answered()
 
 
 def _try_mediation_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
     cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Attach a JOINT multi-mediator numeric estimate when the joint
     identification layer has cleared the block NDE/NIE for the mediator
     set (VanderWeele-Vansteelandt 2014).
@@ -2853,7 +2854,7 @@ def _try_mediation_joint_estimate(
     # means identification routed this query elsewhere. Every other exit
     # claims it rather than letting a different estimand answer in its place.
     if decomp is None:
-        return False
+        return passed('identification_chose_another_strategy')
 
     # The joint natural-effect numeric rides on the NDE/NIE block being
     # structurally identified (strategy is "nde_nie" or "nde_nie+cde"); the
@@ -2861,7 +2862,7 @@ def _try_mediation_joint_estimate(
     # estimate when it too is identified with a compatible adjustment.
     nde_nie_block = decomp.get("nde_nie", {})
     if not nde_nie_block.get("identifiable"):
-        return True
+        return blocked('not_identified')
     adjustment = tuple(
         a.split("(", 1)[0] for a in nde_nie_block.get("adjustment", ())
     )
@@ -2873,7 +2874,7 @@ def _try_mediation_joint_estimate(
     needed = [*m_preds, *adjustment]
     missing_cols = [c for c in needed if c not in contract.data.columns]
     if missing_cols:
-        return True
+        return blocked('required_columns_absent')
 
     try:
         est = estimate_mediation_joint(
@@ -2886,7 +2887,7 @@ def _try_mediation_joint_estimate(
             cluster=cluster,
         )
     except (ValueError, NotImplementedError):
-        return True
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "method": est.method,
@@ -2960,7 +2961,7 @@ def _try_mediation_joint_estimate(
     # NOTE: status stays "structurally_solved" — the joint identification
     # answer is primary; the numeric_estimate is supplementary, mirroring
     # the single-mediator path.
-    return True
+    return answered()
 
 
 # Upper bound on the supplementary ratio-scale four-way bootstrap (a
@@ -3052,7 +3053,7 @@ def _try_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected,
     *, random_state: int, ci_bootstrap: int, model: str,
     cluster: str | None = None,
-) -> None:
+) -> Claim:
     """Joint multi-treatment effect estimate: do(A=a, B=b, ...).
 
     Re-derives the joint (treatment-set) back-door adjustment set, fits
@@ -3094,9 +3095,9 @@ def _try_joint_estimate(
     # structural dispatch); the K upper bound is enforced by the estimator
     # (NotImplementedError, caught below).
     if q.mediator is not None or q.target_population is not None:
-        return
+        return blocked('combination_out_of_scope')
     if len(set(treatment_atoms)) < 2 or len(set(treatment_atoms)) != len(treatment_atoms):
-        return
+        return blocked('combination_out_of_scope')
 
     joint_sets = structural_solver.minimal_adjustment_sets_joint(
         graph, treatment_atoms, y_atom,
@@ -3117,7 +3118,7 @@ def _try_joint_estimate(
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
             )
-        return
+        return blocked('design_unavailable')
 
     chosen = min(joint_sets, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
@@ -3126,11 +3127,11 @@ def _try_joint_estimate(
 
     df = contract.data
     if any(t not in df.columns for t in treatment_names):
-        return
+        return blocked('required_columns_absent')
     if outcome_name not in df.columns:
-        return
+        return blocked('required_columns_absent')
     if not all(_is_binary_treatment(df, t) for t in treatment_names):
-        return
+        return blocked('design_unavailable')
 
     # Treated cell = the query's intervention values; control cell = the
     # binary baseline (all-False / 0). Joint contrast is do(treated) −
@@ -3160,9 +3161,9 @@ def _try_joint_estimate(
             "failure_type": exc.failure_type,
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
     except (ValueError, NotImplementedError):
-        return
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "method": estimate.method,
@@ -3205,6 +3206,7 @@ def _try_joint_estimate(
         estimate=estimate,
     )
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _build_joint_numeric_derivation_dict(
@@ -3451,7 +3453,7 @@ def _try_transport_estimate(
     q_stmt, result: dict, contract, program,
     *, random_state: int, ci_bootstrap: int, ci_level: float,
     cluster: str | None = None,
-) -> None:
+) -> Claim:
     """Phase 9 §T9.2 (iter 128) — numeric transport via post-stratification.
 
     Runs ``estimate_transport`` when:
@@ -3474,20 +3476,20 @@ def _try_transport_estimate(
 
     transport_block = (result.get("extensions") or {}).get("transport_identification")
     if not isinstance(transport_block, dict):
-        return
+        return blocked('identification_chose_another_strategy')
     adjustment_atoms = transport_block.get("adjustment_set") or []
     if not adjustment_atoms:
-        return
+        return blocked('design_unavailable')
     adjustment_names = tuple(
         a.get("predicate") for a in adjustment_atoms if isinstance(a, dict)
     )
     if not adjustment_names or not all(adjustment_names):
-        return
+        return blocked('design_unavailable')
 
     program_extensions = _extract_program_extensions(program)
     target_marginal = program_extensions.get("target_marginal")
     if not isinstance(target_marginal, dict):
-        return
+        return blocked('design_unavailable')
     target_marginal = _coerce_target_marginal_keys(target_marginal)
 
     treatment = q_stmt.query.intervention.atom.predicate
@@ -3495,9 +3497,9 @@ def _try_transport_estimate(
 
     df = contract.data
     if treatment not in df.columns or outcome not in df.columns:
-        return
+        return blocked('required_columns_absent')
     if not all(name in df.columns for name in adjustment_names):
-        return
+        return blocked('required_columns_absent')
 
     try:
         estimate = estimate_transport(
@@ -3532,7 +3534,7 @@ def _try_transport_estimate(
             "failure_type": failure_type,
             "reason": msg,
         }
-        return
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": estimate.point,
@@ -3556,6 +3558,7 @@ def _try_transport_estimate(
     # identify_via_transport) is preserved — the verifier accepts that
     # terminal for a transport-numeric result.
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _coerce_target_marginal_keys(target_marginal: dict) -> dict:
@@ -3599,7 +3602,7 @@ def _collect_selection_observation_values(prog) -> dict:
 def _try_selection_recovery_estimate(
     q_stmt, result: dict, contract, reference_data, selection_values: dict,
     *, random_state: int, ci_bootstrap: int, cluster: str | None = None,
-) -> None:
+) -> Claim:
     """§S9.1 numeric end + honest gate for selection bias.
 
     Fires when the result carries a ``selection_recovery`` block (the sample is
@@ -3633,7 +3636,7 @@ def _try_selection_recovery_estimate(
                    "the selection-backdoor criterion; no number is produced."
             ),
         }
-        return
+        return blocked('not_identified')
 
     external = list(block.get("external_data_needed") or [])
     z_plus = tuple(block.get("z_plus") or ())
@@ -3657,7 +3660,7 @@ def _try_selection_recovery_estimate(
             "external_data_needed": external,
             "recovery_formula": block.get("recovery_formula"),
         }
-        return
+        return blocked('design_unavailable')
 
     sel_vals = {s: selection_values.get(s, True) for s in selection_nodes}
     try:
@@ -3675,14 +3678,14 @@ def _try_selection_recovery_estimate(
             "failure_type": getattr(exc, "failure_type", "estimator_failure"),
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
     except (ValueError, KeyError) as exc:
         result["estimator_failure"] = {
             "estimator": "selection_backdoor_recovery",
             "failure_type": "invalid_input",
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": est.point,
@@ -3712,13 +3715,14 @@ def _try_selection_recovery_estimate(
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _try_measurement_correction_estimate(
     q_stmt, result: dict, contract, graph, *,
     adjustment_sets, given, spec: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
-) -> None:
+) -> Claim:
     """Frontier E numeric end + honest gate for a misclassified outcome.
 
     Fires when the caller supplied a validated confusion matrix for this
@@ -3750,7 +3754,7 @@ def _try_measurement_correction_estimate(
                 "here; no corrected number is produced."
             ),
         }
-        return
+        return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
@@ -3779,14 +3783,14 @@ def _try_measurement_correction_estimate(
             "failure_type": getattr(exc, "failure_type", "estimator_failure"),
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "measurement_error_correction",
             "failure_type": "invalid_input",
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": est.point,
@@ -3824,6 +3828,7 @@ def _try_measurement_correction_estimate(
         given=frozenset(given), estimate=est,
     )
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _measurement_correction_block(est) -> dict:
@@ -3876,7 +3881,7 @@ def _try_exposure_measurement_correction_estimate(
     q_stmt, result: dict, contract, graph, *,
     adjustment_sets, given, spec: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
-) -> None:
+) -> Claim:
     """Frontier E numeric end + honest gate for a misclassified binary EXPOSURE.
 
     Fires when the caller supplied a validated confusion matrix for this query's
@@ -3909,7 +3914,7 @@ def _try_exposure_measurement_correction_estimate(
                 "here; no corrected number is produced."
             ),
         }
-        return
+        return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
@@ -3938,14 +3943,14 @@ def _try_exposure_measurement_correction_estimate(
             "failure_type": getattr(exc, "failure_type", "estimator_failure"),
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "exposure_measurement_error_correction",
             "failure_type": "invalid_input",
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": est.point,
@@ -3983,13 +3988,14 @@ def _try_exposure_measurement_correction_estimate(
         given=frozenset(given), estimate=est,
     )
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _try_combined_measurement_correction_estimate(
     q_stmt, result: dict, contract, graph, *,
     adjustment_sets, given, spec_x: dict, spec_y: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
-) -> None:
+) -> Claim:
     """Frontier E numeric end when BOTH channels are misclassified.
 
     Fires when the caller supplied a validated confusion matrix for this query's
@@ -4024,7 +4030,7 @@ def _try_combined_measurement_correction_estimate(
                 "factorisation — and the correction built on it — does not apply."
             ),
         }
-        return
+        return blocked('design_unavailable')
 
     if not adjustment_sets:
         result["estimator_failure"] = {
@@ -4036,7 +4042,7 @@ def _try_combined_measurement_correction_estimate(
                 "here; no corrected number is produced."
             ),
         }
-        return
+        return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
@@ -4063,14 +4069,14 @@ def _try_combined_measurement_correction_estimate(
             "failure_type": getattr(exc, "failure_type", "estimator_failure"),
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "combined_measurement_error_correction",
             "failure_type": "invalid_input",
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": est.point,
@@ -4107,6 +4113,7 @@ def _try_combined_measurement_correction_estimate(
         given=frozenset(given), estimate=est,
     )
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _regression_calibration_block(est) -> dict:
@@ -4135,7 +4142,7 @@ def _try_regression_calibration_estimate(
     q_stmt, result: dict, contract, graph, *,
     adjustment_sets, given, error_map: dict,
     random_state: int, ci_bootstrap: int, cluster: str | None = None,
-) -> None:
+) -> Claim:
     """Continuous-mismeasurement numeric end + honest gate for a mismeasured
     continuous EXPOSURE and/or back-door COVARIATE (regression calibration).
 
@@ -4168,7 +4175,7 @@ def _try_regression_calibration_estimate(
                 "is produced."
             ),
         }
-        return
+        return blocked('design_unavailable')
 
     # A mismeasured covariate must be adjusted for to be corrected; prefer a
     # back-door set that contains every named covariate, else fall back to the
@@ -4195,7 +4202,7 @@ def _try_regression_calibration_estimate(
                 f"adjusted for to be corrected."
             ),
         }
-        return
+        return blocked('design_unavailable')
 
     try:
         est = estimate_regression_calibration(
@@ -4213,14 +4220,14 @@ def _try_regression_calibration_estimate(
             "failure_type": getattr(exc, "failure_type", "estimator_failure"),
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "regression_calibration",
             "failure_type": "invalid_input",
             "reason": str(exc),
         }
-        return
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "point": est.point,
@@ -4258,6 +4265,7 @@ def _try_regression_calibration_estimate(
         given=frozenset(given), estimate=est,
     )
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _try_outcome_error_assessment(
@@ -4269,7 +4277,7 @@ def _try_outcome_error_assessment(
     y_atom,
     adjustment_sets,
     spec: dict,
-) -> bool:
+) -> Claim:
     """Assess what a declared classical outcome-error variance costs, and say
     whether the query may proceed.
 
@@ -4296,7 +4304,7 @@ def _try_outcome_error_assessment(
                 "identified here; no assessment is issued."
             ),
         }
-        return False
+        return blocked('design_unavailable')
 
     chosen = min(adjustment_sets, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
@@ -4314,14 +4322,14 @@ def _try_outcome_error_assessment(
             "failure_type": getattr(exc, "failure_type", "estimator_failure"),
             "reason": str(exc),
         }
-        return False
+        return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "outcome_measurement_error",
             "failure_type": "invalid_input",
             "reason": str(exc),
         }
-        return False
+        return blocked('estimator_refused')
 
     result["outcome_error"] = {
         "outcome": assessment.outcome,
@@ -4340,7 +4348,7 @@ def _try_outcome_error_assessment(
         "sufficient_statistics": assessment.sufficient_statistics,
         "source": (spec or {}).get("source"),
     }
-    return True
+    return annotated()
 
 
 def _build_measurement_correction_derivation_dict(
@@ -5613,7 +5621,7 @@ def _ar_derivation_inputs(ar) -> dict:
 def _try_iv_overid_estimate(
     result, contract, graph, *, x, y, instruments, conditioning,
     random_state, ci_bootstrap, cluster,
-) -> bool:
+) -> Claim:
     """Over-identified 2SLS (q ≥ 2 instruments) + Sargan test. Attaches the
     numeric block (with the Sargan over-identification test and the moment
     sufficient statistics), builds a derivation ending in
@@ -5635,7 +5643,7 @@ def _try_iv_overid_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state, cluster=cluster,
         )
     except (ValueError, np.linalg.LinAlgError):
-        return False
+        return passed('estimator_refused')
 
     numeric = {
         "point": est.point,
@@ -5702,7 +5710,7 @@ def _try_iv_overid_estimate(
     )
     _attach_overid_iv_warnings(result, est)
     _finalise_numeric_result(result)
-    return True
+    return answered()
 
 
 def _build_iv_overid_numeric_derivation_dict(
@@ -6151,7 +6159,7 @@ def _try_dose_response_estimate(
     sampling_points, random_state, model,
     graph, x, y, chosen, given,
     cluster: str | None = None,
-) -> bool:
+) -> Claim:
     """Fit the dose-response curve and attach to ``result``. Returns
     True when an estimate was attached (success OR structured-error),
     False when dispatch should fall through to the binary path."""
@@ -6182,7 +6190,7 @@ def _try_dose_response_estimate(
             "install_hint": exc.install_hint,
             "estimator": estimator_label,
         }
-        return True
+        return blocked('estimator_dependency_missing')
     except EstimatorFailure as exc:
         # Slice c: structured failures with a typed cause and the
         # diagnostic detail block the estimator collected.
@@ -6194,7 +6202,7 @@ def _try_dose_response_estimate(
         if exc.details:
             block["details"] = exc.details
         result["estimator_failure"] = block
-        return True
+        return blocked('estimator_refused')
     except (ValueError, RuntimeError) as exc:
         # Fallback: untyped failure. Same shape, failure_type='unknown'.
         result["estimator_failure"] = {
@@ -6202,7 +6210,7 @@ def _try_dose_response_estimate(
             "failure_type": "unknown",
             "reason": str(exc),
         }
-        return True
+        return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
         "method": est.method,
@@ -6248,7 +6256,7 @@ def _try_dose_response_estimate(
         estimate=_LinearDMLAdapter(est),
     )
     _finalise_numeric_result(result)
-    return True
+    return answered()
 
 
 class _LinearDMLAdapter:
