@@ -188,7 +188,7 @@ gap 报告还在提示 `mediation_identification_assumption_required`。
 **识别层对**：其注释已明确论证「一个元素的块仍是块，k=1 时 estimator 逐字节相同，
 否则就是用户看不见的静默能力丢失」。估计层的 `>= 2` 没跟上这个决定。
 
-### 发现 B（读代码确认，未端到端跑）—— `mediator` 守卫吞掉 transport 的数值端
+### 发现 B（已实测确认，三组对照）—— `mediator` 守卫吞掉 transport 的数值端
 
 `docs/l3_simulation/case_009_mediation_x_transport.json` 是一个**真实存在**的
 同时带 `mediator` 与 `target_population` 的 case。
@@ -201,9 +201,35 @@ gap 报告还在提示 `mediation_identification_assumption_required`。
 → E5 的 transport 数值端永远不可达。识别层说 transport 可识别，估计层一个数都不给，
 也不说为什么。
 
-**识别层对**。估计层应当跟随识别层的选择，或像识别层一样显式拒绝。
-**诚实标注：路径由读代码确认（`dispatch.py:762-768` + `_try_mediation_estimate`
-的 `decomp is None → return`），未构造带数据的 transport×mediator 程序端到端验证。**
+**三组对照实测**（`tests/test_estimation_transport.py` 的 `_transport_program`
++ `_balanced_source`，把「图变了」与「字段变了」分开）：
+
+| | 识别端 | 估计端 |
+|---|---|---|
+| A 基线（图里无 m） | transport，`structurally_solved` | `transport_post_stratification`，**0.4106** |
+| B 图里加 `x→m→y`，query 不写 `mediator` | transport，`structurally_solved` | **0.4106**（与 A 逐位相同） |
+| C 同 B 的图，query 写 `mediator: m` | transport，`structurally_solved` | **三个答案通道全空** |
+
+图相同、数据相同、`extensions.transport_identification` 块**逐字段相同**；
+只多了一个字段，数就没了。C 的 `numeric_estimate` / `numeric_result` /
+`bounds_result` 全是 `None`，而 `estimator_failure` **也是 `None`**——
+估计层对自己什么都没产出这件事一个字都没记。
+
+**二阶发现**：C 的缺口报告 `answer_tier` 仍然是 **`point`**，即它向读者
+承诺一个信封里任何通道都不存在的点答案。（A/B 也是 `point`，那里名副其实。）
+本档只在这个情形下观测到，**未核实 `answer_tier` 在其他空信封情形下是否同样
+失准**——那是独立一条。
+
+C 相对 B 多出的四条缺口（`missing_distribution`、
+`transport_source_conditional_unknown`、`transport_target_distribution_unknown`、
+`unattempted_layer_due_to_dispatch_conflict`）中，前三条是 theta 侧的
+investigation 请求——B 的数值端把它们消掉了，C 没有数值端所以留着。**不是
+误报**，是"没人来满足它们"的正常后果。第四条来自识别层，是它诚实报出的冲突。
+
+**识别层对**。估计层应当跟随识别层的选择，或像识别层一样显式拒绝；
+现状是两者都不做。路径由读代码定位（`dispatch.py:762-768` 的**无条件
+`continue`** + `_try_mediation_estimate` 的 `decomp is None → return`），
+由上表端到端坐实。
 
 ### 发现 C（已实测确认）—— 声明一个假设，把无假设的答案换成了需假设的答案
 
@@ -249,7 +275,9 @@ P(Y=1\|do(x=1))（DGP 真值 0.6036）；0.2122 是 Wald LATE，一个对比量
 - 差异 2 说明守卫必须是**输入条件**，不许读结果残迹——策略表的 `applies_when`
   只允许对 (query, graph, program, specs) 求值，**不允许读 result**。这条写进
   slice 2 的验收。
-- 发现 A/B 必须**先单独修**再重构（charter 纪律：真 bug 不混进重构）。
+- 发现 A 已修（`9e91534`）。**发现 B / C 均已实测确认，必须先单独修再重构**
+  （charter 纪律：真 bug 不混进重构）。B 的修法要连带决定 `answer_tier`
+  在空信封上该报什么；C 的修法就是把识别层的 precedence 翻成无假设优先。
 
 ## 显式 Out-of-scope
 
