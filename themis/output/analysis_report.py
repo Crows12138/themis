@@ -155,7 +155,7 @@ def _render_answer(result: dict) -> str:
 
     # 1. Data-path numeric estimate (strongest).
     if ne and ne.get("point") is not None:
-        return _render_numeric_estimate(ne)
+        return _render_numeric_estimate(ne, result.get("outcome_error"))
 
     # 1b. Causation bounds answer (PN/PS/PNS recovered from data, non-monotone):
     #     no single point, but three identified intervals — render them.
@@ -222,7 +222,7 @@ def _render_causation_bounds(poc: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_numeric_estimate(ne: dict) -> str:
+def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None) -> str:
     point = _fmt(ne["point"])
     lines = []
     if ne.get("ci_lower") is not None and ne.get("ci_upper") is not None:
@@ -250,6 +250,18 @@ def _render_numeric_estimate(ne: dict) -> str:
     pb = ne.get("precision_budget")
     if pb and pb.get("hint"):
         lines.append(f"- 精度：{pb['hint']}")
+
+    # Printed next to the precision hint on purpose: that hint says how many
+    # more subjects would halve the interval, and part of this interval is
+    # measurement noise that no number of subjects removes. Saying only the
+    # first sends the reader to buy the wrong thing.
+    if outcome_error and outcome_error.get("se_inflation"):
+        lines.append(
+            f"- 结局测量误差：区间比结局测准时宽 "
+            f"{outcome_error['se_inflation']:.2f} 倍（未解释变异中 "
+            f"{outcome_error['noise_share']:.0%} 是测量噪声）；点估计不受影响，"
+            "但这部分宽度只能靠把结局测准、加样本量消不掉。"
+        )
 
     sa = ne.get("sensitivity_analysis")
     if sa and sa.get("note"):

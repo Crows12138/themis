@@ -1407,6 +1407,15 @@ def _classify_measurement_error_concern(
     case (X with self-reported measurement) AND confounder-on-the-
     backdoor-path cases (Z with 24h-recall measurement) — the
     bias story applies to both.
+
+    What the noise COSTS, however, depends on the role, and the gap names
+    the role for that reason. From the exposure it attenuates; from a
+    covariate it leaves residual confounding in either direction; from a
+    DISCRETE outcome it attenuates too — but from a continuous outcome
+    under classical additive error it costs no bias at all, only precision,
+    because conditional means are preserved. The gap still fires there:
+    the noise is real and its price is worth knowing, and the numeric end
+    quantifies that price rather than correcting a bias that is not there.
     """
     if program is None or stmt is None:
         return
@@ -1471,10 +1480,22 @@ def _classify_measurement_error_concern(
             break  # one (variable, field) per variable is enough
     if not flagged:
         return
-    # Stable, deterministic listing for the description and provenance.
+    # Stable, deterministic listing for the description and provenance. The
+    # ROLE is named alongside each variable because it is what decides the
+    # consequence: the same noise attenuates from the exposure, leaves residual
+    # confounding from a covariate, and — on a continuous outcome — costs only
+    # precision. A list without roles reads as one undifferentiated threat.
     flagged.sort()
+
+    def _role(pred: str) -> str:
+        if pred == intervention_pred:
+            return "暴露"
+        if pred == target_pred:
+            return "结局"
+        return "路径上协变量"
+
     var_summary = ", ".join(
-        f"{pred} ({field}: 含 “{needle}”)"
+        f"{pred}〔{_role(pred)}〕({field}: 含 “{needle}”)"
         for pred, field, needle in flagged
     )
     yield DataGap(
@@ -1509,6 +1530,11 @@ def _classify_measurement_error_concern(
             "向零衰减，单暴露即 βx=b_naive/λ，λ=1−σ²_u/Var(W|Z) 是连续版 det(M)；"
             "误测混杂=对噪声代理调整留下的残差混淆偏倚，可朝任意方向，由整条矩阵"
             "求逆去偏无标量捷径），由 verify_regression_calibration_numeric 独立重导。"
+            "被误测的若是**连续结局**则另当别论：经典加性误差 Y=Y*+V 不改变任何条件"
+            "均值，点估计无偏、无可校正；同一入口 measurement_error={<结局名>: "
+            "{error_variance}} 给出的是代价——残差方差按 Var(Y|D)=Var(Y*|D)+σ²_v "
+            "分解，区间比结局测准时宽 √(Var(Y|D)/Var(Y*|D)) 倍，这部分靠加样本量"
+            "消不掉、只能靠把结局测准（由 verify_outcome_error 独立重导）。"
         ),
         blocks=GapBlocks.IDENTIFICATION,
         if_provided=(
@@ -1518,7 +1544,8 @@ def _classify_measurement_error_concern(
             "方差 σ²_u（重复测量 test-retest / 验证子样本），可经 "
             "estimate(measurement_error={<暴露或混杂名>: {error_variance}}) 用 "
             "regression calibration 去偏（误测混杂纠正残差混淆；非线性结局的 SIMEX "
-            "与误测结局仍推迟）；或 (c) gold-standard "
+            "仍推迟）；连续结局的 σ²_v 同一入口给出的是精度代价而非校正，"
+            "因为它本就不偏；或 (c) gold-standard "
             "亚样本（如 BP 用 ABPM、sodium 用 24h 尿钠）做校准"
         ),
         alternative_paths=(

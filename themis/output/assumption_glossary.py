@@ -337,6 +337,17 @@ _PREFIX: tuple[tuple[str, _Entry], ...] = (
      (_ID, _INVAL, False, "后门调整集充分：{} 阻断 X→Y 的所有后门路径")),
     ("backdoor_adjustment_",
      (_ID, _INVAL, False, "后门调整：{}")),
+    # A mismeasured continuous outcome: the first premise is what makes the
+    # point estimate immune to the noise, so its failure kills the answer; the
+    # second only fixes how much precision the noise is said to cost.
+    ("outcome_error_classical_non_differential_on_",
+     (_ID, _INVAL, False,
+      "结局 {} 的测量误差是经典可加且**非差异**的（与暴露、调整集、真实结局独立，"
+      "均值 0）——正因如此点估计不受它影响；若误差随暴露臂或真实结局而变，点估计有偏")),
+    ("outcome_error_variance_known_and_fixed_on_",
+     (_CI, _CONF, True,
+      "结局 {} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，"
+      "但不传播验证研究自身对 σ²_v 的不确定性")),
     ("monotonicity_",
      (_ID, _INVAL, False, "单调性（{}）")),
     ("mtr_",

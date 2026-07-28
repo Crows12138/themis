@@ -91,6 +91,7 @@ from .verifier import (
     verify_assoc,
     verify_assumption_ledger as _verify_assumption_ledger_rule,
     verify_cluster_inference as _verify_cluster_inference_rule,
+    verify_outcome_error as _verify_outcome_error_rule,
     verify_causation,
     verify_causation_numeric,
     verify_counterfactual_cell_numeric,
@@ -1247,6 +1248,12 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # ride on the result.
     _verify_cluster_inference_rule(result)
 
+    # Independent audit of the outcome measurement-error assessment. The block
+    # changes no number, so the only thing that can be wrong with it is its
+    # arithmetic or its silence — and the premise it leaves unsaid
+    # (non-differential error) is the one holding the point estimate up.
+    _verify_outcome_error_rule(result)
+
     # Iter 126/127/130: independent audit of bounds_result. Each
     # producer has a dedicated verifier; verifier trilogy now complete
     # for the 3 implemented BoundsMethod values.
@@ -1445,6 +1452,26 @@ def verify_cluster_inference(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _verify_cluster_inference_rule(result)
+
+
+def verify_outcome_error(result: dict) -> None:
+    """Independently audit one result's outcome measurement-error assessment.
+
+    The result-only counterpart to :func:`verify`, for the same reason as
+    :func:`verify_cluster_inference`: the assessment rides on the result rather
+    than on a derivation chain, and it can attach to an answer whose status
+    never flips to ``numerically_solved``.
+
+    Returns ``None`` on accept. Raises ``VerificationError`` when a reported
+    scalar does not follow from the recorded moments, when the assessed design
+    is not the design the estimate fitted, or when the assessment's premises —
+    above all the non-differential-error premise that is the reason no
+    correction was applied — never reach the estimate's declared assumptions.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _verify_outcome_error_rule(result)
 
 
 def verify_markov_blanket(result: dict) -> None:

@@ -269,27 +269,33 @@ def test_not_backdoor_identified_refuses():
         assert fail["failure_type"] == "requires_backdoor_identification"
 
 
-def test_continuous_outcome_mismeasurement_deferred():
-    """A σ²_u on the OUTCOME is refused (exposure-side only), not silently ignored."""
+def test_outcome_side_spec_does_not_claim_the_query():
+    """A σ²_v on the OUTCOME is not this estimator's business: it corrects
+    nothing, so the ordinary back-door answer must still be produced."""
     df, *_ = _make_data(seed=11, n=20_000)
     out = themis.estimate(
         _program(), df, ci_bootstrap=0, measurement_error={"y": {"error_variance": 1.0}},
     )
-    fail = out["results"][0].get("estimator_failure")
-    assert fail is not None
-    assert fail["failure_type"] == "continuous_outcome_mismeasurement_deferred"
+    r = out["results"][0]
+    assert r.get("estimator_failure") is None
+    assert r["numeric_estimate"]["method"] != "regression_calibration"
+    assert "outcome_error" in r
 
 
-def test_combined_mismeasurement_deferred():
-    """σ²_u for BOTH exposure and outcome ⇒ combined correction refused."""
-    df, *_ = _make_data(seed=11, n=20_000)
+def test_outcome_spec_composes_with_the_exposure_correction():
+    """σ²_u on the exposure AND σ²_v on the outcome: the exposure correction
+    still runs — the outcome's error biases nothing, so withholding the
+    corrected slope over it would throw away the one correction available."""
+    df, bx, _bz, _lam = _make_data(seed=11, n=20_000)
     out = themis.estimate(
         _program(), df, ci_bootstrap=0,
         measurement_error={"x": {"error_variance": 1.0}, "y": {"error_variance": 1.0}},
     )
-    fail = out["results"][0].get("estimator_failure")
-    assert fail is not None
-    assert fail["failure_type"] == "combined_mismeasurement_deferred"
+    r = out["results"][0]
+    assert r.get("estimator_failure") is None
+    assert r["numeric_estimate"]["method"] == "regression_calibration"
+    assert r["numeric_estimate"]["point"] == pytest.approx(bx, abs=0.05)
+    assert r["outcome_error"]["error_variance"] == 1.0
 
 
 # --- mismeasured CONFOUNDER / covariate (E placed off the exposure column) -----

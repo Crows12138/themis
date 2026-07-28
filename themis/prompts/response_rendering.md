@@ -500,6 +500,7 @@ df)`, not from symbolic Theta.
 | `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column / NaN / coercion); always surface |
 | `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
 | `estimation_context.cluster` | the column this run treats as the unit of independence. Present → the interval is only as good as that choice, and every estimator says in its own assumptions whether it honoured it (a cluster bootstrap) or could not (an analytic interval). When one could not, say so where you report that interval: an interval computed on rows that are not independent is narrower than the evidence supports. |
+| `outcome_error.{noise_share, se_inflation}` | present → the outcome carries a declared measurement error that costs precision but NOT bias; the point beside it needs no correction. Report `se_inflation` as how much of the interval's width is measurement rather than sample: that part shrinks only by measuring the outcome better, not by collecting more of it — see §"Measurement-error correction" |
 
 **The point value's meaning depends on `method`** — never dump
 `point: -0.069` raw:
@@ -1075,17 +1076,41 @@ note what is different:
   identified) is a refusal — the corrected slope was withheld, NOT the biased naive
   slope silently shipped.
 
+**A mismeasured CONTINUOUS OUTCOME (`result.outcome_error`) is the case where
+there is nothing to correct, and saying so is the answer.** A classical additive
+error on a continuous outcome leaves every conditional mean unchanged, so the
+effect estimate beside it is the ordinary one and is already right — do not
+report it as attenuated, and do not ask the reader for a validation study they
+do not need. What the declared σ²_v buys is the *price*: `residual_variance`
+splits into `signal_variance` + `error_variance`, `noise_share` is the fraction
+of the outcome's unexplained variation that is pure measurement, and
+`se_inflation` is how much wider the reported interval is than the same design
+would have produced on a perfectly measured outcome. Lead with that factor when
+it is material, because it separates the two remedies: the inflated part cannot
+be bought back with more subjects, only with better measurement (repeat
+measures averaged, a better instrument). The premise doing the work is that the
+error is **non-differential** — if it tracks the exposure arm or the true
+outcome, the point IS biased and this reasoning does not apply; it reaches the
+assumption ledger at `invalidating` severity, so it is named where you report
+the number, not buried with the precision caveat beside it. An
+`outcome_measurement_error` `estimator_failure` is a refusal, and each kind
+names a different mistake: `outcome_not_continuous` means the outcome is
+discrete, where the error DOES attenuate and IS correctable — point the reader
+at `misclassification=`; `outcome_error_exceeds_residual_variance` means the
+declared σ²_v does not fit under the variation the data leave unexplained, so
+the independence premise itself is in doubt and no number was shipped.
+
 Scope: the correction covers **outcome** and **binary-exposure** misclassification
 (discrete, confusion-matrix) **non-differential OR differential** — the differential
 axis may be the exposure arm (outcome side) / the outcome (exposure side) OR, on
 either side, a back-door covariate (`differential_by`)
 — and a **continuous exposure and/or covariate** with classical additive error
 (regression calibration), all with **known** (fixed) matrix / matrices / error
-variance. A multi-level exposure, a combined (exposure AND outcome) correction, a
-matrix jointly differential in the arm/outcome AND a covariate, a mismeasured
-**outcome** on the continuous side, Berkson / differential continuous error, and a
-nonlinear outcome (SIMEX) are out of scope and stay in the
-`measurement_error_concern` gap's territory.
+variance; a continuous mismeasured **outcome** is assessed rather than corrected,
+for the reason above. A multi-level exposure, a combined (exposure AND outcome)
+correction, a matrix jointly differential in the arm/outcome AND a covariate,
+Berkson / differential continuous error, and a nonlinear outcome (SIMEX) are out
+of scope and stay in the `measurement_error_concern` gap's territory.
 
 ### Mediation decomposition (Phase 6.mediation / Phase 7.4)
 

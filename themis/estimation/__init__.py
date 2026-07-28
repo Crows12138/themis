@@ -94,7 +94,20 @@ Landed scope:
   reliability ``λ_v = 1 − σ²_uv/Var(V|rest)`` (the continuous analogue of det(M))
   are closed forms of the recorded design covariance + error variances, so the
   verifier re-derives them without the raw data. Deferred: Berkson / differential
-  error, a mismeasured outcome, a nonlinear outcome (SIMEX).
+  error, a nonlinear outcome (SIMEX).
+- Continuous mismeasurement of the OUTCOME — ``assess_outcome_error`` (returning
+  ``OutcomeErrorAssessment``): the third role, and the only one that costs no
+  bias. A classical additive error on a continuous outcome (``Y = Y* + V``,
+  ``E[V|D] = 0``) leaves every conditional mean unchanged, so no estimand here
+  moves and there is nothing to de-attenuate — the ordinary number stands. What
+  the known σ²_v buys is the price: ``Var(Y|D) = Var(Y*|D) + σ²_v`` splits the
+  residual variance into signal and measurement noise, and
+  ``sqrt(Var(Y|D)/Var(Y*|D))`` is the factor by which the noise widens every
+  least-squares interval on that design — the uncertainty more subjects cannot
+  buy back. It composes with the exposure-side correction rather than displacing
+  it. Refuses a discrete outcome (that is misclassification, which DOES attenuate
+  and IS correctable) and a σ²_v that does not fit under the observed residual
+  variance (which refutes the very independence premise the point rests on).
 - Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
   ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
   ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via
@@ -367,6 +380,10 @@ from .missing_recovery import (
     RecoveredATEEstimate,
     estimate_recovered_ate,
 )
+from .outcome_error import (
+    OutcomeErrorAssessment,
+    assess_outcome_error,
+)
 from .regression_calibration import (
     RegressionCalibrationEstimate,
     estimate_regression_calibration,
@@ -435,6 +452,7 @@ __all__ = [
     "orientation_ledger_export",
     "OVBBenchmark",
     "OVBSensitivity",
+    "OutcomeErrorAssessment",
     "PropensitySummary",
     "RecoveredATEEstimate",
     "RegressionCalibrationEstimate",
@@ -471,6 +489,7 @@ __all__ = [
     "estimate_mediation",
     "estimate_ovb_sensitivity",
     "estimate_recovered_ate",
+    "assess_outcome_error",
     "estimate_regression_calibration",
     "estimate_tmle_ate",
     "estimate_transport",

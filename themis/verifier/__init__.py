@@ -137,7 +137,14 @@ Public surface (re-exports from sub-modules):
   silent about it — silence reads as i.i.d. inference the run gave no basis
   for — and a dispatch-written ``bootstrap`` block cannot claim
   cluster-robustness the estimator never corroborated, name a different column
-  than the run resolved, or appear with no cluster column resolved at all)
+  than the run resolved, or appear with no cluster column resolved at all),
+  ``verify_outcome_error`` (the one block that changes no number: a declared
+  classical error on a continuous outcome costs precision but not bias, so the
+  audit is of the split it reports — every scalar re-derived from the recorded
+  Σ_D, Cov(D,Y), Var(Y) and σ²_v — of whether that split was taken on the design
+  the estimate actually fitted, and of whether its premises reach the
+  estimate's declared assumptions, the non-differential-error premise being the
+  entire reason no correction was applied)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -264,6 +271,7 @@ from .bounds_rules import (
 )
 from .assumption_ledger_rules import verify_assumption_ledger
 from .cluster_inference_rules import verify_cluster_inference
+from .outcome_error_rules import verify_outcome_error
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .orientation_rules import verify_orientation_propagation
@@ -290,6 +298,7 @@ __all__ = [
     "verify_causation_numeric",
     "verify_cause",
     "verify_cluster_inference",
+    "verify_outcome_error",
     "verify_counterfactual",
     "verify_counterfactual_cell_numeric",
     "verify_counterfactual_conjunction",

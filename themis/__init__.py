@@ -13,6 +13,7 @@ Public entry points::
         verify_bounds_result,
         verify_assumption_ledger,
         verify_cluster_inference,
+        verify_outcome_error,
     )
 
     # Pure symbolic kernel:
@@ -51,6 +52,13 @@ Public entry points::
     #                            WIDTH only, so an interval that says nothing
     #                            about a named cluster column reads as i.i.d.
     #                            inference the run gave no basis for.
+    #   verify_outcome_error   — audits the one block that changes no number:
+    #                            a declared classical error on a continuous
+    #                            outcome buys a precision statement, not a
+    #                            correction. Applies when the result carries an
+    #                            "outcome_error"; re-derives its variance split
+    #                            and refuses one whose premises never reach the
+    #                            estimate's declared assumptions.
     #
     # The two most common statuses — needs_investigation (identifiable but
     # missing theta) and needs_assumption (counterfactual) — carry NO
@@ -62,6 +70,8 @@ Public entry points::
     verify_data_gap_report(result)              # gap-report audit (always ok)
     verify_assumption_ledger(result)            # disclosure audit (always ok)
     verify_cluster_inference(result)            # independence-unit audit
+    if "outcome_error" in result:
+        verify_outcome_error(result)            # outcome-measurement audit
     if "bounds_result" in result:
         verify_bounds_result(program_json, result)
 
@@ -111,6 +121,7 @@ from .kernel import (
     verify_orientation_propagation,
     verify_orientation_questions,
     verify_orientation_session,
+    verify_outcome_error,
     verify_selection_recovery_numeric,
 )
 from .output.analysis_report import build_analysis_report
@@ -133,5 +144,6 @@ __all__ = [
     "verify_orientation_propagation",
     "verify_orientation_questions",
     "verify_orientation_session",
+    "verify_outcome_error",
     "verify_selection_recovery_numeric",
 ]

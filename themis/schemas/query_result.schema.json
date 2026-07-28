@@ -508,6 +508,44 @@
       "$ref": "derivation.schema.json",
       "description": "Machine-verifiable reasoning chain. Only present when the runtime attached one (identify / effect / probability / cause / assoc). Constrained to the exact derivation.schema.json shape so an external agent can round-trip through derivation_from_dict and re-run the verifier."
     },
+    "outcome_error": {
+      "type": "object",
+      "description": "What a declared classical additive measurement-error variance on a CONTINUOUS outcome (Y = Y* + V, E[V|design] = 0) costs this query. Present only when the caller supplied estimate(measurement_error={<outcome>: {error_variance}}) and the query is back-door identified. It carries no correction and displaces no estimator: such an error leaves every conditional mean unchanged, so the point estimate here is the ordinary one and is already right. What it does carry is the price — the observed residual variance split into signal and measurement noise, and the factor by which that noise widens every least-squares interval on this design. That factor is the part of the uncertainty more subjects cannot buy back, only better measurement. Its ``assumptions`` (chiefly that the error is NON-DIFFERENTIAL, without which the point is not immune after all) are folded into extensions.assumption_ledger under provenance ``measurement_declared``, so they land on the surface the report leads with rather than in a side block each consumer must remember to read.",
+      "required": ["outcome", "treatment", "design_vars", "error_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics"],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": { "type": "string" },
+        "treatment": { "type": "string" },
+        "design_vars": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The design D the outcome is projected on: the exposure followed by the chosen back-door adjustment set, in topological order."
+        },
+        "error_variance": { "type": "number", "exclusiveMinimum": 0 },
+        "residual_variance": { "type": "number", "description": "Var(Y|D) of the OBSERVED outcome around its linear projection on the design." },
+        "signal_variance": { "type": "number", "description": "Var(Y*|D) = residual_variance − error_variance: what is left of the unexplained variation once the declared measurement noise is removed. Strictly positive — a non-positive value means the declared variance does not fit under the data, which is refused rather than reported." },
+        "noise_share": { "type": "number", "minimum": 0, "exclusiveMaximum": 1 },
+        "se_inflation": { "type": "number", "minimum": 1, "description": "sqrt(residual_variance / signal_variance): the factor by which the outcome's measurement noise widens the standard error of every least-squares functional of this design, i.e. the reported interval divided by the interval the same design would have produced on a perfectly measured outcome." },
+        "sample_size": { "type": "integer", "minimum": 0 },
+        "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "assumptions": { "type": "array", "items": { "type": "string" } },
+        "source": { "type": ["string", "null"], "description": "Provenance of the declared error variance (validation study / repeat-measurement substudy), as supplied by the caller." },
+        "sufficient_statistics": {
+          "type": "object",
+          "description": "Σ_D, Cov(D, Y), Var(Y), σ²_v and n — the split is a closed-form function of these, so verify_outcome_error re-derives every reported number without the raw data.",
+          "required": ["design_vars", "cov_matrix", "cov_design_y", "var_y", "error_variance", "n"],
+          "additionalProperties": false,
+          "properties": {
+            "design_vars": { "type": "array", "items": { "type": "string" } },
+            "cov_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+            "cov_design_y": { "type": "array", "items": { "type": "number" } },
+            "var_y": { "type": "number" },
+            "error_variance": { "type": "number" },
+            "n": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
     "numeric_estimate": {
       "type": "object",
       "description": "Phase 7: data-based estimate. For backdoor / front-door / IV queries this is a single ATE point + CI. For mediation queries it carries a ``decomposition`` sub-block with NDE/NIE/TE triples (point + CI each).",
@@ -1544,7 +1582,8 @@
       "properties": {
         "estimator": { "type": "string" },
         "failure_type": {
-          "enum": ["overlap_insufficient", "convergence_failure", "not_recoverable", "external_data_required", "continuous_adjustment", "treatment_not_binary", "reference_missing_column", "insufficient_support", "invalid_input", "unknown"]
+          "enum": ["overlap_insufficient", "convergence_failure", "not_recoverable", "external_data_required", "continuous_adjustment", "treatment_not_binary", "reference_missing_column", "insufficient_support", "invalid_input", "unknown", "requires_backdoor_identification", "outcome_not_continuous", "outcome_error_exceeds_residual_variance", "non_positive_error_variance"],
+          "description": "NOTE: this enum lists far fewer values than the estimators actually emit — a refusal whose type is absent makes the envelope fail its own schema, silently, until someone validates it. The listed set is what has been reconciled so far; the gap is a known defect, not a claim that other refusals are invalid."
         },
         "reason": { "type": "string" },
         "details": { "type": "object" },

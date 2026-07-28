@@ -627,6 +627,15 @@ def augment_assumption_ledger(result: dict) -> None:
     already said the same thing in better words: when the ledger carries an
     ``identification`` entry the flat list is its unstructured twin and is not
     read, leaving those ledgers byte-identical.
+
+    That twin rule is about the estimator's own channel and must not be
+    generalised to every flat-looking list on the result. ``outcome_error`` is
+    a separate channel with a separate author: the caller declared an error
+    model for the outcome, and the premises that carries — above all that the
+    error is non-differential, which is the entire reason the point was left
+    uncorrected — are not restatements of anything identification said. So they
+    are folded whether or not the estimator declared structured assumptions,
+    under their own provenance.
     """
     from .assumption_glossary import classify_assumption
 
@@ -634,7 +643,8 @@ def augment_assumption_ledger(result: dict) -> None:
     if not isinstance(estimate, dict):
         return
     declared = estimate.get("assumptions") or ()
-    if not declared:
+    measured = _outcome_error_premises(result)
+    if not declared and not measured:
         return
 
     extensions = result.setdefault("extensions", {})
@@ -647,14 +657,30 @@ def augment_assumption_ledger(result: dict) -> None:
         # that discloses the estimator's assumptions and hides the audited
         # mechanism sitting next to them.
         entries = list((build_assumption_ledger(result) or {}).get("assumptions") or ())
-    if any(e.get("layer") == "identification" for e in entries):
-        return
 
-    for item in declared:
+    twin = any(e.get("layer") == "identification" for e in entries)
+
+    for item in measured:
         entry = classify_assumption(item)
-        entry["provenance"] = "estimator_declared"
+        entry["provenance"] = "measurement_declared"
         entries.append(entry)
+
+    if not twin:
+        for item in declared:
+            entry = classify_assumption(item)
+            entry["provenance"] = "estimator_declared"
+            entries.append(entry)
 
     ledger = _ledger(entries)
     if ledger is not None:
         extensions["assumption_ledger"] = ledger
+
+
+def _outcome_error_premises(result: dict) -> tuple[str, ...]:
+    """The premises declared by an outcome measurement-error assessment."""
+    block = result.get("outcome_error")
+    if not isinstance(block, dict):
+        return ()
+    return tuple(
+        a for a in (block.get("assumptions") or ()) if isinstance(a, str)
+    )

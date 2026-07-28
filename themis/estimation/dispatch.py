@@ -123,9 +123,18 @@ def _estimate_program(
     the numeric end de-attenuates the regression dilution by the regression-
     calibration moment correction β_true = (Σ_WZ − E)⁻¹ Σ_WZ b_naive instead of
     shipping the attenuated naive back-door slope. Like ``misclassification`` it is
-    a load-bearing external input used only at estimate time. Deferred: Berkson /
-    differential error, a mismeasured outcome / covariate, a nonlinear outcome
-    (SIMEX).
+    a load-bearing external input used only at estimate time.
+
+    A spec on the OUTCOME is a different object, because what a mismeasured
+    variable costs depends on the role it plays. A classical additive error on a
+    continuous outcome leaves every conditional mean — and so every estimand here
+    — unchanged, so nothing is de-attenuated and the ordinary number stands. What
+    the declared σ²_v buys instead is the price: an ``outcome_error`` block
+    splitting the residual variance into signal and measurement noise, and the
+    factor by which that noise widens the interval (the part of the uncertainty
+    more subjects cannot buy back). It composes with an exposure-side spec rather
+    than displacing it. Deferred: Berkson / differential error, a nonlinear
+    outcome (SIMEX).
     """
     from ..kernel import run as _run
 
@@ -856,29 +865,20 @@ def _estimate_effect_queries(
             if k != x_atom.predicate and k != y_atom.predicate
         }
         if me_spec_y is not None:
-            if me_spec_x is not None or me_spec_cov:
-                result["estimator_failure"] = {
-                    "estimator": "regression_calibration",
-                    "failure_type": "combined_mismeasurement_deferred",
-                    "reason": (
-                        "a measurement-error variance was supplied for the OUTCOME "
-                        f"{y_atom.predicate!r} together with another variable; the "
-                        "combined correction is deferred. Supply error variances "
-                        "for the exposure and/or covariates only."
-                    ),
-                }
-            else:
-                result["estimator_failure"] = {
-                    "estimator": "regression_calibration",
-                    "failure_type": "continuous_outcome_mismeasurement_deferred",
-                    "reason": (
-                        "a classical measurement-error variance was supplied for "
-                        f"the OUTCOME {y_atom.predicate!r}; continuous outcome "
-                        "mismeasurement is deferred (regression calibration here "
-                        "corrects the exposure and/or its covariates)."
-                    ),
-                }
-            continue
+            # The outcome channel is the one that costs no bias: a classical
+            # additive error leaves every conditional mean — and so every
+            # estimand here — untouched. There is nothing to de-attenuate, so
+            # this does NOT claim the query; the point still comes from the
+            # ordinary routing below (including the exposure-side correction
+            # when a spec names the exposure too). What the declared σ²_v buys
+            # is the precision cost, assessed and disclosed here. Only a spec
+            # the channel or the data refuse stops the query.
+            if not _try_outcome_error_assessment(
+                result, contract, graph,
+                x_atom=x_atom, y_atom=y_atom,
+                adjustment_sets=adjustment_sets, spec=me_spec_y,
+            ):
+                continue
         if me_spec_x is not None or me_spec_cov:
             # Build the {design variable name → σ²_u} error map; the exposure
             # and/or any named covariate. The handler validates the covariate
@@ -4225,6 +4225,89 @@ def _try_regression_calibration_estimate(
         given=frozenset(given), estimate=est,
     )
     _finalise_numeric_result(result)
+
+
+def _try_outcome_error_assessment(
+    result: dict,
+    contract: DataContract,
+    graph,
+    *,
+    x_atom,
+    y_atom,
+    adjustment_sets,
+    spec: dict,
+) -> bool:
+    """Assess what a declared classical outcome-error variance costs, and say
+    whether the query may proceed.
+
+    Returns True when the assessment succeeded — the caller falls through to
+    the ordinary routing, because a non-differential additive outcome error
+    moves no conditional mean and there is no correction to apply. Returns
+    False after recording an ``estimator_failure``: the spec named the wrong
+    channel (a discrete outcome is misclassification, which DOES attenuate and
+    IS correctable), or the declared variance does not fit under the residual
+    variation the data show — in which case the independence premise that made
+    the point safe is itself in doubt, so no number is shipped.
+    """
+    from .outcome_error import assess_outcome_error
+    from .dose_response import EstimatorFailure
+
+    if not adjustment_sets:
+        result["estimator_failure"] = {
+            "estimator": "outcome_measurement_error",
+            "failure_type": "requires_backdoor_identification",
+            "reason": (
+                "the residual-variance split that quantifies a mismeasured "
+                f"outcome is taken around the back-door design, but P("
+                f"{y_atom.predicate}|do({x_atom.predicate})) is not back-door "
+                "identified here; no assessment is issued."
+            ),
+        }
+        return False
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        assessment = assess_outcome_error(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            error_variance=(spec or {}).get("error_variance"),
+        )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": "outcome_measurement_error",
+            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "reason": str(exc),
+        }
+        return False
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = {
+            "estimator": "outcome_measurement_error",
+            "failure_type": "invalid_input",
+            "reason": str(exc),
+        }
+        return False
+
+    result["outcome_error"] = {
+        "outcome": assessment.outcome,
+        "treatment": assessment.treatment,
+        "design_vars": list(assessment.design_vars),
+        "error_variance": assessment.error_variance,
+        "residual_variance": assessment.residual_variance,
+        "signal_variance": assessment.signal_variance,
+        "noise_share": assessment.noise_share,
+        "se_inflation": assessment.se_inflation,
+        "sample_size": assessment.sample_size,
+        "data_hash": assessment.data_hash,
+        "assumptions": list(assessment.assumptions),
+        # Σ_D, Cov(D, Y), Var(Y), σ²_v, n — the split is a closed-form function
+        # of these, so verify_outcome_error re-derives it without the data.
+        "sufficient_statistics": assessment.sufficient_statistics,
+        "source": (spec or {}).get("source"),
+    }
+    return True
 
 
 def _build_measurement_correction_derivation_dict(
