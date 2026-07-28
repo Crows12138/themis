@@ -347,6 +347,89 @@ P(Y=1\|do(x=1))（DGP 真值 0.6036）；0.2122 是 Wald LATE，一个对比量
 `produces` 字段兑现它**，届时驱动可以断言：一次 `passed` 之后真正作答的策略，
 其估计量必须与放行者相同。
 
+## Slice 2 产出 — 估计层策略表 + 驱动（2026-07-29 完成）
+
+`themis/estimation/strategy.py` 是协议，`dispatch.py` 里 `_EFFECT_STRATEGIES`
+是表，`_estimate_effect_queries` 从 **570 行降到 ~90 行**且只做一件事：
+装配一个策略被允许看见的东西，然后把查询逐条递给表。
+
+**18 行，优先级 10..180**，与旧链逐条同序（有一条测试逐字钉住这个顺序，
+所以任何重排必须是对那张清单的显式编辑，而不是挪代码的副作用）。其中
+13 行是原有 `_try_*`；**5 行是原先内联在链里的**——backdoor / frontdoor /
+IV-Wald / doubly-robust / dose-response 二值回退。不抽出来的话优先级仍有一半
+是行号，表就是假的。
+
+### 三个结构性判定
+
+1. **守卫看不见本层输出——不是约定，是没有那个属性。** `EffectFacts` 没有
+   `result` 字段，想读只能 AttributeError。守卫**可以**读识别层的结论
+   （`selection_recovery` 是识别层写的，估计层无人写），那是分层边界在正常
+   工作。一条测试要求每个守卫的 lambda 体内除了自己的参数和 builtins 不许
+   出现任何名字——**守卫是 facts 的纯函数**。
+2. **E1（longitudinal 已作答）不是守卫，是驱动的终止条件。** 它测的是
+   「前一趟已经认领了这个 result」，没有任何策略靠它路由。归到驱动后，
+   「守卫不许读 result」这条就不是例外条款而是全称成立。它仍在嗅方法名残迹，
+   **这一点没修**：让 longitudinal 那趟显式声明认领，要先回答「它因识别失败
+   而拒答、什么残迹都不留时该发生什么」——那是行为问题不是表的问题，**登记
+   独立一档**。
+3. **表覆盖的是效应级联，不是全部 19 个 `_try_*`。** 另外 6 个各自属于
+   「一个 query kind 一个策略」的驱动（ctf / proximal / causation /
+   counterfactual cell / scm），**没有级联就没有优先级漂移**，现在入表只增加
+   条目不消除风险。它们在 slice 6（派生面需要块登记时）入表。
+
+### 用全量套件实测了级联真正在做什么
+
+驱动返回 `Evaluation`，套件跑一遍收集到 **434 次求值**（探针是外挂 pytest
+plugin，不进仓）：
+
+| 读法 | 实测 |
+|---|---|
+| `fired` | backdoor 98 · iv_wald 70 · dose_response 29 · 各测量误差臂 59 · mediation 30 · frontdoor 19 · joint 15 · general_id 14 · transport 9 · selection_recovery 5 |
+| `declined` | 20 种 (策略, 理由) 组合，最大宗是 `dose_response_curve\|estimator_refused` 6 次 |
+| `passed_by` | **92 次，其中 88 次是 general_id** |
+| `substitutions` | **只有两种形状**：general_id→IV 80 次，mediation_single→transport 1 次 |
+| 无人作答且无人记录 | **8 次** |
+
+### 实测把交接来的不变量改了形状——然后兑现了它
+
+slice 1 交棒时写的是「往下传只有在接手者回答同一个问题时才合法」。
+**实测证明这条按字面讲是错的**：general_id 放行、IV 作答的 80 次里，IV 给的是
+complier 上的对比量，根本不是同一个量——而那正是有意为之的逃生梯，且答案上
+挂着 `late_caveat`。按字面执行会打断 81 个正确路径。
+
+正确的规则是「**替换必须被声明**」，落成 `Strategy.defers_to`：一行只有在表里
+写明「我允许 X 用别的估计量替我作答」时，X 才可以。同估计量的接力不需要声明
+（本来就是同一个问题）。全表**只有两条声明**，恰好等于实测出的两种形状；
+其余任何替换当场 `AssertionError`。
+
+**这条规则抓得住我自己犯过的那个错。** slice 1 里 Fix B 的第一版让中介按
+「有没有产出数」认领，于是分解型查询掉进 backdoor 拿到总效应——
+`backdoor ∉ mediation_single.defers_to`，会直接炸。而如果规则改用「理由是否
+许可替换」（`identification_chose_another_strategy` 就放行），那次就抓不到。
+**规则选型是按「它能不能抓住已经发生过的错」定的，不是按听起来是否优雅。**
+
+### 实测顺带查出的两件事（都不在本档修）
+
+- **`general_id` 的 88 次放行全部报 `estimator_refused`。** 读它那个宽 except
+  的注释，它自己写明吞了三样东西：「非参数不可识别」（结构，该 `not_identified`）、
+  「超出插件二值范围」（本包，该 `numeric_end_not_built`）、「positivity 拒绝」
+  （数据）。理由词汇表的意义是告诉读者**谁能改变它**，而全系统流量最大的拒绝点
+  报的是错的那个。这就是 slice 1 登记的「9 处宽 except」条目——**现在它有数字了
+  ：88/92**。拆它是行为变更，仍独立一档。
+- **8 次「无人作答且无人记录」**，恰好 = 88 次 general_id 放行 − 80 次 IV 接手。
+  即：非参数识别失败且图上没有工具变量 → 信封里没有数，也没有 `estimator_failure`。
+  这正是发现 B 的形状，是既有行为，**现在是一个被测出来的数而不是一个猜想**。
+  slice 4（`declined` → 缺口）的第一批客户就是它。
+
+### 顺带结清的两个登记项
+
+- slice 1 记的「`_try_dose_response_estimate` 调用点注释在说谎」——那句注释随
+  内联分支一起消失了。
+- slice 1 的元测试「调用点必须读 `.stops_here`」在表化之后会**空转**（没有
+  `if handler(...)` 了）。改成更强的一条：**dispatch.py 里任何 `if` 的条件中
+  都不许出现 `_try_*` 调用**——多一个手写分支就是多一个派发器，而两个派发器
+  正是两层当初漂开的原因。
+
 ## 显式 Out-of-scope
 
 - 验证器的任何「消重」。
