@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3607 passed / 144 skipped, warning-clean
+3608 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -716,6 +716,18 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **顺带发现但只修了自己那部分**——`estimator_failure.failure_type` 是个**封闭 enum，只列了 10 个值，而估计器实际会发出 51 个**：任何一次拒绝只要类型不在表里，信封就**不满足自己的 schema**，而所有公开 verify 入口都先 `validate_result`，于是那种结果**根本无法被审计**。本档只把自己新发的四个补进去并加了「拒绝信封也要过 schema」的测试，同时在 schema 描述里写明这个缺口是**已知缺陷**而不是"其余拒绝都合法"的断言。系统性修法（enum 该不该封闭）另开一档。
 
 **基线**：3573 → **3607**。
+
+**一个元素的块在数据端被丢掉（2026-07-28d，Phase 17 slice 0 的产物）**：修复型。为 `PHASE_17_STRATEGY_TABLE_CHARTER.md` 做守卫等价性审计时实测出来的第一个真 bug。
+
+**现象（实测）**——同一份 AST、同一份数据，只把 `mediators` 从 `[m1, m2]` 换成 `[m1]`：识别端两种情形都给出联合块且 `identifiable`；估计端 k=2 给 `mediation_joint_linear` 带 `decomposition`，k=1 给 **`backdoor_linear`，point 2.2018，没有 decomposition**——而真值 NIE 是 1.70，2.2018 是**总效应**。同一个信封里同时挂着 `extensions.mediation_joint_decomposition`（"我做了分解"）和一个与中介无关的数，缺口报告还在提示 `mediation_identification_assumption_required`。
+
+**根因**——`_estimate_effect_queries` 的守卫是 `len(mediators) >= 2`，一个**关于集合大小**的判断，而路由该依据的是**这个查询问的是什么**。表象读法是"阈值写错了"，但 `>= 2` 当初不是笔误：它是在"两个以上走联合、一个走单数路径"的分流意图下写的。真问题是 `mediators` 与 `mediator` 是**两个不同的字段**，填了前者永远不会填后者，所以"一个走单数"这条路在字段层面根本不通——尺寸阈值不是分流，是**丢弃**。识别层后来认识到了这点并改成 `if q.mediators:`（注释明确论证"一个元素的块仍是块，k=1 时 estimator 逐字节相同，否则就是用户看不见的静默能力丢失"），**估计层没跟上**。这正是 Phase 17 要消灭的东西：同一个分流决定被两层各自表达，然后漂移。
+
+**改法**——守卫改为 `if q_stmt.query.mediators:`，与识别层同源。全仓只此一处 `>= 2`；`estimate_mediation_joint` 的 k=1 支持早就存在且由 `test_k1_equivalence_to_single_mediator_linear` 独立钉住（它在 k=1 时逐位等于 `estimate_mediation`），卡住的只有这个守卫。注释重写成说原理而非说数字。
+
+**测试**——`test_a_block_of_one_reaches_the_data_end_too`，紧挨识别端的 `test_a_block_of_one_is_still_answered`，**成对，一层一条**。断言链是「识别层说做了分解 ⟹ 数必须是那个分解」而非硬编码字符串：先核 `nde_nie.identifiable`，再核 method，最后以 `estimate_mediation(mediator="m1")` 作**独立 oracle** 校 NDE/NIE 两个点（k=1 等价性由另一条测试独立钉住，故非自证）。**D1**：改前红在 `assert 'backdoor_linear' == 'mediation_joint_linear'`——fixture 正常执行、识别层断言先过，红的是行为不是环境。全仓仅两处构造单元素 `mediators`（识别端老测试 + 本条），**没有任何测试断言过旧行为**。
+
+**基线**：3607 → **3608**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
