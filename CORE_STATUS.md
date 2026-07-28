@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3496 passed / 144 skipped, warning-clean
+3542 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -655,7 +655,25 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 
 **D1**——新能力的红是"这东西当时不存在"，要分清：真正因行为改变而红的是 3 条（合成分派把拒绝翻成 `numerically_solved` 且点落在潜真值 ±0.03；差异通道给出的是**新的**专用 failure_type 而非旧的通用拒绝；诚实结果通过 verify）；9 条估计器级测试在改前代码上**连收集都过不去**（符号不存在）；7 条篡改测试红在 `KeyError: numeric_estimate`（旧代码没产出可篡改的对象）=**机械原因，不算作证明了什么**。真值 oracle 是模拟 SCM 的潜 X*/Y*：双边校正恢复潜真 RD（0.3014 vs 0.3002），而 naive 偏 0.140、**只校正结局偏 0.086、只校正暴露偏 0.074**——最后这一对才是这个估计器存在的理由，写成了测试。恒等矩阵通道退化回对应的单通道估计量（1e-9）。旧的 `test_combined_exposure_and_outcome_spec_deferred` 改写成钉住新路由。+19 →**3496**。
 
-**基线**：3477 → **3496**（更早 3458 → 3477、3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**假设账本对多数估计器是瞎的：把披露面接到唯一的漏斗（2026-07-28）**：修复型。`assumption_ledger` 是 `build_analysis_report` 与 `response_rendering.md` 都拿来**领起整段回答**的那个面——"这个答案把什么当成了真"，按"假的话结论怎么死"排序。
+
+**现象（实测，非推断）**——临时 conftest 包住数值漏斗跑完整套件记账：**31 个数值 method 里 14 个从来拿不到账本**（这还是低估，见下）（前门、IV 全家、中介、纵向、transport、选择偏倚恢复、三种误分类校正、regression calibration、joint…），而这些估计各自的 `numeric_estimate.assumptions` 里带着 4–9 条载荷假设；`build_analysis_report` 对它们**整个 `## 假设` 段落不打印**——那正是它的 docstring 自称"让这份报告是 Themis 的报告而不是一份通用因果分析摘要"的两样东西之一。最刺眼的是 `iv_wald`：29 次里 11 次有账本，而**那 11 次全部只含 `structural_edge` 条目**（共 22 条）——账本在不在，取决于恰好有没有一条 LLM 提议边落在答案路径上，与这个估计量自己的排他性 / 单调性 / LATE 假设无关。（**记账本身也有盲区，而且当场兑现了**：第一版把 conftest 挂在 `_finalise_numeric_result` 上，中介家族刻意保留 `structurally_solved`、根本不流经那个漏斗，于是整个没进统计。改完后用挂在真正单一出口上的同一份记账重跑，可见的 method 从 31 变成 **36**——多出来的 5 个正是 4 个中介家族 + `missing_data_recovery_gformula`，它们同样一条账本都没有。**真实规模是 36 个里 19 个**，加上 `iv_wald` 那种"有账本但只含提议边"的半覆盖。）
+
+**根因**——`build_assumption_ledger` 自称是 "a VIEW over the existing channels"，但它枚举的通道是 gap 报告的提议边、`llm_proposed_review` 的 theta prior、`mechanism_audit` 的函数形式，外加**由调用方传进来**的 `identification_specs`——**唯独漏掉 `numeric_estimate.assumptions`：最老的、也是每个估计器都填的那条通道**。于是账本变成每个估计器家族各自 opt-in：要同时记得①在 estimate 上加结构化字段②在 dispatch 里调用 builder，漏掉任一条都静默，31 个里只有 17 个记全。builder 的 docstring 写着 "Returns None when nothing is assumed" ——这句话是假的，它只是没读那条通道。
+
+**为什么是根因不是表象**——表象读法是"`_render_assumptions` 读不到账本就返回空串"，在那里加个回退能让报告非空，但**每加一个估计器家族默认仍然是静默**。默认值才是缺陷。
+
+**改法**——①flat 通道升成一等通道（`augment_assumption_ledger`，条目带 `provenance: estimator_declared` + 原始 `id`）；②构建搬到 `estimate_program` 的**单一出口**（原函数改名 `_estimate_program`，公开名成一层薄壳），因为漏斗不能是 `_finalise_numeric_result`——中介家族刻意保留 `structurally_solved` 状态、根本不经过它；③严重度集中到新的 `output/assumption_glossary.py`（ID→claim/layer/severity/testable，精确 ID + 显式前缀两种形状，前缀是数据不是关键词启发式），**未知 ID 的默认是"按识别层、作废级、原文照登"**——披露面出错要往多报的方向错，加估计器不可能让一条假设消失，最坏是没翻译；④估计器已声明结构化 identification 条目时 flat 通道**不读**（那是同一句话的更好说法），现有 17 个 method 的账本因此不变，并钉成测试。
+
+**顺带被新验证器抓出来的两个真缺陷**——都不是我改出来的，是原本就在的、同一类"默认静默"：①误分类 / regression calibration 路径挂着 `mechanism_audit` 却没有账本，于是第一版的 `augment_` 只补 flat 通道会**披露估计器假设、藏起旁边的函数形式**→改成没有账本时先读全部四条通道；②`causation.py` / `counterfactual_cell.py` 给单调性假设发明了一个 `severity: "consequential"`，**不在账本排序词表里**，于是 `.get(..., 9)` 把它沉到**最底**（比"仅影响置信"还低），而单调性正是让 PN/PS/PNS 从区间变成点的那一条；`analysis_report` 的 `_SEVERITY_ZH` 也没有它的译名，直接印英文。改成 `invalidating`，并把排序 fallback 从 9 翻成 −1——未知严重度应该浮到最上面让人看见，而不是沉到最下面。
+
+**验证器**——`verify_assumption_ledger`（`verifier/assumption_ledger_rules.py`，独立性钉：不许 import `result_orchestrator` / `assumption_glossary`），进 `verify()` 且另有 result-only 公开入口（账本会挂在状态从不翻成 `numerically_solved` 的结果上）。它从四条通道**独立重导账本欠什么**，专抓 under-disclosure：丢条目 / 凭空多出估计器条目 / 没排序 / summary 计数对不上 / identification 层条目排在 `invalidating` 以下。**刻意不审**某条假设该判什么严重度——那是 glossary 里的策展判断，不是从信封能推出来的事实，在这里重述一遍只是转写不是验证。
+
+**D1**——46 条新测试在改前代码上跑：**20 条红在正确的理由**（6 个家族各自"没有账本"/"声明的假设不在账本上"/"报告不打印 `## 假设`"，加上"置信区间怎么算的不是作废级假设"和"没有生产者发明词表外的严重度"）；**14 条红在 `themis.verify_assumption_ledger` 当时不存在**=机械原因，**不算作证明了什么**；12 条两边都绿（新 glossary 模块是未跟踪文件、stash 后仍在，以及"backdoor 家族保持不变"这条不变量），同样不算。+46 →**3542**。**覆盖归零的证据**：用同一份记账在改后重跑整套，`methods with ANY missing ledger: 0 / 36`——这是唯一能证明"覆盖住了"的东西，推理和逐个抽查都不算。
+
+**基线**：3496 → **3542**（更早 3477 → 3496、3458 → 3477、3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+
+**旧基线行**（保留原文，勿改写）：3477 → **3496**（更早 3458 → 3477、3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
