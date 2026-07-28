@@ -24,6 +24,16 @@ from typing import Any
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
+from .strategy import (
+    EffectFacts,
+    EffectKnobs,
+    Estimand,
+    Evaluation,
+    Role,
+    Strategy,
+    check_table,
+    run_cascade,
+)
 
 
 def estimate_program(
@@ -677,6 +687,30 @@ def _resolve_ate_estimator_option(
     return "gformula"
 
 
+def _already_answered(result: dict) -> bool:
+    """Whether an earlier estimation pass has already claimed this result.
+
+    Phase 7.L: a longitudinal g-formula estimate runs before the cascade
+    and attaches its number to the first effect query. The cross-sectional
+    back-door ATE must NOT overwrite it — that static adjustment is exactly
+    the biased estimator the g-formula exists to replace when a confounder
+    is affected by past treatment.
+
+    The test is a method-name residue rather than a declaration, which is
+    the weakness slice 0 recorded: rename the method and the routing
+    changes in silence. It stays a residue here on purpose. Making the
+    longitudinal pass declare its claim is a behaviour question (what
+    should happen when that pass refuses on identification grounds and
+    leaves no method behind at all), not a table question, so it is logged
+    rather than smuggled into a refactor. What the table does fix is that
+    this is now visibly the DRIVER's business — no strategy guard reads it,
+    because no strategy guard can see the result at all.
+    """
+    return (result.get("numeric_estimate") or {}).get("method") in (
+        "longitudinal_gformula", "longitudinal_ipw_msm",
+    )
+
+
 def _estimate_effect_queries(
     program: dict | str | bytes,
     output: dict,
@@ -690,13 +724,14 @@ def _estimate_effect_queries(
     reference_data: Any = None,
     misclassification: dict | None = None,
     measurement_error: dict | None = None,
-) -> None:
-    """For each effect query result, attach a numeric_estimate when a
-    supported identification strategy is available. Mutates ``output``
-    in place.
+) -> list[Evaluation]:
+    """Offer every effect query to the strategy table. Mutates ``output``.
 
-    Phase 7.1: only backdoor adjustment is wired up. Unsupported
-    strategies leave the result unchanged.
+    The routing itself lives in ``_EFFECT_STRATEGIES`` below; this function
+    only assembles what a strategy is allowed to see. Returning the list of
+    :class:`Evaluation` is additive — callers that ignore it are unchanged —
+    and it is what turns "the cascade declined" from a control-flow event
+    into an object that can be inspected, reported, and asserted on.
     """
     # Re-derive the graph + bidirected set once for the whole program;
     # results rely on the same structural facts the kernel already used.
@@ -705,9 +740,6 @@ def _estimate_effect_queries(
     from ..runtime.graph_projection import project
     from ..runtime.instantiation import instantiate
     from ..runtime import structural_solver
-    from .backdoor import estimate_backdoor_ate
-    from .frontdoor import estimate_frontdoor_ate
-    from .iv import estimate_iv_ate
 
     ast = _ensure_dict(program)
     ast = validate_ast(ast)
@@ -724,529 +756,677 @@ def _estimate_effect_queries(
     # restrict the biased sample to S = selected.
     selection_values = _collect_selection_observation_values(prog)
 
+    knobs = EffectKnobs(
+        random_state=random_state,
+        ci_bootstrap=ci_bootstrap,
+        model=model,
+        cluster=cluster,
+        reference_data=reference_data,
+        selection_values=selection_values,
+        program=program,
+    )
+
+    evaluations: list[Evaluation] = []
     for q_stmt, result in _pair_effect_queries(prog, output):
-        if q_stmt is None:
+        if q_stmt is None or _already_answered(result):
             continue
-        # Phase 7.L: a longitudinal g-formula estimate already claimed this
-        # result. Do NOT overwrite it with the cross-sectional backdoor ATE
-        # — that static adjustment is exactly the biased estimator the
-        # g-formula exists to replace when a confounder is affected by past
-        # treatment.
-        if (result.get("numeric_estimate") or {}).get("method") in (
-            "longitudinal_gformula", "longitudinal_ipw_msm",
-        ):
-            continue
-        dose_response_triggered = q_stmt.id in dose_response_query_ids
+        facts = EffectFacts(
+            q_stmt=q_stmt,
+            graph=graph,
+            bidirected=bidirected,
+            prog=prog,
+            contract=contract,
+            ate_estimator=ate_estimator,
+            misclassification=misclassification,
+            measurement_error=measurement_error,
+            # The identification layer's conclusion, snapshotted before any
+            # strategy runs: §S9.1 attaches this block when the sample is
+            # restricted on a selection collider. Nothing in the estimation
+            # layer writes it, so reading it here is reading upstream, not
+            # reading our own output.
+            selection_recovery=(
+                (result.get("extensions") or {}).get("selection_recovery")
+            ),
+            dose_response_triggered=q_stmt.id in dose_response_query_ids,
+        )
+        evaluations.append(run_cascade(
+            _EFFECT_STRATEGIES, facts, result, knobs, query_id=q_stmt.id,
+        ))
+    return evaluations
+
+
+# ---------------------------------------------------------------------------
+# The table.
+#
+# Each row is one strategy: when it applies, whether it competes for the
+# query or comments beside it, what its number is an estimate OF, and the
+# call that produces it. ``precedence`` replaces source-line order, so the
+# identification layer's copy of these same decisions can eventually be
+# asserted to agree rather than compared by hand — the drift between the two
+# orderings is what slice 0 measured and what findings A and C were.
+#
+# Guards see :class:`EffectFacts` and nothing else. Rows written before the
+# table adapt to it with a lambda here rather than being rewritten, which
+# also makes each strategy's inputs visible in one place.
+# ---------------------------------------------------------------------------
+
+_EFFECT_STRATEGIES = check_table((
+    Strategy(
         # Joint interventions: do(A=a, B=b, ...) over a treatment SET —
-        # route to the joint g-formula estimator (joint contrast +
-        # treatment×treatment interaction). Takes precedence over the
-        # single-treatment / mediation / transport branches.
-        if q_stmt.query.extra_interventions:
-            if _try_joint_estimate(
-                q_stmt, result, contract, graph, bidirected,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                model=model, cluster=cluster,
-            ).stops_here:
-                continue
+        # the joint contrast plus its treatment×treatment interaction, which
+        # no sequence of single-treatment estimates recovers.
+        id="joint_intervention",
+        precedence=10,
+        applies_when=lambda f: bool(f.query.extra_interventions),
+        role=Role.CLAIM,
+        produces=Estimand.JOINT_CONTRAST,
+        run=lambda f, r, k: _try_joint_estimate(
+            f.q_stmt, r, f.contract, f.graph, f.bidirected,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            model=k.model, cluster=k.cluster,
+        ),
+    ),
+    Strategy(
         # The JOINT natural-effect decomposition through the mediator SET.
-        # Routes to estimate_mediation_joint, gated on the joint
-        # identification extension. Precedes the single-mediator branch.
         #
         # The guard is "did this query name a set", not "how big is the set":
         # a block of one is still a block, and the identification layer routes
         # it here on exactly that principle. ``mediators`` and ``mediator`` are
         # distinct fields — a set of one never populates the singular one — so
-        # a size threshold here does not divert k=1 to the single-mediator
-        # branch, it drops the decomposition entirely and answers the total
+        # a size threshold here would not divert k=1 to the single-mediator
+        # row, it would drop the decomposition entirely and answer the total
         # effect instead, beside an envelope still claiming the block.
-        #
-        # Claiming the query is decided by whether the block estimate was
-        # actually produced, not by the guard matching. The identification
-        # layer may have routed this query elsewhere (a query naming BOTH a
-        # mediator set and a target_population goes to transport there), in
-        # which case the joint block is absent and this handler declines —
-        # and the query must go on to the branch that can answer it rather
-        # than leaving the envelope with no number and no recorded failure.
-        if q_stmt.query.mediators:
-            if _try_mediation_joint_estimate(
-                q_stmt, result, contract, graph, bidirected,
-                random_state=random_state,
-            ).stops_here:
-                continue
-        # Phase 7.4: mediation queries route to the Imai-via-statsmodels
-        # estimator, gated on the identification layer's strategy result.
-        # Same claim rule as the block branch above: declining here means
-        # the identification layer chose another strategy for this query.
-        if q_stmt.query.mediator is not None:
-            if _try_mediation_estimate(
-                q_stmt, result, contract, graph, bidirected,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-
-        # Phase 9 §T9.2 (iter 128): transport queries — when the kernel
-        # already produced a transport_identification extension AND the
-        # program declares a target marginal, run post-stratification
-        # numeric transport. The identification result remains
-        # structurally_solved; we add a numeric_estimate block.
-        if q_stmt.query.target_population is not None:
-            if _try_transport_estimate(
-                q_stmt, result, contract, program,
-                random_state=random_state,
-                ci_bootstrap=ci_bootstrap,
-                ci_level=0.95,
-                cluster=cluster,
-            ).stops_here:
-                continue
-
-        # §S9.1 numeric end + honest gate: when the identification pass attached
-        # a selection_recovery block, the sample is restricted on a selection
-        # collider and the ORDINARY back-door number below would be silently
-        # biased (it standardizes over a collider-conditioned sample). Route to
-        # the selection-backdoor recovery estimator instead — which produces the
-        # recovered number from the biased sample + external reference data, or
-        # refuses (naming the external data needed) rather than shipping a
-        # biased point. Either way, never fall through to estimate_backdoor_ate.
-        if (result.get("extensions") or {}).get("selection_recovery") is not None:
-            if _try_selection_recovery_estimate(
-                q_stmt, result, contract, reference_data, selection_values,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-
-        x_atom = q_stmt.query.intervention.atom
-        y_atom = q_stmt.query.target.atom
-        given_atoms = tuple(g.atom for g in q_stmt.query.given)
-
-        adjustment_sets = structural_solver.minimal_adjustment_sets(
-            graph, x_atom, y_atom,
-            given=given_atoms,
-            bidirected=bidirected or None,
-        )
-        # Measurement-error correction (frontier E): when the caller supplied a
-        # validated confusion matrix for THIS query's outcome, de-attenuate the
-        # misclassification by inverting the matrix per back-door stratum
-        # instead of shipping the attenuated naive g-formula number. The spec is
-        # a load-bearing external input (validation study), used only here;
-        # ordinary programs never reach this branch. A refusal (singular / non-
-        # stochastic matrix, positivity, non-backdoor identification) records an
+        id="mediation_joint",
+        precedence=20,
+        applies_when=lambda f: bool(f.query.mediators),
+        role=Role.CLAIM,
+        produces=Estimand.DECOMPOSITION,
+        run=lambda f, r, k: _try_mediation_joint_estimate(
+            f.q_stmt, r, f.contract, f.graph, f.bidirected,
+            random_state=k.random_state,
+        ),
+    ),
+    Strategy(
+        # Phase 7.4: single-mediator natural effects (Imai via statsmodels),
+        # gated inside the handler on the identification layer's strategy
+        # result. Declining here means identification chose another strategy
+        # for this query — a query naming BOTH a mediator and a target
+        # population goes to transport there — so the query goes on to the
+        # row that can answer it rather than ending with no number and no
+        # recorded failure.
+        id="mediation_single",
+        precedence=30,
+        applies_when=lambda f: f.query.mediator is not None,
+        role=Role.CLAIM,
+        produces=Estimand.DECOMPOSITION,
+        # Identification resolves the conflict between a named mediator and
+        # a named target population in favour of transport, and says so.
+        # This row follows that decision rather than holding a query it was
+        # not given — but the number that comes back is the transported
+        # effect, not the decomposition, so the substitution is declared.
+        defers_to=frozenset({"transport"}),
+        run=lambda f, r, k: _try_mediation_estimate(
+            f.q_stmt, r, f.contract, f.graph, f.bidirected,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Phase 9 §T9.2: carry the effect to a declared target population by
+        # post-stratification. The identification result stays
+        # structurally_solved; this adds the number.
+        id="transport",
+        precedence=40,
+        applies_when=lambda f: f.query.target_population is not None,
+        role=Role.CLAIM,
+        produces=Estimand.TRANSPORTED_EFFECT,
+        run=lambda f, r, k: _try_transport_estimate(
+            f.q_stmt, r, f.contract, k.program,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            ci_level=0.95, cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # §S9.1 numeric end + honest gate: the sample is restricted on a
+        # selection collider, so the ORDINARY back-door number below would be
+        # silently biased (it standardizes over a collider-conditioned
+        # sample). This row either recovers the number from the biased sample
+        # plus external reference data, or refuses while naming the external
+        # data needed — and either way the query never reaches back-door.
+        id="selection_recovery",
+        precedence=50,
+        applies_when=lambda f: f.selection_recovery is not None,
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_selection_recovery_estimate(
+            f.q_stmt, r, f.contract, k.reference_data, k.selection_values,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Frontier E, both channels: a validated confusion matrix for the
+        # exposure AND the outcome. Invert both sides of the per-stratum
+        # (X, Y) joint at once — correcting one and shipping the point would
+        # leave the other channel's bias in the number.
+        id="measurement_correction_both_channels",
+        precedence=60,
+        applies_when=lambda f: (
+            f.misclassification_outcome is not None
+            and f.misclassification_exposure is not None
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_combined_measurement_correction_estimate(
+            f.q_stmt, r, f.contract, f.graph,
+            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+            spec_x=f.misclassification_exposure,
+            spec_y=f.misclassification_outcome,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Frontier E (outcome side): de-attenuate the misclassified binary
+        # outcome by inverting the matrix per back-door stratum. The spec is
+        # a load-bearing external input (a validation study); ordinary
+        # programs never reach this row. A refusal records an
         # estimator_failure rather than silently falling back to the biased
         # naive point — the caller explicitly asked for the corrected number.
-        mc_spec = (misclassification or {}).get(y_atom.predicate)
-        mc_spec_x = (misclassification or {}).get(x_atom.predicate)
-        if mc_spec is not None and mc_spec_x is not None:
-            # A validated matrix for BOTH channels: invert both sides of the
-            # per-stratum (X, Y) joint at once. Correcting only one and shipping
-            # the point would leave the other channel's bias in the number.
-            if _try_combined_measurement_correction_estimate(
-                q_stmt, result, contract, graph,
-                adjustment_sets=adjustment_sets, given=given_atoms,
-                spec_x=mc_spec_x, spec_y=mc_spec,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-        if mc_spec is not None:
-            if _try_measurement_correction_estimate(
-                q_stmt, result, contract, graph,
-                adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-        if mc_spec_x is not None:
-            # Frontier E (exposure side): the confusion matrix names THIS query's
-            # exposure. De-attenuate the misclassified binary exposure by the
-            # matrix method (invert M on the X-margin per back-door stratum)
-            # instead of shipping the attenuated naive back-door number.
-            if _try_exposure_measurement_correction_estimate(
-                q_stmt, result, contract, graph,
-                adjustment_sets=adjustment_sets, given=given_atoms, spec=mc_spec_x,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-        # Continuous mismeasurement (regression calibration): the caller supplied
-        # a known classical additive error variance σ²_u for one or more of THIS
-        # query's continuous design columns — the exposure (regression dilution)
-        # and/or a back-door covariate (residual confounding). De-attenuate by the
-        # RC moment correction instead of shipping the biased naive back-door
-        # slope. A continuous OUTCOME error is deferred; any spec touching the
-        # outcome is refused (honestly) rather than silently ignored.
-        me = measurement_error or {}
-        me_spec_x = me.get(x_atom.predicate)
-        me_spec_y = me.get(y_atom.predicate)
-        me_spec_cov = {
-            k: v for k, v in me.items()
-            if k != x_atom.predicate and k != y_atom.predicate
-        }
-        if me_spec_y is not None:
-            # The outcome channel is the one that costs no bias: a classical
-            # additive error leaves every conditional mean — and so every
-            # estimand here — untouched. There is nothing to de-attenuate, so
-            # this does NOT claim the query; the point still comes from the
-            # ordinary routing below (including the exposure-side correction
-            # when a spec names the exposure too). What the declared σ²_v buys
-            # is the precision cost, assessed and disclosed here. Only a spec
-            # the channel or the data refuse stops the query.
-            if _try_outcome_error_assessment(
-                result, contract, graph,
-                x_atom=x_atom, y_atom=y_atom,
-                adjustment_sets=adjustment_sets, spec=me_spec_y,
-            ).stops_here:
-                continue
-        if me_spec_x is not None or me_spec_cov:
-            # Build the {design variable name → σ²_u} error map; the exposure
-            # and/or any named covariate. The handler validates the covariate
-            # keys against the chosen back-door set.
-            error_map: dict = {}
-            if me_spec_x is not None:
-                error_map[x_atom.predicate] = (me_spec_x or {}).get("error_variance")
-            for name, s in me_spec_cov.items():
-                error_map[name] = (s or {}).get("error_variance")
-            if _try_regression_calibration_estimate(
-                q_stmt, result, contract, graph,
-                adjustment_sets=adjustment_sets, given=given_atoms,
-                error_map=error_map,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-        # Phase 14 slice a: when the program flagged a dose-response
-        # query AND identification clears via backdoor, fit the curve
-        # estimator instead of the binary-effect ATE estimator. Other
-        # strategies (front-door / IV / mediation) keep their existing
-        # binary-effect path until a real-case demands the curve there.
-        if dose_response_triggered and _is_binary_treatment(
-            contract.data, x_atom.predicate,
-        ):
-            result["estimator_fallback"] = {
-                "from": "dose_response",
-                "to": "binary_effect",
-                "reason": (
-                    "treatment is binary; a dose-response curve would "
-                    "degenerate to a two-point contrast"
-                ),
-            }
-            _append_result_data_contract_warning(
-                result,
-                (
-                    "dose_response_query fell back to binary effect because "
-                    f"treatment {x_atom.predicate!r} is binary"
-                ),
-            )
+        id="measurement_correction_outcome",
+        precedence=70,
+        applies_when=lambda f: f.misclassification_outcome is not None,
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_measurement_correction_estimate(
+            f.q_stmt, r, f.contract, f.graph,
+            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+            spec=f.misclassification_outcome,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Frontier E (exposure side): invert M on the X-margin per back-door
+        # stratum instead of shipping the attenuated naive number.
+        id="measurement_correction_exposure",
+        precedence=80,
+        applies_when=lambda f: f.misclassification_exposure is not None,
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_exposure_measurement_correction_estimate(
+            f.q_stmt, r, f.contract, f.graph,
+            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+            spec=f.misclassification_exposure,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # The outcome channel is the one that costs no bias: a classical
+        # additive error leaves every conditional mean — and so every
+        # estimand here — untouched. There is nothing to de-attenuate, so
+        # this does NOT claim the query; the point still comes from the
+        # ordinary routing below, including the exposure-side correction when
+        # a spec names the exposure too. What the declared σ²_v buys is the
+        # precision cost, assessed and disclosed here. Only a spec the
+        # channel or the data refuse stops the query.
+        id="outcome_error_precision_cost",
+        precedence=90,
+        applies_when=lambda f: f.measurement_error_outcome is not None,
+        role=Role.ANNOTATE,
+        produces=Estimand.NONE,
+        run=lambda f, r, k: _try_outcome_error_assessment(
+            r, f.contract, f.graph,
+            x_atom=f.x_atom, y_atom=f.y_atom,
+            adjustment_sets=f.adjustment_sets,
+            spec=f.measurement_error_outcome,
+        ),
+    ),
+    Strategy(
+        # Continuous mismeasurement (regression calibration): a known
+        # classical additive error variance σ²_u for the exposure (regression
+        # dilution) and/or a back-door covariate (residual confounding).
+        # De-attenuate by the RC moment correction instead of shipping the
+        # biased naive slope. A continuous OUTCOME error is deferred; the
+        # handler refuses such a spec honestly rather than ignoring it.
+        id="regression_calibration",
+        precedence=100,
+        applies_when=lambda f: (
+            f.measurement_error_exposure is not None
+            or bool(f.measurement_error_covariates)
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_regression_calibration_estimate(
+            f.q_stmt, r, f.contract, f.graph,
+            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+            error_map=f.measurement_error_map,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # A dose-response curve over a binary treatment would degenerate to
+        # the two-point contrast the binary path already computes. Record the
+        # fall-back and let that path answer — this row comments, it does not
+        # compete.
+        id="dose_response_binary_fallback",
+        precedence=110,
+        applies_when=lambda f: (
+            f.dose_response_triggered and f.treatment_is_binary
+        ),
+        role=Role.ANNOTATE,
+        produces=Estimand.NONE,
+        run=lambda f, r, k: _try_dose_response_binary_fallback(f, r, k),
+    ),
+    Strategy(
+        # Phase 14 slice a: a flagged dose-response query whose treatment is
+        # not binary and whose identification clears via back-door gets the
+        # curve estimator rather than the binary-effect ATE. Other strategies
+        # (front-door / IV / mediation) keep their binary-effect path until a
+        # real case demands the curve there.
+        id="dose_response_curve",
+        precedence=120,
+        applies_when=lambda f: (
+            f.dose_response_triggered
+            and not f.treatment_is_binary
+            and bool(f.adjustment_sets)
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.DOSE_RESPONSE,
+        run=lambda f, r, k: _try_dose_response_estimate(
+            result=r,
+            contract=f.contract,
+            treatment=f.x_atom.predicate,
+            outcome=f.y_atom.predicate,
+            adjustment=f.adjustment_names,
+            sampling_points=_resolve_dose_response_points(f.prog, f.x_atom),
+            random_state=k.random_state,
+            model=_resolve_dose_response_model(k.model),
+            graph=f.graph, x=f.x_atom, y=f.y_atom,
+            chosen=f.chosen_adjustment, given=f.given_atoms,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Doubly-robust opt-in: the back-door-identified ATE estimated by the
+        # propensity / augmented estimator instead of the g-formula plug-in.
+        # Same identification (the adjustment set is a valid back-door set),
+        # different estimator and inference. The default leaves this row
+        # untaken and every existing result byte-identical.
+        id="doubly_robust",
+        precedence=130,
+        applies_when=lambda f: (
+            bool(f.adjustment_sets)
+            and f.ate_estimator in ("ipw", "aipw", "tmle")
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_doubly_robust_estimate(
+            result=r, contract=f.contract,
+            graph=f.graph, x=f.x_atom, y=f.y_atom,
+            adjustment=f.chosen_adjustment,
+            adjustment_names=f.adjustment_names,
+            given=frozenset(f.given_atoms),
+            estimator=f.ate_estimator,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            model=k.model, cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Phase 7.1: back-door adjustment — the g-formula plug-in over the
+        # smallest valid adjustment set.
+        id="backdoor",
+        precedence=140,
+        applies_when=lambda f: bool(f.adjustment_sets),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_backdoor_estimate(f, r, k),
+    ),
+    Strategy(
+        # Phase 7.2: back-door failed — front-door, which the fact itself
+        # restricts to unconditioned queries because the formula has no
+        # conditional form here and the identification layer refuses the same
+        # combination.
+        id="frontdoor",
+        precedence=150,
+        applies_when=lambda f: (
+            not f.adjustment_sets and bool(f.front_door_sets)
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        run=lambda f, r, k: _try_frontdoor_estimate(f, r, k),
+    ),
+    Strategy(
+        # Phase 7.G: general-ID (c-factor) plug-in — the crown-jewel
+        # non-parametric identification made numeric. Ranked ABOVE IV because
+        # a c-factor estimand is assumption-free, whereas the IV point
+        # estimate needs monotonicity / effect homogeneity. When do(X) is
+        # non-parametrically point-identified (the napkin, say) this is the
+        # honest answer; only when it is NOT — a genuine hedge — does the
+        # query fall through to the under-assumption IV below.
+        id="general_id",
+        precedence=160,
+        applies_when=lambda f: (
+            not f.adjustment_sets and not f.front_door_sets
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.QUERY_EFFECT,
+        # The escalation this row exists to guard: when do(X) is NOT
+        # non-parametrically identified there is no assumption-free number
+        # to be had, and the IV rows answer under monotonicity / effect
+        # homogeneity instead — a complier contrast, not the population
+        # effect the query names. That is a real substitution, taken
+        # deliberately and disclosed on the answer (late_caveat, the
+        # estimand-fallback warning); declaring it here is what keeps it
+        # from being taken by accident somewhere else.
+        defers_to=frozenset({"iv_overidentified", "iv_wald"}),
+        run=lambda f, r, k: _try_general_id_estimate(
+            f.q_stmt, r, f.contract, f.graph, f.bidirected,
+            x_atom=f.x_atom, y_atom=f.y_atom, given_atoms=f.given_atoms,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Over-identification: every instrument valid under the SAME smallest
+        # conditioning set forms one over-identified system. With two or more,
+        # run over-identified 2SLS plus the Sargan test rather than discarding
+        # the extra instruments and their falsification power — a small Sargan
+        # p-value REFUTES the instruments' joint validity (the linear analogue
+        # of the Balke-Pearl instrumental inequalities). Falls through to the
+        # just-identified row when the over-ID design is degenerate.
+        id="iv_overidentified",
+        precedence=170,
+        applies_when=lambda f: (
+            not f.adjustment_sets and not f.front_door_sets
+            and len(f.overid_instruments) >= 2
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.COMPLIER_EFFECT,
+        run=lambda f, r, k: _try_iv_overid_estimate(
+            r, f.contract, f.graph,
+            x=f.x_atom, y=f.y_atom,
+            instruments=f.overid_instruments,
+            conditioning=f.iv_candidates[0].conditioning,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        # Phase 7.3: the just-identified Wald ratio, under the assumptions
+        # general-ID did not need. What it reports is a complier contrast,
+        # not the population effect the query names — which is why it ranks
+        # last, and why the answer carries the LATE caveat.
+        id="iv_wald",
+        precedence=180,
+        applies_when=lambda f: (
+            not f.adjustment_sets and not f.front_door_sets
+            and bool(f.iv_candidates)
+        ),
+        role=Role.CLAIM,
+        produces=Estimand.COMPLIER_EFFECT,
+        run=lambda f, r, k: _try_iv_wald_estimate(f, r, k),
+    ),
+))
 
-        if dose_response_triggered and "estimator_fallback" not in result and adjustment_sets:
-            chosen = min(adjustment_sets, key=len)
-            adjustment_names = tuple(
-                a.predicate for a in _topo_order(graph, chosen)
-            )
-            sampling_points = _resolve_dose_response_points(prog, x_atom)
-            dr_model = _resolve_dose_response_model(model)
-            if _try_dose_response_estimate(
-                result=result,
-                contract=contract,
-                treatment=x_atom.predicate,
-                outcome=y_atom.predicate,
-                adjustment=adjustment_names,
-                sampling_points=sampling_points,
-                random_state=random_state,
-                model=dr_model,
-                graph=graph, x=x_atom, y=y_atom, chosen=chosen, given=given_atoms,
-                cluster=cluster,
-            ).stops_here:
-                continue
-            # Estimator unavailable / failed structurally — fall through
-            # to the binary path so the user still gets *something*.
-        if adjustment_sets:
-            chosen = min(adjustment_sets, key=len)
-            adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
 
-            # Doubly-robust opt-in: when the caller selected IPW / AIPW,
-            # the backdoor-identified ATE is estimated by the propensity /
-            # augmented estimator instead of the g-formula plug-in. Same
-            # identification (the adjustment set is a valid backdoor set);
-            # different estimator + inference. Default "gformula" leaves
-            # this branch untaken and every existing result byte-identical.
-            if ate_estimator in ("ipw", "aipw", "tmle"):
-                _attach_doubly_robust_estimate(
-                    result=result, contract=contract,
-                    graph=graph, x=x_atom, y=y_atom,
-                    adjustment=chosen, adjustment_names=adjustment_names,
-                    given=frozenset(given_atoms),
-                    estimator=ate_estimator,
-                    random_state=random_state, ci_bootstrap=ci_bootstrap,
-                    model=model, cluster=cluster,
-                )
-                continue
+def _try_dose_response_binary_fallback(
+    facts: EffectFacts, result: dict, knobs: EffectKnobs,
+) -> Claim:
+    """Record that the curve degenerates here, and let the binary path answer."""
+    result["estimator_fallback"] = {
+        "from": "dose_response",
+        "to": "binary_effect",
+        "reason": (
+            "treatment is binary; a dose-response curve would "
+            "degenerate to a two-point contrast"
+        ),
+    }
+    _append_result_data_contract_warning(
+        result,
+        (
+            "dose_response_query fell back to binary effect because "
+            f"treatment {facts.x_atom.predicate!r} is binary"
+        ),
+    )
+    return annotated()
 
-            estimate = estimate_backdoor_ate(
-                contract.data,
-                treatment=x_atom.predicate,
-                outcome=y_atom.predicate,
-                adjustment=adjustment_names,
-                ci_bootstrap=ci_bootstrap,
-                random_state=random_state,
-                model=model,  # type: ignore[arg-type]
-                cluster=cluster,
-            )
 
-            result["numeric_estimate"] = {
-                "point": estimate.point,
-                "ci_lower": estimate.ci_lower,
-                "ci_upper": estimate.ci_upper,
-                "ci_level": estimate.ci_level,
-                "method": estimate.method,
-                "assumptions": list(estimate.assumptions),
-                "sample_size": estimate.sample_size,
-                "data_hash": estimate.data_hash,
-                "adjustment": list(estimate.adjustment),
-                "treatment": estimate.treatment,
-                "outcome": estimate.outcome,
-            }
-            _attach_bootstrap_meta(result["numeric_estimate"], cluster)
-            from ..output.result_orchestrator import (
-                build_assumption_ledger,
-                build_mechanism_audit,
-            )
-            ext = result.setdefault("extensions", {})
-            ext["mechanism_audit"] = build_mechanism_audit(
-                target=estimate.outcome,
-                form=estimate.form,
-                method=estimate.method,
-                assumption=estimate.model_assumption,
-                provenance="default",
-            )
-            ledger = build_assumption_ledger(
-                result, identification_specs=estimate.identification_assumptions,
-            )
-            if ledger is not None:
-                ext["assumption_ledger"] = ledger
-            _attach_precision_budget(result["numeric_estimate"])
+def _try_backdoor_estimate(
+    facts: EffectFacts, result: dict, knobs: EffectKnobs,
+) -> Claim:
+    """Phase 7.1: the g-formula plug-in over the smallest adjustment set."""
+    from .backdoor import estimate_backdoor_ate
+    from ..output.result_orchestrator import (
+        build_assumption_ledger,
+        build_mechanism_audit,
+    )
 
-            result["derivation"] = _build_numeric_derivation_dict(
-                graph=graph,
-                x=x_atom, y=y_atom,
-                adjustment=chosen,
-                given=frozenset(given_atoms),
-                estimate=estimate,
-            )
-            _attach_e_value_if_binary(
-                result, contract,
-                outcome=y_atom.predicate, treatment=x_atom.predicate,
-            )
-            _attach_ovb_sensitivity(
-                result, contract,
-                treatment=x_atom.predicate,
-                outcome=y_atom.predicate,
-                adjustment=adjustment_names,
-                method=estimate.method,
-            )
-            _attach_propensity_overlap_warning(
-                result, contract,
-                treatment=x_atom.predicate,
-                adjustment=adjustment_names,
-            )
-            _attach_outcome_separation_warning(
-                result, contract,
-                treatment=x_atom.predicate,
-                outcome=y_atom.predicate,
-                adjustment=adjustment_names,
-            )
-            _finalise_numeric_result(result)
-            continue
+    x_atom, y_atom = facts.x_atom, facts.y_atom
+    estimate = estimate_backdoor_ate(
+        facts.contract.data,
+        treatment=x_atom.predicate,
+        outcome=y_atom.predicate,
+        adjustment=facts.adjustment_names,
+        ci_bootstrap=knobs.ci_bootstrap,
+        random_state=knobs.random_state,
+        model=knobs.model,  # type: ignore[arg-type]
+        cluster=knobs.cluster,
+    )
 
-        # Phase 7.2: backdoor failed — try front-door when ``given`` is
-        # empty (multi-mediator + conditioning isn't supported in the
-        # front-door formula yet; mirrors the identification layer).
-        front = None
-        if not given_atoms:
-            front = structural_solver.front_door_sets(
-                graph, x_atom, y_atom, bidirected=bidirected or None,
-            )
-        if not front:
-            # Phase 7.G: general-ID (c-factor) plug-in — the crown-jewel
-            # non-parametric identification made numeric. Tried BEFORE IV
-            # because a c-factor estimand is assumption-free, whereas the
-            # IV point estimate needs monotonicity / effect homogeneity.
-            # When do(X) is non-parametrically point-identified (e.g. the
-            # napkin) this is the honest answer; only when it is NOT (a
-            # genuine hedge) do we fall through to the under-assumption IV.
-            if _try_general_id_estimate(
-                q_stmt, result, contract, graph, bidirected,
-                x_atom=x_atom, y_atom=y_atom, given_atoms=given_atoms,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-            # Phase 7.3: try IV when NOT non-parametrically identified.
-            iv_candidates = structural_solver.iv_sets(
-                graph, x_atom, y_atom, bidirected=bidirected or None,
-            )
-            if not iv_candidates:
-                # No strategy — 7.4 (mediation) remains. Skip for now.
-                continue
+    result["numeric_estimate"] = {
+        "point": estimate.point,
+        "ci_lower": estimate.ci_lower,
+        "ci_upper": estimate.ci_upper,
+        "ci_level": estimate.ci_level,
+        "method": estimate.method,
+        "assumptions": list(estimate.assumptions),
+        "sample_size": estimate.sample_size,
+        "data_hash": estimate.data_hash,
+        "adjustment": list(estimate.adjustment),
+        "treatment": estimate.treatment,
+        "outcome": estimate.outcome,
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=estimate.outcome,
+        form=estimate.form,
+        method=estimate.method,
+        assumption=estimate.model_assumption,
+        provenance="default",
+    )
+    ledger = build_assumption_ledger(
+        result, identification_specs=estimate.identification_assumptions,
+    )
+    if ledger is not None:
+        ext["assumption_ledger"] = ledger
+    _attach_precision_budget(result["numeric_estimate"])
 
-            chosen_iv = iv_candidates[0]  # already sorted by |W| asc
-            # Over-identification: every instrument valid under the SAME
-            # (smallest) conditioning set forms one over-identified system.
-            # With >= 2 such instruments, run over-identified 2SLS + the
-            # Sargan test rather than discarding the extra instruments and
-            # their falsification power — a small Sargan p-value REFUTES the
-            # instruments' joint validity (the linear analogue of the
-            # Balke-Pearl instrumental inequalities). Falls through to the
-            # just-identified path when the over-ID design is degenerate.
-            w0 = chosen_iv.conditioning
-            overid_instruments = tuple(sorted(
-                (c.instrument for c in iv_candidates if c.conditioning == w0),
-                key=lambda a: a.predicate,
-            ))
-            if len(overid_instruments) >= 2 and _try_iv_overid_estimate(
-                result, contract, graph,
-                x=x_atom, y=y_atom,
-                instruments=overid_instruments, conditioning=w0,
-                random_state=random_state, ci_bootstrap=ci_bootstrap,
-                cluster=cluster,
-            ).stops_here:
-                continue
-            try:
-                iv_estimate = estimate_iv_ate(
-                    contract.data,
-                    treatment=x_atom.predicate,
-                    outcome=y_atom.predicate,
-                    instrument=chosen_iv.instrument.predicate,
-                    conditioning=tuple(
-                        a.predicate for a in chosen_iv.conditioning
-                    ),
-                    ci_bootstrap=ci_bootstrap,
-                    random_state=random_state,
-                    cluster=cluster,
-                )
-            except (ValueError, NotImplementedError):
-                # e.g. Wald denom is zero on this data, or the chosen
-                # candidate's (Z, W) shape isn't supported in v1.
-                continue
+    result["derivation"] = _build_numeric_derivation_dict(
+        graph=facts.graph,
+        x=x_atom, y=y_atom,
+        adjustment=facts.chosen_adjustment,
+        given=frozenset(facts.given_atoms),
+        estimate=estimate,
+    )
+    _attach_e_value_if_binary(
+        result, facts.contract,
+        outcome=y_atom.predicate, treatment=x_atom.predicate,
+    )
+    _attach_ovb_sensitivity(
+        result, facts.contract,
+        treatment=x_atom.predicate,
+        outcome=y_atom.predicate,
+        adjustment=facts.adjustment_names,
+        method=estimate.method,
+    )
+    _attach_propensity_overlap_warning(
+        result, facts.contract,
+        treatment=x_atom.predicate,
+        adjustment=facts.adjustment_names,
+    )
+    _attach_outcome_separation_warning(
+        result, facts.contract,
+        treatment=x_atom.predicate,
+        outcome=y_atom.predicate,
+        adjustment=facts.adjustment_names,
+    )
+    _finalise_numeric_result(result)
+    return answered()
 
-            iv_numeric_dict = {
-                "point": iv_estimate.point,
-                "ci_lower": iv_estimate.ci_lower,
-                "ci_upper": iv_estimate.ci_upper,
-                "ci_level": iv_estimate.ci_level,
-                "method": iv_estimate.method,
-                "assumptions": list(iv_estimate.assumptions),
-                "sample_size": iv_estimate.sample_size,
-                "data_hash": iv_estimate.data_hash,
-                "instrument": iv_estimate.instrument,
-                "conditioning": list(iv_estimate.conditioning),
-                "treatment": iv_estimate.treatment,
-                "outcome": iv_estimate.outcome,
-            }
-            if iv_estimate.first_stage_f_stat is not None:
-                iv_numeric_dict["first_stage_f_stat"] = iv_estimate.first_stage_f_stat
-            if iv_estimate.strata is not None:
-                iv_numeric_dict["stratified_wald"] = {
-                    "conditioning_order": list(iv_estimate.conditioning),
-                    "outcome_shift": iv_estimate.outcome_shift,
-                    "treatment_shift": iv_estimate.treatment_shift,
-                    "strata": [
-                        {
-                            # _w_levels sources these through .tolist(), so
-                            # they are Python natives, not numpy scalars.
-                            "values": list(s.values),
-                            "weight": s.weight,
-                            "n_obs": s.n_obs,
-                            "n_instrument_high": s.n_instrument_high,
-                            "n_instrument_low": s.n_instrument_low,
-                            "outcome_shift": s.outcome_shift,
-                            "treatment_shift": s.treatment_shift,
-                            "shift_var_yy": s.shift_var_yy,
-                            "shift_var_xy": s.shift_var_xy,
-                            "shift_var_xx": s.shift_var_xx,
-                        }
-                        for s in iv_estimate.strata
-                    ],
+
+def _try_frontdoor_estimate(
+    facts: EffectFacts, result: dict, knobs: EffectKnobs,
+) -> Claim:
+    """Phase 7.2: the front-door formula over the smallest mediator set."""
+    import networkx as nx
+
+    from .frontdoor import estimate_frontdoor_ate
+
+    x_atom, y_atom = facts.x_atom, facts.y_atom
+    chosen_front = min(facts.front_door_sets, key=len)
+    topo_mediators = tuple(
+        n for n in nx.topological_sort(facts.graph) if n in chosen_front
+    )
+    mediator_names = tuple(a.predicate for a in topo_mediators)
+
+    try:
+        fd_estimate = estimate_frontdoor_ate(
+            facts.contract.data,
+            treatment=x_atom.predicate,
+            outcome=y_atom.predicate,
+            mediators=mediator_names,
+            ci_bootstrap=knobs.ci_bootstrap,
+            random_state=knobs.random_state,
+            model=knobs.model,  # type: ignore[arg-type]
+            cluster=knobs.cluster,
+        )
+    except NotImplementedError:
+        # e.g. a continuous mediator, outside the current v1 restriction.
+        return blocked('estimator_refused')
+
+    result["numeric_estimate"] = {
+        "point": fd_estimate.point,
+        "ci_lower": fd_estimate.ci_lower,
+        "ci_upper": fd_estimate.ci_upper,
+        "ci_level": fd_estimate.ci_level,
+        "method": fd_estimate.method,
+        "assumptions": list(fd_estimate.assumptions),
+        "sample_size": fd_estimate.sample_size,
+        "data_hash": fd_estimate.data_hash,
+        "mediators": list(fd_estimate.mediators),
+        "treatment": fd_estimate.treatment,
+        "outcome": fd_estimate.outcome,
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    result["derivation"] = _build_frontdoor_numeric_derivation_dict(
+        graph=facts.graph,
+        x=x_atom, y=y_atom,
+        mediators=topo_mediators,
+        estimate=fd_estimate,
+    )
+    _attach_e_value_if_binary(
+        result, facts.contract,
+        outcome=y_atom.predicate, treatment=x_atom.predicate,
+    )
+    _finalise_numeric_result(result)
+    return answered()
+
+
+def _try_iv_wald_estimate(
+    facts: EffectFacts, result: dict, knobs: EffectKnobs,
+) -> Claim:
+    """Phase 7.3: the just-identified Wald ratio on the smallest candidate."""
+    from .iv import estimate_iv_ate
+
+    x_atom, y_atom = facts.x_atom, facts.y_atom
+    chosen_iv = facts.iv_candidates[0]  # already sorted by |W| asc
+    try:
+        iv_estimate = estimate_iv_ate(
+            facts.contract.data,
+            treatment=x_atom.predicate,
+            outcome=y_atom.predicate,
+            instrument=chosen_iv.instrument.predicate,
+            conditioning=tuple(a.predicate for a in chosen_iv.conditioning),
+            ci_bootstrap=knobs.ci_bootstrap,
+            random_state=knobs.random_state,
+            cluster=knobs.cluster,
+        )
+    except (ValueError, NotImplementedError):
+        # e.g. the Wald denominator is zero on this data, or the chosen
+        # candidate's (Z, W) shape isn't supported in v1.
+        return blocked('estimator_refused')
+
+    iv_numeric_dict = {
+        "point": iv_estimate.point,
+        "ci_lower": iv_estimate.ci_lower,
+        "ci_upper": iv_estimate.ci_upper,
+        "ci_level": iv_estimate.ci_level,
+        "method": iv_estimate.method,
+        "assumptions": list(iv_estimate.assumptions),
+        "sample_size": iv_estimate.sample_size,
+        "data_hash": iv_estimate.data_hash,
+        "instrument": iv_estimate.instrument,
+        "conditioning": list(iv_estimate.conditioning),
+        "treatment": iv_estimate.treatment,
+        "outcome": iv_estimate.outcome,
+    }
+    if iv_estimate.first_stage_f_stat is not None:
+        iv_numeric_dict["first_stage_f_stat"] = iv_estimate.first_stage_f_stat
+    if iv_estimate.strata is not None:
+        iv_numeric_dict["stratified_wald"] = {
+            "conditioning_order": list(iv_estimate.conditioning),
+            "outcome_shift": iv_estimate.outcome_shift,
+            "treatment_shift": iv_estimate.treatment_shift,
+            "strata": [
+                {
+                    # _w_levels sources these through .tolist(), so they are
+                    # Python natives, not numpy scalars.
+                    "values": list(s.values),
+                    "weight": s.weight,
+                    "n_obs": s.n_obs,
+                    "n_instrument_high": s.n_instrument_high,
+                    "n_instrument_low": s.n_instrument_low,
+                    "outcome_shift": s.outcome_shift,
+                    "treatment_shift": s.treatment_shift,
+                    "shift_var_yy": s.shift_var_yy,
+                    "shift_var_xy": s.shift_var_xy,
+                    "shift_var_xx": s.shift_var_xx,
                 }
-            if iv_estimate.anderson_rubin is not None:
-                iv_numeric_dict["anderson_rubin_confidence_set"] = _ar_set_to_dict(
-                    iv_estimate.anderson_rubin
-                )
-            if iv_estimate.stratified_anderson_rubin is not None:
-                iv_numeric_dict["stratified_anderson_rubin_confidence_set"] = (
-                    _stratified_ar_set_to_dict(
-                        iv_estimate.stratified_anderson_rubin
-                    )
-                )
-            result["numeric_estimate"] = iv_numeric_dict
-            _attach_bootstrap_meta(result["numeric_estimate"], cluster)
-            _attach_precision_budget(result["numeric_estimate"])
-            result["derivation"] = _build_iv_numeric_derivation_dict(
-                graph=graph,
-                x=x_atom, y=y_atom,
-                instrument=chosen_iv.instrument,
-                conditioning=chosen_iv.conditioning,
-                estimate=iv_estimate,
-            )
-            _attach_e_value_if_binary(
-                result, contract,
-                outcome=y_atom.predicate, treatment=x_atom.predicate,
-            )
-            _attach_weak_iv_warning_if_low_f(result, iv_estimate)
-            _attach_iv_estimand_fallback_warning(result, iv_estimate)
-            _finalise_numeric_result(result)
-            continue
-
-        import networkx as nx
-        chosen_front = min(front, key=len)
-        topo_mediators = tuple(
-            n for n in nx.topological_sort(graph) if n in chosen_front
-        )
-        mediator_names = tuple(a.predicate for a in topo_mediators)
-
-        try:
-            fd_estimate = estimate_frontdoor_ate(
-                contract.data,
-                treatment=x_atom.predicate,
-                outcome=y_atom.predicate,
-                mediators=mediator_names,
-                ci_bootstrap=ci_bootstrap,
-                random_state=random_state,
-                model=model,  # type: ignore[arg-type]
-                cluster=cluster,
-            )
-        except NotImplementedError:
-            # e.g. continuous mediator in the current v1 restriction —
-            # leave the result unchanged for now.
-            continue
-
-        result["numeric_estimate"] = {
-            "point": fd_estimate.point,
-            "ci_lower": fd_estimate.ci_lower,
-            "ci_upper": fd_estimate.ci_upper,
-            "ci_level": fd_estimate.ci_level,
-            "method": fd_estimate.method,
-            "assumptions": list(fd_estimate.assumptions),
-            "sample_size": fd_estimate.sample_size,
-            "data_hash": fd_estimate.data_hash,
-            "mediators": list(fd_estimate.mediators),
-            "treatment": fd_estimate.treatment,
-            "outcome": fd_estimate.outcome,
+                for s in iv_estimate.strata
+            ],
         }
-        _attach_bootstrap_meta(result["numeric_estimate"], cluster)
-        _attach_precision_budget(result["numeric_estimate"])
-
-        result["derivation"] = _build_frontdoor_numeric_derivation_dict(
-            graph=graph,
-            x=x_atom, y=y_atom,
-            mediators=topo_mediators,
-            estimate=fd_estimate,
+    if iv_estimate.anderson_rubin is not None:
+        iv_numeric_dict["anderson_rubin_confidence_set"] = _ar_set_to_dict(
+            iv_estimate.anderson_rubin
         )
-        _attach_e_value_if_binary(
-            result, contract,
-            outcome=y_atom.predicate, treatment=x_atom.predicate,
+    if iv_estimate.stratified_anderson_rubin is not None:
+        iv_numeric_dict["stratified_anderson_rubin_confidence_set"] = (
+            _stratified_ar_set_to_dict(iv_estimate.stratified_anderson_rubin)
         )
-        _finalise_numeric_result(result)
+    result["numeric_estimate"] = iv_numeric_dict
+    _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+    result["derivation"] = _build_iv_numeric_derivation_dict(
+        graph=facts.graph,
+        x=x_atom, y=y_atom,
+        instrument=chosen_iv.instrument,
+        conditioning=chosen_iv.conditioning,
+        estimate=iv_estimate,
+    )
+    _attach_e_value_if_binary(
+        result, facts.contract,
+        outcome=y_atom.predicate, treatment=x_atom.predicate,
+    )
+    _attach_weak_iv_warning_if_low_f(result, iv_estimate)
+    _attach_iv_estimand_fallback_warning(result, iv_estimate)
+    _finalise_numeric_result(result)
+    return answered()
 
 
 def _attach_numeric_bounds(
@@ -5231,10 +5411,10 @@ def _compute_precision_budget(
     return out
 
 
-def _attach_doubly_robust_estimate(
+def _try_doubly_robust_estimate(
     *, result, contract, graph, x, y, adjustment, adjustment_names, given,
     estimator, random_state, ci_bootstrap, model, cluster,
-):
+) -> Claim:
     """Attach an IPW / AIPW numeric_estimate to a backdoor-identified
     effect result.
 
@@ -5285,7 +5465,10 @@ def _attach_doubly_robust_estimate(
             "failure_type": exc.failure_type,
             "reason": str(exc),
         }
-        return
+        # The caller asked for THIS estimator by name. Falling through to
+        # the g-formula would answer with a number they did not request and
+        # cannot tell apart from the one they did.
+        return blocked('estimator_refused')
 
     prop = est.propensity
     ne = {
@@ -5368,6 +5551,7 @@ def _attach_doubly_robust_estimate(
         adjustment=adjustment_names,
     )
     _finalise_numeric_result(result)
+    return answered()
 
 
 def _build_dr_numeric_derivation_dict(

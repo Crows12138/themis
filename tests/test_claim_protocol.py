@@ -131,12 +131,18 @@ def test_every_reason_literal_in_dispatch_is_registered():
     assert not unregistered, unregistered
 
 
-def test_the_cascade_reads_the_claim_rather_than_its_truthiness():
-    """``Claim`` is a dataclass, so a bare ``if handler(...)`` would be
-    truthy always and silently claim every query. Call sites must ask
-    ``.stops_here``."""
-    src = _DISPATCH.read_text(encoding="utf-8")
-    tree = ast.parse(src)
+def test_no_handler_is_dispatched_by_a_hand_written_branch():
+    """``Claim`` is a dataclass, so ``if handler(...)`` is truthy always and
+    would silently claim every query — a defect this suite has already
+    caught once, in the migration that introduced the type.
+
+    Since the cascade became a table there is exactly one place that reads
+    a claim, so the property worth holding is stronger than "call sites say
+    ``.stops_here``": no call site branches on a handler at all. A new
+    ``if`` around a handler is a second dispatcher, and two dispatchers is
+    how the layers drifted apart in the first place.
+    """
+    tree = ast.parse(_DISPATCH.read_text(encoding="utf-8"))
     offenders = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.If):
@@ -147,13 +153,5 @@ def test_the_cascade_reads_the_claim_rather_than_its_truthiness():
                 and isinstance(sub.func, ast.Name)
                 and sub.func.id.startswith("_try_")
             ):
-                # the call must be the receiver of a .stops_here access
-                guarded = any(
-                    isinstance(a, ast.Attribute)
-                    and a.attr == "stops_here"
-                    and a.value is sub
-                    for a in ast.walk(node.test)
-                )
-                if not guarded:
-                    offenders.append(f"{sub.func.id}:{sub.lineno}")
+                offenders.append(f"{sub.func.id}:{sub.lineno}")
     assert not offenders, offenders
