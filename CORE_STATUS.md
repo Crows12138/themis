@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3458 passed / 144 skipped, warning-clean
+3477 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -611,11 +611,32 @@ D1：18 条测试先在改前代码上跑成红的（`git stash push -- themis/`
 
 **顺带修的陈述失真**（同一个死状态的下游）：`response_rendering.md` 把 assumption 组说成「与 `status == "needs_assumption"` 配对」、headline 阶梯把该状态当触发；`nl_to_kernel_ast.md` 更实质——它告诉上游 LLM「干净的个体反事实内核会返回 `needs_assumption`（请用户授予单调性），那是几何上正确的答案」，而现在返回的是 Tian-Pearl 区间（`counterfactual_bounded`），单调性成立时收紧成点。那句话是在一个**已经不成立的前提**上引导上游的压缩决策。`docs/GAP_KINDS_REFERENCE.md` 的行也改写了。
 
-**声明的边界**——structure 组（54 条未引用，含 `identification:not_identifiable` ×11、`query:counterfactual_unidentifiable` ×3、`query:proximal_not_identifiable` ×2、以及 19 条 `coefficient:*`）与 observation 组（3 条）**没有一并处理**，因为它们不是同一件事：structure 条目多数与一条已被引用的失败派生步骤同源，要求第二次引用会把正确的报告判错；observation 条目（SCM 反事实的单位观测）在 `GapKind` 里没有合适的成员，补它是一次带 schema 变更的独立改动。这条边界钉成了测试而不是留成默认值。
+**声明的边界**——structure 组（54 条未引用）与 observation 组（3 条）**没有一并处理**：observation 条目（SCM 反事实的单位观测）在 `GapKind` 里没有合适的成员，补它是一次带 schema 变更的独立改动；structure 条目当时判断为多与一条已被引用的失败派生步骤同源。这条边界钉成了测试而不是留成默认值。
+
+> **下一档更正（同日）**：上面那句「structure 条目多与一条已被引用的失败派生步骤同源」是**没有验证的假设，且不成立**。同样的插桩记账量到 `failed_rules` 对全部 54 条都是空的——它们背后根本没有失败的派生步骤。详见下一条。
 
 D1：14 条测试先在改前代码上跑成红的（`git stash push -- themis/` 实测）。另有 5 条在新旧两边都绿——4 条是端到端的验证器审计（旧 T10-2 根本不查这组）、1 条是「结构组仍留给它的派生步骤」这个边界钉，**不算作证明了什么**。+19 →**3458**。
 
-**基线**：3439 → **3458**（更早 3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**残余缺口分类器：把静默默认翻成响（2026-07-27）**：修复型，收上一档自己声明的边界——并**推翻我在那一档写下的判断**。
+
+**现象**——同一套插桩记账量到 57 条 structure / observation 条目未被引用，而 `failed_rules` 对**全部 54 条 structure 条目都是空的**：它们背后根本没有失败的派生步骤。上一档写的「structure 条目多与一条已被引用的失败派生步骤同源」是没验证的假设，不成立。实际分布分两类：
+
+- **报告存在但 `gaps` 全空** 30+ 次：SCM 反事实缺路径系数（27）、缺单位观测（3）、ID*/IDC* 不可识别（3）、proximal 不可识别（2）、条件事件概率为零（1）。模块 docstring 自己写着 `gaps=()` 的语义是「asked and got a clean bill of health」——一个什么都没返回、并在 `missing_information` 里写清了为什么的查询，报的却是「查过了，没问题」。
+- **更糟的一类，不是漏报是反着报**：`identification:not_identifiable`（11 次，effect 查询）。探针实测 `structural_result.value = False`、`missing_information` 明写 "no valid back-door or front-door adjustment exists"，而 `data_gap_report.answer_tier` 返回 **`"point"`**——信封告诉消费者「点估计量在手」。同类还有 `identification:joint_not_identifiable`（5）、`longitudinal:sequential_exchangeability_fails`（2），共 18 次。
+
+**根因**——`_classify_unidentifiable_from_request` 用**三条名字前缀白名单**认领结构失败，`_classify_missing_iv` 用子串 `iv`；除此之外整个 structure 组、以及**完全无人读取的 observation 组**，默认值是静默无缺口。与上一档的逐组枚举同形——**枚举式守卫的默认值是静默通过**——只是这次落在名字粒度上。而下游 `answer_tier` 读的正是那个没被产出的 kind，于是「少一条 gap」变成了「发一个错的 tier」。表象读法是把漏掉的名字补进白名单，但那保留了同一个默认值，下一个上游新增的拒绝名照样静默。
+
+**改法**——把默认翻成响。新增 `_classify_residual_investigation_items`，**残余的定义是「跑完所有分类器后仍未被任何 gap 引用的条目」**，从已产出的 gap 列表里读，而不是复制一份判据——所以它结构上不会与细化分类器漂移：上游加一条细化，残余自动变窄；去掉一条，残余自动变宽。白名单降级为**细化**：忘记加名字的代价从「消失」变成「缺口不够具体」。
+
+两个新 `GapKind`。`missing_unit_observation` 给 observation 组——abduction 要的是**这个单位的读数**，人群分布替代不了，所以它不是 `missing_distribution`。`missing_structural_input` 给 structure 组的残余（未声明的路径系数、不在因果路径上的中介、不在 V 里的查询原子、在图允许的每个模型下概率为零的条件事件），它**刻意不声称识别失败**：缺一个系数时估计量是点识别的，只是那个数从没被声明，而 `unidentifiable_no_admissible_set` 才是 `answer_tier` 用来判定点被阻断的那个 kind。两者的 `blocks` 都取 `point_estimate`——那是对上述所有形态都成立的那句话；描述携带条目自己的 `reason`，不附任何内核没推导出的建议（同一组条目从「补一个系数」到「你的条件事件不可能发生」，一条通用建议对它们不存在）。
+
+白名单同时扩到真正意味着「点识别失败」的那几个名字（`identification:not_identifiable` / `identification:joint_not_identifiable` / `query:proximal_not_identifiable` / `query:counterfactual_unidentifiable` / `longitudinal:sequential_exchangeability_fails`），修掉 answer_tier 反着报。实测：同一个 collider 程序从 `answer_tier: point` 变成 `none`，summary 从一条 collider 建议变成「识别路径失败：no valid back-door or front-door adjustment exists」。**判据是「这个估计量在这张图和这些数据下不是点识别的」，不是「程序里有错」**——中介声明错了、原子不在 V 里都是程序缺陷，走残余，免得 tier 被告知识别失败。
+
+**验证器**——T10-2 的组名单从「列出被覆盖的组」翻成**「列出豁免的组」**，唯一豁免是 framing（它的条目以 `framing_note` ref 进报告，第 3 项检查已经持有；要求第二次以另一种 ref 引用会把正确报告判错）。写成豁免式是刻意的：包含式的默认值是让没列到的组静默通过，而这正是这条规则先后在 assumption 通道、structure 与 observation 通道上全绿而下面什么都没产出的原因。
+
+D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿——3 条端到端验证器审计（旧 T10-2 不查这两组）、1 条 collider 程序本来就有别的 gap、1 条 framing 豁免钉、1 条「已解出的查询不应凭空多出残余缺口」的前提钉，**不算作证明了什么**。+19 →**3477**。
+
+**基线**：3458 → **3477**（更早 3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
