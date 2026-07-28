@@ -134,6 +134,16 @@ def _estimate_program(
     cluster = _resolve_cluster_option(program, cluster)
     ate_estimator = _resolve_ate_estimator_option(program, ate_estimator)
 
+    # Record the resolved cluster column at RUN level, before any branch
+    # can consume it. Without this the envelope cannot distinguish "no
+    # cluster column was named" from "one was named and this estimator
+    # dropped it" — the two look identical, so no verifier can catch the
+    # second. Written only when a column was resolved, keeping the
+    # cluster-free envelope byte-identical.
+    if cluster is not None:
+        for result in identification_output.get("results", []):
+            result.setdefault("estimation_context", {})["cluster"] = cluster
+
     # Phase 9 §S9.2 numeric end: a program declaring missingness indicators
     # carries NaN in its partially-observed columns, which the standard data
     # contract (validate_data) forbids. Route it to the missing-data recovery
@@ -181,6 +191,7 @@ def _estimate_program(
     _maybe_estimate_longitudinal(
         program, identification_output, contract,
         random_state=random_state, ci_bootstrap=ci_bootstrap,
+        cluster=cluster,
     )
 
     _estimate_effect_queries(
@@ -263,6 +274,7 @@ def _maybe_estimate_longitudinal(
     *,
     random_state: int,
     ci_bootstrap: int,
+    cluster: str | None = None,
 ) -> None:
     """Attach a longitudinal g-formula ``numeric_estimate`` block when the
     program carries an ``options.longitudinal`` spec.
@@ -352,6 +364,7 @@ def _maybe_estimate_longitudinal(
         "outcome": outcome,
         "random_state": random_state,
         "ci_bootstrap": int(spec.get("ci_bootstrap", ci_bootstrap)),
+        "cluster": cluster,
     }
     if "strategy_treated" in spec:
         kwargs["strategy_treated"] = spec["strategy_treated"]
@@ -433,6 +446,9 @@ def _maybe_estimate_longitudinal(
             "n_bootstrap": est.n_bootstrap,
         }
     target["numeric_estimate"] = numeric_estimate
+    # Stamp what the estimator REPORTS having resampled over, not what the
+    # caller asked for — the claim and the fact then cannot drift apart.
+    _attach_bootstrap_meta(target["numeric_estimate"], est.cluster)
     _attach_precision_budget(target["numeric_estimate"])
     # Flip to numerically_solved, preserving the g-formula structural
     # derivation (identify_via_gformula) the scheduler attached — the same

@@ -33,7 +33,11 @@ Method — parametric g-computation (Monte-Carlo g-formula), H&R ch.21:
             ψ = E[Y_{ā=1}] − E[Y_{ā=0}].
 
 Confidence interval: non-parametric percentile bootstrap — resample
-SUBJECTS (rows), refit every model, re-simulate, recompute ψ.
+SUBJECTS (rows), refit every model, re-simulate, recompute ψ. A subject
+row is the unit of independence only when subjects are independent; when
+they are nested (clinics, schools, families), ``cluster`` names that
+column and the draw becomes a pairs cluster bootstrap over whole
+clusters, exactly as in the cross-sectional estimators.
 
 Deterministic given ``random_state`` (one seeded numpy Generator drives
 baseline resampling, covariate-transition noise, and the bootstrap).
@@ -65,6 +69,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
 from .dose_response import EstimatorFailure
+from .resample import cluster_labels, resample_indices
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,11 @@ class LongitudinalGFormulaEstimate:
     n_bootstrap: int
     e_y_treated: float
     e_y_control: float
+    # The cluster column the bootstrap ACTUALLY resampled over (None =
+    # i.i.d. rows). Reported back rather than echoed from the caller's
+    # request, so a consumer that stamps "this interval is cluster-robust"
+    # is stamping what happened, not what was asked for.
+    cluster: str | None = None
 
 
 def estimate_longitudinal_gformula(
@@ -107,6 +117,7 @@ def estimate_longitudinal_gformula(
     ci_bootstrap: int = 200,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> LongitudinalGFormulaEstimate:
     """Parametric g-formula for a time-varying treatment strategy.
 
@@ -129,6 +140,10 @@ def estimate_longitudinal_gformula(
     ci_bootstrap: subject-resampling bootstrap reps; 0 skips the CI.
     ci_level: two-sided confidence level for the percentile CI.
     random_state: deterministic seed.
+    cluster: optional column naming the level at which subjects are
+        independent (clinic, school, family). The bootstrap then draws
+        whole clusters with replacement instead of i.i.d. rows; the
+        column itself never enters any model or the data hash.
 
     Returns
     -------
@@ -154,8 +169,15 @@ def estimate_longitudinal_gformula(
 
     all_confounders = tuple(c for block in confounders_by_time for c in block)
     required = {*treatments, *all_confounders, outcome}
-    contract = validate_data(data, required_columns=required)
+    presence = (cluster,) if cluster is not None else ()
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
     df = contract.data
+    groups = (
+        cluster_labels(df, cluster, expected_n=len(df))
+        if cluster is not None else None
+    )
 
     # Positivity / overlap precondition, mirrored from the cross-sectional
     # backdoor estimator: a strategy contrast forces each A_k to treated /
@@ -202,6 +224,7 @@ def estimate_longitudinal_gformula(
             ci_bootstrap=ci_bootstrap,
             ci_level=ci_level,
             rng=rng,
+            groups=groups,
         )
 
     assumptions = (
@@ -212,6 +235,10 @@ def estimate_longitudinal_gformula(
         # The price of the PARAMETRIC g-formula (vs nonparametric):
         "correct_specification_of_covariate_transition_and_outcome_models",
     )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
 
     return LongitudinalGFormulaEstimate(
         point=float(point),
@@ -231,6 +258,7 @@ def estimate_longitudinal_gformula(
         n_bootstrap=ci_bootstrap,
         e_y_treated=float(e_y_treated),
         e_y_control=float(e_y_control),
+        cluster=cluster,
     )
 
 
@@ -281,6 +309,7 @@ class LongitudinalIPWMSMEstimate:
     weight_mean: float
     weight_max: float
     n_bootstrap: int
+    cluster: str | None = None  # see LongitudinalGFormulaEstimate.cluster
 
 
 def estimate_longitudinal_ipw_msm(
@@ -295,6 +324,7 @@ def estimate_longitudinal_ipw_msm(
     ci_bootstrap: int = 200,
     ci_level: float = 0.95,
     random_state: int = 42,
+    cluster: str | None = None,
 ) -> LongitudinalIPWMSMEstimate:
     """IPW marginal structural model for a time-varying treatment strategy.
 
@@ -313,7 +343,8 @@ def estimate_longitudinal_ipw_msm(
     interaction term) — correctly specified when per-time effects are
     additive; that assumption is surfaced in ``assumptions``. CI is a
     subject (row) percentile bootstrap: refit every propensity model,
-    recompute weights, refit the MSM.
+    recompute weights, refit the MSM — or a pairs cluster bootstrap over
+    whole clusters when ``cluster`` names the level of independence.
 
     Raises ``EstimatorFailure('overlap_insufficient')`` if any treatment
     column has a single observed level; ``ValueError`` on a malformed spec.
@@ -330,8 +361,15 @@ def estimate_longitudinal_ipw_msm(
     confounders_by_time = tuple(tuple(c) for c in confounders_by_time)
     all_confounders = tuple(c for block in confounders_by_time for c in block)
     required = {*treatments, *all_confounders, outcome}
-    contract = validate_data(data, required_columns=required)
+    presence = (cluster,) if cluster is not None else ()
+    contract = validate_data(
+        data, required_columns=required, presence_columns=presence,
+    )
     df = contract.data
+    groups = (
+        cluster_labels(df, cluster, expected_n=len(df))
+        if cluster is not None else None
+    )
 
     for a in treatments:
         levels = df[a].dropna().unique()
@@ -362,7 +400,7 @@ def estimate_longitudinal_ipw_msm(
         n = len(df)
         draws = np.empty(ci_bootstrap)
         for i in range(ci_bootstrap):
-            idx = rng.integers(0, n, size=n)
+            idx = resample_indices(n, rng, groups=groups)
             sample = df.iloc[idx].reset_index(drop=True)
             try:
                 pt, *_ = _ipw_msm_contrast(
@@ -391,6 +429,10 @@ def estimate_longitudinal_ipw_msm(
         "correct_specification_of_treatment_propensity_models",
         "marginal_structural_model_additive_no_treatment_time_interaction",
     )
+    if cluster is not None:
+        assumptions = assumptions + (
+            f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
+        )
 
     return LongitudinalIPWMSMEstimate(
         point=float(point),
@@ -413,6 +455,7 @@ def estimate_longitudinal_ipw_msm(
         weight_mean=float(w_mean),
         weight_max=float(w_max),
         n_bootstrap=ci_bootstrap,
+        cluster=cluster,
     )
 
 
@@ -613,13 +656,17 @@ def _bootstrap_ci(
     ci_bootstrap: int,
     ci_level: float,
     rng: np.random.Generator,
+    groups: np.ndarray | None = None,
 ) -> tuple[float, float]:
     """Non-parametric percentile bootstrap over SUBJECTS (rows): refit
-    every model on each resample, re-simulate, recompute the contrast."""
+    every model on each resample, re-simulate, recompute the contrast.
+
+    ``groups`` switches the draw to whole clusters; ``None`` reproduces
+    the i.i.d. row draw exactly (same rng consumption)."""
     n = len(df)
     estimates = np.empty(ci_bootstrap)
     for i in range(ci_bootstrap):
-        idx = rng.integers(0, n, size=n)
+        idx = resample_indices(n, rng, groups=groups)
         sample = df.iloc[idx].reset_index(drop=True)
         e1, e0 = _g_formula_contrast(
             sample,

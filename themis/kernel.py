@@ -90,6 +90,7 @@ from .verifier import (
     derivation_from_dict,
     verify_assoc,
     verify_assumption_ledger as _verify_assumption_ledger_rule,
+    verify_cluster_inference as _verify_cluster_inference_rule,
     verify_causation,
     verify_causation_numeric,
     verify_counterfactual_cell_numeric,
@@ -1239,6 +1240,13 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # is indistinguishable from an assumption nobody makes.
     _verify_assumption_ledger_rule(result)
 
+    # Independent audit of cluster-robust inference disclosure — the third
+    # one-sided surface: a dropped cluster column moves only the interval
+    # WIDTH, so nothing in the point estimate reveals it. Checked here
+    # because the run-level column and the estimator's own declaration both
+    # ride on the result.
+    _verify_cluster_inference_rule(result)
+
     # Iter 126/127/130: independent audit of bounds_result. Each
     # producer has a dedicated verifier; verifier trilogy now complete
     # for the 3 implemented BoundsMethod values.
@@ -1419,6 +1427,24 @@ def verify_assumption_ledger(result: dict) -> None:
         raise TypeError(f"result must be a dict; got {type(result).__name__}")
     validate_result(result)
     _verify_assumption_ledger_rule(result)
+
+
+def verify_cluster_inference(result: dict) -> None:
+    """Independently audit one result's cluster-robustness disclosure.
+
+    The result-only counterpart to :func:`verify`, for the same reason as
+    :func:`verify_assumption_ledger`: a clustered run's numeric block can ride
+    on a result whose status never flips to ``numerically_solved``, so the
+    audit must not require a derivation chain.
+
+    Returns ``None`` on accept. Raises ``VerificationError`` when an interval
+    computed under a clustered run says nothing about the cluster column, or
+    when a cluster-robustness claim is not supported by the envelope.
+    """
+    if not isinstance(result, dict):
+        raise TypeError(f"result must be a dict; got {type(result).__name__}")
+    validate_result(result)
+    _verify_cluster_inference_rule(result)
 
 
 def verify_markov_blanket(result: dict) -> None:

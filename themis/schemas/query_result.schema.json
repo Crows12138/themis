@@ -1526,6 +1526,11 @@
         "data_contract_warnings": { "type": "array", "items": { "type": "string" } },
         "random_state": { "type": "integer" },
         "ci_bootstrap": { "type": "integer", "minimum": 0 },
+        "cluster": {
+          "type": "string",
+          "description": "The cluster / block column resolved for this RUN (explicit kwarg or options.cluster). A run-level inference input like random_state and ci_bootstrap, recorded once before any estimator consumes it: without it the envelope cannot distinguish a run where no cluster column was named from one where an estimator dropped it, so the audit layer demands every interval produced under a clustered run name this column in its own declared assumptions — honoured or explicitly not honoured. Absent when the run named no cluster column.",
+          "minLength": 1
+        },
         "model_preference": {
           "enum": ["auto", "linear", "logistic", "forest", "drlearner"]
         }

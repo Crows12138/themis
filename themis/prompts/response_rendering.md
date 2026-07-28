@@ -499,6 +499,7 @@ df)`, not from symbolic Theta.
 | `data_hash` | omit (developer-facing) |
 | `estimation_context.data_contract_warnings[]` | non-empty → real issue (missing column / NaN / coercion); always surface |
 | `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
+| `estimation_context.cluster` | the column this run treats as the unit of independence. Present → the interval is only as good as that choice, and every estimator says in its own assumptions whether it honoured it (a cluster bootstrap) or could not (an analytic interval). When one could not, say so where you report that interval: an interval computed on rows that are not independent is narrower than the evidence supports. |
 
 **The point value's meaning depends on `method`** — never dump
 `point: -0.069` raw:

@@ -12,6 +12,7 @@ Public entry points::
         verify_data_gap_report,
         verify_bounds_result,
         verify_assumption_ledger,
+        verify_cluster_inference,
     )
 
     # Pure symbolic kernel:
@@ -23,8 +24,8 @@ Public entry points::
     # DataFrame-backed estimation path:
     estimated = estimate(program_json_or_dict, dataframe)
 
-    # Independent re-check (pure JSON; no typed objects needed). The three
-    # audit surfaces partition by what the result carries — pick by result
+    # Independent re-check (pure JSON; no typed objects needed). The audit
+    # surfaces partition by what the result carries — pick by result
     # content, do not reach for verify() unconditionally:
     #
     #   verify                 — audits the reasoning chain; applies ONLY to
@@ -43,6 +44,13 @@ Public entry points::
     #                            audit whose failure mode is one-sided (an
     #                            assumption absent from the ledger reads as an
     #                            assumption nobody makes).
+    #   verify_cluster_inference
+    #                          — audits the unit of independence; always
+    #                            applicable. The other one-sided surface: a
+    #                            dropped cluster column moves the interval
+    #                            WIDTH only, so an interval that says nothing
+    #                            about a named cluster column reads as i.i.d.
+    #                            inference the run gave no basis for.
     #
     # The two most common statuses — needs_investigation (identifiable but
     # missing theta) and needs_assumption (counterfactual) — carry NO
@@ -53,6 +61,7 @@ Public entry points::
         verify(program_json, result)            # reasoning-chain audit
     verify_data_gap_report(result)              # gap-report audit (always ok)
     verify_assumption_ledger(result)            # disclosure audit (always ok)
+    verify_cluster_inference(result)            # independence-unit audit
     if "bounds_result" in result:
         verify_bounds_result(program_json, result)
 
@@ -94,6 +103,7 @@ from .kernel import (
     verify,
     verify_assumption_ledger,
     verify_bounds_result,
+    verify_cluster_inference,
     verify_data_gap_report,
     verify_markov_blanket,
     verify_missing_data_numeric,
@@ -115,6 +125,7 @@ __all__ = [
     "verify",
     "verify_assumption_ledger",
     "verify_bounds_result",
+    "verify_cluster_inference",
     "verify_data_gap_report",
     "verify_markov_blanket",
     "verify_missing_data_numeric",

@@ -130,7 +130,14 @@ Public surface (re-exports from sub-modules):
   rejects under-disclosure, a fabricated estimator entry, an unsorted ledger, a
   summary whose counts do not match, or an identification assumption ranked
   below ``invalidating``. Which severity a given assumption ID deserves is
-  curation, not a fact derivable from the envelope, so it is out of scope)
+  curation, not a fact derivable from the envelope, so it is out of scope),
+  ``verify_cluster_inference`` (the unit of independence: holds the run-level
+  ``estimation_context.cluster`` against what the estimator declares it did
+  with that column, so an interval computed under a clustered run cannot stay
+  silent about it — silence reads as i.i.d. inference the run gave no basis
+  for — and a dispatch-written ``bootstrap`` block cannot claim
+  cluster-robustness the estimator never corroborated, name a different column
+  than the run resolved, or appear with no cluster column resolved at all)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -256,6 +263,7 @@ from .bounds_rules import (
     verify_manski_tamer_bounds_result,
 )
 from .assumption_ledger_rules import verify_assumption_ledger
+from .cluster_inference_rules import verify_cluster_inference
 from .type_reconciliation_rules import verify_type_reconciliation
 from .markov_blanket_rules import verify_markov_blanket
 from .orientation_rules import verify_orientation_propagation
@@ -281,6 +289,7 @@ __all__ = [
     "verify_causation",
     "verify_causation_numeric",
     "verify_cause",
+    "verify_cluster_inference",
     "verify_counterfactual",
     "verify_counterfactual_cell_numeric",
     "verify_counterfactual_conjunction",
