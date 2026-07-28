@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3608 passed / 144 skipped, warning-clean
+3610 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -728,6 +728,24 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **测试**——`test_a_block_of_one_reaches_the_data_end_too`，紧挨识别端的 `test_a_block_of_one_is_still_answered`，**成对，一层一条**。断言链是「识别层说做了分解 ⟹ 数必须是那个分解」而非硬编码字符串：先核 `nde_nie.identifiable`，再核 method，最后以 `estimate_mediation(mediator="m1")` 作**独立 oracle** 校 NDE/NIE 两个点（k=1 等价性由另一条测试独立钉住，故非自证）。**D1**：改前红在 `assert 'backdoor_linear' == 'mediation_joint_linear'`——fixture 正常执行、识别层断言先过，红的是行为不是环境。全仓仅两处构造单元素 `mediators`（识别端老测试 + 本条），**没有任何测试断言过旧行为**。
 
 **基线**：3607 → **3608**。
+
+**两层守卫的两处漂移（2026-07-28e，Phase 17 slice 0 的另外两个产物）**：修复型，同批两条，都由守卫等价性审计实测暴露。
+
+**B — 一个字段吞掉整个数值端**。现象：`_transport_program` 上做三组对照，A（图里无 m）与 B（图里加 `x→m→y`、query 不写 `mediator`）都给 `transport_post_stratification` 0.4106 逐位相同；C（同一张图、query 写 `mediator: m`）**三个答案通道全空**，`estimator_failure` 也是 `None`——估计层对自己什么都没产出这件事一个字没记。识别层三组都走 transport（`target_population` 在它的级联里排第 3、`mediator` 排第 6）。根因：`_try_mediation_estimate` 本来就读 `extensions.mediation_decomposition`、识别层没选中介它就会拒——**但守卫在它拒绝之后仍然无条件 `continue`**。分支用「查询提到了中介」认领了查询，而它实际能不能做取决于识别层的选择。表象读法是「把 continue 改成条件的」。
+
+**第一版改法是错的，全量套件把它抓了出来（2 failed）**：我让「产出了数」当认领判据，于是「识别层选了中介但中介不可识别」（中间混杂，`strategy == "none"`）的查询也不再认领，落到后门分支拿到一个**总效应**的数——**正是发现 A 的错误，我刚修完就自己犯了一遍**。判据不是「我产出了数」，而是「**识别层是不是把这个查询路由给了我**」：块**不存在** = 识别层选了别的策略 → 不认领；块**存在但不可识别/算不出来** = 识别层就是选了中介、只是没走通 → **必须认领**，宁可什么都不给，也不能让另一个估计量顶上。改完后两个 helper 各恰好一个 `return False`（块不存在），其余全部认领。
+
+这件事本身是 Phase 17 论点的又一证据：**估计层唯一该做的是跟随识别层的决定，而不是从查询字段重新推导**——我第一版写错，正因为我也在用「字段 + 产出」推理而不是读识别层的决定。顺带把 `_try_*` 的 10 bool / 9 None 双协议往单一契约推进一格，是 slice 1 的定金；由此也给 slice 1 定了判据：**返回值的语义是「这个查询是不是我的」，不是「我算出来了没有」**。
+
+**工具教训**：那次误报「全量通过」源于 `pytest -q 2>&1 | tail` 取到的是 `tail` 的退出码。全量一律直接取 pytest 退出码，不经管道。
+
+**C — 声明一个假设，把无假设的答案换成了需假设的答案**。现象：Pearl napkin（`w→z→x→y`, `w↔x`, `w↔y`；实测该图后门集 0、前门集 0、恰有一个条件工具 `z|w`）上供足 theta，同一查询只多声明一个 `monotonicity`：不声明走 `identify_via_tian` 得 0.6021（正是查询问的 P(Y=1|do(x=1))，DGP 真值 0.6036）；声明则走 `iv_wald_numeric_evaluate` 得 0.2122（Wald LATE，一个 complier 上的对比量）。两个数各自都对，但**不是同一个量**——多给一条信息，估计量退化了。根因：识别层把需假设的 IV escalation 排在无假设的 general-ID 之前，而估计层反过来且注释早已写明理由（"c-factor 估计量无假设，IV 点估计需单调性/效应同质性"）。改法：Tian 块移到 IV 之前，保住 `iv_attempt` 仍在最终拒绝之前求值（那句拒绝要用它的 `missing` 说「有工具变量，只是你没声明单调性」）。**这不是静默缺陷**——IV 路径的 `late_caveat` 披露充分；缺陷在策略。
+
+**测试**——B：`test_a_named_mediator_does_not_swallow_the_transport_number`，三组对照写进断言，把「图变了」与「字段变了」分开。C：`test_declaring_an_assumption_does_not_replace_the_assumption_free_answer`，napkin + 由**一个显式联合**导出的自洽 theta（不依赖数据、条件层权重严格和 1），并带**防空过守卫**：先断言该图上 `iv_sets` 非空且后门/前门皆空，否则「IV 没抢先」什么都证明不了。**D1**：`git stash` 掉源码改动只留测试 → C 红在 `'identify_via_tian' not in ['iv_criterion_check','identify_via_iv',...]`，B 红在 `assert None is not None`，均非机械红（前置守卫断言先过）。
+
+**一条我提错并就地作废的发现**——曾把「C 的 `answer_tier` 仍是 `point` 而信封无数」记为可能缺陷。读 `_compute_answer_tier` 契约后作废：POINT 的语义是「点估计量可识别」，docstring 明确把「identifiable-but-missing-θ」算作 POINT，所以它符合自己的契约。**方法论**：C 的第一次探针跑出「无分歧」，真因是探针把概率 `round(p, 6)` 导致条件层权重和 0.999999≠1、IV 路径**正确地拒绝**了那份 theta——探针的「没测出来」必须先自证不是探针自身的假象。
+
+**基线**：3608 → **3610**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

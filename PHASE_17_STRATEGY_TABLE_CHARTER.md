@@ -215,10 +215,14 @@ gap 报告还在提示 `mediation_identification_assumption_required`。
 `bounds_result` 全是 `None`，而 `estimator_failure` **也是 `None`**——
 估计层对自己什么都没产出这件事一个字都没记。
 
-**二阶发现**：C 的缺口报告 `answer_tier` 仍然是 **`point`**，即它向读者
-承诺一个信封里任何通道都不存在的点答案。（A/B 也是 `point`，那里名副其实。）
-本档只在这个情形下观测到，**未核实 `answer_tier` 在其他空信封情形下是否同样
-失准**——那是独立一条。
+**一条我提错的二阶发现，就地结掉**：我曾把「C 的 `answer_tier` 仍是 `point`
+而信封里没有数」记为可能的缺陷。读 `_compute_answer_tier` 的契约后作废——
+它的 docstring 明写 POINT 的语义是「**点估计量可识别**」，并把
+「identifiable-but-missing-θ（a data gap, still a point）」显式算作 POINT。
+C 的估计量确实是点可识别的（识别层给了 `structurally_solved`），所以
+`answer_tier: point` **符合它自己的契约**，不是缺陷。记下来是因为这正是
+「诚实拒绝也当待验证断言」反过来用在自己身上：我标注的可疑项，读契约后
+是对的。
 
 C 相对 B 多出的四条缺口（`missing_distribution`、
 `transport_source_conditional_unknown`、`transport_target_distribution_unknown`、
@@ -275,9 +279,13 @@ P(Y=1\|do(x=1))（DGP 真值 0.6036）；0.2122 是 Wald LATE，一个对比量
 - 差异 2 说明守卫必须是**输入条件**，不许读结果残迹——策略表的 `applies_when`
   只允许对 (query, graph, program, specs) 求值，**不允许读 result**。这条写进
   slice 2 的验收。
-- 发现 A 已修（`9e91534`）。**发现 B / C 均已实测确认，必须先单独修再重构**
-  （charter 纪律：真 bug 不混进重构）。B 的修法要连带决定 `answer_tier`
-  在空信封上该报什么；C 的修法就是把识别层的 precedence 翻成无假设优先。
+- **三个发现均已修，重构开工前的地基是干净的**（charter 纪律：真 bug 不混进
+  重构）。A = `9e91534`（守卫判集合大小 → 判是否点名了集合）；B = 中介两个
+  分支改为「产出了才认领」，顺带把 `_try_*` 的双协议往单一 bool 推进一格，
+  是 slice 1 的定金；C = 识别层把 Tian 移到 IV escalation 之前，与估计层
+  一致。`answer_tier` 一项经查是我提错，见发现 B 内的更正。
+- **slice 1 的一条验收由 B 的修法定下**：认领与否只能由「策略真产出了」
+  决定，不能由「守卫命中」决定——`decline(REASON)` 的返回值就是这件事。
 
 ## 显式 Out-of-scope
 
