@@ -21,6 +21,10 @@ Phase 10 charter §2.2 (initial 8):
 2. missing_distribution                   — investigation parameter group
 3. missing_population_distribution        — placeholder for §T9.2/§T9.3
 4. missing_assumption                     — investigation assumption group
+4b. missing_unit_observation              — investigation observation group
+4c. missing_structural_input              — residual: any structure /
+    observation item no other classifier claimed (see
+    ``_classify_residual_investigation_items``)
 5. missing_iv_candidate                   — structure group naming an IV gap
 6. missing_mediator_data                  — mediation block valid + parameter
 7. transport_target_distribution_unknown  — transport_identification + non-empty Z
@@ -290,6 +294,10 @@ def compute_data_gap_report(
     gaps.extend(_classify_transport_target_distribution(extensions))
     gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
     gaps.extend(_classify_dose_response_data(program, stmt, derivation))
+    # Last, and reading what the classifiers above actually produced.
+    gaps.extend(
+        _classify_residual_investigation_items(investigation_requests, gaps)
+    )
 
     gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
     gaps.sort(key=_gap_sort_key)
@@ -1769,15 +1777,36 @@ def _classify_unidentifiable_from_request(
     requests: tuple[InvestigationRequest, ...],
 ) -> Iterable[DataGap]:
     """Identification failures that go through the missing-info channel
-    (no derivation step) — e.g. ADMG identify_admg returning a
-    structure-group request with target ``query:identify_*`` /
-    ``query:effect_admg`` / ``query:counterfactual_admg``."""
+    (no derivation step) — the ADMG / ID* / proximal / longitudinal
+    refusals, which record a MissingItem and return without ever writing
+    a derivation step for the failure.
+
+    The name list below REFINES: an item it does not match still reaches
+    the report through ``_classify_residual_investigation_items``, as a
+    less specific gap. That ordering is what makes the list safe to
+    maintain — before it, an unmatched name produced no gap at all, and
+    with it went the ``unidentifiable_no_admissible_set`` signal that
+    ``_compute_answer_tier`` reads, so an effect query whose
+    identification had structurally failed still reported
+    ``answer_tier == "point"``.
+
+    Membership means one thing: the estimand asked for is not point
+    identified from this graph and these data. It is NOT "the program
+    has a mistake in it" — a mediator declared off the causal path or a
+    query atom missing from V are program defects, and they route to
+    the residual instead so the tier is not told identification failed.
+    """
     # Targets that signal "no admissible identification path on this graph";
     # all share the same downstream remediation (more variables / RCT / IV).
     _UNIDENTIFIABLE_PREFIXES = (
         "query:identify",
         "query:effect_admg",
         "query:counterfactual_admg",
+        "query:counterfactual_unidentifiable",
+        "query:proximal_not_identifiable",
+        "identification:not_identifiable",
+        "identification:joint_not_identifiable",
+        "longitudinal:sequential_exchangeability_fails",
     )
     for req in requests:
         if req.group != "structure":
@@ -1803,6 +1832,84 @@ def _classify_unidentifiable_from_request(
                     "在 X 上做 RCT (如可行)，旁路 backdoor",
                     "找一个满足 IV 条件的工具变量",
                 ),
+                provenance=(
+                    GapProvenanceRef(
+                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
+                        ref_id=item.target,
+                    ),
+                ),
+            )
+
+
+# Investigation groups the residual pass is responsible for. ``framing``
+# is excluded because its items reach the report as
+# ``ambiguous_variable_definition`` gaps citing a framing_note ref — a
+# second, differently-shaped citation of the same predicate — and
+# ``parameter`` / ``assumption`` because their classifiers are total over
+# their group already. What is left is the surface where a name added
+# upstream used to fall through to nothing.
+_RESIDUAL_GROUPS: frozenset[str] = frozenset({"structure", "observation"})
+
+
+def _classify_residual_investigation_items(
+    requests: tuple[InvestigationRequest, ...],
+    emitted: list[DataGap],
+) -> Iterable[DataGap]:
+    """Every investigation item that no other classifier claimed.
+
+    The residue is computed from the gaps already built rather than by
+    re-testing the same predicates, so it cannot drift out of step with
+    them: whatever the specific classifiers cite is exactly what this
+    pass skips. Adding a refinement upstream automatically narrows the
+    residue; removing one automatically widens it.
+
+    This exists because the specific classifiers recognise their items by
+    name — three target prefixes for identification failures, the
+    substring ``iv`` for instruments — and a name none of them matched
+    used to produce no gap at all. The report would then carry
+    ``gaps=[]``, which its own contract reads as "asked and got a clean
+    bill of health", for a query that returned nothing and said exactly
+    why in ``missing_information``. The default has to be loud; a name
+    nobody refined should cost specificity, not the entry.
+
+    Kind follows the kernel's own classification of the shortfall, since
+    that is the one judgement already made and recorded: an
+    ``observation`` item is a unit-level reading, a ``structure`` item is
+    a structural input. Description carries the item's ``reason``, and
+    the gap claims nothing beyond it — these items range from an
+    undeclared path coefficient to a conditioning event of probability
+    zero, and a single line of advice fitting all of them does not
+    exist.
+    """
+    cited = {
+        ref.ref_id
+        for gap in emitted
+        for ref in gap.provenance
+        if ref.ref_kind == GapRefKind.INVESTIGATION_REQUEST
+    }
+    for req in requests:
+        if req.group not in _RESIDUAL_GROUPS:
+            continue
+        for item in req.items:
+            if item.target in cited:
+                continue
+            observation = req.group == "observation"
+            yield DataGap(
+                kind=(
+                    GapKind.MISSING_UNIT_OBSERVATION
+                    if observation
+                    else GapKind.MISSING_STRUCTURAL_INPUT
+                ),
+                severity=GapSeverity.BLOCKING,
+                description=(
+                    (
+                        f"缺该单位的观测值：{item.reason or item.target}"
+                        if observation
+                        else f"缺结构输入：{item.reason or item.target}"
+                    )
+                ),
+                blocks=GapBlocks.POINT_ESTIMATE,
+                if_provided="该查询可继续走到点估计",
                 provenance=(
                     GapProvenanceRef(
                         ref_kind=GapRefKind.INVESTIGATION_REQUEST,
@@ -3212,6 +3319,10 @@ def _short_label_for(gap: DataGap) -> str:
         return "图与 CPT 的不一致（修图或补条件量）"
     if gap.kind == GapKind.MISSING_POPULATION_DISTRIBUTION:
         return "目标人群分布"
+    if gap.kind == GapKind.MISSING_UNIT_OBSERVATION:
+        return "该单位的观测值"
+    if gap.kind == GapKind.MISSING_STRUCTURAL_INPUT:
+        return "结构输入"
     if gap.kind == GapKind.MISSING_ASSUMPTION:
         # Not always an assumption to declare — the same channel carries
         # experimental inputs and contradictory declarations, so the

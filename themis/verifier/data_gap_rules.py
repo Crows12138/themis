@@ -143,7 +143,17 @@ def _verify_t10_1_provenance(
 # ============================================ T10-2 completeness
 
 
-_SOLE_CHANNEL_GROUPS: frozenset[str] = frozenset({"parameter", "assumption"})
+# Every investigation group must be cited, with one exemption: framing
+# items reach the report as ambiguous_variable_definition gaps carrying a
+# framing_note ref, so check 3 already holds them and demanding a second
+# citation under a different ref kind would reject correct reports.
+#
+# Written as an exemption rather than an inclusion list on purpose. The
+# inclusion form names the groups that are covered and lets an unnamed
+# group pass in silence, which is how this rule sat green while first the
+# assumption channel and then the structure and observation channels
+# emitted nothing at all.
+_UNCITED_GROUPS: frozenset[str] = frozenset({"framing"})
 
 
 def _verify_t10_2_completeness(
@@ -162,20 +172,18 @@ def _verify_t10_2_completeness(
 
     1. Failed derivation steps → at least one gap with provenance
        derivation_step:<step_id_or_rule>.
-    2. Investigation_request items in a SOLE-CHANNEL group → at least
-       one gap with provenance investigation_request:<item.target>.
+    2. Investigation_request items → at least one gap with provenance
+       investigation_request:<item.target>, for every group except the
+       framing exemption noted at ``_UNCITED_GROUPS``.
     3. Framing notes → at least one gap with provenance
        framing_note:<predicate>.
 
-    Check 2 covers the groups whose items have no second representation
-    anywhere in the report: a parameter names a probability nothing else
-    names, and an assumption names a premise with no derivation step and
-    no framing note behind it. Drop one of those and the remedy is gone
-    from the envelope entirely, which is why they are the ones a
-    completeness rule has to hold. Structure-group items generally
-    restate a derivation failure the report already cites through its
-    step; framing items reach the report through check 3, under their
-    own framing_note ref rather than this one.
+    Check 2 holds the whole channel because an item is the kernel saying
+    what it needs, in the one place it says it. Structure items in
+    particular carry no derivation step behind them — their producers
+    return before any step is recorded — so an uncited one leaves the
+    report claiming a clean bill of health for a query that returned
+    nothing.
     """
     gaps = report.get("gaps", [])
     # Build inverted index: signal_id → set of gap indices that cite it.
@@ -208,10 +216,10 @@ def _verify_t10_2_completeness(
                 step_index=None, rule="data_gap_completeness_check",
             )
 
-    # 2. Sole-channel investigation items must be cited.
+    # 2. Investigation items must be cited, framing aside.
     for req in investigation_requests:
         group = req.get("group")
-        if group not in _SOLE_CHANNEL_GROUPS:
+        if group in _UNCITED_GROUPS:
             continue
         for item in req.get("items", []) or []:
             target = item.get("target")
@@ -256,6 +264,14 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "missing_assumption": frozenset(
         {"investigation_request", "verifier_check", "derivation_step"}
     ),
+    # Unit-level reading an SCM counterfactual needs for abduction, and
+    # the residual for any structural requirement no more specific
+    # classifier claimed. Both are raised only through the
+    # missing-information channel — the producers return before any
+    # derivation step is recorded — so the investigation_request ref is
+    # the only citation available.
+    "missing_unit_observation": frozenset({"investigation_request"}),
+    "missing_structural_input": frozenset({"investigation_request"}),
     "missing_iv_candidate": frozenset(
         {"derivation_step", "investigation_request"}
     ),

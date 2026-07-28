@@ -2157,6 +2157,8 @@
             "missing_distribution",
             "missing_population_distribution",
             "missing_assumption",
+            "missing_unit_observation",
+            "missing_structural_input",
             "missing_iv_candidate",
             "missing_mediator_data",
             "transport_target_distribution_unknown",

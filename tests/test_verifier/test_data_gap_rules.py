@@ -345,28 +345,51 @@ def test_t10_2_accepts_a_cited_assumption_investigation_item():
     verify_data_gap_report(report, investigation_requests=requests)
 
 
-def test_t10_2_leaves_structure_group_items_to_their_derivation_step():
-    """Scope, pinned so it reads as a decision rather than an oversight.
-    Structure items generally restate a derivation failure the report
-    already cites through the step, so requiring a second citation of
-    the same fact would reject correct reports. Extending the rule to
-    this group is a separate piece of work with its own audit."""
-    requests = [
-        {
-            "action": "run_experiment",
-            "target": "identification:not_identifiable",
-            "priority": "high",
-            "group": "structure",
-            "items": [{"target": "identification:not_identifiable"}],
-        }
-    ]
-    unrelated = _gap(
+def _group_request(group: str, action: str, items: list[str]) -> dict:
+    return {
+        "action": action,
+        "target": items[0] if len(items) == 1 else f"{group}:{len(items)}_items",
+        "priority": "high",
+        "group": group,
+        "items": [{"target": t, "reason": "needed"} for t in items],
+    }
+
+
+def _unrelated_gap() -> dict:
+    return _gap(
         kind="unmeasured_confounder_risk",
         severity="informational",
         provenance=[{"ref_kind": "verifier_check", "ref_id": "program:shape"}],
     )
+
+
+@pytest.mark.parametrize(
+    "group,action,target",
+    [
+        ("structure", "run_experiment", "identification:not_identifiable"),
+        ("observation", "collect_observation", "observation:H(joe)"),
+    ],
+)
+def test_t10_2_rejects_an_uncited_item_in_any_cited_group(group, action, target):
+    """These producers record a MissingItem and return before any
+    derivation step exists, so an uncited item leaves the report saying
+    ``gaps == []`` — its own way of reporting a clean bill of health —
+    for a query that returned nothing."""
+    requests = [_group_request(group, action, [target])]
+    with pytest.raises(VerificationError, match="T10-2"):
+        verify_data_gap_report(
+            _report([_unrelated_gap()]), investigation_requests=requests,
+        )
+
+
+def test_t10_2_exempts_framing_items_because_they_cite_a_framing_note():
+    """The one exemption, pinned. Framing items reach the report as
+    ambiguous_variable_definition gaps under a framing_note ref, which
+    check 3 holds; demanding a second citation under a different ref
+    kind would reject correct reports."""
+    requests = [_group_request("framing", "validate_parameter", ["exercise"])]
     verify_data_gap_report(
-        _report([unrelated]), investigation_requests=requests,
+        _report([_unrelated_gap()]), investigation_requests=requests,
     )
 
 

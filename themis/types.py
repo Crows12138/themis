@@ -830,6 +830,24 @@ class GapKind(str, Enum):
     MISSING_DISTRIBUTION = "missing_distribution"
     MISSING_POPULATION_DISTRIBUTION = "missing_population_distribution"
     MISSING_ASSUMPTION = "missing_assumption"
+    # A unit-level value the query needs and the program did not observe.
+    # Distinct from MISSING_DISTRIBUTION: abduction in a deterministic SCM
+    # counterfactual recovers this unit's exogenous term from its own
+    # measured values, so what is wanted is a reading for this unit, not a
+    # distribution over units. No amount of population data substitutes.
+    MISSING_UNIT_OBSERVATION = "missing_unit_observation"
+    # Residual for a structural requirement the kernel raised that no more
+    # specific classifier claimed — an undeclared path coefficient, a
+    # mediator that does not lie on a directed path, a query atom absent
+    # from V, a conditioning event with probability zero in every model
+    # the graph admits. Deliberately does NOT assert that identification
+    # failed (``unidentifiable_no_admissible_set`` is the kind that says
+    # that, and ``answer_tier`` reads it): a missing coefficient leaves a
+    # point-identified estimand whose number was simply never declared.
+    # Its reason for existing is to make an unclassified requirement loud
+    # rather than silent, so a name added upstream costs specificity
+    # instead of disappearing from the report.
+    MISSING_STRUCTURAL_INPUT = "missing_structural_input"
     MISSING_IV_CANDIDATE = "missing_iv_candidate"
     MISSING_MEDIATOR_DATA = "missing_mediator_data"
     TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN = "transport_target_distribution_unknown"

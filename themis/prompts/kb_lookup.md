@@ -126,6 +126,10 @@ Mappings that translator applies:
 | `unidentifiable_no_admissible_set` | (None — structural) |
 | `missing_assumption` | (None — a premise to declare, an experiment to
   run, or a declared input to correct; none of the three is a lookup) |
+| `missing_unit_observation` | (None — a reading for one unit, not a
+  population quantity a KB holds) |
+| `missing_structural_input` | (None — the program must declare or
+  correct it; `items[*].reason` says which) |
 | `ambiguous_variable_definition` | (None — user reframing) |
 | `dose_response_data_required` | (None — fully-spec'd locally; fit
   the curve in EconML / DoubleML / GAM, not via KB) |
