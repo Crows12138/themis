@@ -73,10 +73,18 @@ Scope (declared tradeoffs):
     differential only attenuates toward it), so it gets a per-level inversion
     rather than a single de-attenuation factor det(M) — no ``naive/det`` shortcut.
 
-  A **multi-level exposure** confusion matrix, a **combined** (exposure AND outcome
-  misclassified at once) correction, a matrix jointly differential in the arm/outcome
-  AND a covariate, and a differential matrix set that does not cover every observed
-  conditioning level are deferred.
+  A **multi-level exposure** confusion matrix, a matrix jointly differential in the
+  arm/outcome AND a covariate, and a differential matrix set that does not cover
+  every observed conditioning level are deferred.
+- **Combined** misclassification — both channels at once — is point-identified here
+  too, by inverting the per-stratum (X, Y) joint on BOTH sides,
+  ``P_true = M_x⁻¹ P_obs (M_y⁻¹)ᵀ``. It carries one premise the single-channel
+  corrections do not: the two error mechanisms are independent given the truth,
+  ``X ⊥ Y | (X*, Y*, Z)``. Two separately non-differential channels can still be
+  correlated with each other, so this is strictly stronger and is listed as its own
+  assumption. A DIFFERENTIAL matrix on either channel is refused rather than
+  approximated — the level that selects one matrix is the quantity the other channel
+  mismeasures, so the observed table stops being a two-sided product.
 - **Known** confusion matrix / matrices, treated as FIXED. The bootstrap propagates
   the main-sample sampling variability only; validation-study uncertainty in M
   itself (a second bootstrap / Bayesian layer) is deferred.
@@ -587,35 +595,40 @@ def _bootstrap(
 # --- guards / coercion --------------------------------------------------------
 
 
-def _validate_matrix(confusion_matrix, k: int) -> np.ndarray:
+def _validate_matrix(confusion_matrix, k: int, *, label: str | None = None) -> np.ndarray:
+    """``label`` names the channel when more than one matrix is in play, so a
+    rejection says WHICH one is malformed instead of leaving the caller to
+    guess."""
+    what = f"{label} confusion matrix" if label else "confusion matrix"
+    noun = f"{label} states" if label else "outcome states"
     try:
         M = np.array(confusion_matrix, dtype=float)
     except (TypeError, ValueError) as exc:
         raise EstimatorFailure(
             "invalid_confusion_matrix",
-            f"confusion matrix is not a numeric array: {exc}.",
+            f"{what} is not a numeric array: {exc}.",
         )
     if M.shape != (k, k):
         raise EstimatorFailure(
             "invalid_confusion_matrix",
-            f"confusion matrix must be {k}×{k} to match {k} outcome states; "
+            f"{what} must be {k}×{k} to match {k} {noun}; "
             f"got shape {M.shape}.",
         )
     if not np.isfinite(M).all():
         raise EstimatorFailure(
             "invalid_confusion_matrix",
-            "confusion matrix has non-finite entries.",
+            f"{what} has non-finite entries.",
         )
     if (M < -_TOL).any() or (M > 1 + _TOL).any():
         raise EstimatorFailure(
             "invalid_confusion_matrix",
-            "confusion-matrix entries must be probabilities in [0, 1].",
+            f"{what} entries must be probabilities in [0, 1].",
         )
     col_sums = M.sum(axis=0)
     if not np.allclose(col_sums, 1.0, atol=1e-6):
         raise EstimatorFailure(
             "invalid_confusion_matrix",
-            f"confusion matrix must be column-stochastic (each column = a true "
+            f"{what} must be column-stochastic (each column = a true "
             f"state's observed distribution, summing to 1); column sums are "
             f"{[round(float(c), 4) for c in col_sums]}.",
         )
@@ -1343,6 +1356,458 @@ def _exposure_assumptions(
     out = [
         mech,
         known,
+        "confusion_matrix_invertible",
+        "recovered_true_exposure_marginal_positive",
+        "consistency_of_potential_outcomes",
+        "positivity_every_contributing_stratum_has_support",
+    ]
+    if adjustment:
+        out.append("backdoor_adjustment_{" + ",".join(adjustment) + "}")
+    if cluster is not None:
+        out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
+    return tuple(out)
+
+
+# ==============================================================================
+# Combined misclassification — both channels at once.
+# ==============================================================================
+#
+# The exposure and the outcome are BOTH measured with error, each with its own
+# validated column-stochastic matrix over its own states:
+#
+#     M_x[a, a*] = P(X = state_a  | X* = state_a*)        (2×2)
+#     M_y[b, b*] = P(Y = ystate_b | Y* = ystate_b*)       (k×k)
+#
+# Correcting one channel and shipping the number leaves the other channel's bias
+# in place, which is why the two single-channel estimators refuse to run
+# together. Composing them needs one premise neither of them makes on its own:
+# the two error mechanisms are INDEPENDENT GIVEN THE TRUTH,
+#
+#     X ⊥ Y | (X*, Y*, Z)
+#
+# — the recorder who mis-transcribes the exposure does not thereby become more
+# likely to mis-transcribe the outcome. Two separately non-differential channels
+# can still be correlated with each other; this is strictly stronger, and it is
+# what makes the observed table a two-sided linear image of the true one. Within
+# a covariate stratum,
+#
+#     P_obs(z)[a, b] = Σ_{a*, b*} M_x[a, a*] M_y[b, b*] P_true(z)[a*, b*]
+#                    = ( M_x · P_true(z) · M_yᵀ )[a, b]
+#   ⇒ P_true(z)      = M_x⁻¹ · P_obs(z) · (M_y⁻¹)ᵀ
+#
+# so the correction is the exposure-side inversion on the left composed with the
+# outcome-side inversion on the right, on the SAME 2×k joint table. The effect is
+# then the exposure side's standardisation over the recovered joint:
+#
+#     P(Y*=y* | X*=x, z) = P_true(z)[x, y*] / Σ_b P_true(z)[x, b]
+#     effect = Σ_z [ P(Y*=y* | X*=1, z) − P(Y*=y* | X*=0, z) ] · P(z)
+#
+# Neither channel may be DIFFERENTIAL here, and the reason is structural rather
+# than budgetary: detection bias makes M_y depend on the exposure arm and recall
+# bias makes M_x depend on the outcome, so the level that selects one matrix is
+# the very quantity the other channel is mismeasuring. The observed table is then
+# no longer M_x P_true M_yᵀ — the map stays linear in the 2k unknowns but is not
+# a two-sided product, and inverting it as one would return a wrong number rather
+# than a refusal.
+
+
+@dataclass(frozen=True)
+class CombinedMeasurementCorrectionEstimate:
+    """Effect corrected for misclassification in BOTH the exposure and the outcome.
+
+    ``point`` is the back-door standardised risk difference over the doubly
+    recovered joint, ``Σ_z [P(Y*=y*|X*=1,z) − P(Y*=y*|X*=0,z)] P(z)``;
+    ``naive_point`` is the same standardisation on the observed (doubly biased)
+    table — the number the correction replaces. There is no single ``det``: each
+    channel has its own, and ``det_joint = det(M_x)^k · det(M_y)^2`` is the
+    determinant of the composed 2k×2k map, i.e. how much information the two
+    channels destroy together. ``out_of_simplex`` flags a recovered joint cell
+    outside [0, 1] — reported, never clipped, since it is the signal that the
+    data refute the declared matrices. ``sufficient_statistics`` carries both
+    matrices, the per-stratum 2×k observed joint count tables and the covariate
+    marginal counts — everything the numeric verifier re-inverts the point from.
+    """
+    point: float
+    naive_point: float
+    ci_lower: float | None
+    ci_upper: float | None
+    ci_level: float
+    method: str
+    assumptions: tuple[str, ...]
+    sample_size: int
+    data_hash: str
+    treatment: str
+    outcome: str
+    adjustment: tuple[str, ...]
+    target_value: object
+    states: tuple[object, ...]
+    outcome_states: tuple[object, ...]
+    exposure_confusion_matrix: tuple[tuple[float, ...], ...]
+    outcome_confusion_matrix: tuple[tuple[float, ...], ...]
+    det_exposure: float
+    det_outcome: float
+    det_joint: float
+    out_of_simplex: bool
+    sufficient_statistics: dict = field(default_factory=dict)
+    cluster: str | None = None
+    form: str = "combined_confusion_matrix_inversion_backdoor_standardised"
+    model_assumption: str = ""
+
+
+def estimate_combined_measurement_correction(
+    data: pd.DataFrame,
+    *,
+    treatment: str,
+    outcome: str,
+    adjustment: tuple[str, ...],
+    exposure_confusion_matrix,
+    exposure_states,
+    outcome_confusion_matrix,
+    outcome_states,
+    target_value,
+    ci_bootstrap: int = 500,
+    ci_level: float = 0.95,
+    random_state: int = 42,
+    cluster: str | None = None,
+) -> CombinedMeasurementCorrectionEstimate:
+    """Recover the back-door effect when the binary exposure AND the discrete
+    outcome are both misclassified, by inverting both channels of the per-stratum
+    (X, Y) joint.
+
+    Parameters
+    ----------
+    data: the main sample carrying both *observed* (misclassified) columns.
+    treatment / outcome: binary X and discrete Y column names.
+    adjustment: the back-door adjustment covariates Z (discrete, measured
+        without error — a mismeasured covariate is a different channel).
+    exposure_confusion_matrix: 2×2, ``M_x[i][j] = P(X=exposure_states[i] |
+        X*=exposure_states[j])``, each column summing to 1.
+    exposure_states: the two exposure states in ``[control, treated]`` order.
+    outcome_confusion_matrix: k×k, ``M_y[i][j] = P(Y=outcome_states[i] |
+        Y*=outcome_states[j])``, each column summing to 1.
+    outcome_states: the k outcome states in the row/column order of
+        ``outcome_confusion_matrix`` (must cover every observed outcome value).
+    target_value: the query's target TRUE outcome value y*.
+    ci_bootstrap / ci_level / random_state / cluster: percentile-bootstrap
+        controls (both matrices are held fixed across resamples).
+
+    Raises
+    ------
+    EstimatorFailure: exposure states not a binary ``[control, treated]`` pair;
+        observed exposure not covered by them; outcome states not covering the
+        observed outcome; target value absent; a high-cardinality outcome;
+        continuous adjustment covariate; a malformed, non-stochastic or singular
+        matrix on either channel; a positivity violation (a contributing stratum
+        empty in an observed arm); a degenerate recovered true-exposure marginal.
+    """
+    exposure_states = tuple(_py(s) for s in exposure_states)
+    if len(exposure_states) != 2 or len(set(exposure_states)) != 2:
+        raise EstimatorFailure(
+            "exposure_not_binary",
+            f"combined misclassification needs exactly two distinct exposure "
+            f"states; got {exposure_states!r} (a multi-level exposure matrix is "
+            f"deferred).",
+        )
+    if bool(exposure_states[0]) is not False or bool(exposure_states[1]) is not True:
+        raise EstimatorFailure(
+            "exposure_not_binary",
+            f"exposure states must be a binary [control, treated] pair with a "
+            f"falsy control and a truthy treated (e.g. [0, 1] or [False, True]); "
+            f"got {exposure_states!r}.",
+        )
+
+    outcome_states = tuple(_py(s) for s in outcome_states)
+    k = len(outcome_states)
+    if k < 2:
+        raise EstimatorFailure(
+            "invalid_confusion_matrix",
+            f"need at least 2 outcome states; got {outcome_states!r}.",
+        )
+    if len(set(outcome_states)) != k:
+        raise EstimatorFailure(
+            "invalid_confusion_matrix",
+            f"outcome states must be distinct; got {outcome_states!r}.",
+        )
+    if k > _MAX_LEVELS:
+        raise EstimatorFailure(
+            "continuous_outcome",
+            f"outcome {outcome!r} has {k} declared states (> {_MAX_LEVELS}); the "
+            f"standardised risk-difference correction needs a discrete outcome.",
+        )
+    target_value = _py(target_value)
+    if target_value not in outcome_states:
+        raise EstimatorFailure(
+            "target_value_absent",
+            f"query target value {target_value!r} is not among the declared "
+            f"outcome states {outcome_states!r}.",
+        )
+
+    Mx = _validate_matrix(exposure_confusion_matrix, 2, label="exposure")
+    det_x = float(np.linalg.det(Mx))
+    if abs(det_x) < _DET_FLOOR:
+        raise EstimatorFailure(
+            "singular_confusion_matrix",
+            f"the EXPOSURE confusion matrix is non-invertible (|det| = "
+            f"{abs(det_x):.3g} < {_DET_FLOOR:g}); the measurement carries no "
+            f"usable information about the true exposure and the correction is "
+            f"undefined.",
+        )
+    My = _validate_matrix(outcome_confusion_matrix, k, label="outcome")
+    det_y = float(np.linalg.det(My))
+    if abs(det_y) < _DET_FLOOR:
+        raise EstimatorFailure(
+            "singular_confusion_matrix",
+            f"the OUTCOME confusion matrix is non-invertible (|det| = "
+            f"{abs(det_y):.3g} < {_DET_FLOOR:g}); the measurement carries no "
+            f"usable information about the true outcome and the correction is "
+            f"undefined.",
+        )
+    Mx_inv = np.linalg.inv(Mx)
+    My_inv = np.linalg.inv(My)
+    # The composed map on the 2k-vector of joint cells is the Kronecker product,
+    # so its determinant factorises — one honest number for how much the two
+    # channels destroy together, which neither det reports on its own.
+    det_joint = float(det_x ** k * det_y ** 2)
+
+    adjustment = tuple(sorted(adjustment))
+    presence = (cluster,) if cluster is not None else ()
+    contract = validate_data(
+        data, required_columns={treatment, outcome, *adjustment},
+        presence_columns=presence,
+    )
+    df = contract.data
+
+    observed_x = set(_py(v) for v in pd.unique(df[treatment].dropna()))
+    if not observed_x <= set(exposure_states):
+        raise EstimatorFailure(
+            "exposure_not_binary",
+            f"observed exposure values {sorted(map(str, observed_x))} are not "
+            f"covered by the declared exposure states {exposure_states!r}.",
+        )
+    for v in adjustment:
+        _require_discrete(df[v], v)
+
+    observed_y = set(_py(v) for v in pd.unique(df[outcome].dropna()))
+    missing = observed_y - set(outcome_states)
+    if missing:
+        raise EstimatorFailure(
+            "states_incomplete",
+            f"observed outcome values {sorted(map(str, missing))} are not in the "
+            f"declared confusion-matrix states {outcome_states!r}; the matrix "
+            f"must cover every observed outcome value.",
+        )
+
+    groups = (
+        cluster_labels(df, cluster, expected_n=len(df))
+        if cluster is not None else None
+    )
+
+    target_index = outcome_states.index(target_value)
+    point, naive, oos, suff = _combined_formula(
+        df, treatment=treatment, outcome=outcome, adjustment=adjustment,
+        states=exposure_states, outcome_states=outcome_states,
+        Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
+    )
+
+    ci_lower = ci_upper = None
+    if ci_bootstrap > 0:
+        ci_lower, ci_upper = _combined_bootstrap(
+            df, treatment=treatment, outcome=outcome, adjustment=adjustment,
+            states=exposure_states, outcome_states=outcome_states,
+            Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
+            groups=groups,
+            ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
+        )
+
+    model_assumption = (
+        "二值暴露 X 与离散结局 Y **同时**被误分类，各有验证研究给出的列随机混淆矩阵 "
+        "M_x（M_x[i][j]=P(X=state_i|X*=state_j)）与 M_y"
+        "（M_y[i][j]=P(Y=state_i|Y*=state_j)）。除两条通道各自的非差异假设外，还需"
+        "**两条误差机制在真值下相互独立**：X⊥Y|(X*,Y*,Z)——两条各自非差异的通道仍可能"
+        "彼此相关，这是严格更强的前提，也正是它让观测联合成为真实联合的双边线性像："
+        "P_obs(z)=M_x·P_true(z)·M_yᵀ，故 P_true(z)=M_x⁻¹·P_obs(z)·(M_y⁻¹)ᵀ。"
+        "再用恢复的真实暴露与真实结局做后门标准化 "
+        "ATE=Σ_z[P(Y*=y*|X*=1,z)−P(Y*=y*|X*=0,z)]P(z)。"
+        "只校正一条通道会留下另一条的偏倚；合成映射的行列式 "
+        "det=det(M_x)^k·det(M_y)² 是两条通道共同销毁的信息量。"
+    )
+    assumptions = _combined_assumptions(adjustment, cluster)
+    return CombinedMeasurementCorrectionEstimate(
+        point=point,
+        naive_point=naive,
+        ci_lower=ci_lower, ci_upper=ci_upper, ci_level=ci_level,
+        method="combined_measurement_error_correction",
+        assumptions=assumptions,
+        sample_size=contract.sample_size,
+        data_hash=contract.data_hash,
+        treatment=treatment, outcome=outcome,
+        adjustment=adjustment,
+        target_value=target_value,
+        states=exposure_states,
+        outcome_states=outcome_states,
+        exposure_confusion_matrix=tuple(
+            tuple(float(v) for v in row) for row in Mx
+        ),
+        outcome_confusion_matrix=tuple(
+            tuple(float(v) for v in row) for row in My
+        ),
+        det_exposure=det_x, det_outcome=det_y, det_joint=det_joint,
+        out_of_simplex=oos,
+        sufficient_statistics={
+            **suff,
+            "side": "combined",
+            "exposure_confusion_matrix": [[float(v) for v in row] for row in Mx],
+            "outcome_confusion_matrix": [[float(v) for v in row] for row in My],
+            "det_exposure": det_x,
+            "det_outcome": det_y,
+            "det_joint": det_joint,
+            "states": [_py(s) for s in exposure_states],
+            "outcome_states": [_py(s) for s in outcome_states],
+            "target_value": target_value,
+            "target_index": target_index,
+            "adjustment_vars": list(adjustment),
+        },
+        cluster=cluster,
+        model_assumption=model_assumption,
+    )
+
+
+def _combined_formula(
+    df: pd.DataFrame, *, treatment: str, outcome: str,
+    adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
+    Mx_inv: np.ndarray, My_inv: np.ndarray, target_index: int,
+) -> tuple[float, float, bool, dict]:
+    """Doubly corrected + naive standardised effect on the target value, plus the
+    per-stratum sufficient statistics (the full 2×k observed (X, Y) joint tables).
+
+    Enumeration is driven by the covariate marginal P(z); each contributing z
+    must have observed support in BOTH exposure arms (positivity), and its
+    recovered true-exposure marginal must be strictly positive (else the
+    conditional risk is undefined). Each stratum's joint is inverted on both
+    sides at once — ``M_x⁻¹ P_obs (M_y⁻¹)ᵀ`` — so neither channel's bias
+    survives into the standardisation. ``out_of_simplex`` is True if any
+    recovered cell lands outside [0, 1]."""
+    k = len(outcome_states)
+    xvals = df[treatment].map(_py)
+    yvals = df[outcome].map(_py)
+    n_total = len(df)
+
+    marginal = _marginal(df, adjustment)                # {z_key: prob}
+    marginal_counts = _marginal_counts(df, adjustment)  # {z_key: count}
+
+    strata_records: list[dict] = []
+    corrected = 0.0
+    naive = 0.0
+    oos = False
+
+    for z_key, p_z in marginal.items():
+        if p_z <= 0:
+            continue
+        z_mask = _stratum_mask(df, adjustment, z_key).to_numpy()
+        sub_x = xvals[z_mask].to_numpy()
+        sub_y = yvals[z_mask].to_numpy()
+
+        joint = np.zeros((2, k), dtype=float)  # rows: exposure state, cols: outcome
+        for xi, xval in enumerate(states):
+            arm_mask = sub_x == xval
+            n_arm = int(arm_mask.sum())
+            if n_arm == 0:
+                raise EstimatorFailure(
+                    "insufficient_support",
+                    f"stratum X={xval!r}, z={_json_key(z_key)} has no rows "
+                    f"(positivity violation); P(Y|x,z) is not estimable so the "
+                    f"correction cannot standardise over it.",
+                )
+            sub_y_arm = sub_y[arm_mask]
+            for yj, yval in enumerate(outcome_states):
+                joint[xi, yj] = float(int((sub_y_arm == yval).sum()))
+
+        p_obs = joint / joint.sum()
+        p_true = Mx_inv @ p_obs @ My_inv.T
+        if (p_true < -_TOL).any() or (p_true > 1 + _TOL).any():
+            oos = True
+
+        px1 = float(p_true[1, :].sum())
+        px0 = float(p_true[0, :].sum())
+        if px1 <= _TOL or px0 <= _TOL:
+            raise EstimatorFailure(
+                "degenerate_recovered_exposure",
+                f"stratum z={_json_key(z_key)} recovers a non-positive true "
+                f"exposure marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g}); "
+                f"the conditional risk is undefined — the exposure confusion "
+                f"matrix is too weakly informative to identify the effect in "
+                f"this stratum.",
+            )
+        corrected += (
+            float(p_true[1, target_index]) / px1
+            - float(p_true[0, target_index]) / px0
+        ) * p_z
+
+        # Naive: the back-door RD on the observed X and observed Y — both biases
+        # left in. Row sums are the observed arm sizes (positive by the check).
+        naive += (
+            float(joint[1, target_index]) / float(joint[1, :].sum())
+            - float(joint[0, target_index]) / float(joint[0, :].sum())
+        ) * p_z
+
+        strata_records.append({
+            "z": list(_json_key(z_key)),
+            "joint_counts": [[int(c) for c in row] for row in joint],
+        })
+
+    suff = {
+        "strata": sorted(strata_records, key=lambda r: [str(v) for v in r["z"]]),
+        "marginal_counts": [
+            {"z": list(_json_key(k2)), "count": c}
+            for k2, c in sorted(marginal_counts.items(), key=lambda kv: str(kv[0]))
+        ],
+        "marginal_total": n_total,
+    }
+    return corrected, naive, oos, suff
+
+
+def _combined_bootstrap(
+    df: pd.DataFrame, *, treatment: str, outcome: str,
+    adjustment: tuple[str, ...], states: tuple, outcome_states: tuple,
+    Mx_inv: np.ndarray, My_inv: np.ndarray, target_index: int,
+    groups: np.ndarray | None,
+    ci_bootstrap: int, ci_level: float, random_state: int,
+) -> tuple[float | None, float | None]:
+    """Percentile bootstrap of the doubly corrected effect — resample rows (or
+    clusters), recompute with BOTH matrices held fixed. Draws that induce a
+    positivity / degenerate-recovery failure are skipped."""
+    rng = np.random.default_rng(random_state)
+    n = len(df)
+    pts: list[float] = []
+    for _ in range(ci_bootstrap):
+        idx = resample_indices(n, rng, groups=groups)
+        try:
+            pt, _naive, _oos, _suff = _combined_formula(
+                df.iloc[idx], treatment=treatment, outcome=outcome,
+                adjustment=adjustment, states=states,
+                outcome_states=outcome_states,
+                Mx_inv=Mx_inv, My_inv=My_inv, target_index=target_index,
+            )
+        except EstimatorFailure:
+            continue
+        pts.append(pt)
+    if len(pts) < 2:
+        return (None, None)
+    arr = np.asarray(pts)
+    alpha = (1 - ci_level) / 2
+    return float(np.quantile(arr, alpha)), float(np.quantile(arr, 1 - alpha))
+
+
+def _combined_assumptions(
+    adjustment: tuple[str, ...], cluster: str | None,
+) -> tuple[str, ...]:
+    out = [
+        "non_differential_misclassification_X_indep_YZ_given_Xtrue",
+        "non_differential_misclassification_Y_indep_XZ_given_Ytrue",
+        # The premise neither single-channel correction makes, and the one that
+        # licenses the two-sided product — named so it is auditable on its own.
+        "independent_error_channels_X_indep_Y_given_Xtrue_Ytrue_Z",
+        "known_confusion_matrices_from_validation_studies",
         "confusion_matrix_invertible",
         "recovered_true_exposure_marginal_positive",
         "consistency_of_potential_outcomes",

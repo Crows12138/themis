@@ -74,7 +74,11 @@ def estimate_program(
     matrix per back-door stratum (Rogan-Gladen for a binary outcome) instead of
     shipping the attenuated naive g-formula number. Like ``reference_data`` it is
     a load-bearing external input used only at estimate time; ordinary programs
-    never touch it. Deferred: combined (exposure AND outcome) misclassification.
+    never touch it. A spec on the query's EXPOSURE routes to the exposure-side
+    matrix method instead; a spec on BOTH routes to the combined correction,
+    which inverts the joint on both sides at once rather than leaving one
+    channel's bias in the number. Deferred: a DIFFERENTIAL matrix on either
+    channel of a combined correction.
 
     ``measurement_error`` is the CONTINUOUS counterpart, an optional dict keyed by
     EXPOSURE variable name, each value ``{"error_variance": σ²_u, "source": …?}``
@@ -754,20 +758,16 @@ def _estimate_effect_queries(
         mc_spec = (misclassification or {}).get(y_atom.predicate)
         mc_spec_x = (misclassification or {}).get(x_atom.predicate)
         if mc_spec is not None and mc_spec_x is not None:
-            # A validated matrix for BOTH the exposure and the outcome is a
-            # combined correction (the two channels compose) — deferred. Refuse
-            # rather than silently applying only one and shipping a half-
-            # corrected point.
-            result["estimator_failure"] = {
-                "estimator": "measurement_error_correction",
-                "failure_type": "combined_misclassification_deferred",
-                "reason": (
-                    "a confusion matrix was supplied for BOTH the exposure "
-                    f"{x_atom.predicate!r} and the outcome {y_atom.predicate!r}; "
-                    "the combined (exposure AND outcome) correction is deferred. "
-                    "Supply a matrix for exactly one of them."
-                ),
-            }
+            # A validated matrix for BOTH channels: invert both sides of the
+            # per-stratum (X, Y) joint at once. Correcting only one and shipping
+            # the point would leave the other channel's bias in the number.
+            _try_combined_measurement_correction_estimate(
+                q_stmt, result, contract, graph,
+                adjustment_sets=adjustment_sets, given=given_atoms,
+                spec_x=mc_spec_x, spec_y=mc_spec,
+                random_state=random_state, ci_bootstrap=ci_bootstrap,
+                cluster=cluster,
+            )
             continue
         if mc_spec is not None:
             _try_measurement_correction_estimate(
@@ -3742,22 +3742,39 @@ def _try_measurement_correction_estimate(
 
 
 def _measurement_correction_block(est) -> dict:
-    """The ``measurement_correction`` audit/verifier block for an outcome- or
-    exposure-side estimate, differential or not. Under differential
+    """The ``measurement_correction`` audit/verifier block for an outcome-,
+    exposure- or both-sided estimate, differential or not. Under differential
     misclassification the single ``confusion_matrix`` / ``det`` are replaced by
-    the per-level ``confusion_matrices`` the inversion actually used."""
+    the per-level ``confusion_matrices`` the inversion actually used; a combined
+    (both-channel) estimate carries one matrix per channel and is non-
+    differential by construction."""
     block = {
         "naive_point": est.naive_point,
         "out_of_simplex": est.out_of_simplex,
         "states": list(est.states),
         "target_value": est.target_value,
-        "differential": bool(est.differential),
+        "differential": bool(getattr(est, "differential", False)),
         "form": est.form,
         "model_assumption": est.model_assumption,
         "sufficient_statistics": est.sufficient_statistics,
     }
-    side = getattr(est, "form", "").startswith("exposure")
-    if side:
+    form = getattr(est, "form", "")
+    if form.startswith("combined"):
+        # Two channels, so neither a single `confusion_matrix` nor a single
+        # `det` is meaningful — each matrix is named by the channel it inverts.
+        block["side"] = "combined"
+        block["outcome_states"] = list(est.outcome_states)
+        block["confusion_matrix_exposure"] = [
+            list(row) for row in est.exposure_confusion_matrix
+        ]
+        block["confusion_matrix_outcome"] = [
+            list(row) for row in est.outcome_confusion_matrix
+        ]
+        block["det_exposure"] = est.det_exposure
+        block["det_outcome"] = est.det_outcome
+        block["det_joint"] = est.det_joint
+        return block
+    if form.startswith("exposure"):
         block["side"] = "exposure"
         block["outcome_states"] = list(est.outcome_states)
     if est.differential:
@@ -3861,6 +3878,130 @@ def _try_exposure_measurement_correction_estimate(
         # inputs). The matrix + per-stratum joint tables don't fit derivation-
         # input serialization, so they live here and are re-inverted by
         # verify_exposure_measurement_correction_numeric (kernel-called).
+        "measurement_correction": _measurement_correction_block(est),
+    }
+    _attach_bootstrap_meta(result["numeric_estimate"], cluster)
+    _attach_precision_budget(result["numeric_estimate"])
+
+    from ..output.result_orchestrator import build_mechanism_audit
+    ext = result.setdefault("extensions", {})
+    ext["mechanism_audit"] = build_mechanism_audit(
+        target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
+        form=est.form,
+        method=est.method,
+        assumption=est.model_assumption,
+        provenance="default",
+    )
+
+    result["derivation"] = _build_measurement_correction_derivation_dict(
+        graph=graph, x=x_atom, y=y_atom, adjustment=chosen,
+        given=frozenset(given), estimate=est,
+    )
+    _finalise_numeric_result(result)
+
+
+def _try_combined_measurement_correction_estimate(
+    q_stmt, result: dict, contract, graph, *,
+    adjustment_sets, given, spec_x: dict, spec_y: dict,
+    random_state: int, ci_bootstrap: int, cluster: str | None = None,
+) -> None:
+    """Frontier E numeric end when BOTH channels are misclassified.
+
+    Fires when the caller supplied a validated confusion matrix for this query's
+    exposure AND its outcome. Neither single-channel correction may run in this
+    situation — each would ship a point still carrying the other channel's bias
+    — so the two inversions are composed on the same per-stratum (X, Y) joint.
+
+    A DIFFERENTIAL matrix on either channel is refused rather than approximated:
+    detection bias makes the outcome matrix depend on the true exposure and
+    recall bias makes the exposure matrix depend on the true outcome, so the
+    level that selects a matrix is the very quantity the other channel is
+    mismeasuring and the observed table stops being a two-sided product.
+    """
+    from .measurement import estimate_combined_measurement_correction
+    from .dose_response import EstimatorFailure
+
+    x_atom = q_stmt.query.intervention.atom
+    y_atom = q_stmt.query.target.atom
+    target_value = q_stmt.query.target.value
+
+    if spec_x.get("differential") or spec_y.get("differential"):
+        result["estimator_failure"] = {
+            "estimator": "combined_measurement_error_correction",
+            "failure_type": "differential_combined_misclassification_deferred",
+            "reason": (
+                "a confusion matrix was supplied for BOTH the exposure "
+                f"{x_atom.predicate!r} and the outcome {y_atom.predicate!r}, and "
+                "at least one of them is differential. The combined correction "
+                "factorises the observed table as M_x · P_true · M_yᵀ, which "
+                "holds only while each matrix is constant; a differential matrix "
+                "is selected by a level the other channel mismeasures, so the "
+                "factorisation — and the correction built on it — does not apply."
+            ),
+        }
+        return
+
+    if not adjustment_sets:
+        result["estimator_failure"] = {
+            "estimator": "combined_measurement_error_correction",
+            "failure_type": "requires_backdoor_identification",
+            "reason": (
+                "confusion-matrix correction composes with back-door "
+                "standardisation, but P(y|do(x)) is not back-door identified "
+                "here; no corrected number is produced."
+            ),
+        }
+        return
+
+    chosen = min(adjustment_sets, key=len)
+    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+
+    try:
+        est = estimate_combined_measurement_correction(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            adjustment=adjustment_names,
+            exposure_confusion_matrix=spec_x.get("confusion_matrix"),
+            exposure_states=spec_x.get("states"),
+            outcome_confusion_matrix=spec_y.get("confusion_matrix"),
+            outcome_states=spec_y.get("states"),
+            target_value=(
+                spec_y["target_value"] if "target_value" in spec_y else target_value
+            ),
+            ci_bootstrap=ci_bootstrap, ci_level=0.95,
+            random_state=random_state,
+            cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
+        )
+    except EstimatorFailure as exc:
+        result["estimator_failure"] = {
+            "estimator": "combined_measurement_error_correction",
+            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "reason": str(exc),
+        }
+        return
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = {
+            "estimator": "combined_measurement_error_correction",
+            "failure_type": "invalid_input",
+            "reason": str(exc),
+        }
+        return
+
+    result["numeric_estimate"] = {
+        "point": est.point,
+        "ci_lower": est.ci_lower,
+        "ci_upper": est.ci_upper,
+        "ci_level": est.ci_level,
+        "method": est.method,
+        "assumptions": list(est.assumptions),
+        "sample_size": est.sample_size,
+        "data_hash": est.data_hash,
+        "adjustment": list(est.adjustment),
+        "treatment": est.treatment,
+        "outcome": est.outcome,
+        # Both matrices + per-stratum joint tables don't fit derivation-input
+        # serialization, so they live here and are re-inverted by
+        # verify_combined_measurement_correction_numeric (kernel-called).
         "measurement_correction": _measurement_correction_block(est),
     }
     _attach_bootstrap_meta(result["numeric_estimate"], cluster)

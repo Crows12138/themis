@@ -66,8 +66,20 @@ Landed scope:
   level inverts every column in that stratum). The recovered exposure marginal is
   itself an inversion (no naive/det shortcut), so the verifier re-derives the point
   from the recorded matrix / matrices + per-stratum 2xk joint tables. Deferred:
-  multi-level exposure, combined (exposure AND outcome) correction, and a matrix
-  jointly differential in the outcome AND a covariate.
+  multi-level exposure, and a matrix jointly differential in the outcome AND a
+  covariate.
+- Combined measurement-error correction —
+  ``estimate_combined_measurement_correction`` (returning
+  ``CombinedMeasurementCorrectionEstimate``): both channels misclassified at
+  once. Correcting one and shipping the point leaves the other's bias in the
+  number, so the two inversions are composed on the SAME per-stratum 2xk joint,
+  ``P_true = M_x⁻¹ P_obs (M_y⁻¹)ᵀ``. That factorisation needs a premise neither
+  single-channel correction makes — the two error mechanisms are independent
+  given the truth, ``X ⊥ Y | (X*, Y*, Z)`` — which is named in the assumption
+  list on its own. Deferred, structurally rather than budgetarily: a DIFFERENTIAL
+  matrix on either channel, since the level selecting one matrix is the quantity
+  the other channel mismeasures and the observed table is then not a two-sided
+  product.
 - Continuous mismeasurement — ``estimate_regression_calibration`` (returning
   ``RegressionCalibrationEstimate``): the CONTINUOUS counterpart of the confusion-
   matrix method — de-attenuates one or more continuously-mismeasured design
@@ -330,8 +342,10 @@ from .iv import (
 )
 from .joint import JointEffectEstimate, estimate_joint_effect
 from .measurement import (
+    CombinedMeasurementCorrectionEstimate,
     ExposureMeasurementCorrectionEstimate,
     MeasurementCorrectionEstimate,
+    estimate_combined_measurement_correction,
     estimate_exposure_measurement_correction,
     estimate_measurement_correction,
 )
@@ -395,8 +409,10 @@ __all__ = [
     "IPWEstimate",
     "IVEstimate",
     "JointEffectEstimate",
+    "CombinedMeasurementCorrectionEstimate",
     "ExposureMeasurementCorrectionEstimate",
     "MeasurementCorrectionEstimate",
+    "estimate_combined_measurement_correction",
     "estimate_exposure_measurement_correction",
     "estimate_measurement_correction",
     "LongitudinalGFormulaEstimate",

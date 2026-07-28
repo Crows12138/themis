@@ -786,8 +786,12 @@ def test_exposure_dispatch_non_backdoor_identified_refuses():
     assert fail["failure_type"] == "requires_backdoor_identification"
 
 
-def test_combined_exposure_and_outcome_spec_deferred():
-    """A confusion matrix for BOTH X and Y is a combined correction — deferred."""
+def test_combined_exposure_and_outcome_spec_routes_to_the_combined_correction():
+    """A confusion matrix for BOTH X and Y routes to the combined correction,
+    which inverts the joint on both sides. What must never happen — correcting
+    one channel and shipping a point that still carries the other's bias — is
+    what this used to be a refusal about; the routing is the guard now, and the
+    two-sided estimator is exercised in test_combined_misclassification.py."""
     df, _t, se, sp = _bool_exposure_frame(effect=0.20, seed=6)
     spec = {
         "x": {"confusion_matrix": _binary_M(se, sp), "states": [False, True]},
@@ -795,9 +799,10 @@ def test_combined_exposure_and_outcome_spec_deferred():
     }
     out = themis.estimate(_program(), df, ci_bootstrap=0, misclassification=spec)
     r = out["results"][0]
-    fail = r.get("estimator_failure")
-    assert fail is not None
-    assert fail["failure_type"] == "combined_misclassification_deferred"
+    assert r.get("estimator_failure") is None
+    ne = r["numeric_estimate"]
+    assert ne["method"] == "combined_measurement_error_correction"
+    assert ne["measurement_correction"]["side"] == "combined"
 
 
 def test_outcome_side_still_works_alongside_exposure():

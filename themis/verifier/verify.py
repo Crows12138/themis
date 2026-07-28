@@ -2246,6 +2246,195 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
         _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
 
 
+def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
+    """Re-derive a COMBINED (exposure AND outcome) confusion-matrix-corrected
+    effect — the corrected point, the naive point, each channel's det and the
+    composed map's det — from the recorded matrices + per-stratum 2×k observed
+    joint tables, and reject on mismatch.
+
+    The correction rides on a ``numerically_solved`` back-door result whose
+    derivation ends in ``numeric_measurement_correction_estimate`` (metadata +
+    structural licensing only). This is the strong numeric counterpart: a
+    SECOND, independent transcription of the two-sided matrix method
+
+        P_true(z)         = M_x⁻¹ · P_obs(z) · (M_y⁻¹)ᵀ
+        P(Y*=y* | X*=x,z) = P_true(z)[x, y*] / Σ_b P_true(z)[x, b]
+        effect            = Σ_z [ P(Y*=y*|X*=1,z) − P(Y*=y*|X*=0,z) ] · P(z)
+
+    from the recorded ``measurement_correction.sufficient_statistics``. It never
+    imports the producer's estimator and never touches the raw data. A result
+    that isn't a ``combined_measurement_error_correction`` estimate is a no-op.
+
+    The check that only exists here: the recorded ``det_joint`` must equal
+    ``det(M_x)^k · det(M_y)^2``, the determinant of the composed 2k×2k map. A
+    point re-derived from two matrices while the joint determinant was carried
+    over from a different pair would otherwise pass unnoticed.
+
+    Tamper checks: forged corrected / naive point, either matrix's det
+    disagreeing with the matrix, a non-column-stochastic or singular matrix on
+    either channel, a joint table of the wrong shape or with a negative count, a
+    marginal that doesn't sum to the total (a dropped stratum), a covariate
+    stratum missing from the tables, an empty observed arm (positivity), a
+    degenerate recovered exposure marginal, a ``side`` that is not 'combined',
+    or a claim of differential misclassification (which the two-sided
+    factorisation does not license) — each is rejected.
+
+    ``estimate`` is the full ``numeric_estimate`` dict.
+    """
+    import numpy as np
+
+    if (
+        not isinstance(estimate, dict)
+        or estimate.get("method") != "combined_measurement_error_correction"
+    ):
+        return
+
+    def _fail(msg):
+        raise VerificationError(
+            f"combined_measurement_correction_numeric: {msg}",
+            step_index=None, rule="combined_measurement_correction_numeric",
+        )
+
+    mc = estimate.get("measurement_correction")
+    if not isinstance(mc, dict):
+        _fail("numeric_estimate carries no measurement_correction block")
+    if mc.get("side") != "combined":
+        _fail("measurement_correction.side is not 'combined'")
+    if mc.get("differential") or (isinstance(mc, dict) and mc.get("differential_by")):
+        _fail(
+            "a combined correction cannot be differential — the two-sided "
+            "factorisation M_x · P_true · M_yᵀ holds only for constant matrices"
+        )
+    suff = mc.get("sufficient_statistics")
+    if not isinstance(suff, dict):
+        _fail("measurement_correction carries no sufficient_statistics")
+    if suff.get("differential"):
+        _fail("sufficient_statistics claims differential misclassification")
+
+    try:
+        states = list(suff["states"])
+        outcome_states = list(suff["outcome_states"])
+        target_value = suff["target_value"]
+        strata = list(suff["strata"])
+        marginal_counts = list(suff["marginal_counts"])
+        marginal_total = int(suff["marginal_total"])
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail(f"ill-formed sufficient statistics: {exc}")
+
+    if len(states) != 2 or len(set(map(_state_key, states))) != 2:
+        _fail(f"exposure states must be a distinct binary pair; got {states!r}")
+    k = len(outcome_states)
+    if k < 2:
+        _fail(f"need at least 2 outcome states; got {outcome_states!r}")
+    if len(set(map(_state_key, outcome_states))) != k:
+        _fail("outcome states are not distinct")
+
+    # Both channels re-validated and re-inverted independently of the producer.
+    Mx_inv, det_x = _reinvert_stochastic(
+        suff.get("exposure_confusion_matrix"), 2,
+        suff.get("det_exposure"), _fail, label="exposure",
+    )
+    My_inv, det_y = _reinvert_stochastic(
+        suff.get("outcome_confusion_matrix"), k,
+        suff.get("det_outcome"), _fail, label="outcome",
+    )
+    for source, name in ((mc, "measurement_correction"), (suff, "sufficient_statistics")):
+        for claimed, derived, chan in (
+            (source.get("det_exposure"), det_x, "exposure"),
+            (source.get("det_outcome"), det_y, "outcome"),
+        ):
+            if claimed is not None and abs(float(claimed) - derived) > 1e-9:
+                _fail(
+                    f"{name}.det_{chan} {claimed} disagrees with the recorded "
+                    f"{chan} confusion matrix (det {derived})"
+                )
+    # The composed map is the Kronecker product of the two channels, so its
+    # determinant factorises; a det_joint carried over from a different pair of
+    # matrices is caught here and nowhere else.
+    det_joint = det_x ** k * det_y ** 2
+    for source, name in ((mc, "measurement_correction"), (suff, "sufficient_statistics")):
+        claimed_joint = source.get("det_joint")
+        if claimed_joint is not None and abs(
+            float(claimed_joint) - det_joint
+        ) > 1e-9 * (1 + abs(det_joint)):
+            _fail(
+                f"{name}.det_joint {claimed_joint} disagrees with "
+                f"det(M_x)^{k} · det(M_y)^2 = {det_joint}"
+            )
+
+    # Independent target index — do not trust the recorded one.
+    try:
+        target_index = [_state_key(s) for s in outcome_states].index(
+            _state_key(target_value)
+        )
+    except ValueError:
+        _fail(f"target value {target_value!r} not among states {outcome_states!r}")
+
+    # Marginal P(z); a marginal that doesn't sum to the total means a stratum
+    # was dropped from the standardisation.
+    marg: dict = {}
+    total = 0
+    for rec in marginal_counts:
+        marg[_z_key(rec["z"])] = int(rec["count"])
+        total += int(rec["count"])
+    if total != marginal_total:
+        _fail(
+            f"marginal counts sum to {total}, not the recorded total "
+            f"{marginal_total} (a covariate stratum was dropped)"
+        )
+
+    by_z: dict = {}
+    for rec in strata:
+        joint = np.asarray(rec["joint_counts"], dtype=float)
+        if joint.shape != (2, k):
+            _fail(f"joint table shape {joint.shape} != (2, {k}) for z={rec['z']}")
+        if (joint < -1e-9).any():
+            _fail(f"joint table for z={rec['z']} has a negative count")
+        arm_n = joint.sum(axis=1)              # observed size of each exposure arm
+        if arm_n[0] <= 0 or arm_n[1] <= 0:
+            _fail(
+                f"covariate stratum {rec['z']} has an empty observed exposure arm "
+                f"(arm sizes {[int(a) for a in arm_n]}); positivity is violated"
+            )
+        p_obs = joint / joint.sum()
+        p_true = Mx_inv @ p_obs @ My_inv.T
+        px1 = float(p_true[1, :].sum())
+        px0 = float(p_true[0, :].sum())
+        if px1 <= 1e-12 or px0 <= 1e-12:
+            _fail(
+                f"stratum {rec['z']} recovers a non-positive true exposure "
+                f"marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g})"
+            )
+        by_z[_z_key(rec["z"])] = (
+            float(p_true[1, target_index]) / px1
+            - float(p_true[0, target_index]) / px0,
+            float(joint[1, target_index]) / float(arm_n[1])
+            - float(joint[0, target_index]) / float(arm_n[0]),
+        )
+
+    corrected = 0.0
+    naive = 0.0
+    for zk, p_z_count in marg.items():
+        rd = by_z.get(zk)
+        if rd is None:
+            _fail(f"covariate stratum {list(zk)} missing from the joint tables")
+        p_z = p_z_count / marginal_total
+        corrected += rd[0] * p_z
+        naive += rd[1] * p_z
+
+    point = estimate.get("point")
+    if not isinstance(point, (int, float)) or isinstance(point, bool):
+        _fail(f"missing / non-numeric point {point!r}")
+    if abs(corrected - float(point)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(corrected)):
+        _fail(f"point mismatch — re-derived corrected {corrected}, recorded {point}")
+
+    claimed_naive = mc.get("naive_point")
+    if claimed_naive is None:
+        _fail("measurement_correction.naive_point missing")
+    if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
+        _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
+
+
 def verify_regression_calibration_numeric(estimate: dict) -> None:
     """Re-derive a regression-calibration-corrected slope — the corrected point,
     the naive (biased) slope, and the reliabilities λ_v — from the recorded

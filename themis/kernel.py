@@ -95,6 +95,7 @@ from .verifier import (
     verify_cause,
     verify_counterfactual,
     verify_counterfactual_conjunction,
+    verify_combined_measurement_correction_numeric,
     verify_ctf_conjunction_numeric,
     verify_dose_response_curve,
     verify_e_value,
@@ -1067,6 +1068,11 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # here from the recorded matrix + per-stratum 2×k joint tables.
             if num_est.get("method") == "exposure_measurement_error_correction":
                 verify_exposure_measurement_correction_numeric(num_est)
+            # Both channels misclassified — the joint is inverted on both sides
+            # at once; re-derived here from the two recorded matrices + the same
+            # per-stratum 2×k joint tables.
+            if num_est.get("method") == "combined_measurement_error_correction":
+                verify_combined_measurement_correction_numeric(num_est)
             # Continuous mismeasurement (regression calibration): the
             # de-attenuated slope is re-derived here from the recorded design
             # covariance matrix Σ_WZ + Cov((W,Z),Y) + σ²_u (which don't fit

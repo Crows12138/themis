@@ -1016,6 +1016,28 @@ with `estimate(…, misclassification={<var>: {differential: true, differential_
 <covariate>?, confusion_matrices: […], differential_levels: […], states}})` — omit
 `differential_by` for the per-arm (detection-bias) default.
 
+**Both channels at once (`method == "combined_measurement_error_correction"`,
+`measurement_correction.side == "combined"`).** When the caller supplies a matrix
+for the exposure AND the outcome, correcting one and reporting that point would
+leave the other channel's bias in the number, so the same per-stratum (X, Y) joint
+is inverted on both sides, `P_true = M_x⁻¹ P_obs (M_y⁻¹)ᵀ`. There is no single
+`confusion_matrix` or `det`: each channel is carried under its own name
+(`confusion_matrix_exposure` / `confusion_matrix_outcome`, `det_exposure` /
+`det_outcome`), and `det_joint` is the determinant of the composed map — how much
+information the two channels destroy together. Render as for the single-channel
+cases, plus:
+
+- The premise that is easy to miss and must be stated: the two error mechanisms
+  are **independent given the truth** (`X ⊥ Y | X*, Y*, Z`). Two channels that are
+  each non-differential can still be correlated with each other — one careless
+  abstractor who gets both fields wrong on the same record breaks it — and the
+  correction is not valid without it. It is listed in `assumptions` on its own.
+- A **differential** matrix on either channel is refused here rather than
+  approximated (`differential_combined_misclassification_deferred`), because the
+  level that selects one matrix is the very quantity the other channel is
+  mismeasuring. Report the refusal and what would remove it: a channel-constant
+  matrix, or correcting one channel alone while saying the other bias remains.
+
 **Continuous mismeasurement (`method == "regression_calibration"`).** The
 CONTINUOUS counterpart, when a *continuously-mismeasured design column* carries
 classical additive error (`W = V + U`) rather than a discrete one. The

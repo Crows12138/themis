@@ -89,6 +89,17 @@ Public surface (re-exports from sub-modules):
   rejects a tampered point, a non-stochastic or det-inconsistent matrix, a
   dropped stratum, an empty observed arm, or a degenerate recovered exposure
   marginal. Shares the ``numeric_measurement_correction_estimate`` terminal),
+  ``verify_combined_measurement_correction_numeric`` (frontier E, both channels
+  — the doubly corrected effect when the exposure AND the outcome are
+  misclassified: the corrected point, the naive point and each channel's det
+  re-derived by an independent transcription of the two-sided inversion
+  p_true(z)=M_x⁻¹p_obs(z)(M_y⁻¹)ᵀ from the two recorded matrices + the same
+  per-stratum 2×k joint tables. Adds one check the single-channel verifiers
+  cannot make — the recorded det of the composed map must equal
+  det(M_x)^k·det(M_y)², which catches a joint determinant carried over from a
+  different pair of matrices — and rejects any claim of differential
+  misclassification, which the two-sided factorisation does not license. Shares
+  the same terminal),
   ``verify_regression_calibration_numeric`` (continuous mismeasurement — the
   de-attenuated slope of a continuously-mismeasured EXPOSURE by regression
   calibration: the corrected point, the naive (attenuated) slope, and the
@@ -213,6 +224,7 @@ from .verify import (
     verify_dose_response_curve,
     verify_e_value,
     verify_effect_structural,
+    verify_combined_measurement_correction_numeric,
     verify_exposure_measurement_correction_numeric,
     verify_identify,
     verify_iv_overid_numeric,
@@ -266,6 +278,7 @@ __all__ = [
     "verify_dose_response_curve",
     "verify_e_value",
     "verify_effect_structural",
+    "verify_combined_measurement_correction_numeric",
     "verify_exposure_measurement_correction_numeric",
     "verify_balke_pearl_iv_bounds_result",
     "verify_identify",
