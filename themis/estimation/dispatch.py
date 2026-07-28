@@ -758,21 +758,31 @@ def _estimate_effect_queries(
         # a size threshold here does not divert k=1 to the single-mediator
         # branch, it drops the decomposition entirely and answers the total
         # effect instead, beside an envelope still claiming the block.
+        #
+        # Claiming the query is decided by whether the block estimate was
+        # actually produced, not by the guard matching. The identification
+        # layer may have routed this query elsewhere (a query naming BOTH a
+        # mediator set and a target_population goes to transport there), in
+        # which case the joint block is absent and this handler declines —
+        # and the query must go on to the branch that can answer it rather
+        # than leaving the envelope with no number and no recorded failure.
         if q_stmt.query.mediators:
-            _try_mediation_joint_estimate(
+            if _try_mediation_joint_estimate(
                 q_stmt, result, contract, graph, bidirected,
                 random_state=random_state,
-            )
-            continue
+            ):
+                continue
         # Phase 7.4: mediation queries route to the Imai-via-statsmodels
         # estimator, gated on the identification layer's strategy result.
+        # Same claim rule as the block branch above: declining here means
+        # the identification layer chose another strategy for this query.
         if q_stmt.query.mediator is not None:
-            _try_mediation_estimate(
+            if _try_mediation_estimate(
                 q_stmt, result, contract, graph, bidirected,
                 random_state=random_state, ci_bootstrap=ci_bootstrap,
                 cluster=cluster,
-            )
-            continue
+            ):
+                continue
 
         # Phase 9 §T9.2 (iter 128): transport queries — when the kernel
         # already produced a transport_identification extension AND the
@@ -2646,7 +2656,7 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
 def _try_mediation_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
     ci_bootstrap: int = 500, cluster: str | None = None,
-) -> None:
+) -> bool:
     """Phase 7.4 — attach a mediation numeric estimate when the
     identification layer has cleared NDE/NIE for the requested mediator.
 
@@ -2661,14 +2671,25 @@ def _try_mediation_estimate(
     """
     from .mediation import estimate_mediation
 
+    # The return value answers "is this query mine", NOT "did I produce a
+    # number" — and the two differ in exactly one place. No mediation block
+    # means the IDENTIFICATION layer routed this query to another strategy
+    # (a query naming both a mediator and a target_population goes to
+    # transport there), so this handler must stand down and let that
+    # strategy's branch run. Any other exit still CLAIMS the query: the
+    # identification layer did choose mediation and it merely could not be
+    # carried through, and falling onward would answer the total effect for
+    # a question about a decomposition — a different estimand, silently.
     extensions = result.get("extensions") or {}
     decomp = extensions.get("mediation_decomposition")
-    if decomp is None or decomp.get("strategy") != "nde_nie":
-        return
+    if decomp is None:
+        return False
+    if decomp.get("strategy") != "nde_nie":
+        return True
 
     nde_nie_block = decomp.get("nde_nie", {})
     if not nde_nie_block.get("identifiable"):
-        return
+        return True
     # The identification layer emits adjustment atoms in their string
     # form (predicate(args)). Strip back to bare predicates so the
     # estimator can index DataFrame columns.
@@ -2684,7 +2705,7 @@ def _try_mediation_estimate(
     # contract (defensive — should be enforced upstream)
     missing_cols = [c for c in adjustment if c not in contract.data.columns]
     if missing_cols:
-        return
+        return True
 
     try:
         med_estimate = estimate_mediation(
@@ -2697,7 +2718,7 @@ def _try_mediation_estimate(
             cluster=cluster,
         )
     except (ValueError, NotImplementedError):
-        return
+        return True
 
     result["numeric_estimate"] = {
         "method": med_estimate.method,
@@ -2800,12 +2821,13 @@ def _try_mediation_estimate(
     # mediation derivation (mediation_*_check + identify_via_mediation)
     # already passes verify_effect_structural. Flipping to
     # numerically_solved would break that round-trip.
+    return True
 
 
 def _try_mediation_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
     cluster: str | None = None,
-) -> None:
+) -> bool:
     """Attach a JOINT multi-mediator numeric estimate when the joint
     identification layer has cleared the block NDE/NIE for the mediator
     set (VanderWeele-Vansteelandt 2014).
@@ -2827,8 +2849,11 @@ def _try_mediation_joint_estimate(
 
     extensions = result.get("extensions") or {}
     decomp = extensions.get("mediation_joint_decomposition")
+    # Same claim rule as the single-mediator handler: only an ABSENT block
+    # means identification routed this query elsewhere. Every other exit
+    # claims it rather than letting a different estimand answer in its place.
     if decomp is None:
-        return
+        return False
 
     # The joint natural-effect numeric rides on the NDE/NIE block being
     # structurally identified (strategy is "nde_nie" or "nde_nie+cde"); the
@@ -2836,7 +2861,7 @@ def _try_mediation_joint_estimate(
     # estimate when it too is identified with a compatible adjustment.
     nde_nie_block = decomp.get("nde_nie", {})
     if not nde_nie_block.get("identifiable"):
-        return
+        return True
     adjustment = tuple(
         a.split("(", 1)[0] for a in nde_nie_block.get("adjustment", ())
     )
@@ -2848,7 +2873,7 @@ def _try_mediation_joint_estimate(
     needed = [*m_preds, *adjustment]
     missing_cols = [c for c in needed if c not in contract.data.columns]
     if missing_cols:
-        return
+        return True
 
     try:
         est = estimate_mediation_joint(
@@ -2861,7 +2886,7 @@ def _try_mediation_joint_estimate(
             cluster=cluster,
         )
     except (ValueError, NotImplementedError):
-        return
+        return True
 
     result["numeric_estimate"] = {
         "method": est.method,
@@ -2935,6 +2960,7 @@ def _try_mediation_joint_estimate(
     # NOTE: status stays "structurally_solved" — the joint identification
     # answer is primary; the numeric_estimate is supplementary, mirroring
     # the single-mediator path.
+    return True
 
 
 # Upper bound on the supplementary ratio-scale four-way bootstrap (a

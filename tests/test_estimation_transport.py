@@ -427,6 +427,66 @@ def test_dispatch_attaches_transport_numeric_e2e():
     assert estimate.get("point") == pytest.approx(0.41, abs=0.05)
 
 
+def test_a_named_mediator_does_not_swallow_the_transport_number():
+    """A query naming BOTH a mediator and a target_population goes to
+    transport in the identification layer (target_population is checked
+    first there). The estimation cascade checked the mediator first and then
+    claimed the query unconditionally — the mediation handler declined for
+    want of a mediation block, `continue` fired anyway, and the transport
+    branch below was never reached. Every answer channel came back empty,
+    with no estimator_failure recorded either.
+
+    Three controls, so the cause is the FIELD and not the graph: adding
+    x→m→y changes nothing, naming it in the query used to change everything.
+    """
+    import copy
+
+    import themis
+
+    def _fa(p):
+        return {"predicate": p, "args": [{"type": "var", "name": "I"}]}
+
+    base = _transport_program()
+
+    with_m_in_graph = copy.deepcopy(base)
+    qi = next(i for i, s in enumerate(with_m_in_graph["statements"])
+              if s.get("kind") == "query")
+    with_m_in_graph["statements"][qi:qi] = [
+        {"kind": "variable", "predicate": "m"},
+        {"kind": "cause", "forall": ["I"], "from": _fa("x"), "to": _fa("m")},
+        {"kind": "cause", "forall": ["I"], "from": _fa("m"), "to": _fa("y")},
+    ]
+
+    with_m_named = copy.deepcopy(with_m_in_graph)
+    for s in with_m_named["statements"]:
+        if s.get("kind") == "query":
+            s["query"]["mediator"] = {
+                "predicate": "m", "args": [{"type": "const", "name": "me"}],
+            }
+
+    rng = np.random.default_rng(1)
+    df = _balanced_source(n=2000, seed=0)
+    df = df.assign(
+        m=0.4 * df["x"].astype(float) + rng.normal(scale=0.2, size=len(df)),
+    )
+
+    points = []
+    for program in (base, with_m_in_graph, with_m_named):
+        # identification routes all three to transport
+        assert "transport_identification" in (
+            themis.run(program)["results"][0].get("extensions") or {}
+        )
+        estimate = themis.estimate(program, df)["results"][0].get(
+            "numeric_estimate"
+        )
+        assert estimate is not None
+        assert estimate.get("method") == "transport_post_stratification"
+        points.append(estimate["point"])
+
+    assert points[0] == pytest.approx(points[1])
+    assert points[0] == pytest.approx(points[2])
+
+
 def test_dispatch_skips_transport_numeric_when_no_target_marginal():
     """If program.extensions.target_marginal is absent, the numeric
     layer doesn't attach. Structural transport result is still valid."""

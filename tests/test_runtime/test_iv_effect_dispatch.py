@@ -568,3 +568,131 @@ def test_proposal_edge_on_the_conditioning_set_is_disclosed():
         g["kind"] for g in (result.get("data_gap_report") or {}).get("gaps", ())
     }
     assert "unverified_proposal_edge_on_query_path" in kinds, sorted(kinds)
+
+
+# ---------------------------------------------------------------------------
+# The IV escalation must not preempt non-parametric point identification
+# ---------------------------------------------------------------------------
+
+
+def _napkin_with_theta(monotonicity: str | None) -> dict:
+    """Pearl's napkin (w→z→x→y, w↔x, w↔y) carrying a full, self-consistent
+    theta.
+
+    The napkin is point-identified by general ID and by nothing weaker — no
+    back-door set, no front-door set — AND it carries an instrument (z, valid
+    once w is held fixed). It is therefore the graph on which the order
+    between the two matters.
+
+    Theta is every conditional the validator admits (parents ∪ ancestors ∪
+    bidirected siblings), derived from one explicit joint so the entries are
+    mutually consistent and the conditioning-stratum weights sum to exactly 1.
+    """
+    import itertools
+
+    cells = {}
+    total = 0.0
+    for w, z, x, y in itertools.product([True, False], repeat=4):
+        # arbitrary but strictly positive and deterministic
+        p = 1.0 + 0.7 * w + 0.5 * z + 0.3 * x + 0.2 * y + 0.4 * (w and y)
+        cells[(w, z, x, y)] = p
+        total += p
+    for k in cells:
+        cells[k] /= total
+
+    names = ("w", "z", "x", "y")
+
+    def marginal(assign: dict) -> float:
+        return sum(
+            p for key, p in cells.items()
+            if all(key[names.index(n)] == v for n, v in assign.items())
+        )
+
+    admissible = {
+        "w": ["x", "y"], "z": ["w"], "x": ["w", "z"], "y": ["w", "z", "x"],
+    }
+    stmts = []
+    for tgt, adm in admissible.items():
+        for k in range(len(adm) + 1):
+            for cond_vars in itertools.combinations(adm, k):
+                for cond_vals in itertools.product([True, False], repeat=k):
+                    cond = dict(zip(cond_vars, cond_vals))
+                    denom = marginal(cond)
+                    for tv in (True, False):
+                        stmts.append(_prob(
+                            tgt, tv, list(cond.items()),
+                            marginal({**cond, tgt: tv}) / denom,
+                        ))
+
+    query: dict = {
+        "kind": "effect",
+        "intervention": {"atom": _atom("x"), "value": True},
+        "target": _gr("y", True),
+        "given": [],
+    }
+    if monotonicity is not None:
+        query["assumptions"] = {"monotonicity": monotonicity}
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            *({"kind": "variable", "predicate": p, "domain": [True, False]}
+              for p in names),
+            {"kind": "cause", "from": _atom("w"), "to": _atom("z")},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "bidirected", "left": _atom("w"), "right": _atom("x")},
+            {"kind": "bidirected", "left": _atom("w"), "right": _atom("y")},
+            *stmts,
+            {"kind": "query", "id": "q", "query": query},
+        ],
+    }
+
+
+def _rules(result: dict) -> list[str]:
+    return [s.get("rule") for s in (result.get("derivation") or {}).get("steps", ())]
+
+
+def test_declaring_an_assumption_does_not_replace_the_assumption_free_answer():
+    """The IV escalation used to run BEFORE general ID in the identification
+    cascade, so on a graph reachable by both, declaring monotonicity swapped
+    the answer: from the query's own P(Y=1|do(x=1)), identified without any
+    assumption, to a Wald LATE — a contrast, among compliers, resting on the
+    assumption just declared. Supplying more information degraded the
+    estimand. The estimation dispatch already ordered these two the other way
+    and said why; identification now agrees.
+    """
+    program = _napkin_with_theta(None)
+
+    # Guard against a vacuous pass: the IV branch must genuinely be able to
+    # claim this graph, otherwise "IV did not preempt" proves nothing.
+    from themis.input.semantic_validator import validate_program
+    from themis.input.syntactic_validator import validate_ast
+    from themis.runtime import structural_solver
+    from themis.runtime.graph_projection import project
+    from themis.runtime.instantiation import instantiate
+
+    ground = instantiate(validate_program(validate_ast(program)))
+    graph = project(ground)
+    bidirected = structural_solver.bidirected_from_ground(ground)
+    x = next(a for a in graph.nodes if a.predicate == "x")
+    y = next(a for a in graph.nodes if a.predicate == "y")
+    assert structural_solver.iv_sets(graph, x, y, bidirected=bidirected)
+    assert not structural_solver.minimal_adjustment_sets(
+        graph, x, y, given=(), bidirected=bidirected
+    )
+    assert not structural_solver.front_door_sets(
+        graph, x, y, bidirected=bidirected
+    )
+
+    plain = themis.run(program)["results"][0]
+    declared = themis.run(
+        _napkin_with_theta("non_decreasing")
+    )["results"][0]
+
+    assert "identify_via_tian" in _rules(plain)
+    assert "identify_via_tian" in _rules(declared), _rules(declared)
+    assert "identify_via_iv" not in _rules(declared), _rules(declared)
+    assert (
+        declared["numeric_result"]["value"] == plain["numeric_result"]["value"]
+    )

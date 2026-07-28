@@ -4255,28 +4255,18 @@ def _dispatch_effect(
                         structural_prefix=structural_prefix,
                         graph=graph, bidirected=bidirected,
                     )
-            # Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald
-            # LATE under monotonicity, stratified over a conditional
-            # instrument's W. The numeric is the COMPLIER LATE, not the
-            # population ATE — extension metadata flags this so the
-            # render layer can disclose. When it cannot produce a
-            # number, ``missing`` carries why, and the final refusal
-            # below reports that instead of claiming nothing reaches
-            # this graph — the monotonicity gate in particular lives
-            # inside the call now, so "an instrument exists, you just
-            # never declared the assumption it needs" is sayable.
-            iv_attempt = _try_iv_wald_in_effect(
-                stmt, graph, q, x, y_atom, theta,
-                bidirected=bidirected,
-            )
-            if iv_attempt.result is not None:
-                return iv_attempt.result
-
-            # Fix 5 (v0.1.5, audit follow-up): Tian-in-effect — last-
-            # resort identification via Shpitser-Pearl ID before giving
-            # up. Identify path already does this (line 299-311); effect
-            # path used to drop straight to needs_investigation with the
-            # "S3.b.2 lands later" comment. Lands now.
+            # Tian-in-effect — non-parametric point identification via
+            # Shpitser-Pearl ID.
+            #
+            # This runs BEFORE the IV escalation below, and the order is
+            # load-bearing: a c-factor estimand is assumption-free and
+            # answers the query's own estimand, whereas the Wald LATE needs
+            # a declared monotonicity and reports a contrast among compliers.
+            # With IV first, declaring an assumption REPLACED an
+            # assumption-free population answer with an assumption-laden
+            # subpopulation one — supplying more information degraded the
+            # estimand. The estimation dispatch already ordered these two
+            # this way for exactly this reason; identification now agrees.
             from . import c_factor as _c_factor
             tian = _c_factor.identify_via_tian(
                 graph, bidirected, x, y_atom, q.intervention.value,
@@ -4342,6 +4332,27 @@ def _dispatch_effect(
                     structural_prefix=structural_prefix,
                     graph=graph, bidirected=bidirected,
                 )
+
+            # Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald
+            # LATE under monotonicity, stratified over a conditional
+            # instrument's W. The numeric is the COMPLIER LATE, not the
+            # population ATE — extension metadata flags this so the
+            # render layer can disclose. When it cannot produce a
+            # number, ``missing`` carries why, and the final refusal
+            # below reports that instead of claiming nothing reaches
+            # this graph — the monotonicity gate in particular lives
+            # inside the call now, so "an instrument exists, you just
+            # never declared the assumption it needs" is sayable.
+            #
+            # The escalation: reached only once non-parametric point
+            # identification above has failed, so an assumption is asked for
+            # only when nothing assumption-free was available.
+            iv_attempt = _try_iv_wald_in_effect(
+                stmt, graph, q, x, y_atom, theta,
+                bidirected=bidirected,
+            )
+            if iv_attempt.result is not None:
+                return iv_attempt.result
 
             # Phase 2 (conditional general-ID, IDC): a CONDITIONAL effect query
             # P(Y | do(X), Z) that ADMG-aware backdoor-with-given could not
