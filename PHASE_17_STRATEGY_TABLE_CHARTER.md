@@ -287,6 +287,66 @@ P(Y=1\|do(x=1))（DGP 真值 0.6036）；0.2122 是 Wald LATE，一个对比量
 - **slice 1 的一条验收由 B 的修法定下**：认领与否只能由「策略真产出了」
   决定，不能由「守卫命中」决定——`decline(REASON)` 的返回值就是这件事。
 
+## Slice 1 产出 — 协议统一（2026-07-29 完成）
+
+`themis/estimation/claim.py`：**四态**，19/19 handler 全部改说它（AST 级核过，
+无一残留 `bool` / `None` / 裸 `return`）。
+
+| | 拥有查询 | 查询继续 | 何时 |
+|---|---|---|---|
+| `answered()` | ✓ | 停 | 答案已附上 |
+| `blocked(reason)` | ✓ | **停** | 答不出来——且**别人不许替它答** |
+| `annotated()` | ✗ | 继续 | 在答案旁加了东西（精度代价 / caveat） |
+| `passed(reason)` | ✗ | 继续 | 还在飞，后面有人接**同一个问题** |
+
+第二态是全部意义所在：旧的 bool 表达不了「拥有但答不出来」，而发现 A / B
+两个已测缺陷都长在这个表达不了的位置上。第三态是 charter 预留的 `annotate`
+角色——`_try_outcome_error_assessment` 正是它，那个 handler 此前**协议倒置**
+（`True` 表示「没认领、继续」，与其余 11 个 bool 相反）。
+
+**理由词汇表 8 条**，全部从代码提出、每条附一句「谁能改变它」（图 / 数据 /
+本包 / 装依赖）：`identification_chose_another_strategy`、`not_identified`、
+`numeric_end_not_built`、`combination_out_of_scope`、`required_columns_absent`、
+`design_unavailable`、`estimator_dependency_missing`、`estimator_refused`。
+`blocked()`/`passed()` 当场拒绝未登记的理由。
+
+### 修正 charter 先前的数字
+
+「27 处裸 return」是错的：那个数把 **13 处纯 helper**（`_compute_precision_budget`、
+`_is_binary_treatment`、`_declared_scale` 等）的 `return None` 算了进去——那里
+的 None 是「没有值」，不是「拒绝一个查询」，slice 1 不动它们。真正的策略拒绝
+**22 处**，另有 7 个 `-> None` handler 的 33 个裸 `return`。
+
+### 转换中暴露的三件事
+
+1. **`_try_dose_response_estimate` 早就在做对的事**：四个出口里三个是「把失败
+   写进信封 + 认领」，正是本协议要形式化的模式——只是从未被当成模式，其余 18 个
+   handler 都没学。
+2. **它的调用点注释在说谎**：那句「fall through to the binary path so the user
+   still gets *something*」描述的分支**不可达**（该函数没有 `return False`）。
+   不可达是好事——可达才是发现 A 那类缺陷——但注释该改。**登记为独立小项。**
+3. **9 处宽 `except (EstimatorFailure, ValueError, NotImplementedError)`** 把
+   「估计器诚实拒绝」与「代码炸了」压进同一个分支。slice 1 只登记不拆：拆它要
+   逐个判断哪些异常是真信号，那是行为变更。**独立一档。**
+
+### 元测试当场抓到的两个缺陷（`tests/test_claim_protocol.py`）
+
+- **`Claim` 是 dataclass，永远真值为 True。** 两个中介调用点仍写 `if _try_x(...):`，
+  于是**每个**查询都被认领——**发现 B 被原样打破**。这是类型从值语义迁到对象
+  语义时的必然陷阱且完全静默，故专有一条测试钉「调用点必须读 `.stops_here`」。
+  同一次全量独立复现了它（`test_a_named_mediator_does_not_swallow_the_transport_number`
+  报 `assert None is not None`），两条路径指向同一个缺陷。
+- **`combination_out_of_scope` 用了但没登记。** 运行时 `_checked` 会抛，但没有
+  测试走那条路径——**它会先到用户手里再到测试手里**。静态扫描全文件字面量的
+  那条测试专抓这一类。
+
+### 仍靠 review 的不变量（交棒给 slice 2）
+
+`blocked` 与 `passed` 的分界是「**往下传只有在接手者回答同一个问题时才合法**」。
+此刻机器强制不了——没有 handler 声明自己瞄准哪个估计量。**slice 2 的策略表
+`produces` 字段兑现它**，届时驱动可以断言：一次 `passed` 之后真正作答的策略，
+其估计量必须与放行者相同。
+
 ## 显式 Out-of-scope
 
 - 验证器的任何「消重」。

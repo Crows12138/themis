@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3610 passed / 144 skipped, warning-clean
+3618 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -746,6 +746,20 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **一条我提错并就地作废的发现**——曾把「C 的 `answer_tier` 仍是 `point` 而信封无数」记为可能缺陷。读 `_compute_answer_tier` 契约后作废：POINT 的语义是「点估计量可识别」，docstring 明确把「identifiable-but-missing-θ」算作 POINT，所以它符合自己的契约。**方法论**：C 的第一次探针跑出「无分歧」，真因是探针把概率 `round(p, 6)` 导致条件层权重和 0.999999≠1、IV 路径**正确地拒绝**了那份 theta——探针的「没测出来」必须先自证不是探针自身的假象。
 
 **基线**：3608 → **3610**。
+
+**级联的认领协议统一（2026-07-29，Phase 17 slice 1）**：结构型。估计级联是一串带守卫的 handler，每个决定「这个查询是不是我的」。此前这个决定用**两套互不兼容的约定**承载——10 个返回 `bool`、9 个返回 `None`，而那 10 个里还有 1 个的 `True` 与其余 9 个含义**正好相反**（`_try_outcome_error_assessment` 的 True 表示「没认领、继续走」）。更要命的是两套都表达不了决定正确性的那件事：**一个 handler 拥有某个查询却答不出来**。发现 A / B 两个已测缺陷正长在这个表达不了的位置上。
+
+**改法**——`themis/estimation/claim.py` 定四态，19/19 handler 全部改说（AST 级核过，无一残留 `bool`/`None`/裸 `return`）：`answered()`（拥有，答案已附）/ `blocked(reason)`（**拥有但答不出来，查询到此为止**）/ `annotated()`（在答案旁加了东西，不拥有）/ `passed(reason)`（还在飞，后面有人接**同一个问题**）。第二态是全部意义所在；第三态兑现了 charter 预留的 `annotate` 角色，那个协议倒置的 handler 归位于此。**理由词汇表 8 条**，全部从代码提出、每条附一句「谁能改变它」（图/数据/本包/装依赖），`blocked()`/`passed()` 当场拒绝未登记的理由。
+
+**修正 charter 的数字**——「27 处裸 return」错了：它把 **13 处纯 helper**（`_compute_precision_budget`、`_is_binary_treatment` 等）的 `return None` 算了进去，那里的 None 是「没有值」不是「拒绝一个查询」。真正的策略拒绝 **22 处**，另有 7 个 `-> None` handler 的 33 个裸 return。
+
+**转换中暴露三件事**——(1) `_try_dose_response_estimate` **早就在做对的事**：四个出口三个是「把失败写进信封 + 认领」，正是本协议要形式化的模式，但它一个人做对、另外 18 个都没学——**没有一等表示的东西，正确做法无法传播**。(2) 它调用点那句「fall through to the binary path so the user still gets *something*」描述的分支**不可达**（该函数没有 `return False`）；不可达是好事，但注释在说一件没发生的事，登记为独立小项。(3) 9 处宽 `except (EstimatorFailure, ValueError, NotImplementedError)` 把「估计器诚实拒绝」与「代码炸了」压进同一分支——只登记不拆，拆它是行为变更，独立一档。
+
+**元测试当场抓到两个我自己造的缺陷**（`tests/test_claim_protocol.py`，8 条）——(1) **`Claim` 是 dataclass，永远真值为 True**：两个中介调用点仍写 `if _try_x(...):`，于是**每个**查询都被认领，**发现 B 被原样打破**。这是类型从值语义迁到对象语义时的必然陷阱且完全静默，故专有一条测试钉「调用点必须读 `.stops_here`」；同一次全量独立复现（`assert None is not None`），两条路径指向同一缺陷。(2) **`combination_out_of_scope` 用了但没登记**：运行时会抛，但没有测试走那条路径——**它会先到用户手里再到测试手里**，静态扫描全文件字面量的那条测试专抓这类。
+
+**仍靠 review 的不变量（交棒 slice 2）**——`blocked` 与 `passed` 的分界是「往下传只有在接手者回答**同一个问题**时才合法」。此刻机器强制不了：没有 handler 声明自己瞄准哪个估计量。策略表的 `produces` 兑现它后，驱动即可断言「一次 `passed` 之后真正作答的策略，估计量必须与放行者相同」——**那正是发现 A、B 与我 Fix B 第一版三次踩的同一个坑**。
+
+**基线**：3610 → **3618**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
