@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3542 passed / 144 skipped, warning-clean
+3573 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -674,6 +674,26 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **基线**：3496 → **3542**（更早 3477 → 3496、3458 → 3477、3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 **旧基线行**（保留原文，勿改写）：3477 → **3496**（更早 3458 → 3477、3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+
+**独立性单位被静默丢掉：把"这次跑用了哪个簇列"记成运行级事实（2026-07-28b）**：修复型。簇 / 分块列是一句关于**独立性单位**的声明。honour 它区间变宽，丢掉它区间偏窄——而**点估计一模一样**，所以这类错答在数上完全看不出来，只体现在一个没有原始数据就核不了的宽度里。
+
+**现象（实测）**——`themis.estimate(prog, df, cluster="clinic")` 在纵向程序上返回的区间与 `cluster=None` **逐位相同**（g-formula 0.809918、IPW-MSM 0.917301，两次一字不差），而 `"clinic"` 在整个信封里**一处都不出现**：没有 `bootstrap` 块、没有假设条目、没有 data_contract 警告。用户声明了簇结构，Themis 悄悄丢掉并发了一个反保守的区间。
+
+**规模（全量静态记账，不是抽查）**——用 ast 枚举 `dispatch.py` 里**所有会产出 `numeric_estimate` / `numeric_bounds` 的函数**：22 个生产者，21 个把解析出的 `cluster` 交给了自己的估计器，**只有 `_maybe_estimate_longitudinal` 一个没有**（`_try_dose_response_estimate` 收了参数但**诚实声明**它的 EconML 解析区间做不到簇稳健，属于已披露）。再往下一层查估计器模块本身：每个 honour 簇列的估计器**本来就**在自己的 `assumptions` 里声明了（`ci_via_pairs_cluster_bootstrap_on_<col>` / `cluster_robust_influence_variance_on_<col>` / RC 那条中文散文），dose-response 声明相反的那条——**两个独立来源一直都躺在信封里，只是从来没人做过交叉核对**。
+
+**根因**——「这次跑解析出了哪个簇列」这个**运行级事实从来没有被记录过**。信封里唯一提到簇的地方是 `numeric_estimate.bootstrap`，而那是各生产者**逐个手写**的声明（19 处 `_attach_bootstrap_meta` 调用，18 处传的是原始入参、只有 `_try_joint_estimate` 传的是估计器报回来的 `estimate.cluster`）。于是「没人命名簇列」与「命名了但这个估计器丢了」在信封里**完全同形**，任何验证器都分不出来。
+
+**为什么是根因不是表象**——给 `_maybe_estimate_longitudinal` 补一个参数能修好今天这一个，**默认值原封不动**：明天第 23 个生产者照样静默丢。21/22 的正确率是**靠自觉维持的**，而自觉正是会衰减的那种性质。
+
+**改法**——①`estimation_context.cluster` 记录运行级解析结果，**记一次、放在 missingness 早返回分支之前**（`random_state`/`ci_bootstrap` 已在同一个块里，同属推断级输入；只在解析到簇列时写，无簇的信封逐字节不变）；②纵向 g-formula 与 IPW-MSM 真正吃下簇列（`presence_columns` 带进契约 → `cluster_labels` → `resample_indices(groups=)`，两条 bootstrap 回路各一处），估计量**报回**自己实际重采样的那一列，dispatch 按**报回值**盖章而不是按入参——声明与事实于是不可能漂开；③新验证器把两个来源对起来。
+
+**验证器**——`verify_cluster_inference`（`verifier/cluster_inference_rules.py`，独立性钉：不许 import `themis.estimation`），进 `verify()` 且另有 result-only 公开入口。判据是**单边**的、从"沉默意味着什么"推出来的：运行级记了簇列，则每个**带区间**的数值答案必须在它**自己声明的假设**里点名这一列——honour 了或明确说没 honour 都行，**沉默不行**，因为对消费者来说沉默与"这些行本来就独立"无法区分。镜像故障也拒：盖了章但运行级没记簇列 / 盖的列与运行解析的不是同一列 / 盖了章但估计器自己的声明里没有这一列（=dispatch 在替估计器做一个它从没做过的断言）。**判据刻意与措辞无关**——只查列名是否出现，不钉某一种拼法，否则审计就变成对生产者字符串格式的转写。**刻意不审**区间在数值上到底是不是簇稳健：重跑百分位 bootstrap 需要原始数据，那是本包每个数值验证器都停下的 data-refit 天花板；可审计的断言是披露，而这次的故障恰恰藏在披露里。
+
+**D1**——31 条新测试在改前代码上跑：**6 条红在正确的理由**（运行级 `cluster` 没被记录 ×2〔显式 kwarg / `options.cluster` 两条入口〕；纵向答案端到端"加簇列后区间宽度**逐位相同**" ×2；簇声明没进 `assumption_ledger`〔渲染层领起的那个面〕×2）；**20 条红在机械原因**——8 条是 `estimate_longitudinal_*() got an unexpected keyword 'cluster'`（签名不存在），12 条是 `themis.verify_cluster_inference` 当时不存在，**都不算作证明了什么**；5 条两边都绿（横截面家族本来就诚实），同样不算。**真值 oracle**：簇层随机化 + 簇效应的纵向 DGP（真值 ψ=6.5 解析已知），10 次重抽——i.i.d. 区间在名义 95% 下只覆盖 7/10、8/10，簇 bootstrap 覆盖 9/10 以上且宽度是前者的 1.5 倍以上。**这一对才是这次改动存在的理由，写成了测试**。
+
+**取舍**——18 处仍传原始入参的 `_attach_bootstrap_meta` 调用点**没有一并改成报回值形式**：那条 `cluster in df.columns else None` 降级分支经公开入口不可达（`validate_data` 对缺失的簇列直接抛错），所以那 18 处目前不说谎，改它们是无实测缺陷支撑的 churn。新验证器要求「盖章必须有估计器侧声明佐证」已经把这一类挡在信封层了。
+
+**基线**：3542 → **3573**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
