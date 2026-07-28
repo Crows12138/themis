@@ -167,7 +167,7 @@ Evaluation
 | 7 | `selection_recovery` | — （由 `dispatch()` 尾部 attach，且在 gap report **之后**） | E6 | 跨层隐式依赖，靠执行顺序维系 |
 | 8 | 误分类 / 测量误差 / 剂量反应 | — | E7–E13 | 层次分工，正确（识别层看不到 DataFrame） |
 | 9 | front-door 的 `given` 空条件 | I7 内 `not observed_atoms` | E16 `not given_atoms` | **一致**；估计层注释明写 "mirrors the identification layer" —— 说明作者知道要镜像，但只在这一处做了 |
-| 10 | general-ID 与 IV 的先后 | IV Wald(4268) → Tian(4281) | general_id(1059) → IV(1067) | **顺序相反**，见下方发现 C |
+| 10 | general-ID 与 IV 的先后 | IV Wald(4268) → Tian(4281) | general_id(1059) → IV(1067) | **顺序相反 → 已实测确认会咬，见发现 C** |
 
 **四处需要判定的差异中，三处识别层对、一处估计层对。没有哪一层系统性更对**
 ——这本身就是证据：不是某层写得糙，是**没有单一真相来源，两边各自漂移**。
@@ -205,14 +205,42 @@ gap 报告还在提示 `mediation_identification_assumption_required`。
 **诚实标注：路径由读代码确认（`dispatch.py:762-768` + `_try_mediation_estimate`
 的 `decomp is None → return`），未构造带数据的 transport×mediator 程序端到端验证。**
 
-### 发现 C（未验证，顺序不一致是代码事实）—— 无假设识别与需假设识别的先后相反
+### 发现 C（已实测确认）—— 声明一个假设，把无假设的答案换成了需假设的答案
 
 估计层 general-ID 先于 IV，注释给了正确理由：c-factor 估计量无假设，
 IV 点估计需单调性/效应同质性。识别层反过来（IV Wald 先）。
 
-只在同时满足 (a) 声明了 `assumptions.monotonicity`（`_try_iv_wald_in_effect`
-的硬门）(b) 存在工具变量 (c) Tian 可识别 时才咬。**估计层对**。
-**诚实标注：未构造满足三条件的图验证，严重性未知。**
+**见证图**：Pearl napkin（`w→z→x→y`，`w↔x`，`w↔y`）。实测该图上
+`iv_sets` 恰有一个**条件**工具候选 `z | w`，后门集 0，前门集 0——所以
+识别层确实会走到 IV/Tian 这一段。theta 由 napkin DGP 的经验条件概率供给，
+按验证器的真实规则（`admissible = parents ∪ ancestors ∪ bidirected 兄弟`，
+不是报错文案说的 `parents`）逐条发。
+
+**同一张图、同一份 theta、同一个查询，只多声明一个 `monotonicity`：**
+
+| | derivation | `numeric_result.value` |
+|---|---|---|
+| 不声明 | `tian_c_decomposition → identify_via_tian → tian_formula_ast` | **0.6021** |
+| 声明 | `iv_criterion_check → identify_via_iv → iv_wald_numeric_evaluate` | **0.2122** |
+
+两个数各自都对，但**不是同一个量**：0.6021 是查询真正问的
+P(Y=1\|do(x=1))（DGP 真值 0.6036）；0.2122 是 Wald LATE，一个对比量
+（DGP 的 ATE 0.2071）。**多给一条信息，答案从无假设的总体量变成了需单调性
+的 complier 量。** 信息增加不该让估计量退化。
+
+**估计层对**，其 dispatch 注释已写明理由。识别层的顺序应翻转，
+**slice 3 合并守卫时，合并后的 precedence 必须是「无假设优先」**。
+
+**不是静默问题**：IV 路径的披露是充分的——`extensions.iv_identification`
+带 `late_caveat` 明写「这是 complier 上的效应，不是总体 ATE，混淆二者是已知
+的 IV 部署陷阱」，缺口报告也报 `iv_identification_assumption_required`。
+缺陷在**策略**，不在沉默。
+
+**方法论教训（记下来）**：本发现的第一次探针跑出「两次同一个数、无分歧」，
+我据此差点判定假设被证伪。真因是探针把概率 `round(p, 6)`，导致
+条件层权重和 0.999999≠1，IV 路径**正确地拒绝**了这份 theta 并落回 Tian。
+去掉舍入后分歧立刻出现。**探针的产物必须先自证不是探针自身的假象**——
+一次"没测出来"不等于"不存在"。
 
 ### 对重构的输入
 
