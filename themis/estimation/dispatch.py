@@ -747,11 +747,18 @@ def _estimate_effect_queries(
                 model=model, cluster=cluster,
             )
             continue
-        # Joint multi-mediator (>= 2): the JOINT natural-effect
-        # decomposition through the mediator SET. Routes to
-        # estimate_mediation_joint, gated on the joint identification
-        # extension. Precedes the single-mediator branch.
-        if len(q_stmt.query.mediators) >= 2:
+        # The JOINT natural-effect decomposition through the mediator SET.
+        # Routes to estimate_mediation_joint, gated on the joint
+        # identification extension. Precedes the single-mediator branch.
+        #
+        # The guard is "did this query name a set", not "how big is the set":
+        # a block of one is still a block, and the identification layer routes
+        # it here on exactly that principle. ``mediators`` and ``mediator`` are
+        # distinct fields — a set of one never populates the singular one — so
+        # a size threshold here does not divert k=1 to the single-mediator
+        # branch, it drops the decomposition entirely and answers the total
+        # effect instead, beside an envelope still claiming the block.
+        if q_stmt.query.mediators:
             _try_mediation_joint_estimate(
                 q_stmt, result, contract, graph, bidirected,
                 random_state=random_state,

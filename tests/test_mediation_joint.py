@@ -437,6 +437,42 @@ def test_a_block_of_one_is_still_answered():
     themis.verify(ast, res)
 
 
+def test_a_block_of_one_reaches_the_data_end_too():
+    """The data-end mirror of ``test_a_block_of_one_is_still_answered``.
+
+    Identification routes ``mediators: [m]`` to the joint block on the
+    principle that a set of one is a set; the estimation dispatch kept a
+    ``>= 2`` guard, so the same envelope came back carrying the joint
+    identification block NEXT TO a plain back-door TOTAL effect — a number
+    about a different estimand, with nothing saying so. One query routes one
+    way, in both layers.
+    """
+    df, _ = _joint_scm(n=8000, seed=7)
+    ast = _joint_ast()
+    for stmt in ast["statements"]:
+        if stmt.get("kind") == "query":
+            stmt["query"]["mediators"] = [_atom("m1")]
+    res = themis.estimate(ast, df, random_state=42)["results"][0]
+
+    # identification still says "I decomposed this block" ...
+    assert res["extensions"]["mediation_joint_decomposition"][
+        "nde_nie"]["identifiable"] is True
+    # ... so the number attached to it must be that block's decomposition.
+    ne = res["numeric_estimate"]
+    assert ne["method"] == "mediation_joint_linear"
+    assert ne["mediators"] == ["m1"]
+
+    # and it is the block's NDE/NIE, not the total effect. At k=1 the joint
+    # estimator IS the classical single-mediator one (pinned independently by
+    # test_k1_equivalence_to_single_mediator_linear), so that is the oracle.
+    oracle = estimate_mediation(
+        df, treatment="x", outcome="y", mediator="m1", n_rep=10,
+    )
+    assert abs(ne["decomposition"]["nie"]["point"] - oracle.nie_point) < 0.05
+    assert abs(ne["decomposition"]["nde"]["point"] - oracle.nde_point) < 0.05
+    themis.verify(ast, res)
+
+
 def test_block_data_estimate_headlines_its_mediated_share():
     """The share through the block is computed either way; only the single
     mediator used to say so out loud."""
