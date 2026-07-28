@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3477 passed / 144 skipped, warning-clean
+3496 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -321,7 +321,7 @@ verify 拒伪造 crossing/segment/asymptote/crit、篡改 S0、**漏 crossing（
 `degenerate_recovered_exposure`（恢复暴露边际≤0→条件风险未定义→拒）、
 `exposure_not_binary`、`continuous_outcome`、positivity。②dispatch.py：`misclassification`
 按**变量名**键分派——键=暴露名走 `_try_exposure_measurement_correction_estimate`，
-X+Y 都给→`combined_misclassification_deferred` 拒；发 measurement_correction 块
+X+Y 都给→合成校正（当时是 `combined_misclassification_deferred` 拒，见下方「两条通道同时误分类」一档）；发 measurement_correction 块
 side=exposure + per-stratum 2×k 联合表。③verify.py：
 `verify_exposure_measurement_correction_numeric` 从记录的 M+2×k 联合表**第二次转写**沿
 暴露轴求逆重导校正/朴素点+det，拒伪造点/非列随机或 det 不符矩阵/篡改联合表/丢层/空臂/
@@ -636,7 +636,26 @@ D1：14 条测试先在改前代码上跑成红的（`git stash push -- themis/`
 
 D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿——3 条端到端验证器审计（旧 T10-2 不查这两组）、1 条 collider 程序本来就有别的 gap、1 条 framing 豁免钉、1 条「已解出的查询不应凭空多出残余缺口」的前提钉，**不算作证明了什么**。+19 →**3477**。
 
-**基线**：3458 → **3477**（更早 3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
+**两条通道同时误分类：合成校正（2026-07-28）**：能力型，收 `measurement.py` / `dispatch.py` / `estimation/__init__.py` 三处都写着的声明式缺口。
+
+**缺口**——暴露与结局各有验证研究给出的混淆矩阵时（自报暴露 + 病历摘录结局，很常见），`dispatch.py` 一直**诚实拒绝**（`combined_misclassification_deferred`），理由写得对：只校正一条通道再把点发出去，等于把另一条通道的偏倚留在数上。所以这是能力缺口，不是静默错答——要做的是把拒绝翻成正确的数。
+
+**数学**——两条误差机制在真值下相互独立时，某后门层内的观测联合是真实联合的**双边线性像**：
+
+    P_obs(z)[a,b] = Σ_{a*,b*} M_x[a,a*] M_y[b,b*] P_true(z)[a*,b*] = (M_x · P_true(z) · M_yᵀ)[a,b]
+  ⇒ P_true(z) = M_x⁻¹ · P_obs(z) · (M_y⁻¹)ᵀ
+
+即暴露侧的左乘求逆与结局侧的右乘求逆，作用在**同一张** 2×k 联合表上；随后照暴露侧原样标准化 ATE=Σ_z[P(Y*=y*|X*=1,z)−P(Y*=y*|X*=0,z)]P(z)。
+
+**★关键是它比两条单通道校正各自多要一个前提★**——`X ⊥ Y | (X*, Y*, Z)`：两条误差机制在真值下相互独立。两条**各自**非差异的通道仍然可以彼此相关（同一个粗心的摘录员把一条记录的两个字段一起写错就破坏它），所以这是严格更强的前提，也正是它让上面那个因子分解成立。它单列进 `assumptions`（`independent_error_channels_X_indep_Y_given_Xtrue_Ytrue_Z`），不埋在两条非差异假设里。
+
+**★声明的边界是结构性的而非预算性的★**——任一通道**差异**（differential）时拒绝而不近似：detection bias 让 M_y 依赖真实暴露、recall bias 让 M_x 依赖真实结局，**选矩阵的那个层级恰恰是另一条通道正在误测的量**，观测表于是不再是双边乘积（映射对 2k 个未知量仍线性，但不是 Kronecker 积），当成双边乘积去求逆会返回一个错的数而不是一次拒绝。新 `differential_combined_misclassification_deferred`。
+
+**实现**——①`measurement.py`：`CombinedMeasurementCorrectionEstimate` + `estimate_combined_measurement_correction`，复用暴露侧的 2×k 联合表构造/positivity/`degenerate_recovered_exposure`/`out_of_simplex`（报不裁剪）；`_validate_matrix` 加 `label=` 让"哪条通道的矩阵坏了"能说出口（两张矩阵在场时"confusion matrix"是歧义的）。②`dispatch.py`：拒绝分支换成 `_try_combined_measurement_correction_estimate`，`_measurement_correction_block` 加 combined 分支——**两条通道各带自己的矩阵名**（`confusion_matrix_exposure`/`confusion_matrix_outcome`/`det_exposure`/`det_outcome`），没有"那张"矩阵也没有单一 `det`。③`det_joint = det(M_x)^k·det(M_y)²`=合成 2k×2k 映射（Kronecker 积）的行列式，一个数说清两条通道**共同**销毁多少信息，任一 det 单独都给不出。④`verify.py`：`verify_combined_measurement_correction_numeric` 第二次独立转写双边求逆；**只此一条路有的检查**=记录的 `det_joint` 必须能因子分解成 `det(M_x)^k·det(M_y)²`，抓"点从这两张矩阵重导得出、而 det_joint 是从另一对矩阵抄来的"；另拒任何 differential 声明（双边分解没许可它）。⑤schema/rules/kernel/两个 `__init__`/response_rendering 同步。
+
+**D1**——新能力的红是"这东西当时不存在"，要分清：真正因行为改变而红的是 3 条（合成分派把拒绝翻成 `numerically_solved` 且点落在潜真值 ±0.03；差异通道给出的是**新的**专用 failure_type 而非旧的通用拒绝；诚实结果通过 verify）；9 条估计器级测试在改前代码上**连收集都过不去**（符号不存在）；7 条篡改测试红在 `KeyError: numeric_estimate`（旧代码没产出可篡改的对象）=**机械原因，不算作证明了什么**。真值 oracle 是模拟 SCM 的潜 X*/Y*：双边校正恢复潜真 RD（0.3014 vs 0.3002），而 naive 偏 0.140、**只校正结局偏 0.086、只校正暴露偏 0.074**——最后这一对才是这个估计器存在的理由，写成了测试。恒等矩阵通道退化回对应的单通道估计量（1e-9）。旧的 `test_combined_exposure_and_outcome_spec_deferred` 改写成钉住新路由。+19 →**3496**。
+
+**基线**：3477 → **3496**（更早 3458 → 3477、3439 → 3458、3421 → 3439、3389 → 3421、3373 → 3389、3367 → 3373、3356 → 3367、3324 → 3356）。更早的跳幅（3221 → 3324）还吸收了此前 session 只提了 feat、没更新本文件的两档（`a2bac78` 联合平行多中介 NDE/NIE、`fa686a0` CDE-for-a-set），它们的详细条目未回填。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
