@@ -86,6 +86,7 @@ from . import (
     formula_builder,
     investigation_pusher,
     numeric_estimator,
+    postprocess,
     structural_solver,
     theta_builder,
 )
@@ -4680,9 +4681,7 @@ def _dispatch_probability(
 
 
 def _attach_framing(
-    program: Program,
-    stmt: QueryStatement,
-    result: QueryResult,
+    result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Slice A0 + F1: attach advisory framing_notes for predicates the
     query references, and slice F1 also surfaces each gap as a
@@ -4704,6 +4703,7 @@ def _attach_framing(
 
     from . import framing_check
 
+    program, stmt = inputs.program, inputs.stmt
     notes = framing_check.check_framing(program, stmt)
     if not notes:
         return result
@@ -4752,7 +4752,9 @@ def _attach_framing(
     )
 
 
-def _attach_investigation(result: QueryResult) -> QueryResult:
+def _attach_investigation(
+    result: QueryResult, inputs: postprocess.Inputs,
+) -> QueryResult:
     """For needs_investigation results with missing_information but no
     investigation_requests yet, populate the requests from the missing
     items.
@@ -5033,13 +5035,7 @@ def _gather_input_confidences(
 
 
 def _attach_confidence(
-    program: Program,
-    stmt: QueryStatement,
-    result: QueryResult,
-    *,
-    theta: Theta | None = None,
-    prob_index: dict | None = None,
-    obs_index: dict | None = None,
+    result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Route every result through ``confidence_calc.composite``.
 
@@ -5057,8 +5053,10 @@ def _attach_confidence(
     from dataclasses import replace
 
     sources = _gather_input_sources(
-        program, stmt, result,
-        theta=theta, prob_index=prob_index, obs_index=obs_index,
+        inputs.program, inputs.stmt, result,
+        theta=inputs.theta,
+        prob_index=inputs.prob_index,
+        obs_index=inputs.obs_index,
     )
     computed = confidence_calc.composite(*(s.confidence for s in sources))
     if computed is None and result.confidence is None and not sources:
@@ -5182,28 +5180,19 @@ def dispatch(
         # Truly unknown type: fail loudly. The schema layer should
         # have already rejected it; reaching here is a programmer bug.
         raise AssertionError(f"unknown query type {type(q).__name__}")
-    result = _attach_investigation(result)
-    result = _attach_confidence(
-        program, stmt, result,
-        theta=theta, prob_index=prob_index, obs_index=obs_index,
-    )
-    result = _attach_framing(program, stmt, result)
-    result = _attach_program_ambiguities(result, program=program)
-    # Bounds first so the gap classifier can surface bounds-not-point as
-    # a must-disclose caveat. The report is built after bounds, then
-    # reconcile rewrites alt_paths inside the now-existing report.
-    result = _attach_bounds_result(program, stmt, result, bidirected=bidirected)
-    result = _attach_data_gap_report(result, program=program, stmt=stmt)
-    result = _reconcile_alt_paths_with_bounds(result)
-    result = _attach_selection_recovery(program, stmt, result, graph=graph)
-    result = _attach_missing_data_recovery(program, stmt, result, graph=graph)
-    return result
+    return postprocess.run(result, POST_PASSES, postprocess.Inputs(
+        program=program,
+        stmt=stmt,
+        graph=graph,
+        theta=theta,
+        prob_index=prob_index,
+        obs_index=obs_index,
+        bidirected=bidirected,
+    ))
 
 
 def _attach_program_ambiguities(
-    result: QueryResult,
-    *,
-    program: Program | None = None,
+    result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Echo program-level ``extensions.ambiguities`` into the result so
     LLM-declared uncertainty is visible to renderers even for kinds the
@@ -5221,9 +5210,7 @@ def _attach_program_ambiguities(
     effect-shaped result (program-wide concerns)."""
     from dataclasses import replace as _replace
 
-    if program is None:
-        return result
-    ext = getattr(program, "extensions", None) or {}
+    ext = getattr(inputs.program, "extensions", None) or {}
     ambs = ext.get("ambiguities") or []
     if not ambs:
         return result
@@ -5243,10 +5230,7 @@ def _attach_program_ambiguities(
 
 
 def _attach_data_gap_report(
-    result: QueryResult,
-    *,
-    program: Program | None = None,
-    stmt: QueryStatement | None = None,
+    result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Phase 10 §10.3 + Phase 13: synthesize the structured data-gap
     report from signals already on the QueryResult, plus (Phase 13)
@@ -5255,6 +5239,7 @@ def _attach_data_gap_report(
 
     from ..output.data_gap_report import compute_data_gap_report
 
+    program, stmt = inputs.program, inputs.stmt
     report = compute_data_gap_report(
         query_kind=result.query_kind,
         status=result.status,
@@ -5269,10 +5254,9 @@ def _attach_data_gap_report(
         numeric_result=result.numeric_result,
         confidence=result.confidence,
     )
-    if report is None and result.data_gap_report is None:
+    if report is None:
         return result
-    result = _replace(result, data_gap_report=report)
-    return _attach_structural_caveats(result)
+    return _replace(result, data_gap_report=report)
 
 
 def _is_selection_collider(
@@ -5322,11 +5306,7 @@ def _serialize_selection_recovery(rec, x: Atom, y: Atom) -> dict:
 
 
 def _attach_selection_recovery(
-    program: Program | None,
-    stmt: QueryStatement | None,
-    result: QueryResult,
-    *,
-    graph: nx.DiGraph,
+    result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Phase 9 §S9.1: attach the Bareinboim-Pearl recoverability verdict.
 
@@ -5342,9 +5322,8 @@ def _attach_selection_recovery(
     from ..types import EffectQuery, ObservationStatement
     from .selection_recovery import recover_effect
 
-    if program is None or stmt is None:
-        return result
-    q = getattr(stmt, "query", None)
+    program, graph = inputs.program, inputs.graph
+    q = getattr(inputs.stmt, "query", None)
     if not isinstance(q, EffectQuery):
         return result
     x = q.intervention.atom
@@ -5422,11 +5401,7 @@ def _serialize_covariate_recovery(rec) -> dict | None:
 
 
 def _attach_missing_data_recovery(
-    program: Program | None,
-    stmt: QueryStatement | None,
-    result: QueryResult,
-    *,
-    graph: nx.DiGraph,
+    result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Phase 9 §S9.2: attach the Mohan-Pearl-Tian missing-data verdict.
 
@@ -5449,9 +5424,8 @@ def _attach_missing_data_recovery(
     from ..types import EffectQuery, MissingnessIndicator
     from .missing_data import analyze_missing_data_estimand
 
-    if program is None or stmt is None:
-        return result
-    q = getattr(stmt, "query", None)
+    program, graph = inputs.program, inputs.graph
+    q = getattr(inputs.stmt, "query", None)
     if not isinstance(q, EffectQuery):
         return result
     indicators = [
@@ -5550,7 +5524,9 @@ _MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
 })
 
 
-def _attach_structural_caveats(result: QueryResult) -> QueryResult:
+def _attach_structural_caveats(
+    result: QueryResult, inputs: postprocess.Inputs,
+) -> QueryResult:
     """Geometric guarantee: structural caveats the renderer must surface
     are copied into ``result.explanation`` as ⚠-prefixed lines. The
     renderer prompt makes ``explanation`` a must-quote field — with this
@@ -5582,11 +5558,7 @@ def _attach_structural_caveats(result: QueryResult) -> QueryResult:
 
 
 def _attach_bounds_result(
-    program: Program,
-    stmt: QueryStatement,
-    result: QueryResult,
-    *,
-    bidirected: "frozenset[frozenset[Atom]] | None" = None,
+    result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Phase 12 §S.12.4: when point identification failed on an effect
     query, try symbolic bounds (Manski natural always; Balke-Pearl IV
@@ -5617,6 +5589,7 @@ def _attach_bounds_result(
         VariableDeclaration,
     )
 
+    program, stmt = inputs.program, inputs.stmt
     if result.bounds_result is not None:
         return result
     if result.status != ResultStatus.NEEDS_INVESTIGATION:
@@ -5829,7 +5802,9 @@ def _intervention_arm_is_discrete(program: Program, query) -> bool:
 _BOUNDS_HINT_TOKENS = ("Balke-Pearl bounds", "Manski", "bounds")
 
 
-def _reconcile_alt_paths_with_bounds(result: QueryResult) -> QueryResult:
+def _reconcile_alt_paths_with_bounds(
+    result: QueryResult, inputs: postprocess.Inputs,
+) -> QueryResult:
     """Phase 12 §S.12.4 follow-up: align ``data_gap_report``'s static
     alternative_paths text with what the bounds attempt actually produced.
 
@@ -5921,6 +5896,129 @@ def _reconcile_alt_paths_with_bounds(result: QueryResult) -> QueryResult:
         actionable_next_steps=tuple(new_steps),
     )
     return _replace(result, data_gap_report=new_report)
+
+
+# ---------------------------------------------------------------------------
+# The post-processing table.
+#
+# Declared in the order they were written; run in the order their blocks
+# require. The two differ in one place, and that place is the reason for
+# the table: ``structural_caveats`` used to be a tail call inside
+# ``data_gap_report`` — a pass hidden inside another pass, which is how it
+# came to read the report before the pass that revises it had run.
+#
+# The blocks named here are the whole dependency structure. Anything a
+# pass consults that is not listed is something the dispatcher left, which
+# every pass sees the same way; anything listed is a claim that running
+# before its writer would give a different answer.
+# ---------------------------------------------------------------------------
+
+POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
+    postprocess.Pass(
+        # Turns the refusal's missing items into actions — unless the
+        # dispatcher already built requests of its own, in which case this
+        # pass stands down. That guard is why it has to produce the block
+        # before framing adds to it: the other way round, framing's single
+        # DEFINE_VARIABLE request would look like the dispatcher's work and
+        # every missing item would lose its action.
+        name="investigation",
+        run=_attach_investigation,
+        reads=frozenset({"status", "missing_information"}),
+        writes=frozenset({"investigation_requests"}),
+    ),
+    postprocess.Pass(
+        # The composite confidence and the per-slot trail behind it. Reads
+        # the formula and the structural verdict; the extension keys are
+        # the dispatcher's, naming the edges the answer leans on.
+        name="confidence",
+        run=_attach_confidence,
+        reads=frozenset({
+            "query_kind", "formula", "structural_result",
+            "extensions.iv_identification",
+            "extensions.mediation_decomposition",
+            "extensions.mediation_joint_decomposition",
+        }),
+        writes=frozenset({"confidence", "confidence_sources"}),
+    ),
+    postprocess.Pass(
+        # Advisory notes on under-specified variables, plus the one
+        # actionable request that repairs them — appended to whatever
+        # investigation already raised.
+        name="framing",
+        run=_attach_framing,
+        reads=frozenset({"status", "investigation_requests"}),
+        writes=frozenset({"framing_notes", "investigation_requests"}),
+    ),
+    postprocess.Pass(
+        # Echo the program's declared ambiguities onto the result so the
+        # gap report can read them from one place.
+        name="program_ambiguities",
+        run=_attach_program_ambiguities,
+        reads=frozenset({"query_id"}),
+        writes=frozenset({"extensions.ambiguities"}),
+    ),
+    postprocess.Pass(
+        # The assumption-free floor, when point identification failed.
+        # Before the report, so a bounded answer is classified as bounded.
+        name="bounds",
+        run=_attach_bounds_result,
+        reads=frozenset({"status", "extensions.iv_identification"}),
+        writes=frozenset({"bounds_result"}),
+    ),
+    postprocess.Pass(
+        # Reads nearly everything: the report is the account of what the
+        # kernel could and could not do, so every block above it is input.
+        name="data_gap_report",
+        run=_attach_data_gap_report,
+        reads=frozenset({
+            "query_kind", "status", "derivation", "investigation_requests",
+            "framing_notes", "structural_result", "numeric_result",
+            "confidence", "bounds_result",
+            "extensions.ambiguities",
+            "extensions.iv_identification",
+            "extensions.transport_identification",
+            "extensions.mediation_decomposition",
+            "extensions.mediation_joint_decomposition",
+        }),
+        writes=frozenset({"data_gap_report"}),
+    ),
+    postprocess.Pass(
+        # Copies the must-disclose caveats into the explanation. Declared
+        # here because it was written here; ordered after the revision
+        # below, because a reader of the report should read the one the
+        # result ships with.
+        name="structural_caveats",
+        run=_attach_structural_caveats,
+        reads=frozenset({"data_gap_report"}),
+        writes=frozenset({"explanation"}),
+    ),
+    postprocess.Pass(
+        # Rewrites the report's static "bounds are available" promises into
+        # what the bounds attempt actually returned. A revision, not a
+        # second report.
+        name="reconcile_alt_paths",
+        run=_reconcile_alt_paths_with_bounds,
+        reads=frozenset({
+            "query_kind", "status", "bounds_result", "data_gap_report",
+        }),
+        writes=frozenset({"data_gap_report"}),
+    ),
+    postprocess.Pass(
+        # Two verdicts on whether the answer survives a biased sample.
+        # Neither reads any block, so neither has a place it must occupy —
+        # they land last because they were declared last.
+        name="selection_recovery",
+        run=_attach_selection_recovery,
+        reads=frozenset(),
+        writes=frozenset({"extensions.selection_recovery"}),
+    ),
+    postprocess.Pass(
+        name="missing_data_recovery",
+        run=_attach_missing_data_recovery,
+        reads=frozenset(),
+        writes=frozenset({"extensions.missing_data_recovery"}),
+    ),
+))
 
 
 def _detect_iv_candidate_structural(
