@@ -150,6 +150,7 @@ def to_dict(result: QueryResult) -> dict:
                 "kind": m.kind.value,
                 "name": m.name,
                 "priority": m.priority.value,
+                "gap": m.gap.value,
                 **({"reason": m.reason} if m.reason is not None else {}),
             }
             for m in result.missing_information
@@ -172,6 +173,7 @@ def to_dict(result: QueryResult) -> dict:
                         "target": it.target,
                         **({"reason": it.reason} if it.reason is not None else {}),
                         **({"skeleton": it.skeleton} if it.skeleton is not None else {}),
+                        **({"gap": it.gap.value} if it.gap is not None else {}),
                     }
                     for it in r.items
                 ]

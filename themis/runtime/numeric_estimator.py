@@ -43,6 +43,7 @@ from ..types import (
     ConstantExpr,
     FormulaExpr,
     FractionExpr,
+    GapKind,
     ProbabilityRefExpr,
     ProductExpr,
     SumExpr,
@@ -137,12 +138,29 @@ class InsufficientTheta(Exception):
 
     The ``missing_key`` attribute carries the exact ProbabilityKey so
     the caller can report precisely which parameter must be supplied.
+
+    ``gap`` says which of two unlike failures this is. Ordinarily theta
+    is simply short of the entry and the remedy is to supply it. But the
+    d-separation guard also raises here, after finding that theta DOES
+    hold a marginal the declared graph forbids substituting — there the
+    remedy is to fix the graph or supply the demanded conditional, and
+    "supply more theta" is advice for a different problem. The
+    distinction is decided where it is discovered; carrying it on the
+    exception is what stops the far end from re-deriving it by searching
+    the reason text for a phrase.
     """
 
-    def __init__(self, missing_key: ProbabilityKey | None, reason: str):
+    def __init__(
+        self,
+        missing_key: ProbabilityKey | None,
+        reason: str,
+        *,
+        gap: GapKind = GapKind.MISSING_DISTRIBUTION,
+    ):
         super().__init__(reason)
         self.missing_key = missing_key
         self.reason = reason
+        self.gap = gap
 
 
 def _resolve(value: ValueExpr | None, subs: Mapping[str, AtomValue]) -> AtomValue:
@@ -237,7 +255,15 @@ def _evaluate(
             if missing_sink is not None:
                 missing_sink.append(key)
                 return _COLLECT_PLACEHOLDER
-            raise InsufficientTheta(key, base_msg)
+            raise InsufficientTheta(
+                key,
+                base_msg,
+                gap=(
+                    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH
+                    if refusal is not None
+                    else GapKind.MISSING_DISTRIBUTION
+                ),
+            )
         return value
 
     if isinstance(expr, ProductExpr):

@@ -299,6 +299,8 @@ def compute_data_gap_report(
         _classify_residual_investigation_items(investigation_requests, gaps)
     )
 
+    _assert_declared_species_matches_inferred(investigation_requests, gaps)
+
     gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
     gaps.sort(key=_gap_sort_key)
     answer_tier = _compute_answer_tier(
@@ -312,6 +314,46 @@ def compute_data_gap_report(
         actionable_next_steps=tuple(actionable),
         answer_tier=answer_tier,
     )
+
+
+def _assert_declared_species_matches_inferred(
+    requests: tuple[InvestigationRequest, ...],
+    gaps: list[DataGap],
+) -> None:
+    """Scaffolding for the one commit in which both encodings exist.
+
+    ``MissingItem.gap`` now states each item's species; the classifiers
+    below still infer it from the item's name. Behaviour is unchanged
+    only if the two agree on every item the test corpus produces, and
+    the honest way to check that over the whole corpus is to check it
+    on every run rather than to re-derive the inference in a test and
+    compare two guesses.
+
+    An item may legitimately be cited by more than one gap — a mediation
+    parameter is both a missing distribution and missing mediator data —
+    so the check is membership, not equality. It is removed together
+    with the inference it guards.
+    """
+    cited: dict[str, set[GapKind]] = {}
+    for gap in gaps:
+        for ref in gap.provenance:
+            if ref.ref_kind == GapRefKind.INVESTIGATION_REQUEST:
+                cited.setdefault(ref.ref_id, set()).add(gap.kind)
+    for req in requests:
+        for item in req.items:
+            if item.gap is None:
+                continue
+            kinds = cited.get(item.target)
+            if kinds is None:
+                # No gap cites it at all. That is the failure this whole
+                # slice removes, and it is not this scaffold's subject —
+                # the residual pass is still installed here, so a live
+                # instance would be a channel it does not cover.
+                continue
+            assert item.gap in kinds, (
+                f"{item.target}: declared {item.gap.value}, "
+                f"inferred {sorted(k.value for k in kinds)}"
+            )
 
 
 # Query kinds for which "what answer can I still return" is meaningful:

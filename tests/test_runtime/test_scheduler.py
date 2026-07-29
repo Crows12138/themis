@@ -113,7 +113,7 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
     AttributeError on any conditional lookup."""
     from themis.runtime.scheduler import _missing_parameter_from_key
     from themis.runtime.numeric_estimator import ProbabilityKey
-    from themis.types import Atom, ConstTerm, MissingKind
+    from themis.types import Atom, ConstTerm, GapKind, MissingKind
 
     y = Atom(predicate="y", args=(ConstTerm(name="a"),))
     x1 = Atom(predicate="x1", args=(ConstTerm(name="a"),))
@@ -123,7 +123,9 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
         target_value=True,
         given=frozenset({(x1, True), (x2, False)}),
     )
-    item = _missing_parameter_from_key(key, "theta lookup failed")
+    item = _missing_parameter_from_key(
+        key, "theta lookup failed", gap=GapKind.MISSING_DISTRIBUTION,
+    )
     assert item.kind is MissingKind.PARAMETER
     # Both atoms appear in the formatted name, sorted by predicate.
     assert "x1=True" in item.name

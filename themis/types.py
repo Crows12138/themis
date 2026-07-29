@@ -706,10 +706,30 @@ class Priority(str, Enum):
 
 @dataclass(frozen=True)
 class MissingItem:
+    """One thing the kernel needed and did not have.
+
+    Three orthogonal facts, each stated rather than encoded: ``gap`` is
+    what kind of shortfall this is, ``kind`` is which channel would
+    repair it, and ``name`` identifies the specific thing. ``name`` used
+    to carry all three — the producer knew the species, pressed it into a
+    string, and the report recovered it with prefix and substring tests
+    over that string. It recovered it wrongly whenever a name happened to
+    read like another species, which is not a failure mode a naming
+    convention can be made immune to.
+    """
     kind: MissingKind
     name: str
     priority: Priority
+    gap: GapKind
     reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.gap not in MISSING_ITEM_GAPS:
+            raise ValueError(
+                f"MissingItem({self.name!r}) declares gap={self.gap!r}, "
+                f"which is not one of the species a missing item may be: "
+                f"{sorted(g.value for g in MISSING_ITEM_GAPS)}"
+            )
 
 
 class InvestigationAction(str, Enum):
@@ -739,6 +759,12 @@ class InvestigationItem:
     # program's "statements" list after filling in ``value``. None for
     # other kinds (or when scheduler did not supply structured info).
     skeleton: dict | None = None
+    # The species of the ``MissingItem`` this item was pushed from,
+    # carried through verbatim. None on the framing channel, which builds
+    # its items directly from ``FramingNote`` and whose gap is raised
+    # from those notes instead — the one item shape that is the action
+    # side of a gap sourced elsewhere, rather than the gap's own record.
+    gap: GapKind | None = None
 
 
 @dataclass(frozen=True)
@@ -1165,6 +1191,34 @@ class GapKind(str, Enum):
     # variable scale against supplied data — Themis owns the variable schema
     # (``scale`` / ``domain``) and the data contract, so it can.
     DECLARED_TYPE_DATA_MISMATCH = "declared_type_data_mismatch"
+
+
+# The species a ``MissingItem`` is allowed to declare — the vocabulary in
+# which the kernel states WHAT KIND of shortfall it hit, as opposed to
+# ``MissingKind``, which states WHICH CHANNEL would repair it. The two
+# axes are independent: a structure-channel item can be an unidentifiable
+# estimand or a defect in the program, and one investigation action fits
+# both.
+#
+# It is a strict subset of ``GapKind`` because most gap kinds are not
+# shortfalls the kernel *runs into* — they are properties of the program
+# it *inspects* (a learned graph, a low-confidence source, an assumption
+# a successful strategy carries). Those are raised by reading the program
+# or a strategy's own block, never by an item on this channel.
+#
+# ``themis.output.data_gap_report`` binds one renderer per member and
+# refuses to import if any member is unbound, so a species a producer can
+# name is a species that reaches the user by construction — replacing the
+# residual fallback that used to catch names no classifier recognised.
+MISSING_ITEM_GAPS: frozenset[GapKind] = frozenset({
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+    GapKind.MISSING_STRUCTURAL_INPUT,
+    GapKind.MISSING_UNIT_OBSERVATION,
+    GapKind.MISSING_DISTRIBUTION,
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+    GapKind.MISSING_ASSUMPTION,
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+})
 
 
 class GapSeverity(str, Enum):

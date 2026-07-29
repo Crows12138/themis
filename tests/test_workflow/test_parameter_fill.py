@@ -186,7 +186,9 @@ def test_merge_appends_filled_statements():
 # --------------------------------------------------- diff categorisation
 
 def _mk_result(qid, status, value=None, missing_count=0):
-    from themis.types import NumericResult, MissingItem, MissingKind, Priority
+    from themis.types import (
+        GapKind, NumericResult, MissingItem, MissingKind, Priority,
+    )
     return QueryResult(
         status=status,
         query_kind=QueryKind.EFFECT,
@@ -197,6 +199,7 @@ def _mk_result(qid, status, value=None, missing_count=0):
                 kind=MissingKind.PARAMETER,
                 name=f"p{i}",
                 priority=Priority.HIGH,
+                gap=GapKind.MISSING_DISTRIBUTION,
             )
             for i in range(missing_count)
         ),

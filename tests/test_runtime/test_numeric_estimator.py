@@ -124,7 +124,11 @@ def test_format_probability_key_matches_scheduler_name():
         target_value=True,
         given=frozenset({(x1, False), (x2, True)}),
     )
-    item = _missing_parameter_from_key(key, "whatever")
+    from themis.types import GapKind
+
+    item = _missing_parameter_from_key(
+        key, "whatever", gap=GapKind.MISSING_DISTRIBUTION,
+    )
     assert item.name == f"parameter:{format_probability_key(key)}"
     assert format_probability_key(key) == "P(y=True|x1=False,x2=True)"
 

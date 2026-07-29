@@ -8,6 +8,8 @@ caught:
 GapKind sync (iter 25-26, 37):
 - test_gap_kind_has_test_coverage — every enum value referenced
 - test_gap_kind_enum_synced_with_schema — types ↔ JSON schema
+- test_missing_item_gaps_synced_with_schema — the closed subset a kernel
+  refusal may declare, on both surfaces that carry it (Phase 17 slice 4)
 - test_gap_kind_enum_synced_with_verifier_registry — types ↔ T10
 - test_must_disclose_set_is_subset_of_gap_kinds — scheduler whitelist
 - test_must_disclose_kinds_documented_in_response_rendering_prompt
@@ -259,6 +261,26 @@ def test_gap_kind_enum_synced_with_schema():
         f"gap_kinds in GapKind enum but missing from schema: {only_in_enum}. "
         f"Add to query_result.schema.json $defs.dataGap.properties.kind.enum."
     )
+
+
+def test_missing_item_gaps_synced_with_schema():
+    """``MISSING_ITEM_GAPS`` is the closed vocabulary a kernel refusal may
+    declare, and the schema states the same restriction on both surfaces
+    that carry it. A species added on one side only would serialize to a
+    value the envelope's own schema rejects."""
+    import json
+    from themis.types import MISSING_ITEM_GAPS
+    schema = json.loads(
+        (REPO_ROOT / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8")
+    )
+    declared = {g.value for g in MISSING_ITEM_GAPS}
+    for defn in ("missingItem", "investigationItem"):
+        in_schema = set(schema["$defs"][defn]["properties"]["gap"]["enum"])
+        assert in_schema == declared, (
+            f"{defn}.gap enum disagrees with MISSING_ITEM_GAPS: "
+            f"only in schema {in_schema - declared}, "
+            f"only in types {declared - in_schema}"
+        )
 
 
 def test_gap_kind_enum_synced_with_verifier_registry():

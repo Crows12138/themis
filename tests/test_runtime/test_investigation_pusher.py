@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from themis.runtime.investigation_pusher import push
 from themis.types import (
+    GapKind,
     InvestigationAction,
     MissingItem,
     MissingKind,
@@ -11,7 +12,10 @@ from themis.types import (
 
 
 def _mk(kind: MissingKind, name: str = "x", reason: str | None = None) -> MissingItem:
-    return MissingItem(kind=kind, name=name, priority=Priority.MEDIUM, reason=reason)
+    return MissingItem(
+        kind=kind, name=name, priority=Priority.MEDIUM,
+        gap=GapKind.MISSING_DISTRIBUTION, reason=reason,
+    )
 
 
 def test_parameter_becomes_validate_parameter():
@@ -42,7 +46,8 @@ def test_reason_is_carried_into_note():
 
 def test_priority_passes_through():
     item = MissingItem(
-        kind=MissingKind.PARAMETER, name="p", priority=Priority.HIGH
+        kind=MissingKind.PARAMETER, name="p", priority=Priority.HIGH,
+        gap=GapKind.MISSING_DISTRIBUTION,
     )
     reqs = push((item,))
     assert reqs[0].priority is Priority.HIGH
@@ -99,9 +104,12 @@ def test_mixed_kinds_yield_separate_groups_in_first_seen_order():
 
 def test_group_priority_is_max_across_items():
     items = (
-        MissingItem(kind=MissingKind.PARAMETER, name="a", priority=Priority.LOW),
-        MissingItem(kind=MissingKind.PARAMETER, name="b", priority=Priority.HIGH),
-        MissingItem(kind=MissingKind.PARAMETER, name="c", priority=Priority.MEDIUM),
+        MissingItem(kind=MissingKind.PARAMETER, name="a", priority=Priority.LOW,
+                    gap=GapKind.MISSING_DISTRIBUTION),
+        MissingItem(kind=MissingKind.PARAMETER, name="b", priority=Priority.HIGH,
+                    gap=GapKind.MISSING_DISTRIBUTION),
+        MissingItem(kind=MissingKind.PARAMETER, name="c", priority=Priority.MEDIUM,
+                    gap=GapKind.MISSING_DISTRIBUTION),
     )
     reqs = push(items)
     assert reqs[0].priority is Priority.HIGH

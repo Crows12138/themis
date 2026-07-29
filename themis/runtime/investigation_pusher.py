@@ -20,6 +20,12 @@ Group priority is the max priority among its items (HIGH > MEDIUM >
 LOW). Input ordering is preserved: groups appear in the order their
 first item was encountered; items within a group preserve input
 order.
+
+``MissingItem.gap`` — what kind of shortfall this is — is carried
+through untouched. This module translates the repair channel into an
+action; it does not get an opinion on the species, and the report
+downstream reads what the kernel declared rather than inferring it
+from the grouping.
 """
 from __future__ import annotations
 
@@ -109,6 +115,7 @@ def push(
                     if kind is MissingKind.PARAMETER
                     else None
                 ),
+                gap=m.gap,
             )
             for m in group_items
         )

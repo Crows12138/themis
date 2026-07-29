@@ -56,6 +56,7 @@ from ..types import (
     CounterfactualQuery,
     DerivationStep,
     EffectQuery,
+    GapKind,
     IdentifyQuery,
     Intervention,
     InvestigationAction,
@@ -258,6 +259,7 @@ def _dispatch_identify(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(atom)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason="query atom is not in the instantiated variable set V",
                 )
                 for atom in missing_atoms
@@ -277,6 +279,7 @@ def _dispatch_identify(
                     kind=MissingKind.STRUCTURE,
                     name="query:identify_given",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "identify.given violates backdoor pre-conditions "
                         f"(contains X, Y, or a descendant of X): {labels}"
@@ -341,6 +344,7 @@ def _dispatch_identify(
                 kind=MissingKind.STRUCTURE,
                 name="query:identify_unreachable",
                 priority=Priority.HIGH,
+                gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                 reason=(
                     "Not identifiable by the complete ID/IDC algorithm "
                     "(no c-factor witness), and no instrumental-variable "
@@ -849,6 +853,7 @@ def _dispatch_mediation(
                     kind=MissingKind.STRUCTURE,
                     name="mediation:invalid_mediator",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "mediator does not lie on any directed path "
                         "X → ... → M → ... → Y; check the mediator "
@@ -1068,6 +1073,7 @@ def _dispatch_mediation_joint(
                     kind=MissingKind.STRUCTURE,
                     name="mediation_joint:invalid_mediator_set",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "at least one mediator does not lie on a directed "
                         "path X → ... → M → ... → Y (or the set is empty / "
@@ -1676,9 +1682,23 @@ def _dispatch_assoc(
     )
 
 
-def _missing_parameter_from_key(key: ProbabilityKey | None, reason: str) -> MissingItem:
+def _missing_parameter_from_key(
+    key: ProbabilityKey | None,
+    reason: str,
+    *,
+    gap: GapKind,
+) -> MissingItem:
     """Build a MissingItem that points at the exact conditional
-    probability the evaluator could not resolve."""
+    probability the evaluator could not resolve.
+
+    ``gap`` has no default. A lookup that failed because theta is short
+    of an entry and one that failed because theta contradicts the
+    declared graph want opposite repairs — supply the conditional versus
+    fix the graph — and only the caller holding the failure knows which
+    it has. A default would let the second silently arrive dressed as
+    the first, which is how the report came to read the difference off
+    a substring of the reason text.
+    """
     if key is None:
         name = "numeric:unresolved_query_bound"
     else:
@@ -1687,6 +1707,7 @@ def _missing_parameter_from_key(key: ProbabilityKey | None, reason: str) -> Miss
         kind=MissingKind.PARAMETER,
         name=name,
         priority=Priority.HIGH,
+        gap=gap,
         reason=reason,
     )
 
@@ -1788,6 +1809,7 @@ def _counterfactual_joint_xy(
                 item = _missing_parameter_from_key(
                     exc.missing_key,
                     exc.reason,
+                    gap=exc.gap,
                 )
                 missing.append(item)
                 if exc.missing_key is not None:
@@ -1851,6 +1873,7 @@ def _counterfactual_joint_xy_via_ancestral_factorization(
             _missing_parameter_from_key(
                 key,
                 f"counterfactual bounds needs {format_probability_key(key)}",
+                gap=GapKind.MISSING_DISTRIBUTION,
             )
             for key in missing_keys
         )
@@ -2113,6 +2136,7 @@ def _dispatch_counterfactual(
             kind=MissingKind.ASSUMPTION,
             name="counterfactual:interventional_risk_unavailable",
             priority=Priority.HIGH,
+            gap=GapKind.MISSING_ASSUMPTION,
             reason=(
                 f"P(Y=1|do(X={need.needed_x_value})) could not be derived (the "
                 "effect is not identifiable from the supplied data), and this "
@@ -2140,6 +2164,7 @@ def _dispatch_counterfactual(
                     kind=MissingKind.ASSUMPTION,
                     name="counterfactual:inputs_infeasible",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_ASSUMPTION,
                     reason=str(exc),
                 ),
             ),
@@ -2287,6 +2312,7 @@ def _derive_interventional_risks(
         kind=MissingKind.ASSUMPTION,
         name="causation:interventional_risk_unavailable",
         priority=Priority.HIGH,
+        gap=GapKind.MISSING_ASSUMPTION,
         reason=(
             "P(Y=1|do(X)) could not be derived (effect not identifiable from "
             "the supplied data). Supply experimental_risk_treated / "
@@ -2341,7 +2367,9 @@ def _causation_observational_joint(
                     y_atom=y_atom, y_val=y_val,
                 )
             except InsufficientTheta as exc:
-                item = _missing_parameter_from_key(exc.missing_key, exc.reason)
+                item = _missing_parameter_from_key(
+                    exc.missing_key, exc.reason, gap=exc.gap,
+                )
                 if item.name not in {m.name for m in missing_items}:
                     missing_items.append(item)
                     if exc.missing_key is not None:
@@ -2387,6 +2415,7 @@ def _dispatch_causation(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason="causation query atom is not in the instantiated variable set V",
                 )
                 for a in missing_atoms
@@ -2476,6 +2505,7 @@ def _dispatch_causation(
                     kind=MissingKind.ASSUMPTION,
                     name="causation:interventional_risks_infeasible",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_ASSUMPTION,
                     reason=(
                         "the interventional risks contradict the observational "
                         "joint (consistency constraint), so no SCM produces "
@@ -2601,6 +2631,7 @@ def _dispatch_scm_counterfactual(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason="scm_counterfactual query atom is not in the variable set V",
                 )
                 for a in missing_atoms
@@ -2637,6 +2668,7 @@ def _dispatch_scm_counterfactual(
                     kind=MissingKind.STRUCTURE,
                     name=f"coefficient:{_atom_to_str(p)}->{_atom_to_str(v)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "linear-SCM counterfactual needs the path coefficient "
                         f"on edge {_atom_to_str(p)} -> {_atom_to_str(v)}"
@@ -2653,6 +2685,7 @@ def _dispatch_scm_counterfactual(
                 kind=MissingKind.OBSERVATION,
                 name=f"observation:{_atom_to_str(v)}",
                 priority=Priority.HIGH,
+                gap=GapKind.MISSING_UNIT_OBSERVATION,
                 reason=(
                     "deterministic counterfactual needs this variable observed "
                     "for the unit so abduction can recover its exogenous term"
@@ -2777,6 +2810,7 @@ def _dispatch_counterfactual_conjunction(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "counterfactual event atom is not in the "
                         "instantiated variable set V"
@@ -2814,6 +2848,7 @@ def _dispatch_counterfactual_conjunction(
                     kind=MissingKind.STRUCTURE,
                     name="query:conditioning_event_probability_zero",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "P(γ|δ) is undefined: the conditioning conjunction δ "
                         "has probability 0 in every model consistent with the "
@@ -2834,6 +2869,7 @@ def _dispatch_counterfactual_conjunction(
                     kind=MissingKind.STRUCTURE,
                     name="query:counterfactual_unidentifiable",
                     priority=Priority.HIGH,
+                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
                         "P(γ|δ) is not identifiable by the ID*/IDC* algorithm "
                         "— a w-graph / subscript-conflict witness (e.g. the PNS "
@@ -2911,6 +2947,7 @@ def _dispatch_proximal_effect(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "proximal query role atom is not in the instantiated "
                         "variable set V"
@@ -2937,6 +2974,7 @@ def _dispatch_proximal_effect(
                     kind=MissingKind.STRUCTURE,
                     name="query:proximal_not_identifiable",
                     priority=Priority.HIGH,
+                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
                         f"P(Y|do(X)) is not proximal-identifiable "
                         f"({outcome.failed_criterion}): {outcome.reason}"
@@ -3025,7 +3063,7 @@ def _try_numeric(
         skeletons: dict = {}
         if missing_keys:
             missing_items: tuple[MissingItem, ...] = tuple(
-                _missing_parameter_from_key(key, exc.reason)
+                _missing_parameter_from_key(key, exc.reason, gap=exc.gap)
                 for key in missing_keys
             )
             for item, key in zip(missing_items, missing_keys):
@@ -3033,7 +3071,9 @@ def _try_numeric(
         else:
             # No concrete key collected (e.g. a value-less query-bound atom):
             # keep the single original gap.
-            single = _missing_parameter_from_key(exc.missing_key, exc.reason)
+            single = _missing_parameter_from_key(
+                exc.missing_key, exc.reason, gap=exc.gap,
+            )
             missing_items = (single,)
             if exc.missing_key is not None:
                 skeletons[single.name] = _skeleton_for_parameter(exc.missing_key)
@@ -3146,6 +3186,7 @@ def _dispatch_transport(
                     kind=MissingKind.STRUCTURE,
                     name=f"transport:{q.target_population}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=result.failure_reason or "transport not identifiable",
                 ),
             ),
@@ -3221,7 +3262,7 @@ def _dispatch_transport(
         # (target or source) probability key via investigation request
         # so the agent (Fix 3 path) can propose an llm_prior patch.
         missing = _missing_parameter_from_key(
-            ite.missing_key, ite.reason,
+            ite.missing_key, ite.reason, gap=ite.gap,
         )
         skeletons: dict = {}
         if ite.missing_key is not None:
@@ -3385,7 +3426,9 @@ def _iv_stratum_table(
         )
         value = theta.entries.get(key)
         if value is None:
-            missing.append(_missing_parameter_from_key(key, reason))
+            missing.append(_missing_parameter_from_key(
+                key, reason, gap=GapKind.MISSING_DISTRIBUTION,
+            ))
         return value
 
     cells: list[dict] = []
@@ -3440,6 +3483,7 @@ def _iv_stratum_table(
                 kind=MissingKind.ASSUMPTION,
                 name="effect:iv_stratum_weights_not_normalized",
                 priority=Priority.HIGH,
+                gap=GapKind.MISSING_ASSUMPTION,
                 reason=(
                     "the supplied probabilities for the instrument's "
                     f"conditioning strata sum to {total_weight}, not 1. The "
@@ -3464,6 +3508,7 @@ def _iv_stratum_table(
                 kind=MissingKind.ASSUMPTION,
                 name="effect:iv_first_stage_degenerate",
                 priority=Priority.HIGH,
+                gap=GapKind.MISSING_ASSUMPTION,
                 reason=(
                     f"instrument {_atom_to_str(instrument)} does not shift the "
                     "treatment (the weighted first stage is ≈ 0), so the Wald "
@@ -3526,6 +3571,7 @@ def _try_iv_wald_in_effect(facts: "_EffectFacts") -> _Attempt:
                 kind=MissingKind.ASSUMPTION,
                 name="effect:iv_monotonicity_undeclared",
                 priority=Priority.HIGH,
+                gap=GapKind.MISSING_ASSUMPTION,
                 reason=(
                     f"{len(iv_candidates)} valid instrument(s) reach this "
                     "effect — "
@@ -3756,6 +3802,7 @@ def _dispatch_joint_effect(
                     kind=MissingKind.STRUCTURE,
                     name="joint:unsupported_layer_combination",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         "joint multi-treatment interventions cannot be "
                         "combined with mediation / transport in v1; these "
@@ -3779,6 +3826,7 @@ def _dispatch_joint_effect(
                     kind=MissingKind.STRUCTURE,
                     name="joint:duplicate_treatment",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason="the joint treatment vector repeats an atom",
                 ),
             ),
@@ -3852,6 +3900,7 @@ def _dispatch_joint_effect(
                     kind=MissingKind.STRUCTURE,
                     name="identification:joint_not_identifiable",
                     priority=Priority.HIGH,
+                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
                         "no valid joint (treatment-set) back-door adjustment "
                         "set blocks all proper non-causal paths from the "
@@ -4000,6 +4049,7 @@ def _dispatch_longitudinal(
                     kind=MissingKind.STRUCTURE,
                     name=f"longitudinal:atom_not_in_graph:{nm}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason=(
                         f"longitudinal spec references {nm!r}, which is not a "
                         f"declared variable in the graph"
@@ -4059,6 +4109,7 @@ def _dispatch_longitudinal(
                     kind=MissingKind.STRUCTURE,
                     name=f"longitudinal:sequential_exchangeability_fails:{_atom_to_str(a_k)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
                         f"treatment {_atom_to_str(a_k)} (time {k}) has an open "
                         f"back-door path to {_atom_to_str(y)} that the measured "
@@ -4400,6 +4451,7 @@ def _effect_refusal(
                     kind=MissingKind.STRUCTURE,
                     name="query:effect_admg_conditional",
                     priority=Priority.HIGH,
+                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
                         "conditional general-ID (IDC) effect: the "
                         "conditional P(Y|do(X), given) is not identifiable "
@@ -4428,6 +4480,7 @@ def _effect_refusal(
                     kind=MissingKind.STRUCTURE,
                     name="query:effect_admg",
                     priority=Priority.HIGH,
+                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=(
                         "Phase 2.latent S3.b.1: this ADMG effect "
                         "query is reachable neither by ADMG-aware "
@@ -4457,6 +4510,7 @@ def _effect_refusal(
                 kind=MissingKind.STRUCTURE,
                 name="identification:not_identifiable",
                 priority=Priority.HIGH,
+                gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                 reason="no valid back-door or front-door adjustment exists",
             ),
         ),
@@ -4507,6 +4561,7 @@ def _dispatch_effect(
                     kind=MissingKind.STRUCTURE,
                     name=f"atom:{_atom_to_str(a)}",
                     priority=Priority.HIGH,
+                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
                     reason="query atom is not in the instantiated variable set V",
                 )
                 for a in missing_atoms
@@ -4746,6 +4801,7 @@ def _check_strict_framing(
             kind=MissingKind.FRAMING,
             name=f"framing:{note.predicate}",
             priority=Priority.HIGH,
+            gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
             reason=(
                 f"strict_framing: predicate '{note.predicate}' has "
                 f"{len(note.missing)} unfilled framing field"

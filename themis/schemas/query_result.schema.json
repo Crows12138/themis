@@ -1941,7 +1941,8 @@
       "required": [
         "kind",
         "name",
-        "priority"
+        "priority",
+        "gap"
       ],
       "properties": {
         "kind": {
@@ -1963,6 +1964,18 @@
             "medium",
             "high"
           ]
+        },
+        "gap": {
+          "enum": [
+            "unidentifiable_no_admissible_set",
+            "missing_structural_input",
+            "missing_unit_observation",
+            "missing_distribution",
+            "graph_theta_independence_mismatch",
+            "missing_assumption",
+            "ambiguous_variable_definition"
+          ],
+          "description": "What kind of shortfall this is, stated by the kernel that hit it. Orthogonal to 'kind', which says which channel repairs it. Restricted to the species a missing item can be (themis.types.MISSING_ITEM_GAPS) — the wider gapKind set also covers caveats read off the program, which no missing item raises."
         },
         "reason": {
           "type": "string"
@@ -2059,6 +2072,18 @@
             { "$ref": "#/$defs/parameterSkeleton" },
             { "$ref": "#/$defs/variablePatch" }
           ]
+        },
+        "gap": {
+          "enum": [
+            "unidentifiable_no_admissible_set",
+            "missing_structural_input",
+            "missing_unit_observation",
+            "missing_distribution",
+            "graph_theta_independence_mismatch",
+            "missing_assumption",
+            "ambiguous_variable_definition"
+          ],
+          "description": "Carried verbatim from the originating missingItem.gap. Absent on the framing channel, whose items are the action side of a gap raised from framing_notes rather than a record of the gap itself."
         }
       }
     },
