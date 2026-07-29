@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3644 passed / 144 skipped, warning-clean
+3645 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -774,6 +774,18 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **顺带结清两个登记项**——`_try_dose_response_estimate` 那句说谎的调用点注释随内联分支一并消失；slice 1 的元测试「调用点必须读 `.stops_here`」表化后会**空转**，改成更强的一条：**dispatch.py 里任何 `if` 条件中都不许出现 `_try_*` 调用**——多一个手写分支就是多一个派发器，而两个派发器正是两层当初漂开的原因。
 
 **基线**：3618 → **3644**。
+
+**识别层的策略梯子合成一条（2026-07-29，Phase 17 发现 D）**：修复型。**同一个 AST、同一个查询，两个入口给出相反的结论**：`x→m→y` 无双向边、问 `P(y|do(x), m)`，`themis.run` 报 `structure / identification:not_identifiable`（无 derivation），`themis.estimate` 却给出 `general_id_idc_plugin`、point 0.0、完整 derivation——而**独立重导的验证器接受后者**。0.0 是对的（图上 y ⊥ x | m，条件对比量本就为零）。在 slice 2 之前的 commit 独立 worktree 上逐字复现，**既有缺陷，非重构引入**。
+
+**根因**——`_dispatch_effect` 的结构性策略尾巴**在同一个函数体内写了两遍**：一份在 `if bidirected:` 的 else 里，含 front-door → Tian → IV → **IDC** → 拒答；另一份在 `if not adjustment_sets:` 里，**只有 front-door → 拒答**。无潜在混杂的查询走第二份，IDC 永远不可达。而 **IDC 做的是条件识别，与潜在混杂正交**——它被 `bidirected` 挡住纯粹因为它恰好被写在了那一份拷贝里。两条硬证据说明这不是设计：(1) 两份的 front-door 段**逐字节相同**，只差一个 `bidirected=` kwarg，而 solver 三个入口该参数的默认值就是 `None`——那个分叉在结构上什么也没买到；(2) 第一份的注释逐条论证了「Tian 为何排在 IV 前」「IDC 为何不能拿边际顶替条件」，**这些论证对第二份同样成立，第二份只是没有它们**。
+
+**改法**——合成一条尾巴，`adjustment_sets` 用 `bidirected or None` 一次算出。**拒答文案不合并**：ADMG 版会说「Tian/ID 都试过了」并挂 `iv_note`，对一个没有潜在混杂的用户描述的是他从未涉及的机器；按 `bidirected` 是否为空选择，逐字不变。合并的是梯子，不是措辞。修复后 `themis.run` 从「图挡住了」错判变成 **`parameter / P(y=True|m=True)`**——识别成功、缺这个数，而缺的正是 IDC 公式逐项要的那两个条件概率。
+
+**全量只有 4 条失败，全部同一 fixture，判定是「测试的前提是一个错误的理论陈述」**——`_collider_program` 的 docstring 写着「没有后门也没有前门可调整集，所以 kernel 报 `identification:not_identifiable`」，**这不是定理**：全观测 DAG 上每个干预分布都可识别（ID/IDC 完备性），没有可调整集只排除了那两条调整公式。**kernel 一直同意这句错话，恰恰因为它的 IDC 分支被潜在混杂守卫挡着。** 修法是给 fixture 补上它名字里一直暗示、图里却没有的那条 bow arc，不是改代码迁就测试。
+
+**两件明确没在本档动的**——(1) 普通拒答设 `structural_result=False`、ADMG 拒答留 `None`，是同族第四处不一致；不动的理由是它**承重**：`oracle/differential.py:246` 正是用 `structural_result is None` 判断「运行时没给出结构判决，无从比对」，改它会把一批 ADMG 拒答送进差分比对，那需要它自己的判定。(2) 合并后**没有任何测试再产出 `identification:not_identifiable``**；要么它本来就该死（此前只在可识别的查询上触发），要么它是 IDC 实现 hedge 时的兜底——**我无法证明 `identify_via_idc` 的完备性，所以不宣称它是死代码**。
+
+**基线**：3644 → **3645**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

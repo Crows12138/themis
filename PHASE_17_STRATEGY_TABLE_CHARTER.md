@@ -430,6 +430,105 @@ complier 上的对比量，根本不是同一个量——而那正是有意为�
   都不许出现 `_try_*` 调用**——多一个手写分支就是多一个派发器，而两个派发器
   正是两层当初漂开的原因。
 
+## Slice 3 前置 — 识别层实测 + 发现 D（2026-07-29）
+
+### 先纠正 charter 自己的两个说法
+
+- **不是 14 个 `_dispatch_X`，是 15 个**（漏了 `_dispatch_probability`）。
+- **更要紧的是「并入同表」的对象错了**。实测调用图：`dispatch()` 按 **query kind**
+  在 10 个 dispatcher 里选一个——一个查询只有一种 kind，**这里没有优先级、
+  没有漂移**。真正的级联只有一处：`_dispatch_effect`，它自己按守卫委派给
+  5 个子 dispatcher（longitudinal / joint / transport / mediation_joint /
+  mediation），**恰好就是估计层第 10-40 号那几行的镜像**，再往下是结构性策略
+  （front-door / Tian / IV / IDC / backdoor）。所以 slice 3 的对象是
+  `_dispatch_effect` 一个函数，不是 15 个 dispatcher。
+
+### 两层守卫逐条对照（slice 0 之后的现状）
+
+| 策略 | 识别层 | 估计层 | 判定 |
+|---|---|---|---|
+| longitudinal | 4165 | 驱动前置检查 | 分工，正确 |
+| joint | 4177 | 10 | 一致 |
+| transport | **4188** | **40** | **顺序仍相反**，见下 |
+| mediation_joint | 4210 | 20 | 同上 |
+| mediation_single | 4215 | 30 | 同上 |
+| backdoor | 尾部 4533 | 140 | **一致**（识别层的 `if bidirected` 分叉经证是 `bidirected or None` 的等价展开） |
+| front-door | 4234 / 4493 | 150 | 一致 |
+| Tian | 4281 | 160 | 一致（发现 C 已修，两层同序） |
+| IV Wald | 4354 | 180 | 一致 |
+| IDC | 4374 | 并入 160 | **识别层不可达，见发现 D** |
+
+**transport 与 mediation 的相对顺序仍然相反**，但两层现在殊途同归：识别层
+transport 在前直接路由过去；估计层 mediation 在前、发现识别层选了别人于是
+`passed`，再由 transport 认领——这正是 slice 2 唯一那条 `defers_to` 的来历。
+**合表时这里会变成一个数**，届时 `mediation_single.defers_to` 应当随之消失。
+
+### 发现 D（已实测确认，真 bug，且**不是重构引入的**）—— 识别层拒答了一个它自己的验证器认可的查询
+
+**见证**：`x→m→y`，无双向边，查询 `P(y|do(x), m)`（`given=[m]`）。
+
+| | 状态 | 产物 |
+|---|---|---|
+| `themis.run`（识别） | `needs_investigation` | `identification:not_identifiable`，**无 derivation** |
+| `themis.estimate`（估计） | `numerically_solved` | `general_id_idc_plugin`，point **0.0**，完整 derivation |
+| `themis.verify`（独立重导） | — | **接受估计层那份信封** |
+
+**0.0 是对的**：图上 y ⊥ x \| m，条件对比量本就为零。在 slice 2 之前的 commit
+（`59fc123`，独立 worktree）逐字复现同样结果——**既有缺陷，非本次重构引入**。
+
+**根因假设**。`_dispatch_effect` 的结构性策略尾巴**在同一个函数体内写了两遍**：
+第一份在 `if bidirected:` 的 else 里（4230-4455），含 front-door → Tian → IV →
+**IDC** → 拒答；第二份在 `if not adjustment_sets:` 里（4487-4518），**只有
+front-door → 拒答**。无潜在混杂的查询走第二份，IDC 因此永远不可达。而
+**IDC 做的是条件识别，与潜在混杂正交**——它被 `bidirected` 挡住，纯粹因为它
+恰好被写在了那一份拷贝里。
+
+**为什么是根因不是表象**。表象修法是「在第二份尾巴里补上 IDC」，那是把同一个
+决策写第三遍。两份拷贝的差异**不是设计**，有两条硬证据：(1) 两份的 front-door
+段**逐字节相同**，只差一个 `bidirected=` kwarg，而 solver 三个入口的该参数默认
+值就是 `None`——即那个分叉在结构上什么也没买到；(2) 第一份的注释逐条论证了
+「Tian 为什么排在 IV 前」「IDC 为什么不能拿边际顶替条件」，**这些论证对第二份
+同样成立，第二份只是没有它们**。与 charter 根因假设里「同一组守卫写了两遍、
+顺序还不一样」同形，只不过这次两份拷贝在同一个函数里。
+
+**拟做的结构性修改**。合成一条尾巴：`adjustment_sets` 用 `bidirected or None`
+一次算出（等价性已证），`if bidirected:` 的分叉随之消失；front-door / Tian /
+IV / IDC / 拒答成为唯一序列。**拒答文案不合并**——ADMG 版与普通版携带的信息
+本就不同（前者会提 Tian/ID 试过了、并挂 `iv_note`），按 `bidirected` 是否为空
+选择，保持逐字不变；合并的是梯子，不是措辞。
+
+### 发现 D 的修复与它掀出来的东西（已完成）
+
+见证查询修复前后：
+
+| | 修复前 | 修复后 |
+|---|---|---|
+| `themis.run` | `structure / identification:not_identifiable` | `parameter / P(y=True\|m=True)` |
+
+即从**「图挡住了」错判**变成**「识别成功，缺这个数」**——而缺的正是 IDC 公式
+逐项要的那两个条件概率。两层从此一致。
+
+**全量套件只有 4 条失败，全部来自同一个 fixture，且判定结果是「测试的前提是
+一个错误的理论陈述」**：`_collider_program` 的 docstring 写着「没有后门也没有
+前门可调整集，所以 kernel 报 `identification:not_identifiable`」——**这不是
+定理**。全观测 DAG 上每个干预分布都可识别（ID/IDC 完备性）；没有可调整集只
+排除了那两条调整公式。**kernel 之所以一直同意这句错话，正是因为它的 IDC 分支
+被潜在混杂守卫挡着**；分支一变得可达，它就不同意了。修法是给 fixture 补上
+它名字里一直暗示、图里却没有的那条 bow arc，而不是改代码迁就测试。
+
+**登记一个没在本档动的第四处同族不一致**：普通拒答设
+`structural_result=StructuralResult(value=False)`，ADMG 拒答**不设**（留 `None`）。
+同一个「识别失败」在两份拷贝里表达得不一样。不动的理由是它**承重**——
+`oracle/differential.py:246` 恰好用 `structural_result is None` 判断「运行时
+没给出结构判决，oracle 无从比对」，改它会把一批 ADMG 拒答送进差分比对。
+那需要它自己的判定，不是顺手。
+
+**一个如实记录、未解决的观察**：合并后**没有任何测试再产出
+`identification:not_identifiable`**（仅存的引用是新测试断言它不出现、以及
+verifier 测试合成构造）。要么它本来就该死（它此前只在可识别的查询上触发），
+要么它是 IDC 实现 hedge 时的兜底。**我无法证明 `identify_via_idc` 的完备性，
+所以不宣称它是死代码。**
+
 ## 显式 Out-of-scope
 
 - 验证器的任何「消重」。
