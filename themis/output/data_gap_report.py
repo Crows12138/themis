@@ -1826,7 +1826,14 @@ def _classify_unidentifiable_from_request(
     # Targets that signal "no admissible identification path on this graph";
     # all share the same downstream remediation (more variables / RCT / IV).
     _UNIDENTIFIABLE_PREFIXES = (
-        "query:identify",
+        # ``query:identify_unreachable``, not ``query:identify``. The rule
+        # this docstring states — program defects route to the residual so
+        # the tier is not told the graph blocks the estimand — was encoded
+        # as a prefix one word too short, and ``query:identify_given`` (the
+        # user conditioned on a descendant of X, which they can simply
+        # stop doing) matched it alongside the ID algorithm's genuine
+        # "no witness reaches this graph".
+        "query:identify_unreachable",
         "query:effect_admg",
         "query:counterfactual_admg",
         "query:counterfactual_unidentifiable",
@@ -1840,9 +1847,13 @@ def _classify_unidentifiable_from_request(
             continue
         for item in req.items:
             target = item.target.lower()
-            if "iv" in target:
+            if _names_an_instrument(target):
                 # Routes through _classify_missing_iv to keep IV-flavored
-                # alternatives.
+                # alternatives. The same predicate on both sides, so an
+                # item is handed over rather than dropped between them —
+                # while these were two independent substring tests, one
+                # coincidence could both fabricate a gap here and suppress
+                # the real one there.
                 continue
             if not any(target.startswith(p) for p in _UNIDENTIFIABLE_PREFIXES):
                 continue
@@ -2101,17 +2112,36 @@ def _classify_missing_assumption(
             )
 
 
+def _names_an_instrument(target: str) -> bool:
+    """Whether an investigation target is about an instrumental variable.
+
+    The test used to be ``"iv" in target``, and "g-iv-en" contains it: an
+    identify query rejected because its ``given`` violates the back-door
+    pre-conditions came back to the user as "no valid instrumental
+    variable found", while the same substring — used to EXCLUDE, in the
+    classifier that would have carried the real reason — suppressed that.
+    One coincidence both fabricated a gap and hid one.
+
+    A gap's species is not a substring of its name. Until the producer
+    states it outright, the closest honest test is the name's own local
+    part: ``effect:iv_monotonicity_undeclared`` names an instrument,
+    ``query:identify_given`` does not, and neither does a variable called
+    ``ivy``.
+    """
+    return target.rsplit(":", 1)[-1].lower().startswith("iv_")
+
+
 def _classify_missing_iv(
     requests: tuple[InvestigationRequest, ...],
     derivation: tuple[DerivationStep, ...],
 ) -> Iterable[DataGap]:
     # Signal A: a structure-group investigation_request whose target
-    # mentions IV.
+    # names an instrument.
     for req in requests:
         if req.group != "structure":
             continue
         for item in req.items:
-            if "iv" not in item.target.lower():
+            if not _names_an_instrument(item.target):
                 continue
             yield DataGap(
                 kind=GapKind.MISSING_IV_CANDIDATE,

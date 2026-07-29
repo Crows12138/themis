@@ -304,6 +304,43 @@ def test_iv_failure_in_derivation_emits_iv_gap_not_unidentifiable():
     assert GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET not in kinds
 
 
+def test_a_name_that_merely_contains_the_letters_iv_is_not_an_iv_gap():
+    """``given`` contains the letters i-v.
+
+    An identify query rejected because its ``given`` violates the
+    back-door pre-conditions was reported as "no valid instrumental
+    variable found" — and the same substring test, used to EXCLUDE in the
+    classifier that would have carried the real reason, suppressed that
+    too. One coincidence both fabricated a gap and hid one.
+    """
+    requests = (_structure_request("query:identify_given"),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.IDENTIFY,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    kinds = [g.kind for g in report.gaps]
+    assert GapKind.MISSING_IV_CANDIDATE not in kinds
+
+
+def test_a_malformed_given_is_a_program_defect_not_a_failed_identification():
+    """The classifier states the rule in prose and then encodes it as a
+    prefix one character too short. ``query:identify_unreachable`` is the
+    ID algorithm reporting no witness; ``query:identify_given`` is the
+    user conditioning on a descendant of X. ``query:identify`` matches
+    both, and telling ``answer_tier`` that the graph blocks the estimand
+    is exactly what it must not be told about a fixable query."""
+    requests = (_structure_request("query:identify_given"),)
+    report = compute_data_gap_report(
+        query_kind=QueryKind.IDENTIFY,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=requests,
+    )
+    kinds = [g.kind for g in report.gaps]
+    assert GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET not in kinds
+    assert kinds, "the item must still reach the report, as the residual"
+
+
 def test_structure_request_naming_iv_emits_iv_gap():
     requests = (_structure_request("iv_candidate_for_smoking_lung_cancer"),)
     report = compute_data_gap_report(

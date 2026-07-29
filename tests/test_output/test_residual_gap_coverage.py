@@ -237,6 +237,44 @@ def test_the_residual_does_not_double_report_a_refined_item():
     assert cited.count("query:effect_admg_conditional") == 1
 
 
+def test_a_rejected_query_reports_the_reason_it_was_rejected_for():
+    """End to end: the reason the kernel gave is the reason the user reads.
+
+    ``identify.given`` containing a descendant of X is a fixable mistake in
+    the query, and the dispatcher says so precisely. The report used to
+    answer "未找到满足 IV 条件的工具变量" instead — because the target
+    ``query:identify_given`` contains the letters i-v — and sent the user
+    off to find an instrument for a query that needed one word deleted.
+    """
+    def _a(pred):
+        return {"predicate": pred, "args": [{"type": "const", "name": "me"}]}
+
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "d", "domain": [True, False]},
+            {"kind": "cause", "from": _a("x"), "to": _a("y")},
+            {"kind": "cause", "from": _a("x"), "to": _a("d")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "identify",
+                "target": _a("y"),
+                "intervention": {"atom": _a("x"), "value": True},
+                "given": [_a("d")],
+            }},
+        ],
+    }
+    result = themis.run(program)["results"][0]
+    gaps = _report(result)["gaps"]
+    assert "missing_iv_candidate" not in {g["kind"] for g in gaps}
+    carried = [
+        g for g in gaps if "backdoor pre-conditions" in g["description"]
+    ]
+    assert len(carried) == 1, [g["description"] for g in gaps]
+
+
 def test_a_solved_query_gains_no_residual_gap():
     """Premise for the whole file: the pass fires on raised items, not
     on every run."""
