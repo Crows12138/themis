@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3645 passed / 144 skipped, warning-clean
+3646 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -786,6 +786,14 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **两件明确没在本档动的**——(1) 普通拒答设 `structural_result=False`、ADMG 拒答留 `None`，是同族第四处不一致；不动的理由是它**承重**：`oracle/differential.py:246` 正是用 `structural_result is None` 判断「运行时没给出结构判决，无从比对」，改它会把一批 ADMG 拒答送进差分比对，那需要它自己的判定。(2) 合并后**没有任何测试再产出 `identification:not_identifiable``**；要么它本来就该死（此前只在可识别的查询上触发），要么它是 IDC 实现 hedge 时的兜底——**我无法证明 `identify_via_idc` 的完备性，所以不宣称它是死代码**。
 
 **基线**：3644 → **3645**。
+
+**Wald 比不能回答条件查询（2026-07-29，Phase 17 发现 E）**：修复型。为 slice 3 合表逐条比对两层的 IV 守卫时发现：估计层的 `iv_wald` / `iv_overidentified` 守卫里**没有任何关于 `given` 的条件**，而 `front_door_sets` 在有 `given` 时返回 `()` 的短路恰好让这两行**可达**。见证：napkin 上问 `P(y|do(x), w)`，`themis.run` 拒答（`query:effect_admg_conditional`，明说「不拿边际顶替」），`themis.estimate` 却给出 `iv_stratified_wald` point 0.1627。**这个数不可能是任一问题的答案**——把 `given` 从 `w=True` 换成 `w=False`，两次输出**逐位相同**；信封里报的 `conditioning: ["w"]` 是**工具变量自己的条件集 W**，与查询的 `given` 只是碰巧同名（换一张图，W=∅ 而 `given={c}`，照样出 `iv_wald`）。
+
+**根因**——「IV 只回答无条件查询」这条约束**从来不是守卫，而是一个函数体的第一行**（`_try_iv_wald_in_effect` 开头的 `if q.given: return`），其 docstring 还把理由写得很清楚。**理由写在了正确的地方，约束却写在了只对一个调用点生效的地方**。估计层的守卫是另写的：它继承了 front-door 的同类约束（因为那一条被表达成了**事实**），没有继承 IV 的（因为 IV 那条不在事实里）。表象修法是在 handler 里再加一行判断——那是把同一条约束写第三遍，且 `iv_overidentified` 和将来任何 IV 族策略还会各漏一次。**结构性修改**：`EffectFacts.iv_candidates` 在 `given_atoms` 非空时返回 `()`，与 `front_door_sets` 逐字同构，两行 IV 守卫和 `overid_instruments` 一起受约束。
+
+**代价，明说**：修后该查询在估计层**一个数都没有**，且 `estimator_failure` 仍是 `None`（general_id 放行、无人接手）——正是 slice 2 实测到的「8 次无人作答且无人记录」那一族，slice 4 的客户。**没有数**比**一个答非所问的数**正确；识别层对同一查询本来就是拒答。
+
+**基线**：3645 → **3646**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

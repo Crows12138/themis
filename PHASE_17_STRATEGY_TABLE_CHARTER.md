@@ -529,6 +529,51 @@ verifier 测试合成构造）。要么它本来就该死（它此前只在可�
 要么它是 IDC 实现 hedge 时的兜底。**我无法证明 `identify_via_idc` 的完备性，
 所以不宣称它是死代码。**
 
+### 发现 E（已实测确认，真 bug，非重构引入）—— 估计层用一个与 `given` 无关的数回答了条件查询
+
+准备 slice 3 的合表时逐条比对两层的 IV 守卫，发现估计层的 `iv_wald` /
+`iv_overidentified` 守卫里**没有任何关于 `given` 的条件**，而 `front_door_sets`
+在有 `given` 时返回 `()` 的短路让这两行**恰好可达**。
+
+**现象**。Pearl napkin（`w→z→x→y`，`w↔x`，`w↔y`），查询
+`P(y=True|do(x=True), w)`：
+
+| | 结论 |
+|---|---|
+| `themis.run` | `needs_investigation` / `query:effect_admg_conditional`——明说不识别，且「不拿边际顶替」 |
+| `themis.estimate` | `numerically_solved`，`iv_stratified_wald`，point **0.1627** |
+
+**这个数不可能是任一问题的答案**：把 `given` 从 `w=True` 换成 `w=False`，
+两次输出**逐位相同**（0.1627287839426641）。信封里报的 `conditioning: ["w"]`
+是**工具变量自己的条件集 W**，与查询的 `given` 只是碰巧同名——换一张图
+（`z→x→y`，`x↔y`，另加 `c→y`，查询 `given=[c]`）照样出 `iv_wald`，那里
+W=∅ 与 `given={c}` 连碰巧都算不上。
+
+**根因假设**。「IV 只回答无条件查询」这条约束**从来不是守卫，而是一个函数体
+的第一行**——`_try_iv_wald_in_effect` 开头的 `if q.given: return _IVWaldAttempt()`，
+其 docstring 还把理由写得很清楚（「Wald 是两点对比，条件查询属于 IDC 分支，
+拿无条件 LATE 顶替是在回答另一个问题」）。**理由写在了正确的地方，约束却写在
+了只对一个调用点生效的地方**。估计层的守卫是另写的，它继承了 front-door 的
+同类约束（因为那一条被表达成了**事实**：`front_door_sets` 在有 `given` 时
+返回 `()`），却没有继承 IV 的，因为 IV 那条根本不在事实里。
+
+**为什么是根因不是表象**。表象修法是在 `_try_iv_wald_estimate` 里加一行
+`if facts.given_atoms: return blocked(...)`——那是把同一条约束写第三遍，且仍然
+写在 handler 里，`iv_overidentified` 和将来任何 IV 族策略（AR 稳健集等）还会
+各漏一次。真正缺的是**估计量适用范围的一等表示**：front-door 有（事实层短路），
+IV 没有。与发现 D 同形——发现 D 是同一条梯子写了两遍，发现 E 是同一条约束
+只写在了两处中的一处。
+
+**结构性修改**。`EffectFacts.iv_candidates` 在 `given_atoms` 非空时返回 `()`，
+与 `front_door_sets` 逐字同构，理由写在同一个位置。由此**两行 IV 守卫和
+`overid_instruments` 一起受约束**，且 slice 3 合表时识别层直接共用这条守卫——
+它此刻的早返回就变成守卫的一个后果，而不是第二份拷贝。
+
+**代价，明说**：修后该查询在估计层**一个数都没有**，且 `estimator_failure`
+仍是 `None`（general_id 放行、无人接手）。这正是 slice 2 实测到的「8 次无人
+作答且无人记录」那一族，是 slice 4 的客户。**没有数**比**一个答非所问的数**
+正确——识别层对同一查询本来就是拒答。
+
 ## 显式 Out-of-scope
 
 - 验证器的任何「消重」。
