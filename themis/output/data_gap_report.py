@@ -17,18 +17,24 @@ Gap_kind branches (current enum: see ``themis.types.GapKind``; cross-file
 sync is pinned by ``tests/test_gap_kind_coverage_meta.py``):
 
 Phase 10 charter §2.2 (initial 8):
-1. unidentifiable_no_admissible_set       — derivation has unidentifiable_*
-2. missing_distribution                   — investigation parameter group
+1. unidentifiable_no_admissible_set       — item species, or derivation
+   has unidentifiable_*
+2. missing_distribution                   — item species
 3. missing_population_distribution        — placeholder for §T9.2/§T9.3
-4. missing_assumption                     — investigation assumption group
-4b. missing_unit_observation              — investigation observation group
-4c. missing_structural_input              — residual: any structure /
-    observation item no other classifier claimed (see
-    ``_classify_residual_investigation_items``)
-5. missing_iv_candidate                   — structure group naming an IV gap
+4. missing_assumption                     — item species
+4b. missing_unit_observation              — item species
+4c. missing_structural_input              — item species
+5. missing_iv_candidate                   — a failed IV derivation step
 6. missing_mediator_data                  — mediation block valid + parameter
 7. transport_target_distribution_unknown  — transport_identification + non-empty Z
 8. ambiguous_variable_definition          — framing_notes non-empty
+
+"Item species" means the kernel said so: every investigation item carries
+``MissingItem.gap``, and ``_ITEM_SPECIES`` binds one renderer per species
+the vocabulary allows. Which species an item is was decided where the
+failure happened and is not inferred here — the passes that used to infer
+it from the name's prefix, and from whether it contained the letters
+``iv``, got it wrong in both directions at once (charter finding F).
 
 Phase 11+ structural caveats (must-disclose channel; mirrored to
 ``result.explanation`` by ``scheduler._attach_structural_caveats`` —
@@ -140,7 +146,7 @@ to inspect):
 """
 from __future__ import annotations
 
-from typing import Iterable, NamedTuple
+from typing import Callable, Iterable, NamedTuple
 
 from .sample_size import (
     estimate_min_n_single_proportion,
@@ -161,7 +167,9 @@ from ..types import (
     GapRefKind,
     GapRequiredData,
     GapSeverity,
+    InvestigationItem,
     InvestigationRequest,
+    MISSING_ITEM_GAPS,
     ObservationStatement,
     QueryKind,
     RequiredDataType,
@@ -283,23 +291,16 @@ def compute_data_gap_report(
 
     gaps: list[DataGap] = list(must_disclose_gaps)
     gaps.extend(_classify_unidentifiable(derivation))
-    gaps.extend(
-        _classify_unidentifiable_from_request(investigation_requests)
-    )
-    gaps.extend(_classify_missing_distribution(investigation_requests, query_kind))
+    # Every investigation item, as the species the kernel declared for it.
+    # Total over the channel by construction, so nothing downstream has to
+    # sweep for items no pass claimed.
+    gaps.extend(_classify_investigation_items(investigation_requests, query_kind))
     gaps.extend(_classify_missing_population_distribution(extensions))
-    gaps.extend(_classify_missing_assumption(investigation_requests))
-    gaps.extend(_classify_missing_iv(investigation_requests, derivation))
+    gaps.extend(_classify_missing_iv(derivation))
     gaps.extend(_classify_missing_mediator(extensions, investigation_requests))
     gaps.extend(_classify_transport_target_distribution(extensions))
     gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
     gaps.extend(_classify_dose_response_data(program, stmt, derivation))
-    # Last, and reading what the classifiers above actually produced.
-    gaps.extend(
-        _classify_residual_investigation_items(investigation_requests, gaps)
-    )
-
-    _assert_declared_species_matches_inferred(investigation_requests, gaps)
 
     gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
     gaps.sort(key=_gap_sort_key)
@@ -314,46 +315,6 @@ def compute_data_gap_report(
         actionable_next_steps=tuple(actionable),
         answer_tier=answer_tier,
     )
-
-
-def _assert_declared_species_matches_inferred(
-    requests: tuple[InvestigationRequest, ...],
-    gaps: list[DataGap],
-) -> None:
-    """Scaffolding for the one commit in which both encodings exist.
-
-    ``MissingItem.gap`` now states each item's species; the classifiers
-    below still infer it from the item's name. Behaviour is unchanged
-    only if the two agree on every item the test corpus produces, and
-    the honest way to check that over the whole corpus is to check it
-    on every run rather than to re-derive the inference in a test and
-    compare two guesses.
-
-    An item may legitimately be cited by more than one gap — a mediation
-    parameter is both a missing distribution and missing mediator data —
-    so the check is membership, not equality. It is removed together
-    with the inference it guards.
-    """
-    cited: dict[str, set[GapKind]] = {}
-    for gap in gaps:
-        for ref in gap.provenance:
-            if ref.ref_kind == GapRefKind.INVESTIGATION_REQUEST:
-                cited.setdefault(ref.ref_id, set()).add(gap.kind)
-    for req in requests:
-        for item in req.items:
-            if item.gap is None:
-                continue
-            kinds = cited.get(item.target)
-            if kinds is None:
-                # No gap cites it at all. That is the failure this whole
-                # slice removes, and it is not this scaffold's subject —
-                # the residual pass is still installed here, so a live
-                # instance would be a channel it does not cover.
-                continue
-            assert item.gap in kinds, (
-                f"{item.target}: declared {item.gap.value}, "
-                f"inferred {sorted(k.value for k in kinds)}"
-            )
 
 
 # Query kinds for which "what answer can I still return" is meaningful:
@@ -1842,263 +1803,272 @@ def _classify_unidentifiable(
         )
 
 
-def _classify_unidentifiable_from_request(
-    requests: tuple[InvestigationRequest, ...],
-) -> Iterable[DataGap]:
-    """Identification failures that go through the missing-info channel
-    (no derivation step) — the ADMG / ID* / proximal / longitudinal
-    refusals, which record a MissingItem and return without ever writing
-    a derivation step for the failure.
+# ---------------------------------------------------------------------------
+# The item channel — one renderer per species a kernel refusal can declare
+# ---------------------------------------------------------------------------
+#
+# Every investigation item arrives carrying ``MissingItem.gap``: what kind of
+# shortfall the kernel hit, said by the kernel that hit it. The renderers
+# below turn each species into user-facing copy and nothing more. There is no
+# pass that decides WHICH species an item is — that decision was made where
+# the failure happened and is not re-derivable from the name, which is what
+# the prefix list and the ``iv`` substring test tried to do and got wrong in
+# both directions at once (charter finding F).
+#
+# The residual pass this replaces existed to make an unrecognised name loud
+# rather than silent. Its guarantee now holds by construction and is stronger:
+# the vocabulary is closed (``MISSING_ITEM_GAPS``), every member is bound
+# below, and ``_bind_item_species`` refuses to import if one is not — so an
+# item that reaches the report is an item that reaches the user.
 
-    The name list below REFINES: an item it does not match still reaches
-    the report through ``_classify_residual_investigation_items``, as a
-    less specific gap. That ordering is what makes the list safe to
-    maintain — before it, an unmatched name produced no gap at all, and
-    with it went the ``unidentifiable_no_admissible_set`` signal that
-    ``_compute_answer_tier`` reads, so an effect query whose
-    identification had structurally failed still reported
-    ``answer_tier == "point"``.
 
-    Membership means one thing: the estimand asked for is not point
-    identified from this graph and these data. It is NOT "the program
-    has a mistake in it" — a mediator declared off the causal path or a
-    query atom missing from V are program defects, and they route to
-    the residual instead so the tier is not told identification failed.
+class _RaisedElsewhere(NamedTuple):
+    """A species whose gap is built from a different source.
+
+    Declared rather than omitted, for the same reason a strategy declares
+    the substitution it takes (charter slice 2): a table entry that says
+    "not here, and here is why" is checkable, and a missing entry is
+    indistinguishable from an oversight.
     """
-    # Targets that signal "no admissible identification path on this graph";
-    # all share the same downstream remediation (more variables / RCT / IV).
-    _UNIDENTIFIABLE_PREFIXES = (
-        # ``query:identify_unreachable``, not ``query:identify``. The rule
-        # this docstring states — program defects route to the residual so
-        # the tier is not told the graph blocks the estimand — was encoded
-        # as a prefix one word too short, and ``query:identify_given`` (the
-        # user conditioned on a descendant of X, which they can simply
-        # stop doing) matched it alongside the ID algorithm's genuine
-        # "no witness reaches this graph".
-        "query:identify_unreachable",
-        "query:effect_admg",
-        "query:counterfactual_admg",
-        "query:counterfactual_unidentifiable",
-        "query:proximal_not_identifiable",
-        "identification:not_identifiable",
-        "identification:joint_not_identifiable",
-        "longitudinal:sequential_exchangeability_fails",
+
+    reason: str
+
+
+# A species is either rendered here, or declared as raised elsewhere.
+_Renderer = (
+    Callable[[InvestigationItem, QueryKind], Iterable[DataGap]]
+    | _RaisedElsewhere
+)
+
+
+def _species_unidentifiable(
+    item: InvestigationItem, query_kind: QueryKind,
+) -> Iterable[DataGap]:
+    """The estimand asked for is not point identified from this graph and
+    these data. Distinct from a defect in the program — this is the gap
+    ``_compute_answer_tier`` reads to decide no point estimand is in
+    hand, so a mediator declared off the causal path or a query atom
+    absent from V must not land here."""
+    yield DataGap(
+        kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+        severity=GapSeverity.BLOCKING,
+        description=f"识别路径失败：{item.reason or item.target}",
+        blocks=GapBlocks.IDENTIFICATION,
+        if_provided="可给出识别公式 + 后续点估计",
+        alternative_paths=(
+            "测量并加入 unmeasured confounder Z，重新识别",
+            "在 X 上做 RCT (如可行)，旁路 backdoor",
+            "找一个满足 IV 条件的工具变量",
+        ),
+        provenance=(_item_ref(item),),
     )
-    for req in requests:
-        if req.group != "structure":
-            continue
-        for item in req.items:
-            target = item.target.lower()
-            if _names_an_instrument(target):
-                # Routes through _classify_missing_iv to keep IV-flavored
-                # alternatives. The same predicate on both sides, so an
-                # item is handed over rather than dropped between them —
-                # while these were two independent substring tests, one
-                # coincidence could both fabricate a gap here and suppress
-                # the real one there.
-                continue
-            if not any(target.startswith(p) for p in _UNIDENTIFIABLE_PREFIXES):
-                continue
-            yield DataGap(
-                kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                severity=GapSeverity.BLOCKING,
-                description=(
-                    f"识别路径失败：{item.reason or item.target}"
-                ),
-                blocks=GapBlocks.IDENTIFICATION,
-                if_provided="可给出识别公式 + 后续点估计",
-                alternative_paths=(
-                    "测量并加入 unmeasured confounder Z，重新识别",
-                    "在 X 上做 RCT (如可行)，旁路 backdoor",
-                    "找一个满足 IV 条件的工具变量",
-                ),
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                        ref_id=item.target,
-                    ),
-                ),
-            )
 
 
-# Investigation groups the residual pass is responsible for. ``framing``
-# is excluded because its items reach the report as
-# ``ambiguous_variable_definition`` gaps citing a framing_note ref — a
-# second, differently-shaped citation of the same predicate — and
-# ``parameter`` / ``assumption`` because their classifiers are total over
-# their group already. What is left is the surface where a name added
-# upstream used to fall through to nothing.
-_RESIDUAL_GROUPS: frozenset[str] = frozenset({"structure", "observation"})
-
-
-def _classify_residual_investigation_items(
-    requests: tuple[InvestigationRequest, ...],
-    emitted: list[DataGap],
+def _species_structural_input(
+    item: InvestigationItem, query_kind: QueryKind,
 ) -> Iterable[DataGap]:
-    """Every investigation item that no other classifier claimed.
+    """A structural requirement the kernel raised that is not an
+    identification verdict — an undeclared path coefficient, a mediator
+    off every directed path, a query atom absent from V, a conditioning
+    event of probability zero.
 
-    The residue is computed from the gaps already built rather than by
-    re-testing the same predicates, so it cannot drift out of step with
-    them: whatever the specific classifiers cite is exactly what this
-    pass skips. Adding a refinement upstream automatically narrows the
-    residue; removing one automatically widens it.
+    Deliberately does NOT assert that identification failed: a missing
+    coefficient leaves a point-identified estimand whose number was
+    simply never declared, and telling ``answer_tier`` otherwise would
+    offer an RCT to a program that needs one edge weight. The gap claims
+    nothing beyond the kernel's own reason, because these range too
+    widely for one line of advice to fit them all."""
+    yield DataGap(
+        kind=GapKind.MISSING_STRUCTURAL_INPUT,
+        severity=GapSeverity.BLOCKING,
+        description=f"缺结构输入：{item.reason or item.target}",
+        blocks=GapBlocks.POINT_ESTIMATE,
+        if_provided="该查询可继续走到点估计",
+        provenance=(_item_ref(item),),
+    )
 
-    This exists because the specific classifiers recognise their items by
-    name — three target prefixes for identification failures, the
-    substring ``iv`` for instruments — and a name none of them matched
-    used to produce no gap at all. The report would then carry
-    ``gaps=[]``, which its own contract reads as "asked and got a clean
-    bill of health", for a query that returned nothing and said exactly
-    why in ``missing_information``. The default has to be loud; a name
-    nobody refined should cost specificity, not the entry.
 
-    Kind follows the kernel's own classification of the shortfall, since
-    that is the one judgement already made and recorded: an
-    ``observation`` item is a unit-level reading, a ``structure`` item is
-    a structural input. Description carries the item's ``reason``, and
-    the gap claims nothing beyond it — these items range from an
-    undeclared path coefficient to a conditioning event of probability
-    zero, and a single line of advice fitting all of them does not
-    exist.
+def _species_unit_observation(
+    item: InvestigationItem, query_kind: QueryKind,
+) -> Iterable[DataGap]:
+    """A unit-level value the query needs and the program did not
+    observe. Not a ``missing_distribution``: abduction in a
+    deterministic SCM counterfactual recovers this unit's exogenous term
+    from its own measured values, so what is wanted is a reading for
+    this unit and no amount of population data substitutes."""
+    yield DataGap(
+        kind=GapKind.MISSING_UNIT_OBSERVATION,
+        severity=GapSeverity.BLOCKING,
+        description=f"缺该单位的观测值：{item.reason or item.target}",
+        blocks=GapBlocks.POINT_ESTIMATE,
+        if_provided="该查询可继续走到点估计",
+        provenance=(_item_ref(item),),
+    )
+
+
+def _species_missing_distribution(
+    item: InvestigationItem, query_kind: QueryKind,
+) -> Iterable[DataGap]:
+    """A probability the evaluator looked for and theta does not hold."""
+    display = _strip_parameter_prefix(item.target)
+    signature = _distribution_signature(display)
+    min_n, precision = _estimate_sample_size_for_distribution(
+        display, signature,
+    )
+    if query_kind in _ESTIMAND_QUERY_KINDS:
+        # effect / identify / counterfactual: an interval bound is a
+        # genuine fallback. This is a magic token that
+        # scheduler._reconcile_alt_paths_with_bounds rewrites to the
+        # actual computed bounds_result.
+        alt_paths = ("接受 Balke-Pearl bounds 给区间答案",)
+    else:
+        # probability asks for a plain observational conditional —
+        # point-estimable, with NO bounds substitute (Balke-Pearl is
+        # for interventional / IV / counterfactual quantities, not for
+        # P(y|x)). Suggesting bounds here is nonsensical.
+        alt_paths = (
+            f"直接收集 {display} 的数据 —— 观察性条件量是点可估的，"
+            f"没有 bounds 替代路径",
+        )
+    yield DataGap(
+        kind=GapKind.MISSING_DISTRIBUTION,
+        severity=GapSeverity.BLOCKING,
+        description=f"缺概率分布 {display}",
+        blocks=GapBlocks.POINT_ESTIMATE,
+        signature=signature,
+        required_data=GapRequiredData(
+            data_type=(
+                RequiredDataType.IPD
+                if signature == "conditional"
+                else RequiredDataType.MARGINAL
+            ),
+            min_sample_size=min_n,
+            precision_target=precision,
+        ),
+        if_provided="可给点估计",
+        alternative_paths=alt_paths,
+        provenance=(_item_ref(item),),
+    )
+
+
+def _species_theta_graph_mismatch(
+    item: InvestigationItem, query_kind: QueryKind,
+) -> Iterable[DataGap]:
+    """Theta DOES hold a marginal, and the declared graph forbids
+    substituting it for the demanded conditional.
+
+    The repair is the opposite of the previous species': fix the graph,
+    or supply the conditional — "supply more theta" is advice for a
+    different problem, and a consumer reading only ``gap.kind`` would
+    give it."""
+    display = _strip_parameter_prefix(item.target)
+    yield DataGap(
+        kind=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+        severity=GapSeverity.IMPORTANT,
+        description=(
+            f"声明的图与提供的 CPT 不一致：缺 {display}，"
+            f"但 theta 中存在的边缘量被 d-separation 拒绝"
+            f"（图蕴含的独立性不成立）"
+        ),
+        blocks=GapBlocks.POINT_ESTIMATE,
+        if_provided="可给点估计（在解决图与 CPT 矛盾后）",
+        alternative_paths=(
+            f"补充所缺的条件量 {display}（接受图）",
+            "或：删除引发独立性矛盾的边（改图，承认现有 CPT 已是真分布）",
+            "接受 Balke-Pearl bounds 给区间答案",
+        ),
+        provenance=(_item_ref(item),),
+    )
+
+
+def _species_missing_assumption(
+    item: InvestigationItem, query_kind: QueryKind,
+) -> Iterable[DataGap]:
+    """An identification premise the kernel refuses to choose for you.
+
+    What arrives here is not one shape: an undeclared premise
+    (monotonicity), an input only an experiment can supply
+    (P(Y=1|do(x)) under confounding), and declared inputs that
+    contradict each other (interventional risks outside the consistency
+    band, stratum weights that are not a distribution). One sentence of
+    generic advice would be wrong for most of them, so the gap states
+    what the kernel stated and adds nothing the kernel did not derive."""
+    yield DataGap(
+        kind=GapKind.MISSING_ASSUMPTION,
+        severity=GapSeverity.IMPORTANT,
+        description=f"识别前提待补充或修正：{item.reason or item.target}",
+        blocks=GapBlocks.POINT_ESTIMATE,
+        if_provided="该识别路径可继续走到点估计",
+        provenance=(_item_ref(item),),
+    )
+
+
+def _bind_item_species(
+    table: dict[GapKind, _Renderer],
+) -> dict[GapKind, _Renderer]:
+    """The table covers the declared vocabulary exactly.
+
+    Both directions are defects. An unbound species is an item that
+    reaches the report and produces nothing, which is the silence the
+    residual pass was installed to cover. A bound species outside the
+    vocabulary is a renderer no item can ever reach — dead copy that
+    reads like coverage.
     """
-    cited = {
-        ref.ref_id
-        for gap in emitted
-        for ref in gap.provenance
-        if ref.ref_kind == GapRefKind.INVESTIGATION_REQUEST
-    }
-    for req in requests:
-        if req.group not in _RESIDUAL_GROUPS:
-            continue
-        for item in req.items:
-            if item.target in cited:
-                continue
-            observation = req.group == "observation"
-            yield DataGap(
-                kind=(
-                    GapKind.MISSING_UNIT_OBSERVATION
-                    if observation
-                    else GapKind.MISSING_STRUCTURAL_INPUT
-                ),
-                severity=GapSeverity.BLOCKING,
-                description=(
-                    (
-                        f"缺该单位的观测值：{item.reason or item.target}"
-                        if observation
-                        else f"缺结构输入：{item.reason or item.target}"
-                    )
-                ),
-                blocks=GapBlocks.POINT_ESTIMATE,
-                if_provided="该查询可继续走到点估计",
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                        ref_id=item.target,
-                    ),
-                ),
-            )
+    missing = sorted(g.value for g in MISSING_ITEM_GAPS if g not in table)
+    if missing:
+        raise ValueError(
+            f"no renderer for missing-item species {missing}; an item "
+            f"declaring one would reach the report and produce no gap"
+        )
+    extra = sorted(g.value for g in table if g not in MISSING_ITEM_GAPS)
+    if extra:
+        raise ValueError(
+            f"renderer bound for {extra}, which no missing item may "
+            f"declare (themis.types.MISSING_ITEM_GAPS)"
+        )
+    return table
 
 
-def _classify_missing_distribution(
+_ITEM_SPECIES: dict[GapKind, _Renderer] = _bind_item_species({
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET: _species_unidentifiable,
+    GapKind.MISSING_STRUCTURAL_INPUT: _species_structural_input,
+    GapKind.MISSING_UNIT_OBSERVATION: _species_unit_observation,
+    GapKind.MISSING_DISTRIBUTION: _species_missing_distribution,
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: _species_theta_graph_mismatch,
+    GapKind.MISSING_ASSUMPTION: _species_missing_assumption,
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: _RaisedElsewhere(
+        "framing items are the action side of a gap built from "
+        "framing_notes, which fire on query kinds that raise no "
+        "investigation item at all — so the note, not the item, is the "
+        "one source that sees every case"
+    ),
+})
+
+
+def _item_ref(item: InvestigationItem) -> GapProvenanceRef:
+    return GapProvenanceRef(
+        ref_kind=GapRefKind.INVESTIGATION_REQUEST, ref_id=item.target,
+    )
+
+
+def _strip_parameter_prefix(target: str) -> str:
+    """User-facing copy drops the channel prefix the pusher put on the
+    name; provenance keeps the prefixed form so T10-1 can match it."""
+    prefix = "parameter:"
+    return target[len(prefix):] if target.startswith(prefix) else target
+
+
+def _classify_investigation_items(
     requests: tuple[InvestigationRequest, ...],
     query_kind: QueryKind,
 ) -> Iterable[DataGap]:
-    # iter 203: import locally to keep the data_gap_report module
-    # decoupled from runtime imports at load time (prevents cycles
-    # during pure-output imports).
-    from ..runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
+    """Every investigation item, rendered as the species it declares."""
     for req in requests:
-        if req.group != "parameter":
-            continue
         for item in req.items:
-            target = item.target  # e.g. "P(y=true|x=true)"
-            # The MissingItem.name carries a "parameter:" prefix from the
-            # upstream pusher; strip it for user-facing copy. Provenance
-            # ref_id keeps the prefixed form so T10-1 can match.
-            display = target[len("parameter:"):] if target.startswith(
-                "parameter:"
-            ) else target
-            # iter 203: when the iter 202 d-sep guard refused an
-            # existing-but-graph-incompatible marginal, the runtime
-            # encoded that in InsufficientTheta.reason → MissingItem.
-            # reason → InvestigationItem.reason. Route to the dedicated
-            # GRAPH_THETA_INDEPENDENCE_MISMATCH gap_kind so structured
-            # consumers get the actual repair action ("fix graph or
-            # supply demanded conditional") rather than the generic
-            # MISSING_DISTRIBUTION ("supply more theta") that would
-            # mislead any LLM/UI reading only gap.kind.
-            if (
-                item.reason is not None
-                and DSEP_REFUSAL_SIGNATURE in item.reason
-            ):
-                yield DataGap(
-                    kind=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
-                    severity=GapSeverity.IMPORTANT,
-                    description=(
-                        f"声明的图与提供的 CPT 不一致：缺 {display}，"
-                        f"但 theta 中存在的边缘量被 d-separation 拒绝"
-                        f"（图蕴含的独立性不成立）"
-                    ),
-                    blocks=GapBlocks.POINT_ESTIMATE,
-                    if_provided=(
-                        "可给点估计（在解决图与 CPT 矛盾后）"
-                    ),
-                    alternative_paths=(
-                        f"补充所缺的条件量 {display}（接受图）",
-                        "或：删除引发独立性矛盾的边（改图，承认现有 CPT 已是真分布）",
-                        "接受 Balke-Pearl bounds 给区间答案",
-                    ),
-                    provenance=(
-                        GapProvenanceRef(
-                            ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                            ref_id=item.target,
-                        ),
-                    ),
-                )
+            render = _ITEM_SPECIES[item.gap]
+            if isinstance(render, _RaisedElsewhere):
                 continue
-            signature = _distribution_signature(display)
-            min_n, precision = _estimate_sample_size_for_distribution(
-                display, signature,
-            )
-            if query_kind in _ESTIMAND_QUERY_KINDS:
-                # effect / identify / counterfactual: an interval bound is a
-                # genuine fallback. This is a magic token that
-                # scheduler._reconcile_alt_paths_with_bounds rewrites to the
-                # actual computed bounds_result.
-                alt_paths = ("接受 Balke-Pearl bounds 给区间答案",)
-            else:
-                # probability asks for a plain observational conditional —
-                # point-estimable, with NO bounds substitute (Balke-Pearl is
-                # for interventional / IV / counterfactual quantities, not for
-                # P(y|x)). Suggesting bounds here is nonsensical.
-                alt_paths = (
-                    f"直接收集 {display} 的数据 —— 观察性条件量是点可估的，"
-                    f"没有 bounds 替代路径",
-                )
-            yield DataGap(
-                kind=GapKind.MISSING_DISTRIBUTION,
-                severity=GapSeverity.BLOCKING,
-                description=f"缺概率分布 {display}",
-                blocks=GapBlocks.POINT_ESTIMATE,
-                signature=signature,
-                required_data=GapRequiredData(
-                    data_type=(
-                        RequiredDataType.IPD
-                        if signature == "conditional"
-                        else RequiredDataType.MARGINAL
-                    ),
-                    min_sample_size=min_n,
-                    precision_target=precision,
-                ),
-                if_provided="可给点估计",
-                alternative_paths=alt_paths,
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                        ref_id=item.target,
-                    ),
-                ),
-            )
+            yield from render(item, query_kind)
 
 
 def _classify_missing_population_distribution(
@@ -2111,98 +2081,20 @@ def _classify_missing_population_distribution(
     return ()
 
 
-def _classify_missing_assumption(
-    requests: tuple[InvestigationRequest, ...],
-) -> Iterable[DataGap]:
-    """Assumption-group investigation items.
-
-    Keyed on the channel the kernel actually writes to — a
-    ``MissingKind.ASSUMPTION`` item, which ``investigation_pusher``
-    always groups under ``assumption`` — and not on
-    ``ResultStatus.NEEDS_ASSUMPTION``. That status was a proxy for the
-    same fact and lost its last producer when the counterfactual cell
-    was rebuilt around bounds; a classifier keyed on it goes silent
-    without anything failing, because a status is not where the remedy
-    is written.
-
-    The description carries the item's own ``reason``. What arrives on
-    this channel is not one shape: an undeclared premise the kernel
-    refuses to choose for you (monotonicity), an input only an
-    experiment can supply (P(Y=1|do(x)) under confounding), and
-    declared inputs that contradict each other (interventional risks
-    outside the consistency band, stratum weights that are not a
-    distribution). One sentence of generic advice would be wrong for
-    most of them, so the gap states what the kernel stated and adds
-    nothing the kernel did not derive.
-    """
-    for req in requests:
-        if req.group != "assumption":
-            continue
-        for item in req.items:
-            yield DataGap(
-                kind=GapKind.MISSING_ASSUMPTION,
-                severity=GapSeverity.IMPORTANT,
-                description=f"识别前提待补充或修正：{item.reason or item.target}",
-                blocks=GapBlocks.POINT_ESTIMATE,
-                if_provided="该识别路径可继续走到点估计",
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                        ref_id=item.target,
-                    ),
-                ),
-            )
-
-
-def _names_an_instrument(target: str) -> bool:
-    """Whether an investigation target is about an instrumental variable.
-
-    The test used to be ``"iv" in target``, and "g-iv-en" contains it: an
-    identify query rejected because its ``given`` violates the back-door
-    pre-conditions came back to the user as "no valid instrumental
-    variable found", while the same substring — used to EXCLUDE, in the
-    classifier that would have carried the real reason — suppressed that.
-    One coincidence both fabricated a gap and hid one.
-
-    A gap's species is not a substring of its name. Until the producer
-    states it outright, the closest honest test is the name's own local
-    part: ``effect:iv_monotonicity_undeclared`` names an instrument,
-    ``query:identify_given`` does not, and neither does a variable called
-    ``ivy``.
-    """
-    return target.rsplit(":", 1)[-1].lower().startswith("iv_")
-
-
 def _classify_missing_iv(
-    requests: tuple[InvestigationRequest, ...],
     derivation: tuple[DerivationStep, ...],
 ) -> Iterable[DataGap]:
-    # Signal A: a structure-group investigation_request whose target
-    # names an instrument.
-    for req in requests:
-        if req.group != "structure":
-            continue
-        for item in req.items:
-            if not _names_an_instrument(item.target):
-                continue
-            yield DataGap(
-                kind=GapKind.MISSING_IV_CANDIDATE,
-                severity=GapSeverity.IMPORTANT,
-                description=f"未找到满足 IV 条件的工具变量：{item.target}",
-                blocks=GapBlocks.IDENTIFICATION,
-                if_provided="可走 IV 路径给出 LATE / 2SLS-ATE",
-                alternative_paths=(
-                    "改用 backdoor 路径（如有可调整集）",
-                    "改用 front-door 路径（如有有效中介）",
-                ),
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                        ref_id=item.target,
-                    ),
-                ),
-            )
-    # Signal B: a derivation step on the IV path that failed.
+    """IV failures that left a derivation step behind.
+
+    There used to be a second signal here: a structure-group item whose
+    name looked like an instrument. It read the look-alike off a
+    substring and answered "no valid instrument found" to a query that
+    had named a descendant of X in its ``given`` (charter finding F).
+    It is gone rather than narrowed — ``MISSING_IV_CANDIDATE`` is not in
+    ``MISSING_ITEM_GAPS``, so no item can declare it, and no name can
+    resemble it. A producer that wants to raise one adds the species to
+    the vocabulary and binds a renderer for it.
+    """
     for step in derivation:
         if not _step_failed(step):
             continue

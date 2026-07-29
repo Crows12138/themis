@@ -6,18 +6,21 @@ that returned nothing, named exactly what it needed in
 ``missing_information``, and then produced ``gaps == []`` reports the
 second while meaning the first.
 
-The specific classifiers recognise their items by name — three target
-prefixes for identification failures, the substring ``iv`` for
-instruments — so a name none of them matched fell through to nothing.
-The residual pass makes the default loud instead: a name nobody refined
-costs specificity, not the entry.
-
 The sharpest consequence is ``answer_tier``. It reads the
 ``unidentifiable_no_admissible_set`` gap to decide whether a point
 estimand is in hand, so an effect query whose identification had
 structurally failed — ``structural_result.value == False``, and the
 reason spelled out in ``missing_information`` — still came back with
 ``answer_tier == "point"``.
+
+The classifiers used to recognise their items by name — target prefixes
+for identification failures, the substring ``iv`` for instruments — so a
+name none of them matched fell through to nothing, and a residual pass
+swept up whatever was left over. Both are gone: an item states its own
+species, the report binds a renderer for every species the vocabulary
+allows, and a name nobody wrote a prefix for is not a case that exists.
+This file holds the invariant that motivated the sweep, now checked
+against the structure that replaced it.
 """
 from __future__ import annotations
 
@@ -193,7 +196,7 @@ def test_the_summary_leads_with_the_identification_failure():
 
 
 # ---------------------------------------------------------------------------
-# What the residual must NOT claim
+# What a structural-input gap must NOT claim
 # ---------------------------------------------------------------------------
 
 
@@ -224,9 +227,11 @@ def test_an_unobserved_unit_variable_is_its_own_kind():
     assert "missing_distribution" not in {g["kind"] for g in gaps}
 
 
-def test_the_residual_does_not_double_report_a_refined_item():
-    """The residue is read off the gaps already emitted, so an item a
-    specific classifier claimed is skipped rather than re-tested."""
+def test_an_item_is_reported_once_and_not_once_per_pass():
+    """One item, one species, one renderer. Two passes used to compete
+    for the same item — a specific classifier and a residual sweep — and
+    the sweep skipped what the classifier had cited. Which order they ran
+    in was load-bearing; now nothing has to be ordered."""
     result = themis.run(_collider_program())["results"][0]
     cited = [
         ref["ref_id"]
@@ -275,9 +280,9 @@ def test_a_rejected_query_reports_the_reason_it_was_rejected_for():
     assert len(carried) == 1, [g["description"] for g in gaps]
 
 
-def test_a_solved_query_gains_no_residual_gap():
-    """Premise for the whole file: the pass fires on raised items, not
-    on every run."""
+def test_a_solved_query_gains_no_structural_gap():
+    """Premise for the whole file: gaps come from items the kernel
+    raised, not from every run."""
     result = themis.run(_joe_program())["results"][0]
     assert result["status"] == "counterfactual_solved"
     report = result.get("data_gap_report")

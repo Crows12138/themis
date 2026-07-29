@@ -20,6 +20,7 @@ from themis.output.sample_size import (
     is_binary_outcome_distribution,
     is_continuous_outcome_distribution,
 )
+from themis.types import GapKind
 
 
 # ---------------------------------------------------------------- core math
@@ -135,6 +136,7 @@ def test_gap_report_fills_min_sample_size_for_binary_conditional():
     min_sample_size=400 with the Cohen-h precision target."""
     from themis.output.data_gap_report import compute_data_gap_report
     from themis.types import (
+    GapKind,
         InvestigationAction,
         InvestigationItem,
         InvestigationRequest,
@@ -149,7 +151,9 @@ def test_gap_report_fills_min_sample_size_for_binary_conditional():
         target=target,
         priority=Priority.HIGH,
         group="parameter",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(
+            target=target, gap=GapKind.MISSING_DISTRIBUTION,
+        ),),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
@@ -183,7 +187,9 @@ def test_gap_report_fills_min_sample_size_for_binary_marginal():
         target=target,
         priority=Priority.HIGH,
         group="parameter",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(
+            target=target, gap=GapKind.MISSING_DISTRIBUTION,
+        ),),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
@@ -218,7 +224,9 @@ def test_gap_report_leaves_min_sample_size_unset_for_unknown_outcome():
         target=target,
         priority=Priority.HIGH,
         group="parameter",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(
+            target=target, gap=GapKind.MISSING_DISTRIBUTION,
+        ),),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
@@ -280,7 +288,9 @@ def test_gap_report_fills_min_sample_size_for_binary_mediator():
         target=target,
         priority=Priority.HIGH,
         group="parameter",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(
+            target=target, gap=GapKind.MISSING_DISTRIBUTION,
+        ),),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
@@ -323,7 +333,9 @@ def test_gap_report_leaves_mediator_n_unset_for_continuous():
         target=target,
         priority=Priority.HIGH,
         group="parameter",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(
+            target=target, gap=GapKind.MISSING_DISTRIBUTION,
+        ),),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
@@ -432,7 +444,9 @@ def test_gap_report_fills_min_sample_size_for_continuous_conditional():
         target=target,
         priority=Priority.HIGH,
         group="parameter",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(
+            target=target, gap=GapKind.MISSING_DISTRIBUTION,
+        ),),
     )
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,

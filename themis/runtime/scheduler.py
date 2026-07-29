@@ -4722,6 +4722,7 @@ def _attach_framing(
     items = tuple(
         InvestigationItem(
             target=note.predicate,
+            gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
             reason=(
                 f"variable '{note.predicate}' is declared but missing "
                 f"{len(note.missing)} framing field"

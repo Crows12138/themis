@@ -2056,7 +2056,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "target"
+        "target",
+        "gap"
       ],
       "properties": {
         "target": {
@@ -2083,7 +2084,7 @@
             "missing_assumption",
             "ambiguous_variable_definition"
           ],
-          "description": "Carried verbatim from the originating missingItem.gap. Absent on the framing channel, whose items are the action side of a gap raised from framing_notes rather than a record of the gap itself."
+          "description": "Carried verbatim from the originating missingItem.gap. The framing channel has no missing item and declares ambiguous_variable_definition, whose gap is built from framing_notes rather than from this item."
         }
       }
     },

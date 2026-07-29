@@ -754,17 +754,20 @@ class InvestigationItem:
     a single flat string.
     """
     target: str
+    # The species of the ``MissingItem`` this item was pushed from,
+    # carried through verbatim. Required: an item with nothing to say
+    # about its own species is one the report has to guess about, and
+    # guessing is what this field removes. The framing channel builds its
+    # items without a MissingItem and declares
+    # ``AMBIGUOUS_VARIABLE_DEFINITION`` — whose gap is raised from
+    # ``framing_notes`` rather than here, which the report's species
+    # table states outright rather than inferring from an absent value.
+    gap: GapKind
     reason: str | None = None
     # For MissingKind.PARAMETER, a dict that the caller can drop into a
     # program's "statements" list after filling in ``value``. None for
     # other kinds (or when scheduler did not supply structured info).
     skeleton: dict | None = None
-    # The species of the ``MissingItem`` this item was pushed from,
-    # carried through verbatim. None on the framing channel, which builds
-    # its items directly from ``FramingNote`` and whose gap is raised
-    # from those notes instead — the one item shape that is the action
-    # side of a gap sourced elsewhere, rather than the gap's own record.
-    gap: GapKind | None = None
 
 
 @dataclass(frozen=True)

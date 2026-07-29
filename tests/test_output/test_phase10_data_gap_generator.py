@@ -9,6 +9,7 @@ import pytest
 
 from themis.output.data_gap_report import compute_data_gap_report
 from themis.types import (
+    AnswerTier,
     DataGap,
     DataGapReport,
     DerivationStep,
@@ -29,11 +30,17 @@ from themis.types import (
 # ============================================ helpers
 
 
-def _param_request(items: list[tuple[str, str | None]]) -> InvestigationRequest:
+def _param_request(
+    items: list[tuple[str, str | None]],
+    *,
+    gap: GapKind = GapKind.MISSING_DISTRIBUTION,
+) -> InvestigationRequest:
     """Build a parameter-group investigation request with given (target, reason)
-    items."""
+    items. ``gap`` is what the kernel declared the shortfall to be; the
+    default is the ordinary one, and the tests about a particular species
+    say which they mean."""
     inv_items = tuple(
-        InvestigationItem(target=t, reason=r) for (t, r) in items
+        InvestigationItem(target=t, gap=gap, reason=r) for (t, r) in items
     )
     return InvestigationRequest(
         action=InvestigationAction.VALIDATE_PARAMETER,
@@ -44,13 +51,15 @@ def _param_request(items: list[tuple[str, str | None]]) -> InvestigationRequest:
     )
 
 
-def _structure_request(target: str) -> InvestigationRequest:
+def _structure_request(
+    target: str, *, gap: GapKind = GapKind.MISSING_STRUCTURAL_INPUT,
+) -> InvestigationRequest:
     return InvestigationRequest(
         action=InvestigationAction.RUN_EXPERIMENT,
         target=target,
         priority=Priority.HIGH,
         group="structure",
-        items=(InvestigationItem(target=target),),
+        items=(InvestigationItem(target=target, gap=gap),),
     )
 
 
@@ -62,7 +71,9 @@ def _assumption_request(
         target=target,
         priority=Priority.HIGH,
         group="assumption",
-        items=(InvestigationItem(target=target, reason=reason),),
+        items=(InvestigationItem(
+            target=target, gap=GapKind.MISSING_ASSUMPTION, reason=reason,
+        ),),
     )
 
 
@@ -304,7 +315,7 @@ def test_iv_failure_in_derivation_emits_iv_gap_not_unidentifiable():
     assert GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET not in kinds
 
 
-def test_a_name_that_merely_contains_the_letters_iv_is_not_an_iv_gap():
+def test_a_name_can_no_longer_produce_an_instrument_gap_at_all():
     """``given`` contains the letters i-v.
 
     An identify query rejected because its ``given`` violates the
@@ -312,6 +323,11 @@ def test_a_name_that_merely_contains_the_letters_iv_is_not_an_iv_gap():
     variable found" — and the same substring test, used to EXCLUDE in the
     classifier that would have carried the real reason, suppressed that
     too. One coincidence both fabricated a gap and hid one.
+
+    The fix at the time was a stricter reading of the name. What closes
+    it is that no reading happens: ``MISSING_IV_CANDIDATE`` is not a
+    species a missing item may declare, so no name — however spelled —
+    reaches that gap through this channel.
     """
     requests = (_structure_request("query:identify_given"),)
     report = compute_data_gap_report(
@@ -324,12 +340,13 @@ def test_a_name_that_merely_contains_the_letters_iv_is_not_an_iv_gap():
 
 
 def test_a_malformed_given_is_a_program_defect_not_a_failed_identification():
-    """The classifier states the rule in prose and then encodes it as a
-    prefix one character too short. ``query:identify_unreachable`` is the
-    ID algorithm reporting no witness; ``query:identify_given`` is the
-    user conditioning on a descendant of X. ``query:identify`` matches
-    both, and telling ``answer_tier`` that the graph blocks the estimand
-    is exactly what it must not be told about a fixable query."""
+    """``query:identify_unreachable`` is the ID algorithm reporting no
+    witness; ``query:identify_given`` is the user conditioning on a
+    descendant of X. Telling ``answer_tier`` that the graph blocks the
+    estimand is exactly what it must not be told about a fixable query.
+
+    The two used to be told apart by a prefix that was one word too
+    short. They are told apart by the branch that raised them now."""
     requests = (_structure_request("query:identify_given"),)
     report = compute_data_gap_report(
         query_kind=QueryKind.IDENTIFY,
@@ -338,19 +355,48 @@ def test_a_malformed_given_is_a_program_defect_not_a_failed_identification():
     )
     kinds = [g.kind for g in report.gaps]
     assert GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET not in kinds
-    assert kinds, "the item must still reach the report, as the residual"
+    assert GapKind.MISSING_STRUCTURAL_INPUT in kinds
 
 
-def test_structure_request_naming_iv_emits_iv_gap():
-    requests = (_structure_request("iv_candidate_for_smoking_lung_cancer"),)
-    report = compute_data_gap_report(
+def test_the_species_decides_the_gap_and_the_name_does_not():
+    """Same name, same group, same channel — two different gaps, because
+    the branches that raised them said different things. No naming
+    convention can express that, which is why the report stopped reading
+    names."""
+    name = "query:identify_given"
+    blocked = compute_data_gap_report(
         query_kind=QueryKind.IDENTIFY,
         status=ResultStatus.NEEDS_INVESTIGATION,
-        investigation_requests=requests,
+        investigation_requests=(_structure_request(
+            name, gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+        ),),
     )
-    assert any(
-        g.kind == GapKind.MISSING_IV_CANDIDATE for g in report.gaps
+    defect = compute_data_gap_report(
+        query_kind=QueryKind.IDENTIFY,
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        investigation_requests=(_structure_request(
+            name, gap=GapKind.MISSING_STRUCTURAL_INPUT,
+        ),),
     )
+    assert blocked.answer_tier is AnswerTier.NONE
+    assert defect.answer_tier is AnswerTier.POINT
+
+
+def test_an_item_cannot_declare_a_species_no_renderer_is_bound_for():
+    """The table covers the declared vocabulary exactly, so an item that
+    reaches the report reaches the user. That is the guarantee the
+    residual pass used to provide by sweeping for uncited items, now held
+    at import instead of at the end of every run."""
+    from themis.output import data_gap_report as mod
+    from themis.types import MISSING_ITEM_GAPS
+
+    assert set(mod._ITEM_SPECIES) == set(MISSING_ITEM_GAPS)
+    with pytest.raises(ValueError, match="no renderer"):
+        mod._bind_item_species({})
+    with pytest.raises(ValueError, match="which no missing item may"):
+        mod._bind_item_species(
+            dict(mod._ITEM_SPECIES) | {GapKind.WEAK_IV_INSTRUMENT: None}
+        )
 
 
 # ============================================ 6. missing_mediator_data
@@ -731,20 +777,22 @@ def test_actionable_steps_include_alternative_path():
 
 
 def test_dsep_refusal_reason_routes_to_graph_theta_mismatch_not_missing_distribution():
-    """Iter 203 — when InvestigationItem.reason carries the iter 202
-    d-sep refusal signature, the classifier emits
-    `graph_theta_independence_mismatch` instead of generic
-    MISSING_DISTRIBUTION. Structured consumers (LLM / UI reading
-    gap.kind) get the correct repair action."""
+    """Iter 203 — a lookup that failed because theta contradicts the
+    declared graph wants the opposite repair from one that failed because
+    theta is short of an entry, so it is its own species. The report used
+    to tell them apart by searching the reason text for a phrase; the
+    d-sep guard now says which it raised (``InsufficientTheta.gap``) and
+    the reason text is only prose."""
     from themis.runtime.numeric_estimator import DSEP_REFUSAL_SIGNATURE
     enriched_reason = (
         f"Theta 中缺条目 P(m2=True|m1=True,x=True)；theta 中存在 "
         f"P(m2=True|x=True)，但声明的图蕴含 m2 ⊥ {{m1}} | {{x}} 不成立"
         f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
     )
-    requests = (_param_request([
-        ("parameter:P(m2=true|m1=true,x=true)", enriched_reason),
-    ]),)
+    requests = (_param_request(
+        [("parameter:P(m2=true|m1=true,x=true)", enriched_reason)],
+        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+    ),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -765,9 +813,10 @@ def test_graph_theta_mismatch_severity_is_important_not_blocking():
         f"P(y=true|x=true)，但声明的图蕴含 y ⊥ {{z}} | {{x}} 不成立"
         f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
     )
-    requests = (_param_request([
-        ("parameter:P(y=true|x=true,z=true)", enriched_reason),
-    ]),)
+    requests = (_param_request(
+        [("parameter:P(y=true|x=true,z=true)", enriched_reason)],
+        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+    ),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -791,9 +840,10 @@ def test_graph_theta_mismatch_alternative_paths_name_structural_repairs():
         f"P(m2=True|x=True)，但声明的图蕴含 m2 ⊥ {{m1}} | {{x}} 不成立"
         f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
     )
-    requests = (_param_request([
-        ("parameter:P(m2=true|m1=true,x=true)", enriched_reason),
-    ]),)
+    requests = (_param_request(
+        [("parameter:P(m2=true|m1=true,x=true)", enriched_reason)],
+        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+    ),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -834,9 +884,10 @@ def test_graph_theta_mismatch_provenance_is_investigation_request():
         f"P(y=true|x=true)，但声明的图蕴含 y ⊥ {{m}} | {{x}} 不成立"
         f"（{DSEP_REFUSAL_SIGNATURE}），故不能用边缘量替代条件量"
     )
-    requests = (_param_request([
-        ("parameter:P(y=true|x=true,m=true)", enriched_reason),
-    ]),)
+    requests = (_param_request(
+        [("parameter:P(y=true|x=true,m=true)", enriched_reason)],
+        gap=GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+    ),)
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_INVESTIGATION,

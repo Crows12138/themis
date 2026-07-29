@@ -27,6 +27,7 @@ from themis.types import (
     ConstTerm,
     EffectQuery,
     FramingNote,
+    GapKind,
     Intervention,
     InvestigationAction,
     InvestigationItem,
@@ -638,7 +639,10 @@ def test_extract_definition_skeleton_dedupes_across_results():
             priority=Priority.MEDIUM,
             group="framing",
             items=(InvestigationItem(
-                target=predicate, reason="gap", skeleton=skeleton,
+                target=predicate,
+                gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+                reason="gap",
+                skeleton=skeleton,
             ),),
         )
         return QueryResult(
@@ -668,7 +672,11 @@ def test_extract_definition_skeleton_returns_detached_patch_copy():
         target="y",
         priority=Priority.MEDIUM,
         group="framing",
-        items=(InvestigationItem(target="y", skeleton=skeleton),),
+        items=(InvestigationItem(
+            target="y",
+            gap=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+            skeleton=skeleton,
+        ),),
     )
     result = QueryResult(
         status=ResultStatus.NUMERICALLY_SOLVED,

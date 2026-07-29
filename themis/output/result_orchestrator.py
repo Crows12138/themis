@@ -173,7 +173,7 @@ def to_dict(result: QueryResult) -> dict:
                         "target": it.target,
                         **({"reason": it.reason} if it.reason is not None else {}),
                         **({"skeleton": it.skeleton} if it.skeleton is not None else {}),
-                        **({"gap": it.gap.value} if it.gap is not None else {}),
+                        "gap": it.gap.value,
                     }
                     for it in r.items
                 ]
