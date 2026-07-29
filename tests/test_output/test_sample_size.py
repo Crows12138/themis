@@ -1,5 +1,5 @@
 """Tests for themis.output.sample_size + the wire-in inside
-data_gap_report._classify_missing_distribution."""
+data_gap_report._species_missing_distribution."""
 from __future__ import annotations
 
 import math
@@ -136,7 +136,6 @@ def test_gap_report_fills_min_sample_size_for_binary_conditional():
     min_sample_size=400 with the Cohen-h precision target."""
     from themis.output.data_gap_report import compute_data_gap_report
     from themis.types import (
-    GapKind,
         InvestigationAction,
         InvestigationItem,
         InvestigationRequest,

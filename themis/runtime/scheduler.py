@@ -3186,7 +3186,7 @@ def _dispatch_transport(
                     kind=MissingKind.STRUCTURE,
                     name=f"transport:{q.target_population}",
                     priority=Priority.HIGH,
-                    gap=GapKind.MISSING_STRUCTURAL_INPUT,
+                    gap=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
                     reason=result.failure_reason or "transport not identifiable",
                 ),
             ),
@@ -5624,6 +5624,17 @@ def _attach_bounds_result(
     if not isinstance(stmt.query, EffectQuery):
         return result
     query = stmt.query
+
+    # Manski / Balke-Pearl bound the estimand in the population the
+    # observational joint came from. A query naming a target population
+    # asks about a different one, and when its transport identification
+    # failed there is no assumption-free floor for it — the source joint
+    # constrains the target only through the selection diagram this query
+    # just established does not carry it. Bounds computed here would not
+    # be loose about the right quantity; they would be tight about the
+    # wrong one.
+    if query.target_population is not None:
+        return result
 
     target_is_bool = isinstance(query.target.value, bool)
     intervention_is_bool = isinstance(query.intervention.value, bool)

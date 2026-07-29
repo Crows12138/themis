@@ -95,14 +95,11 @@ def test_transport_with_no_admissible_selection_set_is_not_identifiable():
     set separates the populations and the trial's effect does not carry
     over. Collecting more data in the source population cannot fix it.
 
-    The species declared here is the one the report infers today, which
-    is ``missing_structural_input`` — and that is wrong, in a way this
-    file's subject makes visible rather than causes: ``answer_tier``
-    reads only ``unidentifiable_no_admissible_set`` to decide the point
-    estimand is blocked, so this query comes back ``answer_tier ==
-    "point"`` with no formula and no structural result. Recorded as it
-    stands so the correction is a visible change of species and not a
-    quiet edit."""
+    Nothing about the target population is in hand, and both fields a
+    consumer reads to find that out have to say so: no point (the tier),
+    and no interval either. The assumption-free Manski floor bounds the
+    estimand in the population its observational joint came from, which
+    is not the one asked about."""
     result = _run({
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -122,9 +119,11 @@ def test_transport_with_no_admissible_selection_set_is_not_identifiable():
         ],
     })
     _assert_declared_species_reaches_the_report(
-        result, "transport:real_world", "missing_structural_input",
+        result, "transport:real_world", "unidentifiable_no_admissible_set",
     )
     assert "not transportable" in result["data_gap_report"]["summary"]
+    assert result["data_gap_report"]["answer_tier"] == "none"
+    assert result.get("bounds_result") is None
 
 
 # ---------------------------------------------------------------------------

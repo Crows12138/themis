@@ -652,15 +652,13 @@ def _try_marginal_independence_lookup(
     return None
 
 
-# iter 203: stable detection token that downstream classifiers
-# (themis.output.data_gap_report._classify_missing_distribution) use to
-# distinguish "graph and CPT disagree" from generic "missing theta".
-# String-match on InsufficientTheta.reason is the routing channel; this
-# constant is the contract anchor — change one, change the other (or
-# add a structured side-channel). Kept as a module-level constant so a
-# rename surfaces as a load-time symbol mismatch rather than a silent
-# string drift. Mirrored on the verifier side (verifier diagnostic uses
-# the same phrasing for the same reason — see iter 202 sync pin).
+# iter 203: the phrase that names "graph and CPT disagree" inside the
+# reason text a user reads. It stopped being a routing channel in Phase
+# 17 slice 4 — ``InsufficientTheta.gap`` carries that decision now, made
+# where it is discovered rather than recovered downstream by searching
+# this text for this phrase. Still a module-level constant because the
+# verifier's diagnostic uses the same wording for the same failure and
+# the two are pinned to each other (iter 202 sync pin).
 DSEP_REFUSAL_SIGNATURE = "d-separation 拒绝"
 
 
