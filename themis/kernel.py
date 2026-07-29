@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import json
 
+from . import blocks
 from .input.parser import parse_json
 from .input.semantic_validator import validate_program
 from .input.syntactic_validator import validate_ast, validate_result
@@ -188,7 +189,7 @@ def _run_typed(prog) -> dict:
     if review is not None:
         for rd in result_dicts:
             ext = rd.setdefault("extensions", {})
-            ext["llm_proposed_review"] = review
+            ext[blocks.LLM_PROPOSED_REVIEW] = review
     # Assumption ledger — unified, severity-ranked view over the
     # per-result assumption channels (load-bearing proposal edges from
     # ``data_gap_report`` + LLM theta priors on the structural-query
@@ -200,7 +201,9 @@ def _run_typed(prog) -> dict:
     for rd in result_dicts:
         ledger = build_assumption_ledger(rd)
         if ledger is not None:
-            rd.setdefault("extensions", {})["assumption_ledger"] = ledger
+            rd.setdefault("extensions", {})[blocks.ASSUMPTION_LEDGER] = ledger
+    for rd in result_dicts:
+        blocks.check_registered(rd)
     return {"results": result_dicts}
 
 

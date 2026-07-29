@@ -16,6 +16,7 @@ back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 """
 from __future__ import annotations
 
+from .. import blocks
 from ..types import (
     Atom,
     CauseStatement,
@@ -552,7 +553,7 @@ def build_assumption_ledger(
 
     # 2b) LLM theta priors — used in the numeric computation when present,
     #     so they stay in the ledger (magnitude-affecting -> distorting).
-    review = extensions.get("llm_proposed_review") or {}
+    review = extensions.get(blocks.LLM_PROPOSED_REVIEW) or {}
     for prob in review.get("probabilities") or []:
         entries.append({
             "claim": f"{prob.get('key')} = {prob.get('value')}（LLM 常识 prior）",
@@ -563,7 +564,7 @@ def build_assumption_ledger(
         })
 
     # 3) functional form (curve shape)
-    mech = extensions.get("mechanism_audit") or {}
+    mech = extensions.get(blocks.MECHANISM_AUDIT) or {}
     for m in mech.get("mechanisms") or []:
         entries.append({
             "claim": (
@@ -650,7 +651,7 @@ def augment_assumption_ledger(result: dict) -> None:
         return
 
     extensions = result.setdefault("extensions", {})
-    existing = extensions.get("assumption_ledger")
+    existing = extensions.get(blocks.ASSUMPTION_LEDGER)
     if existing is not None:
         entries = list(existing.get("assumptions") or ())
     else:
@@ -675,7 +676,7 @@ def augment_assumption_ledger(result: dict) -> None:
 
     ledger = _ledger(entries)
     if ledger is not None:
-        extensions["assumption_ledger"] = ledger
+        extensions[blocks.ASSUMPTION_LEDGER] = ledger
 
 
 def _outcome_error_premises(result: dict) -> tuple[str, ...]:

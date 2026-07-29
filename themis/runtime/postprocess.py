@@ -33,6 +33,11 @@ unrelated to each other: three passes write three of its keys and none of
 them is waiting for the others. Naming the map as a whole would put an
 edge between every pair of them and read like an ordering that means
 something.
+
+Both halves of that name space are checked, and neither is checked here:
+a result field is a field of :class:`~themis.types.QueryResult`, and an
+extension key is a block of :mod:`themis.blocks`. Sorting ten passes
+correctly is worth nothing if all ten read a key nobody writes.
 """
 from __future__ import annotations
 
@@ -40,6 +45,7 @@ from dataclasses import dataclass, fields
 from graphlib import CycleError, TopologicalSorter
 from typing import Any, Callable
 
+from .. import blocks
 from ..types import QueryResult
 
 _EXTENSION = "extensions."
@@ -88,6 +94,13 @@ def _check_block(block: str, where: str, pass_name: str) -> None:
             raise ValueError(
                 f"pass {pass_name!r} names {block!r} in {where}; an extension "
                 f"block is 'extensions.<key>' for exactly one key"
+            )
+        if key not in blocks.BY_NAME:
+            raise ValueError(
+                f"pass {pass_name!r} names {block!r} in {where}, which is not "
+                f"a registered block; a key nothing writes reads as None "
+                f"forever and never says that it is missing, so declare it in "
+                f"themis.blocks or fix the spelling"
             )
         return
     if block == "extensions":

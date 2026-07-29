@@ -12,6 +12,7 @@ headers, just short declarative sentences.
 """
 from __future__ import annotations
 
+from .. import blocks
 from ..runtime import formula_builder
 from ..types import (
     ConstantExpr,
@@ -372,7 +373,7 @@ def _explain_counterfactual_cell_data_zh(cell: dict) -> str:
 
 
 def _explain_counterfactual_zh(result: QueryResult) -> str:
-    cell = (result.extensions or {}).get("counterfactual_cell")
+    cell = (result.extensions or {}).get(blocks.COUNTERFACTUAL_CELL)
     if cell:
         return _explain_counterfactual_cell_data_zh(cell)
     if result.status is ResultStatus.COUNTERFACTUAL_SOLVED and result.numeric_result is not None:
@@ -413,7 +414,7 @@ def _explain_causation_zh(result: QueryResult) -> str:
     (sufficiency) and PNS round out the picture.
     """
     if result.status is ResultStatus.OUTSIDE_LANGUAGE:
-        err = (result.extensions or {}).get("causation_error")
+        err = (result.extensions or {}).get(blocks.CAUSATION_ERROR)
         return f"因果概率查询超出当前语言范围：{err}" if err else (
             "因果概率查询超出当前语言范围。"
         )
@@ -422,7 +423,7 @@ def _explain_causation_zh(result: QueryResult) -> str:
         base = "因果概率（PN/PS/PNS）暂时算不出。"
         return f"{base}{gap}" if gap else base
 
-    c = (result.extensions or {}).get("causation")
+    c = (result.extensions or {}).get(blocks.CAUSATION)
     if not c:
         return "因果概率查询：结果未分类。"
 
@@ -454,7 +455,7 @@ def _explain_scm_counterfactual_zh(result: QueryResult) -> str:
         gap = _describe_needs_investigation(result)
         base = "线性 SCM 反事实点暂时算不出（结构方程或单元观测不全）。"
         return f"{base}{gap}" if gap else base
-    sc = (result.extensions or {}).get("scm_counterfactual")
+    sc = (result.extensions or {}).get(blocks.SCM_COUNTERFACTUAL)
     if not sc:
         return "线性 SCM 反事实查询：结果未分类。"
     iv = sc.get("intervention", {})

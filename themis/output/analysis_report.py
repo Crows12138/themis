@@ -25,6 +25,7 @@ optional but lets the report render the causal model and edge provenance.
 """
 from __future__ import annotations
 
+from .. import blocks
 
 _STATUS_BADGE = {
     "structurally_solved": "✅ 已解决（结构层）",
@@ -384,7 +385,7 @@ def _render_verification(result: dict, verified: bool | None) -> str:
 
 
 def _render_assumptions(result: dict) -> str:
-    ledger = (result.get("extensions") or {}).get("assumption_ledger")
+    ledger = (result.get("extensions") or {}).get(blocks.ASSUMPTION_LEDGER)
     if not ledger or not ledger.get("assumptions"):
         return ""
 
