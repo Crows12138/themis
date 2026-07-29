@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3655 passed / 144 skipped, warning-clean
+3664 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -810,6 +810,18 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **slice 4 的对象已据实测更正**（charter 内）：28 个 `_classify_*` 按「读什么」分是**三个物种**不是两个（漏了「块回声」一族，它读策略显式写的 `extensions.*`，属翻译不属猜）；且 `declined` 只覆盖驱动层拒绝，缺口报告读的残渣绝大多数是被认领的子 dispatcher 写的 `MissingItem`。**真对象是 `MissingItem.name`**：全仓 33 个构造点全在 `scheduler.py`，`InvestigationItem.target` 就是它原样，`MissingKind` 5 个值 → `GapKind` 36 个值那一步**全靠前缀 / 子串猜**。
 
 **基线**：3652 → **3655**。
+
+**缺口的物种由产生端说出来（2026-07-29，Phase 17 slice 4）**：结构型，两个 commit。`MissingItem.name` 一个字符串背了三件事：**缺什么**、**哪个渠道能补**、**这是哪一类缺口**——前两件各有字段，第三件没有：产生端知道它、压进名字扔掉，消费端再用前缀和子串猜回来（发现 F 就是这么同时伪造一个缺口又压掉一个真缺口的）。`MissingItem.gap` 现在说出来，取值限定在 `types.MISSING_ITEM_GAPS`（**7 个，`GapKind` 36 个的真子集**——绝大多数 GapKind 不是 kernel *撞上*的缺口，而是它*读程序读出来*的告诫，任何 item 都不该声明）。消费端 `_ITEM_SPECIES` 一物种一渲染器，`_bind_item_species` 在 import 时**双向拒绝**：缺绑定 = 有 item 到得了报告却渲染不出东西，多绑定 = 渲染器永远等不到 item。与 slice 3 的 `routing.bind` 同形。
+
+**删掉四样，每样的保证都有接手方**：8 条 `_UNIDENTIFIABLE_PREFIXES`（→ 产生端声明）；`_names_an_instrument` + `_classify_missing_iv` 信号 A（→ `MISSING_IV_CANDIDATE` 不在词表里，**没有名字能变成它**）；`_classify_residual_investigation_items` + `_RESIDUAL_GROUPS`（→ 词表封闭 + 每个成员有绑定 ⇒ 到得了报告就到得了用户，且这条在 **import 时**成立而不是每次运行末尾扫一遍）；`"query:counterfactual_admg"`（全仓无产生端的死规则）。**顺序随之不再承重**：residual 必须最后跑、还要读 `emitted` 才知道跳过谁——两个 pass 抢同一个 item；现在一个 item 一个物种一个渲染器，没有可排的东西。`InvestigationItem.gap` 是**必填**：framing 渠道没有 MissingItem，声明 `AMBIGUOUS_VARIABLE_DEFINITION` 并由表绑到 `_RaisedElsewhere`——**声明的让位，不是表里的空缺**（slice 2 那条规矩）；手搭 request 的测试证明了区别：有默认值它们继续静默不出缺口，没默认值当场构造失败。
+
+**行为不变是证出来的不是论证出来的**：两种编码并存的那个 commit 里，`compute_data_gap_report` **每次运行都断言**声明的物种落在分类器为该 item 推出的那组 kind 里；全量绿 = 断言武装着，**把断言反向套件立刻红** = 它在执行不在跳过。再把断言看到的每个 item 记下来跑全量：**30 个名字模板覆盖了 23 个**，另 5 个是全套件**从来不跑的分支**（`query:identify_unreachable`、`joint:duplicate_treatment`、`joint:unsupported_layer_combination`、`longitudinal:atom_not_in_graph:*`、`transport:*`）——那 5 个上写错物种没有任何东西会发现，正是字符串匹配当年所处的位置；`tests/test_missing_item_species.py` 第一次跑它们。**方法论**：等价性证据必须来自运行，不能重写一遍推断再比对两个猜测；覆盖率必须测，不能因为「全量绿」就当全量测过。
+
+**发现 G（实测确认，真 bug，用户可见，本档只钉住不修）**：transport 不可识别时 `answer_tier == "point"`。见证：`x→y`、选择节点作用在 `y` 上，问 `real_world` 的 `P(y|do(x))`——无 S-admissible 集，kernel 正确拒答且理由逐字进了 summary，`needs_investigation`、**无 formula、无 structural_result**，而 tier 说 point。根因：`_compute_answer_tier` 只认 `unidentifiable_no_admissible_set` 一个物种，而 `transport:{pop}` 落在 `missing_structural_input`（此前 residual 兜底的结果，本档如实照抄以保行为不变）。**散文说对了，机器读的那个字段说反了。** 声明机制让改法只是一个 token，但那是行为变更，不混进重构档；本档把现状钉住，使那次更正是**看得见的物种变更**而不是悄悄的编辑。
+
+**一处未证实的疑点，登记为待验**：`_classify_missing_mediator` 的 `m in item.target` 不是物种推断而是**连接**（问名字的内容不是它的类别），所以留着；但块里的中介标签是 `_atom_to_str(m)`（`m(me)`）而参数名用裸谓词（`P(y=True|m=True)`），两种格式对不上，则该连接在真实运行里可能从不命中——现有测试全是合成输入。已试构造端到端见证未成功（mediation 查询走 `structurally_solved`，theta 路径不请求参数），**故只登记疑点，不断言它是 bug**。
+
+**基线**：3655 → **3664**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

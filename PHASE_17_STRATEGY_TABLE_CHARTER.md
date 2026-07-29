@@ -143,8 +143,9 @@ Evaluation
   `_estimate_effect_queries` 退化为驱动。
 - **slice 3 — 策略表（识别层）。** 14 个 `_dispatch_X` 的守卫并入同表；
   两层守卫合一，等价性由 slice 0 的对照表背书。
-- **slice 4 — `declined` → 缺口。** 重建型 classifier 删除；
-  `data_gap_report` 只保留输入审计型并迁至求值前阶段。
+- **slice 4 — ~~`declined` → 缺口~~ → `MissingItem` 说出自己的物种。**
+  实测把对象改了（见 slice 4 前置）：残渣重建型 classifier 删除，
+  `data_gap_report` 按声明查表渲染；输入审计型与块回声型原样留下。
 - **slice 5 — 后处理拓扑化。** `_attach_*` 声明 reads/writes，顺序算出来。
 - **slice 6 — 派生面。** 块登记、可达性矩阵、假设账本改为表的读出；
   元测试：跨入口同一估计量给同一个数。
@@ -711,6 +712,98 @@ backdoor pre-conditions…`——**kernel 给的理由逐字到了用户眼前**
 **三条测试各钉一半，且都验过非空转**：去掉谓词修复 → 两条失败；只回退前缀
 收窄 → 第三条失败。
 
+## Slice 4 产出 — 缺口的物种由产生端说出来（2026-07-29 完成）
+
+### 一个字段，两个方向的检查
+
+`MissingItem.name` 一个字符串同时背了三件事：**缺什么**、**哪个渠道能补**、
+**这是哪一类缺口**。前两件各有字段（`name` / `kind`），第三件没有——产生端
+知道它，把它压进名字，消费端再用前缀和子串把它猜回来。
+
+`MissingItem.gap` 现在说出来，取值限定在 `types.MISSING_ITEM_GAPS`
+（**7 个，`GapKind` 36 个的真子集**）。子集不是节省：`GapKind` 里绝大多数
+不是 kernel **撞上**的缺口，而是它**读程序读出来**的告诫（图是学来的、
+工具变量弱、输入置信度低）——那些由输入审计和块回声产生，任何 item 都不该
+声明它们。
+
+消费端 `_ITEM_SPECIES` **一个物种一个渲染器**，`_bind_item_species` 在
+import 时双向拒绝：**缺绑定**=有 item 能到报告却渲染不出东西（正是 residual
+兜底当年要盖住的沉默），**多绑定**=渲染器永远等不到 item（读起来像覆盖的死
+文案）。与 slice 3 的 `routing.bind` 同形。
+
+`AMBIGUOUS_VARIABLE_DEFINITION` 绑的是 `_RaisedElsewhere("...")`——framing
+渠道的 item 是**别处产生的缺口的行动面**，其 gap 由 `framing_notes` 建（因为
+有些 query kind 根本不建 investigation item，只有 note 看得见全部情况）。
+**声明的让位，不是表里的空缺**——与 slice 2 「替换必须声明」同一条规矩。
+
+### 删掉的，和它们的保证去了哪
+
+| 删除 | 它当年保证什么 | 现在由什么保证 |
+|---|---|---|
+| `_UNIDENTIFIABLE_PREFIXES`（8 条前缀） | 认出「这是识别失败」 | 产生端声明 |
+| `_names_an_instrument` + `_classify_missing_iv` 信号 A | 认出「这是 IV 缺口」 | `MISSING_IV_CANDIDATE` 不在词表里，**没有名字能变成它** |
+| `_classify_residual_investigation_items` + `_RESIDUAL_GROUPS` | 没人认领的 item 也要出声 | 词表封闭 + 每个成员有绑定 ⇒ **到得了报告就到得了用户**，且这条在 import 时就成立，不是每次运行末尾扫一遍 |
+| `"query:counterfactual_admg"`（无产生端的死规则） | —— | 随整张前缀表一起消失 |
+
+`data_gap_report.py` 的 6 个「读名字」分类器收成 1 个查表驱动。
+`_classify_missing_iv` 只剩 derivation 那一路。
+
+### 顺序不再承重
+
+residual 那一趟必须**最后**跑、且要读 `emitted` 才知道跳过谁——两个 pass
+抢同一个 item，谁先谁后是承重的。现在一个 item 一个物种一个渲染器，
+**没有可排的东西**。（`tests/test_output/test_residual_gap_coverage.py`
+随之更名为 `test_every_raised_item_reaches_the_report.py`：不变量还在，
+它当年针对的机制没了。）
+
+### 把「行为不变」证出来而不是论证出来
+
+两种编码并存的那一个 commit 里，`compute_data_gap_report` **每次运行都断言**
+声明的物种落在这些分类器为该 item 推出的那组 kind 里。全量绿 = 断言武装着；
+**把断言反向**（`not in`）**套件立刻红** = 它在执行而不是在跳过。
+
+再把断言看到的每个 item 记下来跑全量：**30 个名字模板里覆盖了 23 个**，
+另外 5 个是**全套件从来不跑的分支**（`query:identify_unreachable`、
+`joint:duplicate_treatment`、`joint:unsupported_layer_combination`、
+`longitudinal:atom_not_in_graph:*`、`transport:*`）——那 5 个上写错物种
+**没有任何东西会发现**，正是字符串匹配当年所处的位置。
+`tests/test_missing_item_species.py` 第一次跑它们。
+
+**方法论**：等价性的证据必须来自**运行**而不是**重写一遍推断再比对两个猜测**；
+覆盖率必须**测**出来，不能因为「全量绿」就认为全量测过。
+
+### 发现 G（已实测确认，真 bug，用户可见）—— transport 不可识别，`answer_tier` 说「point」
+
+**见证**：`x→y`，选择节点作用在 `y` 上，问 `real_world` 人群的
+`P(y|do(x))`。无 S-admissible 集，kernel **正确拒答**且理由逐字进了 summary
+（「no S-admissible adjustment set Z found; ... not transportable ...」），
+`status=needs_investigation`、**无 formula、无 structural_result**——
+而 `data_gap_report.answer_tier == "point"`。
+
+**根因**：`_compute_answer_tier` 判「点估计被挡住了没有」只认
+`unidentifiable_no_admissible_set` 这一个物种，而 `transport:{pop}` 落在
+`missing_structural_input`（此前是 residual 兜底的结果，本档如实照抄以保持
+行为不变）。**散文说对了，机器读的那个字段说反了。**
+
+**为什么是根因不是表象**：不是给 tier 再加一个 if，而是那个 item 的物种本来
+就该是「这个估计量在这张图这些数据下不可点识别」。声明机制让改法是**一个
+token**，代价是行为变更——所以不混进重构档，单独一档带自己的根因段和测试。
+本档先把现状钉住（`test_missing_item_species.py`），使那次更正是一次
+**看得见的物种变更**，不是一次悄悄的编辑。
+
+### 仍是字符串内容读取的一处（不修，说清楚）
+
+`_classify_missing_mediator` 用 `m in item.target` 判「这个参数名提到了哪些
+中介」。**这不是物种推断而是连接**（item × 中介块），问的是名字的**内容**
+而不是它的**类别**，所以留着。
+
+**但它有一处未证实的疑点，登记为待验**：块里写的中介标签是
+`_atom_to_str(m)`（`m(me)`），而参数名用的是**裸谓词**
+（`P(y=True|m=True)`）——两种格式**对不上**，则该连接在真实运行里可能从不
+命中。现有测试全部是**合成输入**（手搭 request，标签写成裸谓词）。已试构造
+端到端见证未成功（mediation 查询走 `structurally_solved`，theta 路径不请求
+参数），**因此只登记疑点，不断言它是 bug**。
+
 ## 显式 Out-of-scope
 
 - 验证器的任何「消重」。
@@ -726,9 +819,10 @@ backdoor pre-conditions…`——**kernel 给的理由逐字到了用户眼前**
 
 - **最大风险：两层守卫合一时静默改变路由。** 缓解 = slice 0 的等价性审计
   先行 + 158 个行为级测试文件全程绿 + 任何路由变化必须在对照表里有判定。
-- **次风险：`declined` 表达不了某些现有缺口。** 28 个 classifier 中输入审计型
-  的边界尚未逐个核实；若某个「看似重建型」的分类器实际做了独立推理，它属于
-  审计型，误删会丢能力。缓解 = slice 4 前逐个读，不按名字归类。
+- ~~**次风险：`declined` 表达不了某些现有缺口。**~~ **已结清（slice 4）**：
+  逐个读的结果是三族而不是两族，而且对象根本不是 `declined` 而是
+  `MissingItem`；被删的只有残渣重建那一族，输入审计与块回声原样留下。删掉的
+  每条保证都有接手方（见 slice 4 产出的对照表），没有能力丢失。
 - **`precedence` 可能需要偏序而非全序。** 现状是全序（行号），但合并两层后
   可能出现只在某层有序的对。若出现，表必须表达偏序，不许退回全序凑合。
 
@@ -736,7 +830,7 @@ backdoor pre-conditions…`——**kernel 给的理由逐字到了用户眼前**
 
 ## 未读（形状已定，尺寸未定）
 
-- `data_gap_report.py` 的 28 个 classifier 未逐个读——按名字归的 A/B 两类，
-  决定该文件能瘦多少，**不影响目标结构形状**。
+- ~~`data_gap_report.py` 的 28 个 classifier 未逐个读~~——slice 4 前置已逐个
+  读完并按「读什么」分成三族（见上），slice 4 收掉了其中的残渣重建一族。
 - `scheduler.py` 14 个 `_dispatch_X` 只读了 `_dispatch_effect`——其余 13 个
   是否同为级联形状，决定策略表条目数，同样不影响形状。
