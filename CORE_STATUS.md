@@ -823,6 +823,16 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 
 **基线**：3655 → **3664**。
 
+**transport 不可识别，两个答案字段各错各的（2026-07-29，Phase 17 发现 G）**：修复型，用户可见。`x→y`、选择节点作用在 `y` 上，问 `real_world` 的 `P(y|do(x))`——无 S-admissible 集，kernel **正确拒答**，理由逐字进了 summary，`needs_investigation`、**无 formula、无 structural_result**，而 `answer_tier` 说 **`point`**。根因：`_compute_answer_tier` 判「点估计被挡住没有」只认 `unidentifiable_no_admissible_set` 一个物种，`transport:{pop}` 却落在 `missing_structural_input`。**散文说对了，机器读的那个字段说反了。**
+
+**改物种把第二个错答案掀了出来**：tier 不再说 `point`，改说 **`interval`**，而那个 interval 是 `manski_natural`——**从源人群的观测联合分布算出来的**。选择图刚判定源效应**不可迁移**，也就是说源分布对目标估计量**没有约束**；那个区间不是「关于对的量、松一点」，而是「关于错的量、还挺紧」（源里 `P(y|x)=0.9` 给出的界可以把目标真值 0.1 完全排除）。同族根因：**查询自己带着的 `target_population` 没有任何守卫去看它**——`_attach_bounds_result` 检查了目标事件离散、干预臂离散、状态，唯独没检查这些界限说的是哪个人群。**第一半修好之前，这一半被 `point` 挡着看不见——一个错答案盖住了另一个错答案。**
+
+**两处结构性修改，各说一件事**：(1) `transport:{pop}` 声明 `UNIDENTIFIABLE_NO_ADMISSIBLE_SET`——tier 要读的正是这件事；(2) `_attach_bounds_result` 在 `target_population is not None` 时返回——**无假设的地板是源人群的地板**，换人群就没有无假设的地板。修后 `answer_tier == "none"`、`bounds_result is None`、summary 逐字带 kernel 的理由：**「什么都没有」是这个查询的真答案**，两个字段现在都这么说。
+
+**代价，明说**：`UNIDENTIFIABLE_NO_ADMISSIBLE_SET` 渲染器挂的是**按物种写死的三条通用出路**（测混杂 / 做 RCT / 找工具变量），前两条对 transport 大致说得通（要测的是让 S-admissibility 成立的协变量、RCT 要在目标人群做），第三条不对。**出路取决于识别为什么失败，物种一个人说不出这件事**——同一族的下一个对象（产生端知道怎么补、报告在猜），本次不做，登记。
+
+**基线**：3664（不变，改的是已有测试的断言）。
+
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
 不是对 `v0.1.0` 基线的静默漂移。
