@@ -574,6 +574,71 @@ IV 没有。与发现 D 同形——发现 D 是同一条梯子写了两遍，�
 作答且无人记录」那一族，是 slice 4 的客户。**没有数**比**一个答非所问的数**
 正确——识别层对同一查询本来就是拒答。
 
+## Slice 3 产出 — 一张路由表，两层各绑一端（2026-07-29 完成）
+
+`themis/routing.py` 是表，两层各是它的一个**端**。`_dispatch_effect`
+**从 431 行降到 59 行**，且只做一件事：装配事实，然后按表逐行发问。
+
+**19 行，一条优先级轴，三个带**：
+
+| 带 | 内容 | 谁能跑 |
+|---|---|---|
+| 10-50 | 按**问题的形状**路由（longitudinal / joint / transport / mediation_joint / mediation_single）——在看图之前 | 两层（longitudinal 只有识别端） |
+| 60-140 | 数据层（选择偏倚恢复 / 测量误差 / 剂量反应 / DR）——识别层看不见 DataFrame | 只有数值端 |
+| 150-190 | 结构梯子（backdoor / frontdoor / general_id / IV）——**无假设永远排在需假设之前** | 两层（over-ID 只有数值端） |
+
+三个带**交错在同一条轴上而不是分成三张表**，因为「谁来回答这个查询」只有
+一个答案。
+
+### 三条结构性保证（都不是约定）
+
+1. **`Strategy` 持有 route 对象本身，不拷贝它的字段**——`id` / `precedence` /
+   `applies_when` 都是穿透读。两层同序从此是**对象同一性**，而不是一次「看着
+   一样」的比对。此前那个比对失败过三次，每次都无声。
+2. **`ends` 不是标签，是绑定检查的依据**。`routing.bind` 双向拒绝：某端声明了
+   却没绑（**发现 D 就是这个形状**——表承诺了条件识别，那层从来没跑），以及
+   绑了表并不路由过来的（**那是第二个派发器的起点**）。
+3. **事实分层用类型表达**。`StructuralFacts`（两层都有：查询、图、solver 的
+   判决）→ `EffectFacts`（加数据与调用方 spec）/ 识别层的 `_EffectFacts`
+   （加 theta、selection、longitudinal spec）。**只有识别端的路由，其守卫命名
+   的是只有识别层事实才有的属性**——拿到另一层求值就是 AttributeError，不是
+   一条「请不要这样写」。与 slice 2「守卫看不见本层输出」同一手法。
+
+### 顺序合一，一条 `defers_to` 随之消失
+
+**transport 移到 mediation 之前**，取识别层的原序。理由是那一层本来就对：
+同时点名 mediator 与 target_population 的查询**只有一个主人**，且 transport
+会显式报 `unattempted_layer_due_to_dispatch_conflict`，明说「你还声明了另一层，
+我没做」。
+
+**`mediation_single.defers_to = {"transport"}` 一并删除**。那条声明**本来就只是
+两份拷贝分歧的产物**：估计层 mediation 在前，只能靠它先「站下来」才走得到
+transport，而两者估计量不同，所以那次交接必须被声明。合表后交接根本不发生。
+
+**这不是靠推理断言的**：`run_cascade` 里那条「未声明的替换当场 AssertionError」
+仍然武装着，声明已经删了，**全量 3652 绿 ⇒ 这个交接一次都没再发生**。
+
+### 顺带清掉的两处重算 / 早返回
+
+- `_try_iv_wald_in_effect` 开头的 `if q.given: return` 删除——发现 E 已把它
+  升成事实（`iv_candidates` 在有条件时为空），守卫接管，早返回就是第二份拷贝。
+- 该函数不再自己调 `structural_solver.iv_sets`，改读 facts；识别层此前用
+  `bidirected=frozenset()`、估计层用 `bidirected or None`（solver 对两者等价，
+  但那是**两个人各自赌了一次**）。
+
+### 本档明确没做的
+
+- **10 个按 query kind 选择的 dispatcher 没有入表**。slice 3 前置已判定：一个
+  查询只有一种 kind，**那里没有优先级也没有漂移**，入表只增条目不消风险。
+- **拒答文案仍按 `bidirected` 分叉**，有意保留：ADMG 版会说「Tian/ID 都试过了」
+  并挂 `iv_note`，对没有潜在混杂的用户描述的是他从未涉及的机器。**合并的是
+  梯子，不是措辞。**
+- **`structural_result` 第四处同族不一致仍在**（发现 D 已登记，`oracle/
+  differential.py` 承重）。
+
+**基线**：3646 → **3652**（新增 6 条元测试：一条轴的逐字清单、两层 route 对象
+同一性、形状先于图、数值端行序、缺绑定被拒、多绑定被拒、驱动体内不许出现策略名）。
+
 ## 显式 Out-of-scope
 
 - 验证器的任何「消重」。

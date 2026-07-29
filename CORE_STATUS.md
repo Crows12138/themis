@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3646 passed / 144 skipped, warning-clean
+3652 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -794,6 +794,16 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **代价，明说**：修后该查询在估计层**一个数都没有**，且 `estimator_failure` 仍是 `None`（general_id 放行、无人接手）——正是 slice 2 实测到的「8 次无人作答且无人记录」那一族，slice 4 的客户。**没有数**比**一个答非所问的数**正确；识别层对同一查询本来就是拒答。
 
 **基线**：3645 → **3646**。
+
+**一张路由表，两层各绑一端（2026-07-29，Phase 17 slice 3）**：结构型。「谁来回答这个查询、按什么顺序」是关于**问题**的事实，不属于任何一层；而两层各自决定过它——识别层是 `_dispatch_effect` 里 431 行的 `if` 链，估计层是一张表——**两份拷贝已实测漂移五次**：顺序三次（发现 A、C 在内）、可达性一次（D）、约束覆盖一次（E）。`themis/routing.py` 把它变成数据：**19 行，一条优先级轴，三个带**——10-50 按**问题的形状**路由（在看图之前）、60-140 是数据层（识别层看不见 DataFrame）、150-190 是结构梯子（**无假设永远排在需假设之前**）。三个带交错在同一条轴上而不是分成三张表，因为「谁来回答」只有一个答案。`_dispatch_effect` **431 行 → 59 行**，且只做装配 + 按表发问（一条测试钉住：驱动体内不许出现任何策略名）。
+
+**三条保证都不是约定**——(1) **`Strategy` 持有 route 对象本身而非拷贝其字段**，`id`/`precedence`/`applies_when` 穿透读，两层同序从此是**对象同一性**而不是一次「看着一样」的比对（那个比对无声失败过三次）。(2) **`ends` 不是标签，是绑定检查的依据**：`routing.bind` 双向拒绝——声明了某端却没绑（**发现 D 的形状：表承诺了条件识别，那层从来没跑**），以及绑了表不路由过来的（**第二个派发器的起点**）。(3) **事实分层用类型表达**：`StructuralFacts`（两层都有）→ `EffectFacts` / 识别层 `_EffectFacts`；只有识别端的路由，其守卫命名的是只有那层事实才有的属性——拿到另一层求值就是 AttributeError。
+
+**顺序合一，一条 `defers_to` 随之消失**——transport 移到 mediation 之前（取识别层原序：同时点名 mediator 与 target_population 的查询**只有一个主人**，且 transport 会显式报 `unattempted_layer_due_to_dispatch_conflict`）。`mediation_single.defers_to = {"transport"}` 一并删除：**那条声明本来就只是两份拷贝分歧的产物**——估计层 mediation 在前，只能靠它先站下来才走得到 transport，而两者估计量不同，所以那次交接必须被声明；合表后交接根本不发生。**这不是推理断言的**：「未声明的替换当场 AssertionError」仍武装着、声明已删，**全量绿 ⇒ 该交接一次都没再发生**。
+
+**明确没做的**——10 个按 query kind 选择的 dispatcher 不入表（一个查询只有一种 kind，**没有优先级就没有漂移**）；拒答文案仍按 `bidirected` 分叉（**合并的是梯子不是措辞**）；`structural_result` 第四处不一致仍在（承重，见发现 D）。
+
+**基线**：3646 → **3652**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
