@@ -113,6 +113,57 @@ def test_dispatch_iv_prefers_backdoor_when_both_available():
     assert est["method"] == "backdoor_linear"
 
 
+def test_a_conditional_query_gets_no_unconditional_iv_answer():
+    """A Wald ratio has no conditional form, so it cannot answer P(Y|do(X), C).
+
+    The identification layer refuses this combination explicitly. The
+    estimation layer's guard was written separately and did not: it shipped
+    a stratified Wald whose strata are the INSTRUMENT's conditioning set,
+    not the query's ``given``. The proof that the number answered neither
+    question is that conditioning on c=True and on c=False produced the
+    same value to the last bit — so this test asks both, and neither may
+    come back as an IV estimate.
+    """
+    def _ast(c_value):
+        return {
+            "version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "me"}]},
+            "statements": [
+                {"kind": "variable", "predicate": "z", "domain": [True, False]},
+                {"kind": "variable", "predicate": "c", "domain": [True, False]},
+                {"kind": "variable", "predicate": "x", "domain": [True, False]},
+                {"kind": "variable", "predicate": "y", "domain": [True, False]},
+                {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+                {"kind": "cause", "from": _atom("c"), "to": _atom("y")},
+                {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+                {"kind": "bidirected",
+                 "left": _atom("x"), "right": _atom("y")},
+                {"kind": "query", "id": "q", "query": {
+                    "kind": "effect",
+                    "intervention": {"atom": _atom("x"), "value": True},
+                    "target": {"atom": _atom("y"), "value": True},
+                    "given": [{"atom": _atom("c"), "value": c_value}],
+                }},
+            ],
+        }
+
+    rng = np.random.default_rng(0)
+    n = 3000
+    u = rng.standard_normal(n)
+    z = rng.random(n) < 0.5
+    c = rng.random(n) < 0.5
+    x = rng.random(n) < 1 / (1 + np.exp(-(2 * z.astype(float) - 1 + 0.5 * u)))
+    y = 1.5 * x.astype(float) + 0.8 * c.astype(float) + 2.0 * u
+    df = pd.DataFrame({"z": z, "c": c, "x": x, "y": y})
+
+    for c_value in (True, False):
+        result = themis.estimate(_ast(c_value), df, ci_bootstrap=0)["results"][0]
+        method = (result.get("numeric_estimate") or {}).get("method", "")
+        assert not method.startswith("iv_"), (
+            f"given c={c_value} was answered by {method!r}"
+        )
+
+
 def test_dispatch_iv_skips_when_wald_denominator_zero():
     """Pathological data (Z has no effect on X) should make dispatch
     silently skip the IV path rather than crash."""

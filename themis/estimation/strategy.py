@@ -239,6 +239,25 @@ class EffectFacts:
 
     @cached_property
     def iv_candidates(self) -> tuple:
+        """Empty when the query conditions on anything — as for front-door.
+
+        A Wald ratio is an unconditional two-point contrast; there is no
+        conditional form of it here, and the instrument's own conditioning
+        set W is not the query's ``given`` (they coincide only by accident).
+        Estimating one anyway answers a different question, which the
+        identification layer refuses to do in as many words.
+
+        That refusal used to live as the first line of the identification
+        handler rather than in a guard, so it applied to exactly the one
+        call site that happened to contain it: the estimation layer, whose
+        guard was written separately, shipped a stratified Wald as the
+        answer to ``P(Y|do(X), W=w)`` — the same number for w=True and
+        w=False, so it could not have been an answer to either. Stating it
+        as a fact is what makes it apply to every IV row rather than to a
+        function body.
+        """
+        if self.given_atoms:
+            return ()
         from ..runtime import structural_solver
 
         return structural_solver.iv_sets(
