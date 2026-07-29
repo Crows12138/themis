@@ -1,19 +1,15 @@
-"""The estimation cascade as a table rather than as control flow.
+"""The numeric end of the cascade: what each strategy's number MEANS.
 
-Three facts about the cascade used to live nowhere but in the shape of one
-555-line ``if`` chain: which strategy outranks which (source line order),
-what each guard actually tests, and what the number a strategy produces
-MEANS. All three had drifted from the identification layer's separately
-written copy of the same decisions — that drift is what the slice 0 audit
-measured, and findings A and C were made of it.
+Which strategy outranks which, and when each applies, are not decided
+here — :mod:`themis.routing` holds them, shared with the identification
+layer, because they are facts about the question rather than about either
+layer. What this module adds is the part only the numeric end knows:
+whether a row competes for the query or comments beside it, what its
+number is an estimate OF, and which substitutions it permits.
 
-A :class:`Strategy` states all three as data. Order is a number, so two
-layers can be asserted to agree on it. The guard is a pure predicate over
-:class:`EffectFacts`, so it cannot depend on how far the cascade has
-already got. And ``produces`` names the estimand, so "this handler passed
-the query on" can eventually be checked against "and the next one answered
-the same question" — the invariant the claim protocol could state but not
-enforce.
+``produces`` is what turns "this handler passed the query on" into
+something checkable against "and the next one answered the same question"
+— the invariant the claim protocol could state but not enforce.
 
 **Why the guard sees a separate object from the run.** The estimation
 layer's longitudinal guard tested a METHOD NAME left behind by an earlier
@@ -31,6 +27,7 @@ from enum import Enum
 from functools import cached_property
 from typing import Any, Callable, Iterator
 
+from ..routing import End, Route, StructuralFacts, bind
 from .claim import Claim
 
 
@@ -81,15 +78,18 @@ class Estimand(str, Enum):
 
 @dataclass(frozen=True)
 class Strategy:
-    """One row of the cascade.
+    """One row of the cascade: a shared route plus this layer's end of it.
+
+    ``route`` is the shared object, not a copy of its fields — ``id``,
+    ``precedence`` and ``applies_when`` read straight through it. Two
+    layers agreeing on an order is then identity rather than inspection,
+    which is what the previous arrangement had and lost three times.
 
     ``run`` is the only imperative part: it calls the existing estimator
     wiring unchanged and returns the handler's :class:`~.claim.Claim`.
     """
 
-    id: str
-    precedence: int
-    applies_when: Callable[["EffectFacts"], Any]
+    route: Route
     role: Role
     produces: Estimand
     run: Callable[["EffectFacts", dict, "EffectKnobs"], Claim]
@@ -100,11 +100,28 @@ class Strategy:
     declaration — it is the same question. Handing it to a row that
     answers a different one is a substitution, and a substitution the
     reader cannot see is how a decomposition query comes back carrying a
-    total effect. Two exist and both are deliberate: a query that fails
+    total effect. One remains, and it is deliberate: a query that fails
     non-parametric identification may be answered by the IV ladder under
-    assumptions, and a query the identification layer routed elsewhere is
-    answered there. Anything else raises.
+    assumptions. Anything else raises.
+
+    There were two. The other existed only because the two layers ordered
+    transport and mediation differently, so the estimation cascade could
+    reach transport for a query naming both only by having mediation stand
+    down first. One shared order removed the hand-off and the declaration
+    with it.
     """
+
+    @property
+    def id(self) -> str:
+        return self.route.id
+
+    @property
+    def precedence(self) -> int:
+        return self.route.precedence
+
+    @property
+    def applies_when(self) -> Callable[["EffectFacts"], Any]:
+        return self.route.applies_when
 
     def __post_init__(self) -> None:
         if (self.role is Role.ANNOTATE) != (self.produces is Estimand.NONE):
@@ -136,8 +153,8 @@ class EffectKnobs:
     program: Any
 
 
-class EffectFacts:
-    """Everything a guard may look at — and nothing else.
+class EffectFacts(StructuralFacts):
+    """The numeric end's view: the structural facts plus the data.
 
     Deliberately narrow. There is no ``result`` here: a guard cannot branch
     on what this pass has already written, because the attribute does not
@@ -145,11 +162,9 @@ class EffectFacts:
     data, the caller's specs) and the identification layer's conclusions,
     captured before estimation starts.
 
-    The structural facts are derived on first use rather than up front.
-    That is not a speed concern: computing an adjustment set for a query
-    the cascade answers long before it needs one would run solver code on
-    query shapes it has never seen, and a table is supposed to change
-    routing, not reachability.
+    Everything structural comes from the shared base, so a guard shared
+    with the identification layer means the same thing on both sides
+    rather than being two solver calls that look alike.
     """
 
     def __init__(
@@ -166,10 +181,7 @@ class EffectFacts:
         selection_recovery: dict | None,
         dose_response_triggered: bool,
     ) -> None:
-        self.q_stmt = q_stmt
-        self.query = q_stmt.query
-        self.graph = graph
-        self.bidirected = bidirected
+        super().__init__(q_stmt=q_stmt, graph=graph, bidirected=bidirected)
         self.prog = prog
         self.contract = contract
         self.ate_estimator = ate_estimator
@@ -178,55 +190,7 @@ class EffectFacts:
         self.selection_recovery = selection_recovery
         self.dose_response_triggered = dose_response_triggered
 
-    # --- the query's own atoms ------------------------------------------
-
-    @cached_property
-    def x_atom(self) -> Any:
-        return self.query.intervention.atom
-
-    @cached_property
-    def y_atom(self) -> Any:
-        return self.query.target.atom
-
-    @cached_property
-    def given_atoms(self) -> tuple:
-        return tuple(g.atom for g in self.query.given)
-
-    # --- structural facts, solved once ----------------------------------
-
-    @cached_property
-    def adjustment_sets(self) -> tuple:
-        from ..runtime import structural_solver
-
-        return structural_solver.minimal_adjustment_sets(
-            self.graph, self.x_atom, self.y_atom,
-            given=self.given_atoms,
-            bidirected=self.bidirected or None,
-        )
-
-    @cached_property
-    def front_door_sets(self) -> tuple:
-        """Empty when the query conditions on anything.
-
-        The front-door formula has no conditional form here, and the
-        identification layer refuses the same combination. Folding that
-        into the fact — rather than nesting the front-door branch under an
-        ``if not given`` — is what lets the two layers' guards be compared
-        side by side at all.
-        """
-        if self.given_atoms:
-            return ()
-        from ..runtime import structural_solver
-
-        return structural_solver.front_door_sets(
-            self.graph, self.x_atom, self.y_atom,
-            bidirected=self.bidirected or None,
-        )
-
-    @cached_property
-    def chosen_adjustment(self) -> tuple:
-        """The smallest valid back-door set — the one the estimators use."""
-        return min(self.adjustment_sets, key=len)
+    # --- the chosen adjustment set as data columns -----------------------
 
     @cached_property
     def adjustment_names(self) -> tuple[str, ...]:
@@ -236,50 +200,6 @@ class EffectFacts:
         return tuple(
             a.predicate for a in _topo_order(self.graph, self.chosen_adjustment)
         )
-
-    @cached_property
-    def iv_candidates(self) -> tuple:
-        """Empty when the query conditions on anything — as for front-door.
-
-        A Wald ratio is an unconditional two-point contrast; there is no
-        conditional form of it here, and the instrument's own conditioning
-        set W is not the query's ``given`` (they coincide only by accident).
-        Estimating one anyway answers a different question, which the
-        identification layer refuses to do in as many words.
-
-        That refusal used to live as the first line of the identification
-        handler rather than in a guard, so it applied to exactly the one
-        call site that happened to contain it: the estimation layer, whose
-        guard was written separately, shipped a stratified Wald as the
-        answer to ``P(Y|do(X), W=w)`` — the same number for w=True and
-        w=False, so it could not have been an answer to either. Stating it
-        as a fact is what makes it apply to every IV row rather than to a
-        function body.
-        """
-        if self.given_atoms:
-            return ()
-        from ..runtime import structural_solver
-
-        return structural_solver.iv_sets(
-            self.graph, self.x_atom, self.y_atom,
-            bidirected=self.bidirected or None,
-        )
-
-    @cached_property
-    def overid_instruments(self) -> tuple:
-        """Instruments valid under the SAME smallest conditioning set.
-
-        Two or more of them form one over-identified system, whose Sargan
-        test can refute the instruments jointly — falsification power that
-        picking a single instrument throws away.
-        """
-        if not self.iv_candidates:
-            return ()
-        w0 = self.iv_candidates[0].conditioning
-        return tuple(sorted(
-            (c.instrument for c in self.iv_candidates if c.conditioning == w0),
-            key=lambda a: a.predicate,
-        ))
 
     # --- data facts ------------------------------------------------------
 
@@ -469,11 +389,19 @@ def run_cascade(
     return evaluation
 
 
-def check_table(strategies: tuple[Strategy, ...]) -> tuple[Strategy, ...]:
+def check_table(
+    strategies: tuple[Strategy, ...], *, covers: End | None = None,
+) -> tuple[Strategy, ...]:
     """Reject a table that cannot express an order, and return it sorted.
 
     Duplicate precedence would put the tie back where it was before this
     module — decided by whichever row happened to be written first.
+
+    ``covers`` binds the table to the shared route table: every route
+    declaring that end must have a row here and vice versa, so a strategy
+    the routing table promises cannot go quietly unimplemented. Tables
+    built out of routes that are not in the shared one — the ones tests
+    construct to exercise the driver — leave it unset.
     """
     seen_ids: set[str] = set()
     seen_precedence: dict[int, str] = {}
@@ -502,4 +430,6 @@ def check_table(strategies: tuple[Strategy, ...]) -> tuple[Strategy, ...]:
                     f"can only hand a query to one the cascade has not yet "
                     f"offered it to"
                 )
+    if covers is not None:
+        return tuple(s for _route, s in bind(covers, by_id))
     return tuple(sorted(strategies, key=lambda s: s.precedence))

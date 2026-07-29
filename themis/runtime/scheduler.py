@@ -36,10 +36,13 @@ Every in-language query surfaces a result; no silent drops.
 """
 from __future__ import annotations
 
+from functools import cached_property
 from itertools import product
 from typing import NamedTuple
 
 import networkx as nx
+
+from .. import routing
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
 from ..types import (
@@ -3295,17 +3298,16 @@ def _dispatch_transport(
     )
 
 
-class _IVWaldAttempt(NamedTuple):
-    """What the IV escalation on the effect path came back with.
+class _Attempt(NamedTuple):
+    """What one identification strategy came back with.
 
-    ``result`` is set when the stratified Wald actually ran. Otherwise
-    ``missing`` says why — and saying why is the point. The caller's last
-    resort is a refusal that enumerates the strategies it tried, and IV
-    is not among them, so a bare "could not" turned a graph the identify
-    path calls *identifiable via instrument Z given W* into an effect
-    result claiming nothing reaches it. ``missing`` is empty only when
-    the IV layer genuinely has nothing to add: no valid instrument, or a
-    query shape another branch owns.
+    ``result`` is set when the strategy answered. Otherwise ``missing``
+    says what it would have needed — and saying so is the point. The
+    cascade's last resort is a refusal that enumerates the strategies it
+    tried, so a strategy that returns nothing and says nothing turns a
+    graph the identify path calls *identifiable via instrument Z given W*
+    into an effect result claiming nothing reaches it. ``missing`` is
+    empty when the strategy genuinely has nothing to add.
     """
 
     result: "QueryResult | None" = None
@@ -3483,16 +3485,7 @@ def _iv_stratum_table(
     )
 
 
-def _try_iv_wald_in_effect(
-    stmt: QueryStatement,
-    graph: nx.DiGraph,
-    q: EffectQuery,
-    x: Atom,
-    y: Atom,
-    theta: Theta,
-    *,
-    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-) -> _IVWaldAttempt:
+def _try_iv_wald_in_effect(facts: "_EffectFacts") -> _Attempt:
     """Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald LATE —
     generalized to a CONDITIONAL (Brito-Pearl) instrument.
 
@@ -3510,27 +3503,25 @@ def _try_iv_wald_in_effect(
     only the first: a non-boolean instrument, or a theta short in one
     candidate's strata, says nothing about the next candidate.
 
-    Out of scope, and left to the caller's refusal rather than claimed:
-    a non-boolean treatment or instrument — Wald is a two-point contrast
-    and widening it is an estimator choice, not a missing number — and a
-    conditional QUERY, which belongs to the IDC branch (an unconditional
-    LATE shipped in its place would answer a different question).
+    A conditional QUERY never arrives here: an unconditional LATE in its
+    place would answer a different question, and that is now stated where
+    both layers read it — ``iv_candidates`` is empty under conditioning,
+    so the guard does not hold. It used to be the first line of this
+    function, which bound this call site and no other. Still refused
+    inside, because it is about the data rather than the query shape: a
+    non-boolean treatment or instrument, since Wald is a two-point
+    contrast and widening it is an estimator choice.
     """
-    if q.given:
-        return _IVWaldAttempt()
+    q, graph, theta = facts.query, facts.graph, facts.theta
+    x, y = facts.x_atom, facts.y_atom
     x_treated = q.intervention.value
     if not isinstance(x_treated, bool):
-        return _IVWaldAttempt()
+        return _Attempt()
 
-    iv_candidates = structural_solver.iv_sets(
-        graph, x, y, bidirected=bidirected,
-    )
-    if not iv_candidates:
-        return _IVWaldAttempt()
-
+    iv_candidates = facts.iv_candidates
     mono = q.assumptions.monotonicity if q.assumptions is not None else None
     if mono is None:
-        return _IVWaldAttempt(missing=(
+        return _Attempt(missing=(
             MissingItem(
                 kind=MissingKind.ASSUMPTION,
                 name="effect:iv_monotonicity_undeclared",
@@ -3566,9 +3557,9 @@ def _try_iv_wald_in_effect(
         if table is None:
             first_missing = first_missing or missing
             continue
-        return _IVWaldAttempt(
+        return _Attempt(
             result=_build_iv_wald_effect_result(
-                stmt, graph, q, x, y,
+                facts.stmt, graph, q, x, y,
                 instrument=z,
                 conditioning=conditioning,
                 table=table,
@@ -3576,7 +3567,7 @@ def _try_iv_wald_in_effect(
                 alternatives_count=len(iv_candidates),
             ),
         )
-    return _IVWaldAttempt(missing=first_missing)
+    return _Attempt(missing=first_missing)
 
 
 def _iv_candidate_label(candidate) -> str:
@@ -4121,404 +4112,52 @@ def _dispatch_longitudinal(
     )
 
 
-def _dispatch_effect(
-    stmt: QueryStatement,
-    graph: nx.DiGraph,
-    theta: Theta,
-    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-    selection_nodes: "tuple[Statement, ...]" = (),
-    longitudinal_spec: dict | None = None,
-) -> QueryResult:
-    q: EffectQuery = stmt.query  # type: ignore[assignment]
-    x = q.intervention.atom
-    y_atom = q.target.atom
-    observed_atoms = tuple(g.atom for g in q.given)
-    extra_atoms = tuple(iv.atom for iv in q.extra_interventions)
+class _EffectFacts(routing.StructuralFacts):
+    """The identification layer's view of one effect query.
 
-    missing_atoms = [
-        a for a in (x, y_atom, *extra_atoms, *observed_atoms) if a not in graph
+    Adds what only this layer has — theta, the selection statements, the
+    longitudinal spec — to the structural facts both layers share. Those
+    additions are exactly what the routes with an identification-only end
+    name in their guards, so a guard belonging to this layer cannot be
+    evaluated in the layer that has no implementation for it: the attribute
+    is not there.
+    """
+
+    def __init__(
+        self,
+        *,
+        stmt: QueryStatement,
+        graph: nx.DiGraph,
+        bidirected: "frozenset[frozenset[Atom]]",
+        theta: Theta,
+        selection_nodes: "tuple[Statement, ...]",
+        longitudinal_spec: dict | None,
+    ) -> None:
+        super().__init__(q_stmt=stmt, graph=graph, bidirected=bidirected)
+        self.stmt = stmt
+        self.theta = theta
+        self.selection_nodes = selection_nodes
+        self.longitudinal_spec = longitudinal_spec
+
+    @cached_property
+    def declares_longitudinal(self) -> bool:
+        return (
+            self.longitudinal_spec is not None
+            and _longitudinal_spec_matches(self.query, self.longitudinal_spec)
+        )
+
+    @cached_property
+    def extra_atoms(self) -> "tuple[Atom, ...]":
+        return tuple(iv.atom for iv in self.query.extra_interventions)
+
+
+def _identify_backdoor(facts: _EffectFacts) -> _Attempt:
+    """Phase 7.1: adjustment over the smallest valid back-door set."""
+    q, graph = facts.query, facts.graph
+    x, y_atom = facts.x_atom, facts.y_atom
+    topo = [
+        n for n in nx.topological_sort(graph) if n in facts.chosen_adjustment
     ]
-    if q.mediator is not None and q.mediator not in graph:
-        missing_atoms.append(q.mediator)
-    if missing_atoms:
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.EFFECT,
-            query_id=stmt.id,
-            missing_information=tuple(
-                MissingItem(
-                    kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(a)}",
-                    priority=Priority.HIGH,
-                    reason="query atom is not in the instantiated variable set V",
-                )
-                for a in missing_atoms
-            ),
-        )
-
-    # Phase 7.L: a time-varying treatment STRATEGY query, declared via
-    # options.longitudinal (the cross-sectional query grammar can't carry
-    # the time ordering). Short-circuit into g-formula / sequential
-    # back-door identification before the single-treatment back-door path
-    # — the latter would silently compute the biased static-adjustment
-    # ATE. The estimation dispatch attaches the g-formula / IPW-MSM number.
-    if longitudinal_spec is not None and _longitudinal_spec_matches(q, longitudinal_spec):
-        return _dispatch_longitudinal(
-            stmt, graph, q, longitudinal_spec, bidirected=bidirected,
-        )
-
-    # Joint interventions: do(A=a, B=b, ...) over a treatment SET.
-    # Short-circuit into the generalized (treatment-set) back-door
-    # identification before any single-treatment path. v1 scope: not
-    # combined with mediator / target_population (those decompose a
-    # single X→Y effect — a joint multi-treatment decomposition is a
-    # separate, unbuilt operation), so refuse that combination explicitly
-    # rather than silently honoring only one layer.
-    if q.extra_interventions:
-        return _dispatch_joint_effect(
-            stmt, graph, q, x, y_atom, extra_atoms, observed_atoms,
-            bidirected=bidirected,
-        )
-
-    # Phase 9 §T9.1.3: when the query declares a target_population,
-    # short-circuit into transport identification (Bareinboim 2014).
-    # Fix 3+4 (v0.1.5) closed §T9.2 — transport now evaluates against
-    # theta when source+target entries are sufficient, producing a
-    # numeric_result instead of structurally_solved-only.
-    if getattr(q, "target_population", None) is not None:
-        return _dispatch_transport(stmt, graph, q, theta, selection_nodes)
-
-    # Phase 6.mediation: when the query declares a mediator, short-
-    # circuit into mediation identification (NDE/NIE/CDE decomposition)
-    # instead of computing the plain total-effect formula. v0.1.4 Fix 1
-    # extends this path with numeric evaluation against theta — when the
-    # treatment is boolean and theta is sufficient, the kernel computes
-    # TE / NDE / NIE / CDE end-to-end rather than emitting structural-
-    # only identification and leaving numeric assembly to callers.
-    # A non-empty ``mediators`` asks for the JOINT natural-effect
-    # decomposition through the mediator SET as one block
-    # (VanderWeele-Vansteelandt 2014). Short-circuit BEFORE the single-
-    # mediator path — treating the set as a block is what makes it
-    # identifiable without assuming the ordering among the mediators.
-    #
-    # A block of ONE is still a block, and routes here rather than being
-    # dropped: the set machinery reduces exactly to the classical
-    # single-mediator case at k=1 (the estimator is byte-identical), so
-    # the alternative would be answering nothing at all for a query that
-    # plainly asked for a decomposition — a silent capability drop, not a
-    # refusal the user could see.
-    if q.mediators:
-        return _dispatch_mediation_joint(
-            stmt, graph, q, theta, bidirected=bidirected,
-        )
-
-    if q.mediator is not None:
-        return _dispatch_mediation(
-            stmt, graph, q, theta, bidirected=bidirected,
-        )
-
-    # Phase 2.latent S3.b.1: ADMG-aware back-door first, front-door second,
-    # then the non-parametric ID ladder.
-    #
-    # ONE tail, not two. This block used to be written twice inside this
-    # function — once under ``if bidirected:`` carrying front-door, Tian, IV
-    # and IDC, and once under its ``else`` carrying front-door alone — and
-    # the copies had diverged. A query with no latent confounding could
-    # therefore never reach IDC, although conditional identification has
-    # nothing to do with latent confounding: IDC sat behind that guard only
-    # because it happened to be written in that copy. The fork bought
-    # nothing structurally — the two front-door bodies were byte-identical
-    # apart from the ``bidirected=`` keyword, whose default in every solver
-    # entry point is None — so passing ``bidirected or None`` once covers
-    # both cases exactly.
-    adjustment_sets = structural_solver.minimal_adjustment_sets(
-        graph, x, y_atom, given=observed_atoms, bidirected=bidirected or None,
-    )
-    if not adjustment_sets:
-        if not observed_atoms:
-            front = structural_solver.front_door_sets(
-                graph, x, y_atom, bidirected=bidirected or None
-            )
-            if front:
-                chosen = min(front, key=len)
-                topo = [n for n in nx.topological_sort(graph) if n in chosen]
-                intervention_va = ValuedAtom(
-                    atom=x, value=q.intervention.value
-                )
-                formula = formula_builder.front_door_formula(
-                    target=q.target,
-                    intervention=intervention_va,
-                    mediators=tuple(topo),
-                )
-                validate_formula(formula)
-                structural_prefix = _build_effect_frontdoor_structural_prefix(
-                    graph=graph,
-                    x=x, y=y_atom, z=tuple(topo),
-                    target_va=q.target,
-                    intervention_va=intervention_va,
-                    formula=formula,
-                )
-                return _try_numeric(
-                    stmt, formula, theta, QueryKind.EFFECT,
-                    structural_prefix=structural_prefix,
-                    graph=graph, bidirected=bidirected,
-                )
-        # Tian-in-effect — non-parametric point identification via
-        # Shpitser-Pearl ID.
-        #
-        # This runs BEFORE the IV escalation below, and the order is
-        # load-bearing: a c-factor estimand is assumption-free and
-        # answers the query's own estimand, whereas the Wald LATE needs
-        # a declared monotonicity and reports a contrast among compliers.
-        # With IV first, declaring an assumption REPLACED an
-        # assumption-free population answer with an assumption-laden
-        # subpopulation one — supplying more information degraded the
-        # estimand. The estimation dispatch already ordered these two
-        # this way for exactly this reason; identification now agrees.
-        from . import c_factor as _c_factor
-        tian = _c_factor.identify_via_tian(
-            graph, bidirected, x, y_atom, q.intervention.value,
-        )
-        # UNCONDITIONAL do(X) only. identify_via_tian ignores the
-        # conditioning atoms, so for a CONDITIONAL query (given non-empty)
-        # its formula is the MARGINAL P(Y|do(X)) — shipping it would
-        # silently drop `given` and label the marginal solved (it can differ
-        # sharply from the true conditional when `given` modifies the
-        # effect). A conditional general-ID (IDC) numeric end is deferred, so
-        # refuse below rather than ship the marginal in its place.
-        if tian.identifiable and not observed_atoms:
-            # Bind q.target.value into the Tian formula's outer Y
-            # ProbRefs (c_factor leaves them None for the
-            # IdentifyQuery caller). Without this, the evaluator
-            # raises InsufficientTheta on query-bound atoms.
-            bound_formula = formula_builder.bind_target_value(
-                tian.formula, y_atom, q.target.value,
-            )
-            validate_formula(bound_formula)
-            # Reuse the identify-side derivation prefix
-            # (tian_c_decomposition + identify_via_tian), then
-            # add tian_formula_ast + formula_evaluation +
-            # numeric_result via _try_numeric. Same shape as
-            # transport (Fix 4 §T9.2).
-            structural_prefix = (
-                DerivationStep(
-                    rule="tian_c_decomposition",
-                    inputs={
-                        "graph": graph,
-                        "x": x,
-                        "y": y_atom,
-                    },
-                    output=True,
-                    step_id="s_tian_decomp",
-                ),
-                DerivationStep(
-                    rule="identify_via_tian",
-                    inputs={
-                        "decomposition": StepRef(
-                            step_id="s_tian_decomp",
-                        ),
-                        "formula": tian.formula,
-                    },
-                    output=StructuralResult(value=True),
-                    step_id="s_tian_id",
-                ),
-                DerivationStep(
-                    rule="tian_formula_ast",
-                    inputs={
-                        "target": q.target,
-                        "intervention": ValuedAtom(
-                            atom=x, value=q.intervention.value,
-                        ),
-                        "unbound_formula": tian.formula,
-                    },
-                    output=bound_formula,
-                    step_id="s_tian_ast",
-                ),
-            )
-            return _try_numeric(
-                stmt, bound_formula, theta, QueryKind.EFFECT,
-                structural_prefix=structural_prefix,
-                graph=graph, bidirected=bidirected,
-            )
-
-        # Fix 6 (v0.1.5, audit follow-up): IV-in-effect via Wald
-        # LATE under monotonicity, stratified over a conditional
-        # instrument's W. The numeric is the COMPLIER LATE, not the
-        # population ATE — extension metadata flags this so the
-        # render layer can disclose. When it cannot produce a
-        # number, ``missing`` carries why, and the final refusal
-        # below reports that instead of claiming nothing reaches
-        # this graph — the monotonicity gate in particular lives
-        # inside the call now, so "an instrument exists, you just
-        # never declared the assumption it needs" is sayable.
-        #
-        # The escalation: reached only once non-parametric point
-        # identification above has failed, so an assumption is asked for
-        # only when nothing assumption-free was available.
-        iv_attempt = _try_iv_wald_in_effect(
-            stmt, graph, q, x, y_atom, theta,
-            bidirected=bidirected,
-        )
-        if iv_attempt.result is not None:
-            return iv_attempt.result
-
-        # Phase 2 (conditional general-ID, IDC): a CONDITIONAL effect query
-        # P(Y | do(X), Z) that ADMG-aware backdoor-with-given could not
-        # block is handled by Shpitser-Pearl IDC. The Rule-2 exchange moves
-        # exchangeable Z into the do-set and normalizes the remainder as
-        # ID(Y ∪ Z_rem, X') / ID(Z_rem, X'). identify_via_idc builds the
-        # symbolic estimand (X bound, Y and every conditioned Z left as
-        # value=None holes); bind the query's Y and Z values in BOTH target
-        # and given positions, then evaluate against theta. The IDC fraction
-        # is numerically validated to 1e-9 against latent-SCM ground truth
-        # (test_idc_fraction_matches_latent_scm_ground_truth). Phase 1
-        # (fix b742fbd) previously WITHHELD the marginal here; Phase 2 turns
-        # that honest refusal into the correct conditional number.
-        if observed_atoms:
-            idc = _c_factor.identify_via_idc(
-                graph, bidirected, x, y_atom, observed_atoms,
-                q.intervention.value,
-            )
-            if idc.identifiable and idc.formula is not None:
-                value_map = {g.atom: g.value for g in q.given}
-                value_map[y_atom] = q.target.value
-                bound_formula = _c_factor.bind_idc_values(
-                    idc.formula, value_map,
-                )
-                validate_formula(bound_formula)
-                # Three-step structural prefix, parallel to the Tian-in-
-                # effect path: s1 idc_rule2_exchange (verifier replays the
-                # exchange), s2 identify_via_idc (verifier re-checks the
-                # numerator/denominator shape against its own replay), s3
-                # idc_formula_ast (verifier re-binds Y/Z values). Then
-                # _try_numeric adds formula_evaluation + numeric_result.
-                structural_prefix = (
-                    DerivationStep(
-                        rule="idc_rule2_exchange",
-                        inputs={"graph": graph, "x": x, "y": y_atom},
-                        output=True,
-                        step_id="s_idc_exchange",
-                    ),
-                    DerivationStep(
-                        rule="identify_via_idc",
-                        inputs={
-                            "exchange": StepRef(step_id="s_idc_exchange"),
-                            "formula": idc.formula,
-                        },
-                        output=StructuralResult(value=True),
-                        step_id="s_idc_id",
-                    ),
-                    DerivationStep(
-                        rule="idc_formula_ast",
-                        inputs={
-                            "target": q.target,
-                            "intervention": ValuedAtom(
-                                atom=x, value=q.intervention.value,
-                            ),
-                            "given": q.given,
-                            "unbound_formula": idc.formula,
-                        },
-                        output=bound_formula,
-                        step_id="s_idc_ast",
-                    ),
-                )
-                return _try_numeric(
-                    stmt, bound_formula, theta, QueryKind.EFFECT,
-                    structural_prefix=structural_prefix,
-                    graph=graph, bidirected=bidirected,
-                )
-            # Conditioning present but IDC did not identify the conditional
-            # (a hedge on the conditional estimand even where the marginal
-            # margin was Tian-identifiable): honest structural refusal
-            # naming the conditional path — never the marginal in its place.
-            #
-            # Same reason the final refusal forks: naming the Rule-2 exchange
-            # and an ADMG hedge to someone whose graph has no latent
-            # confounding describes machinery their situation never involved.
-            # Those queries take the plain refusal below.
-            if bidirected:
-                return QueryResult(
-                    status=ResultStatus.NEEDS_INVESTIGATION,
-                    query_kind=QueryKind.EFFECT,
-                    query_id=stmt.id,
-                    missing_information=(
-                        MissingItem(
-                            kind=MissingKind.STRUCTURE,
-                            name="query:effect_admg_conditional",
-                            priority=Priority.HIGH,
-                            reason=(
-                                "conditional general-ID (IDC) effect: the "
-                                "conditional P(Y|do(X), given) is not identifiable "
-                                "in this ADMG (the Rule-2 exchange plus ID recursion "
-                                "hit a hedge on the conditional estimand). No "
-                                "marginal is shipped in its place."
-                            ),
-                        ),
-                    ),
-                )
-
-        # The refusal wording is NOT merged, and deliberately so: what a
-        # reader needs to be told differs. On an ADMG the honest report is
-        # that back-door, front-door and Tian / Shpitser ID were all tried
-        # and that an IV escalation may exist but could not be run; on a
-        # graph with no latent confounding that report would name machinery
-        # the situation never involved. The ladder above is one; only the
-        # sentence at the end forks.
-        if bidirected:
-            # Nonparametric point identification failed, and that stays
-            # said: it is what makes any answer here an interval or an
-            # assumption-laden point rather than a point ID, and the
-            # downstream answer tier reads it. When the IV layer also has
-            # something to say — an instrument reaches this graph, it just
-            # could not be run — those items ride ALONGSIDE it rather than
-            # replacing it. The two are different facts, and the IV
-            # escalation being available is not identification.
-            iv_note = iv_attempt.missing
-            return QueryResult(
-                status=ResultStatus.NEEDS_INVESTIGATION,
-                query_kind=QueryKind.EFFECT,
-                query_id=stmt.id,
-                missing_information=(
-                    MissingItem(
-                        kind=MissingKind.STRUCTURE,
-                        name="query:effect_admg",
-                        priority=Priority.HIGH,
-                        reason=(
-                            "Phase 2.latent S3.b.1: this ADMG effect "
-                            "query is reachable neither by ADMG-aware "
-                            "backdoor nor front-door nor Tian / Shpitser "
-                            "ID (latter checked since Fix 5 v0.1.5). "
-                            + (
-                                "An instrumental-variable escalation does "
-                                "reach it, but it is assumption-laden and "
-                                "could not be run as it stands — see the "
-                                "items alongside this one. "
-                                if iv_note else ""
-                            )
-                            + "If a Line-7 case is at play see "
-                            "PHASE_2_LATENT_CHARTER.md §7."
-                        ),
-                    ),
-                    *iv_note,
-                ),
-            )
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.EFFECT,
-            query_id=stmt.id,
-            structural_result=StructuralResult(value=False),
-            missing_information=(
-                MissingItem(
-                    kind=MissingKind.STRUCTURE,
-                    name="identification:not_identifiable",
-                    priority=Priority.HIGH,
-                    reason="no valid back-door or front-door adjustment exists",
-                ),
-            ),
-        )
-
-    chosen = min(adjustment_sets, key=len)
-    topo = [n for n in nx.topological_sort(graph) if n in chosen]
     # q.target and q.given already carry concrete literal values,
     # so the formula is numerically resolvable once Theta has the
     # referenced conditionals.
@@ -4541,17 +4180,348 @@ def _dispatch_effect(
     structural_prefix = _build_effect_structural_prefix(
         graph=graph,
         x=x, y=y_atom, z=tuple(topo),
-        observed_atoms=observed_atoms,
+        observed_atoms=facts.given_atoms,
         target_va=q.target,
         intervention_va=intervention_va,
         observed_vas=q.given,
         formula=formula,
     )
-    return _try_numeric(
-        stmt, formula, theta, QueryKind.EFFECT,
+    return _Attempt(_try_numeric(
+        facts.stmt, formula, facts.theta, QueryKind.EFFECT,
+        structural_prefix=structural_prefix,
+        graph=graph, bidirected=facts.bidirected,
+    ))
+
+
+def _identify_frontdoor(facts: _EffectFacts) -> _Attempt:
+    """Phase 7.2: the front-door formula through the smallest mediator set."""
+    q, graph = facts.query, facts.graph
+    x, y_atom = facts.x_atom, facts.y_atom
+    chosen = min(facts.front_door_sets, key=len)
+    topo = [n for n in nx.topological_sort(graph) if n in chosen]
+    intervention_va = ValuedAtom(atom=x, value=q.intervention.value)
+    formula = formula_builder.front_door_formula(
+        target=q.target,
+        intervention=intervention_va,
+        mediators=tuple(topo),
+    )
+    validate_formula(formula)
+    structural_prefix = _build_effect_frontdoor_structural_prefix(
+        graph=graph,
+        x=x, y=y_atom, z=tuple(topo),
+        target_va=q.target,
+        intervention_va=intervention_va,
+        formula=formula,
+    )
+    return _Attempt(_try_numeric(
+        facts.stmt, formula, facts.theta, QueryKind.EFFECT,
+        structural_prefix=structural_prefix,
+        graph=graph, bidirected=facts.bidirected,
+    ))
+
+
+def _identify_general(facts: _EffectFacts) -> _Attempt:
+    """Non-parametric point identification via Shpitser-Pearl ID / IDC.
+
+    One row, two formulas, chosen by the query's own shape rather than by
+    trying one and falling back to the other: a query either conditions on
+    something or it does not, and that is not a cascade. ``identify_via_tian``
+    ignores the conditioning atoms, so for a conditional query its formula is
+    the MARGINAL P(Y|do(X)) — shipping it would silently drop ``given``, which
+    can differ sharply from the true conditional when ``given`` modifies the
+    effect. IDC (Rule-2 exchange plus the ID recursion, normalized) is the
+    conditional's own estimand, and the fraction is validated to 1e-9 against
+    latent-SCM ground truth.
+
+    Ranked above the IV escalation, and that ordering is load-bearing: a
+    c-factor estimand is assumption-free and answers the query's own estimand,
+    whereas the Wald LATE needs a declared monotonicity and reports a contrast
+    among compliers. Declining here is what earns the escalation.
+    """
+    from . import c_factor as _c_factor
+
+    q, graph, bidirected = facts.query, facts.graph, facts.bidirected
+    x, y_atom = facts.x_atom, facts.y_atom
+
+    if not facts.given_atoms:
+        tian = _c_factor.identify_via_tian(
+            graph, bidirected, x, y_atom, q.intervention.value,
+        )
+        if not tian.identifiable:
+            return _Attempt()
+        # Bind q.target.value into the Tian formula's outer Y ProbRefs
+        # (c_factor leaves them None for the IdentifyQuery caller).
+        # Without this, the evaluator raises InsufficientTheta on
+        # query-bound atoms.
+        bound_formula = formula_builder.bind_target_value(
+            tian.formula, y_atom, q.target.value,
+        )
+        validate_formula(bound_formula)
+        # Reuse the identify-side derivation prefix (tian_c_decomposition
+        # + identify_via_tian), then add tian_formula_ast +
+        # formula_evaluation + numeric_result via _try_numeric. Same shape
+        # as transport (Fix 4 §T9.2).
+        structural_prefix = (
+            DerivationStep(
+                rule="tian_c_decomposition",
+                inputs={"graph": graph, "x": x, "y": y_atom},
+                output=True,
+                step_id="s_tian_decomp",
+            ),
+            DerivationStep(
+                rule="identify_via_tian",
+                inputs={
+                    "decomposition": StepRef(step_id="s_tian_decomp"),
+                    "formula": tian.formula,
+                },
+                output=StructuralResult(value=True),
+                step_id="s_tian_id",
+            ),
+            DerivationStep(
+                rule="tian_formula_ast",
+                inputs={
+                    "target": q.target,
+                    "intervention": ValuedAtom(
+                        atom=x, value=q.intervention.value,
+                    ),
+                    "unbound_formula": tian.formula,
+                },
+                output=bound_formula,
+                step_id="s_tian_ast",
+            ),
+        )
+        return _Attempt(_try_numeric(
+            facts.stmt, bound_formula, facts.theta, QueryKind.EFFECT,
+            structural_prefix=structural_prefix,
+            graph=graph, bidirected=bidirected,
+        ))
+
+    idc = _c_factor.identify_via_idc(
+        graph, bidirected, x, y_atom, facts.given_atoms, q.intervention.value,
+    )
+    if not (idc.identifiable and idc.formula is not None):
+        return _Attempt()
+    value_map = {g.atom: g.value for g in q.given}
+    value_map[y_atom] = q.target.value
+    bound_formula = _c_factor.bind_idc_values(idc.formula, value_map)
+    validate_formula(bound_formula)
+    # Three-step structural prefix, parallel to the Tian branch: s1
+    # idc_rule2_exchange (verifier replays the exchange), s2
+    # identify_via_idc (verifier re-checks the numerator/denominator shape
+    # against its own replay), s3 idc_formula_ast (verifier re-binds Y/Z
+    # values). Then _try_numeric adds formula_evaluation + numeric_result.
+    structural_prefix = (
+        DerivationStep(
+            rule="idc_rule2_exchange",
+            inputs={"graph": graph, "x": x, "y": y_atom},
+            output=True,
+            step_id="s_idc_exchange",
+        ),
+        DerivationStep(
+            rule="identify_via_idc",
+            inputs={
+                "exchange": StepRef(step_id="s_idc_exchange"),
+                "formula": idc.formula,
+            },
+            output=StructuralResult(value=True),
+            step_id="s_idc_id",
+        ),
+        DerivationStep(
+            rule="idc_formula_ast",
+            inputs={
+                "target": q.target,
+                "intervention": ValuedAtom(
+                    atom=x, value=q.intervention.value,
+                ),
+                "given": q.given,
+                "unbound_formula": idc.formula,
+            },
+            output=bound_formula,
+            step_id="s_idc_ast",
+        ),
+    )
+    return _Attempt(_try_numeric(
+        facts.stmt, bound_formula, facts.theta, QueryKind.EFFECT,
         structural_prefix=structural_prefix,
         graph=graph, bidirected=bidirected,
+    ))
+
+
+# The identification end of every route that declares one. Binding by id
+# against the shared table is what makes a strategy the table promises and
+# this layer never runs impossible: ``routing.bind`` refuses both halves of
+# that mistake — a route with no implementation here, and an implementation
+# for a route the table does not send this way.
+_EFFECT_IDENTIFICATION = routing.bind(routing.End.IDENTIFICATION, {
+    "longitudinal": lambda f: _Attempt(_dispatch_longitudinal(
+        f.stmt, f.graph, f.query, f.longitudinal_spec, bidirected=f.bidirected,
+    )),
+    "joint_intervention": lambda f: _Attempt(_dispatch_joint_effect(
+        f.stmt, f.graph, f.query, f.x_atom, f.y_atom, f.extra_atoms,
+        f.given_atoms, bidirected=f.bidirected,
+    )),
+    "transport": lambda f: _Attempt(_dispatch_transport(
+        f.stmt, f.graph, f.query, f.theta, f.selection_nodes,
+    )),
+    "mediation_joint": lambda f: _Attempt(_dispatch_mediation_joint(
+        f.stmt, f.graph, f.query, f.theta, bidirected=f.bidirected,
+    )),
+    "mediation_single": lambda f: _Attempt(_dispatch_mediation(
+        f.stmt, f.graph, f.query, f.theta, bidirected=f.bidirected,
+    )),
+    "backdoor": _identify_backdoor,
+    "frontdoor": _identify_frontdoor,
+    "general_id": _identify_general,
+    "iv_wald": _try_iv_wald_in_effect,
+})
+
+
+def _effect_refusal(
+    facts: _EffectFacts, notes: "tuple[MissingItem, ...]",
+) -> QueryResult:
+    """Nothing in the table claimed this query — say so in its own terms.
+
+    The wording forks, and deliberately so: what a reader needs to be told
+    differs. On an ADMG the honest report is that back-door, front-door and
+    Tian / Shpitser ID were all tried and that an IV escalation may exist
+    but could not be run; on a graph with no latent confounding that report
+    would name machinery the situation never involved. The ladder above is
+    one — only the sentence at the end forks.
+    """
+    if facts.given_atoms and facts.bidirected:
+        # A conditional estimand hedged even where the marginal might not
+        # be: name the conditional path, never the marginal in its place.
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=facts.stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:effect_admg_conditional",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "conditional general-ID (IDC) effect: the "
+                        "conditional P(Y|do(X), given) is not identifiable "
+                        "in this ADMG (the Rule-2 exchange plus ID recursion "
+                        "hit a hedge on the conditional estimand). No "
+                        "marginal is shipped in its place."
+                    ),
+                ),
+            ),
+        )
+    if facts.bidirected:
+        # Nonparametric point identification failed, and that stays said:
+        # it is what makes any answer here an interval or an
+        # assumption-laden point rather than a point ID, and the downstream
+        # answer tier reads it. When the IV layer also has something to say
+        # — an instrument reaches this graph, it just could not be run —
+        # those items ride ALONGSIDE it rather than replacing it. The two
+        # are different facts, and the IV escalation being available is not
+        # identification.
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=facts.stmt.id,
+            missing_information=(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name="query:effect_admg",
+                    priority=Priority.HIGH,
+                    reason=(
+                        "Phase 2.latent S3.b.1: this ADMG effect "
+                        "query is reachable neither by ADMG-aware "
+                        "backdoor nor front-door nor Tian / Shpitser "
+                        "ID (latter checked since Fix 5 v0.1.5). "
+                        + (
+                            "An instrumental-variable escalation does "
+                            "reach it, but it is assumption-laden and "
+                            "could not be run as it stands — see the "
+                            "items alongside this one. "
+                            if notes else ""
+                        )
+                        + "If a Line-7 case is at play see "
+                        "PHASE_2_LATENT_CHARTER.md §7."
+                    ),
+                ),
+                *notes,
+            ),
+        )
+    return QueryResult(
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        query_kind=QueryKind.EFFECT,
+        query_id=facts.stmt.id,
+        structural_result=StructuralResult(value=False),
+        missing_information=(
+            MissingItem(
+                kind=MissingKind.STRUCTURE,
+                name="identification:not_identifiable",
+                priority=Priority.HIGH,
+                reason="no valid back-door or front-door adjustment exists",
+            ),
+        ),
     )
+
+
+def _dispatch_effect(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    selection_nodes: "tuple[Statement, ...]" = (),
+    longitudinal_spec: dict | None = None,
+) -> QueryResult:
+    """Offer one effect query to each identification strategy in turn.
+
+    The order lives in ``themis.routing``, shared with the estimation
+    cascade, so "transport outranks mediation" and "an assumption-free
+    estimand outranks an assumption-laden one" are one statement rather
+    than two files that used to agree by inspection and three times did
+    not.
+    """
+    q: EffectQuery = stmt.query  # type: ignore[assignment]
+
+    facts = _EffectFacts(
+        stmt=stmt, graph=graph, bidirected=bidirected, theta=theta,
+        selection_nodes=selection_nodes, longitudinal_spec=longitudinal_spec,
+    )
+
+    # Not a strategy: a query naming an atom outside V has no estimand for
+    # anyone to compete over, so this is a precondition on the query rather
+    # than a row that could lose to another.
+    missing_atoms = [
+        a for a in (
+            facts.x_atom, facts.y_atom, *facts.extra_atoms, *facts.given_atoms,
+        )
+        if a not in graph
+    ]
+    if q.mediator is not None and q.mediator not in graph:
+        missing_atoms.append(q.mediator)
+    if missing_atoms:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            missing_information=tuple(
+                MissingItem(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"atom:{_atom_to_str(a)}",
+                    priority=Priority.HIGH,
+                    reason="query atom is not in the instantiated variable set V",
+                )
+                for a in missing_atoms
+            ),
+        )
+
+    notes: list[MissingItem] = []
+    for route, identify in _EFFECT_IDENTIFICATION:
+        if not route.applies_when(facts):
+            continue
+        attempt = identify(facts)
+        if attempt.result is not None:
+            return attempt.result
+        notes.extend(attempt.missing)
+    return _effect_refusal(facts, tuple(notes))
 
 
 def _build_effect_structural_prefix(

@@ -1,12 +1,14 @@
-"""The estimation cascade's strategy table (Phase 17 slice 2).
+"""One route table, two layers (Phase 17 slices 2-3).
 
-The chain this table replaced encoded three things in its own shape:
+The chains this table replaced encoded three things in their own shape:
 priority (source line order), what each guard tested (anything in scope,
 including output the pass had already written), and what each number was
-an estimate of (nothing — it was prose in a docstring). Each of those had
-drifted from the identification layer's separately written copy, and the
-slice 0 audit found real defects in two of the three. These tests pin the
-properties that make the drift detectable instead of invisible.
+an estimate of (nothing — it was prose in a docstring). Both layers
+encoded all three, separately, and the copies drifted five measured times.
+
+These tests pin the properties that make that drift impossible rather than
+merely detectable: the order is one object both layers hold, a guard can
+only see facts, and a route with an end nobody implemented fails at import.
 """
 from __future__ import annotations
 
@@ -16,6 +18,8 @@ import pathlib
 
 import pytest
 
+import themis
+from themis import routing
 from themis.estimation.claim import annotated, answered, blocked, passed
 from themis.estimation.dispatch import _EFFECT_STRATEGIES
 from themis.estimation.strategy import (
@@ -28,10 +32,10 @@ from themis.estimation.strategy import (
     recording,
     run_cascade,
 )
+from themis.runtime.scheduler import _EFFECT_IDENTIFICATION
 
-_DISPATCH = pathlib.Path(
-    __import__("themis").__file__
-).parent / "estimation" / "dispatch.py"
+_ROUTING = pathlib.Path(themis.__file__).parent / "routing.py"
+_SCHEDULER = pathlib.Path(themis.__file__).parent / "runtime" / "scheduler.py"
 
 
 def _noop(f, r, k):
@@ -41,7 +45,10 @@ def _noop(f, r, k):
 def _row(id_, precedence, *, guard=lambda f: True, role=Role.CLAIM,
          produces=Estimand.QUERY_EFFECT, run=_noop, defers=()) -> Strategy:
     return Strategy(
-        id=id_, precedence=precedence, applies_when=guard,
+        route=routing.Route(
+            id=id_, precedence=precedence, applies_when=guard,
+            ends=routing.ESTIMATES,
+        ),
         role=role, produces=produces, run=run,
         defers_to=frozenset(defers),
     )
@@ -67,15 +74,67 @@ def test_the_table_is_offered_in_precedence_order_not_declaration_order():
     assert [s.id for s in table] == ["early", "late"]
 
 
-def test_precedence_reproduces_the_order_the_hand_written_chain_had():
-    """The behaviour-equivalence anchor for the migration: the table is a
-    restatement of the chain, so any reordering has to be a deliberate edit
-    to this list rather than a side effect of moving code."""
-    assert [s.id for s in _EFFECT_STRATEGIES] == [
+def test_the_axis_is_one_axis_and_this_is_it():
+    """Every strategy in either layer, in the one order both run.
+
+    Reordering has to be a deliberate edit to this list rather than a side
+    effect of moving code. The bands are visible in it: 10-50 route on the
+    shape of the question, 60-140 belong to the data, 150-190 are the
+    structural ladder.
+    """
+    assert [r.id for r in routing.EFFECT_ROUTES] == [
+        "longitudinal",
         "joint_intervention",
+        "transport",
         "mediation_joint",
         "mediation_single",
+        "selection_recovery",
+        "measurement_correction_both_channels",
+        "measurement_correction_outcome",
+        "measurement_correction_exposure",
+        "outcome_error_precision_cost",
+        "regression_calibration",
+        "dose_response_binary_fallback",
+        "dose_response_curve",
+        "doubly_robust",
+        "backdoor",
+        "frontdoor",
+        "general_id",
+        "iv_overidentified",
+        "iv_wald",
+    ]
+
+
+def test_both_layers_hold_the_same_route_object_not_a_copy():
+    """The crux of slice 3. Two layers agreeing on an order used to be a
+    property of two files that had to be compared by hand; three of the
+    five measured defects were that comparison silently failing. Identity
+    cannot fail silently."""
+    identification = {r.id: r for r, _end in _EFFECT_IDENTIFICATION}
+    estimation = {s.id: s.route for s in _EFFECT_STRATEGIES}
+    shared = set(identification) & set(estimation)
+    assert shared, "premise: the two layers implement some of the same rows"
+    for route_id in shared:
+        assert identification[route_id] is estimation[route_id], route_id
+
+
+def test_the_shape_of_the_question_is_decided_before_the_graph_is_consulted():
+    """A query naming both a mediator and a target population has ONE
+    owner, and both layers now agree on which. While they disagreed, the
+    estimation cascade could only reach transport by having mediation stand
+    down first — a hand-off between different estimands, which is why it
+    needed declaring."""
+    order = {r.id: r.precedence for r in routing.EFFECT_ROUTES}
+    assert order["transport"] < order["mediation_joint"]
+    assert order["transport"] < order["mediation_single"]
+
+
+def test_the_estimation_layer_runs_the_rows_it_has_a_numeric_end_for():
+    assert [s.id for s in _EFFECT_STRATEGIES] == [
+        "joint_intervention",
         "transport",
+        "mediation_joint",
+        "mediation_single",
         "selection_recovery",
         "measurement_correction_both_channels",
         "measurement_correction_outcome",
@@ -97,9 +156,49 @@ def test_the_assumption_free_route_outranks_the_one_that_needs_assumptions():
     """Finding C in table form: general-ID answers the query's own estimand
     with no assumption, the Wald reports a complier contrast under
     monotonicity. Declaring an assumption must never demote the answer."""
-    order = {s.id: s.precedence for s in _EFFECT_STRATEGIES}
+    order = {r.id: r.precedence for r in routing.EFFECT_ROUTES}
     assert order["general_id"] < order["iv_wald"]
     assert order["general_id"] < order["iv_overidentified"]
+
+
+# --- a route the table promises is a route some layer runs ----------------
+
+
+def test_a_route_whose_end_nobody_implemented_is_refused():
+    """Finding D's shape, made impossible: the table promised conditional
+    identification and the layer never ran it, because the branch sat inside
+    the wrong copy of the ladder. A binding set that misses a route it
+    declares cannot be loaded at all."""
+    with pytest.raises(ValueError, match="no implementation for"):
+        routing.bind(routing.End.IDENTIFICATION, {})
+
+
+def test_an_implementation_for_a_route_the_table_does_not_send_here():
+    """The other half: a handler nobody routes to is where a second
+    dispatcher starts."""
+    bindings = {r.id: object() for r in routing.EFFECT_ROUTES
+                if routing.End.IDENTIFICATION in r.ends}
+    bindings["doubly_robust"] = object()
+    with pytest.raises(ValueError, match="second dispatcher"):
+        routing.bind(routing.End.IDENTIFICATION, bindings)
+
+
+def test_the_effect_dispatcher_reaches_its_strategies_only_through_the_table():
+    """One dispatcher. ``_dispatch_effect`` used to name its strategies
+    directly, twice over, and the two lists had diverged; a name in its body
+    is a second routing decision no matter how it is spelled."""
+    source = _SCHEDULER.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    body = next(
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == "_dispatch_effect"
+    )
+    named = {
+        sub.id for sub in ast.walk(body)
+        if isinstance(sub, ast.Name)
+        and (sub.id.startswith("_identify_") or sub.id.startswith("_dispatch_"))
+    }
+    assert not named, named
 
 
 # --- the guard cannot see this layer's own output -------------------------
@@ -119,14 +218,14 @@ def test_every_guard_is_a_pure_function_of_the_facts():
     rerouted queries in silence. A guard that can only see its argument
     cannot develop that kind of dependency.
     """
-    tree = ast.parse(_DISPATCH.read_text(encoding="utf-8"))
+    tree = ast.parse(_ROUTING.read_text(encoding="utf-8"))
     allowed = set(dir(builtins))
     checked, offenders = 0, []
     for node in ast.walk(tree):
         if not (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
-            and node.func.id == "Strategy"
+            and node.func.id == "Route"
         ):
             continue
         guard = next(
@@ -139,7 +238,7 @@ def test_every_guard_is_a_pure_function_of_the_facts():
         for sub in ast.walk(guard.body):
             if isinstance(sub, ast.Name) and sub.id not in allowed | {param}:
                 offenders.append((node.lineno, sub.id))
-    assert checked == len(_EFFECT_STRATEGIES)
+    assert checked == len(routing.EFFECT_ROUTES)
     assert not offenders, offenders
 
 
@@ -287,16 +386,17 @@ def test_a_row_may_not_defer_to_a_strategy_that_does_not_exist():
 
 
 def test_the_real_table_declares_exactly_the_substitutions_it_takes():
-    """Measured across the full suite: 80 IV escalations and one transport
-    over a named mediator. Nothing else hands a query to a row that answers
-    a different question."""
+    """One remains: the IV escalation, measured 80 times across this suite.
+
+    There were two. The other — mediation standing down so transport could
+    answer — was an artefact of the two layers ordering those rows
+    differently, and one shared order retired it. A substitution that only
+    exists because two copies disagreed is not a ladder.
+    """
     declared = {
         s.id: set(s.defers_to) for s in _EFFECT_STRATEGIES if s.defers_to
     }
-    assert declared == {
-        "mediation_single": {"transport"},
-        "general_id": {"iv_overidentified", "iv_wald"},
-    }
+    assert declared == {"general_id": {"iv_overidentified", "iv_wald"}}
 
 
 def test_a_pass_answered_by_the_same_estimand_is_not_a_substitution():

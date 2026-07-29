@@ -24,6 +24,7 @@ from typing import Any
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
+from ..routing import End, route
 from .strategy import (
     EffectFacts,
     EffectKnobs,
@@ -796,28 +797,21 @@ def _estimate_effect_queries(
 
 
 # ---------------------------------------------------------------------------
-# The table.
+# The numeric end of every route that declares one.
 #
-# Each row is one strategy: when it applies, whether it competes for the
-# query or comments beside it, what its number is an estimate OF, and the
-# call that produces it. ``precedence`` replaces source-line order, so the
-# identification layer's copy of these same decisions can eventually be
-# asserted to agree rather than compared by hand — the drift between the two
-# orderings is what slice 0 measured and what findings A and C were.
+# When a strategy applies, and how early, is not decided here — it is read
+# from ``themis.routing``, the one table the identification layer reads too.
+# What a row adds is what only this layer knows: whether the number competes
+# for the query or comments beside it, what the number is an estimate OF, and
+# the call that produces it.
 #
-# Guards see :class:`EffectFacts` and nothing else. Rows written before the
-# table adapt to it with a lambda here rather than being rewritten, which
-# also makes each strategy's inputs visible in one place.
+# Guards see :class:`EffectFacts` and nothing else, so a row cannot branch on
+# how far the cascade has already got.
 # ---------------------------------------------------------------------------
 
 _EFFECT_STRATEGIES = check_table((
     Strategy(
-        # Joint interventions: do(A=a, B=b, ...) over a treatment SET —
-        # the joint contrast plus its treatment×treatment interaction, which
-        # no sequence of single-treatment estimates recovers.
-        id="joint_intervention",
-        precedence=10,
-        applies_when=lambda f: bool(f.query.extra_interventions),
+        route=route("joint_intervention"),
         role=Role.CLAIM,
         produces=Estimand.JOINT_CONTRAST,
         run=lambda f, r, k: _try_joint_estimate(
@@ -827,18 +821,19 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # The JOINT natural-effect decomposition through the mediator SET.
-        #
-        # The guard is "did this query name a set", not "how big is the set":
-        # a block of one is still a block, and the identification layer routes
-        # it here on exactly that principle. ``mediators`` and ``mediator`` are
-        # distinct fields — a set of one never populates the singular one — so
-        # a size threshold here would not divert k=1 to the single-mediator
-        # row, it would drop the decomposition entirely and answer the total
-        # effect instead, beside an envelope still claiming the block.
-        id="mediation_joint",
-        precedence=20,
-        applies_when=lambda f: bool(f.query.mediators),
+        # The identification result stays structurally_solved; this adds the
+        # number by post-stratification onto the declared target population.
+        route=route("transport"),
+        role=Role.CLAIM,
+        produces=Estimand.TRANSPORTED_EFFECT,
+        run=lambda f, r, k: _try_transport_estimate(
+            f.q_stmt, r, f.contract, k.program,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            ci_level=0.95, cluster=k.cluster,
+        ),
+    ),
+    Strategy(
+        route=route("mediation_joint"),
         role=Role.CLAIM,
         produces=Estimand.DECOMPOSITION,
         run=lambda f, r, k: _try_mediation_joint_estimate(
@@ -849,22 +844,11 @@ _EFFECT_STRATEGIES = check_table((
     Strategy(
         # Phase 7.4: single-mediator natural effects (Imai via statsmodels),
         # gated inside the handler on the identification layer's strategy
-        # result. Declining here means identification chose another strategy
-        # for this query — a query naming BOTH a mediator and a target
-        # population goes to transport there — so the query goes on to the
-        # row that can answer it rather than ending with no number and no
-        # recorded failure.
-        id="mediation_single",
-        precedence=30,
-        applies_when=lambda f: f.query.mediator is not None,
+        # result — an absent decomposition block means identification did not
+        # choose mediation for this query.
+        route=route("mediation_single"),
         role=Role.CLAIM,
         produces=Estimand.DECOMPOSITION,
-        # Identification resolves the conflict between a named mediator and
-        # a named target population in favour of transport, and says so.
-        # This row follows that decision rather than holding a query it was
-        # not given — but the number that comes back is the transported
-        # effect, not the decomposition, so the substitution is declared.
-        defers_to=frozenset({"transport"}),
         run=lambda f, r, k: _try_mediation_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
@@ -872,30 +856,10 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Phase 9 §T9.2: carry the effect to a declared target population by
-        # post-stratification. The identification result stays
-        # structurally_solved; this adds the number.
-        id="transport",
-        precedence=40,
-        applies_when=lambda f: f.query.target_population is not None,
-        role=Role.CLAIM,
-        produces=Estimand.TRANSPORTED_EFFECT,
-        run=lambda f, r, k: _try_transport_estimate(
-            f.q_stmt, r, f.contract, k.program,
-            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
-            ci_level=0.95, cluster=k.cluster,
-        ),
-    ),
-    Strategy(
-        # §S9.1 numeric end + honest gate: the sample is restricted on a
-        # selection collider, so the ORDINARY back-door number below would be
-        # silently biased (it standardizes over a collider-conditioned
-        # sample). This row either recovers the number from the biased sample
-        # plus external reference data, or refuses while naming the external
-        # data needed — and either way the query never reaches back-door.
-        id="selection_recovery",
-        precedence=50,
-        applies_when=lambda f: f.selection_recovery is not None,
+        # Either recovers the number from the biased sample plus external
+        # reference data, or refuses while naming the external data needed —
+        # and either way the query never reaches back-door.
+        route=route("selection_recovery"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_selection_recovery_estimate(
@@ -905,16 +869,7 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Frontier E, both channels: a validated confusion matrix for the
-        # exposure AND the outcome. Invert both sides of the per-stratum
-        # (X, Y) joint at once — correcting one and shipping the point would
-        # leave the other channel's bias in the number.
-        id="measurement_correction_both_channels",
-        precedence=60,
-        applies_when=lambda f: (
-            f.misclassification_outcome is not None
-            and f.misclassification_exposure is not None
-        ),
+        route=route("measurement_correction_both_channels"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_combined_measurement_correction_estimate(
@@ -927,15 +882,11 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Frontier E (outcome side): de-attenuate the misclassified binary
-        # outcome by inverting the matrix per back-door stratum. The spec is
-        # a load-bearing external input (a validation study); ordinary
-        # programs never reach this row. A refusal records an
+        # The spec is a load-bearing external input (a validation study);
+        # ordinary programs never reach this row. A refusal records an
         # estimator_failure rather than silently falling back to the biased
         # naive point — the caller explicitly asked for the corrected number.
-        id="measurement_correction_outcome",
-        precedence=70,
-        applies_when=lambda f: f.misclassification_outcome is not None,
+        route=route("measurement_correction_outcome"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_measurement_correction_estimate(
@@ -947,11 +898,7 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Frontier E (exposure side): invert M on the X-margin per back-door
-        # stratum instead of shipping the attenuated naive number.
-        id="measurement_correction_exposure",
-        precedence=80,
-        applies_when=lambda f: f.misclassification_exposure is not None,
+        route=route("measurement_correction_exposure"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_exposure_measurement_correction_estimate(
@@ -963,17 +910,11 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # The outcome channel is the one that costs no bias: a classical
-        # additive error leaves every conditional mean — and so every
-        # estimand here — untouched. There is nothing to de-attenuate, so
-        # this does NOT claim the query; the point still comes from the
+        # This does NOT claim the query: the point still comes from the
         # ordinary routing below, including the exposure-side correction when
-        # a spec names the exposure too. What the declared σ²_v buys is the
-        # precision cost, assessed and disclosed here. Only a spec the
-        # channel or the data refuse stops the query.
-        id="outcome_error_precision_cost",
-        precedence=90,
-        applies_when=lambda f: f.measurement_error_outcome is not None,
+        # a spec names the exposure too. Only a spec the channel or the data
+        # refuse stops the query.
+        route=route("outcome_error_precision_cost"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
         run=lambda f, r, k: _try_outcome_error_assessment(
@@ -984,18 +925,10 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Continuous mismeasurement (regression calibration): a known
-        # classical additive error variance σ²_u for the exposure (regression
-        # dilution) and/or a back-door covariate (residual confounding).
         # De-attenuate by the RC moment correction instead of shipping the
         # biased naive slope. A continuous OUTCOME error is deferred; the
         # handler refuses such a spec honestly rather than ignoring it.
-        id="regression_calibration",
-        precedence=100,
-        applies_when=lambda f: (
-            f.measurement_error_exposure is not None
-            or bool(f.measurement_error_covariates)
-        ),
+        route=route("regression_calibration"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_regression_calibration_estimate(
@@ -1007,32 +940,15 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # A dose-response curve over a binary treatment would degenerate to
-        # the two-point contrast the binary path already computes. Record the
-        # fall-back and let that path answer — this row comments, it does not
-        # compete.
-        id="dose_response_binary_fallback",
-        precedence=110,
-        applies_when=lambda f: (
-            f.dose_response_triggered and f.treatment_is_binary
-        ),
+        route=route("dose_response_binary_fallback"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
         run=lambda f, r, k: _try_dose_response_binary_fallback(f, r, k),
     ),
     Strategy(
-        # Phase 14 slice a: a flagged dose-response query whose treatment is
-        # not binary and whose identification clears via back-door gets the
-        # curve estimator rather than the binary-effect ATE. Other strategies
-        # (front-door / IV / mediation) keep their binary-effect path until a
-        # real case demands the curve there.
-        id="dose_response_curve",
-        precedence=120,
-        applies_when=lambda f: (
-            f.dose_response_triggered
-            and not f.treatment_is_binary
-            and bool(f.adjustment_sets)
-        ),
+        # Other strategies (front-door / IV / mediation) keep their
+        # binary-effect path until a real case demands the curve there.
+        route=route("dose_response_curve"),
         role=Role.CLAIM,
         produces=Estimand.DOSE_RESPONSE,
         run=lambda f, r, k: _try_dose_response_estimate(
@@ -1050,17 +966,9 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Doubly-robust opt-in: the back-door-identified ATE estimated by the
-        # propensity / augmented estimator instead of the g-formula plug-in.
-        # Same identification (the adjustment set is a valid back-door set),
-        # different estimator and inference. The default leaves this row
-        # untaken and every existing result byte-identical.
-        id="doubly_robust",
-        precedence=130,
-        applies_when=lambda f: (
-            bool(f.adjustment_sets)
-            and f.ate_estimator in ("ipw", "aipw", "tmle")
-        ),
+        # The default leaves this row untaken and every existing result
+        # byte-identical.
+        route=route("doubly_robust"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_doubly_robust_estimate(
@@ -1075,52 +983,29 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Phase 7.1: back-door adjustment — the g-formula plug-in over the
-        # smallest valid adjustment set.
-        id="backdoor",
-        precedence=140,
-        applies_when=lambda f: bool(f.adjustment_sets),
+        route=route("backdoor"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_backdoor_estimate(f, r, k),
     ),
     Strategy(
-        # Phase 7.2: back-door failed — front-door, which the fact itself
-        # restricts to unconditioned queries because the formula has no
-        # conditional form here and the identification layer refuses the same
-        # combination.
-        id="frontdoor",
-        precedence=150,
-        applies_when=lambda f: (
-            not f.adjustment_sets and bool(f.front_door_sets)
-        ),
+        route=route("frontdoor"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
         run=lambda f, r, k: _try_frontdoor_estimate(f, r, k),
     ),
     Strategy(
-        # Phase 7.G: general-ID (c-factor) plug-in — the crown-jewel
-        # non-parametric identification made numeric. Ranked ABOVE IV because
-        # a c-factor estimand is assumption-free, whereas the IV point
-        # estimate needs monotonicity / effect homogeneity. When do(X) is
-        # non-parametrically point-identified (the napkin, say) this is the
-        # honest answer; only when it is NOT — a genuine hedge — does the
-        # query fall through to the under-assumption IV below.
-        id="general_id",
-        precedence=160,
-        applies_when=lambda f: (
-            not f.adjustment_sets and not f.front_door_sets
-        ),
+        route=route("general_id"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
-        # The escalation this row exists to guard: when do(X) is NOT
-        # non-parametrically identified there is no assumption-free number
-        # to be had, and the IV rows answer under monotonicity / effect
-        # homogeneity instead — a complier contrast, not the population
-        # effect the query names. That is a real substitution, taken
-        # deliberately and disclosed on the answer (late_caveat, the
-        # estimand-fallback warning); declaring it here is what keeps it
-        # from being taken by accident somewhere else.
+        # The escalation this row's rank exists to guard: when do(X) is NOT
+        # non-parametrically identified there is no assumption-free number to
+        # be had, and the IV rows answer under monotonicity / effect
+        # homogeneity instead — a complier contrast, not the population effect
+        # the query names. That is a real substitution, taken deliberately and
+        # disclosed on the answer (late_caveat, the estimand-fallback
+        # warning); declaring it here is what keeps it from being taken by
+        # accident somewhere else.
         defers_to=frozenset({"iv_overidentified", "iv_wald"}),
         run=lambda f, r, k: _try_general_id_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
@@ -1130,19 +1015,9 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Over-identification: every instrument valid under the SAME smallest
-        # conditioning set forms one over-identified system. With two or more,
-        # run over-identified 2SLS plus the Sargan test rather than discarding
-        # the extra instruments and their falsification power — a small Sargan
-        # p-value REFUTES the instruments' joint validity (the linear analogue
-        # of the Balke-Pearl instrumental inequalities). Falls through to the
-        # just-identified row when the over-ID design is degenerate.
-        id="iv_overidentified",
-        precedence=170,
-        applies_when=lambda f: (
-            not f.adjustment_sets and not f.front_door_sets
-            and len(f.overid_instruments) >= 2
-        ),
+        # Falls through to the just-identified row when the over-ID design is
+        # degenerate.
+        route=route("iv_overidentified"),
         role=Role.CLAIM,
         produces=Estimand.COMPLIER_EFFECT,
         run=lambda f, r, k: _try_iv_overid_estimate(
@@ -1155,21 +1030,12 @@ _EFFECT_STRATEGIES = check_table((
         ),
     ),
     Strategy(
-        # Phase 7.3: the just-identified Wald ratio, under the assumptions
-        # general-ID did not need. What it reports is a complier contrast,
-        # not the population effect the query names — which is why it ranks
-        # last, and why the answer carries the LATE caveat.
-        id="iv_wald",
-        precedence=180,
-        applies_when=lambda f: (
-            not f.adjustment_sets and not f.front_door_sets
-            and bool(f.iv_candidates)
-        ),
+        route=route("iv_wald"),
         role=Role.CLAIM,
         produces=Estimand.COMPLIER_EFFECT,
         run=lambda f, r, k: _try_iv_wald_estimate(f, r, k),
     ),
-))
+), covers=End.ESTIMATION)
 
 
 def _try_dose_response_binary_fallback(
