@@ -639,6 +639,78 @@ transport，而两者估计量不同，所以那次交接必须被声明。合�
 **基线**：3646 → **3652**（新增 6 条元测试：一条轴的逐字清单、两层 route 对象
 同一性、形状先于图、数值端行序、缺绑定被拒、多绑定被拒、驱动体内不许出现策略名）。
 
+## Slice 4 前置 — 缺口报告实测 + 发现 F（2026-07-29）
+
+### 先纠正 charter 自己对 slice 4 的判断
+
+charter 把 `data_gap_report` 的分类器分成两个物种（重建型 / 输入审计型），
+并把 slice 4 的对象定为「`declined` 直接产出缺口」。**实测下来这个划分和这个
+对象都不对。**
+
+**28 个 `_classify_*` 按「读什么」分是三个物种，不是两个**：
+
+| 物种 | 读什么 | 数量 | 例 |
+|---|---|---|---|
+| 输入审计 | 只读 `program` / `stmt` / `framing_notes` | ~7 | 图是学来的、对撞条件开后门、干预版本未良定义 |
+| **块回声** | 读策略自己写下的 `extensions.*` 块 | ~7 | IV / 中介 / transport 的假设披露 |
+| **残渣重建** | 读 `investigation_requests` 的**名字字符串**、或 `derivation` 的**规则名字符串** | ~10 | `_classify_unidentifiable_from_request`、`_classify_missing_iv`、`_classify_residual_investigation_items` |
+
+**「块回声」这一族是 charter 漏掉的**，而且它恰恰**不是**重建型：它读的是策略
+显式写下的块，属于「翻译」而非「猜」。真正要消灭的只有第三族。
+
+**更要紧的是 slice 4 的对象错了**。`declined` 只覆盖**驱动层**的拒绝
+（识别层实测只有 general_id 与 iv_wald 会 decline）。缺口报告读的那堆残渣，
+绝大多数是**被认领的子 dispatcher 在自己的结果里写的 `MissingItem`**。实测
+全仓 **`MissingItem` 构造点 33 处、全部在 `scheduler.py`、名字模板约 30 个**，
+而 `InvestigationItem.target` 就是 `MissingItem.name` 原样（`investigation_pusher.py:105`）。
+
+所以 slice 4 的真对象是：**`MissingItem.name` 是一个字符串，产生端知道这是
+哪一类缺口、把它压成名字扔掉，消费端再用前缀 / 子串匹配猜回来。**
+`MissingKind` 只有 5 个值（哪个渠道），`GapKind` 有 36 个（哪一类），
+**粗→细的那一步全靠猜**。这是 charter 根因（语义事实无一等表示）最纯的形态，
+只是对象是 `MissingItem` 而不是 `declined`。
+
+### 发现 F（已实测确认，真 bug，用户可见）—— 「given」里有「iv」
+
+**见证**：`x→y`、`x→d`，问 `identify(y | do(x), given=[d])`。`d` 是 `X` 的后代，
+kernel **正确拒答**，`MissingItem.reason` 写得很清楚：「identify.given violates
+backdoor pre-conditions (contains X, Y, or a descendant of X): d(me)」。
+
+用户读到的缺口报告是：**「未找到满足 IV 条件的工具变量：query:identify_given」**，
+而真正的原因**一条都没进报告**。
+
+**根因**。`_classify_missing_iv` 判定「这是不是 IV 缺口」的判据是
+`"iv" not in item.target.lower()` —— **一个裸子串测试**。而
+`query:identify_g·iv·en` 里有 `iv`。同一个子串判据同时被两处使用：
+`_classify_missing_iv` 用它**纳入**，`_classify_unidentifiable_from_request`
+用它**排除**——**一次巧合既伪造了一个缺口，又压掉了真缺口**。
+
+**为什么是根因不是表象**。表象修法是把子串换成更严的字符串测试；但信息在
+产生端**是有的**（那个分支的 `reason` 明说是 backdoor 前置条件违规），被压成
+一个字符串扔掉，再由消费端做模式匹配猜回来。**缺口的物种不是它名字的子串。**
+
+**顺带查出的第二处同族缺陷**：同一个分类器的 docstring 明写规则——「程序缺陷
+走 residual，不许告诉 `answer_tier` 说图挡住了估计量」——然后把这条规则编码成
+前缀 `"query:identify"`，**比它想表达的距离短了一个词**：
+`query:identify_unreachable`（ID 算法报告无 witness，真结构缺口）与
+`query:identify_given`（用户条件在 X 的后代上，删一个词就好）被同一个前缀扫进
+同一类。**规则说得对，编码比规则粗。**
+
+**第三处，只登记不动**：`_UNIDENTIFIABLE_PREFIXES` 里的
+`"query:counterfactual_admg"` 在全仓**只出现这一次**——**没有任何产生端**。
+一条永远不可能命中的匹配规则。不在本档删，因为删它是零行为变更、无法用测试
+钉住；slice 4 会把整张前缀表一起删掉。
+
+**本档的修法（最小且正确，不预支 slice 4）**：把 IV 判据从「子串」改成
+**名字的 local part 以 `iv_` 开头**，两个调用点**共用同一个谓词**（此前是
+两份各自演化的子串测试，这正是它们一个伪造一个压制的原因）；把
+`"query:identify"` 收窄成 `"query:identify_unreachable"`。修后端到端产出
+`missing_structural_input | blocking | 缺结构输入：identify.given violates
+backdoor pre-conditions…`——**kernel 给的理由逐字到了用户眼前**。
+
+**三条测试各钉一半，且都验过非空转**：去掉谓词修复 → 两条失败；只回退前缀
+收窄 → 第三条失败。
+
 ## 显式 Out-of-scope
 
 - 验证器的任何「消重」。

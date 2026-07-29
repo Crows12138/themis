@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3652 passed / 144 skipped, warning-clean
+3655 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -804,6 +804,12 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **明确没做的**——10 个按 query kind 选择的 dispatcher 不入表（一个查询只有一种 kind，**没有优先级就没有漂移**）；拒答文案仍按 `bidirected` 分叉（**合并的是梯子不是措辞**）；`structural_result` 第四处不一致仍在（承重，见发现 D）。
 
 **基线**：3646 → **3652**。
+
+**「given」里有「iv」（2026-07-29，Phase 17 发现 F）**：修复型，用户可见。为 slice 4 实测缺口报告时撞出：`x→y`、`x→d`，问 `identify(y | do(x), given=[d])`——`d` 是 X 的后代，kernel **正确拒答**且理由写得很清楚（「identify.given violates backdoor pre-conditions…」），而用户读到的缺口是**「未找到满足 IV 条件的工具变量：query:identify_given」**，真正的原因**一条都没进报告**。根因：`_classify_missing_iv` 判定「这是不是 IV 缺口」用的是 `"iv" not in item.target.lower()`——**一个裸子串测试**，而 `query:identify_g·iv·en` 里有 `iv`；同一个判据又被 `_classify_unidentifiable_from_request` 用来**排除**，**一次巧合既伪造了一个缺口又压掉了真缺口**（两份各自演化的子串测试，所以能同时朝相反方向出错）。同族第二处：该分类器 docstring 明写「程序缺陷走 residual，不许告诉 `answer_tier` 说图挡住了估计量」，却把这条规则编码成前缀 `"query:identify"`——**比规则短了一个词**，于是 `query:identify_unreachable`（ID 算法无 witness）与 `query:identify_given`（用户删一个词就好）被扫进同一类。修法：IV 判据改成「名字的 local part 以 `iv_` 开头」且**两个调用点共用同一个谓词**；前缀收窄成 `query:identify_unreachable`。修后端到端产出 `missing_structural_input | blocking | 缺结构输入：identify.given violates backdoor pre-conditions…`——**kernel 给的理由逐字到了用户眼前**。三条测试各钉一半，都验过非空转。**但这两处都没让编码变对**：缺口的物种仍是一个产生端扔掉、消费端猜回来的字符串——那是 slice 4 的对象，本档是它的见证。
+
+**slice 4 的对象已据实测更正**（charter 内）：28 个 `_classify_*` 按「读什么」分是**三个物种**不是两个（漏了「块回声」一族，它读策略显式写的 `extensions.*`，属翻译不属猜）；且 `declined` 只覆盖驱动层拒绝，缺口报告读的残渣绝大多数是被认领的子 dispatcher 写的 `MissingItem`。**真对象是 `MissingItem.name`**：全仓 33 个构造点全在 `scheduler.py`，`InvestigationItem.target` 就是它原样，`MissingKind` 5 个值 → `GapKind` 36 个值那一步**全靠前缀 / 子串猜**。
+
+**基线**：3652 → **3655**。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
