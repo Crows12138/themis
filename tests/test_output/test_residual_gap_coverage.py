@@ -43,9 +43,22 @@ def _v(pred: str) -> dict:
 
 
 def _collider_program() -> dict:
-    """X → W ← Y with X → Y, asked conditional on the collider W. No
-    back-door or front-door adjustment exists, so the kernel raises
-    ``identification:not_identifiable``."""
+    """X → W ← Y with X → Y and X ↔ Y, asked conditional on the collider W.
+
+    The bow arc is what makes identification actually fail. This fixture
+    used to omit it and justify itself with "no back-door or front-door
+    adjustment exists, so the kernel raises identification:not_identifiable"
+    — which is not a theorem. On a fully observed DAG every interventional
+    distribution is identifiable (ID / IDC completeness); the absence of an
+    adjustment set only rules out the two adjustment formulas. The kernel
+    agreed with the wrong statement for as long as its IDC branch sat behind
+    a latent-confounding guard, and stopped agreeing once that branch became
+    reachable — so the fixture now carries the hedge its name always claimed.
+
+    The collider stays: conditioning on it is what makes the failure a
+    CONDITIONAL one, and it keeps the advisory this file's severity test is
+    about.
+    """
     return {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -53,6 +66,7 @@ def _collider_program() -> dict:
             {"kind": "cause", "forall": ["I"], "from": _v("x"), "to": _v("w")},
             {"kind": "cause", "forall": ["I"], "from": _v("y"), "to": _v("w")},
             {"kind": "cause", "forall": ["I"], "from": _v("x"), "to": _v("y")},
+            {"kind": "bidirected", "left": _c("x"), "right": _c("y")},
             {"kind": "query", "id": "q", "query": {
                 "kind": "effect",
                 "target": {"atom": _c("y"), "value": True},
@@ -156,7 +170,14 @@ def test_the_report_survives_its_own_verifier(name):
 
 def test_a_failed_identification_is_not_reported_as_a_point_estimand():
     result = themis.run(_collider_program())["results"][0]
-    assert result["structural_result"]["value"] is False
+    # Premise: identification really did fail. An ADMG refusal reports that
+    # as a STRUCTURE-kind investigation item rather than a structural_result
+    # of False — the two refusal shapes still differ on that field, which is
+    # its own outstanding item, not this test's subject.
+    assert result["status"] == "needs_investigation"
+    assert "structure" in {
+        m["kind"] for m in (result.get("missing_information") or [])
+    }
     report = _report(result)
     kinds = [g["kind"] for g in report["gaps"]]
     assert "unidentifiable_no_admissible_set" in kinds
@@ -213,7 +234,7 @@ def test_the_residual_does_not_double_report_a_refined_item():
         for ref in (gap.get("provenance") or [])
         if ref["ref_kind"] == "investigation_request"
     ]
-    assert cited.count("identification:not_identifiable") == 1
+    assert cited.count("query:effect_admg_conditional") == 1
 
 
 def test_a_solved_query_gains_no_residual_gap():

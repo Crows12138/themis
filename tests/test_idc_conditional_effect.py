@@ -378,3 +378,44 @@ def test_verify_rejects_tampered_bound_formula():
             st["output"] = copy.deepcopy(st["inputs"]["unbound_formula"])
     with pytest.raises(VerificationError):
         themis.verify(prog, forged)
+
+
+def test_idc_is_reached_without_latent_confounding():
+    """A conditional query on a plain DAG reaches IDC too.
+
+    The two layers used to disagree about whether this query is even
+    identifiable: ``themis.run`` refused it as ``not_identifiable`` while
+    ``themis.estimate`` identified it via IDC, produced the number, and had
+    that envelope ACCEPTED by the independent verifier. The cause was
+    structural rather than theoretical — the identification pass carried two
+    copies of its strategy ladder, and IDC sat in the copy guarded on latent
+    confounding, which conditional identification has nothing to do with.
+
+    ``x -> m -> y`` conditioned on the mediator: no adjustment set survives
+    (every candidate is a descendant of x) and front-door needs an
+    unconditioned query, so nothing before IDC can reach it.
+    """
+    prog = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "m", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("m")},
+            {"kind": "cause", "from": _atom("m"), "to": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [{"atom": _atom("m"), "value": True}],
+            }},
+        ],
+    }
+    r = themis.run(prog)["results"][0]
+    kinds = {m["kind"] for m in (r.get("missing_information") or [])}
+    names = {m["name"] for m in (r.get("missing_information") or [])}
+    # Identified but unparameterised — a data gap, NOT a structural refusal.
+    assert kinds == {"parameter"}, r.get("missing_information")
+    assert "identification:not_identifiable" not in names
+
