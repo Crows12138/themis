@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3822 passed / 144 skipped, warning-clean
+3828 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -920,7 +920,26 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 - web `Verdict.tsx` 仍直给英文 `failure_type`，且没接 `kind` / `details`（那里是加法式渲染，不受这次排序影响）。
 - `EstimatorDependencyMissing` 那处**不在问题范围**：它记录到另一个块 `estimator_dependency_missing`，不是静默——普查按 key 找曾误判它，读了才发现。
 
-**基线（本条）**：3816 → **3822**（+6：2 个原则守卫「终结查询必说明原因」「拒答带上它量到的数」+ 1 个端到端回归（那条 proximal 查询）+ 3 个消费端排序钉死，含「答案本就是布尔时布尔仍然赢」的反向一条）。
+**基线（本条）**：3816 → **3822**（+6：2 个原则守卫「终结查询必说明原因」「拒答带上它量到的数」+ 1 个端到端回归（那条 proximal 查询）+ 3 个消费端排序钉死，含「答案本就是布尔时布尔仍然赢」的反向一条）。~~未做第一项~~ **已兑现，见下一条。**
+
+**四个估计器接进拒答通道，裸异常不再冒充拒答（2026-08-03，接上条）**：功能型，兑现上条划出的第一项。frontdoor / mediation（两条）/ joint 用裸 `ValueError` / `NotImplementedError` 表达如实拒答，dispatch 的 handler 用 `except (ValueError, NotImplementedError)` 一把兜住，终结查询却不说原因。根因在估计器一侧：它们的注释自己写着「连续中介，超出 v1」「至少要两个处理」——**这些本就是拒答，只是没有物种可说**。所以修法不是在 handler 里记成 `unknown`（那等于把崩溃洗成拒答，而 `unknown` 的定义正是「唯一一个自己都不知道在说什么的物种」），而是**给估计器发物种**。
+
+**先量再改（㉔），而量出来的东西比改动本身重要。** 给这 5 个入口插桩跑全量：**3822 个测试一共只接住 3 次**。5 个站点里有 2 个（dispatch 2940 / 3217）**零命中**——它们的转换是防御性的、无运行时证据，这一点单独记，不混进「实测」。
+
+**其中一次接住的是 numpy 的 `LinAlgError`——上一档我证明不了的那件事，这次被抓住了。** ㉔ 说「读代码只能证明『我们自己不抛』，证明不了『不会到达』——库会抛」。这里它真的到达了：`LinAlgError` 是 `ValueError` 的**子类**，mediation 的**点估计**拟合在秩亏设计上让 statsmodels 抛出它，正落进通用兜底被吞掉。而 bootstrap 循环本来就守着退化抽样（跳过该次抽样、用其余的建区间），**点估计那一次没人守**——它的失败就是整个估计的失败，必须说出来。故 `_fit_or_refuse` 只包点估计，不碰 bootstrap 的容错。
+
+**新增 3 个物种**（净）：`continuous_mediator` / `mediator_strata_intractable` / `too_many_joint_treatments`；`singular_design` / `not_a_joint_intervention` / `invalid_input` 复用已有登记。schema enum 同步（测试钉死 enum ≡ 登记表）。4 个 dispatch handler 收窄为 `except EstimatorFailure` + `record`，joint_backdoor 之后那条通用兜底直接删掉。
+
+**登记表守卫抓到了我自己。** 我顺手登记了 `no_first_stage` 准备给 iv.py 用，然后又明确推迟了 iv.py——全量跑出 `Refusal('no_first_stage') is registered but no module names refusals.NO_FIRST_STAGE`。守卫的原话是「一条谁都不引用的登记，是一个除了这里之外已被删干净的拒答」。**推迟一件事，要连它的登记一起推迟**：物种随 iv.py 一起回来。
+
+**8 个既有测试断言的是旧的裸异常类型**（其中两个名字里就写着 `raises_not_implemented` / `raises_value_error`，已改名）。这是有意的行为改变，且方向是**回到已文档化的契约**——`themis/__init__.py` 早就写明 `estimate` 抛 `EstimatorFailure`，裸内置异常才是偏离。另把 `test_dispatch_skips_frontdoor_when_continuous_mediator` 重写为 `test_a_continuous_mediator_is_refused_out_loud`：它原本只断言「没有 numeric_estimate」、注释写着「优雅地跳过」——**那正是从允许它的测试内部看过去，一次静默拒答的样子**。
+
+**未做、已登记（明确划在这一档之外）**：
+
+- **iv.py 仍未接入**：它的 Wald 路径耦合着一个 bootstrap 容错循环，内层靠 `except ValueError` 跳过退化抽样，而退化抽样正是 `_wald_point` 抛 `ValueError` 造成的。正确终态要求把「每次抽样的失败通道」一并转成物种——那会动到**用户看得见的置信区间**，值得单独一轮带测量地做。over-ID 路径经核实**不属于这类缺陷**（它返回 `passed` 让路给恰好识别那一行，此刻写块会和后来的答案并列在信封上）。dispatch 站点 1224 随它留着，**不加临时白名单**：AST 守卫会自紧——每转一个估计器，就有一个通用 handler 变成 `except EstimatorFailure`，守卫随即覆盖它。
+- **joint 的 `singular_design` 无运行时证据**：K=2 / K=3 的完全共线处理向量、重复调整列、bool / 连续结局都试过，构造不出触发样本。**顺带撞见一件该单独查的事**：`b == a` 的完全共线联合设计**返回了一个数**且无任何提示，那个数对不对没查。
+
+**基线（本条）**：3822 → **3828**（+3 登记表守卫的参数化，净增 3 个物种；+3 行为测试：mediation 秩亏点估计的单元一条 + 端到端一条（信封确实带上了原因）、frontdoor 层交叉积上限一条——层数各自合规、交叉积不合规，与「连续中介」是两个物种）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
