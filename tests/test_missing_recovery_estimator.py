@@ -15,7 +15,7 @@ import pytest
 
 from themis import estimate
 from themis.estimation import RecoveredATEEstimate, estimate_recovered_ate
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 
 
 # ---- DGP: Z confounds X; Y has X·Z effect modification; R_Y depends on Z ----

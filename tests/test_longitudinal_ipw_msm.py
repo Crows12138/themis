@@ -25,7 +25,7 @@ import pytest
 from sklearn.linear_model import LinearRegression
 
 import themis
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.estimation.longitudinal import (
     LongitudinalIPWMSMEstimate,
     estimate_longitudinal_gformula,

@@ -25,7 +25,7 @@ from themis.estimation.regression_calibration import (
     estimate_regression_calibration,
     RegressionCalibrationEstimate,
 )
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 
 
 # --- synthetic linear SCM with a latent true exposure + classical error -------

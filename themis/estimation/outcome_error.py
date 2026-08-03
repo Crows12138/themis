@@ -46,7 +46,8 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 # Shared with regression calibration on purpose: "how many distinct values before
 # a column stops being a misclassification object" is one decision, and the two
 # channels must route the same variable the same way.
@@ -119,7 +120,7 @@ def assess_outcome_error(
         or error_variance <= 0
     ):
         raise EstimatorFailure(
-            "non_positive_error_variance",
+            refusals.NON_POSITIVE_ERROR_VARIANCE,
             f"the classical measurement-error variance σ²_v for the outcome "
             f"{outcome!r} must be a positive finite number; got "
             f"{error_variance!r}.",
@@ -134,7 +135,7 @@ def assess_outcome_error(
     n_distinct = int(df[outcome].dropna().nunique())
     if n_distinct < _MIN_CONTINUOUS_DISTINCT:
         raise EstimatorFailure(
-            "outcome_not_continuous",
+            refusals.OUTCOME_NOT_CONTINUOUS,
             f"outcome {outcome!r} has only {n_distinct} distinct values; an "
             f"additive error variance describes a CONTINUOUS measurement. A "
             f"discrete outcome is a misclassification object, and its error "
@@ -157,7 +158,7 @@ def assess_outcome_error(
         b = np.linalg.solve(Sigma, cov_Dy)
     except np.linalg.LinAlgError:
         raise EstimatorFailure(
-            "singular_design",
+            refusals.SINGULAR_DESIGN,
             "the design covariance Σ_D is singular (collinear covariates); the "
             "outcome's residual variance is undefined.",
         )
@@ -167,7 +168,7 @@ def assess_outcome_error(
     signal_variance = residual_variance - error_variance
     if signal_variance <= _SIGNAL_FLOOR * max(residual_variance, 1.0):
         raise EstimatorFailure(
-            "outcome_error_exceeds_residual_variance",
+            refusals.OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE,
             f"the declared outcome error variance σ²_v = {error_variance:.6g} "
             f"meets or exceeds the observed residual variance Var({outcome}|D) "
             f"= {residual_variance:.6g}. The noise does not fit underneath the "

@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import json
 
-from . import blocks
+from . import blocks, refusals
 from .input.parser import parse_json
 from .input.semantic_validator import validate_program
 from .input.syntactic_validator import validate_ast, validate_result
@@ -204,6 +204,7 @@ def _run_typed(prog) -> dict:
             rd.setdefault("extensions", {})[blocks.ASSUMPTION_LEDGER] = ledger
     for rd in result_dicts:
         blocks.check_registered(rd)
+        refusals.check_registered(rd)
     return {"results": result_dicts}
 
 

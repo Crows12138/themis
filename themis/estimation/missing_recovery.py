@@ -63,7 +63,8 @@ import numpy as np
 import pandas as pd
 
 from .contract import _hash_frame
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
 _MIN_SAMPLE_SIZE = 10
@@ -125,7 +126,7 @@ def _check_discrete(frame: pd.DataFrame, col: str, treatment: str) -> None:
     obs = frame[col].dropna().to_numpy()
     if obs.size == 0:
         raise EstimatorFailure(
-            "adjustment_all_missing",
+            refusals.ADJUSTMENT_ALL_MISSING,
             f"adjustment column {col!r} is never observed — its marginal "
             f"P({col}) cannot be recovered.",
             treatment=treatment,
@@ -133,7 +134,7 @@ def _check_discrete(frame: pd.DataFrame, col: str, treatment: str) -> None:
     levels = np.unique(obs)
     if levels.size > _MAX_STRATA_LEVELS or np.any(levels != np.round(levels)):
         raise EstimatorFailure(
-            "adjustment_not_discrete",
+            refusals.ADJUSTMENT_NOT_DISCRETE,
             f"adjustment column {col!r} has {levels.size} observed levels / "
             f"non-integer values; the recovery estimator stratifies on the "
             f"back-door set, so each adjustment variable must be discrete "
@@ -181,7 +182,7 @@ def _gformula_ate(
             cell = yv[tx == x]
             if cell.size == 0:
                 raise EstimatorFailure(
-                    "insufficient_support",
+                    refusals.INSUFFICIENT_SUPPORT,
                     f"no complete-case rows with {treatment}={int(x)}.",
                     treatment=treatment,
                 )
@@ -216,7 +217,7 @@ def _gformula_ate(
             cell = yv[in_stratum & (tx == x)]
             if cell.size == 0:
                 raise EstimatorFailure(
-                    "insufficient_support",
+                    refusals.INSUFFICIENT_SUPPORT,
                     f"no complete-case rows in stratum "
                     f"{dict(zip(zt, z_vals))} with {treatment}={int(x)}; the "
                     f"recovered conditional E[Y|X,Z] is undefined there.",
@@ -299,14 +300,14 @@ def estimate_recovered_ate(
     missing = [c for c in model_cols if c not in data.columns]
     if missing:
         raise EstimatorFailure(
-            "missing_column",
+            refusals.MISSING_COLUMN,
             f"data is missing required columns: {missing}.",
             treatment=treatment,
         )
     n_total = len(data)
     if n_total < _MIN_SAMPLE_SIZE:
         raise EstimatorFailure(
-            "sample_too_small",
+            refusals.SAMPLE_TOO_SMALL,
             f"sample size {n_total} is below the minimum "
             f"({_MIN_SAMPLE_SIZE}) for estimation.",
             treatment=treatment,
@@ -322,7 +323,7 @@ def estimate_recovered_ate(
     t_obs = frame[treatment].dropna().to_numpy()
     if not set(np.unique(t_obs)) <= {0.0, 1.0}:
         raise EstimatorFailure(
-            "treatment_not_binary",
+            refusals.TREATMENT_NOT_BINARY,
             f"treatment {treatment!r} must be binary 0/1 over its observed "
             f"values; got levels {sorted(set(np.unique(t_obs)))}.",
             treatment=treatment,

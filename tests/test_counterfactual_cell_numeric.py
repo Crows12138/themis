@@ -21,7 +21,7 @@ import pytest
 import themis
 from themis.estimation.causation import estimate_causation_probabilities
 from themis.estimation.counterfactual_cell import estimate_counterfactual_cell
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.input.syntactic_validator import validate_result
 from themis.types import (
     Atom,

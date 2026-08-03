@@ -28,7 +28,7 @@ from themis.estimation.general_id import (
     GeneralIdEstimate,
     estimate_general_id_ate,
 )
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 
 
 def _A(p: str) -> Atom:

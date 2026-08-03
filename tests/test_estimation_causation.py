@@ -33,7 +33,7 @@ import pandas as pd
 import pytest
 
 from themis.estimation.causation import estimate_causation_probabilities
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.types import Atom
 
 X, Y, Z = Atom(predicate="x", args=()), Atom(predicate="y", args=()), Atom(predicate="z", args=())

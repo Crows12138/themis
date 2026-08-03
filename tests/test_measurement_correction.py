@@ -24,7 +24,7 @@ from themis.estimation.measurement import (
     estimate_measurement_correction,
     MeasurementCorrectionEstimate,
 )
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 
 
 # --- synthetic SCM with a latent true outcome + a known Se/Sp channel ---------

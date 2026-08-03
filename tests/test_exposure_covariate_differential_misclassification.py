@@ -24,7 +24,7 @@ from themis.estimation.measurement import (
     estimate_exposure_measurement_correction,
     ExposureMeasurementCorrectionEstimate,
 )
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 
 
 def _binary_M(se, sp):

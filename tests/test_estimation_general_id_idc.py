@@ -43,7 +43,7 @@ from themis.estimation.general_id import (
     GeneralIdEstimate,
     estimate_general_id_conditional_ate,
 )
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.input.syntactic_validator import validate_ast
 from themis.input.semantic_validator import validate_program
 from themis.runtime.graph_projection import project

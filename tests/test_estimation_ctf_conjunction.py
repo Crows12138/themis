@@ -28,7 +28,7 @@ import pytest
 
 import themis
 from themis.estimation.ctf_conjunction import estimate_ctf_conjunction_prob
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.input.syntactic_validator import validate_result
 from themis.runtime.ctf_identify import CtfEvent
 from themis.types import Atom

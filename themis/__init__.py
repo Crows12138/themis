@@ -88,7 +88,7 @@ on ``themis`` directly to keep the public surface minimal)::
     from themis.input.syntactic_validator import SyntacticError
     from themis.input.semantic_validator import SemanticError
     from themis.estimation.contract import DataContractError
-    from themis.estimation.dose_response import EstimatorFailure
+    from themis.refusals import EstimatorFailure
     from themis.estimation.dose_response import EstimatorDependencyMissing
     from themis.runtime.numeric_estimator import InsufficientTheta
     from themis.verifier import VerificationError

@@ -293,7 +293,7 @@ def test_single_arm_treatment_refuses_rather_than_fabricates():
     arm and return a falsely-precise number. The estimator must refuse —
     EstimatorFailure(overlap_insufficient) — not fabricate. Real-usage
     probe 2026-06-16."""
-    from themis.estimation.dose_response import EstimatorFailure
+    from themis.refusals import EstimatorFailure
 
     rng = np.random.default_rng(22)
     n = 2000

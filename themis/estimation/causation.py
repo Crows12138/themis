@@ -63,7 +63,7 @@ from .binary_do_risk import (
     observational_joint_xy,
 )
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
 

@@ -87,7 +87,8 @@ from ..runtime.numeric_estimator import (
     ve_estimate_formula,
 )
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
 
@@ -172,13 +173,13 @@ def estimate_general_id_ate(
     y_col = outcome_atom.predicate
     if t_col not in data.columns:
         raise EstimatorFailure(
-            "missing_column",
+            refusals.MISSING_COLUMN,
             f"treatment column {t_col!r} not present in the data",
             treatment=t_col,
         )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            "missing_column",
+            refusals.MISSING_COLUMN,
             f"outcome column {y_col!r} not present in the data",
             outcome=y_col,
         )
@@ -188,7 +189,7 @@ def estimate_general_id_ate(
     t_levels = _sorted_levels(data[t_col])
     if len(t_levels) != 2:
         raise EstimatorFailure(
-            "treatment_not_binary",
+            refusals.TREATMENT_NOT_BINARY,
             f"treatment {t_col!r} has {len(t_levels)} observed levels "
             f"({t_levels}); the general-ID plug-in ATE is a two-level "
             f"contrast. Supply a binary treatment.",
@@ -197,7 +198,7 @@ def estimate_general_id_ate(
     y_levels = _sorted_levels(data[y_col])
     if len(y_levels) != 2:
         raise EstimatorFailure(
-            "outcome_not_binary",
+            refusals.OUTCOME_NOT_BINARY,
             f"outcome {y_col!r} has {len(y_levels)} observed levels "
             f"({y_levels}); v1 of the general-ID plug-in ATE requires a "
             f"binary outcome.",
@@ -216,7 +217,7 @@ def estimate_general_id_ate(
     if not (res_hi.identifiable and res_lo.identifiable
             and res_hi.formula is not None and res_lo.formula is not None):
         raise EstimatorFailure(
-            "not_identifiable_by_general_id",
+            refusals.NOT_IDENTIFIABLE_BY_GENERAL_ID,
             f"the effect of {t_col!r} on {y_col!r} is not point-identified "
             f"by the general ID algorithm on this ADMG — there is no "
             f"c-factor estimand to evaluate.",
@@ -367,13 +368,13 @@ def estimate_general_id_conditional_ate(
     y_col = outcome_atom.predicate
     if t_col not in data.columns:
         raise EstimatorFailure(
-            "missing_column",
+            refusals.MISSING_COLUMN,
             f"treatment column {t_col!r} not present in the data",
             treatment=t_col,
         )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            "missing_column",
+            refusals.MISSING_COLUMN,
             f"outcome column {y_col!r} not present in the data",
             outcome=y_col,
         )
@@ -381,7 +382,7 @@ def estimate_general_id_conditional_ate(
     t_levels = _sorted_levels(data[t_col])
     if len(t_levels) != 2:
         raise EstimatorFailure(
-            "treatment_not_binary",
+            refusals.TREATMENT_NOT_BINARY,
             f"treatment {t_col!r} has {len(t_levels)} observed levels "
             f"({t_levels}); the general-ID plug-in ATE is a two-level "
             f"contrast. Supply a binary treatment.",
@@ -390,7 +391,7 @@ def estimate_general_id_conditional_ate(
     y_levels = _sorted_levels(data[y_col])
     if len(y_levels) != 2:
         raise EstimatorFailure(
-            "outcome_not_binary",
+            refusals.OUTCOME_NOT_BINARY,
             f"outcome {y_col!r} has {len(y_levels)} observed levels "
             f"({y_levels}); v1 of the general-ID plug-in ATE requires a "
             f"binary outcome.",
@@ -411,7 +412,7 @@ def estimate_general_id_conditional_ate(
     if not (idc_hi.identifiable and idc_lo.identifiable
             and idc_hi.formula is not None and idc_lo.formula is not None):
         raise EstimatorFailure(
-            "not_identifiable_by_idc",
+            refusals.NOT_IDENTIFIABLE_BY_IDC,
             f"the conditional effect of {t_col!r} on {y_col!r} given "
             f"{[a.predicate for a in given_atoms]} is not point-identified "
             f"by IDC on this ADMG — there is no c-factor estimand to "
@@ -559,7 +560,7 @@ def estimate_joint_general_id_ate(
 
     if len(treatment_atoms) < 2:
         raise EstimatorFailure(
-            "not_a_joint_intervention",
+            refusals.NOT_A_JOINT_INTERVENTION,
             f"the joint general-ID plug-in needs at least two treatments; "
             f"got {len(treatment_atoms)}.",
         )
@@ -568,13 +569,13 @@ def estimate_joint_general_id_ate(
     for t_col in t_cols:
         if t_col not in data.columns:
             raise EstimatorFailure(
-                "missing_column",
+                refusals.MISSING_COLUMN,
                 f"treatment column {t_col!r} not present in the data",
                 treatment=t_col,
             )
     if y_col not in data.columns:
         raise EstimatorFailure(
-            "missing_column",
+            refusals.MISSING_COLUMN,
             f"outcome column {y_col!r} not present in the data",
             outcome=y_col,
         )
@@ -584,7 +585,7 @@ def estimate_joint_general_id_ate(
     level_sets = {tuple(_sorted_levels(data[t])) for t in t_cols}
     if len(level_sets) != 1 or len(next(iter(level_sets))) != 2:
         raise EstimatorFailure(
-            "treatment_not_binary",
+            refusals.TREATMENT_NOT_BINARY,
             f"the joint general-ID plug-in requires every treatment to be "
             f"binary with one common two-level set; got level sets "
             f"{sorted(level_sets)} for {list(t_cols)}. A uniform do-corner "
@@ -594,7 +595,7 @@ def estimate_joint_general_id_ate(
     y_levels = _sorted_levels(data[y_col])
     if len(y_levels) != 2:
         raise EstimatorFailure(
-            "outcome_not_binary",
+            refusals.OUTCOME_NOT_BINARY,
             f"outcome {y_col!r} has {len(y_levels)} observed levels "
             f"({y_levels}); v1 of the general-ID plug-in requires a binary "
             f"outcome.",
@@ -613,7 +614,7 @@ def estimate_joint_general_id_ate(
     if not (res_hi.identifiable and res_lo.identifiable
             and res_hi.formula is not None and res_lo.formula is not None):
         raise EstimatorFailure(
-            "not_identifiable_by_general_id",
+            refusals.NOT_IDENTIFIABLE_BY_GENERAL_ID,
             f"the joint effect of {list(t_cols)} on {y_col!r} is not "
             f"point-identified by the set ID algorithm on this ADMG — there "
             f"is no c-factor estimand to evaluate.",
@@ -726,7 +727,7 @@ def identify_arm_risk_formula(
     )
     if not res.identifiable or res.formula is None:
         raise EstimatorFailure(
-            "not_identifiable_by_general_id",
+            refusals.NOT_IDENTIFIABLE_BY_GENERAL_ID,
             f"P({outcome_atom.predicate} | do({treatment_atom.predicate}="
             f"{arm_value})) is not point-identified by the general ID algorithm "
             f"on this ADMG — there is no c-factor estimand to evaluate.",
@@ -868,7 +869,7 @@ def _empirical_conditional(df: pd.DataFrame, key: ProbabilityKey) -> float:
     denom = int(mask.sum())
     if denom == 0:
         raise EstimatorFailure(
-            "insufficient_support",
+            refusals.INSUFFICIENT_SUPPORT,
             "positivity violation: the identified estimand conditions on a "
             "covariate stratum with zero support in the data "
             f"({_render_given(key)}); the effect cannot be evaluated there "
@@ -917,7 +918,7 @@ def _prob_do(
         # positivity failure) rather than leak the internal VE exception;
         # realistic nested-ID estimands are sparse and never reach this.
         raise EstimatorFailure(
-            "intractable_estimand",
+            refusals.INTRACTABLE_ESTIMAND,
             "the identified estimand has too high a treewidth to evaluate by "
             f"variable elimination ({exc}); it is beyond the numeric plug-in's "
             "reach on this ADMG.",

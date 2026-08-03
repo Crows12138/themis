@@ -105,7 +105,8 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
 # A covariate with more distinct values than this is treated as continuous and
@@ -230,18 +231,18 @@ def estimate_measurement_correction(
     k = len(states)
     if k < 2:
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"need at least 2 outcome states; got {states!r}.",
         )
     if len(set(states)) != k:
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"outcome states must be distinct; got {states!r}.",
         )
     target_value = _py(target_value)
     if target_value not in states:
         raise EstimatorFailure(
-            "target_value_absent",
+            refusals.TARGET_VALUE_ABSENT,
             f"query target value {target_value!r} is not among the declared "
             f"outcome states {states!r}.",
         )
@@ -259,7 +260,7 @@ def estimate_measurement_correction(
         axis = differential_by if differential_by is not None else treatment
         if axis != treatment and axis not in adjustment:
             raise EstimatorFailure(
-                "differential_by_unknown",
+                refusals.DIFFERENTIAL_BY_UNKNOWN,
                 f"differential_by={axis!r} is neither the exposure {treatment!r} "
                 f"nor a back-door adjustment covariate {list(adjustment)!r}; the "
                 f"differential axis must be a variable the correction conditions on.",
@@ -274,7 +275,7 @@ def estimate_measurement_correction(
             arm_bools = {bool(lvl) for (lvl, *_rest) in prepared}
             if len(prepared) != 2 or arm_bools != {False, True}:
                 raise EstimatorFailure(
-                    "differential_levels_mismatch",
+                    refusals.DIFFERENTIAL_LEVELS_MISMATCH,
                     "outcome differential misclassification by the exposure arm "
                     "needs `differential_levels` = the two treatment values (one "
                     f"falsy, one truthy); got {[lvl for (lvl, *_r) in prepared]!r}. "
@@ -302,7 +303,7 @@ def estimate_measurement_correction(
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
-                "singular_confusion_matrix",
+                refusals.SINGULAR_CONFUSION_MATRIX,
                 f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
                 f"{_DET_FLOOR:g}); the measurement carries no usable information "
                 f"about the true outcome and the correction is undefined.",
@@ -328,7 +329,7 @@ def estimate_measurement_correction(
     missing = observed_states - set(states)
     if missing:
         raise EstimatorFailure(
-            "states_incomplete",
+            refusals.STATES_INCOMPLETE,
             f"observed outcome values {sorted(map(str, missing))} are not in the "
             f"declared confusion-matrix states {states!r}; the matrix must cover "
             f"every observed outcome value.",
@@ -479,7 +480,7 @@ def _formula(
             n = int(mask.sum())
             if n == 0:
                 raise EstimatorFailure(
-                    "insufficient_support",
+                    refusals.INSUFFICIENT_SUPPORT,
                     f"stratum X={arm}, z={_json_key(z_key)} has no rows "
                     f"(positivity violation); P(Y|x,z) is not estimable so the "
                     f"correction cannot standardise over it.",
@@ -490,7 +491,7 @@ def _formula(
             Minv = Minv_by_level.get(_level_key(lvl_value))
             if Minv is None:
                 raise EstimatorFailure(
-                    "differential_level_uncovered",
+                    refusals.DIFFERENTIAL_LEVEL_UNCOVERED,
                     f"no confusion matrix supplied for {differential_axis}="
                     f"{lvl_value!r}; the differential matrix set must cover every "
                     f"observed level of the differential axis.",
@@ -605,29 +606,29 @@ def _validate_matrix(confusion_matrix, k: int, *, label: str | None = None) -> n
         M = np.array(confusion_matrix, dtype=float)
     except (TypeError, ValueError) as exc:
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"{what} is not a numeric array: {exc}.",
         )
     if M.shape != (k, k):
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"{what} must be {k}×{k} to match {k} {noun}; "
             f"got shape {M.shape}.",
         )
     if not np.isfinite(M).all():
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"{what} has non-finite entries.",
         )
     if (M < -_TOL).any() or (M > 1 + _TOL).any():
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"{what} entries must be probabilities in [0, 1].",
         )
     col_sums = M.sum(axis=0)
     if not np.allclose(col_sums, 1.0, atol=1e-6):
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"{what} must be column-stochastic (each column = a true "
             f"state's observed distribution, summing to 1); column sums are "
             f"{[round(float(c), 4) for c in col_sums]}.",
@@ -661,7 +662,7 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
     set — never falls back to a single matrix."""
     if confusion_matrices is None or differential_levels is None:
         raise EstimatorFailure(
-            "differential_spec_incomplete",
+            refusals.DIFFERENTIAL_SPEC_INCOMPLETE,
             "differential misclassification needs both `confusion_matrices` and "
             "`differential_levels` (one matrix per conditioning level); got "
             f"confusion_matrices={confusion_matrices!r}, "
@@ -671,19 +672,19 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
     levels = [_py(v) for v in differential_levels]
     if len(mats) != len(levels):
         raise EstimatorFailure(
-            "differential_levels_mismatch",
+            refusals.DIFFERENTIAL_LEVELS_MISMATCH,
             f"got {len(mats)} confusion matrices but {len(levels)} {level_name} "
             f"levels; they must align 1:1.",
         )
     if len(mats) < 2:
         raise EstimatorFailure(
-            "differential_spec_incomplete",
+            refusals.DIFFERENTIAL_SPEC_INCOMPLETE,
             f"differential misclassification needs at least 2 {level_name} levels; "
             f"got {levels!r}.",
         )
     if len({_level_key(v) for v in levels}) != len(levels):
         raise EstimatorFailure(
-            "differential_levels_mismatch",
+            refusals.DIFFERENTIAL_LEVELS_MISMATCH,
             f"{level_name} levels must be distinct; got {levels!r}.",
         )
     out: list[tuple] = []
@@ -692,7 +693,7 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
-                "singular_confusion_matrix",
+                refusals.SINGULAR_CONFUSION_MATRIX,
                 f"the confusion matrix for {level_name}={lvl!r} is non-invertible "
                 f"(|det|={abs(det):.3g} < {_DET_FLOOR:g}); the correction is "
                 f"undefined in that level.",
@@ -705,7 +706,7 @@ def _require_binary(col: pd.Series, name: str) -> None:
     vals = set(pd.unique(col.dropna()))
     if not vals <= {0, 1, True, False, 0.0, 1.0}:
         raise EstimatorFailure(
-            "treatment_not_binary",
+            refusals.TREATMENT_NOT_BINARY,
             f"measurement-error correction needs a binary treatment {name!r}; "
             f"got values {sorted(vals, key=str)} (multi-value X is deferred).",
         )
@@ -715,7 +716,7 @@ def _require_discrete(col: pd.Series, name: str) -> None:
     k = col.nunique(dropna=True)
     if k > _MAX_LEVELS:
         raise EstimatorFailure(
-            "continuous_adjustment",
+            refusals.CONTINUOUS_ADJUSTMENT,
             f"adjustment covariate {name!r} has {k} distinct values (> "
             f"{_MAX_LEVELS}); the saturated stratified correction needs a "
             f"discrete covariate.",
@@ -944,13 +945,13 @@ def estimate_exposure_measurement_correction(
     states = tuple(_py(s) for s in states)
     if len(states) != 2 or len(set(states)) != 2:
         raise EstimatorFailure(
-            "exposure_not_binary",
+            refusals.EXPOSURE_NOT_BINARY,
             f"exposure misclassification needs exactly two distinct exposure "
             f"states; got {states!r} (a multi-level exposure matrix is deferred).",
         )
     if bool(states[0]) is not False or bool(states[1]) is not True:
         raise EstimatorFailure(
-            "exposure_not_binary",
+            refusals.EXPOSURE_NOT_BINARY,
             f"exposure states must be a binary [control, treated] pair with a "
             f"falsy control and a truthy treated (e.g. [0, 1] or [False, True]); "
             f"got {states!r}.",
@@ -965,7 +966,7 @@ def estimate_exposure_measurement_correction(
         det = float(np.linalg.det(M))
         if abs(det) < _DET_FLOOR:
             raise EstimatorFailure(
-                "singular_confusion_matrix",
+                refusals.SINGULAR_CONFUSION_MATRIX,
                 f"confusion matrix is non-invertible (|det| = {abs(det):.3g} < "
                 f"{_DET_FLOOR:g}); the measurement carries no usable information "
                 f"about the true exposure and the correction is undefined.",
@@ -986,7 +987,7 @@ def estimate_exposure_measurement_correction(
     observed_x = set(_py(v) for v in pd.unique(df[treatment].dropna()))
     if not observed_x <= set(states):
         raise EstimatorFailure(
-            "exposure_not_binary",
+            refusals.EXPOSURE_NOT_BINARY,
             f"observed exposure values {sorted(map(str, observed_x))} are not "
             f"covered by the declared exposure states {states!r}.",
         )
@@ -998,18 +999,18 @@ def estimate_exposure_measurement_correction(
     ))
     if len(outcome_states) < 1:
         raise EstimatorFailure(
-            "empty_outcome", f"outcome {outcome!r} has no observed values.",
+            refusals.EMPTY_OUTCOME, f"outcome {outcome!r} has no observed values.",
         )
     if len(outcome_states) > _MAX_LEVELS:
         raise EstimatorFailure(
-            "continuous_outcome",
+            refusals.CONTINUOUS_OUTCOME,
             f"outcome {outcome!r} has {len(outcome_states)} distinct values (> "
             f"{_MAX_LEVELS}); the standardised risk-difference correction needs "
             f"a discrete outcome.",
         )
     if target_value not in outcome_states:
         raise EstimatorFailure(
-            "target_value_absent",
+            refusals.TARGET_VALUE_ABSENT,
             f"query target value {target_value!r} is not among the observed "
             f"outcome values {list(outcome_states)!r}.",
         )
@@ -1028,7 +1029,7 @@ def estimate_exposure_measurement_correction(
         axis = differential_by if differential_by is not None else outcome
         if axis == treatment:
             raise EstimatorFailure(
-                "differential_by_unknown",
+                refusals.DIFFERENTIAL_BY_UNKNOWN,
                 f"differential_by={axis!r} is the mismeasured exposure itself; the "
                 f"exposure confusion matrix is already indexed by the true exposure "
                 f"state. The exposure channel may be differential by the OUTCOME "
@@ -1037,7 +1038,7 @@ def estimate_exposure_measurement_correction(
             )
         if axis != outcome and axis not in adjustment:
             raise EstimatorFailure(
-                "differential_by_unknown",
+                refusals.DIFFERENTIAL_BY_UNKNOWN,
                 f"differential_by={axis!r} is neither the outcome {outcome!r} nor a "
                 f"back-door adjustment covariate {list(adjustment)!r}; the "
                 f"differential axis must be a variable the correction conditions on.",
@@ -1057,7 +1058,7 @@ def estimate_exposure_measurement_correction(
             level_keys = {_level_key(lvl) for (lvl, *_r) in prepared}
             if level_keys != set(canon):
                 raise EstimatorFailure(
-                    "differential_levels_mismatch",
+                    refusals.DIFFERENTIAL_LEVELS_MISMATCH,
                     "exposure differential misclassification by the outcome: "
                     "`differential_levels` must be exactly the observed outcome "
                     f"values {list(outcome_states)!r}; got "
@@ -1244,7 +1245,7 @@ def _exposure_formula(
             n_arm = int(arm_mask.sum())
             if n_arm == 0:
                 raise EstimatorFailure(
-                    "insufficient_support",
+                    refusals.INSUFFICIENT_SUPPORT,
                     f"stratum X={xval!r}, z={_json_key(z_key)} has no rows "
                     f"(positivity violation); P(Y|x,z) is not estimable so the "
                     f"correction cannot standardise over it.",
@@ -1261,7 +1262,7 @@ def _exposure_formula(
             Minv = Minv_by_level.get(_level_key(lvl_value))
             if Minv is None:
                 raise EstimatorFailure(
-                    "differential_level_uncovered",
+                    refusals.DIFFERENTIAL_LEVEL_UNCOVERED,
                     f"no confusion matrix supplied for {differential_axis}="
                     f"{lvl_value!r}; the differential matrix set must cover every "
                     f"observed level of the differential axis.",
@@ -1274,7 +1275,7 @@ def _exposure_formula(
         px0 = float(p_true[0, :].sum())
         if px1 <= _TOL or px0 <= _TOL:
             raise EstimatorFailure(
-                "degenerate_recovered_exposure",
+                refusals.DEGENERATE_RECOVERED_EXPOSURE,
                 f"stratum z={_json_key(z_key)} recovers a non-positive true "
                 f"exposure marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g}); "
                 f"the conditional risk is undefined — the confusion matrix is too "
@@ -1503,14 +1504,14 @@ def estimate_combined_measurement_correction(
     exposure_states = tuple(_py(s) for s in exposure_states)
     if len(exposure_states) != 2 or len(set(exposure_states)) != 2:
         raise EstimatorFailure(
-            "exposure_not_binary",
+            refusals.EXPOSURE_NOT_BINARY,
             f"combined misclassification needs exactly two distinct exposure "
             f"states; got {exposure_states!r} (a multi-level exposure matrix is "
             f"deferred).",
         )
     if bool(exposure_states[0]) is not False or bool(exposure_states[1]) is not True:
         raise EstimatorFailure(
-            "exposure_not_binary",
+            refusals.EXPOSURE_NOT_BINARY,
             f"exposure states must be a binary [control, treated] pair with a "
             f"falsy control and a truthy treated (e.g. [0, 1] or [False, True]); "
             f"got {exposure_states!r}.",
@@ -1520,24 +1521,24 @@ def estimate_combined_measurement_correction(
     k = len(outcome_states)
     if k < 2:
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"need at least 2 outcome states; got {outcome_states!r}.",
         )
     if len(set(outcome_states)) != k:
         raise EstimatorFailure(
-            "invalid_confusion_matrix",
+            refusals.INVALID_CONFUSION_MATRIX,
             f"outcome states must be distinct; got {outcome_states!r}.",
         )
     if k > _MAX_LEVELS:
         raise EstimatorFailure(
-            "continuous_outcome",
+            refusals.CONTINUOUS_OUTCOME,
             f"outcome {outcome!r} has {k} declared states (> {_MAX_LEVELS}); the "
             f"standardised risk-difference correction needs a discrete outcome.",
         )
     target_value = _py(target_value)
     if target_value not in outcome_states:
         raise EstimatorFailure(
-            "target_value_absent",
+            refusals.TARGET_VALUE_ABSENT,
             f"query target value {target_value!r} is not among the declared "
             f"outcome states {outcome_states!r}.",
         )
@@ -1546,7 +1547,7 @@ def estimate_combined_measurement_correction(
     det_x = float(np.linalg.det(Mx))
     if abs(det_x) < _DET_FLOOR:
         raise EstimatorFailure(
-            "singular_confusion_matrix",
+            refusals.SINGULAR_CONFUSION_MATRIX,
             f"the EXPOSURE confusion matrix is non-invertible (|det| = "
             f"{abs(det_x):.3g} < {_DET_FLOOR:g}); the measurement carries no "
             f"usable information about the true exposure and the correction is "
@@ -1556,7 +1557,7 @@ def estimate_combined_measurement_correction(
     det_y = float(np.linalg.det(My))
     if abs(det_y) < _DET_FLOOR:
         raise EstimatorFailure(
-            "singular_confusion_matrix",
+            refusals.SINGULAR_CONFUSION_MATRIX,
             f"the OUTCOME confusion matrix is non-invertible (|det| = "
             f"{abs(det_y):.3g} < {_DET_FLOOR:g}); the measurement carries no "
             f"usable information about the true outcome and the correction is "
@@ -1580,7 +1581,7 @@ def estimate_combined_measurement_correction(
     observed_x = set(_py(v) for v in pd.unique(df[treatment].dropna()))
     if not observed_x <= set(exposure_states):
         raise EstimatorFailure(
-            "exposure_not_binary",
+            refusals.EXPOSURE_NOT_BINARY,
             f"observed exposure values {sorted(map(str, observed_x))} are not "
             f"covered by the declared exposure states {exposure_states!r}.",
         )
@@ -1591,7 +1592,7 @@ def estimate_combined_measurement_correction(
     missing = observed_y - set(outcome_states)
     if missing:
         raise EstimatorFailure(
-            "states_incomplete",
+            refusals.STATES_INCOMPLETE,
             f"observed outcome values {sorted(map(str, missing))} are not in the "
             f"declared confusion-matrix states {outcome_states!r}; the matrix "
             f"must cover every observed outcome value.",
@@ -1713,7 +1714,7 @@ def _combined_formula(
             n_arm = int(arm_mask.sum())
             if n_arm == 0:
                 raise EstimatorFailure(
-                    "insufficient_support",
+                    refusals.INSUFFICIENT_SUPPORT,
                     f"stratum X={xval!r}, z={_json_key(z_key)} has no rows "
                     f"(positivity violation); P(Y|x,z) is not estimable so the "
                     f"correction cannot standardise over it.",
@@ -1731,7 +1732,7 @@ def _combined_formula(
         px0 = float(p_true[0, :].sum())
         if px1 <= _TOL or px0 <= _TOL:
             raise EstimatorFailure(
-                "degenerate_recovered_exposure",
+                refusals.DEGENERATE_RECOVERED_EXPOSURE,
                 f"stratum z={_json_key(z_key)} recovers a non-positive true "
                 f"exposure marginal (P(X*=1|z)={px1:.3g}, P(X*=0|z)={px0:.3g}); "
                 f"the conditional risk is undefined — the exposure confusion "

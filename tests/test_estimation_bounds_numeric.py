@@ -20,7 +20,7 @@ from themis.estimation.bounds_numeric import (
     evaluate_manski_natural_bounds,
     evaluate_manski_tamer_bounds,
 )
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 
 
 # --------------------------------------------------------------------------

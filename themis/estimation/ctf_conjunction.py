@@ -63,7 +63,8 @@ import pandas as pd
 
 from ..types import ConstantExpr, FormulaExpr
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .general_id import (
     _domains_from_data,
     _prob_do,
@@ -144,13 +145,13 @@ def estimate_ctf_conjunction_prob(
     )
     if outcome is FAIL:
         raise EstimatorFailure(
-            "not_identifiable_counterfactual",
+            refusals.NOT_IDENTIFIABLE_COUNTERFACTUAL,
             "P(γ|δ) is not identifiable by the ID*/IDC* algorithm on this "
             "ADMG — there is no observational estimand to evaluate.",
         )
     if outcome is UNDEFINED:
         raise EstimatorFailure(
-            "undefined_conditioning_event",
+            refusals.UNDEFINED_CONDITIONING_EVENT,
             "the conditioning conjunction δ has probability 0, so the "
             "conditional P(γ|δ) is undefined; no number can be produced.",
         )

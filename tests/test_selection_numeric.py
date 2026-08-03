@@ -17,7 +17,7 @@ import pytest
 
 import themis
 from themis.estimation.selection import estimate_selection_recovery
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.input.syntactic_validator import validate_result
 from themis.verifier.errors import VerificationError
 

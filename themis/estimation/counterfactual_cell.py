@@ -70,7 +70,8 @@ from .binary_do_risk import (
     observational_joint_xy,
 )
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .general_id import (
     data_domains,
     evaluate_arm_risk,
@@ -195,7 +196,7 @@ def estimate_counterfactual_cell(
     y_atom = query.counterfactual_target.atom
     if query.counterfactual_intervention.atom != x_atom:
         raise EstimatorFailure(
-            "counterfactual_cell_cross_variable",
+            refusals.COUNTERFACTUAL_CELL_CROSS_VARIABLE,
             "the counterfactual cell estimator intervenes on the SAME variable "
             f"it conditions on; got do({query.counterfactual_intervention.atom.predicate}) "
             f"with X={x_atom.predicate} observed",
@@ -212,7 +213,7 @@ def estimate_counterfactual_cell(
     ):
         if value is not None and not isinstance(value, bool):
             raise EstimatorFailure(
-                "counterfactual_cell_not_binary",
+                refusals.COUNTERFACTUAL_CELL_NOT_BINARY,
                 f"the counterfactual cell estimator is boolean-only; "
                 f"{label}={value!r}",
             )
@@ -310,7 +311,7 @@ def estimate_counterfactual_cell(
         joint, risk, interval = _run(x, y, df)
     except cf.InterventionalRiskRequired as need:
         raise EstimatorFailure(
-            "interventional_risk_not_identifiable",
+            refusals.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE,
             f"P(Y=1|do({xcol}={need.needed_x_value})) is identified from this "
             f"graph by neither a back-door adjustment set nor the general ID "
             f"algorithm, and was not supplied; this cell is not determined "
@@ -319,11 +320,11 @@ def estimate_counterfactual_cell(
         ) from need
     except cf.CounterfactualInfeasible as exc:
         raise EstimatorFailure(
-            "counterfactual_inputs_infeasible", str(exc),
+            refusals.COUNTERFACTUAL_INPUTS_INFEASIBLE, str(exc),
         ) from exc
     except cf.CounterfactualBoundsError as exc:
         raise EstimatorFailure(
-            "counterfactual_cell_out_of_scope", str(exc),
+            refusals.COUNTERFACTUAL_CELL_OUT_OF_SCOPE, str(exc),
         ) from exc
 
     # 4. Percentile bootstrap. A draw whose feasible set is empty is NOT a

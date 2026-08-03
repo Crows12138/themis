@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.estimation.four_way import (
     four_way_ratio_decomposition,
     four_way_ratio_decomposition_continuous,

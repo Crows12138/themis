@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.estimation.proximal import estimate_proximal_ate
 from themis.runtime.proximal_identify import identify_proximal, ProximalEstimand
 from themis.types import Atom

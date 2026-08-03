@@ -28,7 +28,7 @@ from themis.estimation.measurement import (
     estimate_exposure_measurement_correction,
     estimate_measurement_correction,
 )
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 
 
 def _M(se, sp):

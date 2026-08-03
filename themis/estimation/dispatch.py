@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .. import blocks
+from .. import blocks, refusals
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
@@ -58,11 +58,13 @@ def estimate_program(
     estimator family. Doing it per family is what left most of them out: it
     took remembering two separate things, and forgetting either was silent.
 
-    Two things hold here. Its declared assumptions reach the assumption
+    Three things hold here. Its declared assumptions reach the assumption
     ledger, the surface both the report assembler and the rendering bridge
-    lead with. And every block it left on the envelope is one
+    lead with. Every block it left on the envelope is one
     :mod:`themis.blocks` declares, so a new block cannot reach a reader
-    the registry has never heard of.
+    the registry has never heard of. And a refusal names a species
+    :mod:`themis.refusals` declares, so a consumer branching on the cause
+    is branching on a closed set.
     """
     from ..output.result_orchestrator import augment_assumption_ledger
 
@@ -76,6 +78,7 @@ def estimate_program(
     for result in output.get("results", []):
         augment_assumption_ledger(result)
         blocks.check_registered(result)
+        refusals.check_registered(result)
     return output
 
 
@@ -352,7 +355,7 @@ def _maybe_estimate_longitudinal(
                 if spec.get("estimator") == "ipw_msm"
                 else "longitudinal_gformula"
             ),
-            "failure_type": "not_identified",
+            "failure_type": refusals.NOT_IDENTIFIED,
             "reason": (
                 "the time-varying strategy effect is not identified by the "
                 "g-formula: sequential exchangeability fails (an unblocked "
@@ -367,13 +370,13 @@ def _maybe_estimate_longitudinal(
         estimate_longitudinal_gformula,
         estimate_longitudinal_ipw_msm,
     )
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     estimator = spec.get("estimator", "gformula")
     if estimator not in ("gformula", "ipw_msm"):
         target["estimator_failure"] = {
             "estimator": "longitudinal",
-            "failure_type": "unknown",
+            "failure_type": refusals.INVALID_INPUT,
             "reason": (
                 f"options.longitudinal.estimator must be 'gformula' or "
                 f"'ipw_msm', got {estimator!r}"
@@ -408,21 +411,20 @@ def _maybe_estimate_longitudinal(
         else:
             est = estimate_longitudinal_ipw_msm(contract.data, **kwargs)
     except EstimatorFailure as exc:
+        # The species the estimator raised, not a re-spelling of it. This
+        # used to collapse anything outside two names to 'unknown', which
+        # is how a caller was told "we don't know why" about a refusal
+        # that knew exactly why.
         target["estimator_failure"] = {
             "estimator": method_name,
-            "failure_type": (
-                exc.failure_type
-                if exc.failure_type in ("overlap_insufficient",
-                                        "convergence_failure")
-                else "unknown"
-            ),
+            "failure_type": exc.failure_type,
             "reason": str(exc),
         }
         return
     except (ValueError, KeyError) as exc:
         target["estimator_failure"] = {
             "estimator": method_name,
-            "failure_type": "unknown",
+            "failure_type": refusals.UNKNOWN,
             "reason": str(exc),
         }
         return
@@ -552,7 +554,7 @@ def _maybe_estimate_missing_recovery(
     unbiased under MAR where naive listwise deletion is not.
     """
     from .missing_recovery import estimate_recovered_ate
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     target = None
     block = None
@@ -569,7 +571,7 @@ def _maybe_estimate_missing_recovery(
     if not estimand.get("recoverable", False):
         target["estimator_failure"] = {
             "estimator": "missing_data_recovery",
-            "failure_type": "not_recoverable",
+            "failure_type": refusals.NOT_RECOVERABLE,
             "reason": (
                 estimand.get("failure_reason")
                 or "the interventional estimand is not recoverable from this "
@@ -595,17 +597,14 @@ def _maybe_estimate_missing_recovery(
     except EstimatorFailure as exc:
         target["estimator_failure"] = {
             "estimator": "missing_data_recovery",
-            "failure_type": (
-                "overlap_insufficient"
-                if exc.failure_type == "insufficient_support" else "unknown"
-            ),
+            "failure_type": exc.failure_type,
             "reason": str(exc),
         }
         return
     except (ValueError, KeyError) as exc:
         target["estimator_failure"] = {
             "estimator": "missing_data_recovery",
-            "failure_type": "unknown",
+            "failure_type": refusals.UNKNOWN,
             "reason": str(exc),
         }
         return
@@ -1340,7 +1339,7 @@ def _attach_numeric_bounds(
         evaluate_manski_natural_bounds,
         evaluate_manski_tamer_bounds,
     )
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     ast = _ensure_dict(program)
     prog = validate_program(validate_ast(ast))
@@ -1445,7 +1444,7 @@ def _try_general_id_estimate(
     returns False and touches nothing, so the prior IV / cliff behavior
     stays byte-identical when the plug-in doesn't apply.
     """
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
     from .general_id import (
         estimate_general_id_ate,
         estimate_general_id_conditional_ate,
@@ -1555,7 +1554,7 @@ def _try_joint_general_id_estimate(
     any refusal returns False and touches nothing, so the structural refusal
     (joint_not_identifiable) stands byte-identical.
     """
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
     from .general_id import estimate_joint_general_id_ate
 
     df = contract.data
@@ -1734,7 +1733,7 @@ def _try_ctf_conjunction_estimate(
     nothing, so the structural (identifiability) answer stays primary."""
     from ..runtime.ctf_identify import CtfEvent
     from .ctf_conjunction import estimate_ctf_conjunction_prob
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     def _to_ctf(events):
         return tuple(
@@ -1922,7 +1921,7 @@ def _try_scm_counterfactual_estimate(
     on any refusal (query atoms missing, unit under-observed, rank-deficient
     fit, or the data can't support the fit) it returns False and touches
     nothing, so the structural result stays primary."""
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
     from .scm_counterfactual import estimate_scm_counterfactual_point
 
     q = q_stmt.query
@@ -2114,7 +2113,7 @@ def _try_proximal_estimate(
     channel (rank), or an empty stratum (positivity) — it returns False and
     touches nothing, so the identifiability answer stays primary."""
     from .proximal import estimate_proximal_ate
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     q = q_stmt.query
     df = contract.data
@@ -2285,7 +2284,7 @@ def _try_causation_estimate(
     back-door identifiable, non-binary cause/effect, a positivity hole — it
     returns False and touches nothing, so the structural answer stays primary."""
     from .causation import estimate_causation_probabilities
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     q = q_stmt.query
     df = contract.data
@@ -2563,7 +2562,7 @@ def _try_counterfactual_cell_estimate(
     Returns True only when it ATTACHES an estimate; on a refusal it returns
     False and touches nothing."""
     from .counterfactual_cell import estimate_counterfactual_cell
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     df = contract.data
     try:
@@ -3043,7 +3042,7 @@ def _attach_four_way_ratio(
     """
     import numpy as np
 
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
     from .four_way_ratio import estimate_four_way_ratio
 
     ne = result.get("numeric_estimate")
@@ -3132,7 +3131,7 @@ def _try_joint_estimate(
       block, mirroring transport / dose-response).
     """
     from ..runtime import structural_solver
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
     from .joint import estimate_joint_effect
 
     q = q_stmt.query
@@ -3575,11 +3574,11 @@ def _try_transport_estimate(
         # "didn't try".
         msg = str(exc)
         failure_type = (
-            "not_implemented"
+            refusals.NOT_IMPLEMENTED
             if isinstance(exc, NotImplementedError)
-            else "overlap_insufficient"
+            else refusals.OVERLAP_INSUFFICIENT
             if "no observations" in msg
-            else "invalid_input"
+            else refusals.INVALID_INPUT
         )
         result["estimator_failure"] = {
             "estimator": "transport_post_stratification",
@@ -3672,7 +3671,7 @@ def _try_selection_recovery_estimate(
       numerically_solved.
     """
     from .selection import estimate_selection_recovery
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     block = (result.get("extensions") or {}).get(blocks.SELECTION_RECOVERY) or {}
     x = q_stmt.query.intervention.atom.predicate
@@ -3681,7 +3680,7 @@ def _try_selection_recovery_estimate(
     if not block.get("recoverable"):
         result["estimator_failure"] = {
             "estimator": "selection_backdoor_recovery",
-            "failure_type": "not_recoverable",
+            "failure_type": refusals.NOT_RECOVERABLE,
             "reason": (
                 block.get("failure_reason")
                 or "P(y|do(x)) is not recoverable from the selection bias via "
@@ -3701,7 +3700,7 @@ def _try_selection_recovery_estimate(
         need = "; ".join(external) if external else "external unbiased weights"
         result["estimator_failure"] = {
             "estimator": "selection_backdoor_recovery",
-            "failure_type": "external_data_required",
+            "failure_type": refusals.EXTERNAL_DATA_REQUIRED,
             "reason": (
                 f"P(y|do(x)) is recoverable from this selection bias only with "
                 f"external unbiased data ({need}). Supply it as reference_data= "
@@ -3727,14 +3726,14 @@ def _try_selection_recovery_estimate(
     except EstimatorFailure as exc:
         result["estimator_failure"] = {
             "estimator": "selection_backdoor_recovery",
-            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
             "reason": str(exc),
         }
         return blocked('estimator_refused')
     except (ValueError, KeyError) as exc:
         result["estimator_failure"] = {
             "estimator": "selection_backdoor_recovery",
-            "failure_type": "invalid_input",
+            "failure_type": refusals.INVALID_INPUT,
             "reason": str(exc),
         }
         return blocked('estimator_refused')
@@ -3790,7 +3789,7 @@ def _try_measurement_correction_estimate(
       the naive point kept for contrast), flip to numerically_solved.
     """
     from .measurement import estimate_measurement_correction
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     x_atom = q_stmt.query.intervention.atom
     y_atom = q_stmt.query.target.atom
@@ -3799,7 +3798,7 @@ def _try_measurement_correction_estimate(
     if not adjustment_sets:
         result["estimator_failure"] = {
             "estimator": "measurement_error_correction",
-            "failure_type": "requires_backdoor_identification",
+            "failure_type": refusals.REQUIRES_BACKDOOR_IDENTIFICATION,
             "reason": (
                 "confusion-matrix correction composes with back-door "
                 "standardisation, but P(y|do(x)) is not back-door identified "
@@ -3832,14 +3831,14 @@ def _try_measurement_correction_estimate(
     except EstimatorFailure as exc:
         result["estimator_failure"] = {
             "estimator": "measurement_error_correction",
-            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
             "reason": str(exc),
         }
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "measurement_error_correction",
-            "failure_type": "invalid_input",
+            "failure_type": refusals.INVALID_INPUT,
             "reason": str(exc),
         }
         return blocked('estimator_refused')
@@ -3950,7 +3949,7 @@ def _try_exposure_measurement_correction_estimate(
       numerically_solved.
     """
     from .measurement import estimate_exposure_measurement_correction
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     x_atom = q_stmt.query.intervention.atom
     y_atom = q_stmt.query.target.atom
@@ -3959,7 +3958,7 @@ def _try_exposure_measurement_correction_estimate(
     if not adjustment_sets:
         result["estimator_failure"] = {
             "estimator": "exposure_measurement_error_correction",
-            "failure_type": "requires_backdoor_identification",
+            "failure_type": refusals.REQUIRES_BACKDOOR_IDENTIFICATION,
             "reason": (
                 "confusion-matrix correction composes with back-door "
                 "standardisation, but P(y|do(x)) is not back-door identified "
@@ -3992,14 +3991,14 @@ def _try_exposure_measurement_correction_estimate(
     except EstimatorFailure as exc:
         result["estimator_failure"] = {
             "estimator": "exposure_measurement_error_correction",
-            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
             "reason": str(exc),
         }
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "exposure_measurement_error_correction",
-            "failure_type": "invalid_input",
+            "failure_type": refusals.INVALID_INPUT,
             "reason": str(exc),
         }
         return blocked('estimator_refused')
@@ -4062,7 +4061,7 @@ def _try_combined_measurement_correction_estimate(
     mismeasuring and the observed table stops being a two-sided product.
     """
     from .measurement import estimate_combined_measurement_correction
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     x_atom = q_stmt.query.intervention.atom
     y_atom = q_stmt.query.target.atom
@@ -4071,7 +4070,7 @@ def _try_combined_measurement_correction_estimate(
     if spec_x.get("differential") or spec_y.get("differential"):
         result["estimator_failure"] = {
             "estimator": "combined_measurement_error_correction",
-            "failure_type": "differential_combined_misclassification_deferred",
+            "failure_type": refusals.DIFFERENTIAL_COMBINED_MISCLASSIFICATION_DEFERRED,
             "reason": (
                 "a confusion matrix was supplied for BOTH the exposure "
                 f"{x_atom.predicate!r} and the outcome {y_atom.predicate!r}, and "
@@ -4087,7 +4086,7 @@ def _try_combined_measurement_correction_estimate(
     if not adjustment_sets:
         result["estimator_failure"] = {
             "estimator": "combined_measurement_error_correction",
-            "failure_type": "requires_backdoor_identification",
+            "failure_type": refusals.REQUIRES_BACKDOOR_IDENTIFICATION,
             "reason": (
                 "confusion-matrix correction composes with back-door "
                 "standardisation, but P(y|do(x)) is not back-door identified "
@@ -4118,14 +4117,14 @@ def _try_combined_measurement_correction_estimate(
     except EstimatorFailure as exc:
         result["estimator_failure"] = {
             "estimator": "combined_measurement_error_correction",
-            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
             "reason": str(exc),
         }
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "combined_measurement_error_correction",
-            "failure_type": "invalid_input",
+            "failure_type": refusals.INVALID_INPUT,
             "reason": str(exc),
         }
         return blocked('estimator_refused')
@@ -4212,7 +4211,7 @@ def _try_regression_calibration_estimate(
       naive slope kept for contrast), flip to numerically_solved.
     """
     from .regression_calibration import estimate_regression_calibration
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     x_atom = q_stmt.query.intervention.atom
     y_atom = q_stmt.query.target.atom
@@ -4220,7 +4219,7 @@ def _try_regression_calibration_estimate(
     if not adjustment_sets:
         result["estimator_failure"] = {
             "estimator": "regression_calibration",
-            "failure_type": "requires_backdoor_identification",
+            "failure_type": refusals.REQUIRES_BACKDOOR_IDENTIFICATION,
             "reason": (
                 "regression calibration composes with back-door adjustment, but "
                 "P(y|do(x)) is not back-door identified here; no corrected slope "
@@ -4246,7 +4245,7 @@ def _try_regression_calibration_estimate(
     if not_in_design:
         result["estimator_failure"] = {
             "estimator": "regression_calibration",
-            "failure_type": "mismeasured_covariate_not_in_adjustment",
+            "failure_type": refusals.MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT,
             "reason": (
                 f"a measurement-error variance was supplied for {not_in_design!r}, "
                 f"which is neither the exposure nor a covariate in the back-door "
@@ -4269,14 +4268,14 @@ def _try_regression_calibration_estimate(
     except EstimatorFailure as exc:
         result["estimator_failure"] = {
             "estimator": "regression_calibration",
-            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
             "reason": str(exc),
         }
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "regression_calibration",
-            "failure_type": "invalid_input",
+            "failure_type": refusals.INVALID_INPUT,
             "reason": str(exc),
         }
         return blocked('estimator_refused')
@@ -4343,12 +4342,12 @@ def _try_outcome_error_assessment(
     the point safe is itself in doubt, so no number is shipped.
     """
     from .outcome_error import assess_outcome_error
-    from .dose_response import EstimatorFailure
+    from ..refusals import EstimatorFailure
 
     if not adjustment_sets:
         result["estimator_failure"] = {
             "estimator": "outcome_measurement_error",
-            "failure_type": "requires_backdoor_identification",
+            "failure_type": refusals.REQUIRES_BACKDOOR_IDENTIFICATION,
             "reason": (
                 "the residual-variance split that quantifies a mismeasured "
                 f"outcome is taken around the back-door design, but P("
@@ -4371,14 +4370,14 @@ def _try_outcome_error_assessment(
     except EstimatorFailure as exc:
         result["estimator_failure"] = {
             "estimator": "outcome_measurement_error",
-            "failure_type": getattr(exc, "failure_type", "estimator_failure"),
+            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
             "reason": str(exc),
         }
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
             "estimator": "outcome_measurement_error",
-            "failure_type": "invalid_input",
+            "failure_type": refusals.INVALID_INPUT,
             "reason": str(exc),
         }
         return blocked('estimator_refused')
@@ -6263,7 +6262,7 @@ def _try_dose_response_estimate(
         # Fallback: untyped failure. Same shape, failure_type='unknown'.
         result["estimator_failure"] = {
             "estimator": estimator_label,
-            "failure_type": "unknown",
+            "failure_type": refusals.UNKNOWN,
             "reason": str(exc),
         }
         return blocked('estimator_refused')

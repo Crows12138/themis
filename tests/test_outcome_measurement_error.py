@@ -33,7 +33,7 @@ import pytest
 
 import themis
 from themis.estimation import OutcomeErrorAssessment, assess_outcome_error
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.input.syntactic_validator import validate_result
 
 

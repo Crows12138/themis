@@ -29,7 +29,8 @@ import pandas as pd
 
 from ..runtime import structural_solver
 from ..types import Atom
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 
 
 def minimal_backdoor_adjustment(
@@ -45,7 +46,7 @@ def minimal_backdoor_adjustment(
     )
     if not sets:
         raise EstimatorFailure(
-            "do_risk_not_identifiable",
+            refusals.DO_RISK_NOT_IDENTIFIABLE,
             "P(Y=1|do(X)) is not back-door identifiable from the observational "
             "data (no admissible adjustment set — likely an unmeasured "
             "confounder). Supply experimental_risk_treated / "
@@ -61,7 +62,7 @@ def as_binary_column(col: pd.Series, name: str) -> np.ndarray:
     vals = set(pd.unique(col.dropna()))
     if not vals <= {0, 1, True, False, 0.0, 1.0}:
         raise EstimatorFailure(
-            "cause_or_effect_not_binary",
+            refusals.CAUSE_OR_EFFECT_NOT_BINARY,
             f"this quantity requires a binary column {name!r}; got "
             f"values {sorted(vals, key=str)}",
         )
@@ -94,7 +95,7 @@ def backdoor_do_risk(
         mask = x == arm
         if not mask.any():
             raise EstimatorFailure(
-                "insufficient_support",
+                refusals.INSUFFICIENT_SUPPORT,
                 f"no rows with X={arm}; cannot estimate P(Y=1|do(X={arm})).",
             )
         return float(y[mask].mean())
@@ -108,7 +109,7 @@ def backdoor_do_risk(
         arm_rows = idx[x[idx] == arm]
         if arm_rows.size == 0:
             raise EstimatorFailure(
-                "insufficient_support",
+                refusals.INSUFFICIENT_SUPPORT,
                 f"stratum has no X={arm} rows (positivity violation); "
                 f"P(Y=1|do(X={arm})) is not estimable by standardization.",
             )

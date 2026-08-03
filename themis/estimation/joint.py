@@ -73,7 +73,8 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
 
@@ -204,7 +205,7 @@ def estimate_joint_effect(
         levels = df[t].dropna().unique()
         if len(levels) < 2:
             raise EstimatorFailure(
-                "overlap_insufficient",
+                refusals.OVERLAP_INSUFFICIENT,
                 f"treatment {t!r} has a single observed level "
                 f"({levels.tolist()}) in the data — positivity is maximally "
                 f"violated and there is no contrast to estimate for the "

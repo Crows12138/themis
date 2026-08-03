@@ -35,7 +35,8 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
-from .dose_response import EstimatorFailure
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
 
@@ -131,7 +132,7 @@ def estimate_backdoor_ate(
     observed_levels = df[treatment].dropna().unique()
     if len(observed_levels) < 2:
         raise EstimatorFailure(
-            "overlap_insufficient",
+            refusals.OVERLAP_INSUFFICIENT,
             f"treatment {treatment!r} has a single observed level "
             f"({observed_levels.tolist()}) in the data — positivity is "
             f"maximally violated and there is no treatment contrast to "

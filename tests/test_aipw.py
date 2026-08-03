@@ -28,7 +28,7 @@ import pytest
 from themis import kernel
 from themis.estimation.aipw import estimate_aipw_ate, estimate_ipw_ate
 from themis.estimation.backdoor import estimate_backdoor_ate
-from themis.estimation.dose_response import EstimatorFailure
+from themis.refusals import EstimatorFailure
 from themis.input.syntactic_validator import validate_result
 from themis.verifier.verify import VerificationError
 
