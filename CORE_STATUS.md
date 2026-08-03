@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3731 passed / 144 skipped, warning-clean
+3804 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -856,6 +856,20 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **跨入口同一估计量给同一个数（2026-08-03，Phase 17 slice 6）**：`produces` 声明一行的数字是**什么的**估计，但**在有东西去比这些数字之前，它宣称的一致性从来不需要兑现**。`tests/test_estimand_agreement.py` 让四个入口（g-formula 默认走 `backdoor` 行，ipw/aipw/tmle 走 `doubly_robust` 行）在同一查询上给数，要求一致。**判据是量出来的**：四个点在给定数据下确定（重采样进的是区间不是点），实测跨度 0.00102，界取五倍 0.005。**区间重叠是错的判据**——区间回答「真值会不会在别处」，这里各约 0.042 宽，只要求点落在别人区间里等于接受两行在 0.30 的效应上差 0.02（实测该判据要 0.03 才报警）。另有一条测试守着这个界本身（区间一旦窄到与界同量级，这条测试就不再比区间多说什么，那时该重新量）。配一条前提测试（四个入口确实落到四个不同方法，否则是拿一个数跟自己比）与一条**说明为什么允许比**的测试：`backdoor` 与 `doubly_robust` 声明同一 estimand，IV 两行声明 `complier_effect`——**是表说了哪些数字可以比，不是读者的判断**。
 
 **基线**：3683 → **3731**（+48：块登记 26、账本 18、估计量一致 4）。
+
+---
+
+**拒答的物种只命名一次（2026-08-03，Phase 17 之后的第一条）**：结构型 + 修复型。拒答在本仓是**一等的答案**——估计器算不出诚实的数就发结构化 `estimator_failure` 而不是发一个有偏的数，`failure_type` 是让这个块可被机器读的那个字段（它自己的话：「让调用方按原因分支，而不用解析自由文本」）。分支要求原因是**已知集合**，而它不是：schema 的 enum 是封闭的、列 **14** 个，估计层实发 **64** 个，**50 个不在里面**。带那 50 个之一的信封**过不了 Themis 自己的 schema**，而 6 个公开 verify 入口全部先 `validate_result`——**那些拒答根本无法被审计**（`outcome_error` 那一档已记下这个洞并写明「系统性修法另开一档」，这就是那一档）。
+
+**根因**——物种是 `EstimatorFailure(...)` 第一个位置参数上的**自由字符串**，写在 18 个估计器模块的每个 raise 处；schema 的 enum 是同一事实**手抄的第二份**。没有任何一处让两者对齐：新增一个物种不需要碰 enum，不碰也没人报。表象修法是「把 50 个补进 enum」，但补完之后第 65 个物种照样以自由字符串出生、enum 会再次掉队，**而且下一次它看起来更像是维护过的**——slice 6 的教训原样重演。真正没定过的是**权威在哪**。
+
+**修法**——`themis/refusals.py` 把 64 个物种各声明一次，每条带 `kind`（graph／data／unbuilt／request／backend：图不允许／这批数据支撑不住／还没建／请求要改／后端放弃），因为「没有数」不是一个答案而是五个，是哪个决定读者下一步该做什么。`EstimatorFailure` 从 `dose_response.py` 一并搬过来——**18 个估计器模块加 20 个测试文件伸手进某一个估计器的模块去拿通用拒答类型**，这本身就是「这个概念没有家」，而它的 docstring 还停在只有 dose-response 用它的年代（列三个值）。三道闸：构造异常时拒未登记物种（**最早的时刻**，raise 点直接进 traceback）；两个单一出口拒未登记物种（dispatch 有约 30 处手写 dict，那里没有构造函数）；schema 的 enum 由登记表**钉死**而非并排维护。读仍不对称——`verify()` 接受别人信封里它不认识的物种，与块登记同理。
+
+**过程中实测查出三件，都不在根因假设里**：①`bounds_numeric.py` 用 `f"{role}_not_binary"` **拼**物种名，于是 `instrument_not_binary` 存在过但**任何字面量扫描都看不见**、没有测试、没进 schema、没进任何清单——一条 AST 测试现在禁止 `EstimatorFailure` 第一参数是字面量或 f-string，理由写在测试里。②**dispatch 两处在洗掉物种**：longitudinal 把两个名字以外的一切改写成 `unknown`，missing-recovery 把 `insufficient_support` 改写成 `overlap_insufficient`、其余改写成 `unknown`——**估计器在 raise 处已经说对了，dispatch 为了迁就那张不对的清单把它降级**，这正是那张 enum 当初看起来够用的原因；改为原样透传（既有测试断言的是 `exc.failure_type`，无一条钉住被洗后的值）。③一处物种**用错了**：`options.longitudinal.estimator` 收到非法值时发 `unknown`（「我们不知道为什么」），而那是最清楚的一类调用方输入错误，改 `invalid_input`；另 `estimator_failure` 与 `unknown` 是同一件事的两种拼法（前者是 6 处 getattr 兜底），合并成一个。
+
+**取舍（声明）**：`kind` 只进登记表**不进信封**——那是新增字段、属于功能不属于修复，消费者当前仍只拿到物种名；把它发出去（以及据此重写 `response_rendering.md` 的拒答段）是干净的 follow-on。另：`CORE_STATUS` 早前登记的「9 处宽 `except (EstimatorFailure, ValueError, NotImplementedError)` 把『诚实拒绝』与『代码炸了』压进同一分支」**因这一档而变得可做**——诚实拒绝现在必然携带登记过的物种，`ValueError` 不会。
+
+**基线**：3731 → **3804**（+73：登记表元测试，其中 64 条是「每个登记的物种都真有人引用」的逐条参数化）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

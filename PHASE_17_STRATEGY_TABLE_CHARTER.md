@@ -1044,8 +1044,13 @@ estimand，IV 两行声明 `complier_effect`——**是表说了哪些数字可�
 - 验证器的任何「消重」。
 - 估计器数学的重写或替换。
 - schema 的语义变更（字段可增，既有语义不动）。
-- `estimator_failure.failure_type` 枚举的系统性修复（10 个 vs 实发 51 个）
-  ——独立一档，但 slice 1 会与它相撞，届时按当时结论处理。
+- ~~`estimator_failure.failure_type` 枚举的系统性修复（10 个 vs 实发 51 个）
+  ——独立一档，但 slice 1 会与它相撞，届时按当时结论处理。~~
+  **已在 Phase 17 之后单独做完**（2026-08-03，见 CORE_STATUS「拒答的物种只
+  命名一次」）。做的时候重新量过：是 **14 个 vs 实发 64 个**，不是当初记的
+  10 vs 51——两个数都随时间长了。结论与本 phase 六个 slice 同形：物种是语义
+  事实，给它一等表示（`themis/refusals.py`），enum 由登记表钉死而不是手抄
+  在旁边。slice 1 最终没有与它相撞。
 - web / 渲染 / prompt 层的重构。
 
 ---
