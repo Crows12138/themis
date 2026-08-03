@@ -275,3 +275,55 @@ def test_a_point_outranks_a_refusal_that_sits_beside_it():
     answer = _render_answer(res)
     assert "0.31" in answer
     assert "没有给出数值" not in answer
+
+
+def test_an_interval_outranks_a_refusal_that_sits_beside_it():
+    """The same rule one rung down, and the one that decides where the
+    refusal branch goes. Sixteen envelopes in the suite carry bounds AND a
+    refusal — many more than carry a refusal beside a structural verdict —
+    and in every one the interval is the answer to what was asked."""
+    res = {
+        "status": "needs_investigation", "query_kind": "effect", "query_id": "r",
+        "bounds_result": {
+            "lower_value": -0.2, "upper_value": 0.4, "method": "manski",
+        },
+        "estimator_failure": {
+            "estimator": "backdoor", "failure_type": "overlap_insufficient",
+            "reason": "a single observed treatment level", "kind": "data",
+        },
+    }
+    answer = _render_answer(res)
+    assert "区间" in answer
+    assert "没有给出数值" not in answer
+
+
+def test_a_refusal_outranks_a_verdict_about_the_graph():
+    """A run given data that asked for a number and could not have one.
+
+    Identification succeeded, so the envelope carries a structural verdict
+    saying so — and that verdict used to be rendered in the answer slot,
+    where a positivity violation reached the reader as "结论：是". It is
+    true and it is not the answer; the question asked for a number.
+    """
+    res = {
+        "status": "structurally_solved", "query_kind": "effect", "query_id": "r",
+        "structural_result": {"value": True},
+        "estimator_failure": {
+            "estimator": "proximal", "failure_type": "insufficient_support",
+            "reason": "an empty (Z, X) stratum", "kind": "data",
+        },
+    }
+    answer = _render_answer(res)
+    assert "没有给出数值" in answer
+    assert "结论" not in answer
+
+
+def test_a_verdict_about_the_graph_is_still_the_answer_when_it_is_the_answer():
+    """The other half of the same rule. A cause / association / identify
+    query produces nothing but the verdict, so nothing outranks it — which
+    is why the branch can sit low without a query-kind test guarding it."""
+    res = {
+        "status": "structurally_solved", "query_kind": "cause", "query_id": "r",
+        "structural_result": {"value": True, "supporting_paths": [["x", "y"]]},
+    }
+    assert _render_answer(res).startswith("结论：**是**")

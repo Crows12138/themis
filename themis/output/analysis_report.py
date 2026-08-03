@@ -180,6 +180,24 @@ def _render_question(result: dict, program: dict | None) -> str:
 
 
 def _render_answer(result: dict) -> str:
+    """The one line that answers the question, chosen from what the run
+    produced.
+
+    The order below is not a ranking of fields by strength. It is: what
+    the query asked for, then why it could not be had, then what was
+    established about the graph on the way there. The numeric layers come
+    first because a numeric question was asked, and an interval is an
+    answer to it as much as a point is. A refusal comes next — it is the
+    answer whenever there is no number, and unlike the fall-throughs
+    below it knows why.
+
+    The structural verdict comes last of the three, and that is the part
+    worth stating. For a query whose answer really IS a verdict — cause,
+    association, identify — nothing above it ever fires, so it loses
+    nothing by sitting low. For a query that asked for a number it is
+    scaffolding, and rendering scaffolding in the answer slot is how a
+    positivity violation reached a reader as a confident "是".
+    """
     status = result.get("status")
     ne = result.get("numeric_estimate")
     nr = result.get("numeric_result")
@@ -205,15 +223,8 @@ def _render_answer(result: dict) -> str:
             line += f" {nr['unit']}"
         return line
 
-    # 3. Structural boolean (cause / association / identify).
-    if sr and sr.get("value") is not None:
-        val = sr["value"]
-        verdict = "**是**" if val is True else ("**否**" if val is False else f"**{val}**")
-        paths = sr.get("supporting_paths") or []
-        note = f"（支持路径 {len(paths)} 条）" if paths else ""
-        return f"结论：{verdict}{note}"
-
-    # 4. Bounds (partial identification).
+    # 3. Bounds — partial identification. An interval is a weaker answer
+    #    than a point and still an answer to the question that was asked.
     if br and br.get("lower_value") is not None:
         method = br.get("method", "bounds")
         return (
@@ -221,16 +232,11 @@ def _render_answer(result: dict) -> str:
             f"（method=`{method}`）—— 这是部分识别的界，不是点估计。"
         )
 
-    # 5. A refusal, which is an answer — and has to be read before the
-    #    fall-throughs below, because those describe a result that has
-    #    nothing to say. A refusal has something to say and knows what:
-    #    a formula plus a refusal used to render as "当前没有数据" on a
-    #    run that was given data and declined to trust it.
-    #
-    #    After the blocks above, not before: dispatch attaches a refusal
-    #    for a SUPPLEMENTARY estimate (the longitudinal path attaches to
-    #    the first effect result) to a result that may already carry a
-    #    genuine point, and the point is still the answer there.
+    # 4. A refusal, which is an answer. Below the numeric branches, not
+    #    above: dispatch attaches a refusal for a SUPPLEMENTARY estimate
+    #    (the longitudinal path attaches to the first effect result) to a
+    #    result that may already carry a genuine point or interval, and
+    #    that number is still the answer there.
     failure = result.get("estimator_failure")
     if isinstance(failure, dict) and failure.get("failure_type"):
         reason = (failure.get("reason") or "").strip().rstrip(".")
@@ -245,6 +251,16 @@ def _render_answer(result: dict) -> str:
             f"{line}（估计器 `{failure.get('estimator', '?')}`，"
             f"拒答类型 `{failure['failure_type']}`）"
         )
+
+    # 5. What was established about the graph (cause / association /
+    #    identify). The answer for those query kinds, and only reachable
+    #    for the others once every branch above has come up empty.
+    if sr and sr.get("value") is not None:
+        val = sr["value"]
+        verdict = "**是**" if val is True else ("**否**" if val is False else f"**{val}**")
+        paths = sr.get("supporting_paths") or []
+        note = f"（支持路径 {len(paths)} 条）" if paths else ""
+        return f"结论：{verdict}{note}"
 
     # 6. Identified but needs data, or genuinely blocked.
     if result.get("formula") is not None:
