@@ -25,7 +25,39 @@ optional but lets the report render the causal model and edge provenance.
 """
 from __future__ import annotations
 
-from .. import blocks
+from .. import blocks, refusals
+
+_KIND_ZH = {
+    refusals.KIND_GRAPH: (
+        "**没有给出数值 —— 这是关于因果图的结论**：{reason}"
+        "再多同样的数据也不会改变它；要改变的是图或问题本身。"
+    ),
+    refusals.KIND_DATA: (
+        "**没有给出数值 —— 这批数据支撑不住**：{reason}"
+        "结构上是可识别的，缺的是数据本身能提供的支持。"
+    ),
+    refusals.KIND_UNBUILT: (
+        "**没有给出数值 —— Themis 还没有建这个情形**：{reason}"
+        "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。"
+    ),
+    refusals.KIND_REQUEST: (
+        "**没有给出数值 —— 需要你改一处输入**：{reason}"
+        "改掉之后重跑即可。"
+    ),
+    refusals.KIND_BACKEND: (
+        "**没有算出数值 —— 数值例程没有返回结果**：{reason}"
+        "这没有对问题或数据设计做出任何判定。"
+    ),
+}
+"""What each kind of refusal reads as, in the language of the report.
+
+The registry owns which kinds exist and which species falls under each;
+this owns the words, the way ``assumption_glossary`` owns the words for
+an assumption id. A test holds these keys equal to ``refusals.KINDS`` —
+a sixth kind with no sentence here would otherwise fall through to the
+generic "no answer" line, which is how a refusal came to be rendered as
+"当前没有数据" on results that had data.
+"""
 
 _STATUS_BADGE = {
     "structurally_solved": "✅ 已解决（结构层）",
@@ -189,7 +221,32 @@ def _render_answer(result: dict) -> str:
             f"（method=`{method}`）—— 这是部分识别的界，不是点估计。"
         )
 
-    # 5. Identified but needs data, or genuinely blocked.
+    # 5. A refusal, which is an answer — and has to be read before the
+    #    fall-throughs below, because those describe a result that has
+    #    nothing to say. A refusal has something to say and knows what:
+    #    a formula plus a refusal used to render as "当前没有数据" on a
+    #    run that was given data and declined to trust it.
+    #
+    #    After the blocks above, not before: dispatch attaches a refusal
+    #    for a SUPPLEMENTARY estimate (the longitudinal path attaches to
+    #    the first effect result) to a result that may already carry a
+    #    genuine point, and the point is still the answer there.
+    failure = result.get("estimator_failure")
+    if isinstance(failure, dict) and failure.get("failure_type"):
+        reason = (failure.get("reason") or "").strip().rstrip(".")
+        if reason and reason[-1] not in "。！？!?":
+            reason += "。"
+        template = _KIND_ZH.get(failure.get("kind"))
+        line = (
+            template.format(reason=reason) if template
+            else f"**没有给出数值**：{reason}"
+        )
+        return (
+            f"{line}（估计器 `{failure.get('estimator', '?')}`，"
+            f"拒答类型 `{failure['failure_type']}`）"
+        )
+
+    # 6. Identified but needs data, or genuinely blocked.
     if result.get("formula") is not None:
         return (
             "效应**可识别**（估计式已生成，见文末审计），但当前**没有数据** → "

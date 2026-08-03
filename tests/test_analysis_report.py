@@ -12,7 +12,12 @@ import pandas as pd
 import pytest
 
 import themis
-from themis.output.analysis_report import build_analysis_report
+from themis import refusals
+from themis.output.analysis_report import (
+    _KIND_ZH,
+    _render_answer,
+    build_analysis_report,
+)
 
 
 def _atom(p):
@@ -204,3 +209,69 @@ def test_bounds_answer_branch():
     md = build_analysis_report(res)
     assert "区间" in md
     assert "balke_pearl_iv" in md
+
+
+# ============================================ refusals as answers
+
+
+def test_a_refusal_is_an_answer_not_a_missing_one():
+    """A run that was given data and declined to trust it used to render
+    as 「当前没有数据」.
+
+    That sentence is the identified-but-no-data fall-through, reached
+    because the refusal channel had no branch of its own — the report
+    said the opposite of what happened.
+    """
+    res = {
+        "status": "needs_investigation", "query_kind": "effect", "query_id": "r",
+        "formula": "sum_z P(y|x,z)P(z)",
+        "estimator_failure": {
+            "estimator": "backdoor", "failure_type": "overlap_insufficient",
+            "reason": "stratum z=3 has no treated rows", "kind": "data",
+        },
+    }
+    md = build_analysis_report(res)
+    assert "没有数据" not in md
+    assert "这批数据支撑不住" in md
+    assert "stratum z=3 has no treated rows" in md
+    assert "overlap_insufficient" in md
+
+
+def test_the_report_has_a_sentence_for_every_kind():
+    """The registry owns the taxonomy, this file owns the words. A kind
+    with no sentence falls back through to the generic line, which is the
+    defect above returning under a new name."""
+    assert set(_KIND_ZH) == set(refusals.KINDS)
+
+
+@pytest.mark.parametrize("kind", sorted(refusals.KINDS))
+def test_each_kind_reads_as_something_different(kind):
+    answer = _render_answer({
+        "status": "needs_investigation", "query_kind": "effect", "query_id": "r",
+        "estimator_failure": {
+            "estimator": "e", "failure_type": "not_identified",
+            "reason": "why it stopped", "kind": kind,
+        },
+    })
+    assert "why it stopped" in answer
+    # graph is a finding about the model, backend is a fact about the
+    # tool. A reader who cannot tell them apart learned nothing from the
+    # kind, which is the only thing it is there to do.
+    assert ("图" in answer) == (kind == "graph")
+
+
+def test_a_point_outranks_a_refusal_that_sits_beside_it():
+    """Dispatch attaches the longitudinal refusal to the first effect
+    result, which may already carry a genuine back-door point. There the
+    refusal is about a supplementary block, and the point is the answer."""
+    res = {
+        "status": "numerically_solved", "query_kind": "effect", "query_id": "r",
+        "numeric_estimate": {"point": 0.31, "method": "backdoor_linear"},
+        "estimator_failure": {
+            "estimator": "longitudinal_gformula", "failure_type": "not_identified",
+            "reason": "an unblocked back-door from A_1 to Y", "kind": "graph",
+        },
+    }
+    answer = _render_answer(res)
+    assert "0.31" in answer
+    assert "没有给出数值" not in answer
