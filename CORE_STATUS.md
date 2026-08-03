@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3832 passed / 144 skipped, warning-clean
+3833 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -956,6 +956,25 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **未做、已登记**：`longitudinal.py` **有同一形状的缺口但不是同一个 bug**——它的账本声明 `positivity_each_treatment_level_observed_within_history_strata`（历史层内的序贯正性），检查的也是边际，粒度同样掉档；但它的结局模型是**参数化**而非饱和的，参数化 g-formula 的价值正在于能识别没人完全照做过的方案，代价是一条**已声明**的函数形式假设。照搬这次的修法会误拒本来合法的估计。正确修法要区分离散历史（可查）与连续历史（不可查），是一个设计决定，单独一轮。
 
 **基线（本条）**：3828 → **3832**（+4：空角点扣住交互而对比仍恢复真值 3.0 的单元一条、对比自己的格空了整体拒答一条、端到端信封一条、验证器拒绝「无理由消失的交互」一条）。
+
+**假设账本当索引，把全部估计器扫了一遍（2026-08-03，接上条）**：上一条的根因（正性**声明在格、检查在边际**）不是 joint 独有的形状，所以把它当尺子——**每条声明的假设 vs 真正执行的检查，并排读一遍**——扫过全部估计器。
+
+**扫的结果分四类，这个分类本身是这一档最有用的产出**：
+
+1. **检查掉档、且模型在缺口处无根据地给数 → 缺陷。** joint（上一条已修）：饱和基下空角点的均值字面上是任意的。
+2. **检查掉档、但模型在缺口处的外推是一条已声明的假设 → 不是缺陷。** `longitudinal.py`（参数化 g-formula，声明 `..._within_history_strata` 查边际）、`dose_response.py`（DR-ML，声明 `..._has_support_on_W` 查剂量邻域而非 W 层）。照搬 joint 的修法会**误拒本来合法的估计**。判据是：**这个估计器在缺数据的地方靠什么给出数，那个东西有没有被声明过。**
+3. **检查到位 → 干净。** `causation`/`counterfactual_cell`（`binary_do_risk` 逐层逐臂）、`general_id`/`ctf_conjunction`（`_prob_do` 逐条件层）、`proximal`/`selection`/`measurement`/`missing_recovery`、`backdoor`/`aipw`/`tmle`（单处理，边际即格）、`iv`（每层每臂 ≥ `_MIN_PER_ARM`，**比声明更严**，且不可分层时回退 2SLS 并带上理由——「没人看得见的回退才是失效模式」，代码自己这么写的）。**普查按物种名计数曾把 `causation` 误判成「一个拒答都不抛」，读了才发现它的 raise 在共享 helper 里**（㉕③ 又验证一次）。
+4. **检查对了、但物种在下游用散文猜 → 缺陷（本条修的）。** `transport.py`。
+
+**transport 的现象**：源数据某 z 层只有处理臂没有对照臂。估计器如实拒答，用户拿到的 `failure_type` 是 `invalid_input`——「你的请求有问题」，而请求完全正确，真相是数据在那一层没有重叠（`overlap_insufficient`，kind=data）。
+
+**根因**：物种是产生端的知识，这里被丢进一句散文，由 handler 用 `"no observations" in msg` 在下游猜回来；两个正性守卫只有一个的文案命中，另一个落进默认的 `INVALID_INPUT`。**这与上一档同根、是另一面**：上一档是「估计器没有物种可说」，这一档是「估计器有知识但没渠道」。为什么不是补一条子串分支：任何在消费端重建产生端知识的机制都必然滞后于产生端的改动——**证据就在现场，猜对的那一支有测试、猜错的那一支没有**。
+
+**修法**：transport 的 9 处 raise 各自带物种（2 处正性 → `overlap_insufficient` + details 说清哪一层、几个处理几个对照；7 处请求格式 → `invalid_input`），handler 收窄为 `except EstimatorFailure` + `refusals.record`，子串匹配删除。bootstrap 容错循环同步改容 `EstimatorFailure`（策略不变：丢了层的抽样退出区间）。**全仓只此一处在用散文猜物种**（grep 过 `in msg` / `in str(exc)`），所以这是收口不是开头。
+
+**登记表守卫第二次抓到人**：删掉那条永不触发的 `NOT_IMPLEMENTED` 分支后，`not_implemented` 在全仓再无引用。删掉它不只是守规矩——它是「未建」那一类的 `unknown`，内容就是「超出这条路径实现的范围」，读者拿它没法做任何事；而登记表里已有的未建物种各自说清了没建的是什么。iv.py 转换时应当说具体没建什么，不该伸手拿这个通用的。
+
+**基线（本条）**：3832 → **3833**（+2 行为测试：缺一臂的层是数据发现而非坏请求、格式确实坏时物种不能漂成数据发现——两侧一起钉才使这个区分承重；−1 删掉的孤儿物种参数化）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
