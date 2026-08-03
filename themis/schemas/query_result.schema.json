@@ -1051,6 +1051,21 @@
             "precision_budget": { "$ref": "#/$defs/precisionBudget" }
           }
         },
+        "interaction_unavailable": {
+          "type": "object",
+          "description": "Present instead of `interaction` when some corner of the treatment box has no rows. The K-way interaction is a finite difference over all 2^K corners, so an empty corner leaves it unidentified — the outcome model would still predict there, and the number would be an extrapolation reported as a measurement. The joint contrast is unaffected whenever its own two cells (all-treated, all-control) are observed, which is why it is still present. `unsupported_cells` names the empty corners.",
+          "required": ["reason", "unsupported_cells"],
+          "additionalProperties": false,
+          "properties": {
+            "reason": { "type": "string" },
+            "order": { "type": "integer", "minimum": 2, "description": "The interaction order K that could not be estimated." },
+            "unsupported_cells": {
+              "type": "array",
+              "description": "The treatment cells with no rows, each a {treatment: value} map.",
+              "items": { "type": "object", "additionalProperties": { "type": ["boolean", "number", "string"] } }
+            }
+          }
+        },
         "outcome": { "type": "string" },
         "treatment_proxy": {
           "type": "string",

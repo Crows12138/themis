@@ -315,3 +315,104 @@ def test_k3_latent_unadjustable_honest_refusal():
     assert r["status"] == "needs_investigation"
     names = [m["name"] for m in r.get("missing_information", [])]
     assert any("joint_not_identifiable" in n for n in names)
+
+
+# ============================================ corner support (positivity)
+#
+# The joint contrast and the K-way interaction rest on different corners
+# of the treatment box, so they can be identified apart. The outcome model
+# predicts at every corner whether or not any row is there, which is what
+# makes an unsupported corner produce a confident number rather than a
+# missing one.
+
+
+def _never_combined(n=2000, seed=0, joint_effect=3.0):
+    """Two treatments that are never seen apart: (a=1,b=0) and (a=0,b=1)
+    have no rows. The all-treated and all-control cells are both fully
+    observed, so the contrast is identified and its truth is known."""
+    rng = np.random.default_rng(seed)
+    a = rng.random(n) < 0.5
+    z = rng.standard_normal(n)
+    y = joint_effect * a + 1.5 * z + rng.standard_normal(n) * 0.3
+    return pd.DataFrame({"a": a, "b": a, "z": z, "y": y})
+
+
+def test_an_unsupported_corner_withholds_the_interaction_not_the_contrast():
+    """Two of the four corners have no rows. The K-way interaction is a
+    finite difference over all of them, so it is not identified; the
+    contrast is taken between the two corners that ARE observed, so it is.
+
+    The number the interaction used to report came from the outcome model
+    extrapolating into the empty corners — precise-looking, and about
+    nothing."""
+    df = _never_combined(n=2000, seed=0, joint_effect=3.0)
+    est = estimate_joint_effect(
+        df, treatments=("a", "b"), outcome="y", adjustment=("z",),
+        ci_bootstrap=50, random_state=1,
+    )
+    # What survives, survives correctly.
+    assert abs(est.joint_point - 3.0) < 0.1
+    assert est.joint_ci_lower <= est.joint_point <= est.joint_ci_upper
+    # What does not, says so — including its interval, which would
+    # otherwise be an interval around a fabrication.
+    assert est.interaction_point is None
+    assert est.interaction_ci_lower is None
+    assert est.interaction_ci_upper is None
+    assert dict(est.interaction_unsupported_cells[0]) == {"a": True, "b": False}
+    assert dict(est.interaction_unsupported_cells[1]) == {"a": False, "b": True}
+    assert "no rows" in est.interaction_unavailable_reason
+
+
+def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():
+    """A treatment stuck at one level empties whichever contrast cell asked
+    for the other. Then there is no estimate at all, not a partial one."""
+    rng = np.random.default_rng(0)
+    n = 500
+    df = pd.DataFrame({
+        "a": rng.random(n) < 0.5,
+        "b": np.ones(n, dtype=bool),       # never False
+        "z": rng.standard_normal(n),
+        "y": rng.standard_normal(n),
+    })
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_joint_effect(
+            df, treatments=("a", "b"), outcome="y", adjustment=("z",),
+            ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == refusals.OVERLAP_INSUFFICIENT
+    assert exc.value.details["unsupported_cells"] == [{"a": False, "b": False}]
+
+
+def test_the_envelope_carries_the_withheld_interaction():
+    """End-to-end: the block is absent rather than present holding null, and
+    `interaction_unavailable` stands where it was."""
+    ast = _kjoint_ast(("a", "b"))
+    df = _never_combined(n=2000, seed=0)
+    out = themis.estimate(ast, df, ci_bootstrap=30, random_state=1)
+    r = out["results"][0]
+    assert r["status"] == "numerically_solved"
+    ne = r["numeric_estimate"]
+    assert "interaction" not in ne
+    unavailable = ne["interaction_unavailable"]
+    assert unavailable["order"] == 2
+    assert unavailable["unsupported_cells"] == [
+        {"a": True, "b": False}, {"a": False, "b": True},
+    ]
+    validate_result(r)
+    themis.verify(ast, r)
+
+
+def test_verify_rejects_an_interaction_that_went_missing_without_a_reason():
+    """Absence has to be declared. A derivation that simply drops the
+    interaction point looks, to a reader, exactly like one whose corners
+    were empty — so the audit demands the difference in writing."""
+    from themis.verifier.errors import VerificationError
+    ast = _kjoint_ast(("a", "b", "c"))
+    df = _dgp3()
+    out = themis.estimate(ast, df, ci_bootstrap=0, random_state=1)
+    r = out["results"][0]
+    for st in r["derivation"]["steps"]:
+        if st["rule"] == "numeric_joint_backdoor_estimate":
+            del st["inputs"]["interaction_point"]
+    with pytest.raises(VerificationError):
+        themis.verify(ast, r)

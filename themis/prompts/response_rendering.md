@@ -634,6 +634,14 @@ treatment ATE averages over the other treatments' natural distributions;
 the joint contrast fixes them all). Only the top-order interaction is
 reported — the full 2..(K−1)-way hierarchy is not.
 
+The two blocks rest on different amounts of data, so they can arrive
+apart. The contrast needs the all-treated and all-control cells; the
+interaction needs every one of the 2^K corners. Where the data does not
+reach all of them, `interaction_unavailable` takes the block's place —
+report the contrast normally and give its `reason` where the interaction
+number would have gone. The empty corners are the finding, not a footnote:
+they say the treatments were never combined that way in this data.
+
 > 同时干预 `<treatments>`（联合后门识别，调整集 = `<adjustment>`）：
 >
 > - 联合效应 = **`<joint_effect.point>`**（把 `<treated>` 相对

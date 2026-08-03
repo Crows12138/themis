@@ -699,8 +699,9 @@ def _rule_numeric_joint_backdoor_estimate(
     the joint_effect + interaction block without re-training:
 
     - ``method`` in the joint enum
-    - joint point / interaction point are numbers, each inside its CI
-      when present
+    - joint point is a number inside its CI when present; the interaction
+      point likewise, or absent with ``interaction_unavailable_reason``
+      saying which corners had nothing to stand on
     - ``data_hash`` is a SHA-256 hex digest; ``sample_size`` >= 10
     - ``adjustment`` disjoint from the treatment vector and outcome
     - referenced ``criterion`` is a ``joint_backdoor_criterion`` whose
@@ -751,7 +752,26 @@ def _rule_numeric_joint_backdoor_estimate(
             step_index=step_index, rule="numeric_joint_backdoor_estimate",
         )
 
-    for label in ("joint_point", "interaction_point"):
+    # The interaction is a second quantity resting on a stricter positivity
+    # requirement than the contrast — it needs every one of the 2^K corners
+    # occupied — so a derivation may legitimately carry the contrast without
+    # it. What it may NOT do is drop it silently: absent, the step has to
+    # say why, or the audit cannot tell a declared withholding from a number
+    # that went missing between the estimator and here.
+    has_interaction = "interaction_point" in inputs
+    if not has_interaction:
+        why = inputs.get("interaction_unavailable_reason")
+        if not isinstance(why, str) or not why.strip():
+            raise RuleCheckFailed(
+                "numeric_joint_backdoor_estimate: interaction_point is "
+                "absent, so interaction_unavailable_reason must say why; "
+                f"got {why!r}",
+                step_index=step_index, rule="numeric_joint_backdoor_estimate",
+            )
+
+    labels = ("joint_point", "interaction_point") if has_interaction \
+        else ("joint_point",)
+    for label in labels:
         val = inputs.get(label)
         if not isinstance(val, (int, float)) or isinstance(val, bool):
             raise RuleCheckFailed(
@@ -760,10 +780,13 @@ def _rule_numeric_joint_backdoor_estimate(
                 step_index=step_index, rule="numeric_joint_backdoor_estimate",
             )
 
-    for point_key, lo_key, hi_key in (
-        ("joint_point", "joint_ci_lower", "joint_ci_upper"),
-        ("interaction_point", "interaction_ci_lower", "interaction_ci_upper"),
-    ):
+    intervals = [("joint_point", "joint_ci_lower", "joint_ci_upper")]
+    if has_interaction:
+        intervals.append(
+            ("interaction_point", "interaction_ci_lower",
+             "interaction_ci_upper"),
+        )
+    for point_key, lo_key, hi_key in intervals:
         lo = inputs.get(lo_key)
         hi = inputs.get(hi_key)
         if lo is None and hi is None:

@@ -3240,7 +3240,14 @@ def _try_joint_estimate(
             "treated": {k: bool(v) for k, v in estimate.treated},
             "control": {k: bool(v) for k, v in estimate.control},
         },
-        "interaction": {
+    }
+    # The interaction is a separate quantity with a separate positivity
+    # requirement, so it gets a separate slot — present with a number, or
+    # absent with the reason in its place. Never present holding null: a
+    # consumer reading `interaction.point` should not have to know that the
+    # field it is reading can be nothing.
+    if estimate.interaction_point is not None:
+        result["numeric_estimate"]["interaction"] = {
             "point": estimate.interaction_point,
             "ci_lower": estimate.interaction_ci_lower,
             "ci_upper": estimate.interaction_ci_upper,
@@ -3248,8 +3255,15 @@ def _try_joint_estimate(
             # Interaction order = number of treatments (K-way, the highest-
             # order mixed finite difference). 2 for the classic A×B case.
             "order": len(estimate.treatments),
-        },
-    }
+        }
+    else:
+        result["numeric_estimate"]["interaction_unavailable"] = {
+            "reason": estimate.interaction_unavailable_reason,
+            "order": len(estimate.treatments),
+            "unsupported_cells": [
+                dict(cell) for cell in estimate.interaction_unsupported_cells
+            ],
+        }
     # Cluster-bootstrap provenance (both the joint contrast and the
     # interaction ride the same clustered resample). No-op when i.i.d.,
     # keeping the cluster=None surface byte-identical.
@@ -3279,6 +3293,20 @@ def _build_joint_numeric_derivation_dict(
     from ..verifier.serialization import derivation_to_dict
 
     treatments_set = frozenset(treatments)
+    # An absent interaction is declared, not merely missing: the audit must
+    # be able to tell "no number because the corners were empty" from "no
+    # number because someone dropped it on the way out".
+    if estimate.interaction_point is not None:
+        interaction_inputs = {
+            "interaction_point": estimate.interaction_point,
+            "interaction_ci_lower": estimate.interaction_ci_lower,
+            "interaction_ci_upper": estimate.interaction_ci_upper,
+        }
+    else:
+        interaction_inputs = {
+            "interaction_unavailable_reason":
+                estimate.interaction_unavailable_reason,
+        }
     steps = (
         DerivationStep(
             rule="joint_backdoor_criterion",
@@ -3305,9 +3333,7 @@ def _build_joint_numeric_derivation_dict(
                 "joint_point": estimate.joint_point,
                 "joint_ci_lower": estimate.joint_ci_lower,
                 "joint_ci_upper": estimate.joint_ci_upper,
-                "interaction_point": estimate.interaction_point,
-                "interaction_ci_lower": estimate.interaction_ci_lower,
-                "interaction_ci_upper": estimate.interaction_ci_upper,
+                **interaction_inputs,
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),

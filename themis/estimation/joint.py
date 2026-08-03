@@ -52,6 +52,14 @@ Scope (v1):
 - Bool or continuous outcome.
 - Adjustment set ``adjustment`` enters the outcome regression as linear
   features (same backend / restriction as ``backdoor.py``).
+- The two quantities need different corners of the treatment box, so
+  positivity is checked separately for each. The contrast needs only the
+  all-treated and all-control cells; the K-way interaction needs all 2^K.
+  A cell with no rows is a definitive positivity violation — the outcome
+  model still predicts there, so the alternative to refusing is a
+  fabricated number, not a missing one. When only the interaction's
+  corners are short the contrast is still reported and the interaction
+  alone is withheld.
 
 API:
 
@@ -97,7 +105,10 @@ class JointEffectEstimate:
     - ``interaction_*``: point + CI for the additive-scale highest-order
       (K-way) treatment interaction — the K-th mixed finite difference
       over the 2^K treatment corners. For K=2 this is the ordinary
-      treatment×treatment interaction.
+      treatment×treatment interaction. ``None`` when some corner of the
+      treatment box has no rows to stand on, with
+      ``interaction_unavailable_reason`` saying so and
+      ``interaction_unsupported_cells`` naming which.
     - ``treated`` / ``control``: the {treatment: value} cells the joint
       contrast is taken between.
     """
@@ -105,7 +116,7 @@ class JointEffectEstimate:
     joint_point: float
     joint_ci_lower: float | None
     joint_ci_upper: float | None
-    interaction_point: float
+    interaction_point: float | None
     interaction_ci_lower: float | None
     interaction_ci_upper: float | None
     ci_level: float
@@ -122,6 +133,11 @@ class JointEffectEstimate:
     # interaction CIs were computed by resampling whole clusters (pairs
     # cluster bootstrap) rather than i.i.d. rows. None → i.i.d. bootstrap.
     cluster: str | None = None
+    # Set together with ``interaction_point = None``: the prose a reader
+    # gets instead of the number, and the cells behind it in the same
+    # ((name, value), ...) shape as ``treated`` / ``control``.
+    interaction_unavailable_reason: str | None = None
+    interaction_unsupported_cells: tuple[tuple[tuple[str, object], ...], ...] = ()
 
 
 def estimate_joint_effect(
@@ -203,22 +219,6 @@ def estimate_joint_effect(
     treated_values = treated_values or {t: True for t in treatments}
     control_values = control_values or {t: False for t in treatments}
 
-    # Positivity / overlap precondition: the joint g-formula contrasts
-    # across treatment cells, so each treatment must vary in the data.
-    # A single observed level fabricates a contrast by extrapolating a
-    # zero-variance regressor — refuse, mirroring backdoor.estimate.
-    for t in treatments:
-        levels = df[t].dropna().unique()
-        if len(levels) < 2:
-            raise EstimatorFailure(
-                refusals.OVERLAP_INSUFFICIENT,
-                f"treatment {t!r} has a single observed level "
-                f"({levels.tolist()}) in the data — positivity is maximally "
-                f"violated and there is no contrast to estimate for the "
-                f"joint effect. Supply data with variation in {t!r}.",
-                treatment=t,
-            )
-
     is_bool_outcome = pd.api.types.is_bool_dtype(df[outcome])
     resolved = (
         ("logistic" if is_bool_outcome else "linear")
@@ -229,22 +229,64 @@ def estimate_joint_effect(
     K = len(treatments)
     hi = tuple(float(treated_values[t]) for t in treatments)
     lo = tuple(float(control_values[t]) for t in treatments)
+    corners = tuple(product((True, False), repeat=K))
+    all_hi = (True,) * K
+    all_lo = (False,) * K
 
-    def _joint_and_interaction(sample: pd.DataFrame) -> tuple[float, float]:
+    def _cell(mask: tuple[bool, ...]) -> tuple[tuple[str, object], ...]:
+        """The corner as the caller wrote it — their own hi / lo values, not
+        the floats the design matrix works in."""
+        return tuple(
+            (t, (treated_values if mask[k] else control_values)[t])
+            for k, t in enumerate(treatments)
+        )
+
+    # Which corner of the treatment box each row stands on. The outcome
+    # model predicts at every corner whether or not any row is there, so
+    # this is the only thing standing between an unsupported corner and a
+    # fabricated number.
+    row_corner = _corner_of_each_row(df, treatments, hi, lo)
+    support = _corner_counts(row_corner, corners)
+
+    # The contrast needs only its own two cells. Without them there is no
+    # estimate at all — this subsumes the older per-treatment check, since
+    # a treatment stuck at one level empties whichever cell asked for the
+    # other, and it says which cell rather than which column.
+    bare = [m for m in (all_hi, all_lo) if support[m] == 0]
+    if bare:
+        raise EstimatorFailure(
+            refusals.OVERLAP_INSUFFICIENT,
+            f"the joint contrast is taken between the all-treated and "
+            f"all-control cells, and no rows sit in "
+            f"{', '.join(_cell_text(_cell(m)) for m in bare)}. Positivity is "
+            f"violated outright: the outcome model would still predict "
+            f"there, so the contrast would be an extrapolation reported as "
+            f"a measurement.",
+            unsupported_cells=[dict(_cell(m)) for m in bare],
+        )
+
+    def _joint_and_interaction(
+        sample: pd.DataFrame, labels: np.ndarray,
+    ) -> tuple[float | None, float | None]:
+        counts = _corner_counts(labels, corners)
+        if counts[all_hi] == 0 or counts[all_lo] == 0:
+            # Only reachable from a bootstrap draw that lost a contrast
+            # cell; the point sample was checked above.
+            return None, None
         predict = _fit(sample, treatments, outcome, adjustment, resolved)
         # Standardized counterfactual mean at each of the 2^K treatment
         # corners (g-formula plug-in), averaged over the sample's empirical
         # Z distribution. A corner is a per-treatment choice of hi / lo.
         # ``mask`` marks which treatments are at their hi level.
         corner_mean: dict[tuple[bool, ...], float] = {}
-        for mask in product((True, False), repeat=K):
+        for mask in corners:
             cell = tuple(hi[k] if mask[k] else lo[k] for k in range(K))
             corner_mean[mask] = float(np.mean(predict(sample, cell)))
-        all_hi = (True,) * K
-        all_lo = (False,) * K
         # Joint contrast between the requested treated (all-hi) and control
         # (all-lo) cells.
         joint = corner_mean[all_hi] - corner_mean[all_lo]
+        if any(counts[mask] == 0 for mask in corners):
+            return joint, None
         # Highest-order (K-way) interaction: the K-th mixed finite
         # difference — the alternating-sign sum over all 2^K corners, with
         # sign (−1)^{#treatments at lo}. For K=2 this is exactly
@@ -258,7 +300,7 @@ def estimate_joint_effect(
         return joint, interaction
 
     try:
-        joint_point, interaction_point = _joint_and_interaction(df)
+        joint_point, interaction_point = _joint_and_interaction(df, row_corner)
     except np.linalg.LinAlgError as exc:
         # The bootstrap below tolerates a resample it cannot fit; the point
         # fit has no such loop, and the solver's own error is a ValueError
@@ -280,11 +322,17 @@ def estimate_joint_effect(
         for i in range(ci_bootstrap):
             idx = resample_indices(n, rng, groups=groups)
             try:
-                jd, idd = _joint_and_interaction(df.iloc[idx])
+                jd, idd = _joint_and_interaction(
+                    df.iloc[idx], row_corner[idx],
+                )
             except (ValueError, np.linalg.LinAlgError):
-                jd = idd = np.nan
-            joint_draws[i] = jd
-            inter_draws[i] = idd
+                jd = idd = None
+            # A draw that lost a corner drops out of that quantity's
+            # interval and only that one: the contrast survives a draw the
+            # interaction cannot use, and the two are still computed from
+            # the same resample wherever both are defined.
+            joint_draws[i] = np.nan if jd is None else jd
+            inter_draws[i] = np.nan if idd is None else idd
         alpha = (1 - ci_level) / 2
         jd_valid = joint_draws[~np.isnan(joint_draws)]
         id_valid = inter_draws[~np.isnan(inter_draws)]
@@ -300,6 +348,19 @@ def estimate_joint_effect(
         assumptions = assumptions + (
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
+
+    unsupported = tuple(_cell(m) for m in corners if support[m] == 0)
+    unavailable_reason = None if interaction_point is not None else (
+        f"the {len(corners)}-corner finite difference that defines the "
+        f"{K}-way interaction has no rows in "
+        f"{', '.join(_cell_text(c) for c in unsupported)}. The contrast "
+        f"above is unaffected — it is taken between the all-treated and "
+        f"all-control cells, both of which are observed — but the "
+        f"interaction cannot be separated from what the outcome model "
+        f"would invent at the empty corners."
+    )
+    if interaction_point is None:
+        inter_lo = inter_hi = None
 
     return JointEffectEstimate(
         joint_point=joint_point,
@@ -319,10 +380,57 @@ def estimate_joint_effect(
         control=tuple((k, control_values[k]) for k in treatments),
         outcome=outcome,
         cluster=cluster,
+        interaction_unavailable_reason=unavailable_reason,
+        interaction_unsupported_cells=unsupported,
     )
 
 
 # --- internals --------------------------------------------------------------
+
+
+def _cell_text(cell: tuple[tuple[str, object], ...]) -> str:
+    """A corner as prose. The values are the caller's own, so a bool reads
+    as ``True`` rather than as whatever the design matrix turned it into."""
+    return "(" + ", ".join(f"{name}={value}" for name, value in cell) + ")"
+
+
+def _corner_of_each_row(
+    frame: pd.DataFrame,
+    treatments: tuple[str, ...],
+    hi: tuple[float, ...],
+    lo: tuple[float, ...],
+) -> np.ndarray:
+    """Label every row with the corner of the hi/lo box it stands on.
+
+    The label packs the per-treatment choice into an integer — bit ``k``
+    set means treatment ``k`` is at its hi level. Rows at neither level of
+    some treatment get ``-1``: they carry the adjustment distribution the
+    g-formula averages over, but they are nobody's support.
+
+    Labelling once and slicing it per resample is what keeps the check
+    affordable inside the bootstrap.
+    """
+    label = np.zeros(len(frame), dtype=np.int64)
+    off = np.zeros(len(frame), dtype=bool)
+    for k, t in enumerate(treatments):
+        col = frame[t].to_numpy(dtype=float)
+        at_hi = col == hi[k]
+        off |= ~(at_hi | (col == lo[k]))
+        label |= at_hi.astype(np.int64) << k
+    label[off] = -1
+    return label
+
+
+def _corner_counts(
+    label: np.ndarray, corners: tuple[tuple[bool, ...], ...],
+) -> dict[tuple[bool, ...], int]:
+    """How many rows stand on each corner, keyed the way the estimator
+    names corners (a per-treatment hi/lo mask)."""
+    counts = np.bincount(label[label >= 0], minlength=len(corners))
+    return {
+        mask: int(counts[sum(1 << k for k, at_hi in enumerate(mask) if at_hi)])
+        for mask in corners
+    }
 
 
 def _treatment_subsets(k: int) -> tuple[tuple[int, ...], ...]:
