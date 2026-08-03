@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3815 passed / 144 skipped, warning-clean
+3816 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -885,7 +885,21 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 
 **取舍（声明）**：`says`（登记表里每个物种的一句话释义）**不进信封**——`reason` 已经承担「这一次发生了什么」且是在 raise 处写的、更具体；`says` 是物种级的，发出去与 `reason` 重复，它留给登记表维护者和写 prompt 的人。web 前端**未动**：`Verdict.tsx` 现在把 `failure_type` 这个英文标识符直接显示给中文用户，`types.ts` 只镜像它渲染的字段——改渲染是 UI 决策、且要 `pnpm build`，登记为机会，不当作本档欠账。
 
-**基线**：3804 → **3815**（+11：登记表侧 3——kind enum 与登记表相等、盖章是 kind 的唯一来源、AST 禁止在拒答处手写 kind；报告侧 8——拒答不再渲染成「没有数据」、每个 kind 都有一句话、5 个 kind 逐条读起来确实不同、点估计压过挂在旁边的拒答）。
+**基线（本条）**：3804 → **3815**（+11：登记表侧 3——kind enum 与登记表相等、盖章是 kind 的唯一来源、AST 禁止在拒答处手写 kind；报告侧 8——拒答不再渲染成「没有数据」、每个 kind 都有一句话、5 个 kind 逐条读起来确实不同、点估计压过挂在旁边的拒答）。
+
+---
+
+**诚实拒绝与代码炸了不再共用一个分支（2026-08-03，接上两条）**：修复型。dispatch 有 9 处 `except (EstimatorFailure, ValueError, NotImplementedError)`——一次诚实拒绝和一个 bug 落进同一分支，后果完全相同：数值块不出现、结构答案照发、一个字的消息都没有。写成这样不是疏忽：**在 `EstimatorFailure` 有登记表之前，「这是不是一次诚实拒绝」没有可靠的载体**，兜住整个异常类型是当时唯一稳妥的做法。前两条把载体建起来（诚实拒绝现在必然是 `EstimatorFailure` 且必然带一个登记过的物种），这一条才做得成。
+
+**判据是量出来的，不是读出来的。** 光读代码只能说「8 个被调模块自己一处都不 `raise ValueError` / `NotImplementedError` / `KeyError`」，但库会抛，读不全。所以插桩：9 处各记一行「接住的是什么类型、来自哪一帧」，跑一轮全量（3815 passed，插桩不影响结果），然后把插桩删掉。**127 次捕获，127 次都是 `EstimatorFailure`**，另外三种 0 次。来源：`general_id` 90、`bounds_numeric` 15、`four_way_ratio` 14、其余 8。唯一没有运行时证据的是 site 2301（causation，套件里从未触发），只有静态证据（`causation.py` 不 raise 这三种，它调的 `binary_do_risk` 抛 `EstimatorFailure`）——一并收窄，并把「这一处只有静态证据」记在这里。
+
+**过程中推翻自己一个推断。** 看到 `DataContractError(ValueError)` 就推断「数据契约违规也被这 9 处静默吞掉」。**实测不成立**——dispatch 在进这些 try 之前已经建过一次 contract，5 行数据在 back-door 与 general-ID 两条路径上**都**如实抛出（`themis/__init__.py:97` 记的正是这个公开契约）。反过来，这成了收窄的一个正面理由：**这 9 处让 `estimate` 悄悄违反它自己文档化的行为**。
+
+**声明的行为改变与风险。** 收窄之后，一个没被分类的库异常会**炸出去**而不是被吞掉。这是想要的——不许静默是本仓的全部主张；但它是真风险：某条测试没覆盖到的路径上若真有未转换的库异常，用户会拿到 traceback 而不是一个结构答案。取舍明说：**安静地少一个数是最坏的选项**，因为它长得和一次诚实拒绝一模一样，没有任何人会去查它。
+
+**未做、已登记（划在这一档之外）。** 这 9 处即便接住的是诚实拒绝，也**不在信封上留痕**：`blocked('estimator_refused')` 记的是 dispatch 级联自己的账（`Claim.reason` → `Evaluation.declined` → 一个 `_recorder`），不进结果。用户看到的是「这题没有数」，而不是「这题因为 X 没有数」。修它要往信封加 `estimator_failure` 块，属功能不属修复。另：`counterfactual_cell.py:414` 那处 `(EstimatorFailure, cf.CounterfactualBoundsError)` **不在问题范围**——两个都是诚实拒绝通道，AST 守卫按「不许与**通用**异常同筐」写，正好放它过去。
+
+**基线（本条）**：3815 → **3816**（+1：AST 守着「拒答不与通用异常同筐」——这比单纯删掉那两项更耐久，因为下一个人会想把它们加回来）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
