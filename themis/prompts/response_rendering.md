@@ -565,6 +565,46 @@ df)`, not from symbolic Theta.
 **IV template** is in §"IV identification" below — it covers both the
 structural and the numeric (`iv_wald` / `iv_2sls`) paths.
 
+### When there is no number — `estimator_failure`
+
+A result carrying `estimator_failure` where a `numeric_estimate` would go
+has been *answered*, not dropped. An estimator that could not honestly
+produce a number said so in structure rather than shipping a biased one,
+and the reply's job is to deliver that as a finding.
+
+Three fields, read in this order. **`kind`** says what the reader should
+do about it, and it is the one that shapes the reply. `reason` says what
+happened on this occasion and is usually specific enough to carry into
+the text. `failure_type` names the species; there are dozens, it is an
+identifier rather than prose, and you are not expected to recognise it —
+`kind` and `reason` are what you render from.
+
+| `kind` | What it means | What the reply carries |
+|---|---|---|
+| `graph` | The causal structure permits no such quantity. | The refusal is a result about their **model**. Name the structural feature that closes the door, and say that more of the same data does not open it — what changes the answer is a different graph or a different question. |
+| `data` | The structure permits it; this sample cannot support it (an empty stratum, a singular design, too few rows). | Say what the data would have to look like. "Which cell is empty / how many more rows" is the actionable part, and `reason` usually has it. |
+| `unbuilt` | Well-posed, identified, and Themis has not built this case. | A limit of the tool, owned plainly. The user's question and data are both sound; keep the phrasing from implying otherwise. |
+| `request` | An input the caller supplied is malformed or inconsistent with the data. | Name the input and what it should be. This is the one kind the user can clear on the next turn, so it reads as an instruction rather than a verdict. |
+| `backend` | A numeric routine did not return an answer (no convergence, a singular solve, or a failure nothing classified). | The only kind that is genuinely "it didn't compute", and it passes no verdict on the question or the data design — say so, and say what might change it (another estimator, a coarser stratification). Do not manufacture a diagnosis the block does not contain. |
+
+Two things hold whatever the kind.
+
+**A refusal is not a malfunction.** The reflex on seeing a missing number
+is to report a system error, and for four of the five kinds that is
+simply false — they are substantive findings about the question, arrived
+at deliberately. Only `backend` is the tool failing.
+
+**The withheld number stays withheld.** Many of these blocks exist
+precisely because some *other* number was sitting there and would have
+been wrong — the unadjusted contrast, the complete-case estimate, the
+uncorrected slope. That number is not a consolation prize for the one
+that was refused; it belongs in the reply only where you are explicitly
+labelling it as the biased comparison the refusal rejected.
+
+The design-specific sections below add what is particular to one
+estimator — which correction was withheld, which assumption would unblock
+it. They do not restate the above.
+
 ### Joint interventions (`joint_backdoor_linear` / `joint_backdoor_logistic`)
 
 When the query intervened on a SET of K treatments simultaneously
@@ -983,8 +1023,9 @@ correction, not just the corrected number:
   or non-differential is violated. Do not hide it.
 - If instead there is a `measurement_error_correction` `estimator_failure`
   (singular / non-stochastic matrix, positivity, or the effect isn't back-door
-  identified), report the refusal — the corrected number was withheld, NOT the
-  biased naive point silently shipped.
+  identified), the number that was withheld is the *corrected* one — the naive
+  point is still sitting in the data, and §"When there is no number" says why it
+  does not get substituted in.
 
 **Exposure misclassification (`method == "exposure_measurement_error_correction"`,
 `measurement_correction.side == "exposure"`).** The same de-attenuation when the
@@ -1000,8 +1041,7 @@ differences the reader must see:
   guards invertibility). Do not present `point ≈ naive/det`.
 - The recovered exposure marginal `P(X*=x|z)` is itself an inversion; a
   `degenerate_recovered_exposure` failure (a non-positive recovered marginal)
-  means the matrix is too weakly informative to identify the effect in a stratum
-  — report the refusal, don't ship a wild number.
+  means the matrix is too weakly informative to identify the effect in a stratum.
 
 **Differential misclassification (`measurement_correction.differential == true`).**
 Both sides also handle DIFFERENTIAL misclassification, where the channel depends on
@@ -1073,8 +1113,8 @@ note what is different:
   σ²_u ≥ Var(V|rest), `non_positive_error_variance`, `exposure_not_continuous` /
   `mismeasured_covariate_not_continuous`, `mismeasured_covariate_not_in_adjustment`
   when a named confounder isn't in the back-door set, or the effect isn't back-door
-  identified) is a refusal — the corrected slope was withheld, NOT the biased naive
-  slope silently shipped.
+  identified) withholds the *corrected* slope; the biased naive slope is not what
+  goes in its place.
 
 **A mismeasured CONTINUOUS OUTCOME (`result.outcome_error`) is the case where
 there is nothing to correct, and saying so is the answer.** A classical additive
@@ -1395,12 +1435,15 @@ Instead:
   biased sample giving the S-conditioned risks and the reference giving the
   weights. `themis.verify_selection_recovery_numeric` re-derives it from the
   recorded per-stratum counts + weights. Present it as a genuine number.
-- Otherwise an `estimator_failure` appears instead of a number:
-  `failure_type = "external_data_required"` (recoverable, but the unbiased
-  data named in the message is missing — the whole point of the ledger) or
-  `"not_recoverable"` (SBD-non-recoverable, e.g. the Hernán collider). This
-  refusal is a *feature*: render it as "a number here would be biased, so it
-  is withheld — here is what would unlock it", never as a failure to try.
+- Otherwise an `estimator_failure` appears instead of a number, and the two
+  species that reach here differ in what the reader can do about it — which
+  is exactly what `kind` carries. `external_data_required` (`kind =
+  "request"`): the effect IS recoverable, and the unbiased data named in
+  `external_data_needed` was not supplied — say what to supply, and the next
+  run answers it. `not_recoverable` (`kind = "graph"`): the
+  selection-backdoor criterion fails on this graph (the Hernán collider is
+  the canonical case) — no amount of data supplies it, and saying which
+  structure closes the door is the answer.
 
 ### Missing-data recovery (Phase 9 §S9.2)
 
