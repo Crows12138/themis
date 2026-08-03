@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis import refusals
+from themis.refusals import EstimatorFailure
 from themis.estimation.transport import (
     TransportEstimate,
     estimate_transport,
@@ -172,7 +174,7 @@ def test_multi_z_bootstrap_ci_brackets_point():
 
 def test_multi_z_rejects_marginal_not_summing_to_one():
     df = _multi_z_source(n=500, seed=0)
-    with pytest.raises(ValueError, match="must sum to 1"):
+    with pytest.raises(EstimatorFailure, match="must sum to 1"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z1", "z2"),
             target_marginal=_joint_target(0.4, 0.1, 0.2, 0.1),  # 0.8 ≠ 1
@@ -183,7 +185,7 @@ def test_multi_z_rejects_marginal_not_summing_to_one():
 def test_multi_z_rejects_predicate_set_mismatch():
     """Adjustment names must equal the target's Z variables."""
     df = _multi_z_source(n=500, seed=0)
-    with pytest.raises(ValueError, match="doesn't match the adjustment"):
+    with pytest.raises(EstimatorFailure, match="doesn't match the adjustment"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z1", "z_other"),
             target_marginal=_joint_target(0.25, 0.25, 0.25, 0.25),
@@ -198,7 +200,7 @@ def test_multi_z_rejects_cell_missing_a_predicate():
         "predicates": ["z1", "z2"],
         "cells": [{"values": {"z1": True}, "probability": 1.0}],  # no z2
     }
-    with pytest.raises(ValueError, match="must equal the declared predicates"):
+    with pytest.raises(EstimatorFailure, match="must equal the declared predicates"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z1", "z2"),
             target_marginal=bad, ci_bootstrap=0,
@@ -278,7 +280,7 @@ def test_estimate_assumptions_name_s_admissibility():
 def test_rejects_marginal_not_summing_to_one():
     df = _balanced_source(n=300, seed=0)
     bad = {"predicate": "z", "marginal": {True: 0.3, False: 0.3}}  # 0.6 ≠ 1
-    with pytest.raises(ValueError, match="must sum to 1"):
+    with pytest.raises(EstimatorFailure, match="must sum to 1"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z",),
             target_marginal=bad, ci_bootstrap=0,
@@ -288,7 +290,7 @@ def test_rejects_marginal_not_summing_to_one():
 def test_rejects_predicate_mismatch_with_adjustment():
     df = _balanced_source(n=300, seed=0)
     bad = {"predicate": "wrong_z", "marginal": {True: 0.5, False: 0.5}}
-    with pytest.raises(ValueError, match="doesn't match the adjustment"):
+    with pytest.raises(EstimatorFailure, match="doesn't match the adjustment"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z",),
             target_marginal=bad, ci_bootstrap=0,
@@ -300,7 +302,7 @@ def test_single_z_marginal_cannot_cover_multi_var_adjustment():
     variable mismatch (multi-Z now needs the joint 'cells' form)."""
     df = _balanced_source(n=300, seed=0)
     target_marginal = {"predicate": "z", "marginal": {True: 0.5, False: 0.5}}
-    with pytest.raises(ValueError, match="doesn't match the adjustment"):
+    with pytest.raises(EstimatorFailure, match="doesn't match the adjustment"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z", "z2"),
             target_marginal=target_marginal, ci_bootstrap=0,
@@ -318,7 +320,7 @@ def test_rejects_empty_stratum():
         "z": [False] * n,  # z=True absent from source
     })
     target_marginal = {"predicate": "z", "marginal": {True: 0.5, False: 0.5}}
-    with pytest.raises(ValueError, match="no observations"):
+    with pytest.raises(EstimatorFailure, match="no observations"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z",),
             target_marginal=target_marginal, ci_bootstrap=0,
@@ -327,7 +329,7 @@ def test_rejects_empty_stratum():
 
 def test_rejects_malformed_target_marginal():
     df = _balanced_source(n=200, seed=0)
-    with pytest.raises(ValueError, match="must be"):
+    with pytest.raises(EstimatorFailure, match="must be"):
         estimate_transport(
             df, treatment="x", outcome="y", adjustment=("z",),
             target_marginal={"wrong": "shape"}, ci_bootstrap=0,

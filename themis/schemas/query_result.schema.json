@@ -1644,7 +1644,6 @@
             "not_identifiable_counterfactual",
             "not_identifiable_proximal",
             "not_identified",
-            "not_implemented",
             "not_recoverable",
             "outcome_error_exceeds_residual_variance",
             "outcome_not_binary",

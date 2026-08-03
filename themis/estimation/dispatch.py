@@ -3557,6 +3557,7 @@ def _try_transport_estimate(
     valid; the numeric layer just doesn't attach.
     """
     from .transport import estimate_transport
+    from ..refusals import EstimatorFailure
 
     transport_block = (result.get("extensions") or {}).get(blocks.TRANSPORT_IDENTIFICATION)
     if not isinstance(transport_block, dict):
@@ -3597,27 +3598,16 @@ def _try_transport_estimate(
             random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except (ValueError, NotImplementedError) as exc:
-        # Surface the refusal as a structured estimator_failure instead of
-        # silently dropping it. The common case is a positivity violation
-        # — the target marginal demands a stratum the source has zero
-        # support for — which is exactly the "pathological data without
-        # disclosure" failure VISION forbids. Mirrors the dose-response
-        # path: the consumer must tell "refused for a good reason" from
-        # "didn't try".
-        msg = str(exc)
-        failure_type = (
-            refusals.NOT_IMPLEMENTED
-            if isinstance(exc, NotImplementedError)
-            else refusals.OVERLAP_INSUFFICIENT
-            if "no observations" in msg
-            else refusals.INVALID_INPUT
-        )
-        result["estimator_failure"] = {
-            "estimator": "transport_post_stratification",
-            "failure_type": failure_type,
-            "reason": msg,
-        }
+    except EstimatorFailure as exc:
+        # Which refusal this is comes from the estimator, which knew. It
+        # used to be reconstructed here by looking for a phrase in the
+        # message, and the phrase only matched one of the two positivity
+        # guards — the other arrived as `invalid_input`, telling a caller
+        # their request was malformed when what had happened was that
+        # their source data held no contrast in a stratum the target
+        # marginal weights.
+        refusals.record(result, estimator="transport_post_stratification",
+                        exc=exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {

@@ -50,6 +50,8 @@ import pandas as pd
 
 from .contract import validate_data
 from .resample import cluster_labels, resample_indices
+from .. import refusals
+from ..refusals import EstimatorFailure
 
 
 @dataclass(frozen=True)
@@ -90,7 +92,9 @@ def _canonical_target_marginal(
 
           {"predicate": "z", "marginal": {True: 0.7, False: 0.3}}
 
-    Malformed shapes raise ``ValueError`` (message contains "must be").
+    Malformed shapes raise ``EstimatorFailure(invalid_input)`` — the
+    caller's own words are wrong, which is a different thing from the data
+    not reaching far enough, and the species is what says so.
     """
     if "predicates" in target_marginal or "cells" in target_marginal:
         preds = target_marginal.get("predicates")
@@ -102,9 +106,10 @@ def _canonical_target_marginal(
             or not isinstance(raw_cells, list)
             or not raw_cells
         ):
-            raise ValueError(
+            raise EstimatorFailure(
+                refusals.INVALID_INPUT,
                 "multi-Z target_marginal must be {'predicates': [str, ...], "
-                "'cells': [{'values': {pred: value}, 'probability': p}, ...]}"
+                "'cells': [{'values': {pred: value}, 'probability': p}, ...]}",
             )
         z_preds = tuple(preds)
         cells: list[tuple[dict, float]] = []
@@ -116,14 +121,16 @@ def _canonical_target_marginal(
                 or not isinstance(prob, (int, float))
                 or isinstance(prob, bool)
             ):
-                raise ValueError(
+                raise EstimatorFailure(
+                    refusals.INVALID_INPUT,
                     "each target_marginal cell must be {'values': "
-                    "{pred: value}, 'probability': number}"
+                    "{pred: value}, 'probability': number}",
                 )
             if set(values.keys()) != set(z_preds):
-                raise ValueError(
+                raise EstimatorFailure(
+                    refusals.INVALID_INPUT,
                     f"cell values keys {sorted(values.keys())} must equal "
-                    f"the declared predicates {sorted(z_preds)}"
+                    f"the declared predicates {sorted(z_preds)}",
                 )
             cells.append((dict(values), float(prob)))
         return z_preds, cells
@@ -131,10 +138,11 @@ def _canonical_target_marginal(
     z_pred = target_marginal.get("predicate")
     z_marg = target_marginal.get("marginal")
     if not isinstance(z_pred, str) or not isinstance(z_marg, dict):
-        raise ValueError(
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
             "target_marginal must be {'predicate': str, "
             "'marginal': {z_value: probability}} or the multi-Z "
-            "{'predicates': [...], 'cells': [...]} form"
+            "{'predicates': [...], 'cells': [...]} form",
         )
     return (z_pred,), [({z_pred: v}, float(p)) for v, p in z_marg.items()]
 
@@ -168,26 +176,37 @@ def estimate_transport(
     population's effect-size scale (binary outcome → risk difference;
     continuous outcome → mean difference).
 
-    Raises ``ValueError`` when:
-    - target_marginal shape is malformed
-    - Z probabilities don't sum to 1 within ε
-    - the target's Z variables don't match ``adjustment``
-    - any source joint stratum is empty (cannot compute ATE_source(z))
+    Raises ``EstimatorFailure``, in one of two species, because a caller
+    who is told only that something went wrong cannot tell which of these
+    is their problem to fix:
+
+    ``invalid_input`` — the request is malformed: the target_marginal
+        shape, Z probabilities that don't sum to 1 within ε, or target Z
+        variables that don't match ``adjustment``.
+    ``overlap_insufficient`` — the request is well formed and the source
+        data does not reach: a joint stratum the target marginal weights
+        has no source rows, or holds only one treatment arm. ``details``
+        carries the stratum and its arm counts.
     """
     if not adjustment:
-        raise ValueError("estimate_transport requires >=1 adjustment variable")
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
+            "estimate_transport requires >=1 adjustment variable",
+        )
 
     z_preds, cells = _canonical_target_marginal(target_marginal, adjustment)
     if set(z_preds) != set(adjustment):
-        raise ValueError(
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
             f"target_marginal variables {sorted(z_preds)} doesn't match "
-            f"the adjustment set {sorted(adjustment)}"
+            f"the adjustment set {sorted(adjustment)}",
         )
 
     total_p = sum(p for _, p in cells)
     if abs(total_p - 1.0) > 1e-6:
-        raise ValueError(
-            f"target_marginal probabilities must sum to 1; got {total_p}"
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
+            f"target_marginal probabilities must sum to 1; got {total_p}",
         )
 
     required = {treatment, outcome, *z_preds}
@@ -207,15 +226,23 @@ def estimate_transport(
         for pred, value in assignment.items():
             sub = sub[sub[pred] == value]
         if len(sub) == 0:
-            raise ValueError(
-                f"source data has no observations with stratum {assignment}"
+            raise EstimatorFailure(
+                refusals.OVERLAP_INSUFFICIENT,
+                f"source data has no observations with stratum {assignment}, "
+                f"which the target marginal weights; transporting to a "
+                f"population the source never covered would be extrapolation",
+                stratum=dict(assignment),
             )
         treated = sub[sub[treatment] == True]  # noqa: E712
         control = sub[sub[treatment] == False]  # noqa: E712
         if len(treated) == 0 or len(control) == 0:
-            raise ValueError(
-                f"stratum {assignment} lacks both treatment arms; "
-                "cannot compute ATE_source(z)"
+            raise EstimatorFailure(
+                refusals.OVERLAP_INSUFFICIENT,
+                f"stratum {assignment} holds only one treatment arm "
+                f"({len(treated)} treated, {len(control)} control), so the "
+                f"source has no contrast to transport from it",
+                stratum=dict(assignment),
+                n_treated=len(treated), n_control=len(control),
             )
         return float(treated[outcome].astype(float).mean()
                      - control[outcome].astype(float).mean())
@@ -238,7 +265,11 @@ def estimate_transport(
             idx = resample_indices(n, rng, groups=groups)
             try:
                 draws[i] = _transport_point(df.iloc[idx])
-            except ValueError:
+            except EstimatorFailure:
+                # A resample that lost a stratum, or an arm within one. The
+                # point estimate above established the source has both, so
+                # this is a resampling artifact: the draw leaves the
+                # interval and the rest of them build it.
                 draws[i] = np.nan
         draws = draws[~np.isnan(draws)]
         if len(draws) > 0:

@@ -247,12 +247,6 @@ PROXY_CARDINALITY_MISMATCH = Refusal(
 
 # --- Themis has not built this case -------------------------------------------
 
-NOT_IMPLEMENTED = Refusal(
-    "not_implemented",
-    kind=KIND_UNBUILT,
-    says="the identified estimand is outside what this numeric path "
-         "implements",
-)
 INTRACTABLE_ESTIMAND = Refusal(
     "intractable_estimand",
     kind=KIND_UNBUILT,

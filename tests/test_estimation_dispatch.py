@@ -488,6 +488,49 @@ def test_transport_positivity_violation_surfaces_structured_failure():
     assert "no observations" in failure["reason"]
 
 
+def test_transport_one_armed_stratum_is_a_positivity_finding_not_a_bad_request():
+    """The stratum exists and is one-armed, so there is no contrast in it to
+    transport. That is a fact about the data, and the species has to say so:
+    it once arrived as `invalid_input`, which tells the caller to go fix a
+    request that was never wrong.
+
+    Its sibling — a stratum with no rows at all — was the branch that had a
+    test, and it is the branch the old message-matching happened to catch."""
+    import json
+
+    rng = np.random.default_rng(0)
+    n = 4000
+    z = rng.random(n) < 0.5
+    df = pd.DataFrame({
+        "z": z,
+        "x": np.where(z, True, rng.random(n) < 0.5),   # z=True: treated only
+        "y": rng.normal(size=n),
+    })
+    res = json.loads(json.dumps(
+        themis.estimate(_transport_program({True: 0.5, False: 0.5}), df,
+                        ci_bootstrap=0)["results"][0]
+    ))
+    failure = res["estimator_failure"]
+    assert failure["failure_type"] == "overlap_insufficient"
+    assert failure["kind"] == "data"
+    assert failure["details"]["n_control"] == 0
+
+
+def test_transport_malformed_target_marginal_stays_a_bad_request():
+    """The other side of the same distinction: when the request really is
+    malformed the species must not drift into a data finding, or the caller
+    goes looking for data that would not have helped."""
+    import json
+
+    res = json.loads(json.dumps(
+        themis.estimate(_transport_program({True: 0.3, False: 0.3}),   # ≠ 1
+                        _transport_source(seed=0), ci_bootstrap=0)["results"][0]
+    ))
+    failure = res["estimator_failure"]
+    assert failure["failure_type"] == "invalid_input"
+    assert failure["kind"] == "request"
+
+
 def test_transport_marginal_with_json_string_keys_produces_number():
     """JSON object keys are always strings, so a target marginal supplied
     via the documented JSON-in path arrives as {"true":.7,"false":.3} while
