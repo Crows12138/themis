@@ -1397,7 +1397,7 @@ def _attach_numeric_bounds(
                 )
             else:
                 continue
-        except (EstimatorFailure, ValueError, NotImplementedError):
+        except EstimatorFailure:
             # Honest refusal — the symbolic interval still stands.
             continue
         _fill_numeric_bounds(bounds, nb)
@@ -1477,7 +1477,7 @@ def _try_general_id_estimate(
                 ci_bootstrap=ci_bootstrap, random_state=random_state,
                 cluster=cluster if (cluster is None or cluster in df.columns) else None,
             )
-    except (EstimatorFailure, ValueError, NotImplementedError):
+    except EstimatorFailure:
         # Not (non-parametrically) c-factor / IDC identified here, out of the
         # plug-in's binary scope, or a positivity refusal — leave the
         # result untouched and fall through to the IV escalation.
@@ -1572,7 +1572,7 @@ def _try_joint_general_id_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except (EstimatorFailure, ValueError, NotImplementedError):
+    except EstimatorFailure:
         # Not (non-parametrically) set-ID identified here, out of the plug-in's
         # binary scope, or a positivity refusal — leave the result untouched
         # so the structural joint refusal stands.
@@ -1757,7 +1757,7 @@ def _try_ctf_conjunction_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except (EstimatorFailure, ValueError, NotImplementedError):
+    except EstimatorFailure:
         # Not identifiable, UNDEFINED, or a positivity refusal — leave the
         # structural result untouched.
         return blocked('estimator_refused')
@@ -1939,7 +1939,7 @@ def _try_scm_counterfactual_estimate(
                 cluster is None or cluster in contract.data.columns
             ) else None,
         )
-    except (EstimatorFailure, ValueError, NotImplementedError):
+    except EstimatorFailure:
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -2127,7 +2127,7 @@ def _try_proximal_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except (EstimatorFailure, ValueError, NotImplementedError):
+    except EstimatorFailure:
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -2298,7 +2298,7 @@ def _try_causation_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except (EstimatorFailure, ValueError, NotImplementedError):
+    except EstimatorFailure:
         return blocked('estimator_refused')
 
     # The causation data answer is ALWAYS the three Tian-Pearl intervals; under
@@ -2572,7 +2572,7 @@ def _try_counterfactual_cell_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except (EstimatorFailure, ValueError, NotImplementedError):
+    except EstimatorFailure:
         return blocked('estimator_refused')
 
     is_point = estimate.point is not None
@@ -3063,7 +3063,12 @@ def _attach_four_way_ratio(
             ci_bootstrap=ratio_bootstrap, random_state=random_state,
             cluster=cluster,
         )
-    except (EstimatorFailure, ValueError, KeyError, np.linalg.LinAlgError):
+    except EstimatorFailure:
+        # Only the refusal. A failed model fit already arrives as one
+        # (four_way_ratio converts the solver's ValueError / LinAlgError
+        # itself, which is where that decision belongs); anything else
+        # reaching here is not a refusal, and a supplementary block that
+        # vanishes is how it would go unnoticed.
         return
 
     def _p(pt, lo, hi) -> dict:

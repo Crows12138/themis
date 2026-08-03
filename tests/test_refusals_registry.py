@@ -143,6 +143,56 @@ def test_the_species_of_a_refusal_is_never_spelled_at_the_raise():
     assert not offenders, offenders
 
 
+_GENERIC_FAILURES = {
+    "BaseException", "Exception", "RuntimeError", "ArithmeticError",
+    "ValueError", "TypeError", "KeyError", "IndexError", "AttributeError",
+    "NotImplementedError", "OSError", "LinAlgError",
+}
+
+
+def _caught_names(node) -> set[str]:
+    """Every exception name in one ``except`` clause."""
+    parts = node.elts if isinstance(node, ast.Tuple) else [node]
+    names = set()
+    for part in parts:
+        if isinstance(part, ast.Attribute):
+            names.add(part.attr)
+        elif isinstance(part, ast.Name):
+            names.add(part.id)
+    return names
+
+
+def test_an_honest_refusal_is_not_caught_beside_a_crash():
+    """Declining and crashing must not share a branch.
+
+    Nine clauses in dispatch caught ``EstimatorFailure`` together with
+    ``ValueError`` and ``NotImplementedError``, so a bug in an estimator
+    produced exactly what an honest refusal produces: no number, no
+    message, a structural answer that looks deliberate. They were written
+    that way because before this registry there was no reliable way to
+    tell the two apart, so tolerating the whole exception type was the
+    safe move.
+
+    Instrumenting all nine and running the suite recorded 127 catches,
+    every one of them an ``EstimatorFailure``: the wider types were never
+    reached. A named domain exception may still be caught beside a
+    refusal — some estimators raise their own — but a generic one may
+    not, because that is the basket the two fell into.
+    """
+    offenders = []
+    for rel, src in _sources():
+        for node in ast.walk(ast.parse(src)):
+            if not isinstance(node, ast.ExceptHandler) or node.type is None:
+                continue
+            names = _caught_names(node.type)
+            if "EstimatorFailure" not in names:
+                continue
+            generic = names & _GENERIC_FAILURES
+            if generic:
+                offenders.append(f"{rel}:{node.lineno} also catches {sorted(generic)}")
+    assert not offenders, offenders
+
+
 def test_a_species_is_the_plain_name_once_it_is_data():
     """The registry hands out ``str`` subclasses so a misspelling is an
     AttributeError at import. What lands in the envelope has to be the
