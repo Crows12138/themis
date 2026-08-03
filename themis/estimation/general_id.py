@@ -270,11 +270,14 @@ def estimate_general_id_ate(
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
     identification_assumptions = (
-        {"claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
+        {"id": "admg_structure_correct_including_latent_confounders",
+         "claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
          "layer": "identification", "severity": "invalidating", "testable": False},
-        {"claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
+        {"id": "positivity_every_conditioning_stratum_has_support",
+         "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
          "layer": "identification", "severity": "invalidating", "testable": True},
-        {"claim": "一致性：干预定义明确，potential outcomes 良定义",
+        {"id": "consistency_of_potential_outcomes",
+         "claim": "一致性：干预定义明确，potential outcomes 良定义",
          "layer": "identification", "severity": "invalidating", "testable": False},
     )
     return GeneralIdEstimate(
@@ -469,11 +472,14 @@ def estimate_general_id_conditional_ate(
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
     identification_assumptions = (
-        {"claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
+        {"id": "admg_structure_correct_including_latent_confounders",
+         "claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
          "layer": "identification", "severity": "invalidating", "testable": False},
-        {"claim": "positivity：识别公式条件到的每个前驱层（含 Z=z 分层）在数据中都有样本",
+        {"id": "positivity_every_conditioning_stratum_has_support",
+         "claim": "positivity：识别公式条件到的每个前驱层（含 Z=z 分层）在数据中都有样本",
          "layer": "identification", "severity": "invalidating", "testable": True},
-        {"claim": "一致性：干预定义明确，potential outcomes 良定义",
+        {"id": "consistency_of_potential_outcomes",
+         "claim": "一致性：干预定义明确，potential outcomes 良定义",
          "layer": "identification", "severity": "invalidating", "testable": False},
     )
     return GeneralIdEstimate(
@@ -656,11 +662,14 @@ def estimate_joint_general_id_ate(
             f"ci_via_pairs_cluster_bootstrap_on_{cluster}",
         )
     identification_assumptions = (
-        {"claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
+        {"id": "admg_structure_correct_including_latent_confounders",
+         "claim": "ADMG 结构正确：所有有向边与潜混杂 (↔) 边如实建模",
          "layer": "identification", "severity": "invalidating", "testable": False},
-        {"claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
+        {"id": "positivity_every_conditioning_stratum_has_support",
+         "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
          "layer": "identification", "severity": "invalidating", "testable": True},
-        {"claim": "一致性：联合干预定义明确，potential outcomes 良定义",
+        {"id": "consistency_of_potential_outcomes_under_joint_intervention",
+         "claim": "一致性：联合干预定义明确，potential outcomes 良定义",
          "layer": "identification", "severity": "invalidating", "testable": False},
     )
     return GeneralIdEstimate(

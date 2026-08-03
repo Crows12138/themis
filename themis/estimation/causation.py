@@ -268,7 +268,7 @@ def estimate_causation_probabilities(
         ),
         form="nonparametric_gformula_plug_in",
         identification_assumptions=_identification_assumptions(
-            provenance, monotonic,
+            provenance, adjustment, monotonic,
         ),
         cluster=cluster,
     )
@@ -380,28 +380,44 @@ def _assumptions(
     return tuple(out)
 
 
-def _identification_assumptions(provenance: str, monotonic: bool) -> tuple[dict, ...]:
+def _identification_assumptions(
+    provenance: str, adjustment: tuple[str, ...], monotonic: bool,
+) -> tuple[dict, ...]:
+    """The structured twin of :func:`_assumptions`, branch for branch.
+
+    ``id`` is what makes it a twin rather than something that reads like
+    one: the ledger folds in every flat declaration no entry has claimed,
+    so a branch here that forgets its id discloses the same assumption
+    twice, and a branch that has none at all is disclosed by the flat
+    channel instead of vanishing.
+    """
     specs: list[dict] = [
-        {"claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
+        {"id": "consistency_of_potential_outcomes",
+         "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
          "layer": "identification", "severity": "invalidating", "testable": False},
     ]
     if provenance == "user_experimental":
         specs.append(
-            {"claim": "干预风险 P(Y=1|do X) 来自随机实验，无混杂",
+            {"id": "interventional_risks_from_randomized_experiment",
+             "claim": "干预风险 P(Y=1|do X) 来自随机实验，无混杂",
              "layer": "identification", "severity": "invalidating", "testable": False})
     elif provenance == "exogenous":
         specs.append(
-            {"claim": "外生性：X 到 Y 无后门路径，P(Y|do X)=P(Y|X)",
+            {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
+             "claim": "外生性：X 到 Y 无后门路径，P(Y|do X)=P(Y|X)",
              "layer": "identification", "severity": "invalidating", "testable": False})
     else:
         specs.append(
-            {"claim": "后门调整集充分：所选调整集阻断 X→Y 的所有后门路径",
+            {"id": "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient",
+             "claim": "后门调整集充分：所选调整集阻断 X→Y 的所有后门路径",
              "layer": "identification", "severity": "invalidating", "testable": False})
         specs.append(
-            {"claim": "positivity：每个调整层在两个处理臂下都有样本",
+            {"id": "positivity_every_treatment_arm_has_support_in_each_stratum",
+             "claim": "positivity：每个调整层在两个处理臂下都有样本",
              "layer": "identification", "severity": "invalidating", "testable": True})
     if monotonic:
         specs.append(
-            {"claim": "单调性：X 从不阻止 Y(Y_x ≥ Y_x')，使 PN/PS/PNS 点识别",
+            {"id": "monotonicity_x_never_prevents_y_point_identification",
+             "claim": "单调性：X 从不阻止 Y(Y_x ≥ Y_x')，使 PN/PS/PNS 点识别",
              "layer": "assumption", "severity": "invalidating", "testable": False})
     return tuple(specs)

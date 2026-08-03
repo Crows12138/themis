@@ -186,11 +186,14 @@ def estimate_proximal_ate(
     if cluster is not None:
         assumptions = assumptions + (f"ci_via_pairs_cluster_bootstrap_on_{cluster}",)
     identification_assumptions = (
-        {"claim": "因果图正确：含未观测混杂 U 及其边、两个 proxy 的角色(Z 治疗侧/W 结局侧)如实建模",
+        {"id": "diagram_correct_including_unobserved_confounder_U_and_proxy_roles",
+         "claim": "因果图正确：含未观测混杂 U 及其边、两个 proxy 的角色(Z 治疗侧/W 结局侧)如实建模",
          "layer": "identification", "severity": "invalidating", "testable": False},
-        {"claim": f"U 的类别数 k={latent_cardinality} 正确，且 Z、W 各恰有 k 个观测水平",
+        {"id": "latent_cardinality_k_correct_and_proxies_have_exactly_k_levels",
+         "claim": f"U 的类别数 k={latent_cardinality} 正确，且 Z、W 各恰有 k 个观测水平",
          "layer": "identification", "severity": "invalidating", "testable": True},
-        {"claim": "rank 条件：P(W|Z,x) 对每个 x 可逆（proxy 对 U 足够相关）——已在数据上核验",
+        {"id": "rank_condition_P(W|Z,x)_invertible_verified_on_data",
+         "claim": "rank 条件：P(W|Z,x) 对每个 x 可逆（proxy 对 U 足够相关）——已在数据上核验",
          "layer": "identification", "severity": "invalidating", "testable": True},
     )
     return ProximalEstimate(

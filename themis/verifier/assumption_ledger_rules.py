@@ -162,30 +162,33 @@ def _check_summary(ledger: dict, entries: list) -> None:
 
 
 def _check_estimator_channel(entries: list, declared: tuple) -> None:
+    """Every declaration the estimate made is on the ledger under its own id.
+
+    Provenance is not part of the test. A declaration may reach the ledger
+    as the estimator's own entry or as the structured identification entry
+    that names it — what must not happen is that it reaches neither.
+
+    This used to accept any ledger carrying an identification entry, on the
+    reasoning that structured entries restate the flat list. They restate
+    PART of it: nineteen families also declare which weights, which
+    interval, which substitution estimator, and those were dropped. The
+    escape hatch is gone because the producer now says which flat
+    declaration each structured entry stands for, so the question is
+    decidable from the envelope instead of being assumed.
+    """
     if not declared:
         return
-    from_estimator = {
-        str(e.get("id")) for e in entries
-        if e.get("provenance") == "estimator_declared"
-    }
-    if not from_estimator:
-        # The estimator may instead have declared structured identification
-        # assumptions, which are the same statements in better words.
-        if any(e.get("layer") == "identification" for e in entries):
-            return
-        _reject(
-            f"the estimate declares {len(declared)} assumption(s) and the "
-            "assumption_ledger carries neither them nor any structured "
-            "identification entry; they are absent from the surface the "
-            "renderer leads with"
-        )
-    missing = [str(a) for a in declared if str(a) not in from_estimator]
+    on_ledger = {str(e["id"]) for e in entries if e.get("id")}
+    missing = [str(a) for a in declared if str(a) not in on_ledger]
     if missing:
         _reject(
             "assumption_ledger drops estimator-declared assumption(s) "
             f"{missing!r}"
         )
-    invented = from_estimator - {str(a) for a in declared}
+    invented = {
+        str(e.get("id")) for e in entries
+        if e.get("provenance") == "estimator_declared"
+    } - {str(a) for a in declared}
     if invented:
         _reject(
             "assumption_ledger carries estimator_declared entrie(s) the "

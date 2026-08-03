@@ -117,6 +117,13 @@ _MC_Y = {"y": {"confusion_matrix": _M(0.8, 0.95), "states": [False, True]}}
 # name -> (program, data key, extra estimate kwargs)
 _BATTERY = {
     "backdoor": (_BACKDOOR, "backdoor", {}),
+    # The doubly-robust and weighted arms of the same design. They declare
+    # the most beyond identification — which weights, which substitution
+    # estimator, how the interval was formed — so they are where a ledger
+    # that reads only the identification channel loses the most.
+    "backdoor_aipw": (_BACKDOOR, "backdoor", {"ate_estimator": "aipw"}),
+    "backdoor_tmle": (_BACKDOOR, "backdoor", {"ate_estimator": "tmle"}),
+    "backdoor_ipw": (_BACKDOOR, "backdoor", {"ate_estimator": "ipw"}),
     "frontdoor": (_FRONTDOOR, "frontdoor", {}),
     "iv": (_IV, "iv", {}),
     "mediation": (_MEDIATION, "mediation", {}),
@@ -161,18 +168,20 @@ def test_every_numeric_answer_carries_an_assumption_ledger(name, frames):
 
 @pytest.mark.parametrize("name", sorted(_BATTERY))
 def test_nothing_the_estimator_declared_is_missing_from_the_ledger(name, frames):
-    """The estimator's flat list is the oracle: either each entry is on the
-    ledger, or the estimator supplied structured identification entries that
-    say the same thing."""
+    """The estimator's flat list is the oracle, and every entry of it must be
+    on the ledger under its own id — whether it got there as the estimator's
+    own entry or as the structured entry that names it.
+
+    The test used to accept a second answer: "or the estimator supplied
+    structured identification entries", satisfied by the presence of any
+    identification entry at all. That let a family whose structured specs
+    covered three of its five declarations pass while the other two went
+    nowhere, which is what nineteen of them were doing."""
     _, r = _run(name, frames)
     declared = set(r["numeric_estimate"]["assumptions"])
     entries = _ledger(r)["assumptions"]
-    from_estimator = {e.get("id") for e in entries
-                      if e.get("provenance") == "estimator_declared"}
-    if from_estimator:
-        assert declared <= from_estimator
-    else:
-        assert any(e["layer"] == "identification" for e in entries)
+    on_ledger = {e["id"] for e in entries if e.get("id")}
+    assert declared <= on_ledger, sorted(declared - on_ledger)
 
 
 @pytest.mark.parametrize("name", sorted(_BATTERY))
@@ -181,13 +190,41 @@ def test_the_report_prints_an_assumptions_section(name, frames):
     assert "## 假设" in build_analysis_report(r, program=prog)
 
 
-def test_a_family_that_already_declared_structured_assumptions_is_untouched(frames):
-    """Back-door supplies its own structured identification specs; the flat
-    list is its unstructured twin and must not be folded in on top."""
+@pytest.mark.parametrize("name,expected", [
+    ("backdoor_ipw", "hajek_stabilized_weights"),
+    ("backdoor_tmle", "tmle_targeted_substitution_estimator"),
+    ("backdoor_aipw", "ci_via_analytic_influence_function"),
+])
+def test_what_the_estimator_declares_beyond_identification_is_disclosed(
+    name, expected, frames,
+):
+    """Named because these are the ones that were being lost. Each is
+    something the structured identification specs do not and could not
+    restate: a weighting scheme, a substitution estimator, an interval
+    method. Under the rule they replaced — any identification entry means
+    the whole flat list is a restatement — all three were disclosed
+    nowhere at all."""
+    _, r = _run(name, frames)
+    entries = _ledger(r)["assumptions"]
+    assert expected in {e.get("id") for e in entries}
+
+
+def test_a_structured_spec_replaces_the_declaration_it_names_and_no_other(frames):
+    """Back-door supplies structured specs for three of its four declarations.
+    Those three appear in the structured wording and not twice; the fourth —
+    the outcome model, which no spec claims — is still disclosed."""
     _, r = _run("backdoor", frames)
     entries = _ledger(r)["assumptions"]
-    assert not any(e.get("provenance") == "estimator_declared" for e in entries)
+    by_id = {e["id"]: e for e in entries if e.get("id")}
     assert [e["layer"] for e in entries].count("identification") == 3
+    for named in (
+        "conditional_exchangeability_given_adjustment_set",
+        "positivity_overlap_of_treatment_arms",
+        "consistency_of_potential_outcomes",
+    ):
+        assert by_id[named]["provenance"] == "inherent"
+        assert sum(1 for e in entries if e.get("id") == named) == 1
+    assert by_id["logit_outcome_regression"]["provenance"] == "estimator_declared"
 
 
 # --- classification -----------------------------------------------------------
@@ -233,7 +270,7 @@ def test_no_producer_invents_a_severity_outside_the_vocabulary(frames):
         _identification_assumptions as _cell_assumptions,
     )
     vocabulary = {"invalidating", "distorting", "confidence_only"}
-    specs = list(_identification_assumptions("backdoor_adjustment", True))
+    specs = list(_identification_assumptions("backdoor_adjustment", ("z",), True))
     specs += list(_cell_assumptions(
         provenance="backdoor_adjustment", adjustment=("z",),
         monotonicity="non_decreasing"))

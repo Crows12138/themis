@@ -520,13 +520,20 @@ def build_assumption_ledger(
     # 1) identification assumptions — structured at source by the
     #    estimator, passed directly (not via schema-validated numeric_estimate)
     for spec in identification_specs or ():
-        entries.append({
+        entry = {
             "claim": spec.get("claim", ""),
             "layer": spec.get("layer", "identification"),
             "provenance": "inherent",
             "severity": spec.get("severity", "invalidating"),
             "testable": bool(spec.get("testable", False)),
-        })
+        }
+        # The flat declaration this spec is the structured form of. It is
+        # what lets the fold below be exact instead of a rule about which
+        # channel spoke; a spec without one is disclosed twice rather
+        # than wrongly, which is the safe direction here.
+        if spec.get("id"):
+            entry["id"] = str(spec["id"])
+        entries.append(entry)
 
     # 2a) structural edges — ONLY the load-bearing ones. The authoritative
     #     load-bearing analysis already ran in the data_gap_report
@@ -626,19 +633,20 @@ def augment_assumption_ledger(result: dict) -> None:
     Called from the one funnel every numeric answer passes through, so the
     floor holds for estimators that exist today and for those added later.
 
-    An estimator that DID declare structured identification assumptions has
-    already said the same thing in better words: when the ledger carries an
-    ``identification`` entry the flat list is its unstructured twin and is not
-    read, leaving those ledgers byte-identical.
+    **A declaration is folded unless some entry has claimed it by id.** An
+    estimator that supplies structured identification specs has said some of
+    these things in better words, and the spec names which one it restates,
+    so the structured wording wins and nothing else goes missing.
 
-    That twin rule is about the estimator's own channel and must not be
-    generalised to every flat-looking list on the result. ``outcome_error`` is
-    a separate channel with a separate author: the caller declared an error
-    model for the outcome, and the premises that carries — above all that the
-    error is non-differential, which is the entire reason the point was left
-    uncorrected — are not restatements of anything identification said. So they
-    are folded whether or not the estimator declared structured assumptions,
-    under their own provenance.
+    That was a guess until it was a declaration, and the guess was "if the
+    ledger carries any identification entry, the whole flat list is its
+    unstructured twin". Nineteen estimator families took that branch, and
+    what it dropped was everything they declare BESIDES identification:
+    which weights an IPW used, that a TMLE is a targeted substitution
+    estimator, that an interval is cluster-robust, that proximal rests on
+    Miao's model f, that a causation answer came back as bounds because no
+    monotonicity was assumed. The verifier, written independently, had
+    reached for the same escape hatch — so nothing on either side saw it.
     """
     from .assumption_glossary import classify_assumption
 
@@ -661,18 +669,19 @@ def augment_assumption_ledger(result: dict) -> None:
         # mechanism sitting next to them.
         entries = list((build_assumption_ledger(result) or {}).get("assumptions") or ())
 
-    twin = any(e.get("layer") == "identification" for e in entries)
-
     for item in measured:
         entry = classify_assumption(item)
         entry["provenance"] = "measurement_declared"
         entries.append(entry)
 
-    if not twin:
-        for item in declared:
-            entry = classify_assumption(item)
-            entry["provenance"] = "estimator_declared"
-            entries.append(entry)
+    claimed = {str(e["id"]) for e in entries if e.get("id")}
+    for item in declared:
+        if str(item) in claimed:
+            continue
+        entry = classify_assumption(item)
+        entry["provenance"] = "estimator_declared"
+        entries.append(entry)
+        claimed.add(str(item))
 
     ledger = _ledger(entries)
     if ledger is not None:

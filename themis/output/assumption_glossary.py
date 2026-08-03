@@ -308,6 +308,12 @@ _EXACT: dict[str, _Entry] = {
     "decomposition_reported_at_sample_mean_covariate_value": (
         _FORM, _DIST, True, "分解在协变量的样本均值处报告"),
 
+    # -- dose-response --------------------------------------------------------
+    "no_unmeasured_confounding_given_W": (
+        _ID, _INVAL, False, "无未观测混杂（given W）"),
+    "positivity_every_sampled_dose_has_support_on_W": (
+        _ID, _INVAL, False, "重叠：每个采样剂量在所有 W 上都有支持"),
+
     # -- how the interval was computed -----------------------------------------
     "ci_via_analytic_influence_function": (
         _CI, _CONF, True, "置信区间由影响函数解析求得（非 bootstrap）"),
