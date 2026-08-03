@@ -204,7 +204,7 @@ def _run_typed(prog) -> dict:
             rd.setdefault("extensions", {})[blocks.ASSUMPTION_LEDGER] = ledger
     for rd in result_dicts:
         blocks.check_registered(rd)
-        refusals.check_registered(rd)
+        refusals.stamp(rd)
     return {"results": result_dicts}
 
 

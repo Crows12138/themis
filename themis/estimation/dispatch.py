@@ -62,9 +62,10 @@ def estimate_program(
     ledger, the surface both the report assembler and the rendering bridge
     lead with. Every block it left on the envelope is one
     :mod:`themis.blocks` declares, so a new block cannot reach a reader
-    the registry has never heard of. And a refusal names a species
-    :mod:`themis.refusals` declares, so a consumer branching on the cause
-    is branching on a closed set.
+    the registry has never heard of. And a refusal leaves carrying both
+    the species :mod:`themis.refusals` declares and the ``kind`` that
+    says what the reader should do about it, so a consumer branches on a
+    closed set rather than on whatever the estimator spelled.
     """
     from ..output.result_orchestrator import augment_assumption_ledger
 
@@ -78,7 +79,7 @@ def estimate_program(
     for result in output.get("results", []):
         augment_assumption_ledger(result)
         blocks.check_registered(result)
-        refusals.check_registered(result)
+        refusals.stamp(result)
     return output
 
 

@@ -1648,7 +1648,11 @@
             "unit_underobserved",
             "unknown"
           ],
-          "description": "Which species of refusal this is. The set is closed and lives in themis/refusals.py, where each species also declares its kind \u2014 whether the graph forbids the number, the data cannot support it, Themis has not built the case, the request must change, or a backend gave up. A test holds this list equal to that registry, so a new species cannot reach a consumer without appearing here."
+          "description": "Which species of refusal this is. The set is closed and lives in themis/refusals.py. A test holds this list equal to that registry, so a new species cannot reach a consumer without appearing here."
+        },
+        "kind": {
+          "enum": ["graph", "data", "unbuilt", "request", "backend"],
+          "description": "What the reader should do about this refusal, stamped from themis/refusals.py rather than written at the site that refused. graph: the structure forbids the quantity \u2014 more of the same data will not help. data: the structure permits it and this sample cannot support it. unbuilt: well-posed and identified, not yet built \u2014 an honest capability gap. request: an input the caller supplied is malformed or inconsistent; change it and retry. backend: a numeric routine did not return an answer, and no verdict has been passed on the question or the data. Every refusal Themis emits carries it; it is optional here because verify() also accepts envelopes this kernel did not produce."
         },
         "reason": { "type": "string" },
         "details": { "type": "object" },

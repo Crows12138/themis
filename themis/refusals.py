@@ -25,7 +25,11 @@ registry rather than maintained next to it.
 A species also declares its ``kind``, because "no number" is not one
 answer but five, and which one it is decides what the reader should do
 next: fix the graph, get more data, wait for us to build it, correct the
-request, or simply retry.
+request, or simply retry. The kind rides out on the envelope, stamped
+from here at the exit — a consumer that had to map sixty-four species
+onto those five itself would be keeping a second copy of this file, in
+TypeScript or in a prompt, and it would drift the way the schema's enum
+drifted.
 
 **This is the estimator's refusal, not the narrative extractor's.**
 :mod:`themis.upstream.narrative_merge` carries its own ``refusals`` — a
@@ -37,9 +41,10 @@ from __future__ import annotations
 
 # --- what kind of refusal it is -----------------------------------------------
 #
-# The distinction a consumer acts on. Declared by whoever raises, because
-# only the estimator knows whether it stopped at the graph, at the data,
-# or at the edge of what it implements.
+# The distinction a consumer acts on. Declared beside the species by
+# whoever adds it, because only the estimator knows whether it stopped at
+# the graph, at the data, or at the edge of what it implements — and
+# declared there once, so no raise site and no reader has to decide it.
 
 KIND_GRAPH = "graph"
 """The causal structure does not permit this quantity. More of the same
@@ -58,7 +63,10 @@ KIND_REQUEST = "request"
 inconsistent with the data. The caller changes something and retries."""
 
 KIND_BACKEND = "backend"
-"""A numeric backend gave up. Nothing about the question is wrong."""
+"""A numeric routine did not return an answer. No verdict has been passed
+on the question, the graph, or the data — which is also why ``unknown``
+files here: it diagnoses nothing, and a kind that claimed more would be
+claiming it on ``unknown``'s behalf."""
 
 KINDS = (KIND_GRAPH, KIND_DATA, KIND_UNBUILT, KIND_REQUEST, KIND_BACKEND)
 
@@ -501,16 +509,21 @@ BY_KIND: dict[str, tuple[Refusal, ...]] = {
 }
 
 
-def check_registered(result: dict) -> None:
-    """Refuse to emit a result whose refusal nobody registered.
+def stamp(result: dict) -> None:
+    """Send every refusal out bearing the ``kind`` its species declares.
 
-    Most species are raised through :class:`EstimatorFailure`, which
-    checks at construction — the earliest moment the species exists. But
-    dispatch also writes the block by hand at some thirty sites, where
-    there is no constructor to check, and those are exactly the sites
-    that produced species the schema never heard of. So the two single
-    exits check what is about to leave, the same way they check that
-    every extension block is one :mod:`themis.blocks` declares.
+    A refusal is written at some thirty sites, each of which knows the
+    occasion — which estimator, which stratum, what the caller should
+    have supplied. None of them knows anything about the *kind* that the
+    species does not already say, so none of them writes it: the
+    registry stamps it here, at the exit, and a consumer reading the
+    envelope branches on five values instead of on sixty-four.
+
+    That is why the same call also refuses an unregistered species.
+    Constructing :class:`EstimatorFailure` checks at the earliest moment
+    the species exists, but the hand-written sites have no constructor —
+    and those were exactly the ones that invented species the schema had
+    never heard of. What cannot be looked up cannot be stamped.
 
     Reading is deliberately not symmetric, for the reason it is not
     symmetric for blocks: ``verify()`` accepts an envelope carrying a
@@ -521,14 +534,18 @@ def check_registered(result: dict) -> None:
     failure = result.get("estimator_failure")
     if not isinstance(failure, dict):
         return
-    species = failure.get("failure_type")
-    if species is not None and str(species) not in BY_NAME:
+    name = failure.get("failure_type")
+    if name is None:
+        return
+    species = BY_NAME.get(str(name))
+    if species is None:
         raise ValueError(
             f"result {result.get('query_id')!r} refuses with unregistered "
-            f"failure_type {str(species)!r}; every reason a number is "
+            f"failure_type {str(name)!r}; every reason a number is "
             f"withheld is declared in themis.refusals, so a consumer can "
             f"branch on one list instead of on whatever the estimator spelled"
         )
+    failure["kind"] = species.kind
 
 
 class EstimatorFailure(RuntimeError):

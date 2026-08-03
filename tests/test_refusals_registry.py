@@ -7,11 +7,14 @@ sixty-four species never reached the enum, so every envelope carrying one
 failed Themis's own schema — silently, because validation happened to run
 elsewhere.
 
-Three directions can rot. A species can be emitted without being declared
+Four directions can rot. A species can be emitted without being declared
 (the two single exits close that on every run, and the exception closes it
-at the raise). A species can be declared long after nothing emits it. And
-the schema can fall behind the registry again, which is the failure this
-module exists because of, so it is the one pinned hardest.
+at the raise). A species can be declared long after nothing emits it. The
+schema can fall behind the registry again, which is the failure this
+module exists because of, so it is the one pinned hardest. And ``kind``,
+the one field a consumer actually branches on, can start being written at
+the sites that refuse instead of stamped from here — which would recreate
+the same drift one field over.
 """
 import ast
 import json
@@ -102,6 +105,19 @@ def test_the_schema_enum_is_exactly_the_registry():
     assert len(enum) == len(set(enum)), "the schema enum repeats a species"
 
 
+def test_the_schema_kind_enum_is_exactly_the_kinds():
+    """``kind`` is the field a consumer branches on, so the envelope's
+    contract has to admit exactly the five and no sixth."""
+    schema = json.loads(
+        (PACKAGE / "schemas" / "query_result.schema.json").read_text(
+            encoding="utf-8")
+    )
+    enum = schema["properties"]["estimator_failure"]["properties"][
+        "kind"]["enum"]
+    assert set(enum) == set(refusals.KINDS)
+    assert len(enum) == len(set(enum))
+
+
 def test_the_species_of_a_refusal_is_never_spelled_at_the_raise():
     """The first argument of ``EstimatorFailure`` names the registry — it
     is never a literal and never assembled.
@@ -160,16 +176,52 @@ def test_an_unregistered_species_is_refused_at_the_exit():
     result = {"query_id": "q1", "estimator_failure": {
         "estimator": "e", "failure_type": "overlap_insufficient",
         "reason": "r"}}
-    refusals.check_registered(result)
+    refusals.stamp(result)
 
     result["estimator_failure"]["failure_type"] = "a_reason_nobody_declared"
     with pytest.raises(ValueError, match="unregistered failure_type"):
-        refusals.check_registered(result)
+        refusals.stamp(result)
+
+
+def test_the_exit_is_where_the_kind_comes_from():
+    """The site that refuses says which species; the registry says what to
+    do about it. A site that answered both would be the second copy."""
+    result = {"query_id": "q1", "estimator_failure": {
+        "estimator": "e", "failure_type": "overlap_insufficient",
+        "reason": "r"}}
+    refusals.stamp(result)
+    assert result["estimator_failure"]["kind"] == refusals.KIND_DATA
+
+    # The registry is the authority, not whatever was there before.
+    result["estimator_failure"]["kind"] = "graph"
+    refusals.stamp(result)
+    assert result["estimator_failure"]["kind"] == refusals.KIND_DATA
+
+
+def test_the_kind_of_a_refusal_is_never_written_where_it_is_refused():
+    """Thirty-odd sites build the block by hand, each knowing its own
+    occasion. None of them knows anything about the kind that the species
+    has not already said, so none of them writes it — the exit stamps it.
+    A site that spelled it out would be a second copy of the registry,
+    free to disagree with it, which is the shape of the original defect.
+    """
+    offenders = []
+    for rel, src in _sources():
+        for node in ast.walk(ast.parse(src)):
+            if not isinstance(node, ast.Dict):
+                continue
+            keys = {
+                k.value for k in node.keys
+                if isinstance(k, ast.Constant) and isinstance(k.value, str)
+            }
+            if "failure_type" in keys and "kind" in keys:
+                offenders.append(f"{rel}:{node.lineno}")
+    assert not offenders, offenders
 
 
 def test_a_result_that_refuses_nothing_is_not_a_violation():
-    refusals.check_registered({"query_id": "q1"})
-    refusals.check_registered({"query_id": "q1", "estimator_failure": None})
+    refusals.stamp({"query_id": "q1"})
+    refusals.stamp({"query_id": "q1", "estimator_failure": None})
 
 
 def test_a_real_refusal_reaches_the_caller_as_a_registered_species():
@@ -212,7 +264,9 @@ def test_a_real_refusal_reaches_the_caller_as_a_registered_species():
 
     species = result["estimator_failure"]["failure_type"]
     assert species in refusals.BY_NAME
-    assert refusals.BY_NAME[species].kind == refusals.KIND_REQUEST
+    # The kind reached the caller, who is where it has to be: a reader of
+    # the envelope has no registry to look the species up in.
+    assert result["estimator_failure"]["kind"] == refusals.KIND_REQUEST
 
     import jsonschema
     schema = json.loads(
