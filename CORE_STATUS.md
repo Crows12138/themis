@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3804 passed / 144 skipped, warning-clean
+3815 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -867,9 +867,25 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 
 **过程中实测查出三件，都不在根因假设里**：①`bounds_numeric.py` 用 `f"{role}_not_binary"` **拼**物种名，于是 `instrument_not_binary` 存在过但**任何字面量扫描都看不见**、没有测试、没进 schema、没进任何清单——一条 AST 测试现在禁止 `EstimatorFailure` 第一参数是字面量或 f-string，理由写在测试里。②**dispatch 两处在洗掉物种**：longitudinal 把两个名字以外的一切改写成 `unknown`，missing-recovery 把 `insufficient_support` 改写成 `overlap_insufficient`、其余改写成 `unknown`——**估计器在 raise 处已经说对了，dispatch 为了迁就那张不对的清单把它降级**，这正是那张 enum 当初看起来够用的原因；改为原样透传（既有测试断言的是 `exc.failure_type`，无一条钉住被洗后的值）。③一处物种**用错了**：`options.longitudinal.estimator` 收到非法值时发 `unknown`（「我们不知道为什么」），而那是最清楚的一类调用方输入错误，改 `invalid_input`；另 `estimator_failure` 与 `unknown` 是同一件事的两种拼法（前者是 6 处 getattr 兜底），合并成一个。
 
-**取舍（声明）**：`kind` 只进登记表**不进信封**——那是新增字段、属于功能不属于修复，消费者当前仍只拿到物种名；把它发出去（以及据此重写 `response_rendering.md` 的拒答段）是干净的 follow-on。另：`CORE_STATUS` 早前登记的「9 处宽 `except (EstimatorFailure, ValueError, NotImplementedError)` 把『诚实拒绝』与『代码炸了』压进同一分支」**因这一档而变得可做**——诚实拒绝现在必然携带登记过的物种，`ValueError` 不会。
+**取舍（声明）**：~~`kind` 只进登记表**不进信封**~~ —— **已兑现，见下一条**（当时的判断成立：那确是新增字段、属于功能不属于修复）。另：`CORE_STATUS` 早前登记的「9 处宽 `except (EstimatorFailure, ValueError, NotImplementedError)` 把『诚实拒绝』与『代码炸了』压进同一分支」**因这一档而变得可做**——诚实拒绝现在必然携带登记过的物种，`ValueError` 不会。
 
 **基线**：3731 → **3804**（+73：登记表元测试，其中 64 条是「每个登记的物种都真有人引用」的逐条参数化）。
+
+---
+
+**拒答说出读者该做什么（2026-08-03，接上一条）**：功能型 + 修复型。上一条把 64 个物种各命名一次、各带 `kind`，但 `kind` **只活在登记表里**。信封之外的消费者——渲染层的 LLM、web 前端——拿到的仍旧是 64 个 snake_case 标识符之一，加一句自由文本 `reason`。
+
+**根因**——「读到这个拒答该怎么办」是**物种的属性**，而它在信封里没有表示，于是这条知识只能在消费者一侧**逐处重新推导**。实测：`response_rendering.md` 两千行里**没有任何一节讲拒答**，指导散在 6 个方法各自的段落里、各自重写一遍「report the refusal, don't ship the biased number」，累计只覆盖到约 **10 个物种**；其余 54 个（`rank_condition_violated`、`singular_confusion_matrix`、`unit_underobserved`…）**一个字的指导都没有**，LLM 只能即兴，而最省力的即兴是「系统暂时无法计算」——把一个诚实的结构性拒答渲染成故障，正是本仓存在的理由的反面。表象修法是「给那 54 个也补上渲染指导」，那是把登记表手抄进 Markdown 的**第三份**，只是抄写的地方从 JSON 换成了散文。
+
+**修法**——`kind` 进信封，且**不在任何 emit 处手写**：它是物种的函数，只能由登记表在唯一出口盖上去。`refusals.check_registered` 改名 `refusals.stamp`（一个会写数据的函数不该叫 check），检查与盖章是同一件事的两面——**查不到的物种盖不了章**，两个保证由一次调用给出。schema 加 `kind`（5 值 enum），**可选不必填**：沿用块登记已定的读写不对称，我们发的必带（端到端测试钉住 `result["estimator_failure"]["kind"]`），别人的信封不强求。`response_rendering.md` 新开 §「When there is no number」，**按 5 个 kind 写原则，不按 64 个物种枚举**；各方法段落里纯属复述通则的话删掉，只留物种特有的内容——选择偏倚那段反而更实了：`external_data_required` 是 `request`、`not_recoverable` 是 `graph`，读者能做的事完全相反，而这正是 `kind` 的用处。
+
+**过程中实测查出一件更重的，不在根因假设里**：确定性报告 `analysis_report._render_answer` 有 5 个分支（数值／符号／结构布尔／界／可识别但没数据），**没有拒答那一支**——于是一个带 `formula` 又带 `estimator_failure` 的结果掉进第 5 支，报告告诉读者「效应**可识别**…但当前**没有数据** → 需要数据才能给出具体数值」。**给了数据、估计器看过数据后拒绝相信它，报告说的是反话**（实测复现，见 `tests/test_analysis_report.py::test_a_refusal_is_an_answer_not_a_missing_one`）。同一个根因的另一个消费者，而且它比 prompt 那边更糟：prompt 是没指导所以即兴，这里是**默认掉到一句确定的假话**。修法=在第 5 支之前插一支按 `kind` 渲染；**放在数值/结构/界之后而不是之前**，因为 dispatch 会把 longitudinal 的拒答挂到第一个 effect 结果上，而那个结果可能本来就有一个真点估计，那里点仍是答案。`_KIND_ZH` 五句话住在渲染层（登记表管分类、渲染层管措辞，同 `assumption_glossary`），一条测试钉住它的键等于 `refusals.KINDS`——少一句就又是默默掉回通用行。
+
+**过程中改对一处判断**：`KIND_BACKEND` 原文写「Nothing about the question is wrong」，但 `unknown`——唯一承认自己没被分类的物种——也归在 backend 下，对它说「你的问题没问题」是**没有依据的断言**。改为「没有对问题、图或数据做出任何判定」，并在 prompt 那一行点明 backend 不得**编造 block 里没有的诊断**。分类本身不动：五个 kind 分的是**读者该做什么**，而 `unknown` 与后端放弃对读者是同一件事。
+
+**取舍（声明）**：`says`（登记表里每个物种的一句话释义）**不进信封**——`reason` 已经承担「这一次发生了什么」且是在 raise 处写的、更具体；`says` 是物种级的，发出去与 `reason` 重复，它留给登记表维护者和写 prompt 的人。web 前端**未动**：`Verdict.tsx` 现在把 `failure_type` 这个英文标识符直接显示给中文用户，`types.ts` 只镜像它渲染的字段——改渲染是 UI 决策、且要 `pnpm build`，登记为机会，不当作本档欠账。
+
+**基线**：3804 → **3815**（+11：登记表侧 3——kind enum 与登记表相等、盖章是 kind 的唯一来源、AST 禁止在拒答处手写 kind；报告侧 8——拒答不再渲染成「没有数据」、每个 kind 都有一句话、5 个 kind 逐条读起来确实不同、点估计压过挂在旁边的拒答）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
