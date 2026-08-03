@@ -81,6 +81,33 @@ def test_dispatch_iv_bootstrap_ci():
     assert est["ci_lower"] <= est["point"] <= est["ci_upper"]
 
 
+def test_a_dead_instrument_says_so_instead_of_asking_for_monotonicity():
+    """The reason has to cross the dispatch boundary, not stop at it.
+
+    With the estimator's refusal dropped, the only advice left on the
+    envelope came from the identification layer, which had written — before
+    any data was touched — that an instrument alone does not pick an
+    estimator and that ``assumptions.monotonicity`` would. Declaring it
+    cannot give this instrument a first stage, so the user follows the one
+    actionable sentence they were given and arrives back here.
+    """
+    n = 400
+    # E[X|Z=1] and E[X|Z=0] are both exactly 0.5 by construction.
+    z = np.array([True, True, False, False] * (n // 4))
+    x = np.array([True, False] * (n // 2))
+    u = np.random.default_rng(0).standard_normal(n)
+    df = pd.DataFrame({"z": z, "x": x, "y": 1.5 * x.astype(float) + 2.0 * u})
+
+    result = themis.estimate(_iv_ast(), df, ci_bootstrap=0)["results"][0]
+
+    failure = result["estimator_failure"]
+    assert failure["failure_type"] == "no_first_stage"
+    assert failure["kind"] == "data"
+    assert failure["estimator"] == "iv_wald"
+    assert failure["details"]["denominator"] == 0.0
+    assert "first-stage" in failure["reason"]
+
+
 def test_dispatch_iv_prefers_backdoor_when_both_available():
     """If backdoor works, IV must not fire (dispatch priority)."""
     ast = {

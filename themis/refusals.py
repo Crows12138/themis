@@ -175,6 +175,19 @@ OVERLAP_INSUFFICIENT = Refusal(
     kind=KIND_DATA,
     says="an arm or sampling point carries no contrast to estimate from",
 )
+NO_FIRST_STAGE = Refusal(
+    "no_first_stage",
+    kind=KIND_DATA,
+    says="the instrument does not move the treatment in this sample, so the "
+         "contrast it induces divides by zero instead of scaling into an "
+         "effect — the graph's relevance arrow is not visible in the data",
+)
+NO_USABLE_RESAMPLE = Refusal(
+    "no_usable_resample",
+    kind=KIND_DATA,
+    says="every bootstrap resample was degenerate for this estimator, so the "
+         "interval has no draws to be a quantile of",
+)
 SAMPLE_TOO_SMALL = Refusal(
     "sample_too_small",
     kind=KIND_DATA,
@@ -340,6 +353,12 @@ ADJUSTMENT_NOT_DISCRETE = Refusal(
     "adjustment_not_discrete",
     kind=KIND_UNBUILT,
     says="the same, for the missingness recovery formula",
+)
+CONDITIONING_TOO_FINE = Refusal(
+    "conditioning_too_fine",
+    kind=KIND_UNBUILT,
+    says="the stratified Wald aggregates over the cells of the conditioning "
+         "set, and this set is finer than the cut it will enumerate",
 )
 MISMEASURED_COVARIATE_NOT_CONTINUOUS = Refusal(
     "mismeasured_covariate_not_continuous",

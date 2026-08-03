@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis import refusals
+from themis.refusals import EstimatorFailure
 from themis.estimation.iv import (
     HansenJTest,
     OverIDIVEstimate,
@@ -167,17 +169,21 @@ def test_determinism():
 
 def test_requires_two_instruments():
     df = _valid_2iv(n=500)
-    with pytest.raises(ValueError):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_overid(df, treatment="x", outcome="y",
                            instruments=("z1",), ci_bootstrap=0)
+    assert exc.value.failure_type == refusals.INVALID_INPUT
 
 
 def test_collinear_instruments_raise():
     df = _valid_2iv(n=1000)
     df = df.assign(z2=df["z1"])  # perfectly collinear instruments
-    with pytest.raises(ValueError):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_overid(df, treatment="x", outcome="y",
                            instruments=("z1", "z2"), ci_bootstrap=0)
+    # Z'Z is what cannot be inverted — the caller falls back to the
+    # just-identified path, and a caller with no fallback can say why.
+    assert exc.value.failure_type == refusals.SINGULAR_DESIGN
 
 
 def test_moments_round_trip_reproduces_point():
@@ -292,6 +298,22 @@ def test_dispatch_three_instruments():
     assert ne["n_instruments"] == 3
     assert ne["over_identification"]["sargan_dof"] == 2
     assert themis.verify(ast, out["results"][0]) is None
+
+
+def test_a_singular_overid_design_falls_back_without_leaving_a_refusal():
+    """The over-ID refusal is a fallback signal, not an answer.
+
+    Its species now exists, which makes it possible to write it onto the
+    envelope — and wrong to. The just-identified path answers this query,
+    and a refusal block sitting beside that number would say no number was
+    produced while one was.
+    """
+    df = _valid_2iv(n=1500)
+    df = df.assign(z2=df["z1"])                  # perfectly collinear
+    res = themis.estimate(_overid_ast(), df, ci_bootstrap=0)["results"][0]
+
+    assert res.get("estimator_failure") is None
+    assert res["numeric_estimate"]["method"] == "iv_2sls"
 
 
 def test_sargan_rejection_surfaces_gap():

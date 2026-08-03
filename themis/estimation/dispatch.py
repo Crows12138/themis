@@ -1210,6 +1210,7 @@ def _try_iv_wald_estimate(
     facts: EffectFacts, result: dict, knobs: EffectKnobs,
 ) -> Claim:
     """Phase 7.3: the just-identified Wald ratio on the smallest candidate."""
+    from ..refusals import EstimatorFailure
     from .iv import estimate_iv_ate
 
     x_atom, y_atom = facts.x_atom, facts.y_atom
@@ -1225,9 +1226,13 @@ def _try_iv_wald_estimate(
             random_state=knobs.random_state,
             cluster=knobs.cluster,
         )
-    except (ValueError, NotImplementedError):
-        # e.g. the Wald denominator is zero on this data, or the chosen
-        # candidate's (Z, W) shape isn't supported in v1.
+    except EstimatorFailure as exc:
+        # A dead first stage, a stratum with one instrument arm, a resample
+        # that never converged. This block is the only place the reason
+        # appears: with it dropped, the query fell back to the
+        # identification layer's standing advice — declare monotonicity —
+        # which cannot help an instrument that moves nobody.
+        refusals.record(result, estimator="iv_wald", exc=exc)
         return blocked('estimator_refused')
 
     iv_numeric_dict = {
@@ -5681,8 +5686,7 @@ def _try_iv_overid_estimate(
     degenerate design so the caller falls back to the just-identified path.
 
     ``instruments`` / ``conditioning`` are tuples of Atoms."""
-    import numpy as np
-
+    from ..refusals import EstimatorFailure
     from .iv import estimate_iv_overid
 
     instrument_preds = tuple(a.predicate for a in instruments)
@@ -5694,7 +5698,10 @@ def _try_iv_overid_estimate(
             instruments=instrument_preds, conditioning=cond_preds,
             ci_bootstrap=ci_bootstrap, random_state=random_state, cluster=cluster,
         )
-    except (ValueError, np.linalg.LinAlgError):
+    except EstimatorFailure:
+        # Deliberately not recorded: the query stays in flight and the
+        # just-identified path answers it. A block written here would name
+        # a refusal beside the number that followed it.
         return passed('estimator_refused')
 
     numeric = {

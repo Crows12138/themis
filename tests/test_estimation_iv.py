@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis import refusals
+from themis.refusals import EstimatorFailure
 from themis.estimation.iv import IVEstimate, estimate_iv_ate
 
 
@@ -70,11 +72,13 @@ def test_wald_raises_when_first_stage_exactly_zero():
         "x": np.ones(n, dtype=bool),
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(ValueError, match="first-stage"):
+    with pytest.raises(EstimatorFailure, match="first-stage") as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.NO_FIRST_STAGE
+    assert exc.value.details["denominator"] == 0.0
 
 
 # ============================================ 2SLS acceptance
@@ -156,11 +160,12 @@ def test_auto_selects_2sls_when_conditioning_is_continuous():
 
 def test_wald_rejects_continuous_treatment():
     df = _continuous_iv_dgp(n=500, seed=0)
-    with pytest.raises(ValueError, match="binary"):
+    with pytest.raises(EstimatorFailure, match="binary") as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             model="wald", ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.INVALID_INPUT
 
 
 def test_wald_rejects_conditioning():
@@ -168,11 +173,12 @@ def test_wald_rejects_conditioning():
     a different estimand rather than an approximation of the same one."""
     df = _binary_iv_dgp(n=500, seed=0)
     df["w"] = np.random.default_rng(0).standard_normal(500)
-    with pytest.raises(NotImplementedError, match="not the same estimand"):
+    with pytest.raises(EstimatorFailure, match="not the same estimand") as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="wald", ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.INVALID_INPUT
 
 
 # =========================================== stratified Wald
@@ -326,11 +332,84 @@ def test_explicit_stratified_wald_refuses_rather_than_substituting():
     returning a different one is the failure this path exists to stop."""
     df = _stratified_iv_dgp(n=8000, seed=3)
     df.loc[df["w"] & df["z"], "z"] = False
-    with pytest.raises(ValueError, match="no measurable contrast"):
+    with pytest.raises(EstimatorFailure, match="no measurable contrast") as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
+    # An empty instrument arm inside a stratum, not our own cut being too
+    # coarse: the two arrive by the same class and say different things.
+    assert exc.value.failure_type == refusals.OVERLAP_INSUFFICIENT
+    assert exc.value.details["stratum"] == {"w": True}
+
+
+def _strata_at_the_floor(n_strata=10):
+    """Every stratum holds exactly ``_MIN_PER_ARM`` rows per instrument arm.
+
+    The full sample clears the floor everywhere; a resample rarely does,
+    which is what puts draws through the bootstrap's degenerate branch.
+    """
+    rng = np.random.default_rng(0)
+    rows = []
+    for k in range(n_strata):
+        for zi in (True, False):
+            for _ in range(2):
+                rows.append((k, zi, bool(zi), 1.5 * zi + rng.standard_normal() * 0.1))
+    return pd.DataFrame(rows, columns=["w", "z", "x", "y"])
+
+
+def test_a_resample_that_loses_a_stratum_arm_is_dropped_not_fatal(monkeypatch):
+    """The bootstrap's catch is the refusal channel, not a blanket guard.
+
+    It catches `EstimatorFailure` alone, which is only right if that is
+    what a degenerate draw actually raises. Asserting it here rather than
+    measuring it once: the branch had no construction that reached it, so
+    a tally over the suite would have come back empty for want of traffic
+    rather than for want of a leak.
+    """
+    import themis.estimation.iv as ivmod
+
+    arrivals = []
+    original = ivmod._stratified_wald_table
+
+    def recording(*args, **kwargs):
+        try:
+            return original(*args, **kwargs)
+        except BaseException as exc:
+            arrivals.append(type(exc))
+            raise
+
+    monkeypatch.setattr(ivmod, "_stratified_wald_table", recording)
+
+    rng = np.random.default_rng(4)
+    n = 60
+    w = np.array([True] * 54 + [False] * 6)
+    z = np.array([True] * 27 + [False] * 27 + [True] * 3 + [False] * 3)
+    x = z ^ (rng.random(n) < 0.15)
+    y = 1.5 * x.astype(float) + rng.standard_normal(n)
+    df = pd.DataFrame({"w": w, "z": z, "x": x, "y": y})
+
+    est = estimate_iv_ate(
+        df, treatment="x", outcome="y", instrument="z",
+        conditioning=("w",), model="stratified_wald",
+        ci_bootstrap=200, random_state=1,
+    )
+    assert est.ci_lower < est.point < est.ci_upper
+    assert arrivals, "no draw reached the degenerate branch — the construction is stale"
+    assert all(issubclass(t, EstimatorFailure) for t in arrivals), set(arrivals)
+
+
+def test_when_every_resample_is_degenerate_the_interval_is_refused():
+    with pytest.raises(EstimatorFailure, match="degenerate") as exc:
+        estimate_iv_ate(
+            _strata_at_the_floor(), treatment="x", outcome="y",
+            instrument="z", conditioning=("w",), model="stratified_wald",
+            ci_bootstrap=200, random_state=1,
+        )
+    # Not the point estimate's problem: the full sample identifies it, and
+    # the refusal is about the interval having no draws to be built from.
+    assert exc.value.failure_type == refusals.NO_USABLE_RESAMPLE
+    assert exc.value.details == {"model": "stratified_wald", "resamples": 200}
 
 
 def test_too_many_strata_falls_back_naming_the_cap():
@@ -365,11 +444,12 @@ def test_degenerate_aggregate_first_stage_is_an_error_not_a_fallback():
     so falling back would only relabel the failure."""
     df = _stratified_iv_dgp(n=5000, seed=2)
     df["x"] = True                                # X constant → dX = 0
-    with pytest.raises(ValueError, match="moves no compliers"):
+    with pytest.raises(EstimatorFailure, match="moves no compliers") as exc:
         estimate_iv_ate(
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.NO_FIRST_STAGE
 
 
 def test_stratified_wald_carries_its_own_assumptions():
