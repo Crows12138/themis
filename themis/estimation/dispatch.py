@@ -416,11 +416,7 @@ def _maybe_estimate_longitudinal(
         # used to collapse anything outside two names to 'unknown', which
         # is how a caller was told "we don't know why" about a refusal
         # that knew exactly why.
-        target["estimator_failure"] = {
-            "estimator": method_name,
-            "failure_type": exc.failure_type,
-            "reason": str(exc),
-        }
+        refusals.record(target, estimator=method_name, exc=exc)
         return
     except (ValueError, KeyError) as exc:
         target["estimator_failure"] = {
@@ -596,11 +592,7 @@ def _maybe_estimate_missing_recovery(
             cluster=cluster,
         )
     except EstimatorFailure as exc:
-        target["estimator_failure"] = {
-            "estimator": "missing_data_recovery",
-            "failure_type": exc.failure_type,
-            "reason": str(exc),
-        }
+        refusals.record(target, estimator="missing_data_recovery", exc=exc)
         return
     except (ValueError, KeyError) as exc:
         target["estimator_failure"] = {
@@ -1757,9 +1749,12 @@ def _try_ctf_conjunction_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except EstimatorFailure:
-        # Not identifiable, UNDEFINED, or a positivity refusal — leave the
-        # structural result untouched.
+    except EstimatorFailure as exc:
+        # Not identifiable, UNDEFINED, or a positivity refusal. The
+        # structural answer stays primary — but it is not the answer to the
+        # question a caller who supplied data asked, so the reason the
+        # number is absent goes on the envelope beside it.
+        refusals.record(result, estimator="ctf_conjunction", exc=exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -1939,7 +1934,8 @@ def _try_scm_counterfactual_estimate(
                 cluster is None or cluster in contract.data.columns
             ) else None,
         )
-    except EstimatorFailure:
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="scm_counterfactual", exc=exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -2127,7 +2123,8 @@ def _try_proximal_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except EstimatorFailure:
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="proximal", exc=exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -2298,7 +2295,8 @@ def _try_causation_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except EstimatorFailure:
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="causation", exc=exc)
         return blocked('estimator_refused')
 
     # The causation data answer is ALWAYS the three Tian-Pearl intervals; under
@@ -2572,7 +2570,8 @@ def _try_counterfactual_cell_estimate(
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
-    except EstimatorFailure:
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="counterfactual_cell", exc=exc)
         return blocked('estimator_refused')
 
     is_point = estimate.point is not None
@@ -3213,11 +3212,7 @@ def _try_joint_estimate(
             cluster=cluster if (cluster is None or cluster in df.columns) else None,
         )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": "joint_backdoor",
-            "failure_type": exc.failure_type,
-            "reason": str(exc),
-        }
+        refusals.record(result, estimator="joint_backdoor", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, NotImplementedError):
         return blocked('estimator_refused')
@@ -3730,11 +3725,7 @@ def _try_selection_recovery_estimate(
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": "selection_backdoor_recovery",
-            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
-            "reason": str(exc),
-        }
+        refusals.record(result, estimator="selection_backdoor_recovery", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError) as exc:
         result["estimator_failure"] = {
@@ -3835,11 +3826,7 @@ def _try_measurement_correction_estimate(
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": "measurement_error_correction",
-            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
-            "reason": str(exc),
-        }
+        refusals.record(result, estimator="measurement_error_correction", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
@@ -3995,11 +3982,8 @@ def _try_exposure_measurement_correction_estimate(
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": "exposure_measurement_error_correction",
-            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
-            "reason": str(exc),
-        }
+        refusals.record(
+            result, estimator="exposure_measurement_error_correction", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
@@ -4121,11 +4105,8 @@ def _try_combined_measurement_correction_estimate(
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": "combined_measurement_error_correction",
-            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
-            "reason": str(exc),
-        }
+        refusals.record(
+            result, estimator="combined_measurement_error_correction", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
@@ -4272,11 +4253,7 @@ def _try_regression_calibration_estimate(
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": "regression_calibration",
-            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
-            "reason": str(exc),
-        }
+        refusals.record(result, estimator="regression_calibration", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
@@ -4374,11 +4351,7 @@ def _try_outcome_error_assessment(
             error_variance=(spec or {}).get("error_variance"),
         )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": "outcome_measurement_error",
-            "failure_type": getattr(exc, "failure_type", refusals.UNKNOWN),
-            "reason": str(exc),
-        }
+        refusals.record(result, estimator="outcome_measurement_error", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
         result["estimator_failure"] = {
@@ -5337,11 +5310,7 @@ def _try_doubly_robust_estimate(
                 cluster=cluster,
             )
     except EstimatorFailure as exc:
-        result["estimator_failure"] = {
-            "estimator": estimator,
-            "failure_type": exc.failure_type,
-            "reason": str(exc),
-        }
+        refusals.record(result, estimator=estimator, exc=exc)
         # The caller asked for THIS estimator by name. Falling through to
         # the g-formula would answer with a number they did not request and
         # cannot tell apart from the one they did.
@@ -6255,14 +6224,7 @@ def _try_dose_response_estimate(
     except EstimatorFailure as exc:
         # Slice c: structured failures with a typed cause and the
         # diagnostic detail block the estimator collected.
-        block = {
-            "estimator": estimator_label,
-            "failure_type": exc.failure_type,
-            "reason": str(exc),
-        }
-        if exc.details:
-            block["details"] = exc.details
-        result["estimator_failure"] = block
+        refusals.record(result, estimator=estimator_label, exc=exc)
         return blocked('estimator_refused')
     except (ValueError, RuntimeError) as exc:
         # Fallback: untyped failure. Same shape, failure_type='unknown'.

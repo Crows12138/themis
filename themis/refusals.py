@@ -573,3 +573,36 @@ class EstimatorFailure(RuntimeError):
         super().__init__(message)
         self.failure_type = species
         self.details = details
+
+
+def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
+    """Write a caught refusal onto the envelope, in the one shape it has.
+
+    A handler that catches :class:`EstimatorFailure` knows exactly one
+    thing the exception does not carry — which estimator was running.
+    Everything else is already in hand, so the block is assembled here
+    rather than at each handler, where the shape had become a convention:
+    several guarded ``failure_type`` with a fallback that cannot fire now
+    that the constructor validates it, and all but one dropped
+    ``details``.
+
+    ``details`` is the part worth naming. The species says why a number
+    was withheld and the kind says what to do about it; the details say
+    which stratum was empty, how many rows it held, how wide the
+    bandwidth was. Dropping them leaves a reader knowing the shape of the
+    problem and nothing about its size — and the estimator had already
+    paid to measure it.
+
+    Writing the block is not the same as answering with it. Which claim
+    the handler then makes over the query — that the refusal is final, or
+    that a later estimator may still answer — is the handler's to decide
+    and stays at the handler.
+    """
+    block = {
+        "estimator": estimator,
+        "failure_type": exc.failure_type,
+        "reason": str(exc),
+    }
+    if exc.details:
+        block["details"] = exc.details
+    result["estimator_failure"] = block

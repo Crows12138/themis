@@ -7,14 +7,16 @@ sixty-four species never reached the enum, so every envelope carrying one
 failed Themis's own schema — silently, because validation happened to run
 elsewhere.
 
-Four directions can rot. A species can be emitted without being declared
+Five directions can rot. A species can be emitted without being declared
 (the two single exits close that on every run, and the exception closes it
 at the raise). A species can be declared long after nothing emits it. The
 schema can fall behind the registry again, which is the failure this
-module exists because of, so it is the one pinned hardest. And ``kind``,
-the one field a consumer actually branches on, can start being written at
-the sites that refuse instead of stamped from here — which would recreate
-the same drift one field over.
+module exists because of, so it is the one pinned hardest. ``kind``, the
+one field a consumer actually branches on, can start being written at the
+sites that refuse instead of stamped from here — which would recreate the
+same drift one field over. And a refusal can be caught and then never
+reach the envelope at all, which is the one failure none of the others
+can see: a registry cannot check a species nobody wrote down.
 """
 import ast
 import json
@@ -191,6 +193,125 @@ def test_an_honest_refusal_is_not_caught_beside_a_crash():
             if generic:
                 offenders.append(f"{rel}:{node.lineno} also catches {sorted(generic)}")
     assert not offenders, offenders
+
+
+def test_a_query_that_ends_without_a_number_says_why():
+    """A handler that catches a refusal and closes the query must put the
+    reason on the envelope.
+
+    ``blocked`` means no later estimator will answer, so whatever the
+    handler leaves behind is what the caller gets. Five of them left
+    nothing at all: the query came back identified, carrying a formula and
+    no number, and neither the envelope nor the gap report recorded that
+    an estimator had run and declined. The report then rendered the
+    structural verdict in the answer slot, which is how a positivity
+    violation reached a reader as a confident "yes".
+
+    Handlers that ``pass`` instead are exempt, and the distinction is the
+    point: there the query is still in flight, a later estimator may
+    answer it, and a refusal written now would sit on the envelope beside
+    that answer as if the two disagreed.
+    """
+    offenders = []
+    for rel, src in _sources():
+        for node in ast.walk(ast.parse(src)):
+            if not isinstance(node, ast.ExceptHandler) or node.type is None:
+                continue
+            if "EstimatorFailure" not in _caught_names(node.type):
+                continue
+            inner = list(ast.walk(node))
+            ends_here = any(
+                isinstance(n, ast.Call) and getattr(n.func, "id", None) == "blocked"
+                for n in inner
+            )
+            says_why = any(
+                isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "record"
+                for n in inner
+            )
+            if ends_here and not says_why:
+                offenders.append(f"{rel}:{node.lineno}")
+    assert not offenders, offenders
+
+
+def test_a_refusal_carries_the_numbers_it_measured():
+    """``details`` is the difference between knowing the shape of a
+    problem and knowing its size. The estimator has already paid to
+    measure which stratum was empty and how many rows were in it; every
+    handler but one used to drop that on the floor."""
+    exc = EstimatorFailure(
+        refusals.SAMPLE_TOO_SMALL, "too few rows", n=3, needed=30)
+    result = {"query_id": "q"}
+    refusals.record(result, estimator="backdoor", exc=exc)
+    assert result["estimator_failure"] == {
+        "estimator": "backdoor",
+        "failure_type": "sample_too_small",
+        "reason": "too few rows",
+        "details": {"n": 3, "needed": 30},
+    }
+
+    # A refusal with nothing to measure does not carry an empty map.
+    bare = {"query_id": "q"}
+    refusals.record(
+        bare, estimator="backdoor",
+        exc=EstimatorFailure(refusals.SAMPLE_TOO_SMALL, "too few rows"))
+    assert "details" not in bare["estimator_failure"]
+
+
+def test_a_terminal_refusal_reaches_the_caller_and_not_only_the_log():
+    """The defect this all exists for, end to end.
+
+    A proximal query on data whose (Z, X) table has an empty cell. The
+    estimator refuses for a reason it can state precisely; before this,
+    the caller received an envelope with no number, no refusal, and an
+    empty gap report — the run was indistinguishable from one that had
+    never been given data.
+    """
+    import numpy as np
+    import pandas as pd
+
+    import themis
+
+    def var(p):
+        return {"kind": "variable", "predicate": p, "domain": [True, False]}
+
+    def cause(a, b):
+        return {"kind": "cause", "from": {"predicate": a, "args": []},
+                "to": {"predicate": b, "args": []}}
+
+    def atom(p):
+        return {"predicate": p, "args": []}
+
+    program = {
+        "version": "0.1",
+        "domain": {"objects": []},
+        "statements": [
+            var("x"), var("y"), var("u"), var("z"), var("w"),
+            cause("u", "x"), cause("u", "y"), cause("u", "z"),
+            cause("u", "w"), cause("z", "x"), cause("w", "y"), cause("x", "y"),
+            {"kind": "query", "id": "q", "query": {
+                "kind": "proximal_effect",
+                "treatment": atom("x"), "outcome": atom("y"),
+                "latent": atom("u"), "treatment_proxy": atom("z"),
+                "outcome_proxy": atom("w"), "latent_cardinality": 2}},
+        ],
+    }
+    rng = np.random.default_rng(7)
+    n = 3000
+    u = rng.random(n) < 0.5
+    z = rng.random(n) < np.where(u, 0.80, 0.20)
+    w = rng.random(n) < np.where(u, 0.85, 0.25)
+    frame = pd.DataFrame(  # X is Z exactly, so two (Z, X) cells are empty
+        {"x": z, "y": rng.random(n) < (0.15 + 0.35 * z + 0.25 * u),
+         "z": z, "w": w})
+
+    result = themis.estimate(program, frame)["results"][0]
+
+    assert result.get("numeric_estimate") is None
+    failure = result["estimator_failure"]
+    assert failure["estimator"] == "proximal"
+    assert failure["failure_type"] in refusals.BY_NAME
+    assert failure["kind"] in refusals.KINDS
+    assert failure["reason"]
 
 
 def test_a_species_is_the_plain_name_once_it_is_data():
