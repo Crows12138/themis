@@ -572,12 +572,16 @@ has been *answered*, not dropped. An estimator that could not honestly
 produce a number said so in structure rather than shipping a biased one,
 and the reply's job is to deliver that as a finding.
 
-Three fields, read in this order. **`kind`** says what the reader should
+Four fields, read in this order. **`kind`** says what the reader should
 do about it, and it is the one that shapes the reply. `reason` says what
 happened on this occasion and is usually specific enough to carry into
-the text. `failure_type` names the species; there are dozens, it is an
-identifier rather than prose, and you are not expected to recognise it —
-`kind` and `reason` are what you render from.
+the text. `details`, when present, carries the quantities the estimator
+measured on its way to refusing — which stratum, how many rows, how wide
+a band — and it is what turns a refusal into something the reader can
+act on; a reply that has it and paraphrases `reason` instead has thrown
+away the actionable half. `failure_type` names the species; there are
+dozens, it is an identifier rather than prose, and you are not expected
+to recognise it — the other three are what you render from.
 
 | `kind` | What it means | What the reply carries |
 |---|---|---|
@@ -587,7 +591,15 @@ identifier rather than prose, and you are not expected to recognise it —
 | `request` | An input the caller supplied is malformed or inconsistent with the data. | Name the input and what it should be. This is the one kind the user can clear on the next turn, so it reads as an instruction rather than a verdict. |
 | `backend` | A numeric routine did not return an answer (no convergence, a singular solve, or a failure nothing classified). | The only kind that is genuinely "it didn't compute", and it passes no verdict on the question or the data design — say so, and say what might change it (another estimator, a coarser stratification). Do not manufacture a diagnosis the block does not contain. |
 
-Two things hold whatever the kind.
+Three things hold whatever the kind.
+
+**A refusal outranks a verdict about the graph.** A result carrying one
+usually also carries what identification established — that the effect
+*is* identified, on this graph, with a formula. That verdict is true, and
+it is not the answer: the question asked for a number and the finding is
+that the number could not be had. Led with, it reads as a confident yes
+to a question nobody asked. It belongs after the refusal, as the part
+that survives it.
 
 **A refusal is not a malfunction.** The reflex on seeing a missing number
 is to report a system error, and for four of the five kinds that is
