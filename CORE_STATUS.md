@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3833 passed / 144 skipped, warning-clean
+3840 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -975,6 +975,30 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **登记表守卫第二次抓到人**：删掉那条永不触发的 `NOT_IMPLEMENTED` 分支后，`not_implemented` 在全仓再无引用。删掉它不只是守规矩——它是「未建」那一类的 `unknown`，内容就是「超出这条路径实现的范围」，读者拿它没法做任何事；而登记表里已有的未建物种各自说清了没建的是什么。iv.py 转换时应当说具体没建什么，不该伸手拿这个通用的。
 
 **基线（本条）**：3832 → **3833**（+2 行为测试：缺一臂的层是数据发现而非坏请求、格式确实坏时物种不能漂成数据发现——两侧一起钉才使这个区分承重；−1 删掉的孤儿物种参数化）。
+
+**最后一个估计器接进拒答通道，用户不再收到一条办不到的建议（2026-08-03，接上条）**：修复型，用户可见。iv.py 是唯一还把拒答理由留在异常字符串里的估计器。
+
+**现象（实测，不是推演）**：构造 E[X|Z=1] = E[X|Z=0] = 0.5 的数据跑 `themis.estimate`，估计器准确说出了原因——「instrument has no measurable first-stage effect on treatment」——而 `estimator_failure` 是 `null`，用户读到的唯一一句可执行的话是识别层的「声明 `assumptions.monotonicity` 就能拿到 Wald LATE」。**照做拿不到任何数**：单调性给不了一个死掉的第一阶段。同一张 AST 换成健康工具变量，`missing_information` 是空的——那两条只在估计器拒答时才浮出来，而它们讨论的是「一个工具变量不足以挑估计器」，不是「这个工具变量是死的」。
+
+**根因**：字符串跨不过 dispatch 边界。`except (ValueError, NotImplementedError): return blocked(...)` 接住的是**类型**不是**句子**，裸 `ValueError` 到那里只剩「出了点事」。**为什么不在 handler 里补一个字典**：那要求消费端重建产生端已经知道的物种，正是上一条 transport 修掉的形状。
+
+**修法**：14 处拒答点各自声明物种 + details；dispatch 两个站点收窄为 `except EstimatorFailure`。新登记三个物种——`no_first_stage`（data，工具变量在这批数据里不推动处理，比值的分母是 0）、`no_usable_resample`（data，每一次重抽样都退化，区间没有可取分位数的样本）、`conditioning_too_fine`（unbuilt，W 比我们愿意枚举的切法更细）。
+
+**上一档登记这件事时说「会动 CI」，读完不成立、已更正**：bootstrap 那个 `except ValueError` 接住的恰好是 `_wald_point` / `_stratified_wald_table` / `_NotStratifiable` 三者，一起转换后集合不变；`_two_sls_point` 走 sklearn lstsq **根本不抛**（上一档在 joint 上查实的同一件事）。**收窄仍然实测**（㉔）：把旧的 `except ValueError` 作为额外分支挂在新分支之后、跑全量套件记录任何落进去的东西——**两个 bootstrap 一共 0 条**。读代码只能证明「我们不抛」，这条才证明「不会到达」。
+
+**登记表守卫第三次抓到人，而且这次逼出了更好的设计**：`test_an_honest_refusal_is_not_caught_beside_a_crash` 报 `except (np.linalg.LinAlgError, EstimatorFailure)` 两处违规——`LinAlgError` 是通用失败，不许和拒答同筐。**正确答案不是加白名单**（上一档预先拒绝过），是让 numpy 的异常根本不跨边界：`solve_overid_from_moments` 与 `solve_hansen_from_s` 在 `np.linalg.inv` 处就发 `singular_design`，于是两个 handler 都变成只接 `EstimatorFailure`，`estimate_iv_overid` 里那层「把 LinAlgError 包成 ValueError」的转译整个删掉。**守卫自紧的兑现**：上一档说「站点 1224 留着不加白名单——AST 守卫自紧」，这一档它自己紧上来了。
+
+**两处 `ValueError` 是故意留的**（`_robust_weight_matrix` / `_robust_moment_matrices` 的「cluster 标签与残差化行数不齐」）：它报的是**我们的**不变量破了，不是用户数据的限度。把它降级成「没有 Hansen」等于把 bug 洗成诊断，所以 `_hansen_robust_j` 现在只接 `EstimatorFailure`，这条真触发时会响。
+
+**过度识别路径不写块，这是判断不是遗漏**：它的 handler 返回 `passed`——查询仍在飞，恰好识别的路径会答它。`blocked` 必须记原因，`passed` 必须不记，否则信封上会出现一个「没有给出数值」的块，紧挨着后面真的给出的那个数。配了测试钉住。
+
+**覆盖三档，不合并（㉖）**：全量套件跑 line coverage 落到 iv.py 的 24 个拒答点上。**实测触发 10 处**（wald 要二值 / wald 不吃 W / Wald 分母 0 / W 连续 / 层内缺一臂 / 聚合第一阶段 0 / Z'Z 奇异 / 少于两个工具，加本条新建的两处）。**明显可构造、本轮没建 8 处**（显式 stratified_wald 遇非二值、未知 model 名、**非浮点列超基数上限**——现有那条测试用整数列，而数据契约把整数拓宽成浮点，走的是 float 那一支、517 从没走过、层数乘积超 64、W 有放不进任何格的值、over-ID 联合第一阶段退化、over-ID bootstrap 两支）。**论证构造不出 1 处**（「W 的格一个都没被填充」——只要有行就至少有一格被填）。**没试也没论证清楚 3 处**（Ŝ 奇异 / 高效 GMM 第一阶段退化 / û'û ≤ 0）。**两条 `ValueError` 绊线不该触发，实测也没有。**
+
+**方法论新增（㉙）：插桩记「有没有坏东西落进来」必须配一次可达性测量，否则空结果的意思是「什么都没落进来」。** 本轮两个 bootstrap 的收窄先用旧 `except ValueError` 挂在新分支之后跑全量、记录 0 条，我当时说「实测过、不是假设」——**coverage 随后显示那个 handler 全套件一次都没执行**，所以那 0 条是**没有流量**而不是**没有泄漏**，什么都没证明。这是 ㉔ 自己的陷阱深一层：㉔ 说「读代码只能证明我们不抛」，㉙ 说「插桩得零也可能只证明没人来」。补法不是再跑一次插桩，是**建出到达那条分支的构造**（10 个恰好卡在每臂下限的层，全样本过得去、重抽样几乎必失手：73/200 落进降级分支，200/200 落进「没有可用重抽样」），并把「落进来的是不是拒答」写成**常驻断言**而不是一次性的 tally。
+
+**未修、已登记（本条查实的第二个缺陷）**：识别层那条「An instrumental-variable escalation does reach it, but it is assumption-laden and **could not be run as it stands**」在 IV 因数据拒答时**是假的**——IV 路径跑了。它的压制条件是「有没有答上」，不是「IV 路径用没用上」。修它要决定识别层条目与估计层结局如何一般性地对账，不能只为 IV 打补丁，单独一轮。现在它不再是唯一那句话（拒答块排在报告的答案段），但它还在。
+
+**基线（本条）**：3833 → **3840**（+2 dispatch/信封行为：死工具变量说出物种与 kind、过度识别回退**不**留拒答块；+2 bootstrap 分支的构造：降级抽样被丢弃且落进来的确是拒答、全部退化时区间被拒答；+3 新物种的登记表参数化）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
