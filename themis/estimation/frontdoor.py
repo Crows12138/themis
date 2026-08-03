@@ -47,6 +47,8 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .resample import cluster_labels, resample_indices
 
@@ -178,19 +180,23 @@ def _discrete_levels(series: pd.Series, name: str) -> list:
             np.all(np.isfinite(vals)) and np.all(vals == np.round(vals))
         )
         if not integer_valued:
-            raise NotImplementedError(
+            raise EstimatorFailure(
+                refusals.CONTINUOUS_MEDIATOR,
                 f"front-door estimator does not support continuous mediator "
                 f"{name!r} (float dtype with non-integer values); only "
                 f"discrete/categorical mediators are supported. Continuous-"
-                f"mediator front-door needs density estimation and is deferred."
+                f"mediator front-door needs density estimation and is deferred.",
+                mediator=name,
             )
     nunique = int(s.nunique())
     if nunique > MAX_LEVELS_PER_MEDIATOR:
-        raise NotImplementedError(
+        raise EstimatorFailure(
+            refusals.CONTINUOUS_MEDIATOR,
             f"front-door estimator treats mediator {name!r} as continuous: "
             f"{nunique} distinct values exceeds the {MAX_LEVELS_PER_MEDIATOR}-"
             f"level cap for exact stratum enumeration. High-cardinality / "
-            f"continuous front-door is deferred."
+            f"continuous front-door is deferred.",
+            mediator=name, levels=nunique, cap=MAX_LEVELS_PER_MEDIATOR,
         )
     return sorted(s.unique().tolist())
 
@@ -220,10 +226,12 @@ def _point_estimate_frontdoor(
     for m in mediators:
         crossproduct *= len(levels[m])
     if crossproduct > MAX_MEDIATOR_CROSSPRODUCT:
-        raise NotImplementedError(
+        raise EstimatorFailure(
+            refusals.MEDIATOR_STRATA_INTRACTABLE,
             f"front-door stratum cross-product {crossproduct} exceeds the "
             f"{MAX_MEDIATOR_CROSSPRODUCT}-combination cap; too many mediator "
-            f"level combinations to enumerate exactly."
+            f"level combinations to enumerate exactly.",
+            combinations=crossproduct, cap=MAX_MEDIATOR_CROSSPRODUCT,
         )
     val_to_idx = {
         m: {v: i for i, v in enumerate(levels[m])} for m in mediators
@@ -344,7 +352,12 @@ def _fit_predict(X: np.ndarray, y: np.ndarray, model: str):
         reg = LinearRegression()
         reg.fit(X, y)
         return lambda X_new: reg.predict(X_new)
-    raise ValueError(f"unknown model {model!r}")
+    raise EstimatorFailure(
+        refusals.INVALID_INPUT,
+        f"unknown model {model!r}; the front-door estimator fits 'logistic' "
+        f"or 'linear'",
+        model=model,
+    )
 
 
 def _bootstrap_ci_frontdoor(

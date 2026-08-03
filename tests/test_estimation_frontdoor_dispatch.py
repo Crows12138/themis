@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import refusals
 
 
 def _atom(p):
@@ -118,9 +119,12 @@ def test_frontdoor_estimate_verify_round_trip():
     themis.verify(ast, result)
 
 
-def test_dispatch_skips_frontdoor_when_continuous_mediator():
-    """v1 restriction: front-door numeric doesn't support continuous
-    mediators. Dispatch should skip gracefully rather than blowing up."""
+def test_a_continuous_mediator_is_refused_out_loud():
+    """v1 restriction: front-door numeric does not support continuous
+    mediators. It used to be enough that dispatch "skipped gracefully" —
+    which is what a silent refusal looks like from inside the test that
+    permits it. The caller got no number and no reason, and the report
+    rendered the identification verdict in the answer slot."""
     ast = _frontdoor_ast()
     rng = np.random.default_rng(0)
     n = 200
@@ -132,8 +136,13 @@ def test_dispatch_skips_frontdoor_when_continuous_mediator():
     })
     out = themis.estimate(ast, df, ci_bootstrap=0)
     result = out["results"][0]
-    # Estimation should have been skipped
     assert "numeric_estimate" not in result
+
+    failure = result["estimator_failure"]
+    assert failure["estimator"] == "frontdoor"
+    assert failure["failure_type"] == refusals.CONTINUOUS_MEDIATOR
+    assert failure["kind"] == refusals.KIND_UNBUILT
+    assert failure["details"]["mediator"] == "m"
 
 
 def _frontdoor_categorical_ast():

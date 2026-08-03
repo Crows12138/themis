@@ -1148,6 +1148,7 @@ def _try_frontdoor_estimate(
     """Phase 7.2: the front-door formula over the smallest mediator set."""
     import networkx as nx
 
+    from ..refusals import EstimatorFailure
     from .frontdoor import estimate_frontdoor_ate
 
     x_atom, y_atom = facts.x_atom, facts.y_atom
@@ -1168,8 +1169,11 @@ def _try_frontdoor_estimate(
             model=knobs.model,  # type: ignore[arg-type]
             cluster=knobs.cluster,
         )
-    except NotImplementedError:
-        # e.g. a continuous mediator, outside the current v1 restriction.
+    except EstimatorFailure as exc:
+        # A continuous mediator, or more strata than can be enumerated. The
+        # estimator says which; before it had a species to say it with, this
+        # caught NotImplementedError and the reason went nowhere.
+        refusals.record(result, estimator="frontdoor", exc=exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -2721,6 +2725,7 @@ def _try_mediation_estimate(
     four-way block is attached alongside the difference-scale one
     (VanderWeele eAppendix §3.4/§3.3); ``ci_bootstrap`` sizes its CI.
     """
+    from ..refusals import EstimatorFailure
     from .mediation import estimate_mediation
 
     # The return value answers "is this query mine", NOT "did I produce a
@@ -2769,7 +2774,8 @@ def _try_mediation_estimate(
             random_state=random_state,
             cluster=cluster,
         )
-    except (ValueError, NotImplementedError):
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="mediation", exc=exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -2897,6 +2903,7 @@ def _try_mediation_joint_estimate(
     ``numerically_solved`` and keeps its numeric derivation, while a block
     identified structurally only stays ``structurally_solved``.
     """
+    from ..refusals import EstimatorFailure
     from .mediation import estimate_mediation_joint
 
     extensions = result.get("extensions") or {}
@@ -2937,7 +2944,8 @@ def _try_mediation_joint_estimate(
             random_state=random_state,
             cluster=cluster,
         )
-    except (ValueError, NotImplementedError):
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="mediation_joint", exc=exc)
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {
@@ -3213,8 +3221,6 @@ def _try_joint_estimate(
         )
     except EstimatorFailure as exc:
         refusals.record(result, estimator="joint_backdoor", exc=exc)
-        return blocked('estimator_refused')
-    except (ValueError, NotImplementedError):
         return blocked('estimator_refused')
 
     result["numeric_estimate"] = {

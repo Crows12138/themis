@@ -165,20 +165,26 @@ def estimate_joint_effect(
         data hash.
     """
     if len(treatments) < 2:
-        raise NotImplementedError(
+        raise EstimatorFailure(
+            refusals.NOT_A_JOINT_INTERVENTION,
             f"estimate_joint_effect needs at least two treatments to form a "
-            f"joint intervention; got {len(treatments)} ({treatments!r})"
+            f"joint intervention; got {len(treatments)} ({treatments!r})",
+            treatments=list(treatments),
         )
     if len(treatments) > _MAX_JOINT_TREATMENTS:
-        raise NotImplementedError(
+        raise EstimatorFailure(
+            refusals.TOO_MANY_JOINT_TREATMENTS,
             f"estimate_joint_effect caps at {_MAX_JOINT_TREATMENTS} "
             f"treatments (the saturated basis is 2^K − 1 columns and the "
             f"interaction is a 2^K-corner finite difference); got "
-            f"{len(treatments)} ({treatments!r})"
+            f"{len(treatments)} ({treatments!r})",
+            treatments=list(treatments), cap=_MAX_JOINT_TREATMENTS,
         )
     if len(set(treatments)) != len(treatments):
-        raise ValueError(
-            f"joint treatment vector repeats a column: {treatments!r}"
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
+            f"joint treatment vector repeats a column: {treatments!r}",
+            treatments=list(treatments),
         )
 
     required = {*treatments, outcome, *adjustment}
@@ -251,7 +257,18 @@ def estimate_joint_effect(
             interaction += (-1.0 if n_lo % 2 else 1.0) * val
         return joint, interaction
 
-    joint_point, interaction_point = _joint_and_interaction(df)
+    try:
+        joint_point, interaction_point = _joint_and_interaction(df)
+    except np.linalg.LinAlgError as exc:
+        # The bootstrap below tolerates a resample it cannot fit; the point
+        # fit has no such loop, and the solver's own error is a ValueError
+        # subclass that dispatch's generic guard used to discard.
+        raise EstimatorFailure(
+            refusals.SINGULAR_DESIGN,
+            f"the saturated joint design is singular on this sample "
+            f"({exc}); a 2^K-corner contrast needs every corner to be "
+            f"separately estimable",
+        ) from exc
 
     joint_lo = joint_hi = None
     inter_lo = inter_hi = None

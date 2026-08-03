@@ -19,10 +19,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis import refusals
 from themis.estimation.frontdoor import (
     FrontdoorEstimate,
     estimate_frontdoor_ate,
 )
+from themis.refusals import EstimatorFailure
 
 
 def _single_mediator_dgp(n=2000, seed=0, true_ate=1.0):
@@ -248,11 +250,12 @@ def test_continuous_mediator_rejected():
         "m_cont": rng.standard_normal(n),   # fractional float
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(NotImplementedError, match="continuous"):
+    with pytest.raises(EstimatorFailure, match="continuous") as exc:
         estimate_frontdoor_ate(
             df, treatment="x", outcome="y", mediators=("m_cont",),
             ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.CONTINUOUS_MEDIATOR
 
 
 def test_high_cardinality_integer_mediator_rejected():
@@ -265,11 +268,12 @@ def test_high_cardinality_integer_mediator_rejected():
         "m_int": rng.integers(0, 100, size=n),   # ~100 levels > cap
         "y": rng.standard_normal(n),
     })
-    with pytest.raises(NotImplementedError, match="continuous"):
+    with pytest.raises(EstimatorFailure, match="continuous") as exc:
         estimate_frontdoor_ate(
             df, treatment="x", outcome="y", mediators=("m_int",),
             ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.CONTINUOUS_MEDIATOR
 
 
 # ============================================ shape
@@ -286,3 +290,26 @@ def test_returns_named_tuple_with_correct_fields():
     assert est.outcome == "y"
     assert est.mediators == ("m",)
     assert len(est.data_hash) == 64
+
+
+def test_too_many_mediator_combinations_rejected():
+    """Each mediator is discrete and under the per-mediator level cap, but
+    their cross-product is not enumerable. The estimand is well posed — the
+    exact sum over it is what is refused — so this is a species of its own,
+    not the continuous-mediator one."""
+    rng = np.random.default_rng(0)
+    n = 600
+    df = pd.DataFrame({
+        "x": rng.random(n) < 0.5,
+        "m1": rng.integers(0, 15, n),
+        "m2": rng.integers(0, 15, n),
+        "m3": rng.integers(0, 15, n),   # 15^3 = 3375 > 2048 cap
+        "y": rng.standard_normal(n),
+    })
+    with pytest.raises(EstimatorFailure, match="cross-product") as exc:
+        estimate_frontdoor_ate(
+            df, treatment="x", outcome="y", mediators=("m1", "m2", "m3"),
+            ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == refusals.MEDIATOR_STRATA_INTRACTABLE
+    assert exc.value.details["combinations"] == 3375

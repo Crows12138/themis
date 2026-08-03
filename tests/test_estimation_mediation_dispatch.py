@@ -272,3 +272,28 @@ def test_ratio_block_output_validates_against_schema():
                           random_state=7)
     for r in out["results"]:
         validate_result(r)
+
+
+def test_a_singular_design_reaches_the_caller_with_its_reason():
+    """The mediator is the treatment relabelled, so the outcome fit is
+    rank-deficient. Before the estimator had a species for it, the solver's
+    ``LinAlgError`` — a ``ValueError`` subclass — was caught by dispatch's
+    generic guard and the query ended with a missing number and no reason.
+
+    The identification verdict still stands; what changes is that the
+    envelope now says why no number came with it."""
+    from themis import refusals
+
+    rng = np.random.default_rng(0)
+    n = 400
+    x = rng.random(n) < 0.5
+    df = pd.DataFrame({"x": x, "m": x, "y": rng.random(n) < 0.5})
+
+    out = themis.estimate(_clean_mediation_ast(), df, random_state=42)
+    result = out["results"][0]
+    assert result.get("numeric_estimate") is None
+
+    failure = result["estimator_failure"]
+    assert failure["estimator"] == "mediation"
+    assert failure["failure_type"] == refusals.SINGULAR_DESIGN
+    assert failure["kind"] == refusals.KIND_DATA

@@ -33,6 +33,8 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import refusals
+from themis.refusals import EstimatorFailure
 from themis.estimation.joint import estimate_joint_effect
 from themis.input.syntactic_validator import validate_result
 from themis.runtime import structural_solver
@@ -164,35 +166,38 @@ def test_k2_generalized_basis_matches_known_two_way():
 # ============================================ scope / honesty
 
 
-def test_below_two_treatments_raises():
+def test_below_two_treatments_is_not_a_joint_intervention():
     df = _dgp3()
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_joint_effect(
             df, treatments=("a",), outcome="y", adjustment=("z",),
             ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.NOT_A_JOINT_INTERVENTION
 
 
-def test_beyond_cap_raises_not_implemented():
+def test_beyond_cap_is_too_many_joint_treatments():
     n = 300
     cols = {c: (np.arange(n) % 2 == 0) for c in ("a", "b", "c", "d", "e", "f")}
     df = pd.DataFrame(cols)
     df["z"] = np.random.default_rng(0).standard_normal(n)
     df["y"] = np.random.default_rng(1).standard_normal(n)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_joint_effect(
             df, treatments=("a", "b", "c", "d", "e", "f"), outcome="y",
             adjustment=("z",), ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.TOO_MANY_JOINT_TREATMENTS
 
 
-def test_duplicate_treatment_raises_value_error():
+def test_duplicate_treatment_is_an_invalid_request():
     df = _dgp3()
-    with pytest.raises(ValueError):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_joint_effect(
             df, treatments=("a", "a"), outcome="y", adjustment=("z",),
             ci_bootstrap=0,
         )
+    assert exc.value.failure_type == refusals.INVALID_INPUT
 
 
 # ============================================ structural identification

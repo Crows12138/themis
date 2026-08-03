@@ -5,6 +5,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis import refusals
+from themis.refusals import EstimatorFailure
+
 from themis.estimation.mediation import (
     MediationEstimate,
     estimate_mediation,
@@ -198,8 +201,29 @@ def test_proportion_mediated_present_and_consistent_with_ratio():
 
 def test_unknown_model_rejected():
     df = _linear_med_dgp(n=100, seed=0)
-    with pytest.raises(ValueError, match="unknown model"):
+    with pytest.raises(EstimatorFailure, match="unknown model") as exc:
         estimate_mediation(
             df, treatment="x", outcome="y", mediator="m",
             model="random_forest", n_rep=10,
         )
+    assert exc.value.failure_type == refusals.INVALID_INPUT
+
+
+def test_a_singular_point_fit_is_refused_not_swallowed():
+    """A mediator that is the treatment relabelled leaves ``Y ~ X + M``
+    rank-deficient, and statsmodels raises the solver's own
+    ``LinAlgError`` — a ``ValueError`` subclass, which dispatch's generic
+    guard used to catch and discard along with the reason.
+
+    The bootstrap already tolerates a resample it cannot fit; the point fit
+    has no such loop, so its failure is the whole estimate's failure and
+    has to say so."""
+    rng = np.random.default_rng(0)
+    n = 300
+    x = rng.random(n) < 0.5
+    df = pd.DataFrame({"x": x, "m": x, "y": rng.random(n) < 0.5})
+    with pytest.raises(EstimatorFailure, match="singular") as exc:
+        estimate_mediation(
+            df, treatment="x", outcome="y", mediator="m", n_rep=0,
+        )
+    assert exc.value.failure_type == refusals.SINGULAR_DESIGN

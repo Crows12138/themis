@@ -41,9 +41,33 @@ import pandas as pd
 
 import statsmodels.api as sm
 
+from .. import refusals
+from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .four_way import four_way_decomposition
 from .resample import cluster_labels, resample_indices
+
+
+def _fit_or_refuse(fit, what: str):
+    """Run the point fit, and let a singular design say so.
+
+    The bootstrap already tolerates a resample it cannot fit — a degenerate
+    draw is expected and the interval is built from the rest. The point fit
+    has no such loop: when the design is collinear, ``statsmodels`` raises
+    the solver's own ``LinAlgError``, which is a ``ValueError`` subclass and
+    was therefore caught by dispatch's generic guard and discarded. The
+    caller was told nothing, having asked about data that cannot support
+    the estimator at all.
+    """
+    try:
+        return fit()
+    except np.linalg.LinAlgError as exc:
+        raise EstimatorFailure(
+            refusals.SINGULAR_DESIGN,
+            f"the {what} design is singular on this sample ({exc}); the "
+            f"mediation decomposition needs a full-rank fit, and a "
+            f"minimum-norm solution would be one choice among many",
+        ) from exc
 
 
 @dataclass(frozen=True)
@@ -210,7 +234,11 @@ def estimate_mediation(
         is_logit = False
         method = "mediation_linear_imai"
     else:
-        raise ValueError(f"unknown model {model!r}")
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
+            f"unknown model {model!r}; mediation fits 'logit' or 'linear'",
+            model=model,
+        )
 
     # Mediator model: M ~ X [+ adjustment]. Always OLS; for a bool mediator this
     # is a linear-probability first stage (a standard Imai-framework
@@ -304,7 +332,8 @@ def estimate_mediation(
         "mediator + binary outcome"
     )
 
-    om_point, mm_point = _fit(fit_df)
+    om_point, mm_point = _fit_or_refuse(
+        lambda: _fit(fit_df), "outcome / mediator")
     nde_p, nie_p = _nde_nie(om_point, mm_point, fit_df)
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
@@ -570,11 +599,16 @@ def estimate_mediation_joint(
     """
     mediators = tuple(mediators)
     if len(mediators) == 0:
-        raise ValueError(
-            "estimate_mediation_joint requires at least one mediator"
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
+            "estimate_mediation_joint requires at least one mediator",
         )
     if len(set(mediators)) != len(mediators):
-        raise ValueError(f"duplicate mediator in {mediators!r}")
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
+            f"duplicate mediator in {mediators!r}",
+            mediators=list(mediators),
+        )
 
     required = {treatment, outcome, *mediators, *adjustment}
     groups = (
@@ -612,7 +646,12 @@ def estimate_mediation_joint(
         is_logit = False
         method = "mediation_joint_linear"
     else:
-        raise ValueError(f"unknown model {model!r}")
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
+            f"unknown model {model!r}; joint mediation fits 'logit' or "
+            f"'linear'",
+            model=model,
+        )
 
     mediator_formulas = [f"{m} ~ {treatment}{sep}{adj_term}" for m in mediators]
 
@@ -692,7 +731,8 @@ def estimate_mediation_joint(
                 return float(params[c])
         raise KeyError(f"none of {cands} in fitted outcome coefficients")
 
-    om_point, mms_point = _fit(fit_df)
+    om_point, mms_point = _fit_or_refuse(
+        lambda: _fit(fit_df), "outcome / mediator")
     nde_p, nie_p = _nde_nie(om_point, mms_point, fit_df)
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
@@ -1075,14 +1115,17 @@ def estimate_cde_chain(
     from sklearn.linear_model import LinearRegression, LogisticRegression
 
     if len(mediators) != len(mediator_values):
-        raise ValueError(
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
             f"mediators ({len(mediators)}) and mediator_values "
-            f"({len(mediator_values)}) length mismatch"
+            f"({len(mediator_values)}) length mismatch",
+            n_mediators=len(mediators), n_values=len(mediator_values),
         )
     if len(mediators) == 0:
-        raise ValueError(
+        raise EstimatorFailure(
+            refusals.INVALID_INPUT,
             "estimate_cde_chain requires at least one mediator; use "
-            "estimate_backdoor_ate for the no-mediator case"
+            "estimate_backdoor_ate for the no-mediator case",
         )
 
     required = {treatment, outcome, *mediators, *adjustment}

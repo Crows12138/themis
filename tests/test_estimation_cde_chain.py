@@ -18,6 +18,7 @@ from themis.estimation.mediation import (
     CDEChainEstimate,
     estimate_cde_chain,
 )
+from themis.refusals import EstimatorFailure
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +185,7 @@ def test_zero_bootstrap_skips_ci():
 
 def test_rejects_mismatched_lengths():
     df = _two_mediator_chain_no_interaction(n=300, seed=0)
-    with pytest.raises(ValueError, match="length mismatch"):
+    with pytest.raises(EstimatorFailure, match="length mismatch"):
         estimate_cde_chain(
             df, treatment="x", outcome="y",
             mediators=("m1", "m2"),
@@ -195,7 +196,7 @@ def test_rejects_mismatched_lengths():
 
 def test_rejects_empty_mediators():
     df = _two_mediator_chain_no_interaction(n=300, seed=0)
-    with pytest.raises(ValueError, match="at least one mediator"):
+    with pytest.raises(EstimatorFailure, match="at least one mediator"):
         estimate_cde_chain(
             df, treatment="x", outcome="y",
             mediators=(),

@@ -270,6 +270,27 @@ NOT_A_JOINT_INTERVENTION = Refusal(
     kind=KIND_UNBUILT,
     says="the joint plug-in needs at least two treatments",
 )
+TOO_MANY_JOINT_TREATMENTS = Refusal(
+    "too_many_joint_treatments",
+    kind=KIND_UNBUILT,
+    says="the joint plug-in enumerates a saturated basis over the treatment "
+         "vector, and past a small number of treatments that basis is larger "
+         "than any sample identifies",
+)
+CONTINUOUS_MEDIATOR = Refusal(
+    "continuous_mediator",
+    kind=KIND_UNBUILT,
+    says="the front-door plug-in sums over mediator strata exactly, and this "
+         "mediator is continuous or too fine to enumerate — the continuous "
+         "case needs density estimation, which is deferred",
+)
+MEDIATOR_STRATA_INTRACTABLE = Refusal(
+    "mediator_strata_intractable",
+    kind=KIND_UNBUILT,
+    says="each mediator is discrete but their combinations are too many to "
+         "enumerate — the estimand is well posed, the exact sum over it is "
+         "not affordable",
+)
 DIFFERENTIAL_COMBINED_MISCLASSIFICATION_DEFERRED = Refusal(
     "differential_combined_misclassification_deferred",
     kind=KIND_UNBUILT,

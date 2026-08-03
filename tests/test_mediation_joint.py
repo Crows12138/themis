@@ -21,6 +21,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from themis import refusals
+from themis.refusals import EstimatorFailure
+
 import themis
 from themis.estimation.mediation import (
     estimate_mediation,
@@ -185,18 +188,20 @@ def test_joint_logit_runs_and_holds_identity():
 
 def test_empty_mediators_raises():
     df, _ = _joint_scm(n=500)
-    with pytest.raises(ValueError):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_mediation_joint(
             df, treatment="x", outcome="y", mediators=(),
         )
+    assert exc.value.failure_type == refusals.INVALID_INPUT
 
 
 def test_duplicate_mediator_raises():
     df, _ = _joint_scm(n=500)
-    with pytest.raises(ValueError):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_mediation_joint(
             df, treatment="x", outcome="y", mediators=("m1", "m1"),
         )
+    assert exc.value.failure_type == refusals.INVALID_INPUT
 
 
 # =====================================================================
