@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3816 passed / 144 skipped, warning-clean
+3822 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -899,7 +899,28 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 
 **未做、已登记（划在这一档之外）。** 这 9 处即便接住的是诚实拒绝，也**不在信封上留痕**：`blocked('estimator_refused')` 记的是 dispatch 级联自己的账（`Claim.reason` → `Evaluation.declined` → 一个 `_recorder`），不进结果。用户看到的是「这题没有数」，而不是「这题因为 X 没有数」。修它要往信封加 `estimator_failure` 块，属功能不属修复。另：`counterfactual_cell.py:414` 那处 `(EstimatorFailure, cf.CounterfactualBoundsError)` **不在问题范围**——两个都是诚实拒绝通道，AST 守卫按「不许与**通用**异常同筐」写，正好放它过去。
 
-**基线（本条）**：3815 → **3816**（+1：AST 守着「拒答不与通用异常同筐」——这比单纯删掉那两项更耐久，因为下一个人会想把它们加回来）。
+**基线（本条）**：3815 → **3816**（+1：AST 守着「拒答不与通用异常同筐」——这比单纯删掉那两项更耐久，因为下一个人会想把它们加回来）。~~未做、已登记~~ **已兑现，见下一条。**
+
+**拒答终于留在信封上，报告不再拿「可识别」冒充答案（2026-08-03，接上条）**：修复型。上一条把「这 9 处不在信封留痕」登记为待办。实测下来**比登记的更糟，而且是两处病灶不是一处**。
+
+**现象（跑出来的，不是读出来的）**：proximal 查询，数据 (Z,X) 有空层。估计器如实拒答，物种和一句解释都齐全。用户拿到的是 `numeric_estimate: None`、`estimator_failure: None`、`data_gap_report: {"summary":"","gaps":[]}`，报告正文一行「结论：**是**」。全信封搜不到任何拒答痕迹。这不是「没数且没说原因」，是**拿结构层的「可识别=是」冒充了答案**。
+
+**根因**：这 5 个 handler 的契约句是同一句 —— *"returns False and touches nothing, so the structural answer stays primary"*。它把**答案**（不该被覆盖，对的）和**诊断**（该被记下）塞进了一个词，`touches nothing` 保护答案的方式是连解释一起噤声。dispatch 里另外 32 处写 `estimator_failure` 的地方证明系统本来就知道正确行为——这 5 处是异类，不是惯例。
+
+**修法**：拒答块的形状由 `themis/refusals.py::record` 说一次（该模块已拥有 `stamp`，本就是「拒答在信封上长什么样」的归属地；`record` 只写块，「查询是否到此为止」仍是 handler 的决定，留在 handler）。5 处沉默的终局站点调用它（**缺陷本身**）；11 处已在手写同一块的 `except ... as exc` 站点改为走它（纯重构）。顺带闭掉两个同源静默：`getattr(exc, "failure_type", refusals.UNKNOWN)` 共 6 处——`EstimatorFailure.__init__` 现在总是设已校验的 `failure_type`，这个兜底**永不触发**，是登记表之前的化石；`exc.details` 全仓只有 **1 处**写进信封，而 schema 声明了它、docstring 承诺了它，126 处 raise 里 **36 处**带着真诊断（`sparse_bins` / `bin_counts` / `outcome_std` / `bandwidth` / `t_range`），除 dose_response 自己那处外全部丢弃。
+
+**消费端顺序是量出来的，不是推出来的。** 写完块之后报告**照样**输出「结论：是」——`_render_answer` 的结构布尔分支排在拒答分支前面（㉓：根因修在产生端，假话在消费端说出口）。顺序不靠推理定：在两个单一出口插桩，跑一轮全量，记下 **2025 条信封**各自哪些分支能触发，再把插桩删掉。结果——拒答 + 结构布尔：**2** 条，全是 `effect`；拒答 + 界：**16** 条，全是 `effect`（界在那里是真答案，拒答绝不能赢）；结构布尔 + 界且无数：**4** 条，全是 `effect`。`cause` / `association` / `identify` **一条都没被波及**。故新顺序 = 点 / PN-PS-PNS / theta 数 / 界 / 拒答 / 结构布尔，并写成原则而非字段强弱排名：**先给查询所要的答案，再给「为什么没有答案」，最后才是关于图本身的结论**——答案本就是布尔的那些查询，上面的分支从不触发，所以布尔下沉不需要任何 query_kind 判断。`response_rendering.md` 同步：`details` 补进字段表，并加一条「拒答优先于关于图的结论」。
+
+**守卫按原则写，不按「我改过的名字」写**（㉔）：`except EstimatorFailure` 且 `blocked(...)`（查询到此为止）的分支必须 `record`；`passed(...)` 的分支豁免——那里查询仍在飞，此刻写块会和后来的答案并列在信封上。
+
+**未做、已登记（明确划在这一档之外）**：
+
+- **5 处估计器根本没接进拒答通道**：frontdoor / IV / 两条 mediation / joint 的 `except (ValueError, NotImplementedError): return blocked(...)`，同样终结查询却不说原因。但根因在更深一层——注释自己写着「连续中介，超出 v1」「Wald 分母为零」，**这些本就是如实拒答，只是估计器用裸异常表达**。就地记成 species `unknown` 等于把崩溃洗成拒答，而 `unknown` 的定义正是「唯一一个自己都不知道在说什么的物种」。正解是给那几个估计器发物种。
+- **33 处拒答文案把数据值直接插进给人看的句子**，其中约 10–15 处是裸 numpy 标量，实测渲染出 `empty stratum (Z=np.False_, X=True)`。它因这次改动**刚变成承重的**（`reason` 现在进用户主答案行），但根因另在一条（给人看的值应当被格式化而非被 repr），修法是一个格式化出口 + 约 15 处站点 + 守卫。
+- web `Verdict.tsx` 仍直给英文 `failure_type`，且没接 `kind` / `details`（那里是加法式渲染，不受这次排序影响）。
+- `EstimatorDependencyMissing` 那处**不在问题范围**：它记录到另一个块 `estimator_dependency_missing`，不是静默——普查按 key 找曾误判它，读了才发现。
+
+**基线（本条）**：3816 → **3822**（+6：2 个原则守卫「终结查询必说明原因」「拒答带上它量到的数」+ 1 个端到端回归（那条 proximal 查询）+ 3 个消费端排序钉死，含「答案本就是布尔时布尔仍然赢」的反向一条）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
