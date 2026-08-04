@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3840 passed / 144 skipped, warning-clean
+3849 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -999,6 +999,43 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **未修、已登记（本条查实的第二个缺陷）**：识别层那条「An instrumental-variable escalation does reach it, but it is assumption-laden and **could not be run as it stands**」在 IV 因数据拒答时**是假的**——IV 路径跑了。它的压制条件是「有没有答上」，不是「IV 路径用没用上」。修它要决定识别层条目与估计层结局如何一般性地对账，不能只为 IV 打补丁，单独一轮。现在它不再是唯一那句话（拒答块排在报告的答案段），但它还在。
 
 **基线（本条）**：3833 → **3840**（+2 dispatch/信封行为：死工具变量说出物种与 kind、过度识别回退**不**留拒答块；+2 bootstrap 分支的构造：降级抽样被丢弃且落进来的确是拒答、全部退化时区间被拒答；+3 新物种的登记表参数化）。
+
+**数据到了就算数：识别期的参数请求不再在数据到达后继续要（2026-08-04，接上条）**：修复型，用户可见，跨全部估计器。上一条登记了识别层那句「could not be run as it stands」是假的；查它的时候量出一个更大的、同根的：**识别期写下的「θ 里缺这个条目」，在用户改用数据通道之后，四个面上一条都没撤。**
+
+**现象，四格全部实测**：
+
+| 场景 | 信封上留下的话 | 事实 |
+|---|---|---|
+| IV 第一阶段恒为零、已声明单调性 → 估计器拒答 | `missing_information` 4 条「Theta 中缺条目 P(x=True\|z=True)」 | 那个数就印在旁边拒答块的 `details` 里（`e_treatment_high: 0.5`） |
+| 同上 | `data_gap_report` 4 条 `missing_distribution / blocking`，`required_data.min_sample_size: 400` | 手上就是 400 行 |
+| **IV 第一阶段健康 → 成功给出点估计** | 同样 4 条 blocking，外加「答案是符号区间不是点估计」 | 点估计已经在同一个信封里 |
+| **普通 backdoor 成功给出点估计** | gaps 已清干净，**`actionable_next_steps` 仍以「补 P(y=True\|w=True,x=True)」开头** | 同上；而 `response_rendering.md` 要求这一串**逐字**渲染给用户 |
+
+第四行不是本条改动带来的，是**已有对账自己漏掉的一面**，量出来的——最常走的那条路径上。
+
+**根因**：「数据回答了哪些请求」和「答案是什么等级」被写成一个函数、一个早退、一个调用点。`_reconcile_gap_report_after_numeric_solve` 里 `unidentifiable_no_admissible_set` 早退对**等级**是对的（IV LATE 确实不是无假设点识别，界的措辞该留着），却把参数满足一起吞了；它只挂在成功路径上也是对等级说的，却把参数满足一起挡在拒答路径外。**参数满足只依赖一个前提：数据契约通过**——契约要求每个已声明变量都有一列，`validate_data` 一返回，那些请求就由数据回答了，与后面算没算出数、算出的是点还是区间无关。
+
+**更深一层，也是修法落点**：`_missing_parameter_from_key` 是这类请求的**唯一**生产端，手里握着 `ProbabilityKey`（要哪些变量、在哪个总体），却把它压成字符串 `parameter:P(y=True|z=True)`。消费端要回答「到手的样本回答了它没有」，就只能把这串解析回去。`MissingItem` 的 docstring 早就为 `gap` 写过同一句判词——「producer knew the species, pressed it into a string, and the report recovered it with prefix and substring tests」——**这是同一个病低一层**。
+
+**修法三处，各说一件事**：
+
+1. **`MissingItem.observable`**（`Observable(variables, population)`）——生产端说出「观测什么能了结它」。`population=None` 是在研总体（一份 DataFrame 就是它的样本）；具名总体是另一个样本，这批数据再全也不顶。
+2. **`_settle_asks_the_sample_answers`**——契约通过后**立刻**执行一次，早于任何估计器，逐条比对 `observable` 与已认证列集，同步四个面（`missing_information` / `investigation_requests` / `data_gap_report.gaps` / 两条派生摘要）。`_reconcile_gap_report_after_numeric_solve` 一个字没改：它保留的是另一半，等级那一半确实依赖结果。
+3. **`data_gap_from_dict` + `rederive_summary_and_steps`**——摘要与「下一步」是 gaps 的函数，**删了 gaps 就得重新求一遍**。dispatch 里那份 `_summary_from_gap_dicts` 副本（docstring 自己写着「Mirror `output.data_gap_report._make_summary`」）删除，两处旧对账改走同一条路——**这一步同时修好了上表第四行**。反序列化器照 `derivation_from_dict` 的先例做，配双向 round-trip 测试 + 一条「凡内核真发出的 gap 都过一遍」的测试（漏字段不会抛，只会静默变默认值）。
+
+**为什么不是在拒答分支再抄一遍过滤**：那只补一条路径，成功路径上那 4 条 blocking 会继续留着；而且每加一个后置补丁，就多一次「忘掉一个派生面」的机会——上表第四行就是这么来的。**一个从 gaps 派生的面，不会因为 gaps 被对账而变对；它只会因为被重新求一遍而变对。**
+
+**顺带修掉的第二句假话（即上一条登记的那个）**：「An IV escalation does reach it, but it is assumption-laden and **could not be run as it stands — see the items alongside this one**」。两处错：（a）IV 跑了，是数据把它杀的；（b）θ 请求被对账掉之后，「旁边那批 item」是**空的**。而且它的门是 `if notes`——**所有路线**注记之和，跟有没有工具变量无关。改法：这句话只说它能一直担保的那半句（这张图上有工具变量、它带假设），门换成它真正断言的那个事实 `facts.iv_candidates`。易腐的那半句本来就有人在说：注记在时注记说，数据把它杀掉时 `estimator_failure` 说（`no_first_stage`，`details.instrument`）。**一条 item 的 reason 里放一份旁边那批 item 的散文摘要 = 第二份副本，副本会过期。**
+
+**三档覆盖，实测（㉖）**：全量套件插桩量新对账的到达情况。**535 条结果到达**（454 条带 `missing_information`），**2139 条 item 过手**，其中 `missing_distribution` **1955 条、全部带 `observable`**（生产端覆盖整条通道，没有静默产生端）；**settle 掉 1942 条、连带丢掉 1942 条 gap**。两条保守分支：**「具名总体」实测到达 13 次**（population = `trial`，transport 的源条件），全部正确保留——配了行为测试，因为那批 ask 要的 x/y/z **恰好都是手上这份样本的列**，只看变量名的规则会把它错误地当成已回答；**「列不全」0 次**，与契约论证一致，是论证的安全网而非活分支。**「请求只丢掉一部分 item」0 次**（712 个请求：359 个被清空、353 个未动）——原则上可达（一条结果要同时提出在研总体和具名总体的请求），所以那条重算摘要的规则用**单元测试钉住**，断言它产出的 target/note/priority 与「一开始就只有剩下这些 item」时 `push` 会产出的完全相同；**不当作已覆盖**。
+
+**仍然登记，没修**：
+
+- 未声明单调性 + 死工具变量时，用户仍会读到「声明 monotonicity 就能拿到 Wald LATE」，照做拿不到数。要一般性地解决，得决定**哪些拒答与假设无关**——`no_first_stage` 是（单调性造不出第一阶段），但这是**逐物种的判断**，和 `kind` 同类，正解是在 `themis/refusals.py` 里再声明一格，不是特判。
+- `_declares_missingness` 早退路径不建契约，因此不对账。那条路上的列按设计含 NaN，「一列 NaN 是否供给了那个条件分布」是另一个判断，猜错会丢掉活的请求。
+- `dispatch.py` 里 `_collect_required_columns` 与 `_ensure_dict` **各有两份模块级定义**（6501/6524、6517/6555），后者胜出、前者是死代码。AST 查实，与本条无关，未动。
+
+**基线（本条）**：3840 → **3849**（+3 IV dispatch 行为：拒答后不再索要刚读过的数、成功的 IV 点估计不再带自己输入的 blocking 缺口、ADMG 那句话由它断言的事实把门；+2 生产端：参数请求说出总体、无 key 时不编造观测；+2 gap 反序列化：手写 round-trip 与全内核 gap round-trip；+1 请求缩水后的摘要等价于重来一遍；+1 具名总体的请求不被在研样本了结）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
