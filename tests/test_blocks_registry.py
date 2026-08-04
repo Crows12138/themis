@@ -75,6 +75,62 @@ def test_every_registered_block_is_referred_to_by_something(block):
     )
 
 
+def test_every_block_says_which_of_the_readers_questions_it_answers():
+    """The registry grouped itself by producer from the day it was written.
+    Grouped that way, a block nobody renders looks exactly like a block
+    somebody does — which is how ten route blocks reached no reader at all
+    while every other kind had both a table and a section."""
+    for block in blocks.DECLARED:
+        assert block.read_as in blocks.FAMILIES, (
+            f"{block!r} is read as {block.read_as!r}, which is not a family"
+        )
+
+
+def test_the_families_partition_the_registry():
+    covered = [b for f in blocks.FAMILIES for b in blocks.declared_as(f)]
+    assert sorted(covered) == sorted(blocks.DECLARED)
+    assert len(covered) == len(set(covered)), "a block in two families"
+
+
+def test_declared_order_is_the_order_a_section_says_them_in():
+    """A family's running order lives in the registry, because the second
+    list is the one that goes stale. Pinned rather than described: the
+    recognised pattern leads, the recoverability verdicts — which qualify
+    whatever came before them — come last."""
+    assert [str(b) for b in blocks.declared_as(blocks.ROUTE)] == [
+        "identification",
+        "iv_identification",
+        "transport_identification",
+        "joint_identification",
+        "longitudinal_identification",
+        "mediation_decomposition",
+        "mediation_joint_decomposition",
+        "proximal_estimand",
+        "selection_recovery",
+        "missing_data_recovery",
+    ]
+
+
+def test_a_surface_that_misses_a_block_of_its_family_is_refused_at_import():
+    members = blocks.declared_as(blocks.ROUTE)
+    with pytest.raises(ValueError, match="no renderer for route block"):
+        blocks.bind(blocks.ROUTE, {b: str for b in members[1:]})
+
+
+def test_a_surface_cannot_bind_a_block_from_another_family():
+    """Its output would land in the wrong section, which reads as coverage
+    and is not."""
+    bound = {b: str for b in blocks.declared_as(blocks.ROUTE)}
+    bound[blocks.ASSUMPTION_LEDGER] = str
+    with pytest.raises(ValueError, match="which route does not contain"):
+        blocks.bind(blocks.ROUTE, bound)
+
+
+def test_a_block_cannot_be_declared_without_saying_how_it_is_read():
+    with pytest.raises(TypeError):
+        blocks.Block("invented", holds="nothing")
+
+
 def test_a_block_is_the_plain_name_once_it_is_data():
     """The registry hands out ``str`` subclasses so a misspelling is an
     AttributeError at import. What lands in the envelope has to be the

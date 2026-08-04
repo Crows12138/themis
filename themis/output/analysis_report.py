@@ -8,11 +8,11 @@ result / program and NEVER re-runs reasoning or calls ``verify``.
 
 What it foregrounds — and what makes it *Themis's* report rather than a
 generic causal-analysis summary — follows the order
-``response_rendering.md`` mandates: the **answer first**, then the two
-things Causal-Copilot-style tools omit — an honest **verification**
-status (is the answer's derivation independently auditable?) and the
-**assumptions + data gaps** (what must hold, and what data would
-strengthen or unblock the answer).
+``response_rendering.md`` mandates: the **answer first**, then how it was
+arrived at, then the two things Causal-Copilot-style tools omit — an
+honest **verification** status (is the answer's derivation independently
+auditable?) and the **assumptions + data gaps** (what must hold, and what
+data would strengthen or unblock the answer).
 
     from themis.output.analysis_report import build_analysis_report
     md = build_analysis_report(result, program=program)
@@ -107,6 +107,9 @@ def build_analysis_report(
 
     parts += _section("问题", _render_question(result, program))
     parts += _section("答案", _render_answer(result))
+    route = _render_route(result)
+    if route:
+        parts += _section("怎么算出来的", route)
     if program is not None:
         parts += _section("因果模型", _render_model(program))
     parts += _section("验证", _render_verification(result, verified))
@@ -502,6 +505,308 @@ _ANSWER_RENDERERS = answers.bind({
         + _estimate_meta(ne, result.get("outcome_error"))
     ),
 })
+
+
+# --- how it was computed ------------------------------------------------------
+#
+# The report had six sections and none of them was "how the answer was
+# arrived at". Ten blocks exist to say exactly that — 369 of them across
+# one suite run — and this file read exactly one extensions key, so not
+# one of them ever reached a reader. The two FIRST-CLASS provenance
+# fields fared no better: the footer said "估计式已生成（机器可读，见
+# ``result.formula``）" and the verification section said the derivation
+# has N steps. Two independent channels failing the same way is what
+# says the missing thing is downstream of both — the section, not the
+# renderers. ``scheduler`` had already written for it: the comment above
+# the block it emits calls ``extensions["identification"]`` "the human
+# surface", for "a renderer keying off" it that did not exist.
+
+
+def _vars(names) -> str:
+    """A set of variables, the way a reader reads one."""
+    items = [str(n) for n in (names or ())]
+    return "{" + ", ".join(items) + "}"
+
+
+def _atoms(entries) -> str:
+    """A set written as ``{predicate, args}`` objects, by predicate."""
+    return _vars([(e or {}).get("predicate", "?") for e in (entries or ())])
+
+
+_PATTERN_ZH = {
+    "backdoor": "后门调整",
+    "front_door": "前门调整",
+    "c_factor": "ID 算法的一般解（c-factor 分解）",
+    "instrumental_variable": "工具变量",
+}
+"""What each recognised pattern is called for a reader.
+
+An unlisted pattern renders as its own token rather than falling to a
+default: this section exists because something said nothing, and a name a
+reader has to look up still beats a sentence that omits it. The producer
+(``scheduler._recognize_identification_pattern``) emits the first three;
+the IV path writes the fourth.
+"""
+
+
+def _route_identification(block: dict, result: dict) -> str:
+    pattern = block.get("pattern", "?")
+    line = f"- **识别模式**：{_PATTERN_ZH.get(pattern, f'`{pattern}`')}"
+    if pattern == "backdoor":
+        adj = block.get("adjustment_set")
+        line += (
+            f" —— 控制 {_vars(adj)}" if adj
+            else " —— 无需控制任何变量：图里没有开放的后门路径"
+        )
+    elif pattern == "front_door":
+        line += f" —— 经中介 {_vars(block.get('mediator_set'))}"
+    elif pattern == "instrumental_variable":
+        line += f" —— 工具 `{block.get('instrument', '?')}`"
+        cond = block.get("conditioning")
+        if cond:
+            line += f"，在 {_vars(cond)} 条件下有效"
+    if block.get("conditioned_on"):
+        line += f"；问题本身条件于 {_vars(block['conditioned_on'])}"
+    if block.get("estimand") == "conditional_idc_ratio":
+        line += "（条件估计量，走 IDC 比值而非单纯调整）"
+    if block.get("required_assumption"):
+        line += f"。点识别另需：{block['required_assumption']}"
+    return line
+
+
+def _route_iv_identification(block: dict, result: dict) -> str:
+    """What the IV block knows that the pattern line does not.
+
+    Its ``strategy`` / ``instrument`` / ``conditioning`` /
+    ``required_assumption`` are written twice on purpose: the producer
+    copies them into ``identification`` and calls that copy "the human
+    surface". So the instrument is stated here only when no pattern line
+    will state it — the numeric IV path emits this block alone — and
+    otherwise this contributes the two facts that live nowhere else, that
+    a choice was made among candidates and that a Wald ratio answers for
+    compliers rather than for everyone.
+
+    A renderer declining to repeat what another block on the same
+    envelope already said is why the signature takes the whole result.
+    Saying nothing is a legitimate outcome, and an empty line is dropped
+    rather than printed as a bullet with a heading and no content.
+    """
+    already_said = (
+        ((result.get("extensions") or {}).get(blocks.IDENTIFICATION) or {})
+        .get("pattern") == "instrumental_variable"
+    )
+    parts: list[str] = []
+    if not already_said:
+        head = f"`{block.get('instrument', '?')}`"
+        cond = block.get("conditioning")
+        if cond:
+            head += f"，在 {_vars(cond)} 条件下有效"
+        parts.append(head)
+    n = block.get("alternatives_count")
+    if isinstance(n, int) and n > 1:
+        parts.append(f"图中共有 {n} 个候选工具，取的是这一个")
+    caveat = block.get("late_caveat")
+    if not parts and not caveat:
+        return ""
+    lines = ["- **工具变量**：" + ("；".join(parts) if parts else str(caveat))]
+    if parts and caveat:
+        lines.append(f"  - {caveat}")
+    return "\n".join(lines)
+
+
+def _route_transport_identification(block: dict, result: dict) -> str:
+    src = block.get("source_population") or "源总体"
+    tgt = block.get("target_population") or "目标总体"
+    line = f"- **跨总体迁移**：从 `{src}` 迁到 `{tgt}`"
+    s_nodes = [
+        (sn.get("affects") or {}).get("predicate", "?")
+        for sn in (block.get("s_nodes") or ())
+    ]
+    if s_nodes:
+        line += f"；两地分布不同的是 {_vars(s_nodes)}"
+    adj = block.get("adjustment_set")
+    if adj:
+        line += f"，靠 {_atoms(adj)} 上的重加权抹平"
+    return line
+
+
+def _route_joint_identification(block: dict, result: dict) -> str:
+    line = f"- **联合干预**：同时干预 {_vars(block.get('treatments'))}"
+    if block.get("pattern") == "joint_general_id":
+        line += "，无可用调整集，由集合版 ID 算法识别"
+    else:
+        adj = block.get("adjustment_set")
+        line += (
+            f"，经联合后门调整集 {_vars(adj)} 识别" if adj
+            else "，联合后门无需调整"
+        )
+    if block.get("conditioned_on"):
+        line += f"；条件于 {_vars(block['conditioned_on'])}"
+    if block.get("interaction"):
+        line += "。交互项在差值尺度上给出 —— 逐个单独干预再相加是拿不到它的"
+    return line
+
+
+def _route_longitudinal_identification(block: dict, result: dict) -> str:
+    treatments = [str(t) for t in (block.get("treatments") or ())]
+    line = (
+        f"- **时变处理（g-formula）**：处理序列 "
+        f"{' → '.join(f'`{t}`' for t in treatments) or '（空）'}"
+        f" 对 `{block.get('outcome', '?')}`"
+    )
+    by_time = block.get("confounders_by_time") or []
+    if by_time:
+        line += "；各时点已测混杂 " + "、".join(_vars(b) for b in by_time)
+    lines = [line]
+    lines.append(
+        "  - 序贯可交换性成立：每个时点的处理，其后门路径都被此前测到的"
+        "历史挡住了"
+        if block.get("identified") else
+        "  - 序贯可交换性**不成立**：某个时点的处理还有历史挡不住的后门路径，"
+        "g-formula 会给出有偏的数"
+    )
+    return "\n".join(lines)
+
+
+def _mediation_arm(info: dict | None, label: str) -> str:
+    """One arm of a decomposition — identifiable, and on what."""
+    info = info or {}
+    if not info.get("identifiable"):
+        why = info.get("failed_condition")
+        return f"  - {label}**不可识别**" + (f"：{why}" if why else "")
+    adj = info.get("adjustment")
+    return (
+        f"  - {label}可识别"
+        + (f"，调整 {_vars(adj)}" if adj else "，无需调整")
+    )
+
+
+def _route_mediation_decomposition(block: dict, result: dict) -> str:
+    mediator = block.get("mediator", "?")
+    if not block.get("mediator_valid", True):
+        return (
+            f"- **中介分解**：`{mediator}` 不在任何 X → … → {mediator} → … → Y "
+            "的有向路径上，它不是这条效应的中介"
+        )
+    lines = [f"- **中介分解**：中介 `{mediator}`"]
+    lines.append(_mediation_arm(block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）"))
+    lines.append(_mediation_arm(block.get("cde"), "CDE（控制直接效应）"))
+    return "\n".join(lines)
+
+
+def _route_mediation_joint_decomposition(block: dict, result: dict) -> str:
+    mediators = _vars(block.get("mediators"))
+    if not block.get("mediator_set_valid", True):
+        return f"- **中介集分解**：{mediators} 不构成这条效应的有效中介集"
+    lines = [
+        f"- **中介集分解**：中介集 {mediators} 整体当一个块处理 —— "
+        "正是不需要给集合内部排序才使它可识别"
+    ]
+    lines.append(_mediation_arm(block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）"))
+    lines.append(_mediation_arm(block.get("cde"), "CDE（控制直接效应）"))
+    return "\n".join(lines)
+
+
+def _route_proximal_estimand(block: dict, result: dict) -> str:
+    line = (
+        f"- **近端识别**：未测混杂 `{block.get('latent', '?')}` "
+        f"由两个代理变量约束 —— 处理侧 `{block.get('treatment_proxy', '?')}`、"
+        f"结局侧 `{block.get('outcome_proxy', '?')}`"
+    )
+    card = block.get("latent_cardinality")
+    if card is not None:
+        line += f"（未测混杂取 {card} 个值）"
+    lines = [line]
+    conds = block.get("data_conditions")
+    if conds:
+        lines.append(f"  - 数据须满足：{conds}")
+    return "\n".join(lines)
+
+
+def _route_selection_recovery(block: dict, result: dict) -> str:
+    sel = _vars(block.get("selection_nodes"))
+    lines = [f"- **选择偏倚**：样本被 {sel} 限制过"]
+    if block.get("recoverable"):
+        adj = block.get("adjustment_set")
+        lines.append(
+            "  - 无偏效应**可从这份有偏样本恢复**"
+            + (f"，经选择后门调整 {_vars(adj)}" if adj else "")
+        )
+    else:
+        why = block.get("failure_reason")
+        lines.append(
+            "  - 无偏效应**无法只从这份样本恢复**" + (f"：{why}" if why else "")
+        )
+    need = block.get("external_data_needed")
+    if need:
+        lines.append(f"  - 还需要外部（未经选择的）数据：{'、'.join(str(n) for n in need)}")
+    return "\n".join(lines)
+
+
+_MECHANISM_ZH = {
+    "MCAR": "MCAR（完全随机缺失）",
+    "MAR": "MAR（随机缺失，缺失只由观测到的变量决定）",
+    "MNAR": "MNAR（非随机缺失，缺失与没测到的值本身有关）",
+}
+
+
+def _route_missing_data_recovery(block: dict, result: dict) -> str:
+    mech = block.get("mechanism")
+    lines = [f"- **缺失数据**：机制 {_MECHANISM_ZH.get(mech, mech or '?')}"]
+    partial = block.get("partially_observed")
+    if partial:
+        lines.append(f"  - 部分观测的变量：{_vars(partial)}")
+    estimand = block.get("estimand") or {}
+    if estimand.get("recoverable"):
+        requires = estimand.get("requires") or ()
+        lines.append(
+            "  - 整条估计量**可从缺失数据恢复**"
+            + (f"（需要 {'、'.join(str(r) for r in requires)} 都可恢复）"
+               if requires else "")
+        )
+    else:
+        why = estimand.get("failure_reason") or block.get("failure_reason")
+        lines.append(
+            "  - 整条估计量**不可恢复**" + (f"：{why}" if why else "")
+        )
+    return "\n".join(lines)
+
+
+# Each route, said once. ``bind`` refuses a set that misses one, so a
+# block added to the family cannot reach this section and render nothing.
+_ROUTE_RENDERERS = blocks.bind(blocks.ROUTE, {
+    blocks.IDENTIFICATION: _route_identification,
+    blocks.IV_IDENTIFICATION: _route_iv_identification,
+    blocks.TRANSPORT_IDENTIFICATION: _route_transport_identification,
+    blocks.JOINT_IDENTIFICATION: _route_joint_identification,
+    blocks.LONGITUDINAL_IDENTIFICATION: _route_longitudinal_identification,
+    blocks.MEDIATION_DECOMPOSITION: _route_mediation_decomposition,
+    blocks.MEDIATION_JOINT_DECOMPOSITION: _route_mediation_joint_decomposition,
+    blocks.PROXIMAL_ESTIMAND: _route_proximal_estimand,
+    blocks.SELECTION_RECOVERY: _route_selection_recovery,
+    blocks.MISSING_DATA_RECOVERY: _route_missing_data_recovery,
+})
+
+
+def _render_route(result: dict) -> str:
+    """How the estimand was identified — empty when nothing said.
+
+    Read in declaration order, so the recognised pattern leads and the
+    recoverability verdicts, which qualify whatever came before them,
+    come last. The order lives in :mod:`themis.blocks` rather than in a
+    list here: a second list is the thing that goes stale.
+
+    A renderer may return nothing when its block adds nothing to what a
+    block above it already said; that is dropped rather than printed as
+    a heading over an empty line.
+    """
+    extensions = result.get("extensions") or {}
+    lines = [
+        _ROUTE_RENDERERS[block](extensions[block], result)
+        for block in blocks.declared_as(blocks.ROUTE)
+        if extensions.get(block)
+    ]
+    return "\n".join(line for line in lines if line)
 
 
 # --- causal model -------------------------------------------------------------

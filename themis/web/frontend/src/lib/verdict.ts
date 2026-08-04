@@ -111,6 +111,173 @@ function corner(c: Record<string, unknown> | undefined): string {
   return '{' + Object.keys(c).sort().map((k) => `${k}=${String(c[k])}`).join(', ') + '}'
 }
 
+// The routes an answer can arrive by — the family themis/blocks.py declares,
+// in ITS declaration order, which is the order both surfaces state them in.
+// A test parses this array and holds it equal to blocks.declared_as(ROUTE),
+// and holds every name in it to having a renderer below: the foldout named
+// itself "怎么算出来的" while saying only the formula and the paths, and the
+// ten blocks that answer that question exactly reached no reader at all.
+const ROUTE_ORDER = [
+  'identification',
+  'iv_identification',
+  'transport_identification',
+  'joint_identification',
+  'longitudinal_identification',
+  'mediation_decomposition',
+  'mediation_joint_decomposition',
+  'proximal_estimand',
+  'selection_recovery',
+  'missing_data_recovery',
+] as const
+
+export interface Route {
+  cap: string
+  rows: { label: string; value: string }[]
+}
+
+type Blk = Record<string, any>
+
+const varset = (xs: unknown): string =>
+  '{' + (Array.isArray(xs) ? xs.map(String) : []).join(', ') + '}'
+
+const preds = (xs: unknown): string =>
+  varset(Array.isArray(xs) ? xs.map((e: any) => e?.predicate ?? '?') : [])
+
+const PATTERN_ZH: Record<string, string> = {
+  backdoor: '后门调整',
+  front_door: '前门调整',
+  c_factor: 'ID 算法的一般解 (c-factor)',
+  instrumental_variable: '工具变量',
+}
+
+// One arm of a decomposition — identifiable, and on what.
+const arm = (info: Blk | undefined, label: string) => ({
+  label,
+  value: info?.identifiable
+    ? `可识别${info.adjustment?.length ? ` · 调整 ${varset(info.adjustment)}` : ''}`
+    : `不可识别${info?.failed_condition ? ` · ${info.failed_condition}` : ''}`,
+})
+
+// A renderer takes the whole extensions map so it can decline to repeat what
+// a block above it already said, and may return null when that leaves it with
+// nothing — a heading over no rows is worse than no heading.
+const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Route | null> = {
+  identification: (b) => {
+    const rows = [{ label: '模式', value: PATTERN_ZH[b.pattern] ?? String(b.pattern ?? '?') }]
+    if (b.pattern === 'backdoor') {
+      rows.push({ label: '调整集', value: b.adjustment_set?.length ? varset(b.adjustment_set) : '无需调整——没有开放的后门路径' })
+    } else if (b.pattern === 'front_door') {
+      rows.push({ label: '中介集', value: varset(b.mediator_set) })
+    } else if (b.pattern === 'instrumental_variable') {
+      rows.push({ label: '工具', value: String(b.instrument ?? '?') })
+    }
+    if (b.conditioned_on?.length) rows.push({ label: '问题条件于', value: varset(b.conditioned_on) })
+    if (b.required_assumption) rows.push({ label: '点识别另需', value: String(b.required_assumption) })
+    return { cap: '识别模式', rows }
+  },
+  // strategy / instrument / conditioning / required_assumption are copied
+  // into `identification` by the producer, which calls that copy the human
+  // surface — so state them here only when no pattern line will.
+  iv_identification: (b, ext) => {
+    const rows: { label: string; value: string }[] = []
+    if (ext.identification?.pattern !== 'instrumental_variable') {
+      rows.push({ label: '工具', value: String(b.instrument ?? '?') })
+      if (b.conditioning?.length) rows.push({ label: '条件于', value: varset(b.conditioning) })
+    }
+    if (typeof b.alternatives_count === 'number' && b.alternatives_count > 1) {
+      rows.push({ label: '候选工具', value: `共 ${b.alternatives_count} 个，取其一` })
+    }
+    if (b.late_caveat) rows.push({ label: '注意', value: String(b.late_caveat) })
+    return rows.length ? { cap: '工具变量', rows } : null
+  },
+  transport_identification: (b) => {
+    const rows = [{ label: '从 → 到', value: `${b.source_population ?? '源总体'} → ${b.target_population ?? '目标总体'}` }]
+    const s = (b.s_nodes ?? []).map((n: any) => n?.affects?.predicate ?? '?')
+    if (s.length) rows.push({ label: '两地分布不同', value: varset(s) })
+    if (b.adjustment_set?.length) rows.push({ label: '重加权于', value: preds(b.adjustment_set) })
+    return { cap: '跨总体迁移', rows }
+  },
+  joint_identification: (b) => {
+    const rows = [{ label: '同时干预', value: varset(b.treatments) }]
+    rows.push(b.pattern === 'joint_general_id'
+      ? { label: '识别', value: '无可用调整集，由集合版 ID 算法识别' }
+      : { label: '联合后门调整集', value: b.adjustment_set?.length ? varset(b.adjustment_set) : '无需调整' })
+    if (b.interaction) rows.push({ label: '交互', value: '差值尺度——逐个单独干预再相加拿不到' })
+    return { cap: '联合干预', rows }
+  },
+  longitudinal_identification: (b) => {
+    const rows = [{ label: '处理序列', value: (b.treatments ?? []).join(' → ') || '（空）' }]
+    rows.push({ label: '结局', value: String(b.outcome ?? '?') })
+    if (b.confounders_by_time?.length) {
+      rows.push({ label: '各时点已测混杂', value: b.confounders_by_time.map(varset).join('、') })
+    }
+    rows.push({
+      label: '序贯可交换性',
+      value: b.identified
+        ? '成立——每个时点的后门路径都被此前的历史挡住'
+        : '不成立——g-formula 会给出有偏的数',
+    })
+    return { cap: '时变处理 (g-formula)', rows }
+  },
+  mediation_decomposition: (b) => ({
+    cap: '中介分解',
+    rows: b.mediator_valid === false
+      ? [{ label: '中介', value: `${b.mediator ?? '?'} 不在任何 X→…→M→…→Y 有向路径上` }]
+      : [{ label: '中介', value: String(b.mediator ?? '?') },
+         arm(b.nde_nie, 'NDE / NIE'), arm(b.cde, 'CDE')],
+  }),
+  mediation_joint_decomposition: (b) => ({
+    cap: '中介集分解',
+    rows: b.mediator_set_valid === false
+      ? [{ label: '中介集', value: `${varset(b.mediators)} 不是有效中介集` }]
+      : [{ label: '中介集', value: `${varset(b.mediators)}（整体当一个块，不需内部排序）` },
+         arm(b.nde_nie, 'NDE / NIE'), arm(b.cde, 'CDE')],
+  }),
+  proximal_estimand: (b) => {
+    const rows = [{ label: '未测混杂', value: `${b.latent ?? '?'}${b.latent_cardinality != null ? ` (取 ${b.latent_cardinality} 个值)` : ''}` }]
+    rows.push({ label: '代理', value: `处理侧 ${b.treatment_proxy ?? '?'} · 结局侧 ${b.outcome_proxy ?? '?'}` })
+    if (b.data_conditions) rows.push({ label: '数据须满足', value: String(b.data_conditions) })
+    return { cap: '近端识别', rows }
+  },
+  selection_recovery: (b) => {
+    const rows = [{ label: '样本被限制于', value: varset(b.selection_nodes) }]
+    rows.push({
+      label: '无偏效应',
+      value: b.recoverable
+        ? `可从这份有偏样本恢复${b.adjustment_set?.length ? ` · 选择后门调整 ${varset(b.adjustment_set)}` : ''}`
+        : `无法只从这份样本恢复${b.failure_reason ? ` · ${b.failure_reason}` : ''}`,
+    })
+    if (b.external_data_needed?.length) rows.push({ label: '还需外部数据', value: b.external_data_needed.join('、') })
+    return { cap: '选择偏倚', rows }
+  },
+  missing_data_recovery: (b) => {
+    const rows = [{ label: '机制', value: String(b.mechanism ?? '?') }]
+    if (b.partially_observed?.length) rows.push({ label: '部分观测', value: varset(b.partially_observed) })
+    const est = b.estimand ?? {}
+    rows.push({
+      label: '整条估计量',
+      value: est.recoverable
+        ? `可从缺失数据恢复${est.requires?.length ? ` · 需 ${est.requires.join('、')}` : ''}`
+        : `不可恢复${est.failure_reason ?? b.failure_reason ? ` · ${est.failure_reason ?? b.failure_reason}` : ''}`,
+    })
+    return { cap: '缺失数据', rows }
+  },
+}
+
+// How the answer was arrived at, in registry order. Empty when the envelope
+// states no route — a heading over nothing is a promise it did not make.
+export function routeRows(extensions: Record<string, unknown> | undefined): Route[] {
+  if (!extensions) return []
+  const out: Route[] = []
+  for (const name of ROUTE_ORDER) {
+    const block = extensions[name] as Blk | undefined
+    if (!block || typeof block !== 'object') continue
+    const route = ROUTE_RENDERERS[name](block, extensions as Record<string, any>)
+    if (route) out.push(route)
+  }
+  return out
+}
+
 // The shapes an estimate can answer in — the vocabulary themis/answers.py
 // declares, bound here to this surface's rows. This surface used to read only
 // `point`, so a curve, a decomposition, a joint contrast and a bounded cell

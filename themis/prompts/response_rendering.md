@@ -91,8 +91,12 @@ A reply is a small ladder, top to bottom:
      in `explanation`)
 4. **Concrete asks** — `investigation_requests` rendered with the
    exact predicate names + worked examples for null skeleton fields
-5. **Methodology** — only when the user asks "why" / "how": the
-   `derivation` chain, full assumptions list, the symbolic formula
+5. **Methodology** — only when the user asks "why" / "how": how the
+   estimand was identified (the *route* blocks — which pattern the
+   graph was recognised as and on what set, the instrument, the
+   mediator, the populations, whether the estimand is recoverable at
+   all), then the `derivation` chain, the full assumptions list, the
+   symbolic formula
 
 The first two layers are mandatory whenever the data is present. The
 last two are need-driven — don't lead with methodology.
@@ -114,7 +118,7 @@ Fields in roughly the order you'll consult them:
 | `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
 | `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |
 | `bounds_result` | Phase 12: symbolic bounds when point identification failed. Method + lower/upper expressions + assumptions. See §"Bounds rendering" |
-| `extensions.{...}` | Domain-specific blocks: `ambiguities`, `iv_identification`, `mediation_decomposition`, `transport_identification`, `selection_recovery` (recoverability from selection bias — companion to the selection-on-collider gap), `missing_data_recovery` (MCAR/MAR/MNAR + recoverability under missing data), `mechanism_audit`; **`assumption_ledger`** (unified, severity-ranked lead surface — render first when present) |
+| `extensions.{...}` | Named blocks. Each is one of five kinds, and the kind — not the name — says where it belongs in the ladder: **route** (how the estimand was identified — the recognised pattern and its adjustment set, the instrument, the mediator, the source and target populations, a recoverability verdict) belongs in Methodology; **answer** carries the quantity itself where there is no `numeric_estimate` to carry it; **assumption** is led by **`assumption_ledger`**, the unified severity-ranked surface — render it first when present; **gap** is already itemized through `data_gap_report`; **refusal** says why nothing came out. A block you have not met before still belongs to one of the five — place it by what it says |
 | `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
 | `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
 

@@ -27,8 +27,67 @@ carries its own ``extensions`` side-channel (upstream ambiguities,
 discovery metadata, monotonicity declarations), which shares the word and
 nothing else. ``ambiguities`` appears in both and means the same thing in
 both only because a pass deliberately copies the relevant entries across.
+
+Each block also says how it is READ. The registry grouped itself by
+producer from the day it was written — "what the identification layer
+concludes", "what the numeric end produces" — and never by consumer, so
+the only way to answer "does anyone say this to anyone" was to cross every
+block against every surface by hand. That census found ten blocks whose
+whole job is to say how the estimand was identified and no place in any
+report that says it, while the four other things a block can be — the
+answer, an assumption, a gap, a refusal — each already had both a table
+and a section. A comment cannot be checked; :class:`Family` can, and
+:func:`bind` holds a surface to the family it claims to render.
 """
 from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Mapping, TypeVar
+
+R = TypeVar("R")
+
+
+@dataclass(frozen=True)
+class Family:
+    """One of the reader's questions, and the blocks that answer it.
+
+    Not a taxonomy for its own sake: this is the axis the registry was
+    missing. Grouped by producer, a block that reached nobody looked
+    exactly like a block that reached somebody, because both were listed
+    under whoever wrote them.
+    """
+
+    name: str
+    tells: str
+
+    def __str__(self) -> str:  # pragma: no cover - trivial
+        return self.name
+
+
+ROUTE = Family(
+    "route",
+    tells="how the estimand was identified — which pattern the graph was "
+          "recognised as, on which set, under which extra premise",
+)
+ANSWER = Family(
+    "answer",
+    tells="the quantity itself, on the paths that put it beside the "
+          "estimate rather than in it",
+)
+ASSUMPTION = Family(
+    "assumption",
+    tells="what has to hold for the answer to stand",
+)
+GAP = Family(
+    "gap",
+    tells="what is missing from, or inconsistent in, what was supplied",
+)
+REFUSAL = Family(
+    "refusal",
+    tells="why no answer came out",
+)
+
+FAMILIES: tuple[Family, ...] = (ROUTE, ANSWER, ASSUMPTION, GAP, REFUSAL)
 
 
 class Block(str):
@@ -39,11 +98,18 @@ class Block(str):
     that the name exists in exactly one place, and that ``holds`` travels
     with it instead of living in whichever docstring happened to describe
     the writer.
+
+    ``read_as`` is required, so a block cannot be added without saying
+    which of the reader's questions it answers. That is the whole guard:
+    a new route enters :func:`declared_as` the moment it is declared, and
+    the report's :func:`bind` then refuses to import until something
+    renders it.
     """
 
-    def __new__(cls, name: str, *, holds: str) -> "Block":
+    def __new__(cls, name: str, *, holds: str, read_as: Family) -> "Block":
         block = super().__new__(cls, name)
         block.holds = holds  # type: ignore[misc]
+        block.read_as = read_as  # type: ignore[misc]
         return block
 
     def __repr__(self) -> str:
@@ -60,127 +126,208 @@ class Block(str):
         return (str, (str(self),))
 
 
-# --- what the identification layer concludes --------------------------------
+# --- ROUTE: how the estimand was identified ---------------------------------
+#
+# Declaration order is the order a report says them in, so the general
+# pattern leads and the recoverability verdicts — which qualify whatever
+# came before them — come last.
 
 IDENTIFICATION = Block(
     "identification",
     holds="which pattern the graph was recognised as — back-door, "
           "front-door, Tian — beside the formula it produced",
+    read_as=ROUTE,
 )
 IV_IDENTIFICATION = Block(
     "iv_identification",
     holds="the chosen instrument, the set it is valid conditional on, and "
           "the assumption a Wald ratio rests on",
+    read_as=ROUTE,
 )
 TRANSPORT_IDENTIFICATION = Block(
     "transport_identification",
     holds="the source and target populations, the selection nodes between "
           "them, and the transport formula",
+    read_as=ROUTE,
 )
 JOINT_IDENTIFICATION = Block(
     "joint_identification",
     holds="how a do() over a treatment set was identified, including the "
           "treatment x treatment interaction no sequence of singles recovers",
+    read_as=ROUTE,
 )
 LONGITUDINAL_IDENTIFICATION = Block(
     "longitudinal_identification",
     holds="the time-varying treatment sequence and the g-formula that "
           "identifies it under sequential exchangeability",
+    read_as=ROUTE,
 )
 MEDIATION_DECOMPOSITION = Block(
     "mediation_decomposition",
     holds="natural direct and indirect effects through one mediator, and "
           "their numbers once the numeric end has run",
+    read_as=ROUTE,
 )
 MEDIATION_JOINT_DECOMPOSITION = Block(
     "mediation_joint_decomposition",
     holds="the same decomposition through a mediator SET treated as one "
           "block, which is what makes it identifiable without an ordering",
+    read_as=ROUTE,
 )
 PROXIMAL_ESTIMAND = Block(
     "proximal_estimand",
     holds="the bridge-function estimand proximal identification produces "
           "from two proxies of an unmeasured confounder",
-)
-CAUSATION_ERROR = Block(
-    "causation_error",
-    holds="why probabilities of causation were refused — they need binary "
-          "treatment and outcome, and the refusal names which was not",
-)
-COUNTERFACTUAL_ERROR = Block(
-    "counterfactual_error",
-    holds="why a counterfactual query was refused, in the words of "
-          "whatever raised",
-)
-
-# --- what the numeric end produces beside the estimate ----------------------
-
-CAUSATION = Block(
-    "causation",
-    holds="probabilities of necessity and sufficiency, with the "
-          "interventional risks they are computed from",
-)
-COUNTERFACTUAL_CELL = Block(
-    "counterfactual_cell",
-    holds="one cell of the counterfactual joint distribution, the "
-          "attribution layer's finest-grained answer",
-)
-SCM_COUNTERFACTUAL = Block(
-    "scm_counterfactual",
-    holds="a point counterfactual under a linear SCM, plus the display "
-          "copy of the value the audited estimate must agree with",
-)
-MECHANISM_AUDIT = Block(
-    "mechanism_audit",
-    holds="the functional form the number was computed under, and where "
-          "that form came from — the estimator's default or the caller",
-)
-TYPE_RECONCILIATION = Block(
-    "type_reconciliation",
-    holds="what was checked when the declared variable types and the "
-          "data's own types disagreed",
-)
-
-# --- what the answer is read with -------------------------------------------
-
-ASSUMPTION_LEDGER = Block(
-    "assumption_ledger",
-    holds="every load-bearing assumption the answer rests on, ranked by "
-          "how the conclusion dies if it is false",
-)
-LLM_PROPOSED_REVIEW = Block(
-    "llm_proposed_review",
-    holds="the edges and parameter priors a language model proposed, for "
-          "a reader to accept or reject before trusting the number",
-)
-AMBIGUITIES = Block(
-    "ambiguities",
-    holds="the upstream naming ambiguities that bear on THIS query, "
-          "copied across from the program's own side-channel",
+    read_as=ROUTE,
 )
 SELECTION_RECOVERY = Block(
     "selection_recovery",
     holds="whether the unbiased effect is recoverable from a "
           "selection-restricted sample, and what external data it needs",
+    read_as=ROUTE,
 )
 MISSING_DATA_RECOVERY = Block(
     "missing_data_recovery",
     holds="whether the estimand is recoverable under the declared "
           "missingness mechanism, from the m-graph",
+    read_as=ROUTE,
+)
+
+# --- ANSWER: the quantity, on the paths that put it beside the estimate -----
+#
+# Read by ``output.explainer``, which takes the typed result rather than
+# the envelope. That is why they are not answer SHAPES: a shape says how
+# ``numeric_estimate`` came out, and these exist precisely where there is
+# no ``numeric_estimate`` to shape.
+
+CAUSATION = Block(
+    "causation",
+    holds="probabilities of necessity and sufficiency, with the "
+          "interventional risks they are computed from",
+    read_as=ANSWER,
+)
+COUNTERFACTUAL_CELL = Block(
+    "counterfactual_cell",
+    holds="one cell of the counterfactual joint distribution, the "
+          "attribution layer's finest-grained answer",
+    read_as=ANSWER,
+)
+SCM_COUNTERFACTUAL = Block(
+    "scm_counterfactual",
+    holds="a point counterfactual under a linear SCM, plus the display "
+          "copy of the value the audited estimate must agree with",
+    read_as=ANSWER,
+)
+
+# --- ASSUMPTION: what has to hold ------------------------------------------
+#
+# The ledger is the surface; the other two are channels it reads and
+# re-presents, which is why a census that asked "who renders this" scored
+# them as unreached and was wrong.
+
+ASSUMPTION_LEDGER = Block(
+    "assumption_ledger",
+    holds="every load-bearing assumption the answer rests on, ranked by "
+          "how the conclusion dies if it is false",
+    read_as=ASSUMPTION,
+)
+MECHANISM_AUDIT = Block(
+    "mechanism_audit",
+    holds="the functional form the number was computed under, and where "
+          "that form came from — the estimator's default or the caller",
+    read_as=ASSUMPTION,
+)
+LLM_PROPOSED_REVIEW = Block(
+    "llm_proposed_review",
+    holds="the edges and parameter priors a language model proposed, for "
+          "a reader to accept or reject before trusting the number",
+    read_as=ASSUMPTION,
+)
+
+# --- GAP: what is missing from, or wrong with, the inputs -------------------
+#
+# Both reach the reader as entries in ``data_gap_report.gaps``, which the
+# report already renders; the block keeps the evidence a verifier
+# re-derives the entry from.
+
+AMBIGUITIES = Block(
+    "ambiguities",
+    holds="the upstream naming ambiguities that bear on THIS query, "
+          "copied across from the program's own side-channel",
+    read_as=GAP,
+)
+TYPE_RECONCILIATION = Block(
+    "type_reconciliation",
+    holds="what was checked when the declared variable types and the "
+          "data's own types disagreed",
+    read_as=GAP,
+)
+
+# --- REFUSAL: why no answer came out ----------------------------------------
+#
+# Both predate ``themis.refusals`` and still carry a bare prose string
+# where every other refusal carries a declared species; neither is
+# produced by any path the suite exercises.
+
+CAUSATION_ERROR = Block(
+    "causation_error",
+    holds="why probabilities of causation were refused — they need binary "
+          "treatment and outcome, and the refusal names which was not",
+    read_as=REFUSAL,
+)
+COUNTERFACTUAL_ERROR = Block(
+    "counterfactual_error",
+    holds="why a counterfactual query was refused, in the words of "
+          "whatever raised",
+    read_as=REFUSAL,
 )
 
 
-ALL: frozenset[Block] = frozenset(
+DECLARED: tuple[Block, ...] = tuple(
     value for value in tuple(globals().values()) if isinstance(value, Block)
 )
-"""Every block of the result envelope's extensions map.
+"""Every block of the result envelope's extensions map, in declaration order.
 
 Collected from this module rather than listed again below it: a block
 declared above and forgotten here would be exactly the drift this module
-exists to end.
+exists to end. The order is kept because a surface that renders a whole
+family reads them in it — so the running order of a report section is
+this file, not a second list somewhere else.
 """
 
+ALL: frozenset[Block] = frozenset(DECLARED)
+
 BY_NAME: dict[str, Block] = {str(block): block for block in ALL}
+
+
+def declared_as(family: Family) -> tuple[Block, ...]:
+    """Every block of one family, in declaration order."""
+    return tuple(block for block in DECLARED if block.read_as is family)
+
+
+def bind(family: Family, renderers: Mapping[Block, R]) -> dict[Block, R]:
+    """One surface's renderers for one family, checked both ways.
+
+    An unbound block is a fact that arrives at this surface and produces
+    nothing — the silence the ``read_as`` axis exists to make impossible
+    to add. A bound block from outside the family is a renderer whose
+    output would land in the wrong section, which reads as coverage and
+    is not.
+    """
+    members = declared_as(family)
+    missing = sorted(str(b) for b in members if b not in renderers)
+    if missing:
+        raise ValueError(
+            f"no renderer for {family.name} block(s) {missing}; a result "
+            f"carrying one would reach this surface and say nothing"
+        )
+    extra = sorted(str(b) for b in renderers if b not in members)
+    if extra:
+        raise ValueError(
+            f"renderer bound for {extra}, which {family.name} does not "
+            f"contain (themis.blocks.declared_as)"
+        )
+    return dict(renderers)
 
 
 def check_registered(result: dict) -> None:

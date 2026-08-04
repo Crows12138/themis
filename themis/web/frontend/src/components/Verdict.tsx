@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, routeRows } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -22,9 +22,13 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const ledger = result.extensions?.assumption_ledger
   const showCompare = num != null && num.point != null && naive != null
   const shaped = num ? answerRows(num) : null
+  // How the estimand was identified. This foldout has been called
+  // "怎么算出来的" all along while saying only the formula and the paths; the
+  // ten blocks that answer that question are read here now.
+  const routes = routeRows(result.extensions)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
-  const hasDetail = paths.length > 0 || !!formula || !!bounds || sens?.e_value != null || !!ledger?.assumptions?.length
+  const hasDetail = routes.length > 0 || paths.length > 0 || !!formula || !!bounds || sens?.e_value != null || !!ledger?.assumptions?.length
 
   return (
     <section className="verdict" aria-label="判决">
@@ -132,7 +136,19 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {/* How it was computed — formula / paths / bounds / ledger. Machine
               artifacts a lay reader rarely needs; folded, nothing removed. */}
           {hasDetail ? (
-            <Foldout summary="怎么算出来的 · 识别公式 / 路径 / 假设">
+            <Foldout summary="怎么算出来的 · 识别路线 / 公式 / 路径 / 假设">
+              {routes.map((r, i) => (
+                <div className="boundsexpr" key={`route-${i}`}>
+                  <span className="figure__cap">{r.cap}</span>
+                  {r.rows.map((row, j) => (
+                    <div className="boundsexpr__row" key={j}>
+                      <span className="boundsexpr__k">{row.label}</span>
+                      <span className="boundsexpr__v">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
               {paths.length ? (
                 <div className="figure">
                   <span className="figure__cap">{result.query_kind === 'cause' ? '因果路径' : '支持路径'}</span>
