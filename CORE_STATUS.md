@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3963 passed / 144 skipped, warning-clean
+3980 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1134,6 +1134,26 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **自己的测试当场犯了上一条的错**：「每种 kind 的问题行不许出现枚举 token」判 `identify` 失败——那行是完整中文问句，末尾带 `（\`identify\`）` 标签。**token 出现与否分不出「句子＋标签」和「token 顶替句子」**（正是上一条 ㉝ 说的），改成量「旧兜底 `（查询类型：x）` 的形状还在不在」＋中文字符数下限。
 
 **基线（本条）**：3913 → **3963**（+50：词表与 schema 的 `query_kind` 枚举双向相等、`query_kind` 必填所以无需兜底、恰好三种问法由布尔作答（字面钉死）、每条读法两个值都得有命题且不相等、少绑一种拒绝、多绑一种拒绝、未知 kind 抛而不兜、explainer 是绑的不是链的；六个实测格各一条——问数不再答判断、不可识别说成「不可识别」而不是「否」、带 formula 的落到本来就写好的那句、图问题仍由判断作答（真 / 假各一）、十种 kind 都不落到「无可呈现的答案字段」；问题行：fixture 只许用 schema 声明的字段且必须覆盖 required、十种 kind 各一条「问句里必须点到它被问的那几个变量、且不许出现未解析的 `?`」、十种 kind 无 program 时也不落回旧兜底形状；同一程序里两道题各问各的、`query_id` 落空时回散文而不是借用别人的变量、kind 对不上的 query 不会被塞进这个 kind 的渲染器；web 的表与 Python 逐项相等、兜底确已消失；一次真实中介运行端到端）。
+
+**一个三元集合回答了两个问题，两个都答错了 probability（2026-08-04，接上条）**：修复型，用户可见。上一条登记「`_ESTIMAND_QUERY_KINDS` 只列 3 种、注释只解释了 7 个排除里的 3 个，四种会产数的 kind 被静默排除、`answer_tier` 恒 None」。**量完，登记的说法是错的**——那个字段不是恒 None，而是**看你从哪个入口进来**。
+
+**测量（全量插桩，行为不变 3963 passed）**：识别路径上 7 种 kind 全为 None，**而估计路径无条件写**——`dispatch._finalise_numeric_result` / `_finalise_numeric_bounds_result` 直接往报告里塞 `answer_tier="point"/"interval"`，**不看 query_kind、不读任何名单**。所以同一个 causation 查询走 `themis.run` 没有 tier、走 `themis.estimate` 有：信封实测 causation 25 个里 17 个有、8 个没有；scm_counterfactual 6/17；proximal_effect 4/10；counterfactual_conjunction 5/6。第二个消费端更刺眼：同一个集合还决定「缺分布时区间是不是真退路」，它的 else 分支被调用 **226 次，其中 222 次是 causation**，说的是「观察性条件量是点可估的，**没有 bounds 替代路径**」——对 PN/PS/PNS 这是**假的**，Tian-Pearl bounds 正是它的答案。**那句注释解释的是它 226 次里的 4 次。**
+
+**顺手量了孪生集合，抓到第三个（真丢数据）**：`_QUERY_KINDS_WITHOUT_DATA_NEEDS` 把 `probability` 列为「无数据需求」，并且**在物种分类之前就 `return None`**。子集实测 2 次：内核明明提了 `MISSING_DISTRIBUTION`（「Theta 中缺条目 P(coin=True)」），报告整个不存在——而**报告不存在正是「问过了，什么都不缺」的信号**。
+
+**根因**：两条都是「问法的属性」被手写成 output 模块里的私有名单，一次成员测试回答两个不同的问题（「这个问法有没有一个量」／「点没了区间能不能顶」）。**同一个文件自己就矛盾**：321 行说 probability「不是估计量查询」，1926 行说 probability「是点可估的量」。两个问题对那 3 个成员碰巧同答案，else 分支就各自跑偏；后加的 kind 静默落进 else 继承了 probability 的答案，**没有人决定过**。决定性证据是**估计层根本没有这张表**——「这个问法能不能有 tier」在系统里有两份互相矛盾的实现，其中一份是空的。
+
+**修法**：两条事实各成 `Question` 的一等字段（必填，十种问法各声明一次）——`names_an_estimand`（只有 cause / assoc 为假：它们问的是图，没有量）与 `interval_fallback`（`str | None`，只有 effect / counterfactual / causation 有：Balke-Pearl / Tian-Pearl ×2）。两个名单删除，三个消费端各读一端：早退门读前者、tier 门读前者、缺分布的替代路径读后者并**把定理名说对**（causation 与 counterfactual 从 Balke-Pearl 改成 Tian-Pearl；effect 那句字节不变，它本来就是被 `_reconcile_alt_paths_with_bounds` 改写的占位符）。`interval_fallback` 是**库存事实不是数学事实**——写成 `str | None` 而不是布尔，是因为下一个 kind 的作者必须说出「谁来给这个区间」，说不出就是 None。
+
+**没修完的那一格，是被自己的测试逼出来的**：本条原本要让 causation 也在识别期报 tier。第一版按「monotonic 未声明 ⇒ 点被前提挡住 ⇒ 区间」写完，构造一个 `x<->y` 的图去验，**它照样报 interval**——查下去发现 causation 的 dispatcher **先要观测联合、再去识别干预风险**，缺 θ 时两件事都没发生：monotonic=True 也不知道点在不在（风险可能不可识别），monotonic=False 也不知道区间在不在（Tian-Pearl 同样要那两个风险）。**两个默认值都是许诺**：POINT 许一个缺单调性就没有的数，INTERVAL 许一个被未观测混杂否掉的界。`AnswerTier` 没有「还不知道」这个成员，所以 causation 在**没有数**时不发 tier——不是名单，是 `_answer_shape_is_undecided` 这条按结果判的规则。实测：causation 43 次里 29 次不发（形状未定）、14 次照数发（point 10 / interval 4，原来全是 None）。
+
+**修完重量一遍（同一插桩，全量）**：causation 缺分布的 266 条替代路径全部改说 Tian-Pearl，**那句假话 0 次**（原 222）；`report is None 且带着 item` **0 次**（子集原 2 次；全量里 6 次走这条形状，其中 4 次是本轮新测试）；四个原本静默排除的 kind 在识别期各自报出实测正确的 tier——probability 36/36 point、scm_counterfactual 27/27 point、counterfactual_conjunction 19 point + 3 none（none 即 ID* hedge）、proximal_effect 9 point + 2 none；effect / identify / counterfactual 三档分布**逐格不变**（1246 / 133 / 68）。
+
+**声明的取舍**：①**web 的头条会变**——`Verdict.tsx` 是 `!tier && struct ? structuralReadout(...)`，所以这四种 kind 的头条从「识别：…可识别」换成「能给的最强答案：点估计」。这是 effect / identify / counterfactual 早就在用的处理，现在一致了；代价是 proximal / conjunction 的读者在头条上看不到「识别条件成立」那半句（仍在信封里）。②**causation 的替代路径没有对账**——`_reconcile_alt_paths_with_bounds` 只对 effect 查询和已算出 `bounds_result` 的结果动手，所以 causation 那句「接受 Tian-Pearl bounds」在风险不可识别时是乐观的；要修得先让 causation 先识别后要数（见下）。③没有为「未声明单调性」新开一条 `missing_assumption` 缺口告诉用户「声明它就能拿到点」——那是功能不是纠错，登记。
+
+**未做已登记**：**causation 的 dispatcher 顺序**（先要 θ 的观测联合、后识别干预风险）是它识别期没有 tier 的根因，也是替代路径无法对账的根因——把顺序倒过来（识别在前、要数在后，其余 kind 都是这个顺序）能同时结掉这两条。
+
+**基线（本条）**：3963 → **3980**（+17：两个字段各一条字面钉死（恰好 cause/assoc 无估计量、恰好三种有区间退路）、无量者必无区间、**报告模块里不许再有任何 QueryKind 的模块级集合**；三个消费端各自的实测格——causation 缺口拿到 Tian-Pearl、probability 缺口不被许诺区间、probability 的缺口不再随报告一起消失、图问题无话时仍不出报告；tier：causation 形状未定时（单调与否各一）不发、形状未定连界也不存在时也不发、有数时照数发 interval、probability 发 point、图问题不发、scm_counterfactual / proximal_effect / counterfactual_conjunction 三种各一条「没有估计器也该有 tier」）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
