@@ -225,31 +225,43 @@ def _tier(result):
     return (result.get("data_gap_report") or {}).get("answer_tier")
 
 
-@pytest.mark.parametrize("monotonic", [True, False])
-def test_causation_states_no_tier_while_its_shape_is_undecided(monotonic):
-    """Lifting the gate onto causation without this would have shipped a
-    guess. Its point exists only under a declared monotonicity and its
-    interval only once P(Y|do(X)) is identified, and the dispatcher asks
-    for the observational joint first — so a result that stopped for want
-    of theta has settled neither, under either declaration."""
+@pytest.mark.parametrize("monotonic, expected", [(True, "point"),
+                                                 (False, "interval")])
+def test_a_withheld_premise_decides_the_shape_before_the_data_arrive(
+    monotonic, expected,
+):
+    """PN/PS/PNS are Tian-Pearl intervals; monotonicity is what collapses
+    them to points, and it is declared on the query rather than found in
+    the data. So the shape of the eventual answer is known before any of
+    it is: ``point`` here would promise a number that cannot arrive."""
     result = themis.run(_causation_program(monotonic=monotonic))["results"][0]
     assert result["status"] == "needs_investigation"
-    assert _tier(result) is None
+    assert _tier(result) == expected
 
 
-def test_the_shape_is_undecided_even_where_the_bounds_could_not_exist():
-    """Not a case the report can tell apart from the one above, which is
-    the point of saying nothing: an unobserved confounder leaves the
-    interventional risks unidentifiable, so this query has no interval
-    either — and the identification that would have found that out never
-    ran, because theta was missing first."""
-    program = {
+def _unidentifiable_causation(*, with_theta: bool):
+    """X → Y with an unobserved common cause: P(Y|do(X)) is not identifiable,
+    so PN/PS/PNS have neither a point nor an interval — with or without the
+    theta the observational joint would need."""
+    theta = [
+        {"kind": "probability", "target": {"atom": _atom(t), "value": v},
+         "given": [{"atom": _atom(g), "value": gv} for g, gv in given],
+         "value": p}
+        for t, v, given, p in [
+            ("x", True, (), 0.4), ("x", False, (), 0.6),
+            ("y", True, (("x", True),), 0.7),
+            ("y", False, (("x", True),), 0.3),
+            ("y", True, (("x", False),), 0.2),
+            ("y", False, (("x", False),), 0.8),
+        ]
+    ] if with_theta else []
+    return {
         "version": "0.1",
         "domain": _OBJECTS,
         "statements": [
-            _var("x"), _var("y"),
-            _cause("x", "y"),
+            _var("x"), _var("y"), _cause("x", "y"),
             {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
+            *theta,
             {"kind": "query", "id": "q", "query": {
                 "kind": "causation",
                 "cause": _atom("x"), "effect": _atom("y"),
@@ -257,8 +269,59 @@ def test_the_shape_is_undecided_even_where_the_bounds_could_not_exist():
             }},
         ],
     }
-    result = themis.run(program)["results"][0]
-    assert _tier(result) is None
+
+
+@pytest.mark.parametrize("with_theta", [True, False])
+def test_the_same_graph_reaches_the_same_verdict_with_or_without_theta(
+    with_theta,
+):
+    """Identifiability is a property of the graph, so the two runs have to
+    agree — and they did not. The dispatcher asked theta for the
+    observational joint before it asked whether the interventional risks
+    were identifiable at all, and returned at the first shortfall it hit.
+    Without theta that was the joint, so the query that no data can answer
+    was reported as a list of distributions to go and collect."""
+    result = themis.run(_unidentifiable_causation(with_theta=with_theta))
+    result = result["results"][0]
+    assert result["status"] == "needs_investigation"
+    kinds = {m["gap"] for m in result["missing_information"]}
+    assert "unidentifiable_no_admissible_set" in kinds
+    assert _tier(result) == "none"
+
+
+def test_an_unreachable_interval_is_not_left_on_offer():
+    """The tier says no interval is reachable; a gap beside it still
+    advising "accept bounds for an interval answer" contradicts it in the
+    same breath, and the reader acts on the gap, not the tier."""
+    result = themis.run(
+        _unidentifiable_causation(with_theta=False)
+    )["results"][0]
+    report = result["data_gap_report"]
+    assert report["answer_tier"] == "none"
+    offers = [
+        a for g in report["gaps"] for a in (g.get("alternative_paths") or [])
+        if "给区间答案" in a
+    ] + [s for s in report.get("actionable_next_steps", []) if "给区间答案" in s]
+    assert offers == []
+
+
+def test_the_escape_hatch_says_which_of_its_two_causes_it_is():
+    """It fires both when the effect is unidentifiable and when it is
+    identifiable but theta is short — opposite repairs. One sentence for
+    both sent a reader to change a graph that was already fine."""
+    unid = themis.run(
+        _unidentifiable_causation(with_theta=True)
+    )["results"][0]
+    pending = themis.run(_causation_program(monotonic=False))["results"][0]
+
+    def _escape(result):
+        return next(
+            m for m in result["missing_information"]
+            if m["name"] == "causation:interventional_risk_unavailable"
+        )
+
+    assert "not identifiable from this graph" in _escape(unid)["reason"]
+    assert "identifiable but could not be evaluated" in _escape(pending)["reason"]
 
 
 def test_causation_states_its_tier_once_it_has_the_numbers():

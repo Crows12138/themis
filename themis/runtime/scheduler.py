@@ -2296,16 +2296,17 @@ def _derive_interventional_risks(
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
     selection_nodes: "tuple[Statement, ...]" = (),
-) -> "tuple[tuple[float, float] | None, QueryResult | None]":
+) -> ("tuple[tuple[float, float] | None, tuple[MissingItem, ...], "
+      "tuple[InvestigationRequest, ...]]"):
     """Derive P(Y=1 | do(X=1)) and P(Y=1 | do(X=0)) by running the
     existing effect identification twice.
 
     Reuses ``_dispatch_effect`` — so the interventional risks inherit the
     full backdoor / front-door / Tian / IV identification cascade for
-    free. Returns ``((p1, p0), None)`` on success, or ``(None, gap)``
-    where ``gap`` is a causation-kind ``needs_investigation`` result
-    carrying the merged missing-information and a pointer to the
-    experimental-risk escape hatch.
+    free. Returns ``((p1, p0), (), ())`` on success, or
+    ``(None, missing, requests)`` — the same shape as the single-arm
+    helper, so the caller can merge this shortfall with the one theta
+    reported instead of returning at whichever came first.
     """
     risks: list[float] = []
     merged_missing: list[MissingItem] = []
@@ -2323,30 +2324,36 @@ def _derive_interventional_risks(
                     merged_missing.append(item)
             merged_requests.extend(arm_requests)
     if len(risks) == 2:
-        return (risks[0], risks[1]), None
+        return (risks[0], risks[1]), (), ()
 
-    # At least one interventional risk could not be obtained — the effect
-    # of X on Y is not identifiable from theta (confounding / missing CPT).
+    # At least one risk could not be obtained, for one of two reasons that
+    # want opposite advice: the graph does not identify the effect (no
+    # theta ever will), or it does and theta is short of the distributions
+    # it needs. The escape hatch — supply the risks from an experiment —
+    # is worth offering either way, but saying "not identifiable" in the
+    # second case sends a reader to change a graph that is already fine.
+    unidentifiable = any(
+        m.gap == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET
+        for m in merged_missing
+    )
     escape = MissingItem(
         kind=MissingKind.ASSUMPTION,
         name="causation:interventional_risk_unavailable",
         priority=Priority.HIGH,
         gap=GapKind.MISSING_ASSUMPTION,
         reason=(
-            "P(Y=1|do(X)) could not be derived (effect not identifiable from "
-            "the supplied data). Supply experimental_risk_treated / "
-            "experimental_risk_control from a randomized experiment, or add "
-            "the data needed to identify the effect."
+            "P(Y=1|do(X)) is not identifiable from this graph, so no amount "
+            "of observational data yields it. Supply "
+            "experimental_risk_treated / experimental_risk_control from a "
+            "randomized experiment, or change the graph."
+            if unidentifiable else
+            "P(Y=1|do(X)) is identifiable but could not be evaluated — the "
+            "distributions it needs are listed alongside. Supply them, or "
+            "supply experimental_risk_treated / experimental_risk_control "
+            "from a randomized experiment and skip them."
         ),
     )
-    gap = QueryResult(
-        status=ResultStatus.NEEDS_INVESTIGATION,
-        query_kind=QueryKind.CAUSATION,
-        query_id=stmt.id,
-        missing_information=tuple(merged_missing) + (escape,),
-        investigation_requests=tuple(merged_requests),
-    )
-    return None, gap
+    return None, tuple(merged_missing) + (escape,), tuple(merged_requests)
 
 
 def _causation_observational_joint(
@@ -2396,6 +2403,50 @@ def _causation_observational_joint(
     if missing_items:
         return None, tuple(missing_items), skel
     return cells, (), {}
+
+
+def _causation_gap(
+    stmt: QueryStatement,
+    *,
+    joint_missing: "tuple[MissingItem, ...]",
+    joint_skeletons: dict,
+    risk_missing: "tuple[MissingItem, ...]",
+    risk_requests: "tuple[InvestigationRequest, ...]",
+) -> QueryResult:
+    """One needs_investigation result for both of the causation inputs.
+
+    Deduplicated by name and pushed once rather than concatenated: the two
+    shortfalls overlap (the ancestral factorization and the back-door
+    adjustment ask theta for many of the same conditionals), and two
+    request tuples would give the reader the same group twice.
+
+    The skeletons the reader pastes back into the program come from both
+    sides — theta's own map for the joint, and, for the risks, the ones
+    already attached to the items the effect dispatch pushed.
+    """
+    skeletons = dict(joint_skeletons or {})
+    for request in risk_requests:
+        for item in request.items:
+            if item.skeleton is not None:
+                skeletons.setdefault(item.target, item.skeleton)
+
+    merged: list[MissingItem] = []
+    seen: set[str] = set()
+    for item in tuple(joint_missing) + tuple(risk_missing):
+        if item.name in seen:
+            continue
+        seen.add(item.name)
+        merged.append(item)
+
+    return QueryResult(
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        query_kind=QueryKind.CAUSATION,
+        query_id=stmt.id,
+        missing_information=tuple(merged),
+        investigation_requests=investigation_pusher.push(
+            tuple(merged), skeletons=skeletons,
+        ),
+    )
 
 
 def _dispatch_causation(
@@ -2458,22 +2509,22 @@ def _dispatch_causation(
                 },
             )
 
-    # 3. Observational joint P(X, Y) — four cells from theta.
+    # 3-4. The two inputs Tian-Pearl needs: the observational joint P(X, Y),
+    # which comes from theta, and the interventional risks P(Y=1|do(X)),
+    # which come from identification. They are independent, so both are
+    # obtained before either shortfall is reported.
+    #
+    # Returning at the first one that failed reported whichever came first
+    # and hid the other. The joint came first, so a query whose effect is
+    # not identifiable at all — no theta will ever produce P(Y|do(X)) —
+    # reached the reader as a list of distributions to go and collect. The
+    # same graph WITH theta reports it correctly, which is the tell: what
+    # changed was not the graph but how far the code got.
     joint, joint_missing, joint_skeletons = _causation_observational_joint(
         graph, theta, x_atom, y_atom, bidirected=bidirected,
     )
-    if joint_missing:
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.CAUSATION,
-            query_id=stmt.id,
-            missing_information=tuple(joint_missing),
-            investigation_requests=investigation_pusher.push(
-                tuple(joint_missing), skeletons=joint_skeletons,
-            ),
-        )
-
-    # 4. Interventional risks P(Y=1 | do(X=1/0)).
+    risk_missing: tuple[MissingItem, ...] = ()
+    risk_requests: tuple[InvestigationRequest, ...] = ()
     if (
         q.experimental_risk_treated is not None
         and q.experimental_risk_control is not None
@@ -2482,14 +2533,24 @@ def _dispatch_causation(
         p_y_do_x0 = float(q.experimental_risk_control)
         risk_provenance = "user_experimental"
     else:
-        risks, gap = _derive_interventional_risks(
+        risks, risk_missing, risk_requests = _derive_interventional_risks(
             stmt, graph, theta, x_atom, y_atom,
             bidirected=bidirected, selection_nodes=selection_nodes,
         )
-        if gap is not None:
-            return gap
-        p_y_do_x1, p_y_do_x0 = risks
+        if risks is not None:
+            p_y_do_x1, p_y_do_x0 = risks
+        # No risks means at least the escape item, so the merge below
+        # returns before anything reads the two names left unbound here.
         risk_provenance = "derived_identification"
+
+    if joint_missing or risk_missing:
+        return _causation_gap(
+            stmt,
+            joint_missing=tuple(joint_missing),
+            joint_skeletons=joint_skeletons,
+            risk_missing=risk_missing,
+            risk_requests=risk_requests,
+        )
 
     # 4b. Feasibility: the interventional risks must be consistent with the
     # observational joint. By consistency P(y_x) = P(x, y) + P(y_x, x') with

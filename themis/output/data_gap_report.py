@@ -309,6 +309,8 @@ def compute_data_gap_report(
     answer_tier = _compute_answer_tier(
         query_kind, gaps, bounds_result, status, numeric_result, stmt,
     )
+    if answer_tier is AnswerTier.NONE:
+        gaps = _withdraw_interval_offers(gaps, query_kind)
     summary = _make_summary(gaps, answer_tier)
     actionable = _make_actionable_steps(gaps)
     return DataGapReport(
@@ -319,29 +321,66 @@ def compute_data_gap_report(
     )
 
 
-def _answer_shape_is_undecided(stmt, numeric_result) -> bool:
-    """Whether the kernel has not yet settled what shape this answer takes,
-    so any tier would be a guess dressed as a fact.
+def _interval_offer(query_kind: QueryKind) -> str | None:
+    """The one sentence that offers this question's interval instead of a
+    point, or None where it has no interval to offer.
 
-    Probabilities of causation are the case. Their point exists only under
-    a monotonicity the query declares (Tian-Pearl Thm 3) and their interval
-    only once P(Y=1|do(X)) is identified — and the causation dispatcher
-    demands the observational joint before it tries to derive those risks,
-    so a result that stopped for want of theta has settled neither. The
-    two available defaults are both promises: POINT offers a number a
-    missing monotonicity rules out, INTERVAL offers bounds an unobserved
-    confounder rules out, and neither is knowable from what the result
-    carries.
-
-    ``AnswerTier`` has no member for "not decided yet", so the field is
-    left off — as it is for a question that names no quantity — and it
-    arrives with the numbers, from the estimation layer or from the
-    identification pass that computed them.
+    Built here rather than written out, so the offer and the withdrawal
+    below are the same string by construction: a report that has just said
+    no interval is reachable must not leave one on offer beside it, and
+    matching a promise by substring is how that check would rot.
     """
-    return (
-        isinstance(getattr(stmt, "query", None), CausationQuery)
-        and numeric_result is None
-    )
+    fallback = questions.reading_of(query_kind.value).interval_fallback
+    return None if fallback is None else f"接受 {fallback} 给区间答案"
+
+
+def _withdraw_interval_offers(
+    gaps: list[DataGap], query_kind: QueryKind,
+) -> list[DataGap]:
+    """Take back the interval a NONE tier has just ruled out.
+
+    The tier is the report's own word on what is still reachable; a gap
+    still advising "accept bounds for an interval answer" contradicts it
+    in the same breath, and the reader acts on the gap. Only the offer
+    this module generated is withdrawn — a concrete "已计算 bounds" line
+    means bounds exist, and a result carrying those does not reach NONE.
+    """
+    from dataclasses import replace as _replace
+
+    offer = _interval_offer(query_kind)
+    if offer is None:
+        return gaps
+    out: list[DataGap] = []
+    for gap in gaps:
+        kept = tuple(a for a in gap.alternative_paths if a != offer)
+        out.append(
+            gap if len(kept) == len(gap.alternative_paths)
+            else _replace(gap, alternative_paths=kept)
+        )
+    return out
+
+
+def _point_is_premise_blocked(stmt) -> bool:
+    """Whether a premise the query did not declare, rather than absent
+    data, is what stands between this query and a point.
+
+    Probabilities of causation are Tian-Pearl intervals; monotonicity is
+    what collapses them to points (Thm 3), and it is declared on the query
+    rather than found in the data. Undeclared, no amount of data produces
+    a point, so a tier read off the data gaps alone promises a number that
+    cannot arrive.
+
+    Sound only because the other half of the shape is settled by then. The
+    interval Tian-Pearl gives needs P(Y=1|do(X)) as much as the point
+    does, and the dispatcher used to return on the missing observational
+    joint before it asked whether those risks were identifiable — so this
+    predicate, applied to a result from that path, would have promised
+    bounds an unobserved confounder rules out. The dispatcher now obtains
+    both before reporting either, and an unidentifiable effect arrives
+    here as the gap that outranks this.
+    """
+    query = getattr(stmt, "query", None)
+    return isinstance(query, CausationQuery) and not query.monotonic
 
 
 def _compute_answer_tier(
@@ -383,15 +422,14 @@ def _compute_answer_tier(
     number it had just produced. The same query then carried a tier or not
     depending on which entrance the caller used.
 
-    Past the gate one case is still not knowable rather than not
-    applicable, and ``_answer_shape_is_undecided`` names it.
+    Past the gate, one thing the data gaps cannot say is whether a premise
+    the caller withheld has already fixed the answer's shape —
+    ``_point_is_premise_blocked``.
     """
     question = questions.reading_of(query_kind.value)
     if not question.names_an_estimand:
         return None
-    if _answer_shape_is_undecided(stmt, numeric_result):
-        return None
-    point_blocked = (
+    identification_blocked = (
         status in (
             ResultStatus.NEEDS_ASSUMPTION,
             ResultStatus.COUNTERFACTUAL_BOUNDED,
@@ -400,7 +438,8 @@ def _compute_answer_tier(
             g.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET for g in gaps
         )
     )
-    if not point_blocked:
+    premise_blocked = _point_is_premise_blocked(stmt)
+    if not identification_blocked and not premise_blocked:
         return AnswerTier.POINT
     if bounds_result is not None and not getattr(
         bounds_result, "width_when_uninformative", False
@@ -410,6 +449,19 @@ def _compute_answer_tier(
     if interval is not None and not (
         interval.low <= 0.0 and interval.high >= 1.0
     ):
+        return AnswerTier.INTERVAL
+    if (
+        premise_blocked
+        and not identification_blocked
+        and numeric_result is None
+        and question.interval_fallback is not None
+    ):
+        # Nothing computed yet, so the tier is the shape the answer will
+        # take rather than what is in hand — and with the premise the only
+        # thing in the way, that shape is the interval. NONE would say the
+        # data cannot produce an answer, when what they cannot produce is
+        # a point. Identification having failed outranks this: then the
+        # bounds are out of reach too, and NONE is the honest word.
         return AnswerTier.INTERVAL
     return AnswerTier.NONE
 
@@ -1946,12 +1998,12 @@ def _species_missing_distribution(
     min_n, precision = _estimate_sample_size_for_distribution(
         display, signature,
     )
-    fallback = questions.reading_of(query_kind.value).interval_fallback
-    if fallback is not None:
+    offer = _interval_offer(query_kind)
+    if offer is not None:
         # A magic token that scheduler._reconcile_alt_paths_with_bounds
         # rewrites to whichever procedure produced the actual
         # bounds_result, and strips when the attempt returned nothing.
-        alt_paths = (f"接受 {fallback} 给区间答案",)
+        alt_paths = (offer,)
     else:
         # No interval channel for this question, so "accept bounds
         # instead" would be a promise nothing can keep. Said once and
@@ -2007,8 +2059,7 @@ def _species_theta_graph_mismatch(
         alternative_paths=(
             f"补充所缺的条件量 {display}（接受图）",
             "或：删除引发独立性矛盾的边（改图，承认现有 CPT 已是真分布）",
-            "接受 Balke-Pearl bounds 给区间答案",
-        ),
+        ) + tuple(o for o in (_interval_offer(query_kind),) if o is not None),
         provenance=(_item_ref(item),),
     )
 
