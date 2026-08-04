@@ -126,7 +126,10 @@ def test_an_identified_estimand_gets_the_line_that_was_already_written():
     one branch below the verdict that caught them. Nothing was added for
     this cell — the verdict simply stopped claiming it."""
     line = _render_answer(_res("effect", True, formula={"op": "sum"}))
-    assert "估计式已生成" in line
+    # The line points at the estimand, not at the verdict. Where it points
+    # moved once the report learned to render the formula; that it points
+    # away from 结论 is the fact this cell is about.
+    assert "估计式" in line and "没有数据" in line
     assert "结论" not in line
 
 

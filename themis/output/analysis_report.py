@@ -26,6 +26,7 @@ optional but lets the report render the causal model and edge provenance.
 from __future__ import annotations
 
 from .. import answers, blocks, questions, refusals
+from . import formula_text
 
 _KIND_ZH = {
     refusals.KIND_GRAPH: (
@@ -438,7 +439,7 @@ def _render_answer(result: dict) -> str:
     #    probability and not for an effect.
     if result.get("formula") is not None:
         return (
-            f"**{_VERDICT_ZH[reading][0]}**（估计式已生成，见文末审计），但当前"
+            f"**{_VERDICT_ZH[reading][0]}**（估计式见下方「怎么算出来的」），但当前"
             "**没有数据** → 需要数据才能给出具体数值。所需数据见下方「数据缺口」。"
         )
     if sr and sr.get("value") is True:
@@ -988,6 +989,14 @@ def _render_route(result: dict) -> str:
         for block in blocks.declared_as(blocks.ROUTE)
         if extensions.get(block)
     ]
+    # The estimand itself, after the route that found it: the blocks name
+    # the pattern, this is the expression the pattern produced. It is a
+    # field rather than a block, so the binding above — which is what
+    # catches a block nobody renders — never looked at it, and for ten
+    # rounds the report said "机器可读，见 result.formula" instead.
+    formula = result.get("formula")
+    if formula is not None:
+        lines.append(f"- **估计式**：`{formula_text.render(formula)}`")
     return "\n".join(line for line in lines if line)
 
 
@@ -1180,7 +1189,7 @@ def _render_footer(result: dict) -> str:
     if n_steps is not None:
         bits.append(f"推导链 {n_steps} 步")
     if result.get("formula") is not None:
-        bits.append("估计式已生成（机器可读，见 `result.formula`）")
+        bits.append("估计式已生成")
     ne = result.get("numeric_estimate") or {}
     ctx = result.get("estimation_context") or {}
     data_hash = ne.get("data_hash") or ctx.get("data_hash")
