@@ -3600,6 +3600,13 @@ def _try_iv_wald_in_effect(facts: "_EffectFacts") -> _Attempt:
                     "Wald LATE among compliers; the kernel will not choose "
                     "between Wald, 2SLS and bounds on your behalf."
                 ),
+                # True of this pass, and of this pass only. Handed a
+                # DataFrame the estimation layer runs an IV estimator
+                # without reading the declaration, so both of its
+                # outcomes make the sentence above false: a delivered
+                # LATE the caller was told to declare for, or a refusal
+                # no declaration reaches.
+                superseded_by_estimation=True,
             ),
         ))
 

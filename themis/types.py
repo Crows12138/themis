@@ -722,10 +722,10 @@ class Observable:
 class MissingItem:
     """One thing the kernel needed and did not have.
 
-    Four orthogonal facts, each stated rather than encoded: ``gap`` is
-    what kind of shortfall this is, ``kind`` is which channel would
-    repair it, ``name`` identifies the specific thing, and ``observable``
-    says what measuring would settle it. ``name`` used to carry all of
+    Orthogonal facts, each stated rather than encoded: ``gap`` is what
+    kind of shortfall this is, ``kind`` is which channel would repair it,
+    ``name`` identifies the specific thing, and ``observable`` says what
+    measuring would settle it. ``name`` used to carry all of
     them — the producer knew the species, pressed it into a string, and
     the report recovered it with prefix and substring tests over that
     string. It recovered it wrongly whenever a name happened to read like
@@ -739,6 +739,18 @@ class MissingItem:
     ``P(y=True|z=True)`` apart again was reconstructing what was thrown
     away here. ``None`` when no sample settles the item at all: a graph
     that admits no adjustment set, an assumption nobody declared.
+
+    ``superseded_by_estimation`` answers the other half of that question,
+    for the asks no measurement repairs. Some of them are preconditions
+    the identification layer imposes before it will write an estimand —
+    declare monotonicity and the Wald ratio identifies the LATE — and the
+    estimation layer answers the same query from data without consulting
+    the declaration at all. So once it has spoken, by a number or by a
+    refusal, the precondition is no longer what stands between the caller
+    and an answer: the number discloses in the assumption ledger what it
+    rested on, and the refusal says what to do instead. ``False`` for an
+    ask that survives estimation — an input only an experiment supplies,
+    two declared quantities that contradict each other.
     """
     kind: MissingKind
     name: str
@@ -746,6 +758,7 @@ class MissingItem:
     gap: GapKind
     reason: str | None = None
     observable: Observable | None = None
+    superseded_by_estimation: bool = False
 
     def __post_init__(self) -> None:
         if self.gap not in MISSING_ITEM_GAPS:
@@ -792,6 +805,11 @@ class InvestigationItem:
     # program's "statements" list after filling in ``value``. None for
     # other kinds (or when scheduler did not supply structured info).
     skeleton: dict | None = None
+    # Carried through verbatim like ``gap``, and for a sharper reason:
+    # this is the surface that survives. A pass that answers the query
+    # drops ``missing_information`` wholesale, so an ask withdrawn on the
+    # strength of what estimation did can only be recognised here.
+    superseded_by_estimation: bool = False
 
 
 @dataclass(frozen=True)

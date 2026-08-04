@@ -61,9 +61,12 @@ def estimate_program(
     estimator family. Doing it per family is what left most of them out: it
     took remembering two separate things, and forgetting either was silent.
 
-    Three things hold here. Its declared assumptions reach the assumption
+    Four things hold here. Its declared assumptions reach the assumption
     ledger, the surface both the report assembler and the rendering bridge
-    lead with. Every block it left on the envelope is one
+    lead with. What the identification pass asked for as a precondition
+    of running is withdrawn once running has happened — after the ledger,
+    which is where the disclosure the withdrawal relies on lands. Every
+    block it left on the envelope is one
     :mod:`themis.blocks` declares, so a new block cannot reach a reader
     the registry has never heard of. And a refusal leaves carrying both
     the species :mod:`themis.refusals` declares and the ``kind`` that
@@ -81,6 +84,7 @@ def estimate_program(
     )
     for result in output.get("results", []):
         augment_assumption_ledger(result)
+        _withdraw_asks_estimating_supersedes(result)
         blocks.check_registered(result)
         refusals.stamp(result)
     return output
@@ -642,6 +646,15 @@ def _maybe_estimate_missing_recovery(
     }
     target["numeric_estimate"] = numeric_estimate
     _attach_precision_budget(target["numeric_estimate"])
+    # This path returns before the shared prologue builds a data
+    # contract — the columns it recovers from carry NaN, which the
+    # contract forbids — and so returns before every reconciliation the
+    # prologue arranges. The contract is genuinely out of reach here;
+    # what a number answers is not, and it is the warrant that holds on
+    # this path anyway. Column presence would be the wrong one: the
+    # self-masking case has a column for the variable it cannot recover
+    # P(z) from, and that is the whole point of the refusal above.
+    _withdraw_asks_the_number_answers(target)
 
 
 def _resolve_cluster_option(
@@ -5103,6 +5116,25 @@ def _finalise_numeric_result(result: dict) -> None:
     """
     result["status"] = "numerically_solved"
     result["structural_result"] = {"value": True}
+    _withdraw_asks_the_number_answers(result)
+
+
+def _withdraw_asks_the_number_answers(result: dict) -> None:
+    """A point estimate for the query's own estimand came out; the asks
+    it was computed from are answered, on every surface at once.
+
+    Split from the status flip beside it because the two rest on
+    different things. That a number exists is what answers the asks; that
+    the result may now claim ``numerically_solved`` is a statement about
+    its standing, and an answer with no derivation cannot make it —
+    ``verify`` refuses to audit one, so the claim would outrun what the
+    envelope can back. The missing-data recovery path is exactly that
+    case: it produces the back-door ATE under MAR and writes no
+    derivation, so it withdraws what its number answered and leaves the
+    status alone. Welded together, the withdrawal was simply absent
+    there, and a recovered ATE shipped beside four blocking gaps naming
+    the conditionals it had just estimated.
+    """
     result.pop("missing_information", None)
     _reconcile_gap_report_after_numeric_solve(result)
 
@@ -5213,6 +5245,52 @@ def _settle_asks_the_sample_answers(
         result.pop("missing_information", None)
 
     _drop_investigation_items(result, settled, priority_of)
+    _drop_gaps_citing(result, settled)
+
+
+def _withdraw_asks_estimating_supersedes(result: dict) -> None:
+    """Drop the identification pass's asks that estimating has settled.
+
+    An ask can be a precondition rather than a shortfall: the
+    identification layer will not write the Wald estimand until
+    monotonicity is declared, and says so in the one actionable sentence
+    the query gets. Handed a DataFrame, the estimation layer answers the
+    same query without reading that declaration — so whichever way it
+    goes, the sentence stops being true. It ran, and the ledger discloses
+    what the number rested on; or it refused, and no declaration reaches
+    a first stage that does not move. The item says which of its asks
+    are of this kind at the point it is raised, because only the pass
+    imposing a precondition knows it was one.
+
+    Read off ``investigation_requests``, not ``missing_information``:
+    the number path pops the latter before this runs. That pop is how a
+    delivered LATE went on advertising the declaration that would
+    supposedly produce it — item gone, the gap it was pushed from still
+    in the report, and the reader shown the surface that had not been
+    reconciled.
+    """
+    if not (result.get("numeric_estimate") or result.get("estimator_failure")):
+        return
+    settled = {
+        item["target"]
+        for request in result.get("investigation_requests") or []
+        for item in request.get("items") or []
+        if item.get("superseded_by_estimation")
+    }
+    if not settled:
+        return
+
+    items = result.get("missing_information")
+    items = items if isinstance(items, list) else []
+    kept = [i for i in items if i["name"] not in settled]
+    if kept:
+        result["missing_information"] = kept
+    elif items:
+        result.pop("missing_information", None)
+
+    _drop_investigation_items(
+        result, settled, {i["name"]: i["priority"] for i in items},
+    )
     _drop_gaps_citing(result, settled)
 
 
@@ -6496,29 +6574,6 @@ def _topo_order(graph, atoms):
         key=lambda a: a.predicate,
     )
     return tuple(ordered + missing)
-
-
-def _collect_required_columns(program: dict | str | bytes) -> set[str]:
-    """Walk the program AST and collect every predicate that appears as
-    a variable declaration. The contract requires the DataFrame to have
-    a column per declared variable.
-    """
-    ast = _ensure_dict(program)
-    statements = ast.get("statements", [])
-    columns: set[str] = set()
-    for stmt in statements:
-        if stmt.get("kind") == "variable":
-            pred = stmt.get("predicate")
-            if isinstance(pred, str):
-                columns.add(pred)
-    return columns
-
-
-def _ensure_dict(program: dict | str | bytes) -> dict:
-    import json
-    if isinstance(program, (str, bytes)):
-        return json.loads(program)
-    return program
 
 
 def _collect_required_columns(program: dict | str | bytes) -> set[str]:

@@ -2085,6 +2085,10 @@
               "description": "The population the sample must be drawn from. Absent for the population under study — the one a supplied DataFrame is a sample of. When present it names a different population (a transport target, a second site), which the study sample does not settle however many of the variables it holds."
             }
           }
+        },
+        "superseded_by_estimation": {
+          "type": "boolean",
+          "description": "True when the estimation layer answering this query settles the ask, whatever it answers. Set on a precondition the identification layer imposes before it will write an estimand (declare monotonicity and the Wald ratio identifies the LATE) which the estimation layer does not consult: once it has produced a number or a refusal, the number discloses in the assumption ledger what it rested on and the refusal says what to do instead. Absent (false) for an ask that survives estimation."
         }
       }
     },
@@ -2191,6 +2195,10 @@
             "ambiguous_variable_definition"
           ],
           "description": "Carried verbatim from the originating missingItem.gap. The framing channel has no missing item and declares ambiguous_variable_definition, whose gap is built from framing_notes rather than from this item."
+        },
+        "superseded_by_estimation": {
+          "type": "boolean",
+          "description": "Carried verbatim from the originating missingItem, and read here rather than there: a pass that answers the query drops missing_information wholesale, so this is the surface on which a superseded ask can still be recognised and withdrawn."
         }
       }
     },

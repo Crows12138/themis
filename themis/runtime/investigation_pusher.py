@@ -22,10 +22,10 @@ first item was encountered; items within a group preserve input
 order.
 
 ``MissingItem.gap`` — what kind of shortfall this is — is carried
-through untouched. This module translates the repair channel into an
-action; it does not get an opinion on the species, and the report
-downstream reads what the kernel declared rather than inferring it
-from the grouping.
+through untouched, as is ``superseded_by_estimation``. This module
+translates the repair channel into an action; it does not get an opinion
+on the species or on what settles it, and the report downstream reads
+what the kernel declared rather than inferring it from the grouping.
 """
 from __future__ import annotations
 
@@ -133,6 +133,7 @@ def push(
                     else None
                 ),
                 gap=m.gap,
+                superseded_by_estimation=m.superseded_by_estimation,
             )
             for m in group_items
         )

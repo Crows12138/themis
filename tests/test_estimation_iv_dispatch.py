@@ -222,6 +222,94 @@ def test_the_admg_reason_names_an_instrument_only_where_one_reaches_it():
     assert "instrumental-variable" not in bare
 
 
+_MONOTONICITY_ASK = "effect:iv_monotonicity_undeclared"
+
+
+def _asks_for_monotonicity(result) -> dict:
+    """Every surface the ask can still be advertised on."""
+    report = result.get("data_gap_report") or {}
+    return {
+        "items": [
+            m for m in result.get("missing_information") or []
+            if m["name"] == _MONOTONICITY_ASK
+        ],
+        "requests": [
+            item
+            for request in result.get("investigation_requests") or []
+            for item in request.get("items") or []
+            if item["target"] == _MONOTONICITY_ASK
+        ],
+        "gaps": [
+            g for g in report.get("gaps") or []
+            if any(
+                ref.get("ref_id") == _MONOTONICITY_ASK
+                for ref in g.get("provenance") or []
+            )
+        ],
+        "steps": [
+            s for s in report.get("actionable_next_steps") or []
+            if "monotonicity" in s
+        ],
+    }
+
+
+def test_the_declaration_is_asked_for_only_where_declaring_would_do_it():
+    """The kernel refuses to pick an estimator — until it picks one.
+
+    Without data that sentence is the query's one actionable next step and
+    it is true: the identification pass will not write the Wald estimand
+    until monotonicity is declared. Handed a DataFrame the estimation
+    layer runs an IV estimator without consulting the declaration at all,
+    which is why the ask travels marked as superseded by that run.
+    """
+    ask = _asks_for_monotonicity(themis.run(_iv_ast())["results"][0])
+    assert ask["items"] and ask["requests"] and ask["gaps"]
+    assert ask["items"][0]["superseded_by_estimation"] is True
+    assert ask["requests"][0]["superseded_by_estimation"] is True
+
+
+def test_a_refused_instrument_withdraws_the_advice_that_cannot_help_it():
+    """Declaring monotonicity does not give an instrument a first stage.
+
+    Measured both ways: with the declaration supplied, this data produces
+    the same ``no_first_stage`` refusal and no number. So the one
+    actionable sentence the reader was left with sent them to do
+    something that lands them back here.
+    """
+    result = themis.estimate(
+        _iv_ast(), _dead_instrument_data(), ci_bootstrap=0,
+    )["results"][0]
+
+    assert result["estimator_failure"]["failure_type"] == "no_first_stage"
+    for surface, entries in _asks_for_monotonicity(result).items():
+        assert not entries, f"{surface}: {entries}"
+
+
+def test_a_delivered_late_stops_advertising_the_declaration_it_ran_without():
+    """The number is the answer to the ask, not a thing beside it.
+
+    The estimation layer produces the Wald with monotonicity undeclared
+    and discloses it in the ledger, at ``invalidating`` severity. Telling
+    the reader to declare it to obtain what they are holding is the
+    identification pass's pre-data sentence outliving the pass — it
+    survived on the gap surface alone, because finalising a number pops
+    the item list and the gate that keeps the bounds framing then
+    returned before reconciling the gaps.
+    """
+    result = themis.estimate(_iv_ast(), _iv_data(), ci_bootstrap=0)["results"][0]
+
+    assert result["numeric_estimate"]["method"] == "iv_wald"
+    for surface, entries in _asks_for_monotonicity(result).items():
+        assert not entries, f"{surface}: {entries}"
+
+    ledger = result["extensions"]["assumption_ledger"]["assumptions"]
+    disclosed = {e["id"]: e for e in ledger if e.get("id")}
+    assert "monotonicity_first_stage_effect_same_sign_for_all_units" in disclosed
+    assert disclosed[
+        "monotonicity_first_stage_effect_same_sign_for_all_units"
+    ]["severity"] == "invalidating"
+
+
 def test_dispatch_iv_prefers_backdoor_when_both_available():
     """If backdoor works, IV must not fire (dispatch priority)."""
     ast = {

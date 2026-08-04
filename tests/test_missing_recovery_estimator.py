@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from themis import estimate
+from themis import estimate, verify_data_gap_report
 from themis.estimation import RecoveredATEEstimate, estimate_recovered_ate
 from themis.refusals import EstimatorFailure
 
@@ -281,6 +281,75 @@ def test_e2e_estimate_not_recoverable_refuses():
     assert ef is not None
     assert ef["failure_type"] == "not_recoverable"
     assert ef["estimator"] == "missing_data_recovery"
+
+
+def _theta_surfaces(result):
+    """The four places a request for a probability the data supplied lives."""
+    report = result.get("data_gap_report") or {}
+    return {
+        "items": [
+            m for m in result.get("missing_information") or []
+            if m["gap"] == "missing_distribution"
+        ],
+        "requests": [
+            item
+            for request in result.get("investigation_requests") or []
+            for item in request.get("items") or []
+            if item["gap"] == "missing_distribution"
+        ],
+        "gaps": [
+            g for g in report.get("gaps") or []
+            if g["kind"] == "missing_distribution"
+        ],
+        "steps": [
+            s for s in report.get("actionable_next_steps") or []
+            if s.startswith("补 P(")
+        ],
+    }
+
+
+def test_a_recovered_ate_withdraws_the_asks_it_answered():
+    """This path returns before the shared prologue, and so before every
+    reconciliation the prologue arranges.
+
+    It has to: the columns it recovers from carry NaN, which the data
+    contract forbids. What it does not have to skip is what a number
+    answers — it estimated those very conditionals from the complete
+    cases, and shipped beside four blocking gaps asking to be supplied
+    them, with the report's next steps opening on the first.
+    """
+    df, *_ = _mar_frame(seed=23)
+    result = estimate(_RECOVERABLE_PROG, df)["results"][0]
+
+    assert result["numeric_estimate"]["point"] is not None
+    for surface, entries in _theta_surfaces(result).items():
+        assert not entries, f"{surface}: {entries}"
+    verify_data_gap_report(result)
+
+
+def test_an_unrecoverable_estimand_keeps_the_asks_its_columns_do_not_answer():
+    """Having a column is not having the distribution.
+
+    A self-masking Z leaves P(Z) unrecoverable — that is the refusal —
+    while the DataFrame still carries a z column. Settling these asks on
+    what the sample measures, the rule the contract path uses, would
+    withdraw exactly the requests the refusal exists to justify. What is
+    withdrawn on this path is what a number answered, and no number came.
+    """
+    df, *_ = _mar_frame(seed=24)
+    df = df.copy()
+    zmiss = np.random.default_rng(0).binomial(1, 0.2, len(df)).astype(bool)
+    df["z"] = df["z"].astype(object)
+    df.loc[zmiss, "z"] = np.nan
+    result = estimate(_UNRECOVERABLE_PROG, df)["results"][0]
+
+    assert result["estimator_failure"]["failure_type"] == "not_recoverable"
+    assert result.get("numeric_estimate") is None
+    surfaces = _theta_surfaces(result)
+    assert surfaces["items"] and surfaces["gaps"] and surfaces["steps"]
+    assert any(
+        m["name"] == "parameter:P(z=True)" for m in surfaces["items"]
+    ), [m["name"] for m in surfaces["items"]]
 
 
 def test_e2e_estimate_output_validates_against_schema():

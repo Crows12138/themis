@@ -165,6 +165,11 @@ def to_dict(result: QueryResult) -> dict:
                     if m.observable is not None
                     else {}
                 ),
+                **(
+                    {"superseded_by_estimation": True}
+                    if m.superseded_by_estimation
+                    else {}
+                ),
             }
             for m in result.missing_information
         ]
@@ -187,6 +192,11 @@ def to_dict(result: QueryResult) -> dict:
                         **({"reason": it.reason} if it.reason is not None else {}),
                         **({"skeleton": it.skeleton} if it.skeleton is not None else {}),
                         "gap": it.gap.value,
+                        **(
+                            {"superseded_by_estimation": True}
+                            if it.superseded_by_estimation
+                            else {}
+                        ),
                     }
                     for it in r.items
                 ]
