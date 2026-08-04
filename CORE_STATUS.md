@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3980 passed / 144 skipped, warning-clean
+3983 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1154,6 +1154,20 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **未做已登记**：**causation 的 dispatcher 顺序**（先要 θ 的观测联合、后识别干预风险）是它识别期没有 tier 的根因，也是替代路径无法对账的根因——把顺序倒过来（识别在前、要数在后，其余 kind 都是这个顺序）能同时结掉这两条。
 
 **基线（本条）**：3963 → **3980**（+17：两个字段各一条字面钉死（恰好 cause/assoc 无估计量、恰好三种有区间退路）、无量者必无区间、**报告模块里不许再有任何 QueryKind 的模块级集合**；三个消费端各自的实测格——causation 缺口拿到 Tian-Pearl、probability 缺口不被许诺区间、probability 的缺口不再随报告一起消失、图问题无话时仍不出报告；tier：causation 形状未定时（单调与否各一）不发、形状未定连界也不存在时也不发、有数时照数发 interval、probability 发 point、图问题不发、scm_counterfactual / proximal_effect / counterfactual_conjunction 三种各一条「没有估计器也该有 tier」）。
+
+**先问哪个输入纯粹是代码顺序，而顺序决定了「有没有答案」会不会被问出口（2026-08-04，接上条）**：修复型，用户可见。上一条登记「causation 的 dispatcher 先要 θ 的观测联合、后识别干预风险，是它识别期没有 tier 的根因」。量完发现它还是一条**更重的假话**的根因。
+
+**测量（影子跑，不改行为）**：causation 21 次停在「theta 缺观测联合」这一步，**识别根本没跑**。让影子替它跑完：20 次是「可识别、只差数据」（monotonic 11 / 非 9），**1 次是「根本不可识别」**（`UNIDENTIFIABLE_NO_ADMISSIBLE_SET:query:effect_admg`）——那一次的报告只说「缺概率分布 P(x=True)、P(x=False)」，**即「去收这两个边缘就有答案了」，而任何数据都答不了它**。套件里正好有对照：`test_confounded_without_experimental_risks_is_a_gap` 是同一张 `x<->y` 图**带 θ**，识别跑了、逃生口正常出现；上一条新写的那个是同一张图**不带 θ**，真相被埋。**identifiability 是图的性质，同一张图两个答案，说明报的不是图而是代码走到哪一步。**
+
+**根因**：dispatcher **在第一个拿不到的东西那里就返回**，于是报告只描述了它需要的两个输入之一；而这两个输入是独立的（观测联合来自 theta，干预风险来自识别），先问哪个纯粹是代码顺序。
+
+**修法**：两个输入都取齐再决定报什么——`_derive_interventional_risks` 改成返回 items（与单臂版同形）而不是现成 QueryResult，新 `_causation_gap` 按名字去重后走**同一次** `push`（两份缺口本来就重叠，拼接会让读者看到同一组两遍；风险侧 item 的 skeleton 从已 push 的请求里取回，与 theta 的 skeleton 表合并）。**逃生口的理由按实际是哪种失败写**：它对「不可识别」和「只差数据」都触发，而这两种要的修法相反，原来一句「effect not identifiable from the supplied data」会把后者的读者送去改一张本来就对的图。tier 恢复按「单调性 + 不可识别信号」判——上一条删掉它是因为信号缺席，现在信号在了；不可识别**压过**前提，那时界也够不到，NONE 才是实话。
+
+**顺带结掉上一条登记的 (d)**：`answer_tier == NONE` 时撤回缺口上的区间承诺（`_withdraw_interval_offers`）。**承诺和撤回是同一个字符串按构造生成的**（`_interval_offer(query_kind)` 从词表取），不是子串匹配——否则这条检查会随文案漂移而烂掉；`_species_theta_graph_mismatch` 里硬写的 Balke-Pearl 一并换成同一个来源（对 counterfactual 它本来就说错了定理）。**实测撤回确实会触发**：causation 2 次共撤 4 条；effect 在 NONE 上 9 次撤 0 条，因为 `_reconcile_alt_paths_with_bounds` 早就替它做了——**0 的意思是「本来就没有」，不是「没生效」**，两者要分清（㉙）。
+
+**修完重量一遍（全量插桩）**：causation 47 次 tier **一次 None 都没有**（interval 19 / point 21 / none 7；本轮之前是 29 次 None）；「联合缺 + 不可识别」这一格 **2 次**，现在四条 item 齐全（两条 `missing_distribution` + `unidentifiable_no_admissible_set` + 逃生口），原来只有前两条；其余 kind 逐格不变（effect 1246＝1040/169/37、identify 133、counterfactual 68、probability 36、scm 27、conjunction 22、proximal 11）。
+
+**基线（本条）**：3980 → **3983**（+3 净：删掉上一条钉「形状未定就不发 tier」的 3 条、新增 6 条——withheld premise 决定形状（单调 point／非单调 interval）、**同一张图带不带 θ 必须得出同一个识别结论**（两参数）、NONE 上不许留区间承诺、逃生口必须说清自己是两种起因里的哪一种）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
