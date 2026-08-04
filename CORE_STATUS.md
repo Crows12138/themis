@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3880 passed / 144 skipped, warning-clean
+3913 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1096,6 +1096,22 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **未做已登记**：①还有 5 个块没有任何确定性渲染器且不属于「在别处渲染」——`type_reconciliation`（122 次，3 个验证器读、没有人面）、`missing_data_recovery`（39）、`joint_identification`（26）、`longitudinal_identification`（19）、`proximal_estimand`（8）；它们不是**答案**而是**答案的来路**，该进的面是「怎么算出来的」而不是答案节，是另一张表。②`counterfactual_error` / `causation_error` 两个块全套件零产生，且写的是**裸异常字符串**（`extensions={blocks.COUNTERFACTUAL_ERROR: str(exc)}`）——这正是拒答通道取代掉的老模式，该并进 `refusals.py` 而不是留着。③上一条登记的缺失恢复路径两件事仍未做。
 
 **基线（本条）**：3855 → **3880**（+25：形状词表对着 schema enum 双向钉死、`bind` 两个方向各拒一次、未声明的 method 响亮而非默认、双模的两个族点在前；5 个形状各一条「不得渲染成关于图的结论且必须出数」+ 各一条「必须带公用尾巴」；点估计仍以数字开头；估计块无答案时不借用结构结论；结构查询仍读作它的判断；web 按 `lives_in` 逐形状钉覆盖）。
+
+**答案的来路成了一节：十个识别块不再对读者一言不发（2026-08-04，接上条）**：修复型，用户可见。上一条登记「还有 5 个块没有渲染器」；**按声明清点，真实数字是 10 个块、369 次**，而且那份 5 个的清单本身有一条是错的——`type_reconciliation` 其实经 `declared_type_data_mismatch` gap 到达读者，属「在别处渲染」。
+
+**测量（全量插桩，3880 passed 不受影响）**：`transport_identification` 75 / `identification` 53 / `mediation_decomposition` 50 / `selection_recovery` 40 / `missing_data_recovery` 39 / `iv_identification` 31 / `mediation_joint_decomposition` 28 / `joint_identification` 26 / `longitudinal_identification` 19 / `proximal_estimand` 8。**每个块的定义性事实在几乎每一次出现里都缺席**：`identification` 50/53 次连自己的模式名（backdoor / front_door / instrumental_variable）都没出现；`iv_identification` 31/31 缺 `iv`、29/31 缺工具名；`longitudinal` 19/19 全缺；`missing_data_recovery` 39/39 缺估计量、31/39 缺机制；`transport` 缺两个总体名（32 / 29）与迁移公式（25）。**本轮的插桩教训**：命中判据写成「块里任一字符串出现在报告里」，于是三个块记成 100% 命中——实际命中的是 `x` / `y` 这类变量名，问题行里本来就有。**token 重合分不出「在别处渲染」和「巧合」**；上一轮 `mechanism_audit` 那次分得出来，是因为查的是「它去了哪」而不是「有没有重合」。
+
+**根因**：报告的小节表是 问题 / 答案 / 因果模型 / 验证 / 假设 / 数据缺口——**没有「答案的来路」这一节**，所以干这活的事实全都没有落点，来一个哑一个。三条证据说明缺的是节、不是渲染器：①**一等字段同病**——`formula` 与 `derivation` 也不渲染，footer 原话是「估计式已生成（**机器可读，见 `result.formula`**）」；两条完全不同的通道栽在同一件事上，毛病在两者的下游。②**生产端已经为一个不存在的消费端写了字**：`scheduler.py:748` 的注释称 `extensions["identification"]` 是「the human surface」，并设想「a renderer keying off」它——那个 renderer 从没被建过。③`blocks.py` 的分组从第一天起就是**按谁写的**（「识别层得出的」「数值端产出的」「读答案时配着看的」），**没有一处按谁读**——这正是上一轮那份「事实 × 消费面」矩阵必须手工拉的原因。而报告的另外四族——答案（`answers.py`）、假设（账本）、缺口（gap 列表）、拒答（`refusals.py`）——**各有一张表、各有一个落点；只有「来路」两样都没有**。
+
+**修法**：`blocks.py` 把注释分组升成一等字段 `Block.read_as`（必填，5 个 `Family` 各声明一次、20 个块各选一个），加 `DECLARED`（保留声明顺序）/ `declared_as(family)` / `bind(family, renderers)` 两向拒绝——`answers.bind` 的同一安排。`analysis_report` 新开「怎么算出来的」一节（在 答案 之后、因果模型 之前），10 个路线渲染器由 `bind(ROUTE, …)` 绑定：**新加一个路线块而没有渲染器，`themis` 直接 import 失败**。web 端 `lib/verdict.ts` 新 `routeRows` + `ROUTE_ORDER`；`Verdict.tsx` 那个**一直叫「怎么算出来的」却只说公式和路径**的折叠块，现在真的说路线（`tsc -b` 干净）。prompt 侧把 `extensions.{...}` 那一行**从枚举 7 个块改成说五族原则**（没见过的块也能按「它说的是什么」归位），Methodology 那一层点名 route。
+
+**实测当场纠了一处自造的噪音**：真实 IV 结构路上 `identification` 与 `iv_identification` 并存，第二条 bullet 渲染出来是 `- **工具变量**：\`z(me)\``——**一句新话都没有**。生产端把 strategy / instrument / conditioning / required_assumption **有意复制**进 `identification` 并称那份副本是 human surface，所以 IV 块该说的只剩「候选里做过选择」和「Wald 比答的是依从者」；数值 IV 路单独发这个块，工具名才由它来说。规则写成一句：**渲染器可以拒绝重复同一信封上更靠前的块已经说过的事实，说不出新话就返回空、空行被丢掉**（这也是签名要收整个 result 的理由）。
+
+**声明的取舍**：①**没有把路线写进信封**。信封里已有面向读者的散文（gap 的 `description`、账本的 `claim`、拒答的 `reason`），照那个先例本可以让两个面读同一份字符串、彻底免掉跨语言重复；不做，因为那是**改内核数据契约**，而且信封现有散文语言不一致（gap 是英文、账本是中文），在那件事定下来之前再开第三条散文通道会把不一致焊得更死。代价：10 个渲染器 Python 与 TS 各写一遍，靠一条**解析 `ROUTE_ORDER` 并与 `declared_as(ROUTE)` 逐项比对**的测试钉住——比上一轮答案形状那条「名字出现过」强一档，连顺序一起钉。②报告仍不渲染识别公式：`formula` 是 AST dict，web 有 `fmtFormula`、Python 侧没有对应物，另开一档。③`ROUTE` 之外的四族只**声明**了归属，没有 `bind` 强制——import 期保证目前只有 route 这一族有。
+
+**顺带查实、未修已登记**：中介类效应查询走结构层（无 θ 无数据）时，答案节渲染的是 `结论：**是**`——**又一次拿关于图的判断冒充「效应多大」**，且是上一轮形状表够不着的一格（这次是**根本没有估计块**，不是估计块空）。不当场修，因为分支 5 对 `structural_result=False` 的 effect 查询说「不可识别」是**对的**，正确的门要按 query_kind × 值分，需要自己的一轮测量。
+
+**基线（本条）**：3880 → **3913**（+33：每个块必须说出自己被当作哪一族读、五族对注册表的划分、声明顺序即小节的宣读顺序、`bind` 两个方向各拒一次、不写 `read_as` 的块建不出来；10 条路线各一条「定义性事实必须到达读者」+ 各一条「必须出现在组装好的报告里」；无路线时不出空标题；节序在答案与因果模型之间；两条路线按注册表顺序而非字典插入顺序宣读；未登记的模式名照原样说出而不是丢掉；IV 不重复上一条已说过的事实、且单独出现时工具名不丢；web 的 `ROUTE_ORDER` 与注册表逐项比对且每个名字都有渲染器）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
