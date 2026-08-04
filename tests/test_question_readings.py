@@ -73,7 +73,9 @@ def test_a_surface_that_misses_a_query_kind_is_refused():
 
 def test_a_surface_cannot_bind_a_kind_the_vocabulary_does_not_have():
     made_up = questions.Question("mediation_kind", asks="", settles="a",
-                                 fails="b", verdict_is_the_answer=False)
+                                 fails="b", verdict_is_the_answer=False,
+                                 names_an_estimand=True,
+                                 interval_fallback=None)
     with pytest.raises(ValueError, match="not a declared query"):
         questions.bind({q: "x" for q in questions.DECLARED} | {made_up: "x"})
 

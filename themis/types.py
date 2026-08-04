@@ -1347,9 +1347,10 @@ class DataGap:
 
 
 class AnswerTier(str, Enum):
-    """The strongest answer the kernel can hand back for an estimand query
-    (effect / identify / counterfactual), stated explicitly so consumers
-    do not have to infer it from gap-severity ordering.
+    """The strongest answer the kernel can hand back for a question that
+    names an estimand (``questions.Question.names_an_estimand`` — every
+    kind but ``cause`` and ``assoc``), stated explicitly so consumers do
+    not have to infer it from gap-severity ordering.
 
     This axis is ORTHOGONAL to gap severity: severity says "how blocking
     is this gap to its own goal"; answer_tier says "what can I still
@@ -1369,9 +1370,10 @@ class DataGapReport:
     changes are still needed. Gaps are sorted by severity (blocking >
     important > informational), then by derivation order.
 
-    ``answer_tier`` (set for estimand queries; None for cause / assoc /
-    probability) names the strongest answer available, orthogonal to the
-    gaps' severities — see ``AnswerTier``."""
+    ``answer_tier`` (set for every question that names an estimand; None
+    for ``cause`` / ``assoc``, which ask about the graph) names the
+    strongest answer available, orthogonal to the gaps' severities — see
+    ``AnswerTier``."""
     summary: str
     gaps: tuple[DataGap, ...]
     actionable_next_steps: tuple[str, ...] = ()

@@ -42,6 +42,26 @@ no default is needed. :func:`bind` refuses a renderer set that does not cover
 the vocabulary exactly, which is what removes the 成立 / 不成立 fallback:
 that fallback was the shape of "this kind has no reading", and a fallback
 cannot be distinguished from coverage by reading the code.
+
+:attr:`Question.names_an_estimand` and :attr:`Question.interval_fallback` are
+the same repair applied to the data-gap report, which answered both from one
+hand-written three-element set of query kinds. The set decided (a) whether
+``answer_tier`` — point / interval / none — means anything for a result, and
+(b) whether an interval is a genuine fallback when a distribution the answer
+needs is missing. Those are different questions; they agree on the three
+kinds named and diverge on the seven that fell to the ``else``. One suite run
+measured the divergence: the ``else`` branch fired 226 times and 222 of them
+were ``causation``, told that its quantity is "点可估的，没有 bounds 替代路径"
+— a sentence written for ``probability`` and false of probabilities of
+causation, whose answer is a Tian-Pearl interval whenever monotonicity is not
+declared. The tier gate suppressed itself on the same seven while the
+estimation layer, which consults no such set, wrote a tier for them anyway:
+one causation query reached a reader with ``answer_tier`` absent through
+``themis.run`` and present through ``themis.estimate``. A twin set for "this
+kind has no data needs" listed ``probability`` too, and returned before the
+gap species ran — so a probability query whose kernel had raised
+``MISSING_DISTRIBUTION`` reached the reader with no report at all, which
+reads as nothing missing.
 """
 from __future__ import annotations
 
@@ -62,6 +82,21 @@ class Question:
 
     Both are written from the verifier that audits this kind, so the
     proposition a reader is told is the proposition the kernel checked.
+
+    ``names_an_estimand`` says the question is about a quantity the kernel
+    could in principle put a number on. Two kinds ask about the graph and
+    name none, and everything that follows from having a quantity is theirs
+    to skip: there is no strongest-answer tier to state, and nothing but
+    framing can leave them short of data. It is what makes a tier
+    applicable, not what makes one knowable — a result whose kernel has not
+    yet decided the shape of its answer still states none.
+
+    ``interval_fallback`` names the bounds procedure whose interval stands
+    in when the point is out of reach, and is None where this kernel has no
+    interval channel for the question — an inventory fact, so it moves when
+    an estimator is added. It is the one thing that decides whether "accept
+    an interval instead" is advice or a false promise; leaving it to be
+    inferred is how a query kind was told the opposite of its own answer.
     """
 
     kind: str
@@ -69,6 +104,8 @@ class Question:
     settles: str
     fails: str
     verdict_is_the_answer: bool
+    names_an_estimand: bool
+    interval_fallback: str | None
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.kind
@@ -85,6 +122,8 @@ CAUSE = Question(
     settles="a directed path carries influence from the source to the target",
     fails="no directed path carries influence from the source to the target",
     verdict_is_the_answer=True,
+    names_an_estimand=False,
+    interval_fallback=None,
 )
 ASSOC = Question(
     "assoc",
@@ -92,6 +131,8 @@ ASSOC = Question(
     settles="the two are d-connected given the conditioning set",
     fails="the two are d-separated given the conditioning set",
     verdict_is_the_answer=True,
+    names_an_estimand=False,
+    interval_fallback=None,
 )
 IDENTIFY = Question(
     "identify",
@@ -100,6 +141,12 @@ IDENTIFY = Question(
     settles="the effect is identifiable",
     fails="the effect is not identifiable from this graph",
     verdict_is_the_answer=True,
+    # It asks about an estimand even though its answer is the verdict, so
+    # the tier applies: 113 identify results reached point and 20 none.
+    # No bounds are attempted for it — the scheduler runs them for effect
+    # queries only — so an interval is not a fallback it has.
+    names_an_estimand=True,
+    interval_fallback=None,
 )
 
 # --- the boolean is a precondition for the answer -----------------------------
@@ -115,6 +162,12 @@ EFFECT = Question(
     settles="the estimand is identifiable",
     fails="the estimand is not identifiable from this graph",
     verdict_is_the_answer=False,
+    names_an_estimand=True,
+    # A placeholder as much as a name: the scheduler rewrites this line to
+    # whichever procedure actually produced ``bounds_result`` — Manski on a
+    # bare graph, the IV bounds when an instrument is declared — and strips
+    # it when the attempt returned nothing.
+    interval_fallback="Balke-Pearl bounds",
 )
 PROBABILITY = Question(
     "probability",
@@ -122,6 +175,11 @@ PROBABILITY = Question(
     settles="the probability is identifiable",
     fails="the probability is not identifiable from this graph",
     verdict_is_the_answer=False,
+    # An observational conditional: a quantity, so it has both a tier and
+    # data needs, and point-estimable, so no interval stands in for it.
+    # Listed as neither for as long as both facts were hand-written sets.
+    names_an_estimand=True,
+    interval_fallback=None,
 )
 COUNTERFACTUAL = Question(
     "counterfactual",
@@ -129,6 +187,8 @@ COUNTERFACTUAL = Question(
     settles="the cell is identifiable, as a point or as bounds",
     fails="the cell is not identifiable from this graph",
     verdict_is_the_answer=False,
+    names_an_estimand=True,
+    interval_fallback="Tian-Pearl bounds",
 )
 CAUSATION = Question(
     "causation",
@@ -136,6 +196,11 @@ CAUSATION = Question(
     settles="the probabilities of causation are identifiable",
     fails="the probabilities of causation are not identifiable",
     verdict_is_the_answer=False,
+    names_an_estimand=True,
+    # The interval is the ordinary answer here, not the consolation:
+    # monotonicity is what collapses PN/PS/PNS to points, and it is a
+    # premise the caller declares rather than one the data supply.
+    interval_fallback="Tian-Pearl bounds",
 )
 SCM_COUNTERFACTUAL = Question(
     "scm_counterfactual",
@@ -143,6 +208,10 @@ SCM_COUNTERFACTUAL = Question(
     settles="abduction-action-prediction determines the unit's value",
     fails="the unit's counterfactual value is not determined",
     verdict_is_the_answer=False,
+    # Deterministic: given the coefficients and the unit's observations the
+    # value is a point, and short of them there is nothing to bound.
+    names_an_estimand=True,
+    interval_fallback=None,
 )
 COUNTERFACTUAL_CONJUNCTION = Question(
     "counterfactual_conjunction",
@@ -150,6 +219,10 @@ COUNTERFACTUAL_CONJUNCTION = Question(
     settles="the ID* / IDC* algorithm identifies the conjunction",
     fails="the ID* / IDC* algorithm returns a hedge — not identifiable",
     verdict_is_the_answer=False,
+    # ID* answers with a formula or a hedge; no bounds procedure is wired
+    # to the hedge, so a refused conjunction has no interval to offer.
+    names_an_estimand=True,
+    interval_fallback=None,
 )
 PROXIMAL_EFFECT = Question(
     "proximal_effect",
@@ -157,6 +230,8 @@ PROXIMAL_EFFECT = Question(
     settles="the proximal criterion holds, so the effect is identifiable",
     fails="the proximal criterion does not hold",
     verdict_is_the_answer=False,
+    names_an_estimand=True,
+    interval_fallback=None,
 )
 
 DECLARED: tuple[Question, ...] = (

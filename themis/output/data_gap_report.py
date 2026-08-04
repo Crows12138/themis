@@ -148,7 +148,7 @@ from __future__ import annotations
 
 from typing import Callable, Iterable, NamedTuple
 
-from .. import blocks
+from .. import blocks, questions
 from .sample_size import (
     estimate_min_n_single_proportion,
     estimate_min_n_two_arm_binary,
@@ -157,6 +157,7 @@ from .sample_size import (
 from ..types import (
     AnswerTier,
     BidirectedStatement,
+    CausationQuery,
     CauseStatement,
     DataGap,
     DataGapReport,
@@ -202,13 +203,6 @@ def _step_failed(step: DerivationStep) -> bool:
 # ============================================ public entry
 
 
-_QUERY_KINDS_WITHOUT_DATA_NEEDS: frozenset[QueryKind] = frozenset({
-    QueryKind.CAUSE,
-    QueryKind.ASSOC,
-    QueryKind.PROBABILITY,
-})
-
-
 def compute_data_gap_report(
     *,
     query_kind: QueryKind,
@@ -226,12 +220,12 @@ def compute_data_gap_report(
 ) -> DataGapReport | None:
     """Synthesize a DataGapReport from the result-envelope signals.
 
-    Returns ``None`` when the query kind does not carry data needs
-    (cause / assoc / probability) and no framing or assumption gaps
-    exist. For effect / identify / counterfactual queries the returned
-    report may still have ``gaps=()`` when fully solved — callers can
-    distinguish "no need to ask" (None) from "asked and got a clean
-    bill of health" (empty tuple).
+    Returns ``None`` when the question names no quantity — so nothing but
+    framing can leave it short of data — and no framing or assumption gaps
+    exist. For a question that does name one the returned report may still
+    have ``gaps=()`` when fully solved — callers can distinguish "no need
+    to ask" (None) from "asked and got a clean bill of health" (empty
+    tuple).
     """
     extensions = extensions or {}
 
@@ -279,12 +273,19 @@ def compute_data_gap_report(
         extensions=extensions,
     ))
 
-    # For cause / assoc / probability the only data-need-bearing channel
-    # was framing. Must-disclose caveats now also keep the report alive
-    # — without them a renderer would never see the structural caveats
-    # the kernel detected.
+    # A question that names no quantity cannot be short of the data for
+    # one: framing is the only channel that can leave it wanting, and
+    # must-disclose caveats keep the report alive so a renderer still sees
+    # the structural caveats the kernel detected.
+    #
+    # Read from the question rather than listed here. The list also named
+    # ``probability``, which does name a quantity — so a probability query
+    # whose kernel had raised MISSING_DISTRIBUTION returned before the
+    # species pass and reached the reader with no report, indistinguishable
+    # from a clean bill of health.
+    question = questions.reading_of(query_kind.value)
     if (
-        query_kind in _QUERY_KINDS_WITHOUT_DATA_NEEDS
+        not question.names_an_estimand
         and not framing_notes
         and not must_disclose_gaps
     ):
@@ -306,7 +307,7 @@ def compute_data_gap_report(
     gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
     gaps.sort(key=_gap_sort_key)
     answer_tier = _compute_answer_tier(
-        query_kind, gaps, bounds_result, status, numeric_result,
+        query_kind, gaps, bounds_result, status, numeric_result, stmt,
     )
     summary = _make_summary(gaps, answer_tier)
     actionable = _make_actionable_steps(gaps)
@@ -318,14 +319,29 @@ def compute_data_gap_report(
     )
 
 
-# Query kinds for which "what answer can I still return" is meaningful:
-# point / interval / none. Cause / assoc / probability are not estimand
-# queries — they leave answer_tier None.
-_ESTIMAND_QUERY_KINDS: frozenset[QueryKind] = frozenset({
-    QueryKind.EFFECT,
-    QueryKind.IDENTIFY,
-    QueryKind.COUNTERFACTUAL,
-})
+def _answer_shape_is_undecided(stmt, numeric_result) -> bool:
+    """Whether the kernel has not yet settled what shape this answer takes,
+    so any tier would be a guess dressed as a fact.
+
+    Probabilities of causation are the case. Their point exists only under
+    a monotonicity the query declares (Tian-Pearl Thm 3) and their interval
+    only once P(Y=1|do(X)) is identified — and the causation dispatcher
+    demands the observational joint before it tries to derive those risks,
+    so a result that stopped for want of theta has settled neither. The
+    two available defaults are both promises: POINT offers a number a
+    missing monotonicity rules out, INTERVAL offers bounds an unobserved
+    confounder rules out, and neither is knowable from what the result
+    carries.
+
+    ``AnswerTier`` has no member for "not decided yet", so the field is
+    left off — as it is for a question that names no quantity — and it
+    arrives with the numbers, from the estimation layer or from the
+    identification pass that computed them.
+    """
+    return (
+        isinstance(getattr(stmt, "query", None), CausationQuery)
+        and numeric_result is None
+    )
 
 
 def _compute_answer_tier(
@@ -334,6 +350,7 @@ def _compute_answer_tier(
     bounds_result,
     status: ResultStatus,
     numeric_result=None,
+    stmt=None,
 ) -> AnswerTier | None:
     """The strongest answer available, orthogonal to gap severity.
 
@@ -358,8 +375,21 @@ def _compute_answer_tier(
     counterfactual carries its own Tian-Pearl interval. Reading only the
     first reported "no answer available" for counterfactuals that had a
     perfectly good interval sitting in the envelope.
+
+    The gate is the question: a tier is what the answer to it can be, so a
+    question that names no quantity has none. It used to be a list of three
+    kinds, which left the other seven at None here while the estimation
+    layer — which reads no such list — wrote a tier for them from the
+    number it had just produced. The same query then carried a tier or not
+    depending on which entrance the caller used.
+
+    Past the gate one case is still not knowable rather than not
+    applicable, and ``_answer_shape_is_undecided`` names it.
     """
-    if query_kind not in _ESTIMAND_QUERY_KINDS:
+    question = questions.reading_of(query_kind.value)
+    if not question.names_an_estimand:
+        return None
+    if _answer_shape_is_undecided(stmt, numeric_result):
         return None
     point_blocked = (
         status in (
@@ -1916,20 +1946,21 @@ def _species_missing_distribution(
     min_n, precision = _estimate_sample_size_for_distribution(
         display, signature,
     )
-    if query_kind in _ESTIMAND_QUERY_KINDS:
-        # effect / identify / counterfactual: an interval bound is a
-        # genuine fallback. This is a magic token that
-        # scheduler._reconcile_alt_paths_with_bounds rewrites to the
-        # actual computed bounds_result.
-        alt_paths = ("接受 Balke-Pearl bounds 给区间答案",)
+    fallback = questions.reading_of(query_kind.value).interval_fallback
+    if fallback is not None:
+        # A magic token that scheduler._reconcile_alt_paths_with_bounds
+        # rewrites to whichever procedure produced the actual
+        # bounds_result, and strips when the attempt returned nothing.
+        alt_paths = (f"接受 {fallback} 给区间答案",)
     else:
-        # probability asks for a plain observational conditional —
-        # point-estimable, with NO bounds substitute (Balke-Pearl is
-        # for interventional / IV / counterfactual quantities, not for
-        # P(y|x)). Suggesting bounds here is nonsensical.
+        # No interval channel for this question, so "accept bounds
+        # instead" would be a promise nothing can keep. Said once and
+        # generally: the sentence that lived here explained why an
+        # observational conditional is point-estimable, and was read by
+        # 222 causation gaps whose answer is an interval.
         alt_paths = (
-            f"直接收集 {display} 的数据 —— 观察性条件量是点可估的，"
-            f"没有 bounds 替代路径",
+            f"直接收集 {display} 的数据 —— 该问法没有区间退路，"
+            f"拿不到点估计就没有数",
         )
     yield DataGap(
         kind=GapKind.MISSING_DISTRIBUTION,

@@ -2336,7 +2336,7 @@
         },
         "answer_tier": {
           "enum": ["point", "interval", "none"],
-          "description": "The strongest answer available for an estimand query (effect / identify / counterfactual), stated explicitly so consumers do not infer it from gap-severity ordering. Orthogonal to gap severity: an unidentifiable effect with informative IV / Manski bounds has a blocking gap yet answer_tier='interval'. point = point estimand identified (possibly pending θ); interval = point ID blocked but informative bounds available; none = neither (needs an assumption / stronger data). Absent for cause / assoc / probability queries."
+          "description": "The strongest answer available for a query whose question names an estimand, stated explicitly so consumers do not infer it from gap-severity ordering. Orthogonal to gap severity: an unidentifiable effect with informative IV / Manski bounds has a blocking gap yet answer_tier='interval'. point = point estimand identified (possibly pending θ); interval = point ID blocked but informative bounds available; none = neither (needs an assumption / stronger data). Absent only for cause / assoc, which ask about the graph and name no quantity."
         }
       }
     },
