@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3849 passed / 144 skipped, warning-clean
+3855 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1036,6 +1036,50 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 - `dispatch.py` 里 `_collect_required_columns` 与 `_ensure_dict` **各有两份模块级定义**（6501/6524、6517/6555），后者胜出、前者是死代码。AST 查实，与本条无关，未动。
 
 **基线（本条）**：3840 → **3849**（+3 IV dispatch 行为：拒答后不再索要刚读过的数、成功的 IV 点估计不再带自己输入的 blocking 缺口、ADMG 那句话由它断言的事实把门；+2 生产端：参数请求说出总体、无 key 时不编造观测；+2 gap 反序列化：手写 round-trip 与全内核 gap round-trip；+1 请求缩水后的摘要等价于重来一遍；+1 具名总体的请求不被在研样本了结）。
+
+**三条登记全部结清：一条建议、一条早退、两份同名定义（2026-08-04，接上条）**：修复型，用户可见两条。上一条结束时登记了三件事没修；这里逐条查实、逐条修，其中一条**登记时写下的解法被实测推翻**。
+
+---
+
+**一、「声明 monotonicity 就能拿到 Wald LATE」——它在两种结局下都是假的**
+
+现象，四格实测（`themis.estimate`，Z→X→Y + X↔Y）：
+
+| 数据 | 声明 | 结果 | 信封上那句话 |
+|---|---|---|---|
+| 死工具（E[X\|Z=1]=E[X\|Z=0]=0.5） | 未声明 | `no_first_stage` 拒答 | 「Declare assumptions.monotonicity to get the Wald LATE」 |
+| 死工具 | **已声明** | **同一条拒答，没有数** | —— 上一格那句话由此被证伪 |
+| 活工具 | 未声明 | **`numerically_solved`，method=`iv_wald`，点值 1.209** | 同一句话仍在 gap 上 |
+| 活工具 | 已声明 | 同上，逐字节相同 | —— 声明与否，估计层的输出一模一样 |
+
+全量插桩（538 条结果经过估计层出口，483 条有数、39 条拒答）：这条 ask 留在 `missing_information` 上 **2 次**（全是 `no_first_stage / data / iv_wald`，即登记的那格）；但**留在 gap 上、旁边就摆着一个数的有 54 次**——`iv_wald` 42、`iv_2sls_overid` 10、`iv_2sls` 2。**登记时只看到 2 次里的那格，实际主战场在成功路径上。**
+
+**根因**：这条 item 是**识别层给自己定的前置条件**（不声明单调性，我不写这个 estimand），却被写成一句关于**内核**会做什么的许诺。估计层拿到 DataFrame 后**根本不读这个声明**，两种结局都把许诺作废：跑出数（ledger 已把单调性列为 `invalidating`，读者该看的披露在那儿），或者拒答（没有任何声明能给一个不动的第一阶段造出第一阶段）。没有任何一遍拿估计层的结局去对账它。
+
+两条漏法同源，都是「撤一半」：`_finalise_numeric_result` **无条件** `pop("missing_information")`，而它下游的 gap 对账被 `unidentifiable_no_admissible_set` 早退挡在门外——**item 删了、gap 留着**，两张「还缺什么」的表从此各说各的，而读者看到的（summary / next_steps 都从 gap 派生）正是没被对账的那张。这跟上一条修的是同一个门：那次它吞掉了 θ 那一半，这次吞掉的是前置条件那一半。
+
+**登记的解法是错的，实测推翻**：登记写的是「在 `refusals.py` 里逐物种声明『这个拒答与假设无关』」。两处站不住：（a）同一条 ask 的下游估计器实测有三个名字，逐物种对不上；（b）更根本的是，**拒答是什么物种压根不重要**——估计层从不读那个声明，所以它**开了口**这件事本身就足以作废许诺，回的是数还是拒答都一样。
+
+**修法**：`MissingItem.superseded_by_estimation` ——「估计层开口即作废」，由**提出前置条件的那一遍**声明（只有它知道那是前置条件）。`push` 像抄 `gap` 一样把它抄到 `InvestigationItem`，**而这次抄有更硬的理由：那是 pop 之后仍然活着的面**。撤销在 `estimate_program` 唯一出口执行，**排在 ledger 折叠之后**——撤销所依赖的那份披露正是在那一步落到读者主面上的。四个面（item / request / gap / 由 gap 重算的 summary + next_steps）一起动，走的是上一条建好的那三个 helper。
+
+**二、`_declares_missingness` 早退路径——登记的诊断对，开的药方不对**
+
+现象实测（4 条结果、3 条出了数）：**16 条 θ item、16 条 θ gap、16 句「补 P(…)」**，其中一条恢复出来的 ATE 旁边就摆着 4 个 blocking 缺口，要的正是它刚估出来的那几个条件分布；4/4 条 `estimation_context` 为 null。
+
+登记写的是「不建契约故不对账」。**契约不是该用的凭据**：2B 格（z 自遮蔽 → `not_recoverable`）里 z 这一列**在**，但 `P(z)` 恰恰不可恢复——那就是拒答本身；按「列在不在」结算会撤掉拒答赖以成立的那批请求。这条路上唯一站得住的凭据是「**数出来了**」，而这条路从不调用那次对账。
+
+**修法**：把「数回答了哪些请求」从「结果的地位变成什么」里拆出来（`_withdraw_asks_the_number_answers`）。两者依赖不同：有数就答掉了请求；而敢不敢声称 `numerically_solved` 是另一回事——**这条路不写 derivation，`verify` 拒绝审计没有 derivation 的结果**，声称了就是超出信封能背书的范围。所以它撤请求、不动 status。焊在一起时，这条路上撤销这一半干脆整个缺席。
+
+**三、`dispatch.py` 里两份同名模块级定义**
+
+`_collect_required_columns`（6501/6524）与 `_ensure_dict`（6517/6555）。删掉靠前的那两份（后者胜出）。值得一记：死掉的那份 `_collect_required_columns` 是**更旧更窄**的版本——它不知道 proximal latent，先读到它的人会得出「契约要求为一个构造上不可观测的节点提供列」的结论。加一条 AST 守卫：**themis/ 下任何模块不得两次定义同一个顶层名**（`tests/test_no_definition_is_shadowed.py`）。Python 对此从不报错，后一份静默胜出，前一份变成「读起来像在跑」的代码，而两份通常隔着几千行。
+
+**仍然登记，没修**：
+
+- 缺失恢复路径 4/4 条没有 `estimation_context`（无契约，故无 data_hash / sample_size / random_state）。数值块自带 `data_hash`，审计链没断，但这条路与其他所有路不对称。
+- 同一条路不写 derivation，因此既不能声称 `numerically_solved`，也过不了 `themis.verify`——`tests/test_verify_missing_data_numeric.py` 的模块 docstring 早就把这件事写出来了，并为此单建了一个审计器。
+
+**基线（本条）**：3849 → **3855**（+3 IV：无数据通道里这条前置条件带着「估计层开口即作废」的标记出现在两个面上、死工具拒答后四个面上都不再有它、交付的 LATE 不再一边给数一边劝你去声明它——同时钉住 ledger 仍以 `invalidating` 披露单调性；+2 缺失恢复：出了数就撤掉它答掉的请求（并过 `verify_data_gap_report`）、不可恢复时那批请求原样留着（列在不等于分布可得）；+1 AST 守卫：themis/ 下没有模块两次定义同一个顶层名）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
