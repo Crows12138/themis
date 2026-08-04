@@ -48,7 +48,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           </div>
         ) : sr ? (
           <div className={`readout readout--${sr.tone}`}>
-            <span className="readout__cap">结论</span>
+            <span className="readout__cap">{sr.cap}</span>
             <span className="readout__value">
               <span className="readout__tier">{sr.label}</span>
             </span>

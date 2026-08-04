@@ -110,10 +110,10 @@ Fields in roughly the order you'll consult them:
 
 | Field | What it tells you |
 |---|---|
-| `status` | `numerically_solved` (number available) / `structurally_solved` (boolean assoc/cause) / `needs_investigation` (data/structure missing) / `needs_assumption` (identification possible *if* user grants a named assumption) / `counterfactual_solved` / `counterfactual_bounded` (counterfactual variants) / `outside_language` (out of scope) |
+| `status` | `numerically_solved` (number available) / `structurally_solved` (identification finished — the answer for a question about the graph, and for a question that asked for a quantity only the news that the quantity *can* be obtained) / `needs_investigation` (data/structure missing) / `needs_assumption` (identification possible *if* user grants a named assumption) / `counterfactual_solved` / `counterfactual_bounded` (counterfactual variants) / `outside_language` (out of scope) |
 | `numeric_result.value` | The concrete probability when `numerically_solved` came from the symbolic / Theta path |
 | `numeric_estimate.{point, ci_lower, ci_upper, method, ...}` | The data-driven estimate (Phase 7). See §"Numeric rendering" |
-| `structural_result.value` | `true` / `false` for cause / assoc when `structurally_solved` |
+| `structural_result.value` | A boolean whose *proposition* depends on `query_kind`. Where the question was about the graph — does X cause Y, are they associated, is the effect identifiable — the proposition is the answer, so state it. Where the question asked for a **quantity**, the same boolean asserts only that the estimand is identifiable: that is a precondition for the answer, never the answer, and rendering it as one tells a reader who asked "how large" that the result is "yes". When it is `false` there, "not identifiable" **is** the answer — say that, not "no" |
 | `investigation_requests[]` | Actionable patches the user can paste back |
 | `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
 | `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |

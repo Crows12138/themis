@@ -97,8 +97,13 @@ ROUTES = {
 
 
 def _result(**extensions) -> dict:
+    # ``query_kind`` is required by ``query_result.schema.json`` and the
+    # report now reads it (a structural boolean means a different thing per
+    # kind of question), so a fixture without one is an envelope that
+    # cannot occur.
     return {
         "status": "structurally_solved",
+        "query_kind": "effect",
         "structural_result": {"value": True},
         "extensions": dict(extensions),
     }

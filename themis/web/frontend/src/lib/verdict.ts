@@ -76,16 +76,48 @@ export function gapTitle(kind: string): string {
   return GAP_TITLE[kind] ?? kind.replace(/_/g, ' ')
 }
 
-// Structural-result verdict for cause / assoc / identify queries — the
-// yes/no answer the kernel actually returns (value + supporting_paths).
+// What the structural boolean asserts, per kind of question — the table
+// themis/questions.py declares, mirrored here because the browser cannot
+// import it. A test parses this object and holds its keys and its
+// `answersIt` flags equal to the Python vocabulary.
+//
+// This used to special-case cause / assoc / identify and answer the other
+// seven with 成立 / 不成立. Those seven asked for a number, and 81 results
+// in one suite run were answered that way — the boolean says the estimand
+// is identifiable, which is worth stating and is not what was asked. The
+// fallback was the shape of "this kind has no reading", and a fallback
+// reads exactly like coverage, which is why binding replaces it.
+type Reading = { answersIt: boolean; holds: { label: string; gloss: string }; failsTo: { label: string; gloss: string } }
+
+const QUESTION_READINGS: Record<string, Reading> = {
+  cause: { answersIt: true, holds: { label: '是', gloss: '存在因果影响' }, failsTo: { label: '否', gloss: '不存在因果影响' } },
+  assoc: { answersIt: true, holds: { label: '有关联', gloss: '两者相关联' }, failsTo: { label: '无关联', gloss: '两者不相关联' } },
+  identify: { answersIt: true, holds: { label: '可识别', gloss: '可从观测数据非参数识别' }, failsTo: { label: '不可识别', gloss: '无法从这张图非参数识别' } },
+  effect: { answersIt: false, holds: { label: '可识别', gloss: '该效应可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该效应无法从这张图识别' } },
+  probability: { answersIt: false, holds: { label: '可识别', gloss: '该概率可识别 —— 数值还没算出来' }, failsTo: { label: '不可识别', gloss: '该概率无法从这张图识别' } },
+  counterfactual: { answersIt: false, holds: { label: '可识别', gloss: '该反事实格可识别（点或界）' }, failsTo: { label: '不可识别', gloss: '该反事实格无法识别' } },
+  causation: { answersIt: false, holds: { label: '可识别', gloss: '归因概率可识别' }, failsTo: { label: '不可识别', gloss: '归因概率无法识别' } },
+  scm_counterfactual: { answersIt: false, holds: { label: '可解出', gloss: '该个体的反事实值可解出' }, failsTo: { label: '解不出', gloss: '该个体的反事实值解不出' } },
+  counterfactual_conjunction: { answersIt: false, holds: { label: '可识别', gloss: '联合反事实可识别' }, failsTo: { label: '不可识别', gloss: 'ID* 返回 hedge —— 不可识别' } },
+  proximal_effect: { answersIt: false, holds: { label: '可识别', gloss: '近端识别条件成立，效应可识别' }, failsTo: { label: '不成立', gloss: '近端识别条件不成立' } },
+}
+
+// `cap` is what the chip is labelled: 结论 only where the boolean IS the
+// answer. Calling an identifiability precondition a 结论 is the same
+// substitution in one word.
 export function structuralReadout(
   queryKind: string,
   value: boolean,
-): { label: string; gloss: string; tone: 'point' | 'none' } {
-  if (queryKind === 'cause') return value ? { label: '是', gloss: '存在因果关系', tone: 'point' } : { label: '否', gloss: '没有因果关系', tone: 'none' }
-  if (queryKind === 'assoc') return value ? { label: '有关联', gloss: '两者存在统计关联', tone: 'point' } : { label: '无关联', gloss: '两者没有统计关联', tone: 'none' }
-  if (queryKind === 'identify') return value ? { label: '可识别', gloss: '图 + 数据足以识别' , tone: 'point' } : { label: '不可识别', gloss: '需要更强假设', tone: 'none' }
-  return value ? { label: '成立', gloss: '', tone: 'point' } : { label: '不成立', gloss: '', tone: 'none' }
+): { cap: string; label: string; gloss: string; tone: 'point' | 'none' } | null {
+  const reading = QUESTION_READINGS[queryKind]
+  if (!reading) return null
+  const side = value ? reading.holds : reading.failsTo
+  return {
+    cap: reading.answersIt ? '结论' : '识别',
+    label: side.label,
+    gloss: side.gloss,
+    tone: value ? 'point' : 'none',
+  }
 }
 
 // "stays_up_late(me)@t-1" -> "stays_up_late@t-1" (drop the object args,

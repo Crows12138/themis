@@ -25,7 +25,7 @@ optional but lets the report render the causal model and edge provenance.
 """
 from __future__ import annotations
 
-from .. import answers, blocks, refusals
+from .. import answers, blocks, questions, refusals
 
 _KIND_ZH = {
     refusals.KIND_GRAPH: (
@@ -132,13 +132,42 @@ def _section(title: str, body: str) -> list[str]:
 
 
 # --- question -----------------------------------------------------------------
+#
+# One renderer per kind of question, bound to :mod:`themis.questions`. Four
+# kinds had a branch here and six echoed their enum token back at the
+# reader; of the four, ``assoc`` tested for ``"association"`` — a string no
+# query kind has — so it never fired, and underneath that it read ``from``
+# / ``to``, which are the *cause* query's fields. A branch that cannot fire
+# cannot be wrong out loud, which is how the second bug kept.
+#
+# Each renderer takes the query dict or ``None`` (the report is often built
+# without the program) and reads only fields ``$defs.query.oneOf`` declares
+# for its kind; a test builds one query per kind from that same schema and
+# holds the line to naming what it was asked about.
 
 
-def _find_query(program: dict | None) -> dict | None:
+def _find_query(program: dict | None, query_id: str | None = None) -> dict | None:
+    """The query THIS result answers.
+
+    Keyed on ``query_id`` — required on every query statement — rather
+    than "the first query statement in the program". A program may carry
+    several; the report is built per result. With one query the two agree,
+    which is every fixture in the suite, so an ``assoc`` result rendered
+    the ``cause`` query's question line and asked "x 是否因果影响 y" about
+    a question that was never asked.
+
+    No match means the question is not in the program that was handed in.
+    Returning ``None`` puts the kind's own prose in the line; returning
+    some other query's atoms is how this was wrong in the first place.
+    """
     if not program:
         return None
-    for stmt in program.get("statements", []):
-        if stmt.get("kind") == "query":
+    queries = [s for s in program.get("statements", [])
+               if s.get("kind") == "query"]
+    if query_id is None:
+        return queries[0].get("query") if queries else None
+    for stmt in queries:
+        if stmt.get("id") == query_id:
             return stmt.get("query")
     return None
 
@@ -154,29 +183,135 @@ def _valued(a: dict) -> str:
     return f"{pred}={val}" if val is not None else pred
 
 
-def _render_question(result: dict, program: dict | None) -> str:
-    q = _find_query(program)
-    kind = (q or {}).get("kind") or result.get("query_kind") or "?"
+def _q_effect(q: dict | None) -> str:
     if q is None:
-        return f"（查询类型：`{kind}`）"
+        return "估计一次干预的因果效应有多大。"
+    iv = _valued(q.get("intervention", {}))
+    tgt = _valued(q.get("target", {}))
+    line = f"估计 **干预 {iv}** 对 **{tgt}** 的因果效应。"
+    given = q.get("given") or []
+    if given:
+        conds = "、".join(_valued(g) for g in given)
+        line += f"（条件于 {conds}）"
+    return line
 
-    if kind == "effect":
-        iv = _valued(q.get("intervention", {}))
-        tgt = _valued(q.get("target", {}))
-        line = f"估计 **干预 {iv}** 对 **{tgt}** 的因果效应。"
-        given = q.get("given") or []
-        if given:
-            conds = "、".join(_valued(g) for g in given)
-            line += f"（条件于 {conds}）"
-        return line
-    if kind == "cause":
-        return f"**{_atom_pred(q.get('from'))}** 是否因果影响 **{_atom_pred(q.get('to'))}**？"
-    if kind == "association":
-        return f"**{_atom_pred(q.get('from'))}** 与 **{_atom_pred(q.get('to'))}** 是否（在图中）相关联？"
-    if kind == "identify":
-        tgt = q.get("target") or q.get("effect") or {}
-        return f"目标效应是否可从观测数据**非参数识别**？（`identify`）"
-    return f"（查询类型：`{kind}`）"
+
+def _q_cause(q: dict | None) -> str:
+    if q is None:
+        return "一个变量是否因果影响另一个变量？"
+    return f"**{_atom_pred(q.get('from'))}** 是否因果影响 **{_atom_pred(q.get('to'))}**？"
+
+
+def _q_assoc(q: dict | None) -> str:
+    """The kind whose question line was never rendered — twice over.
+
+    The branch tested ``kind == "association"``; the enum value is
+    ``assoc``, so it could not fire and one of the three questions whose
+    answer IS the verdict was asked as ``（查询类型：assoc）``. Underneath
+    that, the branch read ``from`` / ``to`` — the *cause* query's fields.
+    An assoc query carries ``left`` / ``right``, so even with the string
+    corrected it would have asked ``**?** 与 **?** 是否相关联``. A dead
+    branch cannot be wrong out loud, which is what kept the second bug.
+    """
+    if q is None:
+        return "两个变量在图中是否相关联？"
+    line = (f"**{_atom_pred(q.get('left'))}** 与 **{_atom_pred(q.get('right'))}** "
+            f"是否（在图中）相关联？")
+    given = q.get("given") or []
+    if given:
+        line += f"（条件于 {'、'.join(_atom_pred(g) for g in given)}）"
+    return line
+
+
+def _q_identify(q: dict | None) -> str:
+    if q is None:
+        return "目标效应是否可从观测数据**非参数识别**？"
+    iv = _valued(q.get("intervention", {}))
+    tgt = _valued(q.get("target", {}))
+    return f"**干预 {iv}** 对 **{tgt}** 的效应，是否可从观测数据**非参数识别**？"
+
+
+def _q_probability(q: dict | None) -> str:
+    if q is None:
+        return "求某个事件在模型下的概率。"
+    line = f"求 **{_valued(q.get('target', {}))}** 的概率。"
+    given = q.get("given") or []
+    if given:
+        line += f"（条件于 {'、'.join(_valued(g) for g in given)}）"
+    return line
+
+
+def _q_counterfactual(q: dict | None) -> str:
+    if q is None:
+        return "求反事实联合分布中某一格的值。"
+    # ``observed`` is one grounded atom, not a list — the schema settles
+    # this and intuition gets it wrong, the same way ``assoc`` carries
+    # ``left`` / ``right`` where the branch above it reads ``from`` / ``to``.
+    return (f"已知 **{_valued(q.get('observed', {}))}**，若当初 "
+            f"**{_valued(q.get('counterfactual_intervention', {}))}**，"
+            f"**{_valued(q.get('counterfactual_target', {}))}** 的概率是多少？")
+
+
+def _q_causation(q: dict | None) -> str:
+    if q is None:
+        return "求归因概率 —— 必要性 PN / 充分性 PS / PNS。"
+    return (f"**{_atom_pred(q.get('cause'))}** 对 **{_atom_pred(q.get('effect'))}** 的"
+            f"归因概率 —— 必要性 PN / 充分性 PS / 两者兼备 PNS。")
+
+
+def _q_scm_counterfactual(q: dict | None) -> str:
+    if q is None:
+        return "在线性结构方程模型下，求某个个体的反事实结局。"
+    return (f"在线性结构方程模型下，若这个个体当初 "
+            f"**{_valued(q.get('intervention', {}))}**，"
+            f"其 **{_valued(q.get('target', {}))}** 会是多少？")
+
+
+def _q_counterfactual_conjunction(q: dict | None) -> str:
+    if q is None:
+        return "求多个反事实事件同时成立的概率。"
+    n = len(q.get("events") or [])
+    line = ("求这 1 个反事实事件的概率。" if n == 1
+            else f"求 {n} 个反事实事件**同时成立**的概率。")
+    if q.get("condition"):
+        line += f"（以另外 {len(q['condition'])} 个反事实事件为条件）"
+    return line
+
+
+def _q_proximal_effect(q: dict | None) -> str:
+    if q is None:
+        return "用代理变量校正未测混杂后，求因果效应。"
+    return (f"**{_atom_pred(q.get('treatment'))}** 对 "
+            f"**{_atom_pred(q.get('outcome'))}** 的效应 —— 混杂 "
+            f"**{_atom_pred(q.get('latent'))}** 没有数据，用代理 "
+            f"**{_atom_pred(q.get('treatment_proxy'))}** / "
+            f"**{_atom_pred(q.get('outcome_proxy'))}** 把它校正掉。")
+
+
+_QUESTION_LINES = questions.bind({
+    questions.EFFECT: _q_effect,
+    questions.CAUSE: _q_cause,
+    questions.ASSOC: _q_assoc,
+    questions.IDENTIFY: _q_identify,
+    questions.PROBABILITY: _q_probability,
+    questions.COUNTERFACTUAL: _q_counterfactual,
+    questions.CAUSATION: _q_causation,
+    questions.SCM_COUNTERFACTUAL: _q_scm_counterfactual,
+    questions.COUNTERFACTUAL_CONJUNCTION: _q_counterfactual_conjunction,
+    questions.PROXIMAL_EFFECT: _q_proximal_effect,
+})
+
+
+def _render_question(result: dict, program: dict | None) -> str:
+    q = _find_query(program, result.get("query_id"))
+    kind = result.get("query_kind") or (q or {}).get("kind")
+    if q is not None and q.get("kind") != kind:
+        # A query of another kind carries other fields; handing it to this
+        # kind's renderer is how both of today's question-line bugs read.
+        # Reachable only when the result names no query_id and the program
+        # leads with a different question.
+        q = None
+    return _QUESTION_LINES[questions.reading_of(kind)](q)
 
 
 # --- answer -------------------------------------------------------------------
@@ -271,27 +406,74 @@ def _render_answer(result: dict) -> str:
             "没有任何可呈现的答案。"
         )
 
-    # 5. What was established about the graph (cause / association /
-    #    identify). The answer for those query kinds, and only reachable
-    #    for the others once every branch above has come up empty.
+    # 5. The structural verdict, read as the proposition it asserts rather
+    #    than as a bare 是 / 否. Which proposition that is depends on what
+    #    was asked, and the boolean cannot say — it is the same field for
+    #    a cause query, where it is the answer, and for an effect query,
+    #    where it is a precondition (:mod:`themis.questions`).
+    reading = questions.reading_of(result.get("query_kind"))
     if sr and sr.get("value") is not None:
         val = sr["value"]
-        verdict = "**是**" if val is True else ("**否**" if val is False else f"**{val}**")
         paths = sr.get("supporting_paths") or []
         note = f"（支持路径 {len(paths)} 条）" if paths else ""
-        return f"结论：{verdict}{note}"
+        if val is not True and val is not False:
+            # The schema admits a string here; no producer writes one.
+            return f"结论：**{val}**{note}"
+        settled = _VERDICT_ZH[reading][0 if val else 1]
+        if reading.verdict_is_the_answer:
+            return f"结论：**{'是' if val else '否'}** —— {settled}{note}"
+        if val is False:
+            # Not a weak answer to "how large is it": the quantity cannot
+            # be obtained at all, and saying so IS the answer. A bare 否
+            # was not even a sentence about the question that was asked.
+            return f"**{settled}** —— 问的是一个数，而这个量从当前的图与假设里得不出来。"
+        # Identifiable. The number's absence has some other cause, and the
+        # branches below know which — this branch used to answer here and
+        # 34 results in one suite run carried a ``formula``, so the line
+        # they needed was already written directly underneath.
 
-    # 6. Identified but needs data, or genuinely blocked.
+    # 6. Identified but needs data, or genuinely blocked. The proposition
+    #    comes from the same table: this line said "效应可识别" to five
+    #    ``probability`` queries in one suite run, which had asked for a
+    #    probability and not for an effect.
     if result.get("formula") is not None:
         return (
-            "效应**可识别**（估计式已生成，见文末审计），但当前**没有数据** → "
-            "需要数据才能给出具体数值。所需数据见下方「数据缺口」。"
+            f"**{_VERDICT_ZH[reading][0]}**（估计式已生成，见文末审计），但当前"
+            "**没有数据** → 需要数据才能给出具体数值。所需数据见下方「数据缺口」。"
+        )
+    if sr and sr.get("value") is True:
+        # Identification finished without producing an estimand a number
+        # could be plugged into — a mediation decomposition, a proximal
+        # matrix inversion. Reached only for the kinds that asked for a
+        # number, since the verdict answers the others above.
+        return (
+            f"**{_VERDICT_ZH[reading][0]}**，但这一轮**没有给出数值** —— "
+            "识别到此为止，没有产出可直接代入的估计式；要得到具体数字需要数据。"
         )
     if status in ("needs_investigation", "needs_assumption"):
         return "当前**还不能给出答案** —— 缺口与补法见下方「数据缺口」。"
     if status == "outside_language":
         return "该问题**超出 Themis 可表达 / 可识别的范围**。"
     return "（无可呈现的答案字段）"
+
+
+# What the structural boolean asserts, in the reader's language. One pair
+# per query kind, checked against the vocabulary at import: the fallback it
+# replaces (the web's 成立 / 不成立) is what a missing entry used to look
+# like, and a fallback reads exactly like coverage.
+_VERDICT_ZH = questions.bind({
+    questions.CAUSE: ("存在因果影响", "不存在因果影响"),
+    questions.ASSOC: ("两者相关联", "两者不相关联"),
+    questions.IDENTIFY: ("可从观测数据非参数识别", "无法从这张图非参数识别"),
+    questions.EFFECT: ("该效应可识别", "该效应无法从这张图识别"),
+    questions.PROBABILITY: ("该概率可识别", "该概率无法从这张图识别"),
+    questions.COUNTERFACTUAL: ("该反事实格可识别（点或界）", "该反事实格无法识别"),
+    questions.CAUSATION: ("归因概率可识别", "归因概率无法识别"),
+    questions.SCM_COUNTERFACTUAL: ("该个体的反事实值可解出", "该个体的反事实值解不出"),
+    questions.COUNTERFACTUAL_CONJUNCTION: (
+        "联合反事实可识别", "ID* 返回 hedge —— 不可识别"),
+    questions.PROXIMAL_EFFECT: ("近端识别条件成立，效应可识别", "近端识别条件不成立"),
+})
 
 
 def _render_causation_bounds(poc: dict) -> str:

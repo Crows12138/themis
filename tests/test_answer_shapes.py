@@ -168,9 +168,15 @@ def test_an_estimate_with_no_answer_says_so_instead_of_borrowing_the_verdict():
 
 def test_a_structural_query_still_reads_as_its_verdict():
     """The verdict is the answer where the question was about the graph; it
-    lost only the estimates it was standing in for."""
+    lost only the estimates it was standing in for.
+
+    Which questions those are is now read from ``query_kind`` rather than
+    left to whatever fell through — so this fixture has to name one, and
+    the kind it names is the one the docstring was always about.
+    """
     line = _render_answer({
         "status": "structurally_solved",
+        "query_kind": "cause",
         "structural_result": {"value": True},
     })
     assert line.startswith("结论：")

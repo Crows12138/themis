@@ -12,7 +12,7 @@ headers, just short declarative sentences.
 """
 from __future__ import annotations
 
-from .. import blocks
+from .. import blocks, questions
 from ..runtime import formula_builder
 from ..types import (
     ConstantExpr,
@@ -22,7 +22,6 @@ from ..types import (
     Priority,
     ProbabilityQuery,
     ProbabilityRefExpr,
-    QueryKind,
     QueryResult,
     ResultStatus,
     SumExpr,
@@ -30,7 +29,7 @@ from ..types import (
 )
 
 
-def _explain_cause_zh(result: QueryResult) -> str:
+def _explain_cause_zh(result: QueryResult, stmt=None) -> str:
     sr = result.structural_result
     if sr is None:
         return "结构层未产生结果。"
@@ -45,7 +44,7 @@ def _explain_cause_zh(result: QueryResult) -> str:
     return "不存在从源到目标的有向路径。源在结构上不因果影响目标。"
 
 
-def _explain_assoc_zh(result: QueryResult) -> str:
+def _explain_assoc_zh(result: QueryResult, stmt=None) -> str:
     sr = result.structural_result
     if sr is None:
         return "结构层未产生结果。"
@@ -155,7 +154,7 @@ def _describe_needs_investigation(result: QueryResult) -> str:
     return " ".join(sentences)
 
 
-def _explain_identify_zh(result: QueryResult) -> str:
+def _explain_identify_zh(result: QueryResult, stmt=None) -> str:
     sr = result.structural_result
     if sr is None:
         return "识别结果缺失。"
@@ -259,7 +258,7 @@ def _explain_proximal_effect_zh(result: QueryResult, stmt=None) -> str:
     return "近端效应查询：结果未分类。"
 
 
-def _explain_effect_zh(result: QueryResult, stmt) -> str:
+def _explain_effect_zh(result: QueryResult, stmt=None) -> str:
     """Render an effect query result.
 
     Needs the originating stmt to quote the target value, intervention
@@ -305,7 +304,7 @@ def _explain_effect_zh(result: QueryResult, stmt) -> str:
     return f"{quantity}：结果未分类。"
 
 
-def _explain_probability_zh(result: QueryResult, stmt) -> str:
+def _explain_probability_zh(result: QueryResult, stmt=None) -> str:
     """Render a plain probability query result."""
     if stmt is not None and isinstance(stmt.query, ProbabilityQuery):
         q = stmt.query
@@ -372,7 +371,7 @@ def _explain_counterfactual_cell_data_zh(cell: dict) -> str:
     return f"{head}（从数据算得，{prov}）。{tail}"
 
 
-def _explain_counterfactual_zh(result: QueryResult) -> str:
+def _explain_counterfactual_zh(result: QueryResult, stmt=None) -> str:
     cell = (result.extensions or {}).get(blocks.COUNTERFACTUAL_CELL)
     if cell:
         return _explain_counterfactual_cell_data_zh(cell)
@@ -406,7 +405,7 @@ def _explain_counterfactual_zh(result: QueryResult) -> str:
     return "反事实查询：结果未分类。"
 
 
-def _explain_causation_zh(result: QueryResult) -> str:
+def _explain_causation_zh(result: QueryResult, stmt=None) -> str:
     """Render PN / PS / PNS (probabilities of causation, Tian-Pearl 2000).
 
     Reads the ``extensions.causation`` envelope the scheduler attached;
@@ -448,7 +447,7 @@ def _explain_causation_zh(result: QueryResult) -> str:
     )
 
 
-def _explain_scm_counterfactual_zh(result: QueryResult) -> str:
+def _explain_scm_counterfactual_zh(result: QueryResult, stmt=None) -> str:
     """Render a deterministic linear-SCM counterfactual point (Pearl
     Primer §4.2). Reads ``extensions.scm_counterfactual``; re-runs nothing."""
     if result.status is ResultStatus.NEEDS_INVESTIGATION:
@@ -497,6 +496,28 @@ def _with_framing_suffix(text: str, result: QueryResult) -> str:
     return f"{text}问题定义：{'；'.join(parts)}。"
 
 
+# One explainer per kind of question, bound to the vocabulary rather than
+# chained. The chain that was here covered all ten and raised on anything
+# else, which made this the one surface that was complete — the report's
+# answer line had no branch at all, the report's question line tested for a
+# string no query kind has, and the web answered seven kinds with a
+# fallback. Binding moves this surface's guarantee from "the eleventh
+# branch raises when a result arrives" to "a query kind without an
+# explainer fails at import".
+_EXPLAINERS = questions.bind({
+    questions.CAUSE: _explain_cause_zh,
+    questions.ASSOC: _explain_assoc_zh,
+    questions.IDENTIFY: _explain_identify_zh,
+    questions.EFFECT: _explain_effect_zh,
+    questions.PROBABILITY: _explain_probability_zh,
+    questions.COUNTERFACTUAL: _explain_counterfactual_zh,
+    questions.CAUSATION: _explain_causation_zh,
+    questions.SCM_COUNTERFACTUAL: _explain_scm_counterfactual_zh,
+    questions.COUNTERFACTUAL_CONJUNCTION: _explain_counterfactual_conjunction_zh,
+    questions.PROXIMAL_EFFECT: _explain_proximal_effect_zh,
+})
+
+
 def explain(
     result: QueryResult,
     lang: str = "zh",
@@ -519,30 +540,7 @@ def explain(
     """
     if lang != "zh":
         raise NotImplementedError(f"language '{lang}' not supported in v0.1")
-    if result.query_kind == QueryKind.CAUSE:
-        text = _explain_cause_zh(result)
-    elif result.query_kind == QueryKind.ASSOC:
-        text = _explain_assoc_zh(result)
-    elif result.query_kind == QueryKind.IDENTIFY:
-        text = _explain_identify_zh(result)
-    elif result.query_kind == QueryKind.EFFECT:
-        text = _explain_effect_zh(result, stmt)
-    elif result.query_kind == QueryKind.PROBABILITY:
-        text = _explain_probability_zh(result, stmt)
-    elif result.query_kind == QueryKind.COUNTERFACTUAL:
-        text = _explain_counterfactual_zh(result)
-    elif result.query_kind == QueryKind.CAUSATION:
-        text = _explain_causation_zh(result)
-    elif result.query_kind == QueryKind.SCM_COUNTERFACTUAL:
-        text = _explain_scm_counterfactual_zh(result)
-    elif result.query_kind == QueryKind.COUNTERFACTUAL_CONJUNCTION:
-        text = _explain_counterfactual_conjunction_zh(result, stmt)
-    elif result.query_kind == QueryKind.PROXIMAL_EFFECT:
-        text = _explain_proximal_effect_zh(result, stmt)
-    else:
-        raise NotImplementedError(
-            f"explainer for {result.query_kind.value} not implemented yet"
-        )
+    text = _EXPLAINERS[questions.reading_of(result.query_kind.value)](result, stmt)
     text = _with_confidence_suffix(text, result)
     text = _with_framing_suffix(text, result)
     return text
