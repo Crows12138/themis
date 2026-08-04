@@ -64,7 +64,7 @@ def as_binary_column(col: pd.Series, name: str) -> np.ndarray:
         raise EstimatorFailure(
             refusals.CAUSE_OR_EFFECT_NOT_BINARY,
             f"this quantity requires a binary column {name!r}; got "
-            f"values {sorted(vals, key=str)}",
+            f"values {refusals.describe(sorted(vals, key=str))}",
         )
     return col.to_numpy().astype(bool)
 

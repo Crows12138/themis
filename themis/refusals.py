@@ -582,6 +582,68 @@ def stamp(result: dict) -> None:
     failure["kind"] = species.kind
 
 
+# A refusal's message is the reader's answer line: dispatch puts it there
+# verbatim. That makes its length a property of the data, and one suite run
+# measured what that costs — a message naming an outcome's observed levels
+# rendered 3000 floats into a single sentence, 62,003 characters of it, 55
+# times. Nothing was wrong with the sentence; the value put into it was a
+# column.
+#
+# So the cap below is a backstop for the reader, not a fix. The fix is
+# ``describe``, which is bounded by construction; a truncated message means
+# a raise site is still interpolating a value raw, and a test asserts the
+# backstop never fires in the suite so that site is found here rather than
+# by whoever reads the answer.
+_MESSAGE_CAP = 1000
+# Two kinds of collection reach a refusal's sentence and they want
+# opposite treatment. A list of names — an adjustment set, a design's
+# variables, an outcome's declared states — IS the answer, and cutting
+# it drops the thing the reader needs. A column of data values is only
+# evidence for a count, and it has no ceiling: the measured case was
+# 3000 floats. So the cutoff is read off the elements, not fixed.
+_NAME_SAMPLE = 12
+_VALUE_SAMPLE = 3
+
+
+def describe(value, *, sample: int | None = None) -> str:
+    """One value, as a refusal's sentence should carry it.
+
+    Numpy scalars come back as their Python equivalents — ``np.False_`` and
+    ``np.float64(0.0)`` are how a repr of a dataframe cell reads, and the
+    reader did not ask about our array library. Collections say how many
+    they are and show a few, because "how many levels" is the fact the
+    refusal turns on and the levels themselves are the occasion's, which
+    belong in ``details``.
+
+    Five copies of a numpy coercion already exist across the estimators,
+    under four names, and every one of them justifies itself as JSON
+    safety — a value bound for the envelope. They are not this function
+    and this function does not replace them: they hand back a value, this
+    hands back prose. The point is that the envelope's path had a step
+    and the sentence's path had none.
+    """
+    scalar = getattr(value, "item", None)
+    if scalar is not None and hasattr(value, "dtype") and getattr(
+        value, "ndim", 1
+    ) == 0:
+        value = scalar()
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    if isinstance(value, (str, bytes)) or not hasattr(value, "__len__"):
+        return repr(value)
+    items = list(value)
+    if sample is None:
+        sample = (
+            _NAME_SAMPLE
+            if items and all(isinstance(v, str) for v in items)
+            else _VALUE_SAMPLE
+        )
+    if len(items) <= sample:
+        return "[" + ", ".join(describe(v) for v in items) + "]"
+    shown = ", ".join(describe(v) for v in items[:sample])
+    return f"{len(items)} values (e.g. {shown}, ...)"
+
+
 class EstimatorFailure(RuntimeError):
     """Raised when an estimator will not produce a number.
 
@@ -594,6 +656,13 @@ class EstimatorFailure(RuntimeError):
     ``details`` is free-form and goes into the block as-is — the numbers
     behind the refusal (which stratum, how many rows, what determinant),
     which belong to the occasion rather than to the species.
+
+    The message is capped here rather than at the surface that shows it:
+    a reader handed 62,000 characters is the estimator's doing, not the
+    renderer's, and a cap applied where the refusal is born is a cap on
+    every entrance to it. It cannot raise — a refusal that crashed on the
+    length of its own explanation would turn "no number, and here is why"
+    into no answer at all.
     """
 
     def __init__(self, failure_type: str, message: str, **details):
@@ -603,6 +672,13 @@ class EstimatorFailure(RuntimeError):
                 f"unregistered failure_type {str(failure_type)!r}; declare it "
                 f"in themis.refusals beside the others, with the kind that "
                 f"says what the reader should do about it"
+            )
+        message = str(message)
+        if len(message) > _MESSAGE_CAP:
+            message = (
+                message[:_MESSAGE_CAP]
+                + f"… (truncated at {_MESSAGE_CAP} characters — a value was "
+                f"interpolated raw; see themis.refusals.describe)"
             )
         super().__init__(message)
         self.failure_type = species

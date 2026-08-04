@@ -226,7 +226,7 @@ def estimate_regression_calibration(
         raise EstimatorFailure(
             refusals.MISMEASURED_VARIABLE_NOT_IN_DESIGN,
             f"measurement error was supplied for {unknown!r}, which is not among "
-            f"the design variables {list(design_vars)!r} (the exposure and its "
+            f"the design variables {refusals.describe(list(design_vars))} (the exposure and its "
             f"back-door adjustment set). A confounder must be adjusted for to be "
             f"corrected.",
         )

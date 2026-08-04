@@ -184,7 +184,7 @@ def estimate_joint_effect(
         raise EstimatorFailure(
             refusals.NOT_A_JOINT_INTERVENTION,
             f"estimate_joint_effect needs at least two treatments to form a "
-            f"joint intervention; got {len(treatments)} ({treatments!r})",
+            f"joint intervention; got {len(treatments)} ({refusals.describe(treatments)})",
             treatments=list(treatments),
         )
     if len(treatments) > _MAX_JOINT_TREATMENTS:
@@ -193,13 +193,13 @@ def estimate_joint_effect(
             f"estimate_joint_effect caps at {_MAX_JOINT_TREATMENTS} "
             f"treatments (the saturated basis is 2^K − 1 columns and the "
             f"interaction is a 2^K-corner finite difference); got "
-            f"{len(treatments)} ({treatments!r})",
+            f"{len(treatments)} ({refusals.describe(treatments)})",
             treatments=list(treatments), cap=_MAX_JOINT_TREATMENTS,
         )
     if len(set(treatments)) != len(treatments):
         raise EstimatorFailure(
             refusals.INVALID_INPUT,
-            f"joint treatment vector repeats a column: {treatments!r}",
+            f"joint treatment vector repeats a column: {refusals.describe(treatments)}",
             treatments=list(treatments),
         )
 

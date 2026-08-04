@@ -129,8 +129,8 @@ def _canonical_target_marginal(
             if set(values.keys()) != set(z_preds):
                 raise EstimatorFailure(
                     refusals.INVALID_INPUT,
-                    f"cell values keys {sorted(values.keys())} must equal "
-                    f"the declared predicates {sorted(z_preds)}",
+                    f"cell values keys {refusals.describe(sorted(values.keys()))} must equal "
+                    f"the declared predicates {refusals.describe(sorted(z_preds))}",
                 )
             cells.append((dict(values), float(prob)))
         return z_preds, cells
@@ -198,8 +198,8 @@ def estimate_transport(
     if set(z_preds) != set(adjustment):
         raise EstimatorFailure(
             refusals.INVALID_INPUT,
-            f"target_marginal variables {sorted(z_preds)} doesn't match "
-            f"the adjustment set {sorted(adjustment)}",
+            f"target_marginal variables {refusals.describe(sorted(z_preds))} doesn't match "
+            f"the adjustment set {refusals.describe(sorted(adjustment))}",
         )
 
     total_p = sum(p for _, p in cells)

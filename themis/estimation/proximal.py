@@ -158,7 +158,7 @@ def estimate_proximal_ate(
         raise EstimatorFailure(
             refusals.TREATMENT_NOT_BINARY,
             "the proximal ATE entry takes a binary treatment (two observed "
-            f"levels); observed X levels = {x_levels}.",
+            f"levels); observed X levels = {refusals.describe(x_levels)}.",
         )
 
     p_treated = _proximal_do_prob(
@@ -245,8 +245,10 @@ def _proximal_do_prob(
         if n_zx == 0:
             raise EstimatorFailure(
                 refusals.INSUFFICIENT_SUPPORT,
-                f"empty stratum (Z={zj!r}, X={x!r}); proximal formula (5) has "
-                f"no P(W|Z={zj!r},X={x!r}) to estimate (positivity violation).",
+                f"empty stratum (Z={refusals.describe(zj)}, "
+                f"X={refusals.describe(x)}); proximal formula (5) has no "
+                f"P(W|Z={refusals.describe(zj)},X={refusals.describe(x)}) "
+                f"to estimate (positivity violation).",
             )
         for i, wi in enumerate(w_levels):
             M[i, j] = (stratum[wcol] == wi).mean()

@@ -191,7 +191,8 @@ def estimate_general_id_ate(
         raise EstimatorFailure(
             refusals.TREATMENT_NOT_BINARY,
             f"treatment {t_col!r} has {len(t_levels)} observed levels "
-            f"({t_levels}); the general-ID plug-in ATE is a two-level "
+            f"({refusals.describe(t_levels)}); the general-ID plug-in "
+            f"ATE is a two-level "
             f"contrast. Supply a binary treatment.",
             treatment=t_col,
         )
@@ -200,7 +201,8 @@ def estimate_general_id_ate(
         raise EstimatorFailure(
             refusals.OUTCOME_NOT_BINARY,
             f"outcome {y_col!r} has {len(y_levels)} observed levels "
-            f"({y_levels}); v1 of the general-ID plug-in ATE requires a "
+            f"({refusals.describe(y_levels)}); v1 of the general-ID "
+            f"plug-in ATE requires a "
             f"binary outcome.",
             outcome=y_col,
         )
@@ -384,7 +386,8 @@ def estimate_general_id_conditional_ate(
         raise EstimatorFailure(
             refusals.TREATMENT_NOT_BINARY,
             f"treatment {t_col!r} has {len(t_levels)} observed levels "
-            f"({t_levels}); the general-ID plug-in ATE is a two-level "
+            f"({refusals.describe(t_levels)}); the general-ID plug-in "
+            f"ATE is a two-level "
             f"contrast. Supply a binary treatment.",
             treatment=t_col,
         )
@@ -393,7 +396,8 @@ def estimate_general_id_conditional_ate(
         raise EstimatorFailure(
             refusals.OUTCOME_NOT_BINARY,
             f"outcome {y_col!r} has {len(y_levels)} observed levels "
-            f"({y_levels}); v1 of the general-ID plug-in ATE requires a "
+            f"({refusals.describe(y_levels)}); v1 of the general-ID "
+            f"plug-in ATE requires a "
             f"binary outcome.",
             outcome=y_col,
         )
@@ -588,7 +592,7 @@ def estimate_joint_general_id_ate(
             refusals.TREATMENT_NOT_BINARY,
             f"the joint general-ID plug-in requires every treatment to be "
             f"binary with one common two-level set; got level sets "
-            f"{sorted(level_sets)} for {list(t_cols)}. A uniform do-corner "
+            f"{refusals.describe(sorted(level_sets))} for {refusals.describe(list(t_cols))}. A uniform do-corner "
             f"is undefined otherwise.",
         )
     t_levels = next(iter(level_sets))
@@ -597,7 +601,7 @@ def estimate_joint_general_id_ate(
         raise EstimatorFailure(
             refusals.OUTCOME_NOT_BINARY,
             f"outcome {y_col!r} has {len(y_levels)} observed levels "
-            f"({y_levels}); v1 of the general-ID plug-in requires a binary "
+            f"({refusals.describe(y_levels)}); v1 of the general-ID plug-in requires a binary "
             f"outcome.",
             outcome=y_col,
         )
@@ -615,7 +619,7 @@ def estimate_joint_general_id_ate(
             and res_hi.formula is not None and res_lo.formula is not None):
         raise EstimatorFailure(
             refusals.NOT_IDENTIFIABLE_BY_GENERAL_ID,
-            f"the joint effect of {list(t_cols)} on {y_col!r} is not "
+            f"the joint effect of {refusals.describe(list(t_cols))} on {y_col!r} is not "
             f"point-identified by the set ID algorithm on this ADMG — there "
             f"is no c-factor estimand to evaluate.",
             outcome=y_col,

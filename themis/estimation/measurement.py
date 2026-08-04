@@ -262,7 +262,7 @@ def estimate_measurement_correction(
             raise EstimatorFailure(
                 refusals.DIFFERENTIAL_BY_UNKNOWN,
                 f"differential_by={axis!r} is neither the exposure {treatment!r} "
-                f"nor a back-door adjustment covariate {list(adjustment)!r}; the "
+                f"nor a back-door adjustment covariate {refusals.describe(list(adjustment))}; the "
                 f"differential axis must be a variable the correction conditions on.",
             )
         differential_axis = axis
@@ -330,7 +330,7 @@ def estimate_measurement_correction(
     if missing:
         raise EstimatorFailure(
             refusals.STATES_INCOMPLETE,
-            f"observed outcome values {sorted(map(str, missing))} are not in the "
+            f"observed outcome values {refusals.describe(sorted(map(str, missing)))} are not in the "
             f"declared confusion-matrix states {states!r}; the matrix must cover "
             f"every observed outcome value.",
         )
@@ -708,7 +708,8 @@ def _require_binary(col: pd.Series, name: str) -> None:
         raise EstimatorFailure(
             refusals.TREATMENT_NOT_BINARY,
             f"measurement-error correction needs a binary treatment {name!r}; "
-            f"got values {sorted(vals, key=str)} (multi-value X is deferred).",
+            f"got values {refusals.describe(sorted(vals, key=str))} "
+            f"(multi-value X is deferred).",
         )
 
 
@@ -988,7 +989,7 @@ def estimate_exposure_measurement_correction(
     if not observed_x <= set(states):
         raise EstimatorFailure(
             refusals.EXPOSURE_NOT_BINARY,
-            f"observed exposure values {sorted(map(str, observed_x))} are not "
+            f"observed exposure values {refusals.describe(sorted(map(str, observed_x)))} are not "
             f"covered by the declared exposure states {states!r}.",
         )
     for v in adjustment:
@@ -1012,7 +1013,7 @@ def estimate_exposure_measurement_correction(
         raise EstimatorFailure(
             refusals.TARGET_VALUE_ABSENT,
             f"query target value {target_value!r} is not among the observed "
-            f"outcome values {list(outcome_states)!r}.",
+            f"outcome values {refusals.describe(list(outcome_states))}.",
         )
 
     # Build the inverse-matrix map. Non-differential: the same M for every column
@@ -1040,7 +1041,7 @@ def estimate_exposure_measurement_correction(
             raise EstimatorFailure(
                 refusals.DIFFERENTIAL_BY_UNKNOWN,
                 f"differential_by={axis!r} is neither the outcome {outcome!r} nor a "
-                f"back-door adjustment covariate {list(adjustment)!r}; the "
+                f"back-door adjustment covariate {refusals.describe(list(adjustment))}; the "
                 f"differential axis must be a variable the correction conditions on.",
             )
         differential_axis = axis
@@ -1061,7 +1062,7 @@ def estimate_exposure_measurement_correction(
                     refusals.DIFFERENTIAL_LEVELS_MISMATCH,
                     "exposure differential misclassification by the outcome: "
                     "`differential_levels` must be exactly the observed outcome "
-                    f"values {list(outcome_states)!r}; got "
+                    f"values {refusals.describe(list(outcome_states))}; got "
                     f"{[lvl for (lvl, *_r) in prepared]!r}. For misclassification "
                     f"that varies by a COVARIATE, set `differential_by=<covariate>`.",
                 )
@@ -1582,7 +1583,7 @@ def estimate_combined_measurement_correction(
     if not observed_x <= set(exposure_states):
         raise EstimatorFailure(
             refusals.EXPOSURE_NOT_BINARY,
-            f"observed exposure values {sorted(map(str, observed_x))} are not "
+            f"observed exposure values {refusals.describe(sorted(map(str, observed_x)))} are not "
             f"covered by the declared exposure states {exposure_states!r}.",
         )
     for v in adjustment:
@@ -1593,7 +1594,7 @@ def estimate_combined_measurement_correction(
     if missing:
         raise EstimatorFailure(
             refusals.STATES_INCOMPLETE,
-            f"observed outcome values {sorted(map(str, missing))} are not in the "
+            f"observed outcome values {refusals.describe(sorted(map(str, missing)))} are not in the "
             f"declared confusion-matrix states {outcome_states!r}; the matrix "
             f"must cover every observed outcome value.",
         )

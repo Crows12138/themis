@@ -413,7 +413,7 @@ def evaluate_balke_pearl_ace_bounds(
             raise EstimatorFailure(
                 species,
                 f"{role} {col!r} has {len(levels)} observed levels "
-                f"({levels}); the Balke-Pearl IV bounds require a binary "
+                f"({refusals.describe(levels)}); the Balke-Pearl IV bounds require a binary "
                 f"{role}.",
             )
 

@@ -169,7 +169,7 @@ def estimate_selection_recovery(
         raise EstimatorFailure(
             refusals.REFERENCE_MISSING_COLUMN,
             f"the unbiased reference sample is missing column(s) "
-            f"{sorted(missing)} needed for the adjustment weights "
+            f"{refusals.describe(sorted(missing))} needed for the adjustment weights "
             f"P(z⁺)/P(z⁻|x,z⁺).",
         )
     r_contract = validate_data(reference, required_columns=ref_required or {treatment})
@@ -445,7 +445,7 @@ def _require_binary(col: pd.Series, name: str) -> None:
         raise EstimatorFailure(
             refusals.TREATMENT_NOT_BINARY,
             f"selection-backdoor recovery needs a binary treatment {name!r}; "
-            f"got values {sorted(vals, key=str)} (multi-value X is deferred).",
+            f"got values {refusals.describe(sorted(vals, key=str))} (multi-value X is deferred).",
         )
 
 

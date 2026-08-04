@@ -123,7 +123,7 @@ def assess_outcome_error(
             refusals.NON_POSITIVE_ERROR_VARIANCE,
             f"the classical measurement-error variance σ²_v for the outcome "
             f"{outcome!r} must be a positive finite number; got "
-            f"{error_variance!r}.",
+            f"{refusals.describe(error_variance)}.",
         )
 
     adjustment = tuple(adjustment)

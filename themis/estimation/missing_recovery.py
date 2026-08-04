@@ -325,7 +325,7 @@ def estimate_recovered_ate(
         raise EstimatorFailure(
             refusals.TREATMENT_NOT_BINARY,
             f"treatment {treatment!r} must be binary 0/1 over its observed "
-            f"values; got levels {sorted(set(np.unique(t_obs)))}.",
+            f"values; got levels {refusals.describe(sorted(set(np.unique(t_obs))))}.",
             treatment=treatment,
         )
     for z in adjustment:
