@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -20,7 +20,8 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const formula = result.formula ? fmtFormula(result.formula) : null
   const sens = num?.sensitivity_analysis
   const ledger = result.extensions?.assumption_ledger
-  const showCompare = num != null && naive != null
+  const showCompare = num != null && num.point != null && naive != null
+  const shaped = num ? answerRows(num) : null
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
   const hasDetail = paths.length > 0 || !!formula || !!bounds || sens?.e_value != null || !!ledger?.assumptions?.length
@@ -82,6 +83,22 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 </span>
               </div>
               <p className="compare__lesson">两个数明显不同 —— 混杂在作怪。这就是为什么要做因果调整,而不是直接对比。</p>
+            </div>
+          ) : num && shaped ? (
+            /* An estimate whose estimand has no single number — a curve, a
+               decomposition, a joint contrast, a bounded cell. Read through
+               the same shape vocabulary the report uses; this branch used to
+               not exist, so all of them rendered as one em-dash. */
+            <div className="figure">
+              <span className="figure__cap">{shaped.cap}{num.method ? ` · ${num.method}` : ''}</span>
+              <div className="pathlist">
+                {shaped.rows.map((r, i) => (
+                  <div className="boundsexpr__row" key={i}>
+                    <span className="boundsexpr__k">{r.label}</span>
+                    <span className="boundsexpr__v mono">{r.value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : num ? (
             <div className="figure">

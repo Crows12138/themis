@@ -25,7 +25,7 @@ optional but lets the report render the causal model and edge provenance.
 """
 from __future__ import annotations
 
-from .. import blocks, refusals
+from .. import answers, blocks, refusals
 
 _KIND_ZH = {
     refusals.KIND_GRAPH: (
@@ -197,6 +197,14 @@ def _render_answer(result: dict) -> str:
     nothing by sitting low. For a query that asked for a number it is
     scaffolding, and rendering scaffolding in the answer slot is how a
     positivity violation reached a reader as a confident "是".
+
+    That last sentence was written about one branch and was true of five.
+    The estimate's shape used to be recovered here by probing field names in
+    order; a curve, a decomposition, a joint contrast and a counterfactual
+    cell matched no probe, and 84 of them across one suite run fell all the
+    way to the verdict. The shape is now declared by the method that
+    produced it (:mod:`themis.answers`), so an unrenderable estimate says so
+    instead of borrowing the sentence below it.
     """
     status = result.get("status")
     ne = result.get("numeric_estimate")
@@ -204,14 +212,11 @@ def _render_answer(result: dict) -> str:
     sr = result.get("structural_result")
     br = result.get("bounds_result")
 
-    # 1. Data-path numeric estimate (strongest).
-    if ne and ne.get("point") is not None:
-        return _render_numeric_estimate(ne, result.get("outcome_error"))
-
-    # 1b. Causation bounds answer (PN/PS/PNS recovered from data, non-monotone):
-    #     no single point, but three identified intervals — render them.
-    if ne and ne.get("probabilities_of_causation"):
-        return _render_causation_bounds(ne["probabilities_of_causation"])
+    # 1. The data-path estimate, in whatever shape its estimand has.
+    if ne:
+        shape = answers.shape_of(ne)
+        if shape is not None:
+            return _ANSWER_RENDERERS[shape](ne, result)
 
     # 2. Symbolic / theta-path numeric value.
     if nr and nr.get("value") is not None:
@@ -250,6 +255,17 @@ def _render_answer(result: dict) -> str:
         return (
             f"{line}（估计器 `{failure.get('estimator', '?')}`，"
             f"拒答类型 `{failure['failure_type']}`）"
+        )
+
+    # 4b. An estimate block carrying no answer at all. Stated here rather
+    #     than falling through, because what it would fall to is a verdict
+    #     about the graph standing in for the number that was asked for —
+    #     the substitution the shape table removes, in the one case the
+    #     table itself cannot rule out.
+    if ne:
+        return (
+            f"**没有给出数值**：估计器 `{ne.get('method', '?')}` 返回的估计块里"
+            "没有任何可呈现的答案。"
         )
 
     # 5. What was established about the graph (cause / association /
@@ -308,6 +324,19 @@ def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None) -> str
     else:
         lines.append(f"**{point}**")
 
+    lines.extend(_estimate_meta(ne, outcome_error))
+    return "\n".join(lines)
+
+
+def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
+    """The lines every answer shape shares, whatever its headline looks like.
+
+    How it was computed, how precise it is, and what would overturn it. Kept
+    in one place so a shape bound later cannot ship without them — the point
+    shape had all of this and the four shapes that rendered nothing at all
+    had, by construction, none of it.
+    """
+    lines: list[str] = []
     method = ne.get("method")
     n = ne.get("sample_size")
     meta = []
@@ -341,7 +370,138 @@ def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None) -> str
     if sa and sa.get("note"):
         lines.append(f"- 稳健性（E-value）：{sa['note']}")
 
+    return lines
+
+
+def _band(part: dict | None) -> str:
+    """One estimated quantity with its interval, or an empty string."""
+    if not part or part.get("point") is None:
+        return ""
+    line = f"**{_fmt(part['point'])}**"
+    if part.get("ci_lower") is not None and part.get("ci_upper") is not None:
+        line += f"（CI [{_fmt(part['ci_lower'])}, {_fmt(part['ci_upper'])}]）"
+    return line
+
+
+def _render_dose_response_curve(ne: dict, result: dict) -> str:
+    """The effect at each sampled dose, against the reference dose.
+
+    A curve has no single number to lead with, which is exactly why probing
+    for one fell through to the graph verdict.
+    """
+    curve = ne.get("dose_response_curve") or []
+    ref = ne.get("reference_point")
+    head = "剂量-反应**曲线**"
+    if ref is not None:
+        head += f"（相对参考剂量 x={_fmt(ref)}）"
+    lines = [head + f"，共 {len(curve)} 个采样剂量："]
+    shown = curve[:6]
+    for pt in shown:
+        seg = f"- x={_fmt(pt.get('x'))}：{_fmt(pt.get('effect'))}"
+        if pt.get("ci_lower") is not None and pt.get("ci_upper") is not None:
+            seg += f"（CI [{_fmt(pt['ci_lower'])}, {_fmt(pt['ci_upper'])}]）"
+        lines.append(seg)
+    if len(curve) > len(shown):
+        lines.append(f"- …（其余 {len(curve) - len(shown)} 个剂量见 `numeric_estimate`）")
+    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
     return "\n".join(lines)
+
+
+def _render_mediation_decomposition(ne: dict, result: dict) -> str:
+    """Total effect split into what runs through the mediator and what does not."""
+    d = ne.get("decomposition") or {}
+    lines = ["效应**分解**（总效应 = 直接 + 间接）："]
+    for key, label in (
+        ("te", "总效应 TE"),
+        ("nde", "自然直接效应 NDE（不经中介）"),
+        ("nie", "自然间接效应 NIE（经中介）"),
+    ):
+        band = _band(d.get(key))
+        if band:
+            lines.append(f"- {label}：{band}")
+    pm = _band(d.get("proportion_mediated"))
+    if pm:
+        lines.append(f"- 中介占比：{pm}")
+    cde = d.get("cde") or {}
+    for key, label in (
+        ("reference_control", "控制直接效应 CDE（中介固定在参考值）"),
+        ("reference_treated", "控制直接效应 CDE（中介固定在处理值）"),
+    ):
+        band = _band(cde.get(key))
+        if band:
+            lines.append(f"- {label}：{band}")
+    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
+    return "\n".join(lines)
+
+
+def _render_joint_contrast(ne: dict, result: dict) -> str:
+    """The contrast between two joint corners, plus what riding together adds."""
+    joint = ne.get("joint_effect") or {}
+    lines = []
+    band = _band(joint)
+    corners = ""
+    treated, control = joint.get("treated") or {}, joint.get("control") or {}
+    if treated and control:
+        corners = (
+            f"（{_corner(treated)} 对比 {_corner(control)}）"
+        )
+    lines.append(f"**联合干预对比**{corners}：{band}" if band else "**联合干预对比**")
+
+    inter = ne.get("interaction")
+    if inter and inter.get("point") is not None:
+        order = inter.get("order")
+        lines.append(
+            f"- {order} 阶交互（{inter.get('scale', '差值')} 尺度）："
+            f"{_band(inter)} —— 各处理一起上，比各自效应之和多出来的部分"
+        )
+    unavailable = ne.get("interaction_unavailable")
+    if unavailable:
+        lines.append(
+            f"- {unavailable.get('order', '')} 阶交互**给不出**："
+            f"{unavailable.get('reason', '')}"
+        )
+    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
+    return "\n".join(lines)
+
+
+def _corner(corner: dict) -> str:
+    return "{" + ", ".join(f"{k}={_fmt(v)}" for k, v in sorted(corner.items())) + "}"
+
+
+def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
+    """Bounds on one counterfactual cell — a point would need monotonicity."""
+    cell = ne.get("counterfactual_cell") or {}
+    lo, hi = cell.get("lower"), cell.get("upper")
+    lines = []
+    if lo is not None and hi is not None:
+        lines.append(
+            f"该反事实格的**区间** [{_fmt(lo)}, {_fmt(hi)}]"
+            "（无单调性假设，故为界而非点）"
+        )
+    else:
+        lines.append("该反事实格没有给出可呈现的界。")
+    adj = cell.get("adjustment")
+    if adj:
+        lines.append(f"- 干预风险经后门调整集 {{{', '.join(adj)}}} 识别")
+    lines.append("- 若可假设单调性（X 从不阻止 Y），该格可点识别。")
+    lines.extend(_estimate_meta(ne, result.get("outcome_error")))
+    return "\n".join(lines)
+
+
+# Each shape, said once. ``bind`` refuses a set that misses one, so a shape
+# added to the vocabulary cannot reach this surface and render nothing.
+_ANSWER_RENDERERS = answers.bind({
+    answers.POINT:
+        lambda ne, result: _render_numeric_estimate(ne, result.get("outcome_error")),
+    answers.DOSE_RESPONSE_CURVE: _render_dose_response_curve,
+    answers.MEDIATION_DECOMPOSITION: _render_mediation_decomposition,
+    answers.JOINT_CONTRAST: _render_joint_contrast,
+    answers.COUNTERFACTUAL_CELL_BOUNDS: _render_counterfactual_cell_bounds,
+    answers.CAUSATION_BOUNDS: lambda ne, result: "\n".join(
+        [_render_causation_bounds(ne["probabilities_of_causation"])]
+        + _estimate_meta(ne, result.get("outcome_error"))
+    ),
+})
 
 
 # --- causal model -------------------------------------------------------------

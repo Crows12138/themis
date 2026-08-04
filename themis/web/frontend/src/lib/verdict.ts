@@ -1,4 +1,4 @@
-import type { AnswerTier } from '../types'
+import type { AnswerTier, Band, NumericEstimate } from '../types'
 
 export const TIER_META: Record<AnswerTier, { label: string; gloss: string }> = {
   point: { label: '点估计', gloss: '可以算出一个具体数字——补齐数据即可' },
@@ -97,6 +97,85 @@ export function cleanPathNode(s: string): string {
 export function fmtNum(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—'
   return Number.isInteger(n) ? String(n) : n.toFixed(3)
+}
+
+function band(b: Band | null | undefined): string {
+  if (!b || b.point === null || b.point === undefined) return ''
+  const ci = b.ci_lower != null && b.ci_upper != null
+    ? ` · CI [${fmtNum(b.ci_lower)}, ${fmtNum(b.ci_upper)}]` : ''
+  return `${fmtNum(b.point)}${ci}`
+}
+
+function corner(c: Record<string, unknown> | undefined): string {
+  if (!c) return ''
+  return '{' + Object.keys(c).sort().map((k) => `${k}=${String(c[k])}`).join(', ') + '}'
+}
+
+// The shapes an estimate can answer in — the vocabulary themis/answers.py
+// declares, bound here to this surface's rows. This surface used to read only
+// `point`, so a curve, a decomposition, a joint contrast and a bounded cell
+// each rendered as a single em-dash while their numbers sat in the same block.
+// A test pins that every declared shape is read here.
+export function answerRows(
+  num: NumericEstimate,
+): { cap: string; rows: { label: string; value: string }[] } | null {
+  if (num.point != null) return null // the point figure already leads with it
+
+  const curve = num.dose_response_curve
+  if (curve?.length) {
+    return {
+      cap: '剂量-反应曲线',
+      rows: curve.slice(0, 6).map((p) => ({
+        label: `x=${fmtNum(p.x)}`,
+        value: band({ point: p.effect, ci_lower: p.ci_lower, ci_upper: p.ci_upper }),
+      })),
+    }
+  }
+
+  const d = num.decomposition
+  if (d) {
+    return {
+      cap: '效应分解',
+      rows: ([
+        ['总效应 TE', d.te], ['直接效应 NDE', d.nde], ['间接效应 NIE', d.nie],
+        ['中介占比', d.proportion_mediated],
+      ] as const)
+        .filter(([, b]) => band(b))
+        .map(([label, b]) => ({ label, value: band(b) })),
+    }
+  }
+
+  const joint = num.joint_effect
+  if (joint) {
+    const rows = [{
+      label: `对比 ${corner(joint.treated)} vs ${corner(joint.control)}`.trim(),
+      value: band(joint),
+    }]
+    if (num.interaction?.point != null) {
+      rows.push({ label: `${num.interaction.order ?? ''} 阶交互`, value: band(num.interaction) })
+    }
+    return { cap: '联合干预', rows }
+  }
+
+  const cell = num.counterfactual_cell
+  if (cell && cell.lower != null && cell.upper != null) {
+    return {
+      cap: '反事实格(区间)',
+      rows: [{ label: '区间', value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]` }],
+    }
+  }
+
+  const poc = num.probabilities_of_causation
+  if (poc) {
+    return {
+      cap: '因果概率(区间)',
+      rows: ([['必要性 PN', poc.pn], ['充分性 PS', poc.ps], ['必要且充分 PNS', poc.pns]] as const)
+        .filter(([, q]) => q && q.lower != null && q.upper != null)
+        .map(([label, q]) => ({ label, value: `[${fmtNum(q!.lower)}, ${fmtNum(q!.upper)}]` })),
+    }
+  }
+
+  return null
 }
 
 // ---- framing gap filling (补缺口) ----

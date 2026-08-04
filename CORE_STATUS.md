@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3855 passed / 144 skipped, warning-clean
+3880 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1080,6 +1080,22 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 - 同一条路不写 derivation，因此既不能声称 `numerically_solved`，也过不了 `themis.verify`——`tests/test_verify_missing_data_numeric.py` 的模块 docstring 早就把这件事写出来了，并为此单建了一个审计器。
 
 **基线（本条）**：3849 → **3855**（+3 IV：无数据通道里这条前置条件带着「估计层开口即作废」的标记出现在两个面上、死工具拒答后四个面上都不再有它、交付的 LATE 不再一边给数一边劝你去声明它——同时钉住 ledger 仍以 `invalidating` 披露单调性；+2 缺失恢复：出了数就撤掉它答掉的请求（并过 `verify_data_gap_report`）、不可恢复时那批请求原样留着（列在不等于分布可得）；+1 AST 守卫：themis/ 下没有模块两次定义同一个顶层名）。
+
+**答案的形状成为一等事实：四个估计器族不再被渲染成「结论：是」（2026-08-04，接上条）**：修复型，用户可见，是本轮**先做全量测量、再定改法**的产物。用户问「为什么还有这么多杂七杂八的要改，系统不是一个整体吗」，普查了一遍信封的消费端，答案是：**内部是整体（`routing.py` 一张路由表、`refusals.py` 64 个物种、`blocks.py` 20 个块，各自「声明一次 + 单一出口拒绝未登记的」），但从「内核知道的事实」到「读者看到的面」之间没有对应的那张表**——那一段是手工的，所以每加一个一等事实就掉出几件杂活。
+
+**测量（两轮全量插桩，3855 passed 不受影响）**：①**事实清单** 21 个顶层字段 + 20 个块 = 41；**消费面** 160 个文件（人 67 / 审计 20 / 契约 7，含 MCP、剔除 node_modules 与 dist）。②**7/20 个块没有任何确定性渲染器**，6 个实测在产生（共 490 次）：`mechanism_audit` 276、`type_reconciliation` 122、`missing_data_recovery` 39、`joint_identification` 26、`longitudinal_identification` 19、`proximal_estimand` 8；其中 3 个连 LLM prompt 都不认识。四条确定性的路各自手写、各自不全：`analysis_report` 3/20、`explainer` 5/20、`data_gap_report` 7/20、`Verdict.tsx` 2/20。③**决定性的那一格**：459 次数值估计里 **93 次 `point` 为空**，其中 **84 次读者在「答案」节读到的是 `结论：是`**——`dose_response_*` 29 / `mediation_*` 28 / `joint_backdoor_linear` 17 / `counterfactual_cell_plugin` 11，跨 8 个方法、4 个族；答案本身就在同一个块里，字段数一一对应（`dose_response_curve` 29、`decomposition` 29、`joint_effect` 17、`counterfactual_cell` 11）。web 同病（`fmtNum(null)` → 一个破折号），且 `types.ts` 把 `point` 声明成不可空。
+
+**根因**：`_render_answer` 靠**探测字段名**推断「这个估计的答案长什么形状」，而这个事实**产生端知道、从未被声明过**。失败方式是**静默下坠**——掉进分支 5（结构布尔），那里总有值，所以永远不会红。为什么是根因不是表象：①84 次横跨 4 个族、不同时期加入；②分支 1b（`probabilities_of_causation`）是上一次同一伤口的补丁，**它救下的正好是 7 次**，紧挨着的 84 次没人补——补丁式修法实测不能自我扩展；③`_render_answer` 的 docstring 自己写着这个失败模式（*「rendering scaffolding in the answer slot is how a positivity violation reached a reader as a confident 是」*），**病知道、警告写了、照样复发**；④正确形状仓里已有——`data_gap_report._bind_item_species`（闭合词表 `MISSING_ITEM_GAPS` + import 时双向拒绝 + 允许显式声明 `_RaisedElsewhere(reason=...)`），**只服务于一个事实**。
+
+**修法**：新 `themis/answers.py`（与 `blocks.py` / `refusals.py` / `routing.py` 同列）——6 个答案形状各声明一次（`lives_in` 说出答案住在哪个键，是**字段不是闭包细节**，因为 web 用 TypeScript 渲染、导不进这张表，词表必须可被检视）；`SHAPES_OF` 把 schema 里 38 个 method 各绑一组形状，**meta 测试双向钉死**（enum 里没绑的 = 估计到了报告说不出话；表里多绑的 = 读起来像覆盖的死文案）；`bind` 让每个面各绑自己那一端并拒绝覆盖不全的绑定集（`routing.py` 的形状）。消费端：`analysis_report` 补 4 个渲染器 + 抽出公用元信息尾巴 `_estimate_meta`（**测试当场抓到唯一打过补丁的 causation 分支不带这条尾巴**：方法名、样本量、E-value 全无）；**分支 5 从兜底降级**——估计块在场但说不出答案时，直说「没有任何可呈现的答案」而不是借用下面那句关于图的结论。web 端 `lib/verdict.ts` 新 `answerRows` 绑同一套词表、`Verdict.tsx` 加分支、`types.ts` 补字段并把 `point` 改为可空（`tsc -b` 干净）。
+
+**先量再改救回一条**：普查一度把 `mechanism_audit`（276 次）列为「没人读」，**核实后不成立**——`build_assumption_ledger:596` 读它、转成一条 `functional_form` 账本条目，而账本有 3 个确定性面渲染。它属于「在别处渲染」，正是 `_RaisedElsewhere` 存在的理由：**没有声明，「在别处」和「忘了」长得一模一样**。同法核实 `_compute_answer_tier` 键在识别信号上而非 `point` 上，故中介仍被判为「点估计」层级，**这一处没有同病**。
+
+**声明的取舍**：①`bind` 只保证 Python 面有渲染器；web 是独立手写的 TS 链，**用 meta 测试按 `lives_in` 钉它的覆盖**——这是明确更弱的一半，理由是不把渲染好的文字塞进信封（那会让内核开始生产给人看的字）。②`explainer.py` 不动：它只读 `numeric_result`（theta 路）、根本不读 `numeric_estimate`，是结构解释面不是答案面，也不在 `themis.__all__`（只有测试 import）。③`ipw_ht` / `joint_backdoor_logistic` 两个 method 全套件从未触发，形状按同族兄弟声明并**在表里标明**（㉖ 三档记账，不混进「实测」）。
+
+**未做已登记**：①还有 5 个块没有任何确定性渲染器且不属于「在别处渲染」——`type_reconciliation`（122 次，3 个验证器读、没有人面）、`missing_data_recovery`（39）、`joint_identification`（26）、`longitudinal_identification`（19）、`proximal_estimand`（8）；它们不是**答案**而是**答案的来路**，该进的面是「怎么算出来的」而不是答案节，是另一张表。②`counterfactual_error` / `causation_error` 两个块全套件零产生，且写的是**裸异常字符串**（`extensions={blocks.COUNTERFACTUAL_ERROR: str(exc)}`）——这正是拒答通道取代掉的老模式，该并进 `refusals.py` 而不是留着。③上一条登记的缺失恢复路径两件事仍未做。
+
+**基线（本条）**：3855 → **3880**（+25：形状词表对着 schema enum 双向钉死、`bind` 两个方向各拒一次、未声明的 method 响亮而非默认、双模的两个族点在前；5 个形状各一条「不得渲染成关于图的结论且必须出数」+ 各一条「必须带公用尾巴」；点估计仍以数字开头；估计块无答案时不借用结构结论；结构查询仍读作它的判断；web 按 `lives_in` 逐形状钉覆盖）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，

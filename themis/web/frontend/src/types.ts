@@ -50,8 +50,19 @@ export interface Sensitivity {
   note?: string
 }
 
+export interface Band {
+  point?: number | null
+  ci_lower?: number | null
+  ci_upper?: number | null
+}
+
+// An estimate answers in whatever shape its estimand has. `point` is null for
+// every shape that has no single number to lead with — a dose-response curve,
+// a mediation decomposition, a joint contrast, a bounded counterfactual cell.
+// Which shape a given estimate carries is declared per method in
+// themis/answers.py; a test pins that this file reads all of them.
 export interface NumericEstimate {
-  point: number
+  point?: number | null
   ci_lower?: number | null
   ci_upper?: number | null
   ci_level?: number
@@ -59,6 +70,21 @@ export interface NumericEstimate {
   adjustment?: string[]
   sample_size?: number
   sensitivity_analysis?: Sensitivity
+  dose_response_curve?: ({ x?: number; effect?: number } & Band)[]
+  reference_point?: number | null
+  decomposition?: {
+    te?: Band; nde?: Band; nie?: Band; proportion_mediated?: Band
+  }
+  joint_effect?: Band & {
+    treated?: Record<string, unknown>; control?: Record<string, unknown>
+  }
+  interaction?: Band & { order?: number; scale?: string }
+  counterfactual_cell?: { lower?: number | null; upper?: number | null }
+  probabilities_of_causation?: {
+    pn?: { lower?: number | null; upper?: number | null }
+    ps?: { lower?: number | null; upper?: number | null }
+    pns?: { lower?: number | null; upper?: number | null }
+  }
 }
 
 export interface LedgerEntry {
