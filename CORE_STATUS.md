@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3913 passed / 144 skipped, warning-clean
+3963 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1112,6 +1112,28 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **顺带查实、未修已登记**：中介类效应查询走结构层（无 θ 无数据）时，答案节渲染的是 `结论：**是**`——**又一次拿关于图的判断冒充「效应多大」**，且是上一轮形状表够不着的一格（这次是**根本没有估计块**，不是估计块空）。不当场修，因为分支 5 对 `structural_result=False` 的 effect 查询说「不可识别」是**对的**，正确的门要按 query_kind × 值分，需要自己的一轮测量。
 
 **基线（本条）**：3880 → **3913**（+33：每个块必须说出自己被当作哪一族读、五族对注册表的划分、声明顺序即小节的宣读顺序、`bind` 两个方向各拒一次、不写 `read_as` 的块建不出来；10 条路线各一条「定义性事实必须到达读者」+ 各一条「必须出现在组装好的报告里」；无路线时不出空标题；节序在答案与因果模型之间；两条路线按注册表顺序而非字典插入顺序宣读；未登记的模式名照原样说出而不是丢掉；IV 不重复上一条已说过的事实、且单独出现时工具名不丢；web 的 `ROUTE_ORDER` 与注册表逐项比对且每个名字都有渲染器）。
+
+**答案是不是答案，取决于问的是什么：一个布尔字段断言十个命题（2026-08-04，接上条）**：修复型，用户可见。上一条登记「中介类 effect 查询答案节仍渲染 `结论：**是**`」。**按 query_kind × 分支 × 值全量清点，真实规模是 81 次答非所问**，而且登记时看到的又是尾巴——最刺眼的一格根本不是中介。
+
+**测量（全量插桩，1397 个结果到达读者，插桩不影响当时的 3913 passed）**：答案节 271 次渲染那句结构布尔，其中 **81 次问的是一个数**（`effect` 78 + `proximal_effect` 3）。细分：**34 次带着 `formula`**——它们要的那句话（「效应**可识别**（估计式已生成），但当前**没有数据**」，本轮共命中 352 次）**已经写在下一个分支里了**，够不到只是因为分支 5 排在前面且无条件接住任何布尔；32 次既无 formula 也无估计块（中介、近端），落到分支 5 后无处可去；12 次 `value=False` 渲染成 `结论：**否**`——对「效应多大」这个问题，「否」不是弱答案，是不成句。`structural_value` 实测只出现过 True / False / None，schema 允许的 string 无任何产生端使用。
+
+**根因**：`structural_result.value` 是**裸布尔，它断言的命题不在信封里**。这个命题是 query_kind 的函数，而这张表**系统里已经有五份，没有一份是数据**：① `verify()` 必须按 query_kind 分派到四个不同验证器（`verify_cause` / `verify_assoc` / `verify_identify` / `verify_effect_structural`）——不知道 claim 的是哪个命题就无法独立重算，所以验证器**不得不**知道；② `explainer.py` 一种一个函数、每个都说命题不说裸布尔，**并且未知即 `raise`——它是唯一写全并且强制了的面**；③ web `structuralReadout` 三个特例 + `成立 / 不成立` 兜底；④ 报告问题行判 `kind == "association"`，枚举值是 `"assoc"`，**这条分支永不命中**，于是三种「布尔即答案」的问法之一被问成 `（查询类型：assoc）`——**而死分支底下还压着第二个 bug**：那行读的是 `from` / `to`，是 **`cause` 查询的字段**；`assoc` 查询带的是 `left` / `right`，所以就算字符串写对了，它也只会问出 `**?** 与 **?** 是否相关联`。**一条永不命中的分支不会出声，所以它错得再离谱也没人知道**；⑤ prompt 只写「`true` / `false` for cause / assoc」，且把 `structurally_solved` 说成「boolean assoc/cause」——中介 effect 查询就是反例。**五个面五种错法**指向共同的空缺；explainer 完整不是因为写它的人更小心，而是因为**它的兜底是 `raise` 而不是 `return`**。
+
+**修法**：`themis/questions.py`——schema 已钉死且**必填**的 10 个 query_kind 各声明一条读法（`asks` / `settles` / `fails` / **`verdict_is_the_answer`**），`bind` 两向拒绝。那个布尔字段是所有面都需要、谁都没有的事实，而且**它不是「cause 和 assoc」**：`identify` 问的正是可识别性，所以同一个命题对 effect 是脚手架、对 identify 就是答案——**探字段名永远分不出来，字段一模一样，只有问题能分**。三个面各绑一端：答案节（是答案就说命题、不说裸「是 / 否」；不是答案且为假就说「不可识别」，为真就让位给下面那句本来就对的话，另补「可识别但没有产出可代入的估计式」一格给中介 / 近端）、问题行（死分支由构造消失，另 6 种从回显英文枚举名改成中文问句）、explainer（`if` 链换成 `bind`，保证从「第十一条分支在结果到达时抛」提前到「少一个 kind 就 import 失败」）。web 端 `QUESTION_READINGS` 十条、删掉兜底，chip 的 cap 按 `answersIt` 分——**把识别前提叫「结论」是同一个替换的一词版**。prompt 两行改成原则。
+
+**中途撤回了自己的一条取舍**：本条原打算「`asks` 只做问题行的兜底文案，6 种 kind 不写原子级模板，因为要逐一核实每种 query 的字段形状、是另一档活」。查 `assoc` 那个 bug 时发现，**`$defs.query.oneOf` 一条命令就能把十种 query 的字段形状全读出来**——理由不成立，取舍随之作废，十个模板全写了。**schema 当场又纠正了一次直觉**：`counterfactual.observed` 是**单个** groundedAtom 不是数组，按数组写会去迭代 dict 然后崩。
+
+**声明的取舍**：①web 那份表是 Python 表的镜像，靠**解析 `QUESTION_READINGS` 并把 key 与 `answersIt` 逐项比对**的测试钉住——钉的是那个布尔（事实），不是文案（说法）。②`Verdict.tsx` 的 `query_kind === 'cause' ? '因果路径' : '支持路径'` 看过没动：supporting_paths 只有 cause / assoc 产生，一分为二是对的，不值得为它给词表加字段。③十条问题行的测试用 fixture 而非端到端真跑——但 fixture **必须只用 schema 声明的字段、且覆盖全部 required**，由一条读 `$defs.query.oneOf` 的测试守着：**第一版测试正是照渲染器抄的 fixture，所以它跟着渲染器一起错，一个字都没抓到**。
+
+**修完重量一遍（同一插桩，全量）**：1400 个结果，**答非所问 0 次**（原 81）；仍以结构布尔作答的 192 次正好是 cause 76 + identify 67 + assoc 49——只剩那三种「布尔就是答案」的问法。（探针的分类器按旧句子前缀分桶，而修复恰好改了那些前缀，所以「可识别待数据」那一桶归零、数量并入兜底桶「数值」；那是**探针失真不是行为变化**，决定性的是前两个数。）
+
+**端到端时又抓到一个（已修）**：把 cause 与 assoc 两道题放进**同一个程序**跑，assoc 那份报告的问题行是「**x** 是否因果影响 **y**？」——**cause 的问题**。`_find_query` 取的是程序里的**第一条** query 语句，不看 `result.query_id`；单查询程序两者一致，而 **suite 里每个 fixture 都是单查询**，所以它一直没出过声。改成按 `query_id` 取（schema 里 `id` 是必填），取不到就落回该 kind 的散文——**拿另一道题的变量去填，正是这个 bug 本身**。旁证：`tests/test_e2e/` 里两个文件各自写了自己的 `_find_query(program, query_id)`，**它们早就知道要按 id 取**。
+
+**顺带查实、未修已登记**：`data_gap_report.py` 的 `_ESTIMAND_QUERY_KINDS = {effect, identify, counterfactual}` 是**另一条轴**（「`answer_tier` 有没有意义」），不是本条这张表的拷贝，所以没有并；但它自己有个可疑处——**只列 3 种，而注释只解释了 7 个排除项里的 3 个**（「cause / assoc / probability 不是估计量查询」），`causation` / `scm_counterfactual` / `counterfactual_conjunction` / `proximal_effect` 这四种**会产出数值**的 kind 被静默排除、`answer_tier` 恒为 `None`，没有写下理由。判它是有意还是漏，要按 kind 量一轮 tier 的实际分布。
+
+**自己的测试当场犯了上一条的错**：「每种 kind 的问题行不许出现枚举 token」判 `identify` 失败——那行是完整中文问句，末尾带 `（\`identify\`）` 标签。**token 出现与否分不出「句子＋标签」和「token 顶替句子」**（正是上一条 ㉝ 说的），改成量「旧兜底 `（查询类型：x）` 的形状还在不在」＋中文字符数下限。
+
+**基线（本条）**：3913 → **3963**（+50：词表与 schema 的 `query_kind` 枚举双向相等、`query_kind` 必填所以无需兜底、恰好三种问法由布尔作答（字面钉死）、每条读法两个值都得有命题且不相等、少绑一种拒绝、多绑一种拒绝、未知 kind 抛而不兜、explainer 是绑的不是链的；六个实测格各一条——问数不再答判断、不可识别说成「不可识别」而不是「否」、带 formula 的落到本来就写好的那句、图问题仍由判断作答（真 / 假各一）、十种 kind 都不落到「无可呈现的答案字段」；问题行：fixture 只许用 schema 声明的字段且必须覆盖 required、十种 kind 各一条「问句里必须点到它被问的那几个变量、且不许出现未解析的 `?`」、十种 kind 无 program 时也不落回旧兜底形状；同一程序里两道题各问各的、`query_id` 落空时回散文而不是借用别人的变量、kind 对不上的 query 不会被塞进这个 kind 的渲染器；web 的表与 Python 逐项相等、兜底确已消失；一次真实中介运行端到端）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
