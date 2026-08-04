@@ -3236,6 +3236,71 @@ def _gap_sort_key(gap: DataGap) -> tuple[int, str]:
     return (_SEVERITY_ORDER[gap.severity], gap.kind.value)
 
 
+def data_gap_from_dict(d: dict) -> DataGap:
+    """Read one serialized gap back into a :class:`DataGap`.
+
+    Inverse of ``result_orchestrator._data_gap_to_dict``, and the same
+    posture as ``verifier.serialization.derivation_from_dict``: it
+    re-hydrates, it does not validate semantics. It exists because a
+    pass downstream of serialization has to re-derive what this module
+    computes FROM gaps — the summary line and the actionable tail — and
+    the alternative was a second copy of those rules over dicts.
+    """
+    rd = d.get("required_data")
+    return DataGap(
+        kind=GapKind(d["kind"]),
+        severity=GapSeverity(d["severity"]),
+        description=d["description"],
+        blocks=GapBlocks(d["blocks"]),
+        provenance=tuple(
+            GapProvenanceRef(
+                ref_kind=GapRefKind(ref["ref_kind"]), ref_id=ref["ref_id"],
+            )
+            for ref in d.get("provenance", []) or []
+        ),
+        signature=d.get("signature"),
+        required_data=None if not isinstance(rd, dict) else GapRequiredData(
+            data_type=(
+                RequiredDataType(rd["data_type"])
+                if rd.get("data_type") is not None else None
+            ),
+            population=rd.get("population"),
+            variables=tuple(rd.get("variables", ()) or ()),
+            min_sample_size=rd.get("min_sample_size"),
+            precision_target=rd.get("precision_target"),
+            sampling_point_count=rd.get("sampling_point_count"),
+            confounders_required=tuple(rd.get("confounders_required", ()) or ()),
+            time_window=rd.get("time_window"),
+            sutva_concerns=tuple(rd.get("sutva_concerns", ()) or ()),
+        ),
+        if_provided=d.get("if_provided"),
+        alternative_paths=tuple(d.get("alternative_paths", ()) or ()),
+    )
+
+
+def rederive_summary_and_steps(
+    gaps: "list[dict]", *, answer_tier: str | None,
+) -> "tuple[str, list[str]]":
+    """The two surfaces a serialized report derives from its gap list.
+
+    ``summary`` and ``actionable_next_steps`` are functions of the gaps,
+    computed here when the report is first built. A later pass that
+    removes gaps — because the data the caller supplied answered them —
+    has to recompute both, and it holds the report as JSON.
+
+    Both, and from the one rule. The pass that drops the θ gaps a
+    supplied DataFrame answers recomputed the summary from a local copy
+    of that rule and left the tail alone, so an ordinary back-door
+    result with a point estimate in hand and no distribution gap left in
+    the report still opened its next-steps with "补 P(y=True|w=True,
+    x=True)". A surface derived from the gaps is not reconciled by
+    reconciling the gaps; it is reconciled by being derived again.
+    """
+    hydrated = [data_gap_from_dict(g) for g in gaps]
+    tier = AnswerTier(answer_tier) if answer_tier is not None else None
+    return _make_summary(hydrated, tier), _make_actionable_steps(hydrated)
+
+
 def _make_summary(
     gaps: list[DataGap], answer_tier: AnswerTier | None = None
 ) -> str:

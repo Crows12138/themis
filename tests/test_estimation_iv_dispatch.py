@@ -108,6 +108,120 @@ def test_a_dead_instrument_says_so_instead_of_asking_for_monotonicity():
     assert "first-stage" in failure["reason"]
 
 
+def _dead_instrument_data(n=400):
+    """E[X|Z=1] and E[X|Z=0] are both exactly 0.5 by construction."""
+    x = np.array([True, False] * (n // 2))
+    u = np.random.default_rng(0).standard_normal(n)
+    return pd.DataFrame({
+        "z": np.array([True, True, False, False] * (n // 4)),
+        "x": x,
+        "y": 1.5 * x.astype(float) + 2.0 * u,
+    })
+
+
+def _theta_asks(result):
+    return {
+        m["name"] for m in result.get("missing_information", [])
+        if m["gap"] == "missing_distribution"
+    }
+
+
+def test_a_refused_estimate_does_not_ask_for_the_numbers_it_just_read():
+    """A refusal is not a reason to re-ask for what the sample supplied.
+
+    Given monotonicity, the identification pass wants four conditionals
+    out of theta and says so. The DataFrame is the other channel those
+    come from, and the estimator read them: its refusal reports
+    E[x|z=1] = E[x|z=0] = 0.5. Asking to be supplied P(x=True|z=True)
+    beside a block quoting its value is the envelope contradicting
+    itself within one result.
+    """
+    ast = _iv_ast()
+    ast["statements"][-1]["query"]["assumptions"] = {
+        "monotonicity": "non_decreasing",
+    }
+    asked = themis.run(ast)["results"][0]
+    assert _theta_asks(asked) >= {
+        "parameter:P(x=True|z=True)", "parameter:P(x=True|z=False)",
+    }, "the identification pass no longer asks for the Wald ingredients"
+
+    result = themis.estimate(ast, _dead_instrument_data(), ci_bootstrap=0)["results"][0]
+
+    assert result["estimator_failure"]["failure_type"] == "no_first_stage"
+    assert result["estimator_failure"]["details"]["e_treatment_high"] == 0.5
+    assert not _theta_asks(result)
+    report = result["data_gap_report"]
+    assert not [g for g in report["gaps"] if g["kind"] == "missing_distribution"]
+    assert not [
+        item
+        for request in result.get("investigation_requests", [])
+        for item in request.get("items", [])
+        if item["gap"] == "missing_distribution"
+    ]
+    themis.verify_data_gap_report(result)
+
+
+def test_an_iv_point_estimate_leaves_no_blocking_ask_for_its_own_inputs():
+    """The tier gate is about the tier, and only about the tier.
+
+    An IV LATE is assumption-laden, so the report rightly stays at the
+    interval tier with the bounds framing intact. That verdict used to
+    take the θ reconciliation down with it, so a successful IV estimate
+    shipped with four ``missing_distribution: blocking`` gaps naming the
+    very conditionals it had just computed from.
+    """
+    ast = _iv_ast()
+    ast["statements"][-1]["query"]["assumptions"] = {
+        "monotonicity": "non_decreasing",
+    }
+    result = themis.estimate(ast, _iv_data(), ci_bootstrap=0)["results"][0]
+
+    assert result["status"] == "numerically_solved"
+    report = result["data_gap_report"]
+    assert report["answer_tier"] == "interval"
+    assert not [g for g in report["gaps"] if g["kind"] == "missing_distribution"]
+    assert not [
+        step for step in report.get("actionable_next_steps", [])
+        if step.startswith("补 P(")
+    ]
+
+
+def test_the_admg_reason_names_an_instrument_only_where_one_reaches_it():
+    """What the reason claims is what gates it.
+
+    The sentence asserts that an instrumental-variable escalation reaches
+    this graph. It used to be emitted whenever any route left any note —
+    a condition about the run, not about the assertion — and to carry a
+    perishable second half ("could not be run as it stands — see the
+    items alongside this one") that survived both the estimator running
+    it and the items being answered.
+    """
+    with_iv = themis.run(_iv_ast())["results"][0]
+    reason = with_iv["missing_information"][0]["reason"]
+    assert "instrumental-variable escalation does reach it" in reason
+    assert "could not be run" not in reason
+    assert "items alongside this one" not in reason
+
+    no_iv = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": _atom("x"), "value": True},
+                "target": {"atom": _atom("y"), "value": True},
+                "given": [],
+            }},
+        ],
+    }
+    bare = themis.run(no_iv)["results"][0]["missing_information"][0]["reason"]
+    assert "instrumental-variable" not in bare
+
+
 def test_dispatch_iv_prefers_backdoor_when_both_available():
     """If backdoor works, IV must not fire (dispatch priority)."""
     ast = {

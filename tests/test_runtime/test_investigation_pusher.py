@@ -157,3 +157,63 @@ def test_parameter_without_matching_skeleton_has_none():
         skeletons={"other": {"kind": "probability"}},
     )
     assert reqs[0].items[0].skeleton is None
+
+
+# ============================================ shrinking a written request
+
+
+def test_a_shrunk_request_describes_the_items_it_still_holds():
+    """``summarise`` is applied twice and must say the same thing twice.
+
+    The estimation pass removes the items a supplied sample answered and
+    re-summarises what is left. Whatever it produces has to be what this
+    module would have produced had only those items ever been raised —
+    otherwise a request survives describing a set it no longer holds
+    ("parameter:4_items" over two), which is the drift a second copy of
+    the rule would have guaranteed.
+
+    Measured note: across the whole suite no request has ever lost a
+    strict subset of its items (712 requests reached the shrink; 359 lost
+    every item, 353 lost none). The mixed case is reachable in principle
+    — a result would have to raise both a study-population ask and a
+    named-population one — so the rule is pinned here rather than left to
+    a path no test travels.
+    """
+    from themis.estimation.dispatch import _drop_investigation_items
+
+    raised = (
+        _mk(MissingKind.PARAMETER, "parameter:P(y|x)", reason="needed by A"),
+        _mk(MissingKind.PARAMETER, "parameter:P*(y|x)", reason="needed by B"),
+        _mk(MissingKind.PARAMETER, "parameter:P*(z)", reason="needed by B"),
+    )
+    written = push(raised)
+    result = {
+        "investigation_requests": [
+            {
+                "action": r.action.value,
+                "target": r.target,
+                "priority": r.priority.value,
+                **({"note": r.note} if r.note is not None else {}),
+                "group": r.group,
+                "items": [
+                    {"target": i.target, "reason": i.reason, "gap": i.gap.value}
+                    for i in r.items
+                ],
+            }
+            for r in written
+        ],
+    }
+    _drop_investigation_items(
+        result,
+        {"parameter:P(y|x)"},
+        {m.name: m.priority.value for m in raised},
+    )
+
+    survived = result["investigation_requests"][0]
+    as_if_only_those = push(raised[1:])[0]
+    assert survived["target"] == as_if_only_those.target
+    assert survived.get("note") == as_if_only_those.note
+    assert survived["priority"] == as_if_only_those.priority.value
+    assert [i["target"] for i in survived["items"]] == [
+        i.target for i in as_if_only_those.items
+    ]

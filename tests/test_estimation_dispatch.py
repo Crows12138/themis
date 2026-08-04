@@ -315,7 +315,14 @@ def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
     estimate`` gaps are dropped, the parameter investigation_requests they
     cite are dropped (so the kernel's own T10 auditor stays satisfied),
     answer_tier becomes 'point', and the summary is recomputed. Real-usage
-    probe 2026-06-16."""
+    probe 2026-06-16.
+
+    ``actionable_next_steps`` is derived from the gaps too, and was left
+    behind by the first version of this reconciliation: a report with no
+    distribution gap in it went on opening its next-steps with
+    "补 P(y=True|w=True,x=True)". Both derived surfaces are checked here
+    because both are read, and because one of them being right proves
+    nothing about the other."""
     import json
 
     df = _linear_confounded_dgp(n=1500, seed=3, true_ate=2.0)
@@ -331,6 +338,11 @@ def test_numerically_solved_gap_report_is_reconciled_and_self_consistent():
     # Tier reflects the computed point; summary no longer says "missing P(...)".
     assert report["answer_tier"] == "point"
     assert "缺概率分布" not in report["summary"]
+    # …and neither does the tail derived from the same gaps.
+    assert not [
+        step for step in report.get("actionable_next_steps", [])
+        if step.startswith("补 P(")
+    ], report.get("actionable_next_steps")
     # No leftover parameter investigation_requests citing satisfied θ.
     assert all(
         ir.get("group") != "parameter"
@@ -459,6 +471,42 @@ def test_transport_numeric_reconciles_gap_report():
     assert blocking == set()
     assert report["answer_tier"] == "point"
     themis.verify_data_gap_report(res)
+
+
+def test_a_study_sample_does_not_settle_an_ask_about_another_population():
+    """Holding every variable an ask names is not holding the ask.
+
+    A transport query wants P_trial(y|x,z), and the supplied DataFrame has
+    columns for x, y and z — so a rule reading only the variables would
+    settle it. It is a sample of the source, and what is being asked for
+    is a conditional in the trial population; nothing about this sample
+    stands in for that. The reconciliation reads the population the ask
+    carries, which is why the ask survives here and the study-population
+    ones do not.
+    """
+    rng = np.random.default_rng(0)
+    n = 4000
+    z = rng.random(n) < 0.5
+    x = rng.random(n) < 0.5
+    df = pd.DataFrame({
+        "z": z, "x": x,
+        "y": (0.3 + x.astype(float) * np.where(z, 0.5, 0.2)
+              + rng.normal(scale=0.1, size=n)),
+    })
+    # A target marginal that does not sum to 1 — the estimator refuses, so
+    # no number arrives to settle the ask on the stronger warrant.
+    prog = _transport_program({True: 0.3, False: 0.3})
+    result = themis.estimate(prog, df, ci_bootstrap=0)["results"][0]
+
+    assert result["estimator_failure"]["failure_type"] == "invalid_input"
+    kept = [
+        m for m in result["missing_information"]
+        if m["gap"] == "missing_distribution"
+    ]
+    assert kept, "the transport parameter ask was dropped by the study sample"
+    assert kept[0]["observable"]["population"] == "trial"
+    assert set(kept[0]["observable"]["variables"]) <= set(df.columns)
+    themis.verify_data_gap_report(result)
 
 
 def test_transport_positivity_violation_surfaces_structured_failure():

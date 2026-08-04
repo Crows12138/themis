@@ -153,6 +153,18 @@ def to_dict(result: QueryResult) -> dict:
                 "priority": m.priority.value,
                 "gap": m.gap.value,
                 **({"reason": m.reason} if m.reason is not None else {}),
+                **(
+                    {"observable": {
+                        "variables": list(m.observable.variables),
+                        **(
+                            {"population": m.observable.population}
+                            if m.observable.population is not None
+                            else {}
+                        ),
+                    }}
+                    if m.observable is not None
+                    else {}
+                ),
             }
             for m in result.missing_information
         ]

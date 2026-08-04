@@ -379,3 +379,100 @@ def test_query_result_with_empty_gaps_serializes():
     payload = to_dict(_result(data_gap_report=report))
     assert payload["data_gap_report"] == {"summary": "", "gaps": []}
     _qr_validator().validate(payload)
+
+
+# ============================================ reading a gap back
+
+
+def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
+    """``data_gap_from_dict`` is the inverse of ``_data_gap_to_dict``.
+
+    The pass that shrinks a report after the supplied data answered part
+    of it re-derives the report's summary and actionable tail from the
+    surviving gaps, using the rules that built them — so it has to read
+    serialized gaps back first. A field this decoder forgets does not
+    raise; it silently reaches the re-derivation as a default, and the
+    two rules that consult ``required_data`` and ``alternative_paths``
+    would quietly render a different tail.
+    """
+    from themis.output.data_gap_report import data_gap_from_dict
+    from themis.output.result_orchestrator import _data_gap_to_dict
+
+    gap = DataGap(
+        kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
+        severity=GapSeverity.IMPORTANT,
+        description="需要剂量-反应数据",
+        blocks=GapBlocks.POINT_ESTIMATE,
+        provenance=(
+            GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK, ref_id="v"),
+            GapProvenanceRef(
+                ref_kind=GapRefKind.INVESTIGATION_REQUEST, ref_id="parameter:P(y)"
+            ),
+        ),
+        signature="conditional",
+        required_data=GapRequiredData(
+            data_type=RequiredDataType.IPD,
+            population="target",
+            variables=("x", "y"),
+            min_sample_size=400,
+            precision_target="±0.05",
+            sampling_point_count=5,
+            confounders_required=("w",),
+            time_window="baseline + 12w",
+            sutva_concerns=("interference",),
+        ),
+        if_provided="可给点估计",
+        alternative_paths=("已计算 bounds",),
+    )
+    payload = _data_gap_to_dict(gap)
+    assert data_gap_from_dict(payload) == gap
+    assert _data_gap_to_dict(data_gap_from_dict(payload)) == payload
+
+
+def test_every_gap_the_kernel_emits_survives_the_round_trip():
+    """The decoder is checked against what is actually produced, not only
+    against a hand-built gap: a species that fills a field no fixture
+    happens to set would otherwise lose it in silence."""
+    import numpy as np
+    import pandas as pd
+
+    import themis
+    from themis.output.data_gap_report import data_gap_from_dict
+    from themis.output.result_orchestrator import _data_gap_to_dict
+
+    def atom(p):
+        return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "z", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": atom("z"), "to": atom("x")},
+            {"kind": "cause", "from": atom("x"), "to": atom("y")},
+            {"kind": "bidirected", "left": atom("x"), "right": atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": atom("x"), "value": True},
+                "target": {"atom": atom("y"), "value": True},
+                "given": [],
+            }},
+        ],
+    }
+    rng = np.random.default_rng(0)
+    n = 400
+    z = rng.random(n) < 0.5
+    x = np.where(z, rng.random(n) < 0.8, rng.random(n) < 0.2)
+    df = pd.DataFrame({
+        "z": z, "x": x,
+        "y": 1.5 * x.astype(float) + 2.0 * rng.standard_normal(n),
+    })
+    seen = 0
+    for payload in (themis.run(program), themis.estimate(program, df, ci_bootstrap=0)):
+        for result in payload["results"]:
+            for gap in (result.get("data_gap_report") or {}).get("gaps", []):
+                assert _data_gap_to_dict(data_gap_from_dict(gap)) == gap
+                seen += 1
+    assert seen, "no gap reached the round trip — the construction is stale"

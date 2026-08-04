@@ -22,7 +22,10 @@ import math
 from typing import Any
 
 from .. import blocks, refusals
+from ..output.data_gap_report import rederive_summary_and_steps
 from ..output.sample_size import estimate_n_for_target_ci_half_width
+from ..runtime.investigation_pusher import summarise
+from ..types import Priority
 from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
 from ..routing import End, route
@@ -212,6 +215,10 @@ def _estimate_program(
             "ci_bootstrap": ci_bootstrap,
             "model_preference": model,
         })
+        # The same loop that records what arrived records what arriving
+        # answered. Before any estimator runs, because a θ ask is settled
+        # by the sample existing — not by what an estimator makes of it.
+        _settle_asks_the_sample_answers(result, contract.columns)
 
     # Phase 7.L — g-methods for time-varying treatments. Detected via an
     # explicit ``options.longitudinal`` spec (not the structural query
@@ -2440,13 +2447,14 @@ def _finalise_numeric_bounds_result(result: dict) -> None:
             result["investigation_requests"] = kept
         else:
             result.pop("investigation_requests", None)
-    gaps = [
-        g for g in report.get("gaps", [])
-        if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
-    ]
-    report["gaps"] = gaps
-    report["answer_tier"] = "interval"
-    report["summary"] = _summary_from_gap_dicts(gaps, answer_tier="interval")
+    _set_gaps(
+        report,
+        [
+            g for g in report.get("gaps", [])
+            if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
+        ],
+        answer_tier="interval",
+    )
 
 
 def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
@@ -5063,6 +5071,13 @@ def _closer_to_null(point, ci_lower, ci_upper):
 # Structural caveats (ambiguous_variable, unmeasured_confounder_risk,
 # ill_defined_intervention, ...) and estimator-time gaps (weak_iv,
 # propensity_overlap, outcome_separation) are NOT dropped — still true.
+#
+# What this set claims and `_SAMPLE_SETTLED_GAPS` does not: a number came
+# out, so whatever the identification pass wanted was supplied from
+# somewhere. That is a stronger warrant and covers what the per-item pass
+# leaves behind on purpose — an ask over a named population, an ask
+# naming something the contract does not certify. Reaching a point
+# estimate settles both; a DataFrame arriving does not.
 _NUMERIC_SATISFIED_GAP_KINDS: frozenset[str] = frozenset({
     "missing_distribution",
     "answer_is_bounds_not_point_estimate",
@@ -5128,32 +5143,170 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
         else:
             result.pop("investigation_requests", None)
 
-    gaps = [
-        g for g in report.get("gaps", [])
-        if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
-    ]
+    _set_gaps(
+        report,
+        [
+            g for g in report.get("gaps", [])
+            if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
+        ],
+        answer_tier="point",
+    )
+
+
+# A gap species that a sample of the study population settles by
+# existing. Deliberately not the wider `_NUMERIC_SATISFIED_GAP_KINDS`:
+# that set is justified by a number having come out, which proves the
+# data held whatever the identification pass wanted. This one is
+# justified by the contract alone, so it may only name species whose
+# repair IS a measurement — and it is checked per item against what the
+# item says it needs, not applied to the species wholesale.
+_SAMPLE_SETTLED_GAPS: frozenset[str] = frozenset({"missing_distribution"})
+
+
+def _settle_asks_the_sample_answers(
+    result: dict, columns: "tuple[str, ...]",
+) -> None:
+    """Drop the identification pass's θ asks that the arriving sample answers.
+
+    The identification pass reads its numbers out of theta, so when theta
+    is short it says so — "Theta 中缺条目 P(x=True|z=True)". The caller
+    then supplies a DataFrame, which is the other channel those numbers
+    come from, and the contract has just certified a column for every
+    declared variable. From that moment the ask is answered, and it is
+    answered whether or not an estimator goes on to produce a number:
+    what the data supplies and what came out of it are different facts,
+    resting on different premises.
+
+    They used to be one fact, reconciled in one place, gated on a point
+    estimate having been computed. So a query the estimator refused kept
+    the entire list — the envelope asked for P(x=True|z=True) beside a
+    refusal block reporting its value, 0.5 — and so did an IV query that
+    succeeded, because the gate that correctly keeps "this point is
+    assumption-laden, the honest tier is still interval" skipped the θ
+    half on its way out.
+
+    Only asks over the population under study are settled here, and only
+    when the sample measures every variable they name. A named
+    population is a different sample, which this one does not stand in
+    for however many of the variables it happens to hold.
+    """
+    items = result.get("missing_information")
+    if not isinstance(items, list):
+        return
+    have = set(columns)
+    settled = {
+        item["name"]
+        for item in items
+        if item.get("gap") in _SAMPLE_SETTLED_GAPS
+        and isinstance(item.get("observable"), dict)
+        and item["observable"].get("population") is None
+        and set(item["observable"].get("variables", ())) <= have
+    }
+    if not settled:
+        return
+    priority_of = {item["name"]: item["priority"] for item in items}
+
+    kept_items = [i for i in items if i["name"] not in settled]
+    if kept_items:
+        result["missing_information"] = kept_items
+    else:
+        result.pop("missing_information", None)
+
+    _drop_investigation_items(result, settled, priority_of)
+    _drop_gaps_citing(result, settled)
+
+
+def _drop_investigation_items(
+    result: dict, settled: "set[str]", priority_of: "dict[str, str]",
+) -> None:
+    """Remove settled items from their requests, re-summarising the rest.
+
+    A request's target, note and priority describe the items it holds, so
+    shrinking the items without re-deriving them leaves "parameter:
+    4_items" over two of them. The rule lives with the pass that writes
+    requests; this reads it rather than restating it.
+    """
+    requests = result.get("investigation_requests")
+    if not isinstance(requests, list):
+        return
+    kept_requests: list[dict] = []
+    for request in requests:
+        items = request.get("items") or []
+        kept = [i for i in items if i.get("target") not in settled]
+        if len(kept) == len(items):
+            kept_requests.append(request)
+            continue
+        if not kept:
+            continue
+        target, note, priority = summarise(
+            request.get("group") or "",
+            [
+                (i["target"], i.get("reason"),
+                 Priority(priority_of.get(i["target"], request["priority"])))
+                for i in kept
+            ],
+        )
+        rewritten = dict(request)
+        rewritten["items"] = kept
+        rewritten["target"] = target
+        rewritten["priority"] = priority.value
+        if note is not None:
+            rewritten["note"] = note
+        else:
+            rewritten.pop("note", None)
+        kept_requests.append(rewritten)
+    if kept_requests:
+        result["investigation_requests"] = kept_requests
+    else:
+        result.pop("investigation_requests", None)
+
+
+def _drop_gaps_citing(result: dict, settled: "set[str]") -> None:
+    """Drop the gaps that exist only to report a now-settled item.
+
+    A gap goes when every signal it cites is a settled investigation
+    item. One that also cites a derivation step stays: the step failed,
+    and the completeness check reads gaps as the only place a failed step
+    is accounted for — dropping its last citation would leave the report
+    claiming a clean bill of health for something that did not work.
+    """
+    report = result.get("data_gap_report")
+    if not isinstance(report, dict):
+        return
+    kept = []
+    for gap in report.get("gaps", []):
+        refs = gap.get("provenance") or []
+        reports_only_settled_items = bool(refs) and all(
+            ref.get("ref_kind") == "investigation_request"
+            and ref.get("ref_id") in settled
+            for ref in refs
+        )
+        if not reports_only_settled_items:
+            kept.append(gap)
+    if len(kept) != len(report.get("gaps", [])):
+        _set_gaps(report, kept, answer_tier=report.get("answer_tier"))
+
+
+def _set_gaps(
+    report: dict, gaps: list[dict], *, answer_tier: str | None,
+) -> None:
+    """Put a reduced gap list on a serialized report, surfaces and all.
+
+    ``summary`` and ``actionable_next_steps`` are derived from the gaps,
+    so a pass that removes gaps has not finished until both have been
+    derived again. Removing them and recomputing only the summary is how
+    a report with no distribution gap left in it went on opening its
+    next-steps with "补 P(y=True|w=True,x=True)".
+    """
     report["gaps"] = gaps
-    report["answer_tier"] = "point"
-    report["summary"] = _summary_from_gap_dicts(gaps)
-
-
-def _summary_from_gap_dicts(gaps: list[dict], answer_tier: str = "point") -> str:
-    """Mirror ``output.data_gap_report._make_summary`` on already-sorted
-    serialized gaps. ``answer_tier='interval'`` leads with the interval-in-hand
-    clause (so a prose renderer is not misled into "no answer"); ``'point'`` /
-    ``'none'`` behave as the identification-time summary."""
-    if not gaps:
-        return ""
-    head = gaps[0]
-    blocking = sum(1 for g in gaps if g.get("severity") == "blocking")
-    base = head.get("description", "")
-    if blocking > 1:
-        base = f"{base}（共 {blocking} 个 blocking 缺口）"
-    if answer_tier == "interval":
-        return f"可得区间估计（点识别被阻断，但有信息性 bounds）：{base}"
-    if answer_tier == "none":
-        return f"图+数据无法给出点或区间估计（需补假设或更强数据）：{base}"
-    return base
+    if answer_tier is not None:
+        report["answer_tier"] = answer_tier
+    summary, steps = rederive_summary_and_steps(gaps, answer_tier=answer_tier)
+    report["summary"] = summary
+    if steps:
+        report["actionable_next_steps"] = steps
+    else:
+        report.pop("actionable_next_steps", None)
 
 
 def _attach_bootstrap_meta(numeric_estimate: dict, cluster: str | None) -> None:

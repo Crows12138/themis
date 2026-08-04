@@ -29,6 +29,8 @@ from the grouping.
 """
 from __future__ import annotations
 
+from typing import Sequence
+
 from ..types import (
     InvestigationAction,
     InvestigationItem,
@@ -59,23 +61,38 @@ def _max_priority(priorities) -> Priority:
     return max(priorities, key=_PRIORITY_ORDER.get)
 
 
-def _summary_target(kind: MissingKind, items) -> str:
-    if len(items) == 1:
-        return items[0].target
-    return f"{kind.value}:{len(items)}_items"
+def summarise(
+    group: str,
+    entries: "Sequence[tuple[str, str | None, Priority]]",
+) -> "tuple[str, str | None, Priority]":
+    """How a request describes the items it holds: target, note, priority.
 
+    A single item speaks for itself; several are named by their count,
+    and share a note only when they share a reason. The group priority
+    is the strongest among them.
 
-def _summary_note(items) -> str | None:
-    """Surface the item reason for single-item groups; for multi-item
-    groups collapse only if all reasons are identical."""
-    if len(items) == 1:
-        return items[0].reason
-    unique_reasons = {i.reason for i in items if i.reason is not None}
-    if len(unique_reasons) == 1:
-        return next(iter(unique_reasons))
-    if not unique_reasons:
-        return None
-    return f"{len(items)} items with distinct reasons"
+    Stated once because it is applied twice. This module summarises when
+    the kernel first writes what it lacks; the estimation pass
+    re-summarises when the arriving sample answers part of it. A second
+    copy of the rule there would let a request keep a summary describing
+    items it no longer holds — "4_items" over two of them — which is the
+    same drift by a shorter route.
+
+    Takes ``(target, reason, priority)`` triples rather than a dataclass
+    so the pass working on a serialized envelope can call it too.
+    """
+    priority = _max_priority([p for _, _, p in entries])
+    if len(entries) == 1:
+        target, note, _ = entries[0]
+        return target, note, priority
+    reasons = {r for _, r, _ in entries if r is not None}
+    if len(reasons) == 1:
+        note = next(iter(reasons))
+    elif not reasons:
+        note = None
+    else:
+        note = f"{len(entries)} items with distinct reasons"
+    return f"{group}:{len(entries)}_items", note, priority
 
 
 def push(
@@ -119,13 +136,17 @@ def push(
             )
             for m in group_items
         )
-        priority = _max_priority(m.priority for m in group_items)
+        target, note, priority = summarise(
+            kind.value,
+            [(i.target, i.reason, m.priority)
+             for i, m in zip(inv_items, group_items)],
+        )
         result.append(
             InvestigationRequest(
                 action=action,
-                target=_summary_target(kind, inv_items),
+                target=target,
                 priority=priority,
-                note=_summary_note(inv_items),
+                note=note,
                 group=kind.value,
                 items=inv_items,
             )

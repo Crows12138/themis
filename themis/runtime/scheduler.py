@@ -66,6 +66,7 @@ from ..types import (
     MissingKind,
     NumericInterval,
     NumericResult,
+    Observable,
     Priority,
     ProbabilityQuery,
     Program,
@@ -1699,17 +1700,34 @@ def _missing_parameter_from_key(
     it has. A default would let the second silently arrive dressed as
     the first, which is how the report came to read the difference off
     a substring of the reason text.
+
+    The key also says what measuring would settle the item — these
+    variables, in this population — so the item carries that rather than
+    only the rendered ``P(...)``. It is what lets a later pass holding a
+    DataFrame decide whether the sample it was handed answers this ask,
+    instead of taking the rendered name back apart.
     """
     if key is None:
-        name = "numeric:unresolved_query_bound"
-    else:
-        name = f"parameter:{format_probability_key(key)}"
+        return MissingItem(
+            kind=MissingKind.PARAMETER,
+            name="numeric:unresolved_query_bound",
+            priority=Priority.HIGH,
+            gap=gap,
+            reason=reason,
+        )
     return MissingItem(
         kind=MissingKind.PARAMETER,
-        name=name,
+        name=f"parameter:{format_probability_key(key)}",
         priority=Priority.HIGH,
         gap=gap,
         reason=reason,
+        observable=Observable(
+            variables=tuple(sorted(
+                {key.target_atom.predicate}
+                | {atom.predicate for atom, _ in key.given}
+            )),
+            population=key.population,
+        ),
     )
 
 
@@ -4472,6 +4490,19 @@ def _effect_refusal(
         # those items ride ALONGSIDE it rather than replacing it. The two
         # are different facts, and the IV escalation being available is not
         # identification.
+        #
+        # Which is why this reason names only the durable half: an
+        # instrument exists here and it costs an assumption. Whether it
+        # ran is this run's business, and this run's business is already
+        # written down — by the items alongside when they survive, by the
+        # estimator's refusal when a supplied sample killed the first
+        # stage. The clause that used to summarise them in prose was a
+        # second copy of the item list, and it went stale in both
+        # directions: it stayed "could not be run" after the estimator
+        # had run it, and it went on pointing at "the items alongside
+        # this one" after a supplied DataFrame answered them and they
+        # were dropped. Its guard was the second copy's, too — any route
+        # leaving any note, not the fact the sentence asserts.
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=QueryKind.EFFECT,
@@ -4489,10 +4520,8 @@ def _effect_refusal(
                         "ID (latter checked since Fix 5 v0.1.5). "
                         + (
                             "An instrumental-variable escalation does "
-                            "reach it, but it is assumption-laden and "
-                            "could not be run as it stands — see the "
-                            "items alongside this one. "
-                            if notes else ""
+                            "reach it, but it is assumption-laden. "
+                            if facts.iv_candidates else ""
                         )
                         + "If a Line-7 case is at play see "
                         "PHASE_2_LATENT_CHARTER.md §7."

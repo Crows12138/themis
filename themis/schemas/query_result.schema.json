@@ -2068,6 +2068,23 @@
         },
         "reason": {
           "type": "string"
+        },
+        "observable": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["variables"],
+          "description": "What measuring would settle this item, when measuring would. Present on the parameter asks the kernel builds from a probability key; absent when nothing observable repairs the item (no admissible adjustment set, an undeclared assumption). A consumer holding a sample decides from this whether that sample answers the ask, instead of parsing the rendered 'P(...)' in 'name'.",
+          "properties": {
+            "variables": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Variable names, sorted, that the sample must measure."
+            },
+            "population": {
+              "type": "string",
+              "description": "The population the sample must be drawn from. Absent for the population under study — the one a supplied DataFrame is a sample of. When present it names a different population (a transport target, a second site), which the study sample does not settle however many of the variables it holds."
+            }
+          }
         }
       }
     },

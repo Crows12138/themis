@@ -705,23 +705,47 @@ class Priority(str, Enum):
 
 
 @dataclass(frozen=True)
+class Observable:
+    """What a sample would have to measure for a missing quantity to be
+    had from data: these variables, drawn from this population.
+
+    ``population`` is ``None`` for the population under study — the one a
+    supplied DataFrame is a sample of. A named population is a different
+    one (a transport target, a second site), and a sample of the study
+    population does not settle it however many of the variables it holds.
+    """
+    variables: tuple[str, ...]
+    population: str | None = None
+
+
+@dataclass(frozen=True)
 class MissingItem:
     """One thing the kernel needed and did not have.
 
-    Three orthogonal facts, each stated rather than encoded: ``gap`` is
+    Four orthogonal facts, each stated rather than encoded: ``gap`` is
     what kind of shortfall this is, ``kind`` is which channel would
-    repair it, and ``name`` identifies the specific thing. ``name`` used
-    to carry all three — the producer knew the species, pressed it into a
-    string, and the report recovered it with prefix and substring tests
-    over that string. It recovered it wrongly whenever a name happened to
-    read like another species, which is not a failure mode a naming
-    convention can be made immune to.
+    repair it, ``name`` identifies the specific thing, and ``observable``
+    says what measuring would settle it. ``name`` used to carry all of
+    them — the producer knew the species, pressed it into a string, and
+    the report recovered it with prefix and substring tests over that
+    string. It recovered it wrongly whenever a name happened to read like
+    another species, which is not a failure mode a naming convention can
+    be made immune to.
+
+    ``observable`` is the same fact one level down, and it exists because
+    a later pass has to answer a question the name cannot be asked: the
+    caller supplied a sample — does it settle this? The producer holds
+    the variables and the population; every consumer that had to take
+    ``P(y=True|z=True)`` apart again was reconstructing what was thrown
+    away here. ``None`` when no sample settles the item at all: a graph
+    that admits no adjustment set, an assumption nobody declared.
     """
     kind: MissingKind
     name: str
     priority: Priority
     gap: GapKind
     reason: str | None = None
+    observable: Observable | None = None
 
     def __post_init__(self) -> None:
         if self.gap not in MISSING_ITEM_GAPS:

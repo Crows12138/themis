@@ -131,6 +131,51 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
     assert "x1=True" in item.name
     assert "x2=False" in item.name
     assert item.name.startswith("parameter:P(y=True|")
+    # …and beside the rendered name, what measuring would settle it.
+    assert item.observable.variables == ("x1", "x2", "y")
+    assert item.observable.population is None
+
+
+def test_a_parameter_ask_says_which_population_would_settle_it() -> None:
+    """A key tagged with a population names a different sample.
+
+    The pass that drops the asks a supplied DataFrame answers reads this
+    field: the study sample measuring x and y does not settle P*(y|x) on
+    the transport target, however many of the variables it holds. Without
+    the population travelling with the item, the two asks are
+    indistinguishable once the name has been rendered.
+    """
+    from themis.runtime.scheduler import _missing_parameter_from_key
+    from themis.runtime.numeric_estimator import ProbabilityKey
+    from themis.types import Atom, ConstTerm, GapKind
+
+    y = Atom(predicate="y", args=(ConstTerm(name="a"),))
+    x = Atom(predicate="x", args=(ConstTerm(name="a"),))
+    item = _missing_parameter_from_key(
+        ProbabilityKey(
+            target_atom=y, target_value=True,
+            given=frozenset({(x, True)}), population="target",
+        ),
+        "transport needs the target conditional",
+        gap=GapKind.MISSING_DISTRIBUTION,
+    )
+    assert item.observable.variables == ("x", "y")
+    assert item.observable.population == "target"
+
+
+def test_an_unresolved_query_bound_names_nothing_to_measure() -> None:
+    """No key, no observation: the formula carried a query-bound atom with
+    no value, which no sample repairs. ``observable`` stays None rather
+    than becoming an empty variable list — a sample measuring nothing is
+    not the same claim as no sample helping."""
+    from themis.runtime.scheduler import _missing_parameter_from_key
+    from themis.types import GapKind
+
+    item = _missing_parameter_from_key(
+        None, "unresolved", gap=GapKind.MISSING_DISTRIBUTION,
+    )
+    assert item.name == "numeric:unresolved_query_bound"
+    assert item.observable is None
 
 
 def test_confidence_is_routed_through_composite_for_every_query() -> None:
