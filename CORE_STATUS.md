@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-3983 passed / 144 skipped, warning-clean
+3996 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1168,6 +1168,22 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **修完重量一遍（全量插桩）**：causation 47 次 tier **一次 None 都没有**（interval 19 / point 21 / none 7；本轮之前是 29 次 None）；「联合缺 + 不可识别」这一格 **2 次**，现在四条 item 齐全（两条 `missing_distribution` + `unidentifiable_no_admissible_set` + 逃生口），原来只有前两条；其余 kind 逐格不变（effect 1246＝1040/169/37、identify 133、counterfactual 68、probability 36、scm 27、conjunction 22、proximal 11）。
 
 **基线（本条）**：3980 → **3983**（+3 净：删掉上一条钉「形状未定就不发 tier」的 3 条、新增 6 条——withheld premise 决定形状（单调 point／非单调 interval）、**同一张图带不带 θ 必须得出同一个识别结论**（两参数）、NONE 上不许留区间承诺、逃生口必须说清自己是两种起因里的哪一种）。
+
+**拒答的句子是读者的答案行，所以句子里的值就是给读者看的值（2026-08-04，接上条）**：修复型，用户可见。登记写的是「33 处拒答文案把数据值直插给人看的句子、约 10-15 处是裸 numpy」。**两头都不对**：处数是 158 个 raise、135 个插值；而运行时真出问题的形态**主要不是 numpy**。
+
+**测量（全量插桩）**：一轮抛出 581 次拒答，**78 次**的句子带着不该给人看的东西。最大的一格 `outcome_not_binary` **55 次**，消息里写「outcome 'y' has 3000 observed levels ({levels})」——**把整列 3000 个浮点的 repr 倒进一句话，实测 62,003 字符**，而 `_render_answer` 把 `reason` 原样放进答案节。`treatment_not_binary` 17 次同形（500 个值）。真正的 numpy repr 只有 9 次（`np.float64(0.0)`、`Z=np.True_`）。**登记指的是小的那一半。**
+
+**根因**：拒答消息是**给人看的句子**，构造方式却是调试式 `{x!r}` 插值。系统里已有**五份**把 numpy 标量降成 Python 的辅助（`_py`×3、`_to_py_scalar`、dispatch 内联一处），**五份的自述全是「JSON-safe / for the result dict」**——同一个值有两个去处（信封 / 句子），**只有信封那条路上有规范化**；而"多少"连一步都没有：`{levels}` 对 2 个和 3000 个一视同仁。`EstimatorFailure` 的 docstring 早写着 `details` 是「the numbers behind the refusal…belong to the occasion」，**结构化落点本来就在**。
+
+**修法**：`refusals.describe` 做「值进人话」的单一出口——numpy 标量降级、浮点按 6 位有效数字、集合说数量加样例；**截断阈值按元素类型读而不是定死**，因为两种集合要相反的待遇：一串**名字**（调整集、设计变量、声明的状态）本身就是答案，砍掉就砍掉了读者要用的东西；一列**数据值**只是计数的证据，且没有上限。`EstimatorFailure.__init__`（已经在那里校验物种的同一个出生点）加一道 1000 字符的**不抛异常**兜底——拒答若因为自己解释太长而崩，就把「没有数，原因是」变成了没有答案。
+
+**静态规则又找出运行时没触发过的 19 处**：AST 守卫两条——「句子里说了有多少个，就不许再把它们印出来」（`len(X)` 与裸 `X` 同现）和「不许插一个刚 `sorted()`/`list()` 出来的集合」。前者是 62,003 那句的形状本身，后者按**表达式形状**判而不是按名字（㉝）。**运行时量到「已经爆的」，静态量到「能爆的」，两者都要**。
+
+**修完重量一遍**：78 → **2**，而这 2 次是**探针误判**——`non_positive_error_variance` 说的是「got nan」，`nan` 本来就是该说的英文词，是我的正则把它当成了 numpy 痕迹。原来 62,003 那一格现在中位数 **151 字符**；全套件真实消息最长 426，兜底（1000）**一次都没在真实站点触发**，唯一被截断的是专门测它的那条测试。
+
+**没有据可claim 的一格，如实说**：`counterfactual_error` / `causation_error` 两块本轮探针记到 0 次产生——但那个计数器只看 `themis.run` / `themis.estimate` 出来的信封，而 causation 那条 `outside_language` 分支在别处也走得到（同一天的另一轮探针就量到过 1 次）。**0 在这里的意思是「没有流量经过我的插桩」，不是「没有产生」**（㉙），所以那条登记仍未验证。
+
+**基线（本条）**：3983 → **3996**（+13：numpy 标量按它代表的值出现、整列只说数量加样例、名字列表整份印出（截断阈值按元素类型读的理由）、短集合原样、浮点丢掉没人要的尾巴、字符串保留引号；超长消息截断而不抛且物种仍在、正常消息逐字不动；两条 AST 规则——数了就不许印、不许插刚建的集合；实测 62,003 那句现在成句；分层标签读作值不读作 dtype）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
