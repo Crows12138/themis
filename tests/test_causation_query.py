@@ -156,6 +156,50 @@ def test_drug_example_experimental_matches_tian_pearl_published():
     kernel.verify(prog, r)
 
 
+# ============================================ and it reaches the reader
+
+
+def test_the_answer_section_names_all_three_quantities():
+    """The question line asks for PN, PS and PNS by name.
+
+    The answer was ``numeric_result``, which holds PN because a headline
+    has to be one number — so the report printed one of three with no name
+    on it. Answering from theta produces no ``numeric_estimate``, so no
+    answer shape described it and nothing noticed; the block that held all
+    three was read by the detachable explainer alone.
+    """
+    prog = _prog({"kind": "causation", "cause": X, "effect": Y,
+                  "monotonic": True})
+    r = kernel.run(prog)["results"][0]
+    answer = build_analysis_report(r, program=prog).split(
+        "## 答案", 1)[1].split("\n##", 1)[0]
+    assert "必要性 PN" in answer and "0.5" in answer
+    assert "充分性 PS" in answer and "0.1111" in answer
+    assert "必要且充分 PNS" in answer and "0.1" in answer
+    # And where the two interventional risks it is computed from came
+    # from, which is what says how far PN can be trusted.
+    assert "do X" in answer and "识别层" in answer
+
+
+def test_without_monotonicity_the_answer_section_says_bounds_are_all_there_is():
+    """The same three quantities, and the reason there is no point.
+
+    Monotonicity is an assumption about the mechanism, not something the
+    data can supply, so its absence is an answer rather than a hole — and
+    a reader who is shown ``[0.5, 1]`` with no word about why has no way
+    to tell those two apart.
+    """
+    prog = _prog({"kind": "causation", "cause": X, "effect": Y})
+    r = kernel.run(prog)["results"][0]
+    answer = build_analysis_report(r, program=prog).split(
+        "## 答案", 1)[1].split("\n##", 1)[0]
+    assert "未假设单调性" in answer
+    assert "必要性 PN" in answer and "[0.5, 1]" in answer
+    assert "充分性 PS" in answer and "[0.1111, 0.2222]" in answer
+    assert "必要且充分 PNS" in answer and "[0.1, 0.2]" in answer
+    assert "**0.5**" not in answer, "a bound printed as if it were a point"
+
+
 # ============================================ gap paths
 
 

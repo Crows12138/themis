@@ -369,6 +369,12 @@ def _render_answer(result: dict) -> str:
     way to the verdict. The shape is now declared by the method that
     produced it (:mod:`themis.answers`), so an unrenderable estimate says so
     instead of borrowing the sentence below it.
+
+    The same correction, one layer over: a query answered from theta calls
+    no estimator, so it has no shape to declare and puts its answer in a
+    block instead. Those fell to the bare ``numeric_result`` value, which
+    is a headline — for causation, one of three named quantities, printed
+    with no name under a question line that had just asked for all three.
     """
     status = result.get("status")
     ne = result.get("numeric_estimate")
@@ -382,7 +388,18 @@ def _render_answer(result: dict) -> str:
         if shape is not None:
             return _ANSWER_RENDERERS[shape](ne, result)
 
-    # 2. Symbolic / theta-path numeric value.
+    # 2. The theta path, whose answer is a block. Above the bare value
+    #    below it because that value is a headline drawn FROM the block —
+    #    for causation, one of the three quantities it holds, and the
+    #    headline cannot say which one it is.
+    extensions = result.get("extensions") or {}
+    for block in blocks.rendered_in(blocks.ANSWER):
+        if extensions.get(block):
+            said = _ANSWER_BLOCK_RENDERERS[block](extensions[block], result)
+            if said:
+                return said
+
+    # 3. Symbolic numeric value, for the paths that carry no block.
     if nr and nr.get("value") is not None:
         line = f"**{_fmt(nr['value'])}**"
         iv = nr.get("interval")
@@ -392,7 +409,7 @@ def _render_answer(result: dict) -> str:
             line += f" {nr['unit']}"
         return line
 
-    # 3. Bounds — partial identification. An interval is a weaker answer
+    # 4. Bounds — partial identification. An interval is a weaker answer
     #    than a point and still an answer to the question that was asked.
     if br and br.get("lower_value") is not None:
         method = br.get("method", "bounds")
@@ -401,7 +418,7 @@ def _render_answer(result: dict) -> str:
             f"（method=`{method}`）—— 这是部分识别的界，不是点估计。"
         )
 
-    # 4. A refusal, which is an answer. Below the numeric branches, not
+    # 5. A refusal, which is an answer. Below the numeric branches, not
     #    above: dispatch attaches a refusal for a SUPPLEMENTARY estimate
     #    (the longitudinal path attaches to the first effect result) to a
     #    result that may already carry a genuine point or interval, and
@@ -423,7 +440,7 @@ def _render_answer(result: dict) -> str:
             f"拒答类型 `{failure['failure_type']}`）"
         )
 
-    # 4b. An estimate block carrying no answer at all. Stated here rather
+    # 5b. An estimate block carrying no answer at all. Stated here rather
     #     than falling through, because what it would fall to is a verdict
     #     about the graph standing in for the number that was asked for —
     #     the substitution the shape table removes, in the one case the
@@ -434,7 +451,7 @@ def _render_answer(result: dict) -> str:
             "没有任何可呈现的答案。"
         )
 
-    # 5. The structural verdict, read as the proposition it asserts rather
+    # 6. The structural verdict, read as the proposition it asserts rather
     #    than as a bare 是 / 否. Which proposition that is depends on what
     #    was asked, and the boolean cannot say — it is the same field for
     #    a cause query, where it is the answer, and for an effect query,
@@ -460,7 +477,7 @@ def _render_answer(result: dict) -> str:
         # 34 results in one suite run carried a ``formula``, so the line
         # they needed was already written directly underneath.
 
-    # 6. Identified but needs data, or genuinely blocked. The proposition
+    # 7. Identified but needs data, or genuinely blocked. The proposition
     #    comes from the same table: this line said "效应可识别" to five
     #    ``probability`` queries in one suite run, which had asked for a
     #    probability and not for an effect.
@@ -504,12 +521,25 @@ _VERDICT_ZH = questions.bind({
 })
 
 
+_POC_LABELS = (
+    ("pn", "必要性 PN（归因）"),
+    ("ps", "充分性 PS"),
+    ("pns", "必要且充分 PNS"),
+)
+"""The three quantities a causation query asks for, named once.
+
+Two surfaces say them — the data path, where they arrive as an estimate's
+bounds, and the theta path, where they arrive as a block. Named in one
+place because the second was written ten rounds after the first and the
+question the reader asked is the same one.
+"""
+
+
 def _render_causation_bounds(poc: dict) -> str:
     """PN/PS/PNS recovered from data without monotonicity — three identified
     intervals (Tian-Pearl bounds). No point; a point would need monotonicity."""
-    labels = (("pn", "必要性 PN（归因）"), ("ps", "充分性 PS"), ("pns", "必要且充分 PNS"))
     lines = ["数据可识别的**区间**（无单调性假设，故为界而非点）："]
-    for key, label in labels:
+    for key, label in _POC_LABELS:
         q = poc.get(key) or {}
         lo, hi = q.get("lower"), q.get("upper")
         if lo is None or hi is None:
@@ -714,6 +744,112 @@ _ANSWER_RENDERERS = answers.bind({
         [_render_causation_bounds(ne["probabilities_of_causation"])]
         + _estimate_meta(ne, result.get("outcome_error"))
     ),
+})
+
+
+# --- the answer, when it is a block rather than an estimate -------------------
+#
+# Two query kinds are answered from theta alone: probabilities of
+# causation come out of the joint distribution and the two interventional
+# risks, and a linear-SCM counterfactual comes out of the equations by
+# abduction. Neither calls an estimator, so neither leaves a
+# ``numeric_estimate`` for an answer shape to describe, and each puts what
+# it found in a block.
+#
+# The report reached past both to ``numeric_result``, which holds one
+# number because a headline has to. For a counterfactual that number is
+# the answer. For causation it is PN, one of three named quantities, and
+# the answer section printed it with no name at all — under a question
+# line that had just asked for all three.
+
+
+_RISK_PROVENANCE_ZH = {
+    "exogenous": "X 无父节点，干预风险即观测风险",
+    "backdoor_adjustment": "干预风险经后门调整识别",
+    "derived_identification": "干预风险由识别层从图上导出",
+    "user_experimental": "干预风险来自调用方提供的实验数据",
+}
+"""Where the two do-risks came from — which is how much PN can be trusted.
+
+Unlisted renders as its own token, the convention this file already uses
+for identification patterns: a name a reader has to look up still beats a
+sentence that leaves out where the number came from.
+"""
+
+
+def _answer_causation(block: dict, result: dict) -> str:
+    """PN / PS / PNS, each said by name.
+
+    Every quantity carries an interval; a point is there only when
+    monotonicity was declared, so its absence is the statement that the
+    assumption was not made rather than a hole in the answer.
+    """
+    lines: list[str] = []
+    for key, label in _POC_LABELS:
+        q = block.get(key) or {}
+        point, lo, hi = q.get("point"), q.get("lower"), q.get("upper")
+        bounded = lo is not None and hi is not None
+        if point is not None:
+            line = f"- {label}：**{_fmt(point)}**"
+            if bounded:
+                line += f"（界 [{_fmt(lo)}, {_fmt(hi)}]）"
+            lines.append(line)
+        elif bounded:
+            lines.append(f"- {label}：**[{_fmt(lo)}, {_fmt(hi)}]**")
+    if not lines:
+        return ""
+
+    head = (
+        "单调性成立（X 从不阻止 Y），三者点识别："
+        if block.get("monotonic")
+        else "未假设单调性，三者只能给界："
+    )
+    risk_hi, risk_lo = block.get("p_y_do_x1"), block.get("p_y_do_x0")
+    if risk_hi is not None and risk_lo is not None:
+        prov = block.get("interventional_risk_provenance")
+        note = _RISK_PROVENANCE_ZH.get(prov, f"`{prov}`") if prov else ""
+        lines.append(
+            f"- 由干预风险 P(Y|do X)={_fmt(risk_hi)}、"
+            f"P(Y|do ¬X)={_fmt(risk_lo)} 算出"
+            + (f"（{note}）" if note else "")
+        )
+    return "\n".join([head] + lines)
+
+
+def _answer_scm_counterfactual(block: dict, result: dict) -> str:
+    """The counterfactual value, and the abduction that produced it.
+
+    The value is also in ``numeric_result`` and the branch below would
+    print it. What only this block has is the middle step: the noise
+    abducted from what was actually observed is what makes the answer a
+    counterfactual for THIS unit rather than a prediction for an average
+    one, and it is the part a reader can check against the observations
+    they supplied.
+    """
+    value = block.get("target_value")
+    if value is None:
+        return ""
+    target = block.get("target") or "?"
+    lines = [f"**{_fmt(value)}**　（{target}，在该个体自身的外生扰动下）"]
+
+    noise = block.get("abducted_noise") or {}
+    if noise:
+        items = "，".join(
+            f"U_{name}={_fmt(v)}" for name, v in sorted(noise.items())
+        )
+        lines.append(f"- 从观测值反推出的个体扰动：{items}")
+    cf = block.get("counterfactual_values") or {}
+    others = {k: v for k, v in cf.items() if k != target}
+    if others:
+        items = "，".join(f"{k}={_fmt(v)}" for k, v in sorted(others.items()))
+        lines.append(f"- 同一反事实世界下的其他变量：{items}")
+    return "\n".join(lines)
+
+
+# Each block of this family that no other channel carries, said once.
+_ANSWER_BLOCK_RENDERERS = blocks.bind(blocks.ANSWER, {
+    blocks.CAUSATION: _answer_causation,
+    blocks.SCM_COUNTERFACTUAL: _answer_scm_counterfactual,
 })
 
 
@@ -1013,7 +1149,7 @@ def _render_route(result: dict) -> str:
     extensions = result.get("extensions") or {}
     lines = [
         _ROUTE_RENDERERS[block](extensions[block], result)
-        for block in blocks.declared_as(blocks.ROUTE)
+        for block in blocks.rendered_in(blocks.ROUTE)
         if extensions.get(block)
     ]
     # The estimand itself, after the route that found it: the blocks name
@@ -1140,9 +1276,15 @@ def _render_verification(result: dict, verified: bool | None) -> str:
 # --- assumptions --------------------------------------------------------------
 
 
-def _render_assumptions(result: dict) -> str:
-    ledger = (result.get("extensions") or {}).get(blocks.ASSUMPTION_LEDGER)
-    if not ledger or not ledger.get("assumptions"):
+def _assumption_ledger(ledger: dict, result: dict) -> str:
+    """Every load-bearing assumption, worst first.
+
+    The two other blocks of this family are not rendered beside it and
+    not missing either: ``result_orchestrator`` reads them and folds what
+    they hold into this ledger before the report ever sees the envelope,
+    which their ``carried_by`` says.
+    """
+    if not ledger.get("assumptions"):
         return ""
 
     lines: list[str] = []
@@ -1161,6 +1303,21 @@ def _render_assumptions(result: dict) -> str:
         meta.append("可检验" if a.get("testable") else "不可检验")
         lines.append(f"- **[{sev}]** {claim}　（{'／'.join(meta)}）")
     return "\n".join(lines)
+
+
+_ASSUMPTION_RENDERERS = blocks.bind(blocks.ASSUMPTION, {
+    blocks.ASSUMPTION_LEDGER: _assumption_ledger,
+})
+
+
+def _render_assumptions(result: dict) -> str:
+    extensions = result.get("extensions") or {}
+    lines = [
+        _ASSUMPTION_RENDERERS[block](extensions[block], result)
+        for block in blocks.rendered_in(blocks.ASSUMPTION)
+        if extensions.get(block)
+    ]
+    return "\n".join(line for line in lines if line)
 
 
 # --- data gaps ----------------------------------------------------------------

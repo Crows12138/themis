@@ -14,6 +14,7 @@ import pytest
 from themis import kernel
 from themis.runtime.scm_counterfactual import linear_scm_counterfactual
 from themis.input.syntactic_validator import validate_result
+from themis.output.analysis_report import build_analysis_report
 
 
 # ============================================ pure core
@@ -89,6 +90,24 @@ def test_run_reproduces_pearl_joe_and_verifies():
     assert abs(sc["counterfactual_values"]["H(joe)"] - 2.0) < 1e-9
     validate_result(r)
     kernel.verify(prog, r)   # independent abduction-action-prediction agrees
+
+
+def test_the_answer_section_shows_the_abduction_not_just_the_value():
+    """1.90 is in ``numeric_result`` and the report always printed it.
+
+    What only the block has is the middle step: the noise abducted from
+    what this unit was actually observed at is what makes the answer a
+    counterfactual for Joe rather than a prediction for an average
+    person, and it is the part a reader can check against the
+    observations they supplied.
+    """
+    prog = _joe_program()
+    r = kernel.run(prog)["results"][0]
+    answer = build_analysis_report(r, program=prog).split(
+        "## 答案", 1)[1].split("\n##", 1)[0]
+    assert "1.9" in answer
+    assert "U_Y(joe)=0.75" in answer
+    assert "H(joe)=2" in answer
 
 
 # ============================================ gap paths

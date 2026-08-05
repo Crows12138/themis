@@ -41,9 +41,20 @@ The same axis, asked a second time, emptied a family rather than filling
 one: the two blocks that said why a query was refused were answering a
 question the result already answers in a top-level field, and they were
 there because the identification layer had no way to reach it.
+
+Which question a block answers is not the same as how it gets to whoever
+asked, and only the first became a field. The second stayed a comment, one
+per family heading — and the guarantee ``read_as`` bought held for ten
+blocks of eighteen, because ``bind`` was called once. The guard meant to
+notice it asked whether any module *names* the block, which its writer
+satisfies. So ``carried_by`` is required too, and the surfaces record what
+they bind: a block that claims a renderer is checked against the surfaces,
+and a block that names a carrier is checked against the table the carrier
+is in.
 """
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from typing import Mapping, TypeVar
 
@@ -110,6 +121,8 @@ class Block(str):
     a new route enters :func:`declared_as` the moment it is declared, and
     the report's :func:`bind` then refuses to import until something
     renders it.
+
+    ``carried_by`` is required for the same reason, on the other axis.
     """
 
     holds: str
@@ -118,10 +131,38 @@ class Block(str):
     read_as: Family
     """Which of the reader's questions it answers."""
 
-    def __new__(cls, name: str, *, holds: str, read_as: Family) -> "Block":
+    carried_by: "Block | str | None"
+    """What re-presents it, or ``None`` when a surface renders it itself.
+
+    Which question a block answers and how it gets to somebody who asked
+    are different facts, and only the first one was written down. The
+    second lived in three comments over three family headings — one per
+    mechanism — and a comment is what this module exists to replace.
+
+    It is per BLOCK, not per family, which is what those comments got
+    wrong by sitting where they sat: inside one family the ledger is
+    rendered and the two beside it are folded into the ledger first.
+
+    ``None`` is the claim that some surface binds a renderer, and
+    :func:`bind` records what the surfaces bound, so the claim is checked
+    rather than believed. A name is the claim that something else says
+    it — either another block, which must itself reach, or a top-level
+    field of the result, which the report already renders. Both are
+    members of tables that exist, so neither can be spelled into being.
+    """
+
+    def __new__(
+        cls,
+        name: str,
+        *,
+        holds: str,
+        read_as: Family,
+        carried_by: "Block | str | None",
+    ) -> "Block":
         block = super().__new__(cls, name)
         block.holds = holds
         block.read_as = read_as
+        block.carried_by = carried_by
         return block
 
     def __repr__(self) -> str:
@@ -149,130 +190,153 @@ IDENTIFICATION = Block(
     holds="which pattern the graph was recognised as — back-door, "
           "front-door, Tian — beside the formula it produced",
     read_as=ROUTE,
+    carried_by=None,
 )
 IV_IDENTIFICATION = Block(
     "iv_identification",
     holds="the chosen instrument, the set it is valid conditional on, and "
           "the assumption a Wald ratio rests on",
     read_as=ROUTE,
+    carried_by=None,
 )
 TRANSPORT_IDENTIFICATION = Block(
     "transport_identification",
     holds="the source and target populations, the selection nodes between "
           "them, and the transport formula",
     read_as=ROUTE,
+    carried_by=None,
 )
 JOINT_IDENTIFICATION = Block(
     "joint_identification",
     holds="how a do() over a treatment set was identified, including the "
           "treatment x treatment interaction no sequence of singles recovers",
     read_as=ROUTE,
+    carried_by=None,
 )
 LONGITUDINAL_IDENTIFICATION = Block(
     "longitudinal_identification",
     holds="the time-varying treatment sequence and the g-formula that "
           "identifies it under sequential exchangeability",
     read_as=ROUTE,
+    carried_by=None,
 )
 MEDIATION_DECOMPOSITION = Block(
     "mediation_decomposition",
     holds="natural direct and indirect effects through one mediator, and "
           "their numbers once the numeric end has run",
     read_as=ROUTE,
+    carried_by=None,
 )
 MEDIATION_JOINT_DECOMPOSITION = Block(
     "mediation_joint_decomposition",
     holds="the same decomposition through a mediator SET treated as one "
           "block, which is what makes it identifiable without an ordering",
     read_as=ROUTE,
+    carried_by=None,
 )
 PROXIMAL_ESTIMAND = Block(
     "proximal_estimand",
     holds="the bridge-function estimand proximal identification produces "
           "from two proxies of an unmeasured confounder",
     read_as=ROUTE,
+    carried_by=None,
 )
 SELECTION_RECOVERY = Block(
     "selection_recovery",
     holds="whether the unbiased effect is recoverable from a "
           "selection-restricted sample, and what external data it needs",
     read_as=ROUTE,
+    carried_by=None,
 )
 MISSING_DATA_RECOVERY = Block(
     "missing_data_recovery",
     holds="whether the estimand is recoverable under the declared "
           "missingness mechanism, from the m-graph",
     read_as=ROUTE,
+    carried_by=None,
 )
 
 # --- ANSWER: the quantity, on the paths that put it beside the estimate -----
 #
-# Read by ``output.explainer``, which takes the typed result rather than
-# the envelope. That is why they are not answer SHAPES: a shape says how
-# ``numeric_estimate`` came out, and these exist precisely where there is
-# no ``numeric_estimate`` to shape.
+# Not answer SHAPES: a shape says how ``numeric_estimate`` came out, and
+# the two rendered here are written where there is no ``numeric_estimate``
+# at all — the theta path answers from the joint distribution without ever
+# calling an estimator. The third is written beside one, and its
+# ``carried_by`` says so.
 
 CAUSATION = Block(
     "causation",
     holds="probabilities of necessity and sufficiency, with the "
           "interventional risks they are computed from",
     read_as=ANSWER,
+    carried_by=None,
 )
 COUNTERFACTUAL_CELL = Block(
     "counterfactual_cell",
     holds="one cell of the counterfactual joint distribution, the "
           "attribution layer's finest-grained answer",
     read_as=ANSWER,
+    # Its producer calls this a display copy, and measuring it agrees:
+    # written only on the path that also produces a ``numeric_estimate``,
+    # where the cell is the estimate's own field and an answer shape
+    # already renders it.
+    carried_by="numeric_estimate",
 )
 SCM_COUNTERFACTUAL = Block(
     "scm_counterfactual",
     holds="a point counterfactual under a linear SCM, plus the display "
           "copy of the value the audited estimate must agree with",
     read_as=ANSWER,
+    carried_by=None,
 )
 
 # --- ASSUMPTION: what has to hold ------------------------------------------
 #
-# The ledger is the surface; the other two are channels it reads and
-# re-presents, which is why a census that asked "who renders this" scored
-# them as unreached and was wrong.
+# One family, two mechanisms — which is why the question is asked of the
+# block rather than of the family. A census that asked only "who renders
+# this" scored the two channels as unreached and was wrong.
 
 ASSUMPTION_LEDGER = Block(
     "assumption_ledger",
     holds="every load-bearing assumption the answer rests on, ranked by "
           "how the conclusion dies if it is false",
     read_as=ASSUMPTION,
+    carried_by=None,
 )
 MECHANISM_AUDIT = Block(
     "mechanism_audit",
     holds="the functional form the number was computed under, and where "
           "that form came from — the estimator's default or the caller",
     read_as=ASSUMPTION,
+    carried_by=ASSUMPTION_LEDGER,
 )
 LLM_PROPOSED_REVIEW = Block(
     "llm_proposed_review",
     holds="the edges and parameter priors a language model proposed, for "
           "a reader to accept or reject before trusting the number",
     read_as=ASSUMPTION,
+    carried_by=ASSUMPTION_LEDGER,
 )
 
 # --- GAP: what is missing from, or wrong with, the inputs -------------------
 #
-# Both reach the reader as entries in ``data_gap_report.gaps``, which the
-# report already renders; the block keeps the evidence a verifier
-# re-derives the entry from.
+# Neither is rendered on its own. The producer writes gap entries beside
+# the block, and what stays in the block is the evidence a verifier
+# re-derives those entries from.
 
 AMBIGUITIES = Block(
     "ambiguities",
     holds="the upstream naming ambiguities that bear on THIS query, "
           "copied across from the program's own side-channel",
     read_as=GAP,
+    carried_by="data_gap_report",
 )
 TYPE_RECONCILIATION = Block(
     "type_reconciliation",
     holds="what was checked when the declared variable types and the "
           "data's own types disagreed",
     read_as=GAP,
+    carried_by="data_gap_report",
 )
 
 DECLARED: tuple[Block, ...] = tuple(
@@ -297,6 +361,36 @@ def declared_as(family: Family) -> tuple[Block, ...]:
     return tuple(block for block in DECLARED if block.read_as is family)
 
 
+def rendered_in(family: Family) -> tuple[Block, ...]:
+    """The blocks of one family a surface has to render itself.
+
+    The rest of the family reaches its reader through whatever their
+    ``carried_by`` names, so demanding a renderer for them would demand a
+    second telling of something already said.
+    """
+    return tuple(b for b in declared_as(family) if b.carried_by is None)
+
+
+BOUND: dict[str, set[str]] = {}
+"""Which surface bound which blocks, filled at import.
+
+``carried_by=None`` is a claim about a surface, and one the registry
+cannot check from inside — the surfaces are downstream of it. So the
+surfaces record what they bound on their way past, and a test asks the
+one question that closes the loop.
+
+By surface, not a flat set. "Somebody rendered it" is the shape of check
+that let this go: the two blocks answered from theta were read by the
+detachable explainer, which satisfies every reachability question that
+does not ask WHICH surface. A test that wants to hold the load-bearing
+report to something has to be able to name it.
+
+Plain names rather than blocks, because the answer is compared against
+the registry and a set of blocks would carry the registry into its own
+audit.
+"""
+
+
 def bind(family: Family, renderers: Mapping[Block, R]) -> dict[Block, R]:
     """One surface's renderers for one family, checked both ways.
 
@@ -304,9 +398,16 @@ def bind(family: Family, renderers: Mapping[Block, R]) -> dict[Block, R]:
     nothing — the silence the ``read_as`` axis exists to make impossible
     to add. A bound block from outside the family is a renderer whose
     output would land in the wrong section, which reads as coverage and
-    is not.
+    is not; so is one whose block said something else carries it, and
+    that is why the members here are the rendered ones rather than the
+    whole family.
+
+    Which surface this is comes from the caller rather than from an
+    argument it would have to spell. The module doing the binding is a
+    fact already in hand, and a convention that has to be rewritten at
+    every use point is one that gets it wrong somewhere.
     """
-    members = declared_as(family)
+    members = rendered_in(family)
     missing = sorted(str(b) for b in members if b not in renderers)
     if missing:
         raise ValueError(
@@ -317,8 +418,11 @@ def bind(family: Family, renderers: Mapping[Block, R]) -> dict[Block, R]:
     if extra:
         raise ValueError(
             f"renderer bound for {extra}, which {family.name} does not "
-            f"contain (themis.blocks.declared_as)"
+            f"contain, or which said something else carries it "
+            f"(themis.blocks.rendered_in)"
         )
+    surface = sys._getframe(1).f_globals.get("__name__", "?")
+    BOUND.setdefault(surface, set()).update(str(b) for b in renderers)
     return dict(renderers)
 
 

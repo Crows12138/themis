@@ -8,6 +8,7 @@ writes it any more. The kernel's two single exits close the first
 direction on every run. The second is closed here.
 """
 import ast
+import json
 import pathlib
 
 import pytest
@@ -128,7 +129,101 @@ def test_a_surface_cannot_bind_a_block_from_another_family():
 
 def test_a_block_cannot_be_declared_without_saying_how_it_is_read():
     with pytest.raises(TypeError):
-        blocks.Block("invented", holds="nothing")
+        blocks.Block("invented", holds="nothing", carried_by=None)
+
+
+def test_a_block_cannot_be_declared_without_saying_how_it_reaches_a_reader():
+    with pytest.raises(TypeError):
+        blocks.Block("invented", holds="nothing", read_as=blocks.GAP)
+
+
+def test_a_block_claiming_a_renderer_has_one():
+    """``carried_by=None`` is a claim about a surface; this asks the surface.
+
+    The claim used to be a comment over a family heading, and what checked
+    it asked whether any module *names* the block — which its writer
+    satisfies. All eight blocks outside the one bound family passed it,
+    and they were in three different states: the ledger, which the report
+    did read; the five something else carries; and the two answered from
+    theta, which reached nobody but a detachable scaffold. Naming is what
+    all three states have in common, so the check could not tell them
+    apart.
+
+    ``bind`` records which surface bound what, and importing the report is
+    what makes it bind, so the question can be put directly instead — of
+    the report, by name. "Some surface renders it" is the weaker question
+    the explainer already answered.
+    """
+    from themis.output import analysis_report  # noqa: F401  binds on import
+
+    rendered_by_the_report = blocks.BOUND.get(analysis_report.__name__, set())
+    unbound = sorted(
+        str(b) for b in blocks.DECLARED
+        if b.carried_by is None and str(b) not in rendered_by_the_report
+    )
+    assert not unbound, (
+        f"{unbound} say a surface renders them and the report does not; "
+        f"either bind a renderer there or say what carries them"
+    )
+
+
+def test_a_block_naming_a_carrier_names_something_that_exists():
+    """The other half. A carrier is a member of a table, not a sentence.
+
+    Either another block — which must reach a reader by its own route, so
+    the chain ends — or a top-level field of the result, which the report
+    already renders. Both are checked against the thing itself rather than
+    against a list kept here.
+    """
+    schema = json.loads(
+        (PACKAGE / "schemas" / "query_result.schema.json")
+        .read_text(encoding="utf-8")
+    )
+    fields = set(schema["properties"])
+
+    for block in blocks.DECLARED:
+        # Walk to the end of the chain. It terminates at a field, or at a
+        # block that renders itself — and the test above holds that one to
+        # actually having a renderer, so a chain that ends is a chain that
+        # arrives.
+        seen: list[str] = [str(block)]
+        target = block.carried_by
+        while target is not None:
+            name = str(target)
+            assert name not in seen, f"carrier cycle: {seen + [name]}"
+            seen.append(name)
+            if name in fields:
+                break
+            assert name in blocks.BY_NAME, (
+                f"{block!r} says {name!r} carries it, which is neither a "
+                f"declared block nor a field of the result"
+            )
+            target = blocks.BY_NAME[name].carried_by
+
+
+def test_the_record_says_which_surface_bound_it():
+    """The distinction the guard above rests on.
+
+    Binding from here must land under this module and not under the
+    report's, or "the report renders it" would be satisfiable by any
+    module that binds — which is the check that let a detachable
+    scaffold stand in for a reader in the first place.
+    """
+    blocks.bind(
+        blocks.ASSUMPTION,
+        {b: str for b in blocks.rendered_in(blocks.ASSUMPTION)},
+    )
+    assert "assumption_ledger" in blocks.BOUND[__name__]
+    assert "themis.output.analysis_report" != __name__
+
+
+def test_a_surface_cannot_bind_a_block_something_else_carries():
+    """Binding one is a second telling — and the first one is the one the
+    reader gets, since the carrier is read before the report runs."""
+    bound = {b: str for b in blocks.rendered_in(blocks.ASSUMPTION)}
+    bound[blocks.MECHANISM_AUDIT] = str
+    with pytest.raises(ValueError, match="something else carries it"):
+        blocks.bind(blocks.ASSUMPTION, bound)
 
 
 def test_a_block_is_the_plain_name_once_it_is_data():
