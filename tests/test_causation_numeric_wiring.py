@@ -337,3 +337,39 @@ def test_verify_reruns_adjustment_from_graph():
     broken = _ast((_cause("z", "x"), _cause("x", "y")))  # z no longer confounds
     with pytest.raises(VerificationError):
         themis.verify(broken, res)
+
+
+# ------------------------------------------------- and it reaches the reader
+def test_the_answer_section_names_all_three_whether_or_not_monotonicity_holds():
+    """The question line asks for PN, PS and PNS by name; so must the answer.
+
+    ``causation_plugin`` declared ``point`` for its monotone mode, and every
+    causation estimate carries a ``point`` because the headline has to be one
+    number — so the SHARPER answer reached the reader as a bare ``**0.4379**``
+    while the bounded mode, having no headline to detect, named all three.
+    Both modes share one renderer now, which is also the one the theta path
+    uses (tests/test_causation_query.py).
+    """
+    from themis.output.analysis_report import build_analysis_report
+
+    def answer_of(prog, df):
+        r = _result(themis.estimate(prog, df))
+        return build_analysis_report(r, program=prog).split(
+            "## 答案", 1)[1].split("\n##", 1)[0]
+
+    sharp = answer_of(_ast(_CONFOUNDED), _sample(30_000, seed=2))
+    assert "单调性成立" in sharp
+    for label in ("必要性 PN", "充分性 PS", "必要且充分 PNS"):
+        assert label in sharp, sharp
+    # What the assumption bought, beside what it bought it from.
+    assert "95% CI" in sharp and "无单调性假设时只能给到" in sharp
+    # And where the two do-risks came from, with the set they used.
+    assert "后门调整" in sharp and "调整集 {z}" in sharp
+
+    blunt = answer_of(_ast(_CONFOUNDED, monotonic=False),
+                      _sample_nonmono(30_000, seed=3))
+    assert "未假设单调性" in blunt
+    for label in ("必要性 PN", "充分性 PS", "必要且充分 PNS"):
+        assert label in blunt, blunt
+    assert "外带" in blunt
+    assert "若可假设单调性" in blunt

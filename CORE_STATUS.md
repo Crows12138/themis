@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4038 passed / 144 skipped, warning-clean
+4041 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1380,12 +1380,25 @@ scm 反事实一条的答案节。）
 其中两个是只补渲染器发现不了的。
 
 **顺带量出、未做、已登记（#336）**：写 causation 渲染器时要把
-`interventional_risk_provenance` 翻成中文，才发现**这是一个封闭集合却是裸 `str`**——
-产生端至少 6 个取值分散在两处（`estimation` 4 个 / `scheduler` 3 个、互不知道对方），
-而 `causation.py:107` 把集合写在行尾注释里、**那条注释已经只列了其中 3 个**；
-消费端已有两份手写映射各覆盖不同子集（其中一份是**两分支 if/else**，
-`else` 断言了一个具体说法），我这轮又加了第三份。㉞ 的标准形态。
-**没做全语料插桩，所以「哪个值实际到达哪个消费端」还不知道**，那条 `else` 是否真在说假话未证。
+`interventional_risk_provenance` 翻成中文，才发现这个词表**被列了七次，没有两次是同一个集合**：
+schema 三处（`extensions.causation` 4 个 / `numeric_estimate.probabilities_of_causation` 3 个 /
+`numeric_estimate.counterfactual_cell` 6 个）、`counterfactual_cell.py:96` 的
+`RISK_PROVENANCES` 6 个、`verifier/rules.py` 两处（具名常量 6 个 + 内联字面量 3 个）、
+`causation.py:107` 的行尾注释 3 个（字段是裸 `str`，且**这条注释是陈旧的**）。
+差异**很可能不是漂移而是按容器分的合法子集**（两个产生端的词汇几乎不相交），
+但**没有任何东西说出这件事**，那才是缺的表。而且
+`tests/test_counterfactual_cell_numeric.py:721` **已经**把其中三处钉成相等、
+docstring 还专门论证了为什么必须钉——**同一条纪律，七处里只施行了三处**。
+消费端三份手写映射覆盖不同子集，我这轮又加了第三份。
+
+> 更正：本段初稿写的是「产生端 `estimation` 4 个、集合写在行尾注释里、㉞ 的标准形态」，
+> 并且**完全没提 schema**——两处都错。㊵（建一等事物前先在已有登记表里搜同义词）
+> 这条规则我自己刚写完就没执行，代价是差点在七份登记之外造第八份。
+> 同段初稿担心的「explainer 那个两分支 `else` 在说假话」**也不成立**：
+> `result_orchestrator.from_dict` 是 `NotImplementedError`，估计层的信封在结构上到不了
+> explainer（插桩实测该函数全语料 **0 次调用**）。但同一处 `dispatch.py:2393` 的注释
+> 「the explainer reads extensions.causation」**是假的**，理由正是同一条——
+> ㉕ 那类「拿一个结构上不可能消费的消费者来为自己辩护」的注释。已并进 #336。
 
 **剩余登记**：**web 面对 theta 路径的答案与修前的主报告同病**（#335，实测
 `verdict.ts:367` 只读 `numeric_estimate.probabilities_of_causation`＝数据路径，
@@ -1393,6 +1406,67 @@ scm 反事实一条的答案节。）
 而 `BOUND` 按构造只能记录 Python 面，web 是 TS 面、在注册表之外，
 **两条新守卫对它是沉默的**；`blocks.py` 改枚举（#330，实测 143 处引用）；
 58 个被 mypy 压住的模块（#331）；「怎么算出来的」对 SCM 反事实路径为空（#334）。
+
+### 声明了形状不等于声明了对的形状：更锋利的那半个答案，反而印得更不具名（2026-08-05，接上条）
+
+上条修完 theta 路径的当天，同一个查询走**数据**路径仍然印一个不具名的数。直接复现
+（20000 行、后门 `{z}`、`monotonic=True`）：
+
+```text
+## 答案
+**0.4379**　（95% CI [0.4204, 0.4566]）
+- 方法 `causation_plugin`，样本量 N=20000
+```
+
+问题行按 schema 问「必要性 PN / 充分性 PS / 必要且充分 PNS」。而**非单调**那一支是对的——
+三个名字都在。**更锋利的答案被渲染得更不具名。**
+
+**根因**：`SHAPES_OF["causation_plugin"] = (POINT, CAUSATION_BOUNDS)`。单调时
+`numeric_estimate["point"]`（PN headline）非空，`shape_of` 按序取到 `POINT`；而
+`POINT.carries` 自己写着「a single number for **the** estimand」——**causation 有三个
+estimand，所以 POINT 对它从来就不成立**。缺的不是渲染器，是那个形状：
+「三个各自具名的点」这个形状不存在，于是只能借用通用的那一个。
+
+**为什么是根因不是表象**：形状表的守卫问的是**覆盖**——每个方法都声明了形状吗、
+每个形状都有渲染器吗。`causation_plugin` 两个形状都声明了、都有渲染器、`bind` 全绿。
+**覆盖型守卫对「贴不贴切」是沉默的。** 而同族的
+`counterfactual_cell_plugin = (POINT, COUNTERFACTUAL_CELL_BOUNDS)` 恰恰**不是**同一个毛病：
+一个反事实格确实就是一个数。这个对照说明病根在**「读者问了几个量」**，不在 `POINT` 本身，
+所以修在形状表而不是在渲染器里加一个 `if method == ...`（那正是形状表建起来要消灭的东西）。
+
+**改动**：
+- `answers.py` 新增 `CAUSATION_POINTS`（`lives_in="probabilities_of_causation"`，
+  `detect` = `pn.point` 非空——块两种模式都在，单调性买到的东西在**每个量的里面**）。
+  `causation_plugin` 改为 `(CAUSATION_POINTS, CAUSATION_BOUNDS)`，`POINT` 退出。
+- **三个入口绑同一个渲染器**：两个数据形状 + theta 的 `blocks.CAUSATION`。原来的
+  `_render_causation_bounds` 与上一档新写的 `_answer_causation` 合并成
+  `_render_causation`——它们本来就在说同一批名字，而各自只知道一半：一个知道置信带和
+  调整集，另一个知道单调性买到的点和干预风险的来路。合并后信息取并集。
+- 顺带一个原来说不出的区别：`ci_lower`/`ci_upper` 两个键**在两种模式下意思不同**
+  （有点时是点的抽样区间，没点时是可识别集的外带），而决定它是哪一种的正是决定形状的
+  那件事，所以渲染器按同一个条件分叉，不再需要第二份代码。单调那支现在还会说出
+  **这个假设买到了什么**（「无单调性假设时只能给到 [a, b]」）——Tian-Pearl 界本来就不用
+  单调性，所以那正是被替换掉的区间。
+
+**基线（本条）**：4038 → **4041**（+3：形状表那条 fixture 级的回归——它带着
+`point` 字段，改前必然渲染成 `**0.5**`；走真实管线的数据端两模式答案节；
+第三条不是新写的——`test_the_web_reads_every_shape_the_kernel_can_answer_in`
+按 `answers.ALL` 参数化，**新形状自动多出一个 case**，也就是 web 那一面当天就被问了
+「你认不认得这个形状」，答案是认得：`lives_in` 与 `causation_bounds` 同为
+`probabilities_of_causation`）。
+另有一条既有测试**被改写**：`test_the_sharper_shape_wins_when_monotonicity_supplied_one`
+原来断言「两个双模方法都把 `POINT` 放在第一位」——**那条断言本身就是这个 bug 的书面形式**。
+
+**方法论沉淀**：(54)**覆盖型守卫（「每个 X 都有一个 Y」）对贴切性是沉默的——
+「声明了形状」和「声明了对的形状」是两件事，而一条把错误声明写进断言的测试会让它更难被发现**。
+判据：①探针不是覆盖而是**算术**——读者问了几个量、这个形状装得下几个（`POINT.carries`
+自己写着「a single number」，而问题行问了三个）；②**同族里那个「看起来一样但其实正确」的
+兄弟就是判据**（反事实格确实是一个数），它把病因从「`POINT` 用错了」收窄到「这个估计量有几个
+被问到的量」；③修在**词表**而不是在渲染器里加方法名分支，否则等于把词表要消灭的
+「按字段名探形状」又请回来一次。(55)**为 A 做的插桩会暴露 B——量「同一个块出现在哪些容器里」，
+就会看见「同一个缺陷还留在哪条路径上」**。判据：本条不是查它查出来的，是查
+`interventional_risk_provenance` 时看见 `extensions.causation` 有 15 次带着
+`backdoor_adjustment`（＝数据路径也写这个块），才回头问「那数据路径的报告说了什么」。
 
 ---
 

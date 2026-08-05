@@ -535,24 +535,86 @@ question the reader asked is the same one.
 """
 
 
-def _render_causation_bounds(poc: dict) -> str:
-    """PN/PS/PNS recovered from data without monotonicity — three identified
-    intervals (Tian-Pearl bounds). No point; a point would need monotonicity."""
-    lines = ["数据可识别的**区间**（无单调性假设，故为界而非点）："]
+_RISK_PROVENANCE_ZH = {
+    "exogenous": "X 无父节点，干预风险即观测风险",
+    "backdoor_adjustment": "干预风险经后门调整识别",
+    "derived_identification": "干预风险由识别层从图上导出",
+    "user_experimental": "干预风险来自调用方提供的实验数据",
+}
+"""Where the two do-risks came from — which is how much PN can be trusted.
+
+Unlisted renders as its own token, the convention this file already uses
+for identification patterns: a name a reader has to look up still beats a
+sentence that leaves out where the number came from.
+"""
+
+
+def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
+    """PN / PS / PNS, each said by name, wherever the three came from.
+
+    Three entry points share this: the two shapes the data path comes out
+    in, and the block the theta path puts its answer in. They used to be
+    two renderers saying the same three names, and each knew half of what
+    the reader needs — one the confidence band and the adjustment set, the
+    other the point monotonicity buys and where the do-risks came from.
+
+    Every quantity carries an interval; a point is there only when
+    monotonicity was declared, so its absence is the statement that the
+    assumption was not made rather than a hole in the answer.
+    """
+    lines: list[str] = []
     for key, label in _POC_LABELS:
         q = poc.get(key) or {}
-        lo, hi = q.get("lower"), q.get("upper")
-        if lo is None or hi is None:
+        point, lo, hi = q.get("point"), q.get("lower"), q.get("upper")
+        bounded = lo is not None and hi is not None
+        head = (
+            f"**{_fmt(point)}**" if point is not None
+            else f"**[{_fmt(lo)}, {_fmt(hi)}]**" if bounded
+            else None
+        )
+        if head is None:
             continue
-        line = f"- {label} ∈ [{_fmt(lo)}, {_fmt(hi)}]"
-        if q.get("ci_lower") is not None and q.get("ci_upper") is not None:
-            line += f"（外带 [{_fmt(q['ci_lower'])}, {_fmt(q['ci_upper'])}]）"
-        lines.append(line)
-    adj = poc.get("adjustment")
-    if adj:
-        lines.append(f"- 干预风险经后门调整集 {{{', '.join(adj)}}} 识别")
-    lines.append("- 若可假设单调性（X 从不阻止 Y），三者可点识别。")
-    return "\n".join(lines)
+        # One pair of CI keys, two meanings, decided by the same thing that
+        # decides the shape: a point's sampling interval when there is a
+        # point, the outer band on the identified set when there is not.
+        aside: list[str] = []
+        ci_lo, ci_hi = q.get("ci_lower"), q.get("ci_upper")
+        if ci_lo is not None and ci_hi is not None:
+            level = f"{ci_level:.0%} " if ci_level is not None else ""
+            band = "CI" if point is not None else "外带"
+            aside.append(f"{level}{band} [{_fmt(ci_lo)}, {_fmt(ci_hi)}]")
+        if point is not None and bounded:
+            # Tian-Pearl bounds use no monotonicity, so this is exactly what
+            # the assumption bought — the reader cannot weigh the point
+            # without seeing the interval it replaced.
+            aside.append(f"无单调性假设时只能给到 [{_fmt(lo)}, {_fmt(hi)}]")
+        lines.append(
+            f"- {label}：{head}" + (f"（{'；'.join(aside)}）" if aside else "")
+        )
+    if not lines:
+        return ""
+
+    monotonic = bool(poc.get("monotonic"))
+    head = (
+        "单调性成立（X 从不阻止 Y），三者点识别："
+        if monotonic
+        else "未假设单调性，三者只能给界："
+    )
+    risk_hi, risk_lo = poc.get("p_y_do_x1"), poc.get("p_y_do_x0")
+    if risk_hi is not None and risk_lo is not None:
+        prov = poc.get("interventional_risk_provenance")
+        note = _RISK_PROVENANCE_ZH.get(prov, f"`{prov}`") if prov else ""
+        adj = poc.get("adjustment")
+        if adj:
+            note += f"，调整集 {{{', '.join(adj)}}}"
+        lines.append(
+            f"- 由干预风险 P(Y|do X)={_fmt(risk_hi)}、"
+            f"P(Y|do ¬X)={_fmt(risk_lo)} 算出"
+            + (f"（{note}）" if note else "")
+        )
+    if not monotonic:
+        lines.append("- 若可假设单调性（X 从不阻止 Y），三者可点识别。")
+    return "\n".join([head] + lines)
 
 
 def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None) -> str:
@@ -731,6 +793,21 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
     return "\n".join(lines)
 
 
+def _render_causation_estimate(ne: dict, result: dict) -> str:
+    """Both causation shapes, from the one renderer that says the names.
+
+    Bound twice on purpose. Point-identified and bounded are two shapes of
+    the same three quantities, and what separates them — a point inside
+    each — is exactly what the renderer already keys off, so a second copy
+    would be a second chance to say them differently.
+    """
+    return "\n".join(
+        [_render_causation(ne["probabilities_of_causation"],
+                           ci_level=ne.get("ci_level"))]
+        + _estimate_meta(ne, result.get("outcome_error"))
+    )
+
+
 # Each shape, said once. ``bind`` refuses a set that misses one, so a shape
 # added to the vocabulary cannot reach this surface and render nothing.
 _ANSWER_RENDERERS = answers.bind({
@@ -740,10 +817,8 @@ _ANSWER_RENDERERS = answers.bind({
     answers.MEDIATION_DECOMPOSITION: _render_mediation_decomposition,
     answers.JOINT_CONTRAST: _render_joint_contrast,
     answers.COUNTERFACTUAL_CELL_BOUNDS: _render_counterfactual_cell_bounds,
-    answers.CAUSATION_BOUNDS: lambda ne, result: "\n".join(
-        [_render_causation_bounds(ne["probabilities_of_causation"])]
-        + _estimate_meta(ne, result.get("outcome_error"))
-    ),
+    answers.CAUSATION_POINTS: _render_causation_estimate,
+    answers.CAUSATION_BOUNDS: _render_causation_estimate,
 })
 
 
@@ -761,59 +836,18 @@ _ANSWER_RENDERERS = answers.bind({
 # the answer. For causation it is PN, one of three named quantities, and
 # the answer section printed it with no name at all — under a question
 # line that had just asked for all three.
-
-
-_RISK_PROVENANCE_ZH = {
-    "exogenous": "X 无父节点，干预风险即观测风险",
-    "backdoor_adjustment": "干预风险经后门调整识别",
-    "derived_identification": "干预风险由识别层从图上导出",
-    "user_experimental": "干预风险来自调用方提供的实验数据",
-}
-"""Where the two do-risks came from — which is how much PN can be trusted.
-
-Unlisted renders as its own token, the convention this file already uses
-for identification patterns: a name a reader has to look up still beats a
-sentence that leaves out where the number came from.
-"""
+#
+# The same sentence turned out to be true of the DATA path, which does
+# leave a ``numeric_estimate``: its method declared ``point`` for the
+# monotone mode, so the sharper answer rendered as a bare headline while
+# the blunter one named all three. Both paths now reach
+# :func:`_render_causation`.
 
 
 def _answer_causation(block: dict, result: dict) -> str:
-    """PN / PS / PNS, each said by name.
-
-    Every quantity carries an interval; a point is there only when
-    monotonicity was declared, so its absence is the statement that the
-    assumption was not made rather than a hole in the answer.
-    """
-    lines: list[str] = []
-    for key, label in _POC_LABELS:
-        q = block.get(key) or {}
-        point, lo, hi = q.get("point"), q.get("lower"), q.get("upper")
-        bounded = lo is not None and hi is not None
-        if point is not None:
-            line = f"- {label}：**{_fmt(point)}**"
-            if bounded:
-                line += f"（界 [{_fmt(lo)}, {_fmt(hi)}]）"
-            lines.append(line)
-        elif bounded:
-            lines.append(f"- {label}：**[{_fmt(lo)}, {_fmt(hi)}]**")
-    if not lines:
-        return ""
-
-    head = (
-        "单调性成立（X 从不阻止 Y），三者点识别："
-        if block.get("monotonic")
-        else "未假设单调性，三者只能给界："
-    )
-    risk_hi, risk_lo = block.get("p_y_do_x1"), block.get("p_y_do_x0")
-    if risk_hi is not None and risk_lo is not None:
-        prov = block.get("interventional_risk_provenance")
-        note = _RISK_PROVENANCE_ZH.get(prov, f"`{prov}`") if prov else ""
-        lines.append(
-            f"- 由干预风险 P(Y|do X)={_fmt(risk_hi)}、"
-            f"P(Y|do ¬X)={_fmt(risk_lo)} 算出"
-            + (f"（{note}）" if note else "")
-        )
-    return "\n".join([head] + lines)
+    """The theta path's three quantities, said the way the data path says
+    them — the block and the estimate carry the same envelope."""
+    return _render_causation(block)
 
 
 def _answer_scm_counterfactual(block: dict, result: dict) -> str:

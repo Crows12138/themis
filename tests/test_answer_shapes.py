@@ -73,11 +73,23 @@ def test_an_undeclared_method_is_loud_rather_than_defaulted():
 
 
 def test_the_sharper_shape_wins_when_monotonicity_supplied_one():
-    """Both bimodal methods declare the point first: it answers the same
-    question the bounds do, only sharply."""
-    for method in ("causation_plugin", "counterfactual_cell_plugin"):
-        shapes = answers.SHAPES_OF[method]
-        assert len(shapes) == 2 and shapes[0] is answers.POINT, method
+    """Both bimodal methods declare the sharper shape first: it answers the
+    same question the bounds do, only sharply.
+
+    The sharper shape is not always ``point``, which is what this test used
+    to assert. ``point`` carries a single number for THE estimand, and a
+    causation query asks for three — so the sharper answer reached the
+    reader as a bare PN headline while the blunter one named all three. A
+    counterfactual cell really is one number, so its pair keeps ``point``;
+    the asymmetry is the finding, not an oversight.
+    """
+    for method, sharper, blunter in (
+        ("causation_plugin",
+         answers.CAUSATION_POINTS, answers.CAUSATION_BOUNDS),
+        ("counterfactual_cell_plugin",
+         answers.POINT, answers.COUNTERFACTUAL_CELL_BOUNDS),
+    ):
+        assert answers.SHAPES_OF[method] == (sharper, blunter), method
 
 
 # --- an estimate in each shape reaches the reader as that shape --------------
@@ -148,6 +160,30 @@ def test_every_shape_carries_the_lines_a_point_estimate_carries(method):
     render nothing had, by construction, none of this either."""
     line = _render_answer(_result({"method": method, **SHAPED[method][0]}))
     assert f"`{method}`" in line and "N=100" in line
+
+
+def test_the_sharper_causation_answer_is_no_less_named_than_the_bounded_one():
+    """Monotonicity sharpens the three quantities; it does not rename them.
+
+    The ``point`` shape was declared for this mode, and it detects on the
+    PN headline — which every causation estimate carries, because a
+    headline has to be one number. So the sharper answer rendered as that
+    bare number while the bounded mode, which has no headline to detect,
+    fell through to a renderer that says all three.
+    """
+    line = _render_answer(_result({
+        "method": "causation_plugin",
+        "point": 0.5,  # the PN headline, present in this mode only
+        "probabilities_of_causation": {
+            "pn": {"point": 0.5, "lower": 0.5, "upper": 1.0},
+            "ps": {"point": 0.2, "lower": 0.2, "upper": 0.4},
+            "pns": {"point": 0.1, "lower": 0.1, "upper": 0.3},
+        },
+    }))
+    assert not line.startswith("**0.5**"), "the PN headline, printed unnamed"
+    for label in ("必要性 PN", "充分性 PS", "必要且充分 PNS"):
+        assert label in line, line
+    assert "0.2" in line and "0.1" in line, "only PN reached the reader"
 
 
 def test_a_point_estimate_still_leads_with_its_number():

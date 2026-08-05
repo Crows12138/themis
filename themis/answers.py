@@ -29,6 +29,16 @@ are point-identified under monotonicity and bounded without it, and which came
 out is a property of the run. Their entries name both, in the order tried, so
 the sharper answer wins when it is available.
 
+Declaring a shape is not the same as declaring the right one, and the check
+this module performs cannot tell them apart: it asks whether every method has
+a shape and every shape has a renderer, which a wrong shape satisfies. The
+causation pair named ``point`` for its sharper half, and ``point`` carries a
+single number for THE estimand while a causation query asks for three — so the
+answer monotonicity buys arrived as a bare headline, less named than the
+bounds it was meant to sharpen. The probe for that is not coverage but
+arithmetic: how many quantities did the reader ask about, and how many does
+this shape carry.
+
 The keys of :data:`SHAPES_OF` are the closed ``numeric_estimate.method``
 vocabulary of ``query_result.schema.json``; a test pins the two together in
 both directions, the arrangement ``GapKind`` already uses. Two entries are
@@ -114,6 +124,19 @@ COUNTERFACTUAL_CELL_BOUNDS = Shape(
             "which monotonicity would have sharpened to a point",
     lives_in="counterfactual_cell",
 )
+CAUSATION_POINTS = Shape(
+    "causation_points",
+    carries="the probabilities of necessity, sufficiency and both, as "
+            "three named points — what monotonicity buys",
+    lives_in="probabilities_of_causation",
+    # The block is present either way; what monotonicity buys sits INSIDE
+    # each quantity, so the point is what tells the two modes apart. PN is
+    # asked of all three together: they are identified or bounded as one.
+    detect=lambda estimate: (
+        ((estimate.get("probabilities_of_causation") or {}).get("pn") or {})
+        .get("point") is not None
+    ),
+)
 CAUSATION_BOUNDS = Shape(
     "causation_bounds",
     carries="bounds on the probabilities of necessity and sufficiency, "
@@ -127,13 +150,20 @@ ALL: tuple[Shape, ...] = (
     MEDIATION_DECOMPOSITION,
     JOINT_CONTRAST,
     COUNTERFACTUAL_CELL_BOUNDS,
+    CAUSATION_POINTS,
     CAUSATION_BOUNDS,
 )
 
 
-# The bimodal pair. Point first: monotonicity was available, and the point it
+# The bimodal pairs. Sharper first: monotonicity was available, and what it
 # buys is the sharper answer to the same question.
-_MONOTONE_OR_BOUNDED_CAUSATION = (POINT, CAUSATION_BOUNDS)
+#
+# The two are not symmetric, and the asymmetry is the whole point. A
+# counterfactual cell IS one number, so POINT describes it. Probabilities of
+# causation are three, so POINT never described them: it says "a single
+# number for the estimand", and the one it rendered was the PN headline,
+# printed with no name under a question line asking for all three by name.
+_MONOTONE_OR_BOUNDED_CAUSATION = (CAUSATION_POINTS, CAUSATION_BOUNDS)
 _MONOTONE_OR_BOUNDED_CELL = (POINT, COUNTERFACTUAL_CELL_BOUNDS)
 
 SHAPES_OF: dict[str, tuple[Shape, ...]] = {
