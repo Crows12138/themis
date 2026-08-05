@@ -10,11 +10,11 @@ identification`` 75, ``identification`` 53, ``mediation_decomposition``
 extensions key, so not one of them ever reached a reader.
 
 The tests below hold both halves. The registry side (which blocks are
-routes, and that a surface must cover them) lives in
-``test_blocks_registry.py`` beside the vocabulary it checks; here is what
-a reader actually gets: every route says its own identifying facts, the
-section appears only when there is a route to state, and it sits where a
-reader looks for it.
+routes, that a surface must cover them, and that the browser states the
+same ones in the same order) lives in ``test_blocks_registry.py`` beside
+the vocabulary it checks; here is what a reader actually gets: every
+route says its own identifying facts, the section appears only when there
+is a route to state, and it sits where a reader looks for it.
 """
 import pytest
 
@@ -184,30 +184,6 @@ def test_a_route_does_not_repeat_what_the_line_above_it_already_said():
     # numeric IV path emits the block on its own.
     alone = _render_route(_result(**{blocks.IV_IDENTIFICATION: iv}))
     assert "z" in alone
-
-
-def test_the_web_states_the_same_routes_in_the_same_order():
-    """The browser renders from TypeScript and cannot import the registry,
-    so its list is parsed and held equal to it instead.
-
-    Stronger than the name-presence pin the answer shapes get: order is
-    part of what is checked, because the foldout and the report section
-    are the same section on two surfaces and a reader who compares them
-    should not have to reconcile two orders.
-    """
-    import pathlib
-    import re
-
-    source = (pathlib.Path(__file__).resolve().parent.parent / "themis" / "web"
-              / "frontend" / "src" / "lib" / "verdict.ts").read_text(encoding="utf-8")
-    listed = re.search(r"const ROUTE_ORDER = \[(.*?)\] as const", source, re.S)
-    assert listed, "verdict.ts declares no ROUTE_ORDER"
-    names = re.findall(r"'([a-z_]+)'", listed.group(1))
-    assert names == [str(b) for b in blocks.declared_as(blocks.ROUTE)]
-    for name in names:
-        assert re.search(rf"^  {name}: \(", source, re.M), (
-            f"{name} is in ROUTE_ORDER but has no renderer in verdict.ts"
-        )
 
 
 def test_an_unrecognised_pattern_is_named_rather_than_dropped():

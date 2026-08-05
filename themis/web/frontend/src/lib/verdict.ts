@@ -145,7 +145,7 @@ function corner(c: Record<string, unknown> | undefined): string {
 
 // The routes an answer can arrive by — the family themis/blocks.py declares,
 // in ITS declaration order, which is the order both surfaces state them in.
-// A test parses this array and holds it equal to blocks.declared_as(ROUTE),
+// A test parses this array and holds it equal to blocks.rendered_in(ROUTE),
 // and holds every name in it to having a renderer below: the foldout named
 // itself "怎么算出来的" while saying only the formula and the paths, and the
 // ten blocks that answer that question exactly reached no reader at all.
@@ -162,7 +162,34 @@ const ROUTE_ORDER = [
   'missing_data_recovery',
 ] as const
 
-export interface Route {
+// The answer itself, on the paths that state it as a block rather than as a
+// numeric_estimate — the theta path answers from the joint distribution and
+// never calls an estimator, so there is no shape for answerRows to find.
+const ANSWER_ORDER = ['causation', 'scm_counterfactual'] as const
+
+// Every block themis/blocks.py says a SURFACE has to render (rendered_in),
+// and this surface's answer to that demand, family by family. It exists
+// because the guarantee blocks.bind gives the report cannot cross a language
+// boundary: BOUND is keyed by the importing Python module, so a .ts file can
+// never appear in it, and "carried_by is None" was checked against one
+// surface only. Route had this list and the answer family did not, which is
+// exactly how two blocks holding the whole answer reached the browser as one
+// unnamed number and, when it was an interval, as nothing.
+//
+// A test holds each entry equal to the registry, so a block added there fails
+// here until something reads it. Two mechanisms are accepted because
+// carried_by itself is two-valued: a name-indexed renderer in this file, or a
+// definitional read in the component — the ledger's rows carry severity and
+// are JSX, and flattening them to label/value pairs to satisfy a list would
+// make the surface worse to make the check uniform.
+export const RENDERED_BLOCKS: Record<string, readonly string[]> = {
+  route: ROUTE_ORDER,
+  answer: ANSWER_ORDER,
+  assumption: ['assumption_ledger'],
+  gap: [],
+}
+
+export interface Section {
   cap: string
   rows: { label: string; value: string }[]
 }
@@ -193,7 +220,7 @@ const arm = (info: Blk | undefined, label: string) => ({
 // A renderer takes the whole extensions map so it can decline to repeat what
 // a block above it already said, and may return null when that leaves it with
 // nothing — a heading over no rows is worse than no heading.
-const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Route | null> = {
+const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Section | null> = {
   identification: (b) => {
     const rows = [{ label: '模式', value: PATTERN_ZH[b.pattern] ?? String(b.pattern ?? '?') }]
     if (b.pattern === 'backdoor') {
@@ -296,18 +323,130 @@ const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Rout
   },
 }
 
-// How the answer was arrived at, in registry order. Empty when the envelope
-// states no route — a heading over nothing is a promise it did not make.
-export function routeRows(extensions: Record<string, unknown> | undefined): Route[] {
+// --- the answer, when a block rather than an estimate carries it -------------
+
+const POC_LABELS = [
+  ['pn', '必要性 PN(归因)'],
+  ['ps', '充分性 PS'],
+  ['pns', '必要且充分 PNS'],
+] as const
+
+// Where P(Y|do X) came from. The keys are extensions.causation's own enum in
+// query_result.schema.json and a test holds them equal to it, because the
+// alternative to a translation here is printing the identifier — and whether
+// the two risks were derived from the graph or measured in an experiment is
+// not a detail this surface can drop: nothing else on it says so.
+const RISK_PROVENANCE_ZH: Record<string, string> = {
+  exogenous: 'X 无父节点,干预风险即观测风险',
+  backdoor_adjustment: '干预风险经后门调整识别',
+  derived_identification: '干预风险由识别层从图上导出',
+  user_experimental: '干预风险来自调用方提供的实验数据',
+}
+
+type BlockRenderer = (b: Blk, ext: Record<string, any>, ciLevel?: number) => Section | null
+
+const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
+  // Three quantities, each said by name. The point/interval split is per
+  // quantity rather than per block: monotonicity does not make the block
+  // appear, it collapses what is inside each of the three.
+  causation: (b, _ext, ciLevel) => {
+    const rows: { label: string; value: string }[] = []
+    for (const [key, label] of POC_LABELS) {
+      const q = b[key] as Blk | undefined
+      if (!q) continue
+      const bounded = q.lower != null && q.upper != null
+      const head = q.point != null ? fmtNum(q.point)
+        : bounded ? `[${fmtNum(q.lower)}, ${fmtNum(q.upper)}]` : null
+      if (head === null) continue
+      // One pair of CI keys, two meanings, settled by the same thing that
+      // settles the head: a point's sampling interval when there is a point,
+      // the outer band on the identified set when there is not.
+      const aside: string[] = []
+      if (q.ci_lower != null && q.ci_upper != null) {
+        const pct = `${Math.round((ciLevel ?? 0.95) * 100)}% `
+        aside.push(`${pct}${q.point != null ? 'CI' : '外带'} [${fmtNum(q.ci_lower)}, ${fmtNum(q.ci_upper)}]`)
+      }
+      // Tian-Pearl bounds assume no monotonicity, so when both are present
+      // this is exactly what the assumption bought.
+      if (q.point != null && bounded) {
+        aside.push(`无单调性假设时只能给到 [${fmtNum(q.lower)}, ${fmtNum(q.upper)}]`)
+      }
+      rows.push({ label, value: head + (aside.length ? ` · ${aside.join(' · ')}` : '') })
+    }
+    if (!rows.length) return null
+    if (b.p_y_do_x1 != null && b.p_y_do_x0 != null) {
+      const how = RISK_PROVENANCE_ZH[b.interventional_risk_provenance]
+      const adj = Array.isArray(b.adjustment) && b.adjustment.length
+        ? ` · 调整集 {${b.adjustment.join(', ')}}` : ''
+      rows.push({
+        label: '干预风险',
+        value: `P(Y|do X)=${fmtNum(b.p_y_do_x1)} · P(Y|do ¬X)=${fmtNum(b.p_y_do_x0)}`
+          + (how ? ` · ${how}${adj}` : ''),
+      })
+    }
+    // Whether monotonicity was assumed decides which of two questions the
+    // three numbers answer, so it belongs in the caption, not a footnote.
+    return {
+      cap: b.monotonic ? '因果概率 · 单调性下点识别' : '因果概率 · 未假设单调性,只能给界',
+      rows,
+    }
+  },
+  // The value is also in numeric_result and the figure above prints it. What
+  // only this block has is the abduction: the exogenous noise recovered from
+  // what this unit actually did is what makes the number a counterfactual for
+  // THEM rather than a prediction for an average unit.
+  scm_counterfactual: (b) => {
+    if (b.target_value == null) return null
+    const rows = [{
+      label: String(b.target ?? '反事实值'),
+      value: `${fmtNum(b.target_value)}(该个体自身的外生扰动下)`,
+    }]
+    const noise = (b.abducted_noise ?? {}) as Record<string, number>
+    const names = Object.keys(noise).sort()
+    if (names.length) {
+      rows.push({
+        label: '反推出的个体扰动',
+        value: names.map((n) => `U_${n}=${fmtNum(noise[n])}`).join(' · '),
+      })
+    }
+    const cf = (b.counterfactual_values ?? {}) as Record<string, number>
+    const others = Object.keys(cf).filter((k) => k !== b.target).sort()
+    if (others.length) {
+      rows.push({
+        label: '同一反事实世界下的其他变量',
+        value: others.map((k) => `${k}=${fmtNum(cf[k])}`).join(' · '),
+      })
+    }
+    return { cap: '线性 SCM 反事实', rows }
+  },
+}
+
+// One family's blocks, in registry order, each rendered once. Empty when the
+// envelope states none — a heading over nothing is a promise it did not make.
+function blockRows(
+  order: readonly string[],
+  renderers: Record<string, BlockRenderer>,
+  extensions: Record<string, unknown> | undefined,
+): Section[] {
   if (!extensions) return []
-  const out: Route[] = []
-  for (const name of ROUTE_ORDER) {
+  const out: Section[] = []
+  for (const name of order) {
     const block = extensions[name] as Blk | undefined
     if (!block || typeof block !== 'object') continue
-    const route = ROUTE_RENDERERS[name](block, extensions as Record<string, any>)
-    if (route) out.push(route)
+    const section = renderers[name](block, extensions as Record<string, any>)
+    if (section) out.push(section)
   }
   return out
+}
+
+/** How the answer was arrived at. */
+export function routeRows(extensions: Record<string, unknown> | undefined): Section[] {
+  return blockRows(ROUTE_ORDER, ROUTE_RENDERERS, extensions)
+}
+
+/** The answer itself, on the paths that carry it as a block. */
+export function answerBlockRows(extensions: Record<string, unknown> | undefined): Section[] {
+  return blockRows(ANSWER_ORDER, ANSWER_RENDERERS, extensions)
 }
 
 // The shapes an estimate can answer in — the vocabulary themis/answers.py
@@ -315,9 +454,15 @@ export function routeRows(extensions: Record<string, unknown> | undefined): Rout
 // `point`, so a curve, a decomposition, a joint contrast and a bounded cell
 // each rendered as a single em-dash while their numbers sat in the same block.
 // A test pins that every declared shape is read here.
-export function answerRows(
-  num: NumericEstimate,
-): { cap: string; rows: { label: string; value: string }[] } | null {
+export function answerRows(num: NumericEstimate): Section | null {
+  // Above the early return, because `point` is the headline for ONE estimand
+  // and this one holds three: what the figure would lead with is PN printed
+  // without its name, under a question line that asks for all three by name.
+  // Same renderer as the block — the data path and the theta path put the
+  // same three quantities in the same shape, in two different containers.
+  const poc = num.probabilities_of_causation
+  if (poc) return ANSWER_RENDERERS.causation(poc as Blk, {}, num.ci_level)
+
   if (num.point != null) return null // the point figure already leads with it
 
   const curve = num.dose_response_curve
@@ -361,16 +506,6 @@ export function answerRows(
     return {
       cap: '反事实格(区间)',
       rows: [{ label: '区间', value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]` }],
-    }
-  }
-
-  const poc = num.probabilities_of_causation
-  if (poc) {
-    return {
-      cap: '因果概率(区间)',
-      rows: ([['必要性 PN', poc.pn], ['充分性 PS', poc.ps], ['必要且充分 PNS', poc.pns]] as const)
-        .filter(([, q]) => q && q.lower != null && q.upper != null)
-        .map(([label, q]) => ({ label, value: `[${fmtNum(q!.lower)}, ${fmtNum(q!.upper)}]` })),
     }
   }
 

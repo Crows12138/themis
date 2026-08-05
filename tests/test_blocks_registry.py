@@ -10,6 +10,7 @@ direction on every run. The second is closed here.
 import ast
 import json
 import pathlib
+import re
 
 import pytest
 
@@ -164,6 +165,99 @@ def test_a_block_claiming_a_renderer_has_one():
     assert not unbound, (
         f"{unbound} say a surface renders them and the report does not; "
         f"either bind a renderer there or say what carries them"
+    )
+
+
+WEB = PACKAGE / "web" / "frontend" / "src"
+WEB_ANSWER_SURFACE = WEB / "lib" / "verdict.ts"
+WEB_COMPONENT = WEB / "components" / "Verdict.tsx"
+
+
+def _web_rendered_blocks() -> dict[str, list[str]]:
+    """``RENDERED_BLOCKS`` as the browser declares it, parsed by name.
+
+    The arrays are spelled as ``as const`` tuples and referenced from the
+    map, so both forms are resolved here rather than requiring the web to
+    inline them — the order those arrays state is itself checked, and
+    naming them twice would be the second telling this registry exists to
+    prevent.
+    """
+    source = WEB_ANSWER_SURFACE.read_text(encoding="utf-8")
+    arrays = {
+        name: re.findall(r"'([a-z_]+)'", body)
+        for name, body in re.findall(
+            r"const ([A-Z_]+_ORDER) = \[(.*?)\] as const", source, re.S
+        )
+    }
+    listed = re.search(
+        r"RENDERED_BLOCKS: Record<string, readonly string\[\]> = \{(.*?)\n\}",
+        source, re.S,
+    )
+    assert listed, f"{WEB_ANSWER_SURFACE.name} declares no RENDERED_BLOCKS"
+
+    out: dict[str, list[str]] = {}
+    for family, value in re.findall(r"^  (\w+): (.+),$", listed.group(1), re.M):
+        value = value.strip()
+        out[family] = (
+            arrays[value] if value in arrays
+            else re.findall(r"'([a-z_]+)'", value)
+        )
+    return out
+
+
+@pytest.mark.parametrize("family", blocks.FAMILIES, ids=lambda f: f.name)
+def test_the_web_renders_every_family_the_registry_makes_a_surface_render(family):
+    """The same question ``bind`` asks the report, asked of the browser.
+
+    ``bind`` cannot reach across a language boundary: ``BOUND`` is keyed by
+    the importing Python module, so no ``.ts`` file can ever appear in it,
+    and ``carried_by is None`` was therefore checked against exactly one
+    surface. The web had a parsed-and-pinned list for ROUTE and nothing for
+    the other three families — the same one-of-four the ``read_as`` axis
+    had before ``carried_by`` existed — and the consequence was the same
+    one, on the other surface: the two blocks holding the whole answer on
+    the theta path reached the browser as a single unnamed number, and as
+    nothing at all when it was an interval.
+
+    Order is part of it. The foldout and the report section are the same
+    section on two surfaces, and a reader who compares them should not have
+    to reconcile two orders.
+    """
+    declared = _web_rendered_blocks()
+    assert family.name in declared, (
+        f"{WEB_ANSWER_SURFACE.name} states nothing for the {family.name} "
+        f"family; a family it does not mention is one it can drop silently"
+    )
+    assert declared[family.name] == [str(b) for b in blocks.rendered_in(family)]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [str(b) for f in blocks.FAMILIES for b in blocks.rendered_in(f)],
+)
+def test_every_block_the_web_must_render_is_read_by_something_there(name):
+    """A list is a promise; this asks whether anything keeps it.
+
+    Two mechanisms are accepted, because ``carried_by`` is itself
+    two-valued: a name-indexed renderer in the answer surface, or a
+    definitional read in the component. The ledger's rows carry severity
+    and are JSX, and flattening them into label/value pairs to satisfy one
+    uniform shape would make the surface worse to make the check tidier.
+
+    What is NOT accepted is the block's name merely occurring: two of these
+    names are also ``query_kind`` labels in the same file, so a probe that
+    counted occurrences scored 18 of 18 present while two of them reached
+    no reader at all.
+    """
+    surface = WEB_ANSWER_SURFACE.read_text(encoding="utf-8")
+    component = WEB_COMPONENT.read_text(encoding="utf-8")
+    assert (
+        re.search(rf"^  {name}: \(", surface, re.M)
+        or re.search(rf"extensions\??\.{name}\b", component)
+    ), (
+        f"{name} is listed as rendered by the web and nothing there reads "
+        f"it; a renderer in {WEB_ANSWER_SURFACE.name} or a read of "
+        f"extensions.{name} in {WEB_COMPONENT.name}"
     )
 
 

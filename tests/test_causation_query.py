@@ -336,3 +336,43 @@ def test_verify_rejects_phantom_point_when_non_monotonic(solved):
     _step_output_items(rT)["monotonic"] = False
     with pytest.raises(Exception):
         kernel.verify(prog, rT)
+
+
+def test_both_surfaces_translate_the_same_risk_provenance_vocabulary():
+    """The gloss for ``interventional_risk_provenance`` exists twice, in two
+    languages, and is held equal to the schema that declares the vocabulary.
+
+    ``extensions.causation`` is written by both paths — the theta path says
+    ``derived_identification``, the data path distinguishes ``exogenous``
+    from ``backdoor_adjustment`` — so the enum is their union and a surface
+    that knows only one path's values has an ``undefined`` waiting in it.
+    Neither surface can import the other's map, which is the same bind the
+    counterfactual cell's provenance is in and gets the same answer: the
+    schema is the one thing both are checked against.
+    """
+    import json
+    import pathlib
+    import re
+
+    from themis.output.analysis_report import _RISK_PROVENANCE_ZH
+
+    repo = pathlib.Path(__file__).resolve().parent.parent
+    schema = json.loads(
+        (repo / "themis" / "schemas" / "query_result.schema.json")
+        .read_text(encoding="utf-8")
+    )
+    declared = set(
+        schema["properties"]["extensions"]["properties"]["causation"]
+        ["properties"]["interventional_risk_provenance"]["enum"]
+    )
+
+    assert set(_RISK_PROVENANCE_ZH) == declared
+
+    source = (repo / "themis" / "web" / "frontend" / "src" / "lib"
+              / "verdict.ts").read_text(encoding="utf-8")
+    listed = re.search(
+        r"const RISK_PROVENANCE_ZH: Record<string, string> = \{(.*?)\n\}",
+        source, re.S,
+    )
+    assert listed, "verdict.ts declares no RISK_PROVENANCE_ZH"
+    assert set(re.findall(r"^  (\w+):", listed.group(1), re.M)) == declared

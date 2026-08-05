@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, routeRows } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -10,9 +10,18 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const tier = report?.answer_tier
   const summary = report?.summary?.trim()
   const num = result.numeric_estimate
-  // Structural-layer point value (plug-in identification once θ is supplied,
-  // incl. via AI priors). Only shown when there's no data-backed estimate.
+  // Structural-layer answer (plug-in identification once θ is supplied, incl.
+  // via AI priors). Only shown when there's no data-backed estimate.
   const runNum = !num && result.numeric_result?.value != null ? result.numeric_result.value : null
+  // Bounded rather than pinned: `value` is null and the interval IS the
+  // answer. This slot read only `value`, so a bounded counterfactual arrived
+  // with its answer slot empty and its interval in the same object.
+  const runInterval = !num && runNum == null ? result.numeric_result?.interval ?? null : null
+  // The answer stated as a BLOCK. The theta path answers from the joint
+  // distribution without ever calling an estimator, so there is no shape for
+  // answerRows to find; what these paths put in numeric_result is one of the
+  // block's own quantities, printed with none of their names.
+  const answerBlocks = num ? [] : answerBlockRows(result.extensions)
   const bounds = result.bounds_result
   const struct = result.structural_result
   const sr = !tier && struct ? structuralReadout(result.query_kind, struct.value) : null
@@ -66,7 +75,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
         </div>
       </div>
 
-      {showCompare || num || runNum != null || result.estimator_failure || hasDetail ? (
+      {showCompare || num || answerBlocks.length || runNum != null || runInterval || result.estimator_failure || hasDetail ? (
         <div className="verdict__body">
           {/* The number IS the answer — always visible. */}
           {showCompare ? (
@@ -115,10 +124,34 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 </span>
               ) : null}
             </div>
+          ) : answerBlocks.length ? (
+            /* The answer as the envelope states it, each quantity by name.
+               Above the bare figure below, which for these paths prints one
+               of these same numbers with its name left off. */
+            <>
+              {answerBlocks.map((s, i) => (
+                <div className="figure" key={`ans-${i}`}>
+                  <span className="figure__cap">{s.cap}</span>
+                  <div className="pathlist">
+                    {s.rows.map((r, j) => (
+                      <div className="boundsexpr__row" key={j}>
+                        <span className="boundsexpr__k">{r.label}</span>
+                        <span className="boundsexpr__v mono">{r.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
           ) : runNum != null ? (
             <div className="figure">
               <span className="figure__cap">点估计</span>
               <span className="figure__point mono">{fmtNum(runNum)}</span>
+            </div>
+          ) : runInterval ? (
+            <div className="figure">
+              <span className="figure__cap">区间(部分识别)</span>
+              <span className="figure__point mono">[{fmtNum(runInterval.low)}, {fmtNum(runInterval.high)}]</span>
             </div>
           ) : null}
 

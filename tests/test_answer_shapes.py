@@ -242,3 +242,39 @@ def test_the_web_reads_every_shape_the_kernel_can_answer_in(shape):
         f"answer shape {shape.name} lives in numeric_estimate."
         f"{shape.lives_in}, which {WEB_ANSWER_SURFACE.name} never reads"
     )
+
+def _sharper_than_point() -> list:
+    """Bimodal methods whose sharper shape is not ``point``.
+
+    ``SHAPES_OF`` orders each method's shapes sharper-first, so the head of a
+    two-shape entry is what a reader gets when the sharpening assumption was
+    available. Where that head is ``point`` the estimand really is one number;
+    where it is not, ``numeric_estimate.point`` holds one of several and the
+    shape is what names them. The distinction is already in the table, so no
+    surface has to be told it twice.
+    """
+    return sorted(
+        {shapes[0] for shapes in answers.SHAPES_OF.values()
+         if len(shapes) > 1 and shapes[0] is not answers.POINT},
+        key=lambda s: s.name,
+    )
+
+
+@pytest.mark.parametrize("shape", _sharper_than_point(), ids=lambda s: s.name)
+def test_the_web_reads_a_multi_quantity_shape_before_the_point_shortcut(shape):
+    """Naming the key is not reading it, when the read sits after a return.
+
+    ``answerRows`` opens by returning null if ``point`` is set — correct for
+    every shape that has none, and wrong for one that has a point per
+    quantity: causation's ``point`` mirrors PN, so the whole block was skipped
+    and the figure led with the necessity headline under no name at all. The
+    name-presence pin above passed throughout, because the dead branch spelled
+    the key perfectly.
+    """
+    source = WEB_ANSWER_SURFACE.read_text(encoding="utf-8")
+    shortcut = source.index("if (num.point != null) return null")
+    assert 0 <= source.index(shape.lives_in) < shortcut, (
+        f"{shape.name} carries a point per quantity, so answerRows reaches it "
+        f"only if numeric_estimate.{shape.lives_in} is read before the "
+        f"point shortcut"
+    )

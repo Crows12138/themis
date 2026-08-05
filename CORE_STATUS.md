@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4041 passed / 144 skipped, warning-clean
+4059 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1467,6 +1467,94 @@ estimand，所以 POINT 对它从来就不成立**。缺的不是渲染器，是
 就会看见「同一个缺陷还留在哪条路径上」**。判据：本条不是查它查出来的，是查
 `interventional_risk_provenance` 时看见 `extensions.causation` 有 15 次带着
 `backdoor_adjustment`（＝数据路径也写这个块），才回头问「那数据路径的报告说了什么」。
+
+### 同一条纪律，四个族里只施行在一个族上——浏览器那一面把整个答案丢了（2026-08-05，接上条）
+
+上条在 Python 主报告上修完 causation 的答案节。同一个查询在 **web 面**上（实测，
+跑真实管线 + 用 esbuild 编译真实的 `verdict.ts` 在 node 里跑）：
+
+```text
+单调    → 点估计 0.500                  ← 一个不具名的数,PS/PNS 一个字都没有
+非单调  → (答案栏空)                     ← numeric_result.value 是 null
+数据端  → 数值估计 · causation_plugin 0.432   ← 上条刚在报告上修掉的那个病
+```
+
+三个量的名字全都在 `extensions.causation` / `numeric_estimate.
+probabilities_of_causation` 里躺着，没人读。
+
+**根因**：`blocks.bind` 是 Python 函数，`BOUND` 的键从 `sys._getframe(1)` 取，
+`.ts` 文件按构造永远进不去。于是 `carried_by=None`（「某个面渲染它」）在 Python 侧被
+测试翻译成「**主报告**渲染它」，而对 web 面**这个断言不存在**。机制本身并不缺——
+`test_route_section.py` 早就把 web 的 `ROUTE_ORDER` 数组解析出来、和
+`blocks.declared_as(ROUTE)` 钉成相等、还逐个查渲染器。**分母是 13 个
+`carried_by=None` 的块**：Python 主报告 import 期绑满 13/13（`bind` 三次，ROUTE +
+ANSWER + ASSUMPTION，这是 #333 补上的——2026-08-04 那条「取舍③」说的「import 期
+保证目前只有 route 一族」自那以后已不成立）；web 面 **10/13**，缺的正是 ANSWER
+整族。这是 #333 那条在另一面的翻版：`read_as` 覆盖四族、强制只覆盖一族。
+
+**为什么是根因不是表象**：表象修法是「给 `verdict.ts` 加一个 causation 分支」。判据
+两条——①中招的不是一个块，是**整族两个 `carried_by=None` 的块**（`causation` +
+`scm_counterfactual`），正是 #313 在 Python 侧发现缺渲染的同一族同两个；②「谁已经
+不得不知道」这个探针命中了：`answerRows` 的注释自己写着「A test pins that every
+declared shape is read here」——web 面**已经**在对 `answers.py` 那张表负责，它对
+`blocks.py` 只负责 ROUTE 一族，纯粹因为没人写那条测试。
+
+**探针本身翻车了一次，值得记**：朴素的「块名在 web 源码里出现过吗」给出 **18/18 全 OK**，
+是假的。`causation`/`scm_counterfactual` 命中的是 `verdict.ts` 里 `VERDICT_META`
+的 **query_kind 标签**（`questions.CAUSATION` vs `blocks.CAUSATION` 同名冲突，
+第三次以同一形态出现）；`counterfactual_cell` 命中的是 `numeric_estimate.
+counterfactual_cell`——那个块 `carried_by="numeric_estimate"`，所以这一次命中的
+恰好是对的。**判据必须是「读没读 `extensions[<块名>]`」。**
+
+**改动**：
+- `verdict.ts` 把 ROUTE 已有的那套（声明数组 + 渲染器表 + 通用循环）泛化：
+  `ANSWER_ORDER` + `ANSWER_RENDERERS`，`routeRows`/`answerBlockRows` 共用
+  `blockRows`。`RENDERED_BLOCKS` 一张按族分桶的表说出「这个面自己渲染哪些块」，
+  **四族键全在**（`gap: []`，两个 GAP 块由 `data_gap_report` 承载）。
+- **一个渲染器,三个入口**：`extensions.causation`（theta）、
+  `numeric_estimate.probabilities_of_causation`（数据）走同一个 `ANSWER_RENDERERS.
+  causation`——和上条在 Python 侧做的合并是同一件事。顺带说出那个原来说不出的区别：
+  `ci_lower/ci_upper` 有点时是抽样区间、没点时是可识别集的**外带**。
+- **数据端那一半是查放置位置时才发现的**：`answerRows` 开头
+  `if (num.point != null) return null`——对每个「没有点」的形状都对,对
+  「每个量各有一个点」的形状是错的（causation 的 `point` 镜像 PN）。读 `poc` 的那
+  一支被**排在早退之后**,于是永远不跑。
+- `types.ts`：`numeric_result` 补 `interval`（原来只声明 `value`，这就是非单调那支
+  答案栏为空的直接原因）；`probabilities_of_causation` 按 schema 的
+  `causationQuantity` 写全（原来只有 lower/upper）。
+
+**新守卫（三条，各自构造反例见红）**：
+- `test_the_web_renders_every_family_the_registry_makes_a_surface_render`
+  ——按 `blocks.FAMILIES` 参数化，`RENDERED_BLOCKS[族] == rendered_in(族)`，
+  顺序也算。反例：删掉 `gap: []` / 调换 ANSWER 顺序 → 红。
+- `test_every_block_the_web_lists_is_read_by_something_there`——列了就得有人读。
+  接受两种机制（`verdict.ts` 里按名索引的渲染器，或组件里 `extensions.<name>` 的
+  定义性读法），因为 `carried_by` 本身就是两值的；账本的行带严重度、是 JSX，为了
+  让检查整齐把它压成 label/value 会让界面变差。反例：删掉 causation 渲染器**但把
+  名字留在文件里**（第 99 行那个 query_kind 标签还在）→ 红。
+- `test_the_web_reads_a_multi_quantity_shape_before_the_point_shortcut`
+  ——「双模方法里更锋利的那个形状不是 `POINT`」这件事**已经在 `SHAPES_OF` 里**，
+  不用给 `Shape` 加字段。反例：把 `poc` 那一支移回早退之后 → 红，**而原来那条
+  按名字查的测试 7 条全绿**——(54) 这条当场又演了一遍。
+- 跨语言的 `interventional_risk_provenance` 词表：web 需要它（否则「两个干预风险
+  是从图上导出的还是实验测的」这件事在 web 上无处可说），但那是 #336 记的那张
+  「列了七次」的词表。所以**新增的这一份当场钉在 schema 上**：
+  `test_both_surfaces_translate_the_same_risk_provenance_vocabulary` 把
+  `analysis_report._RISK_PROVENANCE_ZH` 和 `verdict.ts` 的
+  `RISK_PROVENANCE_ZH` 都对着 `extensions.causation` 的 enum 校验。**#336 的
+  计数因此是 7 处列出/3 处受纪律 → 8 处列出/5 处受纪律**，不是变糟。
+
+**基线（本条）**：4041 → ****4059****。
+
+**方法论沉淀**：(56)**一条纪律施行在几个族/几个面上,是可以数的,而「有一条」和
+「都施行了」长得一模一样**。判据：①先数**分母**——这条纪律的对象一共有几个（四个族 ×
+两个面），再数分子；②跨语言的保证会**按构造**漏掉另一种语言（`BOUND` 的键是
+Python 模块名），所以「有守卫」不等于「守卫看得见这个面」；③补的时候要问
+「另一个面已经有的那套结构能不能泛化」而不是新写一套——ROUTE 的三件套原样长出
+ANSWER 的三件套，两条新守卫是同一条参数化出来的。(57)**放置一个新渲染器时要把
+调用点的分支顺序读完——「读了这个字段」和「这一支会被执行」是两件事,而早退是
+最常见的差别**。判据：本档数据端那半个 bug 不是查它查出来的,是决定
+`answerBlocks` 放在 `Verdict.tsx` 哪一支时,顺手读了 `answerRows` 的第一行。
 
 ---
 

@@ -61,6 +61,27 @@ export interface Band {
 // a mediation decomposition, a joint contrast, a bounded counterfactual cell.
 // Which shape a given estimate carries is declared per method in
 // themis/answers.py; a test pins that this file reads all of them.
+// PN / PS / PNS, as both containers carry them: numeric_estimate.
+// probabilities_of_causation on the data path and extensions.causation on the
+// theta path. Same three quantities, same shape, one renderer.
+export interface CausationQuantity {
+  lower?: number | null
+  upper?: number | null
+  point?: number | null
+  ci_lower?: number | null
+  ci_upper?: number | null
+}
+export interface CausationQuantities {
+  pn?: CausationQuantity
+  ps?: CausationQuantity
+  pns?: CausationQuantity
+  monotonic?: boolean
+  interventional_risk_provenance?: string
+  adjustment?: string[]
+  p_y_do_x1?: number
+  p_y_do_x0?: number
+}
+
 export interface NumericEstimate {
   point?: number | null
   ci_lower?: number | null
@@ -80,11 +101,12 @@ export interface NumericEstimate {
   }
   interaction?: Band & { order?: number; scale?: string }
   counterfactual_cell?: { lower?: number | null; upper?: number | null }
-  probabilities_of_causation?: {
-    pn?: { lower?: number | null; upper?: number | null }
-    ps?: { lower?: number | null; upper?: number | null }
-    pns?: { lower?: number | null; upper?: number | null }
-  }
+  // Three estimands, not one. `point` is non-null on each exactly when
+  // monotonicity was assumed; ci_lower/ci_upper is then that point's bootstrap
+  // CI and otherwise the outer band on [lower, upper]. numeric_estimate.point
+  // mirrors pn — which is why reading only `point` printed the necessity
+  // headline with none of the three names on it.
+  probabilities_of_causation?: CausationQuantities
 }
 
 export interface LedgerEntry {
@@ -133,11 +155,16 @@ export interface QueryResult {
   data_gap_report?: DataGapReport
   bounds_result?: BoundsResult
   numeric_estimate?: NumericEstimate
-  // Structural-layer point value (themis.run / apply_patch_and_run). Distinct
-  // from numeric_estimate (themis.estimate, data-backed) — this is the number
-  // a plug-in identification formula yields once θ is supplied (incl. via AI
-  // priors). Shown in the verdict when no data-backed estimate is present.
-  numeric_result?: { value: number }
+  // Structural-layer answer (themis.run / apply_patch_and_run). Distinct from
+  // numeric_estimate (themis.estimate, data-backed) — this is what a plug-in
+  // identification formula yields once θ is supplied (incl. via AI priors).
+  // Shown in the verdict when no data-backed estimate is present.
+  //
+  // `value` is null exactly when the estimand is bounded rather than pinned,
+  // and `interval` is then the answer. Declaring only `value` here is how a
+  // bounded counterfactual reached the browser as an empty answer slot while
+  // its interval sat in the same object.
+  numeric_result?: { value?: number | null; interval?: { low: number; high: number } }
   estimator_failure?: { estimator?: string; failure_type?: string; reason?: string }
   investigation_requests?: unknown[]
   extensions?: {
