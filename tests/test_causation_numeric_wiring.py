@@ -364,7 +364,7 @@ def test_the_answer_section_names_all_three_whether_or_not_monotonicity_holds():
     # What the assumption bought, beside what it bought it from.
     assert "95% CI" in sharp and "无单调性假设时只能给到" in sharp
     # And where the two do-risks came from, with the set they used.
-    assert "后门调整" in sharp and "调整集 {z}" in sharp
+    assert "后门标准化" in sharp and "调整集 {z}" in sharp
 
     blunt = answer_of(_ast(_CONFOUNDED, monotonic=False),
                       _sample_nonmono(30_000, seed=3))

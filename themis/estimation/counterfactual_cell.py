@@ -62,6 +62,8 @@ import numpy as np
 import pandas as pd
 
 from ..runtime import counterfactual as cf
+from .. import risk_provenance
+from ..risk_provenance import RiskProvenance
 from ..types import CounterfactualQuery
 from .binary_do_risk import (
     as_binary_column,
@@ -82,25 +84,11 @@ from .general_id import (
 from .resample import cluster_labels, resample_indices
 
 
-# How the interventional risk P(Y=1 | do(x')) behind this cell was obtained.
-# The first two mean NO risk was used at all, and each carries its own
-# justification for why the answer does not need one — which is what makes the
-# claim auditable rather than self-certifying:
-#   not_required           - both worlds coincide; consistency answers the cell
-#   pinned_by_monotonicity - the declared monotonicity determines it outright
-#   user_experimental      - supplied from a randomized experiment
-#   exogenous              - back-door standardized over the EMPTY set
-#   backdoor_adjustment    - back-door standardized over a non-empty set
-#   general_id_plug_in     - no adjustment set exists, but the general ID
-#                            algorithm point-identifies the arm anyway
-RISK_PROVENANCES = frozenset({
-    "not_required",
-    "pinned_by_monotonicity",
-    "user_experimental",
-    "exogenous",
-    "backdoor_adjustment",
-    "general_id_plug_in",
-})
+#: The licences this estimator may write, named once in
+#: :mod:`themis.risk_provenance` and selected here by the derivation rule this
+#: module emits — the rule is what fixes the set, so naming the rule is the
+#: whole declaration.
+_RULE = "numeric_counterfactual_cell_estimate"
 
 _TOL = 1e-12
 
@@ -127,7 +115,7 @@ class CounterfactualCellEstimate:
     p_x0_y1: float
     p_x0_y0: float
     p_y_do_x_cf: float | None
-    interventional_risk_provenance: str
+    interventional_risk_provenance: RiskProvenance
     adjustment: tuple[str, ...]
     # The general-ID estimand the risk was evaluated from, when that is how it
     # was identified (None otherwise). Carried into the derivation so the
@@ -228,14 +216,14 @@ def estimate_counterfactual_cell(
     adjustment: tuple[str, ...] = ()
     risk_formula = None
     if x_cf == x_obs:
-        provenance = "not_required"
+        provenance = RiskProvenance.NOT_REQUIRED
     else:
         supplied = (
             query.experimental_risk_treated if x_cf
             else query.experimental_risk_control
         )
         if supplied is not None:
-            provenance = "user_experimental"
+            provenance = RiskProvenance.USER_EXPERIMENTAL
         else:
             try:
                 adjustment = minimal_backdoor_adjustment(
@@ -261,11 +249,14 @@ def estimate_counterfactual_cell(
                     # frame at all. The cell may STILL be determined if
                     # monotonicity pins it — the solver decides, and refuses
                     # (InterventionalRiskRequired) if not.
-                    provenance = "pinned_by_monotonicity"
+                    provenance = RiskProvenance.PINNED_BY_MONOTONICITY
                 else:
-                    provenance = "general_id_plug_in"
+                    provenance = RiskProvenance.GENERAL_ID_PLUG_IN
             else:
-                provenance = "exogenous" if not adjustment else "backdoor_adjustment"
+                provenance = (
+                    RiskProvenance.EXOGENOUS if not adjustment
+                    else RiskProvenance.BACKDOOR_ADJUSTMENT
+                )
 
     required = {xcol, ycol, *adjustment}
     if risk_formula is not None:
@@ -294,11 +285,12 @@ def estimate_counterfactual_cell(
     def _run(x_arr, y_arr, frame):
         """Empirical joint + (if the cell needs it) the one do-risk → solver."""
         joint = observational_joint_xy(x_arr, y_arr)
-        if provenance == "user_experimental":
+        if provenance is RiskProvenance.USER_EXPERIMENTAL:
             risk = float(supplied)
-        elif provenance in ("exogenous", "backdoor_adjustment"):
+        elif provenance in (RiskProvenance.EXOGENOUS,
+                            RiskProvenance.BACKDOOR_ADJUSTMENT):
             risk = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=x_cf)
-        elif provenance == "general_id_plug_in":
+        elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
             risk = evaluate_arm_risk(risk_formula, frame, domains=domains)
         else:
             risk = None
@@ -354,7 +346,7 @@ def estimate_counterfactual_cell(
         p_x1_y1=joint[(True, True)], p_x1_y0=joint[(True, False)],
         p_x0_y1=joint[(False, True)], p_x0_y0=joint[(False, False)],
         p_y_do_x_cf=risk,
-        interventional_risk_provenance=provenance,
+        interventional_risk_provenance=risk_provenance.stamp(_RULE, provenance),
         adjustment=adjustment,
         risk_formula=risk_formula,
         x_observed=bool(x_obs), x_counterfactual=bool(x_cf),
@@ -370,7 +362,7 @@ def estimate_counterfactual_cell(
         model_assumption=_model_assumption(provenance),
         form=(
             "nonparametric_c_factor_plug_in"
-            if provenance == "general_id_plug_in"
+            if provenance is RiskProvenance.GENERAL_ID_PLUG_IN
             else "nonparametric_gformula_plug_in"
         ),
         identification_assumptions=_identification_assumptions(
@@ -435,9 +427,9 @@ def _bootstrap_cell(
     )
 
 
-def _model_assumption(provenance: str) -> str:
+def _model_assumption(provenance: RiskProvenance) -> str:
     """The mechanism sentence — one identity, and how its one input was got."""
-    if provenance == "general_id_plug_in":
+    if provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
         risk = (
             "所需的那一臂干预风险 P(Y=1|do x') 没有可用的调整集，"
             "改由 general ID（c-factor 分解）识别出的估计量按非参数 plug-in 求值"
@@ -456,27 +448,28 @@ def _model_assumption(provenance: str) -> str:
 
 
 def _assumptions(
-    provenance: str, adjustment: tuple[str, ...], monotonicity: str | None,
+    provenance: RiskProvenance, adjustment: tuple[str, ...],
+    monotonicity: str | None,
     cluster: str | None,
 ) -> tuple[str, ...]:
     out = [
         "binary_treatment_and_outcome",
         "consistency_of_potential_outcomes",
     ]
-    if provenance == "user_experimental":
+    if provenance is RiskProvenance.USER_EXPERIMENTAL:
         out.append("interventional_risk_from_randomized_experiment")
-    elif provenance == "exogenous":
+    elif provenance is RiskProvenance.EXOGENOUS:
         out.append("exogeneity_no_backdoor_path_do_risk_equals_conditional")
-    elif provenance == "backdoor_adjustment":
+    elif provenance is RiskProvenance.BACKDOOR_ADJUSTMENT:
         out.append(
             "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient"
         )
         out.append("positivity_the_asked_arm_has_support_in_each_stratum")
-    elif provenance == "general_id_plug_in":
+    elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
         out.append("admg_structure_correct_including_latent_confounders")
         out.append("positivity_every_conditioning_stratum_of_the_estimand_has_support")
         out.append("discrete_variables_saturated_nonparametric_plug_in")
-    elif provenance == "pinned_by_monotonicity":
+    elif provenance is RiskProvenance.PINNED_BY_MONOTONICITY:
         # No do-risk was available, so the emptiness check that would have
         # refuted the monotonicity never ran. Say so.
         out.append("cell_determined_by_monotonicity_alone_no_interventional_risk")
@@ -490,24 +483,25 @@ def _assumptions(
 
 
 def _identification_assumptions(
-    provenance: str, adjustment: tuple[str, ...], monotonicity: str | None,
+    provenance: RiskProvenance, adjustment: tuple[str, ...],
+    monotonicity: str | None,
 ) -> tuple[dict, ...]:
     specs: list[dict] = [
         {"id": "consistency_of_potential_outcomes",
          "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
          "layer": "identification", "severity": "invalidating", "testable": False},
     ]
-    if provenance == "user_experimental":
+    if provenance is RiskProvenance.USER_EXPERIMENTAL:
         specs.append(
             {"id": "interventional_risk_from_randomized_experiment",
              "claim": "干预风险 P(Y=1|do x') 来自随机实验，无混杂",
              "layer": "identification", "severity": "invalidating", "testable": False})
-    elif provenance == "exogenous":
+    elif provenance is RiskProvenance.EXOGENOUS:
         specs.append(
             {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
              "claim": "外生性：X 到 Y 无后门路径，P(Y|do x')=P(Y|x')",
              "layer": "identification", "severity": "invalidating", "testable": False})
-    elif provenance == "backdoor_adjustment":
+    elif provenance is RiskProvenance.BACKDOOR_ADJUSTMENT:
         specs.append(
             {"id": "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient",
              "claim": f"后门调整集充分：{{{','.join(adjustment)}}} 阻断 X→Y 的所有后门路径",
@@ -516,7 +510,7 @@ def _identification_assumptions(
             {"id": "positivity_the_asked_arm_has_support_in_each_stratum",
              "claim": "positivity：每个调整层在被问的那个处理臂下都有样本",
              "layer": "identification", "severity": "invalidating", "testable": True})
-    elif provenance == "general_id_plug_in":
+    elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
         specs.append(
             {"id": "admg_structure_correct_including_latent_confounders",
              "claim": "没有可用的调整集，干预风险经 general ID（c-factor 分解）识别："
@@ -526,7 +520,7 @@ def _identification_assumptions(
             {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
              "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
              "layer": "identification", "severity": "invalidating", "testable": True})
-    elif provenance == "pinned_by_monotonicity":
+    elif provenance is RiskProvenance.PINNED_BY_MONOTONICITY:
         specs.append(
             {"id": "cell_determined_by_monotonicity_alone_no_interventional_risk",
              "claim": "干预风险不可得，本格完全由单调性钉死——因此数据无从推翻这条单调性",
@@ -536,5 +530,7 @@ def _identification_assumptions(
             {"id": f"monotonicity_{monotonicity}_in_treatment",
              "claim": f"单调性（{monotonicity}）：把本格的区间收紧成点",
              "layer": "assumption", "severity": "invalidating",
-             "testable": provenance not in ("not_required", "pinned_by_monotonicity")})
+             # Monotonicity is testable only when a do-risk was an input:
+             # the emptiness check that could have refuted it needs one.
+             "testable": provenance.uses_risk})
     return tuple(specs)

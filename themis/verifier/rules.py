@@ -4955,7 +4955,13 @@ def _rule_numeric_causation_estimate(
 
     # 2. Identification-structure re-check: the adjustment set must be an
     #    admissible back-door set on ctx.graph (skip for external experiments).
-    provenance = _require(inputs, "interventional_risk_provenance", step_index, rule)
+    #    Which of those two it is, is itself re-derived — the branch below is
+    #    the only place this rule re-derives anything on the graph, and a
+    #    provenance taken on the producer's word would be a switch that turns
+    #    it off.
+    provenance = _check_risk_provenance(
+        inputs, ctx, None, step_index=step_index, rule=rule,
+    )
     # ``adjustment`` is serialized as a comma-joined scalar string (the
     # derivation serializer does not take a tuple of strings).
     adjustment_str = _require(inputs, "adjustment", step_index, rule)
@@ -6993,16 +6999,10 @@ def _rule_counterfactual_cell_bounds(
             step_index=step_index, rule=rule,
         )
 
-    provenance = _require(
-        inputs, "interventional_risk_provenance", step_index, rule
+    provenance = _check_risk_provenance(
+        inputs, ctx, ctx.query.counterfactual_intervention.value,
+        step_index=step_index, rule=rule,
     )
-    if provenance not in {
-        "not_required", "user_experimental", "derived_identification",
-    }:
-        raise RuleCheckFailed(
-            f"{rule}: unknown interventional_risk_provenance {provenance!r}",
-            step_index=step_index, rule=rule,
-        )
 
     raw_risk = inputs.get("p_y_do_x_cf")
     risk = None if raw_risk is None else float(raw_risk)
@@ -7011,7 +7011,7 @@ def _rule_counterfactual_cell_bounds(
             f"{rule}: p_y_do_x_cf={risk} is not a probability in [0, 1]",
             step_index=step_index, rule=rule,
         )
-    if (provenance == "not_required") != (risk is None):
+    if (provenance in _RISK_FREE) != (risk is None):
         raise RuleCheckFailed(
             f"{rule}: provenance {provenance!r} disagrees with the presence "
             f"of p_y_do_x_cf",
@@ -7042,11 +7042,97 @@ def _rule_counterfactual_cell_bounds(
 
 _NUMERIC_COUNTERFACTUAL_CELL_METHODS = frozenset({"counterfactual_cell_plugin"})
 
-_CF_CELL_RISK_PROVENANCES = frozenset({
-    "not_required", "pinned_by_monotonicity",
-    "user_experimental", "exogenous", "backdoor_adjustment",
-    "general_id_plug_in",
-})
+_RISK_PROVENANCES_BY_RULE: dict[str, frozenset[str]] = {
+    "probabilities_of_causation_tian_pearl": frozenset({
+        "derived_identification", "user_experimental",
+    }),
+    "numeric_causation_estimate": frozenset({
+        "exogenous", "backdoor_adjustment", "user_experimental",
+    }),
+    "counterfactual_cell_bounds": frozenset({
+        "not_required", "derived_identification", "user_experimental",
+    }),
+    "numeric_counterfactual_cell_estimate": frozenset({
+        "not_required", "pinned_by_monotonicity",
+        "user_experimental", "exogenous", "backdoor_adjustment",
+        "general_id_plug_in",
+    }),
+}
+"""Which risk licences each rule here will accept, re-declared.
+
+The producer's copy is not imported: re-deriving an answer from the
+vocabulary the producer chose is not an independent check. A test pins the
+two equal, which is how this package catches drift everywhere else it
+deliberately re-implements something.
+
+Keyed by rule, because the admissible set depends on the rule and on
+nothing else — the rule fixes both how many arms the answer needs and
+whether they came from theta or from data.
+"""
+
+_RISK_FREE = frozenset({"not_required", "pinned_by_monotonicity"})
+"""The two licences that claim no interventional risk was used at all."""
+
+
+def _check_risk_provenance(
+    inputs: dict, ctx: VerificationContext, arm: bool | None,
+    *, step_index: int, rule: str,
+) -> str:
+    """The licence, re-derived rather than read.
+
+    Membership first, because a rule that accepts a licence it can never
+    produce has no branch that checks it. Then the one claim every rule
+    shares: ``user_experimental`` says the CALLER supplied the arm, and
+    the query is where that is recorded, so the verifier can settle it
+    without the producer. It was checked nowhere, and it is the value that
+    switches off the identification re-check in three of the four rules —
+    so relabelling a back-door-standardized estimate as experimental made
+    its adjustment set stop being audited.
+
+    ``arm`` is the intervened value whose risk this answer used, or None
+    when the rule uses both arms.
+    """
+    provenance = _require(inputs, "interventional_risk_provenance", step_index, rule)
+    if provenance not in _RISK_PROVENANCES_BY_RULE[rule]:
+        raise RuleCheckFailed(
+            f"{rule}: unknown interventional_risk_provenance {provenance!r}; "
+            f"this rule may carry "
+            f"{sorted(_RISK_PROVENANCES_BY_RULE[rule])}",
+            step_index=step_index, rule=rule,
+        )
+
+    query = ctx.query
+    if arm is None:
+        supplied = (
+            getattr(query, "experimental_risk_treated", None) is not None
+            and getattr(query, "experimental_risk_control", None) is not None
+        )
+    elif arm:
+        supplied = getattr(query, "experimental_risk_treated", None) is not None
+    else:
+        supplied = getattr(query, "experimental_risk_control", None) is not None
+
+    if provenance == "user_experimental":
+        if not supplied:
+            raise RuleCheckFailed(
+                f"{rule}: provenance 'user_experimental' claims the caller "
+                f"supplied the interventional risk, but the query carries "
+                f"none",
+                step_index=step_index, rule=rule,
+            )
+    elif provenance not in _RISK_FREE and supplied:
+        # An answer that used an arm, while the caller had handed one over,
+        # cannot have got it from the graph: every producer takes the
+        # supplied arm first. Only the risk-free licences are exempt, and
+        # they are exempt because they read no arm at all — a same-world
+        # cell is answered by consistency whatever the caller also sent.
+        raise RuleCheckFailed(
+            f"{rule}: provenance {provenance!r} claims the risk was obtained "
+            f"from the graph, but the query carries the experimental arm this "
+            f"answer would have used",
+            step_index=step_index, rule=rule,
+        )
+    return provenance
 
 
 def _rule_numeric_counterfactual_cell_estimate(
@@ -7153,14 +7239,10 @@ def _rule_numeric_counterfactual_cell_estimate(
     # 2. Provenance. Each value makes a claim about WHY the reported risk is
     #    present or absent, and every one of those claims is re-derived from
     #    the query rather than taken on the producer's word.
-    provenance = _require(
-        inputs, "interventional_risk_provenance", step_index, rule,
+    provenance = _check_risk_provenance(
+        inputs, ctx, query.counterfactual_intervention.value,
+        step_index=step_index, rule=rule,
     )
-    if provenance not in _CF_CELL_RISK_PROVENANCES:
-        raise RuleCheckFailed(
-            f"{rule}: unknown interventional_risk_provenance {provenance!r}",
-            step_index=step_index, rule=rule,
-        )
     raw_risk = inputs.get("p_y_do_x_cf")
     risk = None if raw_risk is None else float(raw_risk)
     if risk is not None and not (0.0 <= risk <= 1.0):
@@ -7168,7 +7250,7 @@ def _rule_numeric_counterfactual_cell_estimate(
             f"{rule}: p_y_do_x_cf={risk} is not a probability in [0, 1]",
             step_index=step_index, rule=rule,
         )
-    risk_free = provenance in ("not_required", "pinned_by_monotonicity")
+    risk_free = provenance in _RISK_FREE
     if risk_free != (risk is None):
         raise RuleCheckFailed(
             f"{rule}: provenance {provenance!r} disagrees with the presence "
@@ -7493,8 +7575,8 @@ def _rule_probabilities_of_causation_tian_pearl(
     p_y_do_x1 = float(_require(inputs, "p_y_do_x1", step_index, rule))
     p_y_do_x0 = float(_require(inputs, "p_y_do_x0", step_index, rule))
     monotonic = bool(_require(inputs, "monotonic", step_index, rule))
-    provenance = _require(
-        inputs, "interventional_risk_provenance", step_index, rule
+    provenance = _check_risk_provenance(
+        inputs, ctx, None, step_index=step_index, rule=rule,
     )
 
     # 1. Interventional risks must be probabilities.

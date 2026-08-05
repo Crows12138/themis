@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import assert_never
 
-from .. import answers, blocks, questions, refusals
+from .. import answers, blocks, questions, refusals, risk_provenance
 from ..refusals import Kind
 from . import formula_text
 
@@ -535,18 +535,6 @@ question the reader asked is the same one.
 """
 
 
-_RISK_PROVENANCE_ZH = {
-    "exogenous": "X 无父节点，干预风险即观测风险",
-    "backdoor_adjustment": "干预风险经后门调整识别",
-    "derived_identification": "干预风险由识别层从图上导出",
-    "user_experimental": "干预风险来自调用方提供的实验数据",
-}
-"""Where the two do-risks came from — which is how much PN can be trusted.
-
-Unlisted renders as its own token, the convention this file already uses
-for identification patterns: a name a reader has to look up still beats a
-sentence that leaves out where the number came from.
-"""
 
 
 def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
@@ -603,7 +591,7 @@ def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
     risk_hi, risk_lo = poc.get("p_y_do_x1"), poc.get("p_y_do_x0")
     if risk_hi is not None and risk_lo is not None:
         prov = poc.get("interventional_risk_provenance")
-        note = _RISK_PROVENANCE_ZH.get(prov, f"`{prov}`") if prov else ""
+        note = risk_provenance.describe(prov) if prov else ""
         adj = poc.get("adjustment")
         if adj:
             note += f"，调整集 {{{', '.join(adj)}}}"

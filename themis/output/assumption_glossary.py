@@ -180,10 +180,14 @@ _EXACT: dict[str, _Entry] = {
     "binary_treatment_and_outcome": (_ID, _INVAL, False, "处理与结局都是二值的"),
     "exogeneity_no_backdoor_path_do_risk_equals_conditional": (
         _ID, _INVAL, False, "外生性：无后门路径，故 do-风险等于条件概率"),
+    # Plural and singular are two ids because they are two claims: PN/PS/PNS
+    # need BOTH arms licensed, a counterfactual cell needs only the one it
+    # asks about. Both read "干预风险取自随机实验" until now, which dropped the
+    # only thing the second id exists to carry.
     "interventional_risks_from_randomized_experiment": (
-        _ID, _INVAL, False, "干预风险取自随机实验"),
+        _ID, _INVAL, False, "两臂干预风险 P(Y|do X) 与 P(Y|do ¬X) 都取自随机实验"),
     "interventional_risk_from_randomized_experiment": (
-        _ID, _INVAL, False, "干预风险取自随机实验"),
+        _ID, _INVAL, False, "本格所需的那一臂干预风险取自随机实验"),
     "monotonicity_x_never_prevents_y_point_identification": (
         _ID, _INVAL, False, "单调性：X 从不阻止 Y —— 这条把区间收紧成点"),
     "no_monotonicity_assumption_free_bounds_only": (

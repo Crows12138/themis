@@ -684,43 +684,6 @@ def test_verify_rejects_the_other_arms_estimand():
         themis.verify(ast, bad)
 
 
-def test_the_provenance_vocabulary_agrees_across_all_three_declarations():
-    """Producer constant, verifier constant, and schema enum list the same
-    values. They are deliberately independent (the verifier must not import
-    the producer's), which is exactly why drift needs pinning: a value the
-    schema rejects is an answer nobody can ship, and one the verifier does not
-    know is an answer nobody re-derives."""
-    import json
-    import pathlib
-
-    from themis.estimation.counterfactual_cell import RISK_PROVENANCES
-    from themis.verifier.rules import _CF_CELL_RISK_PROVENANCES
-
-    schema = json.loads(
-        (pathlib.Path(themis.__file__).parent
-         / "schemas" / "query_result.schema.json").read_text(encoding="utf-8")
-    )
-
-    found: list[set] = []
-
-    def walk(node):
-        if isinstance(node, list):
-            for v in node:
-                walk(v)
-        elif isinstance(node, dict):
-            block = node.get("counterfactual_cell")
-            if isinstance(block, dict) and "properties" in block:
-                found.append(set(
-                    block["properties"]["interventional_risk_provenance"]["enum"]
-                ))
-            for v in node.values():
-                walk(v)
-
-    walk(schema)
-    assert len(found) == 1
-    assert found[0] == set(RISK_PROVENANCES) == set(_CF_CELL_RISK_PROVENANCES)
-
-
 def test_verify_rejects_an_unrecorded_estimand():
     ast, res = _general_id_estimated()
     bad = copy.deepcopy(res)

@@ -12,7 +12,7 @@ headers, just short declarative sentences.
 """
 from __future__ import annotations
 
-from .. import blocks, questions
+from .. import blocks, questions, risk_provenance
 from ..runtime import formula_builder
 from ..types import (
     ConstantExpr,
@@ -344,23 +344,11 @@ def _explain_probability_zh(result: QueryResult, stmt=None) -> str:
     return f"{quantity}：结果未分类。"
 
 
-_CF_RISK_PROVENANCE_ZH = {
-    "not_required": "两个世界重合，一致性直接给出，不涉及干预风险",
-    "pinned_by_monotonicity": "干预风险不可得，本格由所声明的单调性直接钉死",
-    "user_experimental": "干预风险由随机实验数据直接给出",
-    "exogenous": "干预风险=外生性下的条件概率（无后门路径）",
-    "backdoor_adjustment": "干预风险由后门标准化（g-formula）从数据算得",
-    "general_id_plug_in": (
-        "没有可用的调整集，干预风险由 general ID 识别出的公式从数据算得"
-    ),
-}
-
-
 def _explain_counterfactual_cell_data_zh(cell: dict) -> str:
     """Render the DATA-recovered cell. Reads ``extensions.counterfactual_cell``
     (attached by the estimation dispatch); re-runs nothing."""
-    prov = _CF_RISK_PROVENANCE_ZH.get(
-        cell.get("interventional_risk_provenance"), "干预风险来源未标注"
+    prov = risk_provenance.describe(
+        cell.get("interventional_risk_provenance")
     )
     point = cell.get("point")
     if point is not None:
@@ -446,11 +434,10 @@ def _explain_causation_zh(result: QueryResult, stmt=None) -> str:
             f"{_format_number(block['upper'])}]（界）"
         )
 
-    prov = (
-        "干预风险由识别推导得到"
-        if c.get("interventional_risk_provenance") == "derived_identification"
-        else "干预风险由随机实验数据直接给出"
-    )
+    # A lookup rather than a branch: this block reaches here from theta and
+    # from data, and an ``if/else`` over a two-value domain answered the
+    # data path's licences with the other path's sentence.
+    prov = risk_provenance.describe(c.get("interventional_risk_provenance"))
     return (
         f"因果归因概率（Tian-Pearl 2000，{prov}）："
         f"必要性 PN = {_q(c['pn'])}；"

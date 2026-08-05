@@ -337,10 +337,10 @@ const POC_LABELS = [
 // the two risks were derived from the graph or measured in an experiment is
 // not a detail this surface can drop: nothing else on it says so.
 const RISK_PROVENANCE_ZH: Record<string, string> = {
-  exogenous: 'X 无父节点,干预风险即观测风险',
-  backdoor_adjustment: '干预风险经后门调整识别',
   derived_identification: '干预风险由识别层从图上导出',
-  user_experimental: '干预风险来自调用方提供的实验数据',
+  exogenous: '原因到结果没有后门路径,干预风险即条件概率',
+  backdoor_adjustment: '干预风险经后门标准化(g-formula)识别',
+  user_experimental: '干预风险来自调用方提供的随机实验数据',
 }
 
 type BlockRenderer = (b: Blk, ext: Record<string, any>, ciLevel?: number) => Section | null

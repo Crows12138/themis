@@ -269,11 +269,23 @@ def test_no_producer_invents_a_severity_outside_the_vocabulary(frames):
     from themis.estimation.counterfactual_cell import (
         _identification_assumptions as _cell_assumptions,
     )
+    from themis.risk_provenance import ADMISSIBLE
+
     vocabulary = {"invalidating", "distorting", "confidence_only"}
-    specs = list(_identification_assumptions("backdoor_adjustment", ("z",), True))
-    specs += list(_cell_assumptions(
-        provenance="backdoor_adjustment", adjustment=("z",),
-        monotonicity="non_decreasing"))
+    # Every licence each producer MAY write, not the one licence this test
+    # happened to name: the branch that picks a licence is by construction
+    # the branch no test took, so the sweep has to come from the table.
+    specs = [
+        spec
+        for licence in ADMISSIBLE["numeric_causation_estimate"]
+        for spec in _identification_assumptions(licence, ("z",), True)
+    ] + [
+        spec
+        for licence in ADMISSIBLE["numeric_counterfactual_cell_estimate"]
+        for spec in _cell_assumptions(
+            provenance=licence, adjustment=("z",),
+            monotonicity="non_decreasing")
+    ]
     assert {s["severity"] for s in specs} <= vocabulary
 
 

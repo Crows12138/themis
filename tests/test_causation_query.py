@@ -338,41 +338,22 @@ def test_verify_rejects_phantom_point_when_non_monotonic(solved):
         kernel.verify(prog, rT)
 
 
-def test_both_surfaces_translate_the_same_risk_provenance_vocabulary():
-    """The gloss for ``interventional_risk_provenance`` exists twice, in two
-    languages, and is held equal to the schema that declares the vocabulary.
+def test_the_report_names_the_licence_behind_the_two_do_risks():
+    """Both paths reach this line and each must get its own sentence.
 
-    ``extensions.causation`` is written by both paths — the theta path says
-    ``derived_identification``, the data path distinguishes ``exogenous``
-    from ``backdoor_adjustment`` — so the enum is their union and a surface
-    that knows only one path's values has an ``undefined`` waiting in it.
-    Neither surface can import the other's map, which is the same bind the
-    counterfactual cell's provenance is in and gets the same answer: the
-    schema is the one thing both are checked against.
+    The gloss used to be a map in the report and another in the explainer
+    and a two-branch ``if/else`` in a third place; they now all read one
+    table. What is worth pinning HERE is the end of the pipe: the report
+    prints the licence for the do-risks it actually got, on both paths.
+    The vocabulary itself is held together in
+    ``tests/test_risk_provenance.py``.
     """
-    import json
-    import pathlib
-    import re
+    from themis import risk_provenance
 
-    from themis.output.analysis_report import _RISK_PROVENANCE_ZH
-
-    repo = pathlib.Path(__file__).resolve().parent.parent
-    schema = json.loads(
-        (repo / "themis" / "schemas" / "query_result.schema.json")
-        .read_text(encoding="utf-8")
-    )
-    declared = set(
-        schema["properties"]["extensions"]["properties"]["causation"]
-        ["properties"]["interventional_risk_provenance"]["enum"]
-    )
-
-    assert set(_RISK_PROVENANCE_ZH) == declared
-
-    source = (repo / "themis" / "web" / "frontend" / "src" / "lib"
-              / "verdict.ts").read_text(encoding="utf-8")
-    listed = re.search(
-        r"const RISK_PROVENANCE_ZH: Record<string, string> = \{(.*?)\n\}",
-        source, re.S,
-    )
-    assert listed, "verdict.ts declares no RISK_PROVENANCE_ZH"
-    assert set(re.findall(r"^  (\w+):", listed.group(1), re.M)) == declared
+    prog = _prog({"kind": "causation", "cause": X, "effect": Y,
+                  "monotonic": True})
+    r = kernel.run(prog)["results"][0]
+    assert r["extensions"]["causation"][
+        "interventional_risk_provenance"] == "derived_identification"
+    report = build_analysis_report(r, program=prog)
+    assert risk_provenance.RiskProvenance.DERIVED_IDENTIFICATION.zh in report

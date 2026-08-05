@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4059 passed / 144 skipped, warning-clean
+4078 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1467,6 +1467,93 @@ estimand，所以 POINT 对它从来就不成立**。缺的不是渲染器，是
 就会看见「同一个缺陷还留在哪条路径上」**。判据：本条不是查它查出来的，是查
 `interventional_risk_provenance` 时看见 `extensions.causation` 有 15 次带着
 `backdoor_adjustment`（＝数据路径也写这个块），才回头问「那数据路径的报告说了什么」。
+
+### 一个封闭词表被列了十一次，而它的域取决于「谁写的它」（2026-08-05，接上条）
+
+上条给 web 面补答案时要把 `interventional_risk_provenance` 翻成中文，顺手量出这张
+词表**被列了十一次，没有两次是同一个集合**。这条把它做完，并且查实差异不是漂移：
+
+```text
+四条推导规则，四个真实的域：
+  probabilities_of_causation_tian_pearl   theta·两臂 → derived_identification / user_experimental
+  numeric_causation_estimate              数据·两臂 → exogenous / backdoor_adjustment / user_experimental
+  counterfactual_cell_bounds              theta·一臂 → not_required / derived_identification / user_experimental
+  numeric_counterfactual_cell_estimate    数据·一臂 → 上面六个（无 derived_identification）
+其余每一次列出，都是这四行的并集或投影——而**没有任何东西说出这件事**。
+```
+
+**根因**：域取决于**哪条推导规则写的它**，而那个映射没有一等表示（㉞）。于是每个
+消费端只能就地写自己那半个域；更要命的是，「这个取值做出什么断言」也没处放，只能
+以 `if provenance in (...)` 的形式散在规则体里——**一个取值只要没人给它写分支，
+它就什么也不断言，而这看起来和「已经检查过了」一模一样**。
+
+**为什么是根因不是表象**：表象修法是给缺检查的两条规则各补一句
+`if provenance not in {...}: raise`。三条判据否掉了它——
+
+- **schema 已经在做成员检查**。实测：把数据端 causation 的 provenance 改成
+  `derived_identification`，`themis.verify` 在 `validate_result` 就拦下了。补那两句
+  拦不住真正的漏洞，因为下面那个值**在域内**。
+- **真正的洞是「`user_experimental` 在四条规则里都不做任何可复核的断言」**。实测：
+  拿一个真的由 `{z}` 后门标准化算出来的 causation 结果，只把 provenance 改成
+  `user_experimental` —— **`themis.verify` 通过**。而它同时是
+  `if provenance in ("backdoor_adjustment", "exogenous")` 这个闸门的反面，那是该规则
+  **唯一一次在图上复核**（调整集是否可容许）。也就是说：**改一个标签，就能让错误的
+  调整集不再被审计**。姊妹规则的 docstring 写着「every value ... re-derived from the
+  query rather than taken on the producer's word」——那句话是假的。
+- **同一个 licence 在假设词表里有两个 ID**：`interventional_risks_from_randomized_
+  experiment`（复数，两臂）和 `interventional_risk_from_randomized_experiment`
+  （单数，一臂），**中文一字不差**都是「干预风险取自随机实验」。两个产生端各自发明
+  一遍的指纹；而那句相同的中文，恰好把第二个 ID 存在的唯一理由丢了。
+
+**改动**：
+
+- 新建 `themis/risk_provenance.py`：`RiskProvenance(StrEnum)` 七个取值各声明一次，
+  每个带 `uses_risk`（是否真的用了干预风险）/ `asserts`（**可复核的断言**，写给下一个
+  加取值的人：给不出一句验证器能重推的话，那就不是 licence，是产生端的自述）/
+  `zh`（读者句，**对 theta 与 data 两条路都为真**）。`ADMISSIBLE` **按推导规则分四行**，
+  import 期反问「有没有取值掉出所有行」（白名单对自己漏掉了什么是沉默的，㊼）。
+  `stamp(rule, licence)` 是唯一出口——产生端选 licence 的那条分支按构造就是没人测过
+  的那条，让规则与 licence 在唯一同时已知的时刻碰一次面。
+- **验证器仍然不 import 它**（沿用既有纪律：拿产生端选的词汇去复核不叫独立复核）。
+  它自己重申同样四行 `_RISK_PROVENANCES_BY_RULE`，测试钉相等；四条规则各补成员检查，
+  **并且四条都从 `ctx.query` 重新推导 `user_experimental`**——三份手写的 risk-free
+  谓词塌成一个 `_RISK_FREE`。
+- **断言写成三分支而不是双条件**：`user_experimental` ⇒ 查询必须带那一臂；用了臂的
+  其他 licence ⇒ 查询**不能**带（每个产生端都优先取调用方给的臂）；risk-free 的两个
+  **豁免**——同世界的格子根本不读臂，调用方顺手多传了什么与它无关。（第一版写成双
+  条件，会把「同世界 + 调用方也传了实验臂」这个正确结果误拒；已构造该用例钉住。）
+- **三份中文映射 + 那个二分支 `if/else` 塌成一次查表**（`describe`）。顺带修掉两处
+  不准确：`exogenous` 原来说「X 无父节点」（真正的条件是**没有后门路径**），
+  `backdoor_adjustment` 在 explainer 那份写着「从数据算得」（theta 路径上是假话）。
+- `assumption_glossary` 那两句一字不差的中文各自说清是「两臂」还是「本格所需的那一臂」。
+- `_EnvelopeName` 从 `refusals.py` 提到 `themis/types.py` 成 `EnvelopeName`——第二个
+  上信封的枚举来了，每个注册表各写一遍 `__reduce_ex__`/`__copy__`/`__deepcopy__` 的
+  约定必然漏掉三分之一（㊹）。
+
+**账**：十一处列出 → **五处**（三个 schema enum + 验证器一张表 + web 一份映射），
+**五处全部钉在同一张表上**；`counterfactual_cell.RISK_PROVENANCES`、
+`rules._CF_CELL_RISK_PROVENANCES`、那个内联字面量、`causation.py:107` 的陈旧注释、
+两份中文 dict、那个二分支 if/else —— 全部消失。web 那份连**句子**也钉了（只允许
+半角标点这一处差异）：读者在报告里和在浏览器里得到两种解释，本身就是一条 bug。
+
+**代价（声明）**：`explainer` 那个二分支 if/else **是潜在假话不是活假话**——插桩跑
+全量实测 `_explain_causation_zh` **零次调用**（`explain()` 只在 `run_trial_pack.py`
+与测试里被调，而数据端的 `extensions.causation` 是 dispatch 往 dict 上写的、
+`result_orchestrator.from_dict` 至今 `NotImplementedError`，所以数据端的值到不了
+它）。修它的理由是「读者面的句子不该靠一条没人写下来的可达性论证才正确」，不是
+「有人被骗了」。真正被骗的是**验证器**。
+
+**基线（本条）**：4059 → **4078**。
+
+**方法论沉淀**：(58)**一个封闭集合的每个取值都该说出「我断言什么」，而没人给它写
+分支的取值不是「已检查」，是「什么也没断言」——这两者在代码里长得一模一样**。判据
+三条：①先问「这个字段的域取决于什么」，答案若是「另一个事实」（这里是哪条推导规则），
+那张映射就是缺的一等表示（㉞）；②**验成员资格拦不住域内的错值**——真正的探针是
+「把值改成域内的另一个，验证器还过不过」，本档正是这样量出那个洞的；③一个取值若是
+某个复核分支的**反面**（`if provenance in (A, B)` 的 else），它就是关掉复核的开关，
+优先级最高。(59)**「A 当且仅当 B」这种断言，写之前要先找它的豁免类**——本档 licence
+分三类：断言用了外部臂的、断言用了图的、和**根本不读臂的**；第三类对 B 无话可说，
+双条件会把它们误拒。找法是问「这个字段在什么情况下压根没被读」。
 
 ### 同一条纪律，四个族里只施行在一个族上——浏览器那一面把整个答案丢了（2026-08-05，接上条）
 

@@ -54,6 +54,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from .. import risk_provenance
+from ..risk_provenance import RiskProvenance
 from ..runtime.probabilities_of_causation import probabilities_of_causation
 from ..types import Atom
 from .binary_do_risk import (
@@ -65,6 +67,12 @@ from .binary_do_risk import (
 from .contract import validate_data
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
+
+
+#: The derivation rule this module emits — which is what fixes the set of
+#: licences it may write for its two do-risks (see
+#: :mod:`themis.risk_provenance`).
+_RULE = "numeric_causation_estimate"
 
 
 @dataclass(frozen=True)
@@ -104,7 +112,7 @@ class CausationEstimate:
     p_y_do_x1: float
     p_y_do_x0: float
     monotonic: bool
-    interventional_risk_provenance: str  # exogenous | backdoor_adjustment | user_experimental
+    interventional_risk_provenance: RiskProvenance
     adjustment: tuple[str, ...]
     # Envelope (parity with the other numeric estimators).
     ci_level: float
@@ -184,11 +192,14 @@ def estimate_causation_probabilities(
 
     # 1. Interventional-risk strategy + required columns.
     if supplied:
-        provenance = "user_experimental"
+        provenance = RiskProvenance.USER_EXPERIMENTAL
         adjustment: tuple[str, ...] = ()
     else:
         adjustment = minimal_backdoor_adjustment(graph, cause, effect, bidirected)
-        provenance = "exogenous" if not adjustment else "backdoor_adjustment"
+        provenance = (
+            RiskProvenance.EXOGENOUS if not adjustment
+            else RiskProvenance.BACKDOOR_ADJUSTMENT
+        )
 
     required = {xcol, ycol, *adjustment}
     presence = (cluster,) if cluster is not None else ()
@@ -253,7 +264,7 @@ def estimate_causation_probabilities(
         p_x0_y1=joint[(False, True)], p_x0_y0=joint[(False, False)],
         p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0,
         monotonic=monotonic,
-        interventional_risk_provenance=provenance,
+        interventional_risk_provenance=risk_provenance.stamp(_RULE, provenance),
         adjustment=adjustment,
         ci_level=ci_level,
         method="causation_plugin",
@@ -355,16 +366,16 @@ def _bootstrap_cis(
 
 
 def _assumptions(
-    provenance: str, adjustment: tuple[str, ...], monotonic: bool,
+    provenance: RiskProvenance, adjustment: tuple[str, ...], monotonic: bool,
     cluster: str | None,
 ) -> tuple[str, ...]:
     out = [
         "binary_cause_and_effect",
         "consistency_of_potential_outcomes",
     ]
-    if provenance == "user_experimental":
+    if provenance is RiskProvenance.USER_EXPERIMENTAL:
         out.append("interventional_risks_from_randomized_experiment")
-    elif provenance == "exogenous":
+    elif provenance is RiskProvenance.EXOGENOUS:
         out.append("exogeneity_no_backdoor_path_do_risk_equals_conditional")
     else:
         out.append(
@@ -381,7 +392,7 @@ def _assumptions(
 
 
 def _identification_assumptions(
-    provenance: str, adjustment: tuple[str, ...], monotonic: bool,
+    provenance: RiskProvenance, adjustment: tuple[str, ...], monotonic: bool,
 ) -> tuple[dict, ...]:
     """The structured twin of :func:`_assumptions`, branch for branch.
 
@@ -396,12 +407,12 @@ def _identification_assumptions(
          "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
          "layer": "identification", "severity": "invalidating", "testable": False},
     ]
-    if provenance == "user_experimental":
+    if provenance is RiskProvenance.USER_EXPERIMENTAL:
         specs.append(
             {"id": "interventional_risks_from_randomized_experiment",
              "claim": "干预风险 P(Y=1|do X) 来自随机实验，无混杂",
              "layer": "identification", "severity": "invalidating", "testable": False})
-    elif provenance == "exogenous":
+    elif provenance is RiskProvenance.EXOGENOUS:
         specs.append(
             {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
              "claim": "外生性：X 到 Y 无后门路径，P(Y|do X)=P(Y|X)",

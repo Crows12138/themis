@@ -44,6 +44,7 @@ import networkx as nx
 
 from .. import blocks, refusals, routing
 from ..refusals import Refusal
+from ..risk_provenance import RiskProvenance, stamp
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
 from ..types import (
@@ -2129,7 +2130,7 @@ def _dispatch_counterfactual(
     x_obs_value = q.observed.value
     x_cf_value = q.counterfactual_intervention.value
     risk: float | None = None
-    risk_provenance = "not_required"
+    risk_provenance = RiskProvenance.NOT_REQUIRED
     arm_missing: tuple[MissingItem, ...] = ()
     arm_requests: tuple[InvestigationRequest, ...] = ()
     if isinstance(x_cf_value, bool) and x_cf_value != x_obs_value:
@@ -2139,7 +2140,7 @@ def _dispatch_counterfactual(
         )
         if supplied is not None:
             risk = float(supplied)
-            risk_provenance = "user_experimental"
+            risk_provenance = RiskProvenance.USER_EXPERIMENTAL
         else:
             risk, arm_missing, arm_requests = _derive_interventional_risk_arm(
                 stmt, graph, theta,
@@ -2147,7 +2148,7 @@ def _dispatch_counterfactual(
                 bidirected=bidirected, selection_nodes=selection_nodes,
             )
             if risk is not None:
-                risk_provenance = "derived_identification"
+                risk_provenance = RiskProvenance.DERIVED_IDENTIFICATION
 
     try:
         twin = counterfactual.project_twin_network(graph, bidirected, q)
@@ -2215,7 +2216,8 @@ def _dispatch_counterfactual(
     derivation_output = solved_result if interval.low == interval.high else bounded_result
     step_inputs: dict = {
         "graph": graph,
-        "interventional_risk_provenance": risk_provenance,
+        "interventional_risk_provenance": stamp(
+            "counterfactual_cell_bounds", risk_provenance),
     }
     if risk is not None:
         step_inputs["p_y_do_x_cf"] = risk
@@ -2547,7 +2549,7 @@ def _dispatch_causation(
     ):
         p_y_do_x1 = float(q.experimental_risk_treated)
         p_y_do_x0 = float(q.experimental_risk_control)
-        risk_provenance = "user_experimental"
+        risk_provenance = RiskProvenance.USER_EXPERIMENTAL
     else:
         risks, risk_missing, risk_requests = _derive_interventional_risks(
             stmt, graph, theta, x_atom, y_atom,
@@ -2557,7 +2559,7 @@ def _dispatch_causation(
             p_y_do_x1, p_y_do_x0 = risks
         # No risks means at least the escape item, so the merge below
         # returns before anything reads the two names left unbound here.
-        risk_provenance = "derived_identification"
+        risk_provenance = RiskProvenance.DERIVED_IDENTIFICATION
 
     if joint_missing or risk_missing:
         return _causation_gap(
@@ -2623,9 +2625,10 @@ def _dispatch_causation(
     # 6. Package. The derivation step's output and extensions.causation
     # carry the SAME envelope so the verifier can re-check the whole
     # PN/PS/PNS structure (not just the PN headline) from one place.
+    licence = stamp("probabilities_of_causation_tian_pearl", risk_provenance)
     envelope = {
         "monotonic": q.monotonic,
-        "interventional_risk_provenance": risk_provenance,
+        "interventional_risk_provenance": licence,
         "p_y_do_x1": p_y_do_x1,
         "p_y_do_x0": p_y_do_x0,
         "observational_joint": {
@@ -2662,7 +2665,7 @@ def _dispatch_causation(
                 "p_y_do_x1": p_y_do_x1,
                 "p_y_do_x0": p_y_do_x0,
                 "monotonic": q.monotonic,
-                "interventional_risk_provenance": risk_provenance,
+                "interventional_risk_provenance": licence,
             },
             output=envelope,
             step_id="s1",

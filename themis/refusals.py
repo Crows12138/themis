@@ -49,44 +49,17 @@ shares the word and nothing else.
 """
 from __future__ import annotations
 
-from enum import StrEnum, unique
+from enum import unique
 
+from .types import EnvelopeName
 
-class _EnvelopeName(StrEnum):
-    """A name that leaves this module on the envelope.
-
-    Both enums below end up as fields of ``estimator_failure``, so both
-    obey the same rule: copies and pickles come back as the plain name.
-    The envelope is data, and whoever copies or serialises it must get
-    back exactly the string that was always there — what the registry
-    records about a name belongs to the registry, not to each place the
-    name appears.
-
-    An enum resists this in three separate places, because its members are
-    singletons and it means to keep them that way: pickle looks the member
-    up again here, and ``copy``/``deepcopy`` hand back ``self`` without
-    consulting pickle at all. Leaving any one alone would make it two
-    rules — the pickled envelope is data, the copied one is not.
-    """
-
-    def __reduce_ex__(self, protocol):
-        return (str, (str(self),))
-
-    def __copy__(self) -> str:  # type: ignore[override]
-        return str(self)
-
-    def __deepcopy__(self, memo) -> str:  # type: ignore[override]
-        return str(self)
-
-    def __repr__(self) -> str:
-        # The name, not the member. An enum's default repr spells out where
-        # the value is declared, which is the one thing a reader who has
-        # been handed the value does not need.
-        return f"{type(self).__name__}({str(self)!r})"
+# Both enums below end up as fields of ``estimator_failure``, so both obey
+# the envelope rule :class:`~themis.types.EnvelopeName` states: copies and
+# pickles come back as the plain name.
 
 
 @unique
-class Kind(_EnvelopeName):
+class Kind(EnvelopeName):
     """What the reader should do about a refusal.
 
     The distinction a consumer acts on. Declared beside the species by
@@ -119,7 +92,7 @@ class Kind(_EnvelopeName):
 
 
 @unique
-class Refusal(_EnvelopeName):
+class Refusal(EnvelopeName):
     """One named reason an estimator produced no number.
 
     A ``StrEnum``, so a species is usable wherever its name was: in the

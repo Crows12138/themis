@@ -9,8 +9,45 @@ structurally; the runtime treats them as immutable.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Union
+
+
+class EnvelopeName(StrEnum):
+    """A name that leaves its registry on the envelope.
+
+    A registry declares a closed vocabulary once and hangs facts off each
+    name; the name itself then travels out as a field. Both halves have to
+    hold: inside the process the member carries what the registry knows,
+    and on the envelope it is the plain string it always was. Copies and
+    pickles come back as that string, because the envelope is data and
+    whoever serialises it must not receive the registry along with it.
+
+    An enum resists this in three separate places, since its members are
+    singletons and it means to keep them that way: pickle looks the member
+    up again, and ``copy``/``deepcopy`` hand back ``self`` without
+    consulting pickle at all. Leaving any one alone would make it two
+    rules — the pickled envelope is data, the copied one is not.
+
+    It lives here rather than beside the first registry that needed it
+    because there is more than one, and a base rewritten per registry is a
+    rule that holds until someone forgets a third of it.
+    """
+
+    def __reduce_ex__(self, protocol):
+        return (str, (str(self),))
+
+    def __copy__(self) -> str:  # type: ignore[override]
+        return str(self)
+
+    def __deepcopy__(self, memo) -> str:  # type: ignore[override]
+        return str(self)
+
+    def __repr__(self) -> str:
+        # The name, not the member. An enum's default repr spells out where
+        # the value is declared, which is the one thing a reader who has
+        # been handed the value does not need.
+        return f"{type(self).__name__}({str(self)!r})"
 
 
 # ---------------------------------------------------------------------------
