@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4029 passed / 144 skipped, warning-clean
+4030 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1234,6 +1234,65 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **mypy 的范围是一张名单不是一个包**：全包首跑 660 findings / 64 文件（218 union-attr / 172 arg-type / 104 assignment / 77 index / 20 attr-defined / 19 var-annotated / 9 name-defined / …），那个数说的是「没标注」不是「坏了」，没人会读。名单从六张表 + `analysis_report` 起步（7 个文件，`--warn-unused-ignores` 下零 findings），并由一条测试守住「**凡写了 `assert_never` 的文件必须在名单里**」——否则那句话只是一条恰好可执行的注释（㊷ 同型：写下了 ≠ 有人读）。剩下的 findings 已登记逐条查（#329），`blocks.py` 同样改枚举已登记（#330，实测 143 处引用）。
 
 **基线（本条）**：4024 → **4029**（+5：mypy 名单里的 7 个文件零 findings；缺一个分支的 `match` 被抓（`assert_never` 那条链的实测）；拼错的物种被抓；凡写了 `assert_never` 的文件都在名单里；这个内核没听过的 kind 不被硬塞一句话。另有三条旧测试改为钉现在还成立的那半边——「注册表收全了」和「两个名字一个物种」都成了 import 期错误，替它们的是「成员名和信封上的名字是同一个决定」）
+
+---
+
+### 一张白名单沉默地少保护了 62 个模块：那 25 条线索查完，闸口反过来（2026-08-05，接上条）
+
+上条把 mypy 接进套件时，名单只放了七个文件，剩下的 findings 登记为「逐条查」（#329）。
+查的结果不是 25 个问题：**1 个真崩溃 + 8 条真注解谎言 + 16 条误报，而那 16 条共用一个根因。**
+
+**真崩溃在 `data_gap_report.py`，而且是这个仓库反复犯的那个错**：`_extract_dose_response_confounders`
+读 `step.context`——`DerivationStep` 没有这个字段——然后去找 `adjustment_set` / `backdoor_set`
+两个键，**全仓从来没有任何一步写过它们**（真名是 `backdoor_criterion` 步的 `inputs["z"]`）。
+四行里两个互相独立的错误一起活着，说明它**从未跑对过一次**，不是写对了后来漂了。
+根因不是手滑：`DerivationStep.inputs` 是一个裸 `dict`，键集由 `rule` 字段决定，而**没有任何东西
+说出这个映射**（㉞：字段含义取决于另一个字段＝它没有一等表示），于是作者猜了一个形状，
+而没有类型、没有测试、没有检查器能反驳。㉞ 的探针再一次准：**谁已经不得不知道这个形状？验证器。**
+实测 `.inputs` 的读者 46 处，45 处在 `themis/verifier/` 里——**圈外只有这一个，也就是唯一一个猜错的**。
+它活下来是因为语料里所有剂量响应程序都是裸 X→Y、全部 `needs_investigation`、derivation 为空：
+插桩实测 55 次调用、进入该分支 **0 次**。加一个混杂 + 够用的 theta，`themis.run()` 当场抛
+`AttributeError`。修完之后 `confounders_required` 第一次有了内容（`['tenure']`）——
+这个字段此前每一次运行都是空的。
+
+**8 条 `name-defined` 是「注解命名了本模块没有的类型」**，`scheduler.py` 里 7 个
+`"tuple[Statement, ...]"` + 1 个 `FormulaExpr`。字符串注解和函数内局部变量注解都不求值，
+所以从没炸过——**又是㊹ 那类「延迟求值的位置，测试看不见」**。真正值钱的是：把 `Statement`
+import 进来之后，检查器第一次能读这 7 条注解，**立刻发现注解本身是错的**——写的是整个
+`Statement` 联合，而实际元素全是 `SelectionNode`（三处调用点都在按它过滤，代码只读
+`.affects` / `.source_population` 两个 `SelectionNode` 字段）。顺手把三处
+`from ..types import SelectionNode as _SN` 的函数内 import 收成模块级一处（㊹ 修在约定上）。
+
+**16 条误报共用一个根因，而且是老熟人**：一个变量装着判别联合，却按其中一个成员声明，
+**判别信息另存在一个字符串里**——`estimator == "gformula"`、`estimator in ("aipw","tmle")`、
+`chain[i] = ("clf", obj)`。三处全部改成按类型判别（`isinstance`），front-door 那个平行的
+`"const"`/`"clf"` 标签直接删掉：**条目的类型本来就说了它是哪一种，标签是同一个事实的第二份记录**。
+`_PreparedData.contract: object` 只是漏标（真类型 `DataContract`）。
+`conditioned_collider_opens_path` 标着 `Atom` 而唯一的调用方传谓词字符串——
+函数体只把参数当图的节点用，**这个仓库的图两种键都有**（scheduler 按 `Atom` 建、
+data-gap 报告按 `str` 建），所以真正诚实的标注是一个节点 TypeVar。
+
+**然后是比这 25 条更大的那件事：白名单的形状本身在骗人。** 量出来
+**已经零 findings、却不在名单里的模块有 62 个**——名单里只有 8 个。pyproject 的注释写着
+「清干净了就加进来」，但真正的门槛从来不是干净，是**没人去加**。
+**白名单对自己漏掉了什么是沉默的，而要防的恰恰是没人想到要写下的那个。**
+于是把闸口反过来：`files = ["themis"]`，另开一张 58 个模块的 `ignore_errors` 例外名单。
+反过来之后——那张名单**只会缩短**、新模块**写出来当天就受保护**、清干净一个模块＝删一行。
+守卫也跟着换了问题：原来问「写了 `assert_never` 的文件在不在名单里」，现在问
+「**在不在被压住的名单里**」。**实测这道闸真的多保护了东西**：往
+`themis/output/sample_size.py`（62 个里的一个）注入一个类型错误，套件立刻红——
+在这次改动之前，同一个错误一声不响。
+
+**基线（本条）**：4029 → **4030**（+1：带混杂且能出解的剂量响应查询，`confounders_required`
+就是那一步 back-door 自己用的调整集。另有四条测试改写：名单变成「包减去例外」之后，
+「配置里的模块零 findings」变成「包零 findings」，「凡写了 `assert_never` 的文件都在名单里」
+变成「都不在被压住的名单里」）。包内 findings **643 → 605**，且逐条比对确认**没有引入任何新条目**。
+
+**剩余登记**：58 个被压住的模块逐个清（头四个占 605 条里的 334：`verifier/verify.py` 195、
+`verifier/rules.py` 62、`estimation/dispatch.py` 46、`runtime/scheduler.py` 31）；
+`blocks.py` 改枚举（#330）。
+
+---
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
