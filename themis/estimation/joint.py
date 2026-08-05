@@ -82,6 +82,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -182,14 +183,14 @@ def estimate_joint_effect(
     """
     if len(treatments) < 2:
         raise EstimatorFailure(
-            refusals.NOT_A_JOINT_INTERVENTION,
+            Refusal.NOT_A_JOINT_INTERVENTION,
             f"estimate_joint_effect needs at least two treatments to form a "
             f"joint intervention; got {len(treatments)} ({refusals.describe(treatments)})",
             treatments=list(treatments),
         )
     if len(treatments) > _MAX_JOINT_TREATMENTS:
         raise EstimatorFailure(
-            refusals.TOO_MANY_JOINT_TREATMENTS,
+            Refusal.TOO_MANY_JOINT_TREATMENTS,
             f"estimate_joint_effect caps at {_MAX_JOINT_TREATMENTS} "
             f"treatments (the saturated basis is 2^K − 1 columns and the "
             f"interaction is a 2^K-corner finite difference); got "
@@ -198,7 +199,7 @@ def estimate_joint_effect(
         )
     if len(set(treatments)) != len(treatments):
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"joint treatment vector repeats a column: {refusals.describe(treatments)}",
             treatments=list(treatments),
         )
@@ -255,7 +256,7 @@ def estimate_joint_effect(
     bare = [m for m in (all_hi, all_lo) if support[m] == 0]
     if bare:
         raise EstimatorFailure(
-            refusals.OVERLAP_INSUFFICIENT,
+            Refusal.OVERLAP_INSUFFICIENT,
             f"the joint contrast is taken between the all-treated and "
             f"all-control cells, and no rows sit in "
             f"{', '.join(_cell_text(_cell(m)) for m in bare)}. Positivity is "
@@ -306,7 +307,7 @@ def estimate_joint_effect(
         # fit has no such loop, and the solver's own error is a ValueError
         # subclass that dispatch's generic guard used to discard.
         raise EstimatorFailure(
-            refusals.SINGULAR_DESIGN,
+            Refusal.SINGULAR_DESIGN,
             f"the saturated joint design is singular on this sample "
             f"({exc}); a 2^K-corner contrast needs every corner to be "
             f"separately estimable",

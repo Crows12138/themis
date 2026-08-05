@@ -28,6 +28,7 @@ g-formula already knows.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Callable, Mapping
 
 # The closed set of node kinds in ``query_result.schema.json``'s
@@ -45,8 +46,28 @@ DECLARED: tuple[str, ...] = (
 )
 
 
-# Not an identifier, so no bind name the schema admits can collide with it.
-_PINNED = "@pinned"
+@dataclass(frozen=True)
+class _Env:
+    """What a renderer needs that its own node does not carry.
+
+    Two facts, and they are not one. ``bound`` is filled in on the way
+    down, as each sum binds its index to the symbol it prints. ``pinned``
+    is computed once over the whole formula, because a sum cannot see from
+    its own body that its index is also held at a value in a sibling
+    subtree.
+
+    They travelled in one dict, the second under a key spelled ``@pinned``
+    so that no bind name the schema admits could collide with it. Needing
+    a key that cannot collide is the sign that the value was not the same
+    kind of thing as the others.
+    """
+
+    bound: Mapping[str, str] = field(default_factory=dict)
+    pinned: frozenset[str] = frozenset()
+
+    def binding(self, name: str, symbol: str) -> "_Env":
+        """This environment, with one more index bound."""
+        return _Env({**self.bound, name: symbol}, self.pinned)
 
 
 class UnknownNodeKind(KeyError):
@@ -84,7 +105,7 @@ def _atom_name(atom: dict | None) -> str:
     return (atom or {}).get("predicate") or "?"
 
 
-def _valued_atom(node: dict | None, env: dict[str, str]) -> str:
+def _valued_atom(node: dict | None, env: _Env) -> str:
     """One atom with the value the formula fixes it at.
 
     ``True`` is the bare predicate and ``False`` its negation, which is
@@ -107,21 +128,21 @@ def _valued_atom(node: dict | None, env: dict[str, str]) -> str:
         # The sum that bound this name ranges over this very atom, so the
         # atom IS the variable: ``P(z)``, never ``P(z=z)``. The symbol may
         # be primed, and then it is the primed one that belongs here.
-        return env.get(value.get("name"), name)
+        return env.bound.get(value.get("name") or "", name)
     return f"{name}={value}"
 
 
-def _render_constant(node: dict, env: dict[str, str]) -> str:
+def _render_constant(node: dict, env: _Env) -> str:
     return str(node.get("value"))
 
 
-def _render_probability_ref(node: dict, env: dict[str, str]) -> str:
+def _render_probability_ref(node: dict, env: _Env) -> str:
     target = _valued_atom(node.get("target"), env)
     given = [_valued_atom(g, env) for g in node.get("given") or []]
     return f"P({target} | {', '.join(given)})" if given else f"P({target})"
 
 
-def _render_product(node: dict, env: dict[str, str]) -> str:
+def _render_product(node: dict, env: _Env) -> str:
     return " · ".join(render(t, env) for t in node.get("terms") or [])
 
 
@@ -153,17 +174,15 @@ def _pinned_predicates(node, out: set[str] | None = None) -> set[str]:
     return out
 
 
-def _render_sum(node: dict, env: dict[str, str]) -> str:
+def _render_sum(node: dict, env: _Env) -> str:
     over = _atom_name(node.get("over"))
     name = (node.get("bind") or {}).get("name")
-    symbol = f"{over}'" if over in env.get(_PINNED, ()) else over
-    inner = dict(env)
-    if name:
-        inner[name] = symbol
+    symbol = f"{over}'" if over in env.pinned else over
+    inner = env.binding(name, symbol) if name else env
     return f"Σ_{symbol} [ {render(node.get('body'), inner)} ]"
 
 
-def _render_fraction(node: dict, env: dict[str, str]) -> str:
+def _render_fraction(node: dict, env: _Env) -> str:
     return (f"( {render(node.get('numerator'), env)} )"
             f" / ( {render(node.get('denominator'), env)} )")
 
@@ -177,25 +196,24 @@ _RENDERERS = bind({
 })
 
 
-def render(node, env: dict[str, str] | None = None) -> str:
+def render(node, env: _Env | None = None) -> str:
     """One formula node as the expression it stands for.
 
-    ``env`` maps a bound value-variable's name to the symbol its sum
-    ranges over; callers start with none and the sums fill it in on the
-    way down. It also carries, computed once at the top, the predicates
-    the whole formula pins to a value — which a sum cannot see from its
-    own body.
+    ``env`` is what the node cannot see for itself, and callers start
+    with none: the sums fill in the bindings on the way down, and the
+    pinned predicates are gathered here, once, over the whole formula.
     """
     if not isinstance(node, dict):
         return ""
     if env is None:
-        env = {_PINNED: _pinned_predicates(node)}
+        env = _Env(pinned=frozenset(_pinned_predicates(node)))
     kind = node.get("kind")
     try:
-        renderer = _RENDERERS[kind]
+        renderer = _RENDERERS[kind]  # type: ignore[index]  # a node with no
+        # kind must miss too, and be named in the same message
     except KeyError:
         raise UnknownNodeKind(
             f"no renderer declared for formula node kind {kind!r}; add it "
             f"to themis.output.formula_text beside the grammar"
         ) from None
-    return renderer(node, env or {})
+    return renderer(node, env)

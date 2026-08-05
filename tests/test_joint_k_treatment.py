@@ -34,6 +34,7 @@ import pytest
 
 import themis
 from themis import refusals
+from themis.refusals import Refusal
 from themis.refusals import EstimatorFailure
 from themis.estimation.joint import estimate_joint_effect
 from themis.input.syntactic_validator import validate_result
@@ -173,7 +174,7 @@ def test_below_two_treatments_is_not_a_joint_intervention():
             df, treatments=("a",), outcome="y", adjustment=("z",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.NOT_A_JOINT_INTERVENTION
+    assert exc.value.failure_type == Refusal.NOT_A_JOINT_INTERVENTION
 
 
 def test_beyond_cap_is_too_many_joint_treatments():
@@ -187,7 +188,7 @@ def test_beyond_cap_is_too_many_joint_treatments():
             df, treatments=("a", "b", "c", "d", "e", "f"), outcome="y",
             adjustment=("z",), ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.TOO_MANY_JOINT_TREATMENTS
+    assert exc.value.failure_type == Refusal.TOO_MANY_JOINT_TREATMENTS
 
 
 def test_duplicate_treatment_is_an_invalid_request():
@@ -197,7 +198,7 @@ def test_duplicate_treatment_is_an_invalid_request():
             df, treatments=("a", "a"), outcome="y", adjustment=("z",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
 
 
 # ============================================ structural identification
@@ -379,7 +380,7 @@ def test_an_unsupported_contrast_cell_refuses_the_whole_estimate():
             df, treatments=("a", "b"), outcome="y", adjustment=("z",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.OVERLAP_INSUFFICIENT
+    assert exc.value.failure_type == Refusal.OVERLAP_INSUFFICIENT
     assert exc.value.details["unsupported_cells"] == [{"a": False, "b": False}]
 
 

@@ -203,14 +203,16 @@ def shape_of(estimate: Estimate) -> Shape | None:
     """
     method = estimate.get("method")
     try:
-        candidates = SHAPES_OF[method]
+        candidates = SHAPES_OF[method]  # type: ignore[index]  # a block
+        # naming no method must miss too, and say so the same way
     except KeyError:
         raise UnknownMethod(
             f"no answer shape declared for method {method!r}; add it to "
             f"themis.answers.SHAPES_OF beside the estimator that emits it"
         ) from None
     for shape in candidates:
-        if shape.detect(estimate):
+        if shape.detect(estimate):  # type: ignore[misc]  # never None past
+            # __post_init__, which fills in the default detector
             return shape
     return None
 

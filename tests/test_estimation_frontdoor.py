@@ -20,6 +20,7 @@ import pandas as pd
 import pytest
 
 from themis import refusals
+from themis.refusals import Refusal
 from themis.estimation.frontdoor import (
     FrontdoorEstimate,
     estimate_frontdoor_ate,
@@ -255,7 +256,7 @@ def test_continuous_mediator_rejected():
             df, treatment="x", outcome="y", mediators=("m_cont",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.CONTINUOUS_MEDIATOR
+    assert exc.value.failure_type == Refusal.CONTINUOUS_MEDIATOR
 
 
 def test_high_cardinality_integer_mediator_rejected():
@@ -273,7 +274,7 @@ def test_high_cardinality_integer_mediator_rejected():
             df, treatment="x", outcome="y", mediators=("m_int",),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.CONTINUOUS_MEDIATOR
+    assert exc.value.failure_type == Refusal.CONTINUOUS_MEDIATOR
 
 
 # ============================================ shape
@@ -311,5 +312,5 @@ def test_too_many_mediator_combinations_rejected():
             df, treatment="x", outcome="y", mediators=("m1", "m2", "m3"),
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.MEDIATOR_STRATA_INTRACTABLE
+    assert exc.value.failure_type == Refusal.MEDIATOR_STRATA_INTRACTABLE
     assert exc.value.details["combinations"] == 3375

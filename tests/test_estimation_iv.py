@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from themis import refusals
+from themis.refusals import Refusal
 from themis.refusals import EstimatorFailure
 from themis.estimation.iv import IVEstimate, estimate_iv_ate
 
@@ -77,7 +78,7 @@ def test_wald_raises_when_first_stage_exactly_zero():
             df, treatment="x", outcome="y", instrument="z",
             ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.NO_FIRST_STAGE
+    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
     assert exc.value.details["denominator"] == 0.0
 
 
@@ -165,7 +166,7 @@ def test_wald_rejects_continuous_treatment():
             df, treatment="x", outcome="y", instrument="z",
             model="wald", ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
 
 
 def test_wald_rejects_conditioning():
@@ -178,7 +179,7 @@ def test_wald_rejects_conditioning():
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="wald", ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
 
 
 # =========================================== stratified Wald
@@ -339,7 +340,7 @@ def test_explicit_stratified_wald_refuses_rather_than_substituting():
         )
     # An empty instrument arm inside a stratum, not our own cut being too
     # coarse: the two arrive by the same class and say different things.
-    assert exc.value.failure_type == refusals.OVERLAP_INSUFFICIENT
+    assert exc.value.failure_type == Refusal.OVERLAP_INSUFFICIENT
     assert exc.value.details["stratum"] == {"w": True}
 
 
@@ -408,7 +409,7 @@ def test_when_every_resample_is_degenerate_the_interval_is_refused():
         )
     # Not the point estimate's problem: the full sample identifies it, and
     # the refusal is about the interval having no draws to be built from.
-    assert exc.value.failure_type == refusals.NO_USABLE_RESAMPLE
+    assert exc.value.failure_type == Refusal.NO_USABLE_RESAMPLE
     assert exc.value.details == {"model": "stratified_wald", "resamples": 200}
 
 
@@ -449,7 +450,7 @@ def test_degenerate_aggregate_first_stage_is_an_error_not_a_fallback():
             df, treatment="x", outcome="y", instrument="z",
             conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
         )
-    assert exc.value.failure_type == refusals.NO_FIRST_STAGE
+    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
 
 
 def test_stratified_wald_carries_its_own_assumptions():

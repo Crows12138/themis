@@ -50,6 +50,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .resample import cluster_labels, resample_indices
@@ -311,7 +312,7 @@ def estimate_iv_ate(
     if resolved == "wald":
         if not (z_is_bool and x_is_bool):
             raise EstimatorFailure(
-                refusals.INVALID_INPUT,
+                Refusal.INVALID_INPUT,
                 "Wald estimator requires binary instrument AND binary "
                 "treatment; 'auto' would route this design to 2SLS",
                 instrument_is_binary=bool(z_is_bool),
@@ -319,7 +320,7 @@ def estimate_iv_ate(
             )
         if conditioning:
             raise EstimatorFailure(
-                refusals.INVALID_INPUT,
+                Refusal.INVALID_INPUT,
                 "The marginal Wald ignores W, which is not the same estimand; "
                 "use model='stratified_wald' (or 'auto') when conditioning is "
                 "non-empty",
@@ -329,7 +330,7 @@ def estimate_iv_ate(
     elif resolved == "stratified_wald":
         if not (z_is_bool and x_is_bool):
             raise EstimatorFailure(
-                refusals.INVALID_INPUT,
+                Refusal.INVALID_INPUT,
                 "Stratified Wald requires binary instrument AND binary "
                 "treatment; 'auto' would route this design to 2SLS",
                 instrument_is_binary=bool(z_is_bool),
@@ -356,7 +357,7 @@ def estimate_iv_ate(
         )
     else:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"unknown model {model!r}",
             model=str(model),
             known_models=["auto", "wald", "stratified_wald", "2sls"],
@@ -450,7 +451,7 @@ def _wald_point(
     denom = ex1 - ex0
     if abs(denom) < 1e-12:
         raise EstimatorFailure(
-            refusals.NO_FIRST_STAGE,
+            Refusal.NO_FIRST_STAGE,
             f"the Wald denominator E[{treatment}|{instrument}=1] − "
             f"E[{treatment}|{instrument}=0] is {denom:.3g}: the instrument "
             f"has no measurable first-stage effect on the treatment, so the "
@@ -507,7 +508,7 @@ def _w_levels(
         if len(values) > _MAX_LEVELS_PER_W:
             if pd.api.types.is_float_dtype(series):
                 raise _NotStratifiable(
-                    refusals.CONDITIONING_TOO_FINE,
+                    Refusal.CONDITIONING_TOO_FINE,
                     f"conditioning column {col!r} is continuous "
                     f"({len(values)} distinct values over {len(series)} "
                     f"rows), so its strata would hold about one "
@@ -515,7 +516,7 @@ def _w_levels(
                     column=col, distinct_values=len(values), rows=len(series),
                 )
             raise _NotStratifiable(
-                refusals.CONDITIONING_TOO_FINE,
+                Refusal.CONDITIONING_TOO_FINE,
                 f"conditioning column {col!r} takes {len(values)} distinct "
                 f"values, past the cap of {_MAX_LEVELS_PER_W}",
                 column=col, distinct_values=len(values),
@@ -529,7 +530,7 @@ def _w_levels(
         total *= len(ordered)
         if total > _MAX_STRATA:
             raise _NotStratifiable(
-                refusals.CONDITIONING_TOO_FINE,
+                Refusal.CONDITIONING_TOO_FINE,
                 f"conditioning set {list(conditioning)} cuts the sample into "
                 f"more than {_MAX_STRATA} strata",
                 conditioning=list(conditioning), strata=total,
@@ -586,7 +587,7 @@ def _stratified_wald_table(
         n_high, n_low = int(high.sum()), int(low.sum())
         if n_high < _MIN_PER_ARM or n_low < _MIN_PER_ARM:
             raise _NotStratifiable(
-                refusals.OVERLAP_INSUFFICIENT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"stratum {_cell_label(conditioning, cell)} holds {n_high} "
                 f"observation(s) with {instrument} high and {n_low} with it "
                 f"low, so the instrument has no measurable contrast there; "
@@ -625,7 +626,7 @@ def _stratified_wald_table(
 
     if not rows:
         raise _NotStratifiable(
-            refusals.INSUFFICIENT_SUPPORT,
+            Refusal.INSUFFICIENT_SUPPORT,
             "no stratum of W is populated",
             conditioning=list(conditioning), rows=n,
         )
@@ -633,7 +634,7 @@ def _stratified_wald_table(
         # Missing / unrepresentable W values would silently shrink the
         # population the weights are normalised over.
         raise _NotStratifiable(
-            refusals.INSUFFICIENT_SUPPORT,
+            Refusal.INSUFFICIENT_SUPPORT,
             f"the strata of {list(conditioning)} cover {covered} of {n} rows; "
             f"the remainder carry values the cut cannot place",
             conditioning=list(conditioning), rows_covered=covered, rows=n,
@@ -643,7 +644,7 @@ def _stratified_wald_table(
     treatment_shift = math.fsum(r.weight * r.treatment_shift for r in rows)
     if abs(treatment_shift) < 1e-12:
         raise EstimatorFailure(
-            refusals.NO_FIRST_STAGE,
+            Refusal.NO_FIRST_STAGE,
             f"the stratified first stage sum_w P(w)[E[{treatment}|"
             f"{instrument}=1,w] − E[{treatment}|{instrument}=0,w]] is "
             f"{treatment_shift:.3g}: the instrument moves no compliers, so "
@@ -995,7 +996,7 @@ def _bootstrap_ci_iv(
     estimates = estimates[~np.isnan(estimates)]
     if len(estimates) == 0:
         raise EstimatorFailure(
-            refusals.NO_USABLE_RESAMPLE,
+            Refusal.NO_USABLE_RESAMPLE,
             f"all {ci_bootstrap} bootstrap resamples were degenerate for the "
             f"{model} estimator, so there are no draws to take an interval "
             f"from",
@@ -1314,7 +1315,7 @@ def solve_hansen_from_s(m: dict) -> dict:
         s_inv = np.linalg.inv(s)
     except np.linalg.LinAlgError as exc:
         raise EstimatorFailure(
-            refusals.SINGULAR_DESIGN,
+            Refusal.SINGULAR_DESIGN,
             f"the robust weight matrix Ŝ is singular, so the efficient GMM "
             f"step has no weighting to invert ({exc})",
             n_instruments=q,
@@ -1322,7 +1323,7 @@ def solve_hansen_from_s(m: dict) -> dict:
     denom = float(zx @ s_inv @ zx)
     if not math.isfinite(denom) or abs(denom) < 1e-12:
         raise EstimatorFailure(
-            refusals.NO_FIRST_STAGE,
+            Refusal.NO_FIRST_STAGE,
             f"the efficient-GMM first stage is degenerate: x'Ŝ⁻¹x is "
             f"{denom:.3g}",
             statistic=float(denom), n_instruments=q,
@@ -1392,7 +1393,7 @@ def solve_overid_from_moments(m: dict) -> dict:
         zz_inv = np.linalg.inv(zz)
     except np.linalg.LinAlgError as exc:
         raise EstimatorFailure(
-            refusals.SINGULAR_DESIGN,
+            Refusal.SINGULAR_DESIGN,
             f"Z'Z cannot be inverted, so the {q} instruments are collinear "
             f"with each other or with the conditioning set ({exc})",
             n_instruments=q,
@@ -1401,7 +1402,7 @@ def solve_overid_from_moments(m: dict) -> dict:
     x_pz_y = float(zx @ zz_inv @ zy)          # x'P_Z y
     if not math.isfinite(x_pz_x) or abs(x_pz_x) < 1e-12:
         raise EstimatorFailure(
-            refusals.NO_FIRST_STAGE,
+            Refusal.NO_FIRST_STAGE,
             f"the joint first stage is degenerate: x'P_Z x is {x_pz_x:.3g}, "
             f"so the {q} instruments together explain no variation in the "
             f"treatment",
@@ -1415,7 +1416,7 @@ def solve_overid_from_moments(m: dict) -> dict:
     u_u = yy - 2.0 * beta * xy + beta * beta * xx   # û'û
     if not math.isfinite(u_u) or u_u <= 0:
         raise EstimatorFailure(
-            refusals.SINGULAR_DESIGN,
+            Refusal.SINGULAR_DESIGN,
             f"the structural residual sum of squares û'û is {u_u:.3g}: the "
             f"outcome is an exact linear function of the treatment here, so "
             f"the Sargan statistic n·û'P_Z û / û'û is 0/0",
@@ -1770,7 +1771,7 @@ def estimate_iv_overid(
 
     if len(instruments) < 2:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             "estimate_iv_overid requires ≥ 2 instruments; use estimate_iv_ate "
             "for the just-identified case",
             instruments=list(instruments),
@@ -1923,7 +1924,7 @@ def _bootstrap_ci_overid(
     estimates = estimates[~np.isnan(estimates)]
     if len(estimates) == 0:
         raise EstimatorFailure(
-            refusals.NO_USABLE_RESAMPLE,
+            Refusal.NO_USABLE_RESAMPLE,
             f"all {ci_bootstrap} bootstrap resamples were degenerate for "
             f"over-identified 2SLS, so there are no draws to take an "
             f"interval from",

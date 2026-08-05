@@ -31,6 +31,7 @@ import numpy as np
 import pytest
 
 from themis import refusals
+from themis.refusals import Refusal
 
 
 # --- one value, as a sentence should carry it ---------------------------------
@@ -84,16 +85,16 @@ def test_an_oversized_message_is_capped_rather_than_raised():
     """A refusal that crashed on the length of its own explanation would
     turn "no number, and here is why" into no answer at all."""
     exc = refusals.EstimatorFailure(
-        refusals.OUTCOME_NOT_BINARY, "x" * 50_000,
+        Refusal.OUTCOME_NOT_BINARY, "x" * 50_000,
     )
     assert len(str(exc)) < 1200
     assert "truncated" in str(exc)
-    assert exc.failure_type == refusals.OUTCOME_NOT_BINARY
+    assert exc.failure_type == Refusal.OUTCOME_NOT_BINARY
 
 
 def test_an_ordinary_message_passes_through_unchanged():
     message = "outcome 'y' has 3 observed levels; this one wants two."
-    exc = refusals.EstimatorFailure(refusals.OUTCOME_NOT_BINARY, message)
+    exc = refusals.EstimatorFailure(Refusal.OUTCOME_NOT_BINARY, message)
     assert str(exc) == message
 
 
@@ -188,7 +189,7 @@ def test_the_worst_measured_refusal_now_fits_in_a_sentence():
         f"requires a binary outcome."
     )
     assert len(message) < 300, message[:300]
-    exc = refusals.EstimatorFailure(refusals.OUTCOME_NOT_BINARY, message)
+    exc = refusals.EstimatorFailure(Refusal.OUTCOME_NOT_BINARY, message)
     assert "truncated" not in str(exc)
 
 

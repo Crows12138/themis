@@ -65,6 +65,13 @@ discovery = ["causal-learn>=0.1.4"]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
+    # Not a linter here. The vocabulary tables (themis/{refusals,blocks,
+    # answers,questions,routing}.py and output/formula_text.py) each name a
+    # closed set that some surface must cover, and ``bind`` checks the half
+    # a dict can check — that its keys are exactly the set. The other half
+    # is a claim about branches, and ``typing.assert_never`` is what states
+    # it. Without a checker that reads it, the statement is a comment.
+    "mypy>=1.11",
 ]
 
 [project.scripts]
@@ -76,6 +83,40 @@ themis-mcp = "themis.mcp.server:main"
 Homepage = "https://github.com/Crows12138/themis"
 Repository = "https://github.com/Crows12138/themis"
 Issues = "https://github.com/Crows12138/themis/issues"
+
+[tool.mypy]
+# A named list, not the package. Themis has had no static checking, so a
+# first run over ``themis/`` reports 660 findings across 64 files — a
+# number that says "untyped", not "broken", and one nobody would read.
+# What is listed here is what has been read and cleaned; a module joins
+# when someone cleans it. The list starting at the vocabulary tables is
+# not arbitrary: they are where a closed set is declared, so they are
+# where ``assert_never`` has something to say, and a file carrying an
+# ``assert_never`` that is not checked here is carrying a comment.
+#
+# The first run paid for itself. ``except EstimatorFailure`` in
+# dispatch's doubly-robust path named an import twenty-four sibling
+# handlers each made for themselves and that one forgot — and an
+# ``except`` clause evaluates its name only when it fires, so every
+# refusal from AIPW / IPW / TMLE came back as NameError.
+python_version = "3.11"
+files = [
+    "themis/refusals.py",
+    "themis/blocks.py",
+    "themis/answers.py",
+    "themis/questions.py",
+    "themis/routing.py",
+    "themis/output/formula_text.py",
+    "themis/output/analysis_report.py",
+]
+# Imports are followed for their types and silent about their own errors:
+# a listed module is checked against the real signatures of unlisted ones,
+# without inheriting their findings.
+follow_imports = "silent"
+ignore_missing_imports = true
+# An ignore that has stopped being needed is a claim that has stopped
+# being true.
+warn_unused_ignores = true
 
 [tool.setuptools.packages.find]
 where = ["."]

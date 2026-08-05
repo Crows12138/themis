@@ -99,6 +99,7 @@ import pandas as pd
 
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -196,7 +197,7 @@ def estimate_regression_calibration(
         raw_error = {treatment: error_variance}
     if not raw_error:
         raise EstimatorFailure(
-            refusals.NON_POSITIVE_ERROR_VARIANCE,
+            Refusal.NON_POSITIVE_ERROR_VARIANCE,
             "no measurement-error variance σ²_u was supplied.",
         )
     for name, ev in raw_error.items():
@@ -207,7 +208,7 @@ def estimate_regression_calibration(
             or ev <= 0
         ):
             raise EstimatorFailure(
-                refusals.NON_POSITIVE_ERROR_VARIANCE,
+                Refusal.NON_POSITIVE_ERROR_VARIANCE,
                 f"the classical measurement-error variance σ²_u for {name!r} must "
                 f"be a positive finite number; got {ev!r}.",
             )
@@ -224,7 +225,7 @@ def estimate_regression_calibration(
     unknown = [k for k in raw_error if k not in design_vars]
     if unknown:
         raise EstimatorFailure(
-            refusals.MISMEASURED_VARIABLE_NOT_IN_DESIGN,
+            Refusal.MISMEASURED_VARIABLE_NOT_IN_DESIGN,
             f"measurement error was supplied for {unknown!r}, which is not among "
             f"the design variables {refusals.describe(list(design_vars))} (the exposure and its "
             f"back-door adjustment set). A confounder must be adjusted for to be "
@@ -236,8 +237,8 @@ def estimate_regression_calibration(
         if n_distinct < _MIN_CONTINUOUS_DISTINCT:
             role = "exposure" if name == treatment else "covariate"
             ftype = (
-                refusals.EXPOSURE_NOT_CONTINUOUS if name == treatment
-                else refusals.MISMEASURED_COVARIATE_NOT_CONTINUOUS
+                Refusal.EXPOSURE_NOT_CONTINUOUS if name == treatment
+                else Refusal.MISMEASURED_COVARIATE_NOT_CONTINUOUS
             )
             raise EstimatorFailure(
                 ftype,
@@ -345,7 +346,7 @@ def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
         b = np.linalg.solve(Sigma, cov_Dy)          # naive OLS slopes
     except np.linalg.LinAlgError:
         raise EstimatorFailure(
-            refusals.SINGULAR_DESIGN,
+            Refusal.SINGULAR_DESIGN,
             "the design covariance Σ_obs is singular (collinear covariates); the "
             "naive regression — and so the correction — is undefined.",
         )
@@ -360,7 +361,7 @@ def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
             reliabilities[design_vars[i]] = float(lam_i)
             if lam_i <= _LAMBDA_FLOOR:
                 raise EstimatorFailure(
-                    refusals.DEGENERATE_RELIABILITY,
+                    Refusal.DEGENERATE_RELIABILITY,
                     f"the measurement-error variance σ²_u = {e_vec[i]:.6g} for "
                     f"{design_vars[i]!r} meets or exceeds Var({design_vars[i]}|rest) "
                     f"= {var_i:.6g} (reliability λ = {lam_i:.6g} ≤ 0); the corrected "
@@ -376,7 +377,7 @@ def _formula(D: np.ndarray, y: np.ndarray, e_vec: np.ndarray, design_vars):
         np.linalg.cholesky(Sigma_star)
     except np.linalg.LinAlgError:
         raise EstimatorFailure(
-            refusals.DEGENERATE_RELIABILITY,
+            Refusal.DEGENERATE_RELIABILITY,
             "the corrected design Σ_obs − E is not positive definite for the given "
             "error variances; the correction is undefined.",
         )

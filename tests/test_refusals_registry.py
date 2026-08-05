@@ -17,6 +17,14 @@ sites that refuse instead of stamped from here — which would recreate the
 same drift one field over. And a refusal can be caught and then never
 reach the envelope at all, which is the one failure none of the others
 can see: a registry cannot check a species nobody wrote down.
+
+Two of the directions this module used to watch are no longer test-shaped.
+The registry was a set gathered from module constants, so a constant left
+out of it and two constants sharing one name both had to be asserted; the
+registry is an ``enum`` now and both are import-time errors — the class
+*is* the collection, and ``@unique`` will not admit an alias. What is left
+here is what the language cannot see: the schema, the envelope, and
+whether anything still refers to a species at all.
 """
 import ast
 import json
@@ -25,6 +33,7 @@ import pathlib
 import pytest
 
 from themis import refusals
+from themis.refusals import Refusal, Kind
 from themis.refusals import EstimatorFailure
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -41,51 +50,48 @@ def _sources():
 
 
 def _registry_attributes() -> set[str]:
-    """Every ``refusals.<NAME>`` mentioned anywhere outside the registry."""
+    """Every ``Refusal.<NAME>`` mentioned anywhere outside the registry."""
     used: set[str] = set()
     for _rel, src in _sources():
         for node in ast.walk(ast.parse(src)):
             if (
                 isinstance(node, ast.Attribute)
                 and isinstance(node.value, ast.Name)
-                and node.value.id == "refusals"
+                and node.value.id == "Refusal"
             ):
                 used.add(node.attr)
     return used
 
 
-def test_the_registry_declares_what_it_says_it_declares():
-    """``ALL`` is collected from the module, not listed again below it."""
-    declared = {
-        name for name, value in vars(refusals).items()
-        if isinstance(value, refusals.Refusal)
-    }
-    assert {str(s) for s in refusals.ALL} == {
-        str(getattr(refusals, name)) for name in declared
-    }
-    assert len(refusals.ALL) == len(declared), "two names for one species"
+def test_a_species_is_named_the_same_thing_twice():
+    """The member's name and the name on the envelope are one decision.
+
+    They were two: a constant in this package and a string in the
+    envelope, related only by whoever typed both. A member spelled
+    ``EMPTY_OUTCOME = ("emty_outcome", ...)`` would have raised nowhere —
+    the schema test below would have caught it, but only by reporting a
+    schema that was right."""
+    assert [s.name for s in Refusal if s.name.lower() != s.value] == []
 
 
-def test_every_species_declares_a_kind_and_every_kind_has_species():
+def test_every_kind_classifies_something():
     """``kind`` is the whole reason a consumer can act on a refusal. A kind
-    nothing is filed under is a distinction that was never real."""
-    assert set(refusals.BY_KIND) == set(refusals.KINDS)
-    assert sum(len(v) for v in refusals.BY_KIND.values()) == len(refusals.ALL)
-    for kind, species in refusals.BY_KIND.items():
-        assert species, f"kind {kind!r} classifies nothing"
+    nothing is filed under is a distinction that was never real.
+
+    The converse — every species declaring a kind — is the constructor's
+    signature now, so there is nothing here to assert about it."""
+    for kind in Kind:
+        assert any(s.kind is kind for s in Refusal), (
+            f"kind {kind!r} classifies nothing")
 
 
-@pytest.mark.parametrize("species", sorted(refusals.ALL))
+@pytest.mark.parametrize("species", sorted(Refusal))
 def test_every_registered_species_is_referred_to_by_something(species):
     """A registration nothing refers to is a refusal that has been deleted
     everywhere except here — the registry describing a system that no
     longer exists, which is worse than no registry."""
-    constant = {
-        name for name, value in vars(refusals).items()
-        if isinstance(value, refusals.Refusal) and value == species
-    }
-    assert _registry_attributes() & constant, (
-        f"{species!r} is registered but no module names refusals.{constant}"
+    assert species.name in _registry_attributes(), (
+        f"{species!r} is registered but no module names Refusal.{species.name}"
     )
 
 
@@ -100,9 +106,9 @@ def test_the_schema_enum_is_exactly_the_registry():
     )
     enum = schema["properties"]["estimator_failure"]["properties"][
         "failure_type"]["enum"]
-    assert set(enum) == set(refusals.BY_NAME), {
-        "declared, not in schema": sorted(set(refusals.BY_NAME) - set(enum)),
-        "in schema, not declared": sorted(set(enum) - set(refusals.BY_NAME)),
+    assert set(enum) == set(Refusal), {
+        "declared, not in schema": sorted(set(Refusal) - set(enum)),
+        "in schema, not declared": sorted(set(enum) - set(Refusal)),
     }
     assert len(enum) == len(set(enum)), "the schema enum repeats a species"
 
@@ -116,7 +122,7 @@ def test_the_schema_kind_enum_is_exactly_the_kinds():
     )
     enum = schema["properties"]["estimator_failure"]["properties"][
         "kind"]["enum"]
-    assert set(enum) == set(refusals.KINDS)
+    assert set(enum) == set(Kind)
     assert len(enum) == len(set(enum))
 
 
@@ -239,7 +245,7 @@ def test_a_refusal_carries_the_numbers_it_measured():
     measure which stratum was empty and how many rows were in it; every
     handler but one used to drop that on the floor."""
     exc = EstimatorFailure(
-        refusals.SAMPLE_TOO_SMALL, "too few rows", n=3, needed=30)
+        Refusal.SAMPLE_TOO_SMALL, "too few rows", n=3, needed=30)
     result = {"query_id": "q"}
     refusals.record(result, estimator="backdoor", exc=exc)
     assert result["estimator_failure"] == {
@@ -253,7 +259,7 @@ def test_a_refusal_carries_the_numbers_it_measured():
     bare = {"query_id": "q"}
     refusals.record(
         bare, estimator="backdoor",
-        exc=EstimatorFailure(refusals.SAMPLE_TOO_SMALL, "too few rows"))
+        exc=EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, "too few rows"))
     assert "details" not in bare["estimator_failure"]
 
 
@@ -310,23 +316,27 @@ def test_a_terminal_refusal_reaches_the_caller_and_not_only_the_log():
     failure = result["estimator_failure"]
     assert failure["estimator"] == "proximal"
     assert failure["failure_type"] in refusals.BY_NAME
-    assert failure["kind"] in refusals.KINDS
+    assert failure["kind"] in set(Kind)
     assert failure["reason"]
 
 
 def test_a_species_is_the_plain_name_once_it_is_data():
-    """The registry hands out ``str`` subclasses so a misspelling is an
-    AttributeError at import. What lands in the envelope has to be the
-    string it always was — a copy or a pickle that came back carrying
-    registry metadata would make the envelope depend on this module."""
+    """The registry hands out enum members so a misspelling is a name that
+    does not exist. What lands in the envelope has to be the string it
+    always was — a copy or a pickle that came back carrying registry
+    metadata would make the envelope depend on this module.
+
+    An enum does not do this by itself: its members are singletons and it
+    pickles them by looking them up again here. ``__reduce_ex__`` is what
+    holds the boundary, and this is what holds ``__reduce_ex__``."""
     import copy
     import pickle
 
-    block = {"failure_type": refusals.SINGULAR_CONFUSION_MATRIX}
+    block = {"failure_type": Refusal.SINGULAR_CONFUSION_MATRIX}
     assert json.loads(json.dumps(block)) == {
         "failure_type": "singular_confusion_matrix"}
     assert type(copy.deepcopy(block)["failure_type"]) is str
-    assert type(pickle.loads(pickle.dumps(refusals.UNKNOWN))) is str
+    assert type(pickle.loads(pickle.dumps(Refusal.UNKNOWN))) is str
 
 
 def test_an_unregistered_species_is_refused_when_the_refusal_is_born():
@@ -335,9 +345,9 @@ def test_an_unregistered_species_is_refused_when_the_refusal_is_born():
     with pytest.raises(ValueError, match="unregistered failure_type"):
         EstimatorFailure("no_such_reason", "a message")
 
-    exc = EstimatorFailure(refusals.SAMPLE_TOO_SMALL, "too few rows", n=3)
+    exc = EstimatorFailure(Refusal.SAMPLE_TOO_SMALL, "too few rows", n=3)
     assert exc.failure_type == "sample_too_small"
-    assert exc.failure_type.kind == refusals.KIND_DATA
+    assert exc.failure_type.kind == Kind.DATA
     assert exc.details == {"n": 3}
 
 
@@ -361,12 +371,12 @@ def test_the_exit_is_where_the_kind_comes_from():
         "estimator": "e", "failure_type": "overlap_insufficient",
         "reason": "r"}}
     refusals.stamp(result)
-    assert result["estimator_failure"]["kind"] == refusals.KIND_DATA
+    assert result["estimator_failure"]["kind"] == Kind.DATA
 
     # The registry is the authority, not whatever was there before.
     result["estimator_failure"]["kind"] = "graph"
     refusals.stamp(result)
-    assert result["estimator_failure"]["kind"] == refusals.KIND_DATA
+    assert result["estimator_failure"]["kind"] == Kind.DATA
 
 
 def test_the_kind_of_a_refusal_is_never_written_where_it_is_refused():
@@ -437,7 +447,7 @@ def test_a_real_refusal_reaches_the_caller_as_a_registered_species():
     assert species in refusals.BY_NAME
     # The kind reached the caller, who is where it has to be: a reader of
     # the envelope has no registry to look the species up in.
-    assert result["estimator_failure"]["kind"] == refusals.KIND_REQUEST
+    assert result["estimator_failure"]["kind"] == Kind.REQUEST
 
     import jsonschema
     schema = json.loads(

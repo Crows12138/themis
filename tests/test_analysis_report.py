@@ -14,7 +14,7 @@ import pytest
 import themis
 from themis import refusals
 from themis.output.analysis_report import (
-    _KIND_ZH,
+    _kind_zh,
     _render_answer,
     build_analysis_report,
 )
@@ -240,11 +240,23 @@ def test_a_refusal_is_an_answer_not_a_missing_one():
 def test_the_report_has_a_sentence_for_every_kind():
     """The registry owns the taxonomy, this file owns the words. A kind
     with no sentence falls back through to the generic line, which is the
-    defect above returning under a new name."""
-    assert set(_KIND_ZH) == set(refusals.KINDS)
+    defect above returning under a new name.
+
+    That every branch *exists* is ``assert_never``'s to check, statically.
+    This asks the half a checker cannot see: that the branch returns a
+    sentence rather than falling out with nothing."""
+    for kind in refusals.Kind:
+        assert _kind_zh(kind), f"kind {kind!r} renders as nothing"
 
 
-@pytest.mark.parametrize("kind", sorted(refusals.KINDS))
+def test_a_kind_this_kernel_never_heard_of_gets_no_sentence():
+    """What we read is wider than what we emit. An envelope from another
+    kernel naming a sixth kind gets the generic line, not a wrong one."""
+    assert _kind_zh("kind_from_the_future") is None
+    assert _kind_zh(None) is None
+
+
+@pytest.mark.parametrize("kind", sorted(refusals.Kind))
 def test_each_kind_reads_as_something_different(kind):
     answer = _render_answer({
         "status": "needs_investigation", "query_kind": "effect", "query_id": "r",

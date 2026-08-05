@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from themis import refusals
+from themis.refusals import Refusal
 from themis.refusals import EstimatorFailure
 
 from themis.estimation.mediation import (
@@ -206,7 +207,7 @@ def test_unknown_model_rejected():
             df, treatment="x", outcome="y", mediator="m",
             model="random_forest", n_rep=10,
         )
-    assert exc.value.failure_type == refusals.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
 
 
 def test_a_singular_point_fit_is_refused_not_swallowed():
@@ -226,4 +227,4 @@ def test_a_singular_point_fit_is_refused_not_swallowed():
         estimate_mediation(
             df, treatment="x", outcome="y", mediator="m", n_rep=0,
         )
-    assert exc.value.failure_type == refusals.SINGULAR_DESIGN
+    assert exc.value.failure_type == Refusal.SINGULAR_DESIGN

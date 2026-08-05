@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
 
@@ -179,7 +180,7 @@ def estimate_dose_response(
         raise
     except (np.linalg.LinAlgError, FloatingPointError) as exc:
         raise EstimatorFailure(
-            failure_type=refusals.CONVERGENCE_FAILURE,
+            failure_type=Refusal.CONVERGENCE_FAILURE,
             message=f"DML 拟合数值失败：{exc}",
             backend=resolved,
         ) from exc
@@ -311,7 +312,7 @@ def _fit_drlearner_curve(*, y, t, w, points, alpha, random_state):
     K = len(points)
     if K < 2:
         raise EstimatorFailure(
-            failure_type=refusals.OVERLAP_INSUFFICIENT,
+            failure_type=Refusal.OVERLAP_INSUFFICIENT,
             message=f"DRLearner 需要 ≥ 2 采样点，仅有 {K}",
             sampling_points=list(points),
         )
@@ -328,7 +329,7 @@ def _fit_drlearner_curve(*, y, t, w, points, alpha, random_state):
     ]
     if sparse:
         raise EstimatorFailure(
-            failure_type=refusals.OVERLAP_INSUFFICIENT,
+            failure_type=Refusal.OVERLAP_INSUFFICIENT,
             message=(
                 f"DRLearner: 离散化后某些 bin 样本不足 (要求 ≥5)：{sparse}"
             ),
@@ -429,7 +430,7 @@ def _check_outcome_variance(*, y: np.ndarray) -> None:
         or relative_range < _MIN_RELATIVE_OUTCOME_STD
     ):
         raise EstimatorFailure(
-            failure_type=refusals.CONVERGENCE_FAILURE,
+            failure_type=Refusal.CONVERGENCE_FAILURE,
             message=(
                 f"outcome 列方差过低（std={y_std:.2g}, range={y_range:.2g}, "
                 f"relative_std={relative_std:.2g}）；"
@@ -454,7 +455,7 @@ def _check_overlap(*, t: np.ndarray, points: tuple[float, ...]) -> None:
     t_range = float(t.max() - t.min())
     if t_range <= 0:
         raise EstimatorFailure(
-            failure_type=refusals.OVERLAP_INSUFFICIENT,
+            failure_type=Refusal.OVERLAP_INSUFFICIENT,
             message="treatment column 没有变化（max == min），无法估计剂量响应",
             t_range=t_range,
         )
@@ -466,7 +467,7 @@ def _check_overlap(*, t: np.ndarray, points: tuple[float, ...]) -> None:
             sparse_points.append({"x": float(p), "n_within_bandwidth": in_band})
     if sparse_points:
         raise EstimatorFailure(
-            failure_type=refusals.OVERLAP_INSUFFICIENT,
+            failure_type=Refusal.OVERLAP_INSUFFICIENT,
             message=(
                 f"采样点附近样本不足（带宽 ±{bandwidth:.3g}，要求 ≥"
                 f"{min_neighbors}）；这些点估计将不可信：{sparse_points}"

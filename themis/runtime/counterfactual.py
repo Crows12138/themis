@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import networkx as nx
 
 from .. import refusals
+from ..refusals import Refusal
 from ..types import Atom, CounterfactualQuery, Monotonicity, NumericInterval
 from .structural_solver import BidirectedEdgeSet
 
@@ -70,7 +71,7 @@ class CounterfactualBoundsError(ValueError):
     by a reason chosen for a different failure.
     """
 
-    species = refusals.COUNTERFACTUAL_CELL_OUT_OF_SCOPE
+    species = Refusal.COUNTERFACTUAL_CELL_OUT_OF_SCOPE
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
@@ -92,7 +93,7 @@ class InterventionalRiskRequired(CounterfactualBoundsError):
     like an answer is worse than a gap that names its own remedy.
     """
 
-    species = refusals.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE
+    species = Refusal.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE
 
     def __init__(self, message: str, *, needed_x_value: bool) -> None:
         super().__init__(message)
@@ -108,7 +109,7 @@ class CounterfactualInfeasible(CounterfactualBoundsError):
     disagree" instead of "this query is outside the language".
     """
 
-    species = refusals.COUNTERFACTUAL_INPUTS_INFEASIBLE
+    species = Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE
 
 
 def project_twin_network(

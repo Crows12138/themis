@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 
 from themis import refusals
+from themis.refusals import Refusal
 from themis.refusals import EstimatorFailure
 
 import themis
@@ -192,7 +193,7 @@ def test_empty_mediators_raises():
         estimate_mediation_joint(
             df, treatment="x", outcome="y", mediators=(),
         )
-    assert exc.value.failure_type == refusals.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
 
 
 def test_duplicate_mediator_raises():
@@ -201,7 +202,7 @@ def test_duplicate_mediator_raises():
         estimate_mediation_joint(
             df, treatment="x", outcome="y", mediators=("m1", "m1"),
         )
-    assert exc.value.failure_type == refusals.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
 
 
 # =====================================================================

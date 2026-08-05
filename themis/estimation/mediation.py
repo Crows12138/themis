@@ -42,6 +42,7 @@ import pandas as pd
 import statsmodels.api as sm
 
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .four_way import four_way_decomposition
@@ -63,7 +64,7 @@ def _fit_or_refuse(fit, what: str):
         return fit()
     except np.linalg.LinAlgError as exc:
         raise EstimatorFailure(
-            refusals.SINGULAR_DESIGN,
+            Refusal.SINGULAR_DESIGN,
             f"the {what} design is singular on this sample ({exc}); the "
             f"mediation decomposition needs a full-rank fit, and a "
             f"minimum-norm solution would be one choice among many",
@@ -235,7 +236,7 @@ def estimate_mediation(
         method = "mediation_linear_imai"
     else:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"unknown model {model!r}; mediation fits 'logit' or 'linear'",
             model=model,
         )
@@ -600,12 +601,12 @@ def estimate_mediation_joint(
     mediators = tuple(mediators)
     if len(mediators) == 0:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             "estimate_mediation_joint requires at least one mediator",
         )
     if len(set(mediators)) != len(mediators):
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"duplicate mediator in {mediators!r}",
             mediators=list(mediators),
         )
@@ -647,7 +648,7 @@ def estimate_mediation_joint(
         method = "mediation_joint_linear"
     else:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"unknown model {model!r}; joint mediation fits 'logit' or "
             f"'linear'",
             model=model,
@@ -1116,14 +1117,14 @@ def estimate_cde_chain(
 
     if len(mediators) != len(mediator_values):
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"mediators ({len(mediators)}) and mediator_values "
             f"({len(mediator_values)}) length mismatch",
             n_mediators=len(mediators), n_values=len(mediator_values),
         )
     if len(mediators) == 0:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             "estimate_cde_chain requires at least one mediator; use "
             "estimate_backdoor_ate for the no-mediator case",
         )

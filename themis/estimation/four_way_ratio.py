@@ -53,6 +53,7 @@ import statsmodels.api as sm
 
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .four_way import (
     FourWayRatioComponents,
@@ -225,7 +226,7 @@ def estimate_four_way_ratio(
 
     if not _is_binary(df[outcome]):
         raise EstimatorFailure(
-            refusals.OUTCOME_NOT_BINARY,
+            Refusal.OUTCOME_NOT_BINARY,
             f"the excess-relative-risk four-way decomposition needs a binary "
             f"outcome; {outcome!r} is not 0/1. Use the difference-scale "
             f"four_way_decomposition for a continuous outcome.",
@@ -238,7 +239,7 @@ def estimate_four_way_ratio(
     for t in check_levels:
         if len(np.unique(df[t].to_numpy())) < 2:
             raise EstimatorFailure(
-                refusals.OVERLAP_INSUFFICIENT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"{t!r} has a single observed level — no contrast to "
                 f"decompose. Supply data with variation in {t!r}.",
                 treatment=treatment,
@@ -262,7 +263,7 @@ def estimate_four_way_ratio(
         )
     except (ValueError, np.linalg.LinAlgError) as exc:
         raise EstimatorFailure(
-            refusals.MODEL_FIT_FAILED,
+            Refusal.MODEL_FIT_FAILED,
             f"outcome/mediator model fit failed on the full sample: {exc}",
             treatment=treatment,
         )

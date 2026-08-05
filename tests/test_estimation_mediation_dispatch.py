@@ -283,6 +283,7 @@ def test_a_singular_design_reaches_the_caller_with_its_reason():
     The identification verdict still stands; what changes is that the
     envelope now says why no number came with it."""
     from themis import refusals
+    from themis.refusals import Refusal, Kind
 
     rng = np.random.default_rng(0)
     n = 400
@@ -295,5 +296,5 @@ def test_a_singular_design_reaches_the_caller_with_its_reason():
 
     failure = result["estimator_failure"]
     assert failure["estimator"] == "mediation"
-    assert failure["failure_type"] == refusals.SINGULAR_DESIGN
-    assert failure["kind"] == refusals.KIND_DATA
+    assert failure["failure_type"] == Refusal.SINGULAR_DESIGN
+    assert failure["kind"] == Kind.DATA

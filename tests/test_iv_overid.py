@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 
 from themis import refusals
+from themis.refusals import Refusal
 from themis.refusals import EstimatorFailure
 from themis.estimation.iv import (
     HansenJTest,
@@ -172,7 +173,7 @@ def test_requires_two_instruments():
     with pytest.raises(EstimatorFailure) as exc:
         estimate_iv_overid(df, treatment="x", outcome="y",
                            instruments=("z1",), ci_bootstrap=0)
-    assert exc.value.failure_type == refusals.INVALID_INPUT
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
 
 
 def test_collinear_instruments_raise():
@@ -183,7 +184,7 @@ def test_collinear_instruments_raise():
                            instruments=("z1", "z2"), ci_bootstrap=0)
     # Z'Z is what cannot be inverted — the caller falls back to the
     # just-identified path, and a caller with no fallback can say why.
-    assert exc.value.failure_type == refusals.SINGULAR_DESIGN
+    assert exc.value.failure_type == Refusal.SINGULAR_DESIGN
 
 
 def test_moments_round_trip_reproduces_point():

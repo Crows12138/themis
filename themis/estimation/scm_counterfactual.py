@@ -55,6 +55,7 @@ from ..runtime.scm_counterfactual import linear_scm_counterfactual
 from ..types import Atom
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -135,7 +136,7 @@ def _fit_node(
     # not the identified structural coefficient — refuse.
     if np.linalg.matrix_rank(design) < design.shape[1]:
         raise EstimatorFailure(
-            refusals.RANK_DEFICIENT_DESIGN,
+            Refusal.RANK_DEFICIENT_DESIGN,
             f"the OLS design for node {node.predicate!r} on parents "
             f"{[p.predicate for p in parents]} is rank-deficient (collinear "
             f"regressor or constant column); the structural coefficients are "
@@ -189,12 +190,12 @@ def estimate_scm_counterfactual_point(
     """
     if intervention_atom not in graph or target_atom not in graph:
         raise EstimatorFailure(
-            refusals.ATOM_NOT_IN_GRAPH,
+            Refusal.ATOM_NOT_IN_GRAPH,
             "the intervention / target atom is not in the SCM's variable set.",
         )
     if intervention_atom == target_atom:
         raise EstimatorFailure(
-            refusals.INTERVENTION_IS_TARGET,
+            Refusal.INTERVENTION_IS_TARGET,
             "the intervention and target must be distinct variables.",
         )
 
@@ -210,7 +211,7 @@ def estimate_scm_counterfactual_point(
     for v in relevant:
         if v not in observed_unit:
             raise EstimatorFailure(
-                refusals.UNIT_UNDEROBSERVED,
+                Refusal.UNIT_UNDEROBSERVED,
                 f"the unit is missing a factual value for {v.predicate!r}; "
                 f"abduction cannot recover its exogenous term.",
             )

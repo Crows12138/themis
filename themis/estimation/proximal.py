@@ -52,6 +52,7 @@ import pandas as pd
 from ..runtime.proximal_identify import ProximalNotIdentified, identify_proximal
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -124,7 +125,7 @@ def estimate_proximal_ate(
     )
     if isinstance(ident, ProximalNotIdentified):
         raise EstimatorFailure(
-            refusals.NOT_IDENTIFIABLE_PROXIMAL,
+            Refusal.NOT_IDENTIFIABLE_PROXIMAL,
             f"proximal identification refused ({ident.failed_criterion}): "
             f"{ident.reason}",
         )
@@ -148,7 +149,7 @@ def estimate_proximal_ate(
     x_levels = sorted(df[xcol].unique())
     if len(z_levels) != latent_cardinality or len(w_levels) != latent_cardinality:
         raise EstimatorFailure(
-            refusals.PROXY_CARDINALITY_MISMATCH,
+            Refusal.PROXY_CARDINALITY_MISMATCH,
             f"proximal formula (5) needs each proxy to present exactly k="
             f"{latent_cardinality} levels; observed |Z|={len(z_levels)}, "
             f"|W|={len(w_levels)}. Coarsening a finer proxy to k levels is not "
@@ -156,7 +157,7 @@ def estimate_proximal_ate(
         )
     if set(x_levels) - {False, True, 0, 1} or len(x_levels) < 2:
         raise EstimatorFailure(
-            refusals.TREATMENT_NOT_BINARY,
+            Refusal.TREATMENT_NOT_BINARY,
             "the proximal ATE entry takes a binary treatment (two observed "
             f"levels); observed X levels = {refusals.describe(x_levels)}.",
         )
@@ -244,7 +245,7 @@ def _proximal_do_prob(
         n_zx = len(stratum)
         if n_zx == 0:
             raise EstimatorFailure(
-                refusals.INSUFFICIENT_SUPPORT,
+                Refusal.INSUFFICIENT_SUPPORT,
                 f"empty stratum (Z={refusals.describe(zj)}, "
                 f"X={refusals.describe(x)}); proximal formula (5) has no "
                 f"P(W|Z={refusals.describe(zj)},X={refusals.describe(x)}) "
@@ -257,7 +258,7 @@ def _proximal_do_prob(
 
     if not np.isfinite(np.linalg.cond(M)) or np.linalg.cond(M) > _MAX_CONDITION_NUMBER:
         raise EstimatorFailure(
-            refusals.RANK_CONDITION_VIOLATED,
+            Refusal.RANK_CONDITION_VIOLATED,
             "P(W|Z,x) is singular / ill-conditioned: the proxies are not jointly "
             "relevant enough to the unobserved confounder to invert the "
             "measurement channel. The effect is not proximal-recoverable on this "

@@ -22,11 +22,22 @@ does not raise. So the species live here, the exception that carries one
 lives here beside them, and the schema's enum is checked against this
 registry rather than maintained next to it.
 
-A species also declares its ``kind``, because "no number" is not one
+They are an ``enum`` rather than a list of module constants, which closes
+the half a registry cannot reach from inside. Gathering the constants
+into an ``ALL`` set told us this file was complete; nothing told us that
+``refusals.NOT_IDENTIFED`` is not a species, because a module attribute
+is looked up only when its line runs — and the line that names a refusal
+is, by construction, the branch no test took. Membership is structural
+now: the class is the registry, ``Refusal(name)`` is the lookup, a
+misspelt species is a name that does not exist rather than a line waiting
+to raise, and ``@unique`` refuses two names for one reason at import,
+where the enum would otherwise quietly make the second an alias.
+
+A species also declares its :class:`Kind`, because "no number" is not one
 answer but five, and which one it is decides what the reader should do
 next: fix the graph, get more data, wait for us to build it, correct the
 request, or simply retry. The kind rides out on the envelope, stamped
-from here at the exit — a consumer that had to map sixty-four species
+from here at the exit — a consumer that had to map sixty-nine species
 onto those five itself would be keeping a second copy of this file, in
 TypeScript or in a prompt, and it would drift the way the schema's enum
 drifted.
@@ -38,509 +49,524 @@ shares the word and nothing else.
 """
 from __future__ import annotations
 
-
-# --- what kind of refusal it is -----------------------------------------------
-#
-# The distinction a consumer acts on. Declared beside the species by
-# whoever adds it, because only the estimator knows whether it stopped at
-# the graph, at the data, or at the edge of what it implements — and
-# declared there once, so no raise site and no reader has to decide it.
-
-KIND_GRAPH = "graph"
-"""The causal structure does not permit this quantity. More of the same
-data will not help; the graph or the query has to change."""
-
-KIND_DATA = "data"
-"""The structure permits it and this sample cannot support it — an empty
-stratum, a singular design, too few rows. Different data would work."""
-
-KIND_UNBUILT = "unbuilt"
-"""The question is well-posed and identified, and Themis has not built
-this case. An honest gap, not an error."""
-
-KIND_REQUEST = "request"
-"""The request or an input the caller supplied is malformed or
-inconsistent with the data. The caller changes something and retries."""
-
-KIND_BACKEND = "backend"
-"""A numeric routine did not return an answer. No verdict has been passed
-on the question, the graph, or the data — which is also why ``unknown``
-files here: it diagnoses nothing, and a kind that claimed more would be
-claiming it on ``unknown``'s behalf."""
-
-KINDS = (KIND_GRAPH, KIND_DATA, KIND_UNBUILT, KIND_REQUEST, KIND_BACKEND)
+from enum import StrEnum, unique
 
 
-class Refusal(str):
+class _EnvelopeName(StrEnum):
+    """A name that leaves this module on the envelope.
+
+    Both enums below end up as fields of ``estimator_failure``, so both
+    obey the same rule: copies and pickles come back as the plain name.
+    The envelope is data, and whoever copies or serialises it must get
+    back exactly the string that was always there — what the registry
+    records about a name belongs to the registry, not to each place the
+    name appears.
+
+    An enum resists this in three separate places, because its members are
+    singletons and it means to keep them that way: pickle looks the member
+    up again here, and ``copy``/``deepcopy`` hand back ``self`` without
+    consulting pickle at all. Leaving any one alone would make it two
+    rules — the pickled envelope is data, the copied one is not.
+    """
+
+    def __reduce_ex__(self, protocol):
+        return (str, (str(self),))
+
+    def __copy__(self) -> str:  # type: ignore[override]
+        return str(self)
+
+    def __deepcopy__(self, memo) -> str:  # type: ignore[override]
+        return str(self)
+
+    def __repr__(self) -> str:
+        # The name, not the member. An enum's default repr spells out where
+        # the value is declared, which is the one thing a reader who has
+        # been handed the value does not need.
+        return f"{type(self).__name__}({str(self)!r})"
+
+
+@unique
+class Kind(_EnvelopeName):
+    """What the reader should do about a refusal.
+
+    The distinction a consumer acts on. Declared beside the species by
+    whoever adds it, because only the estimator knows whether it stopped
+    at the graph, at the data, or at the edge of what it implements — and
+    declared there once, so no raise site and no reader has to decide it.
+    """
+
+    GRAPH = "graph"
+    """The causal structure does not permit this quantity. More of the same
+    data will not help; the graph or the query has to change."""
+
+    DATA = "data"
+    """The structure permits it and this sample cannot support it — an empty
+    stratum, a singular design, too few rows. Different data would work."""
+
+    UNBUILT = "unbuilt"
+    """The question is well-posed and identified, and Themis has not built
+    this case. An honest gap, not an error."""
+
+    REQUEST = "request"
+    """The request or an input the caller supplied is malformed or
+    inconsistent with the data. The caller changes something and retries."""
+
+    BACKEND = "backend"
+    """A numeric routine did not return an answer. No verdict has been passed
+    on the question, the graph, or the data — which is also why ``unknown``
+    files here: it diagnoses nothing, and a kind that claimed more would be
+    claiming it on ``unknown``'s behalf."""
+
+
+@unique
+class Refusal(_EnvelopeName):
     """One named reason an estimator produced no number.
 
-    A ``str`` subclass, so a species is usable wherever its name was: in
-    the envelope, in a comparison, through ``json.dumps``. What it adds
-    is that the name exists in exactly one place, and that ``kind`` and
+    A ``StrEnum``, so a species is usable wherever its name was: in the
+    envelope, in a comparison, through ``json.dumps``. What it adds is
+    that the name exists in exactly one place, and that ``kind`` and
     ``says`` travel with it instead of living in whichever message
     happened to be raised.
     """
 
-    def __new__(cls, name: str, *, kind: str, says: str) -> "Refusal":
-        if kind not in KINDS:
-            raise ValueError(
-                f"refusal {name!r} declares kind {kind!r}, which is not one "
-                f"of {list(KINDS)}"
-            )
-        species = super().__new__(cls, name)
-        species.kind = kind    # type: ignore[misc]
-        species.says = says    # type: ignore[misc]
+    kind: Kind
+    """Which of the five answers to "what now" this species gives."""
+
+    says: str
+    """What it means, for whoever adds the next species beside it. Not the
+    reader's sentence: that is the occasion's, and it is the ``reason`` on
+    the block."""
+
+    def __new__(cls, value: str, kind: Kind, says: str) -> "Refusal":
+        species = str.__new__(cls, value)
+        species._value_ = value
+        species.kind = kind
+        species.says = says
         return species
 
-    def __repr__(self) -> str:
-        return f"Refusal({str(self)!r})"
+    # --- the graph does not permit it -----------------------------------------
+    NOT_IDENTIFIED = (
+        "not_identified",
+        Kind.GRAPH,
+        "the strategy effect is not identified by the g-formula — "
+        "sequential exchangeability fails, so the number would be biased",
+    )
+    DO_RISK_NOT_IDENTIFIABLE = (
+        "do_risk_not_identifiable",
+        Kind.GRAPH,
+        "P(Y=1|do(X)) is not back-door identifiable from the "
+        "observational distribution on this graph",
+    )
+    INTERVENTIONAL_RISK_NOT_IDENTIFIABLE = (
+        "interventional_risk_not_identifiable",
+        Kind.GRAPH,
+        "the interventional risk a counterfactual cell is computed from "
+        "is not identified here",
+    )
+    NOT_IDENTIFIABLE_BY_GENERAL_ID = (
+        "not_identifiable_by_general_id",
+        Kind.GRAPH,
+        "Shpitser-Pearl ID returned a hedge: the effect is not "
+        "point-identified non-parametrically on this ADMG",
+    )
+    NOT_IDENTIFIABLE_BY_IDC = (
+        "not_identifiable_by_idc",
+        Kind.GRAPH,
+        "the same, for a conditional effect, through IDC",
+    )
+    NOT_IDENTIFIABLE_COUNTERFACTUAL = (
+        "not_identifiable_counterfactual",
+        Kind.GRAPH,
+        "ID*/IDC* found no identifying expression for the counterfactual "
+        "conjunction",
+    )
+    NOT_IDENTIFIABLE_PROXIMAL = (
+        "not_identifiable_proximal",
+        Kind.GRAPH,
+        "the proximal criteria failed: the named proxies do not identify "
+        "the effect through a bridge function",
+    )
+    NOT_RECOVERABLE = (
+        "not_recoverable",
+        Kind.GRAPH,
+        "the estimand is not recoverable under the declared selection or "
+        "missingness mechanism",
+    )
+    IV_MODEL_REFUTED = (
+        "iv_model_refuted",
+        Kind.GRAPH,
+        "the observed P(X,Y|Z) table is incompatible with ANY binary IV "
+        "model — the declared instrument's own assumptions are refuted",
+    )
 
-    def __reduce__(self):
-        """Copies and pickles come back as the plain name.
+    # --- this data cannot support it ------------------------------------------
+    INSUFFICIENT_SUPPORT = (
+        "insufficient_support",
+        Kind.DATA,
+        "a stratum the identifying formula sums over has no rows — a "
+        "positivity violation, so the sum is not the estimand",
+    )
+    OVERLAP_INSUFFICIENT = (
+        "overlap_insufficient",
+        Kind.DATA,
+        "an arm or sampling point carries no contrast to estimate from",
+    )
+    NO_FIRST_STAGE = (
+        "no_first_stage",
+        Kind.DATA,
+        "the instrument does not move the treatment in this sample, so the "
+        "contrast it induces divides by zero instead of scaling into an "
+        "effect — the graph's relevance arrow is not visible in the data",
+    )
+    NO_USABLE_RESAMPLE = (
+        "no_usable_resample",
+        Kind.DATA,
+        "every bootstrap resample was degenerate for this estimator, so the "
+        "interval has no draws to be a quantile of",
+    )
+    SAMPLE_TOO_SMALL = (
+        "sample_too_small",
+        Kind.DATA,
+        "the sample is below the minimum this estimator will speak on",
+    )
+    EMPTY_OUTCOME = (
+        "empty_outcome",
+        Kind.DATA,
+        "the outcome column has no observed values",
+    )
+    ADJUSTMENT_ALL_MISSING = (
+        "adjustment_all_missing",
+        Kind.DATA,
+        "an adjustment column is never observed, so its marginal — which "
+        "the standardisation weights by — cannot be formed",
+    )
+    RANK_DEFICIENT_DESIGN = (
+        "rank_deficient_design",
+        Kind.DATA,
+        "the OLS design for a node is rank-deficient; a minimum-norm fit "
+        "would be a choice among many, not the coefficient",
+    )
+    RANK_CONDITION_VIOLATED = (
+        "rank_condition_violated",
+        Kind.DATA,
+        "P(W|Z,x) is singular or ill-conditioned: the proxies are not "
+        "jointly informative enough to invert",
+    )
+    SINGULAR_DESIGN = (
+        "singular_design",
+        Kind.DATA,
+        "the design covariance is singular — collinear covariates",
+    )
+    SINGULAR_CONFUSION_MATRIX = (
+        "singular_confusion_matrix",
+        Kind.DATA,
+        "the confusion matrix is non-invertible: the measurement carries "
+        "no usable information about the true value",
+    )
+    DEGENERATE_RELIABILITY = (
+        "degenerate_reliability",
+        Kind.DATA,
+        "the corrected design is not positive definite — the declared "
+        "measurement-error variance leaves no signal to correct",
+    )
+    DEGENERATE_RECOVERED_EXPOSURE = (
+        "degenerate_recovered_exposure",
+        Kind.DATA,
+        "a stratum recovers a non-positive true exposure probability, so "
+        "the corrected distribution is not a distribution",
+    )
+    UNIT_UNDEROBSERVED = (
+        "unit_underobserved",
+        Kind.DATA,
+        "the unit is missing a factual value that abduction needs to pin "
+        "its exogenous term",
+    )
+    UNDEFINED_CONDITIONING_EVENT = (
+        "undefined_conditioning_event",
+        Kind.DATA,
+        "the conditioning conjunction has probability zero, so what is "
+        "asked for is undefined rather than unknown",
+    )
+    PROXY_CARDINALITY_MISMATCH = (
+        "proxy_cardinality_mismatch",
+        Kind.DATA,
+        "the proxies do not each present the number of levels the "
+        "matrix-inversion formula needs",
+    )
 
-        The species travels into the envelope, and the envelope is data:
-        whoever copies or serializes it must get back exactly the string
-        that was always there. What ``kind`` and ``says`` record belongs
-        to the registry, not to each place the name appears.
-        """
-        return (str, (str(self),))
+    # --- Themis has not built this case ---------------------------------------
+    INTRACTABLE_ESTIMAND = (
+        "intractable_estimand",
+        Kind.UNBUILT,
+        "the identified estimand has too high a treewidth to evaluate by "
+        "variable elimination — beyond the plug-in's reach, not wrong",
+    )
+    REQUIRES_BACKDOOR_IDENTIFICATION = (
+        "requires_backdoor_identification",
+        Kind.UNBUILT,
+        "this correction composes with back-door standardisation, and the "
+        "query was not back-door identified here",
+    )
+    NOT_A_JOINT_INTERVENTION = (
+        "not_a_joint_intervention",
+        Kind.UNBUILT,
+        "the joint plug-in needs at least two treatments",
+    )
+    TOO_MANY_JOINT_TREATMENTS = (
+        "too_many_joint_treatments",
+        Kind.UNBUILT,
+        "the joint plug-in enumerates a saturated basis over the treatment "
+        "vector, and past a small number of treatments that basis is larger "
+        "than any sample identifies",
+    )
+    CONTINUOUS_MEDIATOR = (
+        "continuous_mediator",
+        Kind.UNBUILT,
+        "the front-door plug-in sums over mediator strata exactly, and this "
+        "mediator is continuous or too fine to enumerate — the continuous "
+        "case needs density estimation, which is deferred",
+    )
+    MEDIATOR_STRATA_INTRACTABLE = (
+        "mediator_strata_intractable",
+        Kind.UNBUILT,
+        "each mediator is discrete but their combinations are too many to "
+        "enumerate — the estimand is well posed, the exact sum over it is "
+        "not affordable",
+    )
+    DIFFERENTIAL_COMBINED_MISCLASSIFICATION_DEFERRED = (
+        "differential_combined_misclassification_deferred",
+        Kind.UNBUILT,
+        "differential misclassification of exposure AND outcome together "
+        "is a different correction than either alone, and is not built",
+    )
+    TREATMENT_NOT_BINARY = (
+        "treatment_not_binary",
+        Kind.UNBUILT,
+        "this estimator is binary-treatment only",
+    )
+    EXPOSURE_NOT_BINARY = (
+        "exposure_not_binary",
+        Kind.UNBUILT,
+        "exposure misclassification correction is binary-exposure only",
+    )
+    EXPOSURE_NOT_CONTINUOUS = (
+        "exposure_not_continuous",
+        Kind.UNBUILT,
+        "regression calibration is for a continuous exposure; a nearly "
+        "discrete one wants the confusion-matrix correction instead",
+    )
+    OUTCOME_NOT_BINARY = (
+        "outcome_not_binary",
+        Kind.UNBUILT,
+        "this estimator is binary-outcome only",
+    )
+    INSTRUMENT_NOT_BINARY = (
+        "instrument_not_binary",
+        Kind.UNBUILT,
+        "the Balke-Pearl bounds enumerate response types over a binary "
+        "instrument; a multi-valued one is a larger enumeration",
+    )
+    OUTCOME_NOT_CONTINUOUS = (
+        "outcome_not_continuous",
+        Kind.UNBUILT,
+        "classical additive outcome error is defined for a continuous "
+        "outcome; a discrete one wants the confusion-matrix correction",
+    )
+    CONTINUOUS_OUTCOME = (
+        "continuous_outcome",
+        Kind.UNBUILT,
+        "confusion-matrix correction needs a discrete outcome with few "
+        "enough states to name",
+    )
+    CONTINUOUS_ADJUSTMENT = (
+        "continuous_adjustment",
+        Kind.UNBUILT,
+        "this correction standardises over discrete strata, and an "
+        "adjustment covariate has too many distinct values",
+    )
+    ADJUSTMENT_NOT_DISCRETE = (
+        "adjustment_not_discrete",
+        Kind.UNBUILT,
+        "the same, for the missingness recovery formula",
+    )
+    CONDITIONING_TOO_FINE = (
+        "conditioning_too_fine",
+        Kind.UNBUILT,
+        "the stratified Wald aggregates over the cells of the conditioning "
+        "set, and this set is finer than the cut it will enumerate",
+    )
+    MISMEASURED_COVARIATE_NOT_CONTINUOUS = (
+        "mismeasured_covariate_not_continuous",
+        Kind.UNBUILT,
+        "a covariate declared mismeasured is not continuous, and only the "
+        "continuous correction is built for covariates",
+    )
+    CAUSE_OR_EFFECT_NOT_BINARY = (
+        "cause_or_effect_not_binary",
+        Kind.UNBUILT,
+        "probabilities of causation are defined here for binary cause and "
+        "effect",
+    )
+    COUNTERFACTUAL_CELL_NOT_BINARY = (
+        "counterfactual_cell_not_binary",
+        Kind.UNBUILT,
+        "the counterfactual cell estimator is boolean-only",
+    )
+    COUNTERFACTUAL_CELL_OUT_OF_SCOPE = (
+        "counterfactual_cell_out_of_scope",
+        Kind.UNBUILT,
+        "the cell asked for is outside the bounds machinery's reach",
+    )
+    COUNTERFACTUAL_CELL_CROSS_VARIABLE = (
+        "counterfactual_cell_cross_variable",
+        Kind.UNBUILT,
+        "the cell estimator intervenes on one variable at two values; a "
+        "cell across two different variables is a different quantity",
+    )
 
+    # --- the request has to change --------------------------------------------
+    INVALID_INPUT = (
+        "invalid_input",
+        Kind.REQUEST,
+        "the estimator rejected its inputs — the catch-all for a "
+        "malformed request whose own message says what was wrong",
+    )
+    INVALID_CONFUSION_MATRIX = (
+        "invalid_confusion_matrix",
+        Kind.REQUEST,
+        "a supplied confusion matrix is not square, not column-stochastic, "
+        "or not finite — it is not a misclassification model",
+    )
+    INVALID_MONOTONICITY = (
+        "invalid_monotonicity",
+        Kind.REQUEST,
+        "a declared monotonicity direction is neither non-decreasing nor "
+        "non-increasing",
+    )
+    STATES_INCOMPLETE = (
+        "states_incomplete",
+        Kind.REQUEST,
+        "values occur in the data that the declared state list omits, so "
+        "the correction would silently drop them",
+    )
+    DIFFERENTIAL_SPEC_INCOMPLETE = (
+        "differential_spec_incomplete",
+        Kind.REQUEST,
+        "a differential-misclassification spec is missing a part it needs "
+        "to say which matrix applies where",
+    )
+    DIFFERENTIAL_LEVELS_MISMATCH = (
+        "differential_levels_mismatch",
+        Kind.REQUEST,
+        "the supplied matrices and the levels they are indexed by do not "
+        "line up one to one",
+    )
+    DIFFERENTIAL_BY_UNKNOWN = (
+        "differential_by_unknown",
+        Kind.REQUEST,
+        "the axis the misclassification is said to differ by is not a "
+        "variable that can carry it",
+    )
+    DIFFERENTIAL_LEVEL_UNCOVERED = (
+        "differential_level_uncovered",
+        Kind.REQUEST,
+        "a level occurring in the data has no confusion matrix supplied "
+        "for it",
+    )
+    MISMEASURED_VARIABLE_NOT_IN_DESIGN = (
+        "mismeasured_variable_not_in_design",
+        Kind.REQUEST,
+        "measurement error was supplied for a variable that is not in the "
+        "design, so there is nothing to correct",
+    )
+    MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT = (
+        "mismeasured_covariate_not_in_adjustment",
+        Kind.REQUEST,
+        "a covariate declared mismeasured is not in the adjustment set "
+        "the effect was identified through",
+    )
+    MISSING_COLUMN = (
+        "missing_column",
+        Kind.REQUEST,
+        "a column the query names is not in the data",
+    )
+    REFERENCE_MISSING_COLUMN = (
+        "reference_missing_column",
+        Kind.REQUEST,
+        "the external unbiased reference sample is missing a column the "
+        "recovery formula reweights by",
+    )
+    TARGET_VALUE_ABSENT = (
+        "target_value_absent",
+        Kind.REQUEST,
+        "the target value the query asks about is not among the declared "
+        "or observed states",
+    )
+    ATOM_NOT_IN_GRAPH = (
+        "atom_not_in_graph",
+        Kind.REQUEST,
+        "an intervention or target atom is not a variable of the SCM",
+    )
+    INTERVENTION_IS_TARGET = (
+        "intervention_is_target",
+        Kind.REQUEST,
+        "the intervention and the target are the same variable, so the "
+        "counterfactual is its own assignment",
+    )
+    NON_POSITIVE_ERROR_VARIANCE = (
+        "non_positive_error_variance",
+        Kind.REQUEST,
+        "a declared measurement-error variance is absent or not positive, "
+        "and the correction it scales is undefined",
+    )
+    OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE = (
+        "outcome_error_exceeds_residual_variance",
+        Kind.REQUEST,
+        "the declared outcome error variance exceeds the residual "
+        "variance in the data — the declaration contradicts what is there",
+    )
+    EXTERNAL_DATA_REQUIRED = (
+        "external_data_required",
+        Kind.REQUEST,
+        "the effect IS recoverable, with unbiased external data the call "
+        "did not supply; the block names what to pass",
+    )
+    COUNTERFACTUAL_INPUTS_INFEASIBLE = (
+        "counterfactual_inputs_infeasible",
+        Kind.REQUEST,
+        "the supplied quantities admit no SCM at all — either the given "
+        "interventional risk contradicts the observational joint through "
+        "consistency, or the declared monotonicity is refuted by them "
+        "jointly. The caller's sources disagree with each other",
+    )
 
-# --- the graph does not permit it ---------------------------------------------
-
-NOT_IDENTIFIED = Refusal(
-    "not_identified",
-    kind=KIND_GRAPH,
-    says="the strategy effect is not identified by the g-formula — "
-         "sequential exchangeability fails, so the number would be biased",
-)
-DO_RISK_NOT_IDENTIFIABLE = Refusal(
-    "do_risk_not_identifiable",
-    kind=KIND_GRAPH,
-    says="P(Y=1|do(X)) is not back-door identifiable from the "
-         "observational distribution on this graph",
-)
-INTERVENTIONAL_RISK_NOT_IDENTIFIABLE = Refusal(
-    "interventional_risk_not_identifiable",
-    kind=KIND_GRAPH,
-    says="the interventional risk a counterfactual cell is computed from "
-         "is not identified here",
-)
-NOT_IDENTIFIABLE_BY_GENERAL_ID = Refusal(
-    "not_identifiable_by_general_id",
-    kind=KIND_GRAPH,
-    says="Shpitser-Pearl ID returned a hedge: the effect is not "
-         "point-identified non-parametrically on this ADMG",
-)
-NOT_IDENTIFIABLE_BY_IDC = Refusal(
-    "not_identifiable_by_idc",
-    kind=KIND_GRAPH,
-    says="the same, for a conditional effect, through IDC",
-)
-NOT_IDENTIFIABLE_COUNTERFACTUAL = Refusal(
-    "not_identifiable_counterfactual",
-    kind=KIND_GRAPH,
-    says="ID*/IDC* found no identifying expression for the counterfactual "
-         "conjunction",
-)
-NOT_IDENTIFIABLE_PROXIMAL = Refusal(
-    "not_identifiable_proximal",
-    kind=KIND_GRAPH,
-    says="the proximal criteria failed: the named proxies do not identify "
-         "the effect through a bridge function",
-)
-NOT_RECOVERABLE = Refusal(
-    "not_recoverable",
-    kind=KIND_GRAPH,
-    says="the estimand is not recoverable under the declared selection or "
-         "missingness mechanism",
-)
-IV_MODEL_REFUTED = Refusal(
-    "iv_model_refuted",
-    kind=KIND_GRAPH,
-    says="the observed P(X,Y|Z) table is incompatible with ANY binary IV "
-         "model — the declared instrument's own assumptions are refuted",
-)
-
-# --- this data cannot support it ----------------------------------------------
-
-INSUFFICIENT_SUPPORT = Refusal(
-    "insufficient_support",
-    kind=KIND_DATA,
-    says="a stratum the identifying formula sums over has no rows — a "
-         "positivity violation, so the sum is not the estimand",
-)
-OVERLAP_INSUFFICIENT = Refusal(
-    "overlap_insufficient",
-    kind=KIND_DATA,
-    says="an arm or sampling point carries no contrast to estimate from",
-)
-NO_FIRST_STAGE = Refusal(
-    "no_first_stage",
-    kind=KIND_DATA,
-    says="the instrument does not move the treatment in this sample, so the "
-         "contrast it induces divides by zero instead of scaling into an "
-         "effect — the graph's relevance arrow is not visible in the data",
-)
-NO_USABLE_RESAMPLE = Refusal(
-    "no_usable_resample",
-    kind=KIND_DATA,
-    says="every bootstrap resample was degenerate for this estimator, so the "
-         "interval has no draws to be a quantile of",
-)
-SAMPLE_TOO_SMALL = Refusal(
-    "sample_too_small",
-    kind=KIND_DATA,
-    says="the sample is below the minimum this estimator will speak on",
-)
-EMPTY_OUTCOME = Refusal(
-    "empty_outcome",
-    kind=KIND_DATA,
-    says="the outcome column has no observed values",
-)
-ADJUSTMENT_ALL_MISSING = Refusal(
-    "adjustment_all_missing",
-    kind=KIND_DATA,
-    says="an adjustment column is never observed, so its marginal — which "
-         "the standardisation weights by — cannot be formed",
-)
-RANK_DEFICIENT_DESIGN = Refusal(
-    "rank_deficient_design",
-    kind=KIND_DATA,
-    says="the OLS design for a node is rank-deficient; a minimum-norm fit "
-         "would be a choice among many, not the coefficient",
-)
-RANK_CONDITION_VIOLATED = Refusal(
-    "rank_condition_violated",
-    kind=KIND_DATA,
-    says="P(W|Z,x) is singular or ill-conditioned: the proxies are not "
-         "jointly informative enough to invert",
-)
-SINGULAR_DESIGN = Refusal(
-    "singular_design",
-    kind=KIND_DATA,
-    says="the design covariance is singular — collinear covariates",
-)
-SINGULAR_CONFUSION_MATRIX = Refusal(
-    "singular_confusion_matrix",
-    kind=KIND_DATA,
-    says="the confusion matrix is non-invertible: the measurement carries "
-         "no usable information about the true value",
-)
-DEGENERATE_RELIABILITY = Refusal(
-    "degenerate_reliability",
-    kind=KIND_DATA,
-    says="the corrected design is not positive definite — the declared "
-         "measurement-error variance leaves no signal to correct",
-)
-DEGENERATE_RECOVERED_EXPOSURE = Refusal(
-    "degenerate_recovered_exposure",
-    kind=KIND_DATA,
-    says="a stratum recovers a non-positive true exposure probability, so "
-         "the corrected distribution is not a distribution",
-)
-UNIT_UNDEROBSERVED = Refusal(
-    "unit_underobserved",
-    kind=KIND_DATA,
-    says="the unit is missing a factual value that abduction needs to pin "
-         "its exogenous term",
-)
-UNDEFINED_CONDITIONING_EVENT = Refusal(
-    "undefined_conditioning_event",
-    kind=KIND_DATA,
-    says="the conditioning conjunction has probability zero, so what is "
-         "asked for is undefined rather than unknown",
-)
-PROXY_CARDINALITY_MISMATCH = Refusal(
-    "proxy_cardinality_mismatch",
-    kind=KIND_DATA,
-    says="the proxies do not each present the number of levels the "
-         "matrix-inversion formula needs",
-)
-
-# --- Themis has not built this case -------------------------------------------
-
-INTRACTABLE_ESTIMAND = Refusal(
-    "intractable_estimand",
-    kind=KIND_UNBUILT,
-    says="the identified estimand has too high a treewidth to evaluate by "
-         "variable elimination — beyond the plug-in's reach, not wrong",
-)
-REQUIRES_BACKDOOR_IDENTIFICATION = Refusal(
-    "requires_backdoor_identification",
-    kind=KIND_UNBUILT,
-    says="this correction composes with back-door standardisation, and the "
-         "query was not back-door identified here",
-)
-NOT_A_JOINT_INTERVENTION = Refusal(
-    "not_a_joint_intervention",
-    kind=KIND_UNBUILT,
-    says="the joint plug-in needs at least two treatments",
-)
-TOO_MANY_JOINT_TREATMENTS = Refusal(
-    "too_many_joint_treatments",
-    kind=KIND_UNBUILT,
-    says="the joint plug-in enumerates a saturated basis over the treatment "
-         "vector, and past a small number of treatments that basis is larger "
-         "than any sample identifies",
-)
-CONTINUOUS_MEDIATOR = Refusal(
-    "continuous_mediator",
-    kind=KIND_UNBUILT,
-    says="the front-door plug-in sums over mediator strata exactly, and this "
-         "mediator is continuous or too fine to enumerate — the continuous "
-         "case needs density estimation, which is deferred",
-)
-MEDIATOR_STRATA_INTRACTABLE = Refusal(
-    "mediator_strata_intractable",
-    kind=KIND_UNBUILT,
-    says="each mediator is discrete but their combinations are too many to "
-         "enumerate — the estimand is well posed, the exact sum over it is "
-         "not affordable",
-)
-DIFFERENTIAL_COMBINED_MISCLASSIFICATION_DEFERRED = Refusal(
-    "differential_combined_misclassification_deferred",
-    kind=KIND_UNBUILT,
-    says="differential misclassification of exposure AND outcome together "
-         "is a different correction than either alone, and is not built",
-)
-TREATMENT_NOT_BINARY = Refusal(
-    "treatment_not_binary",
-    kind=KIND_UNBUILT,
-    says="this estimator is binary-treatment only",
-)
-EXPOSURE_NOT_BINARY = Refusal(
-    "exposure_not_binary",
-    kind=KIND_UNBUILT,
-    says="exposure misclassification correction is binary-exposure only",
-)
-EXPOSURE_NOT_CONTINUOUS = Refusal(
-    "exposure_not_continuous",
-    kind=KIND_UNBUILT,
-    says="regression calibration is for a continuous exposure; a nearly "
-         "discrete one wants the confusion-matrix correction instead",
-)
-OUTCOME_NOT_BINARY = Refusal(
-    "outcome_not_binary",
-    kind=KIND_UNBUILT,
-    says="this estimator is binary-outcome only",
-)
-INSTRUMENT_NOT_BINARY = Refusal(
-    "instrument_not_binary",
-    kind=KIND_UNBUILT,
-    says="the Balke-Pearl bounds enumerate response types over a binary "
-         "instrument; a multi-valued one is a larger enumeration",
-)
-OUTCOME_NOT_CONTINUOUS = Refusal(
-    "outcome_not_continuous",
-    kind=KIND_UNBUILT,
-    says="classical additive outcome error is defined for a continuous "
-         "outcome; a discrete one wants the confusion-matrix correction",
-)
-CONTINUOUS_OUTCOME = Refusal(
-    "continuous_outcome",
-    kind=KIND_UNBUILT,
-    says="confusion-matrix correction needs a discrete outcome with few "
-         "enough states to name",
-)
-CONTINUOUS_ADJUSTMENT = Refusal(
-    "continuous_adjustment",
-    kind=KIND_UNBUILT,
-    says="this correction standardises over discrete strata, and an "
-         "adjustment covariate has too many distinct values",
-)
-ADJUSTMENT_NOT_DISCRETE = Refusal(
-    "adjustment_not_discrete",
-    kind=KIND_UNBUILT,
-    says="the same, for the missingness recovery formula",
-)
-CONDITIONING_TOO_FINE = Refusal(
-    "conditioning_too_fine",
-    kind=KIND_UNBUILT,
-    says="the stratified Wald aggregates over the cells of the conditioning "
-         "set, and this set is finer than the cut it will enumerate",
-)
-MISMEASURED_COVARIATE_NOT_CONTINUOUS = Refusal(
-    "mismeasured_covariate_not_continuous",
-    kind=KIND_UNBUILT,
-    says="a covariate declared mismeasured is not continuous, and only the "
-         "continuous correction is built for covariates",
-)
-CAUSE_OR_EFFECT_NOT_BINARY = Refusal(
-    "cause_or_effect_not_binary",
-    kind=KIND_UNBUILT,
-    says="probabilities of causation are defined here for binary cause and "
-         "effect",
-)
-COUNTERFACTUAL_CELL_NOT_BINARY = Refusal(
-    "counterfactual_cell_not_binary",
-    kind=KIND_UNBUILT,
-    says="the counterfactual cell estimator is boolean-only",
-)
-COUNTERFACTUAL_CELL_OUT_OF_SCOPE = Refusal(
-    "counterfactual_cell_out_of_scope",
-    kind=KIND_UNBUILT,
-    says="the cell asked for is outside the bounds machinery's reach",
-)
-COUNTERFACTUAL_CELL_CROSS_VARIABLE = Refusal(
-    "counterfactual_cell_cross_variable",
-    kind=KIND_UNBUILT,
-    says="the cell estimator intervenes on one variable at two values; a "
-         "cell across two different variables is a different quantity",
-)
-
-# --- the request has to change ------------------------------------------------
-
-INVALID_INPUT = Refusal(
-    "invalid_input",
-    kind=KIND_REQUEST,
-    says="the estimator rejected its inputs — the catch-all for a "
-         "malformed request whose own message says what was wrong",
-)
-INVALID_CONFUSION_MATRIX = Refusal(
-    "invalid_confusion_matrix",
-    kind=KIND_REQUEST,
-    says="a supplied confusion matrix is not square, not column-stochastic, "
-         "or not finite — it is not a misclassification model",
-)
-INVALID_MONOTONICITY = Refusal(
-    "invalid_monotonicity",
-    kind=KIND_REQUEST,
-    says="a declared monotonicity direction is neither non-decreasing nor "
-         "non-increasing",
-)
-STATES_INCOMPLETE = Refusal(
-    "states_incomplete",
-    kind=KIND_REQUEST,
-    says="values occur in the data that the declared state list omits, so "
-         "the correction would silently drop them",
-)
-DIFFERENTIAL_SPEC_INCOMPLETE = Refusal(
-    "differential_spec_incomplete",
-    kind=KIND_REQUEST,
-    says="a differential-misclassification spec is missing a part it needs "
-         "to say which matrix applies where",
-)
-DIFFERENTIAL_LEVELS_MISMATCH = Refusal(
-    "differential_levels_mismatch",
-    kind=KIND_REQUEST,
-    says="the supplied matrices and the levels they are indexed by do not "
-         "line up one to one",
-)
-DIFFERENTIAL_BY_UNKNOWN = Refusal(
-    "differential_by_unknown",
-    kind=KIND_REQUEST,
-    says="the axis the misclassification is said to differ by is not a "
-         "variable that can carry it",
-)
-DIFFERENTIAL_LEVEL_UNCOVERED = Refusal(
-    "differential_level_uncovered",
-    kind=KIND_REQUEST,
-    says="a level occurring in the data has no confusion matrix supplied "
-         "for it",
-)
-MISMEASURED_VARIABLE_NOT_IN_DESIGN = Refusal(
-    "mismeasured_variable_not_in_design",
-    kind=KIND_REQUEST,
-    says="measurement error was supplied for a variable that is not in the "
-         "design, so there is nothing to correct",
-)
-MISMEASURED_COVARIATE_NOT_IN_ADJUSTMENT = Refusal(
-    "mismeasured_covariate_not_in_adjustment",
-    kind=KIND_REQUEST,
-    says="a covariate declared mismeasured is not in the adjustment set "
-         "the effect was identified through",
-)
-MISSING_COLUMN = Refusal(
-    "missing_column",
-    kind=KIND_REQUEST,
-    says="a column the query names is not in the data",
-)
-REFERENCE_MISSING_COLUMN = Refusal(
-    "reference_missing_column",
-    kind=KIND_REQUEST,
-    says="the external unbiased reference sample is missing a column the "
-         "recovery formula reweights by",
-)
-TARGET_VALUE_ABSENT = Refusal(
-    "target_value_absent",
-    kind=KIND_REQUEST,
-    says="the target value the query asks about is not among the declared "
-         "or observed states",
-)
-ATOM_NOT_IN_GRAPH = Refusal(
-    "atom_not_in_graph",
-    kind=KIND_REQUEST,
-    says="an intervention or target atom is not a variable of the SCM",
-)
-INTERVENTION_IS_TARGET = Refusal(
-    "intervention_is_target",
-    kind=KIND_REQUEST,
-    says="the intervention and the target are the same variable, so the "
-         "counterfactual is its own assignment",
-)
-NON_POSITIVE_ERROR_VARIANCE = Refusal(
-    "non_positive_error_variance",
-    kind=KIND_REQUEST,
-    says="a declared measurement-error variance is absent or not positive, "
-         "and the correction it scales is undefined",
-)
-OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE = Refusal(
-    "outcome_error_exceeds_residual_variance",
-    kind=KIND_REQUEST,
-    says="the declared outcome error variance exceeds the residual "
-         "variance in the data — the declaration contradicts what is there",
-)
-EXTERNAL_DATA_REQUIRED = Refusal(
-    "external_data_required",
-    kind=KIND_REQUEST,
-    says="the effect IS recoverable, with unbiased external data the call "
-         "did not supply; the block names what to pass",
-)
-COUNTERFACTUAL_INPUTS_INFEASIBLE = Refusal(
-    "counterfactual_inputs_infeasible",
-    kind=KIND_REQUEST,
-    says="the supplied quantities admit no SCM at all — either the given "
-         "interventional risk contradicts the observational joint through "
-         "consistency, or the declared monotonicity is refuted by them "
-         "jointly. The caller's sources disagree with each other",
-)
-
-# --- a backend gave up --------------------------------------------------------
-
-CONVERGENCE_FAILURE = Refusal(
-    "convergence_failure",
-    kind=KIND_BACKEND,
-    says="the underlying regressor raised rather than converged",
-)
-MODEL_FIT_FAILED = Refusal(
-    "model_fit_failed",
-    kind=KIND_BACKEND,
-    says="the same, for an outcome or mediator model on the full sample",
-)
-UNKNOWN = Refusal(
-    "unknown",
-    kind=KIND_BACKEND,
-    says="the estimator failed in a way nothing has classified — the only "
-         "species that admits the block does not know what it is saying",
-)
+    # --- a backend gave up ----------------------------------------------------
+    CONVERGENCE_FAILURE = (
+        "convergence_failure",
+        Kind.BACKEND,
+        "the underlying regressor raised rather than converged",
+    )
+    MODEL_FIT_FAILED = (
+        "model_fit_failed",
+        Kind.BACKEND,
+        "the same, for an outcome or mediator model on the full sample",
+    )
+    UNKNOWN = (
+        "unknown",
+        Kind.BACKEND,
+        "the estimator failed in a way nothing has classified — the only "
+        "species that admits the block does not know what it is saying",
+    )
 
 
-ALL: frozenset[Refusal] = frozenset(
-    value for value in tuple(globals().values()) if isinstance(value, Refusal)
-)
-"""Every species of refusal an estimator may emit.
+BY_NAME: dict[str, Refusal] = {str(species): species for species in Refusal}
+"""The species going by that envelope name, or nothing.
 
-Collected from this module rather than listed again below it: a species
-declared above and forgotten here would be exactly the drift this module
-exists to end.
+``Refusal(name)`` is the same lookup and is the one to use where an
+unknown name is an error. This is for the places where it is a question:
+what we read is deliberately wider than what we emit, so "is this a
+species we know" has to be answerable with no.
 """
-
-BY_NAME: dict[str, Refusal] = {str(species): species for species in ALL}
-
-BY_KIND: dict[str, tuple[Refusal, ...]] = {
-    kind: tuple(sorted(s for s in ALL if s.kind == kind)) for kind in KINDS
-}
 
 
 def stamp(result: dict) -> None:
@@ -551,7 +577,7 @@ def stamp(result: dict) -> None:
     have supplied. None of them knows anything about the *kind* that the
     species does not already say, so none of them writes it: the
     registry stamps it here, at the exit, and a consumer reading the
-    envelope branches on five values instead of on sixty-four.
+    envelope branches on five values instead of on sixty-nine.
 
     That is why the same call also refuses an unregistered species.
     Constructing :class:`EstimatorFailure` checks at the earliest moment
@@ -650,8 +676,8 @@ class EstimatorFailure(RuntimeError):
     Dispatch turns this into a structured ``estimator_failure`` block
     carrying the species, so a caller branches on the cause instead of
     parsing the message. The species must be one this module declares:
-    checking here catches a misspelling at the moment the refusal is
-    born, which is earlier and more precise than catching it at the exit.
+    checking here catches at run time what the annotation catches when
+    the file is read, for the callers that are not read.
 
     ``details`` is free-form and goes into the block as-is — the numbers
     behind the refusal (which stratum, how many rows, what determinant),
@@ -665,13 +691,13 @@ class EstimatorFailure(RuntimeError):
     into no answer at all.
     """
 
-    def __init__(self, failure_type: str, message: str, **details):
+    def __init__(self, failure_type: Refusal, message: str, **details):
         super().__init__(_capped(message))
         self.failure_type = _registered(failure_type)
         self.details = details
 
 
-def _registered(failure_type) -> "Refusal":
+def _registered(failure_type) -> Refusal:
     """The species by that name, or a refusal to proceed without one."""
     species = BY_NAME.get(str(failure_type))
     if species is None:

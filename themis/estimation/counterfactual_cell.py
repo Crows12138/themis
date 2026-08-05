@@ -71,6 +71,7 @@ from .binary_do_risk import (
 )
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .general_id import (
     data_domains,
@@ -196,7 +197,7 @@ def estimate_counterfactual_cell(
     y_atom = query.counterfactual_target.atom
     if query.counterfactual_intervention.atom != x_atom:
         raise EstimatorFailure(
-            refusals.COUNTERFACTUAL_CELL_CROSS_VARIABLE,
+            Refusal.COUNTERFACTUAL_CELL_CROSS_VARIABLE,
             "the counterfactual cell estimator intervenes on the SAME variable "
             f"it conditions on; got do({query.counterfactual_intervention.atom.predicate}) "
             f"with X={x_atom.predicate} observed",
@@ -213,7 +214,7 @@ def estimate_counterfactual_cell(
     ):
         if value is not None and not isinstance(value, bool):
             raise EstimatorFailure(
-                refusals.COUNTERFACTUAL_CELL_NOT_BINARY,
+                Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
                 f"the counterfactual cell estimator is boolean-only; "
                 f"{label}={value!r}",
             )

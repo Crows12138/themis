@@ -262,7 +262,8 @@ class UnknownQueryKind(KeyError):
 def reading_of(kind: str | None) -> Question:
     """How to read a structural verdict on a result of this query kind."""
     try:
-        return BY_KIND[kind]
+        return BY_KIND[kind]  # type: ignore[index]  # None must miss too,
+        # and be refused by the same sentence as an unknown kind
     except KeyError:
         raise UnknownQueryKind(
             f"no reading declared for query_kind {kind!r}; add it to "

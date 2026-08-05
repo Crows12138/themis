@@ -59,6 +59,7 @@ import pandas as pd
 
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -167,7 +168,7 @@ def estimate_selection_recovery(
     missing = ref_required - set(reference.columns)
     if missing:
         raise EstimatorFailure(
-            refusals.REFERENCE_MISSING_COLUMN,
+            Refusal.REFERENCE_MISSING_COLUMN,
             f"the unbiased reference sample is missing column(s) "
             f"{refusals.describe(sorted(missing))} needed for the adjustment weights "
             f"P(z⁺)/P(z⁻|x,z⁺).",
@@ -268,7 +269,7 @@ def _formula(
             risk[key] = (ysum, n)
         if n == 0:
             raise EstimatorFailure(
-                refusals.INSUFFICIENT_SUPPORT,
+                Refusal.INSUFFICIENT_SUPPORT,
                 f"biased stratum X={arm}, z⁺={zp_key}, z⁻={zm_key} has no rows "
                 f"(positivity violation); E[Y|x,z,S] is not estimable.",
             )
@@ -338,7 +339,7 @@ def _conditional(
     denom = int(mask.sum())
     if denom == 0:
         raise EstimatorFailure(
-            refusals.INSUFFICIENT_SUPPORT,
+            Refusal.INSUFFICIENT_SUPPORT,
             f"reference cell X={arm}, z⁺={zp_key} has no rows; P(z⁻|x,z⁺) is "
             f"not estimable (positivity violation in the unbiased sample).",
         )
@@ -443,7 +444,7 @@ def _require_binary(col: pd.Series, name: str) -> None:
     vals = set(pd.unique(col.dropna()))
     if not vals <= {0, 1, True, False, 0.0, 1.0}:
         raise EstimatorFailure(
-            refusals.TREATMENT_NOT_BINARY,
+            Refusal.TREATMENT_NOT_BINARY,
             f"selection-backdoor recovery needs a binary treatment {name!r}; "
             f"got values {refusals.describe(sorted(vals, key=str))} (multi-value X is deferred).",
         )
@@ -453,7 +454,7 @@ def _require_discrete(col: pd.Series, name: str) -> None:
     k = col.nunique(dropna=True)
     if k > _MAX_LEVELS:
         raise EstimatorFailure(
-            refusals.CONTINUOUS_ADJUSTMENT,
+            Refusal.CONTINUOUS_ADJUSTMENT,
             f"adjustment covariate {name!r} has {k} distinct values (> "
             f"{_MAX_LEVELS}); the saturated stratified formula needs a discrete "
             f"covariate.",

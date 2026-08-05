@@ -69,6 +69,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -189,7 +190,7 @@ def estimate_longitudinal_gformula(
         levels = df[a].dropna().unique()
         if len(levels) < 2:
             raise EstimatorFailure(
-                refusals.OVERLAP_INSUFFICIENT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"treatment {a!r} has a single observed level "
                 f"({levels.tolist()}) — positivity is maximally violated "
                 f"and the g-formula would extrapolate the absent arm. "
@@ -376,7 +377,7 @@ def estimate_longitudinal_ipw_msm(
         levels = df[a].dropna().unique()
         if len(levels) < 2:
             raise EstimatorFailure(
-                refusals.OVERLAP_INSUFFICIENT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"treatment {a!r} has a single observed level "
                 f"({levels.tolist()}) — positivity is maximally violated and "
                 f"the IP weight for the absent arm is undefined. Supply data "

@@ -25,40 +25,64 @@ optional but lets the report render the causal model and edge provenance.
 """
 from __future__ import annotations
 
+from typing import assert_never
+
 from .. import answers, blocks, questions, refusals
+from ..refusals import Kind
 from . import formula_text
 
-_KIND_ZH = {
-    refusals.KIND_GRAPH: (
-        "**没有给出数值 —— 这是关于因果图的结论**：{reason}"
-        "再多同样的数据也不会改变它；要改变的是图或问题本身。"
-    ),
-    refusals.KIND_DATA: (
-        "**没有给出数值 —— 这批数据支撑不住**：{reason}"
-        "结构上是可识别的，缺的是数据本身能提供的支持。"
-    ),
-    refusals.KIND_UNBUILT: (
-        "**没有给出数值 —— Themis 还没有建这个情形**：{reason}"
-        "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。"
-    ),
-    refusals.KIND_REQUEST: (
-        "**没有给出数值 —— 需要你改一处输入**：{reason}"
-        "改掉之后重跑即可。"
-    ),
-    refusals.KIND_BACKEND: (
-        "**没有算出数值 —— 数值例程没有返回结果**：{reason}"
-        "这没有对问题或数据设计做出任何判定。"
-    ),
-}
-"""What each kind of refusal reads as, in the language of the report.
 
-The registry owns which kinds exist and which species falls under each;
-this owns the words, the way ``assumption_glossary`` owns the words for
-an assumption id. A test holds these keys equal to ``refusals.KINDS`` —
-a sixth kind with no sentence here would otherwise fall through to the
-generic "no answer" line, which is how a refusal came to be rendered as
-"当前没有数据" on results that had data.
-"""
+def _kind_zh(kind) -> str | None:
+    """What each kind of refusal reads as, in the language of the report.
+
+    The registry owns which kinds exist and which species falls under
+    each; this owns the words, the way ``assumption_glossary`` owns the
+    words for an assumption id.
+
+    A ``match`` rather than a table keyed by kind, because what has to be
+    guaranteed is that the reader's half of the taxonomy is complete, and
+    that is a claim about branches. ``assert_never`` makes a sixth kind a
+    type error in this file; a table could only be compared against the
+    registry by a test, after the fact. Both are still here — the test
+    below asks the other question, whether each branch actually says
+    something, which no checker can see.
+
+    The argument is whatever the envelope carried and not a :class:`Kind`,
+    for the reason the registry reads wider than it writes: an envelope
+    from another kernel may name a kind this one has never heard of, and
+    that one gets no sentence rather than the wrong one.
+    """
+    try:
+        known = Kind(kind)
+    except ValueError:
+        return None
+    match known:
+        case Kind.GRAPH:
+            return (
+                "**没有给出数值 —— 这是关于因果图的结论**：{reason}"
+                "再多同样的数据也不会改变它；要改变的是图或问题本身。"
+            )
+        case Kind.DATA:
+            return (
+                "**没有给出数值 —— 这批数据支撑不住**：{reason}"
+                "结构上是可识别的，缺的是数据本身能提供的支持。"
+            )
+        case Kind.UNBUILT:
+            return (
+                "**没有给出数值 —— Themis 还没有建这个情形**：{reason}"
+                "问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。"
+            )
+        case Kind.REQUEST:
+            return (
+                "**没有给出数值 —— 需要你改一处输入**：{reason}"
+                "改掉之后重跑即可。"
+            )
+        case Kind.BACKEND:
+            return (
+                "**没有算出数值 —— 数值例程没有返回结果**：{reason}"
+                "这没有对问题或数据设计做出任何判定。"
+            )
+    assert_never(known)
 
 _STATUS_BADGE = {
     "structurally_solved": "✅ 已解决（结构层）",
@@ -173,7 +197,8 @@ def _find_query(program: dict | None, query_id: str | None = None) -> dict | Non
     return None
 
 
-def _atom_pred(atom_dict: dict) -> str:
+def _atom_pred(atom_dict: dict | None) -> str:
+    # The ``or {}`` was always here; the signature is what did not say so.
     return (atom_dict or {}).get("predicate", "?")
 
 
@@ -386,7 +411,7 @@ def _render_answer(result: dict) -> str:
         reason = (failure.get("reason") or "").strip().rstrip(".")
         if reason and reason[-1] not in "。！？!?":
             reason += "。"
-        template = _KIND_ZH.get(failure.get("kind"))
+        template = _kind_zh(failure.get("kind"))
         line = (
             template.format(reason=reason) if template
             else f"**没有给出数值**：{reason}"
@@ -936,8 +961,8 @@ _MECHANISM_ZH = {
 
 
 def _route_missing_data_recovery(block: dict, result: dict) -> str:
-    mech = block.get("mechanism")
-    lines = [f"- **缺失数据**：机制 {_MECHANISM_ZH.get(mech, mech or '?')}"]
+    mech = block.get("mechanism") or "?"
+    lines = [f"- **缺失数据**：机制 {_MECHANISM_ZH.get(mech, mech)}"]
     partial = block.get("partially_observed")
     if partial:
         lines.append(f"  - 部分观测的变量：{_vars(partial)}")

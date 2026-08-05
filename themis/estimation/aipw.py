@@ -94,6 +94,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -377,7 +378,7 @@ def _prepare(
     observed_levels = df[treatment].dropna().unique()
     if len(observed_levels) < 2:
         raise EstimatorFailure(
-            refusals.OVERLAP_INSUFFICIENT,
+            Refusal.OVERLAP_INSUFFICIENT,
             f"treatment {treatment!r} has a single observed level "
             f"({observed_levels.tolist()}) in the data — positivity is "
             f"maximally violated and there is no treatment contrast to "

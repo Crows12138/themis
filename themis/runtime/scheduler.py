@@ -43,6 +43,7 @@ from typing import NamedTuple
 import networkx as nx
 
 from .. import blocks, refusals, routing
+from ..refusals import Refusal
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
 from ..types import (
@@ -2513,7 +2514,7 @@ def _dispatch_causation(
                     # The same species the data end raises for the same
                     # reason (estimation.binary_do_risk): one quantity,
                     # one refusal, whichever layer reached it first.
-                    failure_type=refusals.CAUSE_OR_EFFECT_NOT_BINARY,
+                    failure_type=Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
                     reason=(
                         f"probabilities of causation require a binary {role} "
                         f"({atom.predicate}); got domain "

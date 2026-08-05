@@ -12,6 +12,7 @@ import pytest
 
 import themis
 from themis import refusals
+from themis.refusals import Refusal, Kind
 
 
 def _atom(p):
@@ -140,8 +141,8 @@ def test_a_continuous_mediator_is_refused_out_loud():
 
     failure = result["estimator_failure"]
     assert failure["estimator"] == "frontdoor"
-    assert failure["failure_type"] == refusals.CONTINUOUS_MEDIATOR
-    assert failure["kind"] == refusals.KIND_UNBUILT
+    assert failure["failure_type"] == Refusal.CONTINUOUS_MEDIATOR
+    assert failure["kind"] == Kind.UNBUILT
     assert failure["details"]["mediator"] == "m"
 
 

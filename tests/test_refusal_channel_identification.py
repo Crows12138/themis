@@ -27,6 +27,7 @@ import pytest
 
 import themis
 from themis import blocks, refusals
+from themis.refusals import Refusal
 from themis.output.analysis_report import build_analysis_report
 from themis.runtime import counterfactual as cf
 from themis.types import AnswerTier, QueryResult
@@ -73,7 +74,7 @@ NON_BINARY_CAUSATION = _program(
     cf.CounterfactualInfeasible,
 ])
 def test_every_solver_failure_names_a_registered_species(exc_type):
-    assert exc_type.species in refusals.ALL
+    assert isinstance(exc_type.species, Refusal)
 
 
 def test_the_three_failures_are_three_species():
@@ -105,7 +106,7 @@ def test_the_result_type_carries_the_field_the_schema_declares():
 def test_a_refusal_block_from_identification_has_the_estimator_shape():
     b = refusals.block(
         estimator="causation_identification",
-        failure_type=refusals.CAUSE_OR_EFFECT_NOT_BINARY,
+        failure_type=Refusal.CAUSE_OR_EFFECT_NOT_BINARY,
         reason="x is not binary",
     )
     assert set(b) == {"estimator", "failure_type", "reason"}
@@ -131,7 +132,7 @@ def test_a_refusal_from_identification_is_stamped_with_its_kind():
 def test_identification_reuses_the_species_the_data_end_raises():
     result = themis.run(NON_BINARY_CAUSATION)["results"][0]
     assert (result["estimator_failure"]["failure_type"]
-            == refusals.CAUSE_OR_EFFECT_NOT_BINARY)
+            == Refusal.CAUSE_OR_EFFECT_NOT_BINARY)
 
 
 def test_the_two_prose_blocks_are_gone():

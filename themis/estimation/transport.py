@@ -51,6 +51,7 @@ import pandas as pd
 from .contract import validate_data
 from .resample import cluster_labels, resample_indices
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 
 
@@ -107,7 +108,7 @@ def _canonical_target_marginal(
             or not raw_cells
         ):
             raise EstimatorFailure(
-                refusals.INVALID_INPUT,
+                Refusal.INVALID_INPUT,
                 "multi-Z target_marginal must be {'predicates': [str, ...], "
                 "'cells': [{'values': {pred: value}, 'probability': p}, ...]}",
             )
@@ -122,13 +123,13 @@ def _canonical_target_marginal(
                 or isinstance(prob, bool)
             ):
                 raise EstimatorFailure(
-                    refusals.INVALID_INPUT,
+                    Refusal.INVALID_INPUT,
                     "each target_marginal cell must be {'values': "
                     "{pred: value}, 'probability': number}",
                 )
             if set(values.keys()) != set(z_preds):
                 raise EstimatorFailure(
-                    refusals.INVALID_INPUT,
+                    Refusal.INVALID_INPUT,
                     f"cell values keys {refusals.describe(sorted(values.keys()))} must equal "
                     f"the declared predicates {refusals.describe(sorted(z_preds))}",
                 )
@@ -139,7 +140,7 @@ def _canonical_target_marginal(
     z_marg = target_marginal.get("marginal")
     if not isinstance(z_pred, str) or not isinstance(z_marg, dict):
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             "target_marginal must be {'predicate': str, "
             "'marginal': {z_value: probability}} or the multi-Z "
             "{'predicates': [...], 'cells': [...]} form",
@@ -190,14 +191,14 @@ def estimate_transport(
     """
     if not adjustment:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             "estimate_transport requires >=1 adjustment variable",
         )
 
     z_preds, cells = _canonical_target_marginal(target_marginal, adjustment)
     if set(z_preds) != set(adjustment):
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"target_marginal variables {refusals.describe(sorted(z_preds))} doesn't match "
             f"the adjustment set {refusals.describe(sorted(adjustment))}",
         )
@@ -205,7 +206,7 @@ def estimate_transport(
     total_p = sum(p for _, p in cells)
     if abs(total_p - 1.0) > 1e-6:
         raise EstimatorFailure(
-            refusals.INVALID_INPUT,
+            Refusal.INVALID_INPUT,
             f"target_marginal probabilities must sum to 1; got {total_p}",
         )
 
@@ -227,7 +228,7 @@ def estimate_transport(
             sub = sub[sub[pred] == value]
         if len(sub) == 0:
             raise EstimatorFailure(
-                refusals.OVERLAP_INSUFFICIENT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"source data has no observations with stratum {assignment}, "
                 f"which the target marginal weights; transporting to a "
                 f"population the source never covered would be extrapolation",
@@ -237,7 +238,7 @@ def estimate_transport(
         control = sub[sub[treatment] == False]  # noqa: E712
         if len(treated) == 0 or len(control) == 0:
             raise EstimatorFailure(
-                refusals.OVERLAP_INSUFFICIENT,
+                Refusal.OVERLAP_INSUFFICIENT,
                 f"stratum {assignment} holds only one treatment arm "
                 f"({len(treated)} treated, {len(control)} control), so the "
                 f"source has no contrast to transport from it",

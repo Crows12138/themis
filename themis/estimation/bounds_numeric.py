@@ -62,6 +62,7 @@ import pandas as pd
 
 from .contract import validate_data
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
 
@@ -235,7 +236,7 @@ def evaluate_manski_tamer_bounds(
     """
     if monotonicity not in ("non_decreasing", "non_increasing"):
         raise EstimatorFailure(
-            refusals.INVALID_MONOTONICITY,
+            Refusal.INVALID_MONOTONICITY,
             f"monotonicity must be 'non_decreasing' or 'non_increasing', "
             f"got {monotonicity!r}",
         )
@@ -337,7 +338,7 @@ def _bp_ace_bounds_from_P(P: np.ndarray) -> tuple[float, float]:
         # not numeric.
         violation = _instrumental_inequality_violation(P)
         raise EstimatorFailure(
-            refusals.IV_MODEL_REFUTED,
+            Refusal.IV_MODEL_REFUTED,
             "the observed P(X,Y|Z) table is incompatible with the binary IV "
             "model: no distribution over response types reproduces it under "
             "instrument independence + exclusion. "
@@ -404,9 +405,9 @@ def evaluate_balke_pearl_ace_bounds(
     df = contract.data
 
     for col, role, species in (
-        (treatment, "treatment", refusals.TREATMENT_NOT_BINARY),
-        (outcome, "outcome", refusals.OUTCOME_NOT_BINARY),
-        (instrument, "instrument", refusals.INSTRUMENT_NOT_BINARY),
+        (treatment, "treatment", Refusal.TREATMENT_NOT_BINARY),
+        (outcome, "outcome", Refusal.OUTCOME_NOT_BINARY),
+        (instrument, "instrument", Refusal.INSTRUMENT_NOT_BINARY),
     ):
         levels = _sorted_levels(df[col])
         if len(levels) != 2:
@@ -488,7 +489,7 @@ def _empirical_P_xyz(
         nz = int(zmask.sum())
         if nz == 0:
             raise EstimatorFailure(
-                refusals.INSUFFICIENT_SUPPORT,
+                Refusal.INSUFFICIENT_SUPPORT,
                 f"positivity violation: instrument stratum {instrument}={zv!r} "
                 "has no observations, so P(X,Y | Z) is undefined there and "
                 "the Balke-Pearl bounds cannot be evaluated.",

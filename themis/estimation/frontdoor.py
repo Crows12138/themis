@@ -48,6 +48,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .. import refusals
+from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .contract import validate_data
 from .resample import cluster_labels, resample_indices
@@ -181,7 +182,7 @@ def _discrete_levels(series: pd.Series, name: str) -> list:
         )
         if not integer_valued:
             raise EstimatorFailure(
-                refusals.CONTINUOUS_MEDIATOR,
+                Refusal.CONTINUOUS_MEDIATOR,
                 f"front-door estimator does not support continuous mediator "
                 f"{name!r} (float dtype with non-integer values); only "
                 f"discrete/categorical mediators are supported. Continuous-"
@@ -191,7 +192,7 @@ def _discrete_levels(series: pd.Series, name: str) -> list:
     nunique = int(s.nunique())
     if nunique > MAX_LEVELS_PER_MEDIATOR:
         raise EstimatorFailure(
-            refusals.CONTINUOUS_MEDIATOR,
+            Refusal.CONTINUOUS_MEDIATOR,
             f"front-door estimator treats mediator {name!r} as continuous: "
             f"{nunique} distinct values exceeds the {MAX_LEVELS_PER_MEDIATOR}-"
             f"level cap for exact stratum enumeration. High-cardinality / "
@@ -227,7 +228,7 @@ def _point_estimate_frontdoor(
         crossproduct *= len(levels[m])
     if crossproduct > MAX_MEDIATOR_CROSSPRODUCT:
         raise EstimatorFailure(
-            refusals.MEDIATOR_STRATA_INTRACTABLE,
+            Refusal.MEDIATOR_STRATA_INTRACTABLE,
             f"front-door stratum cross-product {crossproduct} exceeds the "
             f"{MAX_MEDIATOR_CROSSPRODUCT}-combination cap; too many mediator "
             f"level combinations to enumerate exactly.",
@@ -353,7 +354,7 @@ def _fit_predict(X: np.ndarray, y: np.ndarray, model: str):
         reg.fit(X, y)
         return lambda X_new: reg.predict(X_new)
     raise EstimatorFailure(
-        refusals.INVALID_INPUT,
+        Refusal.INVALID_INPUT,
         f"unknown model {model!r}; the front-door estimator fits 'logistic' "
         f"or 'linear'",
         model=model,

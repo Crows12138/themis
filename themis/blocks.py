@@ -112,10 +112,16 @@ class Block(str):
     renders it.
     """
 
+    holds: str
+    """What a writer puts in it."""
+
+    read_as: Family
+    """Which of the reader's questions it answers."""
+
     def __new__(cls, name: str, *, holds: str, read_as: Family) -> "Block":
         block = super().__new__(cls, name)
-        block.holds = holds  # type: ignore[misc]
-        block.read_as = read_as  # type: ignore[misc]
+        block.holds = holds
+        block.read_as = read_as
         return block
 
     def __repr__(self) -> str:
