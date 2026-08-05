@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4024 passed / 144 skipped, warning-clean
+4029 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1214,6 +1214,26 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **顺带修掉一句用户可见的假话**：同一份报告说「当前最强答案层级：**区间**」，而非二值的 Tian-Pearl 界根本没有定义。根因是上一轮引入的前瞻性 INTERVAL 分支没有读 `OUTSIDE_LANGUAGE`——**一个还没成立的问题没有形状可前瞻**。不加 causation 专用检查，因为同一句假话在 `counterfactual` 上正等着（它的 `interval_fallback` 也非 None）。证据链：`OUTSIDE_LANGUAGE` 只有 3 个产生端且都不带数不带界，唯一会加界的 `_attach_bounds_result` 第一条守卫就是 `status != NEEDS_INVESTIGATION`。
 
 **基线（本条）**：4013 → **4024**（+11：三个求解器失败各命名一个已登记物种且三者互不相同、未声明物种的子类 import 期 `TypeError`；`QueryResult` 带上 schema 一直声明的那个字段；`refusals.block` 的形状与它对未登记物种的拒绝（识别层没有构造器，所以出口也验）；识别层拒答被 `stamp` 盖 kind、且复用数据端的物种；两个散文块与 REFUSAL 族均已消失；报告说出是哪个变量哪些取值且不再只说「超出可表达范围」；被拒的问题不再被许诺区间。另有两条旧测试改为钉事实而非钉载体，一条 schema 守卫抓出我漏删的 `counterfactual_error` 子 schema）。
+
+**六张表一直在手工模拟的那件事，语言本来就有：`Refusal`/`Kind` 成枚举，mypy 进套件（2026-08-05，接上条）**：结构型 + 一个真 bug（用户可见）。
+
+**起因是「是不是该重构成 Rust」**。分析结论是不该——按层量：`estimation` 26,467 + `verifier` 19,618 = 57%，正是最依赖科学计算生态、`causal-learn` 在 Rust 无对等物的部分；而六张表所在的顶层只有 5,405 行 = 7%，那才是 Rust 能白拿的。更关键：`verifier` 那 19,618 行的价值全在**故意重复实现**上（memory 记着一次实测，两份实现各自演化后收敛到同一个便利假设），而 Rust 的类型系统恰好诱导两份实现共享类型定义。**但分析查出一件真事**：这个仓库零静态类型检查（dev 依赖只有 pytest / pytest-cov，全仓无 `assert_never`）。六张表 + `bind` 一直在手工补一个从没装过的检查。
+
+**先验两件事再动**（探针，不是推理）：`StrEnum` 成员能不能带 `kind`/`says` 而不变成成员——能；序列化会不会退化——不会，json / f-string / hash / dict 查找 / `==` 全等于裸名字，17/17。
+
+**改法**：`Kind` 5 个、`Refusal` 69 个各成一个 `StrEnum`；258 处 `refusals.<NAME>` → `Refusal.<NAME>`（脚本改，成员体由现文件生成并逐条对账 value/kind/says 69/69 一致——**这一步的探针也自己错了一次**：我造的假 `Kind` 用大写值，于是 69 个 kind 全报「不一致」，㊶ 又一次成立）。塌掉三个只为「让模块能枚举自己」而存在的派生集合：`ALL`（类就是集合）、`KINDS`（同）、`BY_KIND`（唯一消费端是它自己的注册表测试）；`BY_NAME` 留着，因为「读比写宽」需要一个能返回 None 的查找。`@unique` 让「两个名字一个物种」成为 import 期错误——那本来是一条测试。
+
+**信封仍然是数据**：enum 在三个地方各自抵抗这一点（pickle 回来查成员、`__copy__`/`__deepcopy__` 直接返回 self、不经过 pickle），所以三个 dunder 提成 `_EnvelopeName` 基类、两个枚举共用一条规则。**这是套件抓出来的**：我第一版只覆盖 `__reduce_ex__`，`test_a_species_is_the_plain_name_once_it_is_data` 立刻失败——那条测试写着理由，理由成立。
+
+**`_KIND_ZH` 从表变成 `match` + `assert_never`**：要保证的是「读者那半边分类完整」，那是一个关于**分支**的断言，dict 装不下。运行时测试留着，因为它问的是另一半——每个分支是否真说了话，那是检查器看不见的。**实测这条链会咬人**：临时注入第六个 kind，`analysis_report.py:85` 立刻类型错误、指着 `assert_never` 那行。另外普查确认 `_KIND_ZH` 是**唯一**一张没有 `bind` 守着的词表消费端（另五张各有 `bind`；scheduler 里 16 处「blocks 键的 dict」是 1-2 条目的写点，不是表）。
+
+**mypy 首跑就抓到一个真 bug，在活路径上**：`dispatch.py:5571` 的 `except EstimatorFailure` 用了一个模块全局里不存在的名字。**根因不是那一行漏写**——`EstimatorFailure` 在 dispatch.py 里是「每个函数各 import 一次」的约定，24 处函数内 import、模块级零处，第 25 个 handler 忘了；而 `except X` 的 `X` **只在异常发生时才求值**，所以从测试里看不见。端到端复现：让 aipw 按设计拒答，`themis.estimate()` 整个抛 `NameError` 而不是记下拒答（ipw / tmle 同）。修在约定上：一次模块级 import + 删掉 24 处；独立 AST 扫描全包（滤掉 builtins 后）确认只此一处、与 mypy 完全一致。
+
+**顺带两件**：`formula_text` 的 `env` 声明为 `dict[str, str]` 却在 `"@pinned"` 这个魔法键下装 `set[str]`——**注释自己写着「不是标识符，所以撞不上任何 bind 名」，需要一个撞不上的键正是这个值不属于这张表的证据**；改成 `_Env(bound, pinned)` 两个字段（放宽标注会往 6 个签名扩散，比修好它更贵）。`_atom_pred` 的签名说不收 `None`，而函数体第一件事就是 `atom_dict or {}`。
+
+**mypy 的范围是一张名单不是一个包**：全包首跑 660 findings / 64 文件（218 union-attr / 172 arg-type / 104 assignment / 77 index / 20 attr-defined / 19 var-annotated / 9 name-defined / …），那个数说的是「没标注」不是「坏了」，没人会读。名单从六张表 + `analysis_report` 起步（7 个文件，`--warn-unused-ignores` 下零 findings），并由一条测试守住「**凡写了 `assert_never` 的文件必须在名单里**」——否则那句话只是一条恰好可执行的注释（㊷ 同型：写下了 ≠ 有人读）。剩下的 findings 已登记逐条查（#329），`blocks.py` 同样改枚举已登记（#330，实测 143 处引用）。
+
+**基线（本条）**：4024 → **4029**（+5：mypy 名单里的 7 个文件零 findings；缺一个分支的 `match` 被抓（`assert_never` 那条链的实测）；拼错的物种被抓；凡写了 `assert_never` 的文件都在名单里；这个内核没听过的 kind 不被硬塞一句话。另有三条旧测试改为钉现在还成立的那半边——「注册表收全了」和「两个名字一个物种」都成了 import 期错误，替它们的是「成员名和信封上的名字是同一个决定」）
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
