@@ -391,8 +391,10 @@ def _render_answer(result: dict) -> str:
             template.format(reason=reason) if template
             else f"**没有给出数值**：{reason}"
         )
+        # "来自" rather than "估计器": identification refuses through this
+        # same field, and it is not an estimator.
         return (
-            f"{line}（估计器 `{failure.get('estimator', '?')}`，"
+            f"{line}（来自 `{failure.get('estimator', '?')}`，"
             f"拒答类型 `{failure['failure_type']}`）"
         )
 

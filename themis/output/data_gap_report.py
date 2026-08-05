@@ -425,10 +425,21 @@ def _compute_answer_tier(
     Past the gate, one thing the data gaps cannot say is whether a premise
     the caller withheld has already fixed the answer's shape —
     ``_point_is_premise_blocked``.
+
+    A tier is a claim about a question that stands. ``OUTSIDE_LANGUAGE``
+    says this one does not: not that the data are short, but that the
+    quantity is undefined as asked — probabilities of causation over a
+    non-binary cause, a counterfactual whose bounds problem is infeasible.
+    Neither the data nor a withheld premise can produce an answer, so
+    neither what is in hand nor the shape an answer would take is a claim
+    worth making, and the forward-looking branch below would make the
+    second one.
     """
     question = questions.reading_of(query_kind.value)
     if not question.names_an_estimand:
         return None
+    if status is ResultStatus.OUTSIDE_LANGUAGE:
+        return AnswerTier.NONE
     identification_blocked = (
         status in (
             ResultStatus.NEEDS_ASSUMPTION,

@@ -118,6 +118,21 @@ _PRIORITY_PHRASE: dict[Priority, str] = {
 }
 
 
+def _refused_zh(subject: str, result: QueryResult) -> str:
+    """Why no number came out, in the words the refusal already chose.
+
+    A status alone says a query was turned away; the reason says which of
+    several very different things happened — an undefined quantity, a
+    contradiction between the caller's own inputs, a case not built. That
+    reason is on the envelope, so the only thing to decide here is
+    whether to say it.
+    """
+    reason = (result.estimator_failure or {}).get("reason")
+    return f"{subject}没有给出答案：{reason}" if reason else (
+        f"{subject}超出当前可解范围。"
+    )
+
+
 def _describe_needs_investigation(result: QueryResult) -> str:
     """Render the '缺什么 / 为什么缺 / 下一步做什么' envelope.
 
@@ -391,7 +406,7 @@ def _explain_counterfactual_zh(result: QueryResult, stmt=None) -> str:
             f"区间为 [{_format_number(interval.low)}, {_format_number(interval.high)}]。"
         )
     if result.status is ResultStatus.OUTSIDE_LANGUAGE:
-        return "反事实查询已进入语法层，但当前仍未进入求解层。"
+        return _refused_zh("反事实查询", result)
     if result.status is ResultStatus.NEEDS_INVESTIGATION:
         gap = _describe_needs_investigation(result)
         if gap:
@@ -413,10 +428,7 @@ def _explain_causation_zh(result: QueryResult, stmt=None) -> str:
     (sufficiency) and PNS round out the picture.
     """
     if result.status is ResultStatus.OUTSIDE_LANGUAGE:
-        err = (result.extensions or {}).get(blocks.CAUSATION_ERROR)
-        return f"因果概率查询超出当前语言范围：{err}" if err else (
-            "因果概率查询超出当前语言范围。"
-        )
+        return _refused_zh("因果概率查询", result)
     if result.status is ResultStatus.NEEDS_INVESTIGATION:
         gap = _describe_needs_investigation(result)
         base = "因果概率（PN/PS/PNS）暂时算不出。"

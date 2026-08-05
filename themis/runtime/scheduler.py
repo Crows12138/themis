@@ -42,7 +42,7 @@ from typing import NamedTuple
 
 import networkx as nx
 
-from .. import blocks, routing
+from .. import blocks, refusals, routing
 
 from ..input.semantic_validator import validate_against_graph, validate_formula
 from ..types import (
@@ -2101,7 +2101,11 @@ def _dispatch_counterfactual(
             status=ResultStatus.OUTSIDE_LANGUAGE,
             query_kind=QueryKind.COUNTERFACTUAL,
             query_id=stmt.id,
-            extensions={blocks.COUNTERFACTUAL_ERROR: str(exc)},
+            estimator_failure=refusals.block(
+                estimator="counterfactual_identification",
+                failure_type=exc.species,
+                reason=str(exc),
+            ),
         )
     if missing:
         return QueryResult(
@@ -2193,7 +2197,11 @@ def _dispatch_counterfactual(
             status=ResultStatus.OUTSIDE_LANGUAGE,
             query_kind=QueryKind.COUNTERFACTUAL,
             query_id=stmt.id,
-            extensions={blocks.COUNTERFACTUAL_ERROR: str(exc)},
+            estimator_failure=refusals.block(
+                estimator="counterfactual_identification",
+                failure_type=exc.species,
+                reason=str(exc),
+            ),
         )
 
     bounded_result = NumericResult(
@@ -2500,13 +2508,18 @@ def _dispatch_causation(
                 status=ResultStatus.OUTSIDE_LANGUAGE,
                 query_kind=QueryKind.CAUSATION,
                 query_id=stmt.id,
-                extensions={
-                    blocks.CAUSATION_ERROR: (
+                estimator_failure=refusals.block(
+                    estimator="causation_identification",
+                    # The same species the data end raises for the same
+                    # reason (estimation.binary_do_risk): one quantity,
+                    # one refusal, whichever layer reached it first.
+                    failure_type=refusals.CAUSE_OR_EFFECT_NOT_BINARY,
+                    reason=(
                         f"probabilities of causation require a binary {role} "
                         f"({atom.predicate}); got domain "
-                        f"{sorted(domain, key=str) or 'unknown'}"
-                    )
-                },
+                        f"{refusals.describe(sorted(domain, key=str)) if domain else 'unknown'}"
+                    ),
+                ),
             )
 
     # 3-4. The two inputs Tian-Pearl needs: the observational joint P(X, Y),

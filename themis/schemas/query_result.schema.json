@@ -181,10 +181,6 @@
             }
           }
         },
-        "counterfactual_error": {
-          "type": "string",
-          "description": "Phase 5 §C: error reason when a counterfactual query is outside the supported fragment (e.g. non-boolean domain)."
-        },
         "scm_counterfactual": {
           "type": "object",
           "description": "Deterministic linear-SCM counterfactual (Pearl Primer §4.2). Carries the abducted exogenous values (abducted_noise), the post-intervention values of every relevant variable (counterfactual_values), and the target's counterfactual point (target_value).",

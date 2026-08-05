@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 import networkx as nx
 
+from .. import refusals
 from ..types import Atom, CounterfactualQuery, Monotonicity, NumericInterval
 from .structural_solver import BidirectedEdgeSet
 
@@ -55,7 +56,30 @@ class TwinNetwork:
 
 
 class CounterfactualBoundsError(ValueError):
-    """Raised when the narrow S.C.3 solver preconditions are not met."""
+    """Raised when the narrow S.C.3 solver preconditions are not met.
+
+    ``species`` is the refusal this becomes once it leaves the solver.
+    Two layers catch this family and both have to say why no number came
+    out: the data end in :mod:`themis.estimation.counterfactual_cell`,
+    and the θ end in :mod:`themis.runtime.scheduler`. The mapping from
+    subclass to species is a property of the subclass, not of whoever
+    caught it, so it is declared once here — written out at each handler
+    it is two copies, and only one of them was ever written.
+
+    A subclass says its own, because inheriting one means being described
+    by a reason chosen for a different failure.
+    """
+
+    species = refusals.COUNTERFACTUAL_CELL_OUT_OF_SCOPE
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        if "species" not in cls.__dict__:
+            raise TypeError(
+                f"{cls.__name__} inherits its refusal species from "
+                f"{cls.__mro__[1].__name__}; declare the one that describes "
+                f"this case in themis.refusals and name it here"
+            )
 
 
 class InterventionalRiskRequired(CounterfactualBoundsError):
@@ -67,6 +91,8 @@ class InterventionalRiskRequired(CounterfactualBoundsError):
     returning a vacuous ``[0, 1]``: an uninformative interval that *looks*
     like an answer is worse than a gap that names its own remedy.
     """
+
+    species = refusals.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE
 
     def __init__(self, message: str, *, needed_x_value: bool) -> None:
         super().__init__(message)
@@ -81,6 +107,8 @@ class CounterfactualInfeasible(CounterfactualBoundsError):
     Distinct from a malformed input so callers can report "your data sources
     disagree" instead of "this query is outside the language".
     """
+
+    species = refusals.COUNTERFACTUAL_INPUTS_INFEASIBLE
 
 
 def project_twin_network(

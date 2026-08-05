@@ -15,6 +15,7 @@ import copy
 import pytest
 
 from themis import kernel
+from themis.output.analysis_report import build_analysis_report
 
 X = {"predicate": "drug", "args": [{"type": "const", "name": "p"}]}
 Y = {"predicate": "death", "args": [{"type": "const", "name": "p"}]}
@@ -220,7 +221,16 @@ def test_non_binary_cause_is_outside_language():
     }
     r = kernel.run(prog)["results"][0]
     assert r["status"] == "outside_language"
-    assert "binary" in r["extensions"]["causation_error"]
+    # The refusal travels in the field the schema has always had for it,
+    # bearing the species the data end raises for the same reason — not
+    # in prose in an extensions block only the explainer ever read.
+    failure = r["estimator_failure"]
+    assert failure["failure_type"] == "cause_or_effect_not_binary"
+    assert failure["kind"] == "unbuilt"
+    assert "binary" in failure["reason"] and "dose" in failure["reason"]
+    # And it reaches the reader.
+    report = build_analysis_report(r, program=prog)
+    assert "binary" in report.split("## 答案", 1)[1].split("##", 1)[0]
 
 
 # ============================================ verifier independence (tamper)

@@ -310,22 +310,22 @@ def estimate_counterfactual_cell(
     try:
         joint, risk, interval = _run(x, y, df)
     except cf.InterventionalRiskRequired as need:
+        # Its own branch for the message, not for the species: this is the
+        # one case where the solver's sentence is not the one to show, since
+        # the remedy names data the caller can go and get.
         raise EstimatorFailure(
-            refusals.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE,
+            need.species,
             f"P(Y=1|do({xcol}={need.needed_x_value})) is identified from this "
             f"graph by neither a back-door adjustment set nor the general ID "
             f"algorithm, and was not supplied; this cell is not determined "
             f"without it. Supply experimental_risk_treated / "
             f"experimental_risk_control from a randomized experiment.",
         ) from need
-    except cf.CounterfactualInfeasible as exc:
-        raise EstimatorFailure(
-            refusals.COUNTERFACTUAL_INPUTS_INFEASIBLE, str(exc),
-        ) from exc
     except cf.CounterfactualBoundsError as exc:
-        raise EstimatorFailure(
-            refusals.COUNTERFACTUAL_CELL_OUT_OF_SCOPE, str(exc),
-        ) from exc
+        # Which species this is belongs to the exception, so the θ end in
+        # runtime.scheduler reaches the same one without a second copy of
+        # the mapping — the copy it never had.
+        raise EstimatorFailure(exc.species, str(exc)) from exc
 
     # 4. Percentile bootstrap. A draw whose feasible set is empty is NOT a
     #    silent skip: it means that resample refutes the declared monotonicity,

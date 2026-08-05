@@ -1398,6 +1398,12 @@ class QueryResult:
     extensions: dict | None = None
     data_gap_report: DataGapReport | None = None
     bounds_result: "BoundsResult | None" = None  # Phase 12 — symbolic bounds
+    # Why no number came out. The result schema has carried this at the
+    # top level all along; this type did not, so identification — which
+    # returns a result rather than raising for dispatch to catch — had
+    # nowhere to put a reason and wrote prose into ``extensions``
+    # instead. Assembled by :func:`themis.refusals.block`.
+    estimator_failure: dict | None = None
 
 
 # ---------------------------------------------------------------------------

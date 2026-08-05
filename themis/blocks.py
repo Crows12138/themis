@@ -34,10 +34,13 @@ concludes", "what the numeric end produces" — and never by consumer, so
 the only way to answer "does anyone say this to anyone" was to cross every
 block against every surface by hand. That census found ten blocks whose
 whole job is to say how the estimand was identified and no place in any
-report that says it, while the four other things a block can be — the
-answer, an assumption, a gap, a refusal — each already had both a table
-and a section. A comment cannot be checked; :class:`Family` can, and
-:func:`bind` holds a surface to the family it claims to render.
+report that says it. A comment cannot be checked; :class:`Family` can,
+and :func:`bind` holds a surface to the family it claims to render.
+
+The same axis, asked a second time, emptied a family rather than filling
+one: the two blocks that said why a query was refused were answering a
+question the result already answers in a top-level field, and they were
+there because the identification layer had no way to reach it.
 """
 from __future__ import annotations
 
@@ -82,12 +85,15 @@ GAP = Family(
     "gap",
     tells="what is missing from, or inconsistent in, what was supplied",
 )
-REFUSAL = Family(
-    "refusal",
-    tells="why no answer came out",
-)
+FAMILIES: tuple[Family, ...] = (ROUTE, ANSWER, ASSUMPTION, GAP)
 
-FAMILIES: tuple[Family, ...] = (ROUTE, ANSWER, ASSUMPTION, GAP, REFUSAL)
+# There is no refusal family. Why no number came out is a top-level field
+# of the result — the schema always said so — and the species and kind
+# live in :mod:`themis.refusals`. Two blocks used to hold it for the
+# identification layer alone, in bare prose, because ``QueryResult`` had
+# no such field and identification, unlike an estimator, has no dispatch
+# to catch an exception for it. Neither reached a reader: one was
+# rendered by the detachable explainer only, the other by nothing.
 
 
 class Block(str):
@@ -262,26 +268,6 @@ TYPE_RECONCILIATION = Block(
           "data's own types disagreed",
     read_as=GAP,
 )
-
-# --- REFUSAL: why no answer came out ----------------------------------------
-#
-# Both predate ``themis.refusals`` and still carry a bare prose string
-# where every other refusal carries a declared species; neither is
-# produced by any path the suite exercises.
-
-CAUSATION_ERROR = Block(
-    "causation_error",
-    holds="why probabilities of causation were refused — they need binary "
-          "treatment and outcome, and the refusal names which was not",
-    read_as=REFUSAL,
-)
-COUNTERFACTUAL_ERROR = Block(
-    "counterfactual_error",
-    holds="why a counterfactual query was refused, in the words of "
-          "whatever raised",
-    read_as=REFUSAL,
-)
-
 
 DECLARED: tuple[Block, ...] = tuple(
     value for value in tuple(globals().values()) if isinstance(value, Block)

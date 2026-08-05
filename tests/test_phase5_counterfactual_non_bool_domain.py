@@ -69,5 +69,11 @@ def test_categorical_counterfactual_returns_outside_language_not_crash():
     validate_result(result)
     assert result["query_kind"] == "counterfactual"
     assert result["status"] == "outside_language"
-    assert "counterfactual_error" in result["extensions"]
-    assert "boolean domain" in result["extensions"]["counterfactual_error"]
+    # The reason travels in the field the schema declares for it, bearing
+    # the species its exception declares — the same one the data end
+    # raises for the same failure. It used to be prose in an extensions
+    # block that no surface read.
+    failure = result["estimator_failure"]
+    assert failure["failure_type"] == "counterfactual_cell_out_of_scope"
+    assert failure["kind"] == "unbuilt"
+    assert "boolean domain" in failure["reason"]

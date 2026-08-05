@@ -666,23 +666,61 @@ class EstimatorFailure(RuntimeError):
     """
 
     def __init__(self, failure_type: str, message: str, **details):
-        species = BY_NAME.get(str(failure_type))
-        if species is None:
-            raise ValueError(
-                f"unregistered failure_type {str(failure_type)!r}; declare it "
-                f"in themis.refusals beside the others, with the kind that "
-                f"says what the reader should do about it"
-            )
-        message = str(message)
-        if len(message) > _MESSAGE_CAP:
-            message = (
-                message[:_MESSAGE_CAP]
-                + f"… (truncated at {_MESSAGE_CAP} characters — a value was "
-                f"interpolated raw; see themis.refusals.describe)"
-            )
-        super().__init__(message)
-        self.failure_type = species
+        super().__init__(_capped(message))
+        self.failure_type = _registered(failure_type)
         self.details = details
+
+
+def _registered(failure_type) -> "Refusal":
+    """The species by that name, or a refusal to proceed without one."""
+    species = BY_NAME.get(str(failure_type))
+    if species is None:
+        raise ValueError(
+            f"unregistered failure_type {str(failure_type)!r}; declare it "
+            f"in themis.refusals beside the others, with the kind that "
+            f"says what the reader should do about it"
+        )
+    return species
+
+
+def _capped(message) -> str:
+    """The message, bounded. Never raises: a refusal that crashed on the
+    length of its own explanation would turn "no number, and here is why"
+    into no answer at all."""
+    message = str(message)
+    if len(message) <= _MESSAGE_CAP:
+        return message
+    return (
+        message[:_MESSAGE_CAP]
+        + f"… (truncated at {_MESSAGE_CAP} characters — a value was "
+        f"interpolated raw; see themis.refusals.describe)"
+    )
+
+
+def block(*, estimator: str, failure_type, reason, details=None) -> dict:
+    """The one shape a refusal takes on the envelope.
+
+    Two layers refuse, and until now only one of them said so in this
+    shape. An estimator raises :class:`EstimatorFailure` and dispatch
+    catches it; identification has no estimator and no exception to
+    catch — it returns the result outright. Both are answering "why is
+    there no number", so both put this block on the envelope, and the
+    consumers that branch on ``failure_type`` and ``kind`` — the report,
+    the browser, the schema's enum — cover both without knowing there
+    were two layers.
+
+    The species is checked here as well as at :class:`EstimatorFailure`,
+    for the reason :func:`stamp` checks it a third time: a caller with no
+    exception to raise has no constructor to validate it.
+    """
+    out: dict = {
+        "estimator": estimator,
+        "failure_type": _registered(failure_type),
+        "reason": _capped(reason),
+    }
+    if details:
+        out["details"] = details
+    return out
 
 
 def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
@@ -708,11 +746,9 @@ def record(result: dict, *, estimator: str, exc: EstimatorFailure) -> None:
     that a later estimator may still answer — is the handler's to decide
     and stays at the handler.
     """
-    block = {
-        "estimator": estimator,
-        "failure_type": exc.failure_type,
-        "reason": str(exc),
-    }
-    if exc.details:
-        block["details"] = exc.details
-    result["estimator_failure"] = block
+    result["estimator_failure"] = block(
+        estimator=estimator,
+        failure_type=exc.failure_type,
+        reason=str(exc),
+        details=exc.details,
+    )
