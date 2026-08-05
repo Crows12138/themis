@@ -57,6 +57,7 @@ from ..types import (
     CounterfactualQuery,
     DerivationStep,
     EffectQuery,
+    FormulaExpr,
     GapKind,
     IdentifyQuery,
     Intervention,
@@ -78,6 +79,7 @@ from ..types import (
     QueryStatement,
     ResultStatus,
     SCMCounterfactualQuery,
+    SelectionNode,
     StepRef,
     StructuralResult,
     ValuedAtom,
@@ -1645,7 +1647,7 @@ def _dispatch_assoc(
         tuple(tuple(_atom_to_str(a) for a in p) for p in paths)
     )
     result = StructuralResult(value=connected, supporting_paths=supporting)
-    derivation: tuple[DerivationStep, ...] = ()
+    derivation = ()
     if q.left in graph and q.right in graph and q.left != q.right:
         if connected:
             derivation = (
@@ -2079,7 +2081,7 @@ def _dispatch_counterfactual(
     theta: Theta,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-    selection_nodes: "tuple[Statement, ...]" = (),
+    selection_nodes: "tuple[SelectionNode, ...]" = (),
 ) -> QueryResult:
     """One binary counterfactual cell P(Y_{x'}=y* | X=x [, Y=y]).
 
@@ -2264,7 +2266,7 @@ def _derive_interventional_risk_arm(
     x_val: bool,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-    selection_nodes: "tuple[Statement, ...]" = (),
+    selection_nodes: "tuple[SelectionNode, ...]" = (),
 ) -> "tuple[float | None, tuple[MissingItem, ...], tuple[InvestigationRequest, ...]]":
     """Derive ONE interventional risk P(Y=1 | do(X=x_val)) via the existing
     effect identification.
@@ -2304,7 +2306,7 @@ def _derive_interventional_risks(
     y_atom: Atom,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-    selection_nodes: "tuple[Statement, ...]" = (),
+    selection_nodes: "tuple[SelectionNode, ...]" = (),
 ) -> ("tuple[tuple[float, float] | None, tuple[MissingItem, ...], "
       "tuple[InvestigationRequest, ...]]"):
     """Derive P(Y=1 | do(X=1)) and P(Y=1 | do(X=0)) by running the
@@ -2435,9 +2437,9 @@ def _causation_gap(
     """
     skeletons = dict(joint_skeletons or {})
     for request in risk_requests:
-        for item in request.items:
-            if item.skeleton is not None:
-                skeletons.setdefault(item.target, item.skeleton)
+        for pushed in request.items:
+            if pushed.skeleton is not None:
+                skeletons.setdefault(pushed.target, pushed.skeleton)
 
     merged: list[MissingItem] = []
     seen: set[str] = set()
@@ -2464,7 +2466,7 @@ def _dispatch_causation(
     theta: Theta,
     *,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-    selection_nodes: "tuple[Statement, ...]" = (),
+    selection_nodes: "tuple[SelectionNode, ...]" = (),
 ) -> QueryResult:
     """Probabilities of causation — PN / PS / PNS (Tian & Pearl 2000).
 
@@ -3213,7 +3215,7 @@ def _dispatch_transport(
     graph: nx.DiGraph,
     q: EffectQuery,
     theta: Theta,
-    selection_nodes: "tuple[Statement, ...]",
+    selection_nodes: "tuple[SelectionNode, ...]",
 ) -> QueryResult:
     """Phase 9 §T9.1.3 + Fix 3+4 §T9.2 (v0.1.5): Bareinboim-Pearl
     single-source transport identification + numeric evaluation.
@@ -3414,7 +3416,7 @@ def _dispatch_transport(
             step_id="s_t9_final_num",
         ),
     )
-    transport_block_with_numeric = dict(transport_block)
+    transport_block_with_numeric: dict[str, object] = dict(transport_block)
     transport_block_with_numeric["numeric"] = {
         "value": value,
         "source_population": src_pop,
@@ -4282,7 +4284,7 @@ class _EffectFacts(routing.StructuralFacts):
         graph: nx.DiGraph,
         bidirected: "frozenset[frozenset[Atom]]",
         theta: Theta,
-        selection_nodes: "tuple[Statement, ...]",
+        selection_nodes: "tuple[SelectionNode, ...]",
         longitudinal_spec: dict | None,
     ) -> None:
         super().__init__(q_stmt=stmt, graph=graph, bidirected=bidirected)
@@ -4634,7 +4636,7 @@ def _dispatch_effect(
     graph: nx.DiGraph,
     theta: Theta,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-    selection_nodes: "tuple[Statement, ...]" = (),
+    selection_nodes: "tuple[SelectionNode, ...]" = (),
     longitudinal_spec: dict | None = None,
 ) -> QueryResult:
     """Offer one effect query to each identification strategy in turn.
@@ -4983,7 +4985,6 @@ def _gather_input_sources(
       still runs (it does not depend on theta).
     """
     collected: list[ConfidenceSource] = []
-    seen_keys: set = set()
 
     # §3.3 structural-edge slots — runs for every query kind so
     # cause-edge confidences propagate even when no numeric formula
@@ -5238,8 +5239,7 @@ def dispatch(
                 missing_information=strict_items,
             )
         else:
-            from ..types import SelectionNode as _SN
-            sel_nodes = tuple(s for s in program.statements if isinstance(s, _SN))
+            sel_nodes = tuple(s for s in program.statements if isinstance(s, SelectionNode))
             long_spec = None
             if program.options:
                 _ls = program.options.get("longitudinal")
@@ -5264,15 +5264,13 @@ def dispatch(
                 stmt, graph, theta, bidirected=bidirected,
             )
     elif isinstance(q, CounterfactualQuery):
-        from ..types import SelectionNode as _SN
-        sel_nodes = tuple(s for s in program.statements if isinstance(s, _SN))
+        sel_nodes = tuple(s for s in program.statements if isinstance(s, SelectionNode))
         result = _dispatch_counterfactual(
             stmt, graph, theta,
             bidirected=bidirected, selection_nodes=sel_nodes,
         )
     elif isinstance(q, CausationQuery):
-        from ..types import SelectionNode as _SN
-        sel_nodes = tuple(s for s in program.statements if isinstance(s, _SN))
+        sel_nodes = tuple(s for s in program.statements if isinstance(s, SelectionNode))
         result = _dispatch_causation(
             stmt, graph, theta,
             bidirected=bidirected, selection_nodes=sel_nodes,

@@ -92,7 +92,7 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
-from .contract import validate_data
+from .contract import DataContract, validate_data
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -345,7 +345,7 @@ def estimate_aipw_ate(
 @dataclass(frozen=True)
 class _PreparedData:
     df: pd.DataFrame
-    contract: object
+    contract: DataContract
     groups: np.ndarray | None
 
 

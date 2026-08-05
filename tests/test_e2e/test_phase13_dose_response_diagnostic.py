@@ -190,6 +190,79 @@ def test_dose_response_required_data_carries_full_spec():
     assert len(rd["sutva_concerns"]) >= 1
 
 
+def _ga(p: str, value: bool) -> dict:
+    return {"atom": _atom(p), "value": value}
+
+
+def _resolvable_confounded_program() -> dict:
+    """Same shape as the hint tests, plus enough theta to answer the query.
+
+    Every other program in this file comes back needs_investigation, so
+    its derivation is empty. That is the blind spot: the confounders this
+    gap reports are read off the derivation's back-door step, and a
+    program with no derivation never reaches the reading.
+    """
+    def prob(target, given, value):
+        return {"kind": "probability", "target": target, "given": given,
+                "value": value}
+
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "extensions": {"ambiguities": [
+            {"kind": "dose_response_query", "description": "..."},
+        ]},
+        "statements": [
+            {"kind": "variable", "predicate": "tenure", "domain": [True, False]},
+            {"kind": "variable", "predicate": "raise_amount",
+             "domain": [True, False]},
+            {"kind": "variable", "predicate": "engagement",
+             "domain": [True, False]},
+            {"kind": "cause", "from": _atom("tenure"), "to": _atom("raise_amount")},
+            {"kind": "cause", "from": _atom("tenure"), "to": _atom("engagement")},
+            {"kind": "cause", "from": _atom("raise_amount"),
+             "to": _atom("engagement")},
+            prob(_ga("tenure", True), [], 0.4),
+            prob(_ga("raise_amount", True), [_ga("tenure", True)], 0.7),
+            prob(_ga("raise_amount", True), [_ga("tenure", False)], 0.3),
+            prob(_ga("engagement", True),
+                 [_ga("raise_amount", True), _ga("tenure", True)], 0.8),
+            prob(_ga("engagement", True),
+                 [_ga("raise_amount", True), _ga("tenure", False)], 0.6),
+            prob(_ga("engagement", True),
+                 [_ga("raise_amount", False), _ga("tenure", True)], 0.5),
+            prob(_ga("engagement", True),
+                 [_ga("raise_amount", False), _ga("tenure", False)], 0.2),
+            {"kind": "query", "id": "q",
+             "query": {"kind": "effect",
+                       "intervention": _ga("raise_amount", True),
+                       "target": _ga("engagement", True),
+                       "given": []}},
+        ],
+    }
+
+
+def test_dose_response_reports_the_adjustment_set_the_derivation_used():
+    """``confounders_required`` is the back-door step's own adjustment set.
+
+    Reading it used to name a field ``DerivationStep`` does not have, and
+    then look for keys no step has ever written — two mistakes that could
+    not surface while every dose-response program in the corpus resolved
+    to needs_investigation with an empty derivation. With a derivation
+    present the reading ran, and ``themis.run`` raised AttributeError.
+    """
+    out = themis.run(_resolvable_confounded_program())
+    result = out["results"][0]
+    rules = [s["rule"] for s in result["derivation"]["steps"]]
+    assert "backdoor_criterion" in rules, rules
+
+    gap = next(
+        g for g in result["data_gap_report"]["gaps"]
+        if g["kind"] == "dose_response_data_required"
+    )
+    assert list(gap["required_data"]["confounders_required"]) == ["tenure"]
+
+
 def test_dose_response_description_names_external_tools():
     """Headline must say Themis isn't the right tool — point at EconML
     / DoubleML / GAM so the user knows where to go next."""

@@ -14,9 +14,19 @@ back-door, and adjustment sets land in later slices.
 """
 from __future__ import annotations
 
+from typing import Hashable, TypeVar
+
 import networkx as nx
 
 from ..types import Atom, BidirectedStatement
+
+# What a node is depends on who built the graph. The scheduler keys its
+# graphs by ``Atom``; the data-gap report builds a predicate-level ADMG
+# keyed by ``str``. The path routines below never look inside a node —
+# they compare them and index the graph with them — so they are written
+# over whichever type the caller's graph uses, and this states that the
+# four node arguments must agree with each other.
+_Node = TypeVar("_Node", bound=Hashable)
 
 
 def has_directed_path(graph: nx.DiGraph, src: Atom, dst: Atom) -> bool:
@@ -1278,7 +1288,7 @@ def bidirected_from_ground(ground_statements) -> BidirectedEdgeSet:
 def _has_arrowhead_at(
     mg: "nx.MultiGraph",
     edge_key: tuple,
-    v: Atom,
+    v: _Node,
 ) -> bool:
     """Does the edge identified by ``edge_key`` (a (u, w, k) triple in
     the path-multi-graph) have an arrowhead at node ``v``?
@@ -1300,7 +1310,7 @@ def _has_arrowhead_at(
 
 def _build_admg_path_graph(
     directed: "nx.DiGraph",
-    bidirected: BidirectedEdgeSet,
+    bidirected: "frozenset[frozenset[_Node]]",
 ) -> "nx.MultiGraph":
     """Collapse an ADMG into a MultiGraph suitable for simple-path
     enumeration. Each directed edge becomes one undirected edge tagged
@@ -1385,11 +1395,11 @@ def is_m_connected(
 
 def conditioned_collider_opens_path(
     graph: nx.DiGraph,
-    bidirected: BidirectedEdgeSet,
-    left: Atom,
-    right: Atom,
-    conditioning: "frozenset[Atom] | tuple[Atom, ...]",
-    collider: Atom,
+    bidirected: "frozenset[frozenset[_Node]]",
+    left: _Node,
+    right: _Node,
+    conditioning: "frozenset[_Node] | tuple[_Node, ...]",
+    collider: _Node,
 ) -> bool:
     """True iff some OPEN m-path between ``left`` and ``right`` (given
     ``conditioning``) stays open because ``collider`` activates a collider on
@@ -1414,7 +1424,7 @@ def conditioned_collider_opens_path(
         return False
 
     for edge_path in nx.all_simple_edge_paths(mg, left, right):
-        nodes: list[Atom] = [left]
+        nodes: list[_Node] = [left]
         for u, w, _k in edge_path:
             nodes.append(w if nodes[-1] == u else u)
 

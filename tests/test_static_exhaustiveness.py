@@ -12,17 +12,17 @@ narrowed the subject to ``Never`` by then is the thing that knows. Which
 means the statement is worth exactly what reads it. Unread, it is a
 comment that happens to be executable.
 
-So this module checks the checker: that the listed modules pass, that a
-missing branch is caught, that a misspelt member is caught, and — the
-one that decays silently — that every file writing ``assert_never`` is on
-the list mypy actually reads.
+So this module checks the checker: that the package passes, that a
+missing branch is caught, that a misspelt member is caught, and — the one
+that decays silently — that no file writing ``assert_never`` sits in the
+list of modules whose findings are ignored.
 """
 from __future__ import annotations
 
 import contextlib
 import os
 import pathlib
-import re
+import tomllib
 
 import pytest
 
@@ -30,6 +30,7 @@ mypy_api = pytest.importorskip(
     "mypy.api", reason="mypy is a dev dependency; install with .[dev]")
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
+CONFIG = REPO / "pyproject.toml"
 
 
 @contextlib.contextmanager
@@ -53,32 +54,50 @@ def _themis_on_the_search_path():
             os.environ["MYPYPATH"] = before
 
 
-def _check(*paths: str) -> str:
-    """mypy's findings for these paths, as it would report them."""
+def _run_mypy(*paths: str) -> str:
+    """mypy's findings, under the repository's own configuration.
+
+    The config is named rather than discovered, so a probe written to a
+    temp directory is judged by the same rules as the package.
+    """
     with _themis_on_the_search_path():
-        stdout, stderr, _status = mypy_api.run([
-            "--follow-imports=silent",
-            "--ignore-missing-imports",
-            "--warn-unused-ignores",
-            "--python-version=3.11",
-            *paths,
-        ])
+        stdout, stderr, _status = mypy_api.run(
+            ["--config-file", str(CONFIG), *paths])
     assert "Traceback" not in stderr, stderr
     assert "usage: mypy" not in stderr, stderr
     return stdout
 
 
-def _checked_modules() -> list[str]:
-    """The ``files`` list from the mypy config, read as data."""
-    text = (REPO / "pyproject.toml").read_text(encoding="utf-8")
-    block = text.split("[tool.mypy]", 1)[1].split("files = [", 1)[1]
-    return re.findall(r'"([^"]+)"', block.split("]", 1)[0])
+def _suppressed_modules() -> list[str]:
+    """The modules whose findings are ignored, read out of the config.
+
+    A list that can only shrink: the package is checked, and this names
+    what has not been read yet.
+    """
+    config = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
+    suppressed: list[str] = []
+    for override in config["tool"]["mypy"].get("overrides", ()):
+        if override.get("ignore_errors"):
+            suppressed.extend(override["module"])
+    return suppressed
 
 
-def test_the_configured_modules_have_no_findings():
-    """What is on the list has been read and cleaned. A finding here is a
-    module that stopped being clean, not a module that was never typed."""
-    out = _check(*(str(REPO / m) for m in _checked_modules()))
+def _module_of(path: pathlib.Path) -> str:
+    """The dotted name a config override would have to spell to reach it."""
+    rel = path.resolve().relative_to(REPO).with_suffix("")
+    parts = rel.parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def test_the_package_has_no_findings_outside_the_suppressed_list():
+    """Run the way a developer runs it: no paths, the config decides.
+
+    A finding here is a module that stopped being clean — the ones that
+    were never read are named in the config and say so.
+    """
+    out = _run_mypy()
     assert "Success" in out, out
 
 
@@ -98,7 +117,7 @@ def test_a_match_missing_one_member_is_caught(tmp_path):
         "        case Kind.REQUEST: return 'd'\n"
         "    assert_never(k)\n",
         encoding="utf-8")
-    out = _check(str(src))
+    out = _run_mypy(str(src))
     assert "Success" not in out, out
     assert "assert_never" in out or "Never" in out, out
 
@@ -114,27 +133,27 @@ def test_a_misspelt_species_is_caught(tmp_path):
         "def why() -> Refusal:\n"
         "    return Refusal.NOT_IDENTIFED\n",
         encoding="utf-8")
-    out = _check(str(src))
+    out = _run_mypy(str(src))
     assert "Success" not in out, out
     assert "NOT_IDENTIFED" in out, out
 
 
-def test_every_file_that_says_assert_never_is_one_mypy_reads():
+def test_no_file_that_says_assert_never_has_its_findings_ignored():
     """The decay this module exists for.
 
-    ``assert_never`` in an unchecked file states nothing: it runs only
-    when the fall-through already happened, and reports it as an
-    ``AssertionError`` from a line whose whole purpose was to make that
-    impossible. Adding one to a module nobody checks is the same move as
-    binding a renderer nothing calls.
+    ``assert_never`` in a module whose findings are ignored states
+    nothing: it runs only when the fall-through already happened, and
+    reports it as an ``AssertionError`` from a line whose whole purpose
+    was to make that impossible. Writing one in a suppressed module is the
+    same move as binding a renderer nothing calls.
     """
-    checked = {(REPO / m).resolve() for m in _checked_modules()}
+    suppressed = set(_suppressed_modules())
     writing = {
-        p.resolve() for p in (REPO / "themis").rglob("*.py")
+        _module_of(p) for p in (REPO / "themis").rglob("*.py")
         if "assert_never(" in p.read_text(encoding="utf-8")
     }
-    unread = sorted(str(p.relative_to(REPO)) for p in writing - checked)
+    unread = sorted(writing & suppressed)
     assert not unread, (
-        f"{unread} state exhaustiveness with assert_never but are not in "
-        f"the mypy files list, so nothing reads the statement"
+        f"{unread} state exhaustiveness with assert_never but their "
+        f"findings are ignored, so nothing reads the statement"
     )

@@ -384,6 +384,8 @@ def _maybe_estimate_longitudinal(
         return
 
     from .longitudinal import (
+        LongitudinalGFormulaEstimate,
+        LongitudinalIPWMSMEstimate,
         estimate_longitudinal_gformula,
         estimate_longitudinal_ipw_msm,
     )
@@ -421,6 +423,7 @@ def _maybe_estimate_longitudinal(
     if estimator == "ipw_msm" and "stabilized" in spec:
         kwargs["stabilized"] = bool(spec["stabilized"])
 
+    est: LongitudinalGFormulaEstimate | LongitudinalIPWMSMEstimate
     try:
         if estimator == "gformula":
             est = estimate_longitudinal_gformula(contract.data, **kwargs)
@@ -441,7 +444,7 @@ def _maybe_estimate_longitudinal(
         }
         return
 
-    numeric_estimate = {
+    numeric_estimate: dict[str, object] = {
         "point": est.point,
         "ci_lower": est.ci_lower,
         "ci_upper": est.ci_upper,
@@ -453,7 +456,10 @@ def _maybe_estimate_longitudinal(
         "treatment": ",".join(est.treatments),
         "outcome": est.outcome,
     }
-    if estimator == "gformula":
+    # Which estimate this is, asked of the estimate. ``estimator`` decided
+    # which one to call, but the block below is a claim about what the
+    # object in hand actually carries.
+    if isinstance(est, LongitudinalGFormulaEstimate):
         numeric_estimate["longitudinal_gformula"] = {
             "point": est.point,
             "ci_lower": est.ci_lower,
@@ -5517,9 +5523,10 @@ def _try_doubly_robust_estimate(
     only the numeric terminal differs (numeric_aipw_estimate /
     numeric_ipw_estimate).
     """
-    from .aipw import estimate_aipw_ate, estimate_ipw_ate
-    from .tmle import estimate_tmle_ate
+    from .aipw import AIPWEstimate, IPWEstimate, estimate_aipw_ate, estimate_ipw_ate
+    from .tmle import TMLEEstimate, estimate_tmle_ate
 
+    est: AIPWEstimate | TMLEEstimate | IPWEstimate
     try:
         if estimator == "aipw":
             est = estimate_aipw_ate(
@@ -5577,11 +5584,11 @@ def _try_doubly_robust_estimate(
             "model": prop.model,
         },
     }
-    if estimator in ("aipw", "tmle"):
+    if isinstance(est, (AIPWEstimate, TMLEEstimate)):
         ne["doubly_robust"] = True
         ne["std_error"] = est.std_error
         ne["ci_method"] = est.ci_method
-        if estimator == "tmle":
+        if isinstance(est, TMLEEstimate):
             # The fluctuation parameter — a transparency handle: ε≈0 means
             # the initial outcome fit was already well-targeted.
             ne["tmle_epsilon"] = est.epsilon

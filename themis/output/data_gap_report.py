@@ -156,6 +156,7 @@ from .sample_size import (
 )
 from ..types import (
     AnswerTier,
+    Atom,
     BidirectedStatement,
     CausationQuery,
     CauseStatement,
@@ -193,6 +194,15 @@ _FAILURE_RULE_NAMES: frozenset[str] = frozenset({
     "unidentifiable_via_iv",
     "unidentifiable_via_mediation",
     "unidentifiable_via_transport",
+})
+
+# Rule names whose ``inputs`` carry an adjustment set, under "z". Named
+# rather than matched on a substring: "identify_via_backdoor" reads like
+# one of these and carries only StepRefs, so a substring test finds a
+# step with nothing in it and stops looking.
+_ADJUSTMENT_SET_RULE_NAMES: frozenset[str] = frozenset({
+    "backdoor_criterion",
+    "joint_backdoor_criterion",
 })
 
 
@@ -1207,7 +1217,8 @@ def _classify_bounds_not_point(bounds_result) -> Iterable[DataGap]:
     if bounds_result is None:
         return
     method = getattr(bounds_result, "method", None)
-    method_name = method.value if hasattr(method, "value") else str(method)
+    # ``.value`` when it is an enum member, the thing itself otherwise.
+    method_name = str(getattr(method, "value", method))
     uninformative = getattr(bounds_result, "width_when_uninformative", False)
     assumptions = getattr(bounds_result, "assumptions", ()) or ()
     pieces: list[str] = [
@@ -3069,17 +3080,30 @@ def _program_has_no_declared_confounders(program, stmt) -> bool:
 def _extract_dose_response_confounders(
     derivation: tuple[DerivationStep, ...],
 ) -> list[str]:
-    """Pull confounder predicates from the derivation's backdoor /
-    front-door step. Best-effort — returns an empty list if no
-    adjustment set is present (e.g. unidentifiable graph). The
-    response renderer surfaces 'no confounders captured' explicitly
-    rather than pretending."""
+    """The adjustment set a back-door step already committed to.
+
+    A step's ``inputs`` is a plain dict whose key set is decided by its
+    ``rule``, and nothing states that mapping — so a reader has to know
+    it rather than infer it. The verifier knows: ``_rule_backdoor_criterion``
+    takes the set from ``inputs["z"]`` and rejects the step unless every
+    member is an ``Atom``. This is the only reader of a step's inputs
+    outside the verifier, so it names the same key and relies on the same
+    guarantee instead of describing a shape of its own.
+
+    Sorted, because the emitters pass a ``frozenset``: without it,
+    iteration order would decide what the reader is shown.
+
+    Empty when no back-door step is present (an unidentifiable graph, or
+    one identified some other way) — the renderer says 'no confounders
+    captured' rather than pretending.
+    """
     for step in derivation:
-        if "backdoor" in step.rule and not _step_failed(step):
-            ctx = step.context or {}
-            adj = ctx.get("adjustment_set") or ctx.get("backdoor_set")
-            if isinstance(adj, (list, tuple)):
-                return [str(z) for z in adj]
+        if step.rule not in _ADJUSTMENT_SET_RULE_NAMES or _step_failed(step):
+            continue
+        z = step.inputs.get("z")
+        if not isinstance(z, (frozenset, set, tuple)):
+            continue
+        return sorted({a.predicate for a in z if isinstance(a, Atom)})
     return []
 
 

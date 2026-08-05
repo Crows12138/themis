@@ -278,7 +278,12 @@ def _point_estimate_frontdoor(
     # logistic on [X, one-hot(Z_<i)]. A degenerate single-level factor is
     # stored as a constant so LogisticRegression is never asked to fit a
     # single class (which happens in bootstrap resamples).
-    chain: list[tuple[str, object]] = []
+    # No tag beside the entry: a degenerate factor is the constant level
+    # itself and a fitted one is the classifier, so the entry's type
+    # already says which it is. A parallel "const"/"clf" string would be
+    # a second place for the same fact to be recorded, and the reader
+    # would have to trust the two agree.
+    chain: list[int | LogisticRegression] = []
     for i, m in enumerate(mediators):
         target = df[m].map(val_to_idx[m]).to_numpy(dtype=int)
         if i == 0:
@@ -289,11 +294,11 @@ def _point_estimate_frontdoor(
             )
         distinct = np.unique(target)
         if distinct.size <= 1:
-            chain.append(("const", int(distinct[0]) if distinct.size else 0))
+            chain.append(int(distinct[0]) if distinct.size else 0)
         else:
             clf = LogisticRegression(max_iter=1000, solver="lbfgs")
             clf.fit(feats, target)
-            chain.append(("clf", clf))
+            chain.append(clf)
 
     # Empirical P(X) — treatment prevalence (binary treatment).
     p_x1 = float(df[treatment].mean())
@@ -301,11 +306,11 @@ def _point_estimate_frontdoor(
 
     def p_factor(i: int, combo: tuple, x_value: float) -> float:
         """P(Zi = combo[i] | X=x, Z_<i = combo[:i])."""
-        kind, obj = chain[i]
+        factor = chain[i]
         target_idx = val_to_idx[mediators[i]][combo[i]]
-        if kind == "const":
-            return 1.0 if target_idx == obj else 0.0
-        clf = obj  # type: ignore[assignment]
+        if isinstance(factor, int):
+            return 1.0 if target_idx == factor else 0.0
+        clf = factor
         if i == 0:
             feats = np.array([[x_value]])
         else:

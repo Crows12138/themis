@@ -85,38 +85,103 @@ Repository = "https://github.com/Crows12138/themis"
 Issues = "https://github.com/Crows12138/themis/issues"
 
 [tool.mypy]
-# A named list, not the package. Themis has had no static checking, so a
-# first run over ``themis/`` reports 660 findings across 64 files — a
-# number that says "untyped", not "broken", and one nobody would read.
-# What is listed here is what has been read and cleaned; a module joins
-# when someone cleans it. The list starting at the vocabulary tables is
-# not arbitrary: they are where a closed set is declared, so they are
-# where ``assert_never`` has something to say, and a file carrying an
-# ``assert_never`` that is not checked here is carrying a comment.
+# The package, minus a named list of modules whose findings are still
+# suppressed. It began the other way round — a list of what had been read
+# and cleaned — and that shape hid its own drift: sixty-two modules were
+# already clean and simply nobody had added them, so the gate protected a
+# fraction of what it appeared to. A whitelist is silent about what it
+# leaves out, and the thing being guarded is exactly what nobody thought
+# to name.
 #
-# The first run paid for itself. ``except EstimatorFailure`` in
-# dispatch's doubly-robust path named an import twenty-four sibling
-# handlers each made for themselves and that one forgot — and an
-# ``except`` clause evaluates its name only when it fires, so every
-# refusal from AIPW / IPW / TMLE came back as NameError.
+# Inverted, the list below is a debt that can only shrink, a new module is
+# checked the day it is written, and cleaning one means deleting a line.
+#
+# It paid for itself twice. ``except EstimatorFailure`` in dispatch's
+# doubly-robust path named an import twenty-four sibling handlers each
+# made for themselves and that one forgot — and an ``except`` clause
+# evaluates its name only when it fires, so every refusal from AIPW / IPW
+# / TMLE came back as NameError. And a helper in the data-gap report read
+# ``step.context`` off a ``DerivationStep``, which has no such field, then
+# looked for keys no step has ever written: two independent mistakes in
+# four lines, alive because every dose-response program in the corpus has
+# an empty derivation, and raising AttributeError out of ``themis.run``
+# for the first one that does not.
 python_version = "3.11"
-files = [
-    "themis/refusals.py",
-    "themis/blocks.py",
-    "themis/answers.py",
-    "themis/questions.py",
-    "themis/routing.py",
-    "themis/output/formula_text.py",
-    "themis/output/analysis_report.py",
-]
-# Imports are followed for their types and silent about their own errors:
-# a listed module is checked against the real signatures of unlisted ones,
-# without inheriting their findings.
+files = ["themis"]
+# Imports are followed for their types and silent about their own errors,
+# so a checked module is checked against the real signatures of a
+# suppressed one without inheriting its findings.
 follow_imports = "silent"
 ignore_missing_imports = true
 # An ignore that has stopped being needed is a claim that has stopped
 # being true.
 warn_unused_ignores = true
+
+# Not yet read. Alphabetical rather than ordered by size: a count in a
+# comment is a number that stops being true without anyone touching it,
+# and the checker reports the real one on request.
+[[tool.mypy.overrides]]
+module = [
+    "themis.estimation.aipw",
+    "themis.estimation.backdoor",
+    "themis.estimation.causation",
+    "themis.estimation.counterfactual_cell",
+    "themis.estimation.ctf_conjunction",
+    "themis.estimation.discovery",
+    "themis.estimation.dispatch",
+    "themis.estimation.four_way_ratio",
+    "themis.estimation.frontdoor",
+    "themis.estimation.general_id",
+    "themis.estimation.iv",
+    "themis.estimation.joint",
+    "themis.estimation.longitudinal",
+    "themis.estimation.measurement",
+    "themis.estimation.mediation",
+    "themis.estimation.missing_recovery",
+    "themis.estimation.orientation_questions",
+    "themis.estimation.proximal",
+    "themis.estimation.scm_counterfactual",
+    "themis.estimation.sensitivity_ovb",
+    "themis.estimation.strategy",
+    "themis.estimation.tmle",
+    "themis.estimation.transport",
+    "themis.input.semantic_validator",
+    "themis.kb.adapters.websearch_proxy",
+    "themis.kb.concept_translator",
+    "themis.kernel",
+    "themis.mcp.server",
+    "themis.output.explainer",
+    "themis.output.result_orchestrator",
+    "themis.runtime.c_factor",
+    "themis.runtime.counterfactual",
+    "themis.runtime.ctf_identify",
+    "themis.runtime.formula_builder",
+    "themis.runtime.investigation_pusher",
+    "themis.runtime.scheduler",
+    "themis.runtime.selection_recovery",
+    "themis.runtime.structural_solver",
+    "themis.runtime.theta_builder",
+    "themis.upstream.narrative_merge",
+    "themis.upstream.program_builder",
+    "themis.verifier.bounds_rules",
+    "themis.verifier.markov_blanket_rules",
+    "themis.verifier.missing_numeric_rules",
+    "themis.verifier.orientation_ledger_rules",
+    "themis.verifier.orientation_question_rules",
+    "themis.verifier.orientation_rules",
+    "themis.verifier.orientation_session_rules",
+    "themis.verifier.outcome_error_rules",
+    "themis.verifier.rules",
+    "themis.verifier.selection_numeric_rules",
+    "themis.verifier.semantic_probe",
+    "themis.verifier.serialization",
+    "themis.verifier.verify",
+    "themis.web.app",
+    "themis.web.llm_bridge",
+    "themis.workflow.parameter_fill",
+    "themis.workflow.variable_framing",
+]
+ignore_errors = true
 
 [tool.setuptools.packages.find]
 where = ["."]
