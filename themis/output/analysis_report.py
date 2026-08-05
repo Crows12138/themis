@@ -29,7 +29,7 @@ from typing import assert_never
 
 from .. import answers, blocks, questions, refusals, risk_provenance
 from ..refusals import Kind
-from . import formula_text
+from . import derivation_glossary, formula_text
 
 
 def _kind_zh(kind) -> str | None:
@@ -1156,6 +1156,34 @@ _ROUTE_RENDERERS = blocks.bind(blocks.ROUTE, {
 })
 
 
+def _render_derivation_chain(result: dict) -> str:
+    """The steps, in the order they ran, each said in words.
+
+    The universal answer to this section's question, and the one it never
+    read. A route is written as a BLOCK only by the identification
+    patterns that produce one; every other way of arriving at a number —
+    a d-separation verdict, the Tian-Pearl formulas,
+    abduction-action-prediction — records what it did in ``step.rule``,
+    which is a first-class field of every answered result. Binding the
+    section to the block family therefore left it empty for six query
+    kinds, the same way binding it to blocks left ``formula`` out; and
+    the verification section made the omission plain by telling the
+    reader there are N steps without ever saying what they were.
+
+    Rendered for every result that has one, not as a fallback when the
+    blocks said nothing. A fallback would hide exactly this: a path whose
+    blocks say a little would keep looking answered.
+    """
+    steps = (result.get("derivation") or {}).get("steps") or []
+    if not steps:
+        return ""
+    said = [
+        f"  {i}. {derivation_glossary.describe(step.get('rule'))}"
+        for i, step in enumerate(steps, 1)
+    ]
+    return "\n".join(["- **推导链**（每一步都可被独立重导）："] + said)
+
+
 def _render_route(result: dict) -> str:
     """How the estimand was identified — empty when nothing said.
 
@@ -1182,6 +1210,11 @@ def _render_route(result: dict) -> str:
     formula = result.get("formula")
     if formula is not None:
         lines.append(f"- **估计式**：`{formula_text.render(formula)}`")
+    # Last, because it is the skeleton and the lines above are the detail:
+    # which pattern, on which set, which expression. A reader who wants
+    # only the shape of the argument reads this; a reader checking it
+    # reads what came before.
+    lines.append(_render_derivation_chain(result))
     return "\n".join(line for line in lines if line)
 
 

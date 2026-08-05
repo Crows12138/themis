@@ -149,6 +149,7 @@ from __future__ import annotations
 from typing import Callable, Iterable, NamedTuple
 
 from .. import blocks, questions
+from . import derivation_glossary
 from .sample_size import (
     estimate_min_n_single_proportion,
     estimate_min_n_two_arm_binary,
@@ -1894,8 +1895,20 @@ def _classify_unidentifiable(
         yield DataGap(
             kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
             severity=GapSeverity.BLOCKING,
+            # The step said in words, not its id: the reader is being told
+            # why there is no answer, and a snake_case rule name makes the
+            # reason unreadable at exactly the moment it matters.
+            #
+            # Instrumented over a full suite run this branch is reached 0
+            # times. It was written for ``unidentifiable_via_backdoor``,
+            # which the Tian wiring superseded and which no producer emits
+            # any more, so every unidentifiable case now leaves through the
+            # hedge branch above. 0 means nobody comes, not that nothing
+            # leaks — the sentence is here so that if the branch does come
+            # back, it comes back readable.
             description=(
-                f"识别失败：rule `{step.rule}` 报告无可调整集 / 公式不存在"
+                f"识别失败：这一步（{derivation_glossary.describe(step.rule)}）"
+                f"报告无可调整集 / 公式不存在"
             ),
             blocks=GapBlocks.IDENTIFICATION,
             provenance=(_step_ref(step),),
