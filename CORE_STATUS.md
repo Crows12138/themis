@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-05-07
+> 更新时间：2026-08-05
 
 这份文档只回答一件事：
 
@@ -13,7 +13,7 @@
 
 ---
 
-## 当前快照（2026-05-07）
+## 当前快照（2026-08-05）
 
 Themis 当前开发态是 **`0.15.0-dev`**。它已经不只是 `v0.1` 静态
 DAG 内核，而是：
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4013 passed / 144 skipped, warning-clean
+4024 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1198,6 +1198,22 @@ D1：12 条测试先在改前代码上跑成红的。另有 6 条两边都绿—
 **自己写的第一版又犯了同一个错**：front-door 渲染成 `Σ_m [ P(m | x) · Σ_x [ P(y | x, m) · P(x) ] ]`——**`x` 既是被干预的值又是求和变量，同一个字母两个意思**，正是我刚批评 web 的那件事。第一版的判据是「扫这个 sum 自己的 body」，而冲突的另一半（`P(m | x)` 里固定的 x）**在另一棵子树上**，sum 从自己身上看不见。改成一次全树判定「哪些谓词被钉到了具体值」，再给撞名的求和变量加撇：`Σ_m [ P(m | x) · Σ_x' [ P(y | x', m) · P(x') ] ]`。
 
 **基线（本条）**：3996 → **4013**（+17：五种节点与 schema 的 `formulaExpression` 双向相等、少绑一种拒绝、多绑一种拒绝、未声明的节点抛而不兜；真 / 假值读作谓词与否定、外部绑定的值读作裸谓词、被求和的变量读作原子本身而不是 `z=z`、常量说出自己的值、嵌套求和各保各的变量；两条真实估计式端到端（后门、前门带撇）；报告说出估计式且不再出现「机器可读 / result.formula」、且落在「怎么算出来的」节里；web 五种节点各有一个 case）。
+
+**识别层拒答走进它自己的通道：一个字段两条路，只有一条通向读者（2026-08-05，接上条）**：修复型，用户可见。登记写的是「`counterfactual_error`／`causation_error` 两块零产生且写裸散文，该并进 `refusals.py`」。
+
+**测量**：先按方案做「块 × 到达面」的普查（AST，不是 grep——**探针自己被修正了两次**：一开始把 `bind` 字典里的键算成写点，于是 ROUTE 族显示「没人读」；改完又发现只匹配属性名不匹配模块名，`questions.CAUSATION` 被当成 `blocks.CAUSATION`，凭空给两个 ANSWER 块记上了渲染器）。修正后：ROUTE 10 块全部有 `bind` 保证；ASSUMPTION 3 块经 orchestrator 到达；GAP 的 `type_reconciliation` 符号读点为 0，**真实消费端是 `verifier/type_reconciliation_rules.py:105` 的裸字符串**（绕开注册表，登记）；REFUSAL 两块——`causation_error` 只有 explainer 读，`counterfactual_error` **写 2 读 0**。「零产生」是错的，3 个产生端都在 `scheduler.py`。
+
+**普查顺带推翻方案的原假设**：`explainer` 不是死代码，是**外部调用的可剥离脚手架**（`scripts/` 与 e2e 调用，`themis/` 包内零调用）。所以缺的不是「四族没有 `bind`」——`read_as` 声明的是**读者的哪个问题**，而 `bind` 需要的是**哪个面负责**；ROUTE 恰好全落在 `analysis_report` 所以那张表能用，别的族散在不同面上。
+
+**根因**：`QueryResult` **没有 `estimator_failure` 字段**，而结果 schema 顶层一直有它（enum 钉死、`stamp` 盖 kind、报告有分支、web 有分支）。识别层**返回**结果，不像估计器那样 raise 给 dispatch 接，于是没有地方放理由，只好往 `extensions` 写散文——**又一次是类型落后于 schema**（`blocks.py` 那轮同形）。实测代价：非二值 causation 时内核明明写下了「require a binary cause (x); got domain ['hi','lo','mid']」，主报告只说「该问题超出 Themis 可表达 / 可识别的范围」。
+
+**物种两处都早就有，缺的只是让它到达**：反事实那族的三个子类在 `counterfactual_cell.py`（数据端）已各自映射到一个已登记物种，θ 端却写 `str(exc)`；非二值那条 `cause_or_effect_not_binary` 早在 `binary_do_risk.py` 用着——**我一度重复造了一个新物种，核实后删除**（㊵）。
+
+**修法**：让**异常自己声明它的物种**（`__init_subclass__` 强制子类声明、不许继承一个为别的失败选的理由），两个 catch 点读同一处，`counterfactual_cell` 的三个分支塌成两个；`QueryResult` 补上字段并序列化；`refusals.block()` 成为信封块的单一出口（`record()` 改为调它，`_registered`／`_capped` 抽出，识别层没有构造器所以出口也验物种）；`scheduler` 三处改发 `estimator_failure`；`blocks.py` 删两个块并**删掉整个 REFUSAL 族**（没有块的 Family 是空壳不是分类）；explainer 两处改读真实理由（原句「已进入语法层，但当前仍未进入求解层」是内部实现语言，且描述的是阶段不是失败）；报告措辞「估计器」→「来自」。
+
+**顺带修掉一句用户可见的假话**：同一份报告说「当前最强答案层级：**区间**」，而非二值的 Tian-Pearl 界根本没有定义。根因是上一轮引入的前瞻性 INTERVAL 分支没有读 `OUTSIDE_LANGUAGE`——**一个还没成立的问题没有形状可前瞻**。不加 causation 专用检查，因为同一句假话在 `counterfactual` 上正等着（它的 `interval_fallback` 也非 None）。证据链：`OUTSIDE_LANGUAGE` 只有 3 个产生端且都不带数不带界，唯一会加界的 `_attach_bounds_result` 第一条守卫就是 `status != NEEDS_INVESTIGATION`。
+
+**基线（本条）**：4013 → **4024**（+11：三个求解器失败各命名一个已登记物种且三者互不相同、未声明物种的子类 import 期 `TypeError`；`QueryResult` 带上 schema 一直声明的那个字段；`refusals.block` 的形状与它对未登记物种的拒绝（识别层没有构造器，所以出口也验）；识别层拒答被 `stamp` 盖 kind、且复用数据端的物种；两个散文块与 REFUSAL 族均已消失；报告说出是哪个变量哪些取值且不再只说「超出可表达范围」；被拒的问题不再被许诺区间。另有两条旧测试改为钉事实而非钉载体，一条 schema 守卫抓出我漏删的 `counterfactual_error` 子 schema）。
 
 注意：下方保留了早期 `v1.0 core freeze` 和 Phase 5 以前的历史收口记录。
 后续 Phase 6-14 是显式解冻后的 fragment / workflow / estimator 扩展，
