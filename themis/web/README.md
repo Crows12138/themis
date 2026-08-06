@@ -35,6 +35,16 @@ envelope field accounted for" checkable at all.
 
 Flags: `--port 8001`, `--host 0.0.0.0` (share on LAN), `--reload` (dev).
 
+To stop it, close the window (Ctrl-C), or from anywhere:
+
+```
+python scripts/stop_web.py       # or: python scripts/stop_web.py 8001
+```
+
+It stops whatever holds the listening socket **only if the command line says
+it is this project's server** — a port number is not proof of identity, so a
+foreign listener is reported and left running.
+
 ## Develop (hot reload)
 
 Run the backend and the Vite dev server side by side:
