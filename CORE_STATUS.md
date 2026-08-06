@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4385 passed / 144 skipped, warning-clean
+4395 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1557,6 +1557,73 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 契约拓宽之后，dtype 已经不携带那个分叉要问的信息（2026-08-07，接上条，#316）
+
+登记说 `themis/estimation/iv.py` 有「约 8 处可构造但未建的拒答分支」，并点名「非浮点列
+超基数上限」那一条。子 agent 在独立 worktree 上做，插桩实测（monkeypatch
+`EstimatorFailure.__init__`，按 traceback 最内层 iv.py 帧计数，不改行为）：
+
+```text
+抛 EstimatorFailure 的站点      20   ← 不是 14，也不是 8
+基线被测试到达                    9
+零命中                          11   ← 其中 7 个从公共入口可构造、2 个被契约挡死、
+                                       1 个被上游拒答遮蔽、1 个不可达
+改完之后                     20/20   全部有测试到达
+```
+
+**登记点名的那一条说错了**：字符串列和 `pd.Categorical` 走的是 `DataContractError`
+（dtype 不是 bool 也不是数值，直接被契约拒收），整数列被契约**拓宽成 float64**——所以
+「非浮点列超基数上限」不是「可构造但没人写测试」，是**从公共入口不可达的死分支**。
+
+**但它错得有价值，因为死的方式带出一个活 bug**。40 个整数码、5000 行的分层列，读者收到：
+
+> conditioning column 'k' **is continuous** (40 distinct values over 5000 rows),
+> so its strata would hold **about one observation each**
+
+两半都是假的：它不连续，每格 125 行。这句话进 `stratification_fallback`，经
+`_attach_iv_estimand_fallback_warning` 镜像进 `explanation`，到达读者。
+
+**根因**：措辞分叉的判据是 `pd.api.types.is_float_dtype(series)`，而 `validate_data` 已经把
+每个 required 列 `astype("float64")`——**dtype 在这一步之后不再携带它要区分的信息**，
+float 支承接全部流量、另一支永远不可达。同一段的注释**已经写出正确原则**
+（"Cardinality, not dtype, decides whether a column can be cut"，并明写"the contract also
+widens integer columns to float"），紧接着的分叉又用了 dtype。
+
+**物证是那条既有测试自己**：`test_too_many_strata_falls_back_naming_the_cap`——名字里就写着
+**naming the cap**、用的正是 40 个整数码——断言是 `"distinct values" in fallback`，而**两条
+消息都含这个短语**，所以它在「句子里根本没有 cap」的情况下一直是绿的。它的断言就是这个 bug
+的书面形式。
+
+**修法**：判据换成这个函数自己关心的、契约之后仍可判定的量——每个 level 平均分到多少行，
+与 `2 * _MIN_PER_ARM` 比（一格要同时容纳两个工具臂）。两支同时变可达且都说真话；
+`rows_per_level` 进 `details`、句子只说为什么。改后那句是「past the cap of 10 this cut
+enumerates; its strata would hold about 125.0 observations each, **so the limit is ours and
+not the sample's**」。既有测试的断言加强成 `"past the cap of 10" in ...` 且
+`"continuous" not in ...`。
+
+**合并前独立复核过**：我用仓库自己的 fixture、不含 agent 的代码复现了那句话，并核对
+`_MIN_PER_ARM = 2` → 阈值 4 行/格、5000/40 = 125 确实该走 cap 支。
+
+范围声明（agent 如实登记，我保留）：量的是拒答通道（`EstimatorFailure` 家族）。iv.py 里
+另有约 20 处降级性 `return None` 和 2 处内部不变量 `ValueError` 未插桩；
+`estimate_iv_ate:390` 与 `_first_stage_f_stat:765` 的 `except (LinAlgError, ValueError)`
+是两处未插桩的宽 except（不吞拒答，因为 `EstimatorFailure` 是 `RuntimeError` 子类）。
+
+两个不可达分支没有硬造拒答，而是把「上游拦住了它」写成测试
+（`test_the_two_guards_the_contract_stands_in_front_of`）：公共入口拿 `DataContractError`、
+内部函数拿 `INSUFFICIENT_SUPPORT`。`contract.py` 自己写着 "first version — relax later if
+real cases need"，那天一到这个测试先红。
+
+**方法论沉淀（第九十一至九十二条）**：
+(91)**一个判据在数据流水线的某一步之后就不再可判定了，而它读起来仍然合理**——`dtype` 在
+契约拓宽之后不再区分「整数码」与「连续量」，于是一支承接全部流量、另一支成为死代码，
+**两支都不报错**。找法：问「这个判据读的那个属性，是谁最后写的」；若答案是上游某个规范化
+步骤，这个判据就已经失效了。物证形态很特别：**正确原则往往已经写在紧邻的注释里**
+（甚至写明了这个机制），因为写注释的人知道，写下一行的人忘了。
+(92)**一条测试的名字说它验的是 A，断言却写的是 A 与 B 共有的那部分——它就永远分不出 A 和 B**。
+判据：把断言的字符串拿去和**另一支**的输出比一遍，两边都含就等于什么也没验。这类测试比
+没有测试更坏，因为它占着那个名字。
 
 ### 一份刚算出数的结果，同时在叫渲染器别报数（2026-08-07，接上条）
 
