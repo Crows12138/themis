@@ -88,14 +88,13 @@ export function ledgerLayerLabel(layer: string): string {
   return LEDGER_LAYER_ZH[layer] ?? layer
 }
 
-// Who put the assumption on the list, which is who the reader has to go and
-// argue with. Five of the seven name someone other than Themis, and those
-// are the lines a reader can actually overrule — which is the whole reason
-// this field is worth the room it takes.
+// What the reader can do about this line: who can overrule it, and what they
+// get back if they do. Five of the six name someone other than the method,
+// and those are the lines a reader can actually overrule — which is the whole
+// reason this field is worth the room it takes.
 const LEDGER_PROVENANCE_ZH: Record<string, string> = {
   inherent: '方法本身要求',
-  estimator_declared: '估计器声明',
-  measurement_declared: '测量模型声明',
+  caller_asserted: '你在问题里断言的',
   default: '估计器默认选择',
   llm_proposal: '上游 LLM 提议',
   discovery: '因果发现算法学出',

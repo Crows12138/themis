@@ -10,14 +10,23 @@ ledger owes from the channels that feed it and rejects UNDER-disclosure.
 What it audits:
 
 - **Completeness of the estimator channel.** ``numeric_estimate.assumptions``
-  is the one channel every estimator populates. The ledger must either carry
-  each of those declarations (``provenance: estimator_declared``, keyed by
-  ``id``) or carry the estimator's own structured ``identification`` entries,
-  which say the same thing in better words. Carrying neither is the defect.
+  is the one channel every estimator populates. The ledger must carry each of
+  those declarations keyed by ``id`` — either flat, or as the estimator's own
+  structured ``identification`` entry naming the same id, which says the same
+  thing in better words. Carrying neither is the defect.
 - **Completeness of the other three channels** — one entry per load-bearing
   proposal edge in the gap report, per LLM theta prior, per audited mechanism.
-- **No fabrication.** An ``estimator_declared`` entry whose ``id`` the estimate
-  never declared is invented.
+- **No fabrication.** Any entry attributed to the estimator whose ``id`` the
+  estimate never declared is invented. This keys on the attribution and not on
+  which of the two channels carried it, so it now covers the structured
+  entries too — under the old key a fabricated structured entry was outside
+  the question being asked. An entry with no ``id`` names no declaration and
+  is not subject to it.
+- **Nothing handed to the caller that they never supplied.** ``caller_asserted``
+  is the one attribution that gives the reader something to DO — withdraw it
+  and the answer comes back wider — so it is re-derived rather than believed:
+  the answer has to carry its own record of the input, and a pair of legitimate
+  values is otherwise indistinguishable from a true one.
 - **Internal coherence.** Entries sorted by severity; the summary's counts
   matching the entries; an ``identification``-layer entry ranked
   ``invalidating`` (the ledger's own semantics: identification failing means
@@ -38,6 +47,36 @@ from .errors import VerificationError
 _SEVERITIES = ("invalidating", "distorting", "confidence_only")
 _RANK = {s: i for i, s in enumerate(_SEVERITIES)}
 
+#: How badly each layer's failure kills the conclusion, restated here from
+#: what the layer MEANS rather than read off the entry.
+#:
+#: A layer already says which part of the answer stops being true, and a
+#: severity grades how badly that kills it — so the second follows from the
+#: first and disagreeing is incoherent, not a curation choice. Only the
+#: identification row was stated before, which left a functional-form
+#: assumption free to be ranked invalidating and an identification one free
+#: to be relabelled a shape concern the average survives; the relabelled
+#: entry keeps a legal severity and reads as a milder assumption than it is.
+#: Measured over one suite run, all 3252 entries agree with these five.
+_SEVERITY_OF_LAYER = {
+    "identification": "invalidating",
+    "structural_edge": "invalidating",
+    "functional_form": "distorting",
+    "parameter": "distorting",
+    "confidence": "confidence_only",
+}
+
+_WHY_THAT_SEVERITY = {
+    "identification": "identification failing means the number is not a causal "
+                      "effect at all",
+    "structural_edge": "an edge the answer path runs through being unestablished "
+                       "means the path may not exist",
+    "functional_form": "a wrong fitted shape moves magnitude and curvature while "
+                       "the estimand stays right",
+    "parameter": "a supplied number moves the answer with it, and no further",
+    "confidence": "only the interval moves; the point estimate stands",
+}
+
 #: Which ``(layer, provenance)`` pairs each producer of a ledger entry may
 #: write, restated here rather than imported.
 #:
@@ -52,13 +91,9 @@ _RANK = {s: i for i, s in enumerate(_SEVERITIES)}
 #: ledger re-derived from the vocabulary its producer chose is not an
 #: independent audit. A test pins these rows equal to ``themis.ledger``.
 _ADMISSIBLE_PAIRS = {
-    "identification_spec": (
+    "estimator_assumption": (
         ("identification", "functional_form", "confidence"),
-        ("inherent",),
-    ),
-    "flat_channel": (
-        ("identification", "functional_form", "confidence"),
-        ("estimator_declared", "measurement_declared"),
+        ("inherent", "caller_asserted"),
     ),
     "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
     "theta_prior": (("parameter",), ("llm_prior",)),
@@ -85,7 +120,7 @@ def verify_assumption_ledger(result: dict) -> None:
     extensions = result.get("extensions") or {}
     ledger = extensions.get("assumption_ledger")
     estimate = result.get("numeric_estimate")
-    declared = tuple((estimate or {}).get("assumptions") or ())
+    declared = _declaration_channels(result, estimate)
 
     owed_edges = _owed_proposal_edges(result)
     owed_priors = _owed_theta_priors(extensions)
@@ -116,12 +151,12 @@ def verify_assumption_ledger(result: dict) -> None:
                 f"assumptions[{i}] severity {e.get('severity')!r} is not one of "
                 f"{list(_SEVERITIES)}"
             )
-        if e.get("layer") == "identification" and e["severity"] != "invalidating":
+        owed = _SEVERITY_OF_LAYER.get(e.get("layer"))
+        if owed is not None and e["severity"] != owed:
             _reject(
-                f"assumptions[{i}] is an identification assumption ranked "
-                f"{e['severity']!r}; identification failing means the number is "
-                "not a causal effect at all, which is 'invalidating' by "
-                "definition"
+                f"assumptions[{i}] is a {e.get('layer')} assumption ranked "
+                f"{e['severity']!r}; {_WHY_THAT_SEVERITY[e['layer']]}, which is "
+                f"{owed!r} by definition"
             )
         if not _pair_is_writable(e.get("layer"), e.get("provenance")):
             _reject(
@@ -145,6 +180,7 @@ def verify_assumption_ledger(result: dict) -> None:
     # Completeness first: a ledger that dropped an assumption also has a stale
     # count, and "you are missing this assumption" is the useful reject.
     _check_estimator_channel(entries, declared)
+    _check_caller_assertions(result, entries)
     _check_channel(entries, owed_edges, "structural_edge", "proposal edge")
     _check_channel(entries, owed_priors, "parameter", "LLM theta prior")
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
@@ -152,6 +188,83 @@ def verify_assumption_ledger(result: dict) -> None:
 
 
 # --- the four channels the ledger owes ----------------------------------------
+
+
+def _declaration_channels(result: dict, estimate) -> tuple[str, ...]:
+    """Every assumption someone declared, by id, whichever list holds it.
+
+    Two do. ``numeric_estimate.assumptions`` is the estimator's own and every
+    estimator populates it. The second belongs to another author entirely: an
+    outcome measurement-error assessment states the premises under which its
+    split of the residual variance means anything, and the ledger folds those
+    in unconditionally.
+
+    They are unioned rather than checked apart because the question here is
+    "did anyone declare this", and asking instead which list it came from is
+    what let the second one go unchecked in both directions — nothing verified
+    that its premises reached the ledger, and nothing verified that a premise
+    on the ledger came from it.
+    """
+    ids = list((estimate or {}).get("assumptions") or ())
+    block = result.get("outcome_error")
+    if isinstance(block, dict):
+        ids += [a for a in (block.get("assumptions") or ()) if isinstance(a, str)]
+    return tuple(ids)
+
+
+def _caller_supplied(result: dict) -> tuple[str, ...]:
+    """Which caller inputs THIS envelope records, re-derived from it.
+
+    ``caller_asserted`` is the strongest actionable thing a ledger line can
+    say — this one is yours, withdraw it and the answer comes back wider
+    rather than gone — so it is the attribution worth re-deriving, and the
+    only one whose failure hands the reader an action that is not theirs to
+    take. Every such line has to trace to something the caller actually put
+    on the query, and each field below is the answer's own record that they
+    did: an assumption pinning a point out of its bounds leaves that mark on
+    the block it pinned.
+    """
+    ext = result.get("extensions") or {}
+    estimate = result.get("numeric_estimate") or {}
+    bounds = result.get("bounds_result") or {}
+    records = []
+    for block, field in (
+        (ext.get("causation"), "monotonic"),
+        (estimate.get("probabilities_of_causation"), "monotonic"),
+        (ext.get("counterfactual_cell"), "monotonicity"),
+        (estimate.get("counterfactual_cell"), "monotonicity"),
+    ):
+        if isinstance(block, dict) and block.get(field):
+            records.append(f"{field} on the answer it pinned")
+    if isinstance(bounds, dict) and bounds.get("method") == "manski_tamer_monotonicity":
+        records.append("a monotone-treatment-response bounds method")
+    return tuple(records)
+
+
+def _check_caller_assertions(result: dict, entries: list) -> None:
+    """No line may be handed to the caller that the caller never supplied."""
+    claimed = [e for e in entries if e.get("provenance") == "caller_asserted"]
+    if not claimed:
+        return
+    block = result.get("outcome_error")
+    measured = {
+        str(a) for a in ((block.get("assumptions") or ())
+                         if isinstance(block, dict) else ())
+    }
+    records = _caller_supplied(result)
+    for e in claimed:
+        # A measurement-error premise is about the model the caller attached,
+        # and that block lists its own premises by id — so it is its own
+        # record and needs no other.
+        if str(e.get("id") or "") in measured:
+            continue
+        if not records:
+            _reject(
+                f"assumption_ledger hands {str(e.get('id') or e.get('claim'))!r} "
+                "to the caller, but nothing in this answer records the caller "
+                "supplying anything — a line marked as theirs to withdraw is an "
+                "action the reader cannot actually take"
+            )
 
 
 def _owed_proposal_edges(result: dict) -> tuple[str, ...]:
@@ -206,9 +319,9 @@ def _check_summary(ledger: dict, entries: list) -> None:
 def _check_estimator_channel(entries: list, declared: tuple) -> None:
     """Every declaration the estimate made is on the ledger under its own id.
 
-    Provenance is not part of the test. A declaration may reach the ledger
-    as the estimator's own entry or as the structured identification entry
-    that names it — what must not happen is that it reaches neither.
+    Which channel carried it is not part of the test. A declaration may reach
+    the ledger flat or as the structured identification entry that names it —
+    what must not happen is that it reaches neither.
 
     This used to accept any ledger carrying an identification entry, on the
     reasoning that structured entries restate the flat list. They restate
@@ -227,14 +340,23 @@ def _check_estimator_channel(entries: list, declared: tuple) -> None:
             "assumption_ledger drops estimator-declared assumption(s) "
             f"{missing!r}"
         )
+    # Attributed to the estimator — both provenances a ledger may carry for
+    # one, since a structured spec and the flat declaration it restates are
+    # the same assumption and the reader is told the same thing about both.
+    # Keying on the attribution rather than on the channel is what lets this
+    # see a fabricated STRUCTURED entry, which the channel key could not:
+    # measured over one suite run, all 700 structured entries name a
+    # declaration the estimate made, so a spec naming one it did not make is
+    # the anomaly this is for. A spec with no flat twin says so by omitting
+    # the id.
     invented = {
         str(e.get("id")) for e in entries
-        if e.get("provenance") == "estimator_declared"
+        if e.get("id") and e.get("provenance") in ("inherent", "caller_asserted")
     } - {str(a) for a in declared}
     if invented:
         _reject(
-            "assumption_ledger carries estimator_declared entrie(s) the "
-            f"estimate never declared: {sorted(invented)!r}"
+            "assumption_ledger attributes to the estimator assumption(s) it "
+            f"never declared: {sorted(invented)!r}"
         )
 
 

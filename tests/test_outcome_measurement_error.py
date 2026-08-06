@@ -333,7 +333,7 @@ def test_the_non_differential_premise_is_ranked_as_invalidating():
     nd = by_id["outcome_error_classical_non_differential_on_y"]
     assert nd["severity"] == "invalidating"
     assert nd["layer"] == "identification"
-    assert nd["provenance"] == "measurement_declared"
+    assert nd["provenance"] == "caller_asserted"
     assert "非差异" in nd["claim"]
     known = by_id["outcome_error_variance_known_and_fixed_on_y"]
     assert known["severity"] == "confidence_only"
@@ -376,7 +376,8 @@ def test_a_run_with_no_spec_carries_no_block():
     assert "outcome_error" not in r
     entries = ((r.get("extensions") or {}).get("assumption_ledger") or {}).get(
         "assumptions") or []
-    assert not any(e.get("provenance") == "measurement_declared" for e in entries)
+    assert not any(str(e.get("id", "")).startswith("outcome_error_")
+                   for e in entries)
 
 
 # --- why the discrete case routes elsewhere -----------------------------------

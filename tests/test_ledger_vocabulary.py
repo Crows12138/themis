@@ -112,7 +112,7 @@ def test_stamp_refuses_a_pair_no_producer_assembles():
     assumption relabelled as an LLM prior is a false statement about where
     it came from made entirely out of legitimate values."""
     with pytest.raises(ValueError, match="may not write provenance"):
-        ledger.stamp("flat_channel", ledger.Layer.IDENTIFICATION,
+        ledger.stamp("estimator_assumption", ledger.Layer.IDENTIFICATION,
                      ledger.Provenance.LLM_PRIOR)
     with pytest.raises(ValueError, match="may not write layer"):
         ledger.stamp("theta_prior", ledger.Layer.IDENTIFICATION,
@@ -122,7 +122,7 @@ def test_stamp_refuses_a_pair_no_producer_assembles():
 @pytest.mark.parametrize("bad", ["assumption", "", "not_a_layer_at_all"])
 def test_stamp_refuses_a_value_no_vocabulary_holds(bad):
     with pytest.raises(ValueError, match="is not an assumption layer"):
-        ledger.stamp("flat_channel", bad, ledger.Provenance.ESTIMATOR_DECLARED)
+        ledger.stamp("estimator_assumption", bad, ledger.Provenance.INHERENT)
 
 
 def test_an_unknown_producer_is_refused_rather_than_answered():
@@ -198,3 +198,71 @@ def test_the_report_translates_all_three_fields():
                 f"the report prints {str(member)!r} to the reader"
             )
             assert member.zh in out, f"the report never says {member.zh}"
+
+
+# --- who a monotonicity assumption belongs to ---------------------------------
+
+
+def _causation_program(monotonic: bool) -> dict:
+    def _cause(a, b):
+        return {"kind": "cause", "from": {"predicate": a, "args": []},
+                "to": {"predicate": b, "args": []}}
+    return {
+        "version": "0.1",
+        "domain": {"objects": []},
+        "statements": [
+            *({"kind": "variable", "predicate": v, "domain": [True, False]}
+              for v in ("x", "y", "z")),
+            _cause("z", "x"), _cause("z", "y"), _cause("x", "y"),
+            {"kind": "query", "id": "q", "query": {
+                "kind": "causation",
+                "cause": {"predicate": "x", "args": []},
+                "effect": {"predicate": "y", "args": []},
+                "monotonic": monotonic}},
+        ],
+    }
+
+
+def _monotone_frame():
+    """Rank-preserving monotone SCM with an observed confounder Z."""
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(11)
+    n = 4000
+    z = rng.random(n) < 0.5
+    u = rng.random(n)
+    y0, y1 = u < np.where(z, 0.5, 0.2), u < np.where(z, 0.8, 0.6)
+    x = rng.random(n) < np.where(z, 0.7, 0.3)
+    return pd.DataFrame({"x": x, "y": np.where(x, y1, y0), "z": z})
+
+
+def _causation_ledger(monotonic: bool) -> dict:
+    import themis
+
+    r = themis.estimate(
+        _causation_program(monotonic), _monotone_frame(), ci_bootstrap=0,
+    )["results"][0]
+    entries = ((r.get("extensions") or {}).get("assumption_ledger") or {}).get(
+        "assumptions") or []
+    return {e["id"]: e for e in entries if e.get("id")}
+
+
+_MONO = "monotonicity_x_never_prevents_y_point_identification"
+
+
+def test_the_monotonicity_that_bought_the_point_is_the_callers():
+    """``inherent`` says the method cannot be run without it, and for this one
+    that is false: drop it and the same method answers, in intervals. It is on
+    the ledger because the caller asked for it, so the reader it names is the
+    reader, and what they get back for withdrawing it is a wider answer rather
+    than no answer."""
+    by_id = _causation_ledger(monotonic=True)
+    assert _MONO in by_id, "the monotonicity assumption is not on the ledger"
+    assert by_id[_MONO]["provenance"] == str(ledger.Provenance.CALLER_ASSERTED)
+
+
+def test_withdrawing_it_takes_the_line_away_rather_than_relabelling_it():
+    """The other side of the same claim: if the line survived a query that
+    never asserted it, calling it the caller's would be decoration."""
+    assert _MONO not in _causation_ledger(monotonic=False)

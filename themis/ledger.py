@@ -6,8 +6,8 @@ five fields, and three of them are closed vocabularies —
 
 - :class:`Layer` — which part of the answer stops being true if this is false;
 - :class:`Severity` — how badly the conclusion dies when it does;
-- :class:`Provenance` — who put this on the list, and is therefore the
-  person a reader has to go and argue with.
+- :class:`Provenance` — what the reader can do about this line: who can
+  overrule it, and what they get back if they do.
 
 **Why this file exists.** The three were a bare ``str`` each, written by
 five producers and read by two surfaces, and only ``Severity`` had a table
@@ -21,14 +21,25 @@ member could be named ``assumption`` on an assumption ledger and say
 nothing for nineteen entries before anyone lined the six up.
 
 **The rows of** :data:`ADMISSIBLE` **are producers**, because that is what
-the domain depends on. A ledger entry is assembled by one of five: an
-estimator's structured spec, the flat declaration channel, a proposal edge
-the answer traverses, an LLM theta prior, an audited mechanism. Each knows
-a different amount, and the pair it may write is fixed by which one it is
-— which is a stronger statement than membership, and it is the one the
-verifier can re-derive: ``llm_prior`` belongs to a parameter and nothing
-else, ``default`` to a functional form and nothing else. Membership alone
-would let a back-door assumption be relabelled an LLM prior.
+the domain depends on. A ledger entry is assembled by one of four: the
+estimator's own assumptions, a proposal edge the answer traverses, an LLM
+theta prior, an audited mechanism. Each knows a different amount, and the
+pair it may write is fixed by which one it is — which is a stronger
+statement than membership, and it is the one the verifier can re-derive:
+``llm_prior`` belongs to a parameter and nothing else, ``default`` to a
+functional form and nothing else. Membership alone would let a back-door
+assumption be relabelled an LLM prior.
+
+**A producer may not choose the provenance of an estimator's assumption.**
+It asks :func:`themis.output.assumption_glossary.answerable`, keyed on the
+assumption's id, because the answer is a property of the assumption and not
+of the channel that carried it. Both channels carrying an estimator's
+assumptions — the structured identification spec and the flat declaration
+list — used to name themselves in this field, which is why one id could sit
+under two provenances at once: ``consistency_of_potential_outcomes`` was
+``inherent`` 191 times and ``estimator_declared`` 92 times in one suite run,
+the same sentence with two different answers to what the reader could do
+about it. Two names for one thing is how that happens, so there is one.
 
 **The verifier does not import this.** It re-declares the same five rows
 and a test pins them equal. Re-deriving a ledger from the vocabulary its
@@ -135,16 +146,20 @@ class Severity(EnvelopeName):
 
 @unique
 class Provenance(EnvelopeName):
-    """Who put this assumption on the list.
+    """What the reader can do about this line.
 
     A ledger a reader cannot act on is a ledger of worries. ``answerable``
-    is what makes each line actionable: it names who to go and argue with,
-    and the five that name someone other than Themis are the ones a reader
-    can actually overrule.
+    is what makes each line actionable, and it is the test a candidate
+    member has to pass: name who can overrule this line and what they get
+    back if they do. Two members that give the same answer are one member —
+    ``estimator_declared`` and ``measurement_declared`` both said "argue
+    with the estimator; you cannot overrule this without changing method",
+    which is what ``inherent`` says, and they were the names of the two
+    channels rather than of anything the reader could act on.
     """
 
     answerable: str
-    """Who the reader has to take it up with."""
+    """Who can overrule it, and what the reader gets back if they do."""
 
     zh: str
 
@@ -157,18 +172,16 @@ class Provenance(EnvelopeName):
 
     INHERENT = (
         "inherent",
-        "the estimator itself — the method cannot be run without this",
+        "the estimator — the method cannot be run without this, so the only "
+        "way to overrule it is to answer by a different method",
         "方法本身要求",
     )
-    ESTIMATOR_DECLARED = (
-        "estimator_declared",
-        "the estimator, which named it in its own flat declaration list",
-        "估计器声明",
-    )
-    MEASUREMENT_DECLARED = (
-        "measurement_declared",
-        "the measurement-error model the caller attached to the query",
-        "测量模型声明",
+    CALLER_ASSERTED = (
+        "caller_asserted",
+        "the caller, who asserted it on the query — withdraw it and the "
+        "answer weakens rather than disappearing, typically from a point to "
+        "the interval it was pinned out of",
+        "你在问题里断言的",
     )
     DEFAULT = (
         "default",
@@ -178,17 +191,20 @@ class Provenance(EnvelopeName):
     )
     LLM_PROPOSAL = (
         "llm_proposal",
-        "the upstream LLM that proposed the edge",
+        "the upstream LLM that proposed the edge — confirm or deny the edge "
+        "and the path this answer runs through is settled either way",
         "上游 LLM 提议",
     )
     DISCOVERY = (
         "discovery",
-        "the causal-discovery algorithm that learned the edge from data",
+        "the causal-discovery algorithm that learned the edge from data — "
+        "check it against what is known about the domain",
         "因果发现算法学出",
     )
     LLM_PRIOR = (
         "llm_prior",
-        "the upstream LLM that supplied the number as common sense",
+        "the upstream LLM that supplied the number as common sense — supply "
+        "the measured one and the answer is recomputed from it",
         "LLM 常识 prior",
     )
 
@@ -197,21 +213,26 @@ class Provenance(EnvelopeName):
 #: write, as ``layers x provenances``.
 #:
 #: The rows are producers because a producer is exactly what fixes the
-#: pair. Two of them assemble an entry out of an estimator's own words and
+#: pair. One of them assembles entries out of an estimator's own words and
 #: may therefore say any of the three things an estimator's assumptions can
 #: be about; the other three each read one channel that is about one thing,
-#: and so write one layer apiece. A structured spec and a flat declaration
-#: share a row's layers because a spec IS the flat declaration said in
-#: better words — the code that folds them says so, and keys the fold on
-#: the shared id.
+#: and so write one layer apiece.
+#:
+#: The structured identification spec and the flat declaration list are ONE
+#: producer here, not two. A spec IS the flat declaration said in better
+#: words — the code that folds them says so and keys the fold on the shared
+#: id — so a row per channel could only have differed by naming the channel,
+#: which is the mistake this table exists to make impossible.
+#:
+#: The estimator row is a product, so it permits ``(functional_form,
+#: caller_asserted)`` and ``(confidence, caller_asserted)``, which nothing
+#: writes today. That is headroom rather than a hole — a caller who passes
+#: ``model='forest'`` has asserted the shape, and that line would correctly
+#: read caller-asserted — but it is two pairs the check does not catch.
 ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
-    "identification_spec": (
+    "estimator_assumption": (
         frozenset({Layer.IDENTIFICATION, Layer.FUNCTIONAL_FORM, Layer.CONFIDENCE}),
-        frozenset({Provenance.INHERENT}),
-    ),
-    "flat_channel": (
-        frozenset({Layer.IDENTIFICATION, Layer.FUNCTIONAL_FORM, Layer.CONFIDENCE}),
-        frozenset({Provenance.ESTIMATOR_DECLARED, Provenance.MEASUREMENT_DECLARED}),
+        frozenset({Provenance.INHERENT, Provenance.CALLER_ASSERTED}),
     ),
     "proposal_edge": (
         frozenset({Layer.STRUCTURAL_EDGE}),

@@ -217,14 +217,54 @@ def test_a_structured_spec_replaces_the_declaration_it_names_and_no_other(frames
     entries = _ledger(r)["assumptions"]
     by_id = {e["id"]: e for e in entries if e.get("id")}
     assert [e["layer"] for e in entries].count("identification") == 3
-    for named in (
+    structured = (
         "conditional_exchangeability_given_adjustment_set",
         "positivity_overlap_of_treatment_arms",
         "consistency_of_potential_outcomes",
-    ):
-        assert by_id[named]["provenance"] == "inherent"
+    )
+    for named in structured:
         assert sum(1 for e in entries if e.get("id") == named) == 1
-    assert by_id["logit_outcome_regression"]["provenance"] == "estimator_declared"
+    # The fold is visible in the CLAIM, which the spec wrote, and not in the
+    # provenance: both channels carry the estimator's own assumptions, so
+    # telling them apart there would be telling the reader which code path
+    # ran. The flat-only declaration is disclosed on the same footing.
+    assert by_id["logit_outcome_regression"]["claim"]
+    for named in (*structured, "logit_outcome_regression"):
+        assert by_id[named]["provenance"] == "inherent"
+
+
+def test_one_assumption_gets_one_answer_about_who_can_overrule_it(frames):
+    """The defect this vocabulary was rebuilt around.
+
+    An estimator's assumptions reach the ledger down two channels — the
+    structured identification spec and the flat declaration list — and while
+    each channel answered ``provenance`` for itself, one id could carry two
+    answers at once: ``consistency_of_potential_outcomes`` was ``inherent``
+    191 times and ``estimator_declared`` 92 times in one suite run, the same
+    sentence telling the reader two different things about what they could do
+    about it. Both channels now key on the id, so this holds by construction
+    — and a channel that starts answering for itself again breaks it here.
+    """
+    seen: dict[str, set] = {}
+    for name in sorted(_BATTERY):
+        _, r = _run(name, frames)
+        for e in (_ledger(r) or {}).get("assumptions") or ():
+            if e.get("id"):
+                seen.setdefault(str(e["id"]), set()).add(str(e["provenance"]))
+    split = {k: sorted(v) for k, v in seen.items() if len(v) > 1}
+    assert not split, f"one assumption, two answers: {split}"
+
+
+def test_an_assumption_the_method_needs_is_not_the_callers(frames):
+    """The other half: the two are told apart by which assumption it is, not
+    by a word in it. An IV point estimate IS the LATE and there is no LATE
+    without first-stage monotonicity, so the caller cannot withdraw it and
+    keep an answer — unlike the outcome monotonicity that pins PN/PS/PNS out
+    of their bounds, which shares the word and nothing else."""
+    _, r = _run("iv", frames)
+    by_id = {e["id"]: e for e in _ledger(r)["assumptions"] if e.get("id")}
+    mono = by_id["monotonicity_first_stage_effect_same_sign_for_all_units"]
+    assert mono["provenance"] == "inherent"
 
 
 # --- classification -----------------------------------------------------------
@@ -318,13 +358,45 @@ def test_verify_rejects_an_invented_assumption(frames):
         led["assumptions"].append({
             "id": "never_declared", "claim": "never declared",
             "layer": "identification", "severity": "invalidating",
-            "testable": False, "provenance": "estimator_declared"})
+            "testable": False, "provenance": "inherent"})
         led["summary"] = led["summary"].replace(
             f"依赖 {len(led['assumptions']) - 1} 条",
             f"依赖 {len(led['assumptions'])} 条")
 
     with pytest.raises(VerificationError, match="never declared"):
         themis.verify_assumption_ledger(_tamper(r, _add))
+
+
+def test_verify_rejects_a_line_handed_to_a_caller_who_supplied_nothing(frames):
+    """``caller_asserted`` is the one attribution that gives the reader an
+    action — withdraw it and the answer comes back wider — so a back-door
+    assumption wearing it offers an action they cannot take. Both values are
+    legitimate and the pair is one a producer may write, so only re-deriving
+    the caller's input from the answer itself catches it."""
+    _, r = _run("backdoor", frames)
+
+    def _hand_over(led):
+        led["assumptions"][0]["provenance"] = "caller_asserted"
+
+    with pytest.raises(VerificationError, match="records the caller supplying"):
+        themis.verify_assumption_ledger(_tamper(r, _hand_over))
+
+
+def test_verify_rejects_an_identification_assumption_relabelled_as_a_shape(frames):
+    """The layer says which part of the answer stops being true and the
+    severity grades how badly, so the second follows from the first. Moving
+    conditional exchangeability to ``functional_form`` leaves a legal layer,
+    a legal severity and a pair a producer may write — and tells the reader
+    the average probably survives it, which is the opposite of true."""
+    _, r = _run("backdoor", frames)
+
+    def _soften(led):
+        entry = next(e for e in led["assumptions"]
+                     if e["layer"] == "identification")
+        entry["layer"] = "functional_form"
+
+    with pytest.raises(VerificationError, match="ranked 'invalidating'"):
+        themis.verify_assumption_ledger(_tamper(r, _soften))
 
 
 def test_verify_rejects_a_missing_ledger_while_assumptions_are_declared(frames):

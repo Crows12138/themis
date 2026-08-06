@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4241 passed / 144 skipped, warning-clean
+4247 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1557,6 +1557,118 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 同一条假设，两个「你能拿它怎么办」（2026-08-06，接上条）
+
+登记的 #343 说 `provenance` 的 7 个取值混了两个问题，而 `inherent` 盖在单调性上是
+假话。两句都对，而**证据比登记硬**：
+
+```text
+identification × estimator_declared   1443
+identification × inherent              700
+```
+
+按 id 一并，**3 个 id 同时挂在两个 provenance 下**，其中
+`consistency_of_potential_outcomes` 是 `inherent` 191 次、`estimator_declared`
+92 次——**同一句话，读者拿到两个不同的答案**，差别只是估计器把它放进了结构化 spec
+还是扁平列表。
+
+登记里「来自 `q.monotonic` 或一个检测器」**这半句是错的**：
+`_detect_monotonicity_for_query` 的 docstring 自己写着 "resolve MTR declaration"，
+它读 `query.assumptions.monotonicity` / `program.extensions['monotonicity']`——
+**两条路都是调用方声明**，没有检测器。而 `inherent` 说的是「方法本身要求，不给就
+跑不了」：单调性不给照样跑，只是给区间不给点。19 条（13 + 6）。
+
+**根因**：`provenance` 的职责是说**读者能拿这条怎么办**（`answerable`），而它由
+**产生端**写；产生端唯一知道的是「我是哪条通道」。于是七个取值实际按通道命名——
+`inherent` / `estimator_declared` / `measurement_declared` 三个说的是同一句话
+（「找估计器，除非换方法否则推不翻」），而真正的 answerable 是**假设本身的属性**，
+从来没有一处说出来过，只能从通道猜，猜错也没人发现。
+
+**为什么是根因不是表象**：表象修法＝给单调性单独加一个 provenance。那解决不了同一个
+id 两个来路——那不是某个产生端填错了值，是**这个字段今天根本没有确定的答案**。
+
+**改动**：
+
+- `Provenance` 只回答一个问题，成员按「谁能推翻它、推翻了拿回什么」重划：
+  `estimator_declared` / `measurement_declared` 并入 `inherent`（写不出与它不同的
+  那句），新增 `caller_asserted`（「你在问题里断言的——撤掉它答案变宽而不是消失」）。
+  7 → 6。
+- **两条通道都向同一张按 id 的表要 provenance**：`assumption_glossary.answerable`，
+  扁平通道和结构化 spec 各调一次。于是「一个 id 一个来路」**由构造成立**，不靠守卫。
+  实测修后 **0 个 id 挂在两个 provenance 下**（修前 3 个）。
+- `ADMISSIBLE` 的 `identification_spec` / `flat_channel` 两行并成
+  `estimator_assumption` 一行——两行只可能靠通道名区分，而通道名正是这张表存在的
+  目的所要消灭的东西。5 → 4 行。
+- 验证器的「伪造」规则**换了把更强的钥匙**：原来问「provenance 是不是
+  `estimator_declared`」，现在问「是不是归给了估计器」。实测**700 条结构化条目
+  全都在扁平列表里（0 例外）**，所以换钥匙不是放宽——它现在能看见**伪造的结构化
+  条目**，那是旧钥匙按构造问不到的。
+
+**合并挤出一个一直藏着的缺口**：`outcome_error` 的两条前提**不在**
+`numeric_estimate.assumptions` 里——验证器**从没读过那个块**，于是两个方向都没查过
+（它们有没有进台账、台账上的它们是不是真被声明过）。两条声明通道现在取并集。
+不合并就永远看不见：那个名字一直在替它挡着检查。
+
+**一个中文标签的取舍**：`measurement_declared`（「测量模型声明」）这个名字没了，但
+它说的事更准了——那两条前提现在是 `caller_asserted`：调用方附上了测量模型，撤掉它
+点估计照旧，丢掉的是「噪声让区间宽了多少」这笔账。
+
+**篡改扫描（同一条真台账，25 种改法）**：
+
+```text
+                       第一轮改完   补两条检查后
+拦住                    21 / 25       25 / 25
+```
+
+第一轮剩下的 4 处静默里，**1 处是新洞**：`inherent → caller_asserted` 被放过——那会
+对读者说「这条是你断言的，撤掉答案只是变宽」，而它其实是方法必需，**是这个字段唯一
+会给出「读者做不到的动作」的方向**。补法不是收紧成员表（每个值都合法），而是
+**独立复核**：实测 20/20 条 caller-asserted 单调性在信封里都有自己的记录
+（`extensions.causation.monotonic` / `counterfactual_cell.monotonicity` /
+`bounds_result.method == manski_tamer_monotonicity`），`outcome_error` 那两条自带
+id 名单——所以验证器现在从答案自身重推「调用方到底供了什么」，供不出就拒。
+
+另 3 处是层与层互换，顺手量出**更大的一件事**：`layer × severity` 在 **3252 条条目上
+一一对应、零例外**。既有那条严重度规则只写了 identification 一层，于是把一条识别假设
+改标成 `functional_form` 会得到一条合法层、合法严重度、合法配对的条目，而它告诉读者
+「平均值多半扛得住」——恰好相反。规则推广到五层（层说答案的哪部分不成立，严重度给它
+分级，第二个由第一个推出），三处静默归零。**severity 是不是整个可由 layer 推出**
+登记为 #345。
+
+**守卫（十二条反例，全部构造并见红）**：通道又自己作答 / 单调性又被说成方法自带 /
+按「monotonicity」这个词而不是按假设去认（IV 的一阶单调性会被误判成调用方的）/
+伪造的结构化条目 / 第二条声明通道又没人读 / 验证器那份重申漂一格 / schema enum
+少一个值 / 浏览器表少一个键 / 主报告又裸印标识符 / 调用方追溯被删掉 / 严重度规则
+缩回一层 / 追溯改成来者不拒。
+
+**基线（本条）**：4241 → **4247**。
+
+**声明的取舍**：`estimator_assumption` 一行是 `层 × 来路` 的积，因此它允许
+`(functional_form, caller_asserted)` 和 `(confidence, caller_asserted)` 两对——
+今天没有任何产生端写它们。这是余量不是洞（调用方传 `model='forest'` 就是在断言形状，
+那条线写成 caller_asserted 是对的），而且这两对现在也过不了「调用方到底供了什么」
+那道独立复核，所以它不再是这个检查抓不到的东西。
+
+**新登记**：#344 `no_monotonicity_assumption_free_interval` /
+`no_monotonicity_assumption_free_bounds_only` 共 19 条，把「**没有**假设单调性」列
+成了一条假设——台账的定义是「这个答案建立在什么之上」，而这两条恰恰是它没建立在
+什么之上。#345 `severity` 是 `layer` 的第二份记录（3252 条零例外），而 glossary 的
+146 行各自独立声明了两个值。
+
+**方法论沉淀**：(67)**「同一个字段在两处取值不同」和「同一个东西被说了两遍」是同一
+个探针的两面——按 id 分桶，看有没有哪个 id 收到过两个答案**。域取决于产生端时
+（(64)）验的是「这一对合不合法」；而当**同一个东西能走两条产生路**时，更锋利的探针
+是让它走两遍再对账：`consistency_of_potential_outcomes` 每个取值单独看都合法、每一对
+都合法，只有把两条路的答案摆在一起才看得见它们不一致。
+(68)**合并两个同义成员会挤出一个一直藏着的缺口——被挤出来的那个，恰恰是原来靠这个
+名字免检的东西**：`measurement_declared` 一并进 `inherent`，验证器立刻对着
+`outcome_error` 的两条前提喊「估计器从没声明过」，而真相是**它从来没读过那条通道**。
+把名字合掉之前，「这个名字在替谁挡着检查」要先问一遍。
+(69)**新加一个取值就是新开一个洞，而该补的洞是它唯一会骗人的那个方向——问「这个值
+说错了，读者会去做什么他其实做不到的事」**：`caller_asserted` 的错用会告诉读者「撤掉
+它答案只是变宽」，那是这张表上唯一一个**可执行**的假话，所以它是唯一值得独立复核的
+归属；而复核的材料要现成（实测 20/20 在信封里都留了记录），**先量再决定要不要建**。
 
 ### 一行台账三个封闭词表，两个从没有过表（2026-08-06，接上条）
 

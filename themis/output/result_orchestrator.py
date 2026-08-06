@@ -17,6 +17,8 @@ back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 from __future__ import annotations
 
 from .. import blocks, ledger
+from . import assumption_glossary
+from .assumption_glossary import classify_assumption
 from ..types import (
     Atom,
     CauseStatement,
@@ -541,10 +543,13 @@ def build_assumption_ledger(
     # 1) identification assumptions — structured at source by the
     #    estimator, passed directly (not via schema-validated numeric_estimate)
     for spec in identification_specs or ():
+        # The provenance comes from the id, not from this channel: the same
+        # assumption reaches the ledger structured here and flat below, and a
+        # channel answering for itself is how one id came to carry two.
         layer, provenance = ledger.stamp(
-            "identification_spec",
+            "estimator_assumption",
             spec.get("layer", ledger.Layer.IDENTIFICATION),
-            ledger.Provenance.INHERENT,
+            assumption_glossary.answerable(spec.get("id", "")),
         )
         entry = {
             "claim": spec.get("claim", ""),
@@ -690,8 +695,6 @@ def augment_assumption_ledger(result: dict) -> None:
     monotonicity was assumed. The verifier, written independently, had
     reached for the same escape hatch — so nothing on either side saw it.
     """
-    from .assumption_glossary import classify_assumption
-
     estimate = result.get("numeric_estimate")
     if not isinstance(estimate, dict):
         return
@@ -714,7 +717,7 @@ def augment_assumption_ledger(result: dict) -> None:
     for item in measured:
         entry = classify_assumption(item)
         entry["layer"], entry["provenance"] = ledger.stamp(
-            "flat_channel", entry["layer"], ledger.Provenance.MEASUREMENT_DECLARED)
+            "estimator_assumption", entry["layer"], entry["provenance"])
         entries.append(entry)
 
     claimed = {str(e["id"]) for e in entries if e.get("id")}
@@ -723,7 +726,7 @@ def augment_assumption_ledger(result: dict) -> None:
             continue
         entry = classify_assumption(item)
         entry["layer"], entry["provenance"] = ledger.stamp(
-            "flat_channel", entry["layer"], ledger.Provenance.ESTIMATOR_DECLARED)
+            "estimator_assumption", entry["layer"], entry["provenance"])
         entries.append(entry)
         claimed.add(str(item))
 

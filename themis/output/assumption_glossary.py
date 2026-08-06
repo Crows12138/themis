@@ -23,10 +23,18 @@ Two shapes are matched: exact IDs, and prefixes for the IDs an estimator builds
 with a runtime suffix (a cluster column name, a covariate name). Prefix entries
 are explicit data, not keyword heuristics — an ID that merely *contains* a word
 is not classified by it.
+
+**Provenance is answered here too**, by :func:`answerable`, and for BOTH of the
+channels that carry an estimator's assumptions — this flat list and the
+structured identification specs. It lives here because who can overrule an
+assumption is a property of the assumption, and this is the only table keyed on
+the assumption. When each channel answered for itself, one ID could carry two
+provenances at once; keying both on the ID makes "one assumption, one answer"
+true by construction rather than by a guard.
 """
 from __future__ import annotations
 
-from ..ledger import Layer, Severity
+from ..ledger import Layer, Provenance, Severity
 
 # layer / severity / testable / Chinese claim
 _Entry = tuple[str, str, bool, str]
@@ -377,27 +385,85 @@ _PREFIX: tuple[tuple[str, _Entry], ...] = (
 )
 
 
+# --- who can overrule it ------------------------------------------------------
+
+# Listed by exception rather than as a fifth column on every row above,
+# because the default is right for an estimator's assumptions as a class:
+# an estimator declares what its own answer rests on. What breaks the class
+# is the caller opting IN to something the method does not need — the
+# answer runs without it and comes back wider — and that is a short list
+# whose members would be invisible spread across a hundred identical
+# entries.
+#
+# ``monotonicity_first_stage_effect_same_sign_for_all_units`` is deliberately
+# NOT here: an IV point estimate is the LATE and there is no LATE without it,
+# so the caller cannot withdraw it and keep an answer. Which is why this is
+# keyed on whole IDs and one prefix, and not on the word "monotonicity".
+_ANSWERABLE_EXACT: dict[str, Provenance] = {
+    # PN / PS / PNS: without it the three are Tian-Pearl intervals.
+    "monotonicity_x_never_prevents_y_point_identification":
+        Provenance.CALLER_ASSERTED,
+    # A counterfactual cell: without it the cell is its bounds.
+    "monotonicity_non_decreasing_in_treatment": Provenance.CALLER_ASSERTED,
+    "monotonicity_non_increasing_in_treatment": Provenance.CALLER_ASSERTED,
+    # The same assertion doing ALL the work, with no do-risk to check it
+    # against. The claim says so; the provenance says whose it is.
+    "cell_determined_by_monotonicity_alone_no_interventional_risk":
+        Provenance.CALLER_ASSERTED,
+}
+
+_ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (
+    # Monotone treatment response, declared on the query and used to tighten
+    # one side of the assumption-free bounds.
+    ("mtr_", Provenance.CALLER_ASSERTED),
+    # An outcome measurement-error assessment runs only because the caller
+    # attached the model, and both premises are about the caller's own
+    # measurement process. Drop the model and the point estimate stands —
+    # what is lost is the accounting of what the noise costs the interval.
+    ("outcome_error_classical_non_differential_on_", Provenance.CALLER_ASSERTED),
+    ("outcome_error_variance_known_and_fixed_on_", Provenance.CALLER_ASSERTED),
+)
+
+
+def answerable(assumption_id: str) -> Provenance:
+    """Who can overrule this assumption, for either channel that carries one.
+
+    The structured identification specs ask this too, keyed on the same id,
+    so a spec and the flat declaration it restates cannot disagree about
+    what the reader may do with the line.
+    """
+    text = str(assumption_id)
+    hit = _ANSWERABLE_EXACT.get(text)
+    if hit is not None:
+        return hit
+    for prefix, provenance in _ANSWERABLE_PREFIX:
+        if text.startswith(prefix):
+            return provenance
+    return Provenance.INHERENT
+
+
 def classify_assumption(assumption: str) -> dict:
     """Turn one flat assumption declaration into a ledger entry.
 
-    Returns ``{"id", "claim", "layer", "severity", "testable"}``. An
-    unrecognised declaration is surfaced as an identification assumption at
+    Returns ``{"id", "claim", "layer", "severity", "testable", "provenance"}``.
+    An unrecognised declaration is surfaced as an identification assumption at
     ``invalidating`` severity with its raw text as the claim — a disclosure
     surface must never drop something because nobody classified it.
     """
     text = str(assumption)
+    common = {"id": text, "provenance": answerable(text)}
     entry = _EXACT.get(text)
     if entry is not None:
         layer, severity, testable, zh = entry
-        return {"id": text, "claim": zh, "layer": layer,
+        return {**common, "claim": zh, "layer": layer,
                 "severity": severity, "testable": testable}
     for prefix, (layer, severity, testable, template) in _PREFIX:
         if text.startswith(prefix):
             suffix = text[len(prefix):]
             claim = template.format(suffix) if template else text
-            return {"id": text, "claim": claim, "layer": layer,
+            return {**common, "claim": claim, "layer": layer,
                     "severity": severity, "testable": testable}
-    return {"id": text, "claim": text, "layer": _ID,
+    return {**common, "claim": text, "layer": _ID,
             "severity": _INVAL, "testable": False}
 
 

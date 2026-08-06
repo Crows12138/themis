@@ -27,7 +27,7 @@
                   "claim": { "type": "string", "minLength": 1 },
                   "layer": { "enum": ["identification", "functional_form", "structural_edge", "parameter", "confidence"] },
                   "severity": { "enum": ["invalidating", "distorting", "confidence_only"] },
-                  "provenance": { "enum": ["inherent", "estimator_declared", "measurement_declared", "default", "llm_proposal", "discovery", "llm_prior"] },
+                  "provenance": { "enum": ["inherent", "caller_asserted", "default", "llm_proposal", "discovery", "llm_prior"] },
                   "testable": { "type": "boolean" },
                   "id": { "type": "string" }
                 }
@@ -535,7 +535,7 @@
     },
     "outcome_error": {
       "type": "object",
-      "description": "What a declared classical additive measurement-error variance on a CONTINUOUS outcome (Y = Y* + V, E[V|design] = 0) costs this query. Present only when the caller supplied estimate(measurement_error={<outcome>: {error_variance}}) and the query is back-door identified. It carries no correction and displaces no estimator: such an error leaves every conditional mean unchanged, so the point estimate here is the ordinary one and is already right. What it does carry is the price — the observed residual variance split into signal and measurement noise, and the factor by which that noise widens every least-squares interval on this design. That factor is the part of the uncertainty more subjects cannot buy back, only better measurement. Its ``assumptions`` (chiefly that the error is NON-DIFFERENTIAL, without which the point is not immune after all) are folded into extensions.assumption_ledger under provenance ``measurement_declared``, so they land on the surface the report leads with rather than in a side block each consumer must remember to read.",
+      "description": "What a declared classical additive measurement-error variance on a CONTINUOUS outcome (Y = Y* + V, E[V|design] = 0) costs this query. Present only when the caller supplied estimate(measurement_error={<outcome>: {error_variance}}) and the query is back-door identified. It carries no correction and displaces no estimator: such an error leaves every conditional mean unchanged, so the point estimate here is the ordinary one and is already right. What it does carry is the price — the observed residual variance split into signal and measurement noise, and the factor by which that noise widens every least-squares interval on this design. That factor is the part of the uncertainty more subjects cannot buy back, only better measurement. Its ``assumptions`` (chiefly that the error is NON-DIFFERENTIAL, without which the point is not immune after all) are folded into extensions.assumption_ledger, so they land on the surface the report leads with rather than in a side block each consumer must remember to read.",
       "required": ["outcome", "treatment", "design_vars", "error_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics"],
       "additionalProperties": false,
       "properties": {

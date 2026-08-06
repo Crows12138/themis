@@ -1623,14 +1623,18 @@ surface** for everything the answer takes on faith — render its
 sorted by severity, so `invalidating` entries come first). Lead with
 the `invalidating` ones: if any is false the number is not a causal
 effect at all — that outranks any `distorting` shape concern. Each
-entry carries `layer` / `provenance` / `severity` / `testable`; name
-the provenance (识别层固有 / 上游 LLM 提的边 / LLM prior / 估计器默认
-形式) so the user knows whom to challenge, and say which are testable
-(form → switch estimator; edge → needs evidence) vs untestable by
-design (identification). The ledger folds in all four channels — the
-LLM-proposed edges, theta priors, the functional form, and the
-estimator's own `numeric_estimate.assumptions[]` (those entries carry
-`provenance: estimator_declared` and keep the raw ID in `id`) — so do
+entry carries `layer` / `provenance` / `severity` / `testable`. The
+`provenance` says what the user can DO about that line — who can
+overrule it and what they get back — so say that, not just who it came
+from: an `inherent` line only goes away with a different method, a
+`caller_asserted` one is theirs to withdraw and the answer comes back
+wider rather than gone, a `default` one changes the moment they specify
+a form, and an `llm_proposal` / `llm_prior` one is settled by evidence
+they can supply. Also say which are testable (form → switch estimator;
+edge → needs evidence) vs untestable by design (identification). The
+ledger folds in all four channels — the LLM-proposed edges, theta
+priors, the functional form, and the estimator's own
+`numeric_estimate.assumptions[]` (which keep the raw ID in `id`) — so do
 NOT separately re-render `llm_proposed_review` / `mechanism_audit` /
 `assumptions[]` when the ledger is present; that double-counts. An
 entry whose `claim` is still snake_case is one the glossary has not
