@@ -384,8 +384,9 @@ def _assumptions(
         out.append("positivity_every_treatment_arm_has_support_in_each_stratum")
     if monotonic:
         out.append("monotonicity_x_never_prevents_y_point_identification")
-    else:
-        out.append("no_monotonicity_assumption_free_bounds_only")
+    # No else. Assuming nothing declares nothing: an answer that rests on
+    # less has to say less, and the reason there is no point belongs to the
+    # answer, which already gives it in the shape it comes back as.
     if cluster is not None:
         out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)

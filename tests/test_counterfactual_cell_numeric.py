@@ -376,10 +376,15 @@ def test_a_pinned_cell_answers_even_when_the_do_risk_is_unavailable():
     assert cell.interventional_risk_provenance == "pinned_by_monotonicity"
     assert cell.p_y_do_x_cf is None
     assert cell.point == pytest.approx(0.0)
-    assert (
-        "cell_determined_by_monotonicity_alone_no_interventional_risk"
-        in cell.assumptions
-    )
+    # This used to look for a declaration of its own saying the cell was
+    # pinned by monotonicity alone. A do-risk being unavailable assumes
+    # nothing about the world; what it means is that the one assumption
+    # here has nothing to be checked against, so it is said on that line.
+    mono = [s for s in cell.identification_assumptions
+            if s["id"] == "monotonicity_non_decreasing_in_treatment"]
+    assert len(mono) == 1
+    assert mono[0]["testable"] is False
+    assert "数据无从推翻" in mono[0]["claim"]
 
 
 def test_experimental_risk_rescues_the_confounded_cell():

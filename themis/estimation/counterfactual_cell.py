@@ -469,14 +469,12 @@ def _assumptions(
         out.append("admg_structure_correct_including_latent_confounders")
         out.append("positivity_every_conditioning_stratum_of_the_estimand_has_support")
         out.append("discrete_variables_saturated_nonparametric_plug_in")
-    elif provenance is RiskProvenance.PINNED_BY_MONOTONICITY:
-        # No do-risk was available, so the emptiness check that would have
-        # refuted the monotonicity never ran. Say so.
-        out.append("cell_determined_by_monotonicity_alone_no_interventional_risk")
+    # No do-risk being available is not a further assumption: it is why the
+    # one below cannot be refuted, and it is said on that line rather than
+    # beside it.
     if monotonicity is not None:
         out.append(f"monotonicity_{monotonicity}_in_treatment")
-    else:
-        out.append("no_monotonicity_assumption_free_interval")
+    # No else — see :func:`themis.estimation.causation._assumptions`.
     if cluster is not None:
         out.append(f"ci_via_pairs_cluster_bootstrap_on_{cluster}")
     return tuple(out)
@@ -520,21 +518,20 @@ def _identification_assumptions(
             {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
              "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
              "layer": "identification", "testable": True})
-    elif provenance is RiskProvenance.PINNED_BY_MONOTONICITY:
-        specs.append(
-            # Identification, not a layer of its own: monotonicity is what
-            # picks this cell out of its bounds, so it fails the way an
-            # identification assumption fails.
-            {"id": "cell_determined_by_monotonicity_alone_no_interventional_risk",
-             "claim": "干预风险不可得，本格完全由单调性钉死——因此数据无从推翻这条单调性",
-             "layer": "identification",
-             "testable": False})
     if monotonicity is not None:
+        # Monotonicity is testable only when a do-risk was an input: the
+        # emptiness check that could have refuted it needs one. That used to
+        # be a SECOND entry beside this one, saying the cell was pinned by
+        # monotonicity alone — but a do-risk being unavailable assumes
+        # nothing about the world, and its whole content is what this line
+        # can and cannot be checked against. It is said here, on the line it
+        # is about, and nowhere else.
+        claim = f"单调性（{monotonicity}）：把本格的区间收紧成点"
+        if not provenance.uses_risk:
+            claim += "——而干预风险不可得，数据无从推翻它"
         specs.append(
             {"id": f"monotonicity_{monotonicity}_in_treatment",
-             "claim": f"单调性（{monotonicity}）：把本格的区间收紧成点",
+             "claim": claim,
              "layer": "identification",
-             # Monotonicity is testable only when a do-risk was an input:
-             # the emptiness check that could have refuted it needs one.
              "testable": provenance.uses_risk})
     return tuple(specs)

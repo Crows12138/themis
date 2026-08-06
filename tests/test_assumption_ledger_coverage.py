@@ -91,7 +91,21 @@ def _data(seed=5, n=8_000):
             "x": xf, "m": mf,
             "y": 0.3 * xf + 0.5 * mf + rng.normal(0, 0.3, n),
         }),
+        # Rank-preserving and monotone, so the two families whose answers
+        # come in a sharper and a bounded mode can be asked both ways off
+        # one frame. They were outside this battery until the sweep that
+        # would have caught an unclassified declaration from either was
+        # asked which families it actually runs.
+        "monotone": _monotone_frame(rng, n),
     }
+
+
+def _monotone_frame(rng, n):
+    z = rng.random(n) < 0.5
+    u = rng.random(n)
+    y0, y1 = u < np.where(z, 0.5, 0.2), u < np.where(z, 0.8, 0.6)
+    x = rng.random(n) < np.where(z, 0.7, 0.3)
+    return pd.DataFrame({"x": x, "y": np.where(x, y1, y0), "z": z})
 
 
 _BACKDOOR = _prog([_var("x"), _var("y"), _var("z"),
@@ -111,6 +125,31 @@ _IV = _prog([_var("z"), _var("x"), _var("y"),
 _MEDIATION = _prog([_var("x"), _var("m"), _var("y"),
                     _cause("x", "m"), _cause("m", "y"), _cause("x", "y"),
                     _effect_query(mediator=_atom("m"))])
+
+
+
+def _confounded(query):
+    return _prog([_var("x", domain=[True, False]), _var("y", domain=[True, False]),
+                  _var("z", domain=[True, False]),
+                  _cause("z", "x"), _cause("z", "y"), _cause("x", "y"),
+                  {"kind": "query", "id": "q", "query": query}])
+
+
+def _causation_prog(monotonic):
+    return _confounded({"kind": "causation", "cause": _atom("x"),
+                        "effect": _atom("y"), "monotonic": monotonic})
+
+
+def _cell_prog(monotonicity):
+    q = {"kind": "counterfactual",
+         "observed": {"atom": _atom("x"), "value": True},
+         "counterfactual_intervention": {"atom": _atom("x"), "value": False},
+         "counterfactual_target": {"atom": _atom("y"), "value": True},
+         "factual_target_known": False}
+    if monotonicity is not None:
+        q["assumptions"] = {"monotonicity": monotonicity}
+    return _confounded(q)
+
 
 _MC_X = {"x": {"confusion_matrix": _M(0.9, 0.85), "states": [False, True]}}
 _MC_Y = {"y": {"confusion_matrix": _M(0.8, 0.95), "states": [False, True]}}
@@ -134,6 +173,13 @@ _BATTERY = {
                                   {"misclassification": _MC_Y}),
     "combined_misclassification": (_MEASURED, "misclassified",
                                    {"misclassification": {**_MC_X, **_MC_Y}}),
+    # Both modes of the two families whose answer sharpens under an
+    # assertion the caller may withhold. Asking each way is what makes
+    # "assuming less rests on less" a question this battery can be asked.
+    "causation_monotone": (_causation_prog(True), "monotone", {}),
+    "causation_bounded": (_causation_prog(False), "monotone", {}),
+    "cell_monotone": (_cell_prog("non_decreasing"), "monotone", {}),
+    "cell_bounded": (_cell_prog(None), "monotone", {}),
 }
 
 
@@ -266,6 +312,120 @@ def test_an_assumption_the_method_needs_is_not_the_callers(frames):
     by_id = {e["id"]: e for e in _ledger(r)["assumptions"] if e.get("id")}
     mono = by_id["monotonicity_first_stage_effect_same_sign_for_all_units"]
     assert mono["provenance"] == "inherent"
+
+
+# --- what may be on the list at all -------------------------------------------
+
+
+def _monotone_causation_program(monotonic: bool) -> dict:
+    def cause(a, b):
+        return {"kind": "cause", "from": {"predicate": a, "args": []},
+                "to": {"predicate": b, "args": []}}
+    return {
+        "version": "0.1",
+        "domain": {"objects": []},
+        "statements": [
+            *({"kind": "variable", "predicate": v, "domain": [True, False]}
+              for v in ("x", "y", "z")),
+            cause("z", "x"), cause("z", "y"), cause("x", "y"),
+            {"kind": "query", "id": "q", "query": {
+                "kind": "causation",
+                "cause": {"predicate": "x", "args": []},
+                "effect": {"predicate": "y", "args": []},
+                "monotonic": monotonic}},
+        ],
+    }
+
+
+def _monotone_causation_frame():
+    rng = np.random.default_rng(11)
+    n = 4000
+    z = rng.random(n) < 0.5
+    u = rng.random(n)
+    y0, y1 = u < np.where(z, 0.5, 0.2), u < np.where(z, 0.8, 0.6)
+    x = rng.random(n) < np.where(z, 0.7, 0.3)
+    return pd.DataFrame({"x": x, "y": np.where(x, y1, y0), "z": z})
+
+
+def _causation_result(monotonic: bool) -> dict:
+    return themis.estimate(
+        _monotone_causation_program(monotonic), _monotone_causation_frame(),
+        ci_bootstrap=0)["results"][0]
+
+
+def test_an_answer_that_assumes_less_rests_on_less():
+    """The membership test for this list, in the one form that is decidable.
+
+    A ledger entry is a claim about the world the answer needs: false, and
+    the answer is wrong. Ask the same question twice, once asserting
+    monotonicity and once not, and the second answer rests on strictly
+    fewer claims — it is the same derivation with one premise withdrawn.
+    Both ledgers used to be the same length, because the branch that had
+    nothing to declare declared that it had nothing, which reached the
+    reader as a fifth thing whose failure voids the conclusion.
+    """
+    strong = _ledger(_causation_result(True))["assumptions"]
+    weak = _ledger(_causation_result(False))["assumptions"]
+
+    claimed = {e["id"] for e in strong if e.get("id")}
+    weaker = {e["id"] for e in weak if e.get("id")}
+    assert weaker < claimed, (
+        f"assuming less added {sorted(weaker - claimed)!r} to the ledger"
+    )
+    assert claimed - weaker == {
+        "monotonicity_x_never_prevents_y_point_identification"}
+
+    n_inval = sum(1 for e in weak if e["severity"] == "invalidating")
+    assert f"{n_inval} 条一旦不成立" in _ledger(_causation_result(False))["summary"]
+    assert n_inval == sum(
+        1 for e in strong if e["severity"] == "invalidating") - 1
+
+
+@pytest.mark.parametrize("stronger,weaker", [("non_decreasing", None)])
+def test_the_cell_estimator_declares_less_when_it_assumes_less(stronger, weaker):
+    """The same invariant at the producer, over every risk provenance —
+    including the one whose branch used to add an entry of its own for a
+    do-risk NOT being available."""
+    from themis.estimation.counterfactual_cell import _assumptions
+    from themis.risk_provenance import ADMISSIBLE
+
+    for provenance in ADMISSIBLE["numeric_counterfactual_cell_estimate"]:
+        more = set(_assumptions(provenance, ("z",), stronger, None))
+        less = set(_assumptions(provenance, ("z",), weaker, None))
+        assert less < more, (
+            f"{provenance}: withdrawing monotonicity left {sorted(less - more)!r}"
+        )
+
+
+def test_the_reader_is_still_told_why_there_is_no_point():
+    """What the two withdrawn entries were reaching for is real and belongs
+    to the answer, so removing them must not take it away. It was already
+    said there — this pins that it stays said."""
+    r = _causation_result(False)
+    report = build_analysis_report(r, program=_monotone_causation_program(False))
+    answer = report.split("## 答案", 1)[1].split("##", 1)[0]
+    assert "未假设单调性" in answer
+    assert "单调性" in answer and "点识别" in answer
+
+
+def test_a_cell_pinned_with_nothing_to_check_it_says_so_on_that_line():
+    """The third entry of the same species carried something real: with no
+    do-risk, nothing could have refuted the monotonicity. That is not a
+    further assumption — it is what this one can be checked against, so it
+    is on this line and not beside it."""
+    from themis.estimation.counterfactual_cell import _identification_assumptions
+    from themis.risk_provenance import RiskProvenance
+
+    for provenance, refutable in (
+        (RiskProvenance.PINNED_BY_MONOTONICITY, False),
+        (RiskProvenance.BACKDOOR_ADJUSTMENT, True),
+    ):
+        specs = _identification_assumptions(provenance, ("z",), "non_decreasing")
+        mono = [s for s in specs
+                if s["id"] == "monotonicity_non_decreasing_in_treatment"]
+        assert len(mono) == 1
+        assert mono[0]["testable"] is refutable
+        assert ("数据无从推翻" in mono[0]["claim"]) is not refutable
 
 
 # --- classification -----------------------------------------------------------

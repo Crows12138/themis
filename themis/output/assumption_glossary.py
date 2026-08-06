@@ -10,6 +10,19 @@ flat list does not carry:
 - **layer** — which part of the answer stops being true if it is false;
 - **testable** — can the reader do something to check it.
 
+**What belongs on this list at all.** A row is a claim about the world that
+this answer needs: if it is false the answer is wrong. A sentence that,
+being false, would leave the answer unchanged or better is not a member,
+however true and however worth telling the reader — "monotonicity was not
+assumed" is the shape, and it was here twice, ranked invalidating, counted
+in the headline "N of these void the conclusion". What such a sentence is
+really about is the answer (an interval instead of a point) or the line
+next to it (an assumption nothing could refute), and both of those have
+somewhere of their own to be said. Note that a negation in the NAME is no
+signal either way: sixteen rows begin with ``no_`` and every one of them —
+no unmeasured confounding, no intermediate confounder — is a claim about
+the world that the answer rests on.
+
 Severity used to be a third column here, on all 146 rows, and it never once
 disagreed with the layer beside it — because it is that layer's grade and not
 a judgement about the assumption. It is asked of :class:`themis.ledger.Layer`
@@ -203,12 +216,6 @@ _EXACT: dict[str, _Entry] = {
         _ID, False, "本格所需的那一臂干预风险取自随机实验"),
     "monotonicity_x_never_prevents_y_point_identification": (
         _ID, False, "单调性：X 从不阻止 Y —— 这条把区间收紧成点"),
-    "no_monotonicity_assumption_free_bounds_only": (
-        _ID, False, "未假设单调性：只给无假设界，不给点"),
-    "no_monotonicity_assumption_free_interval": (
-        _ID, False, "未假设单调性：只给无假设区间，不给点"),
-    "cell_determined_by_monotonicity_alone_no_interventional_risk": (
-        _ID, False, "本格仅由单调性定死，未用到任何干预风险"),
 
     # -- proximal --------------------------------------------------------------
     "U_sufficient_confounder_and_proxies_satisfy_miao_model_f": (
@@ -402,13 +409,12 @@ _ANSWERABLE_EXACT: dict[str, Provenance] = {
     # PN / PS / PNS: without it the three are Tian-Pearl intervals.
     "monotonicity_x_never_prevents_y_point_identification":
         Provenance.CALLER_ASSERTED,
-    # A counterfactual cell: without it the cell is its bounds.
+    # A counterfactual cell: without it the cell is its bounds. When no
+    # do-risk was obtainable this same assertion does ALL the work with
+    # nothing to check it against, which the producer says on this line's
+    # own claim rather than as an entry beside it.
     "monotonicity_non_decreasing_in_treatment": Provenance.CALLER_ASSERTED,
     "monotonicity_non_increasing_in_treatment": Provenance.CALLER_ASSERTED,
-    # The same assertion doing ALL the work, with no do-risk to check it
-    # against. The claim says so; the provenance says whose it is.
-    "cell_determined_by_monotonicity_alone_no_interventional_risk":
-        Provenance.CALLER_ASSERTED,
 }
 
 _ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (
