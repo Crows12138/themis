@@ -187,6 +187,109 @@ def test_collinear_instruments_raise():
     assert exc.value.failure_type == Refusal.SINGULAR_DESIGN
 
 
+def test_an_outcome_that_is_an_exact_function_of_the_treatment_is_refused():
+    """û'û = 0 makes the Sargan statistic 0/0. Nothing here is a limit of
+    the instruments: the design leaves no structural residual at all, so
+    there is no over-identification left to test."""
+    n = 200
+    rng = np.random.default_rng(0)
+    z1 = rng.standard_normal(n)
+    z2 = rng.standard_normal(n)
+    x = 0.7 * z1 - 0.4 * z2 + rng.standard_normal(n)
+    df = pd.DataFrame({"z1": z1, "z2": z2, "x": x, "y": 2.0 * x})
+    with pytest.raises(EstimatorFailure, match="exact linear function") as exc:
+        estimate_iv_overid(df, treatment="x", outcome="y",
+                           instruments=("z1", "z2"), ci_bootstrap=0)
+    assert exc.value.failure_type == Refusal.SINGULAR_DESIGN
+    assert exc.value.details["residual_sum_of_squares"] == 0.0
+
+
+def test_instruments_orthogonal_to_the_treatment_are_refused():
+    """Z'Z inverts fine — every instrument varies, and none of them varies
+    WITH the treatment. The joint first stage is the thing that is dead,
+    and the species says so instead of calling the design singular."""
+    n = 200
+    rng = np.random.default_rng(1)
+    z1 = np.tile([1.0, 1.0, 0.0, 0.0], n // 4)
+    z2 = np.tile([1.0, 0.0, 1.0, 0.0], n // 4)
+    # x is constant inside each block of four rows, and the instruments
+    # only vary within a block, so after residualising they are exactly
+    # orthogonal to x.
+    x = np.repeat(rng.standard_normal(n // 4), 4)
+    df = pd.DataFrame({"z1": z1, "z2": z2, "x": x,
+                       "y": rng.standard_normal(n)})
+    with pytest.raises(EstimatorFailure, match="joint first stage") as exc:
+        estimate_iv_overid(df, treatment="x", outcome="y",
+                           instruments=("z1", "z2"), ci_bootstrap=0)
+    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
+    assert exc.value.details["n_instruments"] == 2
+    assert abs(exc.value.details["statistic"]) < 1e-12
+
+
+def _one_cluster_3iv(n=60, seed=3):
+    """Three instruments and a single cluster: the CR0 weight Ŝ is the
+    outer product of ONE cluster sum, so it has rank 1 in three
+    dimensions."""
+    rng = np.random.default_rng(seed)
+    zs = {f"z{k}": rng.standard_normal(n) for k in range(3)}
+    x = sum(0.5 * v for v in zs.values()) + rng.standard_normal(n)
+    y = 1.5 * x + rng.standard_normal(n)
+    return pd.DataFrame({**zs, "x": x, "y": y, "c": ["only"] * n})
+
+
+def test_a_singular_robust_weight_drops_hansen_and_keeps_the_estimate():
+    """Hansen is an add-on. When Ŝ cannot be inverted the refusal is
+    caught where the add-on is assembled, so 2SLS + Sargan still answer —
+    and ``s_robust`` is absent rather than holding an uninvertible matrix
+    the verifier would re-solve."""
+    est = estimate_iv_overid(
+        _one_cluster_3iv(), treatment="x", outcome="y",
+        instruments=("z0", "z1", "z2"), ci_bootstrap=0, cluster="c",
+    )
+    assert est.hansen is None
+    assert "s_robust" not in est.moments
+    assert est.sargan is not None
+    assert np.isfinite(est.point)
+
+
+def _cluster_indicator_design(n_per=6, g=10, seed=0):
+    """Z'Z inverts IFF every one of the ``g`` clusters is in the sample.
+
+    The instruments are the indicators of clusters ``0..g-2``: drop
+    cluster k and z_k is constant, drop the last cluster and the
+    indicators sum to a constant. A pairs cluster bootstrap covers all g
+    clusters with probability g!/g^g — 3.6e-4 at g = 10.
+    """
+    rng = np.random.default_rng(seed)
+    n = n_per * g
+    cl = np.repeat(np.arange(g), n_per)
+    zs = {f"z{k}": (cl == k).astype(float) for k in range(g - 1)}
+    x = np.linspace(-1.0, 1.0, g)[cl] + 0.3 * rng.standard_normal(n)
+    y = 1.5 * x + 0.3 * rng.standard_normal(n)
+    return pd.DataFrame({**zs, "x": x, "y": y, "c": cl})
+
+
+def test_when_every_cluster_resample_is_degenerate_the_interval_is_refused():
+    """The point is identified on the full sample; it is the INTERVAL that
+    has no draws behind it. Reporting the point with a silently absent CI
+    would be the failure this refusal exists to prevent."""
+    df = _cluster_indicator_design()
+    instruments = tuple(f"z{k}" for k in range(9))
+    point_only = estimate_iv_overid(
+        df, treatment="x", outcome="y", instruments=instruments,
+        ci_bootstrap=0, cluster="c",
+    )
+    assert np.isfinite(point_only.point)
+
+    with pytest.raises(EstimatorFailure, match="degenerate") as exc:
+        estimate_iv_overid(
+            df, treatment="x", outcome="y", instruments=instruments,
+            ci_bootstrap=200, random_state=1, cluster="c",
+        )
+    assert exc.value.failure_type == Refusal.NO_USABLE_RESAMPLE
+    assert exc.value.details == {"model": "overid_2sls", "resamples": 200}
+
+
 def test_moments_round_trip_reproduces_point():
     """The recorded moments alone reproduce the point + J (verifier's basis)."""
     df = _valid_2iv()
@@ -497,6 +600,26 @@ def test_hansen_solve_round_trips_from_recorded_s():
     assert abs(solved["j_stat"] - est.hansen.j_stat) < 1e-9
     assert abs(solved["gmm_point"] - est.hansen.gmm_point) < 1e-9
     assert solved["dof"] == est.hansen.dof
+
+
+def test_efficient_gmm_refuses_a_dead_first_stage_on_recorded_moments():
+    """``solve_hansen_from_s`` is the solver for the moments the estimate
+    records, and anyone re-deriving from that record enters here rather
+    than through the estimator.
+
+    From ``estimate_iv_overid`` this exit cannot fire: Ŝ is positive
+    semi-definite, so x'Ŝ⁻¹x is zero only when Z'x is, and a zero Z'x is
+    already refused upstream as a dead JOINT first stage. It is the
+    record's own gate, not a second copy of that one.
+    """
+    with pytest.raises(EstimatorFailure, match="efficient-GMM") as exc:
+        solve_hansen_from_s({
+            "q": 2, "n": 50,
+            "zx": [0.0, 0.0], "zy": [2.0, 4.0],
+            "s_robust": [[1.0, 0.0], [0.0, 1.0]],
+        })
+    assert exc.value.failure_type == Refusal.NO_FIRST_STAGE
+    assert exc.value.details["statistic"] == 0.0
 
 
 def test_hansen_cluster_robust_weight_differs_and_is_consistent():
