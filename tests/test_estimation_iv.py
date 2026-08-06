@@ -153,7 +153,55 @@ def test_auto_selects_2sls_when_conditioning_is_continuous():
     )
     assert est.method == "iv_2sls"
     assert est.stratification_fallback is not None
-    assert "continuous" in est.stratification_fallback
+    assert "about 1.0 observation(s) each" in est.stratification_fallback
+
+
+def test_a_column_of_integer_codes_is_not_reported_as_continuous():
+    """Forty category codes over four hundred rows is 10 rows a cell — a
+    cap we chose, not a sample that cannot be cut.
+
+    The contract widens every integer column to float before the estimator
+    sees it, so a dtype test answers "continuous" here and the reader is
+    told the strata would hold about one observation each. Both halves are
+    false, and the number in the sentence is the one that gives it away.
+    """
+    df = _binary_iv_dgp(n=400, seed=0)
+    df["w"] = [i % 40 for i in range(400)]
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_iv_ate(
+            df, treatment="x", outcome="y", instrument="z",
+            conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == Refusal.CONDITIONING_TOO_FINE
+    said = str(exc.value)
+    assert "past the cap of 10" in said
+    assert "about 10.0 observations each" in said
+    assert "continuous" not in said
+    assert exc.value.details["rows_per_level"] == 10.0
+    assert exc.value.details["cap"] == 10
+
+
+def test_the_product_of_coarse_columns_can_still_outrun_the_cut():
+    """Every column is inside the per-column cap and the cut is still too
+    fine: three five-level columns are 125 cells. The refusal names the
+    SET rather than any one column, because no single column is at fault.
+    """
+    n = 900
+    df = _binary_iv_dgp(n=n, seed=0)
+    df["w1"] = [i % 5 for i in range(n)]
+    df["w2"] = [(i // 5) % 5 for i in range(n)]
+    df["w3"] = [(i // 25) % 5 for i in range(n)]
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_iv_ate(
+            df, treatment="x", outcome="y", instrument="z",
+            conditioning=("w1", "w2", "w3"), model="stratified_wald",
+            ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == Refusal.CONDITIONING_TOO_FINE
+    assert exc.value.details["conditioning"] == ["w1", "w2", "w3"]
+    assert exc.value.details["strata"] == 125
+    assert exc.value.details["cap"] == 64
+    assert "column" not in str(exc.value)
 
 
 # ============================================ restrictions
@@ -180,6 +228,38 @@ def test_wald_rejects_conditioning():
             conditioning=("w",), model="wald", ci_bootstrap=0,
         )
     assert exc.value.failure_type == Refusal.INVALID_INPUT
+
+
+def test_stratified_wald_rejects_continuous_treatment():
+    """The binary gate guards the stratified path too. 'auto' would route
+    this design to 2SLS silently; an explicit request gets an answer about
+    the estimator it named."""
+    df = _continuous_iv_dgp(n=500, seed=0)
+    df["w"] = np.arange(500) % 2
+    with pytest.raises(EstimatorFailure, match="binary") as exc:
+        estimate_iv_ate(
+            df, treatment="x", outcome="y", instrument="z",
+            conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.details == {
+        "instrument_is_binary": False, "treatment_is_binary": False,
+    }
+
+
+def test_an_unknown_model_name_names_the_ones_that_exist():
+    """``ModelName`` is a Literal, so a checker catches this before it runs
+    — for the callers that are checked. This is the other ones."""
+    with pytest.raises(EstimatorFailure) as exc:
+        estimate_iv_ate(
+            _binary_iv_dgp(n=200, seed=0), treatment="x", outcome="y",
+            instrument="z", model="stratified-wald",  # type: ignore[arg-type]
+            ci_bootstrap=0,
+        )
+    assert exc.value.failure_type == Refusal.INVALID_INPUT
+    assert exc.value.details["known_models"] == [
+        "auto", "wald", "stratified_wald", "2sls",
+    ]
 
 
 # =========================================== stratified Wald
@@ -422,7 +502,53 @@ def test_too_many_strata_falls_back_naming_the_cap():
         conditioning=("w", "k"), ci_bootstrap=0,
     )
     assert est.method == "iv_2sls"
-    assert "distinct values" in est.stratification_fallback
+    # The cap this test is named for has to be IN the sentence. Asserting
+    # only "distinct values" passed for as long as the sentence said
+    # instead that 'k' was continuous and its strata would hold about one
+    # observation — 125 rows a cell, and no cap named anywhere.
+    assert "past the cap of 10" in est.stratification_fallback
+    assert "continuous" not in est.stratification_fallback
+
+
+def test_the_two_guards_the_contract_stands_in_front_of():
+    """``_stratified_wald_table`` refuses a sample with no populated cell,
+    and one whose rows the cut cannot place. Neither is reachable through
+    ``estimate_iv_ate``: the contract rejects an empty frame and a NaN
+    before either can happen, and a bootstrap resample inherits the
+    contract's frame. They are here because that is a property of the
+    CONTRACT — which documents itself as a first version that may relax —
+    and not of this estimator. If either gate moves, the guards below stop
+    being unreachable and this test says so first.
+    """
+    from themis.estimation.contract import DataContractError
+    from themis.estimation.iv import _stratified_wald_table
+
+    df = _binary_iv_dgp(n=40, seed=0)
+    df["w"] = np.array([0.0] * 36 + [np.nan] * 4)
+
+    with pytest.raises(DataContractError, match="contains NaN"):
+        estimate_iv_ate(
+            df, treatment="x", outcome="y", instrument="z",
+            conditioning=("w",), model="stratified_wald", ci_bootstrap=0,
+        )
+    with pytest.raises(EstimatorFailure, match="cannot place") as exc:
+        _stratified_wald_table(
+            df, treatment="x", outcome="y", instrument="z",
+            conditioning=("w",),
+        )
+    assert exc.value.failure_type == Refusal.INSUFFICIENT_SUPPORT
+
+    with pytest.raises(DataContractError, match="below the minimum"):
+        estimate_iv_ate(
+            df.iloc[:0], treatment="x", outcome="y", instrument="z",
+            ci_bootstrap=0,
+        )
+    with pytest.raises(EstimatorFailure, match="no stratum") as exc:
+        _stratified_wald_table(
+            df.iloc[:0], treatment="x", outcome="y", instrument="z",
+            conditioning=(),
+        )
+    assert exc.value.failure_type == Refusal.INSUFFICIENT_SUPPORT
 
 
 def test_integer_coded_categories_still_stratify():

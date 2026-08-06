@@ -499,28 +499,41 @@ def _w_levels(
     total = 1
     for col in conditioning:
         series = df[col]
-        # Cardinality, not dtype, decides whether a column can be cut:
-        # a float column holding 0.0/1.0 is a two-cell factor, and an
-        # integer column with forty codes is not stratifiable. (The data
-        # contract also widens integer columns to float, so a dtype gate
-        # would drop integer-coded categories — the common case.)
+        # Cardinality, not dtype, decides whether a column can be cut: a
+        # float column holding 0.0/1.0 is a two-cell factor, and a column
+        # of forty codes is not stratifiable however it is stored. By the
+        # time this runs the data contract has widened every integer
+        # column to float, so dtype cannot answer any question here — not
+        # which columns to cut, and not, below, which of two refusals the
+        # reader is owed.
         values = pd.unique(series)
         if len(values) > _MAX_LEVELS_PER_W:
-            if pd.api.types.is_float_dtype(series):
+            # Two different things stop the cut and the reader does
+            # different things about them: a column so fine that no cut of
+            # it could work on ANY sample this size, versus a column we
+            # simply decline to enumerate. Which one it is turns on how
+            # many rows a stratum would get, so that is what is measured.
+            per_level = len(series) / len(values)
+            if per_level < 2 * _MIN_PER_ARM:
                 raise _NotStratifiable(
                     Refusal.CONDITIONING_TOO_FINE,
-                    f"conditioning column {col!r} is continuous "
-                    f"({len(values)} distinct values over {len(series)} "
-                    f"rows), so its strata would hold about one "
-                    f"observation each",
+                    f"conditioning column {col!r} takes {len(values)} "
+                    f"distinct values over {len(series)} rows, so its strata "
+                    f"would hold about {per_level:.1f} observation(s) each — "
+                    f"short of the {_MIN_PER_ARM} per instrument arm a "
+                    f"stratum needs",
                     column=col, distinct_values=len(values), rows=len(series),
+                    rows_per_level=per_level, minimum_per_arm=_MIN_PER_ARM,
                 )
             raise _NotStratifiable(
                 Refusal.CONDITIONING_TOO_FINE,
                 f"conditioning column {col!r} takes {len(values)} distinct "
-                f"values, past the cap of {_MAX_LEVELS_PER_W}",
-                column=col, distinct_values=len(values),
-                cap=_MAX_LEVELS_PER_W,
+                f"values, past the cap of {_MAX_LEVELS_PER_W} this cut "
+                f"enumerates; its strata would hold about {per_level:.1f} "
+                f"observations each, so the limit is ours and not the "
+                f"sample's",
+                column=col, distinct_values=len(values), rows=len(series),
+                rows_per_level=per_level, cap=_MAX_LEVELS_PER_W,
             )
         try:
             ordered = tuple(sorted(values.tolist()))
