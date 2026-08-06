@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Themis — 前端还没构建</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center;
+    justify-content: center; padding: 32px;
+    font: 15px/1.7 -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+    background: #fbfaf8; color: #1c1b19; }
+  main { max-width: 40rem; }
+  h1 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  p.sub { margin: 0 0 24px; color: #6b6660; font-size: 13px; }
+  p { margin: 0 0 14px; }
+  pre { background: #f1efeb; border: 1px solid #e0dcd5; border-radius: 6px;
+    padding: 14px 16px; overflow-x: auto;
+    font: 13px/1.6 "SF Mono", Consolas, monospace; }
+  .note { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0dcd5;
+    color: #6b6660; font-size: 13px; }
+  code { font-family: "SF Mono", Consolas, monospace;
+    background: #f1efeb; padding: 1px 5px; border-radius: 4px; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #17161a; color: #e9e7e4; }
+    p.sub, .note { color: #97928c; }
+    pre, code { background: #222126; border-color: #33323a; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Themis</h1>
+  <p class="sub">因果验证器</p>
+
+  <p>服务已经起来了，但这台机器上还没有构建好的前端，所以这里没有产品页面可以给你。</p>
+
+  <p>构建一次就好（需要 Node 与 pnpm）：</p>
+  <pre>cd themis/web/frontend
+pnpm install
+pnpm build</pre>
+  <p>然后刷新本页。以后每次改了前端源码都要重跑 <code>pnpm build</code>，否则浏览器拿到的还是上一次构建的包。</p>
+
+  <div class="note">
+    这一页只是在告诉你还差一步，它不显示任何结果——内核算出来的东西只由构建好的产品来讲，
+    那一份才受「每个词表都要说人话」「每个字段都要交代去处」这两条约束管着。
+    在构建好之前，<code>/api/run</code> 一类接口照常可用，<code>/docs</code> 是它们的自述页。
+  </div>
+</main>
+</body>
+</html>

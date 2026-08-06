@@ -44,6 +44,25 @@ export function estimate(program: Record<string, unknown>, rows: Record<string, 
   return post<Envelope>('/api/estimate', { program, rows })
 }
 
+/**
+ * 独立复核 — hand the graph and one result back to the kernel and let it
+ * re-derive the answer from scratch. Both throw KernelError carrying the
+ * kernel's own objection when the re-derivation disagrees.
+ *
+ * Two endpoints rather than one because they replay different things:
+ * `verify` walks a derivation chain step by step and rejects a result that
+ * has none, so an answer that is a bound — which typically arrives without a
+ * chain — has its own counterpart. Which one a given result needs is a
+ * question about the result, answered where the button lives.
+ */
+export function verify(program: Record<string, unknown>, result: unknown): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>('/api/verify', { program, result })
+}
+
+export function verifyBounds(program: Record<string, unknown>, result: unknown): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>('/api/verify_bounds_result', { program, result })
+}
+
 export interface ClarifyPick {
   predicate: string
   fields: Record<string, string>

@@ -1,6 +1,8 @@
 """FastAPI app — single-page UI + JSON endpoints over themis.run / verify.
 
-The frontend lives in ``static/index.html``. Endpoints mirror the
+The frontend is the React product in ``frontend/`` (built into
+``frontend/dist``); ``static/`` holds the one page that says how to build
+it. Endpoints mirror the
 in-process API exactly: /api/run takes a kernel_ast JSON, returns
 the result envelope. /api/verify takes (program, result), returns
 success/error. /api/examples lists worked examples from
@@ -38,6 +40,7 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "x")
 
 _HERE = Path(__file__).parent
 _STATIC = _HERE / "static"
+_NO_BUILD = _STATIC / "no_build.html"
 _FRONTEND_DIST = _HERE / "frontend" / "dist"
 _REPO_ROOT = _HERE.parent.parent
 _EXAMPLES_DIR = _REPO_ROOT / "themis" / "prompts" / "examples"
@@ -116,15 +119,22 @@ def _var_domain(program: dict, predicate: str):
 
 @app.get("/")
 def index():
-    # Prefer the built React product (frontend/dist) when present; fall
-    # back to the legacy single-page static UI for dev without a build.
+    # One surface shows a reader a result: the built React product.
+    # Everything the kernel holds a surface to — each closed vocabulary said
+    # in the reader's own words, each envelope field accounted for — is
+    # checked against frontend/src, and can be checked there only because
+    # that is the only place a result is ever rendered. So what goes out
+    # when there is no build carries no result at all; it says how to build
+    # one. A second, older page rendering results its own way would not be a
+    # fallback — it is a different product on the same URL, and the reader
+    # cannot tell which one they were handed.
     #
     # index.html must always revalidate: it references content-hashed asset
     # filenames (index-<hash>.js), so a browser that caches a stale index.html
     # would keep loading an old bundle after a rebuild. The hashed /assets/*
     # files never change for a given name and may be cached freely.
     dist_index = _FRONTEND_DIST / "index.html"
-    target = dist_index if dist_index.exists() else (_STATIC / "index.html")
+    target = dist_index if dist_index.exists() else _NO_BUILD
     return FileResponse(target, headers={"Cache-Control": "no-cache"})
 
 

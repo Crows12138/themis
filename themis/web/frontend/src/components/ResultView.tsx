@@ -10,6 +10,7 @@ import { FramingFill } from './FramingFill'
 import { ProposedReview } from './ProposedReview'
 import { Foldout } from './Foldout'
 import { JsonEditor } from './JsonEditor'
+import { Recheck } from './Recheck'
 
 export interface ResultPayload {
   asked: string
@@ -208,8 +209,16 @@ export function ResultView({
         </div>
       ) : null}
 
-      {/* Audit surface — the raw program, folded at the very bottom. */}
+      {/* Check-it-yourself surface, folded at the very bottom: an independent
+          re-derivation, the program that produced this, and the envelope as
+          it came off the kernel. The envelope dump says none of its fields to
+          a reader — what this surface still owes is listed in types.ts, and a
+          JSON blob discharges nothing on that list. */}
+      {program ? <Recheck result={result} program={program} /> : null}
       {program ? <JsonEditor program={program} busy={busy} onRun={doRunJson} /> : null}
+      <Foldout summary="查看这份结果的原始信封（JSON）">
+        <pre className="rawenv mono">{JSON.stringify(result, null, 2)}</pre>
+      </Foldout>
 
       {error ? <div className="errbox" role="alert"><p className="errbox__msg">{error}</p></div> : null}
 

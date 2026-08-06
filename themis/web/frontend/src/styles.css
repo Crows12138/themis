@@ -532,6 +532,13 @@ button { font-family: inherit; cursor: pointer; }
 .framefield__input:focus { border-color: var(--accent); }
 .framing__go { margin-top: var(--space-md); }
 
+/* ---- result: 独立复核 + 原始信封 ---- */
+.recheck { margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); align-items: flex-start; }
+.recheck__ok { font-size: var(--text-sm); color: var(--tier-point); line-height: 1.6; }
+.recheck__no { font-size: var(--text-sm); color: var(--ink); line-height: 1.6; }
+.recheck__why { display: block; margin-top: var(--space-2xs); font-size: var(--text-xs); color: var(--tier-none); }
+.rawenv { max-height: 340px; overflow: auto; width: 100%; border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: var(--space-md); font-size: var(--text-xs); line-height: 1.55; color: var(--ink); background: var(--surface-sunk); tab-size: 2; white-space: pre; }
+
 /* ---- result: 改 JSON ---- */
 .jsonedit { margin-top: var(--space-lg); }
 .jsonedit__toggle { background: none; border: none; padding: 0; color: var(--ink-soft); font-size: var(--text-sm); font-family: var(--font-mono); }

@@ -27,9 +27,11 @@ cd ../../..
 python -m themis.web  # serves the built product at http://127.0.0.1:8000
 ```
 
-`python -m themis.web` serves `frontend/dist` at `/` when it exists, and
-falls back to the legacy single-page `static/index.html` if there is no
-build.
+`python -m themis.web` serves `frontend/dist` at `/` when it exists. With
+no build it serves `static/no_build.html`, which says how to make one and
+shows no result — the built product is the only surface that renders a
+result, which is what makes "every vocabulary in the reader's words, every
+envelope field accounted for" checkable at all.
 
 Flags: `--port 8001`, `--host 0.0.0.0` (share on LAN), `--reload` (dev).
 

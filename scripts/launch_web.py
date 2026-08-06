@@ -38,8 +38,8 @@ def _build_frontend() -> None:
             print("[build] SKIPPED (pnpm unavailable or build failed) — "
                   "serving the existing dist/ build.", flush=True)
         else:
-            print("[build] FAILED and no existing dist/ — the page will fall back "
-                  "to the legacy static UI. Install Node + pnpm to build the React app.",
+            print("[build] FAILED and no existing dist/ — the page will say so "
+                  "instead of showing a product. Install Node + pnpm and rerun.",
                   flush=True)
 
 
