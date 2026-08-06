@@ -622,19 +622,19 @@ def _identification_specs(
     specs = [
         {"id": "conditional_exchangeability_given_adjustment_set",
          "claim": "给定调整集无未观测混杂（条件可交换性）",
-         "layer": "identification", "severity": "invalidating", "testable": False},
+         "layer": "identification", "testable": False},
         {"id": "positivity_overlap_of_treatment_arms",
          "claim": "重叠 / positivity：每个调整集层内处理组与对照组都有样本（IPW/AIPW 对稀薄重叠尤其敏感，因为要除以倾向）",
-         "layer": "identification", "severity": "invalidating", "testable": True},
+         "layer": "identification", "testable": True},
         {"id": "consistency_of_potential_outcomes",
          "claim": "一致性：干预定义明确，potential outcomes 良定义",
-         "layer": "identification", "severity": "invalidating", "testable": False},
+         "layer": "identification", "testable": False},
     ]
     if n_adj == 0:
         specs.append(
             {"id": "unconditional_exchangeability_treatment_is_marginally_randomized",
              "claim": "无条件可交换性：处理近似边际随机化（无需调整）",
-             "layer": "identification", "severity": "invalidating", "testable": False},
+             "layer": "identification", "testable": False},
         )
     return tuple(specs)
 

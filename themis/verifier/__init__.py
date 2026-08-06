@@ -127,10 +127,12 @@ Public surface (re-exports from sub-modules):
   the rendering bridge lead with: re-derives what the ledger owes from the four
   channels that feed it — the estimator's own ``numeric_estimate.assumptions``,
   load-bearing proposal edges, LLM theta priors, audited mechanisms — and
-  rejects under-disclosure, a fabricated estimator entry, an unsorted ledger, a
-  summary whose counts do not match, or an identification assumption ranked
-  below ``invalidating``. Which severity a given assumption ID deserves is
-  curation, not a fact derivable from the envelope, so it is out of scope),
+  rejects under-disclosure, a fabricated estimator entry, a line handed to a
+  caller who supplied nothing, an unsorted ledger, a summary whose counts do
+  not match, or an entry whose severity contradicts its layer — the layer says
+  which part of the answer stops being true and the severity grades how badly
+  that kills it, so the second follows from the first and is re-derived here
+  rather than believed),
   ``verify_cluster_inference`` (the unit of independence: holds the run-level
   ``estimation_context.cluster`` against what the estimator declares it did
   with that column, so an interval computed under a clustered run cannot stay

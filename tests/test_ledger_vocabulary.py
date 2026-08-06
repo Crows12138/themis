@@ -137,12 +137,16 @@ def test_an_unknown_producer_is_refused_rather_than_answered():
 def _ledger_entry_literals():
     """Every dict literal in the package shaped like a ledger entry.
 
-    Found by SHAPE — carrying both ``layer`` and ``severity`` — and not by
-    field name, because both names are taken twice in this envelope: a data
-    gap has a ``severity`` graded ``blocking`` / ``important`` /
-    ``informational``, and a gap's ``provenance`` is a list of references.
-    A guard keyed on the name would fail on all of those and say nothing
-    true about any of them.
+    Found by SHAPE — carrying both ``layer`` and ``claim`` — and not by
+    field name, because those names are taken more than once in this
+    envelope: a data gap has a ``severity`` graded ``blocking`` /
+    ``important`` / ``informational``, and a gap's ``provenance`` is a list
+    of references. A guard keyed on either name alone would fail on all of
+    those and say nothing true about any of them.
+
+    The pair used to be ``layer`` and ``severity``, which stopped matching
+    anything the day the producers stopped writing a severity — a guard
+    whose shape has moved out from under it goes on passing.
     """
     for path in sorted((ROOT / "themis").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -151,7 +155,7 @@ def _ledger_entry_literals():
                 continue
             keys = {k.value for k in node.keys
                     if isinstance(k, ast.Constant) and isinstance(k.value, str)}
-            if {"layer", "severity"} <= keys:
+            if {"layer", "claim"} <= keys:
                 yield path, node
 
 
@@ -177,6 +181,90 @@ def test_every_written_ledger_entry_uses_the_vocabulary():
         f"only {found} ledger-entry literals found; the shape this guard "
         f"keys on has moved and it is now checking nothing"
     )
+
+
+# --- the severity is the layer's, said once ----------------------------------
+
+_GRADES = frozenset(str(m) for m in ledger.Severity)
+
+def _may_name_a_grade(path: pathlib.Path) -> bool:
+    """``ledger`` declares the vocabulary; the verifier restates it on
+    purpose and must not import it. Asked of the path RELATIVE to the repo,
+    so that a checkout under a directory happening to be called ``verifier``
+    does not quietly excuse the whole tree."""
+    rel = path.relative_to(ROOT)
+    return rel.name == "ledger.py" or "verifier" in rel.parts
+
+
+def test_no_module_outside_the_two_names_a_grade():
+    """A grade written anywhere else is a producer deciding one again.
+
+    Not "does this value exist" — every grade exists — but "did anyone
+    besides the vocabulary and its independent restatement have to name
+    one". Two hundred sites named one before, and each was a chance for the
+    two hundred and first to name a different one.
+    """
+    offenders = []
+    for path in sorted((ROOT / "themis").rglob("*.py")):
+        if _may_name_a_grade(path):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and node.value in _GRADES):
+                offenders.append(
+                    f"{path.relative_to(ROOT)}:{node.lineno} {node.value!r}")
+    assert not offenders, (
+        "these write an assumption severity as a literal instead of asking "
+        f"the layer for it: {offenders}"
+    )
+
+
+def test_the_verifier_restates_the_same_grades():
+    """The other half of the independence pin: the verifier re-derives a
+    severity from what a layer means, so its five rows have to be the five
+    the producer stamps — and pinning them here is what makes a difference
+    between them a test failure rather than a rejected honest answer."""
+    assert rules._SEVERITY_OF_LAYER == {
+        str(lay): str(lay.severity) for lay in ledger.Layer
+    }
+    # And it says why for each, in its own words rather than the producer's.
+    assert set(rules._WHY_THAT_SEVERITY) == set(rules._SEVERITY_OF_LAYER)
+    for lay in ledger.Layer:
+        why = rules._WHY_THAT_SEVERITY[str(lay)]
+        assert why.strip() and why != lay.breaks
+
+
+def test_the_other_column_of_that_row_is_not_the_layers_either():
+    """The argument that removed the severity column does not remove the one
+    beside it, and this is the difference stated as a test rather than left
+    to be re-argued: two assumptions of the same layer genuinely differ on
+    whether the reader can go and check them. A layer that turned out to
+    fix ``testable`` too would be a layer whose rows say one thing, and the
+    honest response would be to move that column as well."""
+    from themis.output import assumption_glossary as glossary
+
+    rows = [entry for entry in glossary._EXACT.values()]
+    rows += [entry for _, entry in glossary._PREFIX]
+    by_layer: dict[str, set[bool]] = {}
+    for layer, testable, _ in rows:
+        by_layer.setdefault(str(layer), set()).add(bool(testable))
+    assert by_layer["identification"] == {True, False}, (
+        "every identification assumption now agrees on testable; if that is "
+        "real, testable belongs on the layer and not on 146 rows"
+    )
+
+
+def test_stamp_hands_back_the_layers_grade_rather_than_taking_one():
+    """A producer says which channel it is and which part of the answer the
+    assumption holds up. It is given the grade; there is no argument it
+    could pass that would change it."""
+    for producer, (layers, provs) in ledger.ADMISSIBLE.items():
+        for lay in layers:
+            got_layer, got_severity, _ = ledger.stamp(
+                producer, lay, sorted(provs)[0])
+            assert got_layer is lay
+            assert got_severity is lay.severity
 
 
 def test_the_report_translates_all_three_fields():

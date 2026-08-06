@@ -489,37 +489,37 @@ def _identification_assumptions(
     specs: list[dict] = [
         {"id": "consistency_of_potential_outcomes",
          "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
-         "layer": "identification", "severity": "invalidating", "testable": False},
+         "layer": "identification", "testable": False},
     ]
     if provenance is RiskProvenance.USER_EXPERIMENTAL:
         specs.append(
             {"id": "interventional_risk_from_randomized_experiment",
              "claim": "干预风险 P(Y=1|do x') 来自随机实验，无混杂",
-             "layer": "identification", "severity": "invalidating", "testable": False})
+             "layer": "identification", "testable": False})
     elif provenance is RiskProvenance.EXOGENOUS:
         specs.append(
             {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
              "claim": "外生性：X 到 Y 无后门路径，P(Y|do x')=P(Y|x')",
-             "layer": "identification", "severity": "invalidating", "testable": False})
+             "layer": "identification", "testable": False})
     elif provenance is RiskProvenance.BACKDOOR_ADJUSTMENT:
         specs.append(
             {"id": "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient",
              "claim": f"后门调整集充分：{{{','.join(adjustment)}}} 阻断 X→Y 的所有后门路径",
-             "layer": "identification", "severity": "invalidating", "testable": False})
+             "layer": "identification", "testable": False})
         specs.append(
             {"id": "positivity_the_asked_arm_has_support_in_each_stratum",
              "claim": "positivity：每个调整层在被问的那个处理臂下都有样本",
-             "layer": "identification", "severity": "invalidating", "testable": True})
+             "layer": "identification", "testable": True})
     elif provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
         specs.append(
             {"id": "admg_structure_correct_including_latent_confounders",
              "claim": "没有可用的调整集，干预风险经 general ID（c-factor 分解）识别："
                       "ADMG 结构正确——所有有向边与潜混杂 (↔) 边如实建模",
-             "layer": "identification", "severity": "invalidating", "testable": False})
+             "layer": "identification", "testable": False})
         specs.append(
             {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
              "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
-             "layer": "identification", "severity": "invalidating", "testable": True})
+             "layer": "identification", "testable": True})
     elif provenance is RiskProvenance.PINNED_BY_MONOTONICITY:
         specs.append(
             # Identification, not a layer of its own: monotonicity is what
@@ -527,13 +527,13 @@ def _identification_assumptions(
             # identification assumption fails.
             {"id": "cell_determined_by_monotonicity_alone_no_interventional_risk",
              "claim": "干预风险不可得，本格完全由单调性钉死——因此数据无从推翻这条单调性",
-             "layer": "identification", "severity": "invalidating",
+             "layer": "identification",
              "testable": False})
     if monotonicity is not None:
         specs.append(
             {"id": f"monotonicity_{monotonicity}_in_treatment",
              "claim": f"单调性（{monotonicity}）：把本格的区间收紧成点",
-             "layer": "identification", "severity": "invalidating",
+             "layer": "identification",
              # Monotonicity is testable only when a do-risk was an input:
              # the emptiness check that could have refuted it needs one.
              "testable": provenance.uses_risk})

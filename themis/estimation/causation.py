@@ -405,27 +405,27 @@ def _identification_assumptions(
     specs: list[dict] = [
         {"id": "consistency_of_potential_outcomes",
          "claim": "一致性：potential outcomes 良定义，观测到的 Y 等于所受干预下的 Y",
-         "layer": "identification", "severity": "invalidating", "testable": False},
+         "layer": "identification", "testable": False},
     ]
     if provenance is RiskProvenance.USER_EXPERIMENTAL:
         specs.append(
             {"id": "interventional_risks_from_randomized_experiment",
              "claim": "干预风险 P(Y=1|do X) 来自随机实验，无混杂",
-             "layer": "identification", "severity": "invalidating", "testable": False})
+             "layer": "identification", "testable": False})
     elif provenance is RiskProvenance.EXOGENOUS:
         specs.append(
             {"id": "exogeneity_no_backdoor_path_do_risk_equals_conditional",
              "claim": "外生性：X 到 Y 无后门路径，P(Y|do X)=P(Y|X)",
-             "layer": "identification", "severity": "invalidating", "testable": False})
+             "layer": "identification", "testable": False})
     else:
         specs.append(
             {"id": "backdoor_adjustment_set_{" + ",".join(adjustment) + "}_sufficient",
              "claim": "后门调整集充分：所选调整集阻断 X→Y 的所有后门路径",
-             "layer": "identification", "severity": "invalidating", "testable": False})
+             "layer": "identification", "testable": False})
         specs.append(
             {"id": "positivity_every_treatment_arm_has_support_in_each_stratum",
              "claim": "positivity：每个调整层在两个处理臂下都有样本",
-             "layer": "identification", "severity": "invalidating", "testable": True})
+             "layer": "identification", "testable": True})
     if monotonic:
         specs.append(
             # Identification, not a layer of its own: without it these three
@@ -434,6 +434,6 @@ def _identification_assumptions(
             # assumption ledger, where the word says nothing.
             {"id": "monotonicity_x_never_prevents_y_point_identification",
              "claim": "单调性：X 从不阻止 Y(Y_x ≥ Y_x')，使 PN/PS/PNS 点识别",
-             "layer": "identification", "severity": "invalidating",
+             "layer": "identification",
              "testable": False})
     return tuple(specs)

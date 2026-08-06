@@ -515,18 +515,17 @@ def build_assumption_ledger(
     schema-validated ``numeric_estimate`` block stays untouched) — and
     re-presents them as
     first-class entries. The source channels stay untouched; this is the
-    single place provenance + severity are assigned, so an assumption's
+    single place a channel is turned into a layer, so an assumption's
     prominence tracks how load-bearing it is instead of which channel it
     happened to land in.
 
-    Severity by category:
-
-    - identification (no unmeasured confounding, overlap) -> invalidating
-    - proposal edge ACTUALLY on the answer path -> invalidating (a
-      proposed-but-unused edge is not load-bearing, so it never enters
-      the ledger — no false alarm)
-    - functional form (curve shape) -> distorting
-    - LLM theta prior -> distorting
+    What each channel is about — and so which layer it writes — is the only
+    judgement made here. A proposal edge is a structural edge, an LLM theta
+    prior is a parameter, an audited mechanism is a functional form, and an
+    estimator's own declaration is whatever the glossary says it is. The
+    severity follows from the layer and comes back from ``ledger.stamp``
+    with it; stating it here as well is how one fact came to have two
+    hundred authors.
 
     Each entry carries ``claim`` / ``layer`` / ``provenance`` /
     ``severity`` / ``testable`` (identification assumptions are
@@ -546,7 +545,7 @@ def build_assumption_ledger(
         # The provenance comes from the id, not from this channel: the same
         # assumption reaches the ledger structured here and flat below, and a
         # channel answering for itself is how one id came to carry two.
-        layer, provenance = ledger.stamp(
+        layer, severity, provenance = ledger.stamp(
             "estimator_assumption",
             spec.get("layer", ledger.Layer.IDENTIFICATION),
             assumption_glossary.answerable(spec.get("id", "")),
@@ -555,7 +554,7 @@ def build_assumption_ledger(
             "claim": spec.get("claim", ""),
             "layer": layer,
             "provenance": provenance,
-            "severity": spec.get("severity", "invalidating"),
+            "severity": severity,
             "testable": bool(spec.get("testable", False)),
         }
         # The flat declaration this spec is the structured form of. It is
@@ -580,7 +579,7 @@ def build_assumption_ledger(
         if gap.get("kind") != "unverified_proposal_edge_on_query_path":
             continue
         desc = gap.get("description", "")
-        layer, provenance = ledger.stamp(
+        layer, severity, provenance = ledger.stamp(
             "proposal_edge",
             ledger.Layer.STRUCTURAL_EDGE,
             ledger.Provenance.DISCOVERY if "发现算法" in desc
@@ -590,7 +589,7 @@ def build_assumption_ledger(
             "claim": desc,
             "layer": layer,
             "provenance": provenance,
-            "severity": "invalidating",
+            "severity": severity,
             "testable": True,
         })
 
@@ -598,13 +597,13 @@ def build_assumption_ledger(
     #     so they stay in the ledger (magnitude-affecting -> distorting).
     review = extensions.get(blocks.LLM_PROPOSED_REVIEW) or {}
     for prob in review.get("probabilities") or []:
-        layer, provenance = ledger.stamp(
+        layer, severity, provenance = ledger.stamp(
             "theta_prior", ledger.Layer.PARAMETER, ledger.Provenance.LLM_PRIOR)
         entries.append({
             "claim": f"{prob.get('key')} = {prob.get('value')}（LLM 常识 prior）",
             "layer": layer,
             "provenance": provenance,
-            "severity": "distorting",
+            "severity": severity,
             "testable": True,
         })
 
@@ -615,7 +614,7 @@ def build_assumption_ledger(
         # spelling of the value the mechanism builder already defaults to,
         # which no producer has ever written. Two spellings of one value is
         # how a vocabulary grows a member nothing means.
-        layer, provenance = ledger.stamp(
+        layer, severity, provenance = ledger.stamp(
             "audited_mechanism",
             ledger.Layer.FUNCTIONAL_FORM,
             m.get("provenance", ledger.Provenance.DEFAULT),
@@ -627,7 +626,7 @@ def build_assumption_ledger(
             ),
             "layer": layer,
             "provenance": provenance,
-            "severity": "distorting",
+            "severity": severity,
             "testable": True,
         })
 
@@ -646,7 +645,8 @@ def _ledger(entries: list[dict]) -> dict | None:
     # for someone to fix rather than sink below "only affects the interval".
     entries.sort(key=lambda e: ledger.rank(e["severity"]))
 
-    n_inval = sum(1 for e in entries if e["severity"] == "invalidating")
+    n_inval = sum(1 for e in entries
+                  if e["severity"] == ledger.Severity.INVALIDATING)
     n_other = len(entries) - n_inval
     parts: list[str] = []
     if n_inval:
@@ -716,7 +716,7 @@ def augment_assumption_ledger(result: dict) -> None:
 
     for item in measured:
         entry = classify_assumption(item)
-        entry["layer"], entry["provenance"] = ledger.stamp(
+        entry["layer"], entry["severity"], entry["provenance"] = ledger.stamp(
             "estimator_assumption", entry["layer"], entry["provenance"])
         entries.append(entry)
 
@@ -725,7 +725,7 @@ def augment_assumption_ledger(result: dict) -> None:
         if str(item) in claimed:
             continue
         entry = classify_assumption(item)
-        entry["layer"], entry["provenance"] = ledger.stamp(
+        entry["layer"], entry["severity"], entry["provenance"] = ledger.stamp(
             "estimator_assumption", entry["layer"], entry["provenance"])
         entries.append(entry)
         claimed.add(str(item))

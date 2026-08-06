@@ -188,11 +188,11 @@ def estimate_dose_response(
     identification_assumptions = (
         {"id": "no_unmeasured_confounding_given_W", "layer": "identification",
          "claim": "无未观测混杂（given W）",
-         "severity": "invalidating", "testable": False},
+ "testable": False},
         {"id": "positivity_every_sampled_dose_has_support_on_W",
          "claim": (f"重叠假设：所有 W 上 T 都有支持（采样点限于观测域内："
                    f"{points[0]:g}–{points[-1]:g}）"),
-         "layer": "identification", "severity": "invalidating",
+         "layer": "identification",
          "testable": False},
     )
     # ``assumptions`` (flat strings) stays the legacy surface, derived

@@ -21,6 +21,7 @@ import pandas as pd
 import pytest
 
 import themis
+from themis import ledger
 from themis.output.analysis_report import build_analysis_report
 from themis.output.assumption_glossary import classify_assumption, is_classified
 from themis.verifier.errors import VerificationError
@@ -275,8 +276,9 @@ def test_an_unclassified_assumption_is_surfaced_not_dropped():
     assumption. It must not."""
     entry = classify_assumption("some_assumption_nobody_has_classified_yet")
     assert entry["claim"] == "some_assumption_nobody_has_classified_yet"
-    assert entry["severity"] == "invalidating"
     assert entry["layer"] == "identification"
+    # And so invalidating — the glossary does not say that a second time.
+    assert entry["layer"].severity == "invalidating"
     assert not is_classified("some_assumption_nobody_has_classified_yet")
 
 
@@ -302,16 +304,18 @@ def test_the_glossary_keeps_up_with_what_the_estimators_emit(name, frames):
     assert not unknown, f"{name} emits unclassified assumption IDs: {unknown}"
 
 
-def test_no_producer_invents_a_severity_outside_the_vocabulary(frames):
-    """A severity the ledger's ranking does not know sorts by the fallback, and
-    the report has no translation for it — the monotonicity specs used to."""
+def test_no_producer_states_a_severity_at_all(frames):
+    """This used to ask whether a producer's severity was in the vocabulary,
+    because the monotonicity specs had once invented one that was not. The
+    question is stronger now: a spec states a layer, and the severity is that
+    layer's grade, so a spec that carries a severity is stating a second time
+    something it cannot disagree with — until the day it does."""
     from themis.estimation.causation import _identification_assumptions
     from themis.estimation.counterfactual_cell import (
         _identification_assumptions as _cell_assumptions,
     )
     from themis.risk_provenance import ADMISSIBLE
 
-    vocabulary = {"invalidating", "distorting", "confidence_only"}
     # Every licence each producer MAY write, not the one licence this test
     # happened to name: the branch that picks a licence is by construction
     # the branch no test took, so the sweep has to come from the table.
@@ -326,7 +330,10 @@ def test_no_producer_invents_a_severity_outside_the_vocabulary(frames):
             provenance=licence, adjustment=("z",),
             monotonicity="non_decreasing")
     ]
-    assert {s["severity"] for s in specs} <= vocabulary
+    assert specs, "the sweep found no specs and is checking nothing"
+    offenders = [s["id"] for s in specs if "severity" in s]
+    assert not offenders, f"specs state a severity of their own: {offenders}"
+    assert {str(s["layer"]) for s in specs} <= {str(m) for m in ledger.Layer}
 
 
 # --- verifier -----------------------------------------------------------------

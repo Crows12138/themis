@@ -5,7 +5,9 @@ everything the answer takes on faith, worst first. One line of it carries
 five fields, and three of them are closed vocabularies —
 
 - :class:`Layer` — which part of the answer stops being true if this is false;
-- :class:`Severity` — how badly the conclusion dies when it does;
+- :class:`Severity` — how badly the conclusion dies when it does, which is
+  the three-way grading of the above and is therefore declared once per
+  layer rather than per assumption;
 - :class:`Provenance` — what the reader can do about this line: who can
   overrule it, and what they get back if they do.
 
@@ -41,6 +43,18 @@ under two provenances at once: ``consistency_of_potential_outcomes`` was
 the same sentence with two different answers to what the reader could do
 about it. Two names for one thing is how that happens, so there is one.
 
+**No producer chooses a severity either**, for a plainer reason: there was
+never a second fact to choose. A layer says which part of the answer stops
+being true and a severity grades how badly that kills it, so the grade
+follows from the layer — and it did, on every one of 3252 entries of one
+suite run, on all 146 glossary rows and at all 48 places a structured spec
+was written. Two hundred sites restating one fact is not agreement, it is
+199 chances to disagree, and #343 had already shown what comes of two
+records of one thing. So :class:`Layer` names its grade once and
+:func:`stamp` hands it back. The contrast is in the same glossary row:
+``testable`` stays per-assumption, because two identification assumptions
+genuinely differ on it.
+
 **The verifier does not import this.** It re-declares the same five rows
 and a test pins them equal. Re-deriving a ledger from the vocabulary its
 producer chose is not an independent check.
@@ -58,66 +72,14 @@ from .types import EnvelopeName
 
 
 @unique
-class Layer(EnvelopeName):
-    """Which part of the answer stops being true if this assumption is false.
-
-    The five are a partition of the answer, not a list of topics, which is
-    the test a candidate member has to pass: ``breaks`` has to name
-    something the reader would still have if the others held. A sixth
-    member called ``assumption`` failed it — every line of this ledger is
-    an assumption — and what it was reaching for was a provenance.
-    """
-
-    breaks: str
-    """What the reader loses. The verifier's one severity rule is derived
-    from this and not from a convention: if identification failing means
-    the number is not the causal effect at all, then an identification
-    entry ranked anything but ``invalidating`` is incoherent."""
-
-    zh: str
-    """The reader's word, printed beside the claim."""
-
-    def __new__(cls, value: str, breaks: str, zh: str):
-        layer = str.__new__(cls, value)
-        layer._value_ = value
-        layer.breaks = breaks
-        layer.zh = zh
-        return layer
-
-    IDENTIFICATION = (
-        "identification",
-        "the number is not the causal effect at all — a different quantity "
-        "was computed, and no amount of data fixes it",
-        "识别",
-    )
-    FUNCTIONAL_FORM = (
-        "functional_form",
-        "the estimand is right and the fitted shape is not, so magnitude "
-        "and curvature move while the average often survives",
-        "函数形式",
-    )
-    STRUCTURAL_EDGE = (
-        "structural_edge",
-        "an edge the answer path runs through is unestablished, so the "
-        "path itself may not exist",
-        "图上的边",
-    )
-    PARAMETER = (
-        "parameter",
-        "one numeric input was supplied rather than measured, so the "
-        "answer moves with it",
-        "参数取值",
-    )
-    CONFIDENCE = (
-        "confidence",
-        "only the interval moves; the point estimate stands",
-        "区间",
-    )
-
-
-@unique
 class Severity(EnvelopeName):
     """How the conclusion dies if this assumption is false.
+
+    Three grades over the five layers, so it is a coarsening and not a
+    second opinion: the layer says which part of the answer stops being
+    true, and this says how much of the answer that costs. Which layer
+    falls into which grade is declared on :class:`Layer`, once, because
+    that is where the sentence it grades is written.
 
     Not the data gap report's ``severity``, which grades how much a MISSING
     INPUT blocks an answer (``blocking`` / ``important`` /
@@ -142,6 +104,75 @@ class Severity(EnvelopeName):
     INVALIDATING = ("invalidating", 0, "作废级")
     DISTORTING = ("distorting", 1, "扭曲级")
     CONFIDENCE_ONLY = ("confidence_only", 2, "仅影响置信")
+
+
+@unique
+class Layer(EnvelopeName):
+    """Which part of the answer stops being true if this assumption is false.
+
+    The five are a partition of the answer, not a list of topics, which is
+    the test a candidate member has to pass: ``breaks`` has to name
+    something the reader would still have if the others held. A sixth
+    member called ``assumption`` failed it — every line of this ledger is
+    an assumption — and what it was reaching for was a provenance.
+    """
+
+    breaks: str
+    """What the reader loses, in the words the grade beside it is a grading
+    of. The two are written together so that a new layer cannot be added
+    without saying how badly its failure kills the conclusion, and cannot
+    be given a grade its own sentence contradicts."""
+
+    severity: Severity
+    """The grade of ``breaks``. Declared here and nowhere else: an
+    assumption's severity is not a fact about the assumption, and every
+    place that used to state it separately was restating this."""
+
+    zh: str
+    """The reader's word, printed beside the claim."""
+
+    def __new__(cls, value: str, breaks: str, severity: Severity, zh: str):
+        layer = str.__new__(cls, value)
+        layer._value_ = value
+        layer.breaks = breaks
+        layer.severity = severity
+        layer.zh = zh
+        return layer
+
+    IDENTIFICATION = (
+        "identification",
+        "the number is not the causal effect at all — a different quantity "
+        "was computed, and no amount of data fixes it",
+        Severity.INVALIDATING,
+        "识别",
+    )
+    FUNCTIONAL_FORM = (
+        "functional_form",
+        "the estimand is right and the fitted shape is not, so magnitude "
+        "and curvature move while the average often survives",
+        Severity.DISTORTING,
+        "函数形式",
+    )
+    STRUCTURAL_EDGE = (
+        "structural_edge",
+        "an edge the answer path runs through is unestablished, so the "
+        "path itself may not exist",
+        Severity.INVALIDATING,
+        "图上的边",
+    )
+    PARAMETER = (
+        "parameter",
+        "one numeric input was supplied rather than measured, so the "
+        "answer moves with it",
+        Severity.DISTORTING,
+        "参数取值",
+    )
+    CONFIDENCE = (
+        "confidence",
+        "only the interval moves; the point estimate stands",
+        Severity.CONFIDENCE_ONLY,
+        "区间",
+    )
 
 
 @unique
@@ -261,9 +292,13 @@ def _check_every_value_is_reachable() -> None:
     """
     layers = frozenset().union(*(row[0] for row in ADMISSIBLE.values()))
     provs = frozenset().union(*(row[1] for row in ADMISSIBLE.values()))
+    grades = frozenset(lay.severity for lay in Layer)
     orphans = sorted(
         [f"Layer.{lay.name}" for lay in Layer if lay not in layers]
         + [f"Provenance.{p.name}" for p in Provenance if p not in provs]
+        # A grade no layer falls into cannot be stamped on an entry, and
+        # reads in the source exactly like a grade nothing has needed yet.
+        + [f"Severity.{s.name}" for s in Severity if s not in grades]
     )
     if orphans:
         raise RuntimeError(
@@ -294,13 +329,18 @@ _SEVERITIES: dict[str, Severity] = {str(x): x for x in Severity}
 _PROVENANCES: dict[str, Provenance] = {str(x): x for x in Provenance}
 
 
-def stamp(producer: str, layer, provenance) -> tuple[Layer, Provenance]:
-    """The one way a layer and a provenance reach a ledger entry.
+def stamp(producer: str, layer, provenance) -> tuple[Layer, Severity, Provenance]:
+    """The one way a layer, a severity and a provenance reach a ledger entry.
 
-    They are stamped together because neither is checkable alone: every
-    member of both vocabularies is legitimate somewhere, and what makes a
-    pair wrong is the producer it came from. Passing both through here
-    makes the three meet once, at the only moment all three are known.
+    The layer and the provenance are stamped together because neither is
+    checkable alone: every member of both vocabularies is legitimate
+    somewhere, and what makes a pair wrong is the producer it came from.
+    Passing both through here makes the three meet once, at the only moment
+    all three are known.
+
+    The severity is not asked for. It comes back with them because it is
+    the layer's grade and a producer has nothing to add to it — which is
+    also what stops the next producer from restating it differently.
     """
     layers, provs = admissible(producer)
     lay = _LAYERS.get(str(layer))
@@ -325,7 +365,7 @@ def stamp(producer: str, layer, provenance) -> tuple[Layer, Provenance]:
             f"ledger: producer {producer} may not write provenance "
             f"{str(prov)!r}; it may write {sorted(str(x) for x in provs)}"
         )
-    return lay, prov
+    return lay, lay.severity, prov
 
 
 def _describe(table: dict, value) -> str:

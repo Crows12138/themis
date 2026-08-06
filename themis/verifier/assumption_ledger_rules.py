@@ -28,13 +28,20 @@ What it audits:
   the answer has to carry its own record of the input, and a pair of legitimate
   values is otherwise indistinguishable from a true one.
 - **Internal coherence.** Entries sorted by severity; the summary's counts
-  matching the entries; an ``identification``-layer entry ranked
-  ``invalidating`` (the ledger's own semantics: identification failing means
-  the number is not a causal effect at all).
+  matching the entries; every entry's severity being the one its layer implies
+  — identification failing means the number is not a causal effect at all, so
+  an identification entry ranked anything milder is incoherent, and the same
+  holds for the other four.
 
-What it deliberately does NOT audit: which severity a particular assumption ID
-deserves. That is a curation judgement recorded in
-``output.assumption_glossary``, not a fact derivable from the envelope;
+The severity was once out of scope here, on the reading that which severity an
+assumption ID deserves is curation and not derivable from the envelope. It is
+derivable: it is the grade of the layer sitting next to it in the same entry,
+and it agreed with that layer on all 3252 entries of one suite run before
+anything enforced it. What is curation is the LAYER — which part of the answer
+a given assumption holds up — and that is still not second-guessed here.
+
+What it deliberately does NOT audit: which layer a particular assumption ID
+belongs to. That judgement is recorded in ``output.assumption_glossary``;
 re-stating the table here would be transcription, not verification.
 
 **Independence pin:** this module MUST NOT import from
@@ -58,6 +65,11 @@ _RANK = {s: i for i, s in enumerate(_SEVERITIES)}
 #: to be relabelled a shape concern the average survives; the relabelled
 #: entry keeps a legal severity and reads as a milder assumption than it is.
 #: Measured over one suite run, all 3252 entries agree with these five.
+#:
+#: The producer now derives the severity from the layer instead of writing
+#: it, which does not make this redundant: a build that lost the derivation,
+#: or an envelope from elsewhere, is exactly what an independent audit is
+#: for, and the two tables are pinned equal by a test rather than shared.
 _SEVERITY_OF_LAYER = {
     "identification": "invalidating",
     "structural_edge": "invalidating",
@@ -74,7 +86,8 @@ _WHY_THAT_SEVERITY = {
     "functional_form": "a wrong fitted shape moves magnitude and curvature while "
                        "the estimand stays right",
     "parameter": "a supplied number moves the answer with it, and no further",
-    "confidence": "only the interval moves; the point estimate stands",
+    "confidence": "the interval is the only thing computed from it, so being "
+                  "wrong here is a wrong width around an untouched point",
 }
 
 #: Which ``(layer, provenance)`` pairs each producer of a ledger entry may
