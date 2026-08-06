@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4275 passed / 144 skipped, warning-clean
+4315 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1557,6 +1557,60 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 一张表的边界是按「拼错会不会静默」划的，而它后来问的是「怎么到达读者」（2026-08-06，接上条）
+
+登记的 #340 说浏览器上没有「推导链」这一节，是 #334 的孪生。先量（(61)）：
+
+```text
+frontend/src 全目录出现 "derivation" 的次数            0
+types.ts 的 QueryResult 里有没有这个字段                没有
+一次全量里带 derivation.steps 的信封                  570 / 1627（10 种 query_kind）
+这些链里的步数                                        1499 步，1 至 6 步不等
+到达读者的规则种类                                     47 种（词表共 58 条）
+success=false 的步                                     0（该分支现在没有产生端）
+```
+
+登记里的「63 个规则」不对，`derivation_glossary.SAYS` 是 **58** 条。
+
+**根因**：「这个面渲染了内核要求的什么」在本仓有两张表——`blocks.py` / `RENDERED_BLOCKS` 管 `extensions` 里的**块**，`VOCABULARIES` 管**封闭词表**。`derivation` 两者都不是，它是信封的**顶层字段**。而 `blocks.py` 第一段自己写着为什么把范围划在 `extensions`：
+
+> The typed ones are fields of ``QueryResult`` — declared in one place,
+> spelled once, and **a misspelling is an AttributeError**. The rest live
+> under ``extensions`` ... and a misspelling there is silence.
+
+那条边界是按「**拼错会不会静默**」划的。这张表后来长出了 `read_as` 和 `carried_by`，问的是「**它怎么到达读者**」——**这个问题对字段和块一模一样地成立**，而边界还停在旧理由上。
+
+**为什么是根因不是表象**，三条独立物证：
+
+1. **同一个机制犯过的前三次，各在 `types.ts` 里留下一句描述它的注释**：「Leaving it out of this type is how the one field that tells a reader whom to argue with ... never left the envelope on this surface」（台账 `provenance`）、「Leaving `kind` out of this type is how 47 refusals ... arrived here as one line」、「Declaring only `value` here is how a bounded counterfactual reached the browser as an empty answer slot」。**三句话在描述同一个机制、都是事后补的、一条检查也没有**，第四次就是 `derivation`。
+2. **上一次撞见同型缺陷时修的是实例不是机制**：`_render_route` 自己写着 `formula`「is a field rather than a block, so the binding above — which is what catches a block nobody renders — never looked at it」。㊴ 当时被认出来了，`formula` 被手工补上，**表的范围没动**，于是 `derivation` 从同一个洞掉下去。
+3. **分母远大于 1**：
+
+```text
+query_result.schema.json 顶层字段                     21
+types.ts 的 QueryResult 声明的                        13
+其中 src 里没有任何地方读过的                          3（query_id / explanation / investigation_requests）
+根本没声明的                                          8
+真正到达读者的                                        10 / 21
+读过 types.ts 的测试                                   0
+```
+
+**改动**
+
+- **把 `carried_by` 那条纪律搬到信封「有类型的那一半」**。`types.ts` 底部三张名单，schema 的每个顶层字段恰好落进一张（或落进接口本身）：
+  - `CARRIED_BY`——本面由另一个字段说出它，值是**字段名**（可检查：承载者必须是本面声明**且有人读**的字段，照搬 `Block.carried_by` 对承载者的要求）。三条全是内核缺口报告的输入，读者拿到的是策展版本。
+  - `NOT_FOR_A_READER`——没人说，也不该有人说：这四条是给调用方或审计的。
+  - `NOT_YET_SAID_HERE`——没人说，而**该有人说**。**带上限，只能缩短**。
+  三者分开而不是并成一张，因为只有最后一张说「还欠着」，也只有它该被封顶。文件头那句「Only the fields the UI reads are typed; the rest is passthrough」删掉了——正是那句话让每一次遗漏都长得像一次决定。
+- **`derivation` 因此必须被声明并被读**：`verdict.ts` 加 `DERIVATION_SAYS`（58 条，**逐字节镜像**内核的 `derivation_glossary`，测试用 `==` 比）+ `derivationRows()`，进 `VOCABULARIES`；`Verdict.tsx` 在识别公式之后渲染（与主报告同序：路线 → 估计式 → 推导链）。未收录的规则印它自己的 id，与报告同一个兜底。
+- **`.ts` 源码解析器提成 `tests/web_source.py`**：现有那份在 `test_web_vocabularies.py` 里，新模块再写一份就是 ㊹ 说的「每个使用点重写一遍的约定」——那份解析器本身就是三个各写一遍的正则合并来的。
+
+**八条反例全红**，其中第七条**第一次是绿的**：我把 `{formula ? (` 改成 `{false ? (`，公式确实不再渲染，但顺序断言读的是源码里 `识别公式` 的位置——**它没动**。改成把两个 JSX 块真的对调才变红。
+
+**没做、已登记**：`NOT_YET_SAID_HERE` 里三条——`explanation`（1332/1627 份信封带它，会说出「这条边是上游 LLM 提出的假设，当前回答相当于复述它」这类话，本面用 ProposedReview 和台账覆盖了一部分但没逐句对账）、`outcome_error`、`estimation_context`。另外查出 `themis/web/static/index.html` 是**第三个读者面**（`frontend/dist` 不存在时 `app.py` 回落到它，而 dist 是 gitignore 的构建产物，新克隆就没有），只有创建它的那两个 commit 动过它，`(62)` 的词表纪律和 `RENDERED_BLOCKS` 都不覆盖它——它把 `step.rule` 直接印成英文 id。
+
+**基线（本条）**：4275 → **4315**。
 
 ### 台账列了一条「我们没有假设什么」（2026-08-06，接上条）
 

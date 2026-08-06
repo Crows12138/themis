@@ -1,5 +1,11 @@
 // Kernel envelope shapes — mirror of themis.run output (query_result.schema.json).
-// Only the fields the UI reads are typed; the rest is passthrough.
+//
+// This file used to say "only the fields the UI reads are typed; the rest is
+// passthrough", which made every omission look deliberate and none of them
+// checkable. Three comments below record what that cost, each written after a
+// field turned out to be missing and each describing the same mechanism. Every
+// top-level field of the envelope is now accounted for at the bottom of this
+// file, and a test holds the accounting against the schema.
 
 export type AnswerTier = 'point' | 'interval' | 'none'
 
@@ -151,13 +157,28 @@ export interface LlmProposedReview {
   summary: string
 }
 
+// One step of the machine-verifiable chain, and the chain itself. `rule`
+// names what the step did, out of a closed set the kernel declares once and
+// this surface mirrors; `inputs`/`output` are what the verifier re-runs and
+// are not read here. Every answered result carries a chain whatever route it
+// took — 570 of 1627 envelopes in one suite run, across ten query kinds —
+// which is what makes it the only complete answer to the question the
+// 「怎么算出来的」 foldout asks. Undeclared here, the foldout named that
+// question and never once answered it with the chain.
+export interface DerivationStep {
+  rule?: string
+  step_id?: string | null
+}
+export interface Derivation {
+  steps?: DerivationStep[]
+}
+
 export interface QueryResult {
   status: string
   query_kind: string
-  query_id?: string
-  explanation?: string
   structural_result?: StructuralResult
   formula?: unknown
+  derivation?: Derivation
   data_gap_report?: DataGapReport
   bounds_result?: BoundsResult
   numeric_estimate?: NumericEstimate
@@ -184,11 +205,53 @@ export interface QueryResult {
     kind?: string
     reason?: string
   }
-  investigation_requests?: unknown[]
   extensions?: {
     assumption_ledger?: AssumptionLedger
     llm_proposed_review?: LlmProposedReview
   } & Record<string, unknown>
+}
+
+// --- the rest of the envelope ------------------------------------------------
+//
+// The interface above is a claim about what this surface uses, and until these
+// three lists existed it could not be told apart from a claim about what the
+// envelope has. `blocks.py` asks every block how it reaches a reader and holds
+// each answer to a surface; it stops at `extensions` because it was drawn
+// around the parts whose names are string literals, where a typo is silence —
+// a boundary about SPELLING, kept after the register grew a question about
+// REACHING. So the twenty-one typed fields were never asked, and four of them
+// went missing here one at a time, each fixed by hand and each leaving a
+// comment above describing the mechanism that would take the next one.
+//
+// A test parses these and the schema and holds them to partitioning it. The
+// three answers are different claims and are kept apart on purpose: only the
+// last one says work remains, and only it is capped.
+
+// Said here by another field, named because a name can be checked: the carrier
+// has to be a field this surface both declares and reads. All three are inputs
+// the kernel's own gap report is computed from, so what reaches the reader is
+// the curated form rather than the raw list.
+export const CARRIED_BY: Record<string, string> = {
+  missing_information: 'data_gap_report',
+  framing_notes: 'data_gap_report',
+  investigation_requests: 'data_gap_report',
+}
+
+// Nothing here says these, and nothing should: they address the caller or an
+// auditor, not the person reading the answer.
+export const NOT_FOR_A_READER: Record<string, string> = {
+  query_id: '调用方用来把答案对回问题的句柄，报告印在审计脚注里，本面没有审计脚注',
+  confidence: '整份结果的合成分数（不是统计置信区间）；主报告也不印它',
+  confidence_sources: '合成分数逐槽位的来路，给审计用',
+  estimator_dependency_missing: '可选后端没装的安装提示，是给运维的话',
+}
+
+// Nothing here says these, and something should. Capped by a test: this list
+// can shrink and cannot grow.
+export const NOT_YET_SAID_HERE: Record<string, string> = {
+  explanation: '内核自己写的散文披露（一次全量 1627 份信封里 1332 份带它），会说出「这条边是上游 LLM 提出的假设，当前回答相当于复述它」这类话。本面用 ProposedReview 和假设台账覆盖了其中一部分，但没有逐句对账过',
+  outcome_error: '声明了结局测量误差时，它对这条查询的代价——一份披露，本面没有落点',
+  estimation_context: '产生这个数值估计的数据契约与选项快照；样本量这类读者用得上的东西在里面',
 }
 
 export interface Envelope {

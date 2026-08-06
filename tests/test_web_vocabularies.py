@@ -37,10 +37,13 @@ import pytest
 from themis import refusals
 from themis import ledger
 from themis.output import analysis_report
+from themis.output.derivation_glossary import SAYS
 from themis.types import ResultStatus
 
+from . import web_source
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
-WEB = REPO / "themis" / "web" / "frontend" / "src" / "lib" / "verdict.ts"
+WEB = web_source.VERDICT
 SCHEMA = json.loads(
     (REPO / "themis" / "schemas" / "query_result.schema.json").read_text(
         encoding="utf-8")
@@ -49,44 +52,17 @@ SCHEMA = json.loads(
 
 # --- reading the .ts ---------------------------------------------------------
 #
-# A brace-matcher rather than a regex per table. Three test modules grew
-# their own pattern for one object literal each, which is the convention
-# that has to be rewritten at every use point — and the fourth would have
-# been written the same way.
+# The matcher lives in :mod:`tests.web_source`: three test modules grew a
+# regex each for one object literal apiece before it existed, and a fourth
+# reader of the browser's source is exactly how a fifth regex gets written.
 
 def _source() -> str:
-    return WEB.read_text(encoding="utf-8")
+    return web_source.read(WEB)
 
 
-def _literal(name: str, source: str) -> str:
-    """The body of one top-level ``const NAME ... = { ... }``."""
-    opened = re.search(rf"^(?:export )?const {name}\b[^=]*=\s*[{{\[]",
-                       source, re.M)
-    assert opened, f"verdict.ts declares no {name}"
-    start = opened.end() - 1
-    close = {"{": "}", "[": "]"}[source[start]]
-    depth, i = 0, start
-    while True:
-        if source[i] in "{[":
-            depth += 1
-        elif source[i] in "}]":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    return source[start + 1:i]
-
-
-def _top_level_keys(body: str) -> set[str]:
-    keys, depth = set(), 0
-    for line in body.splitlines():
-        if depth == 0:
-            found = re.match(r"\s*([A-Za-z_]\w*)\s*:", line)
-            if found:
-                keys.add(found.group(1))
-        depth += (line.count("{") + line.count("[")
-                  - line.count("}") - line.count("]"))
-    return keys
+_literal = web_source.literal
+_top_level_keys = web_source.top_level_keys
+_chunks = web_source.chunks
 
 
 def _keyed_tables(source: str) -> set[str]:
@@ -95,28 +71,7 @@ def _keyed_tables(source: str) -> set[str]:
 
 
 def _string_list(name: str, source: str) -> set[str]:
-    return set(re.findall(r"'([^']+)'", _literal(name, source)))
-
-
-_DECL = re.compile(
-    r"^(?:export )?(?:async )?(?:function|const|type|interface|class) (\w+)",
-    re.M)
-
-
-def _chunks(text: str) -> dict[str, str]:
-    """Top-level declared name -> its text, up to the next declaration.
-
-    Everything in this file is declared at column 0, so no brace matching
-    is needed — and brace matching would be wrong here: on
-    ``function f(x): T { ... }`` it closes at the parameter list, which
-    made the first version of this scan report that nothing reads anything.
-    """
-    marks = [(m.start(), m.group(1)) for m in _DECL.finditer(text)]
-    out = {}
-    for i, (pos, name) in enumerate(marks):
-        end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
-        out[name] = text[pos:end]
-    return out
+    return web_source.string_list(name, source)
 
 
 # --- the kernel side ---------------------------------------------------------
@@ -158,6 +113,11 @@ ANCHORS: dict[str, set[str]] = {
         "properties", "extensions", "properties", "causation", "properties",
         "interventional_risk_provenance"),
     "refusal_kind": {str(k) for k in refusals.Kind},
+    # The one anchor with no schema enum to point at: ``step.rule`` is a
+    # free string in derivation.schema.json, and the closed set is the
+    # glossary, which is also what the report renders. Anchoring on the
+    # module is what ``refusal_kind`` already does for the same reason.
+    "derivation_rule": set(SAYS),
 }
 
 
@@ -326,9 +286,24 @@ def test_the_ledger_words_are_the_reports_own(table, vocabulary):
     assert web == {str(m): m.zh for m in vocabulary}
 
 
+def test_the_chain_reads_the_same_on_both_surfaces():
+    """Fifty-eight sentences, mirrored rather than reworded.
+
+    The refusal kinds are held loosely — the report wraps its head in
+    markdown and puts the occasion between head and tail, so only the
+    instruction has to survive. Nothing wraps these: both surfaces print
+    one sentence per step, in the same order, answering the same question,
+    so the strongest available pin is plain equality and it costs nothing
+    when the copy is exact. A reader comparing the two should find them
+    the same text, not two accounts of one step.
+    """
+    web = web_source.string_map("DERIVATION_SAYS", _source())
+    assert web == SAYS
+
+
 # --- a table nobody reads ----------------------------------------------------
 
-SRC = REPO / "themis" / "web" / "frontend" / "src"
+SRC = web_source.SRC
 
 
 def test_every_vocabulary_table_has_a_reader():

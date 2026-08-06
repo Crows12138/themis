@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -36,9 +36,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // "怎么算出来的" all along while saying only the formula and the paths; the
   // ten blocks that answer that question are read here now.
   const routes = routeRows(result.extensions)
+  // The chain, which is the one answer to this foldout's question that every
+  // answered result has. A route is written as a block only when a pattern was
+  // recognised; 570 of 1627 envelopes in one suite run carried a chain and
+  // this surface read none of them.
+  const chain = derivationRows(result.derivation)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
-  const hasDetail = routes.length > 0 || paths.length > 0 || !!formula || !!bounds || sens?.e_value != null || !!ledger?.assumptions?.length
+  const hasDetail = routes.length > 0 || !!chain || paths.length > 0 || !!formula || !!bounds || sens?.e_value != null || !!ledger?.assumptions?.length
 
   return (
     <section className="verdict" aria-label="判决">
@@ -216,6 +221,22 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 <div className="figure">
                   <span className="figure__cap">识别公式</span>
                   <span className="formula mono">{formula}</span>
+                </div>
+              ) : null}
+
+              {/* After the pattern and the expression, because it is the
+                  skeleton and they are the detail — the same order the
+                  report states this section in, so a reader comparing the
+                  two does not have to reconcile them. */}
+              {chain ? (
+                <div className="boundsexpr">
+                  <span className="figure__cap">{chain.cap}</span>
+                  {chain.rows.map((row, i) => (
+                    <div className="boundsexpr__row" key={`chain-${i}`}>
+                      <span className="boundsexpr__k">{row.label}</span>
+                      <span className="boundsexpr__v">{row.value}</span>
+                    </div>
+                  ))}
                 </div>
               ) : null}
 
