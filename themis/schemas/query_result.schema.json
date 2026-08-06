@@ -13,6 +13,28 @@
       "type": "object",
       "description": "Open-ended extension map. Known sub-fields have explicit sub-schemas below; unknown fields are allowed (extensions is intentionally open for forward compatibility).",
       "properties": {
+        "assumption_ledger": {
+          "type": "object",
+          "description": "Everything the answer takes on faith, worst first — the block both the report and the browser lead with. One line carries three closed vocabularies and they are declared here because all three leave the kernel and are read by two independent surfaces: `layer` (which part of the answer stops being true), `severity` (how badly the conclusion dies), `provenance` (who put it on the list, and is therefore who the reader argues with). They had no enum and no table anywhere, which is how `layer` came to hold a sixth value named `assumption` on an assumption ledger, and how an empty string in either field passed the verifier. `claim` is free prose and `id` is the flat declaration this entry is the structured form of, when it has one.",
+          "properties": {
+            "summary": { "type": "string" },
+            "assumptions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["claim", "layer", "severity", "provenance"],
+                "properties": {
+                  "claim": { "type": "string", "minLength": 1 },
+                  "layer": { "enum": ["identification", "functional_form", "structural_edge", "parameter", "confidence"] },
+                  "severity": { "enum": ["invalidating", "distorting", "confidence_only"] },
+                  "provenance": { "enum": ["inherent", "estimator_declared", "measurement_declared", "default", "llm_proposal", "discovery", "llm_prior"] },
+                  "testable": { "type": "boolean" },
+                  "id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
         "identification": {
           "type": "object",
           "description": "Which pattern the graph was recognised as, beside the formula it produced. Only `pattern` is declared: the block carries several optional companions whose presence is decided by the pattern (adjustment_set, mediator_set, instrument, conditioned_on, required_assumption), and the map stays open, so this constrains the one field whose domain is closed. It is declared because a closed vocabulary that leaves the kernel has to be checkable by whoever states it to a reader — the three sibling pattern-like fields (selection_recovery.criterion, missing_data_recovery.mechanism, mediation_decomposition.strategy) already are, and this one, the most frequently written of the four, was not. `joint_identification.pattern` is a DIFFERENT vocabulary (joint_backdoor / joint_general_id) on a different block.",

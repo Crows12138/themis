@@ -28,8 +28,11 @@ from __future__ import annotations
 from typing import assert_never
 
 from .. import answers, blocks, questions, refusals, risk_provenance
+# Aliased because the ledger renderer's own argument is the ledger itself,
+# and a module shadowed by a local reads as the local everywhere below it.
+from .. import ledger as ledger_vocab
 from ..refusals import Kind
-from . import assumption_glossary, derivation_glossary, formula_text
+from . import derivation_glossary, formula_text
 
 
 def _kind_zh(kind) -> str | None:
@@ -94,10 +97,10 @@ _STATUS_BADGE = {
 
 # How much a MISSING INPUT blocks an answer. The ledger's severities are a
 # different vocabulary answering a different question — how the conclusion
-# dies if an assumption is false — and they live with the ledger, in
-# :data:`themis.output.assumption_glossary.SEVERITIES`. One dict held both,
-# which is not wrong to read but says severity is one vocabulary when it is
-# two; the browser copied that reading and took three of the six.
+# dies if an assumption is false — and they live with the other two fields
+# of a ledger line, in :mod:`themis.ledger`. One dict held both, which is
+# not wrong to read but says severity is one vocabulary when it is two; the
+# browser copied that reading and took three of the six.
 _GAP_SEVERITY_ZH = {
     "blocking": "阻断",
     "important": "重要",
@@ -1350,15 +1353,19 @@ def _assumption_ledger(ledger: dict, result: dict) -> str:
     if summary:
         lines.append(summary)
         lines.append("")
+    # Three closed vocabularies on one line — which part of the answer this
+    # holds up, how badly it dies, and who put it there. All three used to
+    # reach the reader as the identifier the kernel writes, so a line ended
+    # `（assumption／来源 inherent／不可检验）`: an assumption said to be an
+    # assumption, from a source called inherent.
     for a in ledger["assumptions"]:
-        sev = assumption_glossary.SEVERITIES.get(
-            a.get("severity"), a.get("severity", ""))
+        sev = ledger_vocab.severity_zh(a.get("severity", ""))
         claim = a.get("claim", "")
         meta = []
         if a.get("layer"):
-            meta.append(a["layer"])
+            meta.append(ledger_vocab.layer_zh(a["layer"]))
         if a.get("provenance"):
-            meta.append(f"来源 {a['provenance']}")
+            meta.append(f"来源 {ledger_vocab.provenance_zh(a['provenance'])}")
         meta.append("可检验" if a.get("testable") else "不可检验")
         lines.append(f"- **[{sev}]** {claim}　（{'／'.join(meta)}）")
     return "\n".join(lines)

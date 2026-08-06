@@ -72,6 +72,39 @@ export function assumptionSeverityLabel(sev: string): string {
   return ASSUMPTION_SEVERITY_ZH[sev] ?? sev
 }
 
+// Which part of the answer stops being true if an assumption is false —
+// the third field of the same ledger line, and a partition of the answer
+// rather than a list of topics. A sixth value named `assumption` used to
+// sit here saying nothing; it was identification, since without it the
+// quantity is bounded rather than point-identified.
+const LEDGER_LAYER_ZH: Record<string, string> = {
+  identification: '识别',
+  functional_form: '函数形式',
+  structural_edge: '图上的边',
+  parameter: '参数取值',
+  confidence: '区间',
+}
+export function ledgerLayerLabel(layer: string): string {
+  return LEDGER_LAYER_ZH[layer] ?? layer
+}
+
+// Who put the assumption on the list, which is who the reader has to go and
+// argue with. Five of the seven name someone other than Themis, and those
+// are the lines a reader can actually overrule — which is the whole reason
+// this field is worth the room it takes.
+const LEDGER_PROVENANCE_ZH: Record<string, string> = {
+  inherent: '方法本身要求',
+  estimator_declared: '估计器声明',
+  measurement_declared: '测量模型声明',
+  default: '估计器默认选择',
+  llm_proposal: '上游 LLM 提议',
+  discovery: '因果发现算法学出',
+  llm_prior: 'LLM 常识 prior',
+}
+export function ledgerProvenanceLabel(prov: string): string {
+  return LEDGER_PROVENANCE_ZH[prov] ?? prov
+}
+
 // Which of the five answers to "what now" a refusal gives — themis/refusals.py
 // hangs one on every species, and the report has said it in words all along.
 // The species itself stays an identifier here for the reason it does there:
@@ -453,6 +486,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   gap_kind: GAP_TITLE,
   gap_severity: SEVERITY_LABEL,
   assumption_severity: ASSUMPTION_SEVERITY_ZH,
+  assumption_layer: LEDGER_LAYER_ZH,
+  assumption_provenance: LEDGER_PROVENANCE_ZH,
   identification_pattern: PATTERN_ZH,
   interventional_risk_provenance: RISK_PROVENANCE_ZH,
   refusal_kind: REFUSAL_KIND_ZH,

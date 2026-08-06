@@ -113,6 +113,12 @@ export interface LedgerEntry {
   claim: string
   layer?: string
   severity?: string
+  // Who put this assumption on the list. Leaving it out of this type is how
+  // the one field that tells a reader whom to argue with — an LLM proposed
+  // this edge, a discovery algorithm learned it, you declared this
+  // measurement model — never left the envelope on this surface, while the
+  // report printed it beside every claim.
+  provenance?: string
   testable?: boolean
 }
 export interface AssumptionLedger {

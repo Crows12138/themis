@@ -428,7 +428,12 @@ def _identification_assumptions(
              "layer": "identification", "severity": "invalidating", "testable": True})
     if monotonic:
         specs.append(
+            # Identification, not a layer of its own: without it these three
+            # are bounded and not point-identified, which is the definition of
+            # the identification layer. It was labelled ``assumption`` on an
+            # assumption ledger, where the word says nothing.
             {"id": "monotonicity_x_never_prevents_y_point_identification",
              "claim": "单调性：X 从不阻止 Y(Y_x ≥ Y_x')，使 PN/PS/PNS 点识别",
-             "layer": "assumption", "severity": "invalidating", "testable": False})
+             "layer": "identification", "severity": "invalidating",
+             "testable": False})
     return tuple(specs)

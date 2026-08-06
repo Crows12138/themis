@@ -16,7 +16,7 @@ back into a typed ``QueryResult`` is not part of the v0.1.0 surface.
 """
 from __future__ import annotations
 
-from .. import blocks
+from .. import blocks, ledger
 from ..types import (
     Atom,
     CauseStatement,
@@ -492,12 +492,9 @@ def build_mechanism_audit(
 # Assumption ledger — one severity-ranked view over the scattered channels
 # ---------------------------------------------------------------------------
 
-# Severity ordering drives the ledger sort. The axis is "if this
-# assumption is false, how does the conclusion die":
-#   invalidating  — the number is not a causal effect at all
-#   distorting    — shape / magnitude skewed, the average often survives
-#   confidence_only — only the confidence is affected
-_SEVERITY_RANK = {"invalidating": 0, "distorting": 1, "confidence_only": 2}
+# Severity ordering drives the ledger sort, and the order is the
+# vocabulary's own — ``themis.ledger.Severity`` declares it beside what
+# each value means, so the sort and the reader's word cannot disagree.
 
 
 def build_assumption_ledger(
@@ -544,10 +541,15 @@ def build_assumption_ledger(
     # 1) identification assumptions — structured at source by the
     #    estimator, passed directly (not via schema-validated numeric_estimate)
     for spec in identification_specs or ():
+        layer, provenance = ledger.stamp(
+            "identification_spec",
+            spec.get("layer", ledger.Layer.IDENTIFICATION),
+            ledger.Provenance.INHERENT,
+        )
         entry = {
             "claim": spec.get("claim", ""),
-            "layer": spec.get("layer", "identification"),
-            "provenance": "inherent",
+            "layer": layer,
+            "provenance": provenance,
             "severity": spec.get("severity", "invalidating"),
             "testable": bool(spec.get("testable", False)),
         }
@@ -573,10 +575,15 @@ def build_assumption_ledger(
         if gap.get("kind") != "unverified_proposal_edge_on_query_path":
             continue
         desc = gap.get("description", "")
-        provenance = "discovery" if "发现算法" in desc else "llm_proposal"
+        layer, provenance = ledger.stamp(
+            "proposal_edge",
+            ledger.Layer.STRUCTURAL_EDGE,
+            ledger.Provenance.DISCOVERY if "发现算法" in desc
+            else ledger.Provenance.LLM_PROPOSAL,
+        )
         entries.append({
             "claim": desc,
-            "layer": "structural_edge",
+            "layer": layer,
             "provenance": provenance,
             "severity": "invalidating",
             "testable": True,
@@ -586,10 +593,12 @@ def build_assumption_ledger(
     #     so they stay in the ledger (magnitude-affecting -> distorting).
     review = extensions.get(blocks.LLM_PROPOSED_REVIEW) or {}
     for prob in review.get("probabilities") or []:
+        layer, provenance = ledger.stamp(
+            "theta_prior", ledger.Layer.PARAMETER, ledger.Provenance.LLM_PRIOR)
         entries.append({
             "claim": f"{prob.get('key')} = {prob.get('value')}（LLM 常识 prior）",
-            "layer": "parameter",
-            "provenance": "llm_prior",
+            "layer": layer,
+            "provenance": provenance,
             "severity": "distorting",
             "testable": True,
         })
@@ -597,13 +606,22 @@ def build_assumption_ledger(
     # 3) functional form (curve shape)
     mech = extensions.get(blocks.MECHANISM_AUDIT) or {}
     for m in mech.get("mechanisms") or []:
+        # The fallback used to read ``estimator_default`` — a second
+        # spelling of the value the mechanism builder already defaults to,
+        # which no producer has ever written. Two spellings of one value is
+        # how a vocabulary grows a member nothing means.
+        layer, provenance = ledger.stamp(
+            "audited_mechanism",
+            ledger.Layer.FUNCTIONAL_FORM,
+            m.get("provenance", ledger.Provenance.DEFAULT),
+        )
         entries.append({
             "claim": (
                 f"{m.get('target')} 的函数形式为 {m.get('form')}"
                 f"（{m.get('assumption', '')}）"
             ),
-            "layer": "functional_form",
-            "provenance": m.get("provenance", "estimator_default"),
+            "layer": layer,
+            "provenance": provenance,
             "severity": "distorting",
             "testable": True,
         })
@@ -621,7 +639,7 @@ def _ledger(entries: list[dict]) -> dict | None:
     # A severity outside the vocabulary sorts FIRST, not last: the renderer
     # leads with the head of this list, so an unrecognised value must surface
     # for someone to fix rather than sink below "only affects the interval".
-    entries.sort(key=lambda e: _SEVERITY_RANK.get(e["severity"], -1))
+    entries.sort(key=lambda e: ledger.rank(e["severity"]))
 
     n_inval = sum(1 for e in entries if e["severity"] == "invalidating")
     n_other = len(entries) - n_inval
@@ -695,7 +713,8 @@ def augment_assumption_ledger(result: dict) -> None:
 
     for item in measured:
         entry = classify_assumption(item)
-        entry["provenance"] = "measurement_declared"
+        entry["layer"], entry["provenance"] = ledger.stamp(
+            "flat_channel", entry["layer"], ledger.Provenance.MEASUREMENT_DECLARED)
         entries.append(entry)
 
     claimed = {str(e["id"]) for e in entries if e.get("id")}
@@ -703,13 +722,14 @@ def augment_assumption_ledger(result: dict) -> None:
         if str(item) in claimed:
             continue
         entry = classify_assumption(item)
-        entry["provenance"] = "estimator_declared"
+        entry["layer"], entry["provenance"] = ledger.stamp(
+            "flat_channel", entry["layer"], ledger.Provenance.ESTIMATOR_DECLARED)
         entries.append(entry)
         claimed.add(str(item))
 
-    ledger = _ledger(entries)
-    if ledger is not None:
-        extensions[blocks.ASSUMPTION_LEDGER] = ledger
+    built = _ledger(entries)
+    if built is not None:
+        extensions[blocks.ASSUMPTION_LEDGER] = built
 
 
 def _outcome_error_premises(result: dict) -> tuple[str, ...]:

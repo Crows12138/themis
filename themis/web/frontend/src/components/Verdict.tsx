@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, refusalKind, assumptionSeverityLabel } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -256,11 +256,20 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   <span className="figure__cap">假设台账{ledger.summary ? ` · ${ledger.summary}` : ''}</span>
                   <ul className="ledger__list">
                     {ledger.assumptions.map((a, i) => (
+                      // Three closed vocabularies on one line: how badly it
+                      // dies, which part of the answer it holds up, and who
+                      // put it there. The last two were dropped on this
+                      // surface and printed raw on the other, which is two
+                      // ways of not deciding what they are for.
                       <li className="ledger__item" key={i}>
                         <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>
                           {a.severity ? assumptionSeverityLabel(a.severity) : ''}
                         </span>
                         <span className="ledger__claim">{a.claim}</span>
+                        {a.layer ? <span className="ledger__tag">{ledgerLayerLabel(a.layer)}</span> : null}
+                        {a.provenance ? (
+                          <span className="ledger__tag">来源 {ledgerProvenanceLabel(a.provenance)}</span>
+                        ) : null}
                         {a.testable === false ? <span className="ledger__tag">不可检验</span> : null}
                       </li>
                     ))}

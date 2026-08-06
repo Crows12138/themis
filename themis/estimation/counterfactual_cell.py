@@ -522,14 +522,18 @@ def _identification_assumptions(
              "layer": "identification", "severity": "invalidating", "testable": True})
     elif provenance is RiskProvenance.PINNED_BY_MONOTONICITY:
         specs.append(
+            # Identification, not a layer of its own: monotonicity is what
+            # picks this cell out of its bounds, so it fails the way an
+            # identification assumption fails.
             {"id": "cell_determined_by_monotonicity_alone_no_interventional_risk",
              "claim": "干预风险不可得，本格完全由单调性钉死——因此数据无从推翻这条单调性",
-             "layer": "assumption", "severity": "invalidating", "testable": False})
+             "layer": "identification", "severity": "invalidating",
+             "testable": False})
     if monotonicity is not None:
         specs.append(
             {"id": f"monotonicity_{monotonicity}_in_treatment",
              "claim": f"单调性（{monotonicity}）：把本格的区间收紧成点",
-             "layer": "assumption", "severity": "invalidating",
+             "layer": "identification", "severity": "invalidating",
              # Monotonicity is testable only when a do-risk was an input:
              # the emptiness check that could have refuted it needs one.
              "testable": provenance.uses_risk})

@@ -35,7 +35,8 @@ import re
 import pytest
 
 from themis import refusals
-from themis.output import analysis_report, assumption_glossary
+from themis import ledger
+from themis.output import analysis_report
 from themis.types import ResultStatus
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -97,6 +98,27 @@ def _string_list(name: str, source: str) -> set[str]:
     return set(re.findall(r"'([^']+)'", _literal(name, source)))
 
 
+_DECL = re.compile(
+    r"^(?:export )?(?:async )?(?:function|const|type|interface|class) (\w+)",
+    re.M)
+
+
+def _chunks(text: str) -> dict[str, str]:
+    """Top-level declared name -> its text, up to the next declaration.
+
+    Everything in this file is declared at column 0, so no brace matching
+    is needed — and brace matching would be wrong here: on
+    ``function f(x): T { ... }`` it closes at the parameter list, which
+    made the first version of this scan report that nothing reads anything.
+    """
+    marks = [(m.start(), m.group(1)) for m in _DECL.finditer(text)]
+    out = {}
+    for i, (pos, name) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
+        out[name] = text[pos:end]
+    return out
+
+
 # --- the kernel side ---------------------------------------------------------
 
 def _enum_at(*path: str) -> set[str]:
@@ -117,7 +139,18 @@ ANCHORS: dict[str, set[str]] = {
     "query_kind": _enum_at("properties", "query_kind"),
     "gap_kind": _enum_at("$defs", "dataGap", "properties", "kind"),
     "gap_severity": _enum_at("$defs", "dataGap", "properties", "severity"),
-    "assumption_severity": set(assumption_glossary.SEVERITIES),
+    # The three vocabularies of one ledger line. Anchored on the schema and
+    # not on ``themis.ledger`` so that the browser is held to the contract
+    # both surfaces read, rather than to the module one of them imports.
+    "assumption_severity": _enum_at(
+        "properties", "extensions", "properties", "assumption_ledger",
+        "properties", "assumptions", "items", "properties", "severity"),
+    "assumption_layer": _enum_at(
+        "properties", "extensions", "properties", "assumption_ledger",
+        "properties", "assumptions", "items", "properties", "layer"),
+    "assumption_provenance": _enum_at(
+        "properties", "extensions", "properties", "assumption_ledger",
+        "properties", "assumptions", "items", "properties", "provenance"),
     "identification_pattern": _enum_at(
         "properties", "extensions", "properties", "identification",
         "properties", "pattern"),
@@ -267,15 +300,80 @@ def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
         )
 
 
-def test_the_ledger_severity_words_are_the_reports_own():
+#: The three vocabularies of one ledger line: browser table -> kernel enum.
+#: Parametrized rather than written three times because they are one
+#: discipline applied three times, and a rule stated per member is a rule
+#: that holds until someone adds a fourth.
+_LEDGER_TABLES = {
+    "ASSUMPTION_SEVERITY_ZH": ledger.Severity,
+    "LEDGER_LAYER_ZH": ledger.Layer,
+    "LEDGER_PROVENANCE_ZH": ledger.Provenance,
+}
+
+
+@pytest.mark.parametrize("table,vocabulary", sorted(
+    _LEDGER_TABLES.items(), key=lambda kv: kv[0]))
+def test_the_ledger_words_are_the_reports_own(table, vocabulary):
     """Same vocabulary, same question, same answer.
 
-    Unlike the refusal kinds, this one is a bare label with no layout around
-    it, so there is no reason for the two surfaces to word it differently —
-    and a reader moving between them would read a difference as a
-    difference in what was found.
+    Unlike the refusal kinds, these are bare labels with no layout around
+    them, so there is no reason for the two surfaces to word them
+    differently — and a reader moving between them would read a difference
+    as a difference in what was found.
     """
     web = dict(re.findall(
-        r"^\s*(\w+): '([^']+)',", _literal("ASSUMPTION_SEVERITY_ZH", _source()),
-        re.M))
-    assert web == assumption_glossary.SEVERITIES
+        r"^\s*(\w+): '([^']+)',", _literal(table, _source()), re.M))
+    assert web == {str(m): m.zh for m in vocabulary}
+
+
+# --- a table nobody reads ----------------------------------------------------
+
+SRC = REPO / "themis" / "web" / "frontend" / "src"
+
+
+def test_every_vocabulary_table_has_a_reader():
+    """A table declared and never read renders nothing.
+
+    ``VOCABULARIES`` says this surface states a vocabulary; it cannot say
+    the words leave the module, and a translation nobody calls looks in the
+    source exactly like one every reader sees. What this proves is only
+    that a call site exists — not that the reader's eye reaches it — but
+    the failure it does catch is the one that happened: the ledger's layer
+    and provenance had no table here at all, and the fix would have been
+    just as silent if the table had been added without the component.
+
+    Reachability is transitive inside ``verdict.ts`` and then has to leave
+    it: two tables are read by a renderer map, which is read by an exported
+    function, which the component imports.
+    """
+    source = _source()
+    bodies = _chunks(source)
+    # Imports stripped: an import is not a use, and a component that stops
+    # rendering a label keeps importing it — which is exactly what the
+    # counterexample for this check does, and what it did until the import
+    # lines came out of the haystack.
+    elsewhere = "\n".join(
+        re.sub(r"^import\b[^;\n]*(?:from\s+'[^']+')?;?\s*$", "",
+               p.read_text(encoding="utf-8"), flags=re.M)
+        for p in sorted(SRC.rglob("*.ts*")) if p != WEB)
+
+    def reaches(table: str) -> bool:
+        seen, frontier = {table}, [table]
+        while frontier:
+            name = frontier.pop()
+            if name != table and re.search(rf"\b{name}\b", elsewhere):
+                return True
+            for other, body in bodies.items():
+                if other in seen or other == "VOCABULARIES":
+                    continue
+                if re.search(rf"\b{name}\b", body):
+                    seen.add(other)
+                    frontier.append(other)
+        return bool(re.search(rf"\b{table}\b", elsewhere))
+
+    unread = sorted(t for t in _declared().values() if not reaches(t))
+    assert not unread, (
+        f"{unread} are declared as vocabularies this surface states, but "
+        f"nothing outside verdict.ts reaches them — the words do not leave "
+        f"the module"
+    )

@@ -26,29 +26,22 @@ is not classified by it.
 """
 from __future__ import annotations
 
+from ..ledger import Layer, Severity
+
 # layer / severity / testable / Chinese claim
 _Entry = tuple[str, str, bool, str]
 
-_ID = "identification"
-_FORM = "functional_form"
-_CI = "confidence"
+# The two vocabularies this table classifies INTO are declared in
+# :mod:`themis.ledger`, beside the third field of the same ledger line and
+# beside the statement of which producer may write which. This module says
+# which entry each ID gets; it does not get to say what the choices are.
+_ID = Layer.IDENTIFICATION
+_FORM = Layer.FUNCTIONAL_FORM
+_CI = Layer.CONFIDENCE
 
-_INVAL = "invalidating"
-_DIST = "distorting"
-_CONF = "confidence_only"
-
-#: How the conclusion dies if this assumption is false, and how to say that
-#: to a reader. This is the ledger's own vocabulary and it is not the data
-#: gap report's, which grades how much a MISSING INPUT blocks an answer
-#: (``blocking`` / ``important`` / ``informational``). The two are disjoint
-#: sets under one field name, and reading them as one is not hypothetical:
-#: the browser's severity table held three of the six, and the ledger's
-#: three reached its readers untranslated in 688 results of one suite run.
-SEVERITIES: dict[str, str] = {
-    _INVAL: "作废级",
-    _DIST: "扭曲级",
-    _CONF: "仅影响置信",
-}
+_INVAL = Severity.INVALIDATING
+_DIST = Severity.DISTORTING
+_CONF = Severity.CONFIDENCE_ONLY
 
 
 # --- exact IDs ----------------------------------------------------------------

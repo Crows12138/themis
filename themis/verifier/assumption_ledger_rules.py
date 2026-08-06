@@ -38,7 +38,41 @@ from .errors import VerificationError
 _SEVERITIES = ("invalidating", "distorting", "confidence_only")
 _RANK = {s: i for i, s in enumerate(_SEVERITIES)}
 
+#: Which ``(layer, provenance)`` pairs each producer of a ledger entry may
+#: write, restated here rather than imported.
+#:
+#: The rows are producers because a producer is what fixes the pair, and
+#: the pair is the checkable part: every value of both vocabularies is
+#: legitimate somewhere, so membership alone cannot tell a back-door
+#: assumption relabelled as an LLM prior from an LLM prior. Asking instead
+#: "could anything have written this pair" catches that, and catches the
+#: values no vocabulary holds at all — an empty ``layer`` among them.
+#:
+#: Restated and not imported for the reason in this module's header: a
+#: ledger re-derived from the vocabulary its producer chose is not an
+#: independent audit. A test pins these rows equal to ``themis.ledger``.
+_ADMISSIBLE_PAIRS = {
+    "identification_spec": (
+        ("identification", "functional_form", "confidence"),
+        ("inherent",),
+    ),
+    "flat_channel": (
+        ("identification", "functional_form", "confidence"),
+        ("estimator_declared", "measurement_declared"),
+    ),
+    "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
+    "theta_prior": (("parameter",), ("llm_prior",)),
+    "audited_mechanism": (("functional_form",), ("default",)),
+}
+
 _RULE = "assumption_ledger_check"
+
+
+def _pair_is_writable(layer, provenance) -> bool:
+    return any(
+        layer in layers and provenance in provs
+        for layers, provs in _ADMISSIBLE_PAIRS.values()
+    )
 
 
 def _reject(message: str) -> None:
@@ -88,6 +122,14 @@ def verify_assumption_ledger(result: dict) -> None:
                 f"{e['severity']!r}; identification failing means the number is "
                 "not a causal effect at all, which is 'invalidating' by "
                 "definition"
+            )
+        if not _pair_is_writable(e.get("layer"), e.get("provenance")):
+            _reject(
+                f"assumptions[{i}] is layer {e.get('layer')!r} from "
+                f"{e.get('provenance')!r}, which no producer of a ledger "
+                f"entry writes; both fields reach the reader, so a pair "
+                f"nothing could have assembled is a claim about where this "
+                f"assumption came from that is not true of any channel"
             )
         if not str(e.get("claim") or "").strip():
             _reject(f"assumptions[{i}] carries an empty claim")
