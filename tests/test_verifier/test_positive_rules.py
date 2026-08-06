@@ -220,7 +220,7 @@ def test_cause_via_directed_path_rejects_supporting_paths_mismatch():
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
-    with pytest.raises(RuleCheckFailed, match="does not match"):
+    with pytest.raises(RuleCheckFailed, match="supporting_paths do not match"):
         verify_cause(deriv, ctx, wrong_result)
 
 

@@ -5,9 +5,11 @@
 - The derivation round-trips through JSON (V2) and still verifies.
 - Tampering with the witness path is rejected.
 
-There is currently no shipped fixture with a positive cause query, so
-``cause_via_directed_path`` is exercised only via the unit tests in
-``test_positive_rules.py``.
+No shipped fixture carries a positive cause query, so
+``cause_via_directed_path`` was for a long time exercised only by the unit
+tests in ``test_positive_rules.py``, which build the witness and the rendered
+paths from one tuple and so cannot disagree. What the runtime really emits is
+put to it in ``test_e2e_structural_witnesses.py``.
 """
 from __future__ import annotations
 

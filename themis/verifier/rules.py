@@ -5979,25 +5979,33 @@ def _rule_cause_via_directed_path(
                 step_index=step_index, rule="cause_via_directed_path",
             )
 
-    expected_paths = tuple(
-        tuple(path) for path in nx.all_simple_paths(graph, src, dst)
-    )
-    if tuple(paths) != expected_paths:
+    # The SET of directed paths is the semantic content; its order is not
+    # meaningful, exactly as for the open-path twin below. The producer sorts
+    # output.supporting_paths for a canonical render but stores inputs.paths
+    # in raw traversal order, and nx.all_simple_paths enumerates in a third —
+    # so compare as SETS. The order-sensitive equality this replaces rejected
+    # every correct multi-path cause claim (a mediator alongside a direct
+    # edge), while agreeing with the docstring's word for it, which was
+    # "set" all along.
+    expected_paths = tuple(nx.all_simple_paths(graph, src, dst))
+    if set(paths) != {tuple(path) for path in expected_paths}:
         raise RuleCheckFailed(
             "cause_via_directed_path.paths does not equal the full directed-path set",
             step_index=step_index, rule="cause_via_directed_path",
         )
 
-    expected_supporting = tuple(
-        tuple(_atom_label_verifier(a) for a in path) for path in expected_paths
-    )
-    expected = StructuralResult(
-        value=True, supporting_paths=expected_supporting,
-    )
-    if claimed_output != expected:
+    if not isinstance(claimed_output, StructuralResult) or claimed_output.value is not True:
         raise RuleCheckFailed(
-            "cause_via_directed_path: claimed output does not match the "
-            "StructuralResult implied by the witness paths",
+            "cause_via_directed_path must claim StructuralResult(value=True)",
+            step_index=step_index, rule="cause_via_directed_path",
+        )
+    expected_supporting = {
+        tuple(_atom_label_verifier(a) for a in path) for path in expected_paths
+    }
+    if set(claimed_output.supporting_paths or ()) != expected_supporting:
+        raise RuleCheckFailed(
+            "cause_via_directed_path: claimed supporting_paths do not match "
+            "the directed-path set implied by the witnesses",
             step_index=step_index, rule="cause_via_directed_path",
         )
 
