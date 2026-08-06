@@ -4,6 +4,7 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 
 - ``themis_run(program)`` → wraps :func:`themis.run`
 - ``themis_apply_patch_and_run(program, patches)`` → wraps :func:`themis.apply_patch_and_run`
+- ``themis_audit(program, result)`` → wraps :func:`themis.audit`; every re-check that applies to this artifact, one row each. Prefer it over picking a ``themis_verify_*`` by hand
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
@@ -118,6 +119,27 @@ def build_server():
         and gets a refreshed result envelope back.
         """
         return themis.apply_patch_and_run(program, patches)
+
+    @app.tool()
+    def themis_audit(program: dict | str | None, result: dict) -> dict:
+        """Run every independent re-check that applies to this artifact.
+
+        Prefer this over picking a ``themis_verify_*`` tool by hand. The
+        individual tools below are each one audit of thirteen, and five of
+        them audit a standalone artifact rather than a query_result
+        envelope — handed the wrong one they refuse with the same error
+        they use for an artifact that failed its audit, so a caller
+        choosing by hand can report a result as unverified over an audit
+        that was never about it.
+
+        Returns ``{"audits": [{"audit", "zh", "ok", "refusal"}, ...]}``,
+        one row per audit that applies, or ``{"error": "<message>"}`` when
+        the call itself is malformed.
+        """
+        try:
+            return {"audits": themis.audit(program, result)}
+        except Exception as exc:  # pragma: no cover - error path is the point
+            return {"error": f"{type(exc).__name__}: {exc}"}
 
     @app.tool()
     def themis_verify(program: dict | str, result: dict) -> dict:

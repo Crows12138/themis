@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4344 passed / 144 skipped, warning-clean
+4371 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1557,6 +1557,62 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 十三个 `verify_*` 共用一个前缀和一个参数名，审的却是两种东西（2026-08-06，接上条）
+
+登记的 #350 说上一档新加的 `Recheck` 那条端点路由没有守卫。先量（(61)）——缺口比登记大一个量级：
+
+```text
+themis.__all__ 里的公开 verify_* 出口                     13
+__init__.py「audit surfaces partition by …」那段散文覆盖    6
+MCP server 暴露                                           6（与散文那 6 个只重合 3）
+浏览器 Recheck.tsx 用                                      2
+benchmarks 的 agent prompt 点名                            2
+```
+
+把 13 个逐个打在 `tests/test_e2e` + `test_verifier` + `test_output` 跑出来的 **139** 份
+`query_result` 上（不是全量语料，够回答「这个出口对信封是什么反应」）：
+
+```text
+verify                        ok  73 | ValueError       66
+verify_bounds_result          ok  40 | ValueError       99
+verify_markov_blanket         ok   0 | VerificationError 139   ← 每一份
+verify_orientation_* ×4       ok   0 | VerificationError 139   ← 每一份
+verify_outcome_error          ok 139 | —（语料里 0 份带 outcome_error）
+```
+
+**根因**：这 13 个共用一个前缀、一个参数名 `result: dict`、一个模块，**审的却不是同一种东西**——8 个审 `query_result` 信封，5 个审**独立产物**（Markov 毯与 orientation 四阶段），后者的 docstring 各自写着 "**not a query_result envelope**"，产物自带 `kind` 字段。而「这个函数审的是什么」只以散文分散在 13 份 docstring 里，`__init__.py` 那句「按结果携带什么划分」**把它们说成同一族的划分——那句话本身是错的**。
+
+代价有三层，都量到了：①**「不适用」和「没通过」共用一个异常类型**，139/139；②不适用也可能**静默通过**（`verify_outcome_error` 在 0 份带该字段的语料上 139 次报 ok）；③四个消费端各自手写了一个不同的子集。
+
+**第四条物证，是这个仓库自己写下的**。`benchmarks/agent_integration/agent_prompt_v1.md` 的 changelog：
+
+> **Symptom in v0**: 3/3 agents called `themis_verify` on a `needs_investigation`
+> result with no derivation, got `ok: false`, wasted a tool call.
+> **Root cause**: verify is a conditional rule …, not a procedural step.
+> **Fix**: removed from workflow; added to red lines with explicit conditional.
+
+也就是说这条规则**代码里没地方放，于是被写进了 LLM 的红线**——而那条红线只覆盖了 13 个出口里的 1 个。
+
+**为什么是根因不是表象**：登记给的两条解法都是待验证断言（㉛）。第一条（给 TS 加守卫）只钉得住我上一档写的那 2 个；第二条方向对但那张表**缺的那一列不是「端点」而是「这个审计审的是什么产物」**——五个 `verify_orientation_*` 根本不在信封这条轴上，按端点建表会把它们再漏一次（㊴）。而同一个问题的两条产生路给出**两个不重合的答案**（散文 6 vs MCP 6，交集 3），正是 (67) 的判据。
+
+**改动**：`themis/audits.py`——13 个出口各声明一次「审哪种产物、什么条件下适用、它重算的是什么（给读者的一句中文）、要不要源程序」；`Artifact` 的五个非信封取值**逐字就是那些产物自带的 `kind`**；import 期 `bind(__all__)` 反问「有没有公开出口没登记」。`themis.audit(program, obj)` 选出适用的几项、逐项跑、逐项返回，**自己不抛**——于是五个独立产物审计**按声明被排除**而不是靠手写名单，「不适用」与「没通过」由构造分开。四个消费端塌成一个：`__init__` 那段散文换成指针、MCP 加 `themis_audit`、agent prompt 的红线从「什么时候别调」改成「调哪个」、浏览器那条 `routeFor` **整个删掉**（选哪些审计不是浏览器该回答的问题），`/api/audit` 一个薄壳。读者现在看到的是「**4 项独立复核全部通过**」外加每项重算了什么。顺带一个直接的读者收益：
+上一档那个按钮只在结果带链或带界时才出现，**而三项审计对每一份信封都适用**——
+`needs_investigation` 这类最常见的形态原来一个复核入口都没有，现在有三项。
+
+加一个 MCP 工具立刻被**三处既有的数量钉**接住（`themis/mcp/README.md`、`COVERAGE_MAP.md`、
+`scripts/run_014_stabilization_smoke.py` 各写着 14），这是这类钉子该有的样子。
+
+**上一档那条守卫我自己问错了**：「每个端点都有调用方」应当问的是**够不够得着**。`/api/verify` 与 `/api/verify_bounds_result` 现在由 `/api/audit` 覆盖，`app.py` 的 `COVERED_BY` 说出这件事，而覆盖者自己必须被调用，否则覆盖是句空话。
+
+**七条反例，两条第一次是绿的**：②把 `verify_markov_blanket` 改标成审信封的，而断言写的是「被选中那行的 `artifact` 不是 MARKOV_BLANKET」——改完它确实不是了，**断言的量取自被测的那张表**；⑥让 `Recheck` 不再调 `/api/audit`，可路径字面量按分层设计全住在 `api.ts` 里，**「产品里出现了这个字符串」恒真**。
+
+**方法论沉淀（第八十三至八十七条）**：
+(83)**同一个前缀 + 同一个参数名 + 同一个模块，是三个很强的「它们是一族」的暗示，而它们审的东西可以根本不同**——判据是问「**不适用的时候它做什么**」，答案不止一种就说明这一族从没被并排列出来过（这里有三种：抛 ValueError、抛 VerificationError、静默返回）。(66) 的姊妹：那里的物证是同义反复的成员，这里是**同一族成员对同一处境给出三种反应**。
+(84)**「不适用」和「没通过」共用一个异常类型时，任何按「调用 + 捕获」工作的消费端都分辨不出来**，而这两件事对读者的意思正好相反。找法：把每个出口打在一份典型输入上数异常类型——**139 次全抛的那个，抛的不是「你错了」，是「你找错人了」**。
+(85)**一条本该写进代码的规则被写进 LLM prompt 的红线里，就是「代码里没地方放它」的直接物证**——而 prompt 补丁天然只覆盖被观察到的那一个实例（13 分之 1）。找法：读 prompt 的 changelog，凡是「root cause: …；fix: 加一条守则」的条目都该回头问一句「这条规则在代码里的家在哪」。
+(86)**断言「这一族不该出现」时，断言的量不能取自被测的那张表**——按分类字段断言，等于让表自证；要按**名字**断言，并把「名字集合与表一致」单列成第二条测试。(78) 的下一格。
+(87)**「产品里出现了这个端点的字符串」证明的是有一个 wrapper，不是读者够得着**——分层设计会把所有路径字面量收在一个文件里，于是这个检查恒真。要问「**命名它的那个声明，自己有没有被别处调用**」。(65)「导入了不是用了」的下一格。
 
 ### `/` 在两个读者面之间做选择，而没有任何地方说有两个（2026-08-06，接上条）
 

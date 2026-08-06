@@ -1,57 +1,65 @@
 import { useState } from 'react'
 import type { QueryResult } from '../types'
-import { verify, verifyBounds } from '../api'
+import { auditResult, type AuditRow } from '../api'
 
 /**
  * 独立复核 — send the graph and this result back to the kernel, which
  * re-derives the answer without looking at what was claimed.
  *
- * Which of the two endpoints replays this result is settled by what the
- * result carries, not by what the caller hopes: a chain is replayed step by
- * step, a bound is re-derived from the graph. A result carrying neither gets
- * no button at all, because an offer that can only come back refused is
- * worse than no offer — that is what the surface this replaced did, and it
- * spelled the refusal `VerificationError`.
+ * There is no routing here on purpose. Which checks apply to a result is a
+ * question about the result, and this surface is the one place least able to
+ * answer it: the kernel ships thirteen audits, five of them about a different
+ * artifact entirely. The first version of this component picked between two
+ * endpoints by hand and so could only ever have offered two.
  */
-function routeFor(result: QueryResult): ((program: Record<string, unknown>, r: QueryResult) => Promise<{ ok: boolean }>) | null {
-  if ((result.derivation?.steps ?? []).length > 0) return verify
-  if (result.bounds_result) return verifyBounds
-  return null
-}
-
 export function Recheck({ result, program }: { result: QueryResult; program: Record<string, unknown> }) {
-  const [state, setState] = useState<'idle' | 'busy' | 'ok'>('idle')
-  const [refused, setRefused] = useState<string | null>(null)
-  const route = routeFor(result)
-  if (!route) return null
+  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle')
+  const [rows, setRows] = useState<AuditRow[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   async function run() {
-    if (!route) return
     setState('busy')
-    setRefused(null)
+    setError(null)
     try {
-      await route(program, result)
-      setState('ok')
+      const { audits } = await auditResult(program, result)
+      setRows(audits)
+      setState('done')
     } catch (e) {
       setState('idle')
-      setRefused((e as Error).message)
+      setError((e as Error).message)
     }
   }
+
+  const failed = rows.filter((row) => !row.ok)
 
   return (
     <section className="recheck" aria-label="独立复核">
       <button className="btn btn--ghost" onClick={run} disabled={state === 'busy'}>
-        {state === 'busy' ? '复核中…' : '独立复核这个答案'}
+        {state === 'busy' ? '复核中…' : state === 'done' ? '再复核一次' : '独立复核这个答案'}
       </button>
-      {state === 'ok' ? (
-        <p className="recheck__ok">✓ 复核通过 —— 内核不看上面的结论，照这张图重新推了一遍，推出来的是同一个答案。</p>
+
+      {state === 'done' ? (
+        <>
+          <p className={failed.length ? 'recheck__no' : 'recheck__ok'}>
+            {failed.length
+              ? `${failed.length} 项复核没通过 —— 内核照这张图重推，得到的和上面这份对不上。`
+              : `${rows.length} 项独立复核全部通过 —— 内核不看上面的结论，照这张图各自重算了一遍。`}
+          </p>
+          <ul className="recheck__list">
+            {rows.map((row) => (
+              <li className="recheck__row" key={row.audit}>
+                <span className={row.ok ? 'recheck__mark recheck__mark--ok' : 'recheck__mark recheck__mark--no'}>
+                  {row.ok ? '✓' : '✗'}
+                </span>
+                <span className="recheck__what">{row.zh}</span>
+                {row.refusal ? <span className="recheck__why mono">{row.refusal}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
-      {refused ? (
-        <p className="recheck__no">
-          <b>复核没通过。</b>重推的结果和上面这份对不上,内核给出的理由是:
-          <span className="recheck__why mono">{refused}</span>
-        </p>
-      ) : null}
+
+      {error ? <p className="recheck__no">{error}</p> : null}
     </section>
   )
 }

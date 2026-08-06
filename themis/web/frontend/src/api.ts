@@ -44,23 +44,26 @@ export function estimate(program: Record<string, unknown>, rows: Record<string, 
   return post<Envelope>('/api/estimate', { program, rows })
 }
 
-/**
- * 独立复核 — hand the graph and one result back to the kernel and let it
- * re-derive the answer from scratch. Both throw KernelError carrying the
- * kernel's own objection when the re-derivation disagrees.
- *
- * Two endpoints rather than one because they replay different things:
- * `verify` walks a derivation chain step by step and rejects a result that
- * has none, so an answer that is a bound — which typically arrives without a
- * chain — has its own counterpart. Which one a given result needs is a
- * question about the result, answered where the button lives.
- */
-export function verify(program: Record<string, unknown>, result: unknown): Promise<{ ok: boolean }> {
-  return post<{ ok: boolean }>('/api/verify', { program, result })
+export interface AuditRow {
+  audit: string
+  zh: string
+  ok: boolean
+  refusal: string | null
 }
 
-export function verifyBounds(program: Record<string, unknown>, result: unknown): Promise<{ ok: boolean }> {
-  return post<{ ok: boolean }>('/api/verify_bounds_result', { program, result })
+/**
+ * 独立复核 — hand the graph and one result back to the kernel and let it
+ * re-derive from scratch, by every check that applies.
+ *
+ * Which checks apply is not asked here. There are thirteen; five are audits
+ * of a different artifact altogether and reject a query_result with the same
+ * exception they use for a failed audit, so a caller picking by hand is a
+ * caller who can report "did not pass" for a check that was never about this
+ * answer. themis.audits decides, and what comes back already carries the
+ * sentence to show.
+ */
+export function auditResult(program: Record<string, unknown>, result: unknown): Promise<{ audits: AuditRow[] }> {
+  return post<{ audits: AuditRow[] }>('/api/audit', { program, result })
 }
 
 export interface ClarifyPick {

@@ -535,8 +535,14 @@ button { font-family: inherit; cursor: pointer; }
 /* ---- result: 独立复核 + 原始信封 ---- */
 .recheck { margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); align-items: flex-start; }
 .recheck__ok { font-size: var(--text-sm); color: var(--tier-point); line-height: 1.6; }
-.recheck__no { font-size: var(--text-sm); color: var(--ink); line-height: 1.6; }
-.recheck__why { display: block; margin-top: var(--space-2xs); font-size: var(--text-xs); color: var(--tier-none); }
+.recheck__no { font-size: var(--text-sm); color: var(--tier-none); line-height: 1.6; }
+.recheck__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2xs); }
+.recheck__row { display: grid; grid-template-columns: 1rem 1fr; gap: var(--space-xs); font-size: var(--text-sm); color: var(--ink-soft); line-height: 1.55; }
+.recheck__mark { font-size: var(--text-xs); }
+.recheck__mark--ok { color: var(--tier-point); }
+.recheck__mark--no { color: var(--tier-none); }
+.recheck__what { grid-column: 2; }
+.recheck__why { grid-column: 2; margin-top: var(--space-2xs); font-size: var(--text-xs); color: var(--tier-none); }
 .rawenv { max-height: 340px; overflow: auto; width: 100%; border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: var(--space-md); font-size: var(--text-xs); line-height: 1.55; color: var(--ink); background: var(--surface-sunk); tab-size: 2; white-space: pre; }
 
 /* ---- result: 改 JSON ---- */

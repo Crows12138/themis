@@ -510,6 +510,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
     expected_tools = {
         "themis_run",
         "themis_apply_patch_and_run",
+        "themis_audit",  # every re-check that applies
         "themis_verify",
         "themis_verify_data_gap_report",
         "themis_verify_bounds_result",  # iter 133

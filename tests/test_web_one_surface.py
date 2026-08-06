@@ -101,20 +101,41 @@ def test_the_endpoint_scan_has_something_to_scan():
     assert len(_api_routes()) >= 9
 
 
+def _calls(path: str) -> bool:
+    """Named by the product, and reached from something other than the
+    wrapper that names it.
+
+    Two things this had to learn. The whole literal, quotes included: one
+    endpoint's path is another's prefix, and a substring search calls
+    ``/api/verify`` reached by nothing more than the presence of
+    ``/api/verify_bounds_result``. And every path literal lives in
+    ``api.ts`` by design, so finding one there says a wrapper exists — a
+    wrapper nothing calls is the same dead capability as an endpoint
+    nothing names.
+    """
+    quoted = rf"""['"`]{re.escape(path)}['"`]"""
+    api = web_source.SRC / "api.ts"
+    elsewhere = web_source.sources_that_could_read(exclude=api)
+    if re.search(quoted, elsewhere):
+        return True
+    holders = [name for name, text in web_source.chunks(web_source.read(api)).items()
+               if re.search(quoted, text)]
+    return any(re.search(rf"\b{re.escape(name)}\b", elsewhere) for name in holders)
+
+
 @pytest.mark.parametrize("path", _api_routes())
 def test_every_endpoint_the_server_offers_is_reachable_from_the_product(path):
-    """An endpoint no surface calls is a capability the reader does not
-    have, and it looks identical to one they do.
+    """A capability the reader cannot get to looks identical to one they can.
 
-    Both verify endpoints were in this state the moment the older page went
-    away — which is the same fact from the other side: the reason removing
-    that page was safe to consider at all is that everything it could do,
-    the product can do too.
-
-    The whole literal, quotes included: one endpoint's path is another's
-    prefix, and a substring search calls ``/api/verify`` reached by nothing
-    more than the presence of ``/api/verify_bounds_result``.
+    Reachable, not called: an endpoint the product does not name may still be
+    what a reader gets, if a broader one runs it. Both verify endpoints are
+    like that — /api/audit runs whichever of them applies — and the first
+    version of this test asked the narrower question, which would have made
+    the honest fix look like a regression. The endpoint that covers another
+    has to be called itself, or the cover is a story.
     """
-    called = re.search(rf"""['"`]{re.escape(path)}['"`]""",
-                       web_source.sources_that_could_read())
-    assert called, f"{path} 没有任何调用方——服务器提供了它，产品上够不着"
+    if _calls(path):
+        return
+    cover = web_app.COVERED_BY.get(path)
+    assert cover, f"{path} 没有任何调用方，也没说谁覆盖它——服务器提供了它，产品上够不着"
+    assert _calls(cover), f"{path} 说由 {cover} 覆盖，而 {cover} 自己也没有调用方"

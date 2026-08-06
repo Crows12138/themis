@@ -4,17 +4,7 @@ See ARCHITECTURE.md for layer definitions and dependency rules.
 
 Public entry points::
 
-    from themis import (
-        run,
-        apply_patch_and_run,
-        estimate,
-        verify,
-        verify_data_gap_report,
-        verify_bounds_result,
-        verify_assumption_ledger,
-        verify_cluster_inference,
-        verify_outcome_error,
-    )
+    from themis import run, apply_patch_and_run, estimate, audit
 
     # Pure symbolic kernel:
     out = run(program_json_or_dict)
@@ -25,55 +15,19 @@ Public entry points::
     # DataFrame-backed estimation path:
     estimated = estimate(program_json_or_dict, dataframe)
 
-    # Independent re-check (pure JSON; no typed objects needed). The audit
-    # surfaces partition by what the result carries — pick by result
-    # content, do not reach for verify() unconditionally:
-    #
-    #   verify                 — audits the reasoning chain; applies ONLY to
-    #                            results that carry a "derivation" (structurally
-    #                            / numerically solved answers). It deliberately
-    #                            rejects derivation-less results (no audit-by-
-    #                            omission), raising ValueError — so guard the call.
-    #   verify_data_gap_report — audits the T10 gap report; always applicable,
-    #                            including diagnostic / derivation-less results.
-    #   verify_bounds_result   — audits a bounds answer; applies when the result
-    #                            carries a "bounds_result" (Phase 12 Manski
-    #                            natural / Balke-Pearl IV / iter 119 Manski-Tamer).
-    #   verify_assumption_ledger
-    #                          — audits the disclosure surface the renderer
-    #                            leads with; always applicable, and the one
-    #                            audit whose failure mode is one-sided (an
-    #                            assumption absent from the ledger reads as an
-    #                            assumption nobody makes).
-    #   verify_cluster_inference
-    #                          — audits the unit of independence; always
-    #                            applicable. The other one-sided surface: a
-    #                            dropped cluster column moves the interval
-    #                            WIDTH only, so an interval that says nothing
-    #                            about a named cluster column reads as i.i.d.
-    #                            inference the run gave no basis for.
-    #   verify_outcome_error   — audits the one block that changes no number:
-    #                            a declared classical error on a continuous
-    #                            outcome buys a precision statement, not a
-    #                            correction. Applies when the result carries an
-    #                            "outcome_error"; re-derives its variance split
-    #                            and refuses one whose premises never reach the
-    #                            estimate's declared assumptions.
-    #
-    # The two most common statuses — needs_investigation (identifiable but
-    # missing theta) and needs_assumption (counterfactual) — carry NO
-    # derivation, so verify() alone is the wrong surface for them; use the
-    # gap / bounds audits. The copy-paste-safe pattern:
-    result = out["results"][0]
-    if "derivation" in result:
-        verify(program_json, result)            # reasoning-chain audit
-    verify_data_gap_report(result)              # gap-report audit (always ok)
-    verify_assumption_ledger(result)            # disclosure audit (always ok)
-    verify_cluster_inference(result)            # independence-unit audit
-    if "outcome_error" in result:
-        verify_outcome_error(result)            # outcome-measurement audit
-    if "bounds_result" in result:
-        verify_bounds_result(program_json, result)
+    # Independent re-check (pure JSON; no typed objects needed):
+    for row in audit(program_json, out["results"][0]):
+        print(row["audit"], row["ok"], row["zh"])
+
+Which audits apply to a given artifact is a question about the artifact,
+and :mod:`themis.audits` answers it once. Reaching past ``audit`` for the
+thirteen ``verify_*`` entry points directly is supported and is what the
+MCP tools do, but then the applicability is yours to get right: five of
+them audit standalone artifacts rather than a ``query_result`` envelope and
+reject a foreign one with the same exception they use for a failed audit,
+and ``verify`` refuses a result carrying no derivation rather than pass it
+by omission. ``audit`` never hands a caller an audit that was not about
+their artifact, which is the only way "did this pass" has an answer.
 
 The kernel is JSON-in / JSON-out. Inputs conform to
 ``kernel_ast.schema.json``; outputs' ``results`` entries conform to
@@ -105,6 +59,8 @@ covered by the V0-V5 verifier and this exception is no longer raised
 by the runtime path.
 """
 
+from . import audits as _audits
+from .audits import audit
 from .kernel import (
     AdmgVerificationPending,
     apply_patch_and_run,
@@ -130,6 +86,7 @@ __version__ = "0.15.0-dev"
 __all__ = [
     "AdmgVerificationPending",
     "apply_patch_and_run",
+    "audit",
     "build_analysis_report",
     "estimate",
     "run",
@@ -147,3 +104,6 @@ __all__ = [
     "verify_outcome_error",
     "verify_selection_recovery_numeric",
 ]
+
+# Every public verifier declares what it is an audit of, or this raises.
+_audits.bind(__all__)

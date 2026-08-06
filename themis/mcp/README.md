@@ -6,11 +6,13 @@ the kernel without copy-pasting prompts and inputs by hand.
 
 ## Architecture
 
-The server exposes two surfaces (current count: 14 tools + 12 resources;
+The server exposes two surfaces (current count: 15 tools + 12 resources;
 test_mcp_server.py + iter 59 sync pin lock both):
 
 - **Tools** — the public JSON-in/JSON-out kernel entry points:
-  `themis_run`, `themis_apply_patch_and_run`, `themis_verify`,
+  `themis_run`, `themis_apply_patch_and_run`, `themis_audit`
+  (every re-check that applies — prefer it over the individual
+  `themis_verify_*` below), `themis_verify`,
   `themis_verify_data_gap_report` (Phase 10),
   `themis_verify_bounds_result` (iter 133),
   `themis_verify_markov_blanket` (borrow-list #4),
@@ -65,6 +67,7 @@ prefixed `mcp__themis__`.
 |---|---|---|
 | `themis_run` | `themis.run(program)` | Single-turn full pipeline |
 | `themis_apply_patch_and_run` | `themis.apply_patch_and_run(program, patches)` | Multi-turn closed loop (slice A3) |
+| `themis_audit` | `themis.audit(program, result)` | Every re-check that applies to this artifact, one row each (`{audit, zh, ok, refusal}`). Prefer it over picking a `themis_verify_*` by hand — five of the thirteen audit a standalone artifact, not an envelope, and refuse a foreign one with the same error they use for a failed audit |
 | `themis_verify` | `themis.verify(program, result)` | Returns `{ok, error?}` instead of raising |
 | `themis_verify_data_gap_report` | `themis.verify_data_gap_report(result)` | Phase 10 — independent audit of gap report |
 | `themis_verify_bounds_result` | `themis.verify_bounds_result(program, result)` | Iter 133 — bounds-result audit (MN/MTR/BP-IV) for derivation-less results |

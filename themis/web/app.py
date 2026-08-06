@@ -205,6 +205,35 @@ def api_verify_bounds_result(req: VerifyRequest):
         )
 
 
+@app.post("/api/audit")
+def api_audit(req: VerifyRequest):
+    """Every independent re-check that applies to this artifact, run.
+
+    Which ones apply is a question about the artifact, answered in
+    themis.audits — not here, and above all not in the browser: the two
+    endpoints above are each one audit of thirteen, and a caller choosing
+    between them by hand is a caller who has to know which audits are not
+    about their result at all.
+    """
+    try:
+        return {"audits": themis.audit(req.program, req.result)}
+    except Exception as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"error": type(exc).__name__, "message": str(exc)},
+        )
+
+
+# An endpoint the product does not call itself, and the one that reaches it.
+# Both are MCP-parity shapes (themis_verify / themis_verify_bounds_result are
+# their own tools), so they stay; what a reader can reach is /api/audit, which
+# runs whichever of them applies to what they are looking at.
+COVERED_BY = {
+    "/api/verify": "/api/audit",
+    "/api/verify_bounds_result": "/api/audit",
+}
+
+
 @app.post("/api/ask")
 def api_ask(req: AskRequest):
     """End-to-end NL → kernel_ast → run → reply via the LLM bridge.

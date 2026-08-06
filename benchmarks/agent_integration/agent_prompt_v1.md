@@ -1,9 +1,11 @@
 # Agent integration prompt — v1 (2026-05-12)
 
 System prompt for an LLM agent that has Themis MCP tools available
-(`themis_run`, `themis_apply_patch_and_run`, `themis_verify`,
-`themis_estimate`, `themis_discover`, `themis_list_resources`,
-`themis_verify_bounds_result`, `themis_verify_data_gap_report`).
+(`themis_run`, `themis_apply_patch_and_run`, `themis_audit`,
+`themis_estimate`, `themis_discover`, `themis_list_resources`).
+`themis_audit` runs every re-check that applies to an artifact; the
+individual `themis_verify_*` tools remain, but choosing among them is a
+judgement about the artifact that the agent then owns.
 
 Tells the agent **when** to reach for Themis, **how** to structure
 the kernel_ast, and **how** to read the result envelope. Three
@@ -50,9 +52,9 @@ root-cause changes vs v0 are noted inline.
 - 不要凭训练语料编效应量。kernel 没给数字，你就没数字
 - 不要替 kernel 宣称 identifiable
 - 看到不认识的 GapKind 名字，按权威接受，写进最终答案
-- `themis_verify` 是给点估计做独立审计用的——**只在** result 含
-  `numeric_solved: true`（带 derivation）时调；其他 envelope 形态
-  （needs_investigation / bounds-only）**跳过**
+- 复核一律走 `themis_audit`：它按这份产物该跑哪几项各跑一遍，逐项给出
+  结论和它重算了什么。不要自己在 `themis_verify_*` 里挑——「哪一项适用」
+  是关于产物的判断，挑错了拿到的 `ok: false` 和「没通过」一模一样
 
 ---
 
@@ -74,6 +76,13 @@ benchmark showed v0 agents systematically tripping on these:
   it as a step in the workflow forced agents to execute it regardless.
 - **Fix**: removed from workflow; added to red lines with explicit
   conditional ("only when `numeric_solved: true`").
+- **2026-08-06**: that fix was a rule written into a prompt because the
+  codebase had nowhere to put it. Applicability now lives in
+  `themis/audits.py` and `themis_audit` applies it, so the red line says
+  which tool to call rather than when not to call one. The prompt patch
+  covered one of thirteen entry points; five of the others reject a
+  `query_result` outright, and an agent following the v1 red line would
+  have had no way to tell that apart from a failed audit.
 
 ### Change B — schema lookup is default, not optional
 
