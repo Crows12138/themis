@@ -149,7 +149,7 @@ Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
   (iter 118 — themis/output/data_gap_report.py module docstring
   categorized transport_source_conditional_unknown +
   dose_response_data_required under "must-disclose channel" but
-  they are NOT in scheduler._MUST_DISCLOSE_GAP_KINDS — they're
+  they are NOT in types.MIRRORED_INTO_EXPLANATION — they're
   data needs that surface only via data_gap_report, not auto-
   mirrored to explanation. Restructured into a separate "data-need
   gap_kinds" section. Pin asserts the docstring's must-disclose
@@ -305,32 +305,34 @@ def test_gap_kind_enum_synced_with_verifier_registry():
 
 
 def test_must_disclose_set_is_subset_of_gap_kinds():
-    """The scheduler's _MUST_DISCLOSE_GAP_KINDS whitelist must be a
+    """The MIRRORED_INTO_EXPLANATION declaration must be a
     subset of GapKind values. A typo or rename would make the gap
     silently NOT auto-prepend to result.explanation."""
-    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+    from themis.types import MIRRORED_INTO_EXPLANATION
+    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
     enum_kinds = {k.value for k in GapKind}
     unknown = _MUST_DISCLOSE_GAP_KINDS - enum_kinds
     assert not unknown, (
-        f"_MUST_DISCLOSE_GAP_KINDS has unknown values: {unknown}. "
+        f"MIRRORED_INTO_EXPLANATION has unknown values: {unknown}. "
         f"Either typo or stale enum reference."
     )
 
 
 def test_must_disclose_kinds_documented_in_response_rendering_prompt():
-    """Every gap_kind in scheduler._MUST_DISCLOSE_GAP_KINDS must appear
+    """Every gap_kind in types.MIRRORED_INTO_EXPLANATION must appear
     in docs/prompts/response_rendering.md's mirrored-set table. The
     table is the contract the renderer LLM reads to know which gap_kinds
     are auto-prepended to result.explanation as ⚠ lines (so the
     renderer doesn't itemize them again).
 
-    Adding a kind to _MUST_DISCLOSE_GAP_KINDS without updating the prompt
+    Adding a kind to MIRRORED_INTO_EXPLANATION without updating the prompt
     breaks the contract silently — the LLM might double-render or fail
     to surface the caveat. Iter 9 (unmeasured_confounder_risk) and
     iter 19 (dispatch_conflict) both required this prompt update; this
     test catches the third or fourth time.
     """
-    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+    from themis.types import MIRRORED_INTO_EXPLANATION
+    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
     rendering_md = (
         REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
     ).read_text(encoding="utf-8")
@@ -341,7 +343,7 @@ def test_must_disclose_kinds_documented_in_response_rendering_prompt():
         if f"`{kind}`" not in rendering_md:
             missing.append(kind)
     assert not missing, (
-        f"_MUST_DISCLOSE_GAP_KINDS members missing from "
+        f"MIRRORED_INTO_EXPLANATION members missing from "
         f"response_rendering.md prompt: {missing}. Add a row to the "
         f"mirrored-set table at docs/prompts/response_rendering.md."
     )
@@ -1384,16 +1386,17 @@ def test_data_gap_report_docstring_must_disclose_section_accurate():
     gap_kinds by category. Iter 118 caught the "Phase 11+ structural
     caveats (must-disclose channel)" section listing
     transport_source_conditional_unknown and dose_response_data_required
-    while neither is actually in scheduler._MUST_DISCLOSE_GAP_KINDS —
+    while neither is actually in types.MIRRORED_INTO_EXPLANATION —
     they're data needs that surface only via data_gap_report.
 
     Pin asserts every gap_kind named under the "must-disclose channel"
-    paragraph is actually in scheduler._MUST_DISCLOSE_GAP_KINDS, and
+    paragraph is actually in types.MIRRORED_INTO_EXPLANATION, and
     every must-disclose value appears somewhere in the docstring.
     """
     import re
 
-    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+    from themis.types import MIRRORED_INTO_EXPLANATION
+    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
     from themis.output import data_gap_report as dgr_mod
 
     docstring = dgr_mod.__doc__ or ""
@@ -1419,7 +1422,7 @@ def test_data_gap_report_docstring_must_disclose_section_accurate():
     not_actually_must_disclose = listed - _MUST_DISCLOSE_GAP_KINDS
     assert not not_actually_must_disclose, (
         f"data_gap_report docstring's 'must-disclose channel' section "
-        f"lists gap_kinds that are NOT in scheduler._MUST_DISCLOSE_GAP_KINDS: "
+        f"lists gap_kinds that are NOT in types.MIRRORED_INTO_EXPLANATION: "
         f"{sorted(not_actually_must_disclose)}. Move them to a "
         "different section."
     )
@@ -1431,7 +1434,7 @@ def test_data_gap_report_docstring_must_disclose_section_accurate():
         line for line in re.findall(r"\b([a-z_]+)\b", docstring)
     }
     assert not not_documented, (
-        f"_MUST_DISCLOSE_GAP_KINDS values missing from "
+        f"MIRRORED_INTO_EXPLANATION values missing from "
         f"data_gap_report docstring: {sorted(not_documented)}"
     )
 
@@ -1690,7 +1693,7 @@ def test_must_disclose_gap_kinds_documented_in_gap_to_action():
     """Iter 136 — parallel to iter 132's response_rendering pin but
     for gap_to_action.md: every must-disclose gap_kind PLUS the iter
     120/121/123 estimator-runtime gap_kinds (which auto-mirror to
-    explanation but live outside _MUST_DISCLOSE_GAP_KINDS) must
+    explanation but live outside MIRRORED_INTO_EXPLANATION) must
     appear verbatim in gap_to_action.md so the orchestrator agent
     has explicit Q0-pre-screen guidance for each.
 
@@ -1698,14 +1701,15 @@ def test_must_disclose_gap_kinds_documented_in_gap_to_action():
     propensity_overlap, outcome_separation) that drifted out of
     gap_to_action for ~16 iters until this pin caught it.
     """
-    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
+    from themis.types import MIRRORED_INTO_EXPLANATION
+    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
 
     estimator_runtime_kinds = {
         "weak_iv_instrument",            # iter 120
         "propensity_overlap_violation",  # iter 121
         "outcome_model_quasi_separation",  # iter 123
         # Same posture: attached after the estimator has chosen, mirrored
-        # into explanation, outside _MUST_DISCLOSE_GAP_KINDS.
+        # into explanation, outside MIRRORED_INTO_EXPLANATION.
         "iv_estimand_fallback_to_linear",
     }
     expected = set(_MUST_DISCLOSE_GAP_KINDS) | estimator_runtime_kinds

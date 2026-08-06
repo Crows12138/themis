@@ -38,7 +38,8 @@ it from the name's prefix, and from whether it contained the letters
 
 Phase 11+ structural caveats (must-disclose channel; mirrored to
 ``result.explanation`` by ``scheduler._attach_structural_caveats`` —
-the canonical set lives in ``scheduler._MUST_DISCLOSE_GAP_KINDS``):
+the set is declared beside GapKind as ``MIRRORED_INTO_EXPLANATION``,
+and a kind that leaves the report has its line withdrawn with it):
 - unverified_proposal_edge_on_query_path — Phase 11.x §C
 - iv_identification_assumption_required — Phase 6.iv
 - mediation_identification_assumption_required — Phase 6.mediation

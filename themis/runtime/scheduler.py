@@ -54,6 +54,7 @@ from ..types import (
     CauseQuery,
     ConfidenceSource,
     ConstantExpr,
+    mirrored_caveat_lines,
     CounterfactualConjunctionQuery,
     CounterfactualQuery,
     DerivationStep,
@@ -5579,14 +5580,16 @@ def _attach_missing_data_recovery(
     return _replace(result, extensions=new_ext)
 
 
-# Whitelist of gap_kinds whose `description` must surface in
-# ``result.explanation`` regardless of severity. These are structural
-# caveats — the renderer cannot interpret the answer correctly without
-# them (e.g. "this is bounds, not a point estimate", "identification
-# rests on monotonicity"). The set is intentionally narrow; ordinary
-# data needs (missing distributions, IV candidates) live in the gap
-# report only.
-_MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
+# Which kinds are copied is declared beside GapKind, as
+# ``MIRRORED_INTO_EXPLANATION`` — the copy is a view of the gap report,
+# and the pass that reconciles that report after a number arrives has to
+# withdraw the lines the shrunken list no longer implies. Two modules
+# agreeing on the same name list by both having written it out is how the
+# view went stale on one side and not the other.
+#
+# The names below are kept only as the list this used to be, and a test
+# holds the two equal. Everything reads the declaration.
+_LEGACY_MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     "unverified_proposal_edge_on_query_path",
     "iv_identification_assumption_required",
     "mediation_identification_assumption_required",
@@ -5644,20 +5647,26 @@ def _attach_structural_caveats(
     renderer prompt makes ``explanation`` a must-quote field — with this
     attachment, the disclosure path is structural, not LLM-discretionary.
 
-    The set of caveat kinds is the ``_MUST_DISCLOSE_GAP_KINDS``
-    whitelist. Adding a new caveat kind is a two-line change: add the
-    kind value here and emit it from a classifier with a description
-    that reads as a complete ⚠ line.
+    Which kinds are copied is declared beside ``GapKind``, and the lines
+    are written by :func:`themis.types.mirrored_caveat_lines` so the pass
+    that later withdraws them cannot spell them differently. Adding a new
+    caveat kind is a two-line change: classify it there and emit it from
+    a classifier with a description that reads as a complete ⚠ line.
     """
     from dataclasses import replace as _replace
 
     report = result.data_gap_report
     if report is None or not report.gaps:
         return result
+    implied = mirrored_caveat_lines(
+        [{"kind": gap.kind.value, "description": gap.description}
+         for gap in report.gaps]
+    )
+    # Registry order, not set order: the report states its gaps in an
+    # order the reader is meant to read them in.
     lines = [
-        f"⚠ {gap.description}"
-        for gap in report.gaps
-        if gap.kind.value in _MUST_DISCLOSE_GAP_KINDS
+        line for line in (f"⚠ {gap.description}" for gap in report.gaps)
+        if line in implied
     ]
     if not lines:
         return result

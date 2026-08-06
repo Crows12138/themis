@@ -96,6 +96,15 @@ export interface NumericEstimate {
   method?: string
   adjustment?: string[]
   sample_size?: number
+  // Three numbers and an English sentence restating them. The sentence has
+  // one reader, which prints it raw; this surface builds its own line from
+  // the numbers rather than copying a string assembled for someone else.
+  precision_budget?: {
+    current_ci_half_width?: number
+    n_to_halve_ci?: number
+    relative_width?: number
+    hint?: string
+  }
   sensitivity_analysis?: Sensitivity
   dose_response_curve?: ({ x?: number; effect?: number } & Band)[]
   reference_point?: number | null
@@ -205,6 +214,29 @@ export interface QueryResult {
     kind?: string
     reason?: string
   }
+  // What a declared measurement error on the outcome costs this query. It
+  // corrects nothing — the point estimate is already right — and prices the
+  // interval: `se_inflation` is how much wider every interval on this design
+  // is than it would be if the outcome were measured cleanly, and that part
+  // is what more subjects cannot buy back. Which is why the report prints it
+  // beside the precision hint rather than anywhere else: the hint says how
+  // many more subjects halve the interval, and saying only that sends the
+  // reader to buy the wrong thing.
+  outcome_error?: {
+    outcome?: string
+    se_inflation?: number
+    noise_share?: number
+  }
+  // The data contract behind the estimate. Its `sample_size` and the
+  // estimate's agreed on all 528 envelopes carrying both, so the reader is
+  // shown one number, not two; what is only here is the contract's own
+  // warnings and the fact that data was read at all on the 55 envelopes that
+  // recorded a contract and got no estimate.
+  estimation_context?: {
+    sample_size?: number
+    data_contract_warnings?: string[]
+    cluster?: string
+  }
   extensions?: {
     assumption_ledger?: AssumptionLedger
     llm_proposed_review?: LlmProposedReview
@@ -235,6 +267,13 @@ export const CARRIED_BY: Record<string, string> = {
   missing_information: 'data_gap_report',
   framing_notes: 'data_gap_report',
   investigation_requests: 'data_gap_report',
+  // 4569 of 4857 ⚠ lines in one suite run were a gap description copied
+  // verbatim, and the gap list this surface renders states every one of
+  // them. That was measured, not assumed: the entry here used to read "this
+  // surface covers part of it, never reconciled line by line", and the 288
+  // lines that were not copies split into 45 an estimator wrote next to a
+  // gap of its own and 246 that contradicted the envelope they were on.
+  explanation: 'data_gap_report',
 }
 
 // Nothing here says these, and nothing should: they address the caller or an
@@ -248,11 +287,7 @@ export const NOT_FOR_A_READER: Record<string, string> = {
 
 // Nothing here says these, and something should. Capped by a test: this list
 // can shrink and cannot grow.
-export const NOT_YET_SAID_HERE: Record<string, string> = {
-  explanation: '内核自己写的散文披露（一次全量 1627 份信封里 1332 份带它），会说出「这条边是上游 LLM 提出的假设，当前回答相当于复述它」这类话。本面用 ProposedReview 和假设台账覆盖了其中一部分，但没有逐句对账过',
-  outcome_error: '声明了结局测量误差时，它对这条查询的代价——一份披露，本面没有落点',
-  estimation_context: '产生这个数值估计的数据契约与选项快照；样本量这类读者用得上的东西在里面',
-}
+export const NOT_YET_SAID_HERE: Record<string, string> = {}
 
 export interface Envelope {
   results: QueryResult[]

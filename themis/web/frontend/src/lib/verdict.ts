@@ -1,4 +1,7 @@
-import type { AnswerTier, Band, Derivation, NumericEstimate } from '../types'
+import type { AnswerTier, Band, Derivation, NumericEstimate, QueryResult } from '../types'
+
+type OutcomeError = NonNullable<QueryResult['outcome_error']>
+type EstimationContext = NonNullable<QueryResult['estimation_context']>
 
 export const TIER_META: Record<AnswerTier, { label: string; gloss: string }> = {
   point: { label: '点估计', gloss: '可以算出一个具体数字——补齐数据即可' },
@@ -706,6 +709,64 @@ export function derivationRows(derivation: Derivation | undefined): Section | nu
       value: DERIVATION_SAYS[String(step.rule)] ?? `\`${step.rule}\``,
     })),
   }
+}
+
+/** The lines every answer shape shares: how it was computed, how precise it
+ * is, and what more data cannot fix.
+ *
+ * The report has said all of this for a while; this surface said the method
+ * and the adjustment set and stopped. What it was missing is the pair that
+ * has to be read together — the precision hint says how many more subjects
+ * would halve the interval, and the measurement-error line says which part
+ * of that interval no number of subjects removes. Either alone points the
+ * reader at the wrong purchase.
+ *
+ * Sample size is taken from the estimate, not the contract: on every one of
+ * the 528 envelopes carrying both, the two agreed.
+ */
+export function estimateMeta(
+  num: NumericEstimate | undefined,
+  outcomeError: OutcomeError | undefined,
+  ctx: EstimationContext | undefined,
+): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = []
+
+  const n = num?.sample_size ?? ctx?.sample_size
+  if (n != null) {
+    rows.push({
+      label: '样本量',
+      value: `N=${n}${ctx?.cluster ? ` · 按 ${ctx.cluster} 分簇` : ''}`,
+    })
+  }
+
+  // Built from the three numbers rather than from the sentence beside them,
+  // which is assembled in English for a single Python reader.
+  const pb = num?.precision_budget
+  if (pb?.current_ci_half_width != null && pb?.n_to_halve_ci != null) {
+    const wide = pb.relative_width != null && pb.relative_width > 0.3
+    rows.push({
+      label: '精度',
+      value: `当前区间半宽 ±${fmtNum(pb.current_ci_half_width)}；要减半需要 N≈${pb.n_to_halve_ci}`
+        + (wide ? '（半宽已超过点估计的 30%，这个数还很松）' : ''),
+    })
+  }
+
+  // Next to the precision hint on purpose, and only there.
+  if (outcomeError?.se_inflation != null) {
+    const share = outcomeError.noise_share
+    rows.push({
+      label: '结局测量误差',
+      value: `区间比结局测准时宽 ${fmtNum(outcomeError.se_inflation)} 倍`
+        + (share != null ? `（未解释变异里 ${Math.round(share * 100)}% 是测量噪声）` : '')
+        + '；点估计不受影响，但这部分宽度只能靠把结局测准，加样本量消不掉',
+    })
+  }
+
+  for (const w of ctx?.data_contract_warnings ?? []) {
+    rows.push({ label: '数据契约', value: w })
+  }
+
+  return rows
 }
 
 // The shapes an estimate can answer in — the vocabulary themis/answers.py

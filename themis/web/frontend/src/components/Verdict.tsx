@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -41,6 +41,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // recognised; 570 of 1627 envelopes in one suite run carried a chain and
   // this surface read none of them.
   const chain = derivationRows(result.derivation)
+  // How it was computed, how precise it is, and what more data cannot fix.
+  // Visible rather than folded: two of these three say what the number is
+  // worth, and a reader who never opens the foldout is exactly the reader
+  // who would otherwise read the interval as tighter than it is.
+  const meta = estimateMeta(num, result.outcome_error, result.estimation_context)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
   const hasDetail = routes.length > 0 || !!chain || paths.length > 0 || !!formula || !!bounds || sens?.e_value != null || !!ledger?.assumptions?.length
@@ -81,7 +86,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
         </div>
       </div>
 
-      {showCompare || num || answerBlocks.length || runNum != null || runInterval || result.estimator_failure || hasDetail ? (
+      {/* `meta` is in this list because reading a field is not the same as
+          reaching a branch: 55 envelopes in one suite run recorded a data
+          contract and got no estimate, and without it every one of them
+          would have computed its rows and rendered none. */}
+      {showCompare || num || answerBlocks.length || runNum != null || runInterval || result.estimator_failure || meta.length || hasDetail ? (
         <div className="verdict__body">
           {/* The number IS the answer — always visible. */}
           {showCompare ? (
@@ -159,6 +168,17 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               <span className="figure__cap">区间(部分识别)</span>
               <span className="figure__point mono">[{fmtNum(runInterval.low)}, {fmtNum(runInterval.high)}]</span>
             </div>
+          ) : null}
+
+          {meta.length ? (
+            <dl className="estmeta">
+              {meta.map((r, i) => (
+                <div className="estmeta__row" key={i}>
+                  <dt className="estmeta__k">{r.label}</dt>
+                  <dd className="estmeta__v">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
           ) : null}
 
           {/* A refusal, which is an answer. What the reader needs first is

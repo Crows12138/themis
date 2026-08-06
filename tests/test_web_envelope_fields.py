@@ -48,7 +48,11 @@ ENVELOPE_FIELDS = set(SCHEMA["properties"])
 #: The size of ``NOT_YET_SAID_HERE`` when it was written. A cap rather than a
 #: baseline file: the list names things this surface owes a reader, and the
 #: only honest directions are down and unchanged. Lower this when one goes.
-STILL_OWED = 3
+#: It started at 3 and is 0: two of the three were the estimate metadata this
+#: surface now states, and the third was never missing — 94% of its lines were
+#: a gap description this surface already renders, and the rest were withdrawn
+#: or belonged to an estimator gap of their own.
+STILL_OWED = 0
 
 
 def _types() -> str:

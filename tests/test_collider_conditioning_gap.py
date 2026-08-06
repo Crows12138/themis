@@ -118,7 +118,7 @@ def test_collider_gap_provenance_names_trio():
 
 def test_collider_explanation_mirror_via_must_disclose():
     """collider_conditioning_opens_backdoor is in
-    scheduler._MUST_DISCLOSE_GAP_KINDS, so its description mirrors
+    types.MIRRORED_INTO_EXPLANATION, so its description mirrors
     into result.explanation as a ⚠ line."""
     result = _run_collider_program(given_predicates=["w"])
     explanation = result.get("explanation", "")
@@ -282,7 +282,8 @@ def test_given_x_or_y_itself_not_treated_as_collider():
 
 def test_meta_pin_must_disclose_set_includes_collider():
     """Iter 118 sync pin: every name in the must-disclose docstring
-    section must be in scheduler._MUST_DISCLOSE_GAP_KINDS, and vice
+    section must be in types.MIRRORED_INTO_EXPLANATION, and vice
     versa. Direct check the new gap_kind reaches the auto-mirror set."""
-    from themis.runtime.scheduler import _MUST_DISCLOSE_GAP_KINDS
-    assert "collider_conditioning_opens_backdoor" in _MUST_DISCLOSE_GAP_KINDS
+    from themis.types import MIRRORED_INTO_EXPLANATION
+    assert "collider_conditioning_opens_backdoor" in {
+        k.value for k in MIRRORED_INTO_EXPLANATION}

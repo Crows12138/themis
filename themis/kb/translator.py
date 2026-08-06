@@ -36,7 +36,7 @@ from .schemas import KBQuery, KBQueryKind, KBResult
 #                                  not a single number to fetch
 # Pure-disclosure informational kinds (12 — Phase 6/8/9/10/11.x/12 +
 # iter 5 / iter 19 L3-driven additions): everything in
-# scheduler._MUST_DISCLOSE_GAP_KINDS plus
+# types.MIRRORED_INTO_EXPLANATION plus
 # UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT (iter 19, query
 # reformulation, not data fetch).
 #
@@ -86,7 +86,7 @@ def gap_to_kb_query(
     (MISSING_ASSUMPTION), user-reframing (AMBIGUOUS_VARIABLE_DEFINITION),
     externally-fitted (DOSE_RESPONSE_DATA_REQUIRED), or any pure-
     disclosure informational kind (mirror of
-    scheduler._MUST_DISCLOSE_GAP_KINDS plus
+    types.MIRRORED_INTO_EXPLANATION plus
     UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT). See module-level
     _GAP_TO_QUERY_KIND comment for the full categorical breakdown.
     """

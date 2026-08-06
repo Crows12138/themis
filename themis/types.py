@@ -1303,6 +1303,104 @@ MISSING_ITEM_GAPS: frozenset[GapKind] = frozenset({
 })
 
 
+# Whether this kind's ``description`` is copied verbatim into
+# ``result.explanation`` as a ⚠ line.
+#
+# Saying it here rather than beside the copier is what makes the copy a
+# *derived view*: ``explanation`` restates part of the gap report, so a
+# pass that changes the gap list has not finished until the ⚠ lines have
+# been derived again. That was true and unwritten, and a point estimate
+# arriving withdrew ``answer_is_bounds_not_point_estimate`` from the gaps
+# while its ⚠ line — "this is bounds, not a point estimate; the renderer
+# must not present a specific number" — stayed on 246 envelopes that had
+# just computed one.
+#
+# The two rows partition the enum and are checked below, so a kind added
+# later cannot default into either by being forgotten.
+MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
+    # Structural caveats: the answer cannot be read correctly without
+    # them, whatever their severity. What they have in common is that
+    # they qualify the answer rather than ask for anything.
+    GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH,
+    GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED,
+    GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED,
+    GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED,
+    GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
+    GapKind.LLM_DECLARED_AMBIGUITY,
+    GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE,
+    GapKind.LOW_CONFIDENCE_INPUT_DATA,
+    GapKind.GRAPH_LEARNED_FROM_DATA,
+    GapKind.UNMEASURED_CONFOUNDER_RISK,
+    GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
+    GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR,
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH,
+    GapKind.MEASUREMENT_ERROR_CONCERN,
+    GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
+    GapKind.ILL_DEFINED_INTERVENTION_VERSIONS,
+    GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
+})
+
+# Not mirrored, for two different reasons, both of which mean the gap
+# report is the only place the kind is stated.
+NOT_MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
+    # Asks. The gap report exists to carry these; restating them as a
+    # caveat would say "you are missing X" in the place reserved for
+    # "read the answer this way".
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+    GapKind.MISSING_DISTRIBUTION,
+    GapKind.MISSING_POPULATION_DISTRIBUTION,
+    GapKind.MISSING_ASSUMPTION,
+    GapKind.MISSING_UNIT_OBSERVATION,
+    GapKind.MISSING_STRUCTURAL_INPUT,
+    GapKind.MISSING_IV_CANDIDATE,
+    GapKind.MISSING_MEDIATOR_DATA,
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN,
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN,
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+    GapKind.DOSE_RESPONSE_DATA_REQUIRED,
+    # Estimator-time findings. These DO qualify the answer, and they do
+    # reach ``explanation`` — but written by the estimator that found
+    # them, in its own words, at the moment it found them. Copying the
+    # gap description too would say each of them twice.
+    GapKind.WEAK_IV_INSTRUMENT,
+    GapKind.OVERIDENTIFICATION_REJECTED,
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
+    GapKind.PROPENSITY_OVERLAP_VIOLATION,
+    GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
+    GapKind.DECLARED_TYPE_DATA_MISMATCH,
+})
+
+if MIRRORED_INTO_EXPLANATION | NOT_MIRRORED_INTO_EXPLANATION != frozenset(GapKind):
+    _unclassified = frozenset(GapKind) - (
+        MIRRORED_INTO_EXPLANATION | NOT_MIRRORED_INTO_EXPLANATION
+    )
+    _both = MIRRORED_INTO_EXPLANATION & NOT_MIRRORED_INTO_EXPLANATION
+    raise ValueError(
+        "every GapKind has to say whether its description is copied into "
+        "explanation, because that copy is a derived view something has to "
+        "keep in line: "
+        + (f"unclassified {sorted(k.value for k in _unclassified)}; "
+           if _unclassified else "")
+        + (f"in both rows {sorted(k.value for k in _both)}" if _both else "")
+    )
+
+
+def mirrored_caveat_lines(gaps: "list[dict]") -> set[str]:
+    """The ⚠ lines the given gap list implies, exactly as they are written.
+
+    One reader derives them, another withdraws the ones a shrunken list no
+    longer implies, and both have to agree down to the leading marker — so
+    the marker is written once, here.
+    """
+    _mirrored = {k.value for k in MIRRORED_INTO_EXPLANATION}
+    return {
+        f"⚠ {gap.get('description')}"
+        for gap in gaps
+        if gap.get("kind") in _mirrored
+    }
+
+
 class GapSeverity(str, Enum):
     BLOCKING = "blocking"
     IMPORTANT = "important"

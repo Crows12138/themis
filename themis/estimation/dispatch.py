@@ -30,7 +30,7 @@ from ..refusals import EstimatorFailure, Refusal
 from ..output.data_gap_report import rederive_summary_and_steps
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
-from ..types import Priority
+from ..types import Priority, mirrored_caveat_lines
 from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
 from ..routing import End, route
@@ -2461,7 +2461,7 @@ def _finalise_numeric_bounds_result(result: dict) -> None:
         else:
             result.pop("investigation_requests", None)
     _set_gaps(
-        report,
+        result,
         [
             g for g in report.get("gaps", [])
             if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
@@ -5164,7 +5164,7 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
             result.pop("investigation_requests", None)
 
     _set_gaps(
-        report,
+        result,
         [
             g for g in report.get("gaps", [])
             if g.get("kind") not in _NUMERIC_SATISFIED_GAP_KINDS
@@ -5350,20 +5350,33 @@ def _drop_gaps_citing(result: dict, settled: "set[str]") -> None:
         if not reports_only_settled_items:
             kept.append(gap)
     if len(kept) != len(report.get("gaps", [])):
-        _set_gaps(report, kept, answer_tier=report.get("answer_tier"))
+        _set_gaps(result, kept, answer_tier=report.get("answer_tier"))
 
 
 def _set_gaps(
-    report: dict, gaps: list[dict], *, answer_tier: str | None,
+    result: dict, gaps: list[dict], *, answer_tier: str | None,
 ) -> None:
-    """Put a reduced gap list on a serialized report, surfaces and all.
+    """Put a reduced gap list on a result, surfaces and all.
 
-    ``summary`` and ``actionable_next_steps`` are derived from the gaps,
-    so a pass that removes gaps has not finished until both have been
-    derived again. Removing them and recomputing only the summary is how
-    a report with no distribution gap left in it went on opening its
-    next-steps with "补 P(y=True|w=True,x=True)".
+    ``summary``, ``actionable_next_steps`` and the ⚠ lines in
+    ``explanation`` are all derived from the gaps, so a pass that removes
+    gaps has not finished until all three have been derived again.
+    Recomputing only the summary is how a report with no distribution gap
+    left in it went on opening its next-steps with "补 P(y=True|w=True,
+    x=True)". Leaving ``explanation`` out is how a result that had just
+    computed a point estimate went on telling the renderer, in a channel
+    the renderer prompt makes must-quote, that the answer was a symbolic
+    interval and no specific number should be shown.
+
+    That third surface is why this takes the result rather than the
+    report: ``explanation`` is a result field, and scoping the function
+    to the report is what made two of the three reachable and hid the
+    one that was not.
     """
+    report = result.get("data_gap_report")
+    if not isinstance(report, dict):
+        return
+    withdrawn = mirrored_caveat_lines(report.get("gaps", []) or [])
     report["gaps"] = gaps
     if answer_tier is not None:
         report["answer_tier"] = answer_tier
@@ -5373,6 +5386,28 @@ def _set_gaps(
         report["actionable_next_steps"] = steps
     else:
         report.pop("actionable_next_steps", None)
+    _withdraw_caveat_lines(result, withdrawn - mirrored_caveat_lines(gaps))
+
+
+def _withdraw_caveat_lines(result: dict, lines: set[str]) -> None:
+    """Drop ⚠ lines the gap list no longer implies.
+
+    Only lines this module put there under a gap that is now gone: an
+    estimator's own ⚠ headline reports what it found while running, which
+    no later reconciliation of the identification pass's report can make
+    untrue.
+    """
+    if not lines:
+        return
+    existing = result.get("explanation")
+    if not isinstance(existing, str):
+        return
+    kept = [ln for ln in existing.split("\n") if ln.strip() not in lines]
+    remaining = "\n".join(kept).strip()
+    if remaining:
+        result["explanation"] = remaining
+    else:
+        result.pop("explanation", None)
 
 
 def _attach_bootstrap_meta(numeric_estimate: dict, cluster: str | None) -> None:
