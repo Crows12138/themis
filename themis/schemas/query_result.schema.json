@@ -13,6 +13,13 @@
       "type": "object",
       "description": "Open-ended extension map. Known sub-fields have explicit sub-schemas below; unknown fields are allowed (extensions is intentionally open for forward compatibility).",
       "properties": {
+        "identification": {
+          "type": "object",
+          "description": "Which pattern the graph was recognised as, beside the formula it produced. Only `pattern` is declared: the block carries several optional companions whose presence is decided by the pattern (adjustment_set, mediator_set, instrument, conditioned_on, required_assumption), and the map stays open, so this constrains the one field whose domain is closed. It is declared because a closed vocabulary that leaves the kernel has to be checkable by whoever states it to a reader — the three sibling pattern-like fields (selection_recovery.criterion, missing_data_recovery.mechanism, mediation_decomposition.strategy) already are, and this one, the most frequently written of the four, was not. `joint_identification.pattern` is a DIFFERENT vocabulary (joint_backdoor / joint_general_id) on a different block.",
+          "properties": {
+            "pattern": { "enum": ["backdoor", "front_door", "c_factor", "instrumental_variable"] }
+          }
+        },
         "selection_recovery": {
           "type": "object",
           "description": "Phase 9 §S9.1: Bareinboim-Pearl recoverability from selection bias. Attached to an effect result whose sample is restricted (ObservationStatement) on a selection collider of X and Y — the constructive counterpart to the selection_on_collider_opens_path gap. Says whether the unbiased P(y|do(x)) is s-recoverable from the biased sample via the selection-backdoor criterion, with what recovery formula, and what external (unbiased) data (if any) is required. A recoverable=false verdict means 'not via selection-backdoor adjustment', not a proof of non-recoverability (the complete algorithm is out of scope).",

@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, refusalKind, assumptionSeverityLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -31,6 +31,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const ledger = result.extensions?.assumption_ledger
   const showCompare = num != null && num.point != null && naive != null
   const shaped = num ? answerRows(num) : null
+  const refusal = refusalKind(result.estimator_failure?.kind)
   // How the estimand was identified. This foldout has been called
   // "怎么算出来的" all along while saying only the formula and the paths; the
   // ten blocks that answer that question are read here now.
@@ -155,14 +156,25 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
             </div>
           ) : null}
 
-          {/* Estimator refusal — a load-bearing reason; kept visible. */}
+          {/* A refusal, which is an answer. What the reader needs first is
+              not WHY no number came out but what to do about it, and that is
+              the kind — five of them, and this row used to print the species
+              instead: one identifier standing in for five different
+              instructions. The species stays as the quiet mono annotation
+              the status chip and the gap list already use. */}
           {result.estimator_failure ? (
             <div className="boundsexpr">
               <div className="boundsexpr__row">
-                <span className="boundsexpr__k">拒绝</span>
-                <span className="boundsexpr__v">{result.estimator_failure.failure_type}</span>
+                <span className="boundsexpr__k">{refusal ? refusal.lead : '没有给出数值'}</span>
+                <span className="boundsexpr__v">
+                  {refusal ? refusal.head : '估计器拒绝了'}
+                  <span className="mono"> {result.estimator_failure.failure_type}</span>
+                </span>
               </div>
-              <p className="boundsexpr__note">{result.estimator_failure.reason}</p>
+              <p className="boundsexpr__note">
+                {result.estimator_failure.reason}
+                {refusal ? ` ${refusal.tail}` : ''}
+              </p>
             </div>
           ) : null}
 
@@ -245,7 +257,9 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   <ul className="ledger__list">
                     {ledger.assumptions.map((a, i) => (
                       <li className="ledger__item" key={i}>
-                        <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>{a.severity ?? ''}</span>
+                        <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>
+                          {a.severity ? assumptionSeverityLabel(a.severity) : ''}
+                        </span>
                         <span className="ledger__claim">{a.claim}</span>
                         {a.testable === false ? <span className="ledger__tag">不可检验</span> : null}
                       </li>

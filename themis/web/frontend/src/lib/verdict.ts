@@ -6,31 +6,49 @@ export const TIER_META: Record<AnswerTier, { label: string; gloss: string }> = {
   none: { label: '无', gloss: '光凭图和数据给不了数,需要额外假设' },
 }
 
-// status -> human one-liner
-const STATUS_LABEL: Record<string, string> = {
-  numerically_solved: '已算出数值',
-  structurally_solved: '已识别(结构上)',
-  needs_investigation: '可识别,但缺数据',
-  needs_assumption: '需要额外假设',
-  unidentifiable: '不可识别',
-  counterfactual_solved: '反事实已解',
-  counterfactual_bounded: '反事实(区间)',
+// One entry per status, label required and blurb optional — two tables keyed
+// by the same vocabulary are two chances to hold half of it, and this one
+// held a status the kernel does not emit (`unidentifiable`) while missing one
+// it does (`outside_language`, six results in one suite run, which reached
+// the reader as its own identifier).
+const STATUS_META: Record<string, { label: string; blurb?: string }> = {
+  structurally_solved: {
+    label: '已识别(结构上)',
+    blurb: '因果结构本身成立;是否有数值取决于是否提供数据。',
+  },
+  numerically_solved: {
+    label: '已算出数值',
+    blurb: '提供了数据,内核完成识别并算出了数值。',
+  },
+  needs_investigation: {
+    label: '可识别,但缺数据',
+    blurb: '结构上可识别(给出识别公式),但缺数据——内核拒绝编数字,并列出还缺什么。',
+  },
+  outside_language: {
+    label: '超出可表达范围',
+    blurb: '这个问题超出 Themis 能表达 / 能识别的范围——不是数据不够,是问题的形式本身还没有对应的表示。',
+  },
+  counterfactual_solved: {
+    label: '反事实已解',
+    blurb: '反事实的那一格解出来了。',
+  },
+  counterfactual_bounded: {
+    label: '反事实(区间)',
+    blurb: '反事实只能给区间,要点估计需补单调性等假设。',
+  },
+  needs_assumption: {
+    label: '需要额外假设',
+    blurb: '当前信息下无法回答,需要你显式补一个假设(认识论选择,内核不替你拍板)。',
+  },
 }
 export function statusLabel(status: string): string {
-  return STATUS_LABEL[status] ?? status
-}
-
-const STATUS_BLURB: Record<string, string> = {
-  needs_investigation: '结构上可识别(给出识别公式),但缺数据——内核拒绝编数字,并列出还缺什么。',
-  structurally_solved: '因果结构本身成立;是否有数值取决于是否提供数据。',
-  needs_assumption: '当前信息下无法回答,需要你显式补一个假设(认识论选择,内核不替你拍板)。',
-  numerically_solved: '提供了数据,内核完成识别并算出了数值。',
-  counterfactual_bounded: '反事实只能给区间,要点估计需补单调性等假设。',
+  return STATUS_META[status]?.label ?? status
 }
 export function statusBlurb(status: string): string | undefined {
-  return STATUS_BLURB[status]
+  return STATUS_META[status]?.blurb
 }
 
+// How much a MISSING INPUT blocks an answer.
 const SEVERITY_LABEL: Record<string, string> = {
   blocking: '阻断',
   important: '重要',
@@ -40,6 +58,63 @@ export function severityLabel(sev: string): string {
   return SEVERITY_LABEL[sev] ?? sev
 }
 
+// How the conclusion dies if an ASSUMPTION is false. A different question
+// from the one above, a disjoint set of values, and the same field name —
+// which is how the table above came to be read as the whole of `severity`
+// and the assumption ledger's three values reached 688 readers as
+// `invalidating` / `distorting` / `confidence_only`.
+const ASSUMPTION_SEVERITY_ZH: Record<string, string> = {
+  invalidating: '作废级',
+  distorting: '扭曲级',
+  confidence_only: '仅影响置信',
+}
+export function assumptionSeverityLabel(sev: string): string {
+  return ASSUMPTION_SEVERITY_ZH[sev] ?? sev
+}
+
+// Which of the five answers to "what now" a refusal gives — themis/refusals.py
+// hangs one on every species, and the report has said it in words all along.
+// The species itself stays an identifier here for the reason it does there:
+// with sixty-nine of them it is the developer's handle, and the reader's
+// sentence is this line plus the occasion's own `reason`.
+// `lead` is per kind and not a constant caption because the report's is not:
+// four of the five say 给出 and the backend one says 算出, the difference
+// being that there the routine ran. Writing one caption over all five would
+// be this surface deciding, in a word, something the other one had decided
+// the other way.
+type Refusal = { lead: string; head: string; tail: string }
+
+const REFUSAL_KIND_ZH: Record<string, Refusal> = {
+  graph: {
+    lead: '没有给出数值',
+    head: '这是关于因果图的结论',
+    tail: '再多同样的数据也不会改变它;要改变的是图或问题本身。',
+  },
+  data: {
+    lead: '没有给出数值',
+    head: '这批数据支撑不住',
+    tail: '结构上是可识别的,缺的是数据本身能提供的支持。',
+  },
+  unbuilt: {
+    lead: '没有给出数值',
+    head: 'Themis 还没有建这个情形',
+    tail: '问题成立、也已被识别,这是工具的边界,不是问题或数据的毛病。',
+  },
+  request: {
+    lead: '没有给出数值',
+    head: '需要你改一处输入',
+    tail: '改掉之后重跑即可。',
+  },
+  backend: {
+    lead: '没有算出数值',
+    head: '数值例程没有返回结果',
+    tail: '这没有对问题或数据设计做出任何判定。',
+  },
+}
+export function refusalKind(kind: unknown): Refusal | null {
+  return REFUSAL_KIND_ZH[String(kind)] ?? null
+}
+
 // gap kind -> short plain-language title. The rigorous kind stays as a
 // quiet mono annotation; this is the translation the reader leads with.
 const GAP_TITLE: Record<string, string> = {
@@ -47,6 +122,8 @@ const GAP_TITLE: Record<string, string> = {
   missing_distribution: '缺一个概率分布',
   missing_population_distribution: '缺目标人群的分布',
   missing_assumption: '缺一条识别假设',
+  missing_unit_observation: '缺这个个体自己的观测值',
+  missing_structural_input: '缺一项结构输入(方程系数 / 声明)',
   missing_iv_candidate: '缺一个有效的工具变量',
   missing_mediator_data: '缺中介变量的数据',
   transport_target_distribution_unknown: '目标人群分布未知',
@@ -60,6 +137,12 @@ const GAP_TITLE: Record<string, string> = {
   llm_declared_ambiguity: '上游标记了不确定性',
   answer_is_bounds_not_point_estimate: '答案是区间,不是点',
   low_confidence_input_data: '输入数据可信度偏低',
+  unattempted_layer_due_to_dispatch_conflict: '还有一层没跑(两种分析同时被要求)',
+  weak_iv_instrument: '工具变量偏弱',
+  iv_estimand_fallback_to_linear: '按分层求不了,退回到整体的线性估计',
+  overidentification_rejected: '过度识别检验否决了这组工具',
+  propensity_overlap_violation: '两组人重叠不够(倾向得分越界)',
+  outcome_model_quasi_separation: '结果模型近乎完全分离',
   front_door_identification_assumption_required: '前门识别需要假设',
   counterfactual_identification_assumption_required: '反事实推理需要假设',
   graph_learned_from_data: '因果图是从数据学出来的',
@@ -342,6 +425,53 @@ const RISK_PROVENANCE_ZH: Record<string, string> = {
   backdoor_adjustment: '干预风险经后门标准化(g-formula)识别',
   user_experimental: '干预风险来自调用方提供的随机实验数据',
 }
+
+// Every closed vocabulary this surface states to a reader, and the table it
+// states it with. It exists for the reason RENDERED_BLOCKS does: the kernel
+// declares these vocabularies once, the browser cannot import them, and a
+// mirror nobody holds equal is a mirror that drifts silently. Eight tables
+// were here before this list; three were pinned by a test, and of the five
+// that were not, TWO had already drifted — one status the kernel emits was
+// missing and one it does not emit was present, and eight of the thirty-six
+// gap kinds had no title and reached readers as their own ids with the
+// underscores swapped for spaces.
+//
+// A test holds each entry's key set equal to the kernel's own vocabulary,
+// and holds this list equal to the translation tables declared in this file:
+// a table added without a pin fails, and a vocabulary the kernel grows
+// without a table fails too. What it cannot see is a vocabulary stated with
+// no table at all — that is the hole this narrows rather than closes, and it
+// is why the entries are named for vocabularies rather than for tables.
+//
+// Declared here rather than beside `Section` because every table it names
+// has to exist first; a const referenced above its own initializer is a
+// runtime error, not a lint.
+export const VOCABULARIES: Record<string, Record<string, unknown>> = {
+  status: STATUS_META,
+  answer_tier: TIER_META,
+  query_kind: QUESTION_READINGS,
+  gap_kind: GAP_TITLE,
+  gap_severity: SEVERITY_LABEL,
+  assumption_severity: ASSUMPTION_SEVERITY_ZH,
+  identification_pattern: PATTERN_ZH,
+  interventional_risk_provenance: RISK_PROVENANCE_ZH,
+  refusal_kind: REFUSAL_KIND_ZH,
+}
+
+// The other keyed tables in this file, each saying why it is not one of the
+// above. They are keyed by a kernel vocabulary too, but what they hold is
+// renderers rather than the reader's words, so what has to be checked about
+// them is that every block reaches a renderer — which RENDERED_BLOCKS and
+// blocks.bind already check, from the other end. The list is here rather
+// than in the test because the decision belongs beside the table: a new
+// table has to answer "is this a vocabulary" somewhere, and answering it in
+// a file the writer never opens is how the five unpinned tables happened.
+export const NOT_VOCABULARIES = [
+  'ROUTE_RENDERERS',
+  'ANSWER_RENDERERS',
+  'RENDERED_BLOCKS',
+  'VOCABULARIES',
+] as const
 
 type BlockRenderer = (b: Blk, ext: Record<string, any>, ciLevel?: number) => Section | null
 

@@ -29,7 +29,7 @@ from typing import assert_never
 
 from .. import answers, blocks, questions, refusals, risk_provenance
 from ..refusals import Kind
-from . import derivation_glossary, formula_text
+from . import assumption_glossary, derivation_glossary, formula_text
 
 
 def _kind_zh(kind) -> str | None:
@@ -92,10 +92,13 @@ _STATUS_BADGE = {
     "outside_language": "✋ 超出可表达范围",
 }
 
-_SEVERITY_ZH = {
-    "invalidating": "作废级",
-    "distorting": "扭曲级",
-    "confidence_only": "仅影响置信",
+# How much a MISSING INPUT blocks an answer. The ledger's severities are a
+# different vocabulary answering a different question — how the conclusion
+# dies if an assumption is false — and they live with the ledger, in
+# :data:`themis.output.assumption_glossary.SEVERITIES`. One dict held both,
+# which is not wrong to read but says severity is one vocabulary when it is
+# two; the browser copied that reading and took three of the six.
+_GAP_SEVERITY_ZH = {
     "blocking": "阻断",
     "important": "重要",
     "informational": "提示",
@@ -1348,7 +1351,8 @@ def _assumption_ledger(ledger: dict, result: dict) -> str:
         lines.append(summary)
         lines.append("")
     for a in ledger["assumptions"]:
-        sev = _SEVERITY_ZH.get(a.get("severity"), a.get("severity", ""))
+        sev = assumption_glossary.SEVERITIES.get(
+            a.get("severity"), a.get("severity", ""))
         claim = a.get("claim", "")
         meta = []
         if a.get("layer"):
@@ -1398,7 +1402,7 @@ def _render_gaps(result: dict) -> str:
     if shown:
         lines.append("")
         for g in shown:
-            sev = _SEVERITY_ZH.get(g.get("severity"), g.get("severity", ""))
+            sev = _GAP_SEVERITY_ZH.get(g.get("severity"), g.get("severity", ""))
             desc = g.get("description", "")
             lines.append(f"- **[{sev}]** {desc}")
             if g.get("if_provided"):

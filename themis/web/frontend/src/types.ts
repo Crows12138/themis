@@ -165,7 +165,19 @@ export interface QueryResult {
   // bounded counterfactual reached the browser as an empty answer slot while
   // its interval sat in the same object.
   numeric_result?: { value?: number | null; interval?: { low: number; high: number } }
-  estimator_failure?: { estimator?: string; failure_type?: string; reason?: string }
+  // `kind` is which of the five answers to "what now" this refusal gives —
+  // the only part of a refusal that tells the reader what to do about it.
+  // The species names WHY no number came out (69 of them, a developer's
+  // handle); `reason` is the occasion. Leaving `kind` out of this type is
+  // how 47 refusals across five genuinely different instructions — go get
+  // different data, change one input, the graph settles it, Themis has not
+  // built this — arrived here as one line reading `拒绝 · <english id>`.
+  estimator_failure?: {
+    estimator?: string
+    failure_type?: string
+    kind?: string
+    reason?: string
+  }
   investigation_requests?: unknown[]
   extensions?: {
     assumption_ledger?: AssumptionLedger
