@@ -66,6 +66,10 @@ from .contract import validate_data
 
 AlgorithmName = Literal["pc", "fci", "lingam", "ges", "grasp", "auto"]
 
+# Past this many distinct values a level-coded column stops being usable as a
+# stratum set for a chi-square CI test and is treated as a measurement.
+_MAX_DISCRETE_LEVELS = 20
+
 
 @dataclass(frozen=True)
 class DataDiagnostics:
@@ -156,11 +160,15 @@ class DiscoveryResult:
 
     column_dtypes: tuple[tuple[str, str], ...] = ()
     """Per-column classification: ``"bool"`` (≤2 unique values),
-    ``"discrete"`` (3-20 unique values), ``"continuous"`` (more, or
-    non-integer). Used by ``discovery_to_kernel_ast`` to validate
-    caller-supplied ``bool_predicates`` against the actual data shape
-    — flagging a column as bool when it has 100 unique values produces
-    a kernel_ast that's syntactically valid but semantically lying."""
+    ``"discrete"`` (3 to ``_MAX_DISCRETE_LEVELS`` integer-coded values),
+    ``"continuous"`` (more, or non-integer). Used by
+    ``discovery_to_kernel_ast`` to validate caller-supplied
+    ``bool_predicates`` against the actual data shape — flagging a column
+    as bool when it has 100 unique values produces a kernel_ast that's
+    syntactically valid but semantically lying. Also read by the NL bridge,
+    which asks the user to discretise a ``continuous`` column, so a
+    misclassification here becomes a question about a column that already
+    has levels."""
 
     data_diagnostics: "DataDiagnostics | None" = None
     """Measured data properties that drove the algorithm choice."""
@@ -276,20 +284,30 @@ def discover_graph(
 
 
 def _classify_column(series: pd.Series) -> str:
-    """Per-column dtype classification used to validate caller-supplied
-    ``bool_predicates`` later. Two unique values is bool; up to 20
-    distinct integer / categorical values is discrete; otherwise
-    continuous."""
-    n_unique = series.nunique(dropna=True)
+    """Per-column classification driving the CI-test choice and, later, the
+    validation of caller-supplied ``bool_predicates``. Two unique values is
+    bool; up to ``_MAX_DISCRETE_LEVELS`` level-coded values is discrete;
+    anything else is continuous.
+
+    Level-codedness is read off the VALUES, never the dtype. The data
+    contract widens every integer column to float64 before this sees it, so
+    dtype no longer distinguishes an integer-coded category from a
+    measurement — it would answer "continuous" for every discrete frame and
+    raise nothing. Integer-valuedness survives the widening; dtype does not.
+    """
+    values = series.dropna()
+    n_unique = int(values.nunique())
     if n_unique <= 2:
         return "bool"
-    if n_unique <= 20 and (
-        pd.api.types.is_integer_dtype(series)
-        or pd.api.types.is_object_dtype(series)
-        or pd.api.types.is_categorical_dtype(series)
-    ):
-        return "discrete"
-    return "continuous"
+    if n_unique > _MAX_DISCRETE_LEVELS:
+        return "continuous"
+    if not pd.api.types.is_numeric_dtype(values):
+        return "discrete"  # labels are levels by construction
+    levels = np.asarray(values.unique(), dtype=float)
+    integer_coded = bool(
+        np.all(np.isfinite(levels)) and np.all(levels == np.round(levels))
+    )
+    return "discrete" if integer_coded else "continuous"
 
 
 def _detect_assumption_violations(
@@ -535,10 +553,22 @@ def _viol_score_small_n(df, n):
 
 
 def _viol_lingam(df, n):
-    numeric = df.select_dtypes(include=[np.number])
-    if numeric.empty:
-        return ()
-    max_abs_skew = float(numeric.apply(lambda s: float(s.skew())).abs().max())
+    """LiNGAM assumes a linear SEM over CONTINUOUS variables with
+    non-Gaussian noise. Both halves are asked of the values: a dtype filter
+    here would drop bool columns from the frame entirely — reporting no
+    violation for the frame that violates the assumption most — and would
+    call a widened integer code continuous."""
+    level_coded = tuple(
+        c for c in df.columns if _classify_column(df[c]) != "continuous"
+    )
+    if level_coded:
+        return (
+            f"columns {list(level_coded)} are level-coded (bool / discrete), "
+            "not continuous — LiNGAM orients edges from the non-Gaussianity "
+            "of a continuous SEM's noise term, which a level code does not "
+            "have; the returned directions carry no evidence",
+        )
+    max_abs_skew = float(df.apply(lambda s: float(s.skew())).abs().max())
     if max_abs_skew < 0.5:
         return (
             f"data appears Gaussian (max |skew| = {max_abs_skew:.2f} < 0.5); "
@@ -1217,11 +1247,11 @@ def markov_blanket(
     contract = validate_data(data, required_columns=set(used))
     cols = tuple(used)  # target first, then pool in given order
 
-    # Classify on the ORIGINAL (un-coerced) data: validate_data coerces integer
-    # columns to float64, which would make _classify_column call a discrete
-    # integer column "continuous". Discrete path = every column integer-coded
-    # or bool; continuous path = every column continuous; a mix is rejected.
-    kinds = {c: _classify_column(data[c]) for c in cols}
+    # Discrete path = every column integer-coded or bool; continuous path =
+    # every column continuous; a mix is rejected. The coerced frame answers
+    # this the same as the original one, because the classification is read
+    # off the values rather than the dtype the contract rewrites.
+    kinds = {c: _classify_column(contract.data[c]) for c in cols}
     discrete_cols = [c for c in cols if kinds[c] in ("bool", "discrete")]
     continuous_cols = [c for c in cols if kinds[c] == "continuous"]
     if discrete_cols and continuous_cols:

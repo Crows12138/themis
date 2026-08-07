@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4405 passed / 144 skipped, warning-clean
+4423 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1557,6 +1557,81 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 同一个函数，一个调用点绕开了契约、另外两个没有（2026-08-07，接上条，#354）
+
+#316 修的是 iv.py 一处「契约拓宽之后 dtype 不再可判定」的判据。#354 是把这个形状**全仓
+扫一遍**。登记时我点名的线索（`refusals.py` 的 `CONTINUOUS_ADJUSTMENT` /
+`ADJUSTMENT_NOT_DISCRETE` 都说 "too many distinct values"）**是错的**——那两条判的是基数
+`k > _MAX_LEVELS` 和取值的整数性 `np.any(levels != np.round(levels))`，本来就不读 dtype。
+连着两轮，登记点名的那条都不成立，而两轮都因为**去量**而找到了别的活 bug。
+
+先把契约的出口态钉住：`validate_data` 之后，每个 model 列**只可能是 bool 或 float64**
+（整数被 `astype("float64")`，字符串/Categorical 被拒收，bool-like 数值被收成 bool；全仓
+无人传 `bool_columns=` / `continuous_columns=`，即 bool ⟺ 取值 ⊆ {0,1}）。据此逐个分类
+契约之后运行的 **20 条 dtype 判据**：
+
+```text
+问「是不是 bool」                16   ← 契约创造了这个区分而不是抹掉它 → 全部正确
+_classify_column（离散 vs 连续）  1   ← 活的错误，3 个调用点错 2 个
+dispatch:3438 is_numeric_dtype   1   ← 恒真，第三支死代码
+frontdoor 的 docstring           1   ← 行为对，散文列的 dtype 到不了
+_viol_lingam 的 select_dtypes    1   ← 契约保留的 bool 被它丢掉 → 沉默
+```
+
+**活 bug**：`discovery._classify_column` 用 `is_integer_dtype / is_object_dtype /
+is_categorical_dtype` 判「离散」，契约之后这三条**恒为 False**，于是 3–20 个取值的整数码列
+一律落到 `continuous`。它有**三个调用点**：`markov_blanket` 传的是**原始数据**、并且注释里
+逐字写着这个坑；`_diagnose_data` 与 `column_dtypes` 传的是契约后的数据。
+
+**读者收到的**：5 个取值的整数码列（最普通的问卷/分级数据），`auto` 选了 **LiNGAM**——线性
+非高斯**连续** SEM——而同一份结果里两句话互相矛盾：
+
+> `selection_rationale`：**100% of continuous variables** fail a normality test … 所以选 LiNGAM
+> `assumption_violations`：data appears **Gaussian** (max |skew| = 0.12 < 0.5); … edge directions
+> are essentially **arbitrary**
+
+那份数据里一个连续变量都没有。`column_dtypes` 报 `continuous`，`n_discrete=0`，「no continuous
+columns → 该用卡方 CI 检验」那条提示**从不触发**。而 `column_dtypes` 不是内部字段：它进
+`extensions.discovery_metadata`，`nl_to_kernel_ast.md` 明令 LLM 见到 `continuous` 就**回头问
+用户要不要离散化**——于是系统会问用户，怎么把一个已经只有 5 个级别的列二分。
+
+**根因**：判据读的属性契约已经改写了；而「必须传原始数据」这条要求**写在一个调用点的注释里，
+不在函数里**——(44) 每个使用点重写的约定一定会漏一次，这里三个漏了两个。所以修的不是那两个
+调用点（那会让这条不成文约定出现在第三、第四个地方），是**把要求消掉**：`_classify_column`
+改读契约不会改写的量——取值本身（`≤2` → bool；`≤20` 且**取值皆整数** → discrete；否则
+continuous）。三个调用点从此无论拿到哪张表答案都一样，`markov_blanket` 那条 workaround
+连同它保护的前提一起删掉。与 #316 同型，也与 `missing_recovery` 已有的写法一致。
+
+顺带的三处，逐条声明而不是默默做：`dispatch` 的 E 值分支把恒真的 `is_numeric_dtype` 与它
+守着的死 `else`（注释写着「categorical / object outcomes」——那种列到不了这里）合成二分；
+`frontdoor._discrete_levels` 的 docstring 不再列到不了的 dtype；`_viol_lingam` 原本用
+`select_dtypes(include=[np.number])` 选列，**bool 不属于 np.number**，于是全 bool 帧返回
+`()`——在它最该说话的时候沉默；改成按分类点名，`DomainMismatchError` 的消息也顺带从
+`(continuous)` 变成了真话 `(discrete)`。
+
+**D1**：18 条新测试，改前代码上 **7 红 11 绿**，红的正好是分类稳定性（整数码那一档）、分类
+取值、auto 路由、理由不谈没有的变量、LiNGAM 两档。绿的 11 条守的是**修法不过头**——bool、
+真连续、高基数整数码三档改前改后都不变，外加一条把前提本身钉住（「契约确实把 int64 变成了
+float64」，否则整组测试对一个读 dtype 的判据也会通过，什么也没钉）。
+
+**一个免费的物证**：改前的 `is_categorical_dtype` 是 pandas 2.x 的弃用 API，而这个仓库
+warning-clean。把既有 discovery 测试跑成 `-W error::DeprecationWarning`，**指向 discovery.py
+那一行的失败是 0 条**——也就是说，没有任何既有测试让 `n_unique` 落在 3–20 这条带上。**「最普通
+的输入」又一次正好是没被测的那个**（#351 里是 |Z|=2，这里是 5 个级别）。
+
+**方法论沉淀（第九十五至九十七条）**：
+(95)**一个私有辅助函数如果对输入的来源有要求，那条要求会写在调用点的注释里而不是函数里——
+去数有几个调用点带着它**。带着的那个把坑写得清清楚楚，没带的那两个连问都没问。修法不是补
+注释（那是把不成文约定复制到第 4、第 5 个地方），是**把要求消掉**：让判据只读上游不会改写的
+量，要求就不存在了。
+(96)**弃用 API 是免费的覆盖率插桩**——一条恒假的 `is_categorical_dtype(...)` 分支在
+warning-clean 的套件里从没抛过 DeprecationWarning，等于说没有任何测试执行过那一行。判据：
+`-W error::DeprecationWarning` 跑一遍，凡是**没有**被点名的弃用调用点就是从没跑过的行。
+与 (93) 互补：(93) 问字段基数，这条问「有没有外部信号能证明这行没跑过」。
+(97)**同一份结果里两句互相矛盾的话，先找它们共同的上游统计量，别分头修**——「100% 的连续
+变量非高斯」与「数据看起来是高斯的」是两个派生面在同一个被污染的分类上各说各话；分头修任何
+一句都会把污染留在原地。
 
 ### 两个混杂因子是最普通的图，而没有一条测试问过（2026-08-07，接上条，#351）
 

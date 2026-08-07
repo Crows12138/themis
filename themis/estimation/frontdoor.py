@@ -168,11 +168,16 @@ def _discrete_levels(series: pd.Series, name: str) -> list:
     """Sorted discrete level set of a mediator, or raise ``NotImplementedError``
     when it looks continuous.
 
-    Discrete = bool / integer / categorical / string dtype, or an
-    integer-valued float column, with at most ``MAX_LEVELS_PER_MEDIATOR``
-    distinct values. Fractional floats or higher cardinality are treated as
-    continuous and deferred: a genuinely continuous mediator needs density
-    estimation / integration, a separate estimator family.
+    Discrete = integer-valued (bool included) with at most
+    ``MAX_LEVELS_PER_MEDIATOR`` distinct values. Fractional values or higher
+    cardinality are treated as continuous and deferred: a genuinely
+    continuous mediator needs density estimation / integration, a separate
+    estimator family.
+
+    Integer-valuedness rather than dtype, because the contract has already
+    widened every integer column to float64 by the time a mediator arrives —
+    the dtype below only separates the contract's bool arm from its float
+    arm, which is why the float arm carries the whole test.
     """
     s = series.dropna()
     if pd.api.types.is_float_dtype(series):

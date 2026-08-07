@@ -3434,8 +3434,10 @@ def _attach_e_value_if_binary(
         return
 
     outcome_series = df[outcome]
+    # bool-vs-not is the whole partition: the contract leaves every model
+    # column as bool or float64. A third arm keyed on is_numeric_dtype asks a
+    # question the contract has already answered, so it can never run.
     is_binary = pd.api.types.is_bool_dtype(outcome_series)
-    is_numeric = pd.api.types.is_numeric_dtype(outcome_series) and not is_binary
 
     if "decomposition" in estimate:
         te = estimate["decomposition"]["te"]
@@ -3461,7 +3463,7 @@ def _attach_e_value_if_binary(
             ate=ate, baseline_rate=baseline_rate, ci_bound=ci_bound,
         )
         path = "binary"
-    elif is_numeric:
+    else:
         outcome_sd = float(outcome_series.std(ddof=1))
         if outcome_sd <= 0 or not (outcome_sd == outcome_sd):  # NaN-safe
             return
@@ -3469,8 +3471,6 @@ def _attach_e_value_if_binary(
             ate=ate, outcome_sd=outcome_sd, ci_bound=ci_bound,
         )
         path = "continuous"
-    else:
-        return  # categorical / object outcomes — out of scope this iter
 
     # Record the conversion INPUTS (path + baseline_rate / outcome_sd) next to
     # the outputs so the verifier can re-derive the risk ratio and BOTH
