@@ -443,6 +443,23 @@ def _wald_point(
     x = df[treatment].to_numpy(dtype=float)
     y = df[outcome].to_numpy(dtype=float)
 
+    # Both arms have to be populated before the means below are asked for.
+    # An empty arm makes the denominator nan, and `abs(nan) < 1e-12` is
+    # False, so the guard that exists for exactly this case would let the
+    # most degenerate sample there is through as a nan point estimate.
+    n_high, n_low = int(z.sum()), int((~z).sum())
+    if n_high == 0 or n_low == 0:
+        raise EstimatorFailure(
+            Refusal.OVERLAP_INSUFFICIENT,
+            f"instrument {instrument!r} takes one value in this whole "
+            f"sample ({n_high} row(s) high, {n_low} low), so it induces no "
+            f"contrast between arms to scale into an effect",
+            instrument=instrument,
+            treatment=treatment,
+            n_instrument_high=n_high,
+            n_instrument_low=n_low,
+        )
+
     ey1 = y[z].mean()
     ey0 = y[~z].mean()
     ex1 = x[z].mean()
@@ -680,19 +697,60 @@ def _two_sls_point(
 
     Stage 1: X = α + β·Z + γ'·W + ε1  (fit; take predicted X̂)
     Stage 2: Y = δ + θ·X̂ + η'·W + ε2  (fit; return θ)
+
+    Refuses a sample that carries no first stage, the way the Wald, the
+    stratified Wald and the over-identified routes each do. Least squares
+    does not raise on a rank-deficient stage 1 — it returns the minimum-norm
+    solution — so an instrument collinear with W still yields a θ, and that
+    θ is a function of (X, Y, W) alone: identical for every such instrument,
+    with an interval as narrow as the data on W supports.
     """
     w_cols = list(conditioning)
     z_arr = df[instrument].to_numpy(dtype=float).reshape(-1, 1)
     x_arr = df[treatment].to_numpy(dtype=float)
     y_arr = df[outcome].to_numpy(dtype=float)
+    n = len(df)
 
     if w_cols:
         w_arr = df[w_cols].to_numpy(dtype=float)
         stage1_X = np.hstack([z_arr, w_arr])
         stage2_W = w_arr
     else:
+        w_arr = np.empty((n, 0))
         stage1_X = z_arr
         stage2_W = None
+
+    # x'P_Z x, the statistic the over-identified route already refuses on,
+    # with the single instrument this route carries. Split in two so the
+    # answer says which half failed: an instrument with nothing left after W
+    # and an instrument orthogonal to the treatment are different problems
+    # for the analyst even though both leave the estimand unidentified.
+    zr = _residualise(z_arr.ravel(), w_arr)
+    xr = _residualise(x_arr, w_arr)
+    s_zz = float(zr @ zr)
+    s_zx = float(zr @ xr)
+    if not math.isfinite(s_zz) or s_zz < 1e-12:
+        raise EstimatorFailure(
+            Refusal.NO_FIRST_STAGE,
+            f"instrument {instrument!r} has no variation left once "
+            f"{list(w_cols) or 'the intercept'} is partialled out "
+            f"(residual sum of squares {s_zz:.3g}); two-stage least squares "
+            f"would still return a number, and that number would not depend "
+            f"on {instrument!r} at all",
+            instrument=instrument, treatment=treatment,
+            conditioning=list(w_cols), instrument_residual_ss=s_zz,
+        )
+    x_pz_x = s_zx * s_zx / s_zz
+    if not math.isfinite(x_pz_x) or x_pz_x < 1e-12:
+        raise EstimatorFailure(
+            Refusal.NO_FIRST_STAGE,
+            f"the first stage is degenerate: x'P_Z x is {x_pz_x:.3g}, so "
+            f"instrument {instrument!r} explains no variation in "
+            f"{treatment!r} after conditioning on "
+            f"{list(w_cols) or 'nothing'}",
+            instrument=instrument, treatment=treatment,
+            conditioning=list(w_cols), statistic=x_pz_x,
+        )
 
     stage1 = LinearRegression()
     stage1.fit(stage1_X, x_arr)

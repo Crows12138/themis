@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4423 passed / 144 skipped, warning-clean
+4455 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1557,6 +1557,80 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 五条 IV 路线里有四条会说「这个样本里没有第一阶段」（2026-08-07，接上条，#355）
+
+登记说 iv.py 有「约 20 处降级性 `return None` 从未插桩」。先量：`coverage` 只盯 iv.py 跑全量
+套件——**766 条语句 / 49 条从未执行 / 94%**。逐条对上去：**21 处显式 `return None` 里 15 处
+任何测试都没走过**；登记点名的两处宽 `except (LinAlgError, ValueError)`（`estimate_iv_ate`
+的 AR 调用、`estimate_iv_overid`）**也都没走过**，另有第三处 `_w_levels` 的 `except TypeError`。
+
+**而活 bug 不在这 49 行里**。它是一条**没被写下来**的分支：`NO_FIRST_STAGE` 这条纪律施行在
+5 条 IV 路线中的 4 条上——`_wald_point`、`_stratified_wald_table`、Hansen GMM、过度识别
+2SLS 各有一处 raise——**恰识别 2SLS 一处也没有**。
+
+**读者收到的**：图 `w→z, z→x, x→y, w→y, x↔y`（z 是给定 w 的条件工具），数据里 z 与 w 共线。
+
+```text
+status  : numerically_solved
+point   : 1.4128     真实效应 2.0
+CI      : (1.2891, 1.5190)          ← 真值不在里面
+method  : iv_2sls
+assumptions: iv1_relevance_instrument_affects_treatment, ...
+```
+
+那个数**不含工具变量的任何信息**——固定 x、y，把 z 换成 `w` / `2w+5` / `−w` / `7w−1` / `w/3`，
+返回值**逐位相同**。最小二乘不会因为第一阶段秩亏而报错，它给最小范数解，于是 θ 变成
+(X, Y, W) 的函数，配一个跟 W 上的数据一样窄的区间。弱工具 gap 确实挂了（F = 0.00），但它叫
+读者「report the Anderson-Rubin confidence set」——那个集合因 `s_zz ≈ 0` 返回了 `None`，
+根本不在信封里。
+
+**失败与问题的严重程度反向**，这是最值得记的一点：把共线放松一点点（相关 0.9998 而非 1.0），
+系统**完全正确**——AR 集 = (−∞, +∞)、明说「工具太弱无法约束效应」、并叫读者别用 bootstrap CI。
+只有在最退化的那一点上，那条诚实通道整个消失。
+
+**修法**：守卫补在**每个点估计器自己身上**，这正是另外三条路线已有的结构。`_two_sls_point` 按
+过度识别路线**已有的同一个统计量** `x'P_Z x`（q=1 时 = s_zx²/s_zz）判退化，理由分两句——
+「工具在 W 之下没有剩余变异」与「工具与处理正交」——因为对分析者而言这是两个不同的问题。
+`_wald_point` 补上臂计数守卫：它原有的 `abs(denom) < 1e-12` **对 NaN 恒为假**，于是单臂工具正好
+从为它而写的守卫下面穿过去，返回 `nan`（这一处**属潜在**：默认 bootstrap 把它转成
+`no_usable_resample` 挡住了，只有 `ci_bootstrap=0` 才露出来）。端到端从 `numerically_solved`
+变成 `needs_investigation` + 具名 `estimator_failure`。
+
+**新守卫站到了两个出口前面**：`_first_stage_f_stat` 的 `np.var(z) < 1e-12` 与
+`anderson_rubin_confidence_set` 的 `s_zz <= 1e-12` 从 `estimate_iv_ate` 不再可达（两者都是公开
+函数，直接调用仍可达）——按 #316 的做法写测试说明**还开着哪扇门**，外加一条钉住「估计器在它们
+之前就拒了」，否则那两条测试读起来像在覆盖一条调用者还会掉进去的路。
+
+**读出来而不是量出来的三处死代码**（覆盖率只说「没跑过」，说不出「跑不到」）：
+`_first_stage_f_stat` 的 `df_resid < 1` 与它上方 30 行的 `n − (2+|W|) < 1` 是**同一个谓词**，
+中间 `n` 与 `w_cols` 都没被改过，第二遍永远不会成立；`_solve_robust_ar_set` 的 h 折半回退
+（`if ap is None: return None`）要求 det S(t) 在 16 个不同 t 上全为零，而它是次数 ≤ 2q 的多项式、
+最多 2q 个根，且 `arv(point)` 已经成功排除了恒奇异；`_w_levels` 的
+`except TypeError  # mixed types in one column` 在契约之后不可能发生——每个 model 列非 bool 即
+float64，与 #354 同型。
+
+**顺带一句话的修正**：弱工具 gap 在没有 AR 集时的 `alternative_paths` 不再指向一个信封里没有的
+块，改成说「这个样本形不成这样的区间」。
+
+**D1**：32 条测试。把 iv.py 退回改前 → **7 红 25 绿**（四个共线形态 + 正交工具 + 单臂 Wald +
+「估计器在那两个出口之前就拒了」）；单独把 dispatch 那一句退回 → **1 红**。「弱但真实的工具仍然
+出数、且 AR 集是整条实线」那条是**防止守卫过头**的反面钉——不能拿拒答顶掉那个诚实的无界信号。
+另有四条
+`stratified_anderson_rubin_set` / `robust_anderson_rubin_overid_set` 的「支持时确实出答案」
+配对，否则前面那些 `is None` 断言对一个无条件返回 None 的函数照样通过。
+
+**方法论沉淀（第九十八至一百条）**：
+(98)**覆盖率能告诉你哪条写下来的分支没跑过，说不出哪条分支根本没写**。后者要按 (56) 的方式
+数——「同一条纪律施行在几条同族路线上」。四条路线各有一处 raise、第五条没有，在源码里长得
+毫无异样，任何行级或分支级指标都不会亮。
+(99)**`return None` 把两件事压成同一个值：「我判断不了」和「我判断了，答案是零」**。判据：读那个
+`None` 的**唯一消费者**，看它的注释怎么解释这个 `None`——`_first_stage_f_stat` 的 docstring 写着
+downstream 把 None 当作 "could not assess"，而它的四个来源里有一个是「工具方差为零」，那不是
+判断不了，那是最确凿的判断。
+(100)**一个失败如果与问题的严重程度反向，出错的就不是量的大小，而是某条路径在极端处整个消失**。
+判据：把退化参数从小量连续调到 0，看输出是否连续——不连续的那一点就是消失的那条路径。这里
+相关 0.9998 时系统说「工具太弱无法约束效应」，相关 1.0 时它给出一个 0.23 宽的区间。
 
 ### 同一个函数，一个调用点绕开了契约、另外两个没有（2026-08-07，接上条，#354）
 

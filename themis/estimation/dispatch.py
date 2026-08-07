@@ -4972,9 +4972,14 @@ def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
         or getattr(iv_estimate, "stratified_anderson_rubin", None)
     )
     ar_clause = ""
+    # No set on this estimate means one could not be formed from this sample,
+    # not that the reader forgot to look — so this branch must not send them
+    # to a block the envelope does not carry.
     ar_alt = (
-        "report the Anderson-Rubin confidence set — it inverts a test "
-        "with correct size regardless of first-stage strength"
+        "obtain a weak-identification-robust interval (Anderson-Rubin), "
+        "which has correct size whatever the first stage's strength; this "
+        "sample did not support forming one, so that means more data or a "
+        "different design rather than reading it off this result"
     )
     if ar is not None:
         rendered = _render_ar_set(ar)
