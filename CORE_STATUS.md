@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4477 passed / 144 skipped, warning-clean
+4514 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1557,6 +1557,80 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 一条「故意只钉一个方向」的检查，另一边是 8 个块、829 份实例（2026-08-12，接上条，#342）
+
+登记说「`extensions` 在 schema 里只命名了 18 个块中的 9 个」。重数：**10 个**（`assumption_ledger`
+是 #341 补进去的），缺 **8** 个。先量它们是不是死代码——插桩 `blocks.check_registered` 跑全量：
+**829 份实例**（`mechanism_audit` 348 / `ambiguities` 138 / `type_reconciliation` 122 /
+`transport_identification` 97 / `joint_identification` 45 / `mediation_joint_decomposition` 36 /
+`counterfactual_cell` 29 / `proximal_estimand` 14）。**全都在真产出。**
+
+**那条检查自己说了它为什么只钉一个方向**。`test_the_schema_gives_shapes_only_to_registered_blocks`
+的 docstring：「schema **predates this registry** and is where the drift was first measurable, so it
+must not name a block the registry does not」——`schema ⊆ registry`。反方向从来没有人问过，而
+`registry − schema` 就是这 8 个。
+
+**代价不是「少了 8 条」，是这 8 个块把封闭词表带出内核而域没有任何地方声明**，于是同名字段
+在孪生块上有 enum、在这边没有，成员集合各自漂：
+
+| 字段 | 未声明的这边（实测） | 已 enum 的孪生 |
+|---|---|---|
+| `pattern` | joint：`joint_backdoor`×40 / `joint_general_id`×5 | `identification`：backdoor / front_door / c_factor / instrumental_variable ——**两集不相交** |
+| `strategy` | mediation_joint：**全语料只出现过 `nde_nie+cde`（35 次）** | `mediation_decomposition`：nde_nie / cde / none ——**恰恰没有那个值** |
+| `interventional_risk_provenance` | counterfactual_cell：多一个 `general_id_plug_in` | `causation` 那份的四个成员里没有它 |
+
+`strategy` 那行最能说明问题：它的**唯一消费者**（`dispatch.py:2774`）写的是
+`if decomp.get("strategy") != "nde_nie": blocked(...)`，只读单中介块；joint 块的 strategy **零读者**，
+而唯一取值正是那个比较会判假的值。今天不是活 bug，给 joint 接数值端的那天就是。
+
+**知识一直在，只是写在了邻居身上**：`identification` 的 description 里早写着
+「`joint_identification.pattern` is a DIFFERENT vocabulary (joint_backdoor / joint_general_id) on a
+different block」——写它的人知道，但那句话待在**另一个块**的描述里，而不是待在承载它的块上。
+
+**修法**：①那条 meta 测试补成双向；②8 条 sub-schema，**只对真正封闭的词表出 enum**；③三处分叉
+按事实定域且**不合并**；④`ambiguities` 保持开放并写出理由。
+
+**判据写进了测试**：*封闭＝域是一组读者必须能分辨的固定含义；开放-但有限＝一个生产者一个值，
+随生产者增长*。按此 `mechanism_audit.form`（14 个观测值）与 `method`（20 个）**不出 enum**——
+enum 化会把「加一个估计量」变成校验失败，那是错的约束。
+
+**四处写成 `$ref` 而不是第二份声明**：`extensions.counterfactual_cell` 指向
+`numeric_estimate.counterfactual_cell`（生产者把**同一个 dict** 写进两处），joint 中介的两个臂与
+`numeric` 指向单中介的那三份（**同一个识别器填、同一个求值器算**）。「第二份声明」正是同一个字段
+名在一处有 `general_id_plug_in`、在邻居处没有的成因。
+
+**`ambiguities` 是这道闸门必须继续说「是」的那个反例**：其余 7 个块都收紧了，它不能——它的条目是
+从 program 的 side-channel 抄过来的、由调用者或语言模型写的内容，enum 化 `kind` 等于让内核规定
+调用者可以报告哪几种歧义。测试直接喂一个内核没听说过的 kind，要求通过。
+
+**验证**：全语料 2181 份块实例逐个对新 schema 验证——**全过**（唯一一处失败是 registry 单测手搓的
+空块 `{}`，不是内核产物）。**D1**：退回 schema → **27 红 85 绿**；恢复 → 112 全绿。新增 37 条。
+enum 逐个被伪造一次（13 处），因为**没被验证走到的 enum，读起来和正在生效的 enum 一模一样**——
+joint 中介两个臂共享形状与生产者却不共享词表（M1-M4 vs C1/C2），`$ref` 指错那一个，语料里的东西
+照样全过。
+
+**基线（本条）**：4477 → **4514**。
+
+**明确不做**：不把这些词表提升成 Python 一等对象 + 两面翻译表（#341 对 ledger 做的那一整套）。
+schema enum 只挡「值飘出域」，**挡不住「两个面各写一份翻译」**——实测三处正把英文原样印给中文
+读者：`mechanism_audit.form` 348 次印在「函数形式（`nonparametric_gformula_plug_in`，系统按样本量
+自动选择）」里、`type_reconciliation.declared_scale` 印在「if 'x' really is `binary`, fix the data
+column」里、中介的 `failed_condition` 把 `M3` / `C1` 直接给读者。登记为 #357。
+
+**方法论沉淀（第一〇四至一〇七条）**：
+(104)**一条「故意只钉一个方向」的检查，它的注释会告诉你另一个方向为什么不必钉——而那句理由通常
+只对写它的那天成立**。判据：读到 `assert A <= B` 且注释解释了为什么不写反向，就去数 `B − A` 有几个
+元素、它们在真语料上出现多少次。这里理由是「schema 早于 registry」，而差集是 8 个块 / 829 份实例。
+(105)**同名字段是不是同一个词表，不能按名字答，要按「读者面对每个成员说的那句话」答**。判据：把两个
+面对每个成员输出的字符串列出来——重复的才是同一个词表。`joint_backdoor` 与 `backdoor` 在两个面上
+说的是不同的句子，所以是两个词表，**合并才是 bug**。
+(106)**封闭 vs 开放-但有限**：域是一组读者必须能分辨的固定含义＝封闭，可以 enum；一个生产者一个值、
+随生产者增长＝开放。判据：问「新增一个成员时，是这个词表的含义变了，还是只是多了一个实现」。
+(107)**一个字段在全语料上只有一个取值，是「它的域从没被声明」最可靠的指纹**——因为没有人会去检查
+一个从没变过的东西。判据：按字段统计值空间基数，基数=1 的逐个问「它的域写在哪里」。本条两个最锋利
+的物证都是这么捞出来的：`mediation_joint.strategy` 只有 `nde_nie+cde`、`mechanism_audit.provenance`
+348 次全是 `default`。
 
 ### 三成信封被告知「还没得出可复核的结论」，而重算它们答案的审计器就注册在表里（2026-08-12，接上条，#315）
 

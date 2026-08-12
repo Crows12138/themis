@@ -11,7 +11,7 @@
   "properties": {
     "extensions": {
       "type": "object",
-      "description": "Open-ended extension map. Known sub-fields have explicit sub-schemas below; unknown fields are allowed (extensions is intentionally open for forward compatibility).",
+      "description": "The result envelope's extension map. Every block THIS kernel emits is declared in themis.blocks and has a sub-schema below — a test holds the two lists equal in both directions, because for a long time it held only one, and eight blocks carrying four hundred instances a run sat outside the schema with nobody able to say what domain their fields had. The map stays open all the same: `verify()` accepts an envelope carrying somebody else's annotation, and what closes our own emission is the registry check at the two exits, not this. Openness is for foreign blocks; it was never a licence for ours.",
       "properties": {
         "assumption_ledger": {
           "type": "object",
@@ -378,6 +378,152 @@
                     "missing_key":    { "type": ["string", "null"] },
                     "reason":         { "type": "string" }
                   }
+                }
+              }
+            }
+          }
+        },
+        "transport_identification": {
+          "type": "object",
+          "description": "Which two populations the answer crosses, what differs between them, and the re-weighting that closes the gap. `kind` restates the block's own name and is kept because a writer already emits it. `numeric` appears only once the transport formula has been evaluated against a distribution.",
+          "required": ["kind", "source_population", "target_population", "s_nodes", "adjustment_set", "formula_repr"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "transport_identification" },
+            "source_population": { "type": ["string", "null"], "description": "Null when the graph declares no selection node, which is also when there is nothing to transport across." },
+            "target_population": { "type": "string" },
+            "s_nodes": {
+              "type": "array",
+              "description": "The selection nodes: where the two populations differ, and on which variable each difference acts.",
+              "items": {
+                "type": "object",
+                "required": ["id", "affects"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "type": "string" },
+                  "affects": { "$ref": "atom.schema.json#/$defs/atom" }
+                }
+              }
+            },
+            "adjustment_set": { "type": "array", "items": { "$ref": "atom.schema.json#/$defs/atom" } },
+            "formula_repr": { "type": "string" },
+            "numeric": {
+              "type": "object",
+              "required": ["value", "source_population", "target_population"],
+              "additionalProperties": false,
+              "properties": {
+                "value": { "type": "number" },
+                "source_population": { "type": "string" },
+                "target_population": { "type": "string" }
+              }
+            }
+          }
+        },
+        "joint_identification": {
+          "type": "object",
+          "description": "How a do() over a treatment SET was identified. `pattern` is a closed vocabulary of two and is NOT the vocabulary `identification.pattern` names, despite the shared field name: the two sets are disjoint, and both reader surfaces branch on `joint_general_id` by spelling the literal, which is what an undeclared domain buys. `interaction` names the scale the treatment x treatment term is stated on; both surfaces currently test only its presence, so a second member would be printed as if it were the first.",
+          "required": ["pattern", "treatments"],
+          "additionalProperties": false,
+          "properties": {
+            "pattern": { "enum": ["joint_backdoor", "joint_general_id"] },
+            "treatments": { "type": "array", "items": { "type": "string" } },
+            "adjustment_set": { "type": "array", "items": { "type": "string" }, "description": "Absent on the general-ID route, which is identified precisely because no adjustment set exists." },
+            "conditioned_on": { "type": "array", "items": { "type": "string" } },
+            "interaction": { "enum": ["difference_scale"] },
+            "note": { "type": "string" }
+          }
+        },
+        "mediation_joint_decomposition": {
+          "type": "object",
+          "description": "The same decomposition as `mediation_decomposition`, through a mediator SET taken as one block — which is what makes it identifiable without ordering the set. The two arms and the numeric evaluation are the single-mediator ones: the same identifier fills them and the same evaluator computes them, so they are referenced rather than restated. `strategy` is the one thing that genuinely differs: this route can find BOTH arms identifiable and says so, which is the member the single-mediator vocabulary has no room for — and, measured over the whole suite, the only value this field has ever taken.",
+          "required": ["mediators", "mediator_set_valid", "nde_nie", "cde"],
+          "additionalProperties": false,
+          "properties": {
+            "mediators": { "type": "array", "items": { "type": "string" } },
+            "mediator_set_valid": { "type": "boolean" },
+            "strategy": { "enum": ["nde_nie", "cde", "nde_nie+cde", "none"] },
+            "nde_nie": { "$ref": "#/properties/extensions/properties/mediation_decomposition/properties/nde_nie" },
+            "cde": { "$ref": "#/properties/extensions/properties/mediation_decomposition/properties/cde" },
+            "numeric": { "$ref": "#/properties/extensions/properties/mediation_decomposition/properties/numeric" }
+          }
+        },
+        "proximal_estimand": {
+          "type": "object",
+          "description": "The bridge-function estimand proximal identification produces from two proxies of an unmeasured confounder. `method` is a method name rather than a vocabulary — one value per estimator, growing with estimators — so it is typed and not enumerated. `data_conditions` is a joined string because this descriptor rides a derivation step's inputs, whose serializer takes scalars and atoms but not a collection of plain strings.",
+          "required": ["method", "treatment", "outcome", "latent", "treatment_proxy", "outcome_proxy", "latent_cardinality", "data_conditions"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "type": "string" },
+            "treatment": { "type": "string" },
+            "outcome": { "type": "string" },
+            "latent": { "type": "string" },
+            "treatment_proxy": { "type": "string" },
+            "outcome_proxy": { "type": "string" },
+            "latent_cardinality": { "type": "integer" },
+            "data_conditions": { "type": "string" }
+          }
+        },
+        "counterfactual_cell": {
+          "$ref": "#/properties/numeric_estimate/properties/counterfactual_cell",
+          "description": "The display copy of `numeric_estimate.counterfactual_cell` — the producer writes ONE dict into both places, so this is a reference to that shape rather than a second statement of it. A second statement is how the same field came to carry `general_id_plug_in` in one place and not in its neighbour."
+        },
+        "mechanism_audit": {
+          "type": "object",
+          "description": "The functional form the number was computed under, and where that form came from. `provenance` is the assumption ledger's own vocabulary — this block is one of the channels the ledger reads — so it is declared with the same members. `form` and `method` are NOT vocabularies: one value per estimator, growing whenever an estimator is added, so enumerating them would turn adding an estimator into a validation failure. They are, however, printed to the reader as written, which is a translation question this schema cannot answer.",
+          "required": ["mechanisms", "summary"],
+          "additionalProperties": false,
+          "properties": {
+            "mechanisms": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["target", "form", "method", "provenance", "assumption"],
+                "additionalProperties": false,
+                "properties": {
+                  "target": { "type": "string" },
+                  "form": { "type": "string" },
+                  "method": { "type": "string" },
+                  "provenance": { "enum": ["inherent", "caller_asserted", "default", "llm_proposal", "discovery", "llm_prior"] },
+                  "assumption": { "type": "string" }
+                }
+              }
+            },
+            "summary": { "type": "string" }
+          }
+        },
+        "ambiguities": {
+          "type": "array",
+          "description": "The upstream naming ambiguities that bear on THIS query, copied across from the program's own extensions side-channel. Deliberately the one block left open: what it carries is authored upstream by a user or a language model, not by the kernel, and enumerating `kind` would make the kernel the authority on which ambiguities a caller is allowed to report. `kind` is required because an entry that does not say what sort of ambiguity it is cannot be acted on.",
+          "items": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "type": "string" }
+            }
+          }
+        },
+        "type_reconciliation": {
+          "type": "object",
+          "description": "What was checked when the declared variable types and the data's own types disagreed, and what the disagreement was. Four closed vocabularies leave the kernel here: the declared scale, the scale the column actually shows, the coarse dtype family the classification was made from, and the verdict. `ok` is not a member of `verdict` — a reconciliation that agrees is dropped rather than shipped, so a verdict that reaches a reader is always a disagreement. The verifier re-derives the observed scale and the verdict from `n_unique` and `dtype_kind` independently, which is why those two ride along.",
+          "required": ["checks"],
+          "additionalProperties": false,
+          "properties": {
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["predicate", "declared_scale", "declared_domain", "observed_scale", "n_unique", "observed_values", "dtype_kind", "verdict", "detail"],
+                "additionalProperties": false,
+                "properties": {
+                  "predicate": { "type": "string" },
+                  "declared_scale": { "enum": ["binary", "discrete", "continuous"] },
+                  "declared_domain": { "type": ["array", "null"] },
+                  "observed_scale": { "enum": ["binary", "discrete", "continuous"] },
+                  "n_unique": { "type": "integer" },
+                  "observed_values": { "type": ["array", "null"], "description": "The distinct values when the column has few enough to record; null otherwise." },
+                  "dtype_kind": { "enum": ["bool", "integer", "float", "categorical", "object", "other"] },
+                  "verdict": { "enum": ["declared_continuous_data_discrete", "domain_violated"] },
+                  "detail": { "type": "string" }
                 }
               }
             }

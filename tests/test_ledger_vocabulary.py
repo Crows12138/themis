@@ -52,6 +52,23 @@ def test_the_contract_declares_the_whole_vocabulary(vocabulary, field):
     assert set(_ENTRY[field]["enum"]) == {str(m) for m in vocabulary}
 
 
+def test_the_channel_the_ledger_reads_declares_the_same_provenance():
+    """``mechanism_audit`` is one of the channels the ledger turns into
+    lines, and it carries a ``provenance`` of its own.
+
+    It is the same vocabulary, so it has to be checked against the same
+    source rather than against a second copy: the block sat outside the
+    schema entirely while every one of its 348 instances in a suite run
+    wrote ``default``, and a field that has only ever taken one value is
+    exactly the one whose domain nobody notices is unstated.
+    """
+    audit = (SCHEMA["properties"]["extensions"]["properties"]
+             ["mechanism_audit"]["properties"]["mechanisms"]["items"]
+             ["properties"])
+    assert set(audit["provenance"]["enum"]) == {
+        str(m) for m in ledger.Provenance}
+
+
 @pytest.mark.parametrize("vocabulary", [
     ledger.Layer, ledger.Severity, ledger.Provenance])
 def test_every_value_says_something_of_its_own(vocabulary):

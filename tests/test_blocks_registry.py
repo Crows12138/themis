@@ -349,18 +349,46 @@ def test_a_result_with_no_extensions_is_not_a_violation():
     blocks.check_registered({"query_id": "q1", "extensions": None})
 
 
-def test_the_schema_gives_shapes_only_to_registered_blocks():
-    """The result schema carries a full sub-schema for some blocks. It
-    predates this registry and is where the drift was first measurable,
-    so it must not name a block the registry does not."""
+def _shaped_blocks() -> set[str]:
     import json
 
     schema = json.loads(
         (PACKAGE / "schemas" / "query_result.schema.json").read_text(
             encoding="utf-8")
     )
-    shaped = set(schema["properties"]["extensions"].get("properties") or {})
-    assert shaped <= set(blocks.BY_NAME), sorted(shaped - set(blocks.BY_NAME))
+    return set(schema["properties"]["extensions"].get("properties") or {})
+
+
+def test_the_schema_gives_shapes_only_to_registered_blocks():
+    """The result schema carries a full sub-schema for some blocks. It
+    predates this registry and is where the drift was first measurable,
+    so it must not name a block the registry does not."""
+    assert _shaped_blocks() <= set(blocks.BY_NAME), sorted(
+        _shaped_blocks() - set(blocks.BY_NAME))
+
+
+def test_every_registered_block_has_a_shape_in_the_schema():
+    """And the other way, which is the direction that had never been asked.
+
+    A block with no sub-schema is not a block with a loose shape — it is a
+    block whose fields have no declared domain anywhere, and the closed
+    vocabularies it carries out of the kernel are then spelled by hand at
+    each reader. That is measurable rather than theoretical: with this
+    direction unasked, eight of eighteen blocks sat outside the schema
+    while emitting eight hundred instances over one suite run, two of them
+    carrying a field whose sibling block enumerates the SAME field name
+    with a set of members that no longer agreed.
+
+    The map itself stays open — a foreign annotation is welcome — but what
+    this kernel emits is closed by the registry at the exits, so nothing
+    is bought by leaving our own blocks undeclared here.
+    """
+    unshaped = sorted(set(blocks.BY_NAME) - _shaped_blocks())
+    assert not unshaped, (
+        f"registered but shapeless in query_result.schema.json: {unshaped}; "
+        f"declare the block's fields, and give an enum to every field whose "
+        f"domain is a fixed set of meanings a reader has to tell apart"
+    )
 
 
 def test_a_run_emits_only_registered_blocks():
