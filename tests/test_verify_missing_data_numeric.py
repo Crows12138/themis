@@ -1,9 +1,9 @@
 """§S9.2 numeric end — verify_missing_data_numeric.
 
 The back-door ATE recovered from data that itself has missing values
-(Mohan-Pearl-Tian) ships on a ``needs_investigation`` result with no
-derivation, so the derivation-gated ``themis.verify`` never reaches it: a
-tampered ``point`` passed unaudited. This verifier is the audit path — it
+(Mohan-Pearl-Tian) ships on a result with no derivation, so the
+derivation-gated ``themis.verify`` never reaches it: a tampered ``point``
+passed unaudited. This verifier is the audit path — it
 re-runs the g-formula Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from the recorded
 per-stratum sufficient statistics (conditional {n, y_sum} + marginal
 {z, count} tables) as a standalone transcription and rejects a forged point,

@@ -299,10 +299,16 @@ def build_server():
         ``program``: kernel_ast dict or JSON string. ``csv_path``: if
         given, run numeric estimation on the CSV; otherwise a structural
         run. ``options``: forwarded to ``themis.estimate`` when csv_path
-        is set. ``run_verify``: independently verify each result (where it
-        carries a derivation) and stamp the report ✓/✗ — verification is a
+        is set. ``run_verify``: run every re-check that applies to each
+        result and stamp the report ✓/✗ per check — a re-check is a
         separate re-derivation; the report assembler never re-runs
         reasoning itself.
+
+        Which re-checks apply is asked of ``themis.audit`` rather than
+        decided here. Gating on a derivation instead meant this tool
+        stamped nothing on any envelope answered by an interval or by a
+        recovery estimator, though each of those has a registered auditor
+        that recomputes its answer.
 
         Returns ``{"reports": [markdown, ...], "statuses": [...]}``.
         """
@@ -325,15 +331,9 @@ def build_server():
         reports: list[str] = []
         statuses: list[str] = []
         for result in env.get("results", []):
-            verified = None
-            if run_verify and result.get("derivation") is not None:
-                try:
-                    themis.verify(prog_dict, result)
-                    verified = True
-                except Exception:
-                    verified = False
+            audited = themis.audit(prog_dict, result) if run_verify else None
             reports.append(
-                build_analysis_report(result, program=prog_dict, verified=verified)
+                build_analysis_report(result, program=prog_dict, audited=audited)
             )
             statuses.append(result.get("status"))
         return {"reports": reports, "statuses": statuses}

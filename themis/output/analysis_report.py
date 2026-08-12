@@ -10,9 +10,9 @@ What it foregrounds — and what makes it *Themis's* report rather than a
 generic causal-analysis summary — follows the order
 ``response_rendering.md`` mandates: the **answer first**, then how it was
 arrived at, then the two things Causal-Copilot-style tools omit — an
-honest **verification** status (is the answer's derivation independently
-auditable?) and the **assumptions + data gaps** (what must hold, and what
-data would strengthen or unblock the answer).
+honest **verification** status (which independent re-checks recompute this
+answer, per :mod:`themis.audits`) and the **assumptions + data gaps** (what
+must hold, and what data would strengthen or unblock the answer).
 
     from themis.output.analysis_report import build_analysis_report
     md = build_analysis_report(result, program=program)
@@ -20,14 +20,14 @@ data would strengthen or unblock the answer).
 ``result`` is one entry from ``themis.run(...)["results"]`` /
 ``themis.estimate(...)["results"]``. ``program`` (the kernel_ast dict) is
 optional but lets the report render the causal model and edge provenance.
-``verified`` is an optional caller-supplied verdict from a *separate*
-``themis.verify`` call — the assembler never runs verification itself.
+``audited`` is an optional caller-supplied ``themis.audit(program, result)``
+return — the assembler never runs a re-check itself.
 """
 from __future__ import annotations
 
 from typing import assert_never
 
-from .. import answers, blocks, questions, refusals, risk_provenance
+from .. import answers, audits, blocks, questions, refusals, risk_provenance
 # Aliased because the ledger renderer's own argument is the ledger itself,
 # and a module shadowed by a local reads as the local everywhere below it.
 from .. import ledger as ledger_vocab
@@ -122,14 +122,23 @@ def build_analysis_report(
     result: dict,
     *,
     program: dict | None = None,
-    verified: bool | None = None,
+    audited: list[dict] | None = None,
 ) -> str:
     """Assemble a Markdown analysis report from one result envelope.
 
     Pure presentation over already-computed fields — no reasoning is
-    re-run and ``verify`` is never called. ``verified`` may carry the
-    result of a separate ``themis.verify`` call so the report can stamp
-    a ✓ / ✗; left ``None`` it reports auditability from the derivation.
+    re-run and no audit is called. ``audited`` may carry what a separate
+    ``themis.audit(program, result)`` returned so the report can stamp
+    each re-check ✓ / ✗; left ``None`` the report lists which re-checks
+    apply without claiming any of them ran.
+
+    It takes the audit rows rather than one boolean because "was this
+    verified" is not one question: thirteen entry points re-derive
+    different things, and which of them apply is a fact about the
+    envelope that :mod:`themis.audits` already answers. A boolean could
+    only carry ``verify``'s verdict, which is absent on every envelope
+    whose answer came from a recovery estimator or from partial
+    identification.
     """
     status = result.get("status", "?")
     badge = _STATUS_BADGE.get(status, status)
@@ -143,7 +152,7 @@ def build_analysis_report(
         parts += _section("怎么算出来的", route)
     if program is not None:
         parts += _section("因果模型", _render_model(program))
-    parts += _section("验证", _render_verification(result, verified))
+    parts += _section("验证", _render_verification(result, audited))
     assumptions = _render_assumptions(result)
     if assumptions:
         parts += _section("假设", assumptions)
@@ -1307,30 +1316,66 @@ def _derivation_step_count(derivation) -> int | None:
     return None
 
 
-def _render_verification(result: dict, verified: bool | None) -> str:
-    derivation = result.get("derivation")
-    n_steps = _derivation_step_count(derivation)
+def _call_form(row) -> str:
+    return (f"themis.{row.name}(program, result)" if row.needs_program
+            else f"themis.{row.name}(result)")
+
+
+def _render_verification(result: dict, audited: list[dict] | None) -> str:
+    """Which independent re-checks this envelope can be put through, in the
+    reader's words, stamped when the caller already ran them.
+
+    Read off :mod:`themis.audits`, which answers "what re-derives this"
+    once, rather than off the presence of a derivation. The two are
+    different questions and on 878 of 2803 envelopes in one suite run they
+    gave opposite answers: an interval or a recovered ATE, no chain, and a
+    registered auditor that recomputes exactly that answer. Keyed on the
+    chain, this section told the reader of each of those that no
+    re-checkable conclusion had been reached — directly under the number it
+    had just printed — and sent them to the gap-report audit, which is not
+    an audit of the answer.
+    """
+    rows = audits.applicable(result)
+    if not rows:
+        return ""
+    outcome = {
+        row.get("audit"): row for row in (audited or []) if isinstance(row, dict)
+    }
     lines: list[str] = []
 
-    if verified is True:
-        lines.append("✓ **已独立复核通过**（`themis.verify` 未报错）。")
-    elif verified is False:
-        lines.append("✗ **独立复核未通过**（`themis.verify` 报错）—— 该答案不可信。")
-
-    if derivation is not None:
-        step_txt = f"（{n_steps} 步）" if n_steps is not None else ""
+    if audited is not None:
+        failed = [row for row in audited if not row.get("ok")]
         lines.append(
-            f"此答案携带一条**可独立复核的推导链**{step_txt}：每个数都从记录的"
-            "充分统计量重新推导。运行 `themis.verify(program, result)` 会独立"
-            "重导并逐项核对，对不上即抛错 —— 这是 Themis 与「相信算法输出」"
-            "类工具的根本区别。"
+            f"✗ **{len(failed)} 项复核未通过** —— 内核照这张图各自重算，"
+            "得到的和上面这份对不上。"
+            if failed else
+            f"✓ **{len(audited)} 项独立复核全部通过** —— 内核不看上面的结论，"
+            "照记录下来的输入各自重算了一遍。"
+        )
+
+    if any(row.re_derives_answer for row in rows):
+        lines.append(
+            "上面那个答案**本身可以被独立重算**：换一份独立誊写的实现，从记录下来的"
+            "输入重算一遍，对不上即报错 —— 这是 Themis 与「相信算法输出」类工具的"
+            "根本区别。"
         )
     else:
         lines.append(
-            "此状态**不携带推导链**（尚未得出可复核的数值 / 结构结论）。"
-            "改用 `themis.verify_data_gap_report(result)` 复核缺口报告本身"
-            "（缺口审计不需要推导链）。"
+            "**没有能重算这个答案本身的复核**（还没得出数值 / 结构结论）；"
+            "下面这些复核的是它旁边的事实。"
         )
+
+    lines.append("")
+    for row in rows:
+        got = outcome.get(row.name)
+        mark = "" if got is None else ("✓ " if got.get("ok") else "✗ ")
+        lines.append(f"- {mark}{row.zh}（`{_call_form(row)}`）")
+        if got is not None and not got.get("ok") and got.get("refusal"):
+            lines.append(f"  - 未通过：{got['refusal']}")
+
+    if audited is None:
+        lines.append("")
+        lines.append("一次跑完全部：`themis.audit(program, result)`。")
     return "\n".join(lines)
 
 

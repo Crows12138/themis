@@ -21,9 +21,10 @@ What that cost, measured over 139 results:
   prompt names two. The two sixes overlap in three.
 
 So a row per entry point, saying what it is an audit **of**, when it applies
-within that, and what it re-derives. ``applicable`` answers the question
-once; ``audit`` runs what applies and reports per audit, so that a caller
-never has to tell the two failures apart — it is never handed the first one.
+within that, what it re-derives, and whether that thing is the answer or a
+fact beside it. ``applicable`` answers the question once; ``audit`` runs what
+applies and reports per audit, so that a caller never has to tell the two
+failures apart — it is never handed the first one.
 
 The applicability is declared as data rather than as a predicate because it
 is a claim about the artifact ("audits the chain, so it needs one"), and a
@@ -97,17 +98,37 @@ class Audit:
     estimators have their own auditors because their results carry no
     derivation, so the chain audit cannot reach them."""
 
+    re_derives_answer: bool = False
+    """Whether what this audit recomputes IS the answer, rather than a fact
+    standing beside it.
+
+    Four of the eight envelope rows recompute the answer — the chain, the
+    interval, and the two recovery numbers. Four audit something else: the
+    gap list, the assumption ledger, the cluster declaration, the
+    outcome-error variance split. The distinction cannot be read off the
+    other fields, since ``verify_outcome_error`` also names a field it
+    needs and still is not the answer.
+
+    A surface that reports auditability without it says "nothing here can
+    be re-checked" to a reader holding an interval that one of these rows
+    recomputes from the graph — the presence of a chain is a different
+    question, and on an envelope whose answer came from a recovery
+    estimator or from partial identification the two give opposite
+    answers."""
+
 
 AUDITS: tuple[Audit, ...] = (
     # --- the query_result envelope ------------------------------------------
     Audit(
         "verify", Artifact.QUERY_RESULT, True, needs_field="derivation",
         zh="按因果图把推导链一步步重走，确认每一步都站得住、最后一步给出的正是这个答案",
+        re_derives_answer=True,
     ),
     Audit(
         "verify_bounds_result", Artifact.QUERY_RESULT, True,
         needs_field="bounds_result",
         zh="不看已给出的上下界，按图和记录下来的分布把这两个端点重新算一遍",
+        re_derives_answer=True,
     ),
     Audit(
         "verify_data_gap_report", Artifact.QUERY_RESULT, False,
@@ -130,11 +151,13 @@ AUDITS: tuple[Audit, ...] = (
         "verify_selection_recovery_numeric", Artifact.QUERY_RESULT, False,
         needs_method="selection_backdoor_recovery",
         zh="按记录下来的分层计数与外部权重表，把选择偏倚恢复的那个平均因果效应重跑一遍",
+        re_derives_answer=True,
     ),
     Audit(
         "verify_missing_data_numeric", Artifact.QUERY_RESULT, False,
         needs_method="missing_data_recovery_gformula",
         zh="按记录下来的分层充分统计量，把缺失数据恢复用的 g-formula 重跑一遍",
+        re_derives_answer=True,
     ),
 
     # --- standalone artifacts, each named by its own ``kind`` ----------------

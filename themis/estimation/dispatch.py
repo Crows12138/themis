@@ -655,15 +655,21 @@ def _maybe_estimate_missing_recovery(
     }
     target["numeric_estimate"] = numeric_estimate
     _attach_precision_budget(target["numeric_estimate"])
-    # This path returns before the shared prologue builds a data
-    # contract — the columns it recovers from carry NaN, which the
-    # contract forbids — and so returns before every reconciliation the
-    # prologue arranges. The contract is genuinely out of reach here;
-    # what a number answers is not, and it is the warrant that holds on
-    # this path anyway. Column presence would be the wrong one: the
-    # self-masking case has a column for the variable it cannot recover
-    # P(z) from, and that is the whole point of the refusal above.
-    _withdraw_asks_the_number_answers(target)
+    # This path returns before the shared prologue builds a data contract —
+    # the columns it recovers from carry NaN, which the contract forbids —
+    # and so returns before everything the prologue records. The contract
+    # is genuinely out of reach; the run's own settings and what the
+    # estimator hashed are not, and a reader who cannot see them cannot
+    # tell a recovered ATE apart from one estimated on different rows with
+    # a different seed. Written from the estimate rather than from a
+    # contract, which is the only difference from the ordinary path.
+    target.setdefault("estimation_context", {}).update({
+        "data_hash": est.data_hash,
+        "sample_size": est.n_total,
+        "random_state": random_state,
+        "ci_bootstrap": ci_bootstrap,
+    })
+    _finalise_numeric_result(target)
 
 
 def _resolve_cluster_option(
@@ -5100,34 +5106,29 @@ _NUMERIC_SATISFIED_GAP_KINDS: frozenset[str] = frozenset({
 
 
 def _finalise_numeric_result(result: dict) -> None:
-    """Flip result status to numerically_solved, set a truthy
-    structural_result, drop stale missing_information entries, and
-    reconcile the data_gap_report so it no longer contradicts the
-    attached point estimate.
+    """A point estimate for the query's own estimand came out: claim
+    ``numerically_solved``, set a truthy structural_result, and withdraw
+    what the number answered — the stale ``missing_information`` entries
+    and the gaps in the report that still ask for what was just
+    estimated, on every surface at once.
 
-    Shared between backdoor (7.1) and front-door (7.2) numeric paths.
+    Every route that attaches a number for the query's own estimand ends
+    here. The two that once did not were the recovery estimators, on the
+    reasoning that a result with no derivation cannot claim
+    ``numerically_solved`` because ``verify`` refuses to audit one. Half
+    of that was already false — selection recovery claimed it anyway —
+    and the other half rests on ``verify`` being the only auditor, which
+    :mod:`themis.audits` says it is not: each recovery estimator has a
+    registered auditor that recomputes its number from the sufficient
+    statistics the envelope carries. What a result may claim rests on
+    whether its answer can be re-derived, not on which function re-derives
+    it. The withdrawal is not separable from the claim either: split off,
+    it was simply absent on the route that skipped this, and a recovered
+    ATE shipped beside four blocking gaps naming the conditionals it had
+    just estimated.
     """
     result["status"] = "numerically_solved"
     result["structural_result"] = {"value": True}
-    _withdraw_asks_the_number_answers(result)
-
-
-def _withdraw_asks_the_number_answers(result: dict) -> None:
-    """A point estimate for the query's own estimand came out; the asks
-    it was computed from are answered, on every surface at once.
-
-    Split from the status flip beside it because the two rest on
-    different things. That a number exists is what answers the asks; that
-    the result may now claim ``numerically_solved`` is a statement about
-    its standing, and an answer with no derivation cannot make it —
-    ``verify`` refuses to audit one, so the claim would outrun what the
-    envelope can back. The missing-data recovery path is exactly that
-    case: it produces the back-door ATE under MAR and writes no
-    derivation, so it withdraws what its number answered and leaves the
-    status alone. Welded together, the withdrawal was simply absent
-    there, and a recovered ATE shipped beside four blocking gaps naming
-    the conditionals it had just estimated.
-    """
     result.pop("missing_information", None)
     _reconcile_gap_report_after_numeric_solve(result)
 

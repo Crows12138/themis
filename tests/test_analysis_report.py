@@ -95,33 +95,43 @@ def test_numeric_report_shows_severity_ranked_assumptions(numeric_env):
     assert "扭曲级" in md            # functional-form (distorting)
 
 
-def test_verify_stamp_reflects_passed_verdict(numeric_env):
+def test_stamp_reflects_a_passed_audit_set(numeric_env):
     prog, env = numeric_env
     res = env["results"][0]
-    # a genuine verify verdict, passed in by the caller (report never verifies)
-    try:
-        themis.verify(env.get("program", prog), res)
-        verdict = True
-    except Exception:
-        verdict = False
-    assert verdict is True
-    md = build_analysis_report(res, program=prog, verified=True)
-    assert "已独立复核通过" in md
+    # genuine audit rows, run by the caller (the report never re-checks)
+    rows = themis.audit(env.get("program", prog), res)
+    assert rows and all(row["ok"] for row in rows)
+    md = build_analysis_report(res, program=prog, audited=rows)
+    assert "独立复核全部通过" in md
+    assert f"✓ **{len(rows)} 项" in md
 
 
-def test_verify_stamp_reflects_failed_verdict(numeric_env):
+def test_stamp_names_the_check_that_did_not_pass(numeric_env):
+    """One ✗ among several ✓ has to be findable, or a reader who sees the
+    section at all reads the whole thing as passed."""
     prog, env = numeric_env
-    md = build_analysis_report(env["results"][0], program=prog, verified=False)
-    assert "复核未通过" in md
+    res = env["results"][0]
+    rows = themis.audit(env.get("program", prog), res)
+    broken = [
+        {**row, "ok": False, "refusal": "VerificationError: 端点对不上"}
+        if row["audit"] == "verify" else row
+        for row in rows
+    ]
+    md = build_analysis_report(res, program=prog, audited=broken)
+    assert "1 项复核未通过" in md
+    assert "端点对不上" in md
+    # the checks that did pass still say so
+    assert "✓ " in md
 
 
-def test_no_stamp_without_verdict_but_derivation_noted(numeric_env):
+def test_without_audit_rows_it_says_what_applies_and_claims_nothing_ran(numeric_env):
     prog, env = numeric_env
-    md = build_analysis_report(env["results"][0], program=prog, verified=None)
-    assert "已独立复核通过" not in md
+    md = build_analysis_report(env["results"][0], program=prog, audited=None)
+    assert "独立复核全部通过" not in md
     assert "复核未通过" not in md
-    assert "可独立复核的推导链" in md
-    assert "themis.verify" in md
+    assert "本身可以被独立重算" in md
+    assert "themis.verify(program, result)" in md
+    assert "themis.audit(program, result)" in md
 
 
 # ============================================ structural bool

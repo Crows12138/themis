@@ -206,6 +206,35 @@ def test_themis_report_tool_renders_markdown(app):
     assert "statuses" in out and out["statuses"]
 
 
+def test_themis_report_stamps_an_answer_that_carries_no_chain(app):
+    """The stamp used to be gated on a derivation, so an answer that is an
+    interval — the commonest shape without one — came back unstamped even
+    though ``verify_bounds_result`` recomputes both endpoints from the
+    graph. Which re-checks apply is themis.audit's question now."""
+    def _atom(p):
+        return {"predicate": p, "args": [{"type": "const", "name": "p"}]}
+
+    program = {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "target": {"atom": _atom("y"), "value": True},
+                "intervention": {"atom": _atom("x"), "value": True},
+                "given": []}},
+        ],
+    }
+    out = _call_tool(app, "themis_report", {"program": program})
+    report = out["reports"][0]
+    assert "verify_bounds_result" in report
+    assert "独立复核全部通过" in report
+
+
 def test_themis_list_resources_tool_returns_uri_catalog(app):
     out = _call_tool(app, "themis_list_resources", {})
     assert "prompts" in out and "schemas" in out

@@ -1515,7 +1515,7 @@ When data is supplied (`themis.estimate`), the recoverable estimand is
 carried through to a NUMBER — see the `missing_data_recovery_gformula`
 numeric row below; when it is *not* recoverable the estimator refuses (a
 `not_recoverable` `estimator_failure`), never inventing a figure. That
-number rides on a `needs_investigation` result with no derivation, so the
+number rides on a `numerically_solved` result with no derivation, so the
 derivation-gated `themis.verify` doesn't reach it;
 `themis.verify_missing_data_numeric(result)` is its audit path — it re-runs
 the g-formula Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from the recorded per-stratum
