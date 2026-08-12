@@ -154,10 +154,15 @@ def test_the_browser_translates_the_same_vocabulary_the_same_way():
 
     The web file writes half-width punctuation throughout — its own
     convention — so that substitution is the only difference allowed.
+
+    Over EVERY rule, not the causation pair. The browser renders the
+    counterfactual cell's licence too, and that block carries four licences
+    the causation block cannot — so pinned against the causation union this
+    passed while the cell's licences had no sentence in the browser at all.
+    Naming the rules rather than the enum keeps the pin honest in the other
+    direction as well: a licence no rule may write has no reader to serve.
     """
-    carried = risk_provenance.carried_by(
-        "probabilities_of_causation_tian_pearl", "numeric_causation_estimate",
-    )
+    carried = risk_provenance.carried_by(*risk_provenance.ADMISSIBLE)
     web = _web_map()
     assert set(web) == {str(p) for p in carried}
     for licence in carried:

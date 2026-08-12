@@ -350,6 +350,11 @@ def _explain_counterfactual_cell_data_zh(cell: dict) -> str:
     prov = risk_provenance.describe(
         cell.get("interventional_risk_provenance")
     )
+    # The licence says what kind of thing was leaned on; this says which
+    # column it was. A reader told "a response-function polytope" and not
+    # which variable carried it cannot go and check the assumption.
+    if cell.get("instrument"):
+        prov += f"，工具变量 `{cell['instrument']}`"
     point = cell.get("point")
     if point is not None:
         head = f"反事实单格 = {_format_number(point)}（点识别）"

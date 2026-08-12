@@ -1137,14 +1137,20 @@ def _classify_counterfactual_assumptions(
     query_kind: QueryKind,
 ) -> Iterable[DataGap]:
     """Counterfactual identification rests on premises no data can check,
-    and the list is layered: consistency + composition always; the source
-    of the interventional risk whenever the two worlds differ (a cell
-    across worlds is solved from P(Y=1|do x'), so whatever licences that
-    number — an adjustment set being sufficient, the graph being right
-    enough for the ID algorithm to identify the arm, or a randomized
-    experiment — is carried into the answer); and monotonicity only when
-    it was declared, where it sharpens an interval into a point rather
-    than being what makes an answer possible at all.
+    and the list is layered: consistency + composition always; and, whenever
+    the two worlds differ, whatever licensed the route that crossed them.
+
+    That second layer names no routes. It used to list three — an adjustment
+    set, the ID algorithm, a randomized experiment — which was the whole set
+    for as long as a cell could only be solved from a point-identified
+    P(Y=1|do x'); a cell bounded over an instrument's response polytope
+    borrows no such number and appears in none of them. The route's own
+    licence is a required field on the answer and says which one ran, so
+    this caveat says WHERE to read it instead of keeping a copy that goes
+    stale the next time the cascade grows a branch. It also stops claiming
+    the whole layer is unfalsifiable: an instrument's first stage is visible
+    in the data, and a declared monotonicity can be refuted by the very
+    program that consumed it.
 
     The user asking a counterfactual question is itself the trigger — the
     caveat applies whether the kernel solved the cell, bounded it, or
@@ -1175,11 +1181,12 @@ def _classify_counterfactual_assumptions(
         severity=GapSeverity.INFORMATIONAL,
         description=(
             "反事实推理的有效性以 consistency（观察值 = do(实际取值) 下的潜在结果）"
-            "+ composition 公理为前提；跨世界的格子还要用到一臂干预风险 "
-            "P(Y=1|do X)，它凭什么成立（调整集充分 / 图结构正确到 general ID "
-            "能识别 / 来自随机实验）也一并被继承；"
-            "单调性若声明，只是把区间收紧成点的额外前提。"
-            "这些假设都无法从数据本身验证。"
+            "+ composition 公理为前提，这两条无法从数据本身验证；"
+            "跨世界的格子还要靠某一条路线把两个世界连起来，"
+            "那条路线自己的前提也一并被继承——"
+            "具体是哪条、可不可检验，看答案上的 interventional_risk_provenance "
+            "与假设台账逐条列出的那几行；"
+            "单调性若声明，是收紧这一格的额外前提，不是回答的前提。"
         ),
         blocks=GapBlocks.INTERPRETATION,
         provenance=(

@@ -802,21 +802,36 @@ def _corner(corner: dict) -> str:
 
 
 def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
-    """Bounds on one counterfactual cell — a point would need monotonicity."""
+    """Bounds on one counterfactual cell.
+
+    WHY it is an interval is read off the licence rather than asserted. It
+    used to be stated as "no monotonicity was assumed", which is one of the
+    reasons and was the only one for as long as one solver could produce this
+    block; a cell bounded over an instrument's response polytope is an
+    interval because no interventional risk is point-identified, and a
+    declared monotonicity narrows it without pinning it.
+    """
     cell = ne.get("counterfactual_cell") or {}
     lo, hi = cell.get("lower"), cell.get("upper")
     lines = []
     if lo is not None and hi is not None:
-        lines.append(
-            f"该反事实格的**区间** [{_fmt(lo)}, {_fmt(hi)}]"
-            "（无单调性假设，故为界而非点）"
-        )
+        lines.append(f"该反事实格的**区间** [{_fmt(lo)}, {_fmt(hi)}]（界，不是点）")
     else:
         lines.append("该反事实格没有给出可呈现的界。")
+    prov = cell.get("interventional_risk_provenance")
+    if prov:
+        note = risk_provenance.describe(prov)
+        if cell.get("instrument"):
+            note += f"，工具变量 `{cell['instrument']}`"
+        lines.append(f"- {note}")
     adj = cell.get("adjustment")
     if adj:
         lines.append(f"- 干预风险经后门调整集 {{{', '.join(adj)}}} 识别")
-    lines.append("- 若可假设单调性（X 从不阻止 Y），该格可点识别。")
+    if not cell.get("monotonicity"):
+        lines.append(
+            "- 若可假设单调性（X 从不阻止 Y），这一格会被收紧——"
+            "在干预风险已知时收紧成一个点。"
+        )
     lines.extend(_estimate_meta(ne, result.get("outcome_error")))
     return "\n".join(lines)
 

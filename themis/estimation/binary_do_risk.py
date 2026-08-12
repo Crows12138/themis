@@ -58,6 +58,47 @@ def minimal_backdoor_adjustment(
     return tuple(sorted(a.predicate for a in best))
 
 
+def instrument_for(
+    graph, cause: Atom, effect: Atom, bidirected,
+) -> Atom | None:
+    """The instrument this graph declares for ``cause → effect``, if exactly one.
+
+    Pearl's graphical criterion (2009 §7.4.5), stated once: Z is an instrument
+    when it is m-separated from the outcome in the graph with the treatment's
+    OUTGOING edges deleted. That single separation carries both of the
+    conditions usually written apart — exclusion (no directed path from Z to Y
+    that bypasses X survives the deletion) and independence from the latent
+    background (a Z↔Y path, or a shared parent, is open in that graph) — so
+    they are not checked twice under two names.
+
+    Relevance is the structural edge Z→X, which is also what the
+    response-function model consumes: the map it enumerates is ``z → x``.
+
+    ``None`` when no candidate qualifies AND when several do. Several valid
+    instruments carry MORE information than any one of them, so picking one
+    would be answering a narrower question quietly; returning nothing leaves
+    the caller to say what it could not do.
+    """
+    import networkx as nx
+
+    bid = bidirected or frozenset()
+    if cause not in graph or effect not in graph:
+        return None
+    without_treatment_effects = nx.DiGraph()
+    without_treatment_effects.add_nodes_from(graph.nodes())
+    without_treatment_effects.add_edges_from(
+        (u, v) for u, v in graph.edges() if u != cause
+    )
+    candidates = [
+        z for z in graph.predecessors(cause)
+        if z != effect
+        and structural_solver.m_separated(
+            without_treatment_effects, bid, z, effect, (),
+        )
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def as_binary_column(col: pd.Series, name: str) -> np.ndarray:
     """Coerce a column to a boolean numpy array, refusing non-binary data."""
     vals = set(pd.unique(col.dropna()))

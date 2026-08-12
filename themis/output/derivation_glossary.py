@@ -112,8 +112,12 @@ SAYS: dict[str, str] = {
     "numeric_proximal_estimate": "在数据上用近端矩阵求逆（Miao 2018）求效应",
     "numeric_measurement_correction_estimate": "先用混淆矩阵校正测量误差，再求效应",
     "numeric_causation_estimate": "在数据上按 Tian-Pearl 公式求 PN/PS/PNS",
+    # Two solvers stand behind this one rule — the consistency identity, and
+    # the response-function program when an instrument is all there is — so
+    # the sentence names what the rule does and leaves which route to the
+    # licence that exists to say it.
     "numeric_counterfactual_cell_estimate":
-        "在数据上解那条一致性恒等式，求这一格反事实（并用自助法给出抽样区间）",
+        "在数据上重算这一格反事实（并用自助法给出抽样区间）",
     "numeric_ctf_conjunction_estimate": "在数据上按 ID*/IDC* 导出的式子求这个反事实合取",
     "numeric_scm_counterfactual_estimate":
         "结构方程的系数没有声明，改由每个节点的 OLS 从数据拟合，再做"

@@ -19,9 +19,11 @@ import pandas as pd
 import pytest
 
 import themis
+from themis.estimation.bounds_numeric import evaluate_balke_pearl_bounds
 from themis.estimation.causation import estimate_causation_probabilities
 from themis.estimation.counterfactual_cell import estimate_counterfactual_cell
 from themis.refusals import EstimatorFailure
+from themis.runtime import counterfactual as cf
 from themis.input.syntactic_validator import validate_result
 from themis.types import (
     Atom,
@@ -848,4 +850,325 @@ def test_verify_rejects_a_tampered_display_copy():
     bad = copy.deepcopy(res)
     bad["extensions"]["counterfactual_cell"]["upper"] = 0.99
     with pytest.raises(VerificationError):
+        themis.verify(ast, bad)
+
+
+# ============================================ the instrument route (#322)
+#
+# The cascade above stops when no do-risk is POINT-identified. An instrument
+# does not hand over the risk as a number, but it does pin down the set of
+# models the data admit, and the cell is a linear functional on that set — so
+# the same query that used to get nothing gets an interval, from a different
+# solver, under different assumptions. Balke & Pearl 1994 (UAI) is the method;
+# what these pin is that Themis takes the sharp route rather than the one that
+# reduces the instrument to a scalar first, and that it says which route ran.
+
+_BOW_IV = (_cause("z", "x"), _cause("x", "y"))
+
+
+def _bow_iv_graph():
+    """Z → X → Y with an unmeasured common cause of X and Y.
+
+    The do-risk is not identified from this graph by any covariate set, and ID
+    returns a hedge; the instrument is the only thing left that says anything.
+    """
+    g = nx.DiGraph()
+    g.add_edges_from([(Z, X), (X, Y)])
+    return g
+
+
+def _sample_bow_iv(n: int, seed: int):
+    """Rank-preserving SCM behind a bow arc, driven by an instrument.
+
+    The latent ``w`` moves both the treatment and the outcome, so no measured
+    set blocks the back door; ``z`` moves only the treatment. Returns the
+    frame the estimator sees together with the two potential outcomes it
+    cannot see, so a test can count units instead of re-deriving a theorem.
+    """
+    rng = np.random.default_rng(seed)
+    w = rng.random(n) < 0.5
+    z = rng.random(n) < 0.5
+    u = rng.random(n)
+    y0 = u < np.where(w, 0.55, 0.15)
+    y1 = u < np.where(w, 0.90, 0.45)
+    x = rng.random(n) < np.where(z, np.where(w, 0.85, 0.55),
+                                 np.where(w, 0.35, 0.10))
+    y = np.where(x, y1, y0)
+    return pd.DataFrame({"x": x, "y": y, "z": z}), y0, y1
+
+
+def _true_pn(df, y0):
+    sel = df["x"].to_numpy() & df["y"].to_numpy()
+    return float((~y0[sel]).mean())
+
+
+def _iv_cell(df, *, mono=None, graph=None, bidirected=_LATENT, **qkw):
+    kw = dict(x_obs=True, x_cf=False, y_star=False, factual_y=True)
+    kw.update(qkw)
+    return estimate_counterfactual_cell(
+        df, graph=graph if graph is not None else _bow_iv_graph(),
+        bidirected=bidirected,
+        query=_query(mono=mono, **kw), ci_bootstrap=0,
+    )
+
+
+def test_a_bow_arc_with_an_instrument_is_answered_instead_of_refused():
+    """The registered gap, as a behaviour: this cell used to have no number.
+
+    The route is named on the answer, no interventional risk is reported
+    beside it (there is none to report), and the interval covers the SCM's
+    own PN — counted off the potential outcomes, not re-derived.
+    """
+    df, y0, _y1 = _sample_bow_iv(40_000, seed=7)
+    est = _iv_cell(df)
+    assert est.interventional_risk_provenance == "instrument_response_polytope"
+    assert est.instrument == "z"
+    assert est.p_y_do_x_cf is None
+    assert est.point is None
+    assert est.low <= _true_pn(df, y0) <= est.high
+    assert est.high - est.low < 1.0     # it says something
+
+
+def test_the_cell_is_bounded_sharply_rather_than_through_the_arm_interval():
+    """Sharpness, against the honest alternative rather than against nothing.
+
+    Bounding the ARM with Balke-Pearl and then running the consistency
+    identity at both ends of that interval is valid — and weaker, because the
+    identity takes the risk as a scalar and a scalar cannot carry that one
+    distribution has to produce both the risk and the cell. Both are shipped
+    APIs here, so the comparison is between two things Themis can actually do.
+    """
+    df, _y0, _y1 = _sample_bow_iv(40_000, seed=7)
+    arm = evaluate_balke_pearl_bounds(
+        df, treatment="x", outcome="y", instrument="z",
+        treatment_value=False, outcome_value=True, ci_bootstrap=0,
+    )
+    query = _query(x_obs=True, x_cf=False, y_star=False, factual_y=True)
+    twin = cf.project_twin_network(_bow_iv_graph(), _LATENT, query)
+    x = df["x"].to_numpy()
+    y = df["y"].to_numpy()
+    joint = {
+        (xv, yv): float(((x == xv) & (y == yv)).mean())
+        for xv in (True, False) for yv in (True, False)
+    }
+    two_step = [
+        cf.counterfactual_cell_interval(twin, query, joint, p_y_do_x_cf=r)
+        for r in (arm.lower_value, arm.upper_value)
+    ]
+    lo = min(i.low for i in two_step)
+    hi = max(i.high for i in two_step)
+
+    est = _iv_cell(df)
+    assert lo - 1e-9 <= est.low and est.high <= hi + 1e-9
+    assert est.high - est.low < (hi - lo) - 1e-6
+
+
+def test_a_declared_monotonicity_narrows_the_polytope():
+    """It is a constraint on this route too, not an assumption it ignores."""
+    df, y0, _y1 = _sample_bow_iv(40_000, seed=7)
+    free = _iv_cell(df)
+    pinned = _iv_cell(df, mono=Monotonicity.NON_DECREASING)
+    assert free.low <= pinned.low and pinned.high <= free.high
+    assert pinned.high - pinned.low < free.high - free.low
+    assert pinned.low <= _true_pn(df, y0) <= pinned.high
+    assert pinned.monotonicity == "non_decreasing"
+
+
+def test_the_polytope_refutes_a_monotonicity_the_data_contradict():
+    """The gate this route earns: the pin route cannot be refuted at all.
+
+    ``_sample_bow_iv`` is rank-preserving, so no unit's outcome moves against
+    the treatment. Declaring the OPPOSITE direction empties the type space,
+    and the refusal says the assumption is what failed rather than the
+    instrument — which the caller can act on and 'infeasible' cannot.
+    """
+    df, _y0, _y1 = _sample_bow_iv(40_000, seed=7)
+    with pytest.raises(EstimatorFailure) as excinfo:
+        _iv_cell(df, mono=Monotonicity.NON_INCREASING)
+    assert excinfo.value.failure_type == "counterfactual_inputs_infeasible"
+    assert "monotonicity" in str(excinfo.value)
+
+
+def test_the_monotonicity_this_route_carries_is_marked_testable():
+    """It was read off "was a risk an input", which is a different question.
+
+    The polytope consumes no risk and can still empty out, so the ledger line
+    that says the data cannot refute this assumption would be false here.
+    """
+    df, _y0, _y1 = _sample_bow_iv(20_000, seed=7)
+    est = _iv_cell(df, mono=Monotonicity.NON_DECREASING)
+    mono = [
+        s for s in est.identification_assumptions
+        if s["id"].startswith("monotonicity_")
+    ]
+    assert len(mono) == 1
+    assert mono[0]["testable"] is True
+    assert "无从推翻" not in mono[0]["claim"]
+
+
+def test_the_ett_cell_is_bounded_too_when_no_factual_outcome_is_given():
+    """Without the factual outcome the identity point-identifies from a risk;
+    with no risk to be had, the same cell is an interval over the polytope."""
+    df, y0, _y1 = _sample_bow_iv(40_000, seed=7)
+    est = _iv_cell(df, factual_y=None)
+    truth = float((~y0[df["x"].to_numpy()]).mean())
+    assert est.instrument == "z"
+    assert est.low <= truth <= est.high
+
+
+def test_a_point_identified_do_risk_still_wins_over_the_instrument():
+    """The cascade's order is not arbitrary: a point beats an interval.
+
+    This graph carries BOTH a measured confounder and an instrument, so a
+    route chosen by availability rather than by strength would answer a
+    perfectly identified cell with bounds.
+    """
+    df = _sample_nonmono(20_000, seed=21)
+    g = nx.DiGraph()
+    g.add_edges_from([(Z, X), (Z, Y), (X, Y)])
+    est = estimate_counterfactual_cell(
+        df, graph=g, bidirected=frozenset(),
+        query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+        ci_bootstrap=0,
+    )
+    assert est.interventional_risk_provenance == "backdoor_adjustment"
+    assert est.instrument is None
+
+
+def test_a_candidate_with_a_path_to_the_outcome_is_not_an_instrument():
+    """Exclusion is checked on the graph, not assumed of anything upstream."""
+    df, _y0, _y1 = _sample_bow_iv(20_000, seed=7)
+    leaky = nx.DiGraph()
+    leaky.add_edges_from([(Z, X), (Z, Y), (X, Y)])
+    with pytest.raises(EstimatorFailure) as excinfo:
+        estimate_counterfactual_cell(
+            df, graph=leaky, bidirected=_LATENT,
+            query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+            ci_bootstrap=0,
+        )
+    assert excinfo.value.failure_type == "interventional_risk_not_identifiable"
+
+
+def test_two_valid_instruments_are_not_silently_narrowed_to_one():
+    """Several instruments carry more than any one of them.
+
+    Answering from one would be a claim about a smaller model than the graph
+    describes, and nothing on the answer would say so.
+    """
+    df, _y0, _y1 = _sample_bow_iv(20_000, seed=7)
+    df = df.assign(z2=df["z"].to_numpy()[::-1])
+    two = nx.DiGraph()
+    two.add_edges_from([(Z, X), (Atom(predicate="z2", args=()), X), (X, Y)])
+    with pytest.raises(EstimatorFailure) as excinfo:
+        estimate_counterfactual_cell(
+            df, graph=two, bidirected=_LATENT,
+            query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+            ci_bootstrap=0,
+        )
+    assert excinfo.value.failure_type == "interventional_risk_not_identifiable"
+
+
+def test_an_instrument_too_wide_to_solve_says_so_instead_of_falling_back():
+    """The cap is not silent. The LP is re-solved once per bootstrap draw, so
+    the size is a real limit — and a caller told nothing would read the
+    weaker route it fell back to as the best available."""
+    df, _y0, _y1 = _sample_bow_iv(4_000, seed=7)
+    rng = np.random.default_rng(0)
+    df = df.assign(z=rng.integers(0, 40, size=len(df)))
+    with pytest.raises(EstimatorFailure) as excinfo:
+        _iv_cell(df)
+    assert excinfo.value.failure_type == "response_model_too_large"
+    assert "40" in str(excinfo.value)
+
+
+# ---------------------------------------------------------------- wiring
+def _iv_estimated(seed=7, n=40_000, ci_bootstrap=20, **qkw):
+    df, _y0, _y1 = _sample_bow_iv(n, seed=seed)
+    kw = dict(x_obs=True, x_cf=False, y_star=False, factual_y=True)
+    kw.update(qkw)
+    ast = _ast(_BOW_IV, bidirected=_BIDIRECTED_XY, **kw)
+    return ast, _result(themis.estimate(ast, df, ci_bootstrap=ci_bootstrap))
+
+
+def test_the_instrument_route_is_wired_end_to_end():
+    ast, res = _iv_estimated()
+    validate_result(res)
+    assert res["status"] == "numerically_solved"
+    cell = res["numeric_estimate"]["counterfactual_cell"]
+    assert cell["interventional_risk_provenance"] == "instrument_response_polytope"
+    assert cell["instrument"] == "z"
+    assert cell["p_y_do_x_cf"] is None
+    assert cell["adjustment"] == []
+    assert res["numeric_result"]["interval"]["low"] == pytest.approx(cell["lower"])
+    assert res["data_gap_report"]["answer_tier"] == "interval"
+
+
+def test_the_report_names_the_column_the_interval_leaned_on():
+    """A reader told "a response-function polytope" and not which variable
+    carried it cannot go and check the assumption."""
+    ast, res = _iv_estimated(ci_bootstrap=0)
+    report = themis.build_analysis_report(res, program=ast)
+    assert "工具变量 `z`" in report
+    # And the reason it is an interval is the route, not a missing
+    # monotonicity — the report used to assert the latter unconditionally.
+    assert "无单调性假设，故为界而非点" not in report
+
+
+def test_verify_accepts_the_instrument_route():
+    ast, res = _iv_estimated()
+    themis.verify(ast, res)
+
+
+def test_verify_rejects_a_tampered_instrument_interval():
+    ast, res = _iv_estimated()
+    bad = copy.deepcopy(res)
+    step = bad["derivation"]["steps"][0]["inputs"]
+    step["lower"] = float(step["lower"]) + 0.2
+    bad["numeric_result"]["interval"]["low"] = step["lower"]
+    bad["extensions"]["counterfactual_cell"]["lower"] = step["lower"]
+    bad["numeric_estimate"]["counterfactual_cell"]["lower"] = step["lower"]
+    with pytest.raises(VerificationError, match="re-solved cell value"):
+        themis.verify(ast, bad)
+
+
+def test_verify_rejects_a_column_that_is_not_this_graphs_instrument():
+    """The arithmetic is right for whichever column was fed in, so the column
+    itself is what has to be re-derived from the graph."""
+    ast, res = _iv_estimated()
+    bad = copy.deepcopy(res)
+    bad["derivation"]["steps"][0]["inputs"]["instrument"] = "y"
+    with pytest.raises(VerificationError, match="not the instrument"):
+        themis.verify(ast, bad)
+
+
+def test_verify_rejects_a_table_that_contradicts_the_reported_joint():
+    """The two halves of the envelope have to agree with each other: a forged
+    interval now needs a forged table that still marginalises to the four
+    cells the identity route is audited on."""
+    ast, res = _iv_estimated()
+    bad = copy.deepcopy(res)
+    table = bad["derivation"]["steps"][0]["inputs"]["p_xyz"]
+    row = table["items"][0]["items"][0]["items"]
+    row[0] += 0.05
+    row[1] -= 0.05
+    with pytest.raises(VerificationError, match="marginalises"):
+        themis.verify(ast, bad)
+
+
+def test_verify_rejects_an_interval_that_dropped_the_declared_monotonicity():
+    """The assumption is read off the query, so a producer cannot report the
+    wider unrestricted interval while the caller's declaration says the type
+    space was smaller."""
+    ast, res = _iv_estimated(
+        assumptions={"monotonicity": "non_decreasing"})
+    free = _iv_cell(_sample_bow_iv(40_000, seed=7)[0])
+    bad = copy.deepcopy(res)
+    for holder in (
+        bad["derivation"]["steps"][0]["inputs"],
+        bad["extensions"]["counterfactual_cell"],
+        bad["numeric_estimate"]["counterfactual_cell"],
+    ):
+        holder["lower"], holder["upper"] = free.low, free.high
+    bad["numeric_result"]["interval"] = {"low": free.low, "high": free.high}
+    with pytest.raises(VerificationError, match="re-solved cell value"):
         themis.verify(ast, bad)

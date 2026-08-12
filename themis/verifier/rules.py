@@ -7062,6 +7062,7 @@ _RISK_PROVENANCES_BY_RULE: dict[str, frozenset[str]] = {
     }),
     "numeric_counterfactual_cell_estimate": frozenset({
         "not_required", "pinned_by_monotonicity",
+        "instrument_response_polytope",
         "user_experimental", "exogenous", "backdoor_adjustment",
         "general_id_plug_in",
     }),
@@ -7078,8 +7079,15 @@ nothing else — the rule fixes both how many arms the answer needs and
 whether they came from theta or from data.
 """
 
-_RISK_FREE = frozenset({"not_required", "pinned_by_monotonicity"})
-"""The two licences that claim no interventional risk was used at all."""
+_RISK_FREE = frozenset({
+    "not_required", "pinned_by_monotonicity", "instrument_response_polytope",
+})
+"""The licences that claim no interventional risk was used at all.
+
+Two of them say the cell never needed one. The third says one was needed and
+could not be point-identified, and that the answer went around it — which is a
+different claim and is checked differently below, but reaches this set by the
+same road: nothing on the producer's side may report a risk beside it."""
 
 
 def _check_risk_provenance(
@@ -7293,10 +7301,19 @@ def _rule_numeric_counterfactual_cell_estimate(
             step_index=step_index, rule=rule,
         )
 
-    # 1. Identity re-application on the reported empirical inputs.
-    exp_low, exp_high = _solve_counterfactual_cell_for_verifier(
-        query, joint, p_y_do_x_cf=risk, step_index=step_index, rule=rule,
-    )
+    # 1. Re-derivation on the reported empirical inputs — by whichever solver
+    #    the licence says ran. The identity has no answer for the instrument
+    #    route (it would demand the very risk that route exists because nobody
+    #    has), so choosing here is not a shortcut: it is the same question
+    #    asked of the same producer through the program it actually solved.
+    if provenance == "instrument_response_polytope":
+        exp_low, exp_high = _rederive_cell_over_response_polytope(
+            ctx, inputs, query, joint, step_index=step_index, rule=rule,
+        )
+    else:
+        exp_low, exp_high = _solve_counterfactual_cell_for_verifier(
+            query, joint, p_y_do_x_cf=risk, step_index=step_index, rule=rule,
+        )
     reported_low = float(_require(inputs, "lower", step_index, rule))
     reported_high = float(_require(inputs, "upper", step_index, rule))
     for label, reported_v, expected_v in (
@@ -7360,6 +7377,10 @@ def _rule_numeric_counterfactual_cell_estimate(
             _check_cf_cell_general_id_risk(
                 ctx, inputs, query, step_index=step_index, rule=rule,
             )
+        elif provenance == "instrument_response_polytope":
+            _check_cf_cell_instrument(
+                ctx, inputs, query, step_index=step_index, rule=rule,
+            )
 
     # 4. CI (present only when a bootstrap ran). A point must sit inside its
     #    percentile CI; the interval answer's OUTER band is a bootstrap
@@ -7397,6 +7418,209 @@ def _rule_numeric_counterfactual_cell_estimate(
             f"{rule} output.value must be True",
             step_index=step_index, rule=rule,
         )
+
+
+def _check_cf_cell_instrument(
+    ctx: VerificationContext,
+    inputs: dict,
+    query,
+    *,
+    step_index: int,
+    rule: str,
+) -> None:
+    """Re-derive, from ``ctx.graph`` alone, that the claimed column IS an
+    instrument for this treatment and outcome.
+
+    Pearl's criterion transcribed here rather than imported: an instrument is
+    m-separated from the outcome once the treatment's outgoing edges are cut,
+    and has an edge into the treatment. A producer that named a covariate, a
+    mediator, or a second confounder as its instrument would otherwise be
+    audited only on arithmetic it did consistently — and the arithmetic is
+    correct for whichever column it fed in.
+
+    Uniqueness is re-derived too. Two valid instruments carry more information
+    than either alone, so a producer reporting one of them has bounded the
+    right quantity from less than the graph offered; the verifier rejects it
+    rather than confirming a claim about a narrower model.
+    """
+    from ..runtime import structural_solver
+
+    import networkx as nx
+
+    claimed = inputs.get("instrument")
+    if not isinstance(claimed, str) or not claimed:
+        raise RuleCheckFailed(
+            f"{rule}: provenance 'instrument_response_polytope' names no "
+            f"instrument column; got {claimed!r}",
+            step_index=step_index, rule=rule,
+        )
+    treatment = query.observed.atom
+    outcome = query.counterfactual_target.atom
+    cut = nx.DiGraph()
+    cut.add_nodes_from(ctx.graph.nodes())
+    cut.add_edges_from(
+        (u, v) for u, v in ctx.graph.edges() if u != treatment
+    )
+    bid = ctx.bidirected or frozenset()
+    valid = [
+        z for z in ctx.graph.predecessors(treatment)
+        if z != outcome
+        and structural_solver.m_separated(cut, bid, z, outcome, ())
+    ]
+    if len(valid) != 1 or valid[0].predicate != claimed:
+        raise RuleCheckFailed(
+            f"{rule}: {claimed!r} is not the instrument this graph declares "
+            f"for {treatment.predicate} → {outcome.predicate}; re-deriving it "
+            f"gives {sorted(z.predicate for z in valid)}",
+            step_index=step_index, rule=rule,
+        )
+
+
+def _rederive_cell_over_response_polytope(
+    ctx: VerificationContext,
+    inputs: dict,
+    query,
+    joint: dict,
+    *,
+    step_index: int,
+    rule: str,
+) -> tuple[float, float]:
+    """Re-solve the counterfactual cell over the recorded ``P(X, Y | Z)``.
+
+    The producer records the table its polytope was fitted to, together with
+    the instrument levels that say what the table's first axis means. This
+    re-runs the verifier's OWN transcription of the response-function LP on it
+    against an independently written objective, and reads the cell's
+    coordinates and its declared monotonicity off ``ctx.query`` — never off
+    the step, so a producer cannot answer an easier cell, or quietly drop the
+    assumption that narrowed it, and have the arithmetic still agree.
+
+    The table is also checked to marginalise to the reported observational
+    joint. A forged interval now needs a forged table that is a valid family
+    of conditional distributions AND reproduces the four cells the identity
+    route is audited on — the two halves of the envelope have to agree with
+    each other, not merely be internally tidy.
+    """
+    import numpy as np
+
+    from .bounds_rules import _verifier_response_lp
+
+    raw = inputs.get("p_xyz")
+    p_z_raw = inputs.get("p_z")
+    levels = inputs.get("instrument_levels")
+    try:
+        P = np.asarray(raw, dtype=float)
+        p_z = np.asarray(p_z_raw, dtype=float)
+    except (TypeError, ValueError):
+        raise RuleCheckFailed(
+            f"{rule}: p_xyz / p_z must be numeric arrays; got "
+            f"{raw!r} / {p_z_raw!r}",
+            step_index=step_index, rule=rule,
+        )
+    if P.ndim != 3 or P.shape[0] < 2 or P.shape[1:] != (2, 2):
+        raise RuleCheckFailed(
+            f"{rule}: p_xyz must be a |Z|x2x2 table with at least two "
+            f"instrument levels; got shape {P.shape}",
+            step_index=step_index, rule=rule,
+        )
+    nz = int(P.shape[0])
+    if p_z.shape != (nz,) or not isinstance(levels, (list, tuple)) or len(levels) != nz:
+        raise RuleCheckFailed(
+            f"{rule}: p_z and instrument_levels must each carry the {nz} "
+            f"levels the recorded p_xyz has",
+            step_index=step_index, rule=rule,
+        )
+    if abs(float(p_z.sum()) - 1.0) > 1e-6 or np.any(p_z < -1e-9):
+        raise RuleCheckFailed(
+            f"{rule}: p_z is not a distribution over the instrument's levels",
+            step_index=step_index, rule=rule,
+        )
+    for z in range(nz):
+        if abs(float(P[z].sum()) - 1.0) > 1e-6 or np.any(P[z] < -1e-9):
+            raise RuleCheckFailed(
+                f"{rule}: p_xyz[Z={z}] is not a conditional distribution "
+                f"over (X, Y)",
+                step_index=step_index, rule=rule,
+            )
+    for xi, xv in ((0, False), (1, True)):
+        for yi, yv in ((0, False), (1, True)):
+            marginal = float(sum(p_z[z] * P[z, xi, yi] for z in range(nz)))
+            if abs(marginal - joint[(xv, yv)]) > 1e-6:
+                raise RuleCheckFailed(
+                    f"{rule}: the recorded p_xyz marginalises to "
+                    f"P(X={xv}, Y={yv}) = {marginal:.6g}, but the same "
+                    f"envelope reports {joint[(xv, yv)]:.6g}",
+                    step_index=step_index, rule=rule,
+                )
+
+    x_obs = int(bool(query.observed.value))
+    x_cf = int(bool(query.counterfactual_intervention.value))
+    y_star = int(bool(query.counterfactual_target.value))
+    factual_y = query.factual_target_known
+    y_fact = None if factual_y is None else int(bool(factual_y))
+
+    # gy is indexed by treatment position; the four outcome-response maps are
+    # (gy[0], gy[1]). A declared monotonicity is the claim that no unit's
+    # outcome moves against the treatment, so it deletes one of them.
+    gys = [(a, b) for a in (0, 1) for b in (0, 1)]
+    monotonicity = (
+        None if query.assumptions is None else query.assumptions.monotonicity
+    )
+    keep = [True] * len(gys)
+    if monotonicity is not None:
+        direction = getattr(monotonicity, "value", monotonicity)
+        if direction not in ("non_decreasing", "non_increasing"):
+            raise RuleCheckFailed(
+                f"{rule}: unknown monotonicity {direction!r} on the query",
+                step_index=step_index, rule=rule,
+            )
+        keep = [
+            (gy[0] <= gy[1]) if direction == "non_decreasing"
+            else (gy[0] >= gy[1])
+            for gy in gys
+        ]
+
+    fxs = [f for f in _instrument_response_maps(nz)]
+    objective = []
+    for fx in fxs:
+        for j, gy in enumerate(gys):
+            hits = (
+                keep[j]
+                and gy[x_cf] == y_star
+                and (y_fact is None or gy[x_obs] == y_fact)
+            )
+            weight = sum(p_z[z] for z in range(nz) if fx[z] == x_obs)
+            objective.append(float(weight) if hits else 0.0)
+    denominator = float(sum(
+        p_z[z] * (P[z, x_obs, y_fact] if y_fact is not None
+                  else P[z, x_obs, :].sum())
+        for z in range(nz)
+    ))
+    # Forbidding a response type is the statement that no unit is of it, which
+    # the LP reads as a zero column; the transcription below zeroes the
+    # objective AND the mass, so a type the assumption excludes cannot appear
+    # in a feasible solution at all.
+    low, high = _verifier_response_lp(
+        P, 2, 2, nz, objective, rule,
+        forbidden=[
+            i * len(gys) + j
+            for i in range(len(fxs)) for j in range(len(gys)) if not keep[j]
+        ],
+    )
+    if denominator <= 0.0:
+        return 0.0, 1.0
+    return (
+        min(max(low / denominator, 0.0), 1.0),
+        min(max(high / denominator, 0.0), 1.0),
+    )
+
+
+def _instrument_response_maps(nz: int):
+    """Every ``z → x`` map for a binary treatment and ``nz`` instrument
+    levels, as tuples indexed by level position."""
+    import itertools
+
+    return list(itertools.product((0, 1), repeat=nz))
 
 
 def _check_cf_cell_general_id_risk(

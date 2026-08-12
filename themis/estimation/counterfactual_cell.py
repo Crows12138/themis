@@ -17,6 +17,18 @@ which matters, because the PN cell asked through THIS door and PN asked through
 the ``causation`` door are the same number, and they now share the same
 empirical inputs on the data side as well as the same theorem on the theta side.
 
+There is a SECOND way to answer the cell, and it is not the identity. When the
+interventional risk is not point-identified but the graph carries an
+instrument, the cell is bounded directly over the response-type distributions
+that reproduce ``P(X, Y | Z)`` — the polytope Balke-Pearl's arm bounds are read
+off, with the cell as another linear functional on it
+(:func:`themis.estimation.bounds_numeric.counterfactual_cell_response_bounds`).
+Feeding the arm's INTERVAL through the identity instead would also be valid and
+is strictly weaker: the identity consumes the risk as a scalar, and a scalar
+cannot carry the requirement that one distribution produce both the risk and
+the cell. Measured over random binary IV models, the two-step route says
+something non-trivial about a third as many of them.
+
 What the data end adds over the theta end:
 
 - SAMPLING uncertainty. The theta end answers from a declared distribution and
@@ -37,9 +49,18 @@ Scope (declared):
   that is observed (the cell is indexed by that variable's two values).
 - The interventional risk is identified by BACK-DOOR adjustment (the empty set
   = exogeneity being the special case), by the general ID algorithm when no
-  adjustment set exists, or supplied experimentally. Only when ALL of those
-  fail is the cell answerable purely from a monotonicity that pins it; failing
-  that the estimator refuses and the structural answer stands.
+  adjustment set exists, or supplied experimentally. When none of those reach
+  it, the graph is asked for an instrument and the cell is bounded over the
+  response-type polytope instead. Only when THAT fails too is the cell
+  answerable purely from a monotonicity that pins it; failing that the
+  estimator refuses and the structural answer stands.
+- A declared monotonicity is an extra CONSTRAINT on every route, never a
+  second formula: on the identity it pins one cell, and on the instrument it
+  removes the response types whose outcome moves against the treatment. The
+  instrument route is preferred over the pin where both apply, because the
+  pin's own assumption is unfalsifiable without a risk and the polytope can
+  refute it — an infeasible program under the restriction, feasible without,
+  IS the data contradicting the declared direction.
 - The adjustment set must be DISCRETE, and every stratum must have support
   under the arm being standardized (a positivity violation raises). The
   general-ID plug-in likewise needs every stratum its estimand conditions on
@@ -64,12 +85,19 @@ import pandas as pd
 from ..runtime import counterfactual as cf
 from .. import risk_provenance
 from ..risk_provenance import RiskProvenance
-from ..types import CounterfactualQuery
+from ..output.bounds import MAX_RESPONSE_TYPES, response_type_count
+from ..types import Atom, CounterfactualQuery, NumericInterval
 from .binary_do_risk import (
     as_binary_column,
     backdoor_do_risk,
+    instrument_for,
     minimal_backdoor_adjustment,
     observational_joint_xy,
+)
+from .bounds_numeric import (
+    counterfactual_cell_iv_table,
+    counterfactual_cell_response_bounds,
+    sorted_levels,
 )
 from .contract import validate_data
 from .. import refusals
@@ -117,6 +145,16 @@ class CounterfactualCellEstimate:
     p_y_do_x_cf: float | None
     interventional_risk_provenance: RiskProvenance
     adjustment: tuple[str, ...]
+    # The instrument route's sufficient statistic. ``instrument`` is None on
+    # every other route; when it is set, ``p_xyz`` (|Z|×2×2, positions 0=False
+    # 1=True) and ``p_z`` are what the polytope was fitted to and the verifier
+    # re-solves the same program from them. The level list travels WITH the
+    # table because the table's own shape says nothing about which stratum is
+    # which, and a permuted reading re-derives a different interval.
+    instrument: str | None
+    instrument_levels: tuple
+    p_xyz: tuple
+    p_z: tuple
     # The general-ID estimand the risk was evaluated from, when that is how it
     # was identified (None otherwise). Carried into the derivation so the
     # verifier can re-derive it and check the arm that was actually evaluated.
@@ -215,6 +253,7 @@ def estimate_counterfactual_cell(
     supplied: float | None = None
     adjustment: tuple[str, ...] = ()
     risk_formula = None
+    instrument: Atom | None = None
     if x_cf == x_obs:
         provenance = RiskProvenance.NOT_REQUIRED
     else:
@@ -245,11 +284,17 @@ def estimate_counterfactual_cell(
                         arm_value=x_cf, outcome_value=True,
                     )
                 except EstimatorFailure:
-                    # Genuinely unidentified (a bow arc): no do-risk from this
-                    # frame at all. The cell may STILL be determined if
-                    # monotonicity pins it — the solver decides, and refuses
-                    # (InterventionalRiskRequired) if not.
-                    provenance = RiskProvenance.PINNED_BY_MONOTONICITY
+                    # No do-risk is POINT-identified from this frame (a bow
+                    # arc). That is the end of the identity's road, not of
+                    # identification: an instrument does not deliver the risk
+                    # as a number, but it does deliver the set of models the
+                    # data admit, and the cell is a linear functional on it.
+                    instrument = instrument_for(graph, x_atom, y_atom, bidirected)
+                    provenance = (
+                        RiskProvenance.PINNED_BY_MONOTONICITY
+                        if instrument is None
+                        else RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
+                    )
                 else:
                     provenance = RiskProvenance.GENERAL_ID_PLUG_IN
             else:
@@ -258,9 +303,12 @@ def estimate_counterfactual_cell(
                     else RiskProvenance.BACKDOOR_ADJUSTMENT
                 )
 
+    zcol = None if instrument is None else instrument.predicate
     required = {xcol, ycol, *adjustment}
     if risk_formula is not None:
         required |= referenced_predicates(risk_formula)
+    if zcol is not None:
+        required.add(zcol)
     presence = (cluster,) if cluster is not None else ()
     groups = (
         cluster_labels(data, cluster, expected_n=len(data))
@@ -281,10 +329,39 @@ def estimate_counterfactual_cell(
     # sum ranges are pinned to the FULL-data domains, so every bootstrap draw
     # evaluates the same estimand rather than a quietly narrower one.
     domains = data_domains(graph, df) if risk_formula is not None else {}
+    # The instrument's levels are likewise fixed on the FULL data, so every
+    # replicate is fitted to a table with the same axes; a draw that happens to
+    # miss a stratum is a positivity failure of that draw, not a smaller model.
+    z_levels = [] if zcol is None else sorted_levels(df[zcol])
+    if zcol is not None:
+        _refuse_unless_the_polytope_is_solvable(zcol, z_levels)
+    monotone = (
+        query.assumptions.monotonicity
+        if query.assumptions is not None else None
+    )
 
     def _run(x_arr, y_arr, frame):
-        """Empirical joint + (if the cell needs it) the one do-risk → solver."""
+        """Empirical joint, then whichever solver this route licenses.
+
+        The fourth return is the instrument route's sufficient statistic — the
+        very table the reported interval came out of, rather than a second
+        pass over the same frame that could differ from it.
+        """
         joint = observational_joint_xy(x_arr, y_arr)
+        if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+            # No scalar risk passes through on this route: the polytope is
+            # fitted to the conditional table and the cell read off it.
+            P, p_z = counterfactual_cell_iv_table(
+                x_arr, y_arr, frame[zcol].to_numpy(), z_levels,
+            )
+            low, high = counterfactual_cell_response_bounds(
+                P, p_z,
+                x_observed=int(x_obs), x_counterfactual=int(x_cf),
+                y_star=int(y_star),
+                factual_y=None if factual_y is None else int(factual_y),
+                monotonicity=monotone,
+            )
+            return joint, None, NumericInterval(low=low, high=high), (P, p_z)
         if provenance is RiskProvenance.USER_EXPERIMENTAL:
             risk = float(supplied)
         elif provenance in (RiskProvenance.EXOGENOUS,
@@ -297,11 +374,11 @@ def estimate_counterfactual_cell(
         interval = cf.counterfactual_cell_interval(
             twin, query, joint, p_y_do_x_cf=risk,
         )
-        return joint, risk, interval
+        return joint, risk, interval, None
 
     # 3. Point estimate.
     try:
-        joint, risk, interval = _run(x, y, df)
+        joint, risk, interval, iv_table = _run(x, y, df)
     except cf.InterventionalRiskRequired as need:
         # Its own branch for the message, not for the species: this is the
         # one case where the solver's sentence is not the one to show, since
@@ -348,6 +425,10 @@ def estimate_counterfactual_cell(
         p_y_do_x_cf=risk,
         interventional_risk_provenance=risk_provenance.stamp(_RULE, provenance),
         adjustment=adjustment,
+        instrument=zcol,
+        instrument_levels=tuple(_py(v) for v in z_levels),
+        p_xyz=_nested(iv_table[0]) if iv_table else (),
+        p_z=tuple(float(v) for v in iv_table[1]) if iv_table else (),
         risk_formula=risk_formula,
         x_observed=bool(x_obs), x_counterfactual=bool(x_cf),
         y_star=bool(y_star), factual_target_known=factual_y,
@@ -359,20 +440,75 @@ def estimate_counterfactual_cell(
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         cause=xcol, effect=ycol,
-        model_assumption=_model_assumption(provenance),
-        form=(
-            "nonparametric_c_factor_plug_in"
-            if provenance is RiskProvenance.GENERAL_ID_PLUG_IN
-            else "nonparametric_gformula_plug_in"
+        model_assumption=_model_assumption(provenance, zcol),
+        form=_FORM_BY_PROVENANCE.get(
+            provenance, "nonparametric_gformula_plug_in",
         ),
         identification_assumptions=_identification_assumptions(
-            provenance, adjustment, monotonicity,
+            provenance, adjustment, monotonicity, zcol,
         ),
         cluster=cluster,
     )
 
 
 # --- internals ----------------------------------------------------------------
+
+
+#: The mechanism sentence's short name, by the route that produced it. Only
+#: the routes that depart from the g-formula appear; the table is a lookup
+#: with a default rather than a chain because a fourth route added to the
+#: cascade should be a row here, not another branch to get the order right in.
+_FORM_BY_PROVENANCE = {
+    RiskProvenance.GENERAL_ID_PLUG_IN: "nonparametric_c_factor_plug_in",
+    RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+        "nonparametric_response_function_lp",
+}
+
+
+def _refuse_unless_the_polytope_is_solvable(zcol: str, z_levels: list) -> None:
+    """The instrument route's two preconditions on the instrument column.
+
+    An instrument that never varies enumerates one ``z → x`` map and carries
+    no information; one with too many levels enumerates ``2^|Z| · 4`` types and
+    the LP behind them is re-solved once per bootstrap replicate. Neither is a
+    reason to fall back quietly to a route that would have answered a weaker
+    question — the caller is told which of its columns is the obstacle and
+    what to do to it.
+    """
+    if len(z_levels) < 2:
+        raise EstimatorFailure(
+            Refusal.INSUFFICIENT_SUPPORT,
+            f"instrument {zcol!r} takes a single value "
+            f"({refusals.describe(z_levels)}) in this sample; an instrument "
+            f"that never varies carries no response types to bound over.",
+        )
+    if response_type_count(
+        treatment_levels=2, outcome_levels=2, instrument_levels=len(z_levels),
+    ) is None:
+        raise EstimatorFailure(
+            Refusal.RESPONSE_MODEL_TOO_LARGE,
+            f"instrument {zcol!r} has {len(z_levels)} observed levels, so the "
+            f"response-function partition has 2^{len(z_levels)}·4 types — "
+            f"above the {MAX_RESPONSE_TYPES} this package solves. The sharp "
+            f"interval exists; it is the LP, re-solved once per bootstrap "
+            f"replicate, that is declined. Coarsening the instrument brings "
+            f"the method back in reach.",
+        )
+
+
+def _nested(P: np.ndarray) -> tuple:
+    """The ``P(X, Y | Z)`` table as plain nested tuples of floats, so what the
+    envelope carries is what the LP consumed and not a numpy view of it."""
+    return tuple(
+        tuple(tuple(float(P[z, x, y]) for y in range(P.shape[2]))
+              for x in range(P.shape[1]))
+        for z in range(P.shape[0])
+    )
+
+
+def _py(v):
+    """A numpy scalar as the Python value it stands for."""
+    return v.item() if isinstance(v, np.generic) else v
 
 
 def _bootstrap_cell(
@@ -391,6 +527,12 @@ def _bootstrap_cell(
     counted infeasible when its empirical inputs admit no SCM under the
     declared assumptions; a draw dropped for a positivity hole is neither used
     nor infeasible (the assumption is not what failed).
+
+    The count keys on WHICH FAILURE it was, not on which exception class
+    carried it. The two solvers raise from different hierarchies — the
+    identity through :mod:`themis.runtime.counterfactual`, the polytope as an
+    estimator refusal — and one refutation of the same declared assumption
+    would otherwise be reported to the reader and the other silently dropped.
     """
     rng = np.random.default_rng(random_state)
     n = len(frame)
@@ -400,11 +542,12 @@ def _bootstrap_cell(
     for _ in range(ci_bootstrap):
         idx = resample_indices(n, rng, groups=groups)
         try:
-            _joint, _risk, itv = run(x[idx], y[idx], frame.iloc[idx])
-        except cf.CounterfactualInfeasible:
-            infeasible += 1
-            continue
-        except (EstimatorFailure, cf.CounterfactualBoundsError):
+            _joint, _risk, itv, _table = run(x[idx], y[idx], frame.iloc[idx])
+        except (EstimatorFailure, cf.CounterfactualBoundsError) as exc:
+            species = getattr(exc, "failure_type", None) or getattr(
+                exc, "species", None)
+            if species is Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE:
+                infeasible += 1
             continue
         lows.append(itv.low)
         highs.append(itv.high)
@@ -427,8 +570,20 @@ def _bootstrap_cell(
     )
 
 
-def _model_assumption(provenance: RiskProvenance) -> str:
-    """The mechanism sentence — one identity, and how its one input was got."""
+def _model_assumption(
+    provenance: RiskProvenance, instrument: str | None,
+) -> str:
+    """The mechanism sentence: which solver ran, and how its inputs were got."""
+    if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+        # The one route that does not go through the identity at all, so the
+        # sentence does not start by naming it.
+        return (
+            "反事实单格 P(Y_{x'}=y*|X=x[,Y=y]) 没有走一致性恒等式："
+            f"那一臂干预风险不可点识别，改用工具变量 `{instrument}` 的响应函数模型——"
+            "在所有能复现经验 P(X,Y|Z) 的响应型分布上，把本格作为线性泛函取上下确界"
+            "（无函数形式假设）；"
+            "单调性(若声明)是从总体里去掉反向响应型的额外约束，不是回答的前提"
+        )
     if provenance is RiskProvenance.GENERAL_ID_PLUG_IN:
         risk = (
             "所需的那一臂干预风险 P(Y=1|do x') 没有可用的调整集，"
@@ -456,7 +611,16 @@ def _assumptions(
         "binary_treatment_and_outcome",
         "consistency_of_potential_outcomes",
     ]
-    if provenance is RiskProvenance.USER_EXPERIMENTAL:
+    if provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+        out.append("iv1_relevance_instrument_affects_treatment")
+        out.append(
+            "iv2_exclusion_instrument_affects_outcome_only_via_treatment")
+        out.append(
+            "iv3_independence_instrument_independent_of_latent_confounders")
+        # Every instrument stratum having observations is NOT listed: the
+        # table builder refuses on an empty one, so it is a precondition this
+        # answer passed rather than a premise it rests on.
+    elif provenance is RiskProvenance.USER_EXPERIMENTAL:
         out.append("interventional_risk_from_randomized_experiment")
     elif provenance is RiskProvenance.EXOGENOUS:
         out.append("exogeneity_no_backdoor_path_do_risk_equals_conditional")
@@ -482,7 +646,7 @@ def _assumptions(
 
 def _identification_assumptions(
     provenance: RiskProvenance, adjustment: tuple[str, ...],
-    monotonicity: str | None,
+    monotonicity: str | None, instrument: str | None,
 ) -> tuple[dict, ...]:
     specs: list[dict] = [
         {"id": "consistency_of_potential_outcomes",
@@ -518,20 +682,42 @@ def _identification_assumptions(
             {"id": "positivity_every_conditioning_stratum_of_the_estimand_has_support",
              "claim": "positivity：识别公式条件到的每个前驱层在数据中都有样本",
              "layer": "identification", "testable": True})
+    elif provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+        specs.append(
+            {"id": "iv1_relevance_instrument_affects_treatment",
+             "claim": f"相关性：`{instrument}` 有一条指向处理的边，"
+                      f"响应函数模型枚举的就是这条 z→x 映射",
+             "layer": "identification", "testable": True})
+        specs.append(
+            {"id": "iv2_exclusion_instrument_affects_outcome_only_via_treatment",
+             "claim": f"排他性：把处理的出边剪掉之后，`{instrument}` 与结局 "
+                      f"m-分离——它对结局的全部影响都经过处理",
+             "layer": "identification", "testable": False})
+        specs.append(
+            {"id": "iv3_independence_instrument_independent_of_latent_confounders",
+             "claim": f"独立性：`{instrument}` 与那个未测混杂背景无关，"
+                      f"这正是「响应型的分布不随 z 变化」这一条",
+             "layer": "identification", "testable": True})
     if monotonicity is not None:
-        # Monotonicity is testable only when a do-risk was an input: the
-        # emptiness check that could have refuted it needs one. That used to
-        # be a SECOND entry beside this one, saying the cell was pinned by
-        # monotonicity alone — but a do-risk being unavailable assumes
-        # nothing about the world, and its whole content is what this line
-        # can and cannot be checked against. It is said here, on the line it
-        # is about, and nowhere else.
-        claim = f"单调性（{monotonicity}）：把本格的区间收紧成点"
-        if not provenance.uses_risk:
+        # Monotonicity is testable when the route brings it up against
+        # something the data could contradict — an emptiness check needs one.
+        # That used to be read off "was a do-risk an input", which was the
+        # same question for as long as the identity was the only solver; the
+        # polytope refutes it while consuming no risk at all. It used to be a
+        # SECOND entry beside this one, saying the cell was pinned by
+        # monotonicity alone — but a do-risk being unavailable assumes nothing
+        # about the world, and its whole content is what this line can and
+        # cannot be checked against. It is said here, on the line it is about,
+        # and nowhere else.
+        claim = (
+            f"单调性（{monotonicity}）：总体中没有结局与处理反向的单位，"
+            f"据此收紧本格"
+        )
+        if not provenance.can_refute_a_premise:
             claim += "——而干预风险不可得，数据无从推翻它"
         specs.append(
             {"id": f"monotonicity_{monotonicity}_in_treatment",
              "claim": claim,
              "layer": "identification",
-             "testable": provenance.uses_risk})
+             "testable": provenance.can_refute_a_premise})
     return tuple(specs)

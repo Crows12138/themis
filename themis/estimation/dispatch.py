@@ -2622,6 +2622,10 @@ def _try_counterfactual_cell_estimate(
         "monotonicity": estimate.monotonicity,
         "interventional_risk_provenance": estimate.interventional_risk_provenance,
         "adjustment": list(estimate.adjustment),
+        # Which column the answer leaned on, when it leaned on an instrument
+        # instead of a risk. A reader asking "where did this interval come
+        # from" gets the licence from the provenance and the column from here.
+        "instrument": estimate.instrument,
         "p_y_do_x_cf": estimate.p_y_do_x_cf,
         "observational_joint": {
             "p_x1_y1": estimate.p_x1_y1, "p_x1_y0": estimate.p_x1_y0,
@@ -2726,6 +2730,15 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
                 "interventional_risk_provenance": estimate.interventional_risk_provenance,
                 # comma-joined scalar (serializer does not take a str tuple).
                 "adjustment": ",".join(estimate.adjustment),
+                # The instrument route's sufficient statistic. The verifier
+                # re-solves the response-function LP from exactly these, so the
+                # level list travels with the table: a |Z|×2×2 array read
+                # against a different level order re-derives a different
+                # interval and calls an honest producer a liar.
+                "instrument": estimate.instrument,
+                "instrument_levels": estimate.instrument_levels,
+                "p_xyz": estimate.p_xyz,
+                "p_z": estimate.p_z,
                 # Present only when the risk came from the general ID
                 # algorithm; the verifier re-derives it for the asked arm.
                 "risk_formula": estimate.risk_formula,

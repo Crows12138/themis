@@ -475,10 +475,20 @@ const POC_LABELS = [
 // alternative to a translation here is printing the identifier — and whether
 // the two risks were derived from the graph or measured in an experiment is
 // not a detail this surface can drop: nothing else on it says so.
+// One vocabulary, two containers. The causation block and the counterfactual
+// cell carry DIFFERENT subsets of the same licences, because the admissible
+// set depends on which derivation rule wrote it — so this table states the
+// whole vocabulary rather than either projection of it. Pinned against the
+// kernel module for that reason; pinning it against one schema enum is how
+// the other container's licences reached the reader as their own identifiers.
 const RISK_PROVENANCE_ZH: Record<string, string> = {
+  not_required: '两个世界重合,一致性直接给出答案,没有用到任何干预风险',
+  pinned_by_monotonicity: '干预风险无从获得,本格完全由所声明的单调性钉死',
+  instrument_response_polytope: '干预风险无法点识别,本格改由工具变量的响应函数多面体直接框住',
   derived_identification: '干预风险由识别层从图上导出',
   exogenous: '原因到结果没有后门路径,干预风险即条件概率',
   backdoor_adjustment: '干预风险经后门标准化(g-formula)识别',
+  general_id_plug_in: '没有可用的调整集,干预风险由 general ID 识别出的估计量求值',
   user_experimental: '干预风险来自调用方提供的随机实验数据',
 }
 
@@ -552,7 +562,7 @@ const DERIVATION_SAYS: Record<string, string> = {
   numeric_proximal_estimate: '在数据上用近端矩阵求逆（Miao 2018）求效应',
   numeric_measurement_correction_estimate: '先用混淆矩阵校正测量误差，再求效应',
   numeric_causation_estimate: '在数据上按 Tian-Pearl 公式求 PN/PS/PNS',
-  numeric_counterfactual_cell_estimate: '在数据上解那条一致性恒等式，求这一格反事实（并用自助法给出抽样区间）',
+  numeric_counterfactual_cell_estimate: '在数据上重算这一格反事实（并用自助法给出抽样区间）',
   numeric_ctf_conjunction_estimate: '在数据上按 ID*/IDC* 导出的式子求这个反事实合取',
   numeric_scm_counterfactual_estimate: '结构方程的系数没有声明，改由每个节点的 OLS 从数据拟合，再做反推扰动-施加干预-沿方程重算',
 }
@@ -846,10 +856,22 @@ export function answerRows(num: NumericEstimate): Section | null {
 
   const cell = num.counterfactual_cell
   if (cell && cell.lower != null && cell.upper != null) {
-    return {
-      cap: '反事实格(区间)',
-      rows: [{ label: '区间', value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]` }],
+    const rows = [
+      { label: '区间', value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]` },
+    ]
+    // WHICH solver produced it. Two of them can fill the same two numbers —
+    // the consistency identity on a point-identified risk, and the
+    // response-function program on an instrument when no risk is
+    // point-identified — and they rest on different assumptions. An interval
+    // that does not say which reads as one method that always applies.
+    const how = RISK_PROVENANCE_ZH[cell.interventional_risk_provenance ?? '']
+    if (how) {
+      rows.push({
+        label: '这一格怎么来的',
+        value: how + (cell.instrument ? ` · 工具变量 \`${cell.instrument}\`` : ''),
+      })
     }
+    return { cap: '反事实格(区间)', rows }
   }
 
   return null

@@ -412,15 +412,24 @@ def test_a_cell_pinned_with_nothing_to_check_it_says_so_on_that_line():
     """The third entry of the same species carried something real: with no
     do-risk, nothing could have refuted the monotonicity. That is not a
     further assumption — it is what this one can be checked against, so it
-    is on this line and not beside it."""
+    is on this line and not beside it.
+
+    Which is a different question from whether a risk was an input, and the
+    two only agreed while the consistency identity was the only solver. The
+    response-function polytope consumes no risk and can still empty out under
+    the declared direction, so it is refutable — a route reading the line off
+    ``uses_risk`` would tell the reader the opposite.
+    """
     from themis.estimation.counterfactual_cell import _identification_assumptions
     from themis.risk_provenance import RiskProvenance
 
     for provenance, refutable in (
         (RiskProvenance.PINNED_BY_MONOTONICITY, False),
         (RiskProvenance.BACKDOOR_ADJUSTMENT, True),
+        (RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE, True),
     ):
-        specs = _identification_assumptions(provenance, ("z",), "non_decreasing")
+        specs = _identification_assumptions(
+            provenance, ("z",), "non_decreasing", "z")
         mono = [s for s in specs
                 if s["id"] == "monotonicity_non_decreasing_in_treatment"]
         assert len(mono) == 1
@@ -488,7 +497,7 @@ def test_no_producer_states_a_severity_at_all(frames):
         for licence in ADMISSIBLE["numeric_counterfactual_cell_estimate"]
         for spec in _cell_assumptions(
             provenance=licence, adjustment=("z",),
-            monotonicity="non_decreasing")
+            monotonicity="non_decreasing", instrument="z")
     ]
     assert specs, "the sweep found no specs and is checking nothing"
     offenders = [s["id"] for s in specs if "severity" in s]

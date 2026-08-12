@@ -378,17 +378,96 @@ def _contrast_objective(
     return c
 
 
+def _cell_objective(
+    nx: int, ny: int, nz: int, p_z: np.ndarray,
+    *, x_observed: int, x_counterfactual: int, y_star: int,
+    factual_y: int | None,
+) -> np.ndarray:
+    """Coefficients of the counterfactual cell's NUMERATOR
+    ``P(Y_{x'}=y*, X=x [, Y=y])`` over the response types.
+
+    A unit of type ``(fx, gy)`` sitting at instrument level ``z`` takes
+    treatment ``fx[z]``, shows outcome ``gy[fx[z]]``, and would have shown
+    ``gy[x']`` under ``do(X=x')``. So membership in the cell is a property of
+    the type AND the level, and ``P(z)`` multiplies through because the IV
+    model's independence is exactly the claim that the type does not depend
+    on the level.
+
+    ``factual_y`` is None when the factual outcome is not part of the evidence
+    (the ETT cell ``P(Y_{x'}=y* | X=x)``): the outcome map is then unconstrained
+    at the observed arm rather than pinned to a value.
+
+    The DENOMINATOR is ``P(X=x [, Y=y])``, which the equality constraints fix
+    at the observed table — a known number, not a variable — which is what
+    keeps a conditional counterfactual a linear program rather than a
+    fractional one.
+    """
+    fxs, gys = _response_types(nx, ny, nz)
+    c = np.zeros(len(fxs) * len(gys))
+    for j, gy in enumerate(gys):
+        if gy[x_counterfactual] != y_star:
+            continue
+        if factual_y is not None and gy[x_observed] != factual_y:
+            continue
+        for i, fx in enumerate(fxs):
+            c[i * len(gys) + j] = float(
+                sum(p_z[zi] for zi in range(nz) if fx[zi] == x_observed)
+            )
+    return c
+
+
+def monotone_y_types(nx: int, ny: int, direction) -> frozenset[int]:
+    """Indices of the outcome-response maps a declared monotonicity permits.
+
+    Monotonicity is a claim about which units the population contains — no
+    unit whose outcome moves against the treatment — so it belongs in the
+    response-function model as a restriction of the type space, not as a
+    second formula applied afterwards. Levels are compared by POSITION, which
+    is the sorted order of the observed values.
+    """
+    from ..types import Monotonicity
+
+    # The table is the exhaustiveness statement: a direction added to the enum
+    # and not to this line fails at the lookup, rather than being folded into
+    # whichever branch happened to be the fallback.
+    ascending = {
+        Monotonicity.NON_DECREASING: True,
+        Monotonicity.NON_INCREASING: False,
+    }[direction]
+    gys = tuple(itertools.product(range(ny), repeat=nx))
+    return frozenset(
+        j for j, gy in enumerate(gys)
+        if all(
+            (gy[i] <= gy[i + 1]) if ascending else (gy[i] >= gy[i + 1])
+            for i in range(nx - 1)
+        )
+    )
+
+
 def _solve_response_lp(
     P: np.ndarray, nx: int, ny: int, nz: int, objective: np.ndarray,
+    *, allowed_y_types: frozenset[int] | None = None,
 ) -> tuple[float, float]:
     """Range of a linear functional over every response-type distribution
     that reproduces ``P[z,x,y] = P(X=x, Y=y | Z=z)`` — the identified set by
-    its definition, not an approximation of it."""
+    its definition, not an approximation of it.
+
+    ``allowed_y_types`` narrows the population to the outcome-response maps a
+    declared assumption permits; the constraint matrix is untouched, because
+    forbidding a type is saying no unit is of it, and that is a bound of zero
+    on its mass.
+    """
     from scipy.optimize import linprog
 
     A_eq = _response_constraints(nx, ny, nz)
     b_eq = np.concatenate([P.reshape(-1), [1.0]])
-    simplex = [(0.0, None)] * A_eq.shape[1]
+    n_gy = ny ** nx
+    simplex: list[tuple[float, float | None]] = [
+        (0.0, None)
+        if allowed_y_types is None or (k % n_gy) in allowed_y_types
+        else (0.0, 0.0)
+        for k in range(A_eq.shape[1])
+    ]
     lo = linprog(objective, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
     hi = linprog(-objective, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
     if not (lo.success and hi.success):
@@ -434,6 +513,110 @@ def _instrumental_inequality_violation(
             f"(Pearl 1995; Balke-Pearl 1997 eq 6 in the binary case)."
         )
     return None
+
+
+def counterfactual_cell_iv_table(
+    x_arr: np.ndarray, y_arr: np.ndarray, z_arr: np.ndarray, z_levels: list,
+) -> tuple[np.ndarray, np.ndarray]:
+    """``(P(X,Y | Z), P(Z))`` for a BINARY treatment and outcome, indexed so
+    that position 0 is False and position 1 is True.
+
+    Separate from :func:`_empirical_P_xyz` because the caller has already
+    normalised its two binary columns and fixed their level order by doing so;
+    re-deriving the order from the observed values would let a sample in which
+    one of them is constant silently re-index the cell being asked about.
+    """
+    x = x_arr.astype(bool)
+    y = y_arr.astype(bool)
+    P = np.zeros((len(z_levels), 2, 2))
+    p_z = np.zeros(len(z_levels))
+    n = len(x)
+    for zi, zv in enumerate(z_levels):
+        zmask = _eq(z_arr, zv)
+        rows = int(zmask.sum())
+        p_z[zi] = rows / n if n else 0.0
+        if rows == 0:
+            raise EstimatorFailure(
+                Refusal.INSUFFICIENT_SUPPORT,
+                f"positivity violation: instrument stratum {zv!r} has no "
+                "observations, so P(X, Y | Z) is undefined there and the "
+                "response-function polytope has no table to be fitted to.",
+            )
+        for xi in (0, 1):
+            for yi in (0, 1):
+                cnt = int((zmask & (x == bool(xi)) & (y == bool(yi))).sum())
+                P[zi, xi, yi] = cnt / rows
+    return P, p_z
+
+
+def counterfactual_cell_response_bounds(
+    P: np.ndarray, p_z: np.ndarray,
+    *, x_observed: int, x_counterfactual: int, y_star: int,
+    factual_y: int | None, monotonicity=None,
+) -> tuple[float, float]:
+    """Sharp bounds on ``P(Y_{x'}=y* | X=x [, Y=y])`` from an instrument.
+
+    The cell is another linear functional over the response-type distributions
+    that reproduce ``P(X, Y | Z)`` — the polytope Balke-Pearl's arm bounds are
+    read off — so it is the same program with a different objective. That is
+    the whole method, and it is why this is sharp where routing the arm's
+    INTERVAL through the consistency identity is not: the identity consumes the
+    interventional risk as a scalar, and a scalar cannot carry the fact that
+    the distribution producing the risk is the one that has to produce the cell.
+
+    A declared ``monotonicity`` enters as the population containing no unit
+    whose outcome moves against the treatment. When that leaves the program
+    infeasible but dropping it does not, the assumption — not the instrument —
+    is what the data refute, and the two are told apart rather than reported
+    under whichever refusal came first.
+    """
+    nz, nx, ny = P.shape
+    objective = _cell_objective(
+        nx, ny, nz, p_z,
+        x_observed=x_observed, x_counterfactual=x_counterfactual,
+        y_star=y_star, factual_y=factual_y,
+    )
+    denominator = float(sum(
+        p_z[zi] * (
+            P[zi, x_observed, factual_y] if factual_y is not None
+            else P[zi, x_observed, :].sum()
+        )
+        for zi in range(nz)
+    ))
+    allowed = (
+        None if monotonicity is None
+        else monotone_y_types(nx, ny, monotonicity)
+    )
+    try:
+        lower, upper = _solve_response_lp(
+            P, nx, ny, nz, objective, allowed_y_types=allowed,
+        )
+    except EstimatorFailure:
+        if allowed is None:
+            raise
+        _solve_response_lp(P, nx, ny, nz, objective)
+        raise EstimatorFailure(
+            Refusal.COUNTERFACTUAL_INPUTS_INFEASIBLE,
+            "no distribution over response types reproduces P(X, Y | Z) once "
+            "the declared monotonicity removes the units whose outcome moves "
+            "against the treatment — the instrument is compatible with this "
+            "table and the monotonicity assumption is what it refutes.",
+        )
+    if denominator <= 0.0:
+        # The conditioning event has no mass, so the cell is a ratio of zeros
+        # and no distribution can distinguish its values. The identity route
+        # answers the same degeneracy with the same box; disagreeing about it
+        # would make WHICH ROUTE ran visible in the answer.
+        return 0.0, 1.0
+    # The numerator is a sub-event of the denominator on every feasible point,
+    # so the ratio is a probability by construction and anything outside [0, 1]
+    # is the simplex solver's last few bits. Clamped for the same reason the
+    # identity route clamps: an answer that leaves [0, 1] is not a tighter
+    # claim about the cell, it is a claim the cell cannot carry.
+    return (
+        min(max(lower / denominator, 0.0), 1.0),
+        min(max(upper / denominator, 0.0), 1.0),
+    )
 
 
 def evaluate_balke_pearl_bounds(
@@ -486,9 +669,9 @@ def evaluate_balke_pearl_bounds(
     )
     df = contract.data
 
-    x_levels = _sorted_levels(df[treatment])
-    y_levels = _sorted_levels(df[outcome])
-    z_levels = _sorted_levels(df[instrument])
+    x_levels = sorted_levels(df[treatment])
+    y_levels = sorted_levels(df[outcome])
+    z_levels = sorted_levels(df[instrument])
     nx, ny, nz = len(x_levels), len(y_levels), len(z_levels)
 
     for col, role, levels in (
@@ -683,7 +866,7 @@ def _eq(arr: np.ndarray, value) -> np.ndarray:
     return arr == value
 
 
-def _sorted_levels(series: pd.Series) -> list:
+def sorted_levels(series: pd.Series) -> list:
     vals = pd.unique(series.dropna())
     try:
         return sorted(vals.tolist())

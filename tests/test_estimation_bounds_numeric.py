@@ -344,16 +344,16 @@ def _multi_iv_frame(nx, ny, nz, n=30000, seed=11):
     (3, 3, 3, 2, 2),         # all three
 ])
 def test_the_arm_bound_matches_an_independently_enumerated_lp(nx, ny, nz, xv, yv):
-    from themis.estimation.bounds_numeric import _empirical_P_xyz, _sorted_levels
+    from themis.estimation.bounds_numeric import _empirical_P_xyz, sorted_levels
 
     df = _multi_iv_frame(nx, ny, nz)
     nb = evaluate_balke_pearl_bounds(
         df, treatment="x", outcome="y", instrument="z",
         treatment_value=xv, outcome_value=yv, ci_bootstrap=0)
     assert nb.estimand == "arm_probability"
-    xl = _sorted_levels(df["x"])
-    yl = _sorted_levels(df["y"])
-    zl = _sorted_levels(df["z"])
+    xl = sorted_levels(df["x"])
+    yl = sorted_levels(df["y"])
+    zl = sorted_levels(df["z"])
     P = _empirical_P_xyz(df, "x", "y", "z", xl, yl, zl)
     lo, hi = _reference_lp(P, nx, ny, nz, xl.index(xv), yl.index(yv))
     assert nb.lower_value == pytest.approx(lo, abs=1e-9)

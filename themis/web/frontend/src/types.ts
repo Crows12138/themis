@@ -131,7 +131,15 @@ export interface NumericEstimate {
     treated?: Record<string, unknown>; control?: Record<string, unknown>
   }
   interaction?: Band & { order?: number; scale?: string }
-  counterfactual_cell?: { lower?: number | null; upper?: number | null }
+  // Two solvers fill `lower`/`upper`, so the licence that says which one ran
+  // travels with them; `instrument` is non-null only on the one that bounds
+  // the cell over an instrument's response-type polytope.
+  counterfactual_cell?: {
+    lower?: number | null
+    upper?: number | null
+    interventional_risk_provenance?: string
+    instrument?: string | null
+  }
   // Three estimands, not one. `point` is non-null on each exactly when
   // monotonicity was assumed; ci_lower/ci_upper is then that point's bootstrap
   // CI and otherwise the outer band on [lower, upper]. numeric_estimate.point

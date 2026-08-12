@@ -38,6 +38,7 @@ from themis import refusals
 from themis import ledger
 from themis.output import analysis_report
 from themis.output.derivation_glossary import SAYS
+from themis.risk_provenance import RiskProvenance
 from themis.types import ResultStatus
 
 from . import web_source
@@ -109,9 +110,13 @@ ANCHORS: dict[str, set[str]] = {
     "identification_pattern": _enum_at(
         "properties", "extensions", "properties", "identification",
         "properties", "pattern"),
-    "interventional_risk_provenance": _enum_at(
-        "properties", "extensions", "properties", "causation", "properties",
-        "interventional_risk_provenance"),
+    # Anchored on the module, not on either schema enum. Two containers carry
+    # this vocabulary — the causation block and the counterfactual cell — and
+    # they hold DIFFERENT subsets of it, because the admissible set depends on
+    # the derivation rule that wrote it. Pinned against the causation block's
+    # projection, this check passed while four of the licences the cell can
+    # carry had no translation at all.
+    "interventional_risk_provenance": {str(p) for p in RiskProvenance},
     # What a partial-identification interval brackets, and the second
     # quantity the same identified set is read through. Both are one-member
     # enums today; they are anchored anyway, because a one-member vocabulary
@@ -121,9 +126,9 @@ ANCHORS: dict[str, set[str]] = {
     "bounds_contrast_kind": _enum_at("$defs", "boundsResult", "properties",
                                      "contrast", "properties", "kind"),
     "refusal_kind": {str(k) for k in refusals.Kind},
-    # The one anchor with no schema enum to point at: ``step.rule`` is a
-    # free string in derivation.schema.json, and the closed set is the
-    # glossary, which is also what the report renders. Anchoring on the
+    # The one anchor whose vocabulary no schema enum states at all:
+    # ``step.rule`` is a free string in derivation.schema.json, and the closed
+    # set is the glossary, which is also what the report renders. Anchoring on the
     # module is what ``refusal_kind`` already does for the same reason.
     "derivation_rule": set(SAYS),
 }

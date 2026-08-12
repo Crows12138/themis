@@ -727,10 +727,16 @@ def _match(derived: float, reported, field: str, rule: str) -> None:
 
 def _verifier_response_lp(
     P, nx: int, ny: int, nz: int, objective, rule: str,
+    forbidden: "list[int] | None" = None,
 ) -> tuple[float, float]:
     """Range of a linear functional over every response-type distribution
     reproducing ``P[z,x,y] = P(X=x, Y=y | Z=z)``, by an independently-
-    transcribed LP. Returns (lower, upper)."""
+    transcribed LP. Returns (lower, upper).
+
+    ``forbidden`` lists response types a declared assumption says the
+    population does not contain — an upper bound of zero on their mass, which
+    is what "no unit is of this type" means to a program over type
+    frequencies."""
     import numpy as np
     from scipy.optimize import linprog
 
@@ -753,14 +759,22 @@ def _verifier_response_lp(
     A_eq = np.asarray(rows)
     b_eq = np.asarray(b)
     c = np.asarray(objective, dtype=float)
-    simplex = [(0.0, None)] * ntypes
+    blocked = set(forbidden or ())
+    simplex = [
+        (0.0, 0.0) if k in blocked else (0.0, None) for k in range(ntypes)
+    ]
     lo = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
     hi = linprog(-c, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
     if not (lo.success and hi.success):
         raise VerificationError(
             "Balke-Pearl re-derivation LP is infeasible on the recorded "
-            "P(X,Y|Z) table — no response-type distribution reproduces it, so "
-            "the table cannot have produced sharp bounds",
+            "P(X,Y|Z) table — no response-type distribution reproduces it"
+            + (
+                " under the declared assumption's restriction of the type "
+                "space, so an answer could not have come out of it"
+                if blocked else
+                ", so the table cannot have produced sharp bounds"
+            ),
             step_index=None, rule=rule,
         )
     return float(lo.fun), float(-hi.fun)

@@ -68,10 +68,19 @@ class RiskProvenance(EnvelopeName):
     """
 
     uses_risk: bool
-    """Whether an interventional risk was an input at all. Two licences
+    """Whether an interventional risk was an input at all. Three licences
     are precisely the claim that none was needed, and they are the
     strongest claims in the table for exactly that reason: they say the
     answer owes nothing to a quantity observation cannot supply."""
+
+    can_refute_a_premise: bool
+    """Whether this route confronts a declared premise with something the
+    data could contradict — which is what makes an assumption it carries
+    TESTABLE. Not the same question as ``uses_risk``, though the two agreed
+    for as long as the consistency identity was the only solver and its one
+    refutable input was the risk. A route that fits a polytope to the data
+    can refute a declared monotonicity while consuming no risk at all, and a
+    route that pins the answer FROM that monotonicity can refute nothing."""
 
     asserts: str
     """The checkable claim. Written for whoever adds the next licence: if
@@ -82,10 +91,14 @@ class RiskProvenance(EnvelopeName):
     """The reader's sentence — true whether the answer came from theta or
     from data."""
 
-    def __new__(cls, value: str, uses_risk: bool, asserts: str, zh: str):
+    def __new__(
+        cls, value: str, uses_risk: bool, can_refute_a_premise: bool,
+        asserts: str, zh: str,
+    ):
         licence = str.__new__(cls, value)
         licence._value_ = value
         licence.uses_risk = uses_risk
+        licence.can_refute_a_premise = can_refute_a_premise
         licence.asserts = asserts
         licence.zh = zh
         return licence
@@ -94,6 +107,7 @@ class RiskProvenance(EnvelopeName):
     NOT_REQUIRED = (
         "not_required",
         False,
+        False,
         "the intervened value equals the observed one, so the two worlds "
         "coincide and consistency answers the cell outright",
         "两个世界重合，一致性直接给出答案，没有用到任何干预风险",
@@ -101,14 +115,26 @@ class RiskProvenance(EnvelopeName):
     PINNED_BY_MONOTONICITY = (
         "pinned_by_monotonicity",
         False,
+        False,
         "no interventional risk is obtainable, and the declared "
         "monotonicity determines this cell on its own",
         "干预风险无从获得，本格完全由所声明的单调性钉死",
+    )
+    INSTRUMENT_RESPONSE_POLYTOPE = (
+        "instrument_response_polytope",
+        False,
+        True,
+        "no interventional risk is point-identified, and the named "
+        "instrument is m-separated from the outcome once the treatment's "
+        "outgoing edges are cut, so the cell is bounded directly over the "
+        "response-type distributions reproducing P(X, Y | Z)",
+        "干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住",
     )
 
     # --- a risk was used, and this is what licensed it ------------------------
     DERIVED_IDENTIFICATION = (
         "derived_identification",
+        True,
         True,
         "the risk was produced by the effect-identification subsystem from "
         "theta, which has its own independent verifier",
@@ -116,6 +142,7 @@ class RiskProvenance(EnvelopeName):
     )
     EXOGENOUS = (
         "exogenous",
+        True,
         True,
         "no back-door path runs from cause to effect, so the risk is the "
         "plain conditional probability — re-derivable as the empty "
@@ -125,12 +152,14 @@ class RiskProvenance(EnvelopeName):
     BACKDOOR_ADJUSTMENT = (
         "backdoor_adjustment",
         True,
+        True,
         "the named set is an admissible back-door set on the graph, and "
         "the risk is the standardization over it",
         "干预风险经后门标准化（g-formula）识别",
     )
     GENERAL_ID_PLUG_IN = (
         "general_id_plug_in",
+        True,
         True,
         "no adjustment set exists, and the general ID algorithm "
         "point-identifies the asked arm anyway — the recorded estimand is "
@@ -139,6 +168,7 @@ class RiskProvenance(EnvelopeName):
     )
     USER_EXPERIMENTAL = (
         "user_experimental",
+        True,
         True,
         "the caller supplied the arm as a randomized-experiment "
         "measurement, so the query itself carries it and nothing on the "
@@ -175,6 +205,7 @@ ADMISSIBLE: dict[str, frozenset[RiskProvenance]] = {
     "numeric_counterfactual_cell_estimate": frozenset({
         RiskProvenance.NOT_REQUIRED,
         RiskProvenance.PINNED_BY_MONOTONICITY,
+        RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE,
         RiskProvenance.EXOGENOUS,
         RiskProvenance.BACKDOOR_ADJUSTMENT,
         RiskProvenance.GENERAL_ID_PLUG_IN,
