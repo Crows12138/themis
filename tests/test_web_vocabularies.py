@@ -112,6 +112,14 @@ ANCHORS: dict[str, set[str]] = {
     "interventional_risk_provenance": _enum_at(
         "properties", "extensions", "properties", "causation", "properties",
         "interventional_risk_provenance"),
+    # What a partial-identification interval brackets, and the second
+    # quantity the same identified set is read through. Both are one-member
+    # enums today; they are anchored anyway, because a one-member vocabulary
+    # is exactly the one nobody notices growing.
+    "bounds_estimand": _enum_at("$defs", "boundsResult", "properties",
+                                "estimand"),
+    "bounds_contrast_kind": _enum_at("$defs", "boundsResult", "properties",
+                                     "contrast", "properties", "kind"),
     "refusal_kind": {str(k) for k in refusals.Kind},
     # The one anchor with no schema enum to point at: ``step.rule`` is a
     # free string in derivation.schema.json, and the closed set is the

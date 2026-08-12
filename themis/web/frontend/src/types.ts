@@ -37,13 +37,29 @@ export interface DataGapReport {
   answer_tier?: AnswerTier
 }
 
+// A partial-identification interval. `estimand` names WHAT the two endpoints
+// bracket — this surface used to declare neither it nor the endpoints, so the
+// only thing it could say about an interval was the method that produced it.
+export interface BoundsContrast {
+  kind: string
+  reference_value?: unknown
+  lower_value: number
+  upper_value: number
+}
+
 export interface BoundsResult {
   method: string
+  estimand: string
   lower_expression: string
   upper_expression: string
   assumptions?: string[]
   width_when_uninformative?: boolean
   notes?: string
+  lower_value?: number | null
+  upper_value?: number | null
+  // A second interval over a second quantity from the same identified set,
+  // not arithmetic on the endpoints above.
+  contrast?: BoundsContrast | null
 }
 
 export interface Sensitivity {

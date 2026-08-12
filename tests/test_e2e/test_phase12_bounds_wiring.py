@@ -128,6 +128,65 @@ def test_solved_query_has_no_bounds():
         assert result.get("bounds_result") is None
 
 
+def _sized_iv_program(nx, ny, nz, x_val, y_val):
+    """An IV-shaped, point-unidentifiable program at declared cardinalities."""
+    def dom(k):
+        return [True, False] if k == 2 else list(range(k))
+
+    def atom(p):
+        return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "y", "domain": dom(ny)},
+            {"kind": "variable", "predicate": "x", "domain": dom(nx)},
+            {"kind": "variable", "predicate": "z", "domain": dom(nz)},
+            {"kind": "cause", "from": atom("x"), "to": atom("y"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "cause", "from": atom("z"), "to": atom("x"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "bidirected", "left": atom("x"), "right": atom("y"),
+             "annotations": {"source": "llm_proposal"}},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "intervention": {"atom": atom("x"), "value": x_val},
+                "target": {"atom": atom("y"), "value": y_val},
+                "given": []}},
+        ],
+    }
+
+
+def test_a_model_too_large_falls_to_the_floor_and_says_so():
+    """A cap that silently drops to the assumption-free floor reads exactly
+    like a query that never had an instrument. 5×5×2 levels is 78125
+    response types — declined — and the floor has to carry the reason."""
+    result = themis.run(_sized_iv_program(5, 5, 2, 2, 2))["results"][0]
+    bounds = result["bounds_result"]
+    assert bounds["method"] == "manski_natural"
+    assert "z" in bounds["notes"]
+    assert "5^2" in bounds["notes"]
+    assert "declined for size" in bounds["notes"]
+
+
+def test_a_model_inside_the_cap_gets_the_sharp_method_and_no_such_note():
+    """The counterexample: the note must not appear whenever Manski does."""
+    result = themis.run(_sized_iv_program(3, 3, 2, 2, 2))["results"][0]
+    bounds = result["bounds_result"]
+    assert bounds["method"] == "balke_pearl_iv"
+    assert "declined for size" not in (bounds.get("notes") or "")
+
+
+def test_the_floor_without_an_instrument_says_nothing_about_size():
+    """The other counterexample: no instrument means nothing sharper was
+    available to decline, so there is nothing to report."""
+    result = themis.run(_program())["results"][0]
+    bounds = result["bounds_result"]
+    assert bounds["method"] == "manski_natural"
+    assert "declined for size" not in (bounds.get("notes") or "")
+
+
 def test_iv_shape_program_triggers_balke_pearl():
     """Phase 12 §S.12.6 patch: when the user supplies an IV-shaped DAG
     (Z→X edge, X↔Y bidirected, no Z→Y), bounds_result picks Balke-Pearl

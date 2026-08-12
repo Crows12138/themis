@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -262,6 +262,25 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
 
               {bounds ? (
                 <div className="boundsexpr">
+                  <div className="boundsexpr__row">
+                    <span className="boundsexpr__k">界的对象</span>
+                    <span className="boundsexpr__v">{boundsEstimandLabel(bounds.estimand)}</span>
+                  </div>
+                  {bounds.lower_value != null && bounds.upper_value != null ? (
+                    <div className="boundsexpr__row">
+                      <span className="boundsexpr__k">区间</span>
+                      <span className="boundsexpr__v">[{fmtNum(bounds.lower_value)}, {fmtNum(bounds.upper_value)}]</span>
+                    </div>
+                  ) : null}
+                  {bounds.contrast ? (
+                    <div className="boundsexpr__row">
+                      <span className="boundsexpr__k">{boundsContrastLabel(bounds.contrast.kind)}</span>
+                      <span className="boundsexpr__v">
+                        [{fmtNum(bounds.contrast.lower_value)}, {fmtNum(bounds.contrast.upper_value)}]
+                        {' '}· 与 {String(bounds.contrast.reference_value)} 那一档相比,是另一个量而非上面两端相减
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">方法</span>
                     <span className="boundsexpr__v">{bounds.method}</span>

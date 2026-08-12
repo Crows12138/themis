@@ -109,6 +109,17 @@ _GAP_SEVERITY_ZH = {
 
 _TIER_ZH = {"point": "点估计", "interval": "区间", "none": "暂无数值答案"}
 
+# What a bounds interval brackets, in the reader's language. Pinned against
+# the schema's own enums by tests: an interval reaches this surface as two
+# numbers, and two numbers about the wrong quantity read exactly like two
+# numbers about the right one.
+_BOUNDS_ESTIMAND_ZH = {
+    "arm_probability": "干预到所问的那一档之后，目标事件发生的概率",
+}
+_BOUNDS_CONTRAST_ZH = {
+    "ace": "平均因果效应（ACE）",
+}
+
 
 def _fmt(x) -> str:
     """Compact numeric formatting (mirrors explainer's ``.4g``)."""
@@ -426,12 +437,26 @@ def _render_answer(result: dict) -> str:
 
     # 4. Bounds — partial identification. An interval is a weaker answer
     #    than a point and still an answer to the question that was asked.
+    #    Which quantity it brackets is said out loud: this line used to print
+    #    two numbers and a method name under a question about one arm, while
+    #    the Balke-Pearl branch was bracketing the difference between two.
     if br and br.get("lower_value") is not None:
         method = br.get("method", "bounds")
-        return (
+        said = (
             f"给出**区间** [{_fmt(br['lower_value'])}, {_fmt(br['upper_value'])}]"
-            f"（method=`{method}`）—— 这是部分识别的界，不是点估计。"
+            f"——{_BOUNDS_ESTIMAND_ZH.get(str(br.get('estimand')), '所问的量')}"
+            f"（部分识别的界，不是点估计；method=`{method}`）。"
         )
+        contrast = br.get("contrast")
+        if isinstance(contrast, dict) and contrast.get("lower_value") is not None:
+            said += (
+                f"同一批数据还给出"
+                f"**{_BOUNDS_CONTRAST_ZH.get(str(contrast.get('kind')), '对照')}**"
+                f" [{_fmt(contrast['lower_value'])}, {_fmt(contrast['upper_value'])}]"
+                f"——与 `{contrast.get('reference_value')}` 那条臂相比的差值，"
+                f"它是另一个量，不是上面两个端点相减。"
+            )
+        return said
 
     # 5. A refusal, which is an answer. Below the numeric branches, not
     #    above: dispatch attaches a refusal for a SUPPLEMENTARY estimate

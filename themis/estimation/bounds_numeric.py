@@ -14,19 +14,21 @@ This module evaluates the three implemented bounds methods on data:
   a binary-eventoutcome effect query.
 - :func:`evaluate_manski_tamer_bounds` — Manski (1997) monotone-treatment-
   response tightening of ONE side of the natural interval.
-- :func:`evaluate_balke_pearl_ace_bounds` — Balke-Pearl (1997) SHARP bounds
-  on the average causal effect ``ACE = P(Y=1|do(X=1)) − P(Y=1|do(X=0))``
-  in a binary instrument model, computed by the response-function LINEAR
-  PROGRAM over the 16-type canonical partition (the first-principles
-  definition of the identified set — the closed-form "max/min of 8 linear
-  combinations" is its analytic solution, used to cross-check in tests).
+- :func:`evaluate_balke_pearl_bounds` — Balke-Pearl SHARP bounds from an
+  instrument, computed by the response-function LINEAR PROGRAM over the
+  canonical partition. The partition has ``|X|^|Z| · |Y|^|X|`` types, so the
+  method is not a binary construction: Balke-Pearl (1997)'s 16 types and the
+  closed-form "max/min of 8 linear combinations" are what it becomes when
+  every variable happens to be binary (used to cross-check in tests).
 
-ESTIMAND, stated per method (they bound DIFFERENT quantities — faithfully
-mirrored from the symbolic layer):
-
-- Manski natural / Manski-Tamer bound a single interventional arm
-  ``P(Y=y | do(X=x))`` (``estimand = "arm_probability"``).
-- Balke-Pearl bounds the ACE difference (``estimand = "ace"``).
+ESTIMAND — all three methods bound the SAME thing: the single interventional
+arm ``P(Y=y | do(X=x))`` the query named (``estimand = "arm_probability"``).
+Balke-Pearl used to bound the ACE instead, which is a different question from
+the one an ``EffectQuery`` asks and does not survive a multi-valued treatment
+(no baseline arm) or a multi-valued outcome (not a probability difference).
+Where the ACE is defined it is still reported, as ``contrast`` — a second
+optimisation over the same polytope, since bounds on a difference are not the
+difference of bounds.
 
 CONFIDENCE INTERVAL — a declared modelling choice. The reported
 ``[ci_lower, ci_upper]`` is a non-parametric percentile bootstrap OUTER band
@@ -42,26 +44,35 @@ Imbens-Manski point CI when the interval is wide.
 
 Reference: Manski 1990 (natural bounds), Manski 1997 (MTR), Balke & Pearl
 1997 JASA / Pearl "Causality" 2nd ed. ch. 8 (IV bounds); the response-
-function LP is Balke 1995 (thesis) / Pearl ch. 8.
+function LP is Balke 1995 (thesis) / Pearl ch. 8. For the generalisation
+past binary variables, Cheng & Small 2006 and Richardson & Robins 2014 on
+multi-valued instruments, and the causaloptim R package (Sachs, Jonzon,
+Gabriel & Sjölander), which computes the same class symbolically by vertex
+enumeration where this module solves one LP per dataset.
 
 API::
 
     from themis.estimation.bounds_numeric import (
-        evaluate_manski_natural_bounds, evaluate_balke_pearl_ace_bounds,
+        evaluate_manski_natural_bounds, evaluate_balke_pearl_bounds,
     )
-    nb = evaluate_balke_pearl_ace_bounds(
-        data, treatment="x", outcome="y", instrument="z")
+    nb = evaluate_balke_pearl_bounds(
+        data, treatment="x", outcome="y", instrument="z",
+        treatment_value=True, outcome_value=True)
     print(nb.lower_value, nb.upper_value, nb.ci_lower, nb.ci_upper)
+    print(nb.contrast)   # the ACE interval, when the treatment is binary
 """
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
 
 from .contract import validate_data
 from .. import refusals
+from ..output.bounds import MAX_RESPONSE_TYPES, response_type_count
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .resample import cluster_labels, resample_indices
@@ -104,6 +115,12 @@ class NumericBounds:
     # whose one-sided tightening to the observed marginal is anchored by the
     # width/range invariants.
     sufficient_statistics: dict | None = None
+    # A SECOND interval, over a second quantity, from the same polytope: the
+    # ACE where a binary treatment gives the difference a baseline arm. Its
+    # own name and its own endpoints, because an interval whose quantity is
+    # left to be inferred from the method's reputation is how the bounds
+    # layer came to answer a question nobody asked.
+    contrast: dict | None = None
 
 
 # The width above which an interval is flagged "uninformative" (essentially
@@ -285,63 +302,106 @@ def evaluate_manski_tamer_bounds(
 
 
 # ---------------------------------------------------------------------------
-# Balke-Pearl IV bounds — ACE, via the response-function LP
+# Balke-Pearl IV bounds — via the response-function LP, at any cardinality
 # ---------------------------------------------------------------------------
-
-# X responds to Z; Y responds to X. 4 canonical types each → 16 joint types.
-#   X-type i:  0 never (X≡0)   1 complier (X≡Z)   2 defier (X≡1−Z)   3 always (X≡1)
-#   Y-type j:  0 (0,0)         1 Y≡X              2 Y≡1−X            3 (1,1)
-# where the tuple is (Y at x=0, Y at x=1).
-def _fx(i: int, z: int) -> int:
-    return (0, z, 1 - z, 1)[i]
-
-
-def _gy(j: int, x: int) -> int:
-    return (0, x, 1 - x, 1)[j]
+# Under IV exclusion + independence a unit is fully described by two maps: the
+# treatment it would take at each instrument level (``z → x``) and the outcome
+# it would show at each treatment level (``x → y``). The canonical partition
+# is every pair of such maps; its size ``|X|^|Z| · |Y|^|X|`` follows from the
+# cardinalities. Balke-Pearl's 16 is that number when everything is binary,
+# and writing 16 down as a constant is what used to make three levels of an
+# instrument look like a different problem.
 
 
-# ACE contribution per Y-type = g(1) − g(0): [0, 1, −1, 0]
-_ACE_COEF = np.array(
-    [_gy(j, 1) - _gy(j, 0) for i in range(4) for j in range(4)], dtype=float
-)
+@lru_cache(maxsize=32)
+def _response_types(nx: int, ny: int, nz: int) -> tuple[tuple, tuple]:
+    """(X-response types, Y-response types) as tuples of maps, indexed by
+    level POSITION: ``fx[z] = x`` and ``gy[x] = y``."""
+    return (
+        tuple(itertools.product(range(nx), repeat=nz)),
+        tuple(itertools.product(range(ny), repeat=nx)),
+    )
 
 
-def _bp_ace_bounds_from_P(P: np.ndarray) -> tuple[float, float]:
-    """Sharp ACE bounds by LP over the 16-type simplex. ``P`` is a
-    (2,2,2) array ``P[z,x,y] = P(X=x, Y=y | Z=z)``."""
+@lru_cache(maxsize=32)
+def _response_constraints(nx: int, ny: int, nz: int) -> np.ndarray:
+    """The equality-constraint matrix mapping a distribution over response
+    types to the observable table ``P(X=x, Y=y | Z=z)``, plus the row that
+    makes it a distribution.
+
+    Built from the cardinalities alone, so it is identical across bootstrap
+    replicates and cached rather than rebuilt (only the right-hand side moves).
+    """
+    fxs, gys = _response_types(nx, ny, nz)
+    A = np.zeros((nz * nx * ny + 1, len(fxs) * len(gys)))
+    row = 0
+    for z in range(nz):
+        for x in range(nx):
+            for y in range(ny):
+                for i, fx in enumerate(fxs):
+                    if fx[z] != x:
+                        continue
+                    for j, gy in enumerate(gys):
+                        if gy[x] == y:
+                            A[row, i * len(gys) + j] = 1.0
+                row += 1
+    A[row, :] = 1.0
+    return A
+
+
+def _arm_objective(nx: int, ny: int, nz: int, xi: int, yi: int) -> np.ndarray:
+    """Coefficients of ``P(Y=y | do(X=x))`` over the response types: a type
+    contributes iff its outcome map sends level ``xi`` to level ``yi``.
+    Intervening fixes X, so the treatment map plays no part."""
+    fxs, gys = _response_types(nx, ny, nz)
+    c = np.zeros(len(fxs) * len(gys))
+    for i in range(len(fxs)):
+        for j, gy in enumerate(gys):
+            if gy[xi] == yi:
+                c[i * len(gys) + j] = 1.0
+    return c
+
+
+def _contrast_objective(
+    nx: int, ny: int, nz: int, yi: int, hi_xi: int, lo_xi: int,
+) -> np.ndarray:
+    """Coefficients of ``P(Y=y|do(X=hi)) − P(Y=y|do(X=lo))`` — the same type
+    distribution read through a difference instead of a level."""
+    fxs, gys = _response_types(nx, ny, nz)
+    c = np.zeros(len(fxs) * len(gys))
+    for i in range(len(fxs)):
+        for j, gy in enumerate(gys):
+            c[i * len(gys) + j] = (
+                (1.0 if gy[hi_xi] == yi else 0.0)
+                - (1.0 if gy[lo_xi] == yi else 0.0)
+            )
+    return c
+
+
+def _solve_response_lp(
+    P: np.ndarray, nx: int, ny: int, nz: int, objective: np.ndarray,
+) -> tuple[float, float]:
+    """Range of a linear functional over every response-type distribution
+    that reproduces ``P[z,x,y] = P(X=x, Y=y | Z=z)`` — the identified set by
+    its definition, not an approximation of it."""
     from scipy.optimize import linprog
 
-    rows: list[np.ndarray] = []
-    b: list[float] = []
-    for z in (0, 1):
-        for x in (0, 1):
-            for y in (0, 1):
-                row = np.zeros(16)
-                for i in range(4):
-                    for j in range(4):
-                        if _fx(i, z) == x and _gy(j, _fx(i, z)) == y:
-                            row[i * 4 + j] = 1.0
-                rows.append(row)
-                b.append(float(P[z, x, y]))
-    rows.append(np.ones(16))
-    b.append(1.0)
-    A_eq = np.asarray(rows)
-    b_eq = np.asarray(b)
-    simplex = [(0.0, None)] * 16
-    lo = linprog(_ACE_COEF, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
-    hi = linprog(-_ACE_COEF, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
+    A_eq = _response_constraints(nx, ny, nz)
+    b_eq = np.concatenate([P.reshape(-1), [1.0]])
+    simplex = [(0.0, None)] * A_eq.shape[1]
+    lo = linprog(objective, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
+    hi = linprog(-objective, A_eq=A_eq, b_eq=b_eq, bounds=simplex, method="highs")
     if not (lo.success and hi.success):
         # No type distribution reproduces the observed table under IV
         # independence + exclusion — i.e. the data REFUTES the instrument.
-        # Translate the LP infeasibility into Balke-Pearl's own falsifiability
-        # test (the instrumental inequalities, eq 6) so the message is causal,
-        # not numeric.
-        violation = _instrumental_inequality_violation(P)
+        # Translate the LP infeasibility into the instrumental inequality so
+        # the message is causal rather than numeric.
+        violation = _instrumental_inequality_violation(P, nx, ny, nz)
         raise EstimatorFailure(
             Refusal.IV_MODEL_REFUTED,
-            "the observed P(X,Y|Z) table is incompatible with the binary IV "
-            "model: no distribution over response types reproduces it under "
-            "instrument independence + exclusion. "
+            f"the observed P(X,Y|Z) table is incompatible with the IV model "
+            f"at {nx}×{ny}×{nz} levels: no distribution over response types "
+            "reproduces it under instrument independence + exclusion. "
             + (violation or "The response-function LP is infeasible.")
             + " Either the instrument is invalid (IV1/IV2/IV3 fail) or, on a "
             "small sample, this is sampling noise near the model boundary.",
@@ -349,47 +409,69 @@ def _bp_ace_bounds_from_P(P: np.ndarray) -> tuple[float, float]:
     return float(lo.fun), float(-hi.fun)
 
 
-# Balke-Pearl (1997) eq (6) — the instrumental inequalities. The binary IV
-# model is REFUTED (no compatible latent distribution exists) iff any of these
-# is violated. p_{yx.z} = P(Y=y, X=x | Z=z) = P[z, x, y] in this module's array.
-def _instrumental_inequality_violation(P: np.ndarray) -> str | None:
-    checks = (
-        ("P(Y=0,X=0|Z=0)+P(Y=1,X=0|Z=1)", P[0, 0, 0] + P[1, 0, 1]),
-        ("P(Y=0,X=1|Z=0)+P(Y=1,X=1|Z=1)", P[0, 1, 0] + P[1, 1, 1]),
-        ("P(Y=1,X=0|Z=0)+P(Y=0,X=0|Z=1)", P[0, 0, 1] + P[1, 0, 0]),
-        ("P(Y=1,X=1|Z=0)+P(Y=0,X=1|Z=1)", P[0, 1, 1] + P[1, 1, 0]),
-    )
-    worst = max(checks, key=lambda c: c[1])
-    if worst[1] > 1.0 + 1e-9:
+def _instrumental_inequality_violation(
+    P: np.ndarray, nx: int, ny: int, nz: int,
+) -> str | None:
+    """Pearl's instrumental inequality: for each treatment level,
+    ``Σ_y max_z P(Y=y, X=x | Z=z) ≤ 1``. A violation WITNESSES that the IV
+    model is refuted, and reduces to Balke-Pearl (1997) eq (6)'s four checks
+    when everything is binary.
+
+    It is a witness, not the whole test: outside the binary-instrument case
+    the inequality is not known here to be sufficient, so the caller treats
+    the LP's infeasibility as the authority and uses this only to say WHY in
+    the cases where it can.
+    """
+    worst_x, worst = -1, -1.0
+    for x in range(nx):
+        total = float(sum(P[:, x, y].max() for y in range(ny)))
+        if total > worst:
+            worst_x, worst = x, total
+    if worst > 1.0 + 1e-9:
         return (
-            f"Instrumental inequality violated: {worst[0]} = {worst[1]:.4f} "
-            f"> 1 (Balke-Pearl 1997 eq 6)."
+            f"Instrumental inequality violated at treatment level index "
+            f"{worst_x}: Σ_y max_z P(Y=y, X=x | Z=z) = {worst:.4f} > 1 "
+            f"(Pearl 1995; Balke-Pearl 1997 eq 6 in the binary case)."
         )
     return None
 
 
-def evaluate_balke_pearl_ace_bounds(
+def evaluate_balke_pearl_bounds(
     data: pd.DataFrame,
     *,
     treatment: str,
     outcome: str,
     instrument: str,
+    treatment_value=True,
+    outcome_value=True,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
     cluster: str | None = None,
 ) -> NumericBounds:
-    """Balke-Pearl (1997) sharp bounds on ``ACE = P(Y=1|do(X=1)) −
-    P(Y=1|do(X=0))`` for a binary instrument ``Z``, binary treatment ``X``,
-    binary outcome ``Y`` satisfying IV1/IV2/IV3.
+    """Sharp bounds on the single arm ``P(Y=outcome_value |
+    do(X=treatment_value))`` from an instrument satisfying IV1/IV2/IV3, at
+    any finite cardinality of X, Y and Z.
 
-    Computed by the response-function LP over the 16 canonical types — the
-    definition of the identified set. Tighter than Manski natural whenever a
-    valid instrument exists.
+    THE ESTIMAND IS THE ARM, not the ACE. Balke-Pearl's textbook statement
+    bounds ``P(Y=1|do(X=1)) − P(Y=1|do(X=0))``, which needs a binary outcome
+    to be a probability difference and a binary treatment to have a baseline
+    arm — it does not survive the generalisation, and it was never the
+    quantity an ``EffectQuery`` asked for. Where the ACE IS defined (a binary
+    treatment gives the difference a baseline arm) it is reported alongside,
+    as ``contrast``: the same polytope read through a difference instead of a
+    level. It is its own pair of optimisations rather than arithmetic on the
+    arm's endpoints — a difference of two quantities is contained in the
+    difference of their intervals but is not in general equal to it, and
+    optimising it directly is correct without needing to know which. On the
+    binary IV model the two happen to coincide on every table tried
+    (including both published worked examples), so what the second LP buys
+    here is not having to assume that.
 
-    Raises ``EstimatorFailure`` when X / Y / Z is non-binary, or a stratum of
-    the instrument has no support (an empty ``Z=z`` cell — the conditional
-    ``P(X,Y|Z=z)`` is undefined and the bounds cannot be evaluated there).
+    Raises ``EstimatorFailure`` when the model is larger than
+    ``MAX_RESPONSE_TYPES``, when the queried level is unobserved, when a
+    stratum of the instrument has no support, or when no response-type
+    distribution reproduces the observed table (the instrument is refuted).
     """
     presence = (cluster,) if cluster is not None else ()
     groups = (
@@ -404,65 +486,96 @@ def evaluate_balke_pearl_ace_bounds(
     )
     df = contract.data
 
-    for col, role, species in (
-        (treatment, "treatment", Refusal.TREATMENT_NOT_BINARY),
-        (outcome, "outcome", Refusal.OUTCOME_NOT_BINARY),
-        (instrument, "instrument", Refusal.INSTRUMENT_NOT_BINARY),
-    ):
-        levels = _sorted_levels(df[col])
-        if len(levels) != 2:
-            raise EstimatorFailure(
-                species,
-                f"{role} {col!r} has {len(levels)} observed levels "
-                f"({refusals.describe(levels)}); the Balke-Pearl IV bounds require a binary "
-                f"{role}.",
-            )
-
     x_levels = _sorted_levels(df[treatment])
     y_levels = _sorted_levels(df[outcome])
     z_levels = _sorted_levels(df[instrument])
+    nx, ny, nz = len(x_levels), len(y_levels), len(z_levels)
+
+    for col, role, levels in (
+        (treatment, "treatment", x_levels),
+        (outcome, "outcome", y_levels),
+        (instrument, "instrument", z_levels),
+    ):
+        if len(levels) < 2:
+            raise EstimatorFailure(
+                Refusal.INSUFFICIENT_SUPPORT,
+                f"{role} {col!r} takes a single value "
+                f"({refusals.describe(levels)}) in this sample; a variable "
+                f"that never varies carries no response types to bound over.",
+            )
+
+    if response_type_count(
+        treatment_levels=nx, outcome_levels=ny, instrument_levels=nz,
+    ) is None:
+        raise EstimatorFailure(
+            Refusal.RESPONSE_MODEL_TOO_LARGE,
+            f"{treatment!r}×{outcome!r}×{instrument!r} have {nx}×{ny}×{nz} "
+            f"observed levels, so the response-function partition has "
+            f"{nx}^{nz}·{ny}^{nx} types — above the {MAX_RESPONSE_TYPES} "
+            f"this package solves. The sharp interval exists; it is the LP, "
+            f"re-solved once per bootstrap replicate, that is declined. "
+            f"A column with this many observed levels is usually a "
+            f"continuous one that no response-function model describes; "
+            f"coarsening it brings the method back in reach.",
+        )
+
+    xi = _level_index(x_levels, treatment_value, treatment, "intervention")
+    yi = _level_index(y_levels, outcome_value, outcome, "target")
+    arm_obj = _arm_objective(nx, ny, nz, xi, yi)
 
     def bounds_from_frame(sub: pd.DataFrame) -> tuple[float, float]:
         P = _empirical_P_xyz(
             sub, treatment, outcome, instrument,
             x_levels, y_levels, z_levels,
         )
-        return _bp_ace_bounds_from_P(P)
+        return _solve_response_lp(P, nx, ny, nz, arm_obj)
 
     lower, upper = bounds_from_frame(df)
     # The full-data P(X=x, Y=y | Z=z) table is the sufficient statistic the
-    # response-function LP consumes — record it so the verifier can re-derive
-    # [lower_value, upper_value] independently rather than only metadata-audit.
+    # response-function LP consumes — record it, WITH the level lists, so the
+    # verifier can re-derive [lower_value, upper_value] independently rather
+    # than only metadata-audit. Without the levels the table's own shape is
+    # the only clue to what its axes mean, and a 2×3×2 table read as 3×2×2
+    # would re-derive a different interval and call the producer a liar.
     P_full = _empirical_P_xyz(
         df, treatment, outcome, instrument, x_levels, y_levels, z_levels,
     )
+    stats = {
+        "P_xyz": [[[float(P_full[z, x, y]) for y in range(ny)]
+                   for x in range(nx)] for z in range(nz)],
+        "treatment_levels": [_py(v) for v in x_levels],
+        "outcome_levels": [_py(v) for v in y_levels],
+        "instrument_levels": [_py(v) for v in z_levels],
+        "arm_treatment_index": xi,
+        "arm_outcome_index": yi,
+    }
     ci_lower, ci_upper = _bootstrap_outer_band_frame(
         df, bounds_from_frame,
         ci_bootstrap=ci_bootstrap, ci_level=ci_level,
         random_state=random_state, groups=groups,
     )
     width = upper - lower
+    contrast = _ace_contrast(
+        P_full, nx, ny, nz, xi, yi, x_levels, y_levels,
+    )
     return NumericBounds(
         method="balke_pearl_iv",
-        estimand="ace",
+        estimand="arm_probability",
         lower_value=float(lower),
         upper_value=float(upper),
-        sufficient_statistics={"P_xyz": [
-            [[float(P_full[z, x, y]) for y in range(2)] for x in range(2)]
-            for z in range(2)
-        ]},
+        sufficient_statistics=stats,
+        contrast=contrast,
         ci_lower=ci_lower,
         ci_upper=ci_upper,
         ci_level=ci_level,
         width=float(width),
-        # ACE lives in [−1, 1]; trivial when the interval spans (nearly) all.
-        width_is_trivial=bool(width >= 2.0 - _TRIVIAL_SLACK),
+        width_is_trivial=bool(width >= 1.0 - _TRIVIAL_SLACK),
         sample_size=contract.sample_size,
         data_hash=contract.data_hash,
         treatment=treatment,
         outcome=outcome,
-        treatment_value=None,
-        outcome_value=None,
+        treatment_value=_py(treatment_value),
+        outcome_value=_py(outcome_value),
         instrument=instrument,
         assumptions=(
             "iv1_relevance",
@@ -473,21 +586,59 @@ def evaluate_balke_pearl_ace_bounds(
     )
 
 
+def _ace_contrast(
+    P: np.ndarray, nx: int, ny: int, nz: int, xi: int, yi: int,
+    x_levels: list, y_levels: list,
+) -> dict | None:
+    """The average causal effect, when the treatment is binary — the queried
+    arm minus the other one, bounded over the same polytope.
+
+    ``None`` for a multi-valued treatment: with three or more levels there is
+    no baseline arm the difference is against, and picking one would be this
+    module inventing a question the query did not ask.
+    """
+    if nx != 2:
+        return None
+    other = 1 - xi
+    lo, hi = _solve_response_lp(
+        P, nx, ny, nz, _contrast_objective(nx, ny, nz, yi, xi, other),
+    )
+    return {
+        "kind": "ace",
+        "reference_value": _py(x_levels[other]),
+        "lower_value": float(lo),
+        "upper_value": float(hi),
+    }
+
+
+def _level_index(levels: list, value, column: str, role: str) -> int:
+    """Position of ``value`` among the sorted observed levels."""
+    for i, v in enumerate(levels):
+        if v == value or (isinstance(value, bool) and bool(v) == value):
+            return i
+    raise EstimatorFailure(
+        Refusal.TARGET_VALUE_ABSENT,
+        f"the {role} level {value!r} does not occur in column {column!r} "
+        f"(observed: {refusals.describe(levels)}); the response-function "
+        f"model has no arm to bound there.",
+    )
+
+
 def _empirical_P_xyz(
     df: pd.DataFrame, treatment: str, outcome: str, instrument: str,
     x_levels, y_levels, z_levels,
 ) -> np.ndarray:
-    """Empirical ``P(X=x, Y=y | Z=z)`` as a (2,2,2) array indexed by the
-    SORTED level positions (low=0, high=1). An empty ``Z=z`` stratum is a
-    positivity violation and raises rather than fabricating."""
+    """Empirical ``P(X=x, Y=y | Z=z)`` as a ``(|Z|,|X|,|Y|)`` array indexed by
+    the SORTED level positions. An empty ``Z=z`` stratum is a positivity
+    violation and raises rather than fabricating."""
     xs = df[treatment].to_numpy()
     ys = df[outcome].to_numpy()
     zs = df[instrument].to_numpy()
-    P = np.zeros((2, 2, 2))
+    P = np.zeros((len(z_levels), len(x_levels), len(y_levels)))
     for zi, zv in enumerate(z_levels):
         zmask = zs == zv
-        nz = int(zmask.sum())
-        if nz == 0:
+        nz_rows = int(zmask.sum())
+        if nz_rows == 0:
             raise EstimatorFailure(
                 Refusal.INSUFFICIENT_SUPPORT,
                 f"positivity violation: instrument stratum {instrument}={zv!r} "
@@ -497,7 +648,7 @@ def _empirical_P_xyz(
         for xi, xv in enumerate(x_levels):
             for yi, yv in enumerate(y_levels):
                 cnt = int((zmask & (xs == xv) & (ys == yv)).sum())
-                P[zi, xi, yi] = cnt / nz
+                P[zi, xi, yi] = cnt / nz_rows
     return P
 
 

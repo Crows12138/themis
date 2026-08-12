@@ -265,20 +265,21 @@ Landed scope:
   than fabricating a value.
 
 - Partial-identification numeric end — ``evaluate_manski_natural_bounds`` /
-  ``evaluate_manski_tamer_bounds`` / ``evaluate_balke_pearl_ace_bounds``
+  ``evaluate_manski_tamer_bounds`` / ``evaluate_balke_pearl_bounds``
   returning ``NumericBounds``. Turns the SYMBOLIC bounds layer
-  (``output/bounds.py``) into actual numbers on data: Manski (1990) natural
-  and Manski (1997) MTR bounds on a single interventional arm
-  ``P(Y=y|do(X=x))``, and Balke-Pearl (1997) SHARP bounds on the ACE for a
-  binary instrument — the latter by the response-function LINEAR PROGRAM over
-  the 16 canonical response types (cross-checked in tests against the
-  published closed form and the Vitamin-A worked example −0.1946/0.0054).
-  Reached through ``themis.estimate``, which fills ``lower_value`` /
-  ``upper_value`` / a bootstrap outer-band CI into the ``bounds_result`` the
-  kernel already attached — always the SAME method the kernel named. Refuses
-  (leaving the symbolic interval intact) on a non-binary variable, a
-  positivity failure, or a table the instrument refutes (the Balke-Pearl
-  instrumental inequalities).
+  (``output/bounds.py``) into actual numbers on data. All three bound the
+  same quantity — the single interventional arm ``P(Y=y|do(X=x))`` the query
+  named: Manski (1990) natural and Manski (1997) MTR by closed form,
+  Balke-Pearl SHARP by the response-function LINEAR PROGRAM over the
+  ``|X|^|Z|·|Y|^|X|`` canonical types (cross-checked in tests against the
+  published binary closed form and the Vitamin-A worked example
+  −0.1946/0.0054, which the ``contrast`` field still reports). Reached
+  through ``themis.estimate``, which fills ``lower_value`` / ``upper_value``
+  / a bootstrap outer-band CI into the ``bounds_result`` the kernel already
+  attached — always the SAME method the kernel named. Refuses (leaving the
+  symbolic interval intact) on a positivity failure, a response-function
+  partition beyond the LP's declared size, or a table the instrument
+  refutes (the instrumental inequality).
 
 The data contract (``DataContract`` / ``DataContractError``) is shared
 by all estimators — same DataFrame validation, same SHA-256 hash
@@ -294,7 +295,7 @@ from .aipw import (
 from .backdoor import BackdoorEstimate, estimate_backdoor_ate
 from .bounds_numeric import (
     NumericBounds,
-    evaluate_balke_pearl_ace_bounds,
+    evaluate_balke_pearl_bounds,
     evaluate_manski_natural_bounds,
     evaluate_manski_tamer_bounds,
 )
@@ -469,7 +470,7 @@ __all__ = [
     "e_value_from_ate_continuous",
     "estimate_aipw_ate",
     "estimate_backdoor_ate",
-    "evaluate_balke_pearl_ace_bounds",
+    "evaluate_balke_pearl_bounds",
     "evaluate_manski_natural_bounds",
     "evaluate_manski_tamer_bounds",
     "estimate_cde",

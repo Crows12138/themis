@@ -5730,7 +5730,6 @@ def _attach_bounds_result(
     if query.target_population is not None:
         return result
 
-    target_is_bool = isinstance(query.target.value, bool)
     intervention_is_bool = isinstance(query.intervention.value, bool)
 
     target_event_is_discrete = _target_event_is_discrete(program, query)
@@ -5744,17 +5743,15 @@ def _attach_bounds_result(
     if not _intervention_arm_is_discrete(program, query):
         return result
 
-    # Manski natural bounds a single arm P(Y=y | do(X=x)) and are
-    # cardinality-agnostic in the treatment (the off-arm mass is P(X≠x),
-    # be it one other level or several). Balke-Pearl (16-type response
-    # function) and Manski-Tamer (monotone envelope over ordered levels)
-    # are both binary-TREATMENT constructions, so they stay gated on a
-    # bool intervention value; a multi-valued treatment falls through to
-    # the assumption-free Manski natural floor.
+    # All three methods bound the same arm P(Y=y | do(X=x)). Manski natural
+    # is cardinality-agnostic by construction (the off-arm mass is P(X≠x),
+    # be it one other level or several); Balke-Pearl is cardinality-agnostic
+    # by SIZE — its response-function partition grows with the cardinalities
+    # and is offered while it stays inside MAX_RESPONSE_TYPES. Manski-Tamer's
+    # monotone envelope over ordered levels IS a binary-treatment
+    # construction, so that one stays gated on a bool intervention value.
     bounds = None
     # 1. Try kernel-emitted IV identification first (richest).
-    #    BP-IV's 8-term formula assumes Y ∈ {0,1} so it gates on bool
-    #    outcome — discrete-numeric targets fall through to Manski.
     iv_ext = (result.extensions or {}).get(blocks.IV_IDENTIFICATION)
     instrument_pred: str | None = None
     if isinstance(iv_ext, dict):
@@ -5764,13 +5761,17 @@ def _attach_bounds_result(
         instrument_pred = _detect_iv_candidate_structural(
             program, query,
         )
-    if intervention_is_bool and instrument_pred and target_is_bool:
+    if instrument_pred:
         bounds = attempt_balke_pearl_iv(
             query,
             instrument_predicate=instrument_pred,
-            outcome_is_binary=True,
-            treatment_is_binary=True,
-            instrument_is_binary=True,
+            outcome_levels=_declared_level_count(
+                program, query.target.atom.predicate, query.target.value),
+            treatment_levels=_declared_level_count(
+                program, query.intervention.atom.predicate,
+                query.intervention.value),
+            instrument_levels=_declared_level_count(
+                program, instrument_pred, None),
         )
 
     # 3. Manski-Tamer (MTR) — tighter than Manski natural when the user
@@ -5778,6 +5779,14 @@ def _attach_bounds_result(
     #    program.extensions['monotonicity'] dict matching this query's
     #    target+treatment pair. Binary treatment only; falls back to
     #    Manski natural if no MTR declaration applies.
+    #
+    #    Balke-Pearl is tried first, and now reaches cases it used to skip,
+    #    so a query with BOTH an instrument and an MTR declaration gets the
+    #    instrument. That is this chain's order deciding between two
+    #    assumption sets — IV1/IV2/IV3 read off the graph against a
+    #    monotonicity the caller asserted in words — and their intervals are
+    #    not comparable, so "tighter" cannot settle it either. Stated rather
+    #    than left to be discovered; #358 is where it gets decided properly.
     if bounds is None and intervention_is_bool:
         mtr_direction = _detect_monotonicity_for_query(program, query)
         if mtr_direction is not None:
@@ -5796,7 +5805,54 @@ def _attach_bounds_result(
 
     if bounds is None:
         return result
+    bounds = _note_a_sharper_method_was_declined(
+        program, query, bounds, instrument_pred,
+    )
     return _replace(result, bounds_result=bounds)
+
+
+def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred):
+    """Say so when the floor is being reported because the sharp method was
+    too big to compute, not because there was nothing sharper.
+
+    A cap that quietly drops the query to the assumption-free floor reads,
+    at every surface, exactly like a query that never had an instrument.
+    The reader is entitled to know that a tighter answer exists and what
+    it would cost to reach it.
+    """
+    from dataclasses import replace as _replace
+    from ..output.bounds import MAX_RESPONSE_TYPES, response_type_count
+    from ..types import BoundsMethod
+
+    if bounds.method is BoundsMethod.BALKE_PEARL_IV or not instrument_pred:
+        return bounds
+    levels = [
+        _declared_level_count(program, query.target.atom.predicate,
+                              query.target.value),
+        _declared_level_count(program, query.intervention.atom.predicate,
+                              query.intervention.value),
+        _declared_level_count(program, instrument_pred, None),
+    ]
+    if not all(isinstance(n, int) and n >= 2 for n in levels):
+        return bounds
+    ny, nx, nz = levels
+    assert ny is not None and nx is not None and nz is not None
+    if response_type_count(treatment_levels=nx, outcome_levels=ny,
+                           instrument_levels=nz) is not None:
+        return bounds
+    note = (
+        f"Instrument {instrument_pred} is present and would give sharp "
+        f"Balke-Pearl bounds on this arm, but at {nx}×{ny}×{nz} levels its "
+        f"response-function partition has {nx}^{nz}·{ny}^{nx} types — beyond "
+        f"the {MAX_RESPONSE_TYPES} this package solves. This interval is the "
+        f"assumption-free floor, reported because the sharper method was "
+        f"declined for size, not because there was nothing sharper. "
+        f"Coarsening a level brings it back in reach."
+    )
+    return _replace(
+        bounds,
+        notes=f"{bounds.notes} {note}" if bounds.notes else note,
+    )
 
 
 def _detect_monotonicity_for_query(program, query):
@@ -5891,6 +5947,34 @@ def _event_is_discrete(program: Program, predicate: str, value) -> bool:
     return value in domain
 
 
+def _declared_level_count(program: Program, predicate: str, value) -> int | None:
+    """How many levels the program declares this variable to have, or None
+    when it declares none — which is what "continuous" looks like here.
+
+    A bool ``value`` answers 2 on its own: a boolean predicate has two states
+    whether or not anybody wrote the domain down. This is the treatment /
+    outcome / instrument's CARDINALITY, which is what decides the size of a
+    response-function model — as opposed to
+    :func:`_event_is_discrete`, which asks whether one particular level is a
+    non-degenerate event.
+    """
+    from ..types import VariableDeclaration
+
+    if isinstance(value, bool):
+        return 2
+    decl = next(
+        (
+            s for s in program.statements
+            if isinstance(s, VariableDeclaration) and s.predicate == predicate
+        ),
+        None,
+    )
+    if decl is None or decl.domain is None:
+        return None
+    levels = len(set(decl.domain))
+    return levels if levels >= 2 else None
+
+
 def _target_event_is_discrete(program: Program, query) -> bool:
     """Whether ``P(target.atom = target.value)`` is a non-degenerate
     discrete event (see :func:`_event_is_discrete`)."""
@@ -5935,7 +6019,10 @@ def _reconcile_alt_paths_with_bounds(
       prepend that line on blocking gaps that didn't already mention bounds
     - bounds attempt ran but returned None (effect query +
       needs_investigation) → strip static bounds promises rather than
-      lying that BP/Manski works for non-binary outcomes
+      leaving a promise standing that nothing delivered (the reason used
+      to be "BP/Manski does not work for non-binary outcomes"; both work
+      at any discrete cardinality now, and what still returns None is a
+      continuous variable with no discrete event to bound)
     - bounds not attempted → leave alt_paths untouched
     """
     from dataclasses import replace as _replace
@@ -6151,7 +6238,15 @@ def _detect_iv_candidate_structural(
     Returns predicate name of Z iff:
       - exists cause edge Z→X (X = intervention predicate)
       - no cause edge Z→Y (Y = target predicate)
-      - Z is declared as a bool variable
+      - Z is declared with a finite domain of at least two levels
+
+    The domain requirement is about the response-function model needing a
+    finite ``z → x`` map to enumerate, not about the instrument being
+    binary. Requiring ``{True, False}`` here used to throw away a perfectly
+    good three-level instrument and drop the query to the no-instrument
+    floor — the whole of the instrument's information, discarded over a
+    cardinality the method never needed.
+
     Returns None if zero or multiple candidates (don't guess on tie).
     """
     from ..types import CauseStatement, VariableDeclaration
@@ -6162,7 +6257,7 @@ def _detect_iv_candidate_structural(
     # Collect predicates with edge → intervention
     edges_to_intervention: set[str] = set()
     edges_to_target: set[str] = set()
-    bool_vars: set[str] = set()
+    finite_vars: set[str] = set()
     for s in program.statements:
         if isinstance(s, CauseStatement):
             from_pred = s.from_atom.predicate
@@ -6172,10 +6267,10 @@ def _detect_iv_candidate_structural(
             if to_pred == target_pred:
                 edges_to_target.add(from_pred)
         elif isinstance(s, VariableDeclaration):
-            if s.domain is not None and set(s.domain) == {True, False}:
-                bool_vars.add(s.predicate)
+            if s.domain is not None and len(set(s.domain)) >= 2:
+                finite_vars.add(s.predicate)
 
-    candidates = (edges_to_intervention - edges_to_target) & bool_vars
+    candidates = (edges_to_intervention - edges_to_target) & finite_vars
     candidates.discard(intervention_pred)
     candidates.discard(target_pred)
     if len(candidates) == 1:

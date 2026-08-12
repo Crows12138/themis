@@ -1806,7 +1806,9 @@ they were).
 | Field | Render |
 |---|---|
 | `method` | name once: "Manski 自然界限" / "Balke-Pearl 工具变量界限" |
-| `lower_expression` / `upper_expression` | symbolic — show as code block; the user / their analyst evaluates against data |
+| `estimand` | always present — name the quantity the two endpoints bracket before giving the numbers |
+| `lower_expression` / `upper_expression` | symbolic — show as code block. Manski's are formulas the analyst can evaluate; Balke-Pearl's are a REFERENCE to a linear program, and there is no closed form to evaluate at a general cardinality |
+| `contrast` | when present, a second interval over a second quantity — see §"Numeric end" |
 | `assumptions` | translate via the assumption glossary (Manski natural: "无假设"; BP: lists IV1/IV2/IV3) |
 | `data_required` | name the observable distribution(s) the analyst must supply |
 | `width_when_uninformative` | when True, prepend warning that bounds are trivial |
@@ -1841,15 +1843,15 @@ they were).
 #### `balke_pearl_iv` (requires IV1/IV2/IV3)
 
 > 你的图里有一个工具变量 `{instrument}`（满足 IV1/IV2/IV3 时），
-> 这让我可以用 **Balke-Pearl 工具变量界限**（1997）给一个比 Manski
-> 自然界限更窄的区间 —— 但这次界的是 **平均因果效应 ACE**：
+> 这让我可以给一个比 Manski 自然界限更窄的区间 —— **界的是同一条臂**
+> （问什么答什么），只是把工具变量的信息也用上了：
 >
 > ```
-> ACE = E[{target} | do({intervention}=1)] - E[{target} | do({intervention}=0)]
-> ACE ∈ [ {lower_expression}, {upper_expression} ]
+> P({target} | do({intervention})) ∈
+>     [ {lower_expression}, {upper_expression} ]
 > ```
 >
-> 计算只需要观察到的 `{data_required}`（8 个概率，二值三元组）。
+> 计算只需要观察到的 `{data_required}`。
 >
 > **关键假设**：
 > - IV1: 工具变量 `{instrument}` 与处理 `{intervention}` 相关
@@ -1859,6 +1861,16 @@ they were).
 > 如果这三条哪条你有疑问 —— 比如 `{instrument}` 真的不直接影响
 > `{target}` 吗？—— 告诉我，我可以退回 Manski 自然界限（更宽但不
 > 需要 IV 假设）。
+
+界是**线性规划的最优值**，不是闭式：`lower_expression` /
+`upper_expression` 是对那个规划的引用，不是可以代入求值的公式。经典的
+"8 项线性组合取 max/min" 是全二值时的解析解，别把它当成一般形式讲。
+处理、结局、工具都可以是任意有限基数；响应型个数
+`|X|^{|Z|}·|Y|^{|X|}` 由基数决定，`notes` 里写着。
+
+当 `contrast` 存在时（处理二值才有基准臂），它是**第二个量**：与另一
+条臂相比的平均因果效应。两对端点分开说，并且说清楚 `contrast` 不是
+上面两个端点相减。
 
 #### `manski_tamer_monotonicity` (requires user-asserted MTR)
 
@@ -1898,12 +1910,17 @@ expressions ARE the answer, as above.
 
 Principles:
 
-- **`estimand` says what the interval is *of*** — do not blur it. It
-  mirrors the method's object: `arm_probability` is a single
-  interventional arm `P(Y=y|do(X=x))` (Manski natural / Manski-Tamer);
-  `ace` is the difference `P(Y=1|do 1) − P(Y=1|do 0)` (Balke-Pearl).
-  State which one so the reader never reads an arm probability as an
-  effect or vice-versa.
+- **`estimand` says what the interval is *of*** — say it, every time.
+  All three methods bracket `arm_probability`: the single interventional
+  arm `P(Y=y|do(X=x))` the query named. It reads like a formality
+  precisely because it is now uniform; it was not always, and an interval
+  whose quantity the reader has to infer from the method's reputation is
+  how this block once answered a question nobody asked.
+- **`contrast` is a SECOND interval over a SECOND quantity** — present
+  only where it is defined (`kind: "ace"`, needing a binary treatment for
+  the difference to have a baseline arm). Give it its own sentence, name
+  its `reference_value`, and never present it as the arm's endpoints
+  subtracted: it is its own optimisation over the same identified set.
 - **`ci_lower` / `ci_upper` bound the interval, not a point.** They are
   an outer confidence band for the identified SET (covers the whole
   interval with prob ≥ `ci_level`), NOT a confidence interval for a
@@ -1924,7 +1941,7 @@ Principles:
 
 If `width_when_uninformative` is True OR you can see lower/upper
 collapse to the trivial range (e.g. [0, 1] for probabilities,
-[-1, 1] for ACE), be honest:
+[-1, 1] for a contrast), be honest:
 
 > 严格来说界限存在 —— `[{lower}, {upper}]` —— 但实际上覆盖了整个
 > 可能范围，这等于"不知道"。这种情况下**界限本身没有信息**，要

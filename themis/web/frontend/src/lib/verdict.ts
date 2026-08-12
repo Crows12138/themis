@@ -107,6 +107,27 @@ export function ledgerProvenanceLabel(prov: string): string {
   return LEDGER_PROVENANCE_ZH[prov] ?? prov
 }
 
+// What a partial-identification interval brackets. Two numbers about the
+// wrong quantity read exactly like two numbers about the right one, and this
+// surface used to print neither the numbers nor their name — only the method
+// that produced them, while one method was bracketing the difference between
+// two arms under a question about one of them.
+const BOUNDS_ESTIMAND_ZH: Record<string, string> = {
+  arm_probability: '干预到所问的那一档之后,目标事件发生的概率',
+}
+export function boundsEstimandLabel(estimand: string): string {
+  return BOUNDS_ESTIMAND_ZH[estimand] ?? estimand
+}
+
+// The second quantity the same identified set can be read through: a
+// contrast between two arms rather than one arm's level.
+const BOUNDS_CONTRAST_ZH: Record<string, string> = {
+  ace: '平均因果效应(ACE)',
+}
+export function boundsContrastLabel(kind: string): string {
+  return BOUNDS_CONTRAST_ZH[kind] ?? kind
+}
+
 // Which of the five answers to "what now" a refusal gives — themis/refusals.py
 // hangs one on every species, and the report has said it in words all along.
 // The species itself stays an identifier here for the reason it does there:
@@ -570,6 +591,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   interventional_risk_provenance: RISK_PROVENANCE_ZH,
   refusal_kind: REFUSAL_KIND_ZH,
   derivation_rule: DERIVATION_SAYS,
+  bounds_estimand: BOUNDS_ESTIMAND_ZH,
+  bounds_contrast_kind: BOUNDS_CONTRAST_ZH,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the

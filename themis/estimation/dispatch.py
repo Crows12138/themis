@@ -1356,8 +1356,8 @@ def _attach_numeric_bounds(
 
     Purely additive: the symbolic bounds_result is preserved; only numeric
     fields are ADDED. Any refusal — a column absent from the data, a
-    non-binary variable where the method needs binary, a positivity failure,
-    or an instrument the data refutes (Balke-Pearl instrumental inequalities)
+    response-function partition larger than the LP is run at, a positivity
+    failure, or an instrument the data refutes (the instrumental inequality)
     — leaves the symbolic interval untouched. Mirrors the ``method`` selection
     the kernel made in ``scheduler._attach_bounds_result`` (reuses the SAME
     instrument / monotonicity detectors), so numeric and symbolic never
@@ -1370,7 +1370,7 @@ def _attach_numeric_bounds(
         _detect_monotonicity_for_query,
     )
     from .bounds_numeric import (
-        evaluate_balke_pearl_ace_bounds,
+        evaluate_balke_pearl_bounds,
         evaluate_manski_natural_bounds,
         evaluate_manski_tamer_bounds,
     )
@@ -1422,9 +1422,11 @@ def _attach_numeric_bounds(
                     instrument = _detect_iv_candidate_structural(prog, query)
                 if instrument is None:
                     continue
-                nb = evaluate_balke_pearl_ace_bounds(
+                nb = evaluate_balke_pearl_bounds(
                     contract.data, treatment=x_pred, outcome=y_pred,
                     instrument=instrument,
+                    treatment_value=query.intervention.value,
+                    outcome_value=query.target.value,
                     ci_bootstrap=ci_bootstrap, random_state=random_state,
                     cluster=cluster_ok,
                 )
@@ -1455,6 +1457,8 @@ def _fill_numeric_bounds(bounds: dict, nb) -> None:
         bounds["numeric_cluster"] = nb.cluster
     if getattr(nb, "sufficient_statistics", None) is not None:
         bounds["sufficient_statistics"] = nb.sufficient_statistics
+    if getattr(nb, "contrast", None) is not None:
+        bounds["contrast"] = nb.contrast
 
 
 def _try_general_id_estimate(

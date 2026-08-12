@@ -232,6 +232,9 @@ def _bounds_result_to_dict(b) -> dict:
         "method": b.method.value,
         "lower_expression": b.lower_expression,
         "upper_expression": b.upper_expression,
+        # Unconditional: the name of the bounded quantity travels with the
+        # interval whether or not a numeric end ever fills the endpoints.
+        "estimand": b.estimand,
     }
     if b.assumptions:
         out["assumptions"] = list(b.assumptions)

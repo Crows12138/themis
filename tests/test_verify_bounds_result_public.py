@@ -195,7 +195,7 @@ def test_rejects_tampered_bp_bounds():
     out = themis.run(program)
     result = out["results"][0]
     result["bounds_result"]["lower_expression"] = "fake lower"
-    with pytest.raises(VerificationError, match="canonical 'max over 8"):
+    with pytest.raises(VerificationError, match="canonical 'min of P"):
         themis.verify_bounds_result(program, result)
 
 
@@ -224,7 +224,8 @@ def test_rejects_result_without_query_id():
         "query_kind": "effect",
         "bounds_result": {"method": "manski_natural",
                           "lower_expression": "x",
-                          "upper_expression": "y"},
+                          "upper_expression": "y",
+                          "estimand": "arm_probability"},
     }
     with pytest.raises(ValueError, match="result.query_id"):
         themis.verify_bounds_result(program, result)

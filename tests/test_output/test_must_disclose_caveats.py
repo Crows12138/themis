@@ -396,6 +396,7 @@ def test_bounds_result_assumptions_surface_in_caveat():
         method=BoundsMethod.BALKE_PEARL_IV,
         lower_expression="max(0, ...)",
         upper_expression="min(1, ...)",
+        estimand="arm_probability",
         assumptions=("IV1", "IV2", "IV3"),
     )
     fired = list(_classify_bounds_not_point(bounds))

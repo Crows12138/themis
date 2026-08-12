@@ -24,8 +24,28 @@ import pytest
 import themis
 from themis import verify_bounds_result
 from themis.verifier.errors import VerificationError
-from themis.verifier.bounds_rules import _verifier_bp_bounds_from_P
-from themis.estimation.bounds_numeric import _bp_ace_bounds_from_P
+from themis.verifier.bounds_rules import (
+    _v_response_types,
+    _verifier_response_lp,
+)
+from themis.estimation.bounds_numeric import (
+    _arm_objective,
+    _contrast_objective,
+    _solve_response_lp,
+)
+
+
+def _producer_arm(P):
+    """The producer's LP on the arm the fixture query asks about:
+    P(y=true | do(x=true)) — level index 1 on both axes."""
+    return _solve_response_lp(P, 2, 2, 2, _arm_objective(2, 2, 2, 1, 1))
+
+
+def _verifier_arm(P):
+    """The same objective, built from the verifier's own enumeration."""
+    fxs, gys = _v_response_types(2, 2, 2)
+    obj = [1.0 if g[1] == 1 else 0.0 for _f in fxs for g in gys]
+    return _verifier_response_lp(P, 2, 2, 2, obj, 'bounds_balke_pearl_iv')
 
 
 def _atom(p):
@@ -171,25 +191,51 @@ def test_rejects_p_table_violating_instrumental_inequality(bp_result):
 # --- honest ceiling ----------------------------------------------------------
 
 
-def test_self_consistent_table_and_bounds_forgery_not_caught(bp_result):
-    """Replacing the recorded table with a DIFFERENT valid one AND setting the
-    bounds to what the LP yields on it passes — the verifier has no DataFrame
-    to re-count the true table from. The honest ceiling for a data-refit
-    quantity; a lone tampered bound (above) is still caught."""
-    prog, res = bp_result
-    r = copy.deepcopy(res)
-    b = r["bounds_result"]
+def _forged_table():
     q = np.zeros(16)
     q[1 * 4 + 1] = 0.5   # compliers, Y≡X
     q[0 * 4 + 3] = 0.5   # never-takers, Y≡1
-    P2 = _P_from_types(q)
-    lo, hi = _bp_ace_bounds_from_P(P2)
+    return _P_from_types(q)
+
+
+def _forge(b, P2, *, contrast: bool):
+    lo, hi = _producer_arm(P2)
     b["sufficient_statistics"]["P_xyz"] = P2.tolist()
     b["lower_value"] = float(lo)
     b["upper_value"] = float(hi)
     b["width"] = float(hi - lo)
     b["ci_lower"] = float(lo) - 0.05
     b["ci_upper"] = float(hi) + 0.05
+    if contrast and b.get("contrast"):
+        c_lo, c_hi = _solve_response_lp(
+            P2, 2, 2, 2, _contrast_objective(2, 2, 2, 1, 1, 0))
+        b["contrast"]["lower_value"] = float(c_lo)
+        b["contrast"]["upper_value"] = float(c_hi)
+
+
+def test_a_forgery_that_stops_at_the_arm_is_caught(bp_result):
+    """The second reported quantity is a second thing to keep consistent.
+
+    A forger who swaps the table and re-solves the arm still leaves the ACE
+    interval standing on the old one. Nothing was designed for this — it is
+    what reporting two quantities from one polytope costs an attacker.
+    """
+    prog, res = bp_result
+    r = copy.deepcopy(res)
+    assert r["bounds_result"].get("contrast") is not None
+    _forge(r["bounds_result"], _forged_table(), contrast=False)
+    with pytest.raises(VerificationError, match="contrast"):
+        verify_bounds_result(prog, r)
+
+
+def test_self_consistent_table_and_bounds_forgery_not_caught(bp_result):
+    """Replacing the recorded table with a DIFFERENT valid one AND setting
+    every reported interval to what the LP yields on it passes — the verifier
+    has no DataFrame to re-count the true table from. The honest ceiling for
+    a data-refit quantity; a lone tampered bound (above) is still caught."""
+    prog, res = bp_result
+    r = copy.deepcopy(res)
+    _forge(r["bounds_result"], _forged_table(), contrast=True)
     verify_bounds_result(prog, r)  # passes — documented limitation
 
 
@@ -201,8 +247,8 @@ def test_verifier_lp_matches_producer_on_random_tables():
     for _ in range(200):
         q = rng.dirichlet(np.ones(16))
         P = _P_from_types(q)
-        prod_lo, prod_hi = _bp_ace_bounds_from_P(P)
-        ver_lo, ver_hi = _verifier_bp_bounds_from_P(P, "bounds_balke_pearl_iv")
+        prod_lo, prod_hi = _producer_arm(P)
+        ver_lo, ver_hi = _verifier_arm(P)
         assert ver_lo == pytest.approx(prod_lo, abs=1e-6)
         assert ver_hi == pytest.approx(prod_hi, abs=1e-6)
 

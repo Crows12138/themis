@@ -58,6 +58,7 @@ def test_bounds_result_minimal():
         method=BoundsMethod.MANSKI_NATURAL,
         lower_expression="max(0, P(Y=1|X=1) - P(X=0))",
         upper_expression="min(1, P(Y=1|X=1)·P(X=1) + P(X=0))",
+        estimand="arm_probability",
     )
     assert b.method == BoundsMethod.MANSKI_NATURAL
     assert b.assumptions == ()
@@ -70,6 +71,7 @@ def test_bounds_result_full():
         method=BoundsMethod.BALKE_PEARL_IV,
         lower_expression="...lower formula...",
         upper_expression="...upper formula...",
+        estimand="arm_probability",
         assumptions=("iv1_relevance", "iv2_exclusion", "iv3_independence"),
         data_required=("P(Y, X | Z)",),
         notes="Pearl 1995 §3",
@@ -83,6 +85,7 @@ def test_bounds_result_immutable():
         method=BoundsMethod.MANSKI_NATURAL,
         lower_expression="0",
         upper_expression="1",
+        estimand="arm_probability",
     )
     with pytest.raises(Exception):  # FrozenInstanceError
         b.method = BoundsMethod.BALKE_PEARL_IV  # type: ignore
@@ -112,6 +115,7 @@ def test_query_result_carries_bounds():
         method=BoundsMethod.MANSKI_NATURAL,
         lower_expression="0",
         upper_expression="1",
+        estimand="arm_probability",
     )
     qr = QueryResult(
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -132,6 +136,7 @@ def test_serialization_includes_when_present():
         method=BoundsMethod.MANSKI_NATURAL,
         lower_expression="max(0, p1-p0)",
         upper_expression="min(1, p1+p0)",
+        estimand="arm_probability",
         assumptions=(),
         data_required=("P(Y|X)", "P(X)"),
         width_when_uninformative=False,
@@ -157,6 +162,7 @@ def test_serialization_uninformative_flag_surfaces():
         method=BoundsMethod.MANSKI_NATURAL,
         lower_expression="-1",
         upper_expression="1",
+        estimand="arm_probability",
         width_when_uninformative=True,
     )
     qr = QueryResult(
@@ -183,6 +189,7 @@ def test_schema_accepts_minimal_bounds():
         "method": "manski_natural",
         "lower_expression": "0",
         "upper_expression": "1",
+        "estimand": "arm_probability",
     }
     _validator().validate(_qr_dict(bounds))
 
@@ -192,6 +199,7 @@ def test_schema_accepts_full_bounds():
         "method": "balke_pearl_iv",
         "lower_expression": "...",
         "upper_expression": "...",
+        "estimand": "arm_probability",
         "assumptions": ["iv1_relevance", "iv2_exclusion"],
         "data_required": ["P(Y, X | Z)"],
         "width_when_uninformative": False,
@@ -211,11 +219,91 @@ def test_schema_rejects_missing_required():
         _validator().validate(_qr_dict(bounds))
 
 
+def test_schema_rejects_bounds_that_do_not_say_what_they_bracket():
+    """The gate this required-field is for.
+
+    Two endpoints and a method name are what this block shipped for the
+    whole of Phase 12, and for the Balke-Pearl branch they bracketed the
+    difference between two arms under a question that asked for one.
+    """
+    bounds = {
+        "method": "manski_natural",
+        "lower_expression": "0",
+        "upper_expression": "1",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        _validator().validate(_qr_dict(bounds))
+
+
+def test_schema_accepts_a_named_second_quantity():
+    bounds = {
+        "method": "balke_pearl_iv",
+        "lower_expression": "min of P(y=true | do(x=true)) ...",
+        "upper_expression": "max of P(y=true | do(x=true)) ...",
+        "estimand": "arm_probability",
+        "lower_value": 0.2,
+        "upper_value": 0.6,
+        "contrast": {
+            "kind": "ace",
+            "reference_value": False,
+            "lower_value": -0.1,
+            "upper_value": 0.4,
+        },
+    }
+    _validator().validate(_qr_dict(bounds))
+
+
+def test_schema_rejects_a_contrast_that_does_not_name_its_baseline():
+    """A difference is against something. Without the reference level the
+    two numbers are a difference from an unstated arm, which is the same
+    defect as an interval with no estimand one field down."""
+    bounds = {
+        "method": "balke_pearl_iv",
+        "lower_expression": "min of P(...)",
+        "upper_expression": "max of P(...)",
+        "estimand": "arm_probability",
+        "contrast": {"kind": "ace", "lower_value": -0.1, "upper_value": 0.4},
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        _validator().validate(_qr_dict(bounds))
+
+
+def test_schema_rejects_an_unknown_contrast_kind():
+    bounds = {
+        "method": "balke_pearl_iv",
+        "lower_expression": "min of P(...)",
+        "upper_expression": "max of P(...)",
+        "estimand": "arm_probability",
+        "contrast": {
+            "kind": "risk_ratio", "reference_value": False,
+            "lower_value": 0.5, "upper_value": 2.0,
+        },
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        _validator().validate(_qr_dict(bounds))
+
+
+def test_schema_rejects_the_estimand_this_block_used_to_carry():
+    """`ace` was a member of this enum, and it was Balke-Pearl's value for
+    it. It is gone from here on purpose — the ACE has its own field, with
+    its own baseline — so a producer that goes back to putting a difference
+    in lower_value/upper_value fails at the exit rather than at a reader."""
+    bounds = {
+        "method": "balke_pearl_iv",
+        "lower_expression": "min of P(...)",
+        "upper_expression": "max of P(...)",
+        "estimand": "ace",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        _validator().validate(_qr_dict(bounds))
+
+
 def test_schema_rejects_unknown_method():
     bounds = {
         "method": "fabricated_method",
         "lower_expression": "0",
         "upper_expression": "1",
+        "estimand": "arm_probability",
     }
     with pytest.raises(jsonschema.ValidationError):
         _validator().validate(_qr_dict(bounds))
@@ -226,6 +314,7 @@ def test_schema_rejects_extra_field():
         "method": "manski_natural",
         "lower_expression": "0",
         "upper_expression": "1",
+        "estimand": "arm_probability",
         "unauthorized_field": "x",
     }
     with pytest.raises(jsonschema.ValidationError):

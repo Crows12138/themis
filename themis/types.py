@@ -1584,10 +1584,18 @@ class BoundsResult:
     `assumptions` lists what the method requires (e.g. Manski has none;
     Balke-Pearl needs IV1/IV2/IV3). `data_required` lists the observable
     distributions a client would need to evaluate the expressions.
+
+    `estimand` names WHAT the two endpoints bound. An interval is not an
+    answer until the quantity it brackets is stated, and the methods here
+    do not all bracket the same one — so the symbolic result carries the
+    name from the moment it is built rather than acquiring it only if a
+    numeric end later runs. It has no default: a method that cannot say
+    which quantity it brackets has not finished being a method.
     """
     method: BoundsMethod
     lower_expression: str
     upper_expression: str
+    estimand: str
     assumptions: tuple[str, ...] = ()
     data_required: tuple[str, ...] = ()
     width_when_uninformative: bool = False

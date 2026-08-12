@@ -14,7 +14,7 @@ import pytest
 
 import themis
 from themis import verify_bounds_result
-from themis.input.syntactic_validator import validate_result
+from themis.input.syntactic_validator import SyntacticError, validate_result
 from themis.verifier.errors import VerificationError
 
 
@@ -132,13 +132,22 @@ def _multivalued_confounded_data(n=20000, seed=0):
 
 # =============================================================== fill-in
 def test_iv_graph_fills_balke_pearl_numeric():
+    """The query asks for P(y=true | do(x=true)); the interval is about it.
+
+    This test used to assert estimand == "ace" and then check the endpoints
+    against 0.60 / 1.00 — the ACE interval of the worked example, under a
+    query that named one arm. Both numbers moved to `contrast`, where they
+    still are.
+    """
     env = themis.estimate(_iv_program(), _iv_data(), ci_bootstrap=50)
     b = env["results"][0]["bounds_result"]
     assert b["method"] == "balke_pearl_iv"
-    assert b["estimand"] == "ace"
+    assert b["estimand"] == "arm_probability"
     assert b["instrument"] == "z"
-    assert b["lower_value"] == pytest.approx(0.60, abs=0.04)
-    assert b["upper_value"] == pytest.approx(1.00, abs=0.04)
+    assert 0.0 <= b["lower_value"] <= b["upper_value"] <= 1.0
+    assert b["contrast"]["kind"] == "ace"
+    assert b["contrast"]["lower_value"] == pytest.approx(0.60, abs=0.04)
+    assert b["contrast"]["upper_value"] == pytest.approx(1.00, abs=0.04)
     assert b["ci_lower"] <= b["lower_value"] + 1e-6
     assert len(b["numeric_data_hash"]) == 64
 
@@ -262,7 +271,6 @@ def _tampered(mutate):
 
 @pytest.mark.parametrize("mutate,label", [
     (lambda d: d.__setitem__("upper_value", d["lower_value"] - 0.1), "inverted"),
-    (lambda d: d.__setitem__("estimand", "arm_probability"), "estimand_mismatch"),
     (lambda d: d.__setitem__("upper_value", 5.0), "out_of_range"),
     (lambda d: d.__setitem__("ci_lower", d["upper_value"] + 0.5), "ci_not_enclosing"),
     (lambda d: d.__setitem__("instrument", None), "missing_instrument"),
@@ -271,4 +279,18 @@ def _tampered(mutate):
 def test_verify_rejects_tampered_numeric_bounds(mutate, label):
     prog, res = _tampered(mutate)
     with pytest.raises(VerificationError):
+        verify_bounds_result(prog, res)
+
+
+def test_an_estimand_this_method_does_not_bound_dies_at_the_schema():
+    """The row that left this table, and where it went.
+
+    Re-labelling the interval "ace" used to be an audit failure. The
+    estimand enum now has one member, so the exit refuses it before the
+    audit is reached — earlier and on every envelope, not only the ones
+    somebody thought to audit. The audit's own check stays for the direct
+    caller, which does not go through the exit.
+    """
+    prog, res = _tampered(lambda d: d.__setitem__("estimand", "ace"))
+    with pytest.raises(SyntacticError, match="bounds_result"):
         verify_bounds_result(prog, res)

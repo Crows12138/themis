@@ -168,8 +168,9 @@ class Refusal(EnvelopeName):
     IV_MODEL_REFUTED = (
         "iv_model_refuted",
         Kind.GRAPH,
-        "the observed P(X,Y|Z) table is incompatible with ANY binary IV "
-        "model — the declared instrument's own assumptions are refuted",
+        "the observed P(X,Y|Z) table is incompatible with ANY IV model at "
+        "this cardinality — the declared instrument's own assumptions are "
+        "refuted",
     )
 
     # --- this data cannot support it ------------------------------------------
@@ -274,6 +275,13 @@ class Refusal(EnvelopeName):
         "the identified estimand has too high a treewidth to evaluate by "
         "variable elimination — beyond the plug-in's reach, not wrong",
     )
+    RESPONSE_MODEL_TOO_LARGE = (
+        "response_model_too_large",
+        Kind.UNBUILT,
+        "the response-function partition these cardinalities imply has more "
+        "types than the bounds LP is run at — the sharp interval exists, "
+        "this package declines to compute it here",
+    )
     REQUIRES_BACKDOOR_IDENTIFICATION = (
         "requires_backdoor_identification",
         Kind.UNBUILT,
@@ -333,12 +341,11 @@ class Refusal(EnvelopeName):
         Kind.UNBUILT,
         "this estimator is binary-outcome only",
     )
-    INSTRUMENT_NOT_BINARY = (
-        "instrument_not_binary",
-        Kind.UNBUILT,
-        "the Balke-Pearl bounds enumerate response types over a binary "
-        "instrument; a multi-valued one is a larger enumeration",
-    )
+    # instrument_not_binary lived here, and its own description said why it
+    # would not last: "a multi-valued one is a larger enumeration". A larger
+    # enumeration is something to enumerate, not something to decline, and
+    # the response-function model now sizes itself from the cardinalities.
+    # What can still stop it is the size, which is RESPONSE_MODEL_TOO_LARGE.
     OUTCOME_NOT_CONTINUOUS = (
         "outcome_not_continuous",
         Kind.UNBUILT,

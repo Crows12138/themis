@@ -9,18 +9,18 @@ Charter §3 priority — implemented in this module:
   treatment may be binary OR multi-valued — the natural bound is on a
   single arm ``P(Y=y | do(X=x))`` and its width is the pooled off-arm
   mass ``P(X≠x)``, so it is cardinality-agnostic in the treatment.
-- ``attempt_balke_pearl_iv`` (S.12.3, separate function): requires a
-  binary IV with valid IV1/IV2/IV3.
+- ``attempt_balke_pearl_iv`` (S.12.3, separate function): sharp bounds
+  from the response-function model of a valid IV (IV1/IV2/IV3), at any
+  finite cardinality of X, Y and Z.
 - ``attempt_manski_tamer_monotonicity`` (Phase 12.MT, post-saturation
   iter 119): tightens one side of the Manski natural interval when
   the user asserts monotone treatment response (Manski 1997 MTR;
   binary treatment). Triggered via ``program.extensions['monotonicity']``
   declaration — no kernel surface change.
 
-Out of scope this phase: frontdoor partial, non-binary outcomes
-(charter §6); Manski-Tamer / Balke-Pearl for a multi-valued treatment
-(MTR's monotone envelope over ordered levels and BP's 16-type
-response function are both binary-treatment constructions).
+Out of scope this phase: frontdoor partial; Manski-Tamer for a
+multi-valued treatment (its monotone envelope over ordered levels is a
+binary-treatment construction).
 """
 from __future__ import annotations
 
@@ -91,6 +91,7 @@ def attempt_manski_natural(
         method=BoundsMethod.MANSKI_NATURAL,
         lower_expression=lower,
         upper_expression=upper,
+        estimand="arm_probability",
         assumptions=(),
         data_required=(
             f"P({target_pred}, {intervention_pred})  # joint observation",
@@ -105,65 +106,136 @@ def attempt_manski_natural(
     )
 
 
+# --------------------------------------------------------------------------
+# The response-function model of an IV structure, and how big it is
+# --------------------------------------------------------------------------
+# Balke-Pearl's construction is one sentence, not one table: under IV
+# exclusion + independence, a unit's behaviour is fully described by which
+# treatment it would take at each instrument level (a map ``z → x``) and
+# which outcome it would show at each treatment level (a map ``x → y``).
+# The canonical partition is therefore every such pair of maps, and its SIZE
+# — ``|X|^|Z| · |Y|^|X|`` — is a consequence of the cardinalities, not a
+# constant. Binary everywhere gives the familiar 16.
+#
+# Writing that 16 down as a literal is what forced every consumer to ask "is
+# it binary?" instead of "how big is it?", which is why an instrument with
+# three levels used to be discarded whole.
+#
+# Prior art (read, not vendored — the LP here is written from the model):
+# Balke & Pearl 1997 JASA for the binary case; Cheng & Small 2006 and
+# Richardson & Robins 2014 for multi-valued instruments; the causaloptim R
+# package (Sachs, Jonzon, Gabriel & Sjölander) computes symbolic bounds for
+# this generalised class by vertex enumeration rather than a per-dataset LP.
+
+
+# The LP is re-solved once per bootstrap replicate, so the model's size is
+# multiplied by the replication the caller asked for. Measured on this
+# machine: 4096 types ≈ 0.03 s per solve, 78125 types ≈ 0.54 s — the second
+# is ~4 minutes at the default 500 replicates. A cap keeps the method from
+# being promised where it cannot be delivered; above it the query falls to
+# the assumption-free Manski floor, and the refusal says which cardinalities
+# produced the number so the reader can see the cost of their own model.
+MAX_RESPONSE_TYPES = 10_000
+
+
+def response_type_count(
+    *, treatment_levels: int, outcome_levels: int, instrument_levels: int,
+) -> int | None:
+    """Size of the canonical response-function partition, or ``None`` once it
+    is known to exceed :data:`MAX_RESPONSE_TYPES`.
+
+    Multiplied out step by step with an early exit rather than evaluated as
+    ``|X|^|Z| · |Y|^|X|``: a column of floats presents thousands of distinct
+    levels, and one such number raised to another is an integer Python
+    declines even to render as a decimal string. The count has to be exact
+    only while it is small enough to matter, and past the cap the only fact
+    the caller needs is that it is past the cap.
+    """
+    total = 1
+    for _ in range(instrument_levels):
+        total *= treatment_levels
+        if total > MAX_RESPONSE_TYPES:
+            return None
+    for _ in range(treatment_levels):
+        total *= outcome_levels
+        if total > MAX_RESPONSE_TYPES:
+            return None
+    return total
+
+
 def attempt_balke_pearl_iv(
     query: EffectQuery,
     *,
     instrument_predicate: str | None,
-    outcome_is_binary: bool,
-    treatment_is_binary: bool,
-    instrument_is_binary: bool,
+    outcome_levels: int | None,
+    treatment_levels: int | None,
+    instrument_levels: int | None,
 ) -> BoundsResult | None:
-    """Balke-Pearl (1997) bounds on the **average causal effect (ACE)**
-    when X, Y, and the instrument Z are all binary and Z satisfies
-    IV1 / IV2 / IV3.
+    """Sharp bounds on the arm ``P(Y=y | do(X=x))`` the query names, from
+    the response-function model of an instrument satisfying IV1/IV2/IV3.
 
-    ACE = E[Y | do(X=1)] - E[Y | do(X=0)]
+    The identified set is ``{ the arm's value under every distribution over
+    response types that reproduces the observed P(Y, X | Z) }`` — a linear
+    program, and the definition of sharpness rather than an approximation of
+    it. Tighter than Manski natural whenever a valid instrument exists,
+    because the instrument constrains which type distributions are possible.
 
-    The bounds are tighter than Manski natural whenever a valid IV
-    exists. They use only observable joint probabilities
-    ``P(Y, X | Z)`` (8 numbers for binary triples).
+    **The estimand is the arm the query asked about**, at every cardinality.
+    Balke-Pearl's textbook statement bounds the ACE instead, but the ACE is
+    ``P(Y=1|do(X=1)) − P(Y=1|do(X=0))``: it needs a binary outcome to be a
+    probability difference and a binary treatment to have a baseline arm, so
+    it does not survive the generalisation. An ``EffectQuery`` names one
+    intervention level and one target level, and that arm is a linear
+    functional of the same type distribution — so it is what this bounds.
+    The numeric end additionally reports the ACE as a named contrast where
+    it is defined; see ``estimation/bounds_numeric.py``.
 
-    The lower / upper bound formulas each take the maximum / minimum of
-    8 linear combinations of those 8 probabilities (Pearl 1995 §3,
-    Balke-Pearl 1997). We emit a compact symbolic reference plus the
-    pointer to the canonical paper rather than spelling all 16 terms in
-    one expression — the LLM consumer / future numeric layer can
-    expand from the citation.
-
-    Note: BP bounds ACE (the difference of two interventions), not the
-    single quantity ``P(Y | do(X=x))`` that Themis's EffectQuery
-    typically asks for. The renderer surfaces this distinction so
-    the user understands what's bounded.
-
-    Returns ``None`` if any of X / Y / Z is non-binary, no instrument
-    was provided, or the query is conditional (``given`` non-empty).
+    Returns ``None`` when no instrument was provided, when any of the three
+    cardinalities is unknown (an undeclared continuous variable has no
+    response-function partition) or below two, when the model exceeds
+    ``MAX_RESPONSE_TYPES``, or when the query is conditional.
     """
-    if not (outcome_is_binary and treatment_is_binary and instrument_is_binary):
-        return None
     if instrument_predicate is None:
         return None
     if query.given:
         return None
+    if not all(isinstance(n, int) and n >= 2
+               for n in (outcome_levels, treatment_levels, instrument_levels)):
+        return None
+    assert (outcome_levels is not None and treatment_levels is not None
+            and instrument_levels is not None)  # narrowed by the check above
+    n_types = response_type_count(
+        treatment_levels=treatment_levels,
+        outcome_levels=outcome_levels,
+        instrument_levels=instrument_levels,
+    )
+    if n_types is None:
+        return None
 
     target_pred = query.target.atom.predicate
+    target_val = _fmt_value(query.target.value)
     treatment_pred = query.intervention.atom.predicate
+    treatment_val = _fmt_value(query.intervention.value)
     z = instrument_predicate
+    arm = f"P({target_pred}={target_val} | do({treatment_pred}={treatment_val}))"
+    observables = f"P({target_pred}, {treatment_pred} | {z})"
 
-    # Compact symbolic form referencing the canonical paper. The LLM /
-    # numeric estimator expands by citation; rendering layer translates.
+    # The expression is a reference to the program, not its solution: the
+    # bound is the optimum of an LP, and there is no closed form to print at
+    # a general cardinality (the "max/min of 8 linear combinations" that can
+    # be printed is the binary case's analytic solution).
     lower = (
-        f"max over 8 Balke-Pearl lower terms "
-        f"(linear combos of P({target_pred}, {treatment_pred} | {z}); "
-        f"see Balke-Pearl 1997 §3)"
+        f"min of {arm} over the response-function polytope fitted to "
+        f"{observables} (Balke-Pearl LP, {n_types} response types)"
     )
     upper = (
-        f"min over 8 Balke-Pearl upper terms "
-        f"(linear combos of P({target_pred}, {treatment_pred} | {z}); "
-        f"same observables as lower)"
+        f"max of {arm} over the response-function polytope fitted to "
+        f"{observables} (same polytope, same observables as lower)"
     )
 
     return BoundsResult(
         method=BoundsMethod.BALKE_PEARL_IV,
+        estimand="arm_probability",
         lower_expression=lower,
         upper_expression=upper,
         assumptions=(
@@ -172,16 +244,17 @@ def attempt_balke_pearl_iv(
             "iv3_independence_instrument_independent_of_unmeasured_confounders",
         ),
         data_required=(
-            f"P({target_pred}, {treatment_pred} | {z}) "
-            f"  # 8 probabilities for binary triple",
+            f"{observables}"
+            f"  # {instrument_levels * treatment_levels * outcome_levels} "
+            f"probabilities",
         ),
         width_when_uninformative=False,
         notes=(
-            f"Balke-Pearl (1997) bounds on ACE = "
-            f"E[{target_pred} | do({treatment_pred}=1)] - "
-            f"E[{target_pred} | do({treatment_pred}=0)]. "
-            f"Tighter than Manski natural when IV {z} is valid. "
-            f"Uses only observable P({target_pred}, {treatment_pred} | {z})."
+            f"Balke-Pearl sharp bounds on {arm} from the response-function "
+            f"model of instrument {z} ({treatment_levels} treatment levels × "
+            f"{outcome_levels} outcome levels × {instrument_levels} instrument "
+            f"levels = {n_types} response types). Tighter than Manski natural "
+            f"when {z} is valid; uses only observable {observables}."
         ),
     )
 
@@ -292,6 +365,7 @@ def attempt_manski_tamer_monotonicity(
         method=BoundsMethod.MANSKI_TAMER_MONOTONICITY,
         lower_expression=lower,
         upper_expression=upper,
+        estimand="arm_probability",
         assumptions=(f"mtr_{monotonicity.value}",),
         data_required=(
             f"P({target_pred}, {intervention_pred})  # joint observation",

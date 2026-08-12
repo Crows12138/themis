@@ -1794,7 +1794,6 @@
             "exposure_not_binary",
             "exposure_not_continuous",
             "external_data_required",
-            "instrument_not_binary",
             "insufficient_support",
             "intervention_is_target",
             "interventional_risk_not_identifiable",
@@ -1828,6 +1827,7 @@
             "rank_deficient_design",
             "reference_missing_column",
             "requires_backdoor_identification",
+            "response_model_too_large",
             "sample_too_small",
             "singular_confusion_matrix",
             "singular_design",
@@ -2376,8 +2376,8 @@
     "boundsResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["method", "lower_expression", "upper_expression"],
-      "description": "Phase 12: symbolic bounds attached when point identification fails. Expressions are over observable distributions. When data is supplied via themis.estimate, the numeric end (estimation/bounds_numeric.py) additionally fills lower_value / upper_value / CI — the actual interval the data alone supports, computed by the SAME method named here.",
+      "required": ["method", "lower_expression", "upper_expression", "estimand"],
+      "description": "Phase 12: symbolic bounds attached when point identification fails. Expressions are over observable distributions. When data is supplied via themis.estimate, the numeric end (estimation/bounds_numeric.py) additionally fills lower_value / upper_value / CI — the actual interval the data alone supports, computed by the SAME method named here. 'estimand' is required, symbolic or numeric: an interval whose quantity is left to be inferred from the method's reputation is not an answer, and this block once shipped an average-causal-effect interval under a question that asked for a single arm.",
       "properties": {
         "method": {
           "enum": [
@@ -2411,8 +2411,25 @@
         },
         "notes": {"type": ["string", "null"]},
         "estimand": {
-          "enum": ["arm_probability", "ace"],
-          "description": "Numeric end: which quantity the numeric bounds bound. 'arm_probability' = a single interventional arm P(Y=y|do(X=x)) (Manski natural / Manski-Tamer); 'ace' = the average causal effect P(Y=1|do(X=1))−P(Y=1|do(X=0)) (Balke-Pearl). Mirrors the symbolic method's object."
+          "enum": ["arm_probability"],
+          "description": "Which quantity lower_value / upper_value bracket. Every method here brackets the same one: the single interventional arm P(Y=y|do(X=x)) the query named. It is a one-member enum on purpose — not a formality, but the record that the domain collapsed: Balke-Pearl used to answer 'ace' here, which is a different question from the one an effect query asks and is undefined for a multi-valued treatment (no baseline arm) or outcome (not a probability difference). Where the ACE is defined it now travels in 'contrast', with its own endpoints. A second member belongs here only when a method brackets something a reader must tell apart from an arm."
+        },
+        "contrast": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["kind", "reference_value", "lower_value", "upper_value"],
+          "description": "Numeric end: a SECOND interval, over a second quantity, from the same identified set. Balke-Pearl reports the average causal effect here when the treatment is binary — the queried arm against the other one. It is its own pair of optimisations rather than arithmetic on lower_value/upper_value: a difference of two quantities is contained in the difference of their intervals but is not in general equal to it, so optimising it directly is correct without needing to know which case this is. On the binary IV model the two coincide on every table tried. Absent for a multi-valued treatment, where the difference has no baseline arm to be against.",
+          "properties": {
+            "kind": {
+              "enum": ["ace"],
+              "description": "Which contrast. 'ace' = P(Y=y|do(X=queried)) − P(Y=y|do(X=reference_value))."
+            },
+            "reference_value": {
+              "description": "The treatment level the queried arm is contrasted against."
+            },
+            "lower_value": {"type": "number"},
+            "upper_value": {"type": "number"}
+          }
         },
         "lower_value": {
           "type": ["number", "null"],
@@ -2452,7 +2469,7 @@
         },
         "instrument": {
           "type": ["string", "null"],
-          "description": "Numeric end (Balke-Pearl only): the binary instrument column the ACE bounds used."
+          "description": "Numeric end (Balke-Pearl only): the instrument column the bounds used. Any finite cardinality — the response-function model enumerates a z→x map, and needs the instrument to have levels, not two of them."
         },
         "numeric_cluster": {
           "type": ["string", "null"],
@@ -2460,15 +2477,35 @@
         },
         "sufficient_statistics": {
           "type": ["object", "null"],
-          "description": "Numeric end: recorded sufficient statistics that let the verifier RE-DERIVE [lower_value, upper_value] independently, rather than only metadata-auditing it. Balke-Pearl records the empirical P(X=x, Y=y | Z=z) table under key 'P_xyz' (a 2x2x2 nested array indexed by sorted level positions z,x,y); the verifier re-runs the response-function LP over it. Manski natural records the three arm counts 'n' / 'n_joint_target_arm' / 'n_other_arm'; the verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n (this matters for a MULTI-VALUED treatment, whose off-arm mass P(X≠x) pools several levels — a metadata-only audit cannot distinguish an honest complement from a fabricated one). Absent for Manski-Tamer, whose one-sided tightening is anchored by the width/range invariants.",
+          "description": "Numeric end: recorded sufficient statistics that let the verifier RE-DERIVE [lower_value, upper_value] independently, rather than only metadata-auditing it. Balke-Pearl records the empirical P(X=x, Y=y | Z=z) table under 'P_xyz', the three level lists that say what its axes are, and the two indices naming which arm was asked about; the verifier re-runs the response-function LP over them. The level lists are not decoration: a |Z|x|X|x|Y| table is only interpretable if the producer says which axis is which, and a 2x3x2 table read as 3x2x2 re-derives a different interval and calls an honest producer a liar. Manski natural records the three arm counts 'n' / 'n_joint_target_arm' / 'n_other_arm'; the verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n (this matters for a MULTI-VALUED treatment, whose off-arm mass P(X≠x) pools several levels — a metadata-only audit cannot distinguish an honest complement from a fabricated one). Absent for Manski-Tamer, whose one-sided tightening is anchored by the width/range invariants.",
           "properties": {
             "P_xyz": {
               "type": "array",
-              "description": "Balke-Pearl: empirical P(X=x, Y=y | Z=z) as a 2x2x2 nested array [z][x][y].",
+              "description": "Balke-Pearl: empirical P(X=x, Y=y | Z=z) as a |Z|x|X|x|Y| nested array [z][x][y], indexed by sorted level positions.",
               "items": {
                 "type": "array",
                 "items": { "type": "array", "items": { "type": "number" } }
               }
+            },
+            "treatment_levels": {
+              "type": "array",
+              "description": "Balke-Pearl: the sorted treatment levels the P_xyz x-axis is indexed by."
+            },
+            "outcome_levels": {
+              "type": "array",
+              "description": "Balke-Pearl: the sorted outcome levels the P_xyz y-axis is indexed by."
+            },
+            "instrument_levels": {
+              "type": "array",
+              "description": "Balke-Pearl: the sorted instrument levels the P_xyz z-axis is indexed by."
+            },
+            "arm_treatment_index": {
+              "type": "integer",
+              "description": "Balke-Pearl: position in treatment_levels of the intervened level — which arm the interval is about."
+            },
+            "arm_outcome_index": {
+              "type": "integer",
+              "description": "Balke-Pearl: position in outcome_levels of the target level."
             },
             "n": {
               "type": "integer",

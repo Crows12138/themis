@@ -3,9 +3,12 @@
 Completes the verifier-layer trilogy for the 3 implemented BoundsMethod
 producers (MN + MTR + BP-IV ✓; frontdoor_partial is aspirational).
 
-Producer emits a compact symbolic reference (not 16 spelled-out linear
-combinations); verifier audits:
-- canonical 'max over 8' / 'min over 8' phrase intact
+Producer emits a reference to the linear program (there is no closed form
+to print at a general cardinality); verifier audits:
+- the canonical 'min of P(... | do(...))' / 'max of P(...)' phrase, which
+  carries WHICH quantity is bracketed — the check that used to look for
+  'max over 8 Balke-Pearl lower terms', a phrase true only of the binary
+  case's analytic solution and silent about the estimand
 - target / treatment predicates from query appear in expression
 - iv1/iv2/iv3 assumption tag set is exact
 - conditioning slot after '|' has a non-empty instrument variable
@@ -68,28 +71,29 @@ def _query_dict(target_pred="y", target_val=True,
 
 
 def _expected_bp_bounds(target_pred="y", treatment_pred="x", z="z"):
+    arm = f"P({target_pred}=true | do({treatment_pred}=true))"
+    observables = f"P({target_pred}, {treatment_pred} | {z})"
     return {
         "method": "balke_pearl_iv",
         "lower_expression": (
-            f"max over 8 Balke-Pearl lower terms "
-            f"(linear combos of P({target_pred}, {treatment_pred} | {z}); "
-            f"see Balke-Pearl 1997 §3)"
+            f"min of {arm} over the response-function polytope fitted to "
+            f"{observables} (Balke-Pearl LP, 16 response types)"
         ),
         "upper_expression": (
-            f"min over 8 Balke-Pearl upper terms "
-            f"(linear combos of P({target_pred}, {treatment_pred} | {z}); "
-            f"same observables as lower)"
+            f"max of {arm} over the response-function polytope fitted to "
+            f"{observables} (same polytope, same observables as lower)"
         ),
+        "estimand": "arm_probability",
         "assumptions": [
             "iv1_relevance",
             "iv2_exclusion_instrument_affects_outcome_only_via_treatment",
             "iv3_independence_instrument_independent_of_unmeasured_confounders",
         ],
         "data_required": [
-            f"P({target_pred}, {treatment_pred} | {z})  # 8 probabilities for binary triple",
+            f"{observables}  # 8 probabilities",
         ],
         "width_when_uninformative": False,
-        "notes": "Balke-Pearl (1997) bounds on ACE = ...",
+        "notes": f"Balke-Pearl sharp bounds on {arm} ...",
     }
 
 
@@ -134,10 +138,9 @@ def test_rejects_lower_with_wrong_phrase():
     """Tamper the canonical phrase → reject."""
     bounds = _expected_bp_bounds()
     bounds["lower_expression"] = bounds["lower_expression"].replace(
-        "max over 8 Balke-Pearl lower terms",
-        "min over 8 fake phrase",
+        "min of P(", "smallest plausible value of P(",
     )
-    with pytest.raises(VerificationError, match="canonical 'max over 8"):
+    with pytest.raises(VerificationError, match="canonical 'min of P"):
         verify_balke_pearl_iv_bounds_result(
             bounds, query_dict=_query_dict(),
         )
@@ -146,7 +149,38 @@ def test_rejects_lower_with_wrong_phrase():
 def test_rejects_upper_with_wrong_phrase():
     bounds = _expected_bp_bounds()
     bounds["upper_expression"] = "garbage upper expression"
-    with pytest.raises(VerificationError, match="canonical 'min over 8"):
+    with pytest.raises(VerificationError, match="canonical 'max of P"):
+        verify_balke_pearl_iv_bounds_result(
+            bounds, query_dict=_query_dict(),
+        )
+
+
+def test_rejects_an_expression_that_does_not_name_the_arm():
+    """The check the old phrase could not make.
+
+    'max over 8 Balke-Pearl lower terms (linear combos of P(y, x | z))' is
+    a true sentence about an ACE bound and about an arm bound alike — it
+    names the observables and not the estimand. So a producer that goes
+    back to bracketing the difference passes every old check and fails
+    this one.
+    """
+    bounds = _expected_bp_bounds()
+    for key in ("lower_expression", "upper_expression"):
+        bounds[key] = bounds[key].replace(
+            "P(y=true | do(x=true))",
+            "ACE = P(y=true|do(x=1)) - P(y=true|do(x=0))",
+        )
+    with pytest.raises(VerificationError, match="canonical 'min of P"):
+        verify_balke_pearl_iv_bounds_result(
+            bounds, query_dict=_query_dict(),
+        )
+
+
+def test_rejects_an_expression_whose_arm_is_a_different_treatment():
+    bounds = _expected_bp_bounds()
+    for key in ("lower_expression", "upper_expression"):
+        bounds[key] = bounds[key].replace("do(x=true)", "do(other=true)")
+    with pytest.raises(VerificationError, match="do\\(x="):
         verify_balke_pearl_iv_bounds_result(
             bounds, query_dict=_query_dict(),
         )
@@ -169,7 +203,7 @@ def test_rejects_lower_missing_target_predicate():
     """Tampering: keep canonical phrase but strip target pred → catch."""
     bounds = _expected_bp_bounds()
     bounds["lower_expression"] = (
-        "max over 8 Balke-Pearl lower terms (some other content)"
+        "min of P(something | do(x=true)) over some other content"
     )
     with pytest.raises(VerificationError, match="reference target predicate"):
         verify_balke_pearl_iv_bounds_result(
@@ -177,16 +211,22 @@ def test_rejects_lower_missing_target_predicate():
         )
 
 
-def test_rejects_lower_missing_treatment_predicate():
+def test_rejects_lower_naming_a_different_treatment():
+    """The treatment side is checked by the do(...) clause, once.
+
+    There used to be a second check for the bare predicate here. Once the
+    expression has to name the intervened ARM, that check can never fire on
+    its own — an expression carrying 'do(x=' carries 'x' — so it went, and
+    this test now asserts the message that actually guards the case.
+    """
     bounds = _expected_bp_bounds()
-    # Construct lower that has y but not x.
     bounds["lower_expression"] = (
-        "max over 8 Balke-Pearl lower terms (P(y, other | z); ...)"
+        "min of P(y=true | do(other=true)) over P(y, other | z)"
     )
     bounds["upper_expression"] = (
-        "min over 8 Balke-Pearl upper terms (P(y, other | z); ...)"
+        "max of P(y=true | do(other=true)) over P(y, other | z)"
     )
-    with pytest.raises(VerificationError, match="reference treatment predicate"):
+    with pytest.raises(VerificationError, match="do\\(x="):
         verify_balke_pearl_iv_bounds_result(
             bounds, query_dict=_query_dict(),
         )
@@ -196,7 +236,7 @@ def test_rejects_lower_missing_instrument_conditioning():
     """Lower expression has P(y, x) but no | <z> → reject."""
     bounds = _expected_bp_bounds()
     bounds["lower_expression"] = (
-        "max over 8 Balke-Pearl lower terms (P(y, x); see ...)"
+        "min of P(y=true | do(x=true)) over the polytope fitted to P(y, x)"
     )
     with pytest.raises(VerificationError, match="instrument variable"):
         verify_balke_pearl_iv_bounds_result(
@@ -308,7 +348,7 @@ def test_real_bp_program_tampered_phrase_caught_e2e():
     out = themis.run(program)
     result = out["results"][0]
     result["bounds_result"]["lower_expression"] = "fake lower"
-    with pytest.raises(VerificationError, match="canonical 'max over 8"):
+    with pytest.raises(VerificationError, match="canonical 'min of P"):
         verify_balke_pearl_iv_bounds_result(
             result["bounds_result"],
             query_dict=program["statements"][-1]["query"],
