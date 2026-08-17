@@ -281,8 +281,8 @@ class _IdState:
     (not ``x``) for "should this atom be substituted with the do-value
     literal in the formula?" — that question is about the user's
     semantic intervention, not the algorithmic recursion variable.
-    Threading these separately is the iter 145 fix for the
-    degenerate-sum bug iter 144 exposed.
+    They are threaded separately because collapsing them turns a sum
+    bind into a literal do-value — the degenerate-sum bug.
     """
     V: frozenset[Atom]
     x: frozenset[Atom]
@@ -481,7 +481,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
         # fresh name; use the bind names to rewrite the formula's
         # references to those atoms.
         sum_set = V - (y | x)
-        # Iter 147 second-half fix: each sub_formula was built with
+        # The other half of the substitution: each sub_formula is built with
         # its OWN sub-state.y (e.g. {M} for the s_i={M} branch),
         # which sets that atom's value=None in target slots — that
         # convention works in isolation (caller binds the value
@@ -527,11 +527,10 @@ def _id(state: _IdState) -> FormulaExpr | None:
     # x_value. That re-marginalization Σ_{x'} P(x')·P(y | x', ...) is
     # exactly the front-door inner sum.
     #
-    # Iter 141 tried this same Q[S'] shortcut but left the intervention in
-    # do_atoms, so x collapsed to the literal do-value (the iter-143
-    # retraction). Dropping it from do_atoms is the missing piece that
-    # retraction asked for: decide do-vs-sum per call site, do not read a
-    # fixed do_atoms blind.
+    # This same Q[S'] shortcut with the intervention left in do_atoms
+    # collapses x to the literal do-value — it has to be dropped from
+    # do_atoms here. The rule is: decide do-vs-sum per call site, do not
+    # read a fixed do_atoms blind.
     # Settle identifiability by recursing on G[S'] (throwaway trail): a
     # LOCAL bow-arc (X→Y direct inside S' together with X↔Y) is a hedge the
     # global Line-5 check missed — e.g. the IV graph Z→X→Y, X↔Y reaches
@@ -741,10 +740,10 @@ def _atom_to_target_va(state: _IdState, atom: Atom) -> ValuedAtom:
     fixed across recursion) carry the concrete do() value. All other
     atoms — including ``state.x`` atoms that grew via Line 3 join or
     Line 4 c-component split — get a VarRef whose name matches the
-    sum bind that will wrap them. The do_atoms / x split is the iter
-    145 fix; pre-iter-145 used ``state.x`` directly here, which made
-    Line 4 sub-recursion's enriched x atoms get hardcoded literal
-    values instead of bind references (degenerate-sum bug)."""
+    sum bind that will wrap them. Reading ``state.x`` directly here
+    instead of the do_atoms / x split gives Line 4 sub-recursion's
+    enriched x atoms hardcoded literal values in place of bind
+    references — the degenerate-sum bug."""
     if atom in state.y:
         return ValuedAtom(atom=atom, value=None)
     if atom in state.do_atoms:
@@ -778,9 +777,9 @@ def _bind_none_to_varref(
     carrying value=None ("locally bound externally"). When the outer
     Line 4 wraps with Σ_M binding the canonical name for M, those
     None values must become VarRef references for the bind to
-    propagate through the evaluator's _resolve. Iter 147 fix: this
-    rewrite was missing pre-iter-147; iter 145 only fixed the do-atom
-    half of the substitution semantics.
+    propagate through the evaluator's _resolve. This rewrite is the
+    other half of the substitution semantics; fixing the do-atom half
+    alone leaves it broken.
     """
     from ..types import ConstantExpr
 
@@ -1360,8 +1359,8 @@ def _apply_idc_values(
     ``Σ_x'`` of a front-door-style witness), tagging it ``VarRef``;
     that occurrence must stay bound by its sum, NOT be overwritten with
     the literal do-value. Reading atom identity alone (X → do-value
-    everywhere) collapses that inner sum — the iter-143 degenerate-sum
-    bug, in the set-valued IDC path.
+    everywhere) collapses that inner sum — the degenerate-sum bug, in
+    the set-valued IDC path.
 
     - sentinel  → a genuine do-atom literal slot: the real intervention
       ``x_atom`` gets the concrete do-value; an exchanged Z (also in the

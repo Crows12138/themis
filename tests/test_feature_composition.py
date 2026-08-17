@@ -1,15 +1,14 @@
-"""Iter 135 — compositional integration tests for iter 119-134 features.
+"""Features added separately, exercised together.
 
-16 iters of post-rut feature work landed individual tests for each
-feature in isolation. This module verifies the features COMPOSE
-correctly: programs that exercise 2-5 features simultaneously
-through the full pipeline produce all expected outputs without
-conflict.
+Each feature here arrived with tests of its own, in isolation. Passing
+in isolation says nothing about two of them meeting in one program, and
+the failure that shape produces is not a wrong number in one layer but
+an output where one feature's field is missing because another feature's
+branch ran instead.
 
-Each test names the iter / feature combination it exercises and
-asserts the cross-feature invariants. If any composition bug
-exists between iter 119-134 features, these tests are designed
-to catch it on first run.
+So each test drives 2-5 features through the full pipeline at once and
+asserts the cross-feature invariants: that every expected block is
+present, and that no feature's presence silently withdraws another's.
 """
 from __future__ import annotations
 
@@ -22,15 +21,15 @@ from themis.verifier.errors import VerificationError
 
 
 # ---------------------------------------------------------------------------
-# Composition 1: monotonicity first-class (iter 131) + MTR bounds (iter 119)
-# + bounds verifier (iter 126) + verify_bounds_result public entry (iter 133)
+# Composition 1: monotonicity first-class + MTR bounds
+# + bounds verifier + verify_bounds_result public entry
 # ---------------------------------------------------------------------------
 
 
-def test_iter_131_assumptions_field_e2e_with_iter_119_bounds_and_iter_126_verifier():
-    """A program with EffectQuery.assumptions.monotonicity (iter 131)
-    must trigger MTR bounds via iter 119's producer AND audit cleanly
-    via iter 126/133's verifier path."""
+def test_the_assumptions_field_reaches_bounds_and_its_verifier():
+    """A program with EffectQuery.assumptions.monotonicity
+    must trigger MTR bounds via producer AND audit cleanly
+    via verifier path."""
     program = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -62,8 +61,8 @@ def test_iter_131_assumptions_field_e2e_with_iter_119_bounds_and_iter_126_verifi
                                                      "name": "me"}]},
                                   "value": True},
                  "given": [],
-                 # Iter 131 first-class field — used in a real program
-                 # with iter 119 producer + iter 126 verifier.
+                 # The first-class assumptions field, in a real program
+                 # with the MTR producer and its verifier downstream.
                  "assumptions": {"monotonicity": "non_decreasing"},
              }},
         ],
@@ -71,13 +70,13 @@ def test_iter_131_assumptions_field_e2e_with_iter_119_bounds_and_iter_126_verifi
     out = themis.run(program)
     result = out["results"][0]
 
-    # iter 119 producer fired
+    # the MTR producer fired
     bounds = result.get("bounds_result")
     assert bounds is not None
     assert bounds["method"] == "manski_tamer_monotonicity"
     assert "mtr_non_decreasing" in bounds["assumptions"]
 
-    # iter 133 public entry audits cleanly
+    # the public bounds-audit entry accepts it
     themis.verify_bounds_result(program, result)
 
     # Tampering caught by audit
@@ -88,13 +87,13 @@ def test_iter_131_assumptions_field_e2e_with_iter_119_bounds_and_iter_126_verifi
 
 # ---------------------------------------------------------------------------
 # Composition 2: transport identification (Phase 9 §T9.1) + transport numeric
-# (iter 128) + post-stratification fields end-to-end
+# + post-stratification fields end-to-end
 # ---------------------------------------------------------------------------
 
 
-def test_phase_9_t9_1_identification_plus_iter_128_numeric_compose():
-    """Program with selection_node (S→Z, iter Phase 9 §T9.1) +
-    target_marginal extension (iter 128) → both structural
+def test_transport_identification_composes_with_its_numeric_end():
+    """Program with selection_node (S→Z, Phase 9 §T9.1) +
+    target_marginal extension → both structural
     identification AND numeric_estimate.transport_post_stratification
     attach."""
     rng = np.random.default_rng(0)
@@ -162,7 +161,7 @@ def test_phase_9_t9_1_identification_plus_iter_128_numeric_compose():
     assert transport_block["target_population"] == "real_world"
     assert len(transport_block["adjustment_set"]) == 1
 
-    # iter 128 — transport_post_stratification numeric_estimate attached
+    # transport_post_stratification numeric_estimate attached
     estimate = result.get("numeric_estimate")
     assert estimate is not None
     assert estimate["method"] == "transport_post_stratification"
@@ -170,21 +169,22 @@ def test_phase_9_t9_1_identification_plus_iter_128_numeric_compose():
 
 
 # ---------------------------------------------------------------------------
-# Composition 3: collider gap (iter 122) + unmeasured_confounder_risk
-# (iter 5) fire concurrently on a single query
+# Composition 3: collider gap + unmeasured_confounder_risk
+# fire concurrently on a single query
 # ---------------------------------------------------------------------------
 
 
-def test_iter_122_collider_and_iter_5_unmeasured_compose():
+def test_collider_conditioning_composes_with_unmeasured_confounding():
     """Program with both: (a) `given` containing a collider on the
-    X-Y backdoor path → iter 122 fires; (b) DAG has no bidirected
-    edges declared → iter 5 unmeasured_confounder_risk fires.
-    Both should attach to the same data_gap_report."""
+    X-Y backdoor path → collider_conditioning_opens_backdoor fires;
+    (b) the DAG declares no bidirected edges →
+    unmeasured_confounder_risk fires. Both must attach to the same
+    data_gap_report."""
     program = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
         "statements": [
-            # Confounder pattern — fires iter 5 unmeasured_confounder_risk
+            # Confounder pattern — fires unmeasured_confounder_risk
             {"kind": "cause", "forall": ["I"],
              "from": {"predicate": "z",
                       "args": [{"type": "var", "name": "I"}]},
@@ -200,7 +200,7 @@ def test_iter_122_collider_and_iter_5_unmeasured_compose():
                       "args": [{"type": "var", "name": "I"}]},
              "to": {"predicate": "y",
                     "args": [{"type": "var", "name": "I"}]}},
-            # X → W ← Y collider — fires iter 122 when `given` includes W
+            # X → W ← Y collider — fires when `given` includes W
             {"kind": "cause", "forall": ["I"],
              "from": {"predicate": "x",
                       "args": [{"type": "var", "name": "I"}]},
@@ -242,11 +242,11 @@ def test_iter_122_collider_and_iter_5_unmeasured_compose():
 
 
 # ---------------------------------------------------------------------------
-# Composition 4: chain CDE (iter 134) on a 2-mediator program
+# Composition 4: chain CDE on a 2-mediator program
 # ---------------------------------------------------------------------------
 
 
-def test_iter_134_chain_cde_compose_with_audit_fields():
+def test_chain_cde_composes_with_the_audit_fields():
     """Chain CDE on a 2-mediator dataset. Verify estimate carries
     chain-specific audit fields (mediators tuple, mediator_values
     tuple, chain-specific assumption tag)."""
@@ -285,15 +285,15 @@ def test_iter_134_chain_cde_compose_with_audit_fields():
 
 
 # ---------------------------------------------------------------------------
-# Composition 5: weak IV (iter 120) + IV identification + IV numeric
+# Composition 5: weak IV + IV identification + IV numeric
 # (Phase 6.iv + 7.3) on a single program
 # ---------------------------------------------------------------------------
 
 
-def test_iter_120_weak_iv_compose_with_iv_identification_and_numeric():
+def test_weak_iv_composes_with_iv_identification_and_the_numeric_end():
     """Program with valid IV (z → x → y, latent u between x,y) +
     weak instrument data → IV identification PASS + IV numeric
-    estimate ATTACH + iter 120 weak_iv_instrument gap FIRES."""
+    estimate ATTACH + the weak_iv_instrument gap FIRES."""
     rng = np.random.default_rng(0)
     n = 500
     # Weak instrument: z explains tiny share of x variance
@@ -346,11 +346,11 @@ def test_iter_120_weak_iv_compose_with_iv_identification_and_numeric():
     estimate = result.get("numeric_estimate")
     assert estimate is not None
     assert estimate["method"].startswith("iv_")
-    # iter 120 first_stage_f_stat field carried
+    # first_stage_f_stat carried on the estimate
     assert "first_stage_f_stat" in estimate
     assert estimate["first_stage_f_stat"] < 10.0  # weak
 
-    # iter 120 weak_iv_instrument gap fires
+    # weak_iv_instrument gap fires
     kinds = {g["kind"] for g in (result.get("data_gap_report") or {}).get("gaps", [])}
     assert "weak_iv_instrument" in kinds
 

@@ -12,16 +12,16 @@ Landed scope:
   ``estimate_frontdoor_ate`` / ``estimate_iv_ate`` /
   ``estimate_mediation`` returning ``BackdoorEstimate`` /
   ``FrontdoorEstimate`` / ``IVEstimate`` / ``MediationEstimate``
-- iter 212 — ``anderson_rubin_confidence_set`` returning
+- ``anderson_rubin_confidence_set`` returning
   ``ARConfidenceSet``: the Anderson-Rubin (1949) weak-identification-robust
   confidence set for the single-instrument IV coefficient, always attached
   to ``IVEstimate``. Valid regardless of first-stage strength — unlike the
   bootstrap CI — and honestly returns an unbounded set when the data cannot
-  bound the effect. iter 240 — ``anderson_rubin_overid_set`` returning
+  bound the effect. ``anderson_rubin_overid_set`` returning
   ``OverIDARConfidenceSet`` is its multi-instrument (q ≥ 2) counterpart,
   attached to ``OverIDIVEstimate``: still one quadratic inequality (the
   q-dimensional projection only changes the coefficients), with critical value
-  ``q·F(q, m)``. iter 246 — ``robust_anderson_rubin_overid_set`` returning
+  ``q·F(q, m)``. ``robust_anderson_rubin_overid_set`` returning
   ``RobustARConfidenceSet`` is the heteroskedasticity-robust (Stock-Wright S /
   Kleibergen) version, valid under weak identification AND heteroskedasticity /
   clustering at once: it inverts ``AR_r(β0) = n·ḡ'Ŝ(β0)⁻¹ḡ ~ χ²(q)`` with the
@@ -122,7 +122,7 @@ Landed scope:
   influence-function CI (cluster-robust when a cluster column is set) and
   disclose the positivity / overlap picture via ``PropensitySummary``
   (raw propensity range + how many units were Winsorized).
-- Phase 7.5 (iter 125) — Controlled Direct Effect at fixed M=m*:
+- Phase 7.5 — Controlled Direct Effect at fixed M=m*:
   ``estimate_cde`` returning ``CDEEstimate``. Plug-in g-formula
   on a sklearn outcome model; complements the Imai NDE/NIE path
   with the policy-relevant "what if we forced M to this level?"
@@ -133,9 +133,9 @@ Landed scope:
   plus the additive-scale treatment×treatment interaction
   (Hernán & Robins 2020 ch.13; VanderWeele 2015 ch.14). Identified via
   the generalized (treatment-set) back-door criterion.
-- Phase 7.5+ (iter 134) — Multi-mediator chain CDE:
+- Phase 7.5+ — Multi-mediator chain CDE:
   ``estimate_cde_chain`` returning ``CDEChainEstimate``. Extends the
-  iter 125 single-M CDE to N mediators X→M_1→...→M_n→Y, fixing
+  single-M CDE above to N mediators X→M_1→...→M_n→Y, fixing
   each M_i at a chosen reference (VanderWeele 2015 ch.5).
 - Ratio-scale four-way decomposition — ``estimate_four_way_ratio``
   returning ``FourWayRatioEstimate``, over the oracles
@@ -150,7 +150,7 @@ Landed scope:
   mediator) or linear-with-residual-variance (continuous mediator). Surfaced
   in the kernel mediation dispatch as a ``four_way_ratio`` block when the
   outcome is binary.
-- Phase 9 §T9.2 (iter 128) — transport-numeric ATE via post-
+- Phase 9 §T9.2 — transport-numeric ATE via post-
   stratification (Cole & Stuart 2010 §3): ``estimate_transport``
   returning ``TransportEstimate``. Source data + target marginal
   P(Z) → reweighted ATE in target population. Supports one OR more
@@ -227,7 +227,7 @@ Landed scope:
   ``verify_orientation_ledger_export``
 - Phase 8.2 — sensitivity: ``e_value_for_risk_ratio`` /
   ``e_value_from_ate_binary`` / ``e_value_from_ate_continuous``
-  (iter 124, Chinn 2000 SMD→RR) returning ``EValueResult``
+  (Chinn 2000 SMD→RR) returning ``EValueResult``
   (VanderWeele 2017); auto-attached to ATE estimates (binary OR
   continuous outcome) by the dispatcher
 - Omitted-variable-bias sensitivity — ``estimate_ovb_sensitivity``

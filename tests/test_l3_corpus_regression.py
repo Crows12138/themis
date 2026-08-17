@@ -1,12 +1,11 @@
 """L3 simulation corpus regression + structural pins.
 
-Originally seeded by iter 17 ('every L3 case must emit expected
-gap_kinds') after iter 1-16 mined 10 cases from authoritative sources.
-The file accumulated additional structural / preventive pins through
-iter 90 as the corpus grew and drift classes were caught.
+Each case is a published study rendered as a program, kept so that the
+kernel's answer to it stays the answer. Four of them were mined as
+deliberate stress probes after the corpus had stopped finding anything,
+and two of those four found real bugs.
 
-Cases corpus (14 total; 10/10 plateau achieved iter 20, then 011-014
-mined post-plateau as deliberate stress probes):
+Cases corpus (14):
 - 001/002 backdoor (medicine) — measured confounders + no bidirected
 - 003 IV via Balke-Pearl bounds (econ) — Card 1995 schooling-earnings
 - 004 front-door (medicine) — Pearl smoking->tar->cancer
@@ -14,40 +13,43 @@ mined post-plateau as deliberate stress probes):
 - 006 mediation (epi) — Cnattingius 2004 smoking-birthweight
 - 007 transport (medicine) — USPSTF 2022 statin to 75+
 - 008 counterfactual (Layer 3) — Pearl 2009 monotone bounds
-- 009 mediation × transport (silent dispatch finding → iter 19 fix)
+- 009 mediation × transport — the case that exposed a silent dispatch
+  skip when a query names both
 - 010 cause query (climate) — IPCC AR6 attribution
-- 011 continuous treatment + measurement error (DASH-Sodium/INTERSALT,
-  iter 129 anti-finding — extensions.ambiguities escape hatch path)
-- 012 chain DAG × marginal-only theta probability query (Pearl 1995/2009,
-  iter 204 real-bug finding — d-sep guard wasn't engaged on
-  probability dispatch path; bidirected threading fix)
-- 013 single-occasion BP → CHD (MacMahon 1990 Lancet, iter 205 real-
-  finding — board #8 0% break: variable.measurement structurally signals
-  regression-dilution; new measurement_error_concern gap_kind)
-- 014 selection bias / loss-to-follow-up via implicit sample
-  restriction (Hernán-Hernández-Díaz-Robins 2004 Epidemiology 15:615
-  "A Structural Approach to Selection Bias", iter 206 real-finding —
-  board #7 second shape: ObservationStatement(W, value) + W is
-  collider on X→Y triggers selection_on_collider_opens_path; distinct
-  from iter 122's collider_conditioning_opens_backdoor which fires on
-  EffectQuery.given)
+- 011 continuous treatment + measurement error (DASH-Sodium /
+  INTERSALT). An anti-finding: it walks the extensions.ambiguities
+  escape-hatch path and the kernel was right to stay quiet.
+- 012 chain DAG × marginal-only theta probability query (Pearl
+  1995/2009). A real bug: the d-sep guard was not engaged on the
+  probability dispatch path because ``bidirected`` was dropped at that
+  call site, so P(C|S,T) came back as the marginal instead of refusing.
+- 013 single-occasion BP → CHD (MacMahon 1990 Lancet). A real finding:
+  ``variable.measurement`` structurally signals regression dilution, and
+  nothing read it — the origin of measurement_error_concern.
+- 014 selection bias / loss to follow-up via implicit sample restriction
+  (Hernán-Hernández-Díaz-Robins 2004 Epidemiology 15:615, "A Structural
+  Approach to Selection Bias"). ObservationStatement(W, value) where W
+  is a collider on X→Y triggers selection_on_collider_opens_path —
+  distinct from collider_conditioning_opens_backdoor, which fires on
+  EffectQuery.given.
 
-Pins (chronological):
-- test_l3_case_emits_expected_gap_kinds (iter 17, parametrized) —
-  per-case must-have / must-not-have gap_kind lists
-- test_l3_corpus_count_at_plateau (iter 17, ≥10 sanity)
-- test_dispatch_conflict_fires_on_mediator_plus_target_pop (iter 19)
-- test_dispatch_conflict_suppressed_when_only_mediator (iter 19)
-- test_dispatch_conflict_suppressed_when_only_target_pop (iter 19)
-- test_l3_corpus_runtime_regression (iter 33) — perf budget
-  200 ms/case + 1 s total; current ~6 ms max (33x headroom)
-- test_dispatch_conflict_persists_through_apply_patch_and_run (iter 31)
-- test_every_l3_case_json_has_matching_markdown (iter 40)
-- test_l3_readme_case_index_matches_actual_files (iter 73)
-- test_every_l3_case_file_has_regression_test_entry (iter 74)
-- test_every_l3_case_md_has_required_sections (iter 83)
-- test_l3_corpus_docstring_inventories_all_test_functions (iter 95,
-  symmetric with test_gap_kind_coverage_meta self-pin iter 94)
+Pins:
+- test_l3_case_emits_expected_gap_kinds — parametrised per case, over
+  its must-have and must-not-have gap_kind lists
+- test_l3_corpus_count_at_plateau — the corpus does not shrink
+- test_dispatch_conflict_fires_on_mediator_plus_target_pop
+- test_dispatch_conflict_suppressed_when_only_mediator
+- test_dispatch_conflict_suppressed_when_only_target_pop
+- test_dispatch_conflict_persists_through_apply_patch_and_run
+- test_l3_corpus_runtime_regression — 200 ms/case + 1 s total; the
+  corpus currently runs ~6 ms at its slowest case
+- test_every_l3_case_json_has_matching_markdown
+- test_l3_readme_case_index_matches_actual_files
+- test_every_l3_case_file_has_regression_test_entry
+- test_every_l3_case_md_has_required_sections
+- test_l3_corpus_docstring_inventories_all_test_functions — every test
+  above is named here, the same self-pin
+  ``tests/test_gap_kind_coverage_meta.py`` carries
 
 L3 simulation methodology + per-case authoritative sources:
 docs/l3_simulation/README.md.
@@ -104,7 +106,6 @@ CASES = [
         "case_004_pearl_smoking_tar_cancer.json",
         # bidirected declared → unmeasured_confounder_risk SUPPRESSED
         # front-door pattern → front_door_identification_assumption_required fires
-        # (iter 10 fix)
         ["missing_distribution", "answer_is_bounds_not_point_estimate",
          "front_door_identification_assumption_required"],
         ["unmeasured_confounder_risk"],
@@ -145,8 +146,9 @@ CASES = [
     ),
     (
         "case_009_mediation_x_transport.json",
-        # query has BOTH mediator + target_population; iter 19 fix:
-        # unattempted_layer_due_to_dispatch_conflict surfaces silent skip
+        # query has BOTH mediator + target_population, so
+        # unattempted_layer_due_to_dispatch_conflict surfaces the skip
+        # the dispatcher would otherwise take silently
         ["unattempted_layer_due_to_dispatch_conflict",
          "transport_identification_assumption_required",
          "unmeasured_confounder_risk"],
@@ -165,8 +167,8 @@ CASES = [
     ),
     (
         "case_011_salt_blood_pressure.json",
-        # iter 129 anti-finding: continuous treatment + measurement
-        # error case fully covered by existing 26 gap_kinds. Effect
+        # An anti-finding: this continuous-treatment + measurement-error
+        # case is already covered by the existing gap_kinds. Effect
         # query with multiple confounders (overall_diet_quality,
         # physical_activity); unmeasured_confounder_risk fires
         # (no bidirected); llm_declared_ambiguity catches my
@@ -183,18 +185,17 @@ CASES = [
     ),
     (
         "case_012_pearl_chain_dsep_refusal.json",
-        # Iter 204 real-bug case: Pearl smoking-tar-cancer chain
-        # (S→T→C) with marginal-only theta P(C|S) and a probability
-        # query asking P(C|S,T). Pre-iter-204, _dispatch_probability
-        # didn't thread bidirected to _try_numeric, so the iter 199
-        # d-sep guard was dormant on the entire probability dispatch
-        # path → Themis silently returned 0.18 (the marginal) instead
-        # of refusing. Post-iter-204 fix:
-        #   - graph_theta_independence_mismatch fires (iter 203 kind)
+        # Pearl's smoking-tar-cancer chain (S→T→C) with marginal-only
+        # theta P(C|S) and a probability query asking P(C|S,T). If
+        # _dispatch_probability stops threading bidirected into
+        # _try_numeric, the d-sep guard goes dormant across the whole
+        # probability dispatch path and Themis silently returns 0.18 —
+        # the marginal — instead of refusing. What this case pins:
+        #   - graph_theta_independence_mismatch fires
         #   - status = needs_investigation, no numeric value
-        #   - the substituted-marginal route is closed for prob queries
-        # NOT missing_distribution: iter 203 routes the d-sep refusal
-        # signature to the dedicated kind, not the generic one.
+        #   - the substituted-marginal route stays closed for prob queries
+        # NOT missing_distribution: the d-sep refusal signature routes to
+        # the dedicated kind, because the repair is a different one.
         ["graph_theta_independence_mismatch",
          "ambiguous_variable_definition"],
         ["missing_distribution",
@@ -203,14 +204,14 @@ CASES = [
     ),
     (
         "case_013_macmahon_bp_chd_regression_dilution.json",
-        # Iter 205 real-finding case: MacMahon 1990 Lancet 335:765 BP-CHD
+        # A real finding: MacMahon 1990 Lancet 335:765 BP-CHD
         # meta-analysis. Variable bp_diastolic_high.measurement names
         # 'single-occasion office sphygmomanometer' — a documented
         # regression-dilution source attenuating the BP-CHD slope ~60%.
-        # Pre-iter-205: gap_kind board #8 (measurement error) was 0% →
-        # Themis returned full envelope without ANY measurement-error
-        # signal. Post-iter-205: new measurement_error_concern gap_kind
-        # fires from program shape (variable.measurement contains
+        # Without a classifier reading it, Themis returns a full envelope
+        # carrying no measurement-error signal at all.
+        # measurement_error_concern fires from program shape
+        # (variable.measurement contains
         # 'single-occasion'), severity IMPORTANT, with provenance ref
         # naming the offending (variable, field, pattern). NOT suppressed
         # because extensions.ambiguities is empty (case 011 escape-hatch
@@ -226,24 +227,22 @@ CASES = [
     ),
     (
         "case_014_hernan_2004_selection_bias.json",
-        # Iter 206 real-finding case: Hernán-Hernández-Díaz-Robins 2004
+        # A real finding: Hernán-Hernández-Díaz-Robins 2004
         # Epidemiology 15:615 "A Structural Approach to Selection Bias"
         # — HIV/AZT → AIDS-death cohort with loss-to-follow-up indicator
         # `selected` caused by both AZT (treatment-driven retention) and
         # AIDS-death (terminal-event-driven sample loss). The program
         # encodes implicit sample restriction via
-        # ObservationStatement(selected, True). Pre-iter-206: board #7
-        # selection bias was only covered by iter 122's
-        # collider_conditioning_opens_backdoor, which fires on
-        # EffectQuery.given (explicit conditioning) — not on
-        # ObservationStatement (implicit sample restriction). So Themis
-        # returned the full envelope with NO selection-bias signal.
-        # Post-iter-206: new selection_on_collider_opens_path gap_kind
-        # fires from program shape (ObservationStatement on a node that
-        # has both intervention and target as ancestors). Severity
-        # IMPORTANT. Distinct kind from the iter 122 explicit one — the
-        # negative assertion below pins this discrimination so a future
-        # implementation merging both paths into one kind would fail.
+        # ObservationStatement(selected, True). Covered by
+        # collider_conditioning_opens_backdoor alone, this case gets no
+        # selection-bias signal: that kind fires on EffectQuery.given
+        # (explicit conditioning) and not on ObservationStatement
+        # (implicit sample restriction), so the envelope comes back
+        # complete and silent. selection_on_collider_opens_path fires
+        # from program shape instead — an ObservationStatement on a node
+        # that has both intervention and target as ancestors — at
+        # severity IMPORTANT. The negative assertion below pins the two
+        # apart, so merging both paths into one kind fails here.
         ["selection_on_collider_opens_path",
          "missing_distribution",
          "ambiguous_variable_definition"],
@@ -255,7 +254,7 @@ CASES = [
     ),
     (
         "case_015_hernan_taubman_2008_obesity_well_defined.json",
-        # Iter 207 real-finding case: Hernán-Taubman 2008 IJO 32(S3):S8
+        # A real finding: Hernán-Taubman 2008 IJO 32(S3):S8
         # "Does obesity shorten life? The importance of well-defined
         # interventions to answer causal questions" — obesity → 5yr
         # mortality with state_vs_event="state" declared on the obese
@@ -263,12 +262,11 @@ CASES = [
         # methodology critique that the same obese state value can be
         # reached by structurally-different manipulations (gastric
         # surgery / diet / GLP-1 / metabolic disease) which entail
-        # DIFFERENT counterfactual outcomes. Pre-iter-207: board #8
-        # well-defined-intervention prerequisite was at 0% — the
-        # state_vs_event schema field admitted "state"/"event" values
-        # 200+ iters but no classifier read the VALUE (dead-schema
-        # theatre #3, after iter 205 measurement + iter 206 Observation
-        # Statement). Post-iter-207: ill_defined_intervention_versions
+        # DIFFERENT counterfactual outcomes. The state_vs_event schema
+        # field admitted "state" / "event" for a long time with no
+        # classifier reading the VALUE — the third field of that shape,
+        # after variable.measurement and the ObservationStatement.
+        # ill_defined_intervention_versions
         # fires on the state-without-time_window shape with Hernán &
         # Taubman 2008 anchor + four named repair options (event-
         # encoding / mediation split / RCT / opt-in mixed estimand).
@@ -314,8 +312,8 @@ def test_every_l3_case_json_has_matching_markdown():
     contributor reading the .json has no idea what's being tested
     against what ground truth.
 
-    iter 40 audit pin: 10 cases all have matching markdown today; this
-    pins the invariant so adding a .json without a .md fails fast.
+    Adding a .json without its .md fails here rather than leaving a case
+    in the corpus that nobody can read the provenance of.
     """
     json_files = sorted(L3_DIR.glob("case_*.json"))
     md_files = {f.stem for f in L3_DIR.glob("case_*.md")}
@@ -336,7 +334,7 @@ def test_l3_readme_case_index_matches_actual_files():
     cases as `- [Case NNN — title](case_NNN_*.md)` entries. Each line
     must match an actual case_NNN_*.md file in the directory.
 
-    Iter 73 preventive pin (no current drift). Catches future
+    Catches the
     regression where case 011 is added without README index update,
     or a .md is renamed without reflecting in README.
     """
@@ -369,7 +367,7 @@ def test_every_l3_case_md_has_required_sections():
     - `## Authoritative source` — external ground truth
     - `## 历史` — iter-by-iter assessment trail
 
-    Iter 83 preventive pin. The L3 audit methodology relies on every
+    The L3 audit methodology relies on every
     case .md describing (a) the user-facing question, (b) the external
     authority being checked against, and (c) the assessment evolution.
     A case without these sections breaks the corpus comparability.
@@ -390,7 +388,7 @@ def test_every_l3_case_file_has_regression_test_entry():
     matching entry in this file's CASES list (the parametrized
     regression test source of truth).
 
-    Iter 74 preventive pin. Without this, a future contributor adds
+    Without this, a contributor adds
     case 011 + .md + index entry but forgets to add to CASES — the
     new case has no regression test until manually noticed.
 
@@ -411,16 +409,14 @@ def test_every_l3_case_file_has_regression_test_entry():
 
 
 def test_l3_corpus_docstring_inventories_all_test_functions():
-    """Iter 95 self-pin, symmetric with iter 94's
+    """The self-pin, symmetric with
     test_meta_test_docstring_inventories_all_test_functions in
     test_gap_kind_coverage_meta.py.
 
-    Every test_… function in this file must appear by name in the
-    module docstring's pin inventory. Catches 'add new pin, forget
-    to update the docstring' regression — caught by iter 95 audit
-    which found 2 dispatch_conflict suppression tests bundled as
-    '+ 2 suppression tests' in iter 92 docstring without specific
-    names.
+    Every test_… function in this file must appear BY NAME in the module
+    docstring's inventory. Naming matters: a summary line like "+ 2
+    suppression tests" satisfies a reader and hides which two, so the
+    check is on names rather than on counts.
     """
     import ast
     self_text = Path(__file__).read_text(encoding="utf-8")
@@ -448,7 +444,7 @@ def test_l3_corpus_count_at_plateau():
 
 
 def test_dispatch_conflict_fires_on_mediator_plus_target_pop():
-    """iter 19 finding-fix: when query has both mediator and target_population
+    """When a query has both mediator and target_population
     set, but only one of mediation_decomposition / transport_identification
     extension is populated, the kernel must surface
     unattempted_layer_due_to_dispatch_conflict to disclose the silent skip."""
@@ -488,9 +484,9 @@ def test_dispatch_conflict_suppressed_when_only_target_pop():
 
 
 def test_l3_corpus_runtime_regression():
-    """iter 33 perf pin. Each L3 case currently runs in 2-6 ms, total
-    ~36 ms (measured on local machine, iter 33 / 91 / 96 cross-checked
-    no flake). Conservative threshold of 200 ms per case + 1 s total
+    """A performance pin. Each L3 case currently runs in 2-6 ms, total
+    ~36 ms (measured on this machine, re-checked three times for
+    flake). A conservative threshold of 200 ms per case + 1 s total
     catches a true 10-50x regression without flaking under CI variance.
 
     Skipped if any case file is somehow unreadable — perf test is a
@@ -522,8 +518,8 @@ def test_l3_corpus_runtime_regression():
 
 
 def test_dispatch_conflict_persists_through_apply_patch_and_run():
-    """iter 31 audit, symmetric with iter 30's unmeasured_confounder_risk
-    test. unattempted_layer_due_to_dispatch_conflict triggers on the
+    """Symmetric with the unmeasured_confounder_risk version of the same
+    check. unattempted_layer_due_to_dispatch_conflict triggers on the
     query shape (mediator + target_population both set). The query
     doesn't change across apply_patch_and_run rounds — only data does
     — so the advisory must persist. Pins 'data filling cannot elide

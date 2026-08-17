@@ -15,8 +15,8 @@ Public entries (all JSON-in / JSON-out, no typed objects required):
   kernel objects.
 - ``verify_data_gap_report`` — T10-only audit (Phase 10), valid even
   for diagnostic results that carry no derivation.
-- ``verify_bounds_result`` (iter 133) — independent audit of
-  bounds_result via the iter 126/127/130 verifier trilogy
+- ``verify_bounds_result`` — independent audit of bounds_result via
+  the per-method verifiers
   (manski_natural / manski_tamer_monotonicity / balke_pearl_iv).
   Accepts derivation-less results — bounds typically attach when
   point identification fails (status=needs_investigation) and no
@@ -274,7 +274,7 @@ def _query_to_dict(q) -> dict:
             d["extra_interventions"] = [
                 _intervention_to_dict(iv) for iv in q.extra_interventions
             ]
-        # Iter 131: serialize first-class assumptions field if set.
+        # Serialize the first-class assumptions field if set.
         # Backwards-compat: omit when None so old fixtures stay
         # bit-identical.
         if (
@@ -1258,7 +1258,7 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # (non-differential error) is the one holding the point estimate up.
     _verify_outcome_error_rule(result)
 
-    # Iter 126/127/130: independent audit of bounds_result. Each
+    # Independent audit of bounds_result. Each
     # producer has a dedicated verifier; verifier trilogy now complete
     # for the 3 implemented BoundsMethod values.
     bounds_result = result.get("bounds_result")
@@ -1292,15 +1292,14 @@ def verify(program: dict | str | bytes, result: dict) -> None:
 
 
 def verify_bounds_result(program: dict | str | bytes, result: dict) -> None:
-    """Iter 133 — independently audit ``result.bounds_result`` (Phase 12 +
-    iter 119 producers).
+    """Independently audit ``result.bounds_result``.
 
     Public entry parallel to :func:`verify_data_gap_report`. Unlike
     :func:`verify`, this function does NOT require a derivation chain
     on the result — bounds typically attach when point identification
     fails (status=needs_investigation) and no derivation chain exists,
-    so the existing verify() path is dormant for that case (see iter
-    126/127/130 commits).
+    so the existing verify() path is dormant for exactly the results
+    that carry bounds.
 
     Dispatches by ``bounds_result.method`` to the dedicated verifier
     (manski_natural / manski_tamer_monotonicity / balke_pearl_iv).

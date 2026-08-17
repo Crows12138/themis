@@ -1,195 +1,130 @@
-"""Meta-tests: cross-file invariants + structural pins.
+"""Cross-file invariants: one declaration, several surfaces held to it.
 
-Originally seeded by iter 25 ('every GapKind has test reference') after
-iter 5/19 added two new gap_kinds. The file accumulated additional
-sync / preventive pins through iter 90 as drift categories were
-caught:
+A closed vocabulary or a count exists once in code and is then restated
+on surfaces that cannot import it — a JSON schema, a prompt an LLM
+reads, a README, a module docstring. Nothing makes a restatement follow
+its declaration, so each pin below holds one restatement to one
+declaration.
 
-GapKind sync (iter 25-26, 37):
-- test_gap_kind_has_test_coverage — every enum value referenced
-- test_gap_kind_enum_synced_with_schema — types ↔ JSON schema
+Read the shape before the list. Every pin here was added after a
+particular drift had already shipped, one at a time, which makes this
+file a record of what has been caught rather than a statement of what is
+covered — and a surface nobody has been bitten by yet looks, from
+inside this file, exactly like a guarded one.
+``tests/test_web_vocabularies.py`` states the same discipline the other
+way round: enumerated from the kernel side, with every table in the
+browser forced to declare whether it states a vocabulary. That is the
+shape this file would have to take for the difference to be visible.
+
+GapKind, held to the surfaces that restate it:
+- test_gap_kind_has_test_coverage — every enum value appears in some
+  test file
+- test_gap_kind_enum_synced_with_schema — types ↔ query_result.schema.json
 - test_missing_item_gaps_synced_with_schema — the closed subset a kernel
-  refusal may declare, on both surfaces that carry it (Phase 17 slice 4)
-- test_gap_kind_enum_synced_with_verifier_registry — types ↔ T10
-- test_must_disclose_set_is_subset_of_gap_kinds — scheduler whitelist
-- test_must_disclose_kinds_documented_in_response_rendering_prompt
+  refusal may declare, on both surfaces that carry it
+- test_gap_kind_enum_synced_with_verifier_registry — types ↔ the T10
+  registry, whose missing entry raises only once the gap actually fires
+- test_must_disclose_set_is_subset_of_gap_kinds — the mirrored set names
+  nothing the enum does not
+- test_every_gap_kind_documented_in_reference — every kind has a row in
+  docs/GAP_KINDS_REFERENCE.md
+- test_coverage_map_gap_kind_count_matches_enum
+- test_kb_readme_gap_to_query_kind_table_matches_translator
 
-Doc / count sync (iter 42, 45, 56, 58, 59, 60, 89):
+Prompts, held to what the kernel emits. An LLM reads these, and a value
+with no row is one it has to guess at:
+- test_must_disclose_kinds_documented_in_response_rendering_prompt
+- test_must_disclose_gap_kinds_documented_in_gap_to_action
+- test_bounds_method_producers_have_rendering_template — every
+  BoundsMethod that has a producer has a rendering section
+- test_numeric_estimate_method_enum_documented_in_prompt
+- test_precision_budget_field_documented_in_rendering_prompt
+- test_precision_budget_method_specific_caveats_documented — "more N"
+  means a different thing per estimator (compliers for IV, joint M+Y
+  rows for mediation, the weakest stratum for transport), and without
+  the caveats a renderer says "recruit N more" for all of them
+- test_prompt_header_word_counts_match_subsection_counts — a header that
+  spells a number has that many subsections under it
+
+Schema and registry:
+- test_precision_budget_in_query_result_schema — the field is declared
+  and referenced from every shape that carries it; with
+  additionalProperties=false, an unlisted field makes verify() reject
+  an envelope the kernel just produced
+- test_identification_formula_witness_set_synced_with_scheduler — every
+  rule the scheduler emits as a formula witness is admitted by the
+  verifier, which otherwise rejects a well-formed formula for the sole
+  reason that it does not recognise the path that produced it
+
+Docs, held to code:
 - test_test_count_consistent_between_core_status_and_readme
 - test_package_version_matches_roadmap_and_core_status
 - test_failure_modes_header_count_matches_actual_entries
 - test_eval_set_readme_counts_match_actual_files
-- test_coverage_map_mcp_counts_match_actual_server
-- test_mcp_readme_counts_match_actual_server (iter 104, symmetric with
-  iter 59 COVERAGE_MAP pin)
-- test_mcp_readme_catalog_tables_match_server (iter 105 — count pin
-  alone missed the table contents drifting independently of the prose
-  count: iter 103 fixed the prose count but tables still listed
-  5 tools / 8 resources)
-- test_mcp_server_docstring_lists_all_tools_and_resources (iter 105 —
-  same drift class as the README tables, in the server.py module
-  docstring; both surfaces need to stay synced with @app.tool() and
-  @app.resource() registrations)
-- test_readme_query_kind_list_matches_enum (iter 106 — README "当前能力"
-  section listed 5 kinds while QueryKind enum has 6; counterfactual
-  was added by Phase 5 §C but README claim never updated)
-- test_coverage_map_gap_kind_count_matches_enum (iter 107 — COVERAGE_MAP
-  元基础设施 row claimed "8 gap_kind" but GapKind grew to 22 via
-  Phase 13 dose-response + iter 5/19 + later additions; same drift
-  class as iter 105/106 — current-state inventory frozen at initial
-  scope while the actual registry kept growing)
-- test_kb_readme_gap_to_query_kind_table_matches_translator (iter 108 —
-  themis/kb/README.md "Mapping gaps to query kinds" table missed
-  missing_population_distribution + transport_source_conditional_unknown
-  rows; drifted from _GAP_TO_QUERY_KIND in translator.py)
-- test_kb_readme_confidence_grade_ladder_matches_enum (iter 109 — KB
-  README claimed "five-level GRADE-style ladder" but KBConfidenceGrade
-  enum has 6 values; ladder text also listed 6 entries while saying
-  "five". Pin asserts the named values in the prose match the enum)
-- test_bounds_method_producers_have_rendering_template (iter 110 —
-  preventative: every BoundsMethod value actually produced by
-  themis/output/bounds.py must have a matching '#### `method_name`'
-  section in response_rendering.md. Locks the LLM-rendering coverage
-  invariant for future bounds solvers — current state is in sync but
-  adding a frontdoor_partial / manski_tamer producer without prompt
-  template would silently downgrade rendering)
-- test_numeric_estimate_method_enum_documented_in_prompt (iter 132 —
-  parallel to iter 110 but for numeric_estimate.method enum: every
-  value in query_result.schema.json's method enum must appear
-  verbatim in response_rendering.md. iter 128 added
-  transport_post_stratification + iter 124 extended sensitivity to
-  continuous outcome but neither was prompt-documented for 4 iters
-  — this pin catches that drift class going forward.)
-- test_must_disclose_gap_kinds_documented_in_gap_to_action (iter 136
-  — parallel to iter 132 but for gap_to_action.md: every must-disclose
-  gap_kind + the iter 120/121/123 estimator-runtime gap_kinds must
-  appear verbatim in the prompt's Q0 INFORMATIONAL list. iter 119-134
-  added 4 new gap_kinds that drifted out of gap_to_action for ~16
-  iters until iter 136 caught it.)
-- test_every_gap_kind_documented_in_reference (iter 139 — every
-  GapKind enum value must have a row in docs/GAP_KINDS_REFERENCE.md.
-  Single-source human-readable table for the 26 gap_kinds; previously
-  scattered across types.py docstrings, classifier descriptions in
-  data_gap_report.py, gap_to_action.md, response_rendering.md.)
-- test_precision_budget_field_documented_in_rendering_prompt (iter
-  157 sync pin — iter 151-155 wired numeric_estimate.precision_budget
-  into all 6 estimator paths; iter 156 added §Precision budget to
-  response_rendering.md. Pin asserts the field name + section heading
-  + 3 schema-shape tokens (decomposition / dose_response_curve /
-  n_to_halve_ci) all appear in the prompt so the LLM knows what to
-  surface. Catches future renames.)
-- test_precision_budget_method_specific_caveats_documented (iter
-  177 sync pin — iter 161 added §Method-specific caveats inside
-  §Precision budget covering IV/mediation/frontdoor/transport/
-  dose-response/backdoor; each method has different "more N means"
-  semantics. Pin asserts each category's anchor keyword survives
-  future prompt edits so LLMs don't naively render "recruit N more"
-  without method-aware caveat.)
-- test_identification_formula_witness_set_synced_with_scheduler
-  (iter 183 sync pin — iter 182 hoisted IDENTIFICATION_FORMULA_RULES
-  to module level after iter 181 discovered front-door variant was
-  silently rejected by the verifier's hardcoded backdoor-only check.
-  Pin asserts the set membership exactly so a future identification
-  path that emits a symbolic formula must be added to BOTH the set
-  and this pin's expected literal — preventing the iter 182 silent-
-  rejection drift class.)
-- test_precision_budget_in_query_result_schema (iter 157 sync pin —
-  iter 152→154 had a 2-iter silent schema violation: precision_budget
-  emitted but query_result.schema.json with additionalProperties=false
-  rejected it through verify(). Pin asserts $defs/precisionBudget
-  exists AND is referenced from ≥5 sites — top-level
-  numeric_estimate, each of nde/nie/te/proportion_mediated under
-  decomposition, plus dose_response_curve.items.)
-- test_estimation_init_docstring_inventories_all_exports (iter 111 —
-  themis/estimation/__init__.py docstring described "Phase 7.1 scope"
-  while the package had grown to include Phase 8.1 / 8.2 / 14
-  exports; pin asserts every __all__ name appears in the docstring
-  body so future additions force docstring updates)
-- test_subpackage_init_docstrings_inventory_all_exports (iter 112 —
-  same drift class as iter 111, applied to themis.kb / themis.upstream
-  / themis.verifier / themis.mcp: each had __all__ exporting 2-19
-  names with most/all missing from the module docstring. mcp also said
-  "four public ... entry points" which was stale (now seven). One pin
-  parametrized over the four packages forces docstring sync going
-  forward.)
-- test_workflow_init_docstring_lists_all_submodules (iter 113 — for
-  packages without __all__ that explicitly enumerate their submodules
-  in the docstring (workflow listed only ``parameter_fill`` while
-  ``variable_framing`` had been there for phases). Pin asserts every
-  public .py module in themis/workflow/ is referenced in the
-  __init__.py docstring. Web __init__ also had stale "no NL → JSON
-  bridge yet" prose despite mode (a) Ask landing — fixed in same
-  commit but not pinned because web docstring describes endpoints
-  rather than modules; no clean enumeration to pin against.)
-- test_prompt_header_word_counts_match_subsection_counts (iter 114 —
-  gap_to_action.md "## Three questions per gap" had 4 ### subsections
-  (Q0 pre-screen + Q1–Q3 walk) — header count drifted when Q0 was
-  added later. Pin scans every "## <number-word> <noun>" header in
-  docs/prompts/ and asserts the immediate ### subsection count
-  matches the spelled-out number.)
-- test_kernel_docstring_lists_all_public_entries (iter 115 —
-  themis/kernel.py docstring described only run / apply_patch_and_run
-  / verify (3 of 5 entries). estimate (Phase 7) and
-  verify_data_gap_report (Phase 10) had been there for phases but the
-  docstring was never updated. Pin asserts every name re-exported
-  from themis.kernel into themis.__all__ appears in kernel.py's
-  module docstring.)
-- test_formula_ast_spec_node_count_matches_types (iter 116 —
-  formula_ast_spec_v0_1.md version pointer header claimed "5 core
-  nodes" listing Sum / Product / ProbabilityRef / BindDecl / VarRef
-  while ConstantExpr was always a 6th node since v0.1. Pin asserts
-  the 五/六/七 claim in the header matches the count of formula AST
-  dataclass names actually present in themis/types.py.)
-- test_eval_set_readme_gold_query_kind_matches_enum (iter 117 —
-  docs/eval_set/README.md "Per-case JSON schema" example listed
-  only 5 gold_query_kind values (cause / assoc / effect / identify
-  / probability) while QueryKind enum has 6 (counterfactual added
-  Phase 5 §C). Same drift class as iter 106 in a different doc.)
-- test_data_gap_report_docstring_must_disclose_section_accurate
-  (iter 118 — themis/output/data_gap_report.py module docstring
-  categorized transport_source_conditional_unknown +
-  dose_response_data_required under "must-disclose channel" but
-  they are NOT in types.MIRRORED_INTO_EXPLANATION — they're
-  data needs that surface only via data_gap_report, not auto-
-  mirrored to explanation. Restructured into a separate "data-need
-  gap_kinds" section. Pin asserts the docstring's must-disclose
-  list mirrors the actual scheduler set.)
+- test_eval_set_readme_gold_query_kind_matches_enum
+- test_readme_query_kind_list_matches_enum
 - test_readme_subpackage_list_matches_actual
-- test_status_docs_have_update_timestamp
+- test_readme_public_entry_imports_actually_resolve — the names the
+  README's ``from themis import (...)`` block shows are importable and
+  callable. One direction only: it does not ask that every export be
+  documented, which is judgement rather than invariant.
+- test_coverage_map_mcp_counts_match_actual_server
+- test_mcp_readme_counts_match_actual_server
+- test_mcp_readme_catalog_tables_match_server — the prose count and the
+  catalogue table drift independently of each other, so both are held
+- test_kb_readme_confidence_grade_ladder_matches_enum — including the
+  spelled-out number in the prose, which can disagree with the list
+  directly beneath it
+- test_formula_ast_spec_node_count_matches_types
+- test_status_docs_have_update_timestamp — presence of the field only.
+  Whether the timestamp is honest is not decidable from the file.
 
-Path / link integrity (iter 63-66, 84):
+Docstrings, held to their own module:
+- test_kernel_docstring_lists_all_public_entries — every name re-exported
+  into ``themis.__all__`` is described where the entry lives
+- test_estimation_init_docstring_inventories_all_exports
+- test_subpackage_init_docstrings_inventory_all_exports — the same rule
+  over themis.kb / themis.upstream / themis.verifier / themis.mcp,
+  parametrised rather than written four times
+- test_workflow_init_docstring_lists_all_submodules — for packages that
+  enumerate submodules instead of declaring ``__all__``
+- test_mcp_server_docstring_lists_all_tools_and_resources — held to the
+  @app.tool() / @app.resource() registrations themselves
+- test_data_gap_report_docstring_must_disclose_section_accurate — that
+  docstring's must-disclose list is the scheduler's set and not a
+  neighbouring one; two data-need kinds surface only via the gap report
+  and reading them as mirrored would be a claim about where they appear
+- test_themis_init_docstring_exception_imports_resolve — every
+  ``from themis.… import …`` written in the docstring actually imports
+- test_themis_init_all_matches_imports
+
+Paths and links:
 - test_no_windows_absolute_paths_in_committed_files
 - test_markdown_cross_links_resolve
-- test_markdown_backtick_path_refs_resolve
+- test_markdown_backtick_path_refs_resolve — the same integrity for a
+  path in bare backticks, which the link-form check cannot see
 
-Structure / docstring (iter 34, 67, 72, 77, 79, 80, 90):
+Structure and hygiene:
 - test_no_orphan_test_files
-- test_themis_init_all_matches_imports
-- test_themis_init_docstring_exception_imports_resolve
 - test_themis_py_files_have_module_docstrings
 - test_scripts_py_files_have_module_docstrings
 - test_tests_py_files_have_module_docstrings
-- test_wall_md_has_required_structure
-- test_every_phase_charter_declares_status (iter 55)
-
-Hygiene (iter 62, 69, 76):
-- test_readme_public_entry_imports_actually_resolve
+- test_every_phase_charter_declares_status
+- test_wall_md_has_required_structure — the autonomous loop's blocker log
+  needs a parseable shape or its "record it in wall.md" instruction has
+  no target
 - test_kernel_run_emits_no_deprecation_warnings
 - test_all_committed_json_files_parse_cleanly
 
-Eval set internal (iter 61):
-- test_eval_set_cases_have_internally_consistent_edges — every
-  gold_edges from/to predicate must appear in gold_variables
+Eval set, internally:
+- test_eval_set_cases_have_internally_consistent_edges — every gold_edges
+  endpoint appears in gold_variables, which nothing else checks until an
+  e2e test fails with a confusing error
 
-Self-meta (iter 94):
-- test_meta_test_docstring_inventories_all_test_functions — every
-  test_… function in this file must be mentioned in this docstring;
-  catches 'added test, forgot to inventory' regression (iter 91→93
-  was that exact pattern)
-
-Each pin documents which iter found the original drift (if any) plus
-the regression class it guards. Add new pins symmetric with existing
-patterns when new drift classes surface.
+This file about itself:
+- test_meta_test_docstring_inventories_all_test_functions — every test
+  above is named here, because a pin added without a line here is a pin
+  the reader of this docstring believes does not exist
 """
 from __future__ import annotations
 
@@ -210,7 +145,7 @@ def _all_test_text() -> str:
     parts: list[str] = []
     for p in TESTS_DIR.rglob("test_*.py"):
         if p.name == Path(__file__).name:
-            continue  # don't count this meta-file as coverage
+            continue # don't count this meta-file as coverage
         parts.append(p.read_text(encoding="utf-8"))
     return "\n".join(parts)
 
@@ -244,8 +179,8 @@ def test_gap_kind_has_test_coverage(kind: GapKind):
 def test_gap_kind_enum_synced_with_schema():
     """The query_result.schema.json gap_kind enum and Python GapKind enum
     must list exactly the same values. Adding to one but forgetting the
-    other (a real risk; iter 5/19 had to update both manually) breaks
-    schema validation in opaque ways."""
+    other breaks schema validation in opaque ways, and both sides have
+    to be edited by hand."""
     import json
     schema = json.loads(
         (REPO_ROOT / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8")
@@ -287,8 +222,8 @@ def test_gap_kind_enum_synced_with_verifier_registry():
     """The verifier's _KIND_ACCEPTS_REF must have an entry for
     every GapKind enum value. T10-3 raises VerificationError when a gap
     has an unregistered kind, so missing registrations cause silent
-    test failures the moment the gap fires (caught by iter 5 hard way
-    when test_t10_passes_on_real_dispatch_output failed before the
+    test failures the moment the gap fires — which is how it was found,
+    with test_t10_passes_on_real_dispatch_output failing before the
     verifier registration was added)."""
     from themis.verifier.data_gap_rules import _KIND_ACCEPTS_REF
     registry_kinds = set(_KIND_ACCEPTS_REF.keys())
@@ -327,9 +262,9 @@ def test_must_disclose_kinds_documented_in_response_rendering_prompt():
 
     Adding a kind to MIRRORED_INTO_EXPLANATION without updating the prompt
     breaks the contract silently — the LLM might double-render or fail
-    to surface the caveat. Iter 9 (unmeasured_confounder_risk) and
-    iter 19 (dispatch_conflict) both required this prompt update; this
-    test catches the third or fourth time.
+    to surface the caveat. unmeasured_confounder_risk and
+    dispatch_conflict each required this prompt update by hand; this
+    test catches the next one.
     """
     from themis.types import MIRRORED_INTO_EXPLANATION
     _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
@@ -350,13 +285,13 @@ def test_must_disclose_kinds_documented_in_response_rendering_prompt():
 
 
 def test_precision_budget_field_documented_in_rendering_prompt():
-    """Iter 156 sync pin: when dispatch emits ``precision_budget`` on
+    """A sync pin: when dispatch emits ``precision_budget`` on
     numeric_estimate, response_rendering.md must document how the LLM
     should surface it. Otherwise downstream LLMs read raw JSON without
     knowing the field exists or when to mention it.
 
-    iter 151 added the helper, 152-155 wired it into all 6 estimator
-    paths, 156 documented it. This pin keeps the docs in lockstep:
+    The helper, the wiring into all 6 estimator paths and the prompt
+    section landed separately. This pin keeps the docs in lockstep:
     if a future iter renames or removes the field without updating the
     prompt, the test fails.
     """
@@ -367,8 +302,7 @@ def test_precision_budget_field_documented_in_rendering_prompt():
     # the dedicated section heading (so the LLM finds it via TOC).
     assert "`precision_budget`" in rendering_md, (
         "response_rendering.md does not mention the `precision_budget` "
-        "field. Add the field-table row + §Precision budget section "
-        "(see iter 156)."
+        "field. Add the field-table row + §Precision budget section."
     )
     assert "Precision budget" in rendering_md, (
         "response_rendering.md is missing the §Precision budget section."
@@ -385,11 +319,11 @@ def test_precision_budget_field_documented_in_rendering_prompt():
 
 
 def test_identification_formula_witness_set_synced_with_scheduler():
-    """Iter 183 sync pin: themis.verifier.verify.IDENTIFICATION_FORMULA_RULES
+    """A sync pin: themis.verifier.verify.IDENTIFICATION_FORMULA_RULES
     must include every rule name the scheduler emits as a formula
-    witness (consumed by formula_evaluation). Pre-iter-182 only
-    backdoor was admitted; iter 182 added front-door after iter 181
-    discovered the gap. If scheduler adds a new identification path
+    witness (consumed by formula_evaluation). Admitting only backdoor
+    here silently rejects the front-door variant's formula, which is
+    well-formed. If the scheduler adds a new identification path
     that emits a symbolic formula (e.g. tian_c_formula), this pin
     fails so the verifier set is updated alongside.
 
@@ -427,8 +361,8 @@ def test_identification_formula_witness_set_synced_with_scheduler():
 
 
 def test_precision_budget_method_specific_caveats_documented():
-    """Iter 177 sync pin: iter 161 added method-specific caveats to
-    response_rendering.md's §Precision budget for the 6 estimator
+    """A sync pin over the method-specific caveats in
+    response_rendering.md's §Precision budget, one per estimator
     paths. Each method has different "more N" semantics:
     - IV (wald/2sls): compliers, not all takers
     - mediation_*: joint M+Y rows
@@ -463,17 +397,17 @@ def test_precision_budget_method_specific_caveats_documented():
             missing.append(category)
     assert not missing, (
         f"§Method-specific caveats missing references for "
-        f"{missing}. Iter 161 added them; future doc edits must "
+        f"{missing}. They were added deliberately; future doc edits must "
         f"preserve at least one keyword per method category."
     )
 
 
 def test_precision_budget_in_query_result_schema():
-    """Iter 156 sync pin: query_result.schema.json must define
+    """A sync pin: query_result.schema.json must define
     precisionBudget under $defs and reference it from numeric_estimate
     + decomposition components + dose_response_curve. Drift here would
-    cause themis.verify() to reject results carrying the field (the
-    iter 152→154 silent-violation pattern)."""
+    cause themis.verify() to reject results carrying the field — a
+    violation that is silent until something validates."""
     schema_text = (
         REPO_ROOT / "themis" / "schemas" / "query_result.schema.json"
     ).read_text(encoding="utf-8")
@@ -487,14 +421,14 @@ def test_precision_budget_in_query_result_schema():
         "query_result.schema.json should reference precisionBudget "
         "from numeric_estimate top-level + each of nde/nie/te/"
         "proportion_mediated under decomposition + dose_response_curve "
-        "items (iter 152-155 wires)."
+        "items."
     )
 
 
 def test_package_version_matches_roadmap_and_core_status():
     """themis.__version__ in themis/__init__.py must match the version
-    quoted in ROADMAP.md / CORE_STATUS.md / README.md. Iter 45 found
-    this drift the hard way: __version__ was '0.14.0-dev' for an entire
+    quoted in ROADMAP.md / CORE_STATUS.md / README.md. This drifted
+    the hard way once: __version__ was '0.14.0-dev' for an entire
     release cycle while doc files all said '0.15.0-dev'.
 
     The version string moves with each release boundary; pin sync so
@@ -520,8 +454,8 @@ def test_package_version_matches_roadmap_and_core_status():
 
 def test_test_count_consistent_between_core_status_and_readme():
     """CORE_STATUS.md and README.md both quote 'N passed / M skipped' as
-    the current full-suite baseline. They must agree — iter 5 onwards
-    each test-adding commit updated both manually, easy to miss one.
+    the current full-suite baseline. They must agree, and every
+    test-adding commit updates both by hand, which is easy to half-do.
 
     Pin: extract the count line from each file via regex, assert equal.
     Future test-count changes update both files (or this test catches
@@ -542,12 +476,11 @@ def test_test_count_consistent_between_core_status_and_readme():
 
 
 def test_meta_test_docstring_inventories_all_test_functions():
-    """Iter 91-93 self-meta find: this file's module docstring lists
-    each pin by category. Iter 91 wrote it with 26 entries; iter 93
-    audit found one missing (eval_set consistency from iter 61) and
-    the docstring's category total was wrong by 1.
+    """This file's module docstring lists each pin by category, and an
+    inventory written by hand goes out of date the first time a pin is
+    added without a line — which it did, by exactly one entry.
 
-    Iter 94 pin: count test_… function definitions in this file,
+    count test_… function definitions in this file,
     count test name mentions in the module docstring's bullet lines,
     assert every actual function name appears in docstring bullets.
 
@@ -572,7 +505,7 @@ def test_meta_test_docstring_inventories_all_test_functions():
 
 def test_wall_md_has_required_structure():
     """wall.md is the autonomous-loop blocker log — central to the
-    /loop's design. Iter 90 preventive pin: must exist + must have
+    /loop's design. It must exist + must have
     a `Format:` declaration line + at least one ## YYYY-MM-DD entry.
 
     Without these, the loop's "记在 wall.md" instruction has no
@@ -598,9 +531,9 @@ def test_wall_md_has_required_structure():
 
 def test_status_docs_have_update_timestamp():
     """CORE_STATUS.md and COVERAGE_MAP.md must declare a `更新时间`
-    timestamp in their header. Iter 85-87 found three timestamp drifts
-    where these fields existed but were stale; iter 89 pin guards
-    against the field being silently removed (which would make future
+    timestamp in their header. Three of these have been found stale
+    while present; this pin guards only against the field being
+    silently removed (which would make future
     drift undetectable by audit).
 
     Field format: `> 更新时间：YYYY-MM-DD`. The audit only checks
@@ -620,7 +553,7 @@ def test_status_docs_have_update_timestamp():
 
 def test_failure_modes_header_count_matches_actual_entries():
     """docs/eval_set/failure_modes.md header quotes 'N codes' as the
-    taxonomy size. Iter 56 found this stale: header said '22 codes'
+    taxonomy size. This was found stale: header said '22 codes'
     while file actually had 26 (F23-F26 added without updating count).
 
     Pin: regex extract header count + count actual `## F\\d+` entries;
@@ -643,7 +576,7 @@ def test_failure_modes_header_count_matches_actual_entries():
 
 def test_readme_public_entry_imports_actually_resolve():
     """README.md '公开入口' code block shows `from themis import (...)`
-    listing the public API. Iter 62 pin: extract those names + assert
+    listing the public API. extract those names + assert
     every one is actually importable + callable from `themis`. Catches
     a future README drift where someone removes a function from
     themis/__init__.py without updating the README example.
@@ -682,8 +615,8 @@ def test_readme_public_entry_imports_actually_resolve():
 
 def test_kernel_run_emits_no_deprecation_warnings():
     """Importing `themis` and running a representative L3 case must not
-    emit DeprecationWarning. Iter 68 silenced the pytest-asyncio config
-    warning; iter 69 pins kernel-level cleanliness so a future
+    emit DeprecationWarning. This pins kernel-level cleanliness so a
+    future
     DeprecationWarning leaking from themis or its deps would fail here.
 
     Doesn't substitute for the broader pytest filterwarnings in
@@ -709,12 +642,12 @@ def test_kernel_run_emits_no_deprecation_warnings():
 
 
 def test_tests_py_files_have_module_docstrings():
-    """Symmetric with iter 77 (themis) and iter 79 (scripts) docstring
-    pins. Every .py file under tests/ must have a module docstring
+    """Symmetric with the themis/ and scripts/ docstring pins.
+    Every .py file under tests/ must have a module docstring
     so a future contributor reading test_xxx.py knows what's being
     pressure-tested at a glance.
 
-    Iter 80 found one missing (test_015_world_modeling_pressure.py)
+    One was found missing (test_015_world_modeling_pressure.py)
     and added a docstring; this pin prevents regression.
 
     Skips empty __init__.py files (size < 50 bytes — sub-package
@@ -737,11 +670,10 @@ def test_tests_py_files_have_module_docstrings():
 
 
 def test_scripts_py_files_have_module_docstrings():
-    """Symmetric with iter 77's themis docstring pin. Every .py file
+    """Symmetric with the themis/ docstring pin. Every .py file
     under scripts/ must have a module docstring.
 
-    Iter 78 added the last missing docstring (run_trial_pack.py); this
-    pin (iter 79) prevents regression. Scripts are typically run
+    Scripts are typically run
     directly by users, so a no-docstring entry-point script is a real
     UX problem — running with --help / inspecting the file should give
     a quick overview.
@@ -768,9 +700,7 @@ def test_scripts_py_files_have_module_docstrings():
 def test_themis_py_files_have_module_docstrings():
     """Every themis/**/*.py file must have a module-level docstring.
 
-    Iter 77 preventive pin. Themis is intentionally well-documented
-    at the module level (e.g. iter 36 / iter 39 fixed two stale
-    docstrings; iter 71 added exception docs to __init__.py). A new
+    Themis is intentionally well-documented at the module level. A new
     .py file without a docstring would be a real onboarding cost for
     contributors trying to find what each module does.
 
@@ -800,7 +730,7 @@ def test_all_committed_json_files_parse_cleanly():
     """Every .json file in the repo (excluding hidden / __pycache__ /
     node_modules) must be syntactically valid JSON.
 
-    Iter 76 preventive pin. Catches typos, accidental save corruptions,
+    Catches typos, accidental save corruptions,
     incomplete edits where someone forgot a closing brace, etc.
 
     129 files currently audited. The repo has eval_set/cases JSONs,
@@ -829,7 +759,7 @@ def test_all_committed_json_files_parse_cleanly():
 
 
 def test_themis_init_docstring_exception_imports_resolve():
-    """themis/__init__.py docstring (iter 71) lists 7 'common exceptions'
+    """themis/__init__.py's docstring lists 7 'common exceptions'
     with explicit `from themis.X.Y import Z` paths. If a future
     submodule rename / refactor breaks one of those import paths,
     users following the docstring would hit ImportError. Pin the
@@ -874,7 +804,7 @@ def test_themis_init_all_matches_imports():
     - Every __all__ entry is actually an attribute on the themis module
       (else IDE auto-import / type-checker reports a phantom)
 
-    Iter 67 preventive pin (no current drift). Future regression: add a
+    Future regression: add a
     new public function, import it, but forget to add to __all__ →
     invisible to `from themis import *`.
     """
@@ -892,8 +822,8 @@ def test_themis_init_all_matches_imports():
     )
 
     # Every name imported from .kernel must be in __all__
-    # Handle both parens and bare-name forms; iter 82 generalizes the
-    # iter 67 pin to be format-tolerant.
+    # Handle both parens and bare-name forms: the pin is on the names,
+    # not on how the import statement happens to be laid out.
     m = re.search(
         r"from\s+\.kernel\s+import\s+(?:\(\s*([^)]+?)\s*\)|([^\n#]+))",
         init_text,
@@ -915,14 +845,14 @@ def test_themis_init_all_matches_imports():
 
 def test_markdown_backtick_path_refs_resolve():
     """Plain-text references in markdown backticks to repo paths must
-    point at existing files. Iter 66 covered `themis/*.py`; iter 84
-    extends to `docs/.../*.{md,json,py}` references.
+    point at existing files — both `themis/*.py` and
+    `docs/.../*.{md,json,py}` references.
 
     Catches narrative prose like 'see `docs/prompts/response_rendering.md`'
     or 'inspect `themis/runtime/c_factor.py`' becoming dead links when
     files are renamed/moved without grep'ing for incoming references.
 
-    Distinct from iter 65's link-form pin: this catches references
+    Distinct from the link-form pin: this catches references
     that use only backtick syntax, no link wrapper.
     """
     import re
@@ -952,11 +882,11 @@ def test_markdown_backtick_path_refs_resolve():
 
 def test_markdown_cross_links_resolve():
     """Every relative .md cross-link in committed markdown must resolve
-    to an existing file. Iter 63 stripped 28 abs paths to relative
+    to an existing file. An audit stripped 28 abs paths to relative
     paths; if a target file was renamed/deleted, those relative links
     would now be broken — caught here.
 
-    Iter 65 audit: all currently resolve. Pin the invariant for future
+    all currently resolve. Pin the invariant for future
     drift (e.g., delete a charter file without grep'ing for incoming
     references).
 
@@ -987,8 +917,8 @@ def test_markdown_cross_links_resolve():
 
 
 def test_no_windows_absolute_paths_in_committed_files():
-    """Iter 63 audit found 28 hardcoded `C:\\Users\\12916\\...\\` paths
-    across 7 .md files. Iter 64 extends this to .py files in
+    """An audit found 28 hardcoded `C:\\Users\\12916\\...\\` paths
+    across 7 .md files. This extends to .py files in
     themis/ / scripts/ / tests/ — code is clean today (Python uses
     Path/__file__ idioms naturally) but absolute paths could leak in
     via future copy-paste from a debugger or shell command.
@@ -1039,7 +969,7 @@ def test_eval_set_cases_have_internally_consistent_edges():
     JSON cases directly (the e2e tests build kernel_ast from gold);
     a typo would only surface at e2e test time with a confusing error.
 
-    All 29 currently consistent (iter 61 audit).
+    All 29 currently consistent.
     """
     import json
     cases_dir = REPO_ROOT / "docs" / "eval_set" / "cases"
@@ -1059,7 +989,7 @@ def test_eval_set_cases_have_internally_consistent_edges():
 
 def test_readme_subpackage_list_matches_actual():
     """README.md '主要目录' code block lists themis/<sub-package>/
-    entries. Iter 60 found drift: README listed 10 sub-packages but
+    entries. An audit found drift: README listed 10 sub-packages but
     actual themis/ has 11 (web/ was missing — added in this session
     via mode (a) LLM bridge + mode (b) paste-JSON commits).
 
@@ -1067,7 +997,7 @@ def test_readme_subpackage_list_matches_actual():
     actual directories under themis/."""
     import re
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    # Extract lines like '  upstream/   NL bridge helpers: ...' inside the
+    # Extract lines like ' upstream/ NL bridge helpers: ...' inside the
     # 主要目录 code block
     block_match = re.search(r"## 主要目录\s*\n+```text\n(.*?)\n```", readme,
                              re.DOTALL)
@@ -1095,12 +1025,12 @@ def test_readme_subpackage_list_matches_actual():
 
 def test_mcp_readme_counts_match_actual_server():
     """themis/mcp/README.md "Architecture" section quotes
-    "current count: N tools + M resources". Iter 103 found this stale
-    (said 4 tools / 8 resources but actual was 7 / 12). Iter 104 pin
+    "current count: N tools + M resources". This was found stale
+    (said 4 tools / 8 resources but actual was 7 / 12). This pin
     catches future regression where another tool/resource is added
     without updating the README quote.
 
-    Symmetric with iter 59's COVERAGE_MAP MCP count pin — both files
+    Symmetric with the COVERAGE_MAP MCP count pin — both files
     quote the same numbers, so they're independently checked against
     actual server output.
     """
@@ -1138,8 +1068,8 @@ def test_mcp_readme_counts_match_actual_server():
 def test_mcp_readme_catalog_tables_match_server():
     """themis/mcp/README.md has two markdown tables — "Tool catalog" and
     "Resource catalog" — that list each tool name / resource URI as table
-    rows. Iter 105 found these drifted independently of the count quote
-    fixed by iter 103/104: the prose said "7 tools + 12 resources" but
+    rows. These drift independently of the count quote: the prose said
+    "7 tools + 12 resources" while
     the tables still showed only 5 tools and 8 resources from before
     Phase 8.1 (themis_discover) / Phase 10 (themis_verify_data_gap_report)
     / Phase 11.1-11.2 (gap_to_action / kb_lookup / kb_query / kb_result)
@@ -1204,8 +1134,8 @@ def test_mcp_readme_catalog_tables_match_server():
 
 def test_readme_query_kind_list_matches_enum():
     """README.md "当前能力" section claims "运行结构查询: cause / assoc /
-    identify / effect / probability / counterfactual". Iter 106 caught
-    that this list was stuck at 5 kinds — counterfactual landed via
+    identify / effect / probability / counterfactual". An audit caught
+    this list stuck at 5 kinds — counterfactual landed via
     Phase 5 §C and `QueryKind.COUNTERFACTUAL` is a canonical
     dispatched kind, but the README never grew to mention it.
 
@@ -1239,9 +1169,9 @@ def test_readme_query_kind_list_matches_enum():
 
 def test_coverage_map_gap_kind_count_matches_enum():
     """COVERAGE_MAP.md 元基础设施 row quotes 'DataGapReport schema
-    (N gap_kind / M severity / K ref_kind, ...)'. Iter 107 caught
-    that this claimed N=8 (initial Phase 10 scope) while GapKind
-    enum had grown to 22 via Phase 13 + iter 5/19 + later additions.
+    (N gap_kind / M severity / K ref_kind, ...)'. An audit caught this
+    claiming N=8 (the initial Phase 10 scope) while the
+    GapKind enum had grown to 22.
 
     Pin parses the row and asserts N == len(GapKind), M == len(GapSeverity),
     K == len(ref_kind enum from query_result.schema.json).
@@ -1314,7 +1244,7 @@ def test_coverage_map_gap_kind_count_matches_enum():
 
 def test_kb_readme_gap_to_query_kind_table_matches_translator():
     """themis/kb/README.md has a "Mapping gaps to query kinds" table that
-    documents which gap_kinds the translator can route to a KB. Iter 108
+    documents which gap_kinds the translator can route to a KB. An audit
     found this table missing missing_population_distribution and
     transport_source_conditional_unknown rows that were already in
     `_GAP_TO_QUERY_KIND` in translator.py.
@@ -1358,7 +1288,7 @@ def test_kb_readme_gap_to_query_kind_table_matches_translator():
 
 def test_estimation_init_docstring_inventories_all_exports():
     """themis/estimation/__init__.py docstring should reference every
-    name in __all__. Iter 111 caught the docstring describing only
+    name in __all__. An audit caught the docstring describing only
     "Phase 7.1 scope" (data contract + backdoor) while __all__ also
     exported Phase 8.1 discovery, Phase 8.2 sensitivity, and Phase 14
     dose-response APIs.
@@ -1383,7 +1313,7 @@ def test_estimation_init_docstring_inventories_all_exports():
 
 def test_data_gap_report_docstring_must_disclose_section_accurate():
     """themis/output/data_gap_report.py module docstring inventories
-    gap_kinds by category. Iter 118 caught the "Phase 11+ structural
+    gap_kinds by category. An audit caught the "Phase 11+ structural
     caveats (must-disclose channel)" section listing
     transport_source_conditional_unknown and dose_response_data_required
     while neither is actually in types.MIRRORED_INTO_EXPLANATION —
@@ -1406,8 +1336,8 @@ def test_data_gap_report_docstring_must_disclose_section_accurate():
     # ending with the colon, followed by a contiguous run of bullets.
     section = re.search(
         r"must-disclose channel[^\n]*"
-        r"(?:\n(?!- )[^\n]*)*"  # prose continuation lines (no bullet)
-        r"\n((?:- [^\n]+\n(?:  [^\n]+\n)*)+)",  # bullet block
+        r"(?:\n(?!- )[^\n]*)*" # prose continuation lines (no bullet)
+        r"\n((?:- [^\n]+\n(?: [^\n]+\n)*)+)", # bullet block
         docstring,
     )
     assert section, (
@@ -1428,8 +1358,8 @@ def test_data_gap_report_docstring_must_disclose_section_accurate():
     )
 
     # Every must-disclose value must appear somewhere in the full
-    # docstring (in any section). The L3 section covers the iter 5/19
-    # additions; this is just total-coverage hygiene.
+    # docstring (in any section) — total-coverage hygiene, indifferent
+    # to which section names it.
     not_documented = _MUST_DISCLOSE_GAP_KINDS - {
         line for line in re.findall(r"\b([a-z_]+)\b", docstring)
     }
@@ -1441,11 +1371,11 @@ def test_data_gap_report_docstring_must_disclose_section_accurate():
 
 def test_eval_set_readme_gold_query_kind_matches_enum():
     """docs/eval_set/README.md "Per-case JSON schema" example shows
-    a `gold_query_kind` value pipe-list. Iter 117 caught this listed
+    a `gold_query_kind` value pipe-list. An audit caught this listed
     only 5 kinds (cause | assoc | effect | identify | probability)
     while QueryKind enum has 6 — counterfactual landed via Phase 5
-    §C but the eval_set README never grew. Same drift class as
-    iter 106 (root README query-kind list) in a different doc.
+    §C but the eval_set README never grew. Same drift class as the
+    root README's query-kind list, in a different doc.
     """
     import re
 
@@ -1475,7 +1405,7 @@ def test_eval_set_readme_gold_query_kind_matches_enum():
 
 def test_formula_ast_spec_node_count_matches_types():
     """formula_ast_spec_v0_1.md version-pointer header quotes a count
-    of formula AST node types. Iter 116 caught it claiming "5 core
+    of formula AST node types. An audit caught it claiming "5 core
     nodes" (Sum / Product / ProbabilityRef / BindDecl / VarRef) while
     ConstantExpr had always been a 6th node since v0.1.
 
@@ -1526,7 +1456,7 @@ def test_formula_ast_spec_node_count_matches_types():
 def test_kernel_docstring_lists_all_public_entries():
     """themis/kernel.py module docstring should mention every public
     entry function it defines (the ones re-exported via themis.__all__).
-    Iter 115 caught the docstring naming only ``run`` /
+    An audit caught the docstring naming only ``run`` /
     ``apply_patch_and_run`` / ``verify`` while ``estimate`` (Phase 7)
     and ``verify_data_gap_report`` (Phase 10) had landed without
     docstring updates.
@@ -1556,7 +1486,7 @@ def test_kernel_docstring_lists_all_public_entries():
 
 
 def test_prompt_header_word_counts_match_subsection_counts():
-    """Iter 114 — drift class: prompt section header claims a count
+    """drift class: prompt section header claims a count
     in spelled-out form (e.g. "## Three questions per gap") but the
     actual ### subsection count under it diverges. gap_to_action.md
     said "Three" while having Q0 + Q1 + Q2 + Q3 = 4 subsections after
@@ -1605,13 +1535,13 @@ def test_prompt_header_word_counts_match_subsection_counts():
 
     assert not issues, (
         "Prompt header counts drifted from subsection counts:\n"
-        + "\n".join(f"  - {issue}" for issue in issues)
+        + "\n".join(f" - {issue}" for issue in issues)
     )
 
 
 def test_workflow_init_docstring_lists_all_submodules():
     """themis/workflow/__init__.py docstring explicitly enumerates its
-    submodules (the "Modules:" bullet list). Iter 113 caught it
+    submodules (the "Modules:" bullet list). An audit caught it
     listing only ``parameter_fill`` while ``variable_framing`` had
     been there for several phases.
 
@@ -1638,7 +1568,7 @@ def test_workflow_init_docstring_lists_all_submodules():
 
 @pytest.mark.parametrize("pkg_name", ["kb", "upstream", "verifier", "mcp"])
 def test_subpackage_init_docstrings_inventory_all_exports(pkg_name):
-    """Iter 112 — same pin as iter 111's estimation pin, applied to the
+    """The same pin as the estimation one, applied to the
     other subpackages with __all__: kb (19 exports) / upstream (16) /
     verifier (17) / mcp (2). Each had docstring drift where most
     exports were not named — mcp's also said "four public entry
@@ -1665,7 +1595,7 @@ def test_subpackage_init_docstrings_inventory_all_exports(pkg_name):
 
 
 def test_every_gap_kind_documented_in_reference():
-    """Iter 139 — docs/GAP_KINDS_REFERENCE.md is the single-source
+    """docs/GAP_KINDS_REFERENCE.md is the single-source
     human-readable table for the 26 gap_kinds. Previously this
     information was scattered across types.py docstrings, the
     classifier descriptions in data_gap_report.py, gap_to_action.md
@@ -1690,24 +1620,23 @@ def test_every_gap_kind_documented_in_reference():
 
 
 def test_must_disclose_gap_kinds_documented_in_gap_to_action():
-    """Iter 136 — parallel to iter 132's response_rendering pin but
-    for gap_to_action.md: every must-disclose gap_kind PLUS the iter
-    120/121/123 estimator-runtime gap_kinds (which auto-mirror to
-    explanation but live outside MIRRORED_INTO_EXPLANATION) must
-    appear verbatim in gap_to_action.md so the orchestrator agent
-    has explicit Q0-pre-screen guidance for each.
+    """Parallel to the response_rendering pin, for gap_to_action.md.
 
-    iter 119-134 added 4 new gap_kinds (collider, weak_iv,
-    propensity_overlap, outcome_separation) that drifted out of
-    gap_to_action for ~16 iters until this pin caught it.
+    Every must-disclose gap_kind, PLUS the estimator-runtime kinds
+    (which reach explanation but live outside
+    MIRRORED_INTO_EXPLANATION), must appear verbatim in
+    gap_to_action.md, so the orchestrator agent has explicit
+    Q0-pre-screen guidance for each. Four kinds — collider, weak_iv,
+    propensity_overlap, outcome_separation — had drifted out of it
+    before this pin existed.
     """
     from themis.types import MIRRORED_INTO_EXPLANATION
     _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
 
     estimator_runtime_kinds = {
-        "weak_iv_instrument",            # iter 120
-        "propensity_overlap_violation",  # iter 121
-        "outcome_model_quasi_separation",  # iter 123
+        "weak_iv_instrument",
+        "propensity_overlap_violation",
+        "outcome_model_quasi_separation",
         # Same posture: attached after the estimator has chosen, mirrored
         # into explanation, outside MIRRORED_INTO_EXPLANATION.
         "iv_estimand_fallback_to_linear",
@@ -1728,15 +1657,15 @@ def test_must_disclose_gap_kinds_documented_in_gap_to_action():
 
 
 def test_numeric_estimate_method_enum_documented_in_prompt():
-    """Iter 132 — parallel to iter 110's BoundsMethod producer pin
-    but for numeric_estimate.method values. Every method enum value
+    """Parallel to the BoundsMethod producer pin, for
+    numeric_estimate.method values. Every method enum value
     in query_result.schema.json must appear verbatim somewhere in
     docs/prompts/response_rendering.md so the LLM consumer has
     rendering guidance for that method.
 
-    Iter 124 extended sensitivity to continuous outcome and iter 128
-    added transport_post_stratification — both went 4 iterations
-    without prompt-side rendering guidance until iter 132 caught it.
+    Extending sensitivity to a continuous outcome, and adding
+    transport_post_stratification, each shipped without prompt-side
+    rendering guidance for a while.
     This pin locks the "method ↔ prompt section" invariant going
     forward.
     """
@@ -1798,7 +1727,7 @@ def test_numeric_estimate_method_enum_documented_in_prompt():
 def test_bounds_method_producers_have_rendering_template():
     r"""Every BoundsMethod value actually produced by themis/output/
     bounds.py must have a matching ``#### `method_name``` section in
-    docs/prompts/response_rendering.md. Iter 110 added this
+    docs/prompts/response_rendering.md. This was added
     preventatively — current state is in sync (manski_natural +
     balke_pearl_iv produced + rendered; frontdoor_partial +
     manski_tamer_monotonicity declared in enum but not yet produced
@@ -1846,7 +1775,7 @@ def test_bounds_method_producers_have_rendering_template():
 
 def test_kb_readme_confidence_grade_ladder_matches_enum():
     """themis/kb/README.md prose describes KBConfidenceGrade as a
-    GRADE-style ladder. Iter 109 caught it saying "five-level" while
+    GRADE-style ladder. An audit caught it saying "five-level" while
     listing 6 entries (5 graded + unknown sentinel). Pin asserts every
     enum value appears in the prose ladder, and that the digit-word
     matches the enum count.
@@ -1905,11 +1834,11 @@ def test_kb_readme_confidence_grade_ladder_matches_enum():
 
 def test_mcp_server_docstring_lists_all_tools_and_resources():
     """themis/mcp/server.py module docstring has parallel inventories
-    to themis/mcp/README.md catalog tables — same drift class. Iter 105
-    found server.py docstring listed 6 tools (missing themis_discover)
+    to themis/mcp/README.md catalog tables — same drift class. An audit
+    found server.py's docstring listing 6 tools (missing themis_discover)
     and 9 resources (missing kb_lookup.md / kb_query.schema.json /
     kb_result.schema.json) while the README count quote already said
-    "7 tools + 12 resources" post-iter-103.
+    "7 tools + 12 resources".
     """
     import asyncio
     import re
@@ -1944,7 +1873,7 @@ def test_mcp_server_docstring_lists_all_tools_and_resources():
 
 def test_coverage_map_mcp_counts_match_actual_server():
     """COVERAGE_MAP.md quotes 'N tools + M resources' for the MCP server.
-    Iter 59 found drift: said '6 tools' while actual is 7
+    An audit found drift: said '6 tools' while actual is 7
     (themis_apply_patch_and_run / discover / estimate / list_resources /
     run / verify / verify_data_gap_report). Pin actual server output."""
     import asyncio
@@ -1975,7 +1904,7 @@ def test_coverage_map_mcp_counts_match_actual_server():
 
 def test_eval_set_readme_counts_match_actual_files():
     """docs/eval_set/README.md header quotes 'N cases across M failure
-    modes (F1-FM)'. Iter 57 audit found this stale: header said
+    modes (F1-FM)'. An audit found this stale: header said
     '28 cases / 24 failure modes' while actual was 29 cases + 26 codes.
 
     Pin both counts:
@@ -1983,7 +1912,7 @@ def test_eval_set_readme_counts_match_actual_files():
     - 'M failure modes (F1-FM)' must match the F-code count in
       failure_modes.md
 
-    Same drift class as iter 56 failure_modes header pin.
+    Same drift class as the failure_modes header pin.
     """
     import re
     eval_readme = (
@@ -2025,7 +1954,7 @@ def test_eval_set_readme_counts_match_actual_files():
 def test_every_phase_charter_declares_status():
     """Every PHASE_*_CHARTER.md must declare a status line (> 状态：…).
 
-    Iter 52-54 audit revealed 6 charters with stale status lines that
+    An audit found 6 charters with stale status lines that
     had drifted from CORE_STATUS truth — but the deeper invariant is
     that EVERY charter MUST have a parseable status line, otherwise
     audit can't even spot drift. Catches:

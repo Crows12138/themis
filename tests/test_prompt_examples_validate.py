@@ -65,7 +65,7 @@ def test_at_least_five_kernel_ast_examples_present():
     )
 
 
-# Iter 99 audit: 4 known example shape groups
+# The four known example shape groups
 _KNOWN_EXAMPLE_SHAPES = {
     # A1 worked NL→kernel_ast (5 files)
     ("kernel_ast", "nl_input", "reasoning"),
@@ -83,7 +83,7 @@ def test_example_files_match_known_shape():
     """Every docs/prompts/examples/*.json must match one of the known
     shape signatures (top-level key tuple).
 
-    Iter 99 preventive pin. New example added with a typo or
+    A new example added with a typo or
     accidentally different key set silently joins as a "5th shape" —
     rather than being noticed and either consolidated to existing
     shapes or formally introducing a new shape category, the audit

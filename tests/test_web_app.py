@@ -96,9 +96,8 @@ def test_verify_endpoint_returns_structured_error_when_unverifiable():
 
 
 def test_new_gap_kinds_round_trip_through_web_api():
-    """iter 28 audit guard: the gap_kinds added in iter 5
-    (unmeasured_confounder_risk) and iter 19
-    (unattempted_layer_due_to_dispatch_conflict) must propagate through
+    """unmeasured_confounder_risk and
+    unattempted_layer_due_to_dispatch_conflict must propagate through
     the web /api/run endpoint with their ⚠ caveats reaching
     result.explanation. The web layer is a thin pass-through, so kernel
     fixes should automatically reach web users — but let's pin that

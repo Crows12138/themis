@@ -19,7 +19,7 @@ Two conversion paths to RR:
 
 - **Binary outcome** (``e_value_from_ate_binary``): convert ATE via
   observed baseline rate. RR = (baseline + ATE) / baseline.
-- **Continuous outcome** (``e_value_from_ate_continuous``, iter 124):
+- **Continuous outcome** (``e_value_from_ate_continuous``):
   convert ATE to standardised mean difference d = ATE / SD(Y), then
   approximate RR ≈ exp(0.91 · d) per Chinn (2000) — the standard
   conversion used in VanderWeele 2017 §3.3 for continuous outcomes.
@@ -175,7 +175,7 @@ def e_value_from_ate_continuous(
     outcome_sd: float,
     ci_bound: float | None = None,
 ) -> EValueResult:
-    """Iter 124 — E-value for an ATE on a continuous outcome via the
+    """E-value for an ATE on a continuous outcome via the
     Chinn (2000) standardised-mean-difference → risk-ratio conversion.
 
     Steps:

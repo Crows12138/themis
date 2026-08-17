@@ -1,5 +1,5 @@
-"""Tests for selection_on_collider_opens_path gap_kind (iter 206, board #7
-second shape).
+"""Tests for the selection_on_collider_opens_path gap_kind — the
+second shape of selection bias.
 
 Triggered by program-shape: an ObservationStatement(W, value) encodes
 implicit sample restriction to W=value, AND the DAG has both intervention
@@ -13,7 +13,7 @@ Authoritative trigger reference — Hernán MA, Hernández-Díaz S, Robins JM
 specifically §3 ("conditioning on a common effect" = selection bias) and
 §4 (differential loss to follow-up depends on both exposure and outcome).
 
-Distinction from iter 122 ``collider_conditioning_opens_backdoor``:
+Distinction from ``collider_conditioning_opens_backdoor``:
 that kind fires on EffectQuery.given (explicit conditioning); this kind
 fires on ObservationStatement (implicit sample restriction). Both shapes
 together cover board #7 selection bias.
@@ -223,12 +223,12 @@ def test_must_disclose_explanation_includes_warning_line():
 
 
 def test_distinct_kind_from_collider_conditioning_opens_backdoor():
-    """Iter 122 (`collider_conditioning_opens_backdoor`) fires on
-    EffectQuery.given containing a collider; iter 206
-    (`selection_on_collider_opens_path`) fires on ObservationStatement.
-    Same V-structure, different access path. The case where given is
-    empty AND ObservationStatement is present must fire ONLY iter 206,
-    not iter 122 — they are mutually exclusive on this program shape."""
+    """`collider_conditioning_opens_backdoor` fires on
+    EffectQuery.given containing a collider;
+    `selection_on_collider_opens_path` fires on ObservationStatement.
+    Same V-structure, different access path. Where given is empty AND
+    an ObservationStatement is present, ONLY the second must fire —
+    they are mutually exclusive on this program shape."""
     out = run(_make_program())
     kinds = _gap_kinds(out)
     assert "selection_on_collider_opens_path" in kinds

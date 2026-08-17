@@ -1,4 +1,4 @@
-"""Phase 9 §T9.2 (iter 128) — transport-numeric ATE estimator tests.
+"""Phase 9 §T9.2 — transport-numeric ATE estimator tests.
 
 Cole & Stuart 2010 §3 post-stratification:
   ATE_target = Σ_z P(z|target) · ATE_source(z)

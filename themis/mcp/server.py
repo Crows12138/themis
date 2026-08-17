@@ -7,7 +7,7 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_audit(program, result)`` → wraps :func:`themis.audit`; every re-check that applies to this artifact, one row each. Prefer it over picking a ``themis_verify_*`` by hand
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
-- ``themis_verify_bounds_result(program, result)`` → iter 133, wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_bounds_result(program, result)`` → wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_selection_recovery_numeric(result)`` → §S9.1 numeric end, wraps :func:`themis.verify_selection_recovery_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_missing_data_numeric(result)`` → §S9.2 numeric end, wraps :func:`themis.verify_missing_data_numeric`; returns ``{"ok": bool, "error": str?}``
@@ -173,13 +173,13 @@ def build_server():
     def themis_verify_bounds_result(
         program: dict | str, result: dict,
     ) -> dict:
-        """Iter 133 — independently audit a result's bounds_result.
+        """Independently audit a result's bounds_result.
 
         Parallel to ``themis_verify_data_gap_report``: bounds typically
         attach when point identification fails (status=needs_investigation)
         and no derivation chain exists, so ``themis_verify`` rejects them
         for missing derivation. This tool dispatches by
-        bounds_result.method to the iter 126/127/130 verifier trilogy
+        bounds_result.method to the per-method verifiers
         (manski_natural / manski_tamer_monotonicity / balke_pearl_iv).
         """
         try:

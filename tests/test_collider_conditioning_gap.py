@@ -1,4 +1,4 @@
-"""Iter 122 — collider_conditioning_opens_backdoor gap_kind tests.
+"""Tests for the collider_conditioning_opens_backdoor gap_kind.
 
 Pearl d-separation: a path is BLOCKED by conditioning set Z iff every
 collider on the path AND none of its descendants are in Z. Therefore
@@ -281,7 +281,7 @@ def test_given_x_or_y_itself_not_treated_as_collider():
 
 
 def test_meta_pin_must_disclose_set_includes_collider():
-    """Iter 118 sync pin: every name in the must-disclose docstring
+    """A sync pin: every name in the must-disclose docstring
     section must be in types.MIRRORED_INTO_EXPLANATION, and vice
     versa. Direct check the new gap_kind reaches the auto-mirror set."""
     from themis.types import MIRRORED_INTO_EXPLANATION

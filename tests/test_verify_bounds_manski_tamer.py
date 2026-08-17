@@ -1,7 +1,7 @@
-"""Iter 126 — verifier rule for Manski-Tamer bounds (iter 119 producer).
+"""Verifier rule for the Manski-Tamer bounds.
 
-Phase 12 + iter 119 produce ``bounds_result`` payloads but until iter
-126 they were unverified — themis.verify walked the derivation chain
+The producer emits ``bounds_result`` payloads that walking the
+derivation chain says nothing about — themis.verify follows the chain
 without re-deriving the bounds. This iter closes the audit gap for
 the Manski-Tamer monotonicity producer specifically:
 

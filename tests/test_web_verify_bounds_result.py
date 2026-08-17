@@ -1,6 +1,6 @@
-"""Iter 137 — /api/verify_bounds_result web endpoint tests.
+"""The /api/verify_bounds_result web endpoint.
 
-Web parallel of iter 133's MCP themis_verify_bounds_result tool.
+Web parallel of the MCP themis_verify_bounds_result tool.
 Wraps themis.verify_bounds_result so paste-JSON UI users can audit
 MTR / Manski-natural / Balke-Pearl IV bounds without going through
 the derivation-required /api/verify path.

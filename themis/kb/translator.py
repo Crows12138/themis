@@ -34,11 +34,10 @@ from .schemas import KBQuery, KBQueryKind, KBResult
 # Externally-fitted (Phase 13):
 #   DOSE_RESPONSE_DATA_REQUIRED — data spec to fit curve in EconML/GAM,
 #                                  not a single number to fetch
-# Pure-disclosure informational kinds (12 — Phase 6/8/9/10/11.x/12 +
-# iter 5 / iter 19 L3-driven additions): everything in
+# Pure-disclosure informational kinds: everything in
 # types.MIRRORED_INTO_EXPLANATION plus
-# UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT (iter 19, query
-# reformulation, not data fetch).
+# UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT, which asks for a query
+# reformulation rather than a data fetch.
 #
 # kb_lookup.md prompt mirrors this list with categorical rule.
 _GAP_TO_QUERY_KIND: dict[GapKind, KBQueryKind] = {

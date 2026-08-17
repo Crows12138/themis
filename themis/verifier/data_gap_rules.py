@@ -332,7 +332,7 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # Trigger compares query fields against result.extensions; provenance
     # is a verifier_check ref pointing at the symbolic conflict locator.
     "unattempted_layer_due_to_dispatch_conflict": frozenset({"verifier_check"}),
-    # iter 120: estimator-time signal — first-stage F-stat from IV
+    # Estimator-time signal — first-stage F-stat from IV
     # estimator falls below Stock-Yogo (2005) threshold. Provenance is
     # a verifier_check ref naming the (instrument -> treatment) pair;
     # no derivation step exists because the trigger fires after the
@@ -349,27 +349,27 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # same posture as weak_iv_instrument — no derivation step, because
     # the trigger fires once the estimator has already chosen.
     "iv_estimand_fallback_to_linear": frozenset({"verifier_check"}),
-    # iter 121: estimator-time signal — propensity P(X=1|Z) bounded
+    # Estimator-time signal — propensity P(X=1|Z) bounded
     # away from {0,1} for too few observations under backdoor
     # adjustment. Provenance is a verifier_check ref naming the
     # (treatment, adjustment) pair; same posture as weak_iv_instrument
     # — runtime signal, no derivation step.
     "propensity_overlap_violation": frozenset({"verifier_check"}),
-    # iter 122: structural signal — given (conditioning subgroup) in
+    # Structural signal — given (conditioning subgroup) in
     # an EffectQuery contains a node where both X and Y are ancestors
     # (collider). Provenance is a verifier_check ref naming the
     # (collider, intervention -> target) trio; classifier-driven, no
     # derivation step (fires on program shape regardless of result
     # status).
     "collider_conditioning_opens_backdoor": frozenset({"verifier_check"}),
-    # iter 123: estimator-time signal — backdoor logistic fitted but
+    # Estimator-time signal — backdoor logistic fitted but
     # training-set fitted P(Y|X,Z) clusters near 0/1 (quasi-separation).
     # Provenance is a verifier_check ref naming the
     # (outcome, treatment, adjustment) trio.
     "outcome_model_quasi_separation": frozenset({"verifier_check"}),
-    # iter 203: structural-input signal routed via the same
+    # Structural-input signal routed via the same
     # investigation_request channel that carries MISSING_DISTRIBUTION,
-    # but the item.reason carries the iter 202 d-sep refusal signature
+    # but the item.reason carries the d-sep refusal signature
     # ("d-separation 拒绝"). Same provenance shape as
     # missing_distribution because both originate from the formula-
     # evaluator's InsufficientTheta path; the classifier branches on
@@ -379,14 +379,14 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     "graph_theta_independence_mismatch": frozenset(
         {"investigation_request"}
     ),
-    # iter 205: program-shape signal — variable on the identification path
+    # Program-shape signal — variable on the identification path
     # declares a (measurement | observability) field whose value names a
     # known noisy-measurement pattern (self-report / questionnaire /
     # single-occasion / proxy / 24h recall etc.). Provenance is a
     # verifier_check ref naming the (variable, field) pair; classifier-
     # driven, no derivation step exists.
     "measurement_error_concern": frozenset({"verifier_check"}),
-    # iter 206: structural signal — an ObservationStatement on node W
+    # Structural signal — an ObservationStatement on node W
     # (encoding implicit sample restriction to W=observed-value) where
     # both intervention X and target Y are directed ancestors of W.
     # Provenance is a verifier_check ref naming the
@@ -394,11 +394,11 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # no derivation step. Hernán-Hernández-Díaz-Robins 2004 selection
     # bias structural pattern.
     "selection_on_collider_opens_path": frozenset({"verifier_check"}),
-    # iter 207: program-shape signal — intervention atom names a
+    # Program-shape signal — intervention atom names a
     # predicate whose VariableDeclaration declares
     # ``state_vs_event = "state"`` while no ``time_window`` is declared
-    # on the same predicate. The schema admits both fields; pre-iter-207
-    # no classifier read state_vs_event's VALUE (dead-schema theatre).
+    # on the same predicate. The schema admits both fields, so without
+    # this classifier nothing reads state_vs_event's VALUE.
     # Provenance is a verifier_check ref naming the offending
     # (intervention_predicate, "state without time_window") pair;
     # classifier-driven, no derivation step. Authoritative source:
@@ -418,8 +418,8 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # naming the offending predicate; the reconciliation evidence lives in
     # extensions.type_reconciliation and is independently re-derived by
     # verify_type_reconciliation (no derivation step — data-vs-declaration
-    # detection on the estimate path, like the iter 121/123 estimator-runtime
-    # diagnostics).
+    # detection on the estimate path, like the propensity-overlap and
+    # quasi-separation estimator-runtime diagnostics).
     "declared_type_data_mismatch": frozenset({"verifier_check"}),
 }
 

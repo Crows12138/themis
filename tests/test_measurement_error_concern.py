@@ -1,4 +1,4 @@
-"""Tests for measurement_error_concern gap_kind (iter 205, board #8 unblock).
+"""Tests for the measurement_error_concern gap_kind.
 
 Triggered by program-shape: at least one variable on the identification
 path (intervention, target, or directed predecessor of either) declares
@@ -218,8 +218,9 @@ def test_severity_is_important():
 def test_provenance_names_offending_variable_field_and_pattern():
     """Provenance ref must structurally name (variable, field, pattern)
     so a downstream consumer can route the correct repair action without
-    re-parsing the description text. Mirror of iter 203 routing
-    principle: structured channel carries the actionable identifier."""
+    re-parsing the description text — the same routing principle
+    graph_theta_independence_mismatch follows: the structured channel
+    carries the actionable identifier."""
     out = run(_make_program(
         intervention_measurement=(
             "single-occasion office sphygmomanometer reading"

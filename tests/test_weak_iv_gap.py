@@ -1,4 +1,4 @@
-"""Iter 120 — weak-IV instrument gap_kind tests.
+"""Tests for the weak_iv_instrument gap_kind.
 
 Stock-Yogo (2005): when the first-stage F-statistic falls below 10 for
 single-instrument 2SLS/Wald, the IV estimate is materially biased

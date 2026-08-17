@@ -1,6 +1,6 @@
 """Pipeline wiring for the Anderson-Rubin weak-IV-robust confidence set.
 
-The AR set (iter 212) rides on the existing IV numeric end. This slice
+The AR set rides on the existing IV numeric end. This slice
 threads it through the estimation dispatch, schema, and independent verifier
 so a client gets the weak-robust confidence set alongside the IV point, and a
 second, independent pass RE-SOLVES it from the reported residualised

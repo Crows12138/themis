@@ -1,17 +1,17 @@
-"""Iter 165-173 — Tian e2e architectural gap CLOSED.
+"""The Tian end-to-end architectural gap, closed.
 
-Originally filed as iter 165 xfail-strict tracker for the iter 150
-documented gap (semantic_validator rejected ADMG c-factor CPTs).
+Filed first as an xfail-strict tracker for the gap wall.md iter 150
+documents: semantic_validator rejected ADMG c-factor CPTs.
 Closed across 4 iters of architectural progress:
 
-- iter 167-168: validator loosen — admissible_given = parents ∪
+- validator loosen — admissible_given = parents ∪
   directed_ancestors ∪ bidirected_siblings (covers Tian's c-factor
   topo predecessor set)
-- iter 171: detection helper can_derive_via_marginalization
-- iter 172: runtime numeric_estimator auto-marginalization (recursive,
+- detection helper can_derive_via_marginalization
+- runtime numeric_estimator auto-marginalization (recursive,
   depth ≤ 3) — kernel now produces status='numerically_solved' for
   disjoint-Y
-- iter 173: mirror to verifier's _evaluate_formula (preserves V0-V5
+- mirror to the verifier's _evaluate_formula (preserves V0-V5
   independence — pure theta + canonical math, no shared state)
 
 Test now passes as a regression pin. If any of the 4 layers regresses,
@@ -45,7 +45,7 @@ def _prob(target: str, target_value, given: list, value: float) -> dict:
 
 
 def test_tian_disjoint_y_e2e_returns_correct_numeric():
-    """Iter 173: e2e gap closed across 4 architectural layers.
+    """The e2e gap, closed across 4 architectural layers.
     Reference DGP matches test_tian_disjoint_y_evaluates_to_correct_ate
     in test_formula_sum_bind_referenced.py. Hand-computed reference
     is 0.596. themis.run + themis.verify roundtrip both succeed."""

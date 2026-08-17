@@ -413,7 +413,7 @@ def test_verify_roundtrip_for_drlearner_result():
 
 @pytest.mark.skipif(not _ECONML_AVAILABLE, reason="econml not installed")
 def test_dose_response_curve_carries_per_point_precision_budget():
-    """Iter 155: each curve point with non-null CI bounds carries a
+    """Each curve point with non-null CI bounds carries a
     precision_budget sub-field telling user n_to_halve_ci. Reference
     point (effect=0 by construction) typically has degenerate CI →
     helper silently skips; non-reference points should have it."""

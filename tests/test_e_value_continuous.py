@@ -1,4 +1,4 @@
-"""Iter 124 — E-value sensitivity for continuous-outcome ATE.
+"""E-value sensitivity for a continuous-outcome ATE.
 
 Chinn (2000) SMD→RR approximation: standardised mean difference
 d = ATE / SD(Y), then risk ratio ≈ exp(0.91·d). Apply VanderWeele-Ding
@@ -199,8 +199,8 @@ def _continuous_data(n: int = 500, seed: int = 0) -> pd.DataFrame:
 
 def test_dispatch_attaches_sensitivity_for_continuous_outcome():
     """End-to-end: themis.estimate on a continuous-outcome program
-    populates numeric_estimate.sensitivity_analysis (was silently
-    skipped before iter 124)."""
+    populates numeric_estimate.sensitivity_analysis rather than
+    silently skipping it."""
     import themis
 
     out = themis.estimate(_continuous_outcome_program(), _continuous_data())

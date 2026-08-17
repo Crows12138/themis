@@ -47,103 +47,92 @@ and a kind that leaves the report has its line withdrawn with it):
 - llm_declared_ambiguity — A1-emitted ambiguities
 - answer_is_bounds_not_point_estimate — Phase 12 bounds-first
 - low_confidence_input_data — composite confidence below threshold
-- front_door_identification_assumption_required — A6.front-door (program-shape
-  fallback added iter 10 for needs_investigation + missing-theta case)
+- front_door_identification_assumption_required — A6.front-door, with a
+  program-shape fallback for the needs_investigation + missing-theta case
 - counterfactual_identification_assumption_required — Phase 5 §C
 - graph_learned_from_data — Phase 8.1 discovery
-- collider_conditioning_opens_backdoor — iter 122 selection-bias
-  signal (board #7); fires when EffectQuery.given names a collider
-- dichotomized_continuous_measure — 2026-06-18 (boards #11/#1); fires
-  when a path variable declares a non-empty ``threshold`` (a continuous
-  measure dichotomized at a cutpoint)
+- unmeasured_confounder_risk — the DAG declares confounders but no
+  bidirected edge; warns that adjusting on measured covariates may leave
+  residual unmeasured-confounder bias
+- unattempted_layer_due_to_dispatch_conflict — the query sets BOTH a
+  mediator and a target_population and only one extension was populated;
+  discloses the silent skip
+- collider_conditioning_opens_backdoor — fires when EffectQuery.given
+  names a collider (selection bias, explicit conditioning)
+- selection_on_collider_opens_path — the second shape of the same bias,
+  from implicit conditioning: an ObservationStatement on node W encodes a
+  sample restriction to W=value, and W has both intervention X and target
+  Y as directed ancestors. Restricting the sample conditions on W whether
+  or not the query does, which opens X→…→W←…←Y, so the marginal estimate
+  carries selection-induced bias. Hernán-Hernández-Díaz-Robins 2004
+  *Epidemiology* 15:615 "A Structural Approach to Selection Bias",
+  Figure 3-style.
+- dichotomized_continuous_measure — fires when a path variable declares a
+  non-empty ``threshold`` (a continuous measure cut at a point)
+- measurement_error_concern — at least one variable on the identification
+  path declares a (measurement | observability) field whose value names a
+  documented noisy-measurement pattern (self-report / questionnaire / 24h
+  recall / single-occasion BP / proxy / FFQ etc.). Suppressed when
+  extensions.ambiguities[*] already declared kind=='measurement_quality'.
+  Placed before data collection, like unmeasured_confounder_risk.
+  Severity IMPORTANT: regression dilution and non-differential
+  mis-classification are identification-impacting.
+- ill_defined_intervention_versions — the EffectQuery's intervention
+  predicate declares ``state_vs_event = "state"`` without a
+  ``time_window`` on the same VariableDeclaration. Per Hernán & Taubman
+  2008 *IJO* 32(S3):S8 "Does obesity shorten life? The importance of
+  well-defined interventions to answer causal questions" — when the
+  exposure is a habitual / persistent attribute, structurally different
+  interventions producing the same state value can entail DIFFERENT
+  counterfactual outcomes (gastric-banding obesity loss vs lifestyle
+  obesity loss). do(X=state) without naming the manipulation route
+  silently violates consistency (Hernán & Robins *What If* §3.4).
+  Suppressed when extensions declares an ``ill_defined_intervention`` /
+  ``well_defined_intervention`` ambiguity.
+- graph_theta_independence_mismatch — the d-separation guard refused an
+  existing-but-graph-incompatible marginal during formula evaluation, so
+  the caller's declared graph and supplied CPTs disagree. It travels the
+  same investigation-request channel as missing_distribution, but the
+  classifier branches on the d-sep refusal signature in item.reason and
+  emits this dedicated kind, because the repair is "fix the graph or
+  supply the demanded conditional" and not "supply more theta".
+
+Three of those — measurement, ObservationStatement, ``state_vs_event`` —
+were fields the variable schema admitted values for while no classifier
+ever read the VALUE. A schema that accepts a distinction nothing acts on
+reads as coverage and is not, which is worth checking for whenever a
+field is added.
 
 Additional data-need gap_kinds (NOT must-disclose — these surface only
 via ``data_gap_report``, not auto-mirrored to ``explanation``):
 - transport_source_conditional_unknown — Phase 9 §T9.1 second data need
 - dose_response_data_required — Phase 13
 
-L3 simulation 2026-05-07 additions (iter 5 / iter 19):
-- unmeasured_confounder_risk — DAG declares confounders but no bidirected;
-  warns measured-covariate adjustment may have residual unmeasured-confounder
-  bias. Cross-domain examples (HRT-CVD / Card 1995 / vitamin D-CVD).
-- unattempted_layer_due_to_dispatch_conflict — query has BOTH mediator and
-  target_population set; only one extension populated. Discloses silent skip.
-
-iter 205 must-disclose addition (board #8 unblock):
-- measurement_error_concern — at least one variable on the
-  identification path declares a (measurement | observability) field
-  whose value names a documented noisy-measurement pattern
-  (self-report / questionnaire / 24h recall / single-occasion BP /
-  proxy / FFQ etc.). Suppressed when extensions.ambiguities[*]
-  already declared kind=='measurement_quality' (case 011 escape-hatch).
-  Surfaces measurement-error bias before data collection — the same
-  before-the-fact placement as unmeasured_confounder_risk. Severity
-  IMPORTANT (regression-dilution / non-differential mis-classification
-  are identification-impacting).
-
-iter 206 must-disclose addition (board #7 — selection bias second
-shape, complementing iter 122 collider_conditioning_opens_backdoor):
-- selection_on_collider_opens_path — an ObservationStatement on node W
-  encodes implicit sample restriction to W=value, AND W has both
-  intervention X and target Y as directed ancestors. Conditioning on
-  W (which the data-generating process does, by virtue of the sample
-  being restricted) opens X→…→W←…←Y; the marginal estimate from the
-  restricted sample carries selection-induced bias. Hernán-Hernández-
-  Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to
-  Selection Bias" Figure 3-style. Distinct from iter 122's kind which
-  fires on EffectQuery.given (explicit conditioning) — this fires on
-  observation statements (implicit sample-restriction conditioning).
-
-iter 207 must-disclose addition (board #1 / #11 — well-defined
-intervention prerequisite; third dead-schema-theatre find of the
-2026-05 mini-arc):
-- ill_defined_intervention_versions — the EffectQuery's intervention
-  predicate declares ``state_vs_event = "state"`` without a
-  ``time_window`` on the same VariableDeclaration. Per Hernán &
-  Taubman 2008 *IJO* 32(S3):S8 "Does obesity shorten life? The
-  importance of well-defined interventions to answer causal questions"
-  — when the exposure is a habitual / persistent attribute, multiple
-  structurally-different interventions producing the same state value
-  can entail DIFFERENT counterfactual outcomes (gastric-banding
-  obesity loss vs lifestyle obesity loss). do(X=state) without naming
-  the manipulation route silently violates the consistency assumption
-  (Hernán & Robins *What If* §3.4). Suppressed when extensions has
-  declared an ``ill_defined_intervention`` / ``well_defined_intervention``
-  ambiguity (case 011-style escape hatch). Pre-iter-207, the variable
-  schema's ``state_vs_event`` field admitted "state" / "event" as
-  values but no classifier ever read the VALUE — same dead-schema
-  pattern as iter 205 (measurement) + iter 206 (ObservationStatement).
-
-iter 203 must-disclose addition:
-- graph_theta_independence_mismatch — the iter 199 d-separation guard
-  refused an existing-but-graph-incompatible marginal during formula
-  evaluation; the user's declared graph and supplied CPTs disagree.
-  Routed via the same investigation-request channel as missing_distribution
-  but the classifier branches on the iter 202 d-sep refusal signature in
-  item.reason and emits this dedicated kind so the structured channel
-  carries the right repair action ("fix graph or supply demanded
-  conditional"), not "supply more theta".
-
 Estimator-runtime gap_kinds (attached during themis.estimate dispatch,
 NOT by the classifier in this module — they require a fitted estimate
 to inspect):
-- weak_iv_instrument (iter 120) — first-stage F-stat below Stock-Yogo
-  (2005) threshold; appended to data_gap_report by
+- weak_iv_instrument — first-stage F-stat below the Stock-Yogo (2005)
+  threshold; appended to data_gap_report by
   themis/estimation/dispatch.py._attach_weak_iv_warning_if_low_f after
   estimate_iv_ate returns.
 - overidentification_rejected — the Sargan over-identification test rejected
   the q >= 2 instruments' joint validity (the data refute an exclusion
   restriction); appended by themis/estimation/dispatch.py._attach_overid_iv_warnings
   after estimate_iv_overid returns.
-- propensity_overlap_violation (iter 121) — > 5% of sample has
-  estimated P(X=1|Z) outside [0.05, 0.95]; appended by
+- propensity_overlap_violation — > 5% of sample has estimated P(X=1|Z)
+  outside [0.05, 0.95]; appended by
   themis/estimation/dispatch.py._attach_propensity_overlap_warning
   after estimate_backdoor_ate when the adjustment set is non-empty.
-- outcome_model_quasi_separation (iter 123) — > 10% of fitted
-  P(Y|X,Z) falls outside [0.01, 0.99] (outcome regression saturates,
-  logit blows up); appended by
+- outcome_model_quasi_separation — > 10% of fitted P(Y|X,Z) falls
+  outside [0.01, 0.99] (outcome regression saturates, logit blows up);
+  appended by
   themis/estimation/dispatch.py._attach_outcome_separation_warning
   after estimate_backdoor_ate with logistic outcome.
+
+This list is a reading guide, not the declaration: which kinds are
+mirrored is stated once in ``themis.types.MIRRORED_INTO_EXPLANATION`` /
+``NOT_MIRRORED_INTO_EXPLANATION``, and an unclassified kind raises at
+import.
 """
 from __future__ import annotations
 
@@ -2452,7 +2441,7 @@ def _classify_dose_response_data(
     target_label = _query_target_label(stmt)
     intervention_label = _query_intervention_label(stmt)
 
-    # iter 13 (case 005 finding): if confounders_required is empty AND the
+    # If confounders_required is empty AND the
     # user's program has no extra-variable nodes beyond X / Y, the DAG is
     # bare X→Y. This is unusual for observational dose-response work
     # (Whelton 2002 / AHA 2013 / Cornelissen 2013 all flag baseline
@@ -2514,7 +2503,7 @@ def _classify_collider_conditioning_opens_backdoor(
     program,
     stmt,
 ) -> Iterable[DataGap]:
-    """Iter 122 — selection-bias board (#7) signal.
+    """Selection bias, the explicit-conditioning shape.
 
     EffectQuery's ``given`` (conditioning subgroup) contains a node W
     where both the intervention X and the target Y appear as ancestors
@@ -2637,7 +2626,7 @@ def _classify_selection_on_collider_opens_path(
     program,
     stmt,
 ) -> Iterable[DataGap]:
-    """Iter 206 — selection-bias board (#7) second shape.
+    """Selection bias, the implicit-sample-restriction shape.
 
     Distinct from ``_classify_collider_conditioning_opens_backdoor``
     which fires on **explicit** conditioning via ``EffectQuery.given``.
@@ -2801,7 +2790,7 @@ def _classify_ill_defined_intervention_versions(
     status,
     extensions: dict | None,
 ) -> Iterable[DataGap]:
-    """Iter 207 — well-defined-intervention prerequisite (boards #1 / #11).
+    """The well-defined-intervention prerequisite.
 
     Trigger: EffectQuery's intervention atom names a declared predicate
     on which ``time_window`` is absent AND ``state_vs_event`` is either
@@ -3508,7 +3497,7 @@ def _short_label_for(gap: DataGap) -> str:
             return gap.description[len(prefix):]
         return gap.description
     if gap.kind == GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH:
-        # iter 203: actionable_next_steps wants a noun-phrase, not the
+        # actionable_next_steps wants a noun-phrase, not the
         # full sentence. The repair is structural, so name the choice
         # rather than the symptom.
         return "图与 CPT 的不一致（修图或补条件量）"

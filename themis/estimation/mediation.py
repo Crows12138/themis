@@ -3,7 +3,7 @@
 S.MN.1 (Phase 7.4): NDE / NIE / TE via statsmodels' Mediation class
 (Imai, Keele, Tingley 2010 algorithms 1 & 2). See ``estimate_mediation``.
 
-S.CDE (Phase 7.5, iter 125): Controlled Direct Effect at a fixed
+S.CDE (Phase 7.5): Controlled Direct Effect at a fixed
 mediator value m* via plug-in g-formula on a fitted outcome model
 ``Y ~ X + M + Z``. See ``estimate_cde``. Implementation is sklearn-
 based (not statsmodels) because choosing a reference m* and computing
@@ -841,7 +841,7 @@ def estimate_mediation_joint(
 
 @dataclass(frozen=True)
 class CDEEstimate:
-    """Phase 7.5 (iter 125) — Controlled Direct Effect at fixed M=m*.
+    """Phase 7.5 — Controlled Direct Effect at fixed M=m*.
 
     CDE(x, x', m*) = E[Y | do(X=x), do(M=m*)] - E[Y | do(X=x'), do(M=m*)]
 
@@ -1027,7 +1027,7 @@ def estimate_cde(
 
 @dataclass(frozen=True)
 class CDEChainEstimate:
-    """Phase 7.5+ (iter 134) — Controlled Direct Effect for a chain of
+    """Phase 7.5+ — Controlled Direct Effect for a chain of
     N mediators X → M_1 → M_2 → ... → M_n → Y, fixing each M_i at
     a chosen reference value m_i*.
 
@@ -1035,7 +1035,7 @@ class CDEChainEstimate:
         E[Y | do(X=x), do(M_1=m1*), do(M_2=m2*), ..., do(M_n=mn*)]
       - E[Y | do(X=x'), do(M_1=m1*), ..., do(M_n=mn*)]
 
-    Differences from single-M ``CDEEstimate`` (iter 125):
+    Differences from single-M ``CDEEstimate``:
     - ``mediators`` is a tuple of predicate names (chain order)
     - ``mediator_values`` is a parallel tuple of reference values
       (m_i* for each M_i)

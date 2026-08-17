@@ -1,4 +1,4 @@
-"""Iter 134 — multi-mediator chain CDE tests.
+"""Multi-mediator chain CDE.
 
 CDE_chain(x, x', m1*, m2*, ..., mn*) =
     E[Y | do(X=x), do(M_1=m1*), ..., do(M_n=mn*)]
@@ -244,7 +244,7 @@ def test_assumptions_name_chain_specific_conditions():
 def test_n_equals_1_works_same_as_single_cde():
     """N=1 is allowed (same identification footing as estimate_cde,
     just exposed via the chain API). Estimate should be close to
-    iter 125's estimate_cde for the same data."""
+    single-mediator ``estimate_cde`` on the same data."""
     from themis.estimation.mediation import estimate_cde
 
     # Reuse _two_mediator_chain fixture but only declare m1

@@ -1,9 +1,9 @@
-"""Observational provenance on ``probabilityStatement`` (iter 2026-05-14,
-found by CLadder dry run Q6772).
+"""Observational provenance on ``probabilityStatement``, found by a
+CLadder dry run (Q6772).
 
 Before this iter: ``probabilityStatement.given`` had to be a subset of
-the target's structural parent set (∪ ancestors ∪ bidirected siblings,
-per iter 168). Useful for identification (backdoor / front-door /
+the target's structural parent set (∪ ancestors ∪ bidirected
+siblings). Useful for identification (backdoor / front-door /
 ID need parent-aligned CPTs) but rejects CLadder-shape collider /
 exp_away questions where the empirical data is conditional on
 descendants of the target.

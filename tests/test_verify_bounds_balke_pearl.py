@@ -1,4 +1,4 @@
-"""Iter 130 — verifier rule for Balke-Pearl IV bounds (Phase 12 producer).
+"""Verifier rule for the Balke-Pearl IV bounds (Phase 12 producer).
 
 Completes the verifier-layer trilogy for the 3 implemented BoundsMethod
 producers (MN + MTR + BP-IV ✓; frontdoor_partial is aspirational).
@@ -27,14 +27,14 @@ from themis.verifier.errors import VerificationError
 
 
 # ---------------------------------------------------------------------------
-# Byte-code independence (parallel to T10 + iter 126/127 pin)
+# Byte-code independence (parallel to the T10 and sibling pins)
 # ---------------------------------------------------------------------------
 
 
 def test_bounds_rules_independence_pin_holds_for_bp_too():
     """Module-level pin: never import themis.output.bounds (parallel
-    to T10's independence pin). Iter 130 added a third function;
-    re-test ensures it didn't accidentally import."""
+    to T10's independence pin). The pin is on the MODULE, so each new
+    verifier function re-asserts it rather than needing its own."""
     import themis.verifier.bounds_rules as br
     src = inspect.getsource(br)
     tree = ast.parse(src)
@@ -328,7 +328,7 @@ def test_real_bp_program_bounds_pass_verifier_e2e():
     """themis.run on a real BP-IV program emits balke_pearl_iv bounds;
     the new verifier audits cleanly via direct call (themis.verify
     rejects derivation-less results so the wired path is dormant for
-    needs_investigation status — same posture as iter 126/127)."""
+    needs_investigation status — same posture as its siblings)."""
     import themis
 
     program = _bp_program()
@@ -368,14 +368,14 @@ def test_re_exported_from_themis_verifier():
 
 
 def test_all_implemented_bounds_methods_have_verifier():
-    """Iter 130 milestone: every BoundsMethod value with a real
+    """Every BoundsMethod value with a real
     producer in themis/output/bounds.py has a dedicated verifier
     function in themis/verifier/bounds_rules.py.
 
     BoundsMethod values (4 total):
-    - manski_natural ✓ producer (Phase 12) ✓ verifier (iter 127)
-    - balke_pearl_iv ✓ producer (Phase 12) ✓ verifier (iter 130)
-    - manski_tamer_monotonicity ✓ producer (iter 119) ✓ verifier (iter 126)
+    - manski_natural ✓ producer ✓ verifier
+    - balke_pearl_iv ✓ producer ✓ verifier
+    - manski_tamer_monotonicity ✓ producer ✓ verifier
     - frontdoor_partial ✗ producer (aspirational) → no verifier needed
     """
     from themis.types import BoundsMethod
@@ -409,5 +409,5 @@ def test_all_implemented_bounds_methods_have_verifier():
 
     assert not missing, (
         f"BoundsMethod producers missing dedicated verifiers: {missing}. "
-        "Iter 126/127/130 trilogy invariant violated."
+        "one verifier per producer is the invariant."
     )

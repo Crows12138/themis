@@ -1,5 +1,5 @@
 """Phase 12.MT — scheduler dispatch picks MTR over Manski natural when
-program.extensions['monotonicity'] declares the relevant pair (iter 119).
+program.extensions['monotonicity'] declares the relevant pair.
 """
 from __future__ import annotations
 

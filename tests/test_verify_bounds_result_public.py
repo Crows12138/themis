@@ -1,10 +1,10 @@
-"""Iter 133 — public ``themis.verify_bounds_result`` entry tests.
+"""The public ``themis.verify_bounds_result`` entry.
 
 Parallel to ``themis.verify_data_gap_report``: bounds typically attach
 when point identification fails (status=needs_investigation) and no
 derivation chain exists, so ``themis.verify`` rejects them for missing
-derivation. This iter adds a derivation-less entry that dispatches to
-the iter 126/127/130 verifier trilogy by method.
+derivation. This is the derivation-less entry, dispatching to the
+per-method verifiers.
 """
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ def test_rejects_tampered_manski_natural():
 
 
 # ---------------------------------------------------------------------------
-# MTR bounds (iter 119)
+# MTR bounds
 # ---------------------------------------------------------------------------
 
 

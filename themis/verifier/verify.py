@@ -87,12 +87,12 @@ def _extract_identify_formula(derivation: tuple[DerivationStep, ...]):
     return None
 
 
-# Iter 182/183: rules that may produce a formula referenced by
+# Rules that may produce a formula referenced by
 # subsequent formula_evaluation steps. When the verifier checks an
 # effect query's formula_evaluation, the formula must equal the
-# output of one of these prior witness steps. Pre-iter-182 only
-# backdoor was accepted; iter 182 added front-door for the
-# bidirected-loosen case (iter 168). New identification paths that
+# output of one of these prior witness steps. A path missing from this
+# set is silently rejected by the verifier even though the scheduler
+# emitted a well-formed formula, so new identification paths that
 # emit symbolic formulas (not raw numeric estimates) need to be
 # added here — IV / mediation / dose-response use dataframe
 # estimators rather than formula_evaluation, so they're not in

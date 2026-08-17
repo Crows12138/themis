@@ -1,9 +1,11 @@
-"""Iter 171 — unit tests for can_derive_via_marginalization helper.
+"""The marginalization helpers, and the guard that decides when they
+may substitute.
 
-Foundation for iter 168's option (b): kernel auto-marginalizes
-missing CPTs that can be derived from richer joint families. This
-test file pins the DETECTION layer; iter 172+ will wire actual
-derivation into _evaluate.
+The kernel auto-derives a missing CPT from a richer joint family it was
+given. Whether it MAY is a separate question from whether it CAN, and
+the difference is the whole subject here: substituting P(Y|S) for a
+demanded P(Y|given) asserts a conditional independence, which is either
+entailed by the declared graph or is a silently wrong answer.
 """
 from __future__ import annotations
 
@@ -110,9 +112,9 @@ def test_returns_false_when_target_already_in_given():
 
 
 def test_three_deep_marginalization_resolves():
-    """Iter 176: marginalization recurses through 3 levels (P(Y|X)
+    """Marginalization recurses through 3 levels (P(Y|X)
     → P(Y|X,Z1) → P(Y|X,Z1,Z2) → P(Y|X,Z1,Z2,Z3) leaf-direct).
-    iter 172's depth ≤ 3 limit is generous enough for typical ADMG
+    The depth ≤ 3 limit is generous enough for typical ADMG
     c-component shapes; pin so future tweaks don't accidentally
     block this case."""
     from themis.runtime.numeric_estimator import (
@@ -147,7 +149,7 @@ def test_three_deep_marginalization_resolves():
 
 
 def test_bayes_inversion_resolves_chain_mediator_inner_factor():
-    """Iter 187: chain mediator front-door demands P(M1|X, M2)
+    """Chain-mediator front-door demands P(M1|X, M2)
     which user typically doesn't supply. Bayes inversion derives it
     from supplied P(M2|X, M1) + P(M1|X) (the chain factors):
 
@@ -179,11 +181,11 @@ def test_bayes_inversion_resolves_chain_mediator_inner_factor():
     )
 
 
-def test_iter_199_dsep_guard_refuses_when_independence_violated():
-    """Iter 199: marginal-independence fallback with graph-aware
-    d-separation guard refuses when target ⊥ extras | reduced
-    doesn't hold. Closes iter 195's documented silent-wrong risk
-    for chain DAG (X→M1→M2 with M1 → M2 making them dependent)."""
+def test_the_dsep_guard_refuses_when_independence_is_violated():
+    """The marginal-independence fallback, with the graph-aware
+    d-separation guard, refuses when target ⊥ extras | reduced does
+    not hold — the chain DAG (X→M1→M2, where M1 → M2 makes them
+    dependent given X), which is silently wrong without it."""
     from themis.runtime.numeric_estimator import (
         _try_marginal_independence_lookup,
     )
@@ -200,7 +202,7 @@ def test_iter_199_dsep_guard_refuses_when_independence_violated():
     })
     missing = ProbabilityKey(m2, True, frozenset([(x, True), (m1, True)]))
 
-    # Without graph: trust user (iter 193 contract)
+    # Without a graph there is nothing to check against
     v_nograph = _try_marginal_independence_lookup(missing, theta)
     assert v_nograph == 0.6
 
@@ -209,12 +211,12 @@ def test_iter_199_dsep_guard_refuses_when_independence_violated():
         missing, theta, graph=g, bidirected=bi,
     )
     assert v_withgraph is None, (
-        "iter 199 d-sep guard should refuse for chain DAG"
+        "the d-sep guard should refuse for a chain DAG"
     )
 
 
-def test_iter_199_dsep_guard_allows_when_independence_holds():
-    """Iter 199: when target ⊥ extras | reduced DOES hold (parallel
+def test_the_dsep_guard_allows_when_independence_holds():
+    """When target ⊥ extras | reduced DOES hold (the parallel
     multi-mediator case), the guard lets the marginal pass through."""
     from themis.runtime.numeric_estimator import (
         _try_marginal_independence_lookup,
@@ -240,7 +242,7 @@ def test_iter_199_dsep_guard_allows_when_independence_holds():
 
 
 def test_runtime_and_verifier_marginal_independence_agree():
-    """Iter 194 sync pin: runtime and verifier marginal-independence
+    """A sync pin: runtime and verifier marginal-independence
     lookups MUST produce identical values. Independent
     implementations preserved per V0-V5; R7 needs agreement."""
     from themis.runtime.numeric_estimator import (
@@ -265,7 +267,8 @@ def test_runtime_and_verifier_marginal_independence_agree():
 
 
 def test_runtime_and_verifier_bayes_inversion_agree_byte_for_byte():
-    """Iter 189 sync pin (parallel to iter 175): runtime
+    """A sync pin, the Bayes-inversion twin of the marginalization
+    one below: runtime
     _try_derive_via_bayes_inversion and verifier
     _verifier_derive_via_bayes_inversion MUST produce identical
     values on every theta. Independent implementations (V0-V5
@@ -317,15 +320,16 @@ def test_bayes_inversion_returns_none_when_flip_unavailable():
 
 
 def test_runtime_and_verifier_marginalization_agree_byte_for_byte():
-    """Iter 175 sync pin: themis.runtime.numeric_estimator's
+    """A sync pin: themis.runtime.numeric_estimator's
     _try_derive_via_marginalization and themis.verifier.rules's
     _verifier_derive_via_marginalization MUST produce identical
     values on every theta. They are independent implementations
     (V0-V5 design goal) but R7 verification only works if they
     agree.
 
-    iter 172/173 introduced both as a paired set; this pin catches
-    silent drift if either is refactored without the other."""
+    The two are a paired set by design — two independent
+    transcriptions of the same derivation — and this pin catches
+    either being refactored without the other."""
     from themis.runtime.numeric_estimator import (
         _try_derive_via_marginalization,
     )
@@ -357,12 +361,12 @@ def test_runtime_and_verifier_marginalization_agree_byte_for_byte():
         f"Runtime and verifier marginalization helpers diverged: "
         f"runtime={runtime_val} verifier={verifier_val}"
     )
-    # Hand-computed reference from iter 148/172 fixture
+    # Hand-computed reference for this fixture
     assert abs(runtime_val - 0.596) < 1e-9
 
 
 def test_direct_lookup_wins_over_marginalization():
-    """Iter 174 sanity pin: when theta has BOTH the direct CPT
+    """A sanity pin: when theta has BOTH the direct CPT
     P(Y|X) AND the joint family P(Y|X,Z) + P(Z|X), the direct
     value is used. estimate_formula's miss path only triggers when
     direct lookup returns None — so a present direct value short-
@@ -397,13 +401,13 @@ def test_direct_lookup_wins_over_marginalization():
     assert val == 0.5
 
 
-def test_iter_200_verifier_marginal_independence_lookup_with_graph_refuses():
-    """Iter 200: verifier-side d-sep guard mirror. Without the fix,
-    verifier helper accepted graph kwargs but call sites in
+def test_the_verifiers_marginal_independence_lookup_refuses_too():
+    """The verifier-side mirror of the d-sep guard. The helper can
+    accept graph kwargs while the call sites in
     _evaluate_formula / _verifier_derive_via_marginalization passed
     nothing, so the guard was dead code. This test pins that when
     the verifier's helper IS called with a chain DAG + marginal
-    theta, it refuses (matches runtime iter 199 behavior)."""
+    theta, it refuses — matching the runtime."""
     from themis.verifier.rules import (
         _verifier_marginal_independence_lookup,
     )
@@ -425,16 +429,17 @@ def test_iter_200_verifier_marginal_independence_lookup_with_graph_refuses():
         missing, theta, graph=g, bidirected=bi,
     )
     assert v_yes is None, (
-        "iter 200 verifier d-sep guard should refuse for chain DAG"
+        "the verifier d-sep guard should refuse for a chain DAG"
     )
 
 
-def test_iter_200_verifier_evaluate_formula_threads_graph_to_lookup():
-    """Iter 200: _evaluate_formula propagates graph + bidirected to
-    _verifier_marginal_independence_lookup. Without threading the
-    verifier evaluator silently agreed with runtime's wrong number
-    on chain DAG + marginal-only theta (iter 195 silent-wrong risk
-    on the verifier side)."""
+def test_the_verifiers_evaluator_threads_the_graph_to_the_lookup():
+    """_evaluate_formula propagates graph + bidirected to
+    _verifier_marginal_independence_lookup. Unthreaded, the verifier
+    evaluator silently agrees with the runtime's wrong number on a
+    chain DAG + marginal-only theta — two independent evaluators
+    making the same substitution, which is the one case where their
+    agreement proves nothing."""
     from themis.verifier.rules import _evaluate_formula, _NonConcreteValue
     from themis.types import ProbabilityRefExpr, ValuedAtom
     import networkx as nx
@@ -465,8 +470,8 @@ def test_iter_200_verifier_evaluate_formula_threads_graph_to_lookup():
         _evaluate_formula(expr, theta, {}, graph=g, bidirected=bi)
 
 
-def test_iter_200_verifier_evaluate_formula_allows_parallel_mediator():
-    """Iter 200: positive case — when graph DOES support the implied
+def test_the_verifiers_evaluator_allows_a_parallel_mediator():
+    """The positive case — when the graph DOES support the implied
     independence (parallel mediators with no edge between them),
     the verifier evaluator returns the marginal as expected."""
     from themis.verifier.rules import _evaluate_formula
@@ -493,8 +498,8 @@ def test_iter_200_verifier_evaluate_formula_allows_parallel_mediator():
     assert val == 0.6
 
 
-def test_iter_200_runtime_and_verifier_dsep_guard_agree():
-    """Iter 200 sync pin (extends iter 194): runtime + verifier
+def test_runtime_and_verifier_dsep_guards_agree():
+    """A sync pin over the guard itself: runtime + verifier
     marginal-independence helpers must agree under the d-sep guard
     too — both refuse the chain DAG, both allow the parallel one."""
     from themis.runtime.numeric_estimator import (
@@ -536,14 +541,15 @@ def test_iter_200_runtime_and_verifier_dsep_guard_agree():
 
 
 # ----------------------------------------------------------------------
-# Iter 202: d-sep guard refusal diagnostic — make user-facing message
-# explain WHY the marginal-independence fallback refused (closes the
-# VISION principle 5 gap iter 199-201 left in the diagnostic layer).
+# The refusal diagnostic: the user-facing message has to say WHY the
+# marginal-independence fallback refused. A guard that refuses without
+# saying so leaves the caller reading "supply more theta", which is
+# the wrong repair for a graph that contradicts the CPTs they gave.
 # ----------------------------------------------------------------------
 
 
-def test_iter_202_runtime_diagnostic_explains_dsep_refusal():
-    """Iter 202: when d-sep guard refuses an existing-but-graph-
+def test_the_runtime_diagnostic_explains_a_dsep_refusal():
+    """When the d-sep guard refuses an existing-but-graph-
     incompatible marginal, the diagnostic helper returns a structured
     explanation naming the candidate and the violated independence."""
     from themis.runtime.numeric_estimator import (
@@ -576,8 +582,8 @@ def test_iter_202_runtime_diagnostic_explains_dsep_refusal():
     assert "d-separation" in msg or "d-sep" in msg
 
 
-def test_iter_202_runtime_diagnostic_silent_when_no_refusal():
-    """Iter 202: diagnostic returns None when no candidate was refused
+def test_the_runtime_diagnostic_is_silent_when_nothing_refused():
+    """The diagnostic returns None when no candidate was refused
     — either no marginal in theta at all, or graph supports the
     independence (parallel-mediator allows the fallback). The caller's
     generic 'Theta 中缺条目' message is the right surface in those
@@ -610,15 +616,15 @@ def test_iter_202_runtime_diagnostic_silent_when_no_refusal():
         missing, theta_with, graph=g_par, bidirected=bi,
     ) is None
 
-    # No graph → no guard → no diagnostic (caller's generic message
-    # is fine; iter 193 trust contract applies).
+    # No graph → no guard → no diagnostic; the caller's generic
+    # message is the right one when nothing was considered.
     assert _diagnose_marginal_independence_refusal(
         missing, theta_with, graph=None, bidirected=None,
     ) is None
 
 
-def test_iter_202_evaluate_raises_with_enriched_reason():
-    """Iter 202: end-to-end through ``estimate_formula``: when the
+def test_evaluate_raises_with_the_enriched_reason():
+    """End to end through ``estimate_formula``: when the
     chain DAG + marginal-only theta hits the d-sep refusal, the raised
     InsufficientTheta carries a reason mentioning d-separation and the
     extras atom — not just the bare 'Theta 中缺条目'."""
@@ -661,8 +667,9 @@ def test_iter_202_evaluate_raises_with_enriched_reason():
     assert "m1" in reason
 
 
-def test_iter_202_runtime_and_verifier_diagnostics_agree_on_refusal():
-    """Iter 202 sync pin (parallel to iter 175/189/194/200): runtime
+def test_runtime_and_verifier_diagnostics_agree_on_a_refusal():
+    """A sync pin, the diagnostic twin of the others in this file:
+    runtime
     and verifier diagnostic helpers must agree on whether a refusal
     fired. The exact message text differs (Chinese vs English by
     historical convention of each layer) but presence/absence must
@@ -707,23 +714,23 @@ def test_iter_202_runtime_and_verifier_diagnostics_agree_on_refusal():
     assert rt_par is None and vf_par is None
 
 
-def test_iter_204_probability_dispatch_threads_bidirected_for_dsep_guard():
-    """Iter 204 — sync pin for the dispatch-fan-out hole found by
-    L3 case 012 (Pearl 1995 smoking-tar-cancer chain).
+def test_probability_dispatch_threads_bidirected_for_the_dsep_guard():
+    """A sync pin for the dispatch fan-out, which L3 case 012 (Pearl
+    1995 smoking-tar-cancer chain) is the regression for.
 
-    Pre-iter-204, ``_dispatch_probability`` accepted ``graph`` but
-    NOT ``bidirected``, then forwarded with ``bidirected=None`` to
+    ``_dispatch_probability`` can accept ``graph`` but
+    NOT ``bidirected``, and then forward ``bidirected=None`` to
     ``_try_numeric``. The d-sep guard inside
     ``_try_marginal_independence_lookup`` short-circuits when
     ``bidirected is None`` (see the ``if graph is not None and
-    bidirected is not None`` clause), so on the entire
-    probability-query dispatch path the iter 199-201 guard was
-    dormant: a chain DAG (S→T→C) with marginal-only theta P(C|S)
+    bidirected is not None`` clause), so the guard goes dormant
+    across the entire probability-query dispatch path:
+    a chain DAG (S→T→C) with marginal-only theta P(C|S)
     and a query P(C|S,T) silently returned 0.18 (the substituted
     marginal) instead of refusing.
 
-    iter 204 fixes _dispatch_probability to forward bidirected and
-    the kernel-level call site to pass it. This test pins the
+    _dispatch_probability forwards bidirected and the kernel-level
+    call site passes it. This test pins the
     end-to-end behaviour: the same chain + marginal + probability
     query goes through ``themis.run`` and lands on
     ``graph_theta_independence_mismatch`` with status
@@ -801,24 +808,24 @@ def test_iter_204_probability_dispatch_threads_bidirected_for_dsep_guard():
 
     # Behaviour pin: silent-wrong path is closed.
     assert res["status"] == "needs_investigation", (
-        "iter 204 regression: the chain × marginal-only probability "
+        "regression: the chain × marginal-only probability "
         "query is silently substituting the marginal again"
     )
     assert res.get("numeric_result") is None, (
-        "iter 204 regression: no numeric_result should be emitted "
+        "regression: no numeric_result should be emitted "
         "when the d-sep guard refuses the substitution"
     )
 
-    # Structured-channel pin: the dedicated iter 203 kind fires, not
-    # the generic missing_distribution.
+    # Structured-channel pin: the dedicated kind fires, not the
+    # generic missing_distribution.
     kinds = {g["kind"] for g in res["data_gap_report"]["gaps"]}
     assert "graph_theta_independence_mismatch" in kinds, (
-        "iter 204 regression: d-sep refusal in probability dispatch "
+        "regression: d-sep refusal in probability dispatch "
         "did not route to the dedicated gap kind"
     )
     assert "missing_distribution" not in kinds, (
-        "iter 204: when the d-sep refusal signature is present, the "
-        "generic missing_distribution must be suppressed (per iter 203)"
+        "when the d-sep refusal signature is present, the "
+        "generic missing_distribution must be suppressed"
     )
 
 

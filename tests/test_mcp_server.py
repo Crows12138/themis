@@ -38,7 +38,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_audit",
         "themis_verify",
         "themis_verify_data_gap_report",
-        "themis_verify_bounds_result",  # iter 133
+        "themis_verify_bounds_result",
         "themis_verify_markov_blanket",  # borrow-list #4
         "themis_verify_selection_recovery_numeric",  # §S9.1 numeric end
         "themis_verify_missing_data_numeric",  # §S9.2 numeric end
@@ -278,7 +278,7 @@ def test_resource_serves_valid_schema_json(app):
     assert any(k in parsed for k in ("$id", "$schema", "title", "type"))
 
 
-# ============================================ iter 29: new gap_kinds round-trip
+# ================================================= gap_kinds round-trip
 
 
 @pytest.mark.parametrize("case_file,expected_kind", [
@@ -291,10 +291,9 @@ def test_resource_serves_valid_schema_json(app):
 def test_new_gap_kinds_round_trip_through_mcp(
     app, case_file: str, expected_kind: str,
 ):
-    """iter 29 audit guard: gap_kinds added in iter 5 / iter 19 must
-    propagate through the MCP themis_run tool with their ⚠ caveats
-    reaching result.explanation. Same pattern as the web /api/run
-    regression test (iter 28); MCP is also a thin pass-through, but
+    """Every gap_kind must propagate through the MCP themis_run tool
+    with its ⚠ caveat reaching result.explanation. Same pattern as the
+    web /api/run regression test; MCP is also a thin pass-through, but
     serialization quirks (FastMCP JSON content blocks) deserve their
     own pin."""
     program = json.loads(

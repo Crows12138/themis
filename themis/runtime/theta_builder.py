@@ -7,7 +7,7 @@ v0.1 semantics:
   ``(target.atom, target.value, frozenset(given)) -> value``.
 - ``given`` values are packaged as a frozenset of ``(atom, value)``
   pairs, matching ``ProbabilityKey.given``.
-- **Partial-distribution completion** (iter 2026-05-14): when a user
+- **Partial-distribution completion**: when a user
   supplies K-1 of K domain values for a (target_atom, given) group
   AND the predicate's declared domain is known (from
   ``VariableDeclaration.domain``), the kernel synthesizes the missing
@@ -121,7 +121,7 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
         else:
             final_domains[atom] = _sort_values(domains[atom])
 
-    # Iter 2026-05-14: partial-distribution completion via probability
+    # Partial-distribution completion via probability
     # axiom. When the user supplies K-1 of K declared-domain values
     # for some (target_atom, given) group, synthesize the K-th as
     # 1 - sum(others). Applied AFTER the main loop so it can see all

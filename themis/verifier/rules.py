@@ -3607,7 +3607,7 @@ def _rule_numeric_iv_estimate(
     an ``iv_criterion_check`` and its (instrument, conditioning) must
     equal the numeric step's claims.
 
-    When an Anderson-Rubin set is attached (iter 212), it is independently
+    When an Anderson-Rubin set is attached, it is independently
     RE-SOLVED from the reported residualised sufficient statistics — the
     verifier re-derives kappa, the quadratic, the set shape/endpoints, and
     the point Szy/Szx — so a tampered AR set, point, or kappa is rejected.
@@ -3747,7 +3747,7 @@ def _rule_numeric_iv_estimate(
     _check_stratified_wald(inputs, point, method, step_index)
     _check_stratified_anderson_rubin(inputs, point, method, step_index)
 
-    # iter 212 — independently re-solve the Anderson-Rubin set when present.
+    # Independently re-solve the Anderson-Rubin set when present.
     if inputs.get("ar_kind") is not None:
         _check_anderson_rubin(inputs, point, step_index)
 
@@ -5130,11 +5130,12 @@ def _evaluate_formula(
     agreement is what makes R7 meaningful.
 
     ``graph`` / ``bidirected`` are threaded through to the marginal-
-    independence fallback so the iter 199 d-separation safety guard
-    fires on the verifier side too. Without them the guard would be
-    dead code on this path and the verifier would silently agree with
-    runtime's wrong answer for chain-DAG + marginal-only theta (iter
-    195 risk). Callers from ``_rule_formula_evaluation`` pass
+    independence fallback so the d-separation safety guard fires on the
+    verifier side too. Without them the guard is dead code on this path
+    and the verifier silently agrees with the runtime's wrong answer for
+    chain-DAG + marginal-only theta — the one case where two independent
+    evaluators agreeing proves nothing, because they would be making the
+    same substitution. Callers from ``_rule_formula_evaluation`` pass
     ``ctx.graph`` / ``ctx.bidirected``.
     """
     if isinstance(expr, ConstantExpr):
@@ -5156,7 +5157,7 @@ def _evaluate_formula(
         )
         value = theta.entries.get(key)
         if value is None:
-            # Iter 173: mirror the runtime numeric_estimator's
+            # mirror the runtime numeric_estimator's
             # auto-marginalization fallback. Verifier independence
             # is preserved because we only consume theta entries +
             # canonical math (no shared state with runtime).
@@ -5164,15 +5165,15 @@ def _evaluate_formula(
                 key, theta, graph=graph, bidirected=bidirected,
             )
             if derived is None:
-                # Iter 193: mirror marginal-independence fallback.
-                # Iter 200: thread graph + bidirected so the iter 199
-                # d-sep guard fires on this path.
+                # Mirror the marginal-independence fallback, with graph
+                # + bidirected threaded so the d-sep guard fires here
+                # too.
                 derived = _verifier_marginal_independence_lookup(
                     key, theta, graph=graph, bidirected=bidirected,
                 )
             if derived is not None:
                 return float(derived)
-            # Iter 202: enrich the refusal message with d-sep guard
+            # enrich the refusal message with the d-sep guard's
             # diagnostic when the marginal-independence fallback found
             # a candidate but graph rejected it. Mirrors runtime so R7
             # surfaces the same actionable hint to downstream consumers
@@ -5247,7 +5248,7 @@ def _verifier_derive_via_marginalization(
     graph=None,
     bidirected=None,
 ) -> float | None:
-    """Iter 173 — verifier-side mirror of runtime numeric_estimator's
+    """Verifier-side mirror of runtime numeric_estimator's
     auto-marginalization fallback. Pure function over theta; no shared
     state with runtime, preserving V0-V5 independence.
 
@@ -5327,16 +5328,16 @@ def _verifier_derive_via_marginalization(
                     graph=graph, bidirected=bidirected,
                 )
                 if v_inner is None:
-                    # Iter 188: mirror runtime's Bayes inversion
+                    # mirror the runtime's Bayes inversion
                     # fallback for the inner factor.
                     v_inner = _verifier_derive_via_bayes_inversion(
                         inner_key, theta, _depth=_depth + 1,
                         graph=graph, bidirected=bidirected,
                     )
                 if v_inner is None:
-                    # Iter 193: mirror marginal-independence lookup.
-                    # Iter 200: thread graph + bidirected so the
-                    # iter 199 d-sep guard fires here too.
+                    # mirror the marginal-independence lookup.
+                    # graph + bidirected threaded so the d-sep guard
+                    # fires here too.
                     v_inner = _verifier_marginal_independence_lookup(
                         inner_key, theta,
                         graph=graph, bidirected=bidirected,
@@ -5360,10 +5361,10 @@ def _verifier_marginal_independence_lookup(
     graph=None,
     bidirected=None,
 ) -> float | None:
-    """Iter 193 — verifier mirror of runtime's marginal-independence
+    """Verifier mirror of the runtime's marginal-independence
     lookup. Pure theta lookup; preserves V0-V5 independence.
 
-    Iter 199: graph-aware d-separation guard mirroring runtime. When
+    The graph-aware d-separation guard mirrors the runtime's. When
     graph + bidirected supplied, only return value if target ⊥ extras
     | reduced_given holds structurally."""
     target_atom = missing_key.target_atom
@@ -5412,7 +5413,7 @@ def _verifier_diagnose_marginal_independence_refusal(
     graph,
     bidirected,
 ) -> str | None:
-    """Iter 202 — verifier mirror of runtime's
+    """Verifier mirror of the runtime's
     ``_diagnose_marginal_independence_refusal``. Returns a structured
     explanation when the d-sep guard refused an existing-but-graph-
     incompatible marginal candidate; None otherwise. Preserves V0-V5
@@ -5484,11 +5485,11 @@ def _verifier_derive_via_bayes_inversion(
     graph=None,
     bidirected=None,
 ) -> float | None:
-    """Iter 188 — verifier mirror of runtime's Bayes inversion helper.
+    """Verifier mirror of the runtime's Bayes inversion helper.
     Pure function; preserves V0-V5 independence. Mirror change to
     runtime's _try_derive_via_bayes_inversion when modifying.
 
-    Iter 200: ``graph`` / ``bidirected`` accepted and passed through
+    ``graph`` / ``bidirected`` are accepted and passed through
     to recursive marginalization calls so the d-sep guard at the
     leaf marginal-independence lookup fires correctly during deep
     recursion, not just at the top level.

@@ -156,7 +156,7 @@ def _to_query(d: dict):
         )
     if k == "effect":
         mediator_raw = d.get("mediator")
-        # Iter 131: parse first-class assumptions field on EffectQuery
+        # Parse the first-class assumptions field on EffectQuery
         # (parallel to CounterfactualQuery.assumptions). Backwards-
         # compat: scheduler still falls back to program.extensions
         # when this is absent.
@@ -660,7 +660,7 @@ def _check_probability_parents(
 ) -> None:
     """Every ground probability statement's ``given`` set must be a
     subset of the target atom's structural parents in ``G(M)`` —
-    OR (iter 168) any atom that reaches target via a directed or
+    OR any atom that reaches target via a directed or
     bidirected path (admissible Tian c-factor topo-predecessors).
 
     A model parameter is a conditional on the target's parent set (or
@@ -669,10 +669,10 @@ def _check_probability_parents(
     whose values cannot be consumed by identification formulas without
     contradiction.
 
-    Iter 167 attempted a narrower bidirected-sibling-only loosen but
+    A narrower bidirected-sibling-only loosening does not cover it:
     the disjoint-Y case revealed Tian's c-factor product needs the
     full topo-predecessor closure (Y's V_{<Y} = {X, Z1, Z2} where X
-    is a grandparent through Z1↔Z2). Iter 168 implements the closure
+    X is a grandparent through Z1↔Z2. This is the closure
     via directed-or-bidirected reachability — atoms with any path to
     target may appear in ``given``.
     """
@@ -680,7 +680,7 @@ def _check_probability_parents(
     for idx, stmt in enumerate(ground_statements):
         if not isinstance(stmt, ProbabilityStatement):
             continue
-        # Iter 2026-05-14 (CLadder Q6772 collider-conditioning fix):
+        # CLadder Q6772, collider conditioning:
         # observational provenance means this entry is an empirical /
         # joint-derived conditional, not a structural CPT. Skip the
         # parent-subset enforcement — given can contain descendants
@@ -699,7 +699,7 @@ def _check_probability_parents(
         else:
             parents = set()
             ancestors = set()
-        # Iter 168: admissible = parents ∪ directed-ancestors ∪
+        # admissible = parents ∪ directed-ancestors ∪
         # bidirected-siblings. Tian's c-factor product factors over
         # topo predecessors (which may include directed ancestors
         # like X → Z1 → Y for P(Y|X,Z1) when iterating chain rule
@@ -851,13 +851,13 @@ def validate_against_graph(
     ``graph_projection.project``. ``checks`` defaults to
     ``GRAPH_LEVEL_CHECKS``. Raises SemanticError on violation.
 
-    ``bidirected`` (iter 167): the ADMG's bidirected edge set. When
+    ``bidirected``: the ADMG's bidirected edge set. When
     provided, the probability_parents check loosens its
     ``given ⊆ structural_parents`` rule to also accept bidirected
     siblings of the target — needed for Tian's c-factor product
     Q[S] = ∏ P(V_i | V_{<i}) which factors over topo predecessors
-    that may include latent-confounder-linked variables (see wall.md
-    iter 150 + iter 165 xfail-strict tracker).
+    that may include latent-confounder-linked variables (see wall.md,
+    entries iter 150 and iter 165, for the xfail-strict tracker).
     """
     checks = checks if checks is not None else GRAPH_LEVEL_CHECKS
     for name in checks:

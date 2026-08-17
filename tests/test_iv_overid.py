@@ -732,7 +732,7 @@ def test_hansen_verifier_backward_compatible_without_hansen(overid_result):
     verify_iv_overid_numeric(ne)  # no raise
 
 
-# ================================================ iter 240 — multi-instrument
+# ===================================================== multi-instrument
 # Anderson-Rubin weak-identification-robust confidence set.
 #
 # D1 oracle: grid-inversion — evaluate AR(β0) = [N/q]/[(T−N)/m] straight from
@@ -1007,7 +1007,7 @@ def test_ar_verifier_backward_compatible_without_ar(ar_overid_ne):
     verify_iv_overid_numeric(ne)  # no raise
 
 
-# ============================================= iter 246 — heteroskedasticity-
+# ==================================================== heteroskedasticity-
 # robust (Stock-Wright S / Kleibergen) Anderson-Rubin confidence set.
 #
 # D1 oracle: AR_r(β0) computed straight from the raw residualised arrays

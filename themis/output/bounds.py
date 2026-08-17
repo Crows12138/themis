@@ -12,8 +12,8 @@ Charter §3 priority — implemented in this module:
 - ``attempt_balke_pearl_iv`` (S.12.3, separate function): sharp bounds
   from the response-function model of a valid IV (IV1/IV2/IV3), at any
   finite cardinality of X, Y and Z.
-- ``attempt_manski_tamer_monotonicity`` (Phase 12.MT, post-saturation
-  iter 119): tightens one side of the Manski natural interval when
+- ``attempt_manski_tamer_monotonicity`` (Phase 12.MT): tightens one
+  side of the Manski natural interval when
   the user asserts monotone treatment response (Manski 1997 MTR;
   binary treatment). Triggered via ``program.extensions['monotonicity']``
   declaration — no kernel surface change.

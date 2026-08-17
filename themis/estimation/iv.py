@@ -218,14 +218,14 @@ class IVEstimate:
     treatment: str
     outcome: str
     cluster: str | None = None
-    # iter 120: first-stage F-statistic for the instrument's effect on
+    # First-stage F-statistic for the instrument's effect on
     # treatment after partialing out conditioning W. Stock & Yogo (2005)
     # pin F < 10 as the canonical "weak instrument" threshold for a
     # single-instrument 2SLS / Wald case. None when computation fails
     # (degenerate first stage / sample too small) — downstream weak-IV
     # detection treats None as "could not assess" rather than "strong".
     first_stage_f_stat: float | None = None
-    # iter 212: the Anderson-Rubin weak-identification-robust confidence set.
+    # The Anderson-Rubin weak-identification-robust confidence set.
     # Always valid regardless of first-stage strength — the honest answer the
     # bootstrap CI cannot give when the instrument is weak. None when the AR
     # test is undefined on this data (residual df < 1, or instrument has ~no
@@ -1260,12 +1260,12 @@ class OverIDIVEstimate:
     # (when Hansen J was computed) s_robust: (q, q) robust weight matrix Ŝ.
     moments: dict
     cluster: str | None = None
-    # iter 240: the multi-instrument Anderson-Rubin weak-identification-robust
+    # The multi-instrument Anderson-Rubin weak-identification-robust
     # confidence set. Valid whatever the JOINT first-stage strength — the honest
     # interval the bootstrap CI cannot give when the instruments are jointly
     # weak. None when the AR test is undefined (residual df < 1, or Z'Z singular).
     anderson_rubin: OverIDARConfidenceSet | None = None
-    # iter 246: the heteroskedasticity-robust (Stock-Wright S / Kleibergen) AR
+    # The heteroskedasticity-robust (Stock-Wright S / Kleibergen) AR
     # set — valid under weak identification AND heteroskedasticity/clustering at
     # once. None when the robust inversion is degenerate (leaves the rest of the
     # estimate standing, like the homoskedastic AR set).

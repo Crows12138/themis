@@ -287,12 +287,12 @@ class EffectQuery:
     # population (transport identification path). None preserves
     # pre-transport semantics.
     target_population: str | None = None
-    # Iter 131: first-class assumption block parallel to
-    # CounterfactualQuery.assumptions. Currently carries optional
-    # monotonicity for the iter 119 Manski-Tamer bounds path; was
-    # previously read from program.extensions['monotonicity'] as a
-    # side-channel hack. The scheduler still falls back to extensions
-    # when query.assumptions.monotonicity is None for backwards compat.
+    # A first-class assumption block, parallel to
+    # CounterfactualQuery.assumptions. Carries the optional monotonicity
+    # the Manski-Tamer bounds path reads. The scheduler still falls back
+    # to program.extensions['monotonicity'] when
+    # query.assumptions.monotonicity is None, for callers written against
+    # that side channel.
     assumptions: "EffectQueryAssumptions | None" = None
 
 
@@ -326,20 +326,18 @@ class CounterfactualAssumptions:
 
 @dataclass(frozen=True)
 class EffectQueryAssumptions:
-    """Iter 131 — first-class assumption block on EffectQuery.
+    """The first-class assumption block on EffectQuery.
 
     Parallel to ``CounterfactualAssumptions`` on CounterfactualQuery
     — regularizes the way assumptions attach to query types.
 
     Currently carries:
-    - ``monotonicity``: when set, EffectQuery's bounds layer (Phase
-      12 + iter 119 MTR) tightens one side of Manski natural to
-      the observed marginal under the declared direction. Iter 119
-      originally read this from ``program.extensions['monotonicity']``
-      as a side-channel hack; iter 131 promotes it to a first-class
-      query field. The extensions path remains supported for
-      backwards compat (scheduler falls back to extensions when
-      query.assumptions.monotonicity is None).
+    - ``monotonicity``: when set, EffectQuery's bounds layer (Phase 12,
+      Manski-Tamer) tightens one side of the Manski natural interval to
+      the observed marginal under the declared direction. The older
+      ``program.extensions['monotonicity']`` side channel is still
+      supported — the scheduler falls back to it when
+      query.assumptions.monotonicity is None.
 
     Future fields would land here as identification-time assumptions
     proliferate (e.g. effect-modification declarations, no-mediator-
@@ -1047,7 +1045,7 @@ class GapKind(str, Enum):
     # dispatched layer is correct; not informational — silent skip
     # violates VISION's honest-about-what-wasn't-done principle).
     UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT = "unattempted_layer_due_to_dispatch_conflict"
-    # iter 120: IV estimate was produced but the first-stage F-statistic
+    # IV estimate was produced but the first-stage F-statistic
     # falls below the Stock-Yogo (2005) threshold (default 10), meaning
     # the instrument has weak partial correlation with treatment after
     # conditioning. Bias of the IV estimate toward OLS scales with 1/F;
@@ -1078,7 +1076,7 @@ class GapKind(str, Enum):
     # nothing to mark the substitution, is the failure this discloses.
     # INFORMATIONAL must-disclose; the estimate is still surfaced.
     IV_ESTIMAND_FALLBACK_TO_LINEAR = "iv_estimand_fallback_to_linear"
-    # iter 121: backdoor estimate (g-formula / outcome regression / IPW)
+    # Backdoor estimate (g-formula / outcome regression / IPW)
     # was produced but the estimated propensity score P(X=1 | Z) is
     # bounded away from {0,1} for too few observations. The "positivity"
     # / "overlap" assumption (Hernan & Robins ch.3) requires every
@@ -1090,7 +1088,7 @@ class GapKind(str, Enum):
     # on extrapolation. DoWhy/EconML can compute propensities but
     # don't structure-route this as a gap.
     PROPENSITY_OVERLAP_VIOLATION = "propensity_overlap_violation"
-    # iter 122: EffectQuery's `given` (conditioning subgroup) contains
+    # EffectQuery's `given` (conditioning subgroup) contains
     # a node W where both intervention X and target Y are ancestors.
     # Per Pearl d-separation, conditioning on W (a collider on the
     # X→...→W←...←Y path) OPENS that path rather than blocks it,
@@ -1105,7 +1103,7 @@ class GapKind(str, Enum):
     # structurally. Selection-bias board (#7) is the lowest-coverage
     # active board — this gap_kind directly bumps it.
     COLLIDER_CONDITIONING_OPENS_BACKDOOR = "collider_conditioning_opens_backdoor"
-    # iter 123: backdoor logistic estimator was fitted but the training-
+    # Backdoor logistic estimator was fitted but the training-
     # set predicted probabilities cluster too heavily near 0 or 1 — the
     # outcome model's logits saturate, signaling quasi-separation
     # (outcome near-deterministic in some confounder stratum). The
@@ -1114,20 +1112,20 @@ class GapKind(str, Enum):
     # the CI is misleadingly tight and the bias toward 0/1 is large.
     # Trigger: > 10% of fitted P(Y|X,Z) falls outside [0.01, 0.99].
     # INFORMATIONAL must-disclose — distinct from
-    # propensity_overlap_violation (iter 121) which inspects the
+    # propensity_overlap_violation, which inspects the
     # treatment-assignment model P(X|Z), not the outcome model.
     # Together they cover both halves of the doubly-robust intuition.
     OUTCOME_MODEL_QUASI_SEPARATION = "outcome_model_quasi_separation"
-    # iter 203: graph-CPT independence mismatch surfaced by the iter 199
-    # d-separation guard. The user supplied a marginal P(Y|S) for some
+    # Graph-CPT independence mismatch surfaced by the d-separation
+    # guard. The user supplied a marginal P(Y|S) for some
     # subset S ⊂ given, the evaluator considered it as a substitute for
     # the demanded conditional P(Y|given), and the guard refused because
-    # the declared graph does NOT entail Y ⊥ extras | S. iter 202 wrote
-    # this fact into the InsufficientTheta string reason — but the
-    # downstream DataGapReport layer still classified the resulting
-    # missing-information item as plain MISSING_DISTRIBUTION, telling the
-    # user (and any LLM consuming the structured output) "supply more
-    # theta entries". The actionable fix is different: their declared
+    # the declared graph does NOT entail Y ⊥ extras | S. That fact is
+    # written into the InsufficientTheta reason string, but a reason
+    # string is not a route: classified as plain MISSING_DISTRIBUTION,
+    # the item tells the user (and any LLM consuming the structured
+    # output) "supply more theta entries". The actionable fix is
+    # different: their declared
     # graph and their supplied CPTs disagree — either drop the offending
     # edge OR supply the demanded conditional. Distinct gap_kind so the
     # structured channel can route the correct repair action, not just
@@ -1136,7 +1134,7 @@ class GapKind(str, Enum):
     # caveat. No external library does this routing — it depends on
     # owning both the structural graph and the supplied CPT family.
     GRAPH_THETA_INDEPENDENCE_MISMATCH = "graph_theta_independence_mismatch"
-    # iter 205: measurement-error concern surfaced from program-shape
+    # Measurement-error concern surfaced from program-shape
     # alone (no LLM-declared ambiguity required). At least one variable
     # on the identification path declares a ``measurement`` or
     # ``observability`` field whose value names a textually documented
@@ -1158,7 +1156,7 @@ class GapKind(str, Enum):
     # this kind landed. No external library structure-routes this from
     # variable-level measurement metadata.
     MEASUREMENT_ERROR_CONCERN = "measurement_error_concern"
-    # iter 206: selection-bias board (#7) — distinct from
+    # The implicit half of selection bias — distinct from
     # COLLIDER_CONDITIONING_OPENS_BACKDOOR which fires on EffectQuery
     # `given` containing a collider that the user explicitly conditions
     # on. This kind fires on the structurally-different *implicit
@@ -1184,8 +1182,8 @@ class GapKind(str, Enum):
     # restricted dataset and adjust on user-named confounders without
     # noticing the implicit V-structure on the sample-restriction node.
     SELECTION_ON_COLLIDER_OPENS_PATH = "selection_on_collider_opens_path"
-    # iter 207 (board #1 / #11 — well-defined-intervention prerequisite):
-    # the EffectQuery's intervention atom names a predicate whose
+    # The well-defined-intervention prerequisite: the EffectQuery's
+    # intervention atom names a predicate whose
     # VariableDeclaration declares ``state_vs_event = "state"`` (the
     # variable is a habitual / persistent attribute, not a discrete
     # event), AND no ``time_window`` is declared on the same predicate.
@@ -1211,14 +1209,13 @@ class GapKind(str, Enum):
     # already named the issue at the A1 layer, mirroring case 011's
     # measurement_quality suppression. No external library structure-
     # routes this from variable-level state_vs_event metadata — Themis
-    # advertises ``state_vs_event`` as a first-class slice-#41 field
-    # but pre-iter-207 no classifier read its VALUE (dead-schema
-    # theatre — same lesson as iter 205 measurement field, iter 206
-    # ObservationStatement).
+    # advertises ``state_vs_event`` as a first-class field, and a field
+    # whose VALUE no classifier reads is a distinction the schema
+    # accepts and nothing acts on, which reads as coverage and is not.
     ILL_DEFINED_INTERVENTION_VERSIONS = "ill_defined_intervention_versions"
-    # 2026-06-18 (boards #11 / #1 — dichotomization; fourth dead-schema-
-    # theatre find of the same lineage as iter 205 measurement / 206
-    # ObservationStatement / 207 state_vs_event): a VariableDeclaration on
+    # 2026-06-18 — dichotomization, the fourth field of that same kind,
+    # after ``measurement``, the ObservationStatement and
+    # ``state_vs_event``: a VariableDeclaration on
     # the identification path declares a non-empty ``threshold`` field —
     # the schema documents this as "Cutoff that turns a continuous
     # measurement into this predicate's value, e.g. >=3cm", i.e. a

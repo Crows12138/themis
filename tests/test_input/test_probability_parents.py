@@ -118,8 +118,8 @@ def test_non_parent_in_given_is_rejected():
         validate_against_graph(ground, graph)
 
 
-def test_iter_168_bidirected_sibling_accepted():
-    """Iter 168: P(Z2|X, Z1) where Z1 ↔ Z2 bidirected, X is parent of
+def test_a_bidirected_sibling_is_accepted():
+    """P(Z2|X, Z1) where Z1 ↔ Z2 bidirected and X is parent of
     Z2. Z1 isn't structural parent but IS bidirected sibling →
     admissible. Tian's c-factor product needs this."""
     x, z1, z2 = atom("x"), atom("z1"), atom("z2")
@@ -147,8 +147,8 @@ def test_iter_168_bidirected_sibling_accepted():
     validate_against_graph(ground, graph, bidirected=bidirected)
 
 
-def test_iter_168_bidirected_sibling_symmetric_direction():
-    """Iter 170: bidirected is symmetric — P(Z1|X, Z2) must also be
+def test_a_bidirected_sibling_is_accepted_either_way_round():
+    """Bidirected is symmetric — P(Z1|X, Z2) must also be
     admissible (the c-factor topo can put Z2 first then Z1)."""
     x, z1, z2 = atom("x"), atom("z1"), atom("z2")
     program = Program(
@@ -174,8 +174,8 @@ def test_iter_168_bidirected_sibling_symmetric_direction():
     validate_against_graph(ground, graph, bidirected=bidirected)
 
 
-def test_iter_168_descendant_still_rejected_even_with_bidirected_loosen():
-    """Iter 168 loosen MUST still reject descendants in given. Test
+def test_a_descendant_is_rejected_even_under_the_loosened_rule():
+    """The loosening MUST still reject descendants in given. Test
     P(X|Y) where X → Y with NO bidirected — Y is descendant of X,
     not ancestor; admissible = parents(X) = {} → reject. The
     bidirected loosen shouldn't accidentally allow descendants."""
@@ -198,8 +198,8 @@ def test_iter_168_descendant_still_rejected_even_with_bidirected_loosen():
         validate_against_graph(ground, graph, bidirected=frozenset())
 
 
-def test_rejection_message_includes_iter_158_actionable_hints():
-    """Iter 158: the rejection message lists three concrete fix paths
+def test_the_rejection_message_includes_actionable_hints():
+    """The rejection message lists three concrete fix paths
     (add cause statement, drop given atoms, or note the Tian/ADMG
     end-to-end gap from wall.md iter 150). Without these hints the
     user only knows what's wrong, not what to do about it."""
@@ -224,7 +224,9 @@ def test_rejection_message_includes_iter_158_actionable_hints():
     # Three actionable hints must appear
     assert "add the missing 'cause' statement" in msg
     assert "drop" in msg and "marginalized CPT" in msg
-    assert "Tian" in msg and "iter 150" in msg
+    # The pointer, not just the number: a bare ordinal in a message the
+    # user reads is a reference they cannot follow.
+    assert "Tian" in msg and "wall.md iter 150" in msg
 
 
 def test_descendant_in_given_is_rejected():

@@ -3142,7 +3142,7 @@ def _try_numeric(
     identification needed) and is the full R1..R5 chain for effect
     queries (proving the formula is what identification demands).
 
-    Iter 199: ``graph`` + ``bidirected`` enable the d-separation
+    ``graph`` + ``bidirected`` enable the d-separation
     safety guard for marginal-independence fallback in the evaluator.
     See themis.runtime.numeric_estimator.estimate_formula for details.
     """
@@ -4776,15 +4776,14 @@ def _dispatch_probability(
     caller can supply the entry without first declaring a spurious
     cause edge.
 
-    Iter 204: thread ``bidirected`` through to ``_try_numeric`` so the
-    iter 199 d-separation guard actually fires for probability queries.
-    Pre-iter-204 the bidirected argument was dropped at this call site,
-    leaving the guard dormant for the entire ``probability`` query path
-    — a chain DAG (S→T→C) with marginal-only theta P(C|S) and a query
-    P(C|S,T) silently returned the marginal value (0.18) instead of
-    refusing, because the guard short-circuits when ``bidirected is
-    None`` (see numeric_estimator._try_marginal_independence_lookup).
-    Found by L3 case 012 (Pearl 1995 smoking-tar-cancer chain).
+    ``bidirected`` MUST be threaded through to ``_try_numeric``, because
+    the d-separation guard short-circuits when ``bidirected is None``
+    (see numeric_estimator._try_marginal_independence_lookup) and
+    dropping it here leaves the guard dormant for the entire
+    ``probability`` query path: a chain DAG (S→T→C) with marginal-only
+    theta P(C|S) and a query P(C|S,T) then silently returns the marginal
+    value (0.18) instead of refusing. L3 case 012 (Pearl 1995
+    smoking-tar-cancer chain) is the regression that catches it.
     """
     q: ProbabilityQuery = stmt.query  # type: ignore[assignment]
     formula = formula_builder._conditional(  # type: ignore[attr-defined]
@@ -5603,25 +5602,25 @@ _LEGACY_MUST_DISCLOSE_GAP_KINDS: frozenset[str] = frozenset({
     "unmeasured_confounder_risk",
     "unattempted_layer_due_to_dispatch_conflict",
     "collider_conditioning_opens_backdoor",
-    # iter 203: graph-CPT independence mismatch — must surface as a ⚠
+    # Graph-CPT independence mismatch — must surface as a ⚠
     # explanation line so the renderer can't silently drop the inconsist-
-    # ency under a generic "missing data" framing. The iter 202 reason
-    # already enriches the missing_information channel; this entry pins
+    # ency under a generic "missing data" framing. The enriched reason
+    # already reaches the missing_information channel; this entry pins
     # the structural caveat into result.explanation alongside it.
     "graph_theta_independence_mismatch",
-    # iter 205: measurement-error concern surfaced from variable
+    # Measurement-error concern surfaced from variable
     # measurement / observability metadata. Must surface as a ⚠ line
     # so a reviewer reading only ``result.explanation`` sees the
     # identification-impact warning before the headline number.
     "measurement_error_concern",
-    # iter 206: implicit selection on a collider — distinct shape from
+    # Implicit selection on a collider — distinct shape from
     # explicit collider conditioning (which fires on EffectQuery.given).
     # Sample restriction via ObservationStatement(W, value) opens the
     # X→…→W←…←Y non-causal path. Must surface so a reviewer reading
     # only the explanation sees the selection-bias warning before the
     # headline conditional.
     "selection_on_collider_opens_path",
-    # iter 207: ill-defined intervention from intervention's variable
+    # Ill-defined intervention from the intervention's variable
     # declaring state_vs_event="state" without time_window. Must surface
     # so a reviewer sees the well-defined-intervention concern (Hernán
     # & Taubman 2008) before the headline number — different
@@ -5856,16 +5855,16 @@ def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred)
 
 
 def _detect_monotonicity_for_query(program, query):
-    """Iter 119 + 131 — resolve MTR declaration for an EffectQuery.
+    """Resolve the MTR declaration for an EffectQuery.
 
-    Iter 131 added a first-class ``query.assumptions.monotonicity``
-    field; iter 119's ``program.extensions['monotonicity']`` side-
-    channel is kept as a backwards-compat fallback. Resolution order:
+    ``query.assumptions.monotonicity`` is the first-class field; the
+    older ``program.extensions['monotonicity']`` side channel is kept as
+    a fallback. Resolution order:
 
     1. **First-class field**: ``query.assumptions.monotonicity`` —
        direct, no target/treatment matching needed (the assumption
        is on this query's own intervention → target relationship).
-    2. **Extensions hack** (iter 119): walk
+    2. **Extensions side channel**: walk
        ``program.extensions['monotonicity']`` (dict or list of dicts)
        and match by ``(target, treatment)`` pair to query's predicates.
 
@@ -5873,14 +5872,14 @@ def _detect_monotonicity_for_query(program, query):
     """
     from ..types import Monotonicity
 
-    # Iter 131: prefer first-class field.
+    # Prefer the first-class field.
     query_assumptions = getattr(query, "assumptions", None)
     if query_assumptions is not None:
         mono = getattr(query_assumptions, "monotonicity", None)
         if mono is not None:
             return mono
 
-    # Iter 119 fallback: walk extensions side-channel.
+    # Fallback: walk the extensions side channel.
     extensions = program.extensions or {}
     decls = extensions.get("monotonicity")
     if decls is None:

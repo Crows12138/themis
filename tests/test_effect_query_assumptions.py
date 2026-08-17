@@ -1,7 +1,7 @@
-"""Iter 131 — first-class EffectQuery.assumptions field tests.
+"""The first-class EffectQuery.assumptions field.
 
-Promotes monotonicity from iter 119's program.extensions side-channel
-hack to a query-level field, parallel to existing
+Monotonicity moved from the ``program.extensions`` side channel to a
+query-level field, parallel to the existing
 CounterfactualQuery.assumptions. Backwards-compat: extensions path
 still works as fallback.
 """
@@ -14,7 +14,7 @@ from themis.types import EffectQueryAssumptions, Monotonicity
 
 
 def _mtr_program_via_assumptions():
-    """Same MTR scenario as iter 119 tests but with monotonicity
+    """The MTR scenario with monotonicity
     declared on query.assumptions instead of program.extensions."""
     return {
         "version": "0.1",
@@ -54,7 +54,7 @@ def _mtr_program_via_assumptions():
 
 
 def _mtr_program_via_extensions():
-    """Same scenario but using iter 119's extensions side-channel."""
+    """The same scenario via the extensions side channel."""
     return {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -103,9 +103,9 @@ def _mtr_program_via_extensions():
 
 
 def test_first_class_assumption_triggers_mtr_bounds():
-    """Iter 131: monotonicity on query.assumptions (no extensions
-    declaration) fires MTR bounds — same end-to-end behaviour as
-    iter 119's extensions path."""
+    """Monotonicity on query.assumptions, with no extensions
+    declaration, fires MTR bounds — the same end-to-end behaviour as
+    the extensions path."""
     out = themis.run(_mtr_program_via_assumptions())
     result = out["results"][0]
     bounds = result.get("bounds_result")
@@ -167,7 +167,7 @@ def test_verifier_accepts_first_class_path():
 
 
 def test_verifier_still_accepts_extensions_path():
-    """Backwards-compat: iter 119 fixtures using extensions still
+    """Backwards-compat: fixtures using extensions still
     audit cleanly."""
     from themis.verifier.bounds_rules import (
         verify_manski_tamer_bounds_result,
@@ -224,8 +224,8 @@ def test_effect_query_carries_assumptions_field():
 
 
 def test_effect_query_assumptions_omitted_serialization_omitted():
-    """Backwards-compat: a query without assumptions stays bit-
-    identical to pre-iter-131 — no spurious 'assumptions': null
+    """Backwards-compat: a query without assumptions serialises
+    unchanged — no spurious 'assumptions': null
     appears in serialized output."""
     program = {
         "version": "0.1",

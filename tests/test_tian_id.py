@@ -4,10 +4,10 @@ Covers the unit-level c_factor module + scheduler dispatch +
 verifier round-trip. Scope: Shpitser ID Lines 1-6. Line 7 (recursive
 symbolic substitution Q[S']) returns None and the scheduler falls
 through to needs_investigation — see the punt-case test below.
-Iter 141 attempted a `_build_q_factor` shortcut but iter 143 traced
-that the produced formula was mathematically wrong (atoms in
-`state.x` get hardcoded literal do-values, breaking inner sums) and
-reverted. See wall.md iter 143 retraction note.
+A `_build_q_factor` shortcut was tried and retracted: the formula it
+produced was mathematically wrong, because atoms in `state.x` get
+hardcoded literal do-values, which breaks the inner sums. See the
+retraction note at wall.md iter 143.
 """
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_line_7_front_door_variant_now_identifies():
     Σ_m P(m|do x) · Σ_x' P(x') P(y|x',m) instead of punting. The crucial
     detail pinned here: the inner P(y|x',m) conditions on the SUMMED x'
     (a VarRef bound by Σ_x'), NOT the literal do-value — that literal
-    collapse was the iter-143 retraction bug."""
+    collapse is the retracted shortcut's bug."""
     from themis.types import SumExpr, ProductExpr, ProbabilityRefExpr, VarRef
     x, m, y = _A("x"), _A("m"), _A("y")
     g = nx.DiGraph()
@@ -109,7 +109,7 @@ def test_line_7_front_door_variant_now_identifies():
     xref_in_y = next(gv for gv in yref.given if gv.atom == x)
     assert isinstance(xref_in_y.value, VarRef), (
         "inner x' must be a bound sum variable, not the literal do-value "
-        "(the iter-143 degenerate-collapse bug)"
+        "(the degenerate-collapse bug)"
     )
 
 

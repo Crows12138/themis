@@ -1,13 +1,12 @@
-"""Tests for ill_defined_intervention_versions gap_kind (iter 207, boards
-#1 / #11 — well-defined-intervention prerequisite).
+"""Tests for the ill_defined_intervention_versions gap_kind — the
+well-defined-intervention prerequisite.
 
 Triggered by program-shape: the EffectQuery's intervention predicate's
 VariableDeclaration declares ``state_vs_event = "state"`` AND no
 ``time_window`` is set on the same declaration. The schema admitted both
-fields 200+ iters ago, but pre-iter-207 NO classifier ever read
-state_vs_event's VALUE — same dead-schema-theatre pattern as iter 205
-(measurement field) and iter 206 (ObservationStatement). Reading the
-field's VALUE is the iter 207 capability.
+fields for a long time with NO classifier reading state_vs_event's
+VALUE — the same shape as the measurement field and the
+ObservationStatement. Reading the field's VALUE is what this adds.
 
 Authoritative trigger reference — Hernán MA, Taubman SL 2008 *Int J
 Obesity* 32(Suppl 3):S8-S14 "Does obesity shorten life? The importance
@@ -21,13 +20,13 @@ is silently violated.
 Distinct from ``ambiguous_variable_definition``: that kind fires when
 fields are absent (silence); this fires on contradictorily-set fields
 (state declared, duration absent — the variable schema admits the
-inconsistency). Distinct from ``measurement_error_concern`` (iter 205
-biases the estimate of a well-defined estimand; iter 207 biases the
-estimand definition itself).
+inconsistency). Distinct from ``measurement_error_concern``, which
+biases the estimate of a well-defined estimand; this one biases the
+estimand's definition.
 
 Key invariants pinned here:
 - fires when intervention has state_vs_event="state" AND no time_window
-  (explicit contradiction shape — original iter 207 trigger)
+  (the explicit contradiction shape)
 - ALSO fires when neither state_vs_event NOR time_window is declared
   (silence shape — default-on prophylactic added 2026-05 after Q3
   retest analysis showed explicit-only trigger put the "spot the
@@ -151,8 +150,9 @@ def test_fires_on_state_vs_event_unset_too():
     an intervention atom in an EFFECT query without any time / state
     framing. Default-on prophylactic — fires the same GapKind as the
     explicit-state shape so the methodology concern surfaces even when
-    the LLM didn't think to flag it. (Original iter 207 design treated
-    this as 'silence ≠ contradiction' and stayed quiet — but Q3 retest
+    the LLM didn't think to flag it. Treating this as
+    'silence ≠ contradiction' and staying quiet was the first design,
+    but a retest
     2026-05 showed that put 'spot the methodology trap' back on the
     LLM, defeating Themis's positioning. Distinguish via provenance
     ref_id, not via fire/no-fire.)"""
@@ -255,13 +255,14 @@ def test_does_not_fire_when_intervention_predicate_undeclared():
     """No VariableDeclaration for the intervention predicate at all
     means there's no schema admittance to call out as dead-schema
     theatre. Framing-check would emit nothing for an undeclared
-    predicate; iter 207 follows the same opt-in convention."""
+    predicate; this kind follows the same opt-in convention."""
     out = run(_make_program(declare_variable=False))
     assert "ill_defined_intervention_versions" not in _gap_kinds(out)
 
 
 def test_suppressed_by_extensions_ambiguity_escape_hatch():
-    """Case 011 / iter 205 pattern: when the user / upstream LLM has
+    """The same escape hatch measurement_error_concern honours: when
+    the user or upstream LLM has
     already declared the concern as an A1 ambiguity, firing the
     structural kind on top would double-disclose. The escape-hatch
     keys are 'ill_defined_intervention' or 'well_defined_intervention'."""
@@ -352,7 +353,7 @@ def test_must_disclose_explanation_includes_warning_line():
 def test_distinct_from_ambiguous_variable_definition():
     """When state_vs_event='state' is declared, ambiguous_variable_definition
     will still fire on the OTHER missing fields (observability,
-    direction, etc.) — they're complementary, not duplicate. iter 207's
+    direction, etc.) — they're complementary, not duplicate. This
     kind specifically targets the state-without-duration contradiction;
     ambiguous_variable_definition targets the silence on other fields.
     Both can fire on the same program; this test asserts neither

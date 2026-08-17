@@ -3424,14 +3424,14 @@ def _prepend_proportion_mediated_headline(
 def _attach_e_value_if_binary(
     result: dict, contract, outcome: str, treatment: str,
 ) -> None:
-    """Phase 8.2 + iter 124 — compute the E-value sensitivity for the
+    """Phase 8.2 — compute the E-value sensitivity for the
     result's numeric estimate and attach it under
     ``numeric_estimate.sensitivity_analysis``.
 
     Two paths:
     - **Binary outcome**: VanderWeele-Ding 2017 — convert ATE to RR
       via observed baseline rate.
-    - **Continuous outcome** (iter 124): Chinn 2000 — convert ATE to
+    - **Continuous outcome**: Chinn 2000 — convert ATE to
       SMD via outcome SD, then RR ≈ exp(0.91·SMD), then E-value.
 
     Mediation results carry a ``decomposition`` block rather than a
@@ -3582,7 +3582,7 @@ def _try_transport_estimate(
     *, random_state: int, ci_bootstrap: int, ci_level: float,
     cluster: str | None = None,
 ) -> Claim:
-    """Phase 9 §T9.2 (iter 128) — numeric transport via post-stratification.
+    """Phase 9 §T9.2 — numeric transport via post-stratification.
 
     Runs ``estimate_transport`` when:
     1. result.extensions.transport_identification is present (Phase 9
@@ -4518,14 +4518,14 @@ def _attach_outcome_separation_warning(
     result: dict, contract, treatment: str, outcome: str,
     adjustment: tuple[str, ...],
 ) -> None:
-    """Iter 123 — fit a logistic outcome model E[Y|X,Z] on the same
+    """Fit a logistic outcome model E[Y|X,Z] on the same
     data the backdoor estimator used, count fitted probabilities
     saturated near 0/1, and surface
     ``outcome_model_quasi_separation`` if more than
     ``OUTCOME_SATURATION_FRACTION`` of the sample lies outside
     [OUTCOME_SATURATION_LOWER, OUTCOME_SATURATION_UPPER].
 
-    Distinct from iter 121's ``propensity_overlap_violation`` —
+    Distinct from ``propensity_overlap_violation`` —
     that inspects the treatment-assignment model P(X=1|Z); this
     inspects the outcome model P(Y=1|X,Z). Saturation of P(Y|X,Z)
     is the classic quasi-separation signal: the logistic fit's
@@ -4593,7 +4593,7 @@ def _attach_outcome_separation_warning(
             f"max={p_max:.3f}）。这是 quasi-separation 信号——结果在"
             f"某些 (treatment, confounder) 子层近乎确定，logistic "
             f"系数已饱和。点估计仍能算出但 CI 偏窄、对极端结局的"
-            f"偏差放大。这是 outcome 模型的失败模式，跟 iter 121 "
+            f"偏差放大。这是 outcome 模型的失败模式，与 "
             f"`propensity_overlap_violation` 检查的 treatment "
             f"assignment 模型互补。"
         ),
@@ -4645,7 +4645,7 @@ def _attach_outcome_separation_warning(
 def _attach_propensity_overlap_warning(
     result: dict, contract, treatment: str, adjustment: tuple[str, ...],
 ) -> None:
-    """Iter 121 — fit a logistic propensity model P(X=1|Z) on the same
+    """Fit a logistic propensity model P(X=1|Z) on the same
     data the backdoor estimator used, count observations whose
     estimated propensity falls outside [PROPENSITY_OVERLAP_LOWER,
     PROPENSITY_OVERLAP_UPPER], and surface a
@@ -4968,7 +4968,7 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
 
 
 def _attach_weak_iv_warning_if_low_f(result: dict, iv_estimate) -> None:
-    """Iter 120 — when the first-stage F-statistic is below the
+    """When the first-stage F-statistic is below the
     Stock-Yogo (2005) threshold (10 by default for single-instrument
     2SLS / Wald), attach a ``weak_iv_instrument`` gap so the renderer
     can disclose that the IV estimate's bias toward OLS is non-trivial
@@ -5477,7 +5477,7 @@ def _attach_precision_budget_curve(numeric_estimate: dict) -> None:
     """Dose-response variant: numeric_estimate has a
     ``dose_response_curve`` list where each point carries its own
     ci_lower / ci_upper. Compute a precision_budget per point using
-    the SHARED top-level sample_size. Iter 155."""
+    the SHARED top-level sample_size."""
     curve = numeric_estimate.get("dose_response_curve")
     n = numeric_estimate.get("sample_size")
     if not isinstance(curve, list) or n is None:
@@ -5499,7 +5499,7 @@ def _attach_precision_budget_decomposition(numeric_estimate: dict) -> None:
     """Mediation variant: numeric_estimate has a ``decomposition`` dict
     where each component (nde / nie / te / proportion_mediated) carries
     its own ci_lower / ci_upper. Compute a precision_budget per
-    component using the SHARED top-level sample_size. Iter 154."""
+    component using the SHARED top-level sample_size."""
     decomp = numeric_estimate.get("decomposition")
     n = numeric_estimate.get("sample_size")
     if not isinstance(decomp, dict) or n is None:
@@ -5526,7 +5526,7 @@ def _compute_precision_budget(
     Returns None when inputs are not all valid (silent no-op
     semantics; callers attach only when not None).
 
-    Iter 160: ``relative_width`` field added when ``point`` is
+    ``relative_width`` is present when ``point`` is
     supplied and non-zero — equals half_width / |point|. The
     response_rendering prompt's "surface when CI > 30% of point"
     heuristic becomes a mechanical comparison instead of LLM

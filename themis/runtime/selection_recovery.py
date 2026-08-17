@@ -1,7 +1,7 @@
 """Phase 9 §S9.1: Bareinboim-Pearl recoverability from selection bias.
 
 The constructive counterpart to the ``selection_on_collider_opens_path``
-detector (iter 206). That classifier *detects* that a sample restricted
+detector. That classifier *detects* that a sample restricted
 on an observed node W (an ``ObservationStatement``) conditions on a
 collider and therefore biases the estimate. This module answers the
 *next* question the detector never did: given the declared selection

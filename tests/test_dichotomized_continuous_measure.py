@@ -8,9 +8,9 @@ declares a non-empty ``threshold`` field. The variable schema documents
 predicate's value, e.g. >=3cm" — so its PRESENCE is the structural
 fingerprint that a continuous quantity was dichotomized at a cutpoint.
 
-This is the fourth dead-schema-theatre find of the same lineage as iter
-205 (``measurement`` value), iter 206 (``ObservationStatement``), iter
-207 (``state_vs_event`` value): pre-this-kind, ``threshold``'s ABSENCE
+This is the fourth field of the same shape, after ``measurement``, the
+``ObservationStatement`` and ``state_vs_event``: without this kind,
+``threshold``'s ABSENCE
 drove ``ambiguous_variable_definition`` (you didn't operationalize) but
 its PRESENCE produced no signal at all.
 
@@ -146,7 +146,8 @@ def test_does_not_fire_on_non_effect_query():
 
 
 def test_suppressed_by_extensions_ambiguity_escape_hatch():
-    """Case 011 / iter 205 pattern: when the upstream LLM already named
+    """The escape hatch measurement_error_concern honours: when the
+    upstream LLM has already named
     the dichotomization as an A1 ambiguity, firing the structural kind on
     top would double-disclose."""
     extensions = {"ambiguities": [

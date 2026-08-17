@@ -222,25 +222,23 @@ def _evaluate(
         key = _probability_ref_key(expr, subs)
         value = theta.get(key)
         if value is None:
-            # Iter 172: try auto-marginalization before giving up.
-            # If theta has a richer joint family that lets us derive
-            # this CPT via Σ_z P(Y|X,Z)·P(Z|X), use it.
+            # Try auto-marginalization before giving up. If theta has a
+            # richer joint family that lets us derive this CPT via
+            # Σ_z P(Y|X,Z)·P(Z|X), use it.
             derived = _try_derive_via_marginalization(
                 key, theta, graph=graph, bidirected=bidirected,
             )
             if derived is None:
-                # Iter 193: marginal-independence fallback (iter 199
-                # extension: graph-aware d-separation guard when
-                # graph + bidirected available — closes iter 195's
-                # documented silent-wrong risk for chain DAG +
-                # marginal-only theta).
+                # Marginal-independence fallback, guarded by d-separation
+                # whenever graph + bidirected are available: unguarded, a
+                # chain DAG with marginal-only theta is silently wrong.
                 derived = _try_marginal_independence_lookup(
                     key, theta, graph=graph, bidirected=bidirected,
                 )
             if derived is not None:
                 return derived
-            # Iter 202: when the d-sep guard (iter 199) silently refused
-            # an existing-but-graph-incompatible marginal, enrich the
+            # When the d-sep guard silently refused an
+            # existing-but-graph-incompatible marginal, enrich the
             # reason so the user knows their supplied marginal does NOT
             # match the declared graph — they need to either fix the
             # graph or supply the demanded conditional, not just "more
@@ -324,12 +322,13 @@ def estimate_formula(
     present in Theta, or if the formula contains query-bound atoms
     whose concrete value has not been supplied.
 
-    Iter 199: optional ``graph`` + ``bidirected`` enable the
-    d-separation safety guard for the marginal-independence fallback.
-    When provided, the fallback only fires if d-separation between
-    target and "extras" given "reduced_given" actually holds — closing
-    iter 195's documented chain-DAG silent-wrong risk. Without graph,
-    falls back to iter 193's trust-the-user behavior (backward compat).
+    The optional ``graph`` + ``bidirected`` enable the d-separation
+    safety guard for the marginal-independence fallback. When provided,
+    the fallback only fires if d-separation between target and "extras"
+    given "reduced_given" actually holds; unguarded, a chain DAG with
+    marginal-only theta is silently wrong. Without a graph there is
+    nothing to check against, so the fallback trusts the theta it was
+    given.
     """
     return _evaluate(formula, theta, {}, graph=graph, bidirected=bidirected)
 
@@ -447,7 +446,7 @@ def empty_theta() -> Theta:
     return Theta()
 
 
-# --------------------------------------------------- iter 171: derivable check
+# -------------------------------------------------------- derivable check
 
 def can_derive_via_marginalization(
     missing_key: ProbabilityKey,
@@ -455,11 +454,10 @@ def can_derive_via_marginalization(
     *,
     extra_atoms: tuple[Atom, ...] = (),
 ) -> bool:
-    """Iter 171 — foundation for iter 168's option (b) auto-marginalization.
+    """Whether ``missing_key`` could be derived by marginalizing over
+    additional atoms not in its conditioning set.
 
-    Check whether ``missing_key`` could be derived by marginalizing
-    over additional atoms not in its conditioning set. For example,
-    if ``missing_key`` is P(Y|X) and theta contains every
+    For example, if ``missing_key`` is P(Y|X) and theta contains every
     P(Y|X, Z=v_z) for v_z ∈ domain(Z), the missing CPT can be
     derived as Σ_z P(Y|X, Z=z) · P(Z=z|X).
 
@@ -470,14 +468,10 @@ def can_derive_via_marginalization(
     - Every P(Z=z|conditioning) needed for the inner factor exists
       in theta.
 
-    Iter 171 is just the SCAN / detection. Iter 172+ will wire the
-    actual marginalization into _evaluate so the kernel auto-derives
-    instead of raising InsufficientTheta. Splitting detection from
-    derivation lets iter 171 be a pure helper that's testable in
-    isolation.
-
-    Returns False on the safe path; iter 172+ flips False → True
-    handling case-by-case.
+    This is the SCAN only; :func:`_try_derive_via_marginalization` runs
+    the derivation itself and ``_evaluate`` calls it before raising
+    ``InsufficientTheta``. They are kept apart so this one stays a pure
+    predicate, testable without a formula around it.
     """
     target_atom = missing_key.target_atom
     target_value = missing_key.target_value
@@ -532,7 +526,7 @@ def can_derive_via_marginalization(
         # Inner factor: P(Z=v | base_given) — must also exist for
         # each v. Conservative: require entries with the SAME
         # base_given conditioning. (More general: derive P(Z|cond)
-        # by chain rule. Iter 172+ may extend.)
+        # by chain rule.)
         all_inner_present = True
         for v in domain:
             inner_key = ProbabilityKey(
@@ -554,7 +548,7 @@ def _try_marginal_independence_lookup(
     graph=None,
     bidirected=None,
 ) -> float | None:
-    """Iter 193 — last-resort fallback when P(Z|given) is missing AND
+    """Last-resort fallback when P(Z|given) is missing AND
     not derivable via marginalization or Bayes inversion. If theta
     contains P(Z|reduced_given) for any strict subset of given, use
     it — assumes the user-supplied marginal implicitly asserts
@@ -568,7 +562,7 @@ def _try_marginal_independence_lookup(
     Tries the LARGEST admissible subset first (most informative
     conditioning) so that adding to theta tightens results.
 
-    SAFETY ANALYSIS (iter 195 probe, closed by the iter 199 guard below):
+    SAFETY ANALYSIS (probed numerically; closed by the guard below):
 
     The fallback fires ONLY when direct lookup + marginalization +
     Bayes inversion all fail. In practice this means:
@@ -583,15 +577,15 @@ def _try_marginal_independence_lookup(
     - Chain X→M1→M2→Y with marginal-only theta (user wrote chain
       causes but supplied marginal CPTs): substituting the marginal
       P(M2|X) for the demanded P(M2|M1, X) is WRONG, since M1 → M2
-      makes them dependent given X. iter 195 confirmed numerically.
+      makes them dependent given X — confirmed numerically, not argued.
 
     Hence the guard below: whenever ``graph`` and ``bidirected`` are
     supplied, the substitution is allowed ONLY if m-separation confirms
     the independence the user's marginal implicitly asserts, and the
     chain case is refused with a diagnostic naming the mismatch. Callers
     that evaluate against a declared graph MUST pass both — omitting them
-    reverts to iter 193's trust-the-user contract, which is safe only
-    when no graph is available to check against.
+    leaves the substitution trusting the caller's theta, which is only
+    safe when there is no graph available to check it against.
 
     TL;DR: graph supplied → sound (licensed substitutions only); graph
     omitted → trusts the user's CPTs, which silently accepts a
@@ -623,12 +617,12 @@ def _try_marginal_independence_lookup(
             v = theta.entries.get(reduced_key)
             if v is None:
                 continue
-            # Iter 199: graph-aware safety guard (closes iter 195
-            # silent-wrong risk). When graph + bidirected provided,
-            # only return v if d-separation confirms target ⊥ extras
-            # | reduced — i.e. the user's marginal IS the right
-            # quantity for the demanded conditional. Without graph,
-            # trust user input (iter 193 contract).
+            # Graph-aware safety guard. When graph + bidirected are
+            # provided, only return v if d-separation confirms
+            # target ⊥ extras | reduced — i.e. the user's marginal IS
+            # the right quantity for the demanded conditional. Without
+            # a graph there is nothing to check, so the theta is
+            # trusted.
             if graph is not None and bidirected is not None:
                 from .structural_solver import m_separated
                 conditioning = tuple(a for a, _ in reduced)
@@ -646,19 +640,18 @@ def _try_marginal_independence_lookup(
                 if not all_separated:
                     # User-implied independence doesn't hold per
                     # graph structure — refuse to silently return
-                    # the marginal. iter 195 chain-DAG case lands here.
+                    # the marginal. The chain DAG lands here.
                     continue
             return v
     return None
 
 
-# iter 203: the phrase that names "graph and CPT disagree" inside the
-# reason text a user reads. It stopped being a routing channel in Phase
-# 17 slice 4 — ``InsufficientTheta.gap`` carries that decision now, made
-# where it is discovered rather than recovered downstream by searching
-# this text for this phrase. Still a module-level constant because the
-# verifier's diagnostic uses the same wording for the same failure and
-# the two are pinned to each other (iter 202 sync pin).
+# The phrase that names "graph and CPT disagree" inside the reason text a
+# user reads. It is not a routing channel — ``InsufficientTheta.gap``
+# carries that decision, made where it is discovered rather than recovered
+# downstream by searching this text for this phrase. Still a module-level
+# constant because the verifier's diagnostic uses the same wording for the
+# same failure and the two are pinned to each other.
 DSEP_REFUSAL_SIGNATURE = "d-separation 拒绝"
 
 
@@ -669,10 +662,10 @@ def _diagnose_marginal_independence_refusal(
     graph,
     bidirected,
 ) -> str | None:
-    """Iter 202 — surface WHY the marginal-independence fallback refused.
+    """Surface WHY the marginal-independence fallback refused.
 
-    The d-sep guard added in iter 199 silently returns ``None`` when a
-    candidate marginal exists in ``theta`` but the graph contradicts the
+    The d-sep guard silently returns ``None`` when a candidate
+    marginal exists in ``theta`` but the graph contradicts the
     implied conditional independence (chain DAG + marginal-only theta is
     the canonical case). The caller then raises ``InsufficientTheta``
     with a generic "Theta 中缺条目 P(...)" message — true but unhelpful:
@@ -719,9 +712,9 @@ def _diagnose_marginal_independence_refusal(
             # the classifier emits MISSING_DISTRIBUTION (blocking, names
             # the demanded conditional P(Y|X,Z)) instead of a downgraded,
             # backwards "your graph contradicts your CPT, delete an edge"
-            # mismatch. The iter-204 mismatch case keeps a non-empty
+            # mismatch. The genuine mismatch case keeps a non-empty
             # conditioning set (P(C|S) for demanded P(C|S,T)) and is
-            # untouched. Real-usage probe, 2026-06-15.
+            # untouched. Measured on a real-usage probe, 2026-06-15.
             if not reduced:
                 continue
             reduced_key = ProbabilityKey(
@@ -763,9 +756,8 @@ def _try_derive_via_bayes_inversion(
     graph=None,
     bidirected=None,
 ) -> float | None:
-    """Iter 187 — Bayes inversion for the inner-factor derivation gap
-    iter 186 documented. Returns the inverted value if possible, None
-    otherwise.
+    """Bayes inversion for the inner-factor derivation gap. Returns the
+    inverted value if possible, None otherwise.
 
     For ``P(target=tv | given)`` missing: pick an atom A in given,
     compute P(target=tv | given\\{A}) and the flip P(A=a |
@@ -786,12 +778,12 @@ def _try_derive_via_bayes_inversion(
         P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X)
     where P(M2|X) is itself marginalizable from supplied chain.
 
-    Iter 188 wired this helper into _try_derive_via_marginalization's
-    inner-factor branch (after direct lookup + recursive marginalization
-    both fail). Mirror in verifier:
-    ``themis.verifier.rules._verifier_derive_via_bayes_inversion``.
-    iter 189 sync pin (test_runtime_and_verifier_bayes_inversion_
-    agree_byte_for_byte) asserts byte-for-byte agreement.
+    Called from ``_try_derive_via_marginalization``'s inner-factor
+    branch, after direct lookup and recursive marginalization both fail.
+    Mirrored in the verifier as
+    ``themis.verifier.rules._verifier_derive_via_bayes_inversion``, and
+    ``test_runtime_and_verifier_bayes_inversion_agree_byte_for_byte``
+    asserts the two agree byte for byte.
     """
     if _depth > 2:
         return None
@@ -858,11 +850,11 @@ def _try_derive_via_marginalization(
     graph=None,
     bidirected=None,
 ) -> float | None:
-    """Iter 172 — actual derivation. Returns the marginalized value
+    """The derivation itself. Returns the marginalized value
     if possible, None otherwise.
 
     Computes Σ_z P(target|given,Z=z) · P(Z=z|given) using theta
-    entries. Iter 172 extension: when the outer factor P(target|
+    entries. When the outer factor P(target|
     given,Z=z) is itself missing, recursively try to derive IT via
     marginalization (e.g. disjoint-Y needs P(Y|X) = Σ_{z1,z2} P(Y|X,
     z1,z2)·P(z1,z2|X) — outer marginalizes z1, inner-of-outer
@@ -870,37 +862,28 @@ def _try_derive_via_marginalization(
     prevent runaway on pathological theta shapes.
 
     PAIRED IMPLEMENTATION: see ``themis.verifier.rules.
-    _verifier_derive_via_marginalization`` (iter 173). The two are
-    independent (V0-V5 design goal) but MUST agree byte-for-byte on
-    every theta. iter 175 sync pin asserts this. If you modify this
-    helper, mirror the change to the verifier and re-run the sync
-    pin (``test_runtime_and_verifier_marginalization_agree_byte_
-    for_byte``).
+    _verifier_derive_via_marginalization``. The two are independent
+    (V0-V5 design goal) but MUST agree byte-for-byte on every theta, and
+    ``test_runtime_and_verifier_marginalization_agree_byte_for_byte``
+    asserts it. If you modify this helper, mirror the change to the
+    verifier and re-run that pin.
 
-    HISTORICAL LIMITATION (iter 186, CLOSED iter 188): chain-mediator
-    front-door (X→M1→M2→Y, X↔Y) demands P(M1|X, M2) which user
-    didn't supply. Iter 187/188 added _try_derive_via_bayes_inversion
-    invoked from the inner-factor branch to derive it via
-    P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X). Closed end-to-end.
-
-    REMAINING LIMITATION (iter 191 probe): parallel multi-mediator
-    front-door (X→M1→Y, X→M2→Y, X↔Y) demands P(M2|M1, X) — chain-
-    rule decomposition of joint P(M1, M2|X). User typically supplies
-    marginal P(M1|X) + P(M2|X) (parallel independence implied).
-    Bayes inversion can't derive P(M2|M1, X) without P(M1|M2, X)
-    which is also missing → circular. Resolution paths:
-    (a) joint-CPT primitive: user supplies P(M1, M2|X) as one entry
-    (b) marginal-independence detection: kernel infers M1 ⊥ M2 | X
-        from graph structure (no edge between them) → P(M2|M1, X) =
-        P(M2|X)
-    Both are non-trivial features; out of scope for the iter 186-189
-    Bayes arc. Filed for future iter.
+    WHAT THIS HELPER DOES NOT REACH, AND WHAT DOES. Chain-mediator
+    front-door (X→M1→M2→Y, X↔Y) demands P(M1|X, M2); the inner-factor
+    branch gets it from ``_try_derive_via_bayes_inversion``, as
+    P(M1|X, M2) = P(M2|X, M1)·P(M1|X) / P(M2|X). Parallel multi-mediator
+    front-door (X→M1→Y, X→M2→Y, X↔Y) demands P(M2|M1, X), which Bayes
+    inversion cannot reach: it would need P(M1|M2, X), equally absent,
+    so the recursion is circular. That one is answered a level up by
+    ``_try_marginal_independence_lookup``, which reads M1 ⊥ M2 | X off
+    the graph instead of deriving it. The other way — a joint-CPT
+    primitive, the caller supplying P(M1, M2|X) as one entry — is not
+    implemented.
 
     Conservative on derivation order: tries each candidate Z in
-    order of appearance, picks the first that fully evaluates.
-    Recursive marginalization chain rule for inner P(Z|given)
-    factor is also attempted via theta lookup; iter 173+ may
-    extend to chain-rule expand the inner factor too.
+    order of appearance, picks the first that fully evaluates. The
+    inner P(Z|given) factor is attempted via theta lookup; it is not
+    chain-rule expanded.
     """
     if _depth > 3:
         return None
@@ -947,10 +930,10 @@ def _try_derive_via_marginalization(
             )
             v_outer = theta.entries.get(outer_key)
             if v_outer is None:
-                # Iter 172: try recursive derivation for this outer term.
-                # Iter 200: thread graph + bidirected so the leaf d-sep
-                # guard (iter 199) fires during deep recursion, not just
-                # at the top call.
+                # Recursive derivation for this outer term. graph +
+                # bidirected are threaded through so the leaf d-sep guard
+                # fires during deep recursion and not only at the top
+                # call.
                 v_outer = _try_derive_via_marginalization(
                     outer_key, theta, _depth=_depth + 1,
                     graph=graph, bidirected=bidirected,
@@ -970,17 +953,17 @@ def _try_derive_via_marginalization(
             )
             v_inner = theta.entries.get(inner_key)
             if v_inner is None:
-                # Iter 172: also recurse for inner P(Z|given)
+                # also recurse for the inner P(Z|given)
                 v_inner = _try_derive_via_marginalization(
                     inner_key, theta, _depth=_depth + 1,
                     graph=graph, bidirected=bidirected,
                 )
                 if v_inner is None:
-                    # Iter 188: try Bayes inversion for the inner
+                    # try Bayes inversion for the inner
                     # factor — unlocks chain-mediator front-door
                     # cases where P(Z|given) needs flipping via
                     # supplied P(some_given_atom | given\\{a}, Z).
-                    # Iter 200: thread graph + bidirected so deep
+                    # thread graph + bidirected so deep
                     # recursion through Bayes also gets the d-sep
                     # guard at the leaf marginal-indep lookup.
                     v_inner = _try_derive_via_bayes_inversion(
@@ -988,7 +971,7 @@ def _try_derive_via_marginalization(
                         graph=graph, bidirected=bidirected,
                     )
                 if v_inner is None:
-                    # Iter 193: marginal-independence fallback. If
+                    # marginal-independence fallback. If
                     # theta has P(Z=v | reduced_given) for some
                     # strict subset of base_given, use it — assumes
                     # the user-supplied marginal asserts Z ⊥ extras

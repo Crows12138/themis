@@ -1,4 +1,4 @@
-"""Iter 121 — propensity-overlap-violation gap_kind tests.
+"""Tests for the propensity_overlap_violation gap_kind.
 
 Hernan & Robins ch.3 "positivity": every confounder stratum must have
 both treated and untreated units. When estimated P(X=1|Z) is bounded

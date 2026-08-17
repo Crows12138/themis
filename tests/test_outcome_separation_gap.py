@@ -1,4 +1,4 @@
-"""Iter 123 — outcome_model_quasi_separation gap_kind tests.
+"""Tests for the outcome_model_quasi_separation gap_kind.
 
 When the backdoor logistic outcome model E[Y|X,Z] saturates (logits
 blow up because the outcome is near-deterministic in some
@@ -6,7 +6,7 @@ blow up because the outcome is near-deterministic in some
 extrapolates with a near-singular gradient. Point estimate computes
 fine; CI is misleadingly tight.
 
-Distinct from iter 121's propensity_overlap_violation: that inspects
+Distinct from propensity_overlap_violation: that inspects
 the treatment-assignment model P(X|Z); this inspects the outcome
 model P(Y|X,Z). Both can fire on the same data — they're independent
 diagnostics.

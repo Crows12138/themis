@@ -183,7 +183,7 @@ def test_mediation_estimate_verify_round_trips():
 
 
 def test_mediation_decomposition_carries_per_component_precision_budget():
-    """Iter 154: mediation numeric_estimate.decomposition has nde/nie/
+    """Mediation numeric_estimate.decomposition has nde/nie/
     te/proportion_mediated each with their own ci_lower/ci_upper. Each
     component now carries a precision_budget sub-field."""
     df = _clean_med_data(n=2000, seed=0)

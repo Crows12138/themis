@@ -773,11 +773,11 @@ def test_actionable_steps_include_alternative_path():
     assert any(s.startswith("或：") for s in report.actionable_next_steps)
 
 
-# ============================================ iter 203: graph-CPT mismatch
+# ================================================== graph-CPT mismatch
 
 
 def test_dsep_refusal_reason_routes_to_graph_theta_mismatch_not_missing_distribution():
-    """Iter 203 — a lookup that failed because theta contradicts the
+    """A lookup that failed because theta contradicts the
     declared graph wants the opposite repair from one that failed because
     theta is short of an entry, so it is its own species. The report used
     to tell them apart by searching the reason text for a phrase; the
@@ -830,7 +830,7 @@ def test_graph_theta_mismatch_severity_is_important_not_blocking():
 
 
 def test_graph_theta_mismatch_alternative_paths_name_structural_repairs():
-    """Per the iter 202 lesson: the user's actionable fix is
+    """The user's actionable fix is
     structural — drop the offending edge OR supply the demanded
     conditional. "Fetch more data" is NOT one of these. Pin: at least
     two of the alternative_paths describe structural fixes."""
@@ -861,7 +861,7 @@ def test_graph_theta_mismatch_alternative_paths_name_structural_repairs():
 
 def test_regular_missing_distribution_still_fires_when_no_dsep_refusal():
     """Sanity: items with empty / non-refusal reasons still route to
-    MISSING_DISTRIBUTION. This is the iter 202-untouched legacy path."""
+    MISSING_DISTRIBUTION — the route the d-sep branch does not touch."""
     requests = (_param_request([
         ("parameter:P(y=true|x=true)", None),
         ("parameter:P(z=true|x=true)", "Theta 中缺条目 P(z=True|x=True)"),

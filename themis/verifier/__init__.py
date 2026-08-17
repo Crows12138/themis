@@ -195,17 +195,15 @@ Public surface (re-exports from sub-modules):
   taint propagation through the Meek closure — and checks the ``edges``,
   ``proposal_edges``, ``cause_statements`` sources, and ``graph_learned_from_data``
   match; under-disclosure of a proposal-rooted edge is what it catches)
-- Bounds-result verifiers (iter 126/127/130) — trilogy complete for
-  the 3 implemented BoundsMethod producers:
-  * ``verify_manski_tamer_bounds_result`` (iter 126) re-derives the
-    iter 119 Manski-Tamer producer's symbolic expressions
-    independently from program shape + the monotonicity declaration
-    in ``program.extensions``.
-  * ``verify_manski_natural_bounds_result`` (iter 127) re-derives the
+- Bounds-result verifiers — one per implemented BoundsMethod producer:
+  * ``verify_manski_tamer_bounds_result`` re-derives the Manski-Tamer
+    producer's symbolic expressions independently from program shape +
+    the monotonicity declaration in ``program.extensions``.
+  * ``verify_manski_natural_bounds_result`` re-derives the
     Phase 12 Manski-natural producer's canonical assumption-free
     expressions; rejects non-empty assumption tuples (Manski natural
     is by definition the no-assumption baseline).
-  * ``verify_balke_pearl_iv_bounds_result`` (iter 130) audits the
+  * ``verify_balke_pearl_iv_bounds_result`` audits the
     canonical reference-shape lower/upper expressions, the
     iv1/iv2/iv3 assumption tag set, and that target/treatment
     predicates from the query appear in the expression.

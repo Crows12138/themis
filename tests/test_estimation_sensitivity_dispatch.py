@@ -58,7 +58,7 @@ def test_e_value_attached_for_backdoor_bool_outcome():
 
 
 def test_e_value_attached_for_continuous_outcome_via_chinn():
-    """Iter 124: backdoor on continuous Y now attaches a Chinn-2000-
+    """Backdoor on continuous Y attaches a Chinn-2000-
     based E-value (SMD → RR ≈ exp(0.91·SMD), then VanderWeele-Ding
     formula). baseline_rate is None on this path because the
     conversion is fully standardisation-based."""
@@ -73,7 +73,7 @@ def test_e_value_attached_for_continuous_outcome_via_chinn():
     assert est["method"] == "backdoor_linear"
     sa = est.get("sensitivity_analysis")
     assert sa is not None, (
-        "iter 124 wired Chinn E-value for continuous outcomes; "
+        "the Chinn E-value is wired for continuous outcomes; "
         "sensitivity_analysis must be present"
     )
     assert sa["e_value"] is not None

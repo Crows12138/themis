@@ -1,4 +1,4 @@
-"""Iter 125 / Phase 7.5 — Controlled Direct Effect (CDE) numeric estimator.
+"""Phase 7.5 — Controlled Direct Effect (CDE) numeric estimator.
 
 CDE(x, x', m*) = E[Y | do(X=x), do(M=m*)] - E[Y | do(X=x'), do(M=m*)]
 
@@ -260,7 +260,7 @@ def test_cde_custom_treatment_levels_flips_sign():
 
 
 def test_cde_re_exported_from_themis_estimation():
-    """Iter 125: estimate_cde and CDEEstimate are part of the public
+    """estimate_cde and CDEEstimate are part of the public
     surface of themis.estimation."""
     import themis.estimation as e
     assert "estimate_cde" in e.__all__

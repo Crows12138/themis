@@ -65,7 +65,7 @@ def test_dose_response_gap_is_blocking_point_estimate():
 
 
 def test_dose_response_bare_x_y_dag_appends_minimality_hint():
-    """iter 13 (case 005 finding): when the dose-response query has a
+    """When the dose-response query has a
     bare X→Y DAG (no declared confounders), the gap description should
     append a generic hint asking the user to confirm minimality is
     intentional. Avoids hardcoding domain-specific covariate names but

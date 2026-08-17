@@ -104,6 +104,17 @@ class Strategy:
     non-parametric identification may be answered by the IV ladder under
     assumptions. Anything else raises.
 
+    Declaring the substitution rather than forbidding it is a measured
+    choice and not a concession. The invariant was handed over stated
+    literally — passing on is legitimate only when whoever answers next
+    answers the same question — and instrumenting the whole suite showed
+    the literal reading false: of 434 evaluations 92 were passed on, and
+    the substitutions took exactly two shapes, this one firing 80 times.
+    Every one of those hands the query to a ladder that answers with a
+    complier contrast, which is a different quantity and is the escape
+    working as designed. Forbidding what the sentence forbids would have
+    broken 81 correct paths.
+
     There were two. The other existed only because the two layers ordered
     transport and mediation differently, so the estimation cascade could
     reach transport for a query naming both only by having mediation stand

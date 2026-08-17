@@ -1,6 +1,6 @@
-"""Iter 127 — verifier rule for Manski natural bounds (Phase 12 producer).
+"""Verifier rule for the Manski natural bounds (Phase 12 producer).
 
-Parallel to iter 126's MTR verifier — closes the audit gap for the
+Parallel to the MTR verifier — closes the audit gap for the
 second BoundsMethod producer. Manski natural is the assumption-free
 baseline:
 
@@ -29,9 +29,9 @@ from themis.verifier.errors import VerificationError
 
 
 def test_bounds_rules_does_not_import_output_bounds_for_mn_either():
-    """Re-assert iter 126's independence pin now that iter 127 added
-    a second function. The pin is on the MODULE, not per-function,
-    but explicit re-test ensures iter 127 didn't accidentally import."""
+    """Re-assert the independence pin for this second function. The
+    pin is on the MODULE, not per-function, and an explicit re-test
+    is what makes a new function's import visible here."""
     import themis.verifier.bounds_rules as br
     src = inspect.getsource(br)
     tree = ast.parse(src)
@@ -372,7 +372,7 @@ def test_real_manski_natural_bounds_pass_verifier_e2e():
     """themis.run on a confounded program emits Manski natural bounds;
     the new verifier audits cleanly via direct call (themis.verify
     rejects derivation-less results so the wired path is dormant for
-    needs_investigation status — same posture as iter 126)."""
+    needs_investigation status — same posture as its sibling)."""
     import themis
 
     program = _confounded_program()

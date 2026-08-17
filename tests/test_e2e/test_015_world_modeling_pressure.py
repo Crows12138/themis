@@ -7,8 +7,8 @@ narrative refusal filter) keep firing their expected pressure_signal.
 The script itself prints `[PASS] <name>` lines on standalone run; this
 test asserts the same paths fail-fast under pytest.
 
-Cross-link: ``scripts/run_015_world_modeling_pressure.py`` (same five
-cases described in its module docstring iter 44).
+Cross-link: ``scripts/run_015_world_modeling_pressure.py``, whose
+module docstring describes the same five cases.
 """
 from __future__ import annotations
 

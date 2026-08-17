@@ -1,4 +1,4 @@
-"""Phase 9 §T9.2 (iter 128) — transport-numeric ATE estimator.
+"""Phase 9 §T9.2 — transport-numeric ATE estimator.
 
 Post-stratification estimator (Cole & Stuart 2010 §3): given source
 data with treatment, outcome, and a single binary adjustment variable

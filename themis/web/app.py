@@ -182,7 +182,7 @@ def api_verify(req: VerifyRequest):
 
 @app.post("/api/verify_bounds_result")
 def api_verify_bounds_result(req: VerifyRequest):
-    """Iter 137 — web parallel of iter 133's MCP themis_verify_bounds_result.
+    """Web parallel of the MCP ``themis_verify_bounds_result`` tool.
 
     Wraps :func:`themis.verify_bounds_result` so paste-JSON / Ask
     flows can audit MTR / Manski-natural / Balke-Pearl IV bounds

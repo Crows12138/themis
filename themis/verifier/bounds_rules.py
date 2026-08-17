@@ -1,10 +1,9 @@
-"""Iter 126/127/130 — independent verification for ``bounds_result`` payloads.
+"""Independent verification for ``bounds_result`` payloads.
 
-Phase 12 (Manski natural, Balke-Pearl IV) and iter 119 (Manski-Tamer
-monotonicity) all produce ``bounds_result`` blocks via
-``themis/output/bounds.py``. Before iter 126 those payloads were
-unverified — ``themis.verify`` walked the derivation chain but never
-re-derived the bounds.
+Manski natural, Balke-Pearl IV and Manski-Tamer monotonicity all produce
+``bounds_result`` blocks via ``themis/output/bounds.py``. Walking the
+derivation chain says nothing about them: a chain can be well-formed
+around an interval nobody re-computed.
 
 This module re-implements the bounds expressions independently from
 program shape + query metadata + (for MTR) the
@@ -16,12 +15,12 @@ Current scope (verifier trilogy complete for the 3 implemented
 BoundsMethod producers; the 4th enum value ``frontdoor_partial`` is
 aspirational with no producer yet):
 
-- ``verify_manski_tamer_bounds_result`` (iter 126) — re-derives
-  which side tightens (lower vs upper) based on monotonicity
-  direction and intervention value.
-- ``verify_manski_natural_bounds_result`` (iter 127) — re-derives
-  the canonical ``P(Y | X) · P(X)`` lower / ``+ P(¬X)`` upper.
-- ``verify_balke_pearl_iv_bounds_result`` (iter 130) — checks the
+- ``verify_manski_tamer_bounds_result`` — re-derives which side
+  tightens (lower vs upper) based on monotonicity direction and
+  intervention value.
+- ``verify_manski_natural_bounds_result`` — re-derives the canonical
+  ``P(Y | X) · P(X)`` lower / ``+ P(¬X)`` upper.
+- ``verify_balke_pearl_iv_bounds_result`` — checks the
   canonical reference-shape lower/upper expressions, the iv1/iv2/iv3
   assumption tag set, and that target/treatment predicates from the
   query appear in the expression. For the NUMERIC end (when data was
@@ -79,8 +78,8 @@ def verify_manski_tamer_bounds_result(
             step_index=None, rule="bounds_manski_tamer",
         )
 
-    # Iter 131: prefer first-class query.assumptions.monotonicity;
-    # fall back to iter 119's program.extensions.monotonicity hack.
+    # Prefer the first-class query.assumptions.monotonicity; fall back
+    # to the older program.extensions.monotonicity side channel.
     direction = None
     query_assumptions = query_dict.get("assumptions")
     if isinstance(query_assumptions, dict):
@@ -203,7 +202,7 @@ def verify_manski_natural_bounds_result(
     *,
     query_dict: dict,
 ) -> None:
-    """Iter 127 — re-derive the expected Manski natural (1990) bounds
+    """Re-derive the expected Manski natural (1990) bounds
     expressions and assert agreement with the claimed payload.
 
     Manski natural is the assumption-free baseline:
@@ -413,7 +412,7 @@ def verify_balke_pearl_iv_bounds_result(
     *,
     query_dict: dict,
 ) -> None:
-    """Iter 130 — audit the Balke-Pearl IV bounds (Phase 12 producer).
+    """Audit the Balke-Pearl IV bounds (Phase 12 producer).
 
     The producer emits a reference to the linear program rather than a
     closed form, because at a general cardinality there is no closed form

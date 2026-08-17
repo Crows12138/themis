@@ -1,4 +1,4 @@
-"""Phase 12.MT — Manski-Tamer monotonicity bounds tests (iter 119).
+"""Phase 12.MT — Manski-Tamer monotonicity bounds tests.
 
 Manski (1997) MTR — when the user asserts monotone treatment response,
 one side of the Manski natural interval tightens to the observed

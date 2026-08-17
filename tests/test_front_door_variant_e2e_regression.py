@@ -1,14 +1,14 @@
-"""Iter 181 — front-door variant e2e regression pin.
+"""Front-door variant, end to end.
 
-Iter 165-173 closed the disjoint-Y c-component case via the
-validator loosen + auto-marginalization arc. Iter 181 verified
-that the SAME infrastructure also opens up the front-door variant
+The validator loosening plus auto-marginalization closed the
+disjoint-Y c-component case. The SAME infrastructure opens up the
+front-door variant
 (X → M → Y with X ↔ Y latent confounder) — the canonical Tian
 Line 7 trigger pattern.
 
-Pre-iter-168 the kernel rejected the natural fixture: ``P(Y|X, M)``
-needs X in given, but X isn't a structural parent of Y. iter 168
-loosened the rule to accept ``parents ∪ directed_ancestors ∪
+Under the strict rule the kernel rejects the natural fixture:
+``P(Y|X, M)`` needs X in given, but X isn't a structural parent of Y.
+The loosened rule accepts ``parents ∪ directed_ancestors ∪
 bidirected_siblings``; X is BOTH an ancestor of Y (via X→M→Y) AND
 a bidirected sibling (X↔Y). So X is admissible.
 
@@ -16,8 +16,8 @@ The existing front-door identification fragment (Pearl's textbook
 form) handles this graph and evaluates the CPTs the user supplied.
 Output: 0.6 (matches hand-computed reference).
 
-This test was NOT writable pre-iter-168 — fixture would fail
-validation. Iter 181 pins the now-working capability so a future
+This test is not writable under the strict rule — the fixture fails
+validation. It pins the working capability so a future
 validator regression doesn't silently re-block it.
 """
 from __future__ import annotations
@@ -74,7 +74,7 @@ def test_front_door_variant_e2e_returns_pearl_formula_value():
             _prob("m", False, [("x", False)], 0.8),
             # P(Y|X, M) — X is admissible because it's both an
             # ancestor (X→M→Y) AND a bidirected sibling (X↔Y) of Y.
-            # iter 168 loosen made this fixture validatable.
+            # the loosened admissibility rule makes this validatable.
             _prob("y", True, [("x", True), ("m", True)], 0.9),
             _prob("y", True, [("x", True), ("m", False)], 0.4),
             _prob("y", True, [("x", False), ("m", True)], 0.6),
@@ -98,8 +98,9 @@ def test_front_door_variant_e2e_returns_pearl_formula_value():
     assert abs(actual - expected) < 1e-9, (
         f"Front-door variant e2e: got {actual}, expected {expected}"
     )
-    # Iter 182: verifier now accepts front_door_adjustment_formula
-    # as a valid identification-formula witness (was backdoor-only).
+    # The verifier accepts front_door_adjustment_formula as a valid
+    # identification-formula witness; admitting only backdoor rejects
+    # this well-formed formula on the path that produced it.
     derivation_rules = [
         s["rule"] for s in r["derivation"]["steps"]
     ]
@@ -110,10 +111,10 @@ def test_front_door_variant_e2e_returns_pearl_formula_value():
 
 
 def test_parallel_multi_mediator_front_door_variant_e2e():
-    """Iter 193: parallel multi-mediator (X→M1→Y, X→M2→Y, X↔Y latent).
+    """Parallel multi-mediator (X→M1→Y, X→M2→Y, X↔Y latent).
     Front-door demands P(M2|M1, X) for chain-rule expansion of joint
     P(M1, M2|X). User supplies marginal P(M2|X) (parallel-paths
-    semantics implied). iter 193 marginal-independence fallback uses
+    semantics implied). The marginal-independence fallback uses
     P(M2|X) for the demanded P(M2|M1, X), unlocking the case."""
     import itertools
     prob_stmts = [
@@ -171,9 +172,9 @@ def test_parallel_multi_mediator_front_door_variant_e2e():
 
 
 def test_chain_mediator_front_door_variant_e2e_via_bayes_inversion():
-    """Iter 188: chain X→M1→M2→Y with X↔Y latent. Front-door demands
+    """Chain X→M1→M2→Y with X↔Y latent. Front-door demands
     P(Y|X, M2); user supplies the chain CPTs P(M2|X, M1) + P(M1|X)
-    + P(Y|X, M1, M2). iter 187/188 Bayes inversion derives the
+    + P(Y|X, M1, M2). Bayes inversion derives the
     inner factor P(M1|X, M2) from supplied chain, enabling the
     full marginalization.
 
