@@ -1,6 +1,6 @@
 """Slice A1: pin that each NL→kernel_ast prompt example is actually valid.
 
-The examples under ``docs/prompts/examples/`` are few-shot cases an LLM
+The examples under ``themis/prompts/examples/`` are few-shot cases an LLM
 consumes to learn how to produce canonical kernel_ast output. If the
 ``kernel_ast`` field in any example drifts from a schema-valid shape
 or stops matching its own stated NL intent, the prompt becomes

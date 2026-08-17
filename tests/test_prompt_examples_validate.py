@@ -1,4 +1,4 @@
-"""Meta-test: docs/prompts/examples/*.json kernel_ast examples must
+"""Meta-test: themis/prompts/examples/*.json kernel_ast examples must
 parse and run without raising.
 
 The A1 prompt (nl_to_kernel_ast.md) cites these as worked NL→kernel_ast
@@ -60,7 +60,7 @@ def test_at_least_five_kernel_ast_examples_present():
     silently this catches it."""
     examples = _kernel_ast_examples()
     assert len(examples) >= 5, (
-        f"docs/prompts/examples/ should have >=5 files with kernel_ast key; "
+        f"themis/prompts/examples/ should have >=5 files with kernel_ast key; "
         f"found {len(examples)}: {[p.name for p in examples]}"
     )
 
@@ -80,7 +80,7 @@ _KNOWN_EXAMPLE_SHAPES = {
 
 
 def test_example_files_match_known_shape():
-    """Every docs/prompts/examples/*.json must match one of the known
+    """Every themis/prompts/examples/*.json must match one of the known
     shape signatures (top-level key tuple).
 
     A new example added with a typo or

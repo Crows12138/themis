@@ -3,10 +3,10 @@
 Sits OUTSIDE the kernel by design. Themis itself never calls an LLM;
 this module is web-side glue that:
 
-1. Loads ``docs/prompts/nl_to_kernel_ast.md`` as the system prompt.
+1. Loads ``themis/prompts/nl_to_kernel_ast.md`` as the system prompt.
 2. Asks the LLM to emit one kernel_ast JSON for the user's NL.
 3. Runs ``themis.run`` on the emitted JSON.
-4. Loads ``docs/prompts/response_rendering.md``, feeds the structured
+4. Loads ``themis/prompts/response_rendering.md``, feeds the structured
    result back, asks the LLM for a Chinese reply.
 
 Routing: by default the SDK is pointed at the local

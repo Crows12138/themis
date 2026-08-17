@@ -69,8 +69,38 @@ _ORDINAL = re.compile(r"[Ii]ter[ -]\d+")
 _ANCHORED = re.compile(r"wall\.md[^.;)]{0,100}")
 
 
+#: Prose that says how the system works NOW: the package, its tests, the
+#: prompts it loads at run time, and the tables a reader consults to use
+#: it. A prompt is the strictest case — an LLM reads it with access to
+#: nothing else at all.
+GOVERNED_TREES = (
+    ("themis", "*.py"), ("tests", "*.py"), ("scripts", "*.py"),
+    ("themis", "*.md"), ("docs", "*.md"),
+)
+GOVERNED_FILES = ("README.md", "COVERAGE_MAP.md")
+
+#: Not this repository's prose. ``sibling/`` is a separate repo kept
+#: alongside (the KB adapter contract says Themis must not vendor it) and
+#: ``.claude/worktrees`` holds checkouts of this one.
+FOREIGN = ("sibling/", ".claude/")
+
+#: Prose where a session IS the subject, so an ordinal is content rather
+#: than a dangling pointer. Excluded deliberately and named here, because
+#: an unexplained exclusion is how a rule quietly stops applying.
+#:
+#: - ``wall.md`` is the log that defines the ordinals; every other
+#:   reference in the repository resolves by pointing at it.
+#: - ``CORE_STATUS.md`` and the phase charters are dated entries — a
+#:   changelog and a set of proposals, not a description of the present.
+#: - ``docs/l3_simulation`` and ``docs/trial_reports`` and
+#:   ``docs/eval_set`` record particular runs, the way a lab notebook
+#:   does.
+EXEMPT = ("wall.md", "CORE_STATUS.md", "docs/l3_simulation/",
+          "docs/trial_reports/", "docs/eval_set/", "_CHARTER.md")
+
+
 def _sources() -> list[pathlib.Path]:
-    """Every .py the discipline governs, except this file.
+    """Every governed file, except this one.
 
     Stating a rule means quoting what breaks it, so the module that holds
     the criterion is the one module guaranteed to violate it — the same
@@ -78,14 +108,16 @@ def _sources() -> list[pathlib.Path]:
     for the same reason.
     """
     here = pathlib.Path(__file__).resolve()
-    return [
-        p
-        for base in ("themis", "tests", "scripts")
-        for p in (REPO / base).rglob("*.py")
-        if "__pycache__" not in p.parts
-        and "node_modules" not in p.parts
+    out = [REPO / f for f in GOVERNED_FILES]
+    for base, pattern in GOVERNED_TREES:
+        out.extend((REPO / base).rglob(pattern))
+    return sorted({
+        p for p in out
+        if "__pycache__" not in p.parts and "node_modules" not in p.parts
+        and not any(e in p.relative_to(REPO).as_posix()
+                    for e in EXEMPT + FOREIGN)
         and p.resolve() != here
-    ]
+    })
 
 
 def _unanchored(text: str) -> list[str]:
@@ -124,6 +156,46 @@ def test_an_ordinal_that_names_wall_md_is_allowed():
         "(see wall.md, entries iter 150 and iter 165, for the tracker)")
     assert _unanchored("the iter 150 tracker") == ["iter 150"]
     assert _unanchored("pre-iter-207 no classifier read it") == ["iter-207"]
+
+
+#: A repo-relative path named in prose: ``themis/prompts/gap_to_action.md``.
+#: Anchored on the top-level directories so ordinary strings ("a/b.py" in
+#: an example) are not swept in, and each segment must contain something
+#: other than dots — ``benchmarks/.../file.md`` elides a path rather than
+#: naming one, and demanding that it exist would be reading an ellipsis
+#: as a claim.
+_PATH = re.compile(
+    r"(?<![\w/.])((?:themis|tests|docs|scripts|benchmarks)"
+    r"(?:/(?!\.+/)[\w.\-]+)+\.(?:py|md|json|ts|tsx|html))"
+)
+
+
+def test_no_source_file_names_a_path_that_is_not_there():
+    """The second decidable subclass, and the same failure one level over.
+
+    ``test_markdown_cross_links_resolve`` holds this for .md files, which
+    left the .py docstrings — where most of this package's prose lives —
+    outside it. A whole directory moved and fifteen references kept
+    naming the old place, including two that told a reader which file the
+    web bridge loads.
+    """
+    dead = {}
+    for p in _sources():
+        text = p.read_text(encoding="utf-8")
+        for m in _PATH.finditer(text):
+            if not (REPO / m.group(1)).exists():
+                line = text[:m.start()].count("\n") + 1
+                dead.setdefault(str(p.relative_to(REPO)), []).append(
+                    f"{line}: {m.group(1)}")
+    assert not dead, f"these name paths that do not exist: {dead}"
+
+
+def test_a_moved_path_is_caught():
+    """The counterexample, for the same reason the other one has one."""
+    assert _PATH.findall("see themis/prompts/response_rendering.md for it")
+    assert not _PATH.findall("see prompts/response_rendering.md")
+    # An elided path is not a claim that a file is there.
+    assert not _PATH.findall("under benchmarks/.../agent_prompt_v1.md")
 
 
 def test_the_anchored_ordinals_actually_resolve():

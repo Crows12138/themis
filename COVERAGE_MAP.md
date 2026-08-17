@@ -13,10 +13,10 @@
 > （Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127）、对切点敏感
 > （Altman et al 1994 *JNCI*）、被二分 confounder 留类内残余混杂
 > （Becher 1992）；INFORMATIONAL，指向 Themis 自有 dose-response 路径
-> （Phase 13/14）。boards #11/#1 cross-cutting，与 iter 205 measurement /
+> （Phase 13/14）。boards #11/#1 cross-cutting，与 `measurement` /
 > 206 ObservationStatement / 207 state_vs_event 同型，第四例
 > dead-schema-theatre fix；总数 31 GapKind。
-> 2026-05-10（iter 207 dead-schema 第三 crack：
+> 2026-05-10（`state_vs_event` 是第三个只被 schema 承认、无人读取值的字段：
 > `ill_defined_intervention_versions` 把 `state_vs_event="state"` +
 > 无 `time_window` 的 intervention 暴露为 Hernán & Taubman 2008 *IJO*
 > "Does obesity shorten life?" 的 well-defined-intervention prerequisite
@@ -25,23 +25,23 @@
 > mortality) 真测确认 silent miss → 加 GapKind + classifier。boards
 > #1/#11 cross-cutting：不增加单一板块覆盖率，但首次让 schema 中的
 > consistency-assumption-relevant 字段在 runtime 起作用。这是 iter
-> 205 (measurement) + iter 206 (ObservationStatement) 之后第三例同型
+> `measurement` 与 ObservationStatement 之后第三例同型
 > dead-schema-theatre fix；总数 30 GapKind。
-> 2026-05-07（iter 205 板块 #8 测量误差 0% → 5-10% 首次破冰：
+> 2026-05-07（测量误差从 0% → 5-10% 首次破冰：
 > 加 `measurement_error_concern` gap_kind，从程序结构（变量 measurement /
 > observability 字段值含 self-report / single-occasion BP / 24h recall / FFQ /
 > questionnaire / proxy 等 documented 模态）surfacing 测量误差风险。L3 case
 > 013 MacMahon 1990 Lancet BP-CHD 案例真测发现真 gap → 加 GapKind + classifier
-> + suppression（case 011 `measurement_quality` ambiguity 路径）。iter 204 修
+> + suppression（case 011 `measurement_quality` ambiguity 路径）。修
 > probability 查询 dispatch 路径上的 d-sep
 > guard dormant bug：L3 case 012 真实案例压测发现 `_dispatch_probability`
 > 从未把 bidirected 传给 `_try_numeric`，导致 chain DAG + marginal-only
 > theta + probability query 整条路径默默用 marginal 替代条件量。修复
-> 5 行 + 加 sync pin。iter 203 把 iter 202 的 d-sep refusal 升格为
+> 5 行 + 加 sync pin。d-sep refusal 升格为
 > 一等 GapKind `graph_theta_independence_mismatch`：现在
 > data_gap_report.gaps[].kind 直接告诉下游 LLM/UI "图与 CPT 矛盾，
 > 修图或补条件量"，不再被 generic `missing_distribution` 误导成"补更多
-> 数据"；iter 202 d-sep guard 拒绝路径加结构化诊断；iter 200 verifier
+> 数据"；d-sep guard 拒绝路径加结构化诊断；verifier
 > 端 d-sep guard 镜像补完，R7 不再 silently 同意 runtime 的链式 DAG +
 > marginal-only theta 错误数字）
 > 本文档跟踪 Themis 对"因果定量问题全 12 板块"的实际覆盖进度。每完
@@ -55,15 +55,15 @@
 | # | 板块 | 覆盖 | 现状 / 策略 |
 |---|---|---|---|
 | 1 | 可观测识别 | **~90%** | backdoor ✓ / front-door 单 + 多 mediator ✓ / IV ✓ / **完整 ID (Shpitser) 含 Line-7 嵌套 ✓**（`314c1de`：do-无关 Tian Identify，napkin / 多 mediator 扩展 napkin / parallel multi-mediator 全部非参数识别，探针验；不可识别 case 带 hedge 证明正确 punt）/ **ananke parity 实证（2026-06-16）**：Themis `identify_via_tian` 对照 `ananke` OneLineID 扫 14,360 个 ADMG（全部连通 4 节点穷举 8354 + 5 节点采样 6000），**零漏识别、零过度声称**——含 ~7,460 个可识别图，非空覆盖。slice-3 图感知完备层经此确认**当前不需要**。可复跑：`tests/test_parity_ananke_nested_id.py`（skip-if-no-ananke）|
-| 2 | ADMG / 潜变量 | **~91%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓ + 多种 e2e 解锁** (iter 167-189)：iter 145+147 修复 degenerate-sum bug；iter 167-168 验证器放松（admissible_given = parents ∪ directed_ancestors ∪ bidirected_siblings）；iter 171-172 runtime 自动边缘化 Σ_z P(Y\|given,Z=z)·P(Z=z\|given) 递归 depth ≤ 3；iter 173 verifier 镜像。**iter 187-188 加 Bayes 反转**：P(M1\|X,M2) = P(M2\|X,M1)·P(M1\|X)/P(M2\|X)，解锁链式 mediator front-door 变种；iter 190 N-mediator 链通过递归自然处理。capability ladder：disjoint-Y c-component / 单 mediator front-door 变种 / 链 mediator front-door 变种 / N-mediator 链。**Line 7 完整嵌套 ID 已落（`314c1de`，2026-06-16）**：do-无关 Tian Identify（Lemma 4 c-factor 比值 + Phase 16 eager 化简，do 值只在边界施加）解锁 extended napkin (1-3 mediator) + **parallel multi-mediator (X→M1→Y, X→M2→Y, X↔Y)**（原残留 gap，现 probe=match）。图感知完备层（JMLR Alg 1）按真实压力触发 |
+| 2 | ADMG / 潜变量 | **~91%** | bidirected ✓ / m-sep ✓ / ADMG-backdoor/front-door ✓ / **Tian-Pearl ID Lines 1-6 ✓ + 多种 e2e 解锁** ：修复 degenerate-sum bug；验证器放松（admissible_given = parents ∪ directed_ancestors ∪ bidirected_siblings）；runtime 自动边缘化 Σ_z P(Y\|given,Z=z)·P(Z=z\|given) 递归 depth ≤ 3；verifier 镜像。**Bayes 反转**：P(M1\|X,M2) = P(M2\|X,M1)·P(M1\|X)/P(M2\|X)，解锁链式 mediator front-door 变种；N-mediator 链通过递归自然处理。capability ladder：disjoint-Y c-component / 单 mediator front-door 变种 / 链 mediator front-door 变种 / N-mediator 链。**Line 7 完整嵌套 ID 已落（`314c1de`，2026-06-16）**：do-无关 Tian Identify（Lemma 4 c-factor 比值 + Phase 16 eager 化简，do 值只在边界施加）解锁 extended napkin (1-3 mediator) + **parallel multi-mediator (X→M1→Y, X→M2→Y, X↔Y)**（原残留 gap，现 probe=match）。图感知完备层（JMLR Alg 1）按真实压力触发 |
 | 3 | 反事实（Layer 3） | **20-25%** | **Phase 5 §C 已落地（窄 scope）**：Balke-Pearl 二值单调 bounds + counterfactual query + monotonicity needs_assumption 通道 / ID\* / 连续 ✗ → 长期 |
 | 4 | 时序 / 动态 | **30-35%** | **Phase 5 §T 已落地**：atom `time_index` 一等公民 / 时间展开 graph / verifier T1-T3 / case 14 e2e ✓ / g-methods ✗ / 连续时间 ✗ → Phase 9+ |
 | 5 | 工具变量 (IV) | **~85%** | **Phase 6.iv + Phase 7.3 全部落地**（basic + conditional + ADMG-aware identification + Wald LATE / 2SLS ATE 数值估计）|
-| 6 | 中介分析 | **~80%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）/ **Phase 7.5 CDE numeric ✓**（iter 125，sklearn plug-in g-formula at fixed M=m*；linear + logit）/ **Phase 7.5+ CDE chain ✓**（iter 134，N-mediator 链式 CDE：X→M_1→...→M_n→Y 在每个 M_i 固定值上 plug-in，VanderWeele 2015 ch.5）；多 mediator 联合（非链式）/ NIE 链式分解 → 后续 |
-| 7 | 选择偏差 | **45-50%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ **`collider_conditioning_opens_backdoor` gap_kind ✓** (iter 122，EffectQuery `given` 中含 collider 时结构性诊断) / **`selection_on_collider_opens_path` gap_kind ✓** (iter 206，**ObservationStatement(W, value) 编码隐式样本限制 + W 是 X/Y 共同后代时 surface Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 经典结构**；与 iter 122 的 explicit-given 互补 —— 两条路径都覆盖) / **§S9.1 可恢复性判决 ✓**（Bareinboim-Pearl 选择后门 `recover_effect`，`extensions.selection_recovery` 给恢复公式 + 外部数据账本 + `verify_selection_recovery`）/ **§S9.1 数值端 + 诚实门 ✓**（2026-07-13，`estimation/selection.py` 按定理3.5 从有偏样本 + 外部无偏 `reference_data` 求恢复后 ATE；选择偏倚在场时**抑制**普通后门有偏数、改 `external_data_required`/`not_recoverable` 拒绝；`verify_selection_recovery_numeric` 从每层计数 + 权重表独立重跑公式）/ 选择节点结构 (selection_node 已存在仅用于 transport) / IPSW selection-weight 加权 + 连续 proxy / Z⁺,Z⁻ 完备恢复算法(BTP-2014 RC) → 后续 |
-| 8 | 测量误差 | **5-10%** | **iter 205 first crack**：`measurement_error_concern` gap_kind 从程序结构（变量 `measurement` / `observability` 字段值含 self-report / 24h recall / single-occasion BP / questionnaire / FFQ / proxy 等已 documented 的高噪声模态）surfacing 测量误差风险，文献依据 MacMahon 1990 Lancet (regression dilution) / Hernán & Robins What If §9 (mis-classification) / Fuller 1987。未做：去衰减估计 (regression calibration / SIMEX) / differential mis-classification → Phase 9+ |
-| 9 | 转移性 / 泛化 | **35-40%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）/ **Phase 9 §T9.2 已落地（iter 128）**：post-stratification numeric (Cole & Stuart 2010 §3) — `estimate_transport` + dispatch path + bootstrap CI / **多变量 Z 联合已落地**：joint post-stratification over the Z set（结构层早已产多-Z S-admissible 集，数值端追平 + joint target `cells` 表 + E2E + verifier round-trip）；多源 §T9.3（mz-transportability，需结构地基）/ latent S / IPSW (Westreich 2017) → 后续 |
-| 10 | 敏感性分析 | **~35%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在 binary 估计 + iter 124 Chinn 2000 SMD→RR 路径让连续 outcome 同样获得 E-value）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
+| 6 | 中介分析 | **~80%** | Phase 6.mediation 识别 ✓ / **Phase 7.4 Imai NDE/NIE 数值估计 ✓**（via statsmodels）/ **Phase 7.5 CDE numeric ✓**（sklearn plug-in g-formula at fixed M=m*；linear + logit）/ **Phase 7.5+ CDE chain ✓**（N-mediator 链式 CDE：X→M_1→...→M_n→Y 在每个 M_i 固定值上 plug-in，VanderWeele 2015 ch.5）；多 mediator 联合（非链式）/ NIE 链式分解 → 后续 |
+| 7 | 选择偏差 | **45-50%** | A1 §3a / A2 refusal pattern ✓ / **kernel V-set 放松** ✓（refusal-only 图返回 `cause=false (no path)`，case 16 e2e ✓）/ **`collider_conditioning_opens_backdoor` gap_kind ✓** (EffectQuery `given` 中含 collider 时结构性诊断) / **`selection_on_collider_opens_path` gap_kind ✓** (**ObservationStatement(W, value) 编码隐式样本限制 + W 是 X/Y 共同后代时 surface Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 经典结构**；与 explicit-given 那条互补 —— 两条路径都覆盖) / **§S9.1 可恢复性判决 ✓**（Bareinboim-Pearl 选择后门 `recover_effect`，`extensions.selection_recovery` 给恢复公式 + 外部数据账本 + `verify_selection_recovery`）/ **§S9.1 数值端 + 诚实门 ✓**（2026-07-13，`estimation/selection.py` 按定理3.5 从有偏样本 + 外部无偏 `reference_data` 求恢复后 ATE；选择偏倚在场时**抑制**普通后门有偏数、改 `external_data_required`/`not_recoverable` 拒绝；`verify_selection_recovery_numeric` 从每层计数 + 权重表独立重跑公式）/ 选择节点结构 (selection_node 已存在仅用于 transport) / IPSW selection-weight 加权 + 连续 proxy / Z⁺,Z⁻ 完备恢复算法(BTP-2014 RC) → 后续 |
+| 8 | 测量误差 | **5-10%** | **首次破冰**：`measurement_error_concern` gap_kind 从程序结构（变量 `measurement` / `observability` 字段值含 self-report / 24h recall / single-occasion BP / questionnaire / FFQ / proxy 等已 documented 的高噪声模态）surfacing 测量误差风险，文献依据 MacMahon 1990 Lancet (regression dilution) / Hernán & Robins What If §9 (mis-classification) / Fuller 1987。未做：去衰减估计 (regression calibration / SIMEX) / differential mis-classification → Phase 9+ |
+| 9 | 转移性 / 泛化 | **35-40%** | **Phase 9 §T9.1 已落地**：单源 + 可观测 S 的 Bareinboim transport identification（schema + types + identify + verifier T9-1/T9-2 + case 29）/ **Phase 9 §T9.2 已落地**：post-stratification numeric (Cole & Stuart 2010 §3) — `estimate_transport` + dispatch path + bootstrap CI / **多变量 Z 联合已落地**：joint post-stratification over the Z set（结构层早已产多-Z S-admissible 集，数值端追平 + joint target `cells` 表 + E2E + verifier round-trip）；多源 §T9.3（mz-transportability，需结构地基）/ latent S / IPSW (Westreich 2017) → 后续 |
+| 10 | 敏感性分析 | **~35%** | **Phase 8.2 已落地**（VanderWeele E-value 自动附在 binary 估计 + Chinn 2000 SMD→RR 路径让连续 outcome 同样获得 E-value）；Rosenbaum bounds / 多假设 sensitivity → 可选扩展 |
 | 11 | 连续 / 数据驱动估计 | **~55-65%** | **Phase 7.1-7.4 + Phase 14 已落地**（backdoor + front-door + IV + mediation numeric，4 条识别路径都能给数字 + CI；dose-response estimator 支持 LinearDML / CausalForestDML opt-in / DRLearner）|
 | 12 | 因果发现 | **~48%** | **Phase 8.1 已落地**（PC/FCI/GES/GRaSP/LiNGAM via causal-learn + kernel_ast suggestion path）；**borrow-list #4：Markov blanket（grow-shrink 到不动点，连续/Fisher-Z + 离散/卡方两条路径）+ 独立验证器 `verify_markov_blanket`**——发现层首个逐数验证（从记录的充分统计量[相关矩阵 / 稀疏联合列联表]重算完备性/最小性定义）；NOTEARS / 时序 PCMCI → 待接 |
 

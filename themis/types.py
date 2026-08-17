@@ -1338,12 +1338,10 @@ MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
     GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
 })
 
-# Not mirrored, for two different reasons, both of which mean the gap
-# report is the only place the kind is stated.
-NOT_MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
-    # Asks. The gap report exists to carry these; restating them as a
-    # caveat would say "you are missing X" in the place reserved for
-    # "read the answer this way".
+# Asks. The gap report exists to carry these; restating one as a caveat
+# would say "you are missing X" in the place reserved for "read the answer
+# this way".
+GAP_REPORT_ONLY_ASKS: frozenset[GapKind] = frozenset({
     GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
     GapKind.MISSING_DISTRIBUTION,
     GapKind.MISSING_POPULATION_DISTRIBUTION,
@@ -1356,10 +1354,20 @@ NOT_MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
     GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN,
     GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
     GapKind.DOSE_RESPONSE_DATA_REQUIRED,
-    # Estimator-time findings. These DO qualify the answer, and they do
-    # reach ``explanation`` — but written by the estimator that found
-    # them, in its own words, at the moment it found them. Copying the
-    # gap description too would say each of them twice.
+})
+
+# Estimator-time findings. These DO qualify the answer, and they do reach
+# ``explanation`` — but written by the estimator that found them, in its
+# own words, at the moment it found them, so copying the gap description
+# in as well would say each of them twice.
+#
+# A declared set and not a comment inside the union below, because it is
+# the set a reader-facing surface has to cover: an agent pre-screening
+# gaps needs a rule for every kind that reaches ``explanation``, mirrored
+# or not. Named by hand in a test, this group lost two of its six — and
+# the hand-list had been copied from what the prompt already said, so it
+# held the prompt against itself.
+ESTIMATOR_TIME_FINDINGS: frozenset[GapKind] = frozenset({
     GapKind.WEAK_IV_INSTRUMENT,
     GapKind.OVERIDENTIFICATION_REJECTED,
     GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
@@ -1367,6 +1375,19 @@ NOT_MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = frozenset({
     GapKind.OUTCOME_MODEL_QUASI_SEPARATION,
     GapKind.DECLARED_TYPE_DATA_MISMATCH,
 })
+
+# Not mirrored, for the two different reasons above, both of which mean
+# the gap report is the only place the kind's own description is stated.
+NOT_MIRRORED_INTO_EXPLANATION: frozenset[GapKind] = (
+    GAP_REPORT_ONLY_ASKS | ESTIMATOR_TIME_FINDINGS
+)
+
+#: Everything that reaches ``result.explanation`` by either route. What a
+#: surface written for an agent has to cover, since "no rule for this
+#: kind" and "this kind never appears" are indistinguishable from there.
+REACHES_EXPLANATION: frozenset[GapKind] = (
+    MIRRORED_INTO_EXPLANATION | ESTIMATOR_TIME_FINDINGS
+)
 
 if MIRRORED_INTO_EXPLANATION | NOT_MIRRORED_INTO_EXPLANATION != frozenset(GapKind):
     _unclassified = frozenset(GapKind) - (

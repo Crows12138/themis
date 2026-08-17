@@ -19,22 +19,25 @@ shape this file would have to take for the difference to be visible.
 GapKind, held to the surfaces that restate it:
 - test_gap_kind_has_test_coverage — every enum value appears in some
   test file
-- test_gap_kind_enum_synced_with_schema — types ↔ query_result.schema.json
 - test_missing_item_gaps_synced_with_schema — the closed subset a kernel
   refusal may declare, on both surfaces that carry it
 - test_gap_kind_enum_synced_with_verifier_registry — types ↔ the T10
   registry, whose missing entry raises only once the gap actually fires
 - test_must_disclose_set_is_subset_of_gap_kinds — the mirrored set names
   nothing the enum does not
-- test_every_gap_kind_documented_in_reference — every kind has a row in
-  docs/GAP_KINDS_REFERENCE.md
 - test_coverage_map_gap_kind_count_matches_enum
 - test_kb_readme_gap_to_query_kind_table_matches_translator
 
+Four pins that were here — GapKind against the schema, GapKind against
+the reference table, and the mirrored set against each of the two
+prompts — now live in ``tests/test_vocabulary_reach.py``, which asserts
+the same pairs from a table enumerated on the kernel's side rather than
+one at a time. The gap_to_action obligation went wider in the move: it
+had been a hand-written four of the six estimator-time kinds, copied
+from what the prompt already said, so it held the prompt against itself.
+
 Prompts, held to what the kernel emits. An LLM reads these, and a value
 with no row is one it has to guess at:
-- test_must_disclose_kinds_documented_in_response_rendering_prompt
-- test_must_disclose_gap_kinds_documented_in_gap_to_action
 - test_bounds_method_producers_have_rendering_template — every
   BoundsMethod that has a producer has a rendering section
 - test_numeric_estimate_method_enum_documented_in_prompt
@@ -176,28 +179,6 @@ def test_gap_kind_has_test_coverage(kind: GapKind):
     )
 
 
-def test_gap_kind_enum_synced_with_schema():
-    """The query_result.schema.json gap_kind enum and Python GapKind enum
-    must list exactly the same values. Adding to one but forgetting the
-    other breaks schema validation in opaque ways, and both sides have
-    to be edited by hand."""
-    import json
-    schema = json.loads(
-        (REPO_ROOT / "themis" / "schemas" / "query_result.schema.json").read_text(encoding="utf-8")
-    )
-    schema_kinds = set(schema["$defs"]["dataGap"]["properties"]["kind"]["enum"])
-    enum_kinds = {k.value for k in GapKind}
-    only_in_schema = schema_kinds - enum_kinds
-    only_in_enum = enum_kinds - schema_kinds
-    assert not only_in_schema, (
-        f"gap_kinds in schema but missing from GapKind enum: {only_in_schema}"
-    )
-    assert not only_in_enum, (
-        f"gap_kinds in GapKind enum but missing from schema: {only_in_enum}. "
-        f"Add to query_result.schema.json $defs.dataGap.properties.kind.enum."
-    )
-
-
 def test_missing_item_gaps_synced_with_schema():
     """``MISSING_ITEM_GAPS`` is the closed vocabulary a kernel refusal may
     declare, and the schema states the same restriction on both surfaces
@@ -250,37 +231,6 @@ def test_must_disclose_set_is_subset_of_gap_kinds():
     assert not unknown, (
         f"MIRRORED_INTO_EXPLANATION has unknown values: {unknown}. "
         f"Either typo or stale enum reference."
-    )
-
-
-def test_must_disclose_kinds_documented_in_response_rendering_prompt():
-    """Every gap_kind in types.MIRRORED_INTO_EXPLANATION must appear
-    in docs/prompts/response_rendering.md's mirrored-set table. The
-    table is the contract the renderer LLM reads to know which gap_kinds
-    are auto-prepended to result.explanation as ⚠ lines (so the
-    renderer doesn't itemize them again).
-
-    Adding a kind to MIRRORED_INTO_EXPLANATION without updating the prompt
-    breaks the contract silently — the LLM might double-render or fail
-    to surface the caveat. unmeasured_confounder_risk and
-    dispatch_conflict each required this prompt update by hand; this
-    test catches the next one.
-    """
-    from themis.types import MIRRORED_INTO_EXPLANATION
-    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
-    rendering_md = (
-        REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
-    ).read_text(encoding="utf-8")
-    missing = []
-    for kind in _MUST_DISCLOSE_GAP_KINDS:
-        # Look for the kind name in a backtick-quoted form, which is
-        # how the prompt's mirrored-set table cites it.
-        if f"`{kind}`" not in rendering_md:
-            missing.append(kind)
-    assert not missing, (
-        f"MIRRORED_INTO_EXPLANATION members missing from "
-        f"response_rendering.md prompt: {missing}. Add a row to the "
-        f"mirrored-set table at docs/prompts/response_rendering.md."
     )
 
 
@@ -848,7 +798,7 @@ def test_markdown_backtick_path_refs_resolve():
     point at existing files — both `themis/*.py` and
     `docs/.../*.{md,json,py}` references.
 
-    Catches narrative prose like 'see `docs/prompts/response_rendering.md`'
+    Catches narrative prose like 'see `themis/prompts/response_rendering.md`'
     or 'inspect `themis/runtime/c_factor.py`' becoming dead links when
     files are renamed/moved without grep'ing for incoming references.
 
@@ -1492,7 +1442,7 @@ def test_prompt_header_word_counts_match_subsection_counts():
     said "Three" while having Q0 + Q1 + Q2 + Q3 = 4 subsections after
     Q0 pre-screen was added later.
 
-    Scans every "## <number-word> <noun>" header in docs/prompts/
+    Scans every "## <number-word> <noun>" header in themis/prompts/
     and asserts the immediate ### subsection count (until the next ##
     or EOF) equals the spelled-out number. Headers without a leading
     number-word are ignored.
@@ -1594,73 +1544,11 @@ def test_subpackage_init_docstrings_inventory_all_exports(pkg_name):
     )
 
 
-def test_every_gap_kind_documented_in_reference():
-    """docs/GAP_KINDS_REFERENCE.md is the single-source
-    human-readable table for the 26 gap_kinds. Previously this
-    information was scattered across types.py docstrings, the
-    classifier descriptions in data_gap_report.py, gap_to_action.md
-    Q0 list, and response_rendering.md mirrored-set table. Pin
-    asserts every GapKind enum value appears verbatim as a table
-    row in the reference doc.
-    """
-    from themis.types import GapKind
-
-    reference = (
-        REPO_ROOT / "docs" / "GAP_KINDS_REFERENCE.md"
-    ).read_text(encoding="utf-8")
-
-    missing = sorted(
-        k.value for k in GapKind
-        if f"`{k.value}`" not in reference
-    )
-    assert not missing, (
-        f"docs/GAP_KINDS_REFERENCE.md missing GapKind values: "
-        f"{missing}. Add a row to the table."
-    )
-
-
-def test_must_disclose_gap_kinds_documented_in_gap_to_action():
-    """Parallel to the response_rendering pin, for gap_to_action.md.
-
-    Every must-disclose gap_kind, PLUS the estimator-runtime kinds
-    (which reach explanation but live outside
-    MIRRORED_INTO_EXPLANATION), must appear verbatim in
-    gap_to_action.md, so the orchestrator agent has explicit
-    Q0-pre-screen guidance for each. Four kinds — collider, weak_iv,
-    propensity_overlap, outcome_separation — had drifted out of it
-    before this pin existed.
-    """
-    from themis.types import MIRRORED_INTO_EXPLANATION
-    _MUST_DISCLOSE_GAP_KINDS = {k.value for k in MIRRORED_INTO_EXPLANATION}
-
-    estimator_runtime_kinds = {
-        "weak_iv_instrument",
-        "propensity_overlap_violation",
-        "outcome_model_quasi_separation",
-        # Same posture: attached after the estimator has chosen, mirrored
-        # into explanation, outside MIRRORED_INTO_EXPLANATION.
-        "iv_estimand_fallback_to_linear",
-    }
-    expected = set(_MUST_DISCLOSE_GAP_KINDS) | estimator_runtime_kinds
-
-    prompt = (
-        REPO_ROOT / "themis" / "prompts" / "gap_to_action.md"
-    ).read_text(encoding="utf-8")
-
-    missing = sorted(k for k in expected if k not in prompt)
-    assert not missing, (
-        f"gap_to_action.md missing gap_kinds: {missing}. "
-        "Every must-disclose + estimator-runtime gap_kind needs Q0 "
-        "pre-screen guidance — agents using this prompt have no "
-        "fallback rules for unmentioned kinds."
-    )
-
-
 def test_numeric_estimate_method_enum_documented_in_prompt():
     """Parallel to the BoundsMethod producer pin, for
     numeric_estimate.method values. Every method enum value
     in query_result.schema.json must appear verbatim somewhere in
-    docs/prompts/response_rendering.md so the LLM consumer has
+    themis/prompts/response_rendering.md so the LLM consumer has
     rendering guidance for that method.
 
     Extending sensitivity to a continuous outcome, and adding
@@ -1727,7 +1615,7 @@ def test_numeric_estimate_method_enum_documented_in_prompt():
 def test_bounds_method_producers_have_rendering_template():
     r"""Every BoundsMethod value actually produced by themis/output/
     bounds.py must have a matching ``#### `method_name``` section in
-    docs/prompts/response_rendering.md. This was added
+    themis/prompts/response_rendering.md. This was added
     preventatively — current state is in sync (manski_natural +
     balke_pearl_iv produced + rendered; frontdoor_partial +
     manski_tamer_monotonicity declared in enum but not yet produced

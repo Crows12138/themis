@@ -6,7 +6,7 @@ it. Endpoints mirror the
 in-process API exactly: /api/run takes a kernel_ast JSON, returns
 the result envelope. /api/verify takes (program, result), returns
 success/error. /api/examples lists worked examples from
-docs/prompts/examples/.
+themis/prompts/examples/.
 
 No auth, no persistence, no LLM call — all of that is out of scope
 for this slice. Bind to localhost; if you want to share, change
@@ -471,7 +471,7 @@ def api_render(req: RenderRequest):
 
 @app.get("/api/examples")
 def api_examples():
-    """List worked examples from docs/prompts/examples/."""
+    """List worked examples from themis/prompts/examples/."""
     if not _EXAMPLES_DIR.exists():
         return []
     items = []

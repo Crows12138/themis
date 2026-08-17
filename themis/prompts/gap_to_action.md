@@ -37,9 +37,9 @@ ask Q0 first; if it doesn't short-circuit, run the Q1–Q3 walk:
 is already mirrored as a ⚠ line in `result.explanation`. **Do not fetch
 or ask** for these. Surface them in the reply (rephrased as natural
 prose) and move on. They name structural caveats the user must know to
-interpret the answer correctly. The full list (kept in sync with
-``themis.runtime.scheduler._MUST_DISCLOSE_GAP_KINDS`` plus the
-estimator-runtime gap_kinds attached at dispatch time):
+interpret the answer correctly. The full list is ``themis.types.REACHES_EXPLANATION`` — the mirrored
+caveats plus the estimator-time findings attached at dispatch — and a
+test holds this section to it:
 
 - Identification-time disclosures: `front_door_identification_assumption_required` /
   `iv_identification_assumption_required` /
@@ -50,12 +50,18 @@ estimator-runtime gap_kinds attached at dispatch time):
 - Confidence: `low_confidence_input_data` / `unverified_proposal_edge_on_query_path`
 - Discovery: `graph_learned_from_data`
 - Ambiguity: `llm_declared_ambiguity`
-- DAG completeness: `unmeasured_confounder_risk` (iter 5)
-- Estimator-runtime (iter 120/121/123): `weak_iv_instrument` (Stock-Yogo
-  F < 10) / `propensity_overlap_violation` (Hernan positivity, > 5%
-  fitted P(X|Z) outside [0.05, 0.95]) / `outcome_model_quasi_separation`
+- DAG completeness: `unmeasured_confounder_risk`
+- Estimator-time: `weak_iv_instrument` (Stock-Yogo F < 10) /
+  `propensity_overlap_violation` (Hernán positivity, > 5% fitted
+  P(X|Z) outside [0.05, 0.95]) / `outcome_model_quasi_separation`
   (logistic outcome saturation, > 10% fitted P(Y|X,Z) outside
-  [0.01, 0.99])
+  [0.01, 0.99]) / `overidentification_rejected` (the Sargan test
+  rejected the instruments' joint validity — the data refute an
+  exclusion restriction, so say the model was contradicted rather
+  than that the estimate is uncertain) / `declared_type_data_mismatch`
+  (a variable's declared type is not what the column holds; the
+  estimate stands on the data, so name the disagreement and which
+  one was used)
 
 These are not data targets. Render their content in plain language but
 do NOT trigger fetch / ask user.
@@ -80,16 +86,16 @@ collect.
   is to **reformulate the query** (split into two sequential queries,
   or drop one of `mediator` / `target_population`) per the gap's
   `alternative_paths`. Surface in reply; advise reformulation.
-- `collider_conditioning_opens_backdoor` (iter 122) → no fetch; the
+- `collider_conditioning_opens_backdoor` → no fetch; the
   action is to **remove the collider from `given`**. The conditional
   estimate is biased, not just caveated — render with a clear
   identification-damage warning and recommend re-querying without
   conditioning on the collider (or, if the user really wants the
   subgroup effect, route through transport / stratified analysis
   instead of conditioning).
-- `graph_theta_independence_mismatch` (iter 203) → no fetch; the user's
+- `graph_theta_independence_mismatch` → no fetch; the user's
   declared graph and supplied CPTs **disagree** with each other. The
-  iter 199 d-separation guard refused to silently substitute an existing
+  d-separation guard refused to silently substitute an existing
   marginal for the demanded conditional because the graph does NOT
   entail the implied independence. Render with a clear *model-input
   inconsistency* warning and recommend the structural choice: drop the
@@ -97,7 +103,7 @@ collect.
   consistent), OR supply the demanded conditional (the graph is then
   consistent). "Fetch more data" is not a valid action — the contradiction
   is between two things the user already supplied.
-- `measurement_error_concern` (iter 205) → no immediate Q1-Q3 fetch. A
+- `measurement_error_concern` → no immediate Q1-Q3 fetch. A
   variable on the identification path declares a noisy-measurement
   modality (self-report / 24h recall / single-occasion BP / proxy /
   questionnaire / FFQ). The estimate from the user's main sample will
@@ -111,7 +117,7 @@ collect.
   NOT phrase this as "go fetch the same data again" — the action is
   *higher-quality measurement* on a sub-sample, not more rows of the
   same noisy measurement.
-- `selection_on_collider_opens_path` (iter 206) → no immediate Q1-Q3
+- `selection_on_collider_opens_path` → no immediate Q1-Q3
   fetch from the *current* sample. The program declares
   `ObservationStatement(W, value)` (an implicit sample restriction)
   AND the DAG places intervention X and target Y as joint ancestors of
@@ -132,7 +138,7 @@ collect.
   formula and the external-data ledger. It turns this warning into an
   actionable prognosis; render it right after the gap (see
   response_rendering §"Selection-bias recovery").
-- `ill_defined_intervention_versions` (iter 207) → no fetch action at
+- `ill_defined_intervention_versions` → no fetch action at
   all. The intervention predicate is declared a `state_vs_event="state"`
   with no `time_window`, encoding a habitual / persistent attribute
   rather than a discrete act. Hernán & Taubman 2008 *Int J Obesity*

@@ -67,7 +67,7 @@ A reply is a small ladder, top to bottom:
    | `unmeasured_confounder_risk` | DAG has measured confounders but no bidirected — adjustment may leave residual unmeasured-confounder bias (HRT-CVD / Card 1995 schooling / vitamin D-CVD pattern) |
    | `unattempted_layer_due_to_dispatch_conflict` | Query specified multiple identification layers (e.g. both mediator and target_population) but kernel only dispatched one; the other was silently skipped (mediation × transport must be sequential per Cole & Stuart 2010 / VanderWeele 2016 §6.2) |
    | `collider_conditioning_opens_backdoor` | EffectQuery's `given` (conditioning subgroup) contains a node that is a collider — both intervention X and target Y are ancestors. Per Pearl d-separation, conditioning OPENS the X→…→W←…←Y path rather than blocking it; the returned conditional effect carries collider-induced bias |
-   | `graph_theta_independence_mismatch` | The user supplied a marginal CPT that the iter 199 d-separation guard would have used to substitute a missing conditional, but the declared graph does NOT entail the implied independence (chain DAG + marginal-only theta is the canonical case). The repair is structural — either drop the graph edge that creates the contradiction OR supply the demanded conditional — *not* "supply more theta" |
+   | `graph_theta_independence_mismatch` | The user supplied a marginal CPT that the d-separation guard would have used to substitute a missing conditional, but the declared graph does NOT entail the implied independence (chain DAG + marginal-only theta is the canonical case). The repair is structural — either drop the graph edge that creates the contradiction OR supply the demanded conditional — *not* "supply more theta" |
    | `measurement_error_concern` | At least one variable on the identification path declares a `measurement` / `observability` field whose value names a documented noisy-measurement pattern (self-report / 24h recall / FFQ / single-occasion BP / proxy). Regression dilution + non-differential mis-classification attenuate the estimate (MacMahon 1990 / Hernán & Robins *What If* §9 / Fuller 1987). The ⚠ line names the offending variable + field; the renderer should NOT itemize the gap again, but may pull the `alternative_paths` (RCT triangulation / repeat-measurement reliability / regression calibration) when the user asks how to proceed |
    | `selection_on_collider_opens_path` | An `ObservationStatement(W, value)` encodes implicit sample restriction to W=value, AND the DAG has both intervention X and target Y as directed ancestors of W. The data-generating process is conditioning on a collider; the estimated effect from the restricted sample is selection-biased even with all confounders adjusted. Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 structural pattern. The ⚠ line names the offending observation + collider; the renderer should NOT itemize the gap again, but may pull `alternative_paths` (recover full sample / inverse-probability-of-selection weighting / re-declare W as `selection_node` for transport) when the user asks how to proceed |
    | `dichotomized_continuous_measure` | A variable on the identification path declares a non-empty `threshold` — the schema field that "turns a continuous measurement into this predicate's value, e.g. >=3cm", i.e. a continuous quantity was dichotomized at a cutpoint. Dichotomization discards dose-response information + loses efficiency (Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127), makes the result sensitive to an often-arbitrary cutpoint (Altman et al 1994 *JNCI* 86:829), and — when the dichotomized variable is a confounder — leaves within-category residual confounding so the adjustment is incomplete (Becher 1992 *Stat Med* 11:1747). INFORMATIONAL: a declared cutpoint does NOT break identification. The ⚠ line names the offending variable(s) + threshold; the renderer should NOT itemize the gap again, but may pull `alternative_paths` (keep the variable continuous and run dose-response — Themis Phase 13/14; OR report cutpoint sensitivity; OR use finer strata / splines for a dichotomized confounder) when the user asks how to proceed |
@@ -755,7 +755,7 @@ For IDs not in the table, render the snake_case verbatim.
 
 #### Precision budget (`precision_budget`) — when to surface
 
-`numeric_estimate.precision_budget` is iter 151-155 wiring of VISION
+`numeric_estimate.precision_budget` is the wiring of VISION
 2026-04-26 §"输出 (2)" — "在子群 G 做 RCT n=N 能把 CI 收缩到 ±δ".
 It tells the user how much more N is needed to halve the current
 95% CI.
@@ -1523,10 +1523,10 @@ the g-formula Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from the recorded per-stratum
 for both the recovered estimate and the naive listwise foil) and rejects a
 forged point or a dropped stratum.
 
-### Transport numeric — Phase 9 §T9.2 / iter 128
+### Transport numeric — Phase 9 §T9.2
 
 When `numeric_estimate.method == "transport_post_stratification"`,
-Themis ran the iter 128 numeric companion to §T9.1's structural
+Themis ran the numeric companion to §T9.1's structural
 identification. Method: post-stratification (Cole & Stuart 2010 §3) —
 ``ATE_target = Σ_z P(z|target) · ATE_source(z)`` where each stratum
 ATE comes from observed source data and is reweighted by the target
@@ -1656,7 +1656,7 @@ rationale: "用户问 dose-response 但 `<treatment>` 是二值；改用 binary
 ATE 估计 ... 如果你想要 dose-response 形态的回答，需要把 `<treatment>`
 变成多级或连续值。"
 
-### Sensitivity (E-value) — Phase 8.2 / iter 124
+### Sensitivity (E-value) — Phase 8.2
 
 Fires when `numeric_estimate.sensitivity_analysis` is present. Two
 conversion paths to risk-ratio scale:
@@ -1664,7 +1664,7 @@ conversion paths to risk-ratio scale:
 - **Binary outcome** (Phase 8.2): RR via observed baseline rate.
   ``baseline_rate`` is set; ``note`` describes "RR = (baseline +
   ATE) / baseline".
-- **Continuous outcome** (iter 124, Chinn 2000): standardised mean
+- **Continuous outcome** (Chinn 2000): standardised mean
   difference d = ATE / SD(Y), then RR ≈ exp(0.91 · d). ``baseline_rate``
   is **null** on this path; ``note`` mentions "Chinn 2000" + the SMD
   value + "approximation note: ... assumes within-group SDs ≈ equal".
@@ -1713,7 +1713,7 @@ implied treated rate outside [0,1]):
 > 可以考虑把 outcome 二值化（按某阈值），或用其他敏感性方法
 > （如 Rosenbaum bounds）。
 
-For continuous outcomes (iter 124) the Chinn-converted E-value is
+For continuous outcomes the Chinn-converted E-value is
 attached automatically. ``baseline_rate=null`` is the signal — render
 with the SMD-approximation caveat:
 

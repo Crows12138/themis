@@ -1,6 +1,6 @@
 """Slice #37 / A5b: merge narrative-extracted variable dicts.
 
-Companion to ``docs/prompts/narrative_to_variables.md`` (A5). The A5
+Companion to ``themis/prompts/narrative_to_variables.md`` (A5). The A5
 prompt extracts variable candidates with partial framing from one
 paragraph of natural-language narrative. Real usage often needs to
 combine:
