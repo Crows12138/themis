@@ -1,4 +1,4 @@
-"""Slice #37 / A5b: narrative-extraction merge tests.
+"""A5b: narrative-extraction merge tests.
 
 Covers ``merge_variable_extractions`` (fold multiple A5 outputs) and
 ``merge_into_program`` (inject narrative variables into a kernel_ast

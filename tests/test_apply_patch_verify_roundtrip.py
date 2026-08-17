@@ -5,7 +5,7 @@ against.
 This is a correctness contract: verifying a patched result against
 the **original** program would see a divergent Theta (user-supplied
 parameters missing) and falsely reject. The fix — surfaced by the
-slice #33 stress test — is for ``apply_patch_and_run`` to include
+a framing stress test — is for ``apply_patch_and_run`` to include
 the exact merged program it computed on, so auditors have the
 program-result pairing that actually matches.
 """

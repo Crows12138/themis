@@ -49,8 +49,9 @@ being true and a severity grades how badly that kills it, so the grade
 follows from the layer — and it did, on every one of 3252 entries of one
 suite run, on all 146 glossary rows and at all 48 places a structured spec
 was written. Two hundred sites restating one fact is not agreement, it is
-199 chances to disagree, and #343 had already shown what comes of two
-records of one thing. So :class:`Layer` names its grade once and
+199 chances to disagree — and a severity restated per assumption had
+already been two records of one fact, which is how they disagree. So
+:class:`Layer` names its grade once and
 :func:`stamp` hands it back. The contrast is in the same glossary row:
 ``testable`` stays per-assumption, because two identification assumptions
 genuinely differ on it.

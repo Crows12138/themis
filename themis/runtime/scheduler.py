@@ -5159,11 +5159,12 @@ def _attach_confidence(
     ``confidence_rfc_v0_2.md`` §3 and implemented by
     ``_gather_input_sources``.
 
-    Slice #34 additionally populates ``confidence_sources`` — one
-    entry per contributing slot with the source annotation, the
-    confidence value, and an ``is_weakest`` flag for sources whose
-    confidence equals the composite min. Consumers get a direct
-    "why is it this low" audit trail without re-computing it.
+    ``confidence_sources`` is populated alongside it — one entry per
+    contributing slot, with the source annotation, the confidence
+    value, and an ``is_weakest`` flag for sources whose confidence
+    equals the composite min. A consumer then has the
+    "why is it this low" audit trail without re-deriving it, which is
+    the difference between a number and an answer.
     """
     from dataclasses import replace
 
@@ -5784,8 +5785,20 @@ def _attach_bounds_result(
     #    instrument. That is this chain's order deciding between two
     #    assumption sets — IV1/IV2/IV3 read off the graph against a
     #    monotonicity the caller asserted in words — and their intervals are
-    #    not comparable, so "tighter" cannot settle it either. Stated rather
-    #    than left to be discovered; #358 is where it gets decided properly.
+    #    not comparable, so "tighter" cannot settle it either.
+    #
+    #    Stated here rather than left to be discovered, and stated as what it
+    #    is: a decision made by line order, which is the shape a warning
+    #    cannot fix. Reporting "both applied and I took one" still returns
+    #    the one; what has to change is that a slot able to hold either
+    #    should not be filled by whichever branch ran first. Three ways out,
+    #    each with envelope consequences — carry both results with their
+    #    assumption sets and let the reader choose; name a rule that decides
+    #    and refuse when it cannot, as the instrument route does when a
+    #    graph offers two valid instruments; or answer with one and attach
+    #    the other as an annotation. Intersecting them is not one of the
+    #    three: the two rest on different assumptions, so their intersection
+    #    asserts both.
     if bounds is None and intervention_is_bool:
         mtr_direction = _detect_monotonicity_for_query(program, query)
         if mtr_direction is not None:

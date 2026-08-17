@@ -1,4 +1,4 @@
-"""Slice #34: confidence source provenance tracking.
+"""Confidence source provenance tracking.
 
 Adds ``QueryResult.confidence_sources`` — one entry per slot that
 fed the composite ``min`` aggregation. Each record carries the

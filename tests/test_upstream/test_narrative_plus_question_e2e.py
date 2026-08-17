@@ -1,7 +1,7 @@
-"""Slice #37.b: narrative + question end-to-end.
+"""Narrative + question, end to end.
 
 Closes the loop from both prompt-layer outputs (A5 narrative and A1
-question) through the dict-level merge (slice #37.a) into
+question) through the dict-level merge into
 ``themis.run``. Uses the existing prompt-example fixtures as real
 driving inputs so the test breaks loudly if any of them drifts.
 

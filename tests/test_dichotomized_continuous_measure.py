@@ -1,5 +1,5 @@
 """Tests for the ``dichotomized_continuous_measure`` gap_kind (2026-06-18,
-boards #11 / #1 — dichotomization).
+dichotomization).
 
 Triggered by program-shape: a VariableDeclaration on the identification
 path (the intervention, the target, or a directed ancestor of either)

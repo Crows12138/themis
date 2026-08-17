@@ -2,7 +2,7 @@
 
 Run six hand-constructed (NL question, kernel_ast) pairs through
 themis.run and collect structured findings. Each question targets a
-dimension the first stress test (task #33, docs/trial_reports/
+dimension the first stress test (docs/trial_reports/
 a1_to_40_stress_test.md) didn't cover:
 
     1. pure cause query (structural-only, no theta needed)

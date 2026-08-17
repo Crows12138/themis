@@ -1,7 +1,7 @@
 """Slice #41: pin that direction / baseline / state_vs_event framing
 fields are first-class alongside the original four.
 
-The three new fields were surfaced by the #33 stress test as
+The three fields were surfaced by a framing stress test as
 ambiguity dimensions every fresh agent ran into but the original
 ``time_window / measurement / threshold / observability`` set
 couldn't capture. They join the A0 / F1 channel symmetrically.

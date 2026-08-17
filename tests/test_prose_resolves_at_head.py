@@ -198,6 +198,38 @@ def test_a_moved_path_is_caught():
     assert not _PATH.findall("under benchmarks/.../agent_prompt_v1.md")
 
 
+#: A numbered unit of work: ``#358``, ``slice #41``. Two digits or more,
+#: so an ordinary "#3" in a citation or a heading is not swept in.
+_WORK_ID = re.compile(r"(?<![\w#])#(\d{2,4})\b")
+
+
+def test_no_source_file_cites_a_numbered_item_that_has_no_entry():
+    """The third decidable subclass: an id for work that is not here.
+
+    The backlog these number lives outside the repository, so an id
+    resolves only once its entry lands in CORE_STATUS — which means a
+    citation of work still open resolves nowhere, and reads exactly like
+    a citation of work that shipped. Both were in the tree: one comment
+    deferred a live design question to an item number, and three others
+    named slices whose numbering nothing here records.
+    """
+    entries = {
+        int(n) for n in _WORK_ID.findall(
+            (REPO / "CORE_STATUS.md").read_text(encoding="utf-8"))
+    }
+    dangling = {}
+    for p in _sources():
+        text = p.read_text(encoding="utf-8")
+        missing = sorted({int(n) for n in _WORK_ID.findall(text)} - entries)
+        if missing:
+            dangling[str(p.relative_to(REPO))] = missing
+    assert not dangling, (
+        f"these cite numbered items CORE_STATUS.md does not carry: "
+        f"{dangling}. An item still open has no entry, so say the thing it "
+        f"stood for instead of deferring to its number."
+    )
+
+
 def test_the_anchored_ordinals_actually_resolve():
     """Naming wall.md is a promise about wall.md.
 

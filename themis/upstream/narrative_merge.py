@@ -1,4 +1,4 @@
-"""Slice #37 / A5b: merge narrative-extracted variable dicts.
+"""A5b: merge narrative-extracted variable dicts.
 
 Companion to ``themis/prompts/narrative_to_variables.md`` (A5). The A5
 prompt extracts variable candidates with partial framing from one

@@ -13,7 +13,7 @@
 > （Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127）、对切点敏感
 > （Altman et al 1994 *JNCI*）、被二分 confounder 留类内残余混杂
 > （Becher 1992）；INFORMATIONAL，指向 Themis 自有 dose-response 路径
-> （Phase 13/14）。boards #11/#1 cross-cutting，与 `measurement` /
+> （Phase 13/14）。横跨「连续/数据驱动估计」与「可观测识别」两块，与 `measurement` /
 > 206 ObservationStatement / 207 state_vs_event 同型，第四例
 > dead-schema-theatre fix；总数 31 GapKind。
 > 2026-05-10（`state_vs_event` 是第三个只被 schema 承认、无人读取值的字段：
@@ -23,7 +23,7 @@
 > 违反 — schema 200+ iters 前就 admit 这两个字段，但 pre-207 没有任何
 > classifier 读 state_vs_event 的 VALUE。L3 case 015 (obesity → 5yr
 > mortality) 真测确认 silent miss → 加 GapKind + classifier。boards
-> #1/#11 cross-cutting：不增加单一板块覆盖率，但首次让 schema 中的
+> 横跨「可观测识别」与「连续/数据驱动估计」：不增加单一板块覆盖率，但首次让 schema 中的
 > consistency-assumption-relevant 字段在 runtime 起作用。这是 iter
 > `measurement` 与 ObservationStatement 之后第三例同型
 > dead-schema-theatre fix；总数 30 GapKind。

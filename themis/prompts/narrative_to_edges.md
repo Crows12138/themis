@@ -1,4 +1,4 @@
-# Narrative → edge candidates prompt (Slice #37.c)
+# Narrative → edge candidates prompt
 
 Fourth entry in the NL↔JSON bridge. Complements
 `narrative_to_variables.md`: same narrative input, this prompt

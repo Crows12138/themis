@@ -536,7 +536,8 @@ class VariableDeclaration:
     change status or numeric output.
 
     Slice #41 adds three more framing dimensions surfaced by the
-    #33 stress test: ``direction`` (up / down / mixed effect polarity),
+    Surfaced by a framing stress test: ``direction`` (up / down /
+    mixed effect polarity),
     ``baseline`` (the reference level a change is measured from), and
     ``state_vs_event`` (a habitual state or a discrete occurrence).
     These join the original four fields symmetrically — they are
@@ -907,7 +908,7 @@ class FramingNote:
 
 @dataclass(frozen=True)
 class ConfidenceSource:
-    """Slice #34: one slot's contribution to the composite confidence.
+    """One slot's contribution to the composite confidence.
 
     The composite is ``min`` across non-None slot confidences (RFC
     §3). Each slot's contribution is the confidence of the source
