@@ -222,7 +222,10 @@ export interface QueryResult {
   formula?: unknown
   derivation?: Derivation
   data_gap_report?: DataGapReport
-  bounds_result?: BoundsResult
+  // A SET. Every method whose assumptions the program supports bounds the
+  // same estimand; which interval rests on what is the only thing that
+  // makes several of them readable side by side.
+  bounds_results?: BoundsResult[]
   numeric_estimate?: NumericEstimate
   // Structural-layer answer (themis.run / apply_patch_and_run). Distinct from
   // numeric_estimate (themis.estimate, data-backed) — this is what a plug-in

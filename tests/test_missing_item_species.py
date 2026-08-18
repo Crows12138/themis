@@ -123,7 +123,7 @@ def test_transport_with_no_admissible_selection_set_is_not_identifiable():
     )
     assert "not transportable" in result["data_gap_report"]["summary"]
     assert result["data_gap_report"]["answer_tier"] == "none"
-    assert result.get("bounds_result") is None
+    assert not result.get("bounds_results")
 
 
 # ---------------------------------------------------------------------------

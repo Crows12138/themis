@@ -214,7 +214,8 @@ def test_minimal_result_does_not_crash():
 def test_bounds_answer_branch():
     res = {
         "status": "needs_investigation", "query_kind": "effect", "query_id": "b",
-        "bounds_result": {"lower_value": -0.19, "upper_value": 0.01, "method": "balke_pearl_iv"},
+        "bounds_results": [{"lower_value": -0.19, "upper_value": 0.01,
+                            "method": "balke_pearl_iv"}],
     }
     md = build_analysis_report(res)
     assert "区间" in md
@@ -306,9 +307,9 @@ def test_an_interval_outranks_a_refusal_that_sits_beside_it():
     and in every one the interval is the answer to what was asked."""
     res = {
         "status": "needs_investigation", "query_kind": "effect", "query_id": "r",
-        "bounds_result": {
+        "bounds_results": [{
             "lower_value": -0.2, "upper_value": 0.4, "method": "manski",
-        },
+        }],
         "estimator_failure": {
             "estimator": "backdoor", "failure_type": "overlap_insufficient",
             "reason": "a single observed treatment level", "kind": "data",

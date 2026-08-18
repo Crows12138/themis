@@ -78,7 +78,7 @@ A reply is a small ladder, top to bottom:
    in `explanation` is already its disclosure. Use the gap entry
    only to pull *more specific detail* the user asks for.
 3. **Mandatory disclosure channels** (any non-empty channel surfaces):
-   - `bounds_result` — when point fails, surface the interval
+   - `bounds_results` — when point fails, surface every interval
      expressions (Manski / Balke-Pearl) right after the headline
    - `data_gap_report` — *blocking* and *important* gaps surface
      here as itemized lines (informational gaps in the mirrored
@@ -117,7 +117,7 @@ Fields in roughly the order you'll consult them:
 | `investigation_requests[]` | Actionable patches the user can paste back |
 | `framing_notes[]` | Advisory; same content is projected into `investigation_requests` with `action=define_variable` — render the structured request, suppress the duplicate note unless it has no matching request entry |
 | `data_gap_report` | Diagnostic surface — *why* data is needed and *what kind* |
-| `bounds_result` | Phase 12: symbolic bounds when point identification failed. Method + lower/upper expressions + assumptions. See §"Bounds rendering" |
+| `bounds_results` | Phase 12: symbolic bounds when point identification failed. A LIST — one row per method whose assumptions hold, each with its own method + lower/upper expressions + assumptions. See §"Bounds rendering" |
 | `extensions.{...}` | Named blocks. Each is one of five kinds, and the kind — not the name — says where it belongs in the ladder: **route** (how the estimand was identified — the recognised pattern and its adjustment set, the instrument, the mediator, the source and target populations, a recoverability verdict) belongs in Methodology; **answer** carries the quantity itself where there is no `numeric_estimate` to carry it; **assumption** is led by **`assumption_ledger`**, the unified severity-ranked surface — render it first when present; **gap** is already itemized through `data_gap_report`; **refusal** says why nothing came out. A block you have not met before still belongs to one of the five — place it by what it says |
 | `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
 | `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
@@ -1778,12 +1778,28 @@ one-line note:
 
 ## Bounds rendering (Phase 12)
 
-When `result.bounds_result` is set, point identification failed but
-Themis computed information-preserving bounds instead. The validator
+When `result.bounds_results` is non-empty, point identification failed
+but Themis computed information-preserving bounds instead. The validator
 tried to give *something* useful rather than just refuse. Surface
 this prominently — if the user's `data_gap_report` mentions
-"接受 Balke-Pearl bounds" as an alternative_path, the bounds_result
+"接受 Balke-Pearl bounds" as an alternative_path, one of these rows
 **is** that interval (no need to send the user looking).
+
+**It is a list, and the length is the point.** Every method whose
+assumptions this program supports is reported, all bracketing the same
+estimand: the assumption-free Manski floor is always there, and a
+sharper row appears beside it when an instrument or a declared monotone
+treatment response earns one. Render every row with what it rests on —
+a reader cannot choose between two intervals over one quantity without
+that, and choosing for them is what a single slot used to do by
+whichever branch happened to run first.
+
+**Never present their intersection.** If both assumption sets hold the
+truth is in both, but the intersection is NOT the sharp set under the
+conjunction (that is a different computation, on the response-function
+polytope with the monotone types removed), and one unlabelled interval
+hides which half rests on what. Show the rows; let the reader pick the
+premises they accept.
 
 ### Placement
 
@@ -1796,7 +1812,7 @@ inside) the data_gap_report block. Order:
    point, you'd need...")
 4. Other channels (ambiguity, edge provenance)
 
-When `bounds_result` is null AND the gap report's alternative_paths
+When `bounds_results` is empty AND the gap report's alternative_paths
 mention bounds, surface the gap report's text verbatim (the bounds
 weren't computed — explain in the data gap section, not pretend
 they were).
@@ -1952,9 +1968,9 @@ collapse to the trivial range (e.g. [0, 1] for probabilities,
 
 ### Cross-reference with data_gap_report
 
-When both `bounds_result` and `data_gap_report` are present, the
+When both `bounds_results` and `data_gap_report` are present, the
 gap report's `alternative_paths` text "接受 Balke-Pearl bounds 给
-区间答案" is now backed by an actual interval (the bounds_result
+区间答案" is now backed by an actual interval (one of the rows
 above). Phrase the gap section as:
 
 > 上面已经给了区间答案 — 要从区间升级到点估计，你需要补：
@@ -1966,12 +1982,12 @@ expression itself was rendered above and isn't repeated here.
 
 ### Render decision
 
-- `bounds_result` null → omit the section entirely.
-- `status == "numerically_solved"` and bounds_result also set → render
-  the point as the answer with a one-line tail ("bounds also computed:
-  [a, b]").
-- `query_kind != effect` → `bounds_result` should already be null;
-  if it's set, treat as an upstream bug and skip.
+- `bounds_results` empty → omit the section entirely.
+- `status == "numerically_solved"` and rows also present → render
+  the point as the answer with a one-line tail naming each row's method
+  and interval.
+- `query_kind != effect` → `bounds_results` should already be empty;
+  if rows are present, treat as an upstream bug and skip.
 
 ## Worked example (end-to-end)
 

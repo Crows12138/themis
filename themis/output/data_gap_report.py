@@ -215,7 +215,7 @@ def compute_data_gap_report(
     program=None,
     stmt=None,
     structural_result=None,
-    bounds_result=None,
+    bounds_results=(),
     numeric_result=None,
     confidence: float | None = None,
     dispatch=None,
@@ -241,7 +241,7 @@ def compute_data_gap_report(
     must_disclose_gaps.extend(_classify_mediation_assumptions(extensions))
     must_disclose_gaps.extend(_classify_transport_assumptions(extensions))
     must_disclose_gaps.extend(_classify_llm_ambiguities(extensions))
-    must_disclose_gaps.extend(_classify_bounds_not_point(bounds_result))
+    must_disclose_gaps.extend(_classify_bounds_not_point(bounds_results))
     must_disclose_gaps.extend(_classify_low_confidence(confidence))
     must_disclose_gaps.extend(_classify_front_door_assumptions(
         derivation, program=program, stmt=stmt,
@@ -306,10 +306,10 @@ def compute_data_gap_report(
     gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
     gaps.extend(_classify_dose_response_data(program, stmt, derivation))
 
-    gaps = _rewrite_iv_aware_alternatives(gaps, bounds_result)
+    gaps = _rewrite_iv_aware_alternatives(gaps, bounds_results)
     gaps.sort(key=_gap_sort_key)
     answer_tier = _compute_answer_tier(
-        query_kind, gaps, bounds_result, status, numeric_result, stmt,
+        query_kind, gaps, bounds_results, status, numeric_result, stmt,
     )
     if answer_tier is AnswerTier.NONE:
         gaps = _withdraw_interval_offers(gaps, query_kind)
@@ -388,7 +388,7 @@ def _point_is_premise_blocked(stmt) -> bool:
 def _compute_answer_tier(
     query_kind: QueryKind,
     gaps: list[DataGap],
-    bounds_result,
+    bounds_results,
     status: ResultStatus,
     numeric_result=None,
     stmt=None,
@@ -398,7 +398,7 @@ def _compute_answer_tier(
     Two steps. First, is the POINT estimand blocked? — keyed on the
     authoritative "point ID failed" signals, NOT on bounds presence:
     bounds are attached to EVERY needs_investigation binary/discrete
-    effect as an assumption-free floor (scheduler ``_attach_bounds_result``,
+    effect as an assumption-free floor (scheduler ``_attach_bounds_results``,
     Manski always-available), so a point-IDENTIFIED-but-missing-θ effect
     (e.g. clean backdoor) carries Manski bounds too. The real "point
     blocked" signals are:
@@ -411,7 +411,7 @@ def _compute_answer_tier(
 
     Second, when blocked, an interval in hand makes it INTERVAL; otherwise
     (nothing, or a trivial [0, 1]) NONE. An interval can arrive by either
-    of two channels and both count: ``bounds_result``, the effect query's
+    of two channels and both count: ``bounds_results``, the effect query's
     Manski / IV floor, and ``numeric_result.interval``, where a bounded
     counterfactual carries its own Tian-Pearl interval. Reading only the
     first reported "no answer available" for counterfactuals that had a
@@ -454,8 +454,12 @@ def _compute_answer_tier(
     premise_blocked = _point_is_premise_blocked(stmt)
     if not identification_blocked and not premise_blocked:
         return AnswerTier.POINT
-    if bounds_result is not None and not getattr(
-        bounds_result, "width_when_uninformative", False
+    # One informative row is an interval in hand. The bounds channel
+    # reports every method whose assumptions hold, and a vacuous floor
+    # beside a sharp instrument interval is still an interval.
+    if any(
+        not getattr(b, "width_when_uninformative", False)
+        for b in (bounds_results or ())
     ):
         return AnswerTier.INTERVAL
     interval = getattr(numeric_result, "interval", None)
@@ -484,12 +488,12 @@ _FIND_IV_ADVICE = "找一个满足 IV 条件的工具变量"
 
 def _rewrite_iv_aware_alternatives(
     gaps: list[DataGap],
-    bounds_result,
+    bounds_results,
 ) -> list[DataGap]:
     """Instrument-aware repair of the static unidentifiable advice.
 
     When IV bounds were already computed from a declared instrument
-    (``bounds_result.method == balke_pearl_iv``), the boilerplate "go
+    (a ``balke_pearl_iv`` row among ``bounds_results``), the boilerplate "go
     find an instrument satisfying the IV conditions" alternative on an
     ``unidentifiable_no_admissible_set`` gap is self-contradictory — the
     interval that same gap points at LITERALLY came from that instrument.
@@ -498,15 +502,16 @@ def _rewrite_iv_aware_alternatives(
     an extra assumption (monotonicity -> LATE / linearity -> 2SLS). The
     other alternatives (measure the confounder, run an RCT) are untouched.
 
-    Detected purely from ``bounds_result`` — no graph walk, no extension
+    Detected purely from ``bounds_results`` — no graph walk, no extension
     stamping, so it cannot fire a spurious second gap. Real-usage probe,
     2026-06-15.
     """
     from dataclasses import replace
 
-    method = getattr(bounds_result, "method", None)
-    method_value = getattr(method, "value", method)
-    if method_value != "balke_pearl_iv":
+    if not any(
+        getattr(getattr(b, "method", None), "value", None) == "balke_pearl_iv"
+        for b in (bounds_results or ())
+    ):
         return gaps
     out: list[DataGap] = []
     for g in gaps:
@@ -1207,30 +1212,46 @@ def _classify_counterfactual_assumptions(
     )
 
 
-def _classify_bounds_not_point(bounds_result) -> Iterable[DataGap]:
-    """When ``bounds_result`` is non-null the answer is a symbolic
-    interval, not a point estimate. Surfaces both the method-vs-point
-    distinction and the method's specific assumptions (e.g. Balke-Pearl
-    needs IV1/IV2/IV3) — without these the bounds read like a point
-    with confidence intervals."""
-    if bounds_result is None:
+def _classify_bounds_not_point(bounds_results) -> Iterable[DataGap]:
+    """The answer is a symbolic interval rather than a point estimate —
+    and it is a set of them, one per method whose assumptions this program
+    supports. Surfaces the method-vs-point distinction and, per row, what
+    that row rests on; without the assumptions the bounds read like a
+    point with confidence intervals.
+
+    One gap naming every row, not one gap per row. They are readings of a
+    single answer — the same estimand under different premises — and a gap
+    apiece would present them as several separate shortfalls.
+    """
+    rows = tuple(bounds_results or ())
+    if not rows:
         return
-    method = getattr(bounds_result, "method", None)
-    # ``.value`` when it is an enum member, the thing itself otherwise.
-    method_name = str(getattr(method, "value", method))
-    uninformative = getattr(bounds_result, "width_when_uninformative", False)
-    assumptions = getattr(bounds_result, "assumptions", ()) or ()
-    pieces: list[str] = [
-        f"答案是 `{method_name}` 给出的符号区间，不是点估计"
-    ]
-    if uninformative:
-        pieces.append("（且区间为非信息性 [0,1] / [-1,1]，无实际辨别力）")
-    pieces.append("。渲染时必须明示这是 bounds 而非具体数值")
-    if assumptions:
-        pieces.append(
-            f"。区间的有效性以以下假设为前提：{', '.join(assumptions)}"
+    per_row: list[str] = []
+    for b in rows:
+        method = getattr(b, "method", None)
+        # ``.value`` when it is an enum member, the thing itself otherwise.
+        method_name = str(getattr(method, "value", method))
+        assumptions = getattr(b, "assumptions", ()) or ()
+        rests_on = (
+            f"假设 {', '.join(assumptions)}" if assumptions else "无假设"
         )
-    pieces.append("。")
+        piece = f"`{method_name}`（{rests_on}）"
+        if getattr(b, "width_when_uninformative", False):
+            piece += "，且区间为非信息性 [0,1] / [-1,1]，无实际辨别力"
+        per_row.append(piece)
+    pieces: list[str] = [
+        "答案是符号区间，不是点估计。渲染时必须明示这是 bounds 而非具体数值。"
+    ]
+    if len(per_row) == 1:
+        pieces.append(f"区间来自 {per_row[0]}。")
+    else:
+        pieces.append(
+            f"共 {len(per_row)} 条，界定的是同一个量，各自靠不同的假设："
+            f"{'；'.join(per_row)}。"
+            "读者按自己接受哪组假设来选，**不要取交**：两条都成立时交集确实"
+            "含真值，但它不是二者合取下的锐界（那要数值端在响应型多面体上"
+            "另解一次），而一个不带标签的区间会把各自靠什么抹掉。"
+        )
     yield DataGap(
         kind=GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE,
         severity=GapSeverity.INFORMATIONAL,
@@ -1239,7 +1260,7 @@ def _classify_bounds_not_point(bounds_result) -> Iterable[DataGap]:
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id="bounds_result",
+                ref_id="bounds_results",
             ),
         ),
     )
@@ -2035,7 +2056,7 @@ def _species_missing_distribution(
     if offer is not None:
         # A magic token that scheduler._reconcile_alt_paths_with_bounds
         # rewrites to whichever procedure produced the actual
-        # bounds_result, and strips when the attempt returned nothing.
+        # bounds_results, and strips when the attempt returned nothing.
         alt_paths = (offer,)
     else:
         # No interval channel for this question, so "accept bounds

@@ -198,7 +198,7 @@ NOT_ON_THE_ENVELOPE: dict[str, str] = {
         "TABLE, not about any one result: the envelope says which method ran "
         "and what it produced, and a reader who wants the estimand reads the "
         "method. Only ``arm_probability`` reaches the envelope, as "
-        "bounds_result.estimand, which is a one-member enum with its own "
+        "bounds_results[].estimand, which is a one-member enum with its own "
         "anchor in the browser pin."
     ),
     "themis.estimation.strategy.Role": (

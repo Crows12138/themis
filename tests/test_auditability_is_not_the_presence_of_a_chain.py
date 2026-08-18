@@ -179,8 +179,8 @@ def _tamper_point(result: dict) -> dict:
 
 def _tamper_bounds(result: dict) -> dict:
     out = copy.deepcopy(result)
-    out["bounds_result"]["lower_value"] = \
-        float(out["bounds_result"]["lower_value"]) - 0.21
+    b = row(out, "manski_natural")
+    b["lower_value"] = float(b["lower_value"]) - 0.21
     return out
 
 
@@ -188,6 +188,8 @@ def _tamper_bounds(result: dict) -> dict:
 
 ANSWER_ROWS = tuple(row.name for row in AUDITS if row.re_derives_answer)
 
+
+from tests.bounds_rows import methods, row
 
 def test_the_premise_the_shapes_below_rest_on(backdoor, bounds, recovered,
                                               selection_recovered):
@@ -244,7 +246,7 @@ def test_a_row_that_audits_something_beside_the_answer_says_so():
     envelope_rows = [r for r in AUDITS if r.artifact is Artifact.QUERY_RESULT]
     claiming = {r.name for r in envelope_rows if r.re_derives_answer}
     assert claiming == {
-        "verify", "verify_bounds_result",
+        "verify", "verify_bounds_results",
         "verify_selection_recovery_numeric", "verify_missing_data_numeric",
     }
     assert len(envelope_rows) - len(claiming) == 4
@@ -254,7 +256,7 @@ def test_a_row_that_audits_something_beside_the_answer_says_so():
 
 @pytest.mark.parametrize("fixture,auditor", [
     ("backdoor", "verify"),
-    ("bounds", "verify_bounds_result"),
+    ("bounds", "verify_bounds_results"),
     ("recovered", "verify_missing_data_numeric"),
     ("selection_recovered", "verify_selection_recovery_numeric"),
 ])
@@ -274,7 +276,7 @@ def test_a_result_that_reached_no_answer_still_says_so(no_answer):
     claims re-derivability would pass every test above and be worthless."""
     program, result = no_answer
     assert not result.get("numeric_estimate")
-    assert not result.get("bounds_result")
+    assert not result.get("bounds_results")
     assert not any(row.re_derives_answer for row in applicable(result))
 
     md = build_analysis_report(result, program=program)

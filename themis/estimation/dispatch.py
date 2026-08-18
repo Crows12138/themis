@@ -296,9 +296,9 @@ def _estimate_program(
     )
 
     # Numeric end for the partial-identification layer: when point ID failed
-    # and the kernel attached a SYMBOLIC bounds_result, evaluate it on data.
+    # and the kernel attached SYMBOLIC bounds_results, evaluate them on data.
     # Runs after the point-estimate loop so it only ever ADDS numeric fields
-    # to an already-symbolic bounds_result — never competes with a point.
+    # to already-symbolic bounds_results — never competes with a point.
     _attach_numeric_bounds(
         program, identification_output, contract,
         random_state=random_state, ci_bootstrap=ci_bootstrap, cluster=cluster,
@@ -1344,22 +1344,22 @@ def _attach_numeric_bounds(
     ci_bootstrap: int,
     cluster: str | None = None,
 ) -> None:
-    """Evaluate a symbolic ``bounds_result`` on data — the numeric end of the
+    """Evaluate every symbolic row of ``bounds_results`` on data — the numeric end of the
     partial-identification layer.
 
     When point identification failed, the kernel attached a SYMBOLIC
-    ``bounds_result`` (``lower_expression`` / ``upper_expression`` strings).
+    ``bounds_results`` (``lower_expression`` / ``upper_expression`` strings).
     This turns those symbols into an actual ``[lower_value, upper_value]``
     (+ percentile-bootstrap outer-band CI) using the estimator that matches
     the method the kernel already chose — so the numeric interval and the
     symbolic one describe the SAME method, never a different one.
 
-    Purely additive: the symbolic bounds_result is preserved; only numeric
+    Purely additive: each symbolic row is preserved; only numeric
     fields are ADDED. Any refusal — a column absent from the data, a
     response-function partition larger than the LP is run at, a positivity
     failure, or an instrument the data refutes (the instrumental inequality)
     — leaves the symbolic interval untouched. Mirrors the ``method`` selection
-    the kernel made in ``scheduler._attach_bounds_result`` (reuses the SAME
+    the kernel made in ``scheduler._attach_bounds_results`` (reuses the SAME
     instrument / monotonicity detectors), so numeric and symbolic never
     disagree on which method applies.
     """
@@ -1383,59 +1383,64 @@ def _attach_numeric_bounds(
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None:
             continue
-        bounds = result.get("bounds_result")
-        if not isinstance(bounds, dict):
-            continue
-        if bounds.get("lower_value") is not None:
-            continue  # idempotent: already evaluated
         query = q_stmt.query
-        method = bounds.get("method")
         x_pred = query.intervention.atom.predicate
         y_pred = query.target.atom.predicate
-        try:
-            if method == "manski_natural":
-                nb = evaluate_manski_natural_bounds(
-                    contract.data, treatment=x_pred, outcome=y_pred,
-                    treatment_value=query.intervention.value,
-                    outcome_value=query.target.value,
-                    ci_bootstrap=ci_bootstrap, random_state=random_state,
-                    cluster=cluster_ok,
-                )
-            elif method == "manski_tamer_monotonicity":
-                mono = _detect_monotonicity_for_query(prog, query)
-                if mono is None:
-                    continue
-                nb = evaluate_manski_tamer_bounds(
-                    contract.data, treatment=x_pred, outcome=y_pred,
-                    monotonicity=mono.value,
-                    treatment_value=query.intervention.value,
-                    outcome_value=query.target.value,
-                    ci_bootstrap=ci_bootstrap, random_state=random_state,
-                    cluster=cluster_ok,
-                )
-            elif method == "balke_pearl_iv":
-                iv_ext = (result.get("extensions") or {}).get(blocks.IV_IDENTIFICATION)
-                instrument = None
-                if isinstance(iv_ext, dict):
-                    instrument = iv_ext.get("instrument")
-                if instrument is None:
-                    instrument = _detect_iv_candidate_structural(prog, query)
-                if instrument is None:
-                    continue
-                nb = evaluate_balke_pearl_bounds(
-                    contract.data, treatment=x_pred, outcome=y_pred,
-                    instrument=instrument,
-                    treatment_value=query.intervention.value,
-                    outcome_value=query.target.value,
-                    ci_bootstrap=ci_bootstrap, random_state=random_state,
-                    cluster=cluster_ok,
-                )
-            else:
+        # Every row is evaluated. They are different methods on the same
+        # estimand, so one number cannot stand for the others, and a row
+        # whose estimator refuses leaves the rest — and its own symbolic
+        # interval — untouched.
+        for bounds in result.get("bounds_results") or ():
+            if not isinstance(bounds, dict):
                 continue
-        except EstimatorFailure:
-            # Honest refusal — the symbolic interval still stands.
-            continue
-        _fill_numeric_bounds(bounds, nb)
+            if bounds.get("lower_value") is not None:
+                continue  # idempotent: already evaluated
+            method = bounds.get("method")
+            try:
+                if method == "manski_natural":
+                    nb = evaluate_manski_natural_bounds(
+                        contract.data, treatment=x_pred, outcome=y_pred,
+                        treatment_value=query.intervention.value,
+                        outcome_value=query.target.value,
+                        ci_bootstrap=ci_bootstrap, random_state=random_state,
+                        cluster=cluster_ok,
+                    )
+                elif method == "manski_tamer_monotonicity":
+                    mono = _detect_monotonicity_for_query(prog, query)
+                    if mono is None:
+                        continue
+                    nb = evaluate_manski_tamer_bounds(
+                        contract.data, treatment=x_pred, outcome=y_pred,
+                        monotonicity=mono.value,
+                        treatment_value=query.intervention.value,
+                        outcome_value=query.target.value,
+                        ci_bootstrap=ci_bootstrap, random_state=random_state,
+                        cluster=cluster_ok,
+                    )
+                elif method == "balke_pearl_iv":
+                    iv_ext = (result.get("extensions") or {}).get(
+                        blocks.IV_IDENTIFICATION)
+                    instrument = None
+                    if isinstance(iv_ext, dict):
+                        instrument = iv_ext.get("instrument")
+                    if instrument is None:
+                        instrument = _detect_iv_candidate_structural(prog, query)
+                    if instrument is None:
+                        continue
+                    nb = evaluate_balke_pearl_bounds(
+                        contract.data, treatment=x_pred, outcome=y_pred,
+                        instrument=instrument,
+                        treatment_value=query.intervention.value,
+                        outcome_value=query.target.value,
+                        ci_bootstrap=ci_bootstrap, random_state=random_state,
+                        cluster=cluster_ok,
+                    )
+                else:
+                    continue
+            except EstimatorFailure:
+                # Honest refusal — the symbolic interval still stands.
+                continue
+            _fill_numeric_bounds(bounds, nb)
 
 
 def _fill_numeric_bounds(bounds: dict, nb) -> None:
@@ -2281,7 +2286,7 @@ def _estimate_causation_queries(
 
     Purely additive: without monotonicity, or on any estimator refusal, the
     structural (bounds / needs-experiment) answer is left untouched — the
-    data-based bounds overlay is a follow-up on the bounds_result channel."""
+    data-based bounds overlay is a follow-up on the bounds_results channel."""
     from ..input.semantic_validator import validate_program
     from ..input.syntactic_validator import validate_ast
     from ..runtime.graph_projection import project

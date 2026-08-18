@@ -296,7 +296,7 @@ _KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
     # annotations.source.
     "unverified_proposal_edge_on_query_path": frozenset({"verifier_check"}),
     # Must-disclose caveat kinds — provenance points at the result-side
-    # extension or bounds_result the caveat is derived from.
+    # extension or bounds_results the caveat is derived from.
     "iv_identification_assumption_required": frozenset({"verifier_check"}),
     "mediation_identification_assumption_required": frozenset(
         {"verifier_check"}

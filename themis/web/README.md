@@ -67,7 +67,7 @@ paths work in the production build.
 | `POST /api/estimate` | `{program, rows}` | run envelope with `numeric_estimate` |
 | `POST /api/audit` | `{program, result}` | `{audits: [{audit, zh, ok, refusal}]}` — every re-check that applies to this artifact, one row each. This is the browser's re-check surface |
 | `POST /api/verify` | `{program, result}` | `{ok}` (result must carry a derivation) — subsumed by `/api/audit`; `app.py`'s `COVERED_BY` says so |
-| `POST /api/verify_bounds_result` | `{program, result}` | `{ok}` (bounds-only audit) — likewise |
+| `POST /api/verify_bounds_results` | `{program, result}` | `{ok}` (bounds-only audit) — likewise |
 | `POST /api/ask` | `{nl, api_key?}` | `{nl, kernel_ast, envelope, reply}` |
 | `GET /api/examples` | — | `[{name, nl_input, program}]` |
 

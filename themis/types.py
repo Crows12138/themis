@@ -1573,7 +1573,11 @@ class QueryResult:
     explanation: str | None = None
     extensions: dict | None = None
     data_gap_report: DataGapReport | None = None
-    bounds_result: "BoundsResult | None" = None  # Phase 12 — symbolic bounds
+    # Phase 12 — symbolic bounds. A SET, because the methods here bound the
+    # same estimand under assumption sets that do not contain one another,
+    # and a slot holding one of them holds whichever ran first. See
+    # ``_attach_bounds_results``.
+    bounds_results: "tuple[BoundsResult, ...]" = ()
     # Why no number came out. The result schema has carried this at the
     # top level all along; this type did not, so identification — which
     # returns a result rather than raising for dispatch to catch — had

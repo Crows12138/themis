@@ -61,7 +61,7 @@ pip install -e .              # 装核心依赖 + 注册 themis-mcp 命令
 
 - 什么 NL 形式应该 reach for Themis
 - 怎么从 NL 构造 `kernel_ast` JSON（先 list_resources 拿 schema 再写）
-- 怎么读 `themis_run` 返回的 envelope（`investigation_requests` / `data_gap_report` / `bounds_result` / numeric)
+- 怎么读 `themis_run` 返回的 envelope（`investigation_requests` / `data_gap_report` / `bounds_results` / numeric)
 - 红线（不编效应量、不替 kernel 宣称 identifiable、`themis_verify` 只在 numeric_solved 时调）
 
 把这份 prompt 作为 agent system prompt（或拼进现有 system prompt）。
@@ -160,6 +160,8 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 纪律只到达了那个唯一可枚举的面（2026-08-12，dsh 借鉴，#362）：一个封闭词表写在一处、被重述到每个要读它的面（schema / prompt / 参考表）。浏览器那一面守得很好——锚在 kernel 一侧，且强制 `verdict.ts` 里每张表自报是不是词表；**其余的面靠三十来条 pin，每一条都是某次漂移已经发货之后才补的**。根因不是忘了推广：浏览器那条能成立是因为 `verdict.ts` 把表声明成 `const NAME: Record<...>`——**有一个集合可供 partition**；prompt 是散文，没有声明单位，形状搬不过去。**分界线正好落在「这个面还能不能被枚举」上。**修法是把枚举的一侧翻过来：25 个封闭词表各说出它到达哪些读者，21 个锚在 schema 的 enum 站点上逐字相等（用**具名站点的相等**而不是「在并集里」，因为 schema 承认而 kernel 从不发出的取值读起来像「有人处理过」；用**一组站点**而不是一个，因为单格能声明的许可不等于 causation 块能声明的——那正是 #336），4 个写下「为什么没有 schema 说它」。partition 逼出那 4 个从没表态的。**它还照出手写义务值多少**：钉 `gap_to_action.md` 的那条 pin 手列 4 个估计器时段 kind，而那组有 6 个，**漏的两个恰好就是 prompt 里没有的两个**——清单是照着prompt 已写的抄的，**它拿 prompt 验 prompt**。那一组现在被声明出来，prompt 也补齐。同时把上一档的散文门禁从 `.py` 扩到 prompt 与现状文档（**排除项连同理由写在模块里**），又抓到 16 处序号和**一整个搬走的目录**（15 处 `docs/prompts/`，其中两处在告诉读者 web bridge 加载哪个文件）
 
+- 一个装得下任意一个的槽位只装得下一个（2026-08-18，#358）：bounds 那趟 pass 是一条 if 链，返回**第一个开火的方法**。登记的现象（工具变量与调用方声明的单调性抢一个槽位、赢家由行号决定）**量下来零实例**；而同一个病灶的另一面 **3/3 全中**——36 条带 bounds 的结果里 3 条报 Balke-Pearl，这 3 条的无假设 Manski 地板同样适用、同样被 `if bounds is None` 吞掉，**而那趟 pass 自己的注释写的就是「the assumption-free floor」**。**根因不是谁排在前面，是这一层的输出本来就是一个集合**：三个方法 estimand 全是 `arm_probability`（同一个量），靠的是互不包含的假设集，而本仓的排序原则「无假设压过带假设」管的是**估计量变了**不是「谁更紧」——估计量相同它拒绝排序。改法：`bounds_result` → **`bounds_results` 元组**（连名字一起改，让 495 处引用逐一被逼着访问），producer 收集所有适用的方法，顺序降级为呈现顺序并明说**不该建 precedence 表**（表会重新暗示不存在的排序）。**不求交**并把这句话印给读者：交集含真值但不是合取下的锐界，且会抹掉各自靠什么。修后无假设地板 **36/36 在场**（此前 33/36）
+
 - 表能说出谁赢，说不出谁输了（2026-08-18，#364）：同时点名 mediator 与 target_population 的查询被两条路线认领，dispatcher 在第一条就 `return`，**被夺走那条的 guard 真值从来没被计算过**；披露只好在下游读「哪个 extension 非空」倒推。**根因不在分类器，在路由表**——它能表达谁赢（precedence）也能表达谁可以把查询交给别人（defers_to），却表达不了**「两条 guard 可以同时为真，而赢家答的是另一个问题」**。三个推论都成立：形状档两两可同真的组合枚举出来有 **10 对而只有 1 对有披露**；其中两条的作用域**只写在字段 docstring 里**（散文，不是约束）；估计层 `considered` 自称解释可达性，却装不下「排在赢家之下、guard 为真、从未被问」。修法是给 `Route` 加`triggered_by` 与 `displaces`，两层共用 `displaced_by` 且**只求值被声明的那几条guard**，记录进 `QueryResult.dispatch`，分类器只读记录。不可表达做不到的那一半用闸口补：**形状档可枚举**，用一个「除 query 外一律抛异常」的桩让**每条路线的guard 自己分类**，穷举 2⁵ 个声明组合——未声明的同真对当场红。10 对现已全覆盖
 
 - 图撤销的是「丢掉非父节点」的许可，不是分解本身（2026-08-18，#359）：同一张 bow+IV 图、同一份 θ（八个数一个不缺），`effect` 查询印着「计算只需要观察到的 P(y,x|z)」——**把手上已有的东西列成了还需要提供的数据**；反事实单格则跟它要一个边缘化一次就能得到的 P(x)。**根因不是求解器放在哪一层**：联合恢复只认「图上父集」这一种条件集，而**排他性恰好使 Z 不是 Y 的父节点**，于是在多面体唯一适用的那张图上，运行时永远问不出带 z 的那个 key。链式法则在拓扑序上对任何分布都成立，图给的只是**丢掉非父节点的许可**——双向边撤销的是这个许可，剩下的是**项更多的同一个分解**，所以条件集放宽到拓扑前缀。登记时的前置度量（有没有程序真会声明带 z 的联合）测到 0，但**这个 0 是供给侧的**：一个没有消费者的输入不会有实例。接上单格门之后 **#321 刚消掉的跨门不对称立刻重现**（单格答、causation 拒），所以两扇门一起接、差异（问哪几个泛函）作回调传入，并把点了定理的规则名改成中性的 `causation_probability_bounds`。顺带：两份恢复级联并成一份、工具变量探测器的结构半边并成一份、LP 内核搬到 `themis/response_polytope.py`（两端都向下 import）；θ 端因为**有 theta 这个第二来源**，能做数据端做不到的审计——逐层重导 P(X,Y|Z) 比对，分层标签由此可审计
@@ -172,7 +174,7 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 条件工具变量接上 theta 端（2026-07-25）：`iv_sets` 一直会返回**条件**（Brito-Pearl）工具变量——Z 只有在 W 被固定之后才是工具——identify 路径一直照实报，DataFrame 路径也一直用 2SLS 吃 W；只有 theta 端一见条件集就 `return None`。于是同一张图，identify 说「可识别，用 z 在 w 之下」，effect 带着完整 theta 回「backdoor / front-door / Tian ID 都到不了」，只字不提工具变量。补上**分层 Wald**：W=∅ 是同一套算术的单层退化（边际答案逐字节不变），层权按链式法则展开；聚合是**比值的平均而非平均的比值**——每层按它自己的 complier 份额加权（那正是分母项，Abadie 2003），得到的才是 complier 平均因果效应，把各层 LATE 按 P(w) 平均是另一个估计量，测试把两个数都算出来钉住。`treatment_shift` 顺带成为报出来的 complier 份额。第二半是说清**为什么给不出数**：`None` 不携带信息，于是「没声明 monotonicity」「theta 少一格」「一阶段退化」全塌成「这图没救」；现在各自点名，并排追加在结构项旁边——**「有可用的 IV 逃生通道」不等于「可识别」**，顶替掉结构项会让区间答案被当成点识别（第一版正是这么写的，被回归抓住）。验证器不复读：就地重验 (Z,W) 真是工具（抓「算了边际 Wald 却把 W 记成 ∅」）、从 theta 的域重新枚举层（抓少记一层）、按比值的平均重算聚合。取舍：处理与工具须二值·条件**查询**仍归 IDC·theta 查表不走边缘化回退。D1：16 条新测试全部先在改前代码上跑成红的；前提先证后证结论；四类篡改各因该抓的原因被拒。+16 测试
 
-当前全量测试基线：**4660 passed / 144 skipped**，warning-clean。
+当前全量测试基线：**4671 passed / 144 skipped**，warning-clean。
 
 ---
 
@@ -226,7 +228,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：4660 passed / 144 skipped（2026-08-12）
+- **测试套件**：4671 passed / 144 skipped（2026-08-12）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

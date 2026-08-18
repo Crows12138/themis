@@ -2,7 +2,7 @@
 
 Exposes Themis' eight public JSON-in/JSON-out entry points as MCP tools
 (``themis_run`` / ``themis_apply_patch_and_run`` / ``themis_verify`` /
-``themis_verify_data_gap_report`` / ``themis_verify_bounds_result`` /
+``themis_verify_data_gap_report`` / ``themis_verify_bounds_results`` /
 ``themis_estimate`` / ``themis_discover`` / ``themis_list_resources``)
 and twelve prompt / schema files as MCP resources, so any MCP-capable
 LLM client (Claude Code, Claude Desktop, etc.) can drive the kernel

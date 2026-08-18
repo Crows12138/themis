@@ -1,7 +1,7 @@
-"""The /api/verify_bounds_result web endpoint.
+"""The /api/verify_bounds_results web endpoint.
 
-Web parallel of the MCP themis_verify_bounds_result tool.
-Wraps themis.verify_bounds_result so paste-JSON UI users can audit
+Web parallel of the MCP themis_verify_bounds_results tool.
+Wraps themis.verify_bounds_results so paste-JSON UI users can audit
 MTR / Manski-natural / Balke-Pearl IV bounds without going through
 the derivation-required /api/verify path.
 """
@@ -18,6 +18,8 @@ from themis.web.app import app
 
 client = TestClient(app)
 
+
+from tests.bounds_rows import methods, row
 
 def _confounded_program():
     """Hidden u → x and u → y, plus x → y. Backdoor identification
@@ -101,10 +103,10 @@ def test_endpoint_accepts_clean_manski_natural():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result["bounds_result"]["method"] == "manski_natural"
+    assert methods(result) == ["manski_natural"]
 
     r = client.post(
-        "/api/verify_bounds_result",
+        "/api/verify_bounds_results",
         json={"program": program, "result": result},
     )
     assert r.status_code == 200
@@ -115,10 +117,10 @@ def test_endpoint_accepts_clean_mtr():
     program = _mtr_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result["bounds_result"]["method"] == "manski_tamer_monotonicity"
+    assert "manski_tamer_monotonicity" in methods(result)
 
     r = client.post(
-        "/api/verify_bounds_result",
+        "/api/verify_bounds_results",
         json={"program": program, "result": result},
     )
     assert r.status_code == 200
@@ -163,10 +165,10 @@ def test_endpoint_accepts_clean_balke_pearl_iv():
     }
     out = themis.run(program)
     result = out["results"][0]
-    assert result["bounds_result"]["method"] == "balke_pearl_iv"
+    assert "balke_pearl_iv" in methods(result)
 
     r = client.post(
-        "/api/verify_bounds_result",
+        "/api/verify_bounds_results",
         json={"program": program, "result": result},
     )
     assert r.status_code == 200
@@ -182,10 +184,10 @@ def test_endpoint_rejects_tampered_manski_natural_bounds():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "P(y=false)"  # tamper
+    row(result, "manski_natural")["lower_expression"] = "P(y=false)"  # tamper
 
     r = client.post(
-        "/api/verify_bounds_result",
+        "/api/verify_bounds_results",
         json={"program": program, "result": result},
     )
     assert r.status_code == 400
@@ -195,7 +197,7 @@ def test_endpoint_rejects_tampered_manski_natural_bounds():
     assert "lower_expression mismatch" in body["message"]
 
 
-def test_endpoint_rejects_result_without_bounds_result():
+def test_endpoint_rejects_result_without_bounds_results():
     program = _confounded_program()
     bare_result = {
         "status": "structurally_solved",
@@ -204,11 +206,11 @@ def test_endpoint_rejects_result_without_bounds_result():
         "structural_result": {"value": True},
     }
     r = client.post(
-        "/api/verify_bounds_result",
+        "/api/verify_bounds_results",
         json={"program": program, "result": bare_result},
     )
     assert r.status_code == 400
     body = r.json()
     assert body["ok"] is False
     assert body["error"] == "ValueError"
-    assert "requires result.bounds_result" in body["message"]
+    assert "requires result.bounds_results" in body["message"]

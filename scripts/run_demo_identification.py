@@ -321,7 +321,9 @@ def run_case(case: DemoCase) -> CaseReport:
             f"effect missing expected gap kinds: {sorted(missing_gaps)}"
         )
 
-    bounds = effect.get("bounds_result")
+    rows = effect.get("bounds_results") or []
+    bounds = next(
+        (b for b in rows if b.get("method") == "manski_natural"), None)
     if bounds is None:
         failures.append("effect query produced no Manski fallback bounds")
 
@@ -334,7 +336,7 @@ def run_case(case: DemoCase) -> CaseReport:
         "effect_status": effect["status"],
         "effect_gap_kinds": sorted(effect_gaps),
         "missing_distribution": _missing_distribution(effect),
-        "bounds_method": (bounds or {}).get("method"),
+        "bounds_methods": [b.get("method") for b in rows],
         "bounds_interval": (
             f'[{(bounds or {}).get("lower_expression")}, '
             f'{(bounds or {}).get("upper_expression")}]'

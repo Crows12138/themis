@@ -58,7 +58,7 @@ Any question matching:
    - `investigation_requests` (`define_variable` / `validate_parameter`) → translate these into natural follow-up questions for the user.
    - `data_gap_report` → repeat each specific `GapKind` verbatim to the user — don't paraphrase to be "nicer". Names like `selection_on_collider_opens_path`, `ill_defined_intervention_versions`, `measurement_error_concern` are anchored to authoritative papers (Hernán 2004, Hernán-Taubman 2008, MacMahon 1990) — your job is to surface them, not soften them.
    - `numeric_solved: true` result → cite the `derivation` chain (not just the number).
-   - `bounds_result` → quote the interval expression honestly; don't pretend you have a point estimate.
+   - `bounds_results` → quote every row's interval AND what it assumes; don't pretend you have a point estimate, and don't merge the rows into one.
 
 5. **Mirror the kernel's verdict in your final answer**. If the kernel said "not identifiable", you say "not identifiable" — never substitute a plausible-sounding fabrication. If it said "needs P(target | intervention, confounders) — not provided", you say exactly that and ask the user to supply it or accept the bounds.
 

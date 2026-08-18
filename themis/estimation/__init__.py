@@ -275,7 +275,7 @@ Landed scope:
   published binary closed form and the Vitamin-A worked example
   −0.1946/0.0054, which the ``contrast`` field still reports). Reached
   through ``themis.estimate``, which fills ``lower_value`` / ``upper_value``
-  / a bootstrap outer-band CI into the ``bounds_result`` the kernel already
+  / a bootstrap outer-band CI into the ``bounds_results`` the kernel already
   attached — always the SAME method the kernel named. Refuses (leaving the
   symbolic interval intact) on a positivity failure, a response-function
   partition beyond the LP's declared size, or a table the instrument

@@ -1,7 +1,7 @@
 """Dispatch + verifier integration for the bounds numeric end.
 
 themis.estimate turns the kernel's symbolic bounds_result into actual
-numbers (same method the kernel chose), and themis.verify_bounds_result
+numbers (same method the kernel chose), and themis.verify_bounds_results
 audits them. Tamper cases confirm the audit has teeth.
 """
 from __future__ import annotations
@@ -13,10 +13,12 @@ import pandas as pd
 import pytest
 
 import themis
-from themis import verify_bounds_result
+from themis import verify_bounds_results
 from themis.input.syntactic_validator import SyntacticError, validate_result
 from themis.verifier.errors import VerificationError
 
+
+from tests.bounds_rows import methods, row
 
 def _atom(p):
     return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
@@ -140,8 +142,7 @@ def test_iv_graph_fills_balke_pearl_numeric():
     still are.
     """
     env = themis.estimate(_iv_program(), _iv_data(), ci_bootstrap=50)
-    b = env["results"][0]["bounds_result"]
-    assert b["method"] == "balke_pearl_iv"
+    b = row(env["results"][0], "balke_pearl_iv")
     assert b["estimand"] == "arm_probability"
     assert b["instrument"] == "z"
     assert 0.0 <= b["lower_value"] <= b["upper_value"] <= 1.0
@@ -154,8 +155,7 @@ def test_iv_graph_fills_balke_pearl_numeric():
 
 def test_bow_arc_fills_manski_numeric():
     env = themis.estimate(_bow_program(), _confounded_data(), ci_bootstrap=50)
-    b = env["results"][0]["bounds_result"]
-    assert b["method"] == "manski_natural"
+    b = row(env["results"][0], "manski_natural")
     assert b["estimand"] == "arm_probability"
     assert b.get("instrument") is None
     assert 0.0 <= b["lower_value"] <= b["upper_value"] <= 1.0
@@ -167,8 +167,7 @@ def test_multivalued_treatment_fills_manski_numeric():
     prog = _multivalued_bow_program(2)
     df = _multivalued_confounded_data()
     env = themis.estimate(prog, df, ci_bootstrap=50)
-    b = env["results"][0]["bounds_result"]
-    assert b["method"] == "manski_natural"
+    b = row(env["results"][0], "manski_natural")
     assert b["estimand"] == "arm_probability"
     # off-arm mass pooled over all levels != 2, matching P(x != 2) exactly.
     n = len(df)
@@ -184,7 +183,7 @@ def test_multivalued_treatment_fills_manski_numeric():
 def test_multivalued_bounds_verify_round_trip():
     prog = _multivalued_bow_program(2)
     env = themis.estimate(prog, _multivalued_confounded_data(), ci_bootstrap=0)
-    verify_bounds_result(prog, env["results"][0])  # accepts honest
+    verify_bounds_results(prog, env["results"][0])  # accepts honest
 
 
 def test_multivalued_verify_rejects_fabricated_off_arm_count():
@@ -193,28 +192,30 @@ def test_multivalued_verify_rejects_fabricated_off_arm_count():
     prog = _multivalued_bow_program(2)
     env = themis.estimate(prog, _multivalued_confounded_data(), ci_bootstrap=0)
     res = copy.deepcopy(env["results"][0])
-    ss = res["bounds_result"]["sufficient_statistics"]
+    ss = row(res, "manski_natural")["sufficient_statistics"]
     ss["n_other_arm"] = ss["n_other_arm"] - 500  # shrink pooled off-arm mass
     with pytest.raises(VerificationError, match="does not match"):
-        verify_bounds_result(prog, res)
+        verify_bounds_results(prog, res)
 
 
 def test_multivalued_symbolic_only_verify_when_no_data():
     prog = _multivalued_bow_program(2)
     res = themis.run(prog)["results"][0]
-    assert res["bounds_result"]["method"] == "manski_natural"
-    assert res["bounds_result"].get("lower_value") is None
-    verify_bounds_result(prog, res)  # symbolic-only still accepts
+    assert methods(res) == ["manski_natural"]
+    assert row(res, "manski_natural").get("lower_value") is None
+    verify_bounds_results(prog, res)  # symbolic-only still accepts
 
 
 def test_mtr_program_fills_manski_tamer_numeric():
     ext = {"monotonicity": {"target": "y", "treatment": "x",
                             "direction": "non_decreasing"}}
     env = themis.estimate(_bow_program(ext), _confounded_data(), ci_bootstrap=50)
-    b = env["results"][0]["bounds_result"]
-    assert b["method"] == "manski_tamer_monotonicity"
+    b = row(env["results"][0], "manski_tamer_monotonicity")
     assert b["estimand"] == "arm_probability"
     assert b["lower_value"] is not None
+    # The floor is evaluated too — every row is a method of its own, and
+    # one row's number cannot stand for another's.
+    assert row(env["results"][0], "manski_natural")["lower_value"] is not None
 
 
 # =============================================================== schema + verify
@@ -226,15 +227,15 @@ def test_numeric_bounds_pass_schema():
 def test_verify_bounds_round_trip():
     prog = _iv_program()
     env = themis.estimate(prog, _iv_data(), ci_bootstrap=0)
-    verify_bounds_result(prog, env["results"][0])  # accepts honest bounds
+    verify_bounds_results(prog, env["results"][0])  # accepts honest bounds
 
 
 def test_symbolic_only_bounds_verify_when_no_data():
     # themis.run (no data) → symbolic-only bounds; numeric audit is skipped.
     prog = _iv_program()
     res = themis.run(prog)["results"][0]
-    assert res["bounds_result"].get("lower_value") is None
-    verify_bounds_result(prog, res)  # must still accept
+    assert row(res, "balke_pearl_iv").get("lower_value") is None
+    verify_bounds_results(prog, res)  # must still accept
 
 
 def test_point_identified_query_keeps_point_estimate():
@@ -245,16 +246,16 @@ def test_point_identified_query_keeps_point_estimate():
     env = themis.estimate(_identified_program(), _confounded_data(), ci_bootstrap=0)
     res = env["results"][0]
     assert res.get("numeric_estimate") is not None
-    b = res.get("bounds_result")
-    if b is not None and b.get("lower_value") is not None:
-        assert b["estimand"] == "arm_probability"
+    for b in res.get("bounds_results") or ():
+        if b.get("lower_value") is not None:
+            assert b["estimand"] == "arm_probability"
 
 
 def test_iv_point_estimate_and_bounds_coexist():
     # IV graph: an IV point estimate AND assumption-free Balke-Pearl bounds.
     env = themis.estimate(_iv_program(), _iv_data(), ci_bootstrap=0)
     res = env["results"][0]
-    assert res["bounds_result"]["lower_value"] is not None
+    assert row(res, "balke_pearl_iv")["lower_value"] is not None
     # dispatch also produced an IV point estimate on this shape
     ne = res.get("numeric_estimate")
     assert ne is not None and "iv" in ne["method"]
@@ -265,7 +266,7 @@ def _tampered(mutate):
     prog = _iv_program()
     env = themis.estimate(prog, _iv_data(), ci_bootstrap=30)
     res = copy.deepcopy(env["results"][0])
-    mutate(res["bounds_result"])
+    mutate(row(res, "balke_pearl_iv"))
     return prog, res
 
 
@@ -279,7 +280,7 @@ def _tampered(mutate):
 def test_verify_rejects_tampered_numeric_bounds(mutate, label):
     prog, res = _tampered(mutate)
     with pytest.raises(VerificationError):
-        verify_bounds_result(prog, res)
+        verify_bounds_results(prog, res)
 
 
 def test_an_estimand_this_method_does_not_bound_dies_at_the_schema():
@@ -292,5 +293,5 @@ def test_an_estimand_this_method_does_not_bound_dies_at_the_schema():
     caller, which does not go through the exit.
     """
     prog, res = _tampered(lambda d: d.__setitem__("estimand", "ace"))
-    with pytest.raises(SyntacticError, match="bounds_result"):
-        verify_bounds_result(prog, res)
+    with pytest.raises(SyntacticError, match="bounds_results"):
+        verify_bounds_results(prog, res)

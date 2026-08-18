@@ -38,7 +38,7 @@ def test_server_constructs_with_expected_tools(app):
         "themis_audit",
         "themis_verify",
         "themis_verify_data_gap_report",
-        "themis_verify_bounds_result",
+        "themis_verify_bounds_results",
         "themis_verify_markov_blanket",  # borrow-list #4
         "themis_verify_selection_recovery_numeric",  # §S9.1 numeric end
         "themis_verify_missing_data_numeric",  # §S9.2 numeric end
@@ -209,7 +209,7 @@ def test_themis_report_tool_renders_markdown(app):
 def test_themis_report_stamps_an_answer_that_carries_no_chain(app):
     """The stamp used to be gated on a derivation, so an answer that is an
     interval — the commonest shape without one — came back unstamped even
-    though ``verify_bounds_result`` recomputes both endpoints from the
+    though ``verify_bounds_results`` recomputes both endpoints from the
     graph. Which re-checks apply is themis.audit's question now."""
     def _atom(p):
         return {"predicate": p, "args": [{"type": "const", "name": "p"}]}
@@ -231,7 +231,7 @@ def test_themis_report_stamps_an_answer_that_carries_no_chain(app):
     }
     out = _call_tool(app, "themis_report", {"program": program})
     report = out["reports"][0]
-    assert "verify_bounds_result" in report
+    assert "verify_bounds_results" in report
     assert "独立复核全部通过" in report
 
 

@@ -239,7 +239,7 @@ def _caller_supplied(result: dict) -> tuple[str, ...]:
     """
     ext = result.get("extensions") or {}
     estimate = result.get("numeric_estimate") or {}
-    bounds = result.get("bounds_result") or {}
+    bounds = result.get("bounds_results") or ()
     records = []
     for block, field in (
         (ext.get("causation"), "monotonic"),
@@ -249,7 +249,10 @@ def _caller_supplied(result: dict) -> tuple[str, ...]:
     ):
         if isinstance(block, dict) and block.get(field):
             records.append(f"{field} on the answer it pinned")
-    if isinstance(bounds, dict) and bounds.get("method") == "manski_tamer_monotonicity":
+    if any(
+        isinstance(b, dict) and b.get("method") == "manski_tamer_monotonicity"
+        for b in bounds
+    ):
         records.append("a monotone-treatment-response bounds method")
     return tuple(records)
 

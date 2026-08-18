@@ -105,9 +105,9 @@ def test_bounds_method_all_values():
 # --------------------------------------------------- QueryResult wiring
 
 def test_query_result_default_no_bounds():
-    """bounds_result defaults to None — backward compatible."""
+    """bounds_results defaults to empty — backward compatible."""
     qr = QueryResult(status=ResultStatus.NUMERICALLY_SOLVED, query_kind=QueryKind.EFFECT)
-    assert qr.bounds_result is None
+    assert qr.bounds_results == ()
 
 
 def test_query_result_carries_bounds():
@@ -120,15 +120,15 @@ def test_query_result_carries_bounds():
     qr = QueryResult(
         status=ResultStatus.NEEDS_INVESTIGATION,
         query_kind=QueryKind.EFFECT,
-        bounds_result=b,
+        bounds_results=(b,),
     )
-    assert qr.bounds_result is b
+    assert qr.bounds_results == (b,)
 
 
 def test_serialization_omits_when_none():
     qr = QueryResult(status=ResultStatus.NUMERICALLY_SOLVED, query_kind=QueryKind.EFFECT)
     d = to_dict(qr)
-    assert "bounds_result" not in d
+    assert "bounds_results" not in d
 
 
 def test_serialization_includes_when_present():
@@ -144,17 +144,17 @@ def test_serialization_includes_when_present():
     qr = QueryResult(
         status=ResultStatus.NEEDS_INVESTIGATION,
         query_kind=QueryKind.EFFECT,
-        bounds_result=b,
+        bounds_results=(b,),
     )
     d = to_dict(qr)
-    assert d["bounds_result"]["method"] == "manski_natural"
-    assert d["bounds_result"]["lower_expression"] == "max(0, p1-p0)"
-    assert d["bounds_result"]["upper_expression"] == "min(1, p1+p0)"
-    assert d["bounds_result"]["data_required"] == ["P(Y|X)", "P(X)"]
+    assert d["bounds_results"][0]["method"] == "manski_natural"
+    assert d["bounds_results"][0]["lower_expression"] == "max(0, p1-p0)"
+    assert d["bounds_results"][0]["upper_expression"] == "min(1, p1+p0)"
+    assert d["bounds_results"][0]["data_required"] == ["P(Y|X)", "P(X)"]
     # Empty assumptions tuple → omitted
-    assert "assumptions" not in d["bounds_result"]
+    assert "assumptions" not in d["bounds_results"][0]
     # Default width_when_uninformative=False → omitted
-    assert "width_when_uninformative" not in d["bounds_result"]
+    assert "width_when_uninformative" not in d["bounds_results"][0]
 
 
 def test_serialization_uninformative_flag_surfaces():
@@ -168,19 +168,19 @@ def test_serialization_uninformative_flag_surfaces():
     qr = QueryResult(
         status=ResultStatus.NEEDS_INVESTIGATION,
         query_kind=QueryKind.EFFECT,
-        bounds_result=b,
+        bounds_results=(b,),
     )
     d = to_dict(qr)
-    assert d["bounds_result"]["width_when_uninformative"] is True
+    assert d["bounds_results"][0]["width_when_uninformative"] is True
 
 
 # ------------------------------------------------------------- JSON schema
 
-def _qr_dict(bounds: dict | None = None) -> dict:
+def _qr_dict(*bounds: dict) -> dict:
     return {
         "status": "needs_investigation",
         "query_kind": "effect",
-        "bounds_result": bounds,
+        "bounds_results": list(bounds),
     }
 
 
@@ -208,9 +208,27 @@ def test_schema_accepts_full_bounds():
     _validator().validate(_qr_dict(bounds))
 
 
-def test_schema_accepts_null_bounds():
-    """When point is identifiable, bounds_result is null."""
-    _validator().validate(_qr_dict(None))
+def test_schema_accepts_no_bounds():
+    """When point is identifiable, the set is empty."""
+    _validator().validate(_qr_dict())
+
+
+def test_schema_accepts_several_rows():
+    """The shape the block exists for: one estimand, several methods, each
+    carrying the assumptions that produced its interval."""
+    _validator().validate(_qr_dict(
+        {
+            "method": "manski_natural",
+            "lower_expression": "0", "upper_expression": "1",
+            "estimand": "arm_probability",
+        },
+        {
+            "method": "balke_pearl_iv",
+            "lower_expression": "...", "upper_expression": "...",
+            "estimand": "arm_probability",
+            "assumptions": ["iv1_relevance"],
+        },
+    ))
 
 
 def test_schema_rejects_missing_required():
@@ -322,7 +340,7 @@ def test_schema_rejects_extra_field():
 
 
 def test_schema_old_results_without_bounds_field_still_valid():
-    """Backward compat — results predating Phase 12 omit bounds_result entirely."""
+    """Backward compat — results predating Phase 12 omit bounds_results entirely."""
     qr = {
         "status": "numerically_solved",
         "query_kind": "effect",

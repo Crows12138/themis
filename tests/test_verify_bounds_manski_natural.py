@@ -28,6 +28,8 @@ from themis.verifier.errors import VerificationError
 # ---------------------------------------------------------------------------
 
 
+from tests.bounds_rows import methods, row
+
 def test_bounds_rules_does_not_import_output_bounds_for_mn_either():
     """Re-assert the independence pin for this second function. The
     pin is on the MODULE, not per-function, and an explicit re-test
@@ -378,9 +380,9 @@ def test_real_manski_natural_bounds_pass_verifier_e2e():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result.get("bounds_result", {}).get("method") == "manski_natural"
+    assert methods(result) == ["manski_natural"]
     verify_manski_natural_bounds_result(
-        result["bounds_result"],
+        row(result, "manski_natural"),
         query_dict=program["statements"][-1]["query"],
     )
 
@@ -391,10 +393,10 @@ def test_real_manski_natural_tampered_caught_e2e():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "P(y=false)"  # tamper
+    row(result, "manski_natural")["lower_expression"] = "P(y=false)"  # tamper
     with pytest.raises(VerificationError, match="lower_expression mismatch"):
         verify_manski_natural_bounds_result(
-            result["bounds_result"],
+            row(result, "manski_natural"),
             query_dict=program["statements"][-1]["query"],
         )
 
@@ -415,10 +417,10 @@ def test_real_multivalued_manski_natural_bounds_pass_verifier_e2e():
     program = _confounded_multivalued_program(2)
     out = themis.run(program)
     result = out["results"][0]
-    assert result.get("bounds_result", {}).get("method") == "manski_natural"
-    assert "P(x≠2)" in result["bounds_result"]["upper_expression"]
+    assert methods(result) == ["manski_natural"]
+    assert "P(x≠2)" in row(result, "manski_natural")["upper_expression"]
     verify_manski_natural_bounds_result(
-        result["bounds_result"],
+        row(result, "manski_natural"),
         query_dict=program["statements"][-1]["query"],
     )
 

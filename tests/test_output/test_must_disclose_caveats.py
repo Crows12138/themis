@@ -124,7 +124,7 @@ def test_bounds_result_surfaces_must_disclose_caveat():
     }
     out = themis.run(ast)
     result = out["results"][0]
-    if not result.get("bounds_result"):
+    if not result.get("bounds_results"):
         # Bounds aren't computed for every effect query — only when the
         # outcome is binary and identification fails. Skip when the
         # fixture didn't trigger bounds rather than asserting unrelated
@@ -399,7 +399,7 @@ def test_bounds_result_assumptions_surface_in_caveat():
         estimand="arm_probability",
         assumptions=("IV1", "IV2", "IV3"),
     )
-    fired = list(_classify_bounds_not_point(bounds))
+    fired = list(_classify_bounds_not_point((bounds,)))
     assert len(fired) == 1
     desc = fired[0].description
     assert "IV1" in desc and "IV2" in desc and "IV3" in desc

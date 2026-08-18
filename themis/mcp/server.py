@@ -7,7 +7,7 @@ Tools (JSON in / JSON out — same contract as the kernel itself):
 - ``themis_audit(program, result)`` → wraps :func:`themis.audit`; every re-check that applies to this artifact, one row each. Prefer it over picking a ``themis_verify_*`` by hand
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
-- ``themis_verify_bounds_result(program, result)`` → wraps :func:`themis.verify_bounds_result`; returns ``{"ok": bool, "error": str?}``
+- ``themis_verify_bounds_results(program, result)`` → wraps :func:`themis.verify_bounds_results`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_markov_blanket(result)`` → borrow-list #4, wraps :func:`themis.verify_markov_blanket`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_selection_recovery_numeric(result)`` → §S9.1 numeric end, wraps :func:`themis.verify_selection_recovery_numeric`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_missing_data_numeric(result)`` → §S9.2 numeric end, wraps :func:`themis.verify_missing_data_numeric`; returns ``{"ok": bool, "error": str?}``
@@ -170,20 +170,20 @@ def build_server():
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     @app.tool()
-    def themis_verify_bounds_result(
+    def themis_verify_bounds_results(
         program: dict | str, result: dict,
     ) -> dict:
-        """Independently audit a result's bounds_result.
+        """Independently audit a result's bounds_results.
 
         Parallel to ``themis_verify_data_gap_report``: bounds typically
         attach when point identification fails (status=needs_investigation)
         and no derivation chain exists, so ``themis_verify`` rejects them
         for missing derivation. This tool dispatches by
-        bounds_result.method to the per-method verifiers
+        bounds_results.method to the per-method verifiers
         (manski_natural / manski_tamer_monotonicity / balke_pearl_iv).
         """
         try:
-            themis.verify_bounds_result(program, result)
+            themis.verify_bounds_results(program, result)
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -192,7 +192,7 @@ def build_server():
     def themis_verify_markov_blanket(result: dict) -> dict:
         """Independently audit a Markov-blanket result (borrow-list #4).
 
-        Parallel to ``themis_verify_bounds_result``: the artifact is a
+        Parallel to ``themis_verify_bounds_results``: the artifact is a
         standalone Markov-blanket dict (from ``themis_markov_blanket``), not a
         query_result envelope, so ``themis_verify`` does not apply. Re-checks
         the completeness + minimality definition on the returned set by

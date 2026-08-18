@@ -1,4 +1,4 @@
-"""The public ``themis.verify_bounds_result`` entry.
+"""The public ``themis.verify_bounds_results`` entry.
 
 Parallel to ``themis.verify_data_gap_report``: bounds typically attach
 when point identification fails (status=needs_investigation) and no
@@ -18,6 +18,8 @@ from themis.verifier.errors import VerificationError
 # MN bounds (Phase 12)
 # ---------------------------------------------------------------------------
 
+
+from tests.bounds_rows import methods, row
 
 def _confounded_program():
     """Hidden u → x and u → y, plus x → y. Backdoor identification
@@ -61,18 +63,18 @@ def test_accepts_real_manski_natural_bounds():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result.get("bounds_result", {}).get("method") == "manski_natural"
+    assert methods(result) == ["manski_natural"]
     # Should NOT raise.
-    themis.verify_bounds_result(program, result)
+    themis.verify_bounds_results(program, result)
 
 
 def test_rejects_tampered_manski_natural():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "P(y=false)"  # tamper
+    row(result, "manski_natural")["lower_expression"] = "P(y=false)"  # tamper
     with pytest.raises(VerificationError, match="lower_expression mismatch"):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 # ---------------------------------------------------------------------------
@@ -125,18 +127,17 @@ def test_accepts_real_mtr_bounds():
     program = _mtr_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result.get("bounds_result", {}).get("method") == \
-        "manski_tamer_monotonicity"
-    themis.verify_bounds_result(program, result)
+    assert "manski_tamer_monotonicity" in methods(result)
+    themis.verify_bounds_results(program, result)
 
 
 def test_rejects_tampered_mtr_bounds():
     program = _mtr_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "tampered"
+    row(result, "manski_tamer_monotonicity")["lower_expression"] = "tampered"
     with pytest.raises(VerificationError):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 # ---------------------------------------------------------------------------
@@ -186,17 +187,17 @@ def test_accepts_real_bp_bounds():
     program = _bp_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result.get("bounds_result", {}).get("method") == "balke_pearl_iv"
-    themis.verify_bounds_result(program, result)
+    assert "balke_pearl_iv" in methods(result)
+    themis.verify_bounds_results(program, result)
 
 
 def test_rejects_tampered_bp_bounds():
     program = _bp_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "fake lower"
+    row(result, "balke_pearl_iv")["lower_expression"] = "fake lower"
     with pytest.raises(VerificationError, match="canonical 'min of P"):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +206,7 @@ def test_rejects_tampered_bp_bounds():
 
 
 def test_rejects_result_without_bounds():
-    """Caller passed a result that has no bounds_result — clear error."""
+    """Caller passed a result that has no bounds at all — clear error."""
     program = _confounded_program()
     result = {
         "status": "structurally_solved",
@@ -213,8 +214,8 @@ def test_rejects_result_without_bounds():
         "query_id": "mn_e2e",
         "structural_result": {"value": True},
     }
-    with pytest.raises(ValueError, match="requires result.bounds_result"):
-        themis.verify_bounds_result(program, result)
+    with pytest.raises(ValueError, match="requires result.bounds_results"):
+        themis.verify_bounds_results(program, result)
 
 
 def test_rejects_result_without_query_id():
@@ -222,32 +223,32 @@ def test_rejects_result_without_query_id():
     result = {
         "status": "needs_investigation",
         "query_kind": "effect",
-        "bounds_result": {"method": "manski_natural",
-                          "lower_expression": "x",
-                          "upper_expression": "y",
-                          "estimand": "arm_probability"},
+        "bounds_results": [{"method": "manski_natural",
+                            "lower_expression": "x",
+                            "upper_expression": "y",
+                            "estimand": "arm_probability"}],
     }
     with pytest.raises(ValueError, match="result.query_id"):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 def test_rejects_unsupported_method():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["method"] = "frontdoor_partial"
+    row(result, "manski_natural")["method"] = "frontdoor_partial"
     with pytest.raises(ValueError, match="not yet implemented"):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 def test_rejects_unknown_method():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["method"] = "made_up_method"
+    row(result, "manski_natural")["method"] = "made_up_method"
     # Schema validator rejects the bad method enum value.
     with pytest.raises(Exception):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 def test_rejects_query_id_not_in_program():
@@ -256,7 +257,7 @@ def test_rejects_query_id_not_in_program():
     result = out["results"][0]
     result["query_id"] = "no_such_query"
     with pytest.raises(ValueError, match="no query with id"):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 # ---------------------------------------------------------------------------
@@ -265,8 +266,8 @@ def test_rejects_query_id_not_in_program():
 
 
 def test_re_exported_from_themis():
-    assert "verify_bounds_result" in themis.__all__
-    assert callable(themis.verify_bounds_result)
+    assert "verify_bounds_results" in themis.__all__
+    assert callable(themis.verify_bounds_results)
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +275,7 @@ def test_re_exported_from_themis():
 # ---------------------------------------------------------------------------
 
 
-def test_mcp_tool_themis_verify_bounds_result_accepts_clean_result():
+def test_mcp_tool_themis_verify_bounds_results_accepts_clean_result():
     import asyncio
     from themis.mcp import build_server
 
@@ -284,10 +285,10 @@ def test_mcp_tool_themis_verify_bounds_result_accepts_clean_result():
     result = out["results"][0]
 
     tool_names = {t.name for t in asyncio.run(app.list_tools())}
-    assert "themis_verify_bounds_result" in tool_names
+    assert "themis_verify_bounds_results" in tool_names
 
     res = asyncio.run(
-        app.call_tool("themis_verify_bounds_result",
+        app.call_tool("themis_verify_bounds_results",
                       {"program": program, "result": result})
     )
     # FastMCP returns a list/tuple of TextContent + dict; check the
@@ -317,7 +318,7 @@ def test_mcp_tool_themis_verify_bounds_result_accepts_clean_result():
     assert payload["ok"] is True
 
 
-def test_mcp_tool_themis_verify_bounds_result_rejects_tampered():
+def test_mcp_tool_themis_verify_bounds_results_rejects_tampered():
     import asyncio
     from themis.mcp import build_server
 
@@ -325,10 +326,10 @@ def test_mcp_tool_themis_verify_bounds_result_rejects_tampered():
     program = _confounded_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "P(y=false)"  # tamper
+    row(result, "manski_natural")["lower_expression"] = "P(y=false)"  # tamper
 
     res = asyncio.run(
-        app.call_tool("themis_verify_bounds_result",
+        app.call_tool("themis_verify_bounds_results",
                       {"program": program, "result": result})
     )
     # Find the {"ok": False, "error": ...} payload.

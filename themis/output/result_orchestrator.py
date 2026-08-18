@@ -220,8 +220,10 @@ def to_dict(result: QueryResult) -> dict:
         d["extensions"] = result.extensions
     if result.data_gap_report is not None:
         d["data_gap_report"] = _data_gap_report_to_dict(result.data_gap_report)
-    if result.bounds_result is not None:
-        d["bounds_result"] = _bounds_result_to_dict(result.bounds_result)
+    if result.bounds_results:
+        d["bounds_results"] = [
+            _bounds_result_to_dict(b) for b in result.bounds_results
+        ]
     if result.estimator_failure is not None:
         d["estimator_failure"] = result.estimator_failure
     return d

@@ -1879,12 +1879,10 @@
       ],
       "description": "Phase 10: structured 'what data is still needed to validate this causal claim' summary. Null for query kinds that don't carry data needs (cause / assoc) or when no gaps detected. Generator: themis/output/data_gap_report.py — pure function over derivation + investigation_requests + framing_notes + extensions, no I/O."
     },
-    "bounds_result": {
-      "oneOf": [
-        { "$ref": "#/$defs/boundsResult" },
-        { "type": "null" }
-      ],
-      "description": "Phase 12: symbolic bounds on the queried estimand when point identification fails. Null when point is identifiable, when bounds method doesn't apply, or for non-effect queries. Generator: themis/output/bounds.py."
+    "bounds_results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/boundsResult" },
+      "description": "Phase 12: symbolic bounds on the queried estimand when point identification fails. ONE ENTRY PER METHOD whose assumptions the program supports — they bracket the same estimand under assumption sets that do not contain one another (Manski assumes nothing; Balke-Pearl needs IV1/IV2/IV3; Manski-Tamer needs a declared monotone treatment response), so no ranking picks one and a single slot would hold whichever ran first. Do NOT intersect them: both holding means the truth is in both, but the intersection is not the sharp set under the conjunction. Absent when point is identifiable, when no method applies, or for non-effect queries. Generator: themis/output/bounds.py via scheduler._attach_bounds_results."
     }
   },
   "$defs": {

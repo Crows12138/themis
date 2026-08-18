@@ -1,7 +1,7 @@
-"""Independent verification for ``bounds_result`` payloads.
+"""Independent verification for one ``bounds_results`` row.
 
 Manski natural, Balke-Pearl IV and Manski-Tamer monotonicity all produce
-``bounds_result`` blocks via ``themis/output/bounds.py``. Walking the
+rows via ``themis/output/bounds.py``. Walking the
 derivation chain says nothing about them: a chain can be well-formed
 around an interval nobody re-computed.
 

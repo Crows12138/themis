@@ -108,7 +108,7 @@ def _calls(path: str) -> bool:
     Two things this had to learn. The whole literal, quotes included: one
     endpoint's path is another's prefix, and a substring search calls
     ``/api/verify`` reached by nothing more than the presence of
-    ``/api/verify_bounds_result``. And every path literal lives in
+    ``/api/verify_bounds_results``. And every path literal lives in
     ``api.ts`` by design, so finding one there says a wrapper exists — a
     wrapper nothing calls is the same dead capability as an endpoint
     nothing names.

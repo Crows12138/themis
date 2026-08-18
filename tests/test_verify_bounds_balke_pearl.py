@@ -31,6 +31,8 @@ from themis.verifier.errors import VerificationError
 # ---------------------------------------------------------------------------
 
 
+from tests.bounds_rows import methods, row
+
 def test_bounds_rules_independence_pin_holds_for_bp_too():
     """Module-level pin: never import themis.output.bounds (parallel
     to T10's independence pin). The pin is on the MODULE, so each new
@@ -334,9 +336,9 @@ def test_real_bp_program_bounds_pass_verifier_e2e():
     program = _bp_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result.get("bounds_result", {}).get("method") == "balke_pearl_iv"
+    assert "balke_pearl_iv" in methods(result)
     verify_balke_pearl_iv_bounds_result(
-        result["bounds_result"],
+        row(result, "balke_pearl_iv"),
         query_dict=program["statements"][-1]["query"],
     )
 
@@ -347,10 +349,10 @@ def test_real_bp_program_tampered_phrase_caught_e2e():
     program = _bp_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "fake lower"
+    row(result, "balke_pearl_iv")["lower_expression"] = "fake lower"
     with pytest.raises(VerificationError, match="canonical 'min of P"):
         verify_balke_pearl_iv_bounds_result(
-            result["bounds_result"],
+            row(result, "balke_pearl_iv"),
             query_dict=program["statements"][-1]["query"],
         )
 

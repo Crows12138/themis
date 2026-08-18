@@ -5,6 +5,8 @@ from __future__ import annotations
 import themis
 
 
+from tests.bounds_rows import methods, row
+
 def _program(intervention_pred="x", target_pred="y", with_iv=False):
     """Simple bool effect program where backdoor identification fails
     (no observed confounder for X-Y; bidirected to force unidentifiable)."""
@@ -69,9 +71,9 @@ def test_unidentifiable_binary_effect_attaches_manski_bounds():
     envelope = themis.run(_program())
     result = envelope["results"][0]
     assert result["status"] == "needs_investigation"
-    assert result.get("bounds_result") is not None
-    bounds = result["bounds_result"]
-    assert bounds["method"] in ("manski_natural", "balke_pearl_iv")
+    assert result.get("bounds_results")
+    bounds = row(result, "manski_natural")
+    assert methods(result)[0] == "manski_natural"
     assert bounds["lower_expression"]
     assert bounds["upper_expression"]
 
@@ -79,13 +81,13 @@ def test_unidentifiable_binary_effect_attaches_manski_bounds():
 def test_manski_bounds_use_actual_predicate_names():
     envelope = themis.run(_program(intervention_pred="aspirin",
                                     target_pred="heart_attack"))
-    bounds = envelope["results"][0]["bounds_result"]
+    bounds = row(envelope["results"][0], "manski_natural")
     assert "aspirin" in bounds["lower_expression"]
     assert "heart_attack" in bounds["lower_expression"]
 
 
 def test_solved_query_has_no_bounds():
-    """When point identification succeeds, bounds_result is null."""
+    """When point identification succeeds, no bounds are attached."""
     program = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -123,9 +125,9 @@ def test_solved_query_has_no_bounds():
     envelope = themis.run(program)
     result = envelope["results"][0]
     # Either solved or needs_investigation depending on Theta — but if
-    # solved, no bounds_result should be attached
+    # solved, no bounds should be attached
     if result["status"] != "needs_investigation":
-        assert result.get("bounds_result") is None
+        assert not result.get("bounds_results")
 
 
 def _sized_iv_program(nx, ny, nz, x_val, y_val):
@@ -163,8 +165,8 @@ def test_a_model_too_large_falls_to_the_floor_and_says_so():
     like a query that never had an instrument. 5×5×2 levels is 78125
     response types — declined — and the floor has to carry the reason."""
     result = themis.run(_sized_iv_program(5, 5, 2, 2, 2))["results"][0]
-    bounds = result["bounds_result"]
-    assert bounds["method"] == "manski_natural"
+    assert methods(result) == ["manski_natural"]
+    bounds = row(result, "manski_natural")
     assert "z" in bounds["notes"]
     assert "5^2" in bounds["notes"]
     assert "declined for size" in bounds["notes"]
@@ -173,18 +175,20 @@ def test_a_model_too_large_falls_to_the_floor_and_says_so():
 def test_a_model_inside_the_cap_gets_the_sharp_method_and_no_such_note():
     """The counterexample: the note must not appear whenever Manski does."""
     result = themis.run(_sized_iv_program(3, 3, 2, 2, 2))["results"][0]
-    bounds = result["bounds_result"]
-    assert bounds["method"] == "balke_pearl_iv"
-    assert "declined for size" not in (bounds.get("notes") or "")
+    assert "balke_pearl_iv" in methods(result)
+    # The note belongs to the floor, which is where the decline would be
+    # reported; the sharp method being present is what must silence it.
+    assert "declined for size" not in (
+        row(result, "manski_natural").get("notes") or "")
 
 
 def test_the_floor_without_an_instrument_says_nothing_about_size():
     """The other counterexample: no instrument means nothing sharper was
     available to decline, so there is nothing to report."""
     result = themis.run(_program())["results"][0]
-    bounds = result["bounds_result"]
-    assert bounds["method"] == "manski_natural"
-    assert "declined for size" not in (bounds.get("notes") or "")
+    assert methods(result) == ["manski_natural"]
+    assert "declined for size" not in (
+        row(result, "manski_natural").get("notes") or "")
 
 
 def test_iv_shape_program_triggers_balke_pearl():
@@ -195,9 +199,7 @@ def test_iv_shape_program_triggers_balke_pearl():
     envelope = themis.run(_program(with_iv=True))
     result = envelope["results"][0]
     assert result["status"] == "needs_investigation"
-    bounds = result.get("bounds_result")
-    assert bounds is not None
-    assert bounds["method"] == "balke_pearl_iv"
+    bounds = row(result, "balke_pearl_iv")
     # Confirm the detected IV is named in the expressions
     assert "z" in bounds["lower_expression"]
     assert "z" in bounds["upper_expression"]
@@ -387,7 +389,7 @@ def test_iv_bounds_drop_self_contradictory_find_instrument_advice():
     monotonicity / linearity to tighten the interval to a point estimate).
     """
     result = themis.run(_program(with_iv=True))["results"][0]
-    assert result["bounds_result"]["method"] == "balke_pearl_iv"
+    assert "balke_pearl_iv" in methods(result)
     gap = next(
         g for g in result["data_gap_report"]["gaps"]
         if g["kind"] == "unidentifiable_no_admissible_set"
@@ -407,7 +409,7 @@ def test_no_iv_unidentifiable_keeps_find_instrument_advice():
     Manski bounds), 'find an instrument' is still legitimate advice and
     must be preserved — the rewrite is gated on balke_pearl_iv."""
     result = themis.run(_program())["results"][0]
-    assert result["bounds_result"]["method"] != "balke_pearl_iv"
+    assert "balke_pearl_iv" not in methods(result)
     gap = next(
         g for g in result["data_gap_report"]["gaps"]
         if g["kind"] == "unidentifiable_no_admissible_set"
@@ -457,7 +459,7 @@ def test_non_effect_query_no_bounds():
     }
     envelope = themis.run(program)
     result = envelope["results"][0]
-    assert result.get("bounds_result") is None
+    assert not result.get("bounds_results")
 
 
 def test_alt_paths_reconciled_with_attached_bounds():
@@ -494,16 +496,15 @@ def test_alt_paths_reconciled_with_attached_bounds():
     }
     envelope = themis.run(program)
     result = envelope["results"][0]
-    bounds = result.get("bounds_result")
-    assert bounds is not None
-    method = bounds["method"]
+    assert result.get("bounds_results")
+    method = methods(result)[0]
     report = result["data_gap_report"]
     blocking = next(g for g in report["gaps"] if g["severity"] == "blocking")
     alts = blocking["alternative_paths"]
     # Old static "Balke-Pearl bounds" wording must be gone
     assert not any("Balke-Pearl" in a for a in alts)
     # Replaced with concrete reference to the computed method
-    assert any(method in a and "bounds_result" in a for a in alts)
+    assert any(method in a and "bounds_results" in a for a in alts)
     # Subagent real-test caught: bounds pointer must NOT also appear in
     # actionable_next_steps — would duplicate against bounds_result block
     assert not any("bounds_result" in s for s in report["actionable_next_steps"])
@@ -548,9 +549,8 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
     }
     envelope = themis.run(program)
     result = envelope["results"][0]
-    bounds = result.get("bounds_result")
-    assert bounds is not None
-    method = bounds["method"]
+    assert result.get("bounds_results")
+    named = ", ".join(methods(result))
     report = result["data_gap_report"]
     unid = next(
         g for g in report["gaps"]
@@ -559,7 +559,7 @@ def test_unidentifiable_gap_gets_bounds_appended_when_missing():
     # Bounds line was *appended* (no original bounds-flavored alt to
     # rewrite) — and prepended so it leads the list
     assert unid["alternative_paths"][0] == (
-        f"已计算 bounds（method={method}）— 见 bounds_result"
+        f"已计算 bounds（method={named}）— 见 bounds_results"
     )
     # actionable_next_steps stays free of the duplicated pointer (renderer
     # reads bounds_result directly as its own block)
@@ -603,7 +603,7 @@ def test_non_binary_outcome_strips_static_bounds_promise():
     }
     envelope = themis.run(program)
     result = envelope["results"][0]
-    assert result.get("bounds_result") is None
+    assert not result.get("bounds_results")
     blocking = next(
         g for g in result["data_gap_report"]["gaps"]
         if g["severity"] == "blocking"
@@ -650,9 +650,8 @@ def test_likert_outcome_gets_manski_bounds():
     }
     envelope = themis.run(program)
     result = envelope["results"][0]
-    bounds = result.get("bounds_result")
-    assert bounds is not None
-    assert bounds["method"] == "manski_natural"
+    assert methods(result) == ["manski_natural"]
+    bounds = row(result, "manski_natural")
     # Expressions carry the numeric target value verbatim
     assert "engagement=4" in bounds["lower_expression"]
     assert "raise_1k" in bounds["lower_expression"]
@@ -691,4 +690,4 @@ def test_target_value_outside_declared_domain_no_bounds():
     }
     envelope = themis.run(program)
     result = envelope["results"][0]
-    assert result.get("bounds_result") is None
+    assert not result.get("bounds_results")

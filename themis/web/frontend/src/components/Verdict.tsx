@@ -22,7 +22,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // answerRows to find; what these paths put in numeric_result is one of the
   // block's own quantities, printed with none of their names.
   const answerBlocks = num ? [] : answerBlockRows(result.extensions)
-  const bounds = result.bounds_result
+  const bounds = result.bounds_results ?? []
   const struct = result.structural_result
   const sr = !tier && struct ? structuralReadout(result.query_kind, struct.value) : null
   const paths = struct?.supporting_paths?.filter((p) => p.length > 0) ?? []
@@ -48,7 +48,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const meta = estimateMeta(num, result.outcome_error, result.estimation_context)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
-  const hasDetail = routes.length > 0 || !!chain || paths.length > 0 || !!formula || !!bounds || sens?.e_value != null || !!ledger?.assumptions?.length
+  const hasDetail = routes.length > 0 || !!chain || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
 
   return (
     <section className="verdict" aria-label="判决">
@@ -260,45 +260,55 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 </div>
               ) : null}
 
-              {bounds ? (
-                <div className="boundsexpr">
+              {bounds.map((b, i) => (
+                <div className="boundsexpr" key={`bounds-${i}`}>
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">界的对象</span>
-                    <span className="boundsexpr__v">{boundsEstimandLabel(bounds.estimand)}</span>
+                    <span className="boundsexpr__v">{boundsEstimandLabel(b.estimand)}</span>
                   </div>
-                  {bounds.lower_value != null && bounds.upper_value != null ? (
+                  {b.lower_value != null && b.upper_value != null ? (
                     <div className="boundsexpr__row">
                       <span className="boundsexpr__k">区间</span>
-                      <span className="boundsexpr__v">[{fmtNum(bounds.lower_value)}, {fmtNum(bounds.upper_value)}]</span>
+                      <span className="boundsexpr__v">[{fmtNum(b.lower_value)}, {fmtNum(b.upper_value)}]</span>
                     </div>
                   ) : null}
-                  {bounds.contrast ? (
+                  {b.contrast ? (
                     <div className="boundsexpr__row">
-                      <span className="boundsexpr__k">{boundsContrastLabel(bounds.contrast.kind)}</span>
+                      <span className="boundsexpr__k">{boundsContrastLabel(b.contrast.kind)}</span>
                       <span className="boundsexpr__v">
-                        [{fmtNum(bounds.contrast.lower_value)}, {fmtNum(bounds.contrast.upper_value)}]
-                        {' '}· 与 {String(bounds.contrast.reference_value)} 那一档相比,是另一个量而非上面两端相减
+                        [{fmtNum(b.contrast.lower_value)}, {fmtNum(b.contrast.upper_value)}]
+                        {' '}· 与 {String(b.contrast.reference_value)} 那一档相比,是另一个量而非上面两端相减
                       </span>
                     </div>
                   ) : null}
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">方法</span>
-                    <span className="boundsexpr__v">{bounds.method}</span>
+                    <span className="boundsexpr__v">{b.method}</span>
+                  </div>
+                  {/* Without this row several intervals over one estimand are
+                      unreadable: what separates them is only what each was
+                      allowed to assume. */}
+                  <div className="boundsexpr__row">
+                    <span className="boundsexpr__k">靠的假设</span>
+                    <span className="boundsexpr__v">{b.assumptions?.length ? b.assumptions.join(', ') : '无'}</span>
                   </div>
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">下界</span>
-                    <span className="boundsexpr__v">{bounds.lower_expression}</span>
+                    <span className="boundsexpr__v">{b.lower_expression}</span>
                   </div>
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">上界</span>
-                    <span className="boundsexpr__v">{bounds.upper_expression}</span>
+                    <span className="boundsexpr__v">{b.upper_expression}</span>
                   </div>
-                  {bounds.width_when_uninformative ? (
+                  {b.width_when_uninformative ? (
                     <p className="boundsexpr__note">⚠ 这个区间退化到 [0,1] / [-1,1],诚实但无实际辨别力——需要更强假设或数据才能收窄。</p>
                   ) : (
                     <p className="boundsexpr__note">符号区间:把可观测分布代入即可得到数值区间。</p>
                   )}
                 </div>
+              ))}
+              {bounds.length > 1 ? (
+                <p className="boundsexpr__note">上面 {bounds.length} 条界的是同一个量,差别只在各自允许假设什么。按你接受哪一组来读,不要取交:两条都成立时交集确实含真值,但它不是二者合取下的锐界。</p>
               ) : null}
 
               {sens?.e_value != null ? (

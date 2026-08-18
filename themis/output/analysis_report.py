@@ -121,6 +121,21 @@ _BOUNDS_CONTRAST_ZH = {
 }
 
 
+def _bounds_interval(b: dict) -> str:
+    return f"[{_fmt(b['lower_value'])}, {_fmt(b['upper_value'])}]"
+
+
+def _bounds_rests_on(b: dict) -> str:
+    """What one bounds row assumes, for a reader choosing between rows.
+
+    An interval is unreadable beside another one until this is said: the
+    two bracket the same quantity and differ only in what they were
+    allowed to assume.
+    """
+    assumptions = b.get("assumptions") or ()
+    return f"假设 {', '.join(assumptions)}" if assumptions else "无假设"
+
+
 def _fmt(x) -> str:
     """Compact numeric formatting (mirrors explainer's ``.4g``)."""
     try:
@@ -406,7 +421,10 @@ def _render_answer(result: dict) -> str:
     ne = result.get("numeric_estimate")
     nr = result.get("numeric_result")
     sr = result.get("structural_result")
-    br = result.get("bounds_result")
+    evaluated = [
+        b for b in (result.get("bounds_results") or ())
+        if isinstance(b, dict) and b.get("lower_value") is not None
+    ]
 
     # 1. The data-path estimate, in whatever shape its estimand has.
     if ne:
@@ -440,22 +458,39 @@ def _render_answer(result: dict) -> str:
     #    Which quantity it brackets is said out loud: this line used to print
     #    two numbers and a method name under a question about one arm, while
     #    the Balke-Pearl branch was bracketing the difference between two.
-    if br and br.get("lower_value") is not None:
-        method = br.get("method", "bounds")
-        said = (
-            f"给出**区间** [{_fmt(br['lower_value'])}, {_fmt(br['upper_value'])}]"
-            f"——{_BOUNDS_ESTIMAND_ZH.get(str(br.get('estimand')), '所问的量')}"
-            f"（部分识别的界，不是点估计；method=`{method}`）。"
-        )
-        contrast = br.get("contrast")
-        if isinstance(contrast, dict) and contrast.get("lower_value") is not None:
-            said += (
-                f"同一批数据还给出"
-                f"**{_BOUNDS_CONTRAST_ZH.get(str(contrast.get('kind')), '对照')}**"
-                f" [{_fmt(contrast['lower_value'])}, {_fmt(contrast['upper_value'])}]"
-                f"——与 `{contrast.get('reference_value')}` 那条臂相比的差值，"
-                f"它是另一个量，不是上面两个端点相减。"
+    #    There can be several: the bounds channel reports every method whose
+    #    assumptions hold, and which interval rests on what is not a caveat
+    #    here — it is the only thing that makes the numbers readable.
+    if evaluated:
+        estimand = _BOUNDS_ESTIMAND_ZH.get(
+            str(evaluated[0].get("estimand")), "所问的量")
+        if len(evaluated) == 1:
+            said = (
+                f"给出**区间** {_bounds_interval(evaluated[0])}"
+                f"——{estimand}（部分识别的界，不是点估计；"
+                f"method=`{evaluated[0].get('method', 'bounds')}`）。"
             )
+        else:
+            rows = "；".join(
+                f"`{b.get('method', 'bounds')}`"
+                f"（{_bounds_rests_on(b)}）{_bounds_interval(b)}"
+                for b in evaluated
+            )
+            said = (
+                f"给出**区间**——{estimand}（部分识别的界，不是点估计）。"
+                f"共 {len(evaluated)} 条，界定的是同一个量，各自靠不同的假设："
+                f"{rows}。按你接受哪组假设来读，不要取交。"
+            )
+        for b in evaluated:
+            contrast = b.get("contrast")
+            if isinstance(contrast, dict) and contrast.get("lower_value") is not None:
+                said += (
+                    f"同一批数据还给出"
+                    f"**{_BOUNDS_CONTRAST_ZH.get(str(contrast.get('kind')), '对照')}**"
+                    f" [{_fmt(contrast['lower_value'])}, {_fmt(contrast['upper_value'])}]"
+                    f"——与 `{contrast.get('reference_value')}` 那条臂相比的差值，"
+                    f"它是另一个量，不是上面两个端点相减。"
+                )
         return said
 
     # 5. A refusal, which is an answer. Below the numeric branches, not

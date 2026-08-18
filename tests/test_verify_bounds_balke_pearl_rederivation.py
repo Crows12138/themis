@@ -1,6 +1,6 @@
 """Strong re-derivation of the Balke-Pearl NUMERIC bounds.
 
-Before this, ``verify_bounds_result`` only METADATA-audited the numeric
+Before this, ``verify_bounds_results`` only METADATA-audited the numeric
 Balke-Pearl interval (direction, admissible range, width, CI containment) —
 it never re-derived the value, so a self-consistent WRONG bound (an in-range,
 width-consistent, CI-enclosed but falsely-tight interval) passed. The
@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 
 import themis
-from themis import verify_bounds_result
+from themis import verify_bounds_results
 from themis.verifier.errors import VerificationError
 from themis.verifier.bounds_rules import (
     _v_response_types,
@@ -114,16 +114,18 @@ def bp_result():
 # --- genuine round-trip ------------------------------------------------------
 
 
+from tests.bounds_rows import methods, row
+
 def test_records_p_table(bp_result):
     _, res = bp_result
-    stats = res["bounds_result"]["sufficient_statistics"]
+    stats = row(res, "balke_pearl_iv")["sufficient_statistics"]
     P = np.asarray(stats["P_xyz"])
     assert P.shape == (2, 2, 2)
 
 
 def test_genuine_bounds_round_trip(bp_result):
     prog, res = bp_result
-    verify_bounds_result(prog, res)  # no raise
+    verify_bounds_results(prog, res)  # no raise
 
 
 # --- the flagship: self-consistent wrong bound is now caught -----------------
@@ -132,52 +134,52 @@ def test_genuine_bounds_round_trip(bp_result):
 def test_rejects_tampered_lower_value(bp_result):
     prog, res = bp_result
     r = copy.deepcopy(res)
-    b = r["bounds_result"]
+    b = row(r, "balke_pearl_iv")
     # forge a falsely-tight lower, keeping metadata (width, CI, range) valid
     b["lower_value"] = 0.30
     b["width"] = b["upper_value"] - 0.30
     with pytest.raises(VerificationError):
-        verify_bounds_result(prog, r)
+        verify_bounds_results(prog, r)
 
 
 def test_rejects_tampered_upper_value(bp_result):
     prog, res = bp_result
     r = copy.deepcopy(res)
-    b = r["bounds_result"]
+    b = row(r, "balke_pearl_iv")
     b["upper_value"] = min(1.0, b["upper_value"] - 0.2)
     b["width"] = b["upper_value"] - b["lower_value"]
     with pytest.raises(VerificationError):
-        verify_bounds_result(prog, r)
+        verify_bounds_results(prog, r)
 
 
 def test_rejects_tampered_p_table_inconsistent_with_bounds(bp_result):
     prog, res = bp_result
     r = copy.deepcopy(res)
-    b = r["bounds_result"]
+    b = row(r, "balke_pearl_iv")
     # perturb the recorded table so LP(P') no longer yields the reported bound
     P = np.asarray(b["sufficient_statistics"]["P_xyz"])
     P[0, 0, 0] += 0.1
     P[0, 1, 1] -= 0.1  # keep the Z=0 slice summing to 1
     b["sufficient_statistics"]["P_xyz"] = P.tolist()
     with pytest.raises(VerificationError):
-        verify_bounds_result(prog, r)
+        verify_bounds_results(prog, r)
 
 
 def test_rejects_invalid_p_table_bad_normalisation(bp_result):
     prog, res = bp_result
     r = copy.deepcopy(res)
-    b = r["bounds_result"]
+    b = row(r, "balke_pearl_iv")
     P = np.asarray(b["sufficient_statistics"]["P_xyz"])
     P[0, 0, 0] += 0.3  # Z=0 slice no longer sums to 1
     b["sufficient_statistics"]["P_xyz"] = P.tolist()
     with pytest.raises(VerificationError):
-        verify_bounds_result(prog, r)
+        verify_bounds_results(prog, r)
 
 
 def test_rejects_p_table_violating_instrumental_inequality(bp_result):
     prog, res = bp_result
     r = copy.deepcopy(res)
-    b = r["bounds_result"]
+    b = row(r, "balke_pearl_iv")
     # A table that sums to 1 per slice but violates IV inequality
     # P(Y=0,X=0|Z=0)+P(Y=1,X=0|Z=1) > 1.
     P = np.zeros((2, 2, 2))
@@ -185,7 +187,7 @@ def test_rejects_p_table_violating_instrumental_inequality(bp_result):
     P[1, 0, 1] = 1.0            # Z=1: all mass on (X=0,Y=1)
     b["sufficient_statistics"]["P_xyz"] = P.tolist()
     with pytest.raises(VerificationError):
-        verify_bounds_result(prog, r)
+        verify_bounds_results(prog, r)
 
 
 # --- honest ceiling ----------------------------------------------------------
@@ -222,10 +224,10 @@ def test_a_forgery_that_stops_at_the_arm_is_caught(bp_result):
     """
     prog, res = bp_result
     r = copy.deepcopy(res)
-    assert r["bounds_result"].get("contrast") is not None
-    _forge(r["bounds_result"], _forged_table(), contrast=False)
+    assert row(r, "balke_pearl_iv").get("contrast") is not None
+    _forge(row(r, "balke_pearl_iv"), _forged_table(), contrast=False)
     with pytest.raises(VerificationError, match="contrast"):
-        verify_bounds_result(prog, r)
+        verify_bounds_results(prog, r)
 
 
 def test_self_consistent_table_and_bounds_forgery_not_caught(bp_result):
@@ -235,8 +237,8 @@ def test_self_consistent_table_and_bounds_forgery_not_caught(bp_result):
     a data-refit quantity; a lone tampered bound (above) is still caught."""
     prog, res = bp_result
     r = copy.deepcopy(res)
-    _forge(r["bounds_result"], _forged_table(), contrast=True)
-    verify_bounds_result(prog, r)  # passes — documented limitation
+    _forge(row(r, "balke_pearl_iv"), _forged_table(), contrast=True)
+    verify_bounds_results(prog, r)  # passes — documented limitation
 
 
 # --- grid oracle: verifier LP == producer LP (independence pin) ---------------

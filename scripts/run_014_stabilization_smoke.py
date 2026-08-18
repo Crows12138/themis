@@ -513,7 +513,7 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_audit",  # every re-check that applies
         "themis_verify",
         "themis_verify_data_gap_report",
-        "themis_verify_bounds_result",
+        "themis_verify_bounds_results",
         "themis_verify_markov_blanket",  # borrow-list #4
         "themis_verify_selection_recovery_numeric",  # §S9.1 numeric end
         "themis_verify_missing_data_numeric",  # §S9.2 numeric end

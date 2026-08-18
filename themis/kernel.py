@@ -15,7 +15,7 @@ Public entries (all JSON-in / JSON-out, no typed objects required):
   kernel objects.
 - ``verify_data_gap_report`` — T10-only audit (Phase 10), valid even
   for diagnostic results that carry no derivation.
-- ``verify_bounds_result`` — independent audit of bounds_result via
+- ``verify_bounds_results`` — independent audit of bounds_results via
   the per-method verifiers
   (manski_natural / manski_tamer_monotonicity / balke_pearl_iv).
   Accepts derivation-less results — bounds typically attach when
@@ -1260,41 +1260,52 @@ def verify(program: dict | str | bytes, result: dict) -> None:
     # (non-differential error) is the one holding the point estimate up.
     _verify_outcome_error_rule(result)
 
-    # Independent audit of bounds_result. Each
-    # producer has a dedicated verifier; verifier trilogy now complete
-    # for the 3 implemented BoundsMethod values.
-    bounds_result = result.get("bounds_result")
-    if bounds_result is not None:
-        method = bounds_result.get("method")
-        if method == "manski_tamer_monotonicity":
-            from .verifier.bounds_rules import (
-                verify_manski_tamer_bounds_result,
-            )
-            verify_manski_tamer_bounds_result(
-                bounds_result,
-                program=ast,
-                query_dict=_query_to_dict(query_stmt.query),
-            )
-        elif method == "manski_natural":
-            from .verifier.bounds_rules import (
-                verify_manski_natural_bounds_result,
-            )
-            verify_manski_natural_bounds_result(
-                bounds_result,
-                query_dict=_query_to_dict(query_stmt.query),
-            )
-        elif method == "balke_pearl_iv":
-            from .verifier.bounds_rules import (
-                verify_balke_pearl_iv_bounds_result,
-            )
-            verify_balke_pearl_iv_bounds_result(
-                bounds_result,
-                query_dict=_query_to_dict(query_stmt.query),
-            )
+    # Independent audit of every bounds row. Each producer has a dedicated
+    # verifier; the trilogy is complete for the 3 implemented BoundsMethod
+    # values. Every row is audited — the rows are different methods on one
+    # estimand, and auditing one of them says nothing about the others.
+    for row in result.get("bounds_results") or ():
+        _verify_one_bounds_row(
+            row, ast=ast, query_dict=_query_to_dict(query_stmt.query),
+            strict=False,
+        )
 
 
-def verify_bounds_result(program: dict | str | bytes, result: dict) -> None:
-    """Independently audit ``result.bounds_result``.
+def _verify_one_bounds_row(row: dict, *, ast, query_dict, strict: bool) -> None:
+    """Route one bounds row to the verifier for its method.
+
+    ``strict`` is what separates the two entrances. The pass inside
+    :func:`verify` walks whatever the kernel produced, so a method with no
+    verifier yet is not its business; the public entry is a request to
+    audit this row, and answering it with silence would read as an accept.
+    """
+    method = row.get("method")
+    if method == "manski_natural":
+        from .verifier.bounds_rules import verify_manski_natural_bounds_result
+        verify_manski_natural_bounds_result(row, query_dict=query_dict)
+    elif method == "manski_tamer_monotonicity":
+        from .verifier.bounds_rules import verify_manski_tamer_bounds_result
+        verify_manski_tamer_bounds_result(
+            row, program=ast, query_dict=query_dict,
+        )
+    elif method == "balke_pearl_iv":
+        from .verifier.bounds_rules import verify_balke_pearl_iv_bounds_result
+        verify_balke_pearl_iv_bounds_result(row, query_dict=query_dict)
+    elif not strict:
+        return
+    elif method == "frontdoor_partial":
+        raise ValueError(
+            "frontdoor_partial bounds verifier is not yet implemented "
+            "(no producer either — aspirational BoundsMethod enum value)"
+        )
+    else:
+        raise ValueError(
+            f"verify_bounds_results(): unsupported bounds method {method!r}"
+        )
+
+
+def verify_bounds_results(program: dict | str | bytes, result: dict) -> None:
+    """Independently audit every row of ``result.bounds_results``.
 
     Public entry parallel to :func:`verify_data_gap_report`. Unlike
     :func:`verify`, this function does NOT require a derivation chain
@@ -1303,17 +1314,21 @@ def verify_bounds_result(program: dict | str | bytes, result: dict) -> None:
     so the existing verify() path is dormant for exactly the results
     that carry bounds.
 
-    Dispatches by ``bounds_result.method`` to the dedicated verifier
-    (manski_natural / manski_tamer_monotonicity / balke_pearl_iv).
+    The block is a SET: one row per method whose assumptions the program
+    supports, all bracketing the same estimand. Every row is dispatched by
+    its own ``method`` to the dedicated verifier (manski_natural /
+    manski_tamer_monotonicity / balke_pearl_iv), because auditing one of
+    them says nothing about the arithmetic of another.
+
     Raises :class:`themis.verifier.errors.VerificationError` on any
     mismatch (canonical-shape tampering, wrong assumption tags,
     missing monotonicity declaration, etc.). Returns ``None`` on
-    accept. Raises ``ValueError`` for missing bounds_result, missing
-    query_id, or unsupported method.
+    accept. Raises ``ValueError`` for missing bounds_results, missing
+    query_id, or an unsupported method on any row.
 
     The frontdoor_partial method has no producer yet (aspirational
     enum value); calling this function on an emitted
-    frontdoor_partial bounds_result raises ``ValueError`` until that
+    frontdoor_partial row raises ``ValueError`` until that
     verifier lands.
     """
     if not isinstance(result, dict):
@@ -1322,17 +1337,17 @@ def verify_bounds_result(program: dict | str | bytes, result: dict) -> None:
         )
     validate_result(result)
 
-    bounds_result = result.get("bounds_result")
-    if bounds_result is None:
+    bounds_results = result.get("bounds_results")
+    if not bounds_results:
         raise ValueError(
-            "verify_bounds_result() requires result.bounds_result; this "
+            "verify_bounds_results() requires result.bounds_results; this "
             "result has none. Use themis.verify() for non-bounds results."
         )
 
     target_id = result.get("query_id")
     if target_id is None:
         raise ValueError(
-            "verify_bounds_result() requires result.query_id to locate "
+            "verify_bounds_results() requires result.query_id to locate "
             "the matching query in the program"
         )
 
@@ -1347,45 +1362,13 @@ def verify_bounds_result(program: dict | str | bytes, result: dict) -> None:
             break
     if query_stmt is None:
         raise ValueError(
-            f"verify_bounds_result(): no query with id={target_id!r} "
+            f"verify_bounds_results(): no query with id={target_id!r} "
             "in the program"
         )
 
-    method = bounds_result.get("method")
-    if method == "manski_natural":
-        from .verifier.bounds_rules import (
-            verify_manski_natural_bounds_result,
-        )
-        verify_manski_natural_bounds_result(
-            bounds_result,
-            query_dict=_query_to_dict(query_stmt.query),
-        )
-    elif method == "manski_tamer_monotonicity":
-        from .verifier.bounds_rules import (
-            verify_manski_tamer_bounds_result,
-        )
-        verify_manski_tamer_bounds_result(
-            bounds_result,
-            program=ast,
-            query_dict=_query_to_dict(query_stmt.query),
-        )
-    elif method == "balke_pearl_iv":
-        from .verifier.bounds_rules import (
-            verify_balke_pearl_iv_bounds_result,
-        )
-        verify_balke_pearl_iv_bounds_result(
-            bounds_result,
-            query_dict=_query_to_dict(query_stmt.query),
-        )
-    elif method == "frontdoor_partial":
-        raise ValueError(
-            "frontdoor_partial bounds verifier is not yet implemented "
-            "(no producer either — aspirational BoundsMethod enum value)"
-        )
-    else:
-        raise ValueError(
-            f"verify_bounds_result(): unsupported bounds method {method!r}"
-        )
+    query_dict = _query_to_dict(query_stmt.query)
+    for row in bounds_results:
+        _verify_one_bounds_row(row, ast=ast, query_dict=query_dict, strict=True)
 
 
 def verify_data_gap_report(result: dict) -> None:
@@ -1482,7 +1465,7 @@ def verify_outcome_error(result: dict) -> None:
 def verify_markov_blanket(result: dict) -> None:
     """Independently audit a Markov-blanket result (borrow-list #4).
 
-    Parallel to :func:`verify_bounds_result`: the artifact is a standalone
+    Parallel to :func:`verify_bounds_results`: the artifact is a standalone
     Markov-blanket dict (from
     :func:`themis.estimation.discovery.markov_blanket_to_dict` / the
     ``themis_markov_blanket`` MCP tool), not a query_result envelope, so there

@@ -164,7 +164,7 @@ EFFECT = Question(
     verdict_is_the_answer=False,
     names_an_estimand=True,
     # A placeholder as much as a name: the scheduler rewrites this line to
-    # whichever procedure actually produced ``bounds_result`` — Manski on a
+    # whichever procedure actually produced a ``bounds_results`` row — Manski on a
     # bare graph, the IV bounds when an instrument is declared — and strips
     # it when the attempt returned nothing.
     interval_fallback="Balke-Pearl bounds",

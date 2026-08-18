@@ -13,6 +13,8 @@ import themis
 from themis.types import EffectQueryAssumptions, Monotonicity
 
 
+from tests.bounds_rows import methods, row
+
 def _mtr_program_via_assumptions():
     """The MTR scenario with monotonicity
     declared on query.assumptions instead of program.extensions."""
@@ -108,9 +110,7 @@ def test_first_class_assumption_triggers_mtr_bounds():
     the extensions path."""
     out = themis.run(_mtr_program_via_assumptions())
     result = out["results"][0]
-    bounds = result.get("bounds_result")
-    assert bounds is not None, "MTR bounds should have fired"
-    assert bounds["method"] == "manski_tamer_monotonicity"
+    bounds = row(result, "manski_tamer_monotonicity")
     assert "mtr_non_decreasing" in bounds["assumptions"]
 
 
@@ -120,8 +120,7 @@ def test_first_class_assumption_non_increasing_direction():
         "monotonicity": "non_increasing",
     }
     out = themis.run(program)
-    bounds = out["results"][0]["bounds_result"]
-    assert bounds["method"] == "manski_tamer_monotonicity"
+    bounds = row(out["results"][0], "manski_tamer_monotonicity")
     assert "mtr_non_increasing" in bounds["assumptions"]
 
 
@@ -136,8 +135,8 @@ def test_first_class_and_extensions_paths_produce_identical_bounds():
     side-channel, not a new semantic."""
     out_class = themis.run(_mtr_program_via_assumptions())
     out_ext = themis.run(_mtr_program_via_extensions())
-    b_class = out_class["results"][0]["bounds_result"]
-    b_ext = out_ext["results"][0]["bounds_result"]
+    b_class = row(out_class["results"][0], "manski_tamer_monotonicity")
+    b_ext = row(out_ext["results"][0], "manski_tamer_monotonicity")
     assert b_class["method"] == b_ext["method"]
     assert b_class["lower_expression"] == b_ext["lower_expression"]
     assert b_class["upper_expression"] == b_ext["upper_expression"]
@@ -156,7 +155,7 @@ def test_verifier_accepts_first_class_path():
 
     program = _mtr_program_via_assumptions()
     out = themis.run(program)
-    bounds = out["results"][0]["bounds_result"]
+    bounds = row(out["results"][0], "manski_tamer_monotonicity")
     # Run verifier with the program and query dict — verifier reads
     # query.assumptions.monotonicity preferentially.
     verify_manski_tamer_bounds_result(
@@ -175,7 +174,7 @@ def test_verifier_still_accepts_extensions_path():
 
     program = _mtr_program_via_extensions()
     out = themis.run(program)
-    bounds = out["results"][0]["bounds_result"]
+    bounds = row(out["results"][0], "manski_tamer_monotonicity")
     verify_manski_tamer_bounds_result(
         bounds,
         program=program,

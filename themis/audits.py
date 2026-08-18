@@ -125,8 +125,8 @@ AUDITS: tuple[Audit, ...] = (
         re_derives_answer=True,
     ),
     Audit(
-        "verify_bounds_result", Artifact.QUERY_RESULT, True,
-        needs_field="bounds_result",
+        "verify_bounds_results", Artifact.QUERY_RESULT, True,
+        needs_field="bounds_results",
         zh="不看已给出的上下界，按图和记录下来的分布把这两个端点重新算一遍",
         re_derives_answer=True,
     ),

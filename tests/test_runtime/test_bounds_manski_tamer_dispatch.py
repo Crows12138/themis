@@ -59,21 +59,22 @@ def _base_program() -> dict:
     }
 
 
+from tests.bounds_rows import methods, row
+
+
 def _result_of(program: dict) -> dict:
     out = themis.run(program)
     return out["results"][0]
 
 
-def test_no_monotonicity_declaration_falls_back_to_manski_natural():
-    """Baseline: without an MTR declaration, we get the assumption-free
-    Manski natural bound."""
+def test_no_monotonicity_declaration_leaves_only_the_floor():
+    """Baseline: without an MTR declaration the assumption-free Manski
+    natural bound is the whole answer, because nothing sharper applies."""
     res = _result_of(_base_program())
-    bounds = res.get("bounds_result")
-    assert bounds is not None, "bounds layer should fire on unidentifiable effect"
-    assert bounds["method"] == "manski_natural"
+    assert methods(res) == ["manski_natural"]
     # Manski natural carries no assumptions (the field is optional in
     # the serialized envelope when empty).
-    assert not bounds.get("assumptions")
+    assert not row(res, "manski_natural").get("assumptions")
 
 
 def test_monotonicity_non_decreasing_picks_manski_tamer():
@@ -87,9 +88,11 @@ def test_monotonicity_non_decreasing_picks_manski_tamer():
             "direction": "non_decreasing",
         }
     }
-    bounds = _result_of(program)["bounds_result"]
-    assert bounds["method"] == "manski_tamer_monotonicity"
-    assert "mtr_non_decreasing" in bounds["assumptions"]
+    res = _result_of(program)
+    # The floor is not displaced by the sharpening — the reader gets both,
+    # and what separates them is what each was allowed to assume.
+    assert methods(res) == ["manski_natural", "manski_tamer_monotonicity"]
+    assert "mtr_non_decreasing" in row(res, "manski_tamer_monotonicity")["assumptions"]
 
 
 def test_monotonicity_non_increasing_picks_manski_tamer():
@@ -101,9 +104,9 @@ def test_monotonicity_non_increasing_picks_manski_tamer():
             "direction": "non_increasing",
         }
     }
-    bounds = _result_of(program)["bounds_result"]
-    assert bounds["method"] == "manski_tamer_monotonicity"
-    assert "mtr_non_increasing" in bounds["assumptions"]
+    res = _result_of(program)
+    assert methods(res) == ["manski_natural", "manski_tamer_monotonicity"]
+    assert "mtr_non_increasing" in row(res, "manski_tamer_monotonicity")["assumptions"]
 
 
 def test_monotonicity_for_other_pair_does_not_apply():
@@ -118,8 +121,7 @@ def test_monotonicity_for_other_pair_does_not_apply():
             "direction": "non_decreasing",
         }
     }
-    bounds = _result_of(program)["bounds_result"]
-    assert bounds["method"] == "manski_natural"
+    assert methods(_result_of(program)) == ["manski_natural"]
 
 
 def test_monotonicity_list_form_supports_multiple_pairs():
@@ -132,8 +134,9 @@ def test_monotonicity_list_form_supports_multiple_pairs():
             {"target": "y", "treatment": "x", "direction": "non_decreasing"},
         ]
     }
-    bounds = _result_of(program)["bounds_result"]
-    assert bounds["method"] == "manski_tamer_monotonicity"
+    assert methods(_result_of(program)) == [
+        "manski_natural", "manski_tamer_monotonicity",
+    ]
 
 
 def test_monotonicity_invalid_direction_falls_back():
@@ -147,8 +150,7 @@ def test_monotonicity_invalid_direction_falls_back():
             "direction": "monotone-ish",  # not in the enum
         }
     }
-    bounds = _result_of(program)["bounds_result"]
-    assert bounds["method"] == "manski_natural"
+    assert methods(_result_of(program)) == ["manski_natural"]
 
 
 def test_mtr_lower_tightens_to_marginal_in_envelope():
@@ -162,7 +164,7 @@ def test_mtr_lower_tightens_to_marginal_in_envelope():
             "direction": "non_decreasing",
         }
     }
-    bounds = _result_of(program)["bounds_result"]
+    bounds = row(_result_of(program), "manski_tamer_monotonicity")
     # Querying do(x=true) under Y(1)>=Y(0): lower tightens.
     assert bounds["lower_expression"] == "P(y=true)"
     assert "P(x=false)" in bounds["upper_expression"]

@@ -5826,7 +5826,7 @@ def _attach_data_gap_report(
         stmt=stmt,
         extensions=result.extensions,
         structural_result=result.structural_result,
-        bounds_result=result.bounds_result,
+        bounds_results=result.bounds_results,
         numeric_result=result.numeric_result,
         confidence=result.confidence,
         dispatch=result.dispatch,
@@ -6142,16 +6142,44 @@ def _attach_structural_caveats(
     return _replace(result, explanation=new_explanation)
 
 
-def _attach_bounds_result(
+def _attach_bounds_results(
     result: QueryResult, inputs: postprocess.Inputs,
 ) -> QueryResult:
     """Phase 12 §S.12.4: when point identification failed on an effect
-    query, try symbolic bounds (Manski natural always; Balke-Pearl IV
-    when a binary IV candidate exists either via
-    extensions.iv_identification or via lightweight graph detection).
-    Pure function — no I/O.
+    query, bound the estimand symbolically. Pure function — no I/O.
 
-    Prefers the tighter method (BP when applicable, else Manski).
+    EVERY method whose assumptions this program supports is reported, each
+    carrying its own. This used to return the first one that fired, which
+    made a slot able to hold any of them hold whichever branch ran first.
+    All three bound the same quantity — ``estimand='arm_probability'`` on
+    all three — under assumption sets that do not contain one another:
+    Manski assumes nothing, Balke-Pearl needs IV1/IV2/IV3 off the graph,
+    Manski-Tamer needs a monotone treatment response the caller asserted.
+    This package's one rule for ranking strategies is that an
+    assumption-free estimand outranks an assumption-laden one, and that
+    rule is about the estimand CHANGING (declaring monotonicity once
+    replaced a population effect with a complier contrast), not about
+    which interval is narrower. It therefore declines to rank these, and a
+    single slot has to.
+
+    What that cost was not the rare case, and the measurement moved the
+    item. Over 96 parseable programs and 69 effect queries in this repo,
+    ZERO declare monotonicity and zero declare both it and an instrument,
+    so the two assumption-laden rows never actually competed — the
+    registered complaint was about a state that is constructible and has
+    no instances. What DID happen, on every one of the three answers that
+    reached a sharper method (3 of 36 results carrying bounds), is that
+    the assumption-free floor — which applies wherever they do, and which
+    this pass exists to provide — sat behind ``if bounds is None`` and so
+    was never computed at all. The reader was shown an interval resting
+    on IV1/IV2/IV3 with no way to see what was left without them.
+
+    Not intersected. Under both assumption sets both intervals hold, so
+    their intersection does contain the truth, but it is not the SHARP set
+    under the conjunction — that is one LP over the response-function
+    polytope with the monotone types removed, which the numeric end can do
+    and no closed form here can — and one unlabelled interval would hide
+    which half rests on what.
 
     IV detection (Phase 12 §S.12.6 patch): the kernel's IV identification
     pass does NOT run on ADMG-unidentifiable effect queries, so
@@ -6174,7 +6202,7 @@ def _attach_bounds_result(
     )
 
     program, stmt = inputs.program, inputs.stmt
-    if result.bounds_result is not None:
+    if result.bounds_results:
         return result
     if result.status != ResultStatus.NEEDS_INVESTIGATION:
         return result
@@ -6213,19 +6241,51 @@ def _attach_bounds_result(
     # and is offered while it stays inside MAX_RESPONSE_TYPES. Manski-Tamer's
     # monotone envelope over ordered levels IS a binary-treatment
     # construction, so that one stays gated on a bool intervention value.
-    bounds = None
-    # 1. Try kernel-emitted IV identification first (richest).
+    #
+    # The order below is PRESENTATION, not precedence: the floor first, then
+    # each sharpening, because that is the order a reader can follow. No
+    # decision rides on it, which is why there is no table declaring it — a
+    # precedence number here would assert a ranking these three do not have.
     iv_ext = (result.extensions or {}).get(blocks.IV_IDENTIFICATION)
     instrument_pred: str | None = None
     if isinstance(iv_ext, dict):
         instrument_pred = iv_ext.get("instrument")
-    # 2. Fallback: lightweight structural detection
     if instrument_pred is None:
-        instrument_pred = _detect_iv_candidate_structural(
-            program, query,
-        )
+        # The kernel's IV pass does not run on ADMG-unidentifiable queries,
+        # so fall back to the structural check.
+        instrument_pred = _detect_iv_candidate_structural(program, query)
+
+    found: list = []
+
+    # The assumption-free floor. Available wherever the sharper methods are,
+    # which is exactly why it used to be unreachable: it was written last,
+    # under a guard that only held when nothing sharper had fired.
+    floor = attempt_manski_natural(query, outcome_event_is_discrete=True)
+    if floor is not None:
+        found.append(_note_a_sharper_method_was_declined(
+            program, query, floor, instrument_pred,
+        ))
+
+    # Manski-Tamer (MTR), under a monotone treatment response the caller
+    # asserted via query.assumptions.monotonicity or the older
+    # program.extensions['monotonicity'] side channel.
+    if intervention_is_bool:
+        mtr_direction = _detect_monotonicity_for_query(program, query)
+        if mtr_direction is not None:
+            mtr = attempt_manski_tamer_monotonicity(
+                query,
+                monotonicity=mtr_direction,
+                outcome_event_is_discrete=True,
+            )
+            if mtr is not None:
+                found.append(mtr)
+
+    # Balke-Pearl, under IV1/IV2/IV3 read off the graph. Returns None when
+    # the response-function partition is past MAX_RESPONSE_TYPES, and the
+    # floor above says so rather than reading like a query with no
+    # instrument.
     if instrument_pred:
-        bounds = attempt_balke_pearl_iv(
+        bp = attempt_balke_pearl_iv(
             query,
             instrument_predicate=instrument_pred,
             outcome_levels=_declared_level_count(
@@ -6236,54 +6296,12 @@ def _attach_bounds_result(
             instrument_levels=_declared_level_count(
                 program, instrument_pred, None),
         )
+        if bp is not None:
+            found.append(bp)
 
-    # 3. Manski-Tamer (MTR) — tighter than Manski natural when the user
-    #    asserts monotone treatment response. Triggered via
-    #    program.extensions['monotonicity'] dict matching this query's
-    #    target+treatment pair. Binary treatment only; falls back to
-    #    Manski natural if no MTR declaration applies.
-    #
-    #    Balke-Pearl is tried first, and now reaches cases it used to skip,
-    #    so a query with BOTH an instrument and an MTR declaration gets the
-    #    instrument. That is this chain's order deciding between two
-    #    assumption sets — IV1/IV2/IV3 read off the graph against a
-    #    monotonicity the caller asserted in words — and their intervals are
-    #    not comparable, so "tighter" cannot settle it either.
-    #
-    #    Stated here rather than left to be discovered, and stated as what it
-    #    is: a decision made by line order, which is the shape a warning
-    #    cannot fix. Reporting "both applied and I took one" still returns
-    #    the one; what has to change is that a slot able to hold either
-    #    should not be filled by whichever branch ran first. Three ways out,
-    #    each with envelope consequences — carry both results with their
-    #    assumption sets and let the reader choose; name a rule that decides
-    #    and refuse when it cannot, as the instrument route does when a
-    #    graph offers two valid instruments; or answer with one and attach
-    #    the other as an annotation. Intersecting them is not one of the
-    #    three: the two rest on different assumptions, so their intersection
-    #    asserts both.
-    if bounds is None and intervention_is_bool:
-        mtr_direction = _detect_monotonicity_for_query(program, query)
-        if mtr_direction is not None:
-            bounds = attempt_manski_tamer_monotonicity(
-                query,
-                monotonicity=mtr_direction,
-                outcome_event_is_discrete=True,
-            )
-
-    # 4. Always-available fallback (any treatment cardinality; bool OR
-    #    discrete-numeric outcome event).
-    if bounds is None:
-        bounds = attempt_manski_natural(
-            query, outcome_event_is_discrete=True,
-        )
-
-    if bounds is None:
+    if not found:
         return result
-    bounds = _note_a_sharper_method_was_declined(
-        program, query, bounds, instrument_pred,
-    )
-    return _replace(result, bounds_result=bounds)
+    return _replace(result, bounds_results=tuple(found))
 
 
 def _note_a_sharper_method_was_declined(program, query, bounds, instrument_pred):
@@ -6489,8 +6507,9 @@ def _reconcile_alt_paths_with_bounds(
     alternative_paths text with what the bounds attempt actually produced.
 
     Three cases:
-    - ``bounds_result`` present → rewrite static "接受 Balke-Pearl bounds"
-      lines to the concrete "已计算 bounds（method=...）— 见 bounds_result";
+    - ``bounds_results`` non-empty → rewrite static "接受 Balke-Pearl bounds"
+      lines to the concrete "已计算 bounds（method=...）— 见 bounds_results",
+      naming every method that applied rather than one of them;
       prepend that line on blocking gaps that didn't already mention bounds
     - bounds attempt ran but returned None (effect query +
       needs_investigation) → strip static bounds promises rather than
@@ -6511,7 +6530,7 @@ def _reconcile_alt_paths_with_bounds(
         result.query_kind == QueryKind.EFFECT
         and result.status == ResultStatus.NEEDS_INVESTIGATION
     )
-    bounds_present = result.bounds_result is not None
+    bounds_present = bool(result.bounds_results)
 
     if not bounds_attempted and not bounds_present:
         return result
@@ -6521,9 +6540,9 @@ def _reconcile_alt_paths_with_bounds(
 
     concrete = None
     if bounds_present:
-        method_name = result.bounds_result.method.value
+        methods = ", ".join(b.method.value for b in result.bounds_results)
         concrete = (
-            f"已计算 bounds（method={method_name}）— 见 bounds_result"
+            f"已计算 bounds（method={methods}）— 见 bounds_results"
         )
 
     new_gaps = []
@@ -6567,11 +6586,11 @@ def _reconcile_alt_paths_with_bounds(
 
     new_steps = list(_make_actionable_steps(list(new_gaps)))
     if bounds_present:
-        # Subagent real-test caught: with bounds_result attached, the
-        # actionable_next_steps "或：已计算 bounds — 见 bounds_result"
+        # Subagent real-test caught: with bounds attached, the
+        # actionable_next_steps "或：已计算 bounds — 见 bounds_results"
         # line duplicates the pointer that's already in alt_paths AND
-        # the bounds_result rendering. Drop the dup — renderer reads
-        # bounds_result as its own block.
+        # the bounds rendering. Drop the dup — renderer reads
+        # bounds_results as its own block.
         new_steps = [s for s in new_steps if "bounds_result" not in s]
     new_report = _replace(
         result.data_gap_report,
@@ -6644,9 +6663,9 @@ POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
         # The assumption-free floor, when point identification failed.
         # Before the report, so a bounded answer is classified as bounded.
         name="bounds",
-        run=_attach_bounds_result,
+        run=_attach_bounds_results,
         reads=frozenset({"status", "extensions.iv_identification"}),
-        writes=frozenset({"bounds_result"}),
+        writes=frozenset({"bounds_results"}),
     ),
     postprocess.Pass(
         # Reads nearly everything: the report is the account of what the
@@ -6656,7 +6675,7 @@ POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
         reads=frozenset({
             "query_kind", "status", "derivation", "investigation_requests",
             "framing_notes", "structural_result", "numeric_result",
-            "confidence", "bounds_result", "dispatch",
+            "confidence", "bounds_results", "dispatch",
             "extensions.ambiguities",
             "extensions.iv_identification",
             "extensions.transport_identification",
@@ -6682,7 +6701,7 @@ POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
         name="reconcile_alt_paths",
         run=_reconcile_alt_paths_with_bounds,
         reads=frozenset({
-            "query_kind", "status", "bounds_result", "data_gap_report",
+            "query_kind", "status", "bounds_results", "data_gap_report",
         }),
         writes=frozenset({"data_gap_report"}),
     ),

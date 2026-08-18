@@ -180,11 +180,11 @@ def api_verify(req: VerifyRequest):
         )
 
 
-@app.post("/api/verify_bounds_result")
-def api_verify_bounds_result(req: VerifyRequest):
-    """Web parallel of the MCP ``themis_verify_bounds_result`` tool.
+@app.post("/api/verify_bounds_results")
+def api_verify_bounds_results(req: VerifyRequest):
+    """Web parallel of the MCP ``themis_verify_bounds_results`` tool.
 
-    Wraps :func:`themis.verify_bounds_result` so paste-JSON / Ask
+    Wraps :func:`themis.verify_bounds_results` so paste-JSON / Ask
     flows can audit MTR / Manski-natural / Balke-Pearl IV bounds
     without going through the derivation-required ``/api/verify``
     path. Bounds typically attach when status=needs_investigation
@@ -192,7 +192,7 @@ def api_verify_bounds_result(req: VerifyRequest):
     endpoint is the bounds-only counterpart.
     """
     try:
-        themis.verify_bounds_result(req.program, req.result)
+        themis.verify_bounds_results(req.program, req.result)
         return {"ok": True}
     except Exception as exc:
         return JSONResponse(
@@ -225,12 +225,12 @@ def api_audit(req: VerifyRequest):
 
 
 # An endpoint the product does not call itself, and the one that reaches it.
-# Both are MCP-parity shapes (themis_verify / themis_verify_bounds_result are
+# Both are MCP-parity shapes (themis_verify / themis_verify_bounds_results are
 # their own tools), so they stay; what a reader can reach is /api/audit, which
 # runs whichever of them applies to what they are looking at.
 COVERED_BY = {
     "/api/verify": "/api/audit",
-    "/api/verify_bounds_result": "/api/audit",
+    "/api/verify_bounds_results": "/api/audit",
 }
 
 

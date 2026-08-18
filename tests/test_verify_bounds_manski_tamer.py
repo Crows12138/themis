@@ -31,6 +31,8 @@ from themis.verifier.errors import VerificationError
 # ---------------------------------------------------------------------------
 
 
+from tests.bounds_rows import methods, row
+
 def test_bounds_rules_does_not_import_output_bounds():
     """Same posture as T10 independence pin: the verifier re-implements
     the formula and must NOT short-circuit by importing the producer."""
@@ -353,12 +355,12 @@ def test_real_mtr_program_bounds_pass_verifier_e2e():
     program = _mtr_program()
     out = themis.run(program)
     result = out["results"][0]
-    assert result.get("bounds_result", {}).get("method") == \
+    assert methods(result)[-1] == \
         "manski_tamer_monotonicity"
 
     # Direct verifier call — accepts the producer's actual output.
     verify_manski_tamer_bounds_result(
-        result["bounds_result"],
+        row(result, "manski_tamer_monotonicity"),
         program=program,
         query_dict=program["statements"][-1]["query"],
     )
@@ -372,10 +374,10 @@ def test_real_mtr_program_tampered_bounds_caught_e2e():
     program = _mtr_program()
     out = themis.run(program)
     result = out["results"][0]
-    result["bounds_result"]["lower_expression"] = "P(y=false)"
+    row(result, "manski_tamer_monotonicity")["lower_expression"] = "P(y=false)"
     with pytest.raises(VerificationError, match="lower_expression mismatch"):
         verify_manski_tamer_bounds_result(
-            result["bounds_result"],
+            row(result, "manski_tamer_monotonicity"),
             program=program,
             query_dict=program["statements"][-1]["query"],
         )

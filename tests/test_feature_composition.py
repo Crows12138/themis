@@ -22,9 +22,11 @@ from themis.verifier.errors import VerificationError
 
 # ---------------------------------------------------------------------------
 # Composition 1: monotonicity first-class + MTR bounds
-# + bounds verifier + verify_bounds_result public entry
+# + bounds verifier + verify_bounds_results public entry
 # ---------------------------------------------------------------------------
 
+
+from tests.bounds_rows import methods, row
 
 def test_the_assumptions_field_reaches_bounds_and_its_verifier():
     """A program with EffectQuery.assumptions.monotonicity
@@ -71,18 +73,18 @@ def test_the_assumptions_field_reaches_bounds_and_its_verifier():
     result = out["results"][0]
 
     # the MTR producer fired
-    bounds = result.get("bounds_result")
+    bounds = row(result, "manski_tamer_monotonicity")
     assert bounds is not None
     assert bounds["method"] == "manski_tamer_monotonicity"
     assert "mtr_non_decreasing" in bounds["assumptions"]
 
     # the public bounds-audit entry accepts it
-    themis.verify_bounds_result(program, result)
+    themis.verify_bounds_results(program, result)
 
     # Tampering caught by audit
-    result["bounds_result"]["lower_expression"] = "P(y=false)"
+    row(result, "manski_tamer_monotonicity")["lower_expression"] = "P(y=false)"
     with pytest.raises(VerificationError):
-        themis.verify_bounds_result(program, result)
+        themis.verify_bounds_results(program, result)
 
 
 # ---------------------------------------------------------------------------
