@@ -214,6 +214,86 @@ def test_ps_cell_matches_the_causation_door_on_the_same_dataframe():
     assert cell.high == pytest.approx(poc.ps_upper, abs=1e-12)
 
 
+def test_the_two_doors_take_the_same_route_on_every_graph():
+    """The invariant behind the three numeric agreements, stated directly.
+
+    PN through the counterfactual door and PN through the causation door are
+    the same number, so which route each door can reach must not depend on
+    which door was knocked on. That held while both doors had the same
+    cascade; it stopped holding the moment one of them grew a route, and
+    nothing said so, because from inside either file its own cascade reads
+    complete. Comparing them on examples catches it only where an example
+    happens to exist — comparing the LICENCE over the graphs that select each
+    route is the statement itself.
+    """
+    routes = {}
+    for name, graph, bidirected, df in (
+        ("backdoor", _confounded_graph(), frozenset(),
+         _sample_nonmono(4_000, seed=3)),
+        ("bow+instrument", _bow_iv_graph(), _LATENT,
+         _sample_bow_iv(4_000, seed=7)[0]),
+        ("front-door", _front_door_graph(), _LATENT,
+         _front_door_sample(4_000, seed=3)),
+    ):
+        poc = estimate_causation_probabilities(
+            df, graph=graph, bidirected=bidirected, cause=X, effect=Y,
+            monotonic=False, ci_bootstrap=0,
+        )
+        cell = estimate_counterfactual_cell(
+            df, graph=graph, bidirected=bidirected,
+            query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+            ci_bootstrap=0,
+        )
+        routes[name] = (
+            poc.interventional_risk_provenance,
+            cell.interventional_risk_provenance,
+        )
+    assert routes == {
+        "backdoor": ("backdoor_adjustment", "backdoor_adjustment"),
+        "bow+instrument": ("instrument_response_polytope",
+                           "instrument_response_polytope"),
+        "front-door": ("general_id_plug_in", "general_id_plug_in"),
+    }
+
+
+def test_pn_matches_the_causation_door_over_the_instrument_polytope():
+    """The registered asymmetry, as a behaviour: this door answered and the
+    other refused, on the same PN and the same DataFrame."""
+    df, y0, _y1 = _sample_bow_iv(20_000, seed=7)
+    poc = estimate_causation_probabilities(
+        df, graph=_bow_iv_graph(), bidirected=_LATENT, cause=X, effect=Y,
+        monotonic=False, ci_bootstrap=0,
+    )
+    cell = _iv_cell(df, graph=_bow_iv_graph())
+    assert poc.pn_lower == pytest.approx(cell.low, abs=1e-12)
+    assert poc.pn_upper == pytest.approx(cell.high, abs=1e-12)
+    assert poc.p_y_do_x1 is None and poc.p_y_do_x0 is None
+    assert poc.instrument == "z"
+    assert poc.pn_lower <= _true_pn(df, y0) <= poc.pn_upper
+
+
+def test_pn_matches_the_causation_door_over_a_general_id_estimand():
+    """The other route the shared cascade brought with it. A front-door
+    structure point-identifies both arms where no covariate set does."""
+    df = _front_door_sample(20_000, seed=3)
+    g, bi = _front_door_graph(), _LATENT
+    poc = estimate_causation_probabilities(
+        df, graph=g, bidirected=bi, cause=X, effect=Y,
+        monotonic=False, ci_bootstrap=0,
+    )
+    cell = estimate_counterfactual_cell(
+        df, graph=g, bidirected=bi,
+        query=_query(x_obs=True, x_cf=False, y_star=False, factual_y=True),
+        ci_bootstrap=0,
+    )
+    assert poc.pn_lower == pytest.approx(cell.low, abs=1e-12)
+    assert poc.pn_upper == pytest.approx(cell.high, abs=1e-12)
+    # The cell needs the ONE arm it crosses to; the three quantities need both.
+    # Sharing a cascade must not have made either ask for the other's data.
+    assert poc.p_y_do_x0 == pytest.approx(cell.p_y_do_x_cf, abs=1e-12)
+    assert poc.p_y_do_x1 is not None
+
+
 def test_monotone_pn_cell_matches_the_causation_point_and_the_truth():
     df = _sample(60_000, seed=5)
     g = _confounded_graph()
@@ -895,6 +975,27 @@ def _sample_bow_iv(n: int, seed: int):
                                  np.where(w, 0.35, 0.10))
     y = np.where(x, y1, y0)
     return pd.DataFrame({"x": x, "y": y, "z": z}), y0, y1
+
+
+def _front_door_graph():
+    """X → M → Y with an unmeasured common cause of X and Y.
+
+    No covariate set blocks the back door, and unlike the bow above the ID
+    algorithm reaches BOTH arms through the mediator — so this graph selects
+    the general-ID route rather than the instrument one.
+    """
+    g = nx.DiGraph()
+    g.add_edges_from([(X, M), (M, Y)])
+    return g
+
+
+def _front_door_sample(n: int, seed: int) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    w = rng.random(n) < 0.5                       # unmeasured, moves x and y
+    x = rng.random(n) < np.where(w, 0.8, 0.3)
+    m = rng.random(n) < np.where(x, 0.75, 0.2)
+    y = rng.random(n) < np.where(m, 0.8, 0.25) * np.where(w, 1.0, 0.7)
+    return pd.DataFrame({"x": x, "y": y, "m": m})
 
 
 def _true_pn(df, y0):

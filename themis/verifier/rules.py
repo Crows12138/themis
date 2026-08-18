@@ -4899,25 +4899,56 @@ def _rule_numeric_causation_estimate(
             f"got {sum(cells.values()):.6g}",
             step_index=step_index, rule=rule,
         )
-    p_y_do_x1 = float(_require(inputs, "p_y_do_x1", step_index, rule))
-    p_y_do_x0 = float(_require(inputs, "p_y_do_x0", step_index, rule))
+    raw_r1 = _require(inputs, "p_y_do_x1", step_index, rule)
+    raw_r0 = _require(inputs, "p_y_do_x0", step_index, rule)
+    p_y_do_x1 = None if raw_r1 is None else float(raw_r1)
+    p_y_do_x0 = None if raw_r0 is None else float(raw_r0)
     for label, v in (("p_y_do_x1", p_y_do_x1), ("p_y_do_x0", p_y_do_x0)):
-        if not (0.0 <= v <= 1.0):
+        if v is not None and not (0.0 <= v <= 1.0):
             raise RuleCheckFailed(
                 f"{rule}: {label}={v} is not a probability in [0, 1]",
                 step_index=step_index, rule=rule,
             )
     monotonic = bool(_require(inputs, "monotonic", step_index, rule))
 
-    # 1. Independent Tian-Pearl re-application on the reported data inputs. The
-    #    bounds (eqs 24-26) are re-derived for every answer; the points (eqs
-    #    40-42) only under monotonicity — a non-monotone (bounds-only) answer
-    #    reports point=None and the loop below checks that None is consistent.
-    recomputed = _tian_pearl_poc_for_verifier(
-        p_x1_y1=cells["p_x1_y1"], p_x1_y0=cells["p_x1_y0"],
-        p_x0_y1=cells["p_x0_y1"], p_x0_y0=cells["p_x0_y0"],
-        p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0, monotonic=monotonic,
+    # 2 (first, because it decides which solver to re-run). Identification
+    #    structure: the licence is re-derived rather than read, and it is what
+    #    says whether the closed form had inputs at all.
+    provenance = _check_risk_provenance(
+        inputs, ctx, None, step_index=step_index, rule=rule,
     )
+    risk_free = provenance in _RISK_FREE
+    if risk_free != (p_y_do_x1 is None or p_y_do_x0 is None):
+        raise RuleCheckFailed(
+            f"{rule}: provenance {provenance!r} disagrees with the presence "
+            f"of the interventional risks",
+            step_index=step_index, rule=rule,
+        )
+    if not risk_free and (p_y_do_x1 is None or p_y_do_x0 is None):
+        raise RuleCheckFailed(
+            f"{rule}: provenance {provenance!r} claims both arms were "
+            f"obtained, but one of them is absent",
+            step_index=step_index, rule=rule,
+        )
+
+    # 1. Independent re-derivation on the reported empirical inputs — by
+    #    whichever solver the licence says ran. Tian-Pearl's closed form has no
+    #    answer for the instrument route (it would demand the very risks that
+    #    route exists because nobody has), so choosing here is not a shortcut:
+    #    it is the same question asked of the same producer through the program
+    #    it actually solved. The bounds are re-derived for every answer; a
+    #    point is re-derived where the route can have one, and the loop below
+    #    checks that an absent point is consistent either way.
+    if provenance == "instrument_response_polytope":
+        recomputed = _rederive_causation_over_response_polytope(
+            ctx, inputs, cells, monotonic, step_index=step_index, rule=rule,
+        )
+    else:
+        recomputed = _tian_pearl_poc_for_verifier(
+            p_x1_y1=cells["p_x1_y1"], p_x1_y0=cells["p_x1_y0"],
+            p_x0_y1=cells["p_x0_y1"], p_x0_y0=cells["p_x0_y0"],
+            p_y_do_x1=p_y_do_x1, p_y_do_x0=p_y_do_x0, monotonic=monotonic,
+        )
     for q in ("pn", "ps", "pns"):
         exp_lower, exp_upper, exp_point = recomputed[q]
         # Bounds must match the independent re-derivation exactly.
@@ -4953,17 +4984,10 @@ def _rule_numeric_causation_estimate(
                 step_index=step_index, rule=rule,
             )
 
-    # 2. Identification-structure re-check: the adjustment set must be an
-    #    admissible back-door set on ctx.graph (skip for external experiments).
-    #    Which of those two it is, is itself re-derived — the branch below is
-    #    the only place this rule re-derives anything on the graph, and a
-    #    provenance taken on the producer's word would be a switch that turns
-    #    it off.
-    provenance = _check_risk_provenance(
-        inputs, ctx, None, step_index=step_index, rule=rule,
-    )
-    # ``adjustment`` is serialized as a comma-joined scalar string (the
-    # derivation serializer does not take a tuple of strings).
+    # 2 (continued). The adjustment set must be an admissible back-door set on
+    #    ctx.graph, and the routes that standardize over nothing must claim
+    #    nothing. ``adjustment`` is serialized as a comma-joined scalar string
+    #    (the derivation serializer does not take a tuple of strings).
     adjustment_str = _require(inputs, "adjustment", step_index, rule)
     if provenance in ("backdoor_adjustment", "exogenous"):
         sets = structural_solver.minimal_adjustment_sets(
@@ -4983,6 +5007,32 @@ def _rule_numeric_causation_estimate(
                 f"{rule}: claimed adjustment set {sorted(claimed)} is not an "
                 f"admissible minimal back-door set on the graph",
                 step_index=step_index, rule=rule,
+            )
+    else:
+        if str(adjustment_str):
+            raise RuleCheckFailed(
+                f"{rule}: provenance {provenance!r} standardizes over nothing, "
+                f"yet an adjustment set {str(adjustment_str)!r} is claimed",
+                step_index=step_index, rule=rule,
+            )
+        if provenance in ("general_id_plug_in", "instrument_response_polytope"):
+            # Both licences open with the same claim — that NO covariate set
+            # identifies the risks — and it is the claim that sent the answer
+            # down a route with weaker guarantees, so it is re-derived here
+            # rather than believed. What each licence adds on top of it is
+            # checked in its own place: the estimands below, the table above.
+            if structural_solver.minimal_adjustment_sets(
+                ctx.graph, x_atom, y_atom, bidirected=(ctx.bidirected or None),
+            ):
+                raise RuleCheckFailed(
+                    f"{rule}: provenance {provenance!r} claims no covariate "
+                    f"set identifies the do-risks, but the graph admits a "
+                    f"back-door adjustment set",
+                    step_index=step_index, rule=rule,
+                )
+        if provenance == "general_id_plug_in":
+            _check_causation_general_id_risks(
+                ctx, inputs, x_atom, y_atom, step_index=step_index, rule=rule,
             )
 
     # 3. Headline PN CI (present only when a bootstrap ran). When the PN point
@@ -7056,7 +7106,8 @@ _RISK_PROVENANCES_BY_RULE: dict[str, frozenset[str]] = {
         "derived_identification", "user_experimental",
     }),
     "numeric_causation_estimate": frozenset({
-        "exogenous", "backdoor_adjustment", "user_experimental",
+        "exogenous", "backdoor_adjustment", "general_id_plug_in",
+        "instrument_response_polytope", "user_experimental",
     }),
     "counterfactual_cell_bounds": frozenset({
         "not_required", "derived_identification", "user_experimental",
@@ -7502,57 +7553,11 @@ def _rederive_cell_over_response_polytope(
     route is audited on — the two halves of the envelope have to agree with
     each other, not merely be internally tidy.
     """
-    import numpy as np
-
     from .bounds_rules import _verifier_response_lp
 
-    raw = inputs.get("p_xyz")
-    p_z_raw = inputs.get("p_z")
-    levels = inputs.get("instrument_levels")
-    try:
-        P = np.asarray(raw, dtype=float)
-        p_z = np.asarray(p_z_raw, dtype=float)
-    except (TypeError, ValueError):
-        raise RuleCheckFailed(
-            f"{rule}: p_xyz / p_z must be numeric arrays; got "
-            f"{raw!r} / {p_z_raw!r}",
-            step_index=step_index, rule=rule,
-        )
-    if P.ndim != 3 or P.shape[0] < 2 or P.shape[1:] != (2, 2):
-        raise RuleCheckFailed(
-            f"{rule}: p_xyz must be a |Z|x2x2 table with at least two "
-            f"instrument levels; got shape {P.shape}",
-            step_index=step_index, rule=rule,
-        )
-    nz = int(P.shape[0])
-    if p_z.shape != (nz,) or not isinstance(levels, (list, tuple)) or len(levels) != nz:
-        raise RuleCheckFailed(
-            f"{rule}: p_z and instrument_levels must each carry the {nz} "
-            f"levels the recorded p_xyz has",
-            step_index=step_index, rule=rule,
-        )
-    if abs(float(p_z.sum()) - 1.0) > 1e-6 or np.any(p_z < -1e-9):
-        raise RuleCheckFailed(
-            f"{rule}: p_z is not a distribution over the instrument's levels",
-            step_index=step_index, rule=rule,
-        )
-    for z in range(nz):
-        if abs(float(P[z].sum()) - 1.0) > 1e-6 or np.any(P[z] < -1e-9):
-            raise RuleCheckFailed(
-                f"{rule}: p_xyz[Z={z}] is not a conditional distribution "
-                f"over (X, Y)",
-                step_index=step_index, rule=rule,
-            )
-    for xi, xv in ((0, False), (1, True)):
-        for yi, yv in ((0, False), (1, True)):
-            marginal = float(sum(p_z[z] * P[z, xi, yi] for z in range(nz)))
-            if abs(marginal - joint[(xv, yv)]) > 1e-6:
-                raise RuleCheckFailed(
-                    f"{rule}: the recorded p_xyz marginalises to "
-                    f"P(X={xv}, Y={yv}) = {marginal:.6g}, but the same "
-                    f"envelope reports {joint[(xv, yv)]:.6g}",
-                    step_index=step_index, rule=rule,
-                )
+    P, p_z, nz = _verifier_recorded_iv_table(
+        inputs, joint, step_index=step_index, rule=rule,
+    )
 
     x_obs = int(bool(query.observed.value))
     x_cf = int(bool(query.counterfactual_intervention.value))
@@ -7622,6 +7627,214 @@ def _instrument_response_maps(nz: int):
     import itertools
 
     return list(itertools.product((0, 1), repeat=nz))
+
+
+def _verifier_recorded_iv_table(
+    inputs: dict, joint: dict, *, step_index: int, rule: str,
+):
+    """The recorded ``P(X, Y | Z)`` table, checked before anything is read off it.
+
+    Shared by the two rules that re-solve a response-function program, because
+    what makes a recorded table usable is a property of the table: it has to be
+    a family of conditional distributions over (X, Y), its ``p_z`` has to be a
+    distribution over the same levels, and it has to MARGINALISE to the four
+    observational cells the same envelope reports elsewhere. That last one is
+    what makes forgery expensive — the two halves of the envelope have to agree
+    with each other, not merely each be internally tidy.
+
+    Sharing it costs no independence: this is the verifier's own transcription
+    either way, and nothing here is imported from the producer.
+    """
+    import numpy as np
+
+    raw = inputs.get("p_xyz")
+    p_z_raw = inputs.get("p_z")
+    levels = inputs.get("instrument_levels")
+    try:
+        P = np.asarray(raw, dtype=float)
+        p_z = np.asarray(p_z_raw, dtype=float)
+    except (TypeError, ValueError):
+        raise RuleCheckFailed(
+            f"{rule}: p_xyz / p_z must be numeric arrays; got "
+            f"{raw!r} / {p_z_raw!r}",
+            step_index=step_index, rule=rule,
+        )
+    if P.ndim != 3 or P.shape[0] < 2 or P.shape[1:] != (2, 2):
+        raise RuleCheckFailed(
+            f"{rule}: p_xyz must be a |Z|x2x2 table with at least two "
+            f"instrument levels; got shape {P.shape}",
+            step_index=step_index, rule=rule,
+        )
+    nz = int(P.shape[0])
+    if p_z.shape != (nz,) or not isinstance(levels, (list, tuple)) or len(levels) != nz:
+        raise RuleCheckFailed(
+            f"{rule}: p_z and instrument_levels must each carry the {nz} "
+            f"levels the recorded p_xyz has",
+            step_index=step_index, rule=rule,
+        )
+    if abs(float(p_z.sum()) - 1.0) > 1e-6 or np.any(p_z < -1e-9):
+        raise RuleCheckFailed(
+            f"{rule}: p_z is not a distribution over the instrument's levels",
+            step_index=step_index, rule=rule,
+        )
+    for z in range(nz):
+        if abs(float(P[z].sum()) - 1.0) > 1e-6 or np.any(P[z] < -1e-9):
+            raise RuleCheckFailed(
+                f"{rule}: p_xyz[Z={z}] is not a conditional distribution "
+                f"over (X, Y)",
+                step_index=step_index, rule=rule,
+            )
+    for xi, xv in ((0, False), (1, True)):
+        for yi, yv in ((0, False), (1, True)):
+            marginal = float(sum(p_z[z] * P[z, xi, yi] for z in range(nz)))
+            if abs(marginal - joint[(xv, yv)]) > 1e-6:
+                raise RuleCheckFailed(
+                    f"{rule}: the recorded p_xyz marginalises to "
+                    f"P(X={xv}, Y={yv}) = {marginal:.6g}, but the same "
+                    f"envelope reports {joint[(xv, yv)]:.6g}",
+                    step_index=step_index, rule=rule,
+                )
+    return P, p_z, nz
+
+
+def _rederive_causation_over_response_polytope(
+    ctx: VerificationContext,
+    inputs: dict,
+    cells: dict,
+    monotonic: bool,
+    *,
+    step_index: int,
+    rule: str,
+) -> dict:
+    """Re-solve PN / PS / PNS over the recorded ``P(X, Y | Z)``.
+
+    Three objectives on one polytope. All three select the same
+    outcome-response map — the unit whose outcome follows the treatment,
+    ``gy = (0, 1)`` — because that is what a probability of causation is about;
+    they differ in the factual population, which is a weight on the TREATMENT
+    map and a denominator. PN asks among the treated who responded, PS among
+    the untreated who did not, and PNS asks about the whole population, so it
+    carries no weight and divides by nothing.
+
+    ``monotonic`` is read off the STEP rather than the query, unlike the
+    counterfactual cell's coordinates: on a causation query the flag IS a field
+    of the query, and it is compared against it above by the metadata leg —
+    here what matters is that the same flag the answer claims is the one the
+    program ran under.
+    """
+    from .bounds_rules import _verifier_response_lp
+
+    joint = {
+        (True, True): cells["p_x1_y1"], (True, False): cells["p_x1_y0"],
+        (False, True): cells["p_x0_y1"], (False, False): cells["p_x0_y0"],
+    }
+    P, p_z, nz = _verifier_recorded_iv_table(
+        inputs, joint, step_index=step_index, rule=rule,
+    )
+    if bool(inputs.get("monotonic")) != monotonic:
+        raise RuleCheckFailed(
+            f"{rule}: the monotonicity the program ran under is not the one "
+            f"the answer claims",
+            step_index=step_index, rule=rule,
+        )
+
+    # gy is indexed by treatment position; the four outcome-response maps are
+    # (gy[0], gy[1]). Monotonicity — X never prevents Y — is the claim that no
+    # unit's outcome moves against the treatment, so it deletes (1, 0).
+    gys = [(a, b) for a in (0, 1) for b in (0, 1)]
+    keep = [True] * len(gys) if not monotonic else [
+        gy[0] <= gy[1] for gy in gys
+    ]
+    fxs = _instrument_response_maps(nz)
+    forbidden = [
+        i * len(gys) + j
+        for i in range(len(fxs)) for j in range(len(gys)) if not keep[j]
+    ]
+
+    out: dict[str, tuple] = {}
+    for name, factual_arm in (("pn", 1), ("ps", 0), ("pns", None)):
+        objective = []
+        for fx in fxs:
+            for j, gy in enumerate(gys):
+                hits = keep[j] and gy[0] == 0 and gy[1] == 1
+                weight = (
+                    1.0 if factual_arm is None
+                    else sum(p_z[z] for z in range(nz) if fx[z] == factual_arm)
+                )
+                objective.append(float(weight) if hits else 0.0)
+        denominator = (
+            1.0 if factual_arm is None
+            # The factual outcome at the conditioning arm is the value that arm
+            # takes on the selected map: Y=1 among the treated, Y=0 among the
+            # untreated. Reading it off the map rather than writing it twice is
+            # what keeps the numerator and the denominator the same question.
+            else float(sum(
+                p_z[z] * P[z, factual_arm, (0, 1)[factual_arm]]
+                for z in range(nz)
+            ))
+        )
+        low, high = _verifier_response_lp(
+            P, 2, 2, nz, objective, rule, forbidden=forbidden,
+        )
+        if denominator <= 0.0:
+            lo, hi = 0.0, 1.0
+        else:
+            lo = min(max(low / denominator, 0.0), 1.0)
+            hi = min(max(high / denominator, 0.0), 1.0)
+        out[name] = (lo, hi, lo if abs(hi - lo) <= 1e-9 else None)
+    return out
+
+
+def _check_causation_general_id_risks(
+    ctx: VerificationContext,
+    inputs: dict,
+    x_atom,
+    y_atom,
+    *,
+    step_index: int,
+    rule: str,
+) -> None:
+    """Re-derive the general-ID estimand behind EACH of the two do-risks.
+
+    Both arms, separately. The ID algorithm is asked per arm and PN/PS/PNS
+    consume both, so identifying one arm and evaluating it twice would produce
+    an answer that looks exactly like this one — which is the failure a
+    per-arm re-derivation exists to catch.
+
+    Like the back-door branch this is an identification audit, not a re-fit:
+    the verifier holds a ``data_hash``, not the frame, so the plug-in VALUE is
+    beyond reach here (the data-refit ceiling every numeric rule declares).
+    What it pins down is that each number was read off the right estimand.
+    """
+    from ..runtime import c_factor
+
+    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    for arm, key in ((True, "risk_formula_treated"), (False, "risk_formula_control")):
+        claimed = inputs.get(key)
+        if claimed is None:
+            raise RuleCheckFailed(
+                f"{rule}: provenance 'general_id_plug_in' claims the "
+                f"do-risks came from identified estimands, but the arm "
+                f"X={arm} carries none",
+                step_index=step_index, rule=rule,
+            )
+        res = c_factor.identify_via_tian(ctx.graph, bidir, x_atom, y_atom, arm)
+        if not res.identifiable or res.formula is None:
+            raise RuleCheckFailed(
+                f"{rule}: the general ID algorithm does not point-identify "
+                f"P({y_atom.predicate}=1 | do({x_atom.predicate}={arm})) on "
+                f"this graph, yet the estimate reports an estimand for it",
+                step_index=step_index, rule=rule,
+            )
+        # Both risks are P(Y=1 | do(X=arm)) — the HIGH outcome level, whatever
+        # each of the three quantities goes on to ask about.
+        expected = _verifier_bind_target_value(res.formula, y_atom, True)
+        if claimed != expected:
+            raise RuleCheckFailed(
+                f"{rule}: the recorded estimand for the X={arm} arm is not "
+                f"the one the ID algorithm derives for it",
+                step_index=step_index, rule=rule,
+            )
 
 
 def _check_cf_cell_general_id_risk(

@@ -2357,6 +2357,11 @@ def _try_causation_estimate(
         "monotonic": estimate.monotonic,
         "interventional_risk_provenance": estimate.interventional_risk_provenance,
         "adjustment": list(estimate.adjustment),
+        # Which column the answer leaned on, when it leaned on an instrument
+        # instead of a pair of risks. A reader asking "where did these three
+        # intervals come from" gets the licence from the provenance and the
+        # column from here.
+        "instrument": estimate.instrument,
         "p_y_do_x1": estimate.p_y_do_x1,
         "p_y_do_x0": estimate.p_y_do_x0,
         "observational_joint": {
@@ -2409,6 +2414,7 @@ def _try_causation_estimate(
     ext[blocks.CAUSATION] = {
         "monotonic": estimate.monotonic,
         "interventional_risk_provenance": estimate.interventional_risk_provenance,
+        "instrument": estimate.instrument,
         "p_y_do_x1": estimate.p_y_do_x1,
         "p_y_do_x0": estimate.p_y_do_x0,
         "observational_joint": poc_block["observational_joint"],
@@ -2512,6 +2518,21 @@ def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
                 "interventional_risk_provenance": estimate.interventional_risk_provenance,
                 # comma-joined scalar (serializer does not take a str tuple).
                 "adjustment": ",".join(estimate.adjustment),
+                # The instrument route's sufficient statistic. The verifier
+                # re-solves the three response-function programs from exactly
+                # these, so the level list travels with the table: a |Z|x2x2
+                # array read against a different level order re-derives
+                # different intervals and calls an honest producer a liar.
+                "instrument": estimate.instrument,
+                "instrument_levels": estimate.instrument_levels,
+                "p_xyz": estimate.p_xyz,
+                "p_z": estimate.p_z,
+                # Present only when the risks came from the general ID
+                # algorithm; the verifier re-derives one per arm, because
+                # identifying the easy arm and evaluating it twice would
+                # otherwise be indistinguishable from having identified both.
+                "risk_formula_treated": estimate.risk_formula_treated,
+                "risk_formula_control": estimate.risk_formula_control,
                 "pn_lower": estimate.pn_lower, "pn_upper": estimate.pn_upper,
                 "pn_point": estimate.pn_point,
                 "ps_lower": estimate.ps_lower, "ps_upper": estimate.ps_upper,

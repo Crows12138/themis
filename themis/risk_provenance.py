@@ -195,6 +195,8 @@ ADMISSIBLE: dict[str, frozenset[RiskProvenance]] = {
     "numeric_causation_estimate": frozenset({
         RiskProvenance.EXOGENOUS,
         RiskProvenance.BACKDOOR_ADJUSTMENT,
+        RiskProvenance.GENERAL_ID_PLUG_IN,
+        RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE,
         RiskProvenance.USER_EXPERIMENTAL,
     }),
     "counterfactual_cell_bounds": frozenset({

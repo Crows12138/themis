@@ -390,42 +390,68 @@ def _contrast_objective(
     return c
 
 
-def _cell_objective(
+def _potential_outcome_objective(
     nx: int, ny: int, nz: int, p_z: np.ndarray,
-    *, x_observed: int, x_counterfactual: int, y_star: int,
-    factual_y: int | None,
+    *, outcome_map: dict[int, int], factual_arm: int | None,
 ) -> np.ndarray:
-    """Coefficients of the counterfactual cell's NUMERATOR
-    ``P(Y_{x'}=y*, X=x [, Y=y])`` over the response types.
+    """Coefficients of ``P(⋀_a Y_{x=a} = outcome_map[a] [, X = factual_arm])``
+    over the response types.
 
     A unit of type ``(fx, gy)`` sitting at instrument level ``z`` takes
     treatment ``fx[z]``, shows outcome ``gy[fx[z]]``, and would have shown
-    ``gy[x']`` under ``do(X=x')``. So membership in the cell is a property of
-    the type AND the level, and ``P(z)`` multiplies through because the IV
-    model's independence is exactly the claim that the type does not depend
-    on the level.
+    ``gy[a]`` under ``do(X=a)`` for every ``a`` at once. So a conjunction over
+    ARMS is a property of ``gy`` alone, however many arms it names and whether
+    or not any of them was the one actually taken — which is why one objective
+    covers a counterfactual cell and a probability of causation without
+    knowing which it is building.
 
-    ``factual_y`` is None when the factual outcome is not part of the evidence
-    (the ETT cell ``P(Y_{x'}=y* | X=x)``): the outcome map is then unconstrained
-    at the observed arm rather than pinned to a value.
+    ``factual_arm`` is the treatment the unit must actually have taken, and it
+    is where the two part company. A cell conditions on the factual world, so
+    ``P(z)`` multiplies through — the IV model's independence is exactly the
+    claim that the type does not depend on the level. PNS conditions on
+    nothing, so every type counts once and no weight appears.
 
-    The DENOMINATOR is ``P(X=x [, Y=y])``, which the equality constraints fix
-    at the observed table — a known number, not a variable — which is what
-    keeps a conditional counterfactual a linear program rather than a
-    fractional one.
+    Callers pass arms that differ (a cell reaches this program only when the
+    two worlds do not coincide; PNS names both levels), so the map cannot
+    silently lose a constraint to a repeated key.
     """
     fxs, gys = _response_types(nx, ny, nz)
     c = np.zeros(len(fxs) * len(gys))
     for j, gy in enumerate(gys):
-        if gy[x_counterfactual] != y_star:
-            continue
-        if factual_y is not None and gy[x_observed] != factual_y:
+        if any(gy[arm] != value for arm, value in outcome_map.items()):
             continue
         for i, fx in enumerate(fxs):
-            c[i * len(gys) + j] = float(
-                sum(p_z[zi] for zi in range(nz) if fx[zi] == x_observed)
+            c[i * len(gys) + j] = (
+                1.0 if factual_arm is None
+                else float(
+                    sum(p_z[zi] for zi in range(nz) if fx[zi] == factual_arm)
+                )
             )
     return c
+
+
+def _factual_mass(
+    P: np.ndarray, p_z: np.ndarray,
+    *, outcome_map: dict[int, int], factual_arm: int | None,
+) -> float:
+    """The conditioning event's probability — the objective's DENOMINATOR.
+
+    ``P(X=x [, Y=y])`` is fixed at the observed table by the equality
+    constraints, so it is a known number rather than a variable; that is what
+    keeps a conditional counterfactual a linear program rather than a
+    fractional one. An unconditional functional (PNS) divides by nothing, and
+    that is said as 1.0 rather than as a branch at the call site.
+    """
+    if factual_arm is None:
+        return 1.0
+    y_factual = outcome_map.get(factual_arm)
+    return float(sum(
+        p_z[zi] * (
+            P[zi, factual_arm, y_factual] if y_factual is not None
+            else P[zi, factual_arm, :].sum()
+        )
+        for zi in range(P.shape[0])
+    ))
 
 
 def monotone_y_types(nx: int, ny: int, direction) -> frozenset[int]:
@@ -561,20 +587,82 @@ def counterfactual_cell_iv_table(
     return P, p_z
 
 
-def counterfactual_cell_response_bounds(
-    P: np.ndarray, p_z: np.ndarray,
-    *, x_observed: int, x_counterfactual: int, y_star: int,
-    factual_y: int | None, monotonicity=None,
-) -> tuple[float, float]:
-    """Sharp bounds on ``P(Y_{x'}=y* | X=x [, Y=y])`` from an instrument.
+def polytope_preconditions(zcol: str, z_levels: list) -> None:
+    """The instrument route's two preconditions on the instrument column.
 
-    The cell is another linear functional over the response-type distributions
-    that reproduce ``P(X, Y | Z)`` — the polytope Balke-Pearl's arm bounds are
-    read off — so it is the same program with a different objective. That is
-    the whole method, and it is why this is sharp where routing the arm's
-    INTERVAL through the consistency identity is not: the identity consumes the
-    interventional risk as a scalar, and a scalar cannot carry the fact that
-    the distribution producing the risk is the one that has to produce the cell.
+    An instrument that never varies enumerates one ``z → x`` map and carries
+    no information; one with too many levels enumerates ``2^|Z| · 4`` types and
+    the LP behind them is re-solved once per bootstrap replicate. Neither is a
+    reason to fall back quietly to a route that would have answered a weaker
+    question — the caller is told which of its columns is the obstacle and
+    what to do to it.
+
+    Here rather than in either door, because what makes a table solvable is a
+    property of the polytope and of nothing about who is asking.
+    """
+    if len(z_levels) < 2:
+        raise EstimatorFailure(
+            Refusal.INSUFFICIENT_SUPPORT,
+            f"instrument {zcol!r} takes a single value "
+            f"({refusals.describe(z_levels)}) in this sample; an instrument "
+            f"that never varies carries no response types to bound over.",
+        )
+    if response_type_count(
+        treatment_levels=2, outcome_levels=2, instrument_levels=len(z_levels),
+    ) is None:
+        raise EstimatorFailure(
+            Refusal.RESPONSE_MODEL_TOO_LARGE,
+            f"instrument {zcol!r} has {len(z_levels)} observed levels, so the "
+            f"response-function partition has 2^{len(z_levels)}·4 types — "
+            f"above the {MAX_RESPONSE_TYPES} this package solves. The sharp "
+            f"interval exists; it is the LP, re-solved once per bootstrap "
+            f"replicate, that is declined. Coarsening the instrument brings "
+            f"the method back in reach.",
+        )
+
+
+def polytope_sufficient_statistic(
+    P: np.ndarray, p_z: np.ndarray, z_levels: list,
+) -> tuple[tuple, tuple, tuple]:
+    """``(instrument_levels, p_xyz, p_z)`` as plain Python, for the envelope.
+
+    What the envelope carries has to be what the LP consumed, not a numpy view
+    of it, and the level list has to travel WITH the table: the table's own
+    shape says nothing about which stratum is which, so a permuted reading
+    re-derives a different interval and calls an honest producer a liar. The
+    three go out together because they are only meaningful together.
+    """
+    return (
+        tuple(_py(v) for v in z_levels),
+        tuple(
+            tuple(tuple(float(P[z, x, y]) for y in range(P.shape[2]))
+                  for x in range(P.shape[1]))
+            for z in range(P.shape[0])
+        ),
+        tuple(float(v) for v in p_z),
+    )
+
+
+def potential_outcome_response_bounds(
+    P: np.ndarray, p_z: np.ndarray,
+    *, outcome_map: dict[int, int], factual_arm: int | None, monotonicity=None,
+) -> tuple[float, float]:
+    """Sharp bounds on one potential-outcome functional, from an instrument.
+
+    The functional is ``P(⋀_a Y_{x=a} = outcome_map[a] | X = factual_arm)``:
+    a counterfactual cell when one arm carries the target and the other the
+    factual evidence, a probability of causation when both arms are named at
+    once. Either way it is a ratio of two linear functionals over the
+    response-type distributions that reproduce ``P(X, Y | Z)`` — the polytope
+    Balke-Pearl's arm bounds are read off — with a denominator the equality
+    constraints hold constant across the feasible set. So the range is the
+    identified set by its definition, not an approximation of it, and the
+    method is one program with a different objective vector each time.
+
+    That is also why this is sharp where routing an ARM'S INTERVAL through a
+    closed-form theorem is not: the theorem consumes the interventional risk
+    as a scalar, and a scalar cannot carry the fact that the distribution
+    producing the risk is the one that has to produce the answer.
 
     What that is worth is measured rather than argued, because the two-step is
     valid and cheap-looking and would otherwise keep being proposed: over 400
@@ -593,18 +681,12 @@ def counterfactual_cell_response_bounds(
     under whichever refusal came first.
     """
     nz, nx, ny = P.shape
-    objective = _cell_objective(
-        nx, ny, nz, p_z,
-        x_observed=x_observed, x_counterfactual=x_counterfactual,
-        y_star=y_star, factual_y=factual_y,
+    objective = _potential_outcome_objective(
+        nx, ny, nz, p_z, outcome_map=outcome_map, factual_arm=factual_arm,
     )
-    denominator = float(sum(
-        p_z[zi] * (
-            P[zi, x_observed, factual_y] if factual_y is not None
-            else P[zi, x_observed, :].sum()
-        )
-        for zi in range(nz)
-    ))
+    denominator = _factual_mass(
+        P, p_z, outcome_map=outcome_map, factual_arm=factual_arm,
+    )
     allowed = (
         None if monotonicity is None
         else monotone_y_types(nx, ny, monotonicity)
@@ -625,20 +707,78 @@ def counterfactual_cell_response_bounds(
             "table and the monotonicity assumption is what it refutes.",
         )
     if denominator <= 0.0:
-        # The conditioning event has no mass, so the cell is a ratio of zeros
-        # and no distribution can distinguish its values. The identity route
-        # answers the same degeneracy with the same box; disagreeing about it
-        # would make WHICH ROUTE ran visible in the answer.
+        # The conditioning event has no mass, so the functional is a ratio of
+        # zeros and no distribution can distinguish its values. The identity
+        # route answers the same degeneracy with the same box; disagreeing
+        # about it would make WHICH ROUTE ran visible in the answer.
         return 0.0, 1.0
     # The numerator is a sub-event of the denominator on every feasible point,
     # so the ratio is a probability by construction and anything outside [0, 1]
     # is the simplex solver's last few bits. Clamped for the same reason the
     # identity route clamps: an answer that leaves [0, 1] is not a tighter
-    # claim about the cell, it is a claim the cell cannot carry.
+    # claim, it is a claim the quantity cannot carry.
     return (
         min(max(lower / denominator, 0.0), 1.0),
         min(max(upper / denominator, 0.0), 1.0),
     )
+
+
+def counterfactual_cell_response_bounds(
+    P: np.ndarray, p_z: np.ndarray,
+    *, x_observed: int, x_counterfactual: int, y_star: int,
+    factual_y: int | None, monotonicity=None,
+) -> tuple[float, float]:
+    """``P(Y_{x'}=y* | X=x [, Y=y])`` — the cell's coordinates as a functional.
+
+    The cell reaches this program only when the two worlds differ (a same-world
+    cell is answered by consistency and never gets here), so the two arms named
+    below are distinct and neither constraint can displace the other.
+    """
+    outcome_map = {x_counterfactual: y_star}
+    if factual_y is not None:
+        outcome_map[x_observed] = factual_y
+    return potential_outcome_response_bounds(
+        P, p_z, outcome_map=outcome_map, factual_arm=x_observed,
+        monotonicity=monotonicity,
+    )
+
+
+#: PN, PS and PNS as (outcome map, factual arm) over a BINARY treatment.
+#:
+#: All three name the same outcome-response map — the unit whose outcome
+#: follows the treatment, ``Y_{x=0}=0`` and ``Y_{x=1}=1``. That is not a
+#: coincidence to be noted afterwards; it is what "probabilities of causation"
+#: means. They differ only in which factual population the question asks about:
+#: PN asks among the treated who responded, PS among the untreated who did not,
+#: and PNS asks about everyone, which is why its factual arm is absent rather
+#: than set to something. Written as data because three rows saying the same
+#: thing in three branches is how the three drift apart.
+CAUSATION_FUNCTIONALS: dict[str, tuple[dict[int, int], int | None]] = {
+    "pn": ({0: 0, 1: 1}, 1),
+    "ps": ({0: 0, 1: 1}, 0),
+    "pns": ({0: 0, 1: 1}, None),
+}
+
+
+def causation_response_bounds(
+    P: np.ndarray, p_z: np.ndarray, *, monotonicity=None,
+) -> dict[str, tuple[float, float]]:
+    """PN / PS / PNS from an instrument, as three reads of one polytope.
+
+    The alternative to this route is Tian-Pearl's closed form, which needs both
+    interventional risks as numbers; when the graph carries a bow arc there are
+    none to be had and the closed form has nothing to consume. So this is not a
+    tighter version of that answer — it is an answer where that one does not
+    exist, obtained under the instrument's three assumptions instead of under a
+    back door.
+    """
+    return {
+        name: potential_outcome_response_bounds(
+            P, p_z, outcome_map=outcome_map, factual_arm=factual_arm,
+            monotonicity=monotonicity,
+        )
+        for name, (outcome_map, factual_arm) in CAUSATION_FUNCTIONALS.items()
+    }
 
 
 def evaluate_balke_pearl_bounds(

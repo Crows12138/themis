@@ -591,6 +591,16 @@ def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
     assumption was not made rather than a hole in the answer.
     """
     lines: list[str] = []
+    # A declared monotonicity reaches the two solvers at different places
+    # because the two theorems have different places for it. Tian-Pearl takes
+    # it as a second formula: the interval stays assumption-free and a point
+    # appears beside it. The response-function program takes it as a
+    # restriction of the model: it narrows the one interval and, in practice,
+    # never pins it. So neither what was bought nor whether a point exists is
+    # readable off the flag, and both are read off what came back.
+    folded_in = (
+        poc.get("interventional_risk_provenance") == "instrument_response_polytope"
+    )
     for key, label in _POC_LABELS:
         q = poc.get(key) or {}
         point, lo, hi = q.get("point"), q.get("lower"), q.get("upper")
@@ -611,10 +621,12 @@ def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
             level = f"{ci_level:.0%} " if ci_level is not None else ""
             band = "CI" if point is not None else "外带"
             aside.append(f"{level}{band} [{_fmt(ci_lo)}, {_fmt(ci_hi)}]")
-        if point is not None and bounded:
+        if point is not None and bounded and not folded_in:
             # Tian-Pearl bounds use no monotonicity, so this is exactly what
             # the assumption bought — the reader cannot weigh the point
-            # without seeing the interval it replaced.
+            # without seeing the interval it replaced. Not sayable on the route
+            # that folds the assumption into the interval: there the pair IS
+            # the post-assumption answer, and this sentence would invert it.
             aside.append(f"无单调性假设时只能给到 [{_fmt(lo)}, {_fmt(hi)}]")
         lines.append(
             f"- {label}：{head}" + (f"（{'；'.join(aside)}）" if aside else "")
@@ -623,24 +635,36 @@ def _render_causation(poc: dict, *, ci_level: float | None = None) -> str:
         return ""
 
     monotonic = bool(poc.get("monotonic"))
+    pinned = any(
+        (poc.get(key) or {}).get("point") is not None for key, _ in _POC_LABELS
+    )
     head = (
         "单调性成立（X 从不阻止 Y），三者点识别："
+        if pinned
+        else "已假设单调性，但三者仍只能给界："
         if monotonic
         else "未假设单调性，三者只能给界："
     )
-    risk_hi, risk_lo = poc.get("p_y_do_x1"), poc.get("p_y_do_x0")
-    if risk_hi is not None and risk_lo is not None:
-        prov = poc.get("interventional_risk_provenance")
-        note = risk_provenance.describe(prov) if prov else ""
+    # WHERE the three numbers came from — on every route, not only the ones
+    # that end with a pair of risks to print. One route reaches them without
+    # any: the response-function program over an instrument. Hanging this line
+    # off the risks being present left that route saying nothing at all.
+    prov = poc.get("interventional_risk_provenance")
+    if prov:
+        note = risk_provenance.describe(prov)
         adj = poc.get("adjustment")
         if adj:
             note += f"，调整集 {{{', '.join(adj)}}}"
-        lines.append(
-            f"- 由干预风险 P(Y|do X)={_fmt(risk_hi)}、"
-            f"P(Y|do ¬X)={_fmt(risk_lo)} 算出"
-            + (f"（{note}）" if note else "")
+        if poc.get("instrument"):
+            note += f"，工具变量 `{poc['instrument']}`"
+        risk_hi, risk_lo = poc.get("p_y_do_x1"), poc.get("p_y_do_x0")
+        risks = (
+            f"由干预风险 P(Y|do X)={_fmt(risk_hi)}、P(Y|do ¬X)={_fmt(risk_lo)} 算出"
+            if risk_hi is not None and risk_lo is not None
+            else "没有用到任何干预风险"
         )
-    if not monotonic:
+        lines.append(f"- {risks}（{note}）")
+    if not pinned and not monotonic:
         lines.append("- 若可假设单调性（X 从不阻止 Y），三者可点识别。")
     return "\n".join([head] + lines)
 

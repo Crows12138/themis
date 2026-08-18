@@ -796,7 +796,12 @@ def _verify_causation_numeric_extensions_match(result: dict, derivation) -> None
     tol = 1e-9
 
     def _num_eq(a, b) -> bool:
-        return a is not None and b is not None and abs(float(a) - float(b)) <= tol
+        # Absent on BOTH sides is agreement, and the reason it has to be said
+        # is that absence is now an answer: a point exists only where the route
+        # produces one, and the instrument route produces no do-risks at all.
+        if a is None or b is None:
+            return a is None and b is None
+        return abs(float(a) - float(b)) <= tol
 
     def _fail() -> None:
         raise VerificationError(
@@ -809,24 +814,17 @@ def _verify_causation_numeric_extensions_match(result: dict, derivation) -> None
         a = ext.get(q)
         if not isinstance(a, dict):
             _fail()
-        if not _num_eq(a.get("lower"), inp.get(f"{q}_lower")):
-            _fail()
-        if not _num_eq(a.get("upper"), inp.get(f"{q}_upper")):
-            _fail()
-        # Points exist only under monotonicity; a bounds answer carries point=None
-        # on both sides (consistent). Otherwise the display point must match.
-        ap, ip = a.get("point"), inp.get(f"{q}_point")
-        if (ap is not None or ip is not None) and not _num_eq(ap, ip):
-            _fail()
+        for field in ("lower", "upper", "point"):
+            if not _num_eq(a.get(field), inp.get(f"{q}_{field}")):
+                _fail()
     for k in ("p_y_do_x1", "p_y_do_x0"):
         if not _num_eq(ext.get(k), inp.get(k)):
             _fail()
     if bool(ext.get("monotonic")) != bool(inp.get("monotonic")):
         _fail()
-    if ext.get("interventional_risk_provenance") != inp.get(
-        "interventional_risk_provenance"
-    ):
-        _fail()
+    for k in ("interventional_risk_provenance", "instrument"):
+        if ext.get(k) != inp.get(k):
+            _fail()
     ja = ext.get("observational_joint") or {}
     for k in ("p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"):
         if not _num_eq(ja.get(k), inp.get(k)):
@@ -867,10 +865,9 @@ def _verify_counterfactual_cell_extensions_match(result: dict, derivation) -> No
     for k in ("lower", "upper", "point", "p_y_do_x_cf"):
         if not _num_eq(ext.get(k), inp.get(k)):
             _fail()
-    if ext.get("interventional_risk_provenance") != inp.get(
-        "interventional_risk_provenance"
-    ):
-        _fail()
+    for k in ("interventional_risk_provenance", "instrument"):
+        if ext.get(k) != inp.get(k):
+            _fail()
     joint = ext.get("observational_joint") or {}
     for k in ("p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"):
         if not _num_eq(joint.get(k), inp.get(k)):

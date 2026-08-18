@@ -373,3 +373,261 @@ def test_the_answer_section_names_all_three_whether_or_not_monotonicity_holds():
         assert label in blunt, blunt
     assert "外带" in blunt
     assert "若可假设单调性" in blunt
+
+
+# ================================== the routes the shared cascade brought (#321)
+#
+# The causation door used to stop at back-door adjustment and refuse. The
+# counterfactual-cell door, asked for the SAME PN, went on through the general
+# ID algorithm and then to an instrument's response-type polytope — so which
+# door was knocked on decided whether there was an answer. The cascade is one
+# function now (``binary_do_risk.choose_risk_route``) and each door projects it
+# onto the arms it consumes; these pin what that made reachable here.
+
+_BOW_IV = (_cause("z", "x"), _cause("x", "y"))
+_FRONT_DOOR = (_cause("x", "m"), _cause("m", "y"))
+_LATENT_XY = ({"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},)
+
+
+def _sample_bow_iv(n: int, seed: int):
+    """Rank-preserving SCM behind a bow arc, driven by an instrument.
+
+    The latent ``w`` moves both treatment and outcome, so no measured set
+    blocks the back door; ``z`` moves only the treatment. Returns the frame the
+    estimator sees together with the two potential outcomes it cannot see, so a
+    test can count units instead of re-deriving a theorem.
+    """
+    rng = np.random.default_rng(seed)
+    w = rng.random(n) < 0.5
+    z = rng.random(n) < 0.5
+    u = rng.random(n)
+    y0 = u < np.where(w, 0.55, 0.15)
+    y1 = u < np.where(w, 0.90, 0.45)
+    x = rng.random(n) < np.where(z, np.where(w, 0.85, 0.55),
+                                np.where(w, 0.35, 0.10))
+    return pd.DataFrame({"x": x, "y": np.where(x, y1, y0), "z": z}), y0, y1
+
+
+def _sample_front_door(n: int, seed: int) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    w = rng.random(n) < 0.5                    # unmeasured, moves x and y
+    x = rng.random(n) < np.where(w, 0.8, 0.3)
+    m = rng.random(n) < np.where(x, 0.75, 0.2)
+    y = rng.random(n) < np.where(m, 0.8, 0.25) * np.where(w, 1.0, 0.7)
+    return pd.DataFrame({"x": x, "y": y, "m": m})
+
+
+def _ast_bidirected(edges, *, monotonic=False, variables=("x", "y", "z"),
+                    bidirected=()):
+    return {
+        "version": "0.1",
+        "domain": {"objects": []},
+        "statements": [
+            *(_var(v) for v in variables), *edges, *bidirected,
+            {"kind": "query", "id": "q",
+             "query": _causation_query(monotonic=monotonic)},
+        ],
+    }
+
+
+def _iv_estimated(seed=7, n=40_000, ci_bootstrap=0, monotonic=False):
+    df, y0, y1 = _sample_bow_iv(n, seed=seed)
+    prog = _ast_bidirected(_BOW_IV, monotonic=monotonic, bidirected=_LATENT_XY)
+    return (prog, _result(themis.estimate(prog, df, ci_bootstrap=ci_bootstrap)),
+            df, y0, y1)
+
+
+def test_a_bow_arc_with_an_instrument_is_answered_instead_of_refused():
+    """The registered asymmetry, as a behaviour: these three had no numbers.
+
+    The route is named on the answer, no interventional risks are reported
+    beside it (there are none to report), and each interval covers the SCM's
+    own value — counted off the potential outcomes, not re-derived.
+    """
+    prog, res, df, y0, y1 = _iv_estimated()
+    validate_result(res)
+    assert res["status"] == "numerically_solved"
+    poc = res["numeric_estimate"]["probabilities_of_causation"]
+    assert poc["interventional_risk_provenance"] == "instrument_response_polytope"
+    assert poc["instrument"] == "z"
+    assert poc["p_y_do_x1"] is None and poc["p_y_do_x0"] is None
+    assert poc["adjustment"] == []
+    assert res["data_gap_report"]["answer_tier"] == "interval"
+
+    x, y = df["x"].to_numpy(), df["y"].to_numpy()
+    truth = {
+        "pn": float((~y0[x & y]).mean()),
+        "ps": float(y1[(~x) & (~y)].mean()),
+        "pns": float((y1 & ~y0).mean()),
+    }
+    for q, value in truth.items():
+        assert poc[q]["point"] is None
+        assert poc[q]["lower"] <= value <= poc[q]["upper"], q
+        assert poc[q]["upper"] - poc[q]["lower"] < 1.0, q      # it says something
+    themis.verify(prog, res)
+
+
+def test_a_front_door_structure_reaches_both_arms_through_general_id():
+    """The other route the shared cascade brought. No covariate set blocks the
+    back door, and the ID algorithm point-identifies each arm anyway — so this
+    answer is a pair of numbers where the instrument route has none."""
+    prog = _ast_bidirected(_FRONT_DOOR, variables=("x", "y", "m"),
+                           bidirected=_LATENT_XY)
+    res = _result(themis.estimate(prog, _sample_front_door(40_000, seed=3),
+                                  ci_bootstrap=0))
+    validate_result(res)
+    poc = res["numeric_estimate"]["probabilities_of_causation"]
+    assert poc["interventional_risk_provenance"] == "general_id_plug_in"
+    assert poc["instrument"] is None
+    assert poc["p_y_do_x1"] is not None and poc["p_y_do_x0"] is not None
+    assert poc["adjustment"] == []
+    themis.verify(prog, res)
+
+
+def test_a_graph_with_no_route_at_all_still_refuses():
+    """The counterexample the widened cascade has to keep producing.
+
+    A bow arc with no instrument and no mediator reaches nothing, and the
+    refusal has to name every route that was tried — a caller told only "no
+    back-door set" would go looking for a covariate that cannot help.
+    """
+    df, _y0, _y1 = _sample_bow_iv(4_000, seed=7)
+    prog = _ast_bidirected((_cause("x", "y"),), variables=("x", "y"),
+                           bidirected=_LATENT_XY)
+    res = _result(themis.estimate(prog, df[["x", "y"]], ci_bootstrap=0))
+    assert "numeric_estimate" not in res
+    failure = res["estimator_failure"]
+    assert failure["failure_type"] == "do_risk_not_identifiable"
+    for tried in ("back-door", "general-ID", "instrument"):
+        assert tried in failure["reason"], failure["reason"]
+
+
+def test_a_point_identified_pair_of_risks_still_wins_over_the_instrument():
+    """The cascade's order is not arbitrary: a point beats an interval, and it
+    is the same order on both doors because it is the same cascade."""
+    prog = _ast((_cause("z", "x"), _cause("z", "y"), _cause("x", "y")),
+                monotonic=False)
+    res = _result(themis.estimate(prog, _sample_nonmono(20_000, seed=21),
+                                  ci_bootstrap=0))
+    poc = res["numeric_estimate"]["probabilities_of_causation"]
+    assert poc["interventional_risk_provenance"] == "backdoor_adjustment"
+    assert poc["instrument"] is None
+
+
+def test_a_declared_monotonicity_narrows_the_polytope_rather_than_pinning_it():
+    """It enters this route as a restriction of the model, not a second formula.
+
+    Measured over 400 random binary IV models it collapses none of the three to
+    a point while narrowing every one of them, which is why the interval it
+    returns is the post-assumption one and there is no separate point channel.
+    """
+    _p_free, free, _df, _y0, _y1 = _iv_estimated(monotonic=False)
+    prog, pinned, df, y0, _y1 = _iv_estimated(monotonic=True)
+    a = free["numeric_estimate"]["probabilities_of_causation"]
+    b = pinned["numeric_estimate"]["probabilities_of_causation"]
+    for q in ("pn", "ps", "pns"):
+        assert a[q]["lower"] <= b[q]["lower"] and b[q]["upper"] <= a[q]["upper"]
+        assert b[q]["upper"] - b[q]["lower"] < a[q]["upper"] - a[q]["lower"], q
+        assert b[q]["point"] is None, q
+    x, y = df["x"].to_numpy(), df["y"].to_numpy()
+    assert b["pn"]["lower"] <= float((~y0[x & y]).mean()) <= b["pn"]["upper"]
+    themis.verify(prog, pinned)
+
+
+def test_the_polytope_refutes_a_monotonicity_the_data_contradict():
+    """The gate this route earns. ``monotonic`` on a CausationQuery is
+    Tian-Pearl's direction — X never prevents Y — and a sample built the other
+    way round empties the type space, which the closed form cannot notice at
+    all because it has no feasible set to empty."""
+    from themis.estimation.causation import estimate_causation_probabilities
+    from themis.refusals import EstimatorFailure
+    from themis.types import Atom
+    import networkx as nx
+
+    x_atom, y_atom, z_atom = (Atom(predicate=p, args=()) for p in ("x", "y", "z"))
+    g = nx.DiGraph()
+    g.add_edges_from([(z_atom, x_atom), (x_atom, y_atom)])
+    df, _y0, _y1 = _sample_bow_iv(20_000, seed=7)
+    df = df.assign(y=~df["y"].to_numpy())        # every unit now moves against x
+    with pytest.raises(EstimatorFailure) as excinfo:
+        estimate_causation_probabilities(
+            df, graph=g, bidirected=frozenset({frozenset({x_atom, y_atom})}),
+            cause=x_atom, effect=y_atom, monotonic=True, ci_bootstrap=0,
+        )
+    assert excinfo.value.failure_type == "counterfactual_inputs_infeasible"
+    assert "monotonicity" in str(excinfo.value)
+
+
+def test_the_report_says_where_the_three_intervals_came_from():
+    """A reader told nothing about the route cannot weigh what it assumed.
+
+    The line naming the route used to hang off the two do-risks being present,
+    so the one route that reaches an answer WITHOUT them printed no line at all.
+    """
+    from themis.output.analysis_report import build_analysis_report
+
+    prog, res, _df, _y0, _y1 = _iv_estimated()
+    answer = build_analysis_report(res, program=prog).split(
+        "## 答案", 1)[1].split("\n##", 1)[0]
+    assert "没有用到任何干预风险" in answer
+    assert "响应函数多面体" in answer
+    assert "工具变量 `z`" in answer
+    # And the sentence that would be false here is not printed.
+    assert "无单调性假设时只能给到" not in answer
+
+
+# ---------------------------------------------- and the verifier says no
+def test_verify_rejects_a_tampered_response_table():
+    prog, res, _df, _y0, _y1 = _iv_estimated()
+    bad = copy.deepcopy(res)
+    inp = bad["derivation"]["steps"][0]["inputs"]
+    inp["p_xyz"]["items"][0]["items"][0]["items"][0] = 0.9
+    with pytest.raises(VerificationError):
+        themis.verify(prog, bad)
+
+
+def test_verify_rejects_permuted_instrument_strata():
+    """The table's shape says nothing about which stratum is which, so the
+    level order is part of the claim rather than presentation."""
+    prog, res, _df, _y0, _y1 = _iv_estimated()
+    bad = copy.deepcopy(res)
+    inp = bad["derivation"]["steps"][0]["inputs"]
+    inp["p_xyz"]["items"].reverse()
+    with pytest.raises(VerificationError):
+        themis.verify(prog, bad)
+
+
+def test_verify_rejects_do_risks_reported_beside_the_polytope_licence():
+    """``instrument_response_polytope`` is the claim that no risk was obtained.
+    A number beside it is a different answer wearing this one's licence."""
+    prog, res, _df, _y0, _y1 = _iv_estimated()
+    bad = copy.deepcopy(res)
+    bad["derivation"]["steps"][0]["inputs"].update(
+        {"p_y_do_x1": 0.6, "p_y_do_x0": 0.3})
+    with pytest.raises(VerificationError):
+        themis.verify(prog, bad)
+
+
+def test_verify_rejects_a_route_relabelled_as_back_door():
+    """Relabelling is the cheapest forgery, because it is the licence that
+    decides which re-derivation runs at all."""
+    prog, res, _df, _y0, _y1 = _iv_estimated()
+    bad = copy.deepcopy(res)
+    bad["derivation"]["steps"][0]["inputs"][
+        "interventional_risk_provenance"] = "backdoor_adjustment"
+    with pytest.raises(VerificationError):
+        themis.verify(prog, bad)
+
+
+def test_verify_rejects_one_general_id_estimand_reused_for_both_arms():
+    """PN/PS/PNS consume BOTH arms, so identifying one and evaluating it twice
+    produces an answer shaped exactly like an honest one."""
+    prog = _ast_bidirected(_FRONT_DOOR, variables=("x", "y", "m"),
+                           bidirected=_LATENT_XY)
+    res = _result(themis.estimate(prog, _sample_front_door(20_000, seed=3),
+                                  ci_bootstrap=0))
+    bad = copy.deepcopy(res)
+    inp = bad["derivation"]["steps"][0]["inputs"]
+    inp["risk_formula_control"] = copy.deepcopy(inp["risk_formula_treated"])
+    with pytest.raises(VerificationError):
+        themis.verify(prog, bad)

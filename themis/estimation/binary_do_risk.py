@@ -19,14 +19,30 @@ owns is its own theorem: Tian-Pearl's PN/PS/PNS in one, the linear
 consistency identity of :func:`themis.runtime.counterfactual.counterfactual_cell_interval`
 in the other.
 
+And neither owns the CASCADE — the ordered question "which of these routes
+reaches the risks this answer needs". :func:`choose_risk_route` is that
+question asked once. It used to be asked twice, once at the top of each
+estimator, and the two copies were a prefix apart: adding the general-ID
+route and then the instrument route moved one of them and left the other
+where it was. Nothing was wrong in either file, which is the point — from
+inside a file its own cascade reads complete, so the divergence was visible
+only by asking the same question through both doors and noticing the answers
+differed. A door may still decide its OWN terminal (what to do when no route
+reaches); what it may not do is keep a private opinion about which routes
+exist.
+
 Reference: Hernán & Robins 2020 ch.13 for the g-formula (standardization)
 plug-in in the non-parametric limit.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from typing import Mapping
+
 import numpy as np
 import pandas as pd
 
+from ..risk_provenance import RiskProvenance
 from ..runtime import structural_solver
 from ..types import Atom
 from .. import refusals
@@ -97,6 +113,112 @@ def instrument_for(
         )
     ]
     return candidates[0] if len(candidates) == 1 else None
+
+
+@dataclass(frozen=True)
+class RiskRoute:
+    """How an attribution answer will obtain what observation cannot give it.
+
+    ``provenance`` is the licence; the other three carry whatever that
+    particular licence needs to be acted on and re-derived — the adjustment
+    set to standardize over, the per-arm ID estimand to evaluate, the
+    instrument column to fit the polytope to. Exactly one of them is
+    populated on any route, and which one follows from the licence, so a
+    consumer that reads the wrong field gets an empty answer rather than a
+    plausible one.
+    """
+
+    provenance: RiskProvenance
+    adjustment: tuple[str, ...] = ()
+    formulas: dict[bool, object] = field(default_factory=dict)
+    instrument: Atom | None = None
+
+
+#: The mechanism sentence's short name, by the route that produced it.
+#:
+#: A lookup with a default rather than a chain, because a route added to the
+#: cascade should be a row here and not another branch to get the order right
+#: in — and beside the cascade rather than inside each door, because the name
+#: describes what the ROUTE did. Only the routes that depart from the
+#: g-formula appear; every other licence takes the default.
+FORM_BY_PROVENANCE: dict[RiskProvenance, str] = {
+    RiskProvenance.GENERAL_ID_PLUG_IN: "nonparametric_c_factor_plug_in",
+    RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
+        "nonparametric_response_function_lp",
+}
+
+DEFAULT_FORM = "nonparametric_gformula_plug_in"
+
+
+def choose_risk_route(
+    graph,
+    bidirected,
+    *,
+    cause: Atom,
+    effect: Atom,
+    arms: tuple[bool, ...],
+    supplied: Mapping[bool, float | None] = {},
+) -> RiskRoute | None:
+    """The one cascade: which route reaches ``P(Y=1 | do(X=arm))`` for ``arms``.
+
+    Ordered by how little the answer has to assume, which is also the order in
+    which the routes stop being available: an arm the caller measured needs no
+    graph at all; a back-door set is the weakest graphical claim; the general
+    ID algorithm reaches arms no covariate set blocks; and an instrument
+    delivers no risk whatsoever — it delivers the SET of models the data
+    admit, which is a different kind of answer and therefore last.
+
+    ``arms`` is which arms this answer consumes: empty for a cell whose two
+    worlds coincide, one for a cell that crosses them, both for PN/PS/PNS.
+    That is the only way the two doors differ here, and it is a parameter
+    rather than a branch because the routes themselves do not care.
+
+    Returns ``None`` when no route reaches — deliberately, rather than
+    raising. What to do next is the caller's, and the two doors genuinely
+    differ: a counterfactual cell can still be pinned outright by a declared
+    monotonicity, and probabilities of causation cannot.
+    """
+    from .general_id import identify_arm_risk_formula
+
+    if not arms:
+        return RiskRoute(RiskProvenance.NOT_REQUIRED)
+    if all(supplied.get(arm) is not None for arm in arms):
+        return RiskRoute(RiskProvenance.USER_EXPERIMENTAL)
+    try:
+        adjustment = minimal_backdoor_adjustment(graph, cause, effect, bidirected)
+    except EstimatorFailure:
+        pass
+    else:
+        return RiskRoute(
+            RiskProvenance.EXOGENOUS if not adjustment
+            else RiskProvenance.BACKDOOR_ADJUSTMENT,
+            adjustment=adjustment,
+        )
+    formulas: dict[bool, object] = {}
+    for arm in arms:
+        try:
+            formulas[arm] = identify_arm_risk_formula(
+                graph, bidirected,
+                treatment_atom=cause, outcome_atom=effect,
+                # The arms are booleans and the columns are binary; True/False
+                # and 1/0 compare and hash alike, so the literal threaded
+                # through the estimand matches the data's own levels either way.
+                arm_value=arm, outcome_value=True,
+            )
+        except EstimatorFailure:
+            # Every arm or none. An answer needing two arms is not served by
+            # having identified one of them, and reporting the licence for a
+            # half-finished route would name a method that did not run.
+            formulas = {}
+            break
+    if formulas:
+        return RiskRoute(RiskProvenance.GENERAL_ID_PLUG_IN, formulas=formulas)
+    instrument = instrument_for(graph, cause, effect, bidirected)
+    if instrument is not None:
+        return RiskRoute(
+            RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE, instrument=instrument,
+        )
+    return None
 
 
 def as_binary_column(col: pd.Series, name: str) -> np.ndarray:

@@ -232,11 +232,12 @@
             "pns": { "type": "object", "description": "Probability of necessity and sufficiency: lower/upper bounds and (when monotonic) point." },
             "monotonic": { "type": "boolean" },
             "interventional_risk_provenance": {
-              "enum": ["derived_identification", "user_experimental", "exogenous", "backdoor_adjustment"],
-              "description": "How P(Y=1|do(X)) was obtained. Structural (run) path: 'derived_identification' (from theta via effect identification) or 'user_experimental' (randomized-experiment data, the Tian-Pearl drug case). Data (estimate) path additionally distinguishes 'exogenous' (no back-door path → do-risk = P(Y|X)) from 'backdoor_adjustment' (g-formula standardized over a measured set)."
+              "enum": ["derived_identification", "user_experimental", "exogenous", "backdoor_adjustment", "general_id_plug_in", "instrument_response_polytope"],
+              "description": "How P(Y=1|do(X)) was obtained. Structural (run) path: 'derived_identification' (from theta via effect identification) or 'user_experimental' (randomized-experiment data, the Tian-Pearl drug case). Data (estimate) path additionally distinguishes 'exogenous' (no back-door path → do-risk = P(Y|X)), 'backdoor_adjustment' (g-formula standardized over a measured set), 'general_id_plug_in' (no adjustment set exists; the general ID algorithm identifies each arm and the estimand is evaluated non-parametrically), and 'instrument_response_polytope' (no arm is point-identified at all; PN/PS/PNS are bounded directly over the response-type distributions reproducing P(X, Y | Z), so p_y_do_x1 / p_y_do_x0 are null)."
             },
-            "p_y_do_x1": { "type": "number" },
-            "p_y_do_x0": { "type": "number" },
+            "instrument": { "type": ["string", "null"], "description": "The instrument column PN/PS/PNS were bounded over, and null on every route that did not use one. Non-null exactly when interventional_risk_provenance is 'instrument_response_polytope'." },
+            "p_y_do_x1": { "type": ["number", "null"] },
+            "p_y_do_x0": { "type": ["number", "null"] },
             "observational_joint": { "type": "object", "description": "The four P(X=x, Y=y) cells recovered from theta." }
           }
         },
@@ -1265,10 +1266,11 @@
           "additionalProperties": false,
           "properties": {
             "monotonic": { "type": "boolean" },
-            "interventional_risk_provenance": { "enum": ["exogenous", "backdoor_adjustment", "user_experimental"] },
-            "adjustment": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set standardized over for the do-risks (empty for exogenous / experimental)." },
-            "p_y_do_x1": { "type": "number", "minimum": 0, "maximum": 1 },
-            "p_y_do_x0": { "type": "number", "minimum": 0, "maximum": 1 },
+            "interventional_risk_provenance": { "enum": ["exogenous", "backdoor_adjustment", "general_id_plug_in", "instrument_response_polytope", "user_experimental"] },
+            "adjustment": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set standardized over for the do-risks (empty for exogenous / experimental / general-ID / instrument)." },
+            "instrument": { "type": ["string", "null"], "description": "The instrument column the three quantities were bounded over, and null on every route that did not use one. Non-null exactly when interventional_risk_provenance is 'instrument_response_polytope': no interventional risk is point-identified, so PN/PS/PNS are optimised directly over the response-type distributions reproducing P(X, Y | Z) rather than read off Tian-Pearl's closed form." },
+            "p_y_do_x1": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "p_y_do_x0": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "observational_joint": {
               "type": "object",
               "required": ["p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"],

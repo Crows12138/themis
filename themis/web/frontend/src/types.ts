@@ -100,8 +100,13 @@ export interface CausationQuantities {
   monotonic?: boolean
   interventional_risk_provenance?: string
   adjustment?: string[]
-  p_y_do_x1?: number
-  p_y_do_x0?: number
+  // Null together on the one route that answers without either — the
+  // response-function program over an instrument, which is also the only
+  // route that fills `instrument`. Typing them as always-present is what let
+  // the surface hang the whole provenance line off their being there.
+  p_y_do_x1?: number | null
+  p_y_do_x0?: number | null
+  instrument?: string | null
 }
 
 export interface NumericEstimate {

@@ -491,7 +491,7 @@ def test_no_producer_states_a_severity_at_all(frames):
     specs = [
         spec
         for licence in ADMISSIBLE["numeric_causation_estimate"]
-        for spec in _identification_assumptions(licence, ("z",), True)
+        for spec in _identification_assumptions(licence, ("z",), True, "z")
     ] + [
         spec
         for licence in ADMISSIBLE["numeric_counterfactual_cell_estimate"]

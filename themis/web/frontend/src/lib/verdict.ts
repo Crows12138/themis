@@ -628,6 +628,15 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
   // appear, it collapses what is inside each of the three.
   causation: (b, _ext, ciLevel) => {
     const rows: { label: string; value: string }[] = []
+    // A declared monotonicity reaches the two solvers at different places, so
+    // it buys different things and the caption cannot be read off the flag
+    // alone. Tian-Pearl takes it as a second theorem: the interval stays
+    // assumption-free and a point appears beside it. The response-function
+    // program takes it as a restriction of the model: it narrows the interval
+    // and, in practice, never pins it. So what is said here is read off what
+    // actually came back.
+    const foldedIn = b.interventional_risk_provenance === 'instrument_response_polytope'
+    const pinned = POC_LABELS.some(([key]) => (b[key] as Blk | undefined)?.point != null)
     for (const [key, label] of POC_LABELS) {
       const q = b[key] as Blk | undefined
       if (!q) continue
@@ -644,27 +653,40 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
         aside.push(`${pct}${q.point != null ? 'CI' : '外带'} [${fmtNum(q.ci_lower)}, ${fmtNum(q.ci_upper)}]`)
       }
       // Tian-Pearl bounds assume no monotonicity, so when both are present
-      // this is exactly what the assumption bought.
-      if (q.point != null && bounded) {
+      // this is exactly what the assumption bought. Not sayable on the route
+      // that folds the assumption into the interval — there the pair IS the
+      // post-assumption answer, and calling it the assumption-free one would
+      // invert the sentence.
+      if (q.point != null && bounded && !foldedIn) {
         aside.push(`无单调性假设时只能给到 [${fmtNum(q.lower)}, ${fmtNum(q.upper)}]`)
       }
       rows.push({ label, value: head + (aside.length ? ` · ${aside.join(' · ')}` : '') })
     }
     if (!rows.length) return null
-    if (b.p_y_do_x1 != null && b.p_y_do_x0 != null) {
-      const how = RISK_PROVENANCE_ZH[b.interventional_risk_provenance]
+    // WHICH route produced the three numbers — on every route, not only the
+    // ones that end with a pair of risks to print. One route reaches them
+    // without any: the response-function program on an instrument. Hanging
+    // this row off the risks being present meant that route said nothing at
+    // all about where its intervals came from.
+    const how = RISK_PROVENANCE_ZH[b.interventional_risk_provenance]
+    if (how) {
       const adj = Array.isArray(b.adjustment) && b.adjustment.length
         ? ` · 调整集 {${b.adjustment.join(', ')}}` : ''
+      const risks = b.p_y_do_x1 != null && b.p_y_do_x0 != null
+        ? `P(Y|do X)=${fmtNum(b.p_y_do_x1)} · P(Y|do ¬X)=${fmtNum(b.p_y_do_x0)} · ` : ''
       rows.push({
-        label: '干预风险',
-        value: `P(Y|do X)=${fmtNum(b.p_y_do_x1)} · P(Y|do ¬X)=${fmtNum(b.p_y_do_x0)}`
-          + (how ? ` · ${how}${adj}` : ''),
+        label: '这三个数怎么来的',
+        value: risks + how + adj
+          + (b.instrument ? ` · 工具变量 \`${b.instrument}\`` : ''),
       })
     }
     // Whether monotonicity was assumed decides which of two questions the
     // three numbers answer, so it belongs in the caption, not a footnote.
     return {
-      cap: b.monotonic ? '因果概率 · 单调性下点识别' : '因果概率 · 未假设单调性,只能给界',
+      cap: '因果概率 · ' + (
+        pinned ? '单调性下点识别'
+          : b.monotonic ? '已假设单调性,但仍只能给界'
+            : '未假设单调性,只能给界'),
       rows,
     }
   },

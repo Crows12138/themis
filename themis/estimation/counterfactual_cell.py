@@ -85,28 +85,29 @@ import pandas as pd
 from ..runtime import counterfactual as cf
 from .. import risk_provenance
 from ..risk_provenance import RiskProvenance
-from ..output.bounds import MAX_RESPONSE_TYPES, response_type_count
-from ..types import Atom, CounterfactualQuery, NumericInterval
+from ..types import CounterfactualQuery, NumericInterval
 from .binary_do_risk import (
+    DEFAULT_FORM,
+    FORM_BY_PROVENANCE,
+    RiskRoute,
     as_binary_column,
     backdoor_do_risk,
-    instrument_for,
-    minimal_backdoor_adjustment,
+    choose_risk_route,
     observational_joint_xy,
 )
 from .bounds_numeric import (
     counterfactual_cell_iv_table,
     counterfactual_cell_response_bounds,
+    polytope_preconditions,
+    polytope_sufficient_statistic,
     sorted_levels,
 )
 from .contract import validate_data
-from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
 from .general_id import (
     data_domains,
     evaluate_arm_risk,
-    identify_arm_risk_formula,
     referenced_predicates,
 )
 from .resample import cluster_labels, resample_indices
@@ -247,61 +248,33 @@ def estimate_counterfactual_cell(
 
     xcol, ycol = x_atom.predicate, y_atom.predicate
 
-    # 1. Interventional-risk strategy. Only the ONE arm the cell depends on is
-    #    ever fetched — the other is information this answer does not use, and
-    #    demanding it would manufacture a data requirement out of nothing.
-    supplied: float | None = None
-    adjustment: tuple[str, ...] = ()
-    risk_formula = None
-    instrument: Atom | None = None
-    if x_cf == x_obs:
-        provenance = RiskProvenance.NOT_REQUIRED
-    else:
-        supplied = (
-            query.experimental_risk_treated if x_cf
-            else query.experimental_risk_control
-        )
-        if supplied is not None:
-            provenance = RiskProvenance.USER_EXPERIMENTAL
-        else:
-            try:
-                adjustment = minimal_backdoor_adjustment(
-                    graph, x_atom, y_atom, bidirected,
-                )
-            except EstimatorFailure:
-                # No adjustment set. That is NOT the end of identification:
-                # the general ID algorithm reaches estimands no covariate set
-                # blocks (a front-door structure, a napkin), and the cell only
-                # ever needed this ONE arm.
-                try:
-                    risk_formula = identify_arm_risk_formula(
-                        graph, bidirected,
-                        treatment_atom=x_atom, outcome_atom=y_atom,
-                        # The cell's coordinates are booleans and the column is
-                        # binary; True/False and 1/0 compare and hash alike, so
-                        # the literal threaded through the estimand matches the
-                        # data's own levels either way.
-                        arm_value=x_cf, outcome_value=True,
-                    )
-                except EstimatorFailure:
-                    # No do-risk is POINT-identified from this frame (a bow
-                    # arc). That is the end of the identity's road, not of
-                    # identification: an instrument does not deliver the risk
-                    # as a number, but it does deliver the set of models the
-                    # data admit, and the cell is a linear functional on it.
-                    instrument = instrument_for(graph, x_atom, y_atom, bidirected)
-                    provenance = (
-                        RiskProvenance.PINNED_BY_MONOTONICITY
-                        if instrument is None
-                        else RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
-                    )
-                else:
-                    provenance = RiskProvenance.GENERAL_ID_PLUG_IN
-            else:
-                provenance = (
-                    RiskProvenance.EXOGENOUS if not adjustment
-                    else RiskProvenance.BACKDOOR_ADJUSTMENT
-                )
+    # 1. Interventional-risk strategy — the shared cascade, asked for the ONE
+    #    arm this cell depends on. The other is information this answer does
+    #    not use, and demanding it would manufacture a data requirement out of
+    #    nothing; the cascade takes the arms as a parameter for exactly that
+    #    reason, so asking for one is not a narrower copy of asking for two.
+    same_world = x_cf == x_obs
+    supplied: float | None = (
+        None if same_world
+        else (query.experimental_risk_treated if x_cf
+              else query.experimental_risk_control)
+    )
+    route = choose_risk_route(
+        graph, bidirected, cause=x_atom, effect=y_atom,
+        arms=() if same_world else (x_cf,),
+        supplied={} if same_world else {x_cf: supplied},
+    )
+    if route is None:
+        # The cascade reached nothing. What is left is this door's own, and
+        # not a route: a declared monotonicity can determine the cell outright,
+        # obtaining no risk at all. The identity below either pins it from the
+        # assumption or raises for the risk it still needs — which is why the
+        # licence is claimed here and the claim is settled there.
+        route = RiskRoute(RiskProvenance.PINNED_BY_MONOTONICITY)
+    provenance = route.provenance
+    adjustment = route.adjustment
+    risk_formula = route.formulas.get(x_cf)
+    instrument = route.instrument
 
     zcol = None if instrument is None else instrument.predicate
     required = {xcol, ycol, *adjustment}
@@ -334,7 +307,7 @@ def estimate_counterfactual_cell(
     # miss a stratum is a positivity failure of that draw, not a smaller model.
     z_levels = [] if zcol is None else sorted_levels(df[zcol])
     if zcol is not None:
-        _refuse_unless_the_polytope_is_solvable(zcol, z_levels)
+        polytope_preconditions(zcol, z_levels)
     monotone = (
         query.assumptions.monotonicity
         if query.assumptions is not None else None
@@ -411,6 +384,10 @@ def estimate_counterfactual_cell(
         )
 
     is_point = abs(interval.high - interval.low) <= _TOL
+    levels, p_xyz, p_z = (
+        polytope_sufficient_statistic(iv_table[0], iv_table[1], z_levels)
+        if iv_table else ((), (), ())
+    )
     monotonicity = (
         query.assumptions.monotonicity.value
         if query.assumptions is not None and query.assumptions.monotonicity is not None
@@ -426,9 +403,7 @@ def estimate_counterfactual_cell(
         interventional_risk_provenance=risk_provenance.stamp(_RULE, provenance),
         adjustment=adjustment,
         instrument=zcol,
-        instrument_levels=tuple(_py(v) for v in z_levels),
-        p_xyz=_nested(iv_table[0]) if iv_table else (),
-        p_z=tuple(float(v) for v in iv_table[1]) if iv_table else (),
+        instrument_levels=levels, p_xyz=p_xyz, p_z=p_z,
         risk_formula=risk_formula,
         x_observed=bool(x_obs), x_counterfactual=bool(x_cf),
         y_star=bool(y_star), factual_target_known=factual_y,
@@ -441,9 +416,7 @@ def estimate_counterfactual_cell(
         data_hash=contract.data_hash,
         cause=xcol, effect=ycol,
         model_assumption=_model_assumption(provenance, zcol),
-        form=_FORM_BY_PROVENANCE.get(
-            provenance, "nonparametric_gformula_plug_in",
-        ),
+        form=FORM_BY_PROVENANCE.get(provenance, DEFAULT_FORM),
         identification_assumptions=_identification_assumptions(
             provenance, adjustment, monotonicity, zcol,
         ),
@@ -452,63 +425,6 @@ def estimate_counterfactual_cell(
 
 
 # --- internals ----------------------------------------------------------------
-
-
-#: The mechanism sentence's short name, by the route that produced it. Only
-#: the routes that depart from the g-formula appear; the table is a lookup
-#: with a default rather than a chain because a fourth route added to the
-#: cascade should be a row here, not another branch to get the order right in.
-_FORM_BY_PROVENANCE = {
-    RiskProvenance.GENERAL_ID_PLUG_IN: "nonparametric_c_factor_plug_in",
-    RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE:
-        "nonparametric_response_function_lp",
-}
-
-
-def _refuse_unless_the_polytope_is_solvable(zcol: str, z_levels: list) -> None:
-    """The instrument route's two preconditions on the instrument column.
-
-    An instrument that never varies enumerates one ``z → x`` map and carries
-    no information; one with too many levels enumerates ``2^|Z| · 4`` types and
-    the LP behind them is re-solved once per bootstrap replicate. Neither is a
-    reason to fall back quietly to a route that would have answered a weaker
-    question — the caller is told which of its columns is the obstacle and
-    what to do to it.
-    """
-    if len(z_levels) < 2:
-        raise EstimatorFailure(
-            Refusal.INSUFFICIENT_SUPPORT,
-            f"instrument {zcol!r} takes a single value "
-            f"({refusals.describe(z_levels)}) in this sample; an instrument "
-            f"that never varies carries no response types to bound over.",
-        )
-    if response_type_count(
-        treatment_levels=2, outcome_levels=2, instrument_levels=len(z_levels),
-    ) is None:
-        raise EstimatorFailure(
-            Refusal.RESPONSE_MODEL_TOO_LARGE,
-            f"instrument {zcol!r} has {len(z_levels)} observed levels, so the "
-            f"response-function partition has 2^{len(z_levels)}·4 types — "
-            f"above the {MAX_RESPONSE_TYPES} this package solves. The sharp "
-            f"interval exists; it is the LP, re-solved once per bootstrap "
-            f"replicate, that is declined. Coarsening the instrument brings "
-            f"the method back in reach.",
-        )
-
-
-def _nested(P: np.ndarray) -> tuple:
-    """The ``P(X, Y | Z)`` table as plain nested tuples of floats, so what the
-    envelope carries is what the LP consumed and not a numpy view of it."""
-    return tuple(
-        tuple(tuple(float(P[z, x, y]) for y in range(P.shape[2]))
-              for x in range(P.shape[1]))
-        for z in range(P.shape[0])
-    )
-
-
-def _py(v):
-    """A numpy scalar as the Python value it stands for."""
-    return v.item() if isinstance(v, np.generic) else v
 
 
 def _bootstrap_cell(
