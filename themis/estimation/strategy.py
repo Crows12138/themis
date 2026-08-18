@@ -27,7 +27,7 @@ from enum import Enum
 from functools import cached_property
 from typing import Any, Callable, Iterator
 
-from ..routing import End, Route, StructuralFacts, bind
+from ..routing import End, Route, StructuralFacts, bind, displaced_by
 from .claim import Claim
 
 
@@ -266,11 +266,19 @@ class EffectFacts(StructuralFacts):
 class Evaluation:
     """What one pass of the cascade over one query decided.
 
-    The four fields are four readings of a single evaluation, which is the
-    whole reason the table exists: ``fired`` is the answer, ``declined``
-    is the gap report, ``annotated`` is what was recorded beside the
-    answer, and ``considered`` explains reachability — why a strategy that
-    exists never ran on this query.
+    The fields are readings of a single evaluation, which is the whole
+    reason the table exists: ``fired`` is the answer, ``declined`` is the
+    gap report, ``annotated`` is what was recorded beside the answer, and
+    ``considered`` explains reachability — why a strategy that exists never
+    ran on this query.
+
+    ``considered`` could only ever half-answer that on its own. It holds
+    the rows whose guard was false, and the cascade stops at the winner, so
+    a row BELOW the winner whose guard was true is in neither list — the
+    one shape where "never ran" is a decision rather than a non-event.
+    ``displaced`` is that shape, named by the route table (see
+    :attr:`themis.routing.Route.displaces`) and evaluated where the winner
+    is picked.
     """
 
     query_id: str
@@ -279,6 +287,7 @@ class Evaluation:
     declined: tuple[tuple[str, str | None], ...] = ()
     passed_by: tuple[tuple[str, Estimand, str | None], ...] = ()
     considered: tuple[str, ...] = ()
+    displaced: tuple[str, ...] = ()
 
     @property
     def answered(self) -> bool:
@@ -347,6 +356,7 @@ def run_cascade(
     passers: list[Strategy] = []
     passed_by: list[tuple[str, Estimand, str | None]] = []
     considered: list[str] = []
+    displaced: tuple[str, ...] = ()
 
     for strategy in strategies:
         if not strategy.applies_when(facts):
@@ -363,6 +373,7 @@ def run_cascade(
         if claim.stops_here:
             if claim.answered:
                 fired, fired_by = (strategy.id, strategy.produces), strategy
+                displaced = displaced_by(strategy.route, facts)
             else:
                 declined.append((strategy.id, claim.reason))
             break
@@ -394,6 +405,7 @@ def run_cascade(
         declined=tuple(declined),
         passed_by=tuple(passed_by),
         considered=tuple(considered),
+        displaced=displaced,
     )
     if _recorder is not None:
         _recorder.append(evaluation)

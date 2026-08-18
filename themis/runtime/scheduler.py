@@ -58,6 +58,7 @@ from ..types import (
     CounterfactualConjunctionQuery,
     CounterfactualQuery,
     DerivationStep,
+    DispatchRecord,
     EffectQuery,
     FormulaExpr,
     GapKind,
@@ -5144,7 +5145,17 @@ def _dispatch_effect(
             continue
         attempt = identify(facts)
         if attempt.result is not None:
-            return attempt.result
+            # The winner is known here and so, for the only time, are the
+            # rows it took the query from: the loop is about to return, and
+            # every row below is left unevaluated. Recording it here is what
+            # replaces the gap report's inference from which extension came
+            # back empty.
+            from dataclasses import replace as _replace
+
+            return _replace(attempt.result, dispatch=DispatchRecord(
+                answered_by=route.id,
+                displaced=routing.displaced_by(route, facts),
+            ))
         notes.extend(attempt.missing)
     return _effect_refusal(facts, tuple(notes))
 
@@ -5818,6 +5829,7 @@ def _attach_data_gap_report(
         bounds_result=result.bounds_result,
         numeric_result=result.numeric_result,
         confidence=result.confidence,
+        dispatch=result.dispatch,
     )
     if report is None:
         return result
@@ -6644,7 +6656,7 @@ POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
         reads=frozenset({
             "query_kind", "status", "derivation", "investigation_requests",
             "framing_notes", "structural_result", "numeric_result",
-            "confidence", "bounds_result",
+            "confidence", "bounds_result", "dispatch",
             "extensions.ambiguities",
             "extensions.iv_identification",
             "extensions.transport_identification",

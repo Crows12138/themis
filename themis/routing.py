@@ -64,12 +64,34 @@ class Route:
     outranks mediation" is a statement two layers can be checked against
     instead of a coincidence between two files. ``ends`` is not a label —
     it is what :func:`bind` enforces.
+
+    Precedence says who answers. It does not say that anyone LOST, and two
+    guards can hold at once: a query naming both a mediator and a target
+    population is claimed by both rows, and the dispatcher returns at the
+    first one without ever evaluating the second. ``displaces`` is that
+    missing half — the rows this one can take a query away from, each
+    answering a question this one does not answer in passing. What made it
+    necessary is that the fact was being rebuilt downstream instead:
+    ``data_gap_report`` read back which extension came out non-empty to
+    infer which layer had been skipped, so the disclosure depended on a
+    layer failing to leave residue rather than on the dispatcher saying
+    what it did. Only one of the pairs that can occur was covered that way,
+    and two more had their scope written in a query field's docstring,
+    which is prose.
+
+    ``triggered_by`` names the declaration that makes this row claim a
+    query. It is what lets the disclosure say which field to remove to get
+    the other layer, and :func:`_check` requires it from both sides of any
+    displacement — a displacement nobody could act on should not be
+    declarable.
     """
 
     id: str
     precedence: int
     applies_when: Callable[[Any], Any]
     ends: frozenset[End]
+    triggered_by: str = ""
+    displaces: frozenset[str] = frozenset()
 
 
 class StructuralFacts:
@@ -213,19 +235,41 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         # pass that runs before this cascade. The guard names a fact only
         # the identification layer's facts carry, so it cannot be evaluated
         # in the layer that has no implementation for it.
+        #
+        # It displaces every shape row below it. A time-varying treatment
+        # is standardized sequentially along ONE treatment trajectory, in
+        # the sample's own population, for the total effect: a joint
+        # contrast over a treatment set, a carry to another population, and
+        # a direct/indirect split (which would need sequential
+        # ignorability for time-varying mediators) are each a different
+        # quantity this row does not produce on the way past.
         id="longitudinal",
         precedence=10,
         applies_when=lambda f: f.declares_longitudinal,
         ends=IDENTIFIES,
+        triggered_by="options.longitudinal",
+        displaces=frozenset({
+            "joint_intervention", "transport",
+            "mediation_joint", "mediation_single",
+        }),
     ),
     Route(
         # Joint interventions: do(A=a, B=b, ...) over a treatment SET — the
         # joint contrast plus its treatment×treatment interaction, which no
         # sequence of single-treatment estimates recovers.
+        #
+        # Its v1 scope — no mediator and no target population alongside the
+        # joint — was written in ``extra_interventions``' own docstring,
+        # where nothing could act on it. Declared here it becomes the
+        # disclosure the reader gets.
         id="joint_intervention",
         precedence=20,
         applies_when=lambda f: bool(f.query.extra_interventions),
         ends=BOTH,
+        triggered_by="extra_interventions",
+        displaces=frozenset({
+            "transport", "mediation_joint", "mediation_single",
+        }),
     ),
     Route(
         # Phase 9 §T9.1.3: carry the effect to a declared target population
@@ -241,10 +285,17 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         # first — a hand-off that had to be declared as a substitution
         # because the estimands differ. One number for the order removes
         # both the hand-off and the declaration.
+        #
+        # Mediation and transport are sequential operations (Cole & Stuart
+        # 2010; VanderWeele 2016 §6.2) — decompose in the source
+        # population, then carry each component — so one dispatch cannot be
+        # both.
         id="transport",
         precedence=30,
         applies_when=lambda f: f.query.target_population is not None,
         ends=BOTH,
+        triggered_by="target_population",
+        displaces=frozenset({"mediation_joint", "mediation_single"}),
     ),
     Route(
         # The JOINT natural-effect decomposition through the mediator SET
@@ -259,10 +310,18 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         # row. It would drop the decomposition and answer the total effect
         # instead, beside an envelope still claiming the block. That was
         # finding A.
+        #
+        # A query naming the block AND a single mediator is claimed twice.
+        # The block's joint NDE/NIE does not contain the path-specific
+        # split through one of its members — that split is out of scope
+        # here precisely because it needs assumptions the block does not —
+        # so the singular field is not answered in passing.
         id="mediation_joint",
         precedence=40,
         applies_when=lambda f: bool(f.query.mediators),
         ends=BOTH,
+        triggered_by="mediators",
+        displaces=frozenset({"mediation_single"}),
     ),
     Route(
         # Phase 6.mediation: NDE / NIE / CDE through a single named
@@ -271,6 +330,7 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         precedence=50,
         applies_when=lambda f: f.query.mediator is not None,
         ends=BOTH,
+        triggered_by="mediator",
     ),
     Route(
         # §S9.1: the sample is restricted on a selection collider, so the
@@ -460,6 +520,35 @@ def _check(routes: tuple[Route, ...]) -> tuple[Route, ...]:
                 f"declaration order, which is what precedence replaces"
             )
         by_precedence[r.precedence] = r.id
+    by_id = {r.id: r for r in routes}
+    for r in routes:
+        for target in sorted(r.displaces):
+            if target not in by_id:
+                raise ValueError(
+                    f"route {r.id!r} displaces unknown route {target!r}"
+                )
+            other = by_id[target]
+            if other.precedence <= r.precedence:
+                raise ValueError(
+                    f"route {r.id!r} displaces {target!r}, which outranks it; "
+                    f"a row can only take a query away from one the cascade "
+                    f"would have offered it to later"
+                )
+            if other.ends != BOTH:
+                raise ValueError(
+                    f"route {r.id!r} displaces {target!r}, which declares only "
+                    f"{sorted(e.value for e in other.ends)}; a displaced "
+                    f"route's guard is evaluated by whichever layer answered, "
+                    f"so a route only one layer can evaluate cannot be one"
+                )
+            for side in (r, other):
+                if not side.triggered_by:
+                    raise ValueError(
+                        f"route {r.id!r} displaces {target!r} but {side.id!r} "
+                        f"names no triggered_by; the disclosure has to say "
+                        f"which declaration to remove to get the other layer, "
+                        f"and cannot be written without it"
+                    )
     return tuple(sorted(routes, key=lambda r: r.precedence))
 
 
@@ -476,6 +565,30 @@ def route(route_id: str) -> Route:
             f"no effect route {route_id!r}; known routes are "
             f"{sorted(_BY_ID)}"
         ) from None
+
+
+def displaced_by(winner: Route, facts: Any) -> tuple[str, ...]:
+    """The rows this one took the query away from, on these facts.
+
+    Computed where the decision is made and by the layer that made it.
+    The alternative — and what this replaces — is to notice downstream
+    that one of the extensions came back empty and infer from that which
+    layer never ran, which is a guess dressed as a disclosure: it reads
+    residue, so a layer that fills its extension and then fails is
+    indistinguishable from one that was never offered the query.
+
+    Only the winner's DECLARED rivals are evaluated, never the rest of the
+    table. Guards below the shape band run the structural solver, and
+    :class:`StructuralFacts` is built so a query answered by the first row
+    never pays for an adjustment-set search — nor is broken by one on a
+    query shape that search has never been offered.
+    """
+    if not winner.displaces:
+        return ()
+    return tuple(
+        r.id for r in EFFECT_ROUTES
+        if r.id in winner.displaces and r.applies_when(facts)
+    )
 
 
 T = TypeVar("T")

@@ -83,9 +83,11 @@ collect.
 - `ambiguous_variable_definition` → Q1-Q3 walk (this is a real
   framing / data gap)
 - `unattempted_layer_due_to_dispatch_conflict` → no fetch; the action
-  is to **reformulate the query** (split into two sequential queries,
-  or drop one of `mediator` / `target_population`) per the gap's
-  `alternative_paths`. Surface in reply; advise reformulation.
+  is to **reformulate the query** — split it into two, one per layer, or
+  drop whichever of the two declarations the gap names is not wanted.
+  Read both from the gap's own `alternative_paths` rather than assuming
+  a pair: the kernel declares several, and the description says which
+  two this answer hit. Surface in reply; advise reformulation.
 - `collider_conditioning_opens_backdoor` → no fetch; the
   action is to **remove the collider from `given`**. The conditional
   estimate is biased, not just caveated — render with a clear

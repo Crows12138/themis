@@ -218,6 +218,7 @@ def compute_data_gap_report(
     bounds_result=None,
     numeric_result=None,
     confidence: float | None = None,
+    dispatch=None,
 ) -> DataGapReport | None:
     """Synthesize a DataGapReport from the result-envelope signals.
 
@@ -257,7 +258,7 @@ def compute_data_gap_report(
         extensions=extensions,
     ))
     must_disclose_gaps.extend(_classify_unattempted_layer_dispatch_conflict(
-        stmt=stmt, extensions=extensions,
+        dispatch=dispatch,
     ))
     must_disclose_gaps.extend(_classify_collider_conditioning_opens_backdoor(
         program=program, stmt=stmt,
@@ -2975,84 +2976,111 @@ def _classify_ill_defined_intervention_versions(
     )
 
 
+# Why each displaced layer cannot be done in the same dispatch, in the
+# reader's language. The pairs themselves are declared in
+# :mod:`themis.routing`; this table only translates them, and a gate holds
+# the two to exactly the same key set, so a pair added to the route table
+# without a sentence here fails rather than reaching a reader as a blank.
+_DISPLACEMENT_REASON: dict[tuple[str, str], str] = {
+    ("longitudinal", "joint_intervention"):
+        "纵向 g-formula 沿时间序对**一条**处理轨迹做序贯标准化；对处理集合"
+        "的联合干预（含处理×处理交互）不是它算出来的那个量。",
+    ("longitudinal", "transport"):
+        "纵向 g-formula 在主样本自己的总体里标准化；把结果搬到目标总体是"
+        "另一次识别（选择图 + s-可容许集），它不顺带做。",
+    ("longitudinal", "mediation_joint"):
+        "时变处理的直接/间接效应分解要的是时变中介的序贯可忽略性，与总效应"
+        "的 g-formula 不是同一组条件；这条路线只给总效应。",
+    ("longitudinal", "mediation_single"):
+        "时变处理的直接/间接效应分解要的是时变中介的序贯可忽略性，与总效应"
+        "的 g-formula 不是同一组条件；这条路线只给总效应。",
+    ("joint_intervention", "transport"):
+        "联合对比是在主样本自己的总体里算的；联合干预路径的 v1 作用域明确"
+        "不与 `target_population` 组合。",
+    ("joint_intervention", "mediation_joint"):
+        "联合干预给的是处理集合的总对比（含处理×处理交互），不做直接/间接"
+        "分解；该路径的 v1 作用域明确不与中介声明组合。",
+    ("joint_intervention", "mediation_single"):
+        "联合干预给的是处理集合的总对比（含处理×处理交互），不做直接/间接"
+        "分解；该路径的 v1 作用域明确不与中介声明组合。",
+    ("transport", "mediation_joint"):
+        "Cole & Stuart 2010 / VanderWeele 2016 §6.2: mediation × transport "
+        "是 sequential operations（先在 source population 做 mediation, "
+        "再 transport 各 component 到 target），不能在一个 query 里同时 "
+        "dispatch。",
+    ("transport", "mediation_single"):
+        "Cole & Stuart 2010 / VanderWeele 2016 §6.2: mediation × transport "
+        "是 sequential operations（先在 source population 做 mediation, "
+        "再 transport 各 component 到 target），不能在一个 query 里同时 "
+        "dispatch。",
+    ("mediation_joint", "mediation_single"):
+        "`mediators` 把这些中介当作**一个块**做联合 NDE/NIE；穿过其中单个"
+        "中介的路径特定拆分不含在块的分解里 —— 它需要块本身不需要的额外"
+        "条件，本仓明确列为作用域之外。",
+}
+
+
 def _classify_unattempted_layer_dispatch_conflict(
     *,
-    stmt,
-    extensions: dict,
+    dispatch,
 ) -> Iterable[DataGap]:
-    """L3 case 009 finding: when a query specifies multiple identification
-    layers (e.g. both ``mediator`` and ``target_population``), the kernel
-    only dispatches one and silently skips the other. Without this
-    disclosure the user may read the ``structurally_solved`` result and
-    assume both layers were handled. Cole & Stuart 2010 + VanderWeele
-    2016 §6.2 establish that mediation × transport are sequential
-    operations, not a single dispatch.
+    """Disclose every layer the dispatcher took this query away from.
 
-    Trigger pairs (when both fields set on the query but only one
-    extension populated; ``mediator`` and ``mediators`` count alike —
-    a mediator BLOCK is skipped just as silently as a single one):
-    - mediator(s) + target_population, transport_identification populated
-      but the mediation decomposition missing/invalid → mediation skipped
-    - mediator(s) + target_population, mediation decomposition populated
-      but transport_identification missing → transport skipped
+    L3 case 009 found the first instance: a query naming both a mediator
+    and a target population is claimed by two rows, the cascade returns at
+    the higher one, and the reader gets a ``structurally_solved`` result
+    with no sign that the other layer was never attempted.
 
-    Severity: IMPORTANT — the dispatched layer is structurally valid
-    (not a bug to block), but silent skip violates VISION's
+    This used to be reconstructed here — read back which of
+    ``transport_identification`` / the mediation view came out populated,
+    and infer from the empty one which layer had been skipped. That is an
+    inference from residue: it can see only the pair it was written for,
+    and it is wrong the first time a layer fills its extension and then
+    fails. The dispatcher knows the answer outright, so it now says so
+    (:class:`~themis.types.DispatchRecord`) and this reads the record.
+
+    Severity: IMPORTANT — the dispatched layer is structurally valid (not
+    a bug to block), but a silent skip violates VISION's
     honest-about-what-wasn't-done principle.
     """
-    if stmt is None:
+    if dispatch is None or not dispatch.displaced:
         return
-    q = getattr(stmt, "query", None)
-    has_mediator = (
-        getattr(q, "mediator", None) is not None
-        or bool(getattr(q, "mediators", None))
-    )
-    has_target_pop = getattr(q, "target_population", None) is not None
-    if not (has_mediator and has_target_pop):
-        return
-    ext = extensions or {}
-    transport_done = bool(ext.get(blocks.TRANSPORT_IDENTIFICATION))
-    view = _mediation_view(ext)
-    mediation_done = bool(view is not None and view.valid)
-    if transport_done and not mediation_done:
-        attempted, skipped = "transport", "mediation"
-    elif mediation_done and not transport_done:
-        attempted, skipped = "mediation", "transport"
-    else:
-        return
-    mediator_field = (
-        "`mediators`" if getattr(q, "mediators", None) else "`mediator`"
-    )
-    yield DataGap(
+    from .. import routing
+
+    winner = routing.route(dispatch.answered_by)
+    for skipped_id in dispatch.displaced:
+        skipped = routing.route(skipped_id)
+        won = f"`{winner.triggered_by}`"
+        lost = f"`{skipped.triggered_by}`"
+        yield _dispatch_conflict_gap(winner, skipped, won, lost)
+
+
+def _dispatch_conflict_gap(winner, skipped, won: str, lost: str) -> DataGap:
+    return DataGap(
         kind=GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
         severity=GapSeverity.IMPORTANT,
         description=(
-            f"Query 同时设了 {mediator_field} 和 `target_population` 字段；"
-            f"当前 dispatch 只跑了 **{attempted}**，**{skipped}** 被静默"
-            f"跳过。"
-            f"Cole & Stuart 2010 / VanderWeele 2016 §6.2: mediation × "
-            f"transport 是 sequential operations（先在 source population"
-            f"做 mediation, 再 transport 各 component 到 target），"
-            f"不能在一个 query 里同时 dispatch。当前 result 只反映 "
-            f"{attempted} 层；{skipped} 分析需要单独 query。"
+            f"Query 同时声明了 {won} 和 {lost}；当前 dispatch 只跑了 "
+            f"**{winner.id}**，**{skipped.id}** 被静默跳过。"
+            f"{_DISPLACEMENT_REASON[winner.id, skipped.id]}"
+            f"当前 result 只反映 {winner.id} 这一层；{skipped.id} "
+            f"分析需要单独 query。"
         ),
         blocks=GapBlocks.INTERPRETATION,
         if_provided=(
-            f"拆成两个 query：先在 source population 跑 {skipped} 分析，"
-            f"再用结果做 {attempted}（或反过来按 Cole-Stuart 顺序）"
+            f"拆成两个 query，各自只声明一层：一个带 {won}，一个带 {lost}"
         ),
         alternative_paths=(
-            f"如果只想要 {attempted} 结果，从 query 删除"
-            f" {'`target_population`' if attempted == 'mediation' else mediator_field}"
-            f" 字段使 dispatch 唯一",
-            f"如果只想要 {skipped} 结果，从 query 删除"
-            f" {'`target_population`' if skipped == 'mediation' else mediator_field}"
-            f" 字段使 dispatch 唯一",
+            f"如果只想要 {winner.id} 结果，删除 {lost} 使 dispatch 唯一",
+            f"如果只想要 {skipped.id} 结果，删除 {won} 使 dispatch 唯一",
         ),
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.VERIFIER_CHECK,
-                ref_id=f"query:dispatch_conflict:{attempted}_dispatched_{skipped}_skipped",
+                ref_id=(
+                    f"query:dispatch_conflict:{winner.id}_dispatched_"
+                    f"{skipped.id}_skipped"
+                ),
             ),
         ),
     )

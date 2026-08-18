@@ -1535,6 +1535,28 @@ class DataGapReport:
 
 
 @dataclass(frozen=True)
+class DispatchRecord:
+    """Which strategy answered, and which ones it took the query from.
+
+    Written by the dispatcher at the moment it picks a winner, because
+    that is the only moment the losers are known: the cascade returns at
+    the first row whose guard holds, so a row below it that would also
+    have claimed the query is never evaluated and leaves no trace. The gap
+    report used to recover that fact by reading which extension came back
+    non-empty — an inference from residue, and wrong the first time a
+    layer fills its extension and then fails.
+
+    Deliberately not serialized. The disclosure a reader needs is the gap
+    this record produces, which names both layers in prose; putting the
+    route ids in the envelope beside it would be the same fact in two
+    places, and the ids name implementations rather than anything a reader
+    reads. See :mod:`themis.routing` for the declarations behind it.
+    """
+    answered_by: str
+    displaced: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class QueryResult:
     status: ResultStatus
     query_kind: QueryKind
@@ -1558,6 +1580,8 @@ class QueryResult:
     # nowhere to put a reason and wrote prose into ``extensions``
     # instead. Assembled by :func:`themis.refusals.block`.
     estimator_failure: dict | None = None
+    # Who answered and whom they displaced — see :class:`DispatchRecord`.
+    dispatch: "DispatchRecord | None" = None
 
 
 # ---------------------------------------------------------------------------

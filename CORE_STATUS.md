@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4640 passed / 144 skipped, warning-clean
+4660 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,81 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 表能说出谁赢，说不出谁输了（2026-08-18，#364）
+
+`data_gap_report.py` 的 `_classify_unattempted_layer_dispatch_conflict` 靠
+「`transport_identification` 与 mediation 视图哪个非空」倒推「跑了 A、跳了 B」，
+再发一条 IMPORTANT gap。结果已经构造出来、`structurally_solved` 已经发出去，
+**披露是下游读残留物重建的**。而同一条纪律的正面版本就写在 `numeric_estimator.py`
+的 `DSEP_REFUSAL_SIGNATURE` 旁边：决定由发现它的地方携带，不在下游靠搜索恢复。
+
+**根因不在那个分类器里，在 `themis/routing.py` 的路由表。**它能表达**谁赢**
+（`precedence`，且 `_check` 明确拒绝并列——「并列会退回声明顺序，而 precedence
+就是来替掉它的」），也能表达**谁可以把查询交给答另一个问题的人**（`defers_to`）。
+但它**表达不了「两条路线的 guard 可以同时为真，而赢家答的是另一个问题」**——
+transport 不是「让出」而是「答掉」，`defers_to` 的检查根本不触发，dispatcher 一个
+`return` 就走，**mediation 的 guard 真值从来没被计算过**。
+
+**三个可证伪的推论，都成立**：
+
+1. **表达不出来 ⇒ 没人检查 ⇒ 同型实例不止一条。**形状档（precedence 10–50，
+   guard 只读 query）有 5 条路线，两两可同时为真的组合**枚举出来是 10 对**，
+   而**只有 1 对有披露**。
+2. **其中两条的作用域只写在字段的 docstring 里**：`extra_interventions` 写着
+   「no mediator / target_population combined with joint」，`mediators` 写着
+   「Mutually exclusive with a single `mediator`」——**散文，不是约束**，两种组合
+   都构造得出来且静默丢一层。
+3. **估计层同一个洞**：`run_cascade` 在 `stops_here` 处 `break`，precedence 更低
+   的策略既不在 `considered`（guard 为假）里也不在别处，而 `considered` 的
+   docstring 写的是「解释可达性——一个存在的策略为什么没在这条查询上跑」。
+   **它现在答不出它自称回答的那个问题。**
+
+**修法**：`Route` 增加 `triggered_by`（这条路线读哪个声明）与 `displaces`
+（排在我之下、guard 可与我同真、答的是另一个问题的路线）。`_check` 校验被声明者
+存在、排名严格更低、`ends` 必须是两端（**只有一层能求值的 guard 不能被声明为被夺走
+的**，否则另一层会在那里抛异常）、双方都说得出 `triggered_by`（说不出就意味着披露里
+写不出「删哪个声明」，那条声明就不该能写）。两层共用 `routing.displaced_by(winner,
+facts)`——**只求值被声明的那几条 guard**，所以 `StructuralFacts` 那条「答得早的
+查询不该为一次调整集搜索付费、更不该被它弄坏」的约束不破。识别层把结果记进
+`QueryResult.dispatch`（`DispatchRecord`），估计层记进 `Evaluation.displaced`，
+分类器**只读这份记录**。
+
+**不可表达的那一半用闸口补**：形状档的 guard 只读 query，所以**可枚举**。闸口用一个
+「除 query 之外任何属性都抛 `AttributeError`」的 facts 桩把路线分成「形状可判定」
+与否——**路线自己的 guard 决定它属于哪边，不靠人列名单**——再穷举 2⁵ 个声明组合。
+任何一对同时为真而未声明的路线在这道门上失败；同一道门顺便钉死 `triggered_by`
+与 guard 一致（只设一个声明时，开火的必须是声明它的那条），并要求每一对声明都有
+一句中文说明（**表在 `routing.py`，句子在 `data_gap_report.py`，键集必须相等**——
+少一句就是读者拿到一条中间开天窗的 gap）。**闸口验过**：抽掉 `transport.displaces`
+两道门都当场变红。
+
+**度量**：可达的 10 对现在全部声明、全部有披露；此前是 **1/10**。新覆盖的其中一对
+（`mediators` + `mediator`）是残留物读法**按构造看不见**的——两个字段都是 mediation，
+它唯一查的那个 extension 无论如何都非空，于是它推断出「没有冲突」。
+
+**声明的取舍**：`DispatchRecord` **不进 envelope**。读者需要的披露是它产出的那条
+gap，那条 gap 用散文点名了两层；把 route id 再放进信封是**同一个事实的第二份记录**
+（#345 刚拆掉过一次），而 id 命名的是实现，不是读者读的概念。`Evaluation.displaced`
+今天**没有生产消费者**——估计路径先跑识别，`dispatch` 已经在结果上、gap 已经发出；
+它存在是因为 `Evaluation` 本身就是「这次评估决定了什么」的可检视记录，而它现在补上的
+正是 `considered` 自称回答却答不出的那个问题。
+
+**基线**：4640 → **4660**。
+
+**方法论沉淀（第一三八至一四二条）**：
+(138)**能表达「谁赢」不等于能表达「谁输了」**——优先级选出赢家，却不产生「有人被
+夺走」这个事实；被夺走的一方连 guard 都没被求值，于是下游只能从残留物反推。
+(139)**倒推式披露的覆盖面等于写它的人当时想到的那一对**——它不是漏了别的对，
+它按构造看不见别的对。判据：把同型组合枚举一遍，数有披露的比例。
+(140)**写在字段 docstring 里的作用域限制是散文**——「本版不支持 A 与 B 同时」
+如果只出现在注释里，那个状态仍然构造得出来，而且会静默地只做一半。
+(141)**不可表达做不到时，就把「可穷举的那一档」穷举掉**——判断哪些属于这一档不要
+列名单：给一个只回答该档问题的桩，让每条路线的 guard 自己分类（够不着的当场抛）。
+(142)**一份记录说自己解释某件事，就要能解释它的每一种情形**——`considered` 只装
+「guard 为假」，而「排在赢家之下、guard 为真、从未被问」是同一个问题的另一半。
+
+---
 
 ### 图撤销的是「丢掉非父节点」的许可，不是分解本身（2026-08-18，#359）
 
