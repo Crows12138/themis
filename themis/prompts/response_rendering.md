@@ -1218,13 +1218,31 @@ rendering" shape.
 
 - `nde_nie` — best case. Both natural direct/indirect and CDE
   identifiable. Report TE = NDE + NIE and name the adjustment set.
-- `cde` — partial. NDE/NIE not identifiable (usually M4: intermediate
-  confounder), CDE(m) is. "I can tell you what happens if M is held
-  at a specific value, but I can't cleanly separate direct from
-  indirect under the natural M distribution."
+- `cde` — partial. NDE/NIE not identifiable, CDE(m) is. "I can tell
+  you what happens if M is held at a specific value, but I can't
+  cleanly separate direct from indirect under the natural M
+  distribution."
 - `none` — not identifiable via backdoor methods. Report which
   condition failed (`nde_nie.failed_condition` / `cde.failed_condition`)
-  and explain what that means in plain terms.
+  in the words below rather than as its label. The label names a line
+  of the theorem; what the reader can act on is which path is still
+  open, and every one of these is a statement about their graph.
+
+**The conditions, as the solver reports them.** The field carries the
+FIRST condition the surviving adjustment set failed, which is not always
+the one that names the obstruction: for the canonical intermediate
+confounder (X→L, L→M, L→Y) the answer is `M3`, because `M4` has already
+excluded `{L}` — the only set that could have closed the M→Y back-door —
+and what is left to report is that the back-door is open. Do not tell the
+reader that an intermediate confounder is an `M4`.
+
+- `M1` — X 到 Y 还有调整集挡不住的后门路径
+- `M2` — X 到中介 M 还有调整集挡不住的后门路径
+- `M3` — 中介 M 到 Y 还有后门路径，控制了 X 和调整集也挡不住（通常是有个
+  变量既被 X 影响、又同时影响 M 和 Y，即中间混杂器）
+- `M4` — 调整集里含 X 的后代，控制它会连要测的那条因果路径一起挡掉
+- `C1` — 把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径
+- `C2` — 调整集里含 X 或 M 的后代
 - `mediator_valid: false` — structural error: M isn't on any
   X → ... → M → ... → Y path. Ask the user to verify the mediator
   declaration or the edge list.

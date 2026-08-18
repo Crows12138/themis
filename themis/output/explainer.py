@@ -13,6 +13,7 @@ headers, just short declarative sentences.
 from __future__ import annotations
 
 from .. import blocks, questions, risk_provenance
+from . import envelope_glossary
 from ..runtime import formula_builder
 from ..types import (
     ConstantExpr,
@@ -103,12 +104,17 @@ def _describe_adjustment(formula) -> str:
     return ""
 
 
+# Six, because the vocabulary is six. ``DEFINE_VARIABLE`` arrived with the
+# framing channel and never got a phrase, so the one action a reader could
+# act on without any new data reached them as ``define_variable`` — the
+# fallback beside the lookup hands the identifier back.
 _ACTION_PHRASE: dict[InvestigationAction, str] = {
     InvestigationAction.VALIDATE_PARAMETER:   "提供该参数",
     InvestigationAction.COLLECT_OBSERVATION:  "补采观测",
     InvestigationAction.INCREASE_SAMPLE:      "扩大样本",
     InvestigationAction.RUN_EXPERIMENT:       "运行实验",
     InvestigationAction.DEFINE_ASSUMPTION:    "补充该假设",
+    InvestigationAction.DEFINE_VARIABLE:      "把这个变量定义清楚",
 }
 
 _PRIORITY_PHRASE: dict[Priority, str] = {
@@ -496,7 +502,10 @@ def _with_framing_suffix(text: str, result: QueryResult) -> str:
         return text
     parts: list[str] = []
     for note in result.framing_notes:
-        parts.append(f"{note.predicate} 缺 {', '.join(note.missing)}")
+        parts.append(
+            f"{note.predicate} 缺 "
+            f"{envelope_glossary.framing_fields_zh(note.missing)}"
+        )
     return f"{text}问题定义：{'；'.join(parts)}。"
 
 

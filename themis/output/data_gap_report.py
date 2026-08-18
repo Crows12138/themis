@@ -1411,12 +1411,14 @@ def _classify_unmeasured_confounder_risk(
             "ADMG-aware（Tian / front-door / IV）识别策略并报对应的 "
             "structural gap"
         ),
+        # Two of these three were the only English sentences left in this
+        # channel: 46 of the 48 non-Chinese alternative_paths one suite run
+        # produced. A path a reader cannot act on is not an alternative.
         alternative_paths=(
-            "数据到位后跑 E-value sensitivity analysis（Phase 8.2，对"
-            " binary outcome 自动附）",
-            "Triangulate with RCT / quasi-experimental data when available",
-            "Hernán-Robins target trial emulation framework "
-            "（per-protocol analysis with strict eligibility）",
+            "数据到位后跑 E-value 敏感性分析（Phase 8.2，对二值结局自动附）",
+            "有随机对照 / 准实验数据时，拿它和这个观察性估计相互印证",
+            "按 Hernán-Robins 的目标试验模拟（target trial emulation）"
+            "重新设计：明确入组条件，做 per-protocol 分析",
         ),
         provenance=(
             GapProvenanceRef(

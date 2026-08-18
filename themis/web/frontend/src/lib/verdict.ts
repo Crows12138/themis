@@ -348,12 +348,30 @@ const PATTERN_ZH: Record<string, string> = {
   instrumental_variable: '工具变量',
 }
 
-// One arm of a decomposition — identifiable, and on what.
-const arm = (info: Blk | undefined, label: string) => ({
+// Pearl 2001's four conditions for the natural decomposition, and the two
+// back-door conditions for the controlled one. Two tables because the two
+// arms fail different theorems and the labels are drawn from disjoint sets.
+const NDE_NIE_CONDITION_ZH: Record<string, string> = {
+  M1: 'X 到 Y 还有调整集挡不住的后门路径',
+  M2: 'X 到中介 M 还有调整集挡不住的后门路径',
+  M3: '中介 M 到 Y 还有后门路径——控制了 X 和调整集也挡不住，通常是有个变量既被 X 影响、又同时影响 M 和 Y（中间混杂器）',
+  M4: '调整集里含 X 的后代，控制它会连要测的那条因果路径一起挡掉',
+}
+const CDE_CONDITION_ZH: Record<string, string> = {
+  C1: '把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径',
+  C2: '调整集里含 X 或 M 的后代',
+}
+
+// One arm of a decomposition — identifiable, and on what. The condition
+// table comes in rather than being picked here, so an arm cannot be given
+// the other arm's theorem.
+const arm = (info: Blk | undefined, label: string, conditions: Record<string, string>) => ({
   label,
   value: info?.identifiable
     ? `可识别${info.adjustment?.length ? ` · 调整 ${varset(info.adjustment)}` : ''}`
-    : `不可识别${info?.failed_condition ? ` · ${info.failed_condition}` : ''}`,
+    : `不可识别${info?.failed_condition
+        ? ` · ${info.failed_condition}——${conditions[info.failed_condition] ?? ''}`
+        : ''}`,
 })
 
 // A renderer takes the whole extensions map so it can decline to repeat what
@@ -422,14 +440,14 @@ const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Sect
     rows: b.mediator_valid === false
       ? [{ label: '中介', value: `${b.mediator ?? '?'} 不在任何 X→…→M→…→Y 有向路径上` }]
       : [{ label: '中介', value: String(b.mediator ?? '?') },
-         arm(b.nde_nie, 'NDE / NIE'), arm(b.cde, 'CDE')],
+         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_ZH), arm(b.cde, 'CDE', CDE_CONDITION_ZH)],
   }),
   mediation_joint_decomposition: (b) => ({
     cap: '中介集分解',
     rows: b.mediator_set_valid === false
       ? [{ label: '中介集', value: `${varset(b.mediators)} 不是有效中介集` }]
       : [{ label: '中介集', value: `${varset(b.mediators)}（整体当一个块，不需内部排序）` },
-         arm(b.nde_nie, 'NDE / NIE'), arm(b.cde, 'CDE')],
+         arm(b.nde_nie, 'NDE / NIE', NDE_NIE_CONDITION_ZH), arm(b.cde, 'CDE', CDE_CONDITION_ZH)],
   }),
   proximal_estimand: (b) => {
     const rows = [{ label: '未测混杂', value: `${b.latent ?? '?'}${b.latent_cardinality != null ? ` (取 ${b.latent_cardinality} 个值)` : ''}` }]
@@ -603,6 +621,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   derivation_rule: DERIVATION_SAYS,
   bounds_estimand: BOUNDS_ESTIMAND_ZH,
   bounds_contrast_kind: BOUNDS_CONTRAST_ZH,
+  nde_nie_failed_condition: NDE_NIE_CONDITION_ZH,
+  cde_failed_condition: CDE_CONDITION_ZH,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the

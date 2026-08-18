@@ -288,4 +288,6 @@ def test_mismatch_surfaces_in_analysis_report():
     md = build_analysis_report(env["results"][0], program=prog)
     assert "数据缺口" in md
     assert "重要" in md
-    assert "continuous" in md
+    # The declared scale, in the words the rest of the report is in. This
+    # gap's description was the one English paragraph the package produced.
+    assert "声明为连续" in md

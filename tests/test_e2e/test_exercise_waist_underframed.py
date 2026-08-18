@@ -86,8 +86,11 @@ def test_explainer_surfaces_framing_clause():
     # Framing tail present.
     assert "问题定义" in text
     assert "waist_reduced" in text
-    assert "time_window" in text
-    assert "measurement" in text
+    # The fields, in the reader's words. Pinning the identifiers here is
+    # what let them reach the sentence as identifiers for as long as they
+    # did — the clause named the field and never said what it was for.
+    assert "时间窗" in text
+    assert "测量方式" in text
 
 
 def test_result_round_trips_through_schema():

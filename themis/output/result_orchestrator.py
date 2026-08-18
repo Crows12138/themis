@@ -482,15 +482,21 @@ def build_mechanism_audit(
         "provenance": provenance,
         "assumption": assumption,
     }
+    # ``form`` names one estimator's shape choice and is not a closed
+    # vocabulary, so the reader is given the assumption sentence beside it
+    # rather than a translation of the token — the same pairing the ledger
+    # line uses. The origin is the ledger's own Provenance, so it is asked
+    # for its word instead of being interpolated: this branch was a second,
+    # hand-written translation of a vocabulary that carries one.
     origin = (
         "系统按样本量自动选择"
-        if provenance == "default"
-        else f"来源：{provenance}"
+        if provenance == ledger.Provenance.DEFAULT
+        else f"来源：{ledger.provenance_zh(provenance)}"
     )
     summary = (
-        f"这个数字依赖一个假设的函数形式（{form}，{origin}）—— 它是模型"
-        f"假设，不是数据测得。Themis 在该假设下的估计是对的，但这个形式"
-        f"本身是否合理需要你审核。"
+        f"这个数字依赖一个假设的函数形式（`{form}`：{assumption}，{origin}）"
+        f"—— 它是模型假设，不是数据测得。Themis 在该假设下的估计是对的，"
+        f"但这个形式本身是否合理需要你审核。"
     )
     return {"mechanisms": [mechanism], "summary": summary}
 

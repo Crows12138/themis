@@ -6764,32 +6764,36 @@ def _observe_column(col):
 def _reconcile_declared_observed(declared, domain, observed, n_unique,
                                  observed_values):
     """Compare declared vs observed. Returns (verdict, detail) — verdict is
-    'ok' | 'declared_continuous_data_discrete' | 'domain_violated'."""
+    'ok' | 'declared_continuous_data_discrete' | 'domain_violated'.
+
+    ``detail`` is read by a person, in the report and in the browser, so it
+    is written in the language the rest of that report is in. It was the one
+    gap description in this package that was not, which is what a sentence
+    assembled beside the check rather than beside the other descriptions
+    looks like from the reader's end.
+    """
     if declared == "continuous":
         if observed in ("binary", "discrete"):
             return (
                 "declared_continuous_data_discrete",
-                f"declared scale='continuous' but the column has only "
-                f"{n_unique} distinct value(s) {observed_values} — any "
-                f"dose-response estimand collapses to a discrete contrast, "
-                f"not a continuous curve",
+                f"声明为连续，但这一列只有 {n_unique} 个不同取值"
+                f"（{observed_values}）—— 任何剂量-反应估计量都会塌成"
+                f"离散的两档对比，给不出一条曲线",
             )
         return ("ok", "")
     if declared == "binary":
         if n_unique > 2:
             return (
                 "domain_violated",
-                f"declared binary (2 levels) but the column has {n_unique} "
-                f"distinct value(s) — the g-formula silently treats it as a "
-                f"multi-level / continuous exposure, not a two-arm contrast",
+                f"声明为二值（两档），但这一列有 {n_unique} 个不同取值"
+                f"—— g-formula 会把它当多档 / 连续暴露处理，而不是两臂对比",
             )
         return ("ok", "")
     if declared == "discrete":
         if observed == "continuous":
             return (
                 "domain_violated",
-                f"declared discrete but the column has {n_unique} distinct "
-                f"value(s) on a continuous scale",
+                f"声明为离散，但这一列的 {n_unique} 个取值构成连续尺度",
             )
         if domain is not None and observed_values is not None:
             domain_set = {_json_safe_value(x) for x in domain}
@@ -6797,8 +6801,8 @@ def _reconcile_declared_observed(declared, domain, observed, n_unique,
             if extra:
                 return (
                     "domain_violated",
-                    f"the column contains value(s) {extra} outside the "
-                    f"declared domain {sorted(domain_set)}",
+                    f"这一列出现了声明取值范围 {sorted(domain_set)} 之外的值："
+                    f"{extra}",
                 )
         return ("ok", "")
     return ("ok", "")
@@ -6818,6 +6822,8 @@ def _attach_type_reconciliation(program, output, data) -> None:
     nothing to the overwhelmingly common consistent case.
     """
     import pandas as pd
+
+    from ..output import envelope_glossary
 
     if not isinstance(data, pd.DataFrame):
         return
@@ -6872,18 +6878,17 @@ def _attach_type_reconciliation(program, output, data) -> None:
             "severity": "important",
             "blocks": blocks_by_verdict[c["verdict"]],
             "description": (
-                f"Variable {c['predicate']!r}: {c['detail']}. The estimate is "
-                f"still computed on the coerced data, but it answers a "
-                f"different estimand than the declaration promises — reconcile "
-                f"the declared scale/domain with the data before trusting the "
-                f"number as the declared quantity."
+                f"变量 `{c['predicate']}`：{c['detail']}。数还是照着强制转换后"
+                f"的数据算出来了，但它回答的估计量和声明承诺的不是同一个 —— "
+                f"把声明的尺度 / 取值范围和数据对齐之后，这个数才能当成声明的"
+                f"那个量来读。"
             ),
             "alternative_paths": [
-                f"if {c['predicate']!r} really is "
-                f"{c['declared_scale']}, fix the data column (the supplied "
-                f"values disagree)",
-                f"if the data is right, correct the declaration "
-                f"(scale/domain) so the estimand matches what you can measure",
+                f"若 `{c['predicate']}` 确实是"
+                f"{envelope_glossary.scale_zh(c['declared_scale'])}的，"
+                f"那就是数据这一列有问题（供给的值与声明不符），改数据",
+                "若数据是对的，那就改声明（尺度 / 取值范围），"
+                "让估计量对上你真正能测到的量",
             ],
             "provenance": [{
                 "ref_kind": "verifier_check",

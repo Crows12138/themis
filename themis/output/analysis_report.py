@@ -32,7 +32,7 @@ from .. import answers, audits, blocks, questions, refusals, risk_provenance
 # and a module shadowed by a local reads as the local everywhere below it.
 from .. import ledger as ledger_vocab
 from ..refusals import Kind
-from . import derivation_glossary, formula_text
+from . import derivation_glossary, envelope_glossary, formula_text
 
 
 def _kind_zh(kind) -> str | None:
@@ -87,12 +87,18 @@ def _kind_zh(kind) -> str | None:
             )
     assert_never(known)
 
+# The badge the report leads with. Seven, because the vocabulary is seven:
+# the two counterfactual statuses were absent and fell to
+# ``_STATUS_BADGE.get(status, status)``, so a solved counterfactual was
+# headed by the identifier while the browser's table said the words.
 _STATUS_BADGE = {
     "structurally_solved": "✅ 已解决（结构层）",
     "numerically_solved": "📊 已估计（数值层）",
     "needs_investigation": "⚠️ 需补充数据 / 假设",
     "needs_assumption": "⚠️ 需补充假设",
     "outside_language": "✋ 超出可表达范围",
+    "counterfactual_solved": "✅ 反事实已解",
+    "counterfactual_bounded": "📐 反事实（区间）",
 }
 
 # How much a MISSING INPUT blocks an answer. The ledger's severities are a
@@ -1150,12 +1156,21 @@ def _route_longitudinal_identification(block: dict, result: dict) -> str:
     return "\n".join(lines)
 
 
-def _mediation_arm(info: dict | None, label: str) -> str:
-    """One arm of a decomposition — identifiable, and on what."""
+def _mediation_arm(info: dict | None, label: str, condition_zh) -> str:
+    """One arm of a decomposition — identifiable, and on what.
+
+    ``condition_zh`` differs per arm because the two arms fail different
+    theorems: the natural decomposition on Pearl 2001's four cross-world
+    conditions, the controlled one on two back-door conditions. The labels
+    are drawn from disjoint sets, so one table would read as one vocabulary
+    and hide that ``M4`` and ``C2`` are different statements about the same
+    adjustment set.
+    """
     info = info or {}
     if not info.get("identifiable"):
         why = info.get("failed_condition")
-        return f"  - {label}**不可识别**" + (f"：{why}" if why else "")
+        return f"  - {label}**不可识别**" + (
+            f"：{why} —— {condition_zh(why)}" if why else "")
     adj = info.get("adjustment")
     return (
         f"  - {label}可识别"
@@ -1171,8 +1186,12 @@ def _route_mediation_decomposition(block: dict, result: dict) -> str:
             "的有向路径上，它不是这条效应的中介"
         )
     lines = [f"- **中介分解**：中介 `{mediator}`"]
-    lines.append(_mediation_arm(block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）"))
-    lines.append(_mediation_arm(block.get("cde"), "CDE（控制直接效应）"))
+    lines.append(_mediation_arm(
+        block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）",
+        envelope_glossary.nde_nie_condition_zh))
+    lines.append(_mediation_arm(
+        block.get("cde"), "CDE（控制直接效应）",
+        envelope_glossary.cde_condition_zh))
     return "\n".join(lines)
 
 
@@ -1184,8 +1203,12 @@ def _route_mediation_joint_decomposition(block: dict, result: dict) -> str:
         f"- **中介集分解**：中介集 {mediators} 整体当一个块处理 —— "
         "正是不需要给集合内部排序才使它可识别"
     ]
-    lines.append(_mediation_arm(block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）"))
-    lines.append(_mediation_arm(block.get("cde"), "CDE（控制直接效应）"))
+    lines.append(_mediation_arm(
+        block.get("nde_nie"), "NDE / NIE（自然直接 / 间接效应）",
+        envelope_glossary.nde_nie_condition_zh))
+    lines.append(_mediation_arm(
+        block.get("cde"), "CDE（控制直接效应）",
+        envelope_glossary.cde_condition_zh))
     return "\n".join(lines)
 
 
@@ -1225,10 +1248,15 @@ def _route_selection_recovery(block: dict, result: dict) -> str:
     return "\n".join(lines)
 
 
+#: Mohan-Pearl-Tian's graphical classification, strongest first. ``none``
+#: is a member: the classifier returns it when the program declares no
+#: missingness indicator at all, which is not a weaker MNAR but the absence
+#: of the question — and it was the one value with no word.
 _MECHANISM_ZH = {
     "MCAR": "MCAR（完全随机缺失）",
     "MAR": "MAR（随机缺失，缺失只由观测到的变量决定）",
     "MNAR": "MNAR（非随机缺失，缺失与没测到的值本身有关）",
+    "none": "未声明（程序里没有任何缺失指示变量，无从判断机制）",
 }
 
 

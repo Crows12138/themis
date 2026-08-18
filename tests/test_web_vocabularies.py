@@ -125,6 +125,15 @@ ANCHORS: dict[str, set[str]] = {
                                 "estimand"),
     "bounds_contrast_kind": _enum_at("$defs", "boundsResult", "properties",
                                      "contrast", "properties", "kind"),
+    # Which theorem the decomposition failed on. ``null`` is dropped from
+    # both: it is the absence of a failure, not a member — the arm renders
+    # "可识别" and never asks the table.
+    "nde_nie_failed_condition": _enum_at(
+        "properties", "extensions", "properties", "mediation_decomposition",
+        "properties", "nde_nie", "properties", "failed_condition") - {None},
+    "cde_failed_condition": _enum_at(
+        "properties", "extensions", "properties", "mediation_decomposition",
+        "properties", "cde", "properties", "failed_condition") - {None},
     "refusal_kind": {str(k) for k in refusals.Kind},
     # The one anchor whose vocabulary no schema enum states at all:
     # ``step.rule`` is a free string in derivation.schema.json, and the closed

@@ -1,30 +1,52 @@
-"""Which readers a closed vocabulary has to reach, declared once.
+"""Every closed vocabulary, where it is declared, and who turns it into words.
 
 A vocabulary is written in one place and restated wherever it has to be
-read: a JSON schema that admits the envelope, a prompt an LLM answers
-from, a reference table a person opens. Nothing makes a restatement
-follow its declaration, so each restatement needs a pin — and pinning
-some of them says nothing about the rest.
+read: a JSON schema that admits the envelope, a prompt an LLM answers from,
+a reference table a person opens, a mapping that gives a reader the word.
+Nothing makes a restatement follow its declaration, so each restatement
+needs a pin — and pinning some of them says nothing about the rest.
 
 ``tests/test_web_vocabularies.py`` solved that for the browser, and the
 shape it used does not carry over. It can ask ``verdict.ts`` "is every
-table in this file accounted for", because the file declares its tables
-as ``const NAME: Record<...>``. A prompt is prose; it has no declaration
-unit to enumerate, so there is nothing to partition. That is why the
-browser ended up guarded and the other surfaces did not — the boundary
-fell exactly where a surface stopped being enumerable, not where anyone
-decided it should.
+table in this file accounted for", because the file declares its tables as
+``const NAME: Record<...>``. A prompt is prose; it has no declaration unit
+to enumerate, so there is nothing to partition. That is why the browser
+ended up guarded and the other surfaces did not — the boundary fell exactly
+where a surface stopped being enumerable, not where anyone decided it
+should.
 
 So this module enumerates the OTHER side. Not "what does this surface
 carry" but "what does the kernel declare, and where must each of them
-land". Every closed vocabulary in ``themis`` appears below exactly once,
-and a new one fails here until it says which readers it reaches — the
-same move ``VOCABULARIES`` / ``NOT_VOCABULARIES`` makes for the browser,
-one level up.
+land".
+
+**The kernel declares through two doors, and this module used to watch
+one.** It walked ``enum.Enum``'s subclasses and asked each whether the
+envelope carried it. But a JSON schema is equally the kernel's
+declaration, and 42 of the envelope's enum sites had no Python enum at
+all — they were never asked anything. Whether a vocabulary got a Python
+enum was decided by whether the kernel had to branch on it, which is
+unrelated to whether a reader ever sees a member, so the question that
+went unasked was exactly the one whose answer varies: a mediation
+condition reached a Chinese sentence as ``M3``, a predicate's unset fields
+as ``time_window, measurement, threshold``, a type mismatch as an English
+paragraph in an otherwise Chinese report.
+
+Both doors are walked below, and one row per vocabulary answers for both:
+which Python enum states it, which schema sites state it, and who gives a
+reader the word. A vocabulary arriving through either door with no row
+fails here.
+
+**A third door cannot be watched from this side.** A vocabulary whose only
+declaration is the glossary that translates it — ``derivation_glossary``'s
+rule names are the one live case — is invisible to both walks, because
+there is nothing to walk. It is caught where it is rendered instead:
+``tests/test_derivation_glossary.py`` and the browser's ``ANCHORS``. Naming
+that here rather than leaving the gap silent is the point; a partition that
+claims more than it can see is worth less than one that says where it ends.
 
 The browser is not checked here. It has a stronger pin already, and a
-weaker duplicate of a stronger check is worth less than nothing: it
-reads as coverage while admitting what the real one rejects.
+weaker duplicate of a stronger check is worth less than nothing: it reads
+as coverage while admitting what the real one rejects.
 """
 from __future__ import annotations
 
@@ -33,23 +55,26 @@ import importlib
 import json
 import pathlib
 import pkgutil
+from dataclasses import dataclass, field
 
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SCHEMAS = REPO / "themis" / "schemas"
 
+Site = tuple[str, ...]
 
-# --- the kernel side ---------------------------------------------------------
 
-def _vocabularies() -> dict[str, type[enum.Enum]]:
-    """Every closed vocabulary the package declares, keyed by dotted name.
+# --- the two doors -----------------------------------------------------------
 
-    Found by importing the package and walking ``Enum``'s subclasses
-    rather than by reading the source for a list of base names: the
-    registries here inherit through ``EnvelopeName`` and a source scan
-    for ``StrEnum`` misses all of them, which is the failure this module
-    exists to make impossible.
+def _python_vocabularies() -> dict[str, type[enum.Enum]]:
+    """Every closed vocabulary the package declares in Python.
+
+    Found by importing the package and walking ``Enum``'s subclasses rather
+    than by reading the source for a list of base names: the registries here
+    inherit through ``EnvelopeName`` and a source scan for ``StrEnum``
+    misses all of them, which is the failure this module exists to make
+    impossible.
 
     Members-less classes are the marker bases themselves and are skipped;
     they declare no vocabulary, they declare how one behaves.
@@ -76,157 +101,747 @@ def _vocabularies() -> dict[str, type[enum.Enum]]:
     }
 
 
-# --- the schema side ---------------------------------------------------------
-#
-# An enum site is named by the path to it, so the check is equality with
-# THAT site rather than membership in the file's union. Both directions
-# matter: a value the schema states and the kernel never emits reads as a
-# case somebody handled.
+def _schema_sites() -> dict[Site, list]:
+    """Every ``enum`` in every schema, keyed by the path that reaches it.
 
-#: Vocabulary -> the enum sites whose UNION must be exactly its members.
-#:
-#: A tuple because one vocabulary can be carried by more than one
-#: container, each holding a different subset — the licences a
-#: counterfactual cell may declare are not the ones a causation block
-#: may, because the admissible set depends on the rule that wrote it.
-#: Equality against either site alone would pass while half the
-#: vocabulary went unstated.
-STATED_BY_SCHEMA: dict[str, tuple[tuple[str, ...], ...]] = {
-    "themis.kb.schemas.KBConfidenceGrade": (
-        ("kb_result.schema.json", "$defs", "kbProvenance", "properties",
-         "confidence_grade"),
+    Keyed by path and not by value-set, because two sites holding the same
+    values are not thereby one vocabulary — ``binary``/``continuous`` names
+    a mediator's scale in one place and which ATE-to-risk-ratio conversion
+    ran in another, and a row covering both would say they move together.
+    """
+    def walk(node, path):
+        if isinstance(node, dict):
+            if isinstance(node.get("enum"), list):
+                yield tuple(path), node["enum"]
+            for k, v in node.items():
+                yield from walk(v, path + [k])
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                yield from walk(v, path + [str(i)])
+
+    out: dict[Site, list] = {}
+    for f in sorted(SCHEMAS.glob("*.json")):
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        for path, values in walk(doc, [f.name]):
+            out[path] = values
+    return out
+
+
+# --- one row per vocabulary --------------------------------------------------
+
+@dataclass(frozen=True)
+class Vocabulary:
+    """Where one closed vocabulary is declared, and who reads it.
+
+    ``glossed_by`` and ``no_gloss`` are exclusive and one is required: a
+    vocabulary either hands a reader a word for every member or says why no
+    reader needs one. The reason is a claim rather than an exemption — it
+    has to name what the reader gets instead, which is the sentence somebody
+    has to disagree with before a member reaches a report as its own
+    identifier.
+
+    ``sites`` and ``off_envelope`` are exclusive the same way: the union of
+    the sites has to be exactly the members, and a vocabulary no schema
+    states has to say why the envelope never carries it.
+    """
+
+    declares: str = ""
+    """Dotted name of the Python enum that states it, if one does."""
+
+    sites: tuple[Site, ...] = ()
+    """Schema enum sites whose UNION is exactly the members.
+
+    A tuple because one vocabulary can be carried by more than one
+    container, each holding a different subset — the licences a
+    counterfactual cell may declare are not the ones a causation block may,
+    because the admissible set depends on the rule that wrote it. Equality
+    against either site alone would pass while half the vocabulary went
+    unstated.
+    """
+
+    off_envelope: str = ""
+    """Why no schema states it — it reaches a reader some other way, or not
+    at all, and saying which is the point."""
+
+    glossed_by: str = ""
+    """Dotted name of the mapping or callable that gives the reader's word.
+
+    Asked once per member, so a mapping missing a key and a callable falling
+    through to the identifier both fail here. That is the whole check: a
+    gloss that answers with the token it was given has not glossed it.
+    """
+
+    no_gloss: str = ""
+    """Why no reader needs a word for it."""
+
+    subset_of: str = ""
+    """Set when the site is a constraint written in terms of another
+    vocabulary rather than a vocabulary of its own — a schema ``if``/``not``
+    naming two methods is a rule about ``numeric_method``, and giving it a
+    row of its own would say the envelope carries a second method field."""
+
+    members: frozenset[str] = field(default_factory=frozenset)
+    """Only for a vocabulary neither door fully states — left empty
+    otherwise, and derived from whichever door does."""
+
+
+_QR = "query_result.schema.json"
+_KA = "kernel_ast.schema.json"
+_EXT = (_QR, "properties", "extensions", "properties")
+_NE = (_QR, "properties", "numeric_estimate", "properties")
+_DEFS = (_QR, "$defs")
+_GLOSSARY = "themis.output.envelope_glossary"
+_REPORT = "themis.output.analysis_report"
+
+
+#: One row per closed vocabulary. Adding an enum through either door fails
+#: here until it says which readers it reaches and who gives them the word.
+VOCABULARIES: dict[str, Vocabulary] = {
+    # --- the assumption ledger: three vocabularies of one line ---------------
+    "assumption_layer": Vocabulary(
+        declares="themis.ledger.Layer",
+        sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
+                "items", "properties", "layer"),),
+        glossed_by="themis.ledger.layer_zh",
     ),
-    "themis.kb.schemas.KBQueryKind": (
-        ("kb_query.schema.json", "properties", "query_kind"),
+    "assumption_severity": Vocabulary(
+        declares="themis.ledger.Severity",
+        sites=((*_EXT, "assumption_ledger", "properties", "assumptions",
+                "items", "properties", "severity"),),
+        glossed_by="themis.ledger.severity_zh",
     ),
-    "themis.ledger.Layer": (
-        ("query_result.schema.json", "properties", "extensions", "properties",
-         "assumption_ledger", "properties", "assumptions", "items",
-         "properties", "layer"),
+    "assumption_provenance": Vocabulary(
+        # Two containers, and the second was undeclared: a mechanism audit's
+        # provenance is the same vocabulary as a ledger line's, which is why
+        # the audit's summary could hand-write a second translation of it.
+        declares="themis.ledger.Provenance",
+        sites=(
+            (*_EXT, "assumption_ledger", "properties", "assumptions",
+             "items", "properties", "provenance"),
+            (*_EXT, "mechanism_audit", "properties", "mechanisms", "items",
+             "properties", "provenance"),
+        ),
+        glossed_by="themis.ledger.provenance_zh",
     ),
-    "themis.ledger.Provenance": (
-        ("query_result.schema.json", "properties", "extensions", "properties",
-         "assumption_ledger", "properties", "assumptions", "items",
-         "properties", "provenance"),
+    "interventional_risk_provenance": Vocabulary(
+        # Three containers holding three different subsets, because what a
+        # cell may declare depends on the rule that wrote it.
+        declares="themis.risk_provenance.RiskProvenance",
+        sites=(
+            (*_EXT, "causation", "properties",
+             "interventional_risk_provenance"),
+            (*_NE, "counterfactual_cell", "properties",
+             "interventional_risk_provenance"),
+            (*_NE, "probabilities_of_causation", "properties",
+             "interventional_risk_provenance"),
+        ),
+        glossed_by="themis.risk_provenance.describe",
     ),
-    "themis.ledger.Severity": (
-        ("query_result.schema.json", "properties", "extensions", "properties",
-         "assumption_ledger", "properties", "assumptions", "items",
-         "properties", "severity"),
+
+    # --- what the report leads with ------------------------------------------
+    "result_status": Vocabulary(
+        declares="themis.types.ResultStatus",
+        sites=((_QR, "properties", "status"),),
+        glossed_by=f"{_REPORT}._STATUS_BADGE",
     ),
-    "themis.refusals.Kind": (
-        ("query_result.schema.json", "properties", "estimator_failure",
-         "properties", "kind"),
+    "answer_tier": Vocabulary(
+        declares="themis.types.AnswerTier",
+        sites=((*_DEFS, "dataGapReport", "properties", "answer_tier"),),
+        glossed_by=f"{_REPORT}._TIER_ZH",
     ),
-    "themis.refusals.Refusal": (
-        ("query_result.schema.json", "properties", "estimator_failure",
-         "properties", "failure_type"),
+    "gap_severity": Vocabulary(
+        declares="themis.types.GapSeverity",
+        sites=((*_DEFS, "dataGap", "properties", "severity"),),
+        glossed_by=f"{_REPORT}._GAP_SEVERITY_ZH",
     ),
-    "themis.risk_provenance.RiskProvenance": (
-        ("query_result.schema.json", "properties", "numeric_estimate",
-         "properties", "counterfactual_cell", "properties",
-         "interventional_risk_provenance"),
-        ("query_result.schema.json", "properties", "extensions", "properties",
-         "causation", "properties", "interventional_risk_provenance"),
+    "identification_pattern": Vocabulary(
+        sites=((*_EXT, "identification", "properties", "pattern"),),
+        off_envelope="",
+        glossed_by=f"{_REPORT}._PATTERN_ZH",
     ),
-    "themis.types.AnswerTier": (
-        ("query_result.schema.json", "$defs", "dataGapReport", "properties",
-         "answer_tier"),
+    "bounds_estimand": Vocabulary(
+        sites=((*_DEFS, "boundsResult", "properties", "estimand"),),
+        glossed_by=f"{_REPORT}._BOUNDS_ESTIMAND_ZH",
     ),
-    "themis.types.BoundsMethod": (
-        ("query_result.schema.json", "$defs", "boundsResult", "properties",
-         "method"),
+    "bounds_contrast_kind": Vocabulary(
+        sites=((*_DEFS, "boundsResult", "properties", "contrast",
+                "properties", "kind"),),
+        glossed_by=f"{_REPORT}._BOUNDS_CONTRAST_ZH",
     ),
-    "themis.types.GapBlocks": (
-        ("query_result.schema.json", "$defs", "dataGap", "properties",
-         "blocks"),
+    "missing_data_mechanism": Vocabulary(
+        sites=((*_EXT, "missing_data_recovery", "properties", "mechanism"),),
+        glossed_by=f"{_REPORT}._MECHANISM_ZH",
     ),
-    "themis.types.GapKind": (
-        ("query_result.schema.json", "$defs", "dataGap", "properties", "kind"),
+    "refusal_kind": Vocabulary(
+        declares="themis.refusals.Kind",
+        sites=((_QR, "properties", "estimator_failure", "properties",
+                "kind"),),
+        glossed_by=f"{_REPORT}._kind_zh",
     ),
-    "themis.types.GapRefKind": (
-        ("query_result.schema.json", "$defs", "dataGap", "properties",
-         "provenance", "items", "properties", "ref_kind"),
+    "investigation_action": Vocabulary(
+        declares="themis.types.InvestigationAction",
+        sites=((*_DEFS, "investigationRequest", "properties", "action"),),
+        glossed_by="themis.output.explainer._ACTION_PHRASE",
     ),
-    "themis.types.GapSeverity": (
-        ("query_result.schema.json", "$defs", "dataGap", "properties",
-         "severity"),
+    "priority": Vocabulary(
+        declares="themis.types.Priority",
+        sites=(
+            (*_DEFS, "investigationRequest", "properties", "priority"),
+            (*_DEFS, "missingItem", "properties", "priority"),
+        ),
+        glossed_by="themis.output.explainer._PRIORITY_PHRASE",
     ),
-    "themis.types.InvestigationAction": (
-        ("query_result.schema.json", "$defs", "investigationRequest",
-         "properties", "action"),
+
+    # --- the vocabularies only the schema stated -----------------------------
+    "nde_nie_failed_condition": Vocabulary(
+        sites=((*_EXT, "mediation_decomposition", "properties", "nde_nie",
+                "properties", "failed_condition"),),
+        glossed_by=f"{_GLOSSARY}.nde_nie_condition_zh",
     ),
-    "themis.types.MissingKind": (
-        ("query_result.schema.json", "$defs", "missingItem", "properties",
-         "kind"),
+    "cde_failed_condition": Vocabulary(
+        sites=((*_EXT, "mediation_decomposition", "properties", "cde",
+                "properties", "failed_condition"),),
+        glossed_by=f"{_GLOSSARY}.cde_condition_zh",
     ),
-    "themis.types.Monotonicity": (
-        ("kernel_ast.schema.json", "$defs", "effectQuery", "properties",
-         "assumptions", "properties", "monotonicity"),
+    "framing_field": Vocabulary(
+        sites=((*_DEFS, "framingNote", "properties", "missing", "items"),),
+        glossed_by=f"{_GLOSSARY}.framing_field_zh",
     ),
-    "themis.types.Priority": (
-        ("query_result.schema.json", "$defs", "missingItem", "properties",
-         "priority"),
+    "measurement_scale": Vocabulary(
+        # One vocabulary across three containers: what a variable declares,
+        # and the two halves of the reconciliation that compares a
+        # declaration with its column. A mismatch is read by putting the two
+        # side by side, so they have to be in the same words.
+        sites=(
+            (_KA, "$defs", "variableDeclaration", "properties", "scale"),
+            (*_EXT, "type_reconciliation", "properties", "checks", "items",
+             "properties", "declared_scale"),
+            (*_EXT, "type_reconciliation", "properties", "checks", "items",
+             "properties", "observed_scale"),
+        ),
+        glossed_by=f"{_GLOSSARY}.scale_zh",
     ),
-    "themis.types.QueryKind": (
-        ("query_result.schema.json", "properties", "query_kind"),
+    "dtype_kind": Vocabulary(
+        sites=((*_EXT, "type_reconciliation", "properties", "checks",
+                "items", "properties", "dtype_kind"),),
+        no_gloss="The column's storage type, kept so the verifier can "
+                 "re-derive the verdict. What the reader is told is the "
+                 "check's own `detail`, which states the disagreement in "
+                 "words — the scale it names is glossed, this is not.",
     ),
-    "themis.types.RequiredDataType": (
-        ("query_result.schema.json", "$defs", "dataGap", "properties",
-         "required_data", "properties", "data_type"),
+    "reconciliation_verdict": Vocabulary(
+        sites=((*_EXT, "type_reconciliation", "properties", "checks",
+                "items", "properties", "verdict"),),
+        no_gloss="Which way the declaration and the data disagreed. The "
+                 "`detail` beside it is that sentence; this is the key the "
+                 "gap's severity and blocked output were chosen by.",
     ),
-    "themis.types.ResultStatus": (
-        ("query_result.schema.json", "properties", "status"),
+
+    # --- printed as a handle beside a caption that carries the meaning -------
+    #
+    # Not an exemption: each names the caption. A handle is legitimate when
+    # the reader is meant to see the identifier — to quote it, to look it up,
+    # to match it against a method they know — and the sentence beside it
+    # says what it is. It stops being legitimate the moment the caption goes.
+    "numeric_method": Vocabulary(
+        sites=((*_NE, "method"),),
+        no_gloss="Printed as `方法 \\`x\\`` under a Chinese caption that "
+                 "states what was computed; the reader is meant to see the "
+                 "identifier, because it is what names the estimator in the "
+                 "literature and in the derivation chain beside it.",
+    ),
+    "bounds_method": Vocabulary(
+        declares="themis.types.BoundsMethod",
+        sites=((*_DEFS, "boundsResult", "properties", "method"),),
+        no_gloss="Printed beside `靠的假设`, which states what the interval "
+                 "rests on — the fact a reader choosing between rows needs. "
+                 "The method name is the handle for the one they pick.",
+    ),
+    "refusal_species": Vocabulary(
+        declares="themis.refusals.Refusal",
+        sites=((_QR, "properties", "estimator_failure", "properties",
+                "failure_type"),),
+        no_gloss="Printed as `拒答类型 \\`x\\`` beside the sentence "
+                 "``refusal_kind`` glosses, which says what the reader "
+                 "should do about it. Sixty-nine species share five kinds, "
+                 "and it is the kind that carries the action.",
+    ),
+
+    # --- never printed by name ------------------------------------------------
+    "gap_kind": Vocabulary(
+        declares="themis.types.GapKind",
+        sites=((*_DEFS, "dataGap", "properties", "kind"),),
+        no_gloss="Every gap carries its own Chinese `description`; the kind "
+                 "is the key a reader never meets on this surface. The "
+                 "browser titles it (`GAP_TITLE`, pinned) and "
+                 "`docs/GAP_KINDS_REFERENCE.md` gives each a row, both "
+                 "checked elsewhere.",
+    ),
+    "gap_blocks": Vocabulary(
+        declares="themis.types.GapBlocks",
+        sites=((*_DEFS, "dataGap", "properties", "blocks"),),
+        no_gloss="Which downstream output a gap prevents. Read by the "
+                 "answer-tier computation, never rendered: what the reader "
+                 "is told is the tier it produced.",
+    ),
+    "gap_ref_kind": Vocabulary(
+        declares="themis.types.GapRefKind",
+        sites=((*_DEFS, "dataGap", "properties", "provenance", "items",
+                "properties", "ref_kind"),),
+        no_gloss="The audit trail — which channel found the gap. It is for "
+                 "whoever re-derives the report, not for the reader of it.",
+    ),
+    "required_data_type": Vocabulary(
+        declares="themis.types.RequiredDataType",
+        sites=((*_DEFS, "dataGap", "properties", "required_data",
+                "properties", "data_type"),),
+        no_gloss="What kind of study would fill the gap. The gap's own "
+                 "Chinese sentence says it in words; this is the machine "
+                 "copy, and no surface prints it.",
+    ),
+    "missing_kind": Vocabulary(
+        declares="themis.types.MissingKind",
+        sites=((*_DEFS, "missingItem", "properties", "kind"),),
+        no_gloss="Which channel repairs a missing item. Consumed by the "
+                 "investigation-request builder; the reader gets the "
+                 "request.",
+    ),
+    "missing_gap": Vocabulary(
+        sites=(
+            (*_DEFS, "missingItem", "properties", "gap"),
+            (*_DEFS, "investigationItem", "properties", "gap"),
+        ),
+        no_gloss="The species key `_ITEM_SPECIES` binds one renderer to. "
+                 "Every member selects a Chinese sentence, so a member with "
+                 "no word is impossible by construction — `bind` refuses a "
+                 "set that misses one.",
+    ),
+    "query_kind": Vocabulary(
+        declares="themis.types.QueryKind",
+        sites=((_QR, "properties", "query_kind"),),
+        no_gloss="Glossed by a sentence rather than a word: `questions.bind` "
+                 "fixes one question line and one verdict phrasing per kind "
+                 "and refuses a set that misses one. The browser's "
+                 "`QUESTION_READINGS` is pinned against the same enum.",
+    ),
+    "mediation_strategy": Vocabulary(
+        sites=((*_EXT, "mediation_decomposition", "properties", "strategy"),),
+        no_gloss="Which decomposition survived. The reader is shown the two "
+                 "arms themselves — each identifiable or not, and on what — "
+                 "so the summary of them is not restated.",
+    ),
+    "mediation_joint_strategy": Vocabulary(
+        sites=((*_EXT, "mediation_joint_decomposition", "properties",
+                "strategy"),),
+        no_gloss="As `mediation_strategy`, for a mediator set. A separate "
+                 "vocabulary because it has a member the single-mediator one "
+                 "does not: `nde_nie+cde`, both arms at once.",
+    ),
+    "joint_identification_pattern": Vocabulary(
+        sites=((*_EXT, "joint_identification", "properties", "pattern"),),
+        no_gloss="The report names the joint route in its own sentence "
+                 "rather than through this key; the key says which of two "
+                 "solvers produced it.",
+    ),
+    "joint_interaction_scale": Vocabulary(
+        sites=((*_EXT, "joint_identification", "properties", "interaction"),),
+        no_gloss="One member. The scale is stated in the interaction line "
+                 "itself (`差值尺度`), because a one-member vocabulary "
+                 "printed as a key says nothing a sentence does not.",
+    ),
+    "selection_criterion": Vocabulary(
+        sites=((*_EXT, "selection_recovery", "properties", "criterion"),),
+        no_gloss="Which recovery criterion licensed the answer. The route "
+                 "renderer states the licence in a sentence; this is the key "
+                 "it branched on.",
+    ),
+    "selection_query_kind": Vocabulary(
+        sites=((*_EXT, "selection_recovery", "properties", "query_kind"),),
+        no_gloss="Whether the recovered target was a conditional or an "
+                 "effect — restated from the query the reader asked, so it "
+                 "is a machine cross-check rather than news.",
+    ),
+    "counterfactual_cell_monotonicity": Vocabulary(
+        declares="themis.types.Monotonicity",
+        sites=(
+            (_KA, "$defs", "effectQuery", "properties", "assumptions",
+             "properties", "monotonicity"),
+            (_KA, "$defs", "counterfactualQuery", "properties", "assumptions",
+             "properties", "monotonicity"),
+            (*_NE, "counterfactual_cell", "properties", "monotonicity"),
+            ("verification_context.schema.json", "$defs",
+             "counterfactual_assumptions", "properties", "monotonicity"),
+        ),
+        no_gloss="What the caller asserted, echoed back. The ledger line it "
+                 "produces is the reader's surface, and that line says the "
+                 "direction in words.",
+    ),
+    "estimation_model_preference": Vocabulary(
+        sites=((_QR, "properties", "estimation_context", "properties",
+                "model_preference"),),
+        no_gloss="What the caller asked the estimator to fit. The form it "
+                 "actually chose reaches the reader through the mechanism "
+                 "audit, which is the load-bearing one.",
+    ),
+    "ci_method": Vocabulary(
+        sites=((*_NE, "ci_method"),),
+        no_gloss="How the interval was formed. The interval is rendered; "
+                 "which of two routines produced it is not, and a reader who "
+                 "wants it reads the derivation chain.",
+    ),
+    "inference_method": Vocabulary(
+        sites=((*_NE, "inference", "properties", "method"),),
+        no_gloss="One member, and the same fact `ci_method` carries for the "
+                 "estimators that state it there.",
+    ),
+    "bootstrap_kind": Vocabulary(
+        sites=((*_NE, "bootstrap", "properties", "kind"),),
+        no_gloss="Whether resampling was clustered. The cluster disclosure "
+                 "is a gap with its own sentence; this is what that gap was "
+                 "derived from.",
+    ),
+    "propensity_model": Vocabulary(
+        sites=((*_NE, "propensity_summary", "properties", "model"),),
+        no_gloss="Which propensity family was fitted — a diagnostic beside "
+                 "the overlap numbers, read by whoever inspects them.",
+    ),
+    "interaction_scale": Vocabulary(
+        sites=((*_NE, "interaction", "properties", "scale"),),
+        no_gloss="One member, stated in the interaction line itself.",
+    ),
+    "measurement_correction_side": Vocabulary(
+        sites=(
+            (*_NE, "measurement_correction", "properties", "side"),
+            (*_NE, "measurement_correction", "properties",
+             "sufficient_statistics", "properties", "side"),
+        ),
+        no_gloss="Which margin the correction sits on. The correction's own "
+                 "disclosure names the mismeasured variable, which is the "
+                 "fact; the side is how the numeric end dispatched.",
+    ),
+    "four_way_mediator_scale": Vocabulary(
+        sites=((*_NE, "four_way_ratio", "properties", "mediator_scale"),),
+        no_gloss="Which four-way decomposition formula applied. The four "
+                 "components are rendered by name; the branch that produced "
+                 "them is not.",
+    ),
+    "sensitivity_conversion_path": Vocabulary(
+        sites=((*_NE, "sensitivity_analysis", "properties", "path"),),
+        no_gloss="Which ATE-to-risk-ratio conversion ran. Same values as "
+                 "`four_way_mediator_scale` and a different question, which "
+                 "is why they are two rows.",
+    ),
+    "anderson_rubin_set_kind": Vocabulary(
+        # Three containers; the robust one has a member the others cannot
+        # produce, so the union is the vocabulary.
+        sites=(
+            (*_NE, "anderson_rubin_confidence_set", "properties", "kind"),
+            (*_NE, "stratified_anderson_rubin_confidence_set", "properties",
+             "kind"),
+            (*_NE, "robust_anderson_rubin_confidence_set", "properties",
+             "kind"),
+        ),
+        no_gloss="No word because no surface renders the block at all — "
+                 "neither the report nor the browser has a section for a "
+                 "weak-instrument confidence set, so an unbounded one "
+                 "reaches nobody. That is a missing section rather than a "
+                 "missing word, and it is registered as its own item.",
+    ),
+    "gformula_stratum_arm": Vocabulary(
+        sites=((*_DEFS, "gformulaFactorStats", "properties",
+                "conditional_strata", "items", "properties", "arm"),),
+        no_gloss="0 and 1, the two arms of the contrast, inside a "
+                 "per-stratum diagnostic. They are the values themselves, "
+                 "not names for anything.",
+    ),
+
+    # --- the other schemas ----------------------------------------------------
+    "term_type": Vocabulary(
+        sites=(
+            ("derivation.schema.json", "$defs", "term", "properties", "type"),
+            ("verification_context.schema.json", "$defs", "term",
+             "properties", "type"),
+        ),
+        no_gloss="Whether a formula term is a constant or a variable. It is "
+                 "structure inside a formula, and the formula reaches the "
+                 "reader rendered, never as its parse tree.",
+    ),
+    "theta_provenance": Vocabulary(
+        sites=((_KA, "$defs", "probabilityStatement", "properties",
+                "provenance"),),
+        no_gloss="Where a supplied probability came from, on the way IN. "
+                 "What comes back out is the ledger line it produced, and "
+                 "`assumption_provenance` is the vocabulary of that.",
+    ),
+    "ate_estimator_option": Vocabulary(
+        sites=((_KA, "properties", "options", "properties", "ate_estimator"),),
+        no_gloss="A knob the caller sets. What ran is reported as "
+                 "`numeric_method`, which is where a reader looks.",
+    ),
+    "longitudinal_estimator_option": Vocabulary(
+        sites=((_KA, "properties", "options", "properties", "longitudinal",
+                "properties", "estimator"),),
+        no_gloss="As `ate_estimator_option`, for the time-varying pass.",
+    ),
+    "kb_query_kind": Vocabulary(
+        declares="themis.kb.schemas.KBQueryKind",
+        sites=(
+            ("kb_query.schema.json", "properties", "query_kind"),
+            ("kb_result.schema.json", "$defs", "kbQuery", "properties",
+             "query_kind"),
+        ),
+        no_gloss="What a knowledge-base adapter was asked for. The adapter "
+                 "boundary is machine-to-machine; nothing on it reaches a "
+                 "person without passing through a result envelope first.",
+    ),
+    "kb_confidence_grade": Vocabulary(
+        declares="themis.kb.schemas.KBConfidenceGrade",
+        sites=(("kb_result.schema.json", "$defs", "kbProvenance",
+                "properties", "confidence_grade"),),
+        no_gloss="How good the adapter thinks its own answer is. Same "
+                 "boundary as `kb_query_kind`.",
+    ),
+
+    # --- a constraint written in another vocabulary's terms -------------------
+    "numeric_method_requiring_a_point": Vocabulary(
+        sites=((_QR, "properties", "numeric_estimate", "allOf", "2", "if",
+                "properties", "method", "not"),),
+        subset_of="numeric_method",
+    ),
+
+    # --- declared in Python, never on the envelope ----------------------------
+    "audit_artifact": Vocabulary(
+        declares="themis.audits.Artifact",
+        off_envelope="The vocabulary of what an audit is an audit OF, which "
+                     "reaches a reader through `themis.audit`'s own output "
+                     "rather than through a result envelope. Its members are "
+                     "verbatim the `kind` their artifacts carry, so the "
+                     "artifacts' own schemas state them; "
+                     "query_result.schema.json has no field for it, because "
+                     "an envelope does not say what kind of dict it is.",
+        no_gloss="An audit's own output names the artifact in its heading; "
+                 "the member is the heading.",
+    ),
+    "strategy_estimand": Vocabulary(
+        declares="themis.estimation.strategy.Estimand",
+        off_envelope="What a strategy row's number is an estimate of, used "
+                     "to decide whether one row may answer another's query. "
+                     "It is a fact about the TABLE, not about any one "
+                     "result: the envelope says which method ran and what it "
+                     "produced, and a reader who wants the estimand reads "
+                     "the method. Only `arm_probability` reaches the "
+                     "envelope, as bounds_results[].estimand, which is a "
+                     "one-member enum with its own anchor in the browser "
+                     "pin.",
+        no_gloss="Never leaves the cascade.",
+    ),
+    "strategy_role": Vocabulary(
+        declares="themis.estimation.strategy.Role",
+        off_envelope="Whether a strategy row claims the answer or annotates "
+                     "someone else's. A property of the row, consumed "
+                     "entirely inside the cascade; no reader is ever handed "
+                     "one.",
+        no_gloss="Never leaves the cascade.",
+    ),
+    "routing_end": Vocabulary(
+        declares="themis.routing.End",
+        off_envelope="Which of the two implementations a strategy has — "
+                     "identification or numeric. Internal to routing; the "
+                     "envelope reports what was derived and what was "
+                     "computed, never which end of the table did it.",
+        no_gloss="Never leaves the router.",
     ),
 }
 
-#: Vocabulary -> why no schema states it. Each of these reaches a reader
-#: by some other route or by none, and saying which is the point: an
-#: entry here is a claim, not an exemption.
-NOT_ON_THE_ENVELOPE: dict[str, str] = {
-    "themis.audits.Artifact": (
-        "The vocabulary of what an audit is an audit OF, which reaches a "
-        "reader through ``themis.audit``'s own output rather than through a "
-        "result envelope. Its members are verbatim the ``kind`` their "
-        "artifacts carry, so the artifacts' own schemas state them; "
-        "query_result.schema.json has no field for it, because an envelope "
-        "does not say what kind of dict it is."
-    ),
-    "themis.estimation.strategy.Estimand": (
-        "What a strategy row's number is an estimate of, used to decide "
-        "whether one row may answer another's query. It is a fact about the "
-        "TABLE, not about any one result: the envelope says which method ran "
-        "and what it produced, and a reader who wants the estimand reads the "
-        "method. Only ``arm_probability`` reaches the envelope, as "
-        "bounds_results[].estimand, which is a one-member enum with its own "
-        "anchor in the browser pin."
-    ),
-    "themis.estimation.strategy.Role": (
-        "Whether a strategy row claims the answer or annotates someone "
-        "else's. A property of the row, consumed entirely inside the "
-        "cascade; no reader is ever handed one."
-    ),
-    "themis.routing.End": (
-        "Which of the two implementations a strategy has — identification "
-        "or numeric. Internal to routing; the envelope reports what was "
-        "derived and what was computed, never which end of the table did it."
-    ),
-}
+
+# --- resolving what a row names ----------------------------------------------
+
+def _resolve(dotted: str):
+    """Import ``a.b.c`` and return the attribute, module or not."""
+    parts = dotted.split(".")
+    for cut in range(len(parts) - 1, 0, -1):
+        try:
+            obj = importlib.import_module(".".join(parts[:cut]))
+        except ImportError:
+            continue
+        for attr in parts[cut:]:
+            obj = getattr(obj, attr)
+        return obj
+    raise ImportError(dotted)
 
 
-def _at(site: tuple[str, ...]) -> set[str]:
+def _at(site: Site) -> set[str]:
     node = json.loads((SCHEMAS / site[0]).read_text(encoding="utf-8"))
     for step in site[1:]:
-        node = node[step]
-    return {str(v) for v in node["enum"]}
+        node = node[int(step)] if isinstance(node, list) else node[step]
+    # ``null`` is the absence of a value, not a member of the vocabulary:
+    # a mediation arm with no failed condition is an identifiable one.
+    return {str(v) for v in node["enum"] if v is not None}
 
 
-# --- the prose side ----------------------------------------------------------
+def _members(name: str) -> set[str]:
+    row = VOCABULARIES[name]
+    if row.declares:
+        return {str(m.value) for m in _python_vocabularies()[row.declares]}
+    if row.subset_of:
+        return set().union(*(_at(s) for s in row.sites))
+    return set().union(*(_at(s) for s in row.sites))
+
+
+def _word_for(row: Vocabulary, member: str):
+    gloss = _resolve(row.glossed_by)
+    return gloss.get(member) if isinstance(gloss, dict) else gloss(member)
+
+
+# --- the checks ---------------------------------------------------------------
+
+def _unaccounted(declared: set, stated: set, excused: set):
+    """The three ways two tables and a package can disagree."""
+    return (
+        sorted(declared - (stated | excused)),   # said nothing about itself
+        sorted((stated | excused) - declared),   # a row for something gone
+        sorted(stated & excused),                # said both things
+    )
+
+
+def test_every_python_vocabulary_has_exactly_one_row():
+    """Door one. Adding an ``Enum`` fails here until it says who reads it."""
+    found = set(_python_vocabularies())
+    claimed = [v.declares for v in VOCABULARIES.values() if v.declares]
+    assert len(claimed) == len(set(claimed)), (
+        f"two rows claim the same enum: "
+        f"{sorted({c for c in claimed if claimed.count(c) > 1})}"
+    )
+    silent, stale, _ = _unaccounted(found, set(claimed), set())
+    assert not silent, (
+        f"{silent} are closed vocabularies with no row; add one saying which "
+        f"schema sites state it and who gives the reader the word"
+    )
+    assert not stale, f"{stale} are named here and no longer declared"
+
+
+def test_every_schema_enum_site_has_exactly_one_row():
+    """Door two, and the one that was not watched.
+
+    A schema is as much the kernel's declaration as a Python enum is, and
+    42 of these sites had no enum behind them — so nothing ever asked them
+    who reads them, and three answered "a Chinese sentence, in English".
+    """
+    found = set(_schema_sites())
+    claimed = [s for v in VOCABULARIES.values() for s in v.sites]
+    assert len(claimed) == len(set(claimed)), (
+        f"two rows claim the same site: "
+        f"{sorted({c for c in claimed if claimed.count(c) > 1})}"
+    )
+    silent, stale, _ = _unaccounted(found, set(claimed), set())
+    assert not silent, (
+        f"{silent} are enum sites with no row; add one saying which "
+        f"vocabulary it states and who gives the reader the word"
+    )
+    assert not stale, f"{stale} are named here and no schema states them"
+
+
+def test_a_vocabulary_that_says_nothing_about_itself_is_caught():
+    """The counterexample. Without it either partition could hold
+    vacuously — an ``accounted`` set built from ``declared`` would pass
+    forever."""
+    assert _unaccounted({"a", "b"}, {"a"}, set()) == (["b"], [], [])
+    assert _unaccounted({"a"}, {"a"}, {"gone"}) == ([], ["gone"], [])
+    assert _unaccounted({"a"}, {"a"}, {"a"}) == ([], [], ["a"])
+
+
+@pytest.mark.parametrize("name", sorted(VOCABULARIES))
+def test_every_row_says_both_things_about_itself(name):
+    """A row is two answers: where it is declared, and who reads it."""
+    row = VOCABULARIES[name]
+    if row.subset_of:
+        assert row.subset_of in VOCABULARIES, (
+            f"{name} names {row.subset_of}, which is not a vocabulary")
+        assert row.sites and not row.declares
+        return
+    assert row.declares or row.sites, (
+        f"{name} is declared by neither door and cannot be discovered")
+    assert bool(row.sites) != bool(row.off_envelope), (
+        f"{name} must either name the schema sites that state it or say why "
+        f"the envelope never carries it")
+    assert bool(row.glossed_by) != bool(row.no_gloss), (
+        f"{name} must either name what gives the reader the word or say why "
+        f"no reader needs one")
+
+
+@pytest.mark.parametrize(
+    "name", sorted(n for n, v in VOCABULARIES.items() if v.sites and v.declares))
+def test_the_declared_sites_state_exactly_the_vocabulary(name):
+    """Union over the sites, equal to the members.
+
+    Equality rather than containment, because a value the schema admits and
+    the kernel never emits is a case a reader believes was handled.
+    """
+    stated: set[str] = set()
+    for site in VOCABULARIES[name].sites:
+        stated |= _at(site)
+    members = _members(name)
+    assert stated == members, (
+        f"{name}: the schema states {sorted(stated - members)} which the "
+        f"kernel does not emit, and omits {sorted(members - stated)}"
+    )
+
+
+@pytest.mark.parametrize("name", sorted(n for n, v in VOCABULARIES.items()
+                                        if v.subset_of))
+def test_a_constraint_site_stays_inside_the_vocabulary_it_constrains(name):
+    """A rule written in another vocabulary's terms cannot invent a term."""
+    row = VOCABULARIES[name]
+    assert _members(name) <= _members(row.subset_of), (
+        f"{name} names values {sorted(_members(name) - _members(row.subset_of))} "
+        f"that are not in {row.subset_of}"
+    )
+
+
+@pytest.mark.parametrize("name", sorted(n for n, v in VOCABULARIES.items()
+                                        if v.glossed_by))
+def test_the_gloss_answers_for_every_member(name):
+    """The check the package did not have.
+
+    Asked once per member, and an answer equal to the member is not an
+    answer: ``_STATUS_BADGE.get(status, status)`` and
+    ``ledger._describe``'s backtick fallback both hand the identifier back,
+    which is what a reader was getting.
+    """
+    row = VOCABULARIES[name]
+    wordless = []
+    for member in sorted(_members(name)):
+        word = _word_for(row, member)
+        if not word or word in (member, f"`{member}`"):
+            wordless.append(member)
+    assert not wordless, (
+        f"{row.glossed_by} gives {wordless} no word — a member with no word "
+        f"reaches the reader as its own identifier"
+    )
+
+
+def test_a_gloss_missing_a_member_is_caught():
+    """The counterexample for the check above, which would otherwise be
+    vacuous on any vocabulary whose gloss happens to be total.
+
+    Runs against a real row with a member removed from its mapping, so what
+    is exercised is the lookup rather than a hand-written pair.
+    """
+    row = VOCABULARIES["result_status"]
+    members = _members("result_status")
+    table = dict(_resolve(row.glossed_by))
+    assert all(table.get(m) for m in members)
+    dropped = sorted(members)[0]
+    table.pop(dropped)
+    assert not table.get(dropped)
+
+
+# --- the prose surfaces -------------------------------------------------------
 #
-# A prompt or a reference table has no structure to compare against, so
-# what can be asked of it is that it names each member. Backticked, which
-# is how all three cite one, and which is what separates naming the kind
-# from happening to use the words in a sentence.
+# A prompt or a reference table has no structure to compare against, so what
+# can be asked of it is that it names each member. Backticked, which is how
+# all three cite one, and which is what separates naming the kind from
+# happening to use the words in a sentence.
 
 #: A derived set, not a whole vocabulary: what has to reach a surface is
 #: sometimes a subset, and the subset has to be a declared one. A list
@@ -241,9 +856,22 @@ SUBSETS = {
 #: (what must be named, why this surface needs it, the surfaces).
 NAMED_IN_PROSE: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
-        "themis.types.GapKind",
+        "gap_kind",
         "every gap kind has a row a person can read",
         ("docs/GAP_KINDS_REFERENCE.md",),
+    ),
+    (
+        "nde_nie_failed_condition",
+        "the renderer is told to explain the condition and had no source "
+        "for one, so it improvised — and the one gloss the prompt did "
+        "carry named the wrong condition for the intermediate confounder",
+        ("themis/prompts/response_rendering.md",),
+    ),
+    (
+        "cde_failed_condition",
+        "as its twin: a label the reader cannot act on until someone says "
+        "which path it means",
+        ("themis/prompts/response_rendering.md",),
     ),
     (
         "themis.types.MIRRORED_INTO_EXPLANATION",
@@ -261,66 +889,11 @@ NAMED_IN_PROSE: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
-def _members(name: str) -> set[str]:
+def _prose_members(name: str) -> set[str]:
     if name in SUBSETS:
         import themis.types
         return {k.value for k in getattr(themis.types, name.rsplit(".", 1)[1])}
-    return {str(m.value) for m in _vocabularies()[name]}
-
-
-# --- the checks --------------------------------------------------------------
-
-def _unaccounted(declared: set[str], stated: set[str], excused: set[str]):
-    """The three ways the two tables and the package can disagree."""
-    return (
-        sorted(declared - (stated | excused)),   # said nothing about itself
-        sorted((stated | excused) - declared),   # a row for something gone
-        sorted(stated & excused),                # said both things
-    )
-
-
-def test_every_vocabulary_says_whether_the_envelope_carries_it():
-    """The partition. Adding a closed vocabulary fails here until it says.
-
-    All three directions: a vocabulary with no row is the failure this
-    module exists for; a row for a vocabulary the package no longer
-    declares is a check on nothing, which is how a table starts
-    describing a repository that has moved on.
-    """
-    silent, stale, both = _unaccounted(
-        set(_vocabularies()), set(STATED_BY_SCHEMA), set(NOT_ON_THE_ENVELOPE))
-    assert not silent, (
-        f"{silent} are closed vocabularies that have not said which readers "
-        f"they reach; add them to STATED_BY_SCHEMA with their enum site, or "
-        f"to NOT_ON_THE_ENVELOPE with the reason"
-    )
-    assert not stale, f"{stale} are named here and no longer declared"
-    assert not both, f"{both} say both things about themselves"
-
-
-def test_a_vocabulary_that_says_nothing_about_itself_is_caught():
-    """The counterexample. Without it the partition could hold vacuously —
-    an ``accounted`` set built from ``declared`` would pass forever."""
-    assert _unaccounted({"a", "b"}, {"a"}, set()) == (["b"], [], [])
-    assert _unaccounted({"a"}, {"a"}, {"gone"}) == ([], ["gone"], [])
-    assert _unaccounted({"a"}, {"a"}, {"a"}) == ([], [], ["a"])
-
-
-@pytest.mark.parametrize("name", sorted(STATED_BY_SCHEMA))
-def test_the_declared_sites_state_exactly_the_vocabulary(name):
-    """Union over the declared sites, equal to the members.
-
-    Equality rather than containment, because a value the schema admits
-    and the kernel never emits is a case a reader believes was handled.
-    """
-    stated: set[str] = set()
-    for site in STATED_BY_SCHEMA[name]:
-        stated |= _at(site)
-    members = _members(name)
-    assert stated == members, (
-        f"{name}: the schema states {sorted(stated - members)} which the "
-        f"kernel does not emit, and omits {sorted(members - stated)}"
-    )
+    return _members(name)
 
 
 @pytest.mark.parametrize(
@@ -330,17 +903,18 @@ def test_the_declared_sites_state_exactly_the_vocabulary(name):
 def test_the_prose_surface_names_every_member(name, why, surface):
     """Backticked containment — the whole of what prose admits being asked."""
     text = (REPO / surface).read_text(encoding="utf-8")
-    missing = sorted(m for m in _members(name) if f"`{m}`" not in text)
+    missing = sorted(m for m in _prose_members(name) if f"`{m}`" not in text)
     assert not missing, f"{surface} does not name {missing} — {why}"
 
 
 def test_a_vocabulary_the_schema_states_incompletely_is_caught():
-    """The counterexample, without which the checks above could be vacuous.
+    """The counterexample for the union check, without which it could be
+    vacuous.
 
     Reads a real site and drops a member from the comparison, so what is
     exercised is the equality itself rather than a hand-written pair.
     """
-    site = STATED_BY_SCHEMA["themis.types.GapSeverity"][0]
+    site = VOCABULARIES["gap_severity"].sites[0]
     stated = _at(site)
-    assert stated == _members("themis.types.GapSeverity")
-    assert (stated - {next(iter(stated))}) != _members("themis.types.GapSeverity")
+    assert stated == _members("gap_severity")
+    assert (stated - {next(iter(stated))}) != _members("gap_severity")

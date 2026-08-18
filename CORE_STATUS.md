@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4671 passed / 144 skipped, warning-clean
+4779 passed / 144 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,99 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 一个词能不能被翻译，取决于内核要不要在 Python 里对它分支（2026-08-18，#357）
+
+登记的是三处「封闭词表到达读者时仍是英文原文」。**先量，分母比三大得多**：
+
+| 面 | 词表数 | 有强制分区吗 |
+|---|---|---|
+| 浏览器 `verdict.ts` | 14 张 | **有**（`VOCABULARIES` / `NOT_VOCABULARIES`，#317） |
+| Python 主报告 | 8 张字符串键表 | **没有** |
+| 内核 Python 词表 | 25 个 enum，**只有 4 个带 `zh`** | — |
+| 结果信封 schema | **58 个 enum 站点** | #362 的门只认账 **20** 个 |
+
+**根因不是那三处忘了翻译，是词表的声明位置有两个而只有一个能挂读者的词。**
+一个封闭词表有没有 Python `Enum`，取决于**内核要不要在 Python 里对它分支**——
+与「读者会不会看见它」毫无关系。全部 70 个 schema enum 站点里 **42 个没有任何
+Python 声明**，只活在 JSON 里，于是 #362 那道从 `enum.Enum` 子类走起的门
+**从没问过它们谁读**。两道现有的门各自完备却合不拢：#362 从 Python 侧枚举，
+只在 schema 里声明的看不见；#317 从浏览器侧枚举（因为 `verdict.ts` 把表声明成
+`const NAME: Record<>`），只在主报告出现的看不见。#362 自己的 docstring 写着
+「every closed vocabulary in `themis` appears below exactly once」——**这句是假的，
+因为「in themis」被读成了「in Python」，而 schema 同样是内核的声明**。
+
+**改法**：`tests/test_vocabulary_reach.py` 改成**两扇门都走**，一个词表一行，
+一行同时回答两件事——谁声明它（Python enum / schema 站点），谁把它变成读者的词。
+`glossed_by` 与 `no_gloss` 互斥且必填，`sites` 与 `off_envelope` 互斥且必填；
+`no_gloss` 是**断言不是豁免**，必须点名读者拿到的是什么（「印成把手，旁边那句中文
+caption 说它是什么」／「只作分支键，谁在分支」）——`numeric_estimate.method` 与
+`bounds_result.method` 那次口头的「算配对过」由此变成声明。译源的检查是**逐成员去问**：
+表少一个键、或函数回落成 `` `token` ``，都算没翻译。
+
+**第三扇门明写在 docstring 里关不上**：只以译表形式存在的词表（`derivation_glossary`
+的规则名）两扇门都走不到，它由渲染它的那一面各自钉住（`test_derivation_glossary.py`
+＋浏览器 `ANCHORS`）。说清边界在哪，好过一道声称覆盖了它看不见的东西的门。
+
+**门一开就抓到的（含两处登记里没有的）**：
+- `nde_nie.failed_condition`（M1-M4）与 `cde.failed_condition`（C1-C2）——
+  主报告 `：M3`、浏览器 `· M3`，**两个面都只印编号**。补 `envelope_glossary`
+  两张表（两张，因为两条臂败在不同定理上、标号集不相交），两面各自渲染。
+- `framing_note.missing`（9 值）——**登记里没有**。`explainer` 写
+  `f"{predicate} 缺 {', '.join(note.missing)}"`，一句中文里直接列字段名；
+  **451 条结果带着它，72 份渲染报告里 37 份印了原文**。
+- `status`（7 值）——`_STATUS_BADGE` **只有 5 个键**，两个反事实状态走
+  `.get(status, status)` 把标识符原样当标题印，**而浏览器 `STATUS_META` 七个全有**。
+- `missing_data_recovery.mechanism`——`_MECHANISM_ZH` 3/4，缺 `none`（「没声明任何
+  缺失指示变量」，不是更弱的 MNAR 而是这个问题不存在）。
+- `InvestigationAction`——`_ACTION_PHRASE` 5/6，缺 `define_variable`：**唯一一条
+  不需要任何新数据就能照做的下一步，印给读者的是 `define_variable`**。这条是
+  门自己抓的，不在任何登记里。
+- `mechanism_audit` 的 summary 把 `form` 裸插进中文句，且 `f"来源：{provenance}"`
+  **给一个自带 `zh` 的词表手写了第二份翻译**。改成把估计器自己那句假设摆在 form
+  旁边（与台账行同型的把手＋caption），来源问 `ledger.provenance_zh`。
+
+**第三个读者面（LLM）连源都没有，且唯一那句解释是错的**：
+`response_rendering.md` 让渲染方「report which condition failed and explain what
+that means in plain terms」，却不给任何词表——LLM 只能自己编；而它自己带的唯一一句
+gloss 写「usually M4: intermediate confounder」。**实测经典中间混杂器（X→L, L→M,
+L→Y）报的是 `M3`**：`M4` 先把 `{L}`——唯一可能挡住 M→Y 后门的调整集——滤掉，剩下
+W=∅ 再败在 M3，字段报的是「幸存调整集第一个失败的条件」而不是「障碍的名字」。
+改成把六句话写进 prompt、点明这个错位、并由 `NAMED_IN_PROSE` 逐个成员钉住。
+
+**两处不是词表问题、是整句语言**：全量 189 条 gap description 里 **1 条英文**
+（`declared_type_data_mismatch`），219 条 alternative_paths 里 **48 条英文，其中
+46 条来自 `unmeasured_confounder_risk` 一个 kind**。这不是 #327「拒答消息的语言」
+那种待定策略，是**两个 producer 破了另外一百多条都在守的纪律**——都改成中文，
+两个通道现在 100% 中文，并加一道逐条扫语料的门（任何 gap 的 description /
+if_provided / alternative_paths 不含中日韩字符即红）。
+
+**声明不做的**：`type_reconciliation` 的 `dtype_kind` 与 `verdict` 判为 `no_gloss`
+——检查自己的 `detail` 已经把不一致说成中文，这两个是验证器复算用的机器记录；
+造两张没人调用的译表比没有更糟。`anderson_rubin_confidence_set` 的 kind 也判
+`no_gloss`，理由是**没有哪一面渲染这个块**：`grep anderson_rubin` 在主报告与浏览器
+零命中，只有 `response_rendering.md` 认识它——那是缺一整节不是缺一个词，登记为 #366。
+
+**闸口验过（七个反例逐个构造，全部当场变红）**：schema 新增一个未表态的 enum 站点、
+Python 新增一个未表态的 enum、schema 站点多出内核不发的值、译表少一个成员、
+把反事实徽章删掉、让中介臂重新直接内插编号、让 framing 从句重新列字段名、
+以及把那条英文 alternative_path 放回去。
+
+**基线**：4671 → **4779**。
+
+**方法论沉淀（第一四七至一五〇条）**：
+(147)**「完备性门禁」要先说清自己是从哪一侧枚举的**——两道各自完备的门可以合不拢，
+中间那类东西两侧都看不见。判据：读到「every X appears below exactly once」，
+就去问「X 是怎么被找到的」，找法定义的往往是一个比 X 更小的集合。
+(148)**能力和需要不相关时，别让能力决定谁得到**——「有没有 Python enum」由内核要不要
+分支决定，「要不要读者的词」由读者决定；两件事挂在一起，缺的就正好是那些没人分支
+但人人会看见的。
+(149)**「没有译源」的理由必须点名读者拿到的是什么**——写「不需要翻译」等于豁免，
+写「印成把手，旁边那句中文说它是什么」才是可以被反驳的断言。
+(150)**逐条扫产出的语言，比逐个词表检查更早抓到整句写错语言的 producer**——
+词表没参与，任何键在词表上的检查都看不见它。
+
+---
 
 ### 一个装得下任意一个的槽位只装得下一个（2026-08-18，#358）
 
