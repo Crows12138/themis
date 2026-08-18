@@ -92,9 +92,12 @@ SAYS: dict[str, str] = {
 
     # --- putting numbers in ---------------------------------------------------
     "formula_evaluation": "把 θ 代入识别公式求值",
-    "probabilities_of_causation_tian_pearl":
-        "从 θ 按 Tian-Pearl(2000) 公式求 PN/PS/PNS",
-    "counterfactual_cell_bounds": "从 θ 用一条一致性恒等式解出这一格反事实的可识别区间",
+    "causation_probability_bounds":
+        "从 θ 求 PN/PS/PNS：两个干预风险都拿得到时用 Tian-Pearl(2000) 公式，"
+        "拿不到而图上有工具变量时改在响应函数多面体上求解",
+    "counterfactual_cell_bounds":
+        "从 θ 解出这一格反事实的可识别区间：干预风险拿得到时用一条一致性恒等式，"
+        "拿不到而图上有工具变量时改在响应函数多面体上求解",
     "scm_abduction_action_prediction":
         "按你声明的结构方程系数：从该个体的观测值反推它自己的外生扰动（abduction）、"
         "施加干预（action）、再沿方程重算目标（prediction）",

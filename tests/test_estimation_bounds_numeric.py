@@ -25,12 +25,11 @@ import pytest
 
 from themis.estimation.bounds_numeric import (
     NumericBounds,
-    _contrast_objective,
-    _solve_response_lp,
     evaluate_balke_pearl_bounds,
     evaluate_manski_natural_bounds,
     evaluate_manski_tamer_bounds,
 )
+from themis.response_polytope import _contrast_objective, _solve_response_lp
 from themis.output.bounds import MAX_RESPONSE_TYPES
 from themis.refusals import EstimatorFailure
 

@@ -188,8 +188,9 @@ class RiskProvenance(EnvelopeName):
 #: comes back through the identification subsystem rather than as an
 #: estimand to evaluate.
 ADMISSIBLE: dict[str, frozenset[RiskProvenance]] = {
-    "probabilities_of_causation_tian_pearl": frozenset({
+    "causation_probability_bounds": frozenset({
         RiskProvenance.DERIVED_IDENTIFICATION,
+        RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE,
         RiskProvenance.USER_EXPERIMENTAL,
     }),
     "numeric_causation_estimate": frozenset({
@@ -201,6 +202,7 @@ ADMISSIBLE: dict[str, frozenset[RiskProvenance]] = {
     }),
     "counterfactual_cell_bounds": frozenset({
         RiskProvenance.NOT_REQUIRED,
+        RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE,
         RiskProvenance.DERIVED_IDENTIFICATION,
         RiskProvenance.USER_EXPERIMENTAL,
     }),

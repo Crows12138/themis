@@ -697,7 +697,7 @@ def _decode_numeric_result_json(d: dict) -> NumericResult:
 def _verify_causation_extensions_match(result: dict, derivation) -> None:
     """Assert ``result.extensions.causation`` agrees with the derivation
     envelope (the dict output of the single
-    ``probabilities_of_causation_tian_pearl`` step) that
+    ``causation_probability_bounds`` step) that
     ``verify_causation`` already audited. PS/PNS surface to a reader only
     via extensions, so a tamper there must not pass silently.
 
@@ -717,6 +717,12 @@ def _verify_causation_extensions_match(result: dict, derivation) -> None:
     tol = 1e-9
 
     def _num_eq(a, b) -> bool:
+        # Both absent is agreement, not a mismatch. The instrument route
+        # point-identifies no interventional risk and reports neither, so a
+        # comparison that only ever succeeds on two numbers would reject the
+        # one route whose answer is that there are none.
+        if a is None and b is None:
+            return True
         return a is not None and b is not None and abs(float(a) - float(b)) <= tol
 
     def _fail() -> None:
@@ -743,10 +749,9 @@ def _verify_causation_extensions_match(result: dict, derivation) -> None:
             _fail()
     if bool(ext.get("monotonic")) != bool(env.get("monotonic")):
         _fail()
-    if ext.get("interventional_risk_provenance") != env.get(
-        "interventional_risk_provenance"
-    ):
-        _fail()
+    for k in ("interventional_risk_provenance", "instrument"):
+        if str(ext.get(k)) != str(env.get(k)):
+            _fail()
     ja = ext.get("observational_joint") or {}
     jb = env.get("observational_joint") or {}
     for k in ("p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"):

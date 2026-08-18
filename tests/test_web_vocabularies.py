@@ -242,8 +242,16 @@ def test_the_refusal_kinds_each_say_something_different():
 
 
 def _half_width(text: str) -> str:
-    """Only the punctuation the two files spell differently."""
-    for full, half in (("，", ","), ("；", ";"), ("（", "("), ("）", ")")):
+    """Only the punctuation the two files spell differently.
+
+    A LIST of marks, and lists get shorter than the thing they describe: the
+    web file's convention is half-width punctuation throughout, so every mark
+    missing here is a sentence pair this gate reads as different when it is
+    not. Kept equal to the twin table in ``test_risk_provenance``.
+    """
+    for full, half in (
+        ("，", ","), ("；", ";"), ("：", ":"), ("（", "("), ("）", ")"),
+    ):
         text = text.replace(full, half)
     return text
 

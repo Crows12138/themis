@@ -1774,55 +1774,80 @@ def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
     }
 
 
-def _counterfactual_joint_xy(
+class ObservationalJoint(NamedTuple):
+    cells: dict[tuple[bool, bool], float] | None
+    missing: tuple[MissingItem, ...]
+    skeletons: dict
+    ancestral: AncestralJoint | None
+
+
+def _observational_joint_xy(
     theta: Theta,
-    q: CounterfactualQuery,
     graph: nx.DiGraph,
     *,
+    x_atom: Atom,
+    y_atom: Atom,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-) -> tuple[dict[tuple[bool, bool], float] | None, tuple[MissingItem, ...], dict]:
-    """Build the factual joint table P(X, Y) for the narrow S.C.5 path.
+) -> ObservationalJoint:
+    """The four ``P(X=x, Y=y)`` cells from theta, for every door that wants them.
 
-    Current widening still stays inside the same fragment:
-    - X and Y themselves remain boolean
-    - first prefer graph-faithful ancestral BN factorization on the
-      directed ancestral subgraph of {X, Y}
-    - if that is not applicable (currently: relevant bidirected edges),
-      fall back to the older local chain-rule recovery
+    One recovery, because the counterfactual cell and the three probabilities
+    of causation want the same four numbers off the same theta and the same
+    graph. Two recoveries of one quantity are two places to widen every time
+    either of them is widened, and only one of them gets widened.
 
-    Missing entries still surface as ordinary PARAMETER gaps so the
-    existing fill-back workflow can recover the query.
+    Ancestral factorization first: it is the graph's own account of the
+    distribution, and it reaches the measured-confounder shape (Z→X, Z→Y,
+    X→Y) where ``P(X)`` and ``P(Y|X)`` are not in theta at all and have to be
+    summed out of it. The local chain rule second, for the
+    confounded-but-experimental case that supplies those two marginals
+    directly and nothing upstream of them.
+
+    Which route reports a shortfall is NOT the order they run in. The graph's
+    own account being incomplete is the model being incomplete, so its
+    missing factors are the gap. When a bidirected edge has widened the
+    conditioning set, the wider route is the one that would give the MOST,
+    and what it lacks is not what the reader must supply to reach an answer —
+    it is what would make the answer sharper. The gap names the least that
+    reaches an answer; the enrichment is named beside it by the caller that
+    knows what it would have bought.
+
+    Missing entries surface as ordinary PARAMETER gaps so the existing
+    fill-back workflow can recover the query.
     """
-    x_atom = q.observed.atom
-    y_atom = q.counterfactual_target.atom
-    if not set(theta.domain_of(x_atom)) or not set(theta.domain_of(x_atom)) <= {False, True}:
-        raise counterfactual.CounterfactualBoundsError(
-            f"counterfactual solver requires boolean domain for {x_atom.predicate}"
-        )
-    if not set(theta.domain_of(y_atom)) or not set(theta.domain_of(y_atom)) <= {False, True}:
-        raise counterfactual.CounterfactualBoundsError(
-            f"counterfactual solver requires boolean domain for {y_atom.predicate}"
-        )
+    for atom in (x_atom, y_atom):
+        domain = set(theta.domain_of(atom))
+        if not domain or not domain <= {False, True}:
+            raise counterfactual.CounterfactualBoundsError(
+                f"counterfactual solver requires boolean domain for "
+                f"{atom.predicate}"
+            )
 
-    factorized_joint, factorized_missing, factorized_skeletons = (
-        _counterfactual_joint_xy_via_ancestral_factorization(
-            graph,
-            theta,
-            x_atom=x_atom,
-            y_atom=y_atom,
-            bidirected=bidirected,
-        )
+    recovery = _ancestral_joint(
+        graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
     )
-    if factorized_joint is not None or factorized_missing:
-        return factorized_joint, factorized_missing, factorized_skeletons
+    if recovery.joint is not None:
+        marginal = recovery.joint.marginal((x_atom, y_atom))
+        return ObservationalJoint(
+            {
+                (x_val, y_val): marginal.get((x_val, y_val), 0.0)
+                for x_val in (False, True)
+                for y_val in (False, True)
+            },
+            (), {}, recovery.joint,
+        )
+    if recovery.missing and recovery.licensed:
+        return ObservationalJoint(
+            None, recovery.missing, recovery.skeletons, None,
+        )
 
     missing: list[MissingItem] = []
     skeletons: dict = {}
-    joint: dict[tuple[bool, bool], float] = {}
+    cells: dict[tuple[bool, bool], float] = {}
     for x_val in (False, True):
         for y_val in (False, True):
             try:
-                joint[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
+                cells[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
                     theta,
                     x_atom=x_atom,
                     x_val=x_val,
@@ -1835,58 +1860,78 @@ def _counterfactual_joint_xy(
                     exc.reason,
                     gap=exc.gap,
                 )
+                if item.name in {m.name for m in missing}:
+                    continue
                 missing.append(item)
                 if exc.missing_key is not None:
                     skeletons[item.name] = _skeleton_for_parameter(exc.missing_key)
     if missing:
-        deduped_missing: list[MissingItem] = []
-        seen_names: set[str] = set()
-        for item in missing:
-            if item.name in seen_names:
-                continue
-            seen_names.add(item.name)
-            deduped_missing.append(item)
-        return None, tuple(deduped_missing), skeletons
-    return joint, (), {}
+        return ObservationalJoint(None, tuple(missing), skeletons, None)
+    return ObservationalJoint(cells, (), {}, None)
 
 
-def _counterfactual_joint_xy_via_ancestral_factorization(
+class AncestralJoint(NamedTuple):
+    """The observational joint over the directed ancestral subgraph of {X, Y}.
+
+    Kept whole rather than reduced where it is recovered. The cell wants
+    ``P(X, Y)``; the instrument route wants ``P(X, Y | Z)``; a recovery that
+    decides in advance which of the two is wanted is a recovery the other
+    caller has to write for itself.
+    """
+
+    topo: tuple[Atom, ...]
+    joint: dict[tuple, float]
+    licensed_to_drop_non_parents: bool
+
+    def marginal(self, atoms: tuple[Atom, ...]) -> dict[tuple, float]:
+        """Sum the joint down to ``atoms``, keyed in the order given."""
+        positions = tuple(self.topo.index(atom) for atom in atoms)
+        out: dict[tuple, float] = {}
+        for row, prob in self.joint.items():
+            key = tuple(row[i] for i in positions)
+            out[key] = out.get(key, 0.0) + prob
+        return out
+
+
+class _AncestralRecovery(NamedTuple):
+    joint: AncestralJoint | None
+    missing: tuple[MissingItem, ...]
+    skeletons: dict
+    licensed: bool
+
+
+def _ancestral_joint(
     graph: nx.DiGraph,
     theta: Theta,
     *,
     x_atom: Atom,
     y_atom: Atom,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-) -> tuple[dict[tuple[bool, bool], float] | None, tuple[MissingItem, ...], dict]:
-    """Recover P(X, Y) by enumerating the directed ancestral subgraph.
+) -> _AncestralRecovery:
+    """Recover the joint over the ancestral subgraph of {X, Y} from theta.
 
-    This is the first non-local widening of the landed counterfactual
-    runtime: instead of only accepting handcrafted local factorizations
-    such as P(X) * P(Y|X), it uses the current DAG + CPT semantics
-    directly whenever the relevant observational model is an ordinary
-    ancestral BN.
-
-    We stay conservative around ADMGs: if any bidirected edge touches
-    the ancestral subgraph of {X, Y}, we do *not* pretend the directed
-    factorization is valid and fall back to the older local recovery
-    path.
+    Instead of accepting only handcrafted local factorizations such as
+    ``P(X)·P(Y|X)``, this uses the DAG + CPT semantics directly, at whatever
+    conditioning set the graph licenses — see
+    :func:`_factorization_conditioning` for why a bidirected edge widens that
+    set rather than ending the route.
     """
     ancestral_nodes = (
         nx.ancestors(graph, x_atom)
         | nx.ancestors(graph, y_atom)
         | {x_atom, y_atom}
     )
+    licensed = not any(pair & ancestral_nodes for pair in bidirected)
     if not ancestral_nodes:
-        return None, (), {}
-    if any(pair & ancestral_nodes for pair in bidirected):
-        return None, (), {}
+        return _AncestralRecovery(None, (), {}, licensed)
 
     subgraph = graph.subgraph(ancestral_nodes).copy()
     topo = tuple(nx.topological_sort(subgraph))
+    conditioning = _factorization_conditioning(
+        subgraph, topo, licensed_to_drop_non_parents=licensed,
+    )
     required_keys = _required_observational_probability_keys(
-        subgraph,
-        topo=topo,
-        theta=theta,
+        topo=topo, theta=theta, conditioning=conditioning,
     )
     missing_keys = tuple(
         key for key in required_keys
@@ -1905,39 +1950,68 @@ def _counterfactual_joint_xy_via_ancestral_factorization(
             item.name: _skeleton_for_parameter(key)
             for item, key in zip(missing_items, missing_keys)
         }
-        return None, missing_items, skeletons
+        return _AncestralRecovery(None, missing_items, skeletons, licensed)
 
-    joint: dict[tuple[bool, bool], float] = {
-        (False, False): 0.0,
-        (False, True): 0.0,
-        (True, False): 0.0,
-        (True, True): 0.0,
-    }
+    joint: dict[tuple, float] = {}
     for assignment in _ancestral_assignments(topo, theta):
         prob = 1.0
         for atom in topo:
-            key = _assignment_probability_key(subgraph, atom, assignment)
+            key = _assignment_probability_key(
+                atom, assignment, conditioning[atom],
+            )
             value = _recover_boolean_theta_value(theta, key)
             if value is None:
                 raise AssertionError(
                     "missing key survived required-key precheck in "
-                    "_counterfactual_joint_xy_via_ancestral_factorization"
+                    "_ancestral_joint"
                 )
             prob *= value
-        joint[(assignment[x_atom], assignment[y_atom])] += prob
-    return joint, (), {}
+        row = tuple(assignment[atom] for atom in topo)
+        joint[row] = joint.get(row, 0.0) + prob
+    return _AncestralRecovery(
+        AncestralJoint(topo, joint, licensed), (), {}, licensed,
+    )
+
+
+def _factorization_conditioning(
+    graph: nx.DiGraph,
+    topo: tuple[Atom, ...],
+    *,
+    licensed_to_drop_non_parents: bool,
+) -> dict[Atom, tuple[Atom, ...]]:
+    """What each atom's chain-rule factor conditions on.
+
+    The chain rule in topological order — ``P(V₁…Vₙ) = ∏ P(Vᵢ | V₁…Vᵢ₋₁)`` —
+    holds for every joint distribution whatever the graph says. It is
+    arithmetic, not a causal assumption, and no edge can make it false. What
+    the GRAPH contributes is a LICENCE TO DROP the non-parents out of each
+    prefix: where every common cause is measured, a variable is independent
+    of its non-descendants given its parents.
+
+    A bidirected edge withdraws that licence. A withdrawn licence to drop
+    terms leaves the factorization standing with more terms in it, which is
+    not the same thing as having no factorization — and reading it as the
+    latter is what left the parameter end unable to recover ``P(X, Y | Z)``
+    on exactly the graphs where an instrument is the only thing that can
+    answer, since exclusion is what keeps ``Z`` out of ``Y``'s parents.
+    """
+    if licensed_to_drop_non_parents:
+        return {atom: tuple(graph.predecessors(atom)) for atom in topo}
+    return {atom: topo[:i] for i, atom in enumerate(topo)}
 
 
 def _required_observational_probability_keys(
-    graph: nx.DiGraph,
     *,
     topo: tuple[Atom, ...],
     theta: Theta,
+    conditioning: dict[Atom, tuple[Atom, ...]],
 ) -> tuple[ProbabilityKey, ...]:
     keys: set[ProbabilityKey] = set()
     for assignment in _ancestral_assignments(topo, theta):
         for atom in topo:
-            keys.add(_assignment_probability_key(graph, atom, assignment))
+            keys.add(
+                _assignment_probability_key(atom, assignment, conditioning[atom])
+            )
     return tuple(sorted(keys, key=_probability_key_sort_key))
 
 
@@ -1951,16 +2025,15 @@ def _ancestral_assignments(
 
 
 def _assignment_probability_key(
-    graph: nx.DiGraph,
     atom: Atom,
     assignment: dict[Atom, object],
+    conditioning: tuple[Atom, ...],
 ) -> ProbabilityKey:
     return ProbabilityKey(
         target_atom=atom,
         target_value=assignment[atom],
         given=frozenset(
-            (parent, assignment[parent])
-            for parent in graph.predecessors(atom)
+            (given_atom, assignment[given_atom]) for given_atom in conditioning
         ),
     )
 
@@ -2094,12 +2167,26 @@ def _dispatch_counterfactual(
     single linear consistency identity covers every cell. Monotonicity, when
     declared, is an extra constraint that can collapse the interval to a
     point; it is not required to answer.
+
+    There is a SECOND solver, and it is not a weaker version of that one.
+    Where the graph carries a bow arc there is no interventional risk to be
+    had at all, and an instrument bounds the cell directly over the
+    response-type distributions reproducing P(X, Y | Z) — a program that
+    consumes no risk. "No risk is obtainable" is therefore a statement about
+    one route rather than about the question, which is why it is asked only
+    after the identity route has said it cannot, and never before: where a
+    back door reaches the arm, the identity rests on assumptions the caller
+    already granted and the instrument's three are additional. The data end
+    orders the same pair the same way.
     """
     q: CounterfactualQuery = stmt.query  # type: ignore[assignment]
 
     try:
-        joint_xy, missing, skeletons = _counterfactual_joint_xy(
-            theta, q, graph, bidirected=bidirected
+        joint_xy, missing, skeletons, ancestral = _observational_joint_xy(
+            theta, graph,
+            x_atom=q.observed.atom,
+            y_atom=q.counterfactual_target.atom,
+            bidirected=bidirected,
         )
     except counterfactual.CounterfactualBoundsError as exc:
         return QueryResult(
@@ -2151,6 +2238,8 @@ def _dispatch_counterfactual(
             if risk is not None:
                 risk_provenance = RiskProvenance.DERIVED_IDENTIFICATION
 
+    instrument_table: "InstrumentTable | None" = None
+    instrument_atom: "Atom | None" = None
     try:
         twin = counterfactual.project_twin_network(graph, bidirected, q)
         interval = counterfactual.counterfactual_cell_interval(
@@ -2158,30 +2247,66 @@ def _dispatch_counterfactual(
         )
     except counterfactual.InterventionalRiskRequired as need:
         # Neither consistency nor monotonicity determines this cell, and
-        # P(Y=1|do(x')) could not be obtained. Report the gap that names the
-        # remedy rather than the vacuous [0, 1] that would look like an answer.
-        escape = MissingItem(
-            kind=MissingKind.ASSUMPTION,
-            name="counterfactual:interventional_risk_unavailable",
-            priority=Priority.HIGH,
-            gap=GapKind.MISSING_ASSUMPTION,
-            reason=(
-                f"P(Y=1|do(X={need.needed_x_value})) could not be derived (the "
-                "effect is not identifiable from the supplied data), and this "
-                "counterfactual cell is not determined without it. Supply "
-                "experimental_risk_treated / experimental_risk_control from a "
-                "randomized experiment, or add the data needed to identify "
-                "the effect."
-            ),
+        # P(Y=1|do(x')) could not be obtained. Before reporting that, ask the
+        # instrument: the identity route needs the risk as a scalar, and the
+        # response-function polytope needs no risk at all, so "no risk is
+        # obtainable" is a statement about one route rather than about the
+        # question.
+        from ..response_polytope import counterfactual_cell_response_bounds
+
+        route = _instrument_route_from_theta(
+            graph, theta, ancestral,
+            x_atom=q.observed.atom, y_atom=q.counterfactual_target.atom,
         )
-        merged = tuple(arm_missing) + (escape,)
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.COUNTERFACTUAL,
-            query_id=stmt.id,
-            missing_information=merged,
-            investigation_requests=tuple(arm_requests),
+        values, note = _over_the_response_polytope(
+            route,
+            lambda p_xyz, p_z: {"cell": counterfactual_cell_response_bounds(
+                p_xyz, p_z,
+                x_observed=int(bool(q.observed.value)),
+                x_counterfactual=int(
+                    bool(q.counterfactual_intervention.value)),
+                y_star=int(bool(q.counterfactual_target.value)),
+                factual_y=(
+                    None if q.factual_target_known is None
+                    else int(bool(q.factual_target_known))
+                ),
+                monotonicity=(
+                    q.assumptions.monotonicity
+                    if q.assumptions is not None else None
+                ),
+            )},
         )
+        if values is None:
+            # Report the gap that names the remedy rather than the vacuous
+            # [0, 1] that would look like an answer.
+            escape = MissingItem(
+                kind=MissingKind.ASSUMPTION,
+                name="counterfactual:interventional_risk_unavailable",
+                priority=Priority.HIGH,
+                gap=GapKind.MISSING_ASSUMPTION,
+                reason=(
+                    f"P(Y=1|do(X={need.needed_x_value})) could not be derived "
+                    "(the effect is not identifiable from the supplied data), "
+                    "and this counterfactual cell is not determined without "
+                    "it. Supply experimental_risk_treated / "
+                    "experimental_risk_control from a randomized experiment, "
+                    "or add the data needed to identify the effect."
+                    + (f" {note}" if note else "")
+                ),
+            )
+            merged = tuple(arm_missing) + (escape,)
+            return QueryResult(
+                status=ResultStatus.NEEDS_INVESTIGATION,
+                query_kind=QueryKind.COUNTERFACTUAL,
+                query_id=stmt.id,
+                missing_information=merged,
+                investigation_requests=tuple(arm_requests),
+            )
+        low, high = values["cell"]
+        interval = NumericInterval(low=low, high=high)
+        instrument_table = route.table
+        instrument_atom = route.instrument
+        risk_provenance = RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
     except counterfactual.CounterfactualInfeasible as exc:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -2222,6 +2347,15 @@ def _dispatch_counterfactual(
     }
     if risk is not None:
         step_inputs["p_y_do_x_cf"] = risk
+    if instrument_table is not None and instrument_atom is not None:
+        # What the verifier re-solves. The levels travel WITH the table
+        # because the table's own shape says nothing about which stratum is
+        # which, and a permuted reading re-derives a different interval and
+        # calls an honest producer a liar.
+        step_inputs["instrument"] = instrument_atom.predicate
+        step_inputs["instrument_levels"] = instrument_table.z_levels
+        step_inputs["p_xyz"] = instrument_table.p_xyz
+        step_inputs["p_z"] = instrument_table.p_z
     derivation = (
         DerivationStep(
             rule="counterfactual_cell_bounds",
@@ -2245,6 +2379,225 @@ def _dispatch_counterfactual(
         query_id=stmt.id,
         numeric_result=bounded_result,
         derivation=derivation,
+    )
+
+
+class InstrumentRoute(NamedTuple):
+    """The instrument and the table it conditions, or why there is neither.
+
+    Everything both attribution doors need BEFORE the polytope begins to
+    differ between them. What each door does with the table is a different
+    objective on it — a cell names one arm and a factual outcome, the three
+    probabilities of causation name both arms at once — and that is the whole
+    of the difference. Finding the instrument, building its table, and the
+    preconditions that make the program solvable are properties of the graph
+    and of theta, so they happen here once.
+
+    ``note`` says why there is no table, in the reader's terms, and it is
+    present whenever the graph offered an instrument at all: an attempt that
+    declines silently is indistinguishable, at every surface, from a graph
+    that never had an instrument in it.
+    """
+
+    instrument: "Atom | None" = None
+    table: "InstrumentTable | None" = None
+    note: str | None = None
+
+
+def _instrument_route_from_theta(
+    graph: nx.DiGraph,
+    theta: Theta,
+    ancestral: "AncestralJoint | None",
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+) -> InstrumentRoute:
+    """The instrument this graph offers for X→Y, and its table off theta."""
+    if ancestral is None:
+        return InstrumentRoute()
+    z_atom = _instrument_for_theta_cell(
+        graph, theta, x_atom=x_atom, y_atom=y_atom,
+    )
+    if z_atom is None or z_atom not in ancestral.topo:
+        return InstrumentRoute()
+
+    table = _instrument_table_from_theta(
+        ancestral, x_atom=x_atom, y_atom=y_atom, z_atom=z_atom,
+    )
+    if table is None:
+        return InstrumentRoute(note=(
+            f"Instrument {z_atom.predicate} would reach this over the "
+            f"response-function polytope, but theta gives one of its levels "
+            f"no mass, so P(X, Y | Z) is undefined there and there is no "
+            f"table to fit."
+        ))
+    return InstrumentRoute(z_atom, table, None)
+
+
+def _over_the_response_polytope(
+    route: InstrumentRoute, solve,
+) -> "tuple[dict[str, tuple[float, float]] | None, str | None]":
+    """Run one door's objectives over ``route``'s table.
+
+    ``solve(P, p_z)`` returns that door's named quantities as ``(lower,
+    upper)`` pairs — one for a counterfactual cell, three for the
+    probabilities of causation. Everything else is here rather than in either
+    door, because none of it is about which functional was asked for.
+
+    The consistency identity and Tian-Pearl's closed form both consume the
+    interventional risk as a SCALAR, and where the graph carries a bow arc
+    there is no scalar to be had. This program is not a fallback for either:
+    it asks a different question of the same theta — which values are
+    consistent with SOME distribution over response types reproducing
+    ``P(X, Y | Z)`` — and needs no interventional risk at all. Reached only
+    after the risk-consuming route has said it cannot, which is the order the
+    data end uses for the same pair: where a back door reaches the arms, that
+    route rests on assumptions the caller has already granted and the
+    instrument's three are additional.
+
+    An ``EstimatorFailure`` becomes a note rather than propagating: on these
+    doors the instrument was not asked for, it was FOUND, so a finding that
+    the found instrument is refuted by theta is a reason the door cannot
+    answer, not an error in what the caller wrote.
+
+    An answer that excludes nothing is declined for the same kind of reason.
+    Returning it would replace a gap report naming a remedy with something
+    shaped like an answer — the trade both doors already refuse when they
+    choose the gap over a vacuous [0, 1]. The data end reports the same set
+    rather than suppressing it, and that is not a divergence about the
+    method: the LP is the same and returns the same numbers. It is a
+    difference in what each door has to offer instead, and here a gap naming
+    what to go and get beats a set that rules nothing out.
+    """
+    import numpy as np
+
+    from ..response_polytope import polytope_preconditions
+
+    if route.table is None or route.instrument is None:
+        return None, route.note
+    name = route.instrument.predicate
+    try:
+        polytope_preconditions(name, list(route.table.z_levels))
+        values = solve(
+            np.array(route.table.p_xyz, dtype=float),
+            np.array(route.table.p_z, dtype=float),
+        )
+    except refusals.EstimatorFailure as exc:
+        return None, (
+            f"Instrument {name} reaches this over the response-function "
+            f"polytope, but the program did not run: {exc}"
+        )
+    if all(low <= 1e-9 and high >= 1.0 - 1e-9 for low, high in values.values()):
+        return None, (
+            f"Instrument {name} was tried: over the response-function "
+            f"polytope every quantity asked for is left anywhere in [0, 1], "
+            f"so it rules nothing out here."
+        )
+    return values, None
+
+
+def _instrument_candidates(
+    edges, *, treatment: str, outcome: str,
+) -> set[str]:
+    """Predicates with an edge into the treatment and none into the outcome.
+
+    The instrument's structural half and nothing else: relevance (Z→X) and
+    exclusion (no Z→Y), read off the edges. Whether a candidate has a finite
+    domain to enumerate is a SEPARATE question with a different authority at
+    each door — a declared domain where the answer is a symbolic expression,
+    the recovered theta where it is a table — so each door asks that one for
+    itself. What must not differ between the doors is whether the graph
+    offers an instrument at all, which is why that half is here once.
+    """
+    into_treatment = {frm for frm, to in edges if to == treatment}
+    into_outcome = {frm for frm, to in edges if to == outcome}
+    return (into_treatment - into_outcome) - {treatment, outcome}
+
+
+def _instrument_for_theta_cell(
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+) -> Atom | None:
+    """The one instrument this graph offers for X→Y, or nothing.
+
+    Nothing on a tie, for the reason the effect door refuses one: a graph
+    carrying two valid instruments makes the answer depend on which was
+    picked, and picking is not something the caller asked for.
+    """
+    names = _instrument_candidates(
+        [(frm.predicate, to.predicate) for frm, to in graph.edges()],
+        treatment=x_atom.predicate,
+        outcome=y_atom.predicate,
+    )
+    atoms = [
+        node for node in graph.nodes
+        if node.predicate in names and len(set(theta.domain_of(node))) >= 2
+    ]
+    return atoms[0] if len(atoms) == 1 else None
+
+
+def _sorted_levels(values) -> list:
+    """Level ORDER for the instrument, matching the data end's own rule.
+
+    Position is what the polytope indexes and what the verifier re-reads, so
+    the two ends have to agree about which stratum is which or an honest
+    answer re-derives as a different one.
+    """
+    try:
+        return sorted(values)
+    except TypeError:
+        return sorted(values, key=str)
+
+
+class InstrumentTable(NamedTuple):
+    """``P(X, Y | Z)`` and ``P(Z)`` off theta, as the polytope consumes them.
+
+    Plain Python rather than arrays, because this is also what the envelope
+    carries and what the verifier re-solves; the levels travel WITH the table
+    for the same reason they do on the data end — the table's shape says
+    nothing about which stratum is which.
+    """
+
+    z_levels: tuple
+    p_xyz: tuple
+    p_z: tuple
+
+
+def _instrument_table_from_theta(
+    ancestral: AncestralJoint,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+    z_atom: Atom,
+) -> InstrumentTable | None:
+    """Reduce the recovered ancestral joint to the instrument's table.
+
+    ``None`` when a stratum of Z carries no mass: ``P(X, Y | Z=z)`` is
+    undefined there and the polytope has no table to be fitted to, which is
+    the same refusal the data end raises for an unobserved stratum.
+    """
+    joint = ancestral.marginal((z_atom, x_atom, y_atom))
+    z_levels = _sorted_levels({row[0] for row in joint})
+    p_z = [
+        sum(p for (z_val, _, _), p in joint.items() if z_val == z)
+        for z in z_levels
+    ]
+    if any(mass <= 0.0 for mass in p_z):
+        return None
+    return InstrumentTable(
+        tuple(z_levels),
+        tuple(
+            tuple(
+                tuple(joint.get((z, x_val, y_val), 0.0) / p_z[i]
+                      for y_val in (False, True))
+                for x_val in (False, True)
+            )
+            for i, z in enumerate(z_levels)
+        ),
+        tuple(p_z),
     )
 
 
@@ -2352,7 +2705,7 @@ def _derive_interventional_risks(
     )
     escape = MissingItem(
         kind=MissingKind.ASSUMPTION,
-        name="causation:interventional_risk_unavailable",
+        name=CAUSATION_RISK_ESCAPE,
         priority=Priority.HIGH,
         gap=GapKind.MISSING_ASSUMPTION,
         reason=(
@@ -2370,53 +2723,16 @@ def _derive_interventional_risks(
     return None, tuple(merged_missing) + (escape,), tuple(merged_requests)
 
 
-def _causation_observational_joint(
-    graph: nx.DiGraph,
-    theta: Theta,
-    x_atom: Atom,
-    y_atom: Atom,
-    *,
-    bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
-) -> "tuple[dict[tuple[bool, bool], float] | None, tuple[MissingItem, ...], dict]":
-    """Recover the four P(X=x, Y=y) cells from theta.
 
-    Graph-faithful ancestral BN factorization first — this handles
-    measured confounders (Z→X, Z→Y, X→Y), where the X/Y marginals
-    P(X) / P(Y|X) are NOT directly in theta and must be obtained by
-    summing over Z. Local P(X)·P(Y|X) chain-rule fallback second: the
-    confounded-but-experimental case (drug example) supplies those
-    marginals directly, and the ancestral factorization conservatively
-    bails when a bidirected bow arc touches the ancestry of {X, Y}.
-    """
-    joint, missing, skeletons = (
-        _counterfactual_joint_xy_via_ancestral_factorization(
-            graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
-        )
-    )
-    if joint is not None or missing:
-        return joint, tuple(missing), skeletons
 
-    missing_items: list[MissingItem] = []
-    skel: dict = {}
-    cells: dict[tuple[bool, bool], float] = {}
-    for x_val in (True, False):
-        for y_val in (True, False):
-            try:
-                cells[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
-                    theta, x_atom=x_atom, x_val=x_val,
-                    y_atom=y_atom, y_val=y_val,
-                )
-            except InsufficientTheta as exc:
-                item = _missing_parameter_from_key(
-                    exc.missing_key, exc.reason, gap=exc.gap,
-                )
-                if item.name not in {m.name for m in missing_items}:
-                    missing_items.append(item)
-                    if exc.missing_key is not None:
-                        skel[item.name] = _skeleton_for_parameter(exc.missing_key)
-    if missing_items:
-        return None, tuple(missing_items), skel
-    return cells, (), {}
+CAUSATION_RISK_ESCAPE = "causation:interventional_risk_unavailable"
+"""The gap that stands when no interventional risk is obtainable.
+
+Named because two places need to agree about it: the one that raises it, and
+the one that appends what the instrument route found when it was asked
+instead. A reader deciding what to go and get needs both sentences, and they
+belong on one item rather than two.
+"""
 
 
 def _causation_gap(
@@ -2460,6 +2776,124 @@ def _causation_gap(
         investigation_requests=investigation_pusher.push(
             tuple(merged), skeletons=skeletons,
         ),
+    )
+
+
+def _causation_over_the_instrument(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    theta: Theta,
+    q: CausationQuery,
+    joint: "dict[tuple[bool, bool], float]",
+    ancestral: "AncestralJoint | None",
+    *,
+    joint_skeletons: dict,
+    risk_missing: "tuple[MissingItem, ...]",
+    risk_requests: "tuple[InvestigationRequest, ...]",
+    x_atom: Atom,
+    y_atom: Atom,
+) -> QueryResult:
+    """PN / PS / PNS over the response-type polytope, or the gap that stands.
+
+    Tian-Pearl's closed form consumes both interventional risks as numbers,
+    and where the graph carries a bow arc there are none to be had. The three
+    quantities are then three linear functionals on the same polytope the
+    counterfactual door reads its cell off — PN IS one of that door's cells,
+    so a door that refused here while the other answered, on one theta and
+    one graph, would be the asymmetry this pair exists to not have.
+
+    When the instrument reaches nothing, what it found is appended to the
+    escape rather than dropped: "no risk is obtainable" and "the instrument
+    was asked and here is what happened" are two halves of the same answer to
+    "what do I go and get".
+    """
+    from dataclasses import replace
+
+    from ..response_polytope import causation_response_bounds
+    from ..types import Monotonicity
+
+    route = _instrument_route_from_theta(
+        graph, theta, ancestral, x_atom=x_atom, y_atom=y_atom,
+    )
+    direction = Monotonicity.NON_DECREASING if q.monotonic else None
+    values, note = _over_the_response_polytope(
+        route,
+        lambda p_xyz, p_z: causation_response_bounds(
+            p_xyz, p_z, monotonicity=direction,
+        ),
+    )
+    if values is None:
+        return _causation_gap(
+            stmt,
+            joint_missing=(),
+            joint_skeletons=joint_skeletons,
+            risk_missing=tuple(
+                replace(item, reason=f"{item.reason} {note}")
+                if note and item.name == CAUSATION_RISK_ESCAPE else item
+                for item in risk_missing
+            ),
+            risk_requests=risk_requests,
+        )
+
+    assert route.instrument is not None and route.table is not None
+    licence = stamp(
+        "causation_probability_bounds",
+        RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE,
+    )
+    envelope = {
+        "monotonic": q.monotonic,
+        "interventional_risk_provenance": licence,
+        "instrument": route.instrument.predicate,
+        "p_y_do_x1": None,
+        "p_y_do_x0": None,
+        "observational_joint": {
+            "p_x1_y1": joint[(True, True)], "p_x1_y0": joint[(True, False)],
+            "p_x0_y1": joint[(False, True)], "p_x0_y0": joint[(False, False)],
+        },
+        # A point exactly when the identified set collapses to one, which on
+        # this route is a property of the program's answer rather than of a
+        # second formula: a declared monotonicity restricts the MODEL here,
+        # so it narrows the bounds themselves and in practice leaves no
+        # point. Same rule as the data end, so the two agree on a degenerate
+        # interval instead of one of them calling it a point.
+        **{
+            name: _poc_quantity(
+                low, high, low if abs(high - low) <= 1e-9 else None,
+            )
+            for name, (low, high) in values.items()
+        },
+    }
+    return QueryResult(
+        status=ResultStatus.COUNTERFACTUAL_BOUNDED,
+        query_kind=QueryKind.CAUSATION,
+        query_id=stmt.id,
+        numeric_result=NumericResult(
+            value=None,
+            interval=NumericInterval(
+                low=values["pn"][0], high=values["pn"][1]),
+        ),
+        derivation=(
+            DerivationStep(
+                rule="causation_probability_bounds",
+                inputs={
+                    "cause": x_atom,
+                    "effect": y_atom,
+                    "p_x1_y1": joint[(True, True)],
+                    "p_x1_y0": joint[(True, False)],
+                    "p_x0_y1": joint[(False, True)],
+                    "p_x0_y0": joint[(False, False)],
+                    "monotonic": q.monotonic,
+                    "interventional_risk_provenance": licence,
+                    "instrument": route.instrument.predicate,
+                    "instrument_levels": route.table.z_levels,
+                    "p_xyz": route.table.p_xyz,
+                    "p_z": route.table.p_z,
+                },
+                output=envelope,
+                step_id="s1",
+            ),
+        ),
+        extensions={blocks.CAUSATION: envelope},
     )
 
 
@@ -2539,8 +2973,8 @@ def _dispatch_causation(
     # reached the reader as a list of distributions to go and collect. The
     # same graph WITH theta reports it correctly, which is the tell: what
     # changed was not the graph but how far the code got.
-    joint, joint_missing, joint_skeletons = _causation_observational_joint(
-        graph, theta, x_atom, y_atom, bidirected=bidirected,
+    joint, joint_missing, joint_skeletons, ancestral = _observational_joint_xy(
+        theta, graph, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
     )
     risk_missing: tuple[MissingItem, ...] = ()
     risk_requests: tuple[InvestigationRequest, ...] = ()
@@ -2562,6 +2996,24 @@ def _dispatch_causation(
         # returns before anything reads the two names left unbound here.
         risk_provenance = RiskProvenance.DERIVED_IDENTIFICATION
 
+    if risk_missing and not joint_missing:
+        # Tian-Pearl's closed form has nothing to consume, and this is the
+        # same question the counterfactual door asks — PN is one of its
+        # cells. Asking the instrument here too is not an extra feature: a
+        # door that refused while the other one answered, on one theta and
+        # one graph, is the asymmetry this pair was just built to not have.
+        #
+        # Gated on the joint being in hand, which is not an optimisation: a
+        # theta short of the joint is short of the table too, so the branch
+        # would only reach the same gap by a longer road — and it would get
+        # there holding a joint of None.
+        return _causation_over_the_instrument(
+            stmt, graph, theta, q, joint, ancestral,
+            joint_skeletons=joint_skeletons,
+            risk_missing=risk_missing,
+            risk_requests=risk_requests,
+            x_atom=x_atom, y_atom=y_atom,
+        )
     if joint_missing or risk_missing:
         return _causation_gap(
             stmt,
@@ -2626,7 +3078,7 @@ def _dispatch_causation(
     # 6. Package. The derivation step's output and extensions.causation
     # carry the SAME envelope so the verifier can re-check the whole
     # PN/PS/PNS structure (not just the PN headline) from one place.
-    licence = stamp("probabilities_of_causation_tian_pearl", risk_provenance)
+    licence = stamp("causation_probability_bounds", risk_provenance)
     envelope = {
         "monotonic": q.monotonic,
         "interventional_risk_provenance": licence,
@@ -2655,7 +3107,7 @@ def _dispatch_causation(
 
     derivation = (
         DerivationStep(
-            rule="probabilities_of_causation_tian_pearl",
+            rule="causation_probability_bounds",
             inputs={
                 "cause": x_atom,
                 "effect": y_atom,
@@ -5692,9 +6144,8 @@ def _attach_bounds_result(
     IV detection (Phase 12 §S.12.6 patch): the kernel's IV identification
     pass does NOT run on ADMG-unidentifiable effect queries, so
     extensions.iv_identification is empty in the most common bounds-
-    triggering scenario. We do a lightweight structural check directly:
-    Z is an IV candidate iff there's a cause edge Z→X and no cause edge
-    Z→Y, and Z's variable declaration is bool.
+    triggering scenario. We do a lightweight structural check directly, via
+    the same :func:`_instrument_candidates` the counterfactual door reads.
     """
     from dataclasses import replace as _replace
 
@@ -6247,10 +6698,8 @@ def _detect_iv_candidate_structural(
 ) -> str | None:
     """Lightweight IV candidate detection from program edge structure.
 
-    Returns predicate name of Z iff:
-      - exists cause edge Z→X (X = intervention predicate)
-      - no cause edge Z→Y (Y = target predicate)
-      - Z is declared with a finite domain of at least two levels
+    Returns predicate name of Z iff the structural half holds (Z→X and no
+    Z→Y) and Z is declared with a finite domain of at least two levels.
 
     The domain requirement is about the response-function model needing a
     finite ``z → x`` map to enumerate, not about the instrument being
@@ -6263,28 +6712,19 @@ def _detect_iv_candidate_structural(
     """
     from ..types import CauseStatement, VariableDeclaration
 
-    target_pred = query.target.atom.predicate
-    intervention_pred = query.intervention.atom.predicate
-
-    # Collect predicates with edge → intervention
-    edges_to_intervention: set[str] = set()
-    edges_to_target: set[str] = set()
-    finite_vars: set[str] = set()
-    for s in program.statements:
-        if isinstance(s, CauseStatement):
-            from_pred = s.from_atom.predicate
-            to_pred = s.to_atom.predicate
-            if to_pred == intervention_pred:
-                edges_to_intervention.add(from_pred)
-            if to_pred == target_pred:
-                edges_to_target.add(from_pred)
-        elif isinstance(s, VariableDeclaration):
-            if s.domain is not None and len(set(s.domain)) >= 2:
-                finite_vars.add(s.predicate)
-
-    candidates = (edges_to_intervention - edges_to_target) & finite_vars
-    candidates.discard(intervention_pred)
-    candidates.discard(target_pred)
+    candidates = _instrument_candidates(
+        [
+            (s.from_atom.predicate, s.to_atom.predicate)
+            for s in program.statements
+            if isinstance(s, CauseStatement)
+        ],
+        treatment=query.intervention.atom.predicate,
+        outcome=query.target.atom.predicate,
+    ) & {
+        s.predicate for s in program.statements
+        if isinstance(s, VariableDeclaration)
+        and s.domain is not None and len(set(s.domain)) >= 2
+    }
     if len(candidates) == 1:
         return next(iter(candidates))
     return None

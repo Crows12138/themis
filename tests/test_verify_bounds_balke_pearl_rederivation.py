@@ -28,7 +28,7 @@ from themis.verifier.bounds_rules import (
     _v_response_types,
     _verifier_response_lp,
 )
-from themis.estimation.bounds_numeric import (
+from themis.response_polytope import (
     _arm_objective,
     _contrast_objective,
     _solve_response_lp,

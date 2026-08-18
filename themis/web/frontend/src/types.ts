@@ -206,6 +206,10 @@ export interface LlmProposedReview {
 export interface DerivationStep {
   rule?: string
   step_id?: string | null
+  // Only the one input this surface reads. A step's sentence comes from its
+  // rule, and a rule can carry more than one route; the licence is where the
+  // route is recorded.
+  inputs?: { interventional_risk_provenance?: string }
 }
 export interface Derivation {
   steps?: DerivationStep[]

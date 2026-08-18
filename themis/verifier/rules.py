@@ -4817,7 +4817,7 @@ def _rule_numeric_causation_estimate(
 ) -> None:
     """Independent audit of a data-based PN/PS/PNS (causation) estimate.
 
-    The numeric counterpart of ``probabilities_of_causation_tian_pearl``, but
+    The numeric counterpart of ``causation_probability_bounds``, but
     the observational joint + interventional risks are now EMPIRICAL, so the
     theta-recovery leg does not apply. Three independent re-checks:
 
@@ -6612,10 +6612,51 @@ def _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
 ) -> dict[tuple[bool, bool], float] | None:
     """Verifier-local twin of the scheduler's ancestral BN recovery.
 
-    Keep the same conservative scope: only use directed ancestral
-    factorization when no bidirected edge touches the ancestral
-    subgraph of {X, Y}; otherwise fall back to the older local
-    chain-rule recovery.
+    The chain rule in topological order holds for any joint distribution;
+    what a DAG whose common causes are all measured adds is permission to
+    DROP each factor's non-parents. A bidirected edge takes that permission
+    away and leaves the factorization intact with wider conditioning sets, so
+    this reads the ancestral subgraph either way and only changes what each
+    factor is conditioned on. Falling back to the local chain-rule recovery
+    is for a theta that does not carry the factors, not for a graph that
+    carries a bow.
+    """
+    recovered = _ancestral_joint_for_verifier(
+        graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
+        step_index=step_index, rule=rule,
+    )
+    if recovered is None:
+        return None
+    topo, joint = recovered
+    xi, yi = topo.index(x_atom), topo.index(y_atom)
+    cells: dict[tuple[bool, bool], float] = {
+        (False, False): 0.0,
+        (False, True): 0.0,
+        (True, False): 0.0,
+        (True, True): 0.0,
+    }
+    for row, prob in joint.items():
+        cells[(row[xi], row[yi])] = cells.get((row[xi], row[yi]), 0.0) + prob
+    return cells
+
+
+def _ancestral_joint_for_verifier(
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+    bidirected: frozenset[frozenset[Atom]],
+    step_index: int,
+    rule: str,
+):
+    """``(topo, joint)`` over the ancestral subgraph of {X, Y}, or ``None``.
+
+    Kept whole so the two things audited off it — the four ``P(X, Y)`` cells
+    and, on the instrument route, the ``P(X, Y | Z)`` table — come from one
+    recovery here as they do on the producer's side. Reducing to the cells
+    first would leave the table with nothing to be checked against except the
+    producer's own copy of it.
     """
     ancestral_nodes = (
         nx.ancestors(graph, x_atom)
@@ -6624,30 +6665,35 @@ def _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
     )
     if not ancestral_nodes:
         return None
-    if any(pair & ancestral_nodes for pair in bidirected):
-        return None
 
     subgraph = graph.subgraph(ancestral_nodes).copy()
     topo = tuple(nx.topological_sort(subgraph))
+    may_drop_non_parents = not any(
+        pair & ancestral_nodes for pair in bidirected
+    )
+    conditioning = {
+        atom: (
+            tuple(subgraph.predecessors(atom)) if may_drop_non_parents
+            else topo[:i]
+        )
+        for i, atom in enumerate(topo)
+    }
     required_keys = _required_probability_keys_for_ancestral_joint_for_verifier(
-        subgraph,
         topo=topo,
         theta=theta,
+        conditioning=conditioning,
     )
     for key in required_keys:
         if _recover_boolean_theta_value_for_verifier(theta, key) is None:
             return None
 
-    joint: dict[tuple[bool, bool], float] = {
-        (False, False): 0.0,
-        (False, True): 0.0,
-        (True, False): 0.0,
-        (True, True): 0.0,
-    }
+    joint: dict[tuple, float] = {}
     for assignment in _ancestral_assignments_for_verifier(topo, theta):
         prob = 1.0
         for atom in topo:
-            key = _assignment_probability_key_for_verifier(subgraph, atom, assignment)
+            key = _assignment_probability_key_for_verifier(
+                atom, assignment, conditioning[atom],
+            )
             value = _recover_boolean_theta_value_for_verifier(theta, key)
             if value is None:
                 raise RuleCheckFailed(
@@ -6655,20 +6701,119 @@ def _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
                     step_index=step_index, rule=rule,
                 )
             prob *= value
-        joint[(assignment[x_atom], assignment[y_atom])] += prob
-    return joint
+        row = tuple(assignment[atom] for atom in topo)
+        joint[row] = joint.get(row, 0.0) + prob
+    return topo, joint
+
+
+def _recorded_instrument_table_matches_theta(
+    ctx: VerificationContext,
+    inputs: dict,
+    *,
+    step_index: int,
+    rule: str,
+    x_atom: Atom,
+    y_atom: Atom,
+) -> None:
+    """The recorded ``P(X, Y | Z)`` must be the one theta implies, stratum for
+    stratum, at the levels the step says they are.
+
+    Only this door can ask that: the data end's verifier has the producer's
+    table and no second source for it, so the strongest it can do is check
+    the table is internally a family of distributions and marginalises to the
+    reported joint. Here theta is the second source. That is what makes the
+    LEVELS auditable rather than decorative — permuting them leaves an
+    internally tidy table that marginalises identically whenever P(Z) is
+    symmetric, and the answer it produces is a different one.
+    """
+    import numpy as np
+
+    instrument = inputs.get("instrument")
+    if not isinstance(instrument, str):
+        raise RuleCheckFailed(
+            f"{rule}: the step claims the instrument route but names no "
+            f"instrument",
+            step_index=step_index, rule=rule,
+        )
+    z_atoms = [
+        node for node in ctx.graph.nodes if node.predicate == instrument
+    ]
+    if len(z_atoms) != 1:
+        raise RuleCheckFailed(
+            f"{rule}: {instrument!r} is not one node of this graph",
+            step_index=step_index, rule=rule,
+        )
+    z_atom = z_atoms[0]
+    if ctx.graph.has_edge(z_atom, y_atom) or not ctx.graph.has_edge(z_atom, x_atom):
+        raise RuleCheckFailed(
+            f"{rule}: {instrument!r} is not an instrument on this graph — the "
+            f"route's licence asserts an edge into the treatment and none "
+            f"into the outcome",
+            step_index=step_index, rule=rule,
+        )
+
+    recovered = _ancestral_joint_for_verifier(
+        ctx.graph, ctx.theta, x_atom=x_atom, y_atom=y_atom,
+        bidirected=ctx.bidirected, step_index=step_index, rule=rule,
+    )
+    if recovered is None:
+        raise RuleCheckFailed(
+            f"{rule}: theta does not carry the factors this route's table was "
+            f"built from",
+            step_index=step_index, rule=rule,
+        )
+    topo, joint = recovered
+    if z_atom not in topo:
+        raise RuleCheckFailed(
+            f"{rule}: {instrument!r} is not an ancestor of the cell's "
+            f"variables, so it cannot have conditioned the table",
+            step_index=step_index, rule=rule,
+        )
+    zi, xi, yi = topo.index(z_atom), topo.index(x_atom), topo.index(y_atom)
+
+    levels = list(inputs.get("instrument_levels") or ())
+    P = np.asarray(inputs.get("p_xyz"), dtype=float)
+    p_z = np.asarray(inputs.get("p_z"), dtype=float)
+    for position, z_value in enumerate(levels):
+        mass = sum(p for row, p in joint.items() if row[zi] == z_value)
+        if abs(mass - float(p_z[position])) > 1e-6:
+            raise RuleCheckFailed(
+                f"{rule}: the step reports P(Z={z_value!r}) = "
+                f"{float(p_z[position]):.6g}, but theta gives {mass:.6g}",
+                step_index=step_index, rule=rule,
+            )
+        for x_index, x_value in ((0, False), (1, True)):
+            for y_index, y_value in ((0, False), (1, True)):
+                cell = sum(
+                    p for row, p in joint.items()
+                    if row[zi] == z_value and row[xi] == x_value
+                    and row[yi] == y_value
+                )
+                expected = cell / mass if mass > 0 else 0.0
+                if abs(expected - float(P[position, x_index, y_index])) > 1e-6:
+                    raise RuleCheckFailed(
+                        f"{rule}: the step reports "
+                        f"P(X={x_value}, Y={y_value} | Z={z_value!r}) = "
+                        f"{float(P[position, x_index, y_index]):.6g}, but "
+                        f"theta gives {expected:.6g}",
+                        step_index=step_index, rule=rule,
+                    )
 
 
 def _required_probability_keys_for_ancestral_joint_for_verifier(
-    graph: nx.DiGraph,
     *,
     topo: tuple[Atom, ...],
     theta: Theta,
+    conditioning: dict[Atom, tuple[Atom, ...]],
 ) -> tuple[ProbabilityKey, ...]:
     keys: set[ProbabilityKey] = set()
     for assignment in _ancestral_assignments_for_verifier(topo, theta):
         for atom in topo:
-            keys.add(_assignment_probability_key_for_verifier(graph, atom, assignment))
+            keys.add(
+                _assignment_probability_key_for_verifier(
+                    atom, assignment, conditioning[atom],
+                )
+            )
     return tuple(sorted(keys, key=_probability_key_sort_key_for_verifier))
 
 
@@ -6685,16 +6830,15 @@ def _ancestral_assignments_for_verifier(
 
 
 def _assignment_probability_key_for_verifier(
-    graph: nx.DiGraph,
     atom: Atom,
     assignment: dict[Atom, object],
+    conditioning: tuple[Atom, ...],
 ) -> ProbabilityKey:
     return ProbabilityKey(
         target_atom=atom,
         target_value=assignment[atom],
         given=frozenset(
-            (parent, assignment[parent])
-            for parent in graph.predecessors(atom)
+            (given_atom, assignment[given_atom]) for given_atom in conditioning
         ),
     )
 
@@ -7076,22 +7220,47 @@ def _rule_counterfactual_cell_bounds(
             f"of p_y_do_x_cf",
             step_index=step_index, rule=rule,
         )
-    if risk is None and _cf_cell_needs_risk_for_verifier(ctx.query):
-        raise RuleCheckFailed(
-            f"{rule}: the step declares no interventional risk, but neither "
-            f"consistency nor the declared monotonicity determines this cell",
+    if provenance == "instrument_response_polytope":
+        # A different program, so a different recomputation. The consistency
+        # identity is not it: that route consumes a risk this one declares it
+        # could not obtain, and running it here would audit the answer against
+        # a theorem the producer did not use.
+        joint = _counterfactual_joint_xy_for_verifier(
+            ctx.graph, ctx.theta, ctx.query,
+            bidirected=ctx.bidirected, step_index=step_index, rule=rule,
+        )
+        _recorded_instrument_table_matches_theta(
+            ctx, inputs, step_index=step_index, rule=rule,
+            x_atom=ctx.query.observed.atom,
+            y_atom=ctx.query.counterfactual_target.atom,
+        )
+        low, high = _rederive_cell_over_response_polytope(
+            ctx, inputs, ctx.query, joint,
             step_index=step_index, rule=rule,
         )
-
-    expected = _expected_counterfactual_numeric_result(
-        ctx.graph,
-        ctx.query,
-        ctx.theta,
-        bidirected=ctx.bidirected,
-        p_y_do_x_cf=risk,
-        step_index=step_index,
-        rule=rule,
-    )
+        expected = NumericResult(
+            value=low if low == high else None,
+            interval=(
+                None if low == high else NumericInterval(low=low, high=high)
+            ),
+        )
+    else:
+        if risk is None and _cf_cell_needs_risk_for_verifier(ctx.query):
+            raise RuleCheckFailed(
+                f"{rule}: the step declares no interventional risk, but "
+                f"neither consistency nor the declared monotonicity "
+                f"determines this cell",
+                step_index=step_index, rule=rule,
+            )
+        expected = _expected_counterfactual_numeric_result(
+            ctx.graph,
+            ctx.query,
+            ctx.theta,
+            bidirected=ctx.bidirected,
+            p_y_do_x_cf=risk,
+            step_index=step_index,
+            rule=rule,
+        )
     if not _numeric_result_matches(claimed_output, expected):
         raise RuleCheckFailed(
             f"{rule} claimed output does not match the recomputed cell",
@@ -7102,15 +7271,17 @@ def _rule_counterfactual_cell_bounds(
 _NUMERIC_COUNTERFACTUAL_CELL_METHODS = frozenset({"counterfactual_cell_plugin"})
 
 _RISK_PROVENANCES_BY_RULE: dict[str, frozenset[str]] = {
-    "probabilities_of_causation_tian_pearl": frozenset({
-        "derived_identification", "user_experimental",
+    "causation_probability_bounds": frozenset({
+        "derived_identification", "instrument_response_polytope",
+        "user_experimental",
     }),
     "numeric_causation_estimate": frozenset({
         "exogenous", "backdoor_adjustment", "general_id_plug_in",
         "instrument_response_polytope", "user_experimental",
     }),
     "counterfactual_cell_bounds": frozenset({
-        "not_required", "derived_identification", "user_experimental",
+        "not_required", "instrument_response_polytope",
+        "derived_identification", "user_experimental",
     }),
     "numeric_counterfactual_cell_estimate": frozenset({
         "not_required", "pinned_by_monotonicity",
@@ -7958,7 +8129,115 @@ def _tian_pearl_poc_for_verifier(
     }
 
 
-def _rule_probabilities_of_causation_tian_pearl(
+def _check_causation_over_the_polytope(
+    ctx: VerificationContext,
+    inputs: dict,
+    claimed_output: Any,
+    declared_cells: dict,
+    monotonic: bool,
+    *,
+    step_index: int,
+    rule: str,
+) -> None:
+    """The theta-side polytope branch of the causation rule.
+
+    Re-derives the three programs from the recorded ``P(X, Y | Z)`` — against
+    the verifier's own objectives — and, because this door has theta as a
+    SECOND source for that table, first checks the table is the one theta
+    implies, stratum by stratum at the levels the step names. The data end
+    cannot make that check; here the levels are auditable rather than
+    decorative.
+    """
+    _counterfactual_joint_xy_for_verifier_by_atoms(
+        ctx, declared_cells, step_index=step_index, rule=rule,
+    )
+    _recorded_instrument_table_matches_theta(
+        ctx, inputs, step_index=step_index, rule=rule,
+        x_atom=ctx.query.cause, y_atom=ctx.query.effect,
+    )
+    recomputed = _rederive_causation_over_response_polytope(
+        ctx, inputs,
+        {
+            "p_x1_y1": declared_cells[(True, True)],
+            "p_x1_y0": declared_cells[(True, False)],
+            "p_x0_y1": declared_cells[(False, True)],
+            "p_x0_y0": declared_cells[(False, False)],
+        },
+        monotonic, step_index=step_index, rule=rule,
+    )
+    for qty in ("pn", "ps", "pns"):
+        claimed_q = claimed_output.get(qty)
+        if not isinstance(claimed_q, dict):
+            raise RuleCheckFailed(
+                f"{rule}: envelope is missing the {qty} block",
+                step_index=step_index, rule=rule,
+            )
+        exp_lo, exp_hi, exp_pt = recomputed[qty]
+        if (
+            abs(float(claimed_q.get("lower")) - exp_lo) > _NUMERIC_TOL
+            or abs(float(claimed_q.get("upper")) - exp_hi) > _NUMERIC_TOL
+        ):
+            raise RuleCheckFailed(
+                f"{rule}: {qty} bounds [{claimed_q.get('lower')}, "
+                f"{claimed_q.get('upper')}] != recomputed [{exp_lo}, {exp_hi}]",
+                step_index=step_index, rule=rule,
+            )
+        claimed_pt = claimed_q.get("point")
+        if exp_pt is None:
+            if claimed_pt is not None:
+                raise RuleCheckFailed(
+                    f"{rule}: {qty} claims a point ({claimed_pt}) while the "
+                    f"identified set the program returns is an interval",
+                    step_index=step_index, rule=rule,
+                )
+        elif claimed_pt is None or abs(float(claimed_pt) - exp_pt) > _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"{rule}: {qty} point {claimed_pt} != recomputed {exp_pt}",
+                step_index=step_index, rule=rule,
+            )
+    for absent in ("p_y_do_x1", "p_y_do_x0"):
+        if claimed_output.get(absent) is not None:
+            raise RuleCheckFailed(
+                f"{rule}: the envelope reports {absent} beside a licence that "
+                f"claims no interventional risk was point-identified",
+                step_index=step_index, rule=rule,
+            )
+
+
+def _counterfactual_joint_xy_for_verifier_by_atoms(
+    ctx: VerificationContext,
+    declared_cells: dict,
+    *,
+    step_index: int,
+    rule: str,
+) -> dict:
+    """The four cells recomputed from theta, checked against the declared."""
+    recomputed = _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
+        ctx.graph, ctx.theta,
+        x_atom=ctx.query.cause, y_atom=ctx.query.effect,
+        bidirected=ctx.bidirected, step_index=step_index, rule=rule,
+    )
+    if recomputed is None:
+        recomputed = {
+            (xv, yv): _counterfactual_joint_cell_for_verifier(
+                ctx.theta,
+                x_atom=ctx.query.cause, x_val=xv,
+                y_atom=ctx.query.effect, y_val=yv,
+                step_index=step_index, rule=rule,
+            )
+            for xv in (False, True) for yv in (False, True)
+        }
+    for key, declared in declared_cells.items():
+        if abs(declared - recomputed[key]) > _NUMERIC_TOL:
+            raise RuleCheckFailed(
+                f"{rule}: declared joint cell {key}={declared} != "
+                f"theta-recovered {recomputed[key]}",
+                step_index=step_index, rule=rule,
+            )
+    return recomputed
+
+
+def _rule_causation_probability_bounds(
     ctx: VerificationContext,
     inputs: dict,
     claimed_output: Any,
@@ -7987,7 +8266,7 @@ def _rule_probabilities_of_causation_tian_pearl(
     application, and internal consistency. The risks are validated as
     probabilities but not re-identified here.
     """
-    rule = "probabilities_of_causation_tian_pearl"
+    rule = "causation_probability_bounds"
     if not isinstance(ctx.query, CausationQuery):
         raise RuleCheckFailed(
             f"{rule} requires a CausationQuery context",
@@ -8018,12 +8297,31 @@ def _rule_probabilities_of_causation_tian_pearl(
         (False, True): float(_require(inputs, "p_x0_y1", step_index, rule)),
         (False, False): float(_require(inputs, "p_x0_y0", step_index, rule)),
     }
-    p_y_do_x1 = float(_require(inputs, "p_y_do_x1", step_index, rule))
-    p_y_do_x0 = float(_require(inputs, "p_y_do_x0", step_index, rule))
     monotonic = bool(_require(inputs, "monotonic", step_index, rule))
     provenance = _check_risk_provenance(
         inputs, ctx, None, step_index=step_index, rule=rule,
     )
+
+    # The two solvers behind this one rule diverge here, and the licence is
+    # what says which ran. Tian-Pearl's closed form consumes both arms; the
+    # response-function program consumes none, so requiring them of it would
+    # audit an answer against a theorem the producer did not use.
+    if provenance == "instrument_response_polytope":
+        for absent in ("p_y_do_x1", "p_y_do_x0"):
+            if inputs.get(absent) is not None:
+                raise RuleCheckFailed(
+                    f"{rule}: {absent} is reported beside a licence that "
+                    f"claims no interventional risk was point-identified",
+                    step_index=step_index, rule=rule,
+                )
+        _check_causation_over_the_polytope(
+            ctx, inputs, claimed_output, declared_cells, monotonic,
+            step_index=step_index, rule=rule,
+        )
+        return
+
+    p_y_do_x1 = float(_require(inputs, "p_y_do_x1", step_index, rule))
+    p_y_do_x0 = float(_require(inputs, "p_y_do_x0", step_index, rule))
 
     # 1. Interventional risks must be probabilities.
     for label, v in (("p_y_do_x1", p_y_do_x1), ("p_y_do_x0", p_y_do_x0)):
@@ -9346,7 +9644,7 @@ _SIMPLE_RULES: dict[str, Callable[..., None]] = {
     # Phase 5 §C
     "counterfactual_cell_bounds": _rule_counterfactual_cell_bounds,
     # Probabilities of causation — PN / PS / PNS (Tian & Pearl 2000)
-    "probabilities_of_causation_tian_pearl": _rule_probabilities_of_causation_tian_pearl,
+    "causation_probability_bounds": _rule_causation_probability_bounds,
     # Data-based PN/PS/PNS — numeric counterpart (empirical joint + g-formula
     # do-risks → the same Tian-Pearl theorem, re-derived independently).
     "numeric_causation_estimate": _rule_numeric_causation_estimate,

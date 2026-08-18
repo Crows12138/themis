@@ -112,7 +112,7 @@ def test_the_causation_block_carries_the_union_of_both_causation_rules():
     assert _enum_at(
         "properties", "extensions", "properties", "causation", "properties",
     ) == {str(p) for p in risk_provenance.carried_by(
-        "probabilities_of_causation_tian_pearl", "numeric_causation_estimate",
+        "causation_probability_bounds", "numeric_causation_estimate",
     )}
 
 
@@ -141,7 +141,11 @@ def _web_map() -> dict[str, str]:
 
 
 def _half_width(text: str) -> str:
-    for full, half in (("，", ","), ("（", "("), ("）", ")")):
+    # Kept equal to the twin table in ``test_web_vocabularies``: the two used
+    # to differ, so a divergence one gate caught the other read as agreement.
+    for full, half in (
+        ("，", ","), ("；", ";"), ("：", ":"), ("（", "("), ("）", ")"),
+    ):
         text = text.replace(full, half)
     return text
 

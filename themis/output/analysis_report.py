@@ -1252,14 +1252,25 @@ def _render_derivation_chain(result: dict) -> str:
     Rendered for every result that has one, not as a fallback when the
     blocks said nothing. A fallback would hide exactly this: a path whose
     blocks say a little would keep looking answered.
+
+    A step's sentence comes from its RULE, and a rule can have more than one
+    route through it — the counterfactual cell reaches an interval by a
+    consistency identity or over an instrument's response polytope under the
+    same rule name. Which one ran is in the step's licence, and where the
+    step recorded one it is said here, because a sentence covering both
+    routes is the most a rule-keyed glossary can honestly be.
     """
     steps = (result.get("derivation") or {}).get("steps") or []
     if not steps:
         return ""
-    said = [
-        f"  {i}. {derivation_glossary.describe(step.get('rule'))}"
-        for i, step in enumerate(steps, 1)
-    ]
+    said = []
+    for i, step in enumerate(steps, 1):
+        line = f"  {i}. {derivation_glossary.describe(step.get('rule'))}"
+        licence = (step.get("inputs") or {}).get(
+            "interventional_risk_provenance")
+        if licence:
+            line += f"——{risk_provenance.describe(licence)}"
+        said.append(line)
     return "\n".join(["- **推导链**（每一步都可被独立重导）："] + said)
 
 

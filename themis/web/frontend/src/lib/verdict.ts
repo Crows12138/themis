@@ -547,8 +547,8 @@ const DERIVATION_SAYS: Record<string, string> = {
   transport_formula: '写下 Bareinboim 迁移公式：源总体的条件效应，按目标总体的协变量分布重新加权',
   transport_formula_ast: '写下迁移公式的具体表达式',
   formula_evaluation: '把 θ 代入识别公式求值',
-  probabilities_of_causation_tian_pearl: '从 θ 按 Tian-Pearl(2000) 公式求 PN/PS/PNS',
-  counterfactual_cell_bounds: '从 θ 用一条一致性恒等式解出这一格反事实的可识别区间',
+  causation_probability_bounds: '从 θ 求 PN/PS/PNS：两个干预风险都拿得到时用 Tian-Pearl(2000) 公式，拿不到而图上有工具变量时改在响应函数多面体上求解',
+  counterfactual_cell_bounds: '从 θ 解出这一格反事实的可识别区间：干预风险拿得到时用一条一致性恒等式，拿不到而图上有工具变量时改在响应函数多面体上求解',
   scm_abduction_action_prediction: '按你声明的结构方程系数：从该个体的观测值反推它自己的外生扰动（abduction）、施加干预（action）、再沿方程重算目标（prediction）',
   iv_wald_numeric_evaluate: '按工具变量的条件集分层，逐层求 Wald 比',
   mediation_numeric_evaluate: '求出各条中介分解量（NDE / NIE / CDE）',
@@ -759,10 +759,20 @@ export function derivationRows(derivation: Derivation | undefined): Section | nu
   if (!steps.length) return null
   return {
     cap: '推导链 · 每一步都可被独立重导',
-    rows: steps.map((step, i) => ({
-      label: `第 ${i + 1} 步`,
-      value: DERIVATION_SAYS[String(step.rule)] ?? `\`${step.rule}\``,
-    })),
+    rows: steps.map((step, i) => {
+      // A rule can have more than one route through it — the counterfactual
+      // cell reaches an interval by a consistency identity or over an
+      // instrument's response polytope under the same rule name. Which one
+      // ran is the step's licence, and a rule-keyed sentence cannot say it.
+      const said = DERIVATION_SAYS[String(step.rule)] ?? `\`${step.rule}\``
+      const how = RISK_PROVENANCE_ZH[
+        step.inputs?.interventional_risk_provenance ?? ''
+      ]
+      return {
+        label: `第 ${i + 1} 步`,
+        value: how ? `${said} · ${how}` : said,
+      }
+    }),
   }
 }
 

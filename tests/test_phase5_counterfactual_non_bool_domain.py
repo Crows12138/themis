@@ -1,7 +1,7 @@
 """Phase 5 §C: non-boolean domain counterfactual degrades to outside_language
 instead of crashing the kernel.
 
-Regression for the bug where `_counterfactual_joint_xy` was called
+Regression for the bug where `_observational_joint_xy` was called
 outside the try/except that catches `CounterfactualBoundsError`, so a
 categorical-domain program propagated a raw exception out of
 `themis.run`.

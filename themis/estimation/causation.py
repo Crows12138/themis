@@ -87,11 +87,13 @@ from .binary_do_risk import (
     observational_joint_xy,
 )
 from .bounds_numeric import (
-    causation_response_bounds,
     counterfactual_cell_iv_table,
+    sorted_levels,
+)
+from ..response_polytope import (
+    causation_response_bounds,
     polytope_preconditions,
     polytope_sufficient_statistic,
-    sorted_levels,
 )
 from .contract import validate_data
 from .general_id import (

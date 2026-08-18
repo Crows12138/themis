@@ -6,7 +6,9 @@ the observational joint P(X, Y) symbolically, obtains the one interventional
 risk P(Y=1 | do(x')) the cell depends on by running the effect identification,
 and hands both to
 :func:`themis.runtime.counterfactual.counterfactual_cell_interval` — whose one
-linear consistency identity covers every cell.
+linear consistency identity covers every cell. Where the graph leaves no risk to
+be had it reaches the same instrument route this module does, over the same
+program, from the ``P(X, Y | Z)`` its own recovery produces.
 
 This module is the DATA counterpart: it plugs EMPIRICAL estimates of exactly
 those inputs into the SAME solver and adds a non-parametric percentile
@@ -22,7 +24,7 @@ interventional risk is not point-identified but the graph carries an
 instrument, the cell is bounded directly over the response-type distributions
 that reproduce ``P(X, Y | Z)`` — the polytope Balke-Pearl's arm bounds are read
 off, with the cell as another linear functional on it
-(:func:`themis.estimation.bounds_numeric.counterfactual_cell_response_bounds`).
+(:func:`themis.response_polytope.counterfactual_cell_response_bounds`).
 Feeding the arm's INTERVAL through the identity instead would also be valid and
 is strictly weaker: the identity consumes the risk as a scalar, and a scalar
 cannot carry the requirement that one distribution produce both the risk and
@@ -97,10 +99,12 @@ from .binary_do_risk import (
 )
 from .bounds_numeric import (
     counterfactual_cell_iv_table,
+    sorted_levels,
+)
+from ..response_polytope import (
     counterfactual_cell_response_bounds,
     polytope_preconditions,
     polytope_sufficient_statistic,
-    sorted_levels,
 )
 from .contract import validate_data
 from ..refusals import Refusal

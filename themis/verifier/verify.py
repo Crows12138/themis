@@ -3540,7 +3540,7 @@ def verify_causation(
 ) -> None:
     """Verify a probabilities-of-causation (PN/PS/PNS) derivation.
 
-    The single ``probabilities_of_causation_tian_pearl`` rule
+    The single ``causation_probability_bounds`` rule
     independently re-checks the observational joint (from theta) and
     re-derives the Tian-Pearl bounds/points, auditing the whole envelope.
     Here we additionally cross-check that the claimed headline
@@ -3560,10 +3560,10 @@ def verify_causation(
 
     _walk(derivation, context, _assert_causation_query_binding)
 
-    if derivation[-1].rule != "probabilities_of_causation_tian_pearl":
+    if derivation[-1].rule != "causation_probability_bounds":
         raise VerificationError(
             "causation derivation must end in "
-            "'probabilities_of_causation_tian_pearl'",
+            "'causation_probability_bounds'",
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
 
