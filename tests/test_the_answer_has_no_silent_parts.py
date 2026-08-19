@@ -18,6 +18,17 @@ over-identification test, not a confidence set with seven shapes, not a
 four-way decomposition. Each is a section, not a digit of the number the
 surfaces already print.
 
+Asking produced two different answers, and the split is the useful part.
+Six qualify the interval above them and became shared lines under every
+headline. Ten say what the estimator did with the data — which is the
+other half of the question the section titled "怎么算出来的" already asks,
+and the half its binding could not reach, because that binding is over the
+``extensions`` map and these are fields. One was neither: an ``inference``
+block restating, from a third direction, two facts the envelope already
+carried from the two the cluster audit is built on. It was deleted rather
+than rendered; a part that reaches no reader is not always a part that
+needs one.
+
 So the question is asked here, of that container, one row per part. The
 rows are not in :mod:`themis.blocks` because these names already exist in
 exactly one place — the result schema — and a second Python declaration of
@@ -35,11 +46,18 @@ comment satisfies is the guard :mod:`themis.blocks` already had and had to
 replace.
 
 WHAT THIS DOES NOT CHECK. That the sentence a renderer produces is ABOUT
-the part it read — no static check can — and that both surfaces render it
-rather than one. Per-surface parity for the ``extensions`` map is what
-``RENDERED_BLOCKS`` and ``blocks.bind`` hold from either end; for this
-container the rows record which surfaces reach it, so an asymmetry is
-visible in the table, and closing one is its own item.
+the part it read — no static check can. The pins below narrow that for the
+parts this file was written around: each builds an envelope carrying one
+part and asks the report for a phrase only a renderer reading that part
+could produce.
+
+Per-surface parity is checked for the ten computation details and not for
+the rest. It is checkable there because both surfaces dispatch them from a
+table, so the two tables can be held equal, in order, with no third list to
+go stale. Elsewhere a row records which surfaces reach a part and an
+asymmetry is visible in the table rather than caught by it — the same
+standing gap ``RENDERED_BLOCKS`` and ``blocks.bind`` close for the
+``extensions`` map from either end.
 """
 from __future__ import annotations
 
@@ -82,6 +100,11 @@ class Part:
 _REPORT_META = "analysis_report._estimate_meta"
 _WEB_META = "verdict.ts:estimateMeta"
 _WEB_ANSWER = "verdict.ts:answerRows"
+#: The browser states the ten computation details as one keyed table, the way
+#: it states routes and answers; the report states them as ten functions. Two
+#: spellings of the same thing, because that is how each surface already
+#: declares a dispatch.
+_WEB_DETAIL = "verdict.ts:NUMERIC_DETAIL_RENDERERS"
 
 PARTS: dict[str, Part] = {
     # --- the shared lines under every headline ------------------------------
@@ -157,92 +180,81 @@ PARTS: dict[str, Part] = {
                      _WEB_ANSWER),
     ),
 
+    # --- how the number was computed, in the section that asks -------------
+    #
+    # These say what the estimator did with the data, which is the other half
+    # of "怎么算出来的" — the half that section's binding could not reach,
+    # because it is bound to ``extensions`` and these are fields.
+    "stratified_wald": Part(
+        holds="the per-stratum table the ratio of averages was aggregated "
+              "from",
+        rendered_by=("analysis_report._detail_stratified_wald", _WEB_DETAIL),
+    ),
+    "recovered_ate": Part(
+        holds="the back-door ATE recovered from data with missing values, "
+              "beside the listwise-deletion estimate it corrects",
+        rendered_by=("analysis_report._detail_recovered_ate", _WEB_DETAIL),
+    ),
+    "selection_recovery_numeric": Part(
+        holds="the detail behind an ATE recovered from selection bias",
+        rendered_by=("analysis_report._detail_selection_recovery_numeric",
+                     _WEB_DETAIL),
+    ),
+    "measurement_correction": Part(
+        holds="the misclassification-matrix inversion behind a corrected "
+              "estimate",
+        rendered_by=("analysis_report._detail_measurement_correction",
+                     _WEB_DETAIL),
+    ),
+    "regression_calibration": Part(
+        holds="the continuous-exposure analogue of that correction",
+        rendered_by=("analysis_report._detail_regression_calibration",
+                     _WEB_DETAIL),
+    ),
+    "longitudinal_gformula": Part(
+        holds="the time-ordered treatment strategy contrast by g-computation",
+        rendered_by=("analysis_report._detail_longitudinal_gformula",
+                     _WEB_DETAIL),
+    ),
+    "longitudinal_ipw_msm": Part(
+        holds="the same strategy contrast by a marginal structural model",
+        rendered_by=("analysis_report._detail_longitudinal_ipw_msm",
+                     _WEB_DETAIL),
+    ),
+    "four_way_decomposition": Part(
+        holds="VanderWeele's split of the total effect into mediation, "
+              "interaction, both and neither",
+        rendered_by=("analysis_report._detail_four_way_decomposition",
+                     _WEB_DETAIL),
+    ),
+    "four_way_ratio": Part(
+        holds="the same decomposition on the excess-relative-risk scale",
+        rendered_by=("analysis_report._detail_four_way_ratio", _WEB_DETAIL),
+    ),
+    "four_way_unavailable": Part(
+        holds="why the difference-scale four-way was not valid here",
+        rendered_by=("analysis_report._detail_four_way_unavailable",
+                     _WEB_DETAIL),
+    ),
+
     # --- not for a reader ---------------------------------------------------
     "node_fits": Part(
         holds="the per-node fitted structural equations and their OLS "
               "moment matrices",
         consumed_by="themis.verifier.verify",
     ),
-
-    # --- read by nobody, and what the reader gets instead --------------------
-    #
-    # Each of these is a section the reader does not get. The claim in each
-    # row is only that the number the part stands behind does reach them;
-    # what is lost is named, so the row can be argued with. Registered as
-    # one follow-up rather than nine.
-    "stratified_wald": Part(
-        holds="the per-stratum table the ratio of averages was aggregated "
-              "from",
-        unrendered="The reader gets the aggregate and, from the stratified "
-                   "AR set, the number of strata. Which cell is pulling the "
-                   "ratio is not shown.",
-    ),
-    "measurement_correction": Part(
-        holds="the misclassification-matrix inversion behind a corrected "
-              "estimate",
-        unrendered="The reader gets the corrected point and the ledger line "
-                   "saying a declared matrix corrected it. How far the "
-                   "correction moved the number is not shown.",
-    ),
-    "regression_calibration": Part(
-        holds="the continuous-exposure analogue of that correction",
-        unrendered="As its discrete twin: the corrected point reaches the "
-                   "reader, the size of the correction does not.",
-    ),
-    "selection_recovery_numeric": Part(
-        holds="the detail behind an ATE recovered from selection bias",
-        unrendered="The recovered ATE is the headline. Which selection "
-                   "values it conditioned on, and against which reference "
-                   "sample, are not shown.",
-    ),
-    "recovered_ate": Part(
-        holds="the back-door ATE recovered from data with missing values, "
-              "beside the listwise-deletion estimate it corrects",
-        unrendered="The recovered point is the headline. "
-                   "`naive_listwise_ate` — the biased number a reader would "
-                   "otherwise have computed, which is the whole argument for "
-                   "the method — is not shown.",
-    ),
     "bootstrap": Part(
-        holds="the resampling that produced the interval",
-        unrendered="The interval it produced IS the headline CI, and the "
-                   "precision line is about it. The replicate count and "
-                   "scheme are not shown.",
-    ),
-    "inference": Part(
-        holds="which inferential scheme the interval came from — "
-              "cluster-robust and its variants",
-        unrendered="The interval reaches the reader; what kind of interval "
-                   "it is does not, on any surface, and no verifier rule "
-                   "reads it either. Of everything in this table it is the "
-                   "one with no reader at all.",
-    ),
-    "longitudinal_gformula": Part(
-        holds="the time-ordered treatment strategy contrast by g-computation",
-        unrendered="The point and interval are the headline. The strategies "
-                   "being contrasted, and the confounders at each time, are "
-                   "not shown.",
-    ),
-    "longitudinal_ipw_msm": Part(
-        holds="the same strategy contrast by a marginal structural model",
-        unrendered="As its twin — and the fact that the two are INDEPENDENT "
-                   "routes to one contrast, so that agreeing or disagreeing "
-                   "is itself a finding, reaches nobody.",
-    ),
-    "four_way_decomposition": Part(
-        holds="VanderWeele's split of the total effect into mediation, "
-              "interaction, both and neither",
-        unrendered="Nothing of it reaches the reader; the total effect "
-                   "does.",
-    ),
-    "four_way_ratio": Part(
-        holds="the same decomposition on the excess-relative-risk scale",
-        unrendered="As its difference-scale twin.",
-    ),
-    "four_way_unavailable": Part(
-        holds="why the difference-scale four-way was not valid here",
-        unrendered="The reader sees no four-way decomposition and is not "
-                   "told that one was attempted, nor why it was withheld.",
+        holds="that the interval resampled whole clusters, and which column "
+              "it clustered on",
+        # Written by the dispatch layer as an assertion, and read as one: the
+        # cluster audit holds it against what the run resolved and against
+        # what the estimator declared, so a claim of cluster-robustness with
+        # no run-level basis is rejected rather than believed. The reader
+        # gets the fact from the estimator's own declaration, which the
+        # assumption ledger states in words. This row said nobody read it,
+        # which was wrong in the direction the check below cannot see:
+        # ``consumed_by`` is verified, ``unrendered`` only against surfaces.
+        consumed_by="themis.verifier.cluster_inference_rules",
     ),
 }
 
@@ -487,6 +499,198 @@ def test_the_robust_set_is_the_one_reported_when_both_are_there():
     assert "[0.9" not in text
 
 
+def test_both_surfaces_dispatch_the_same_details_in_the_same_order():
+    """The parity check that is available here and nowhere else in this file.
+
+    Both surfaces state the computation details from a table, so the tables
+    can be held equal without writing a third list of the names to hold them
+    against. Order as well as membership: a reader comparing the report and
+    the browser on one envelope is reading one argument, and two orders make
+    that a reconciliation.
+    """
+    from themis.output import analysis_report
+
+    report = [name for name, _ in analysis_report._NUMERIC_DETAIL_RENDERERS]
+    source = web_source.read(web_source.VERDICT)
+    browser = re.findall(
+        r"'([^']+)'", web_source.literal("NUMERIC_DETAIL_ORDER", source))
+    assert report == browser, (
+        f"the two surfaces disagree about which computation details to state, "
+        f"or in what order: report={report} browser={browser}"
+    )
+    bound = web_source.top_level_keys(
+        web_source.literal("NUMERIC_DETAIL_RENDERERS", source))
+    assert bound == set(report), (
+        f"the browser's detail order and its renderers disagree: "
+        f"order-only={sorted(set(report) - bound)}, "
+        f"renderer-only={sorted(bound - set(report))}"
+    )
+
+
+#: One envelope per computation detail, and what a reader must find in the
+#: report. The rows check that a renderer reads the key; these check that
+#: reading it produces the sentence the row promised — the stratum, the
+#: uncorrected number, the route that was not run.
+_DETAIL_SAYS: tuple[
+    tuple[str, str, dict, tuple[str, ...], tuple[str, ...]], ...] = (
+    (
+        "a stratum table says which cell carries what weight",
+        "iv_stratified_wald",
+        {"stratified_wald": {
+            "conditioning_order": ["age"],
+            "outcome_shift": 0.24, "treatment_shift": 0.4,
+            "strata": [{"values": ["old"], "weight": 0.6, "n_obs": 600,
+                        "n_instrument_high": 300, "n_instrument_low": 300,
+                        "outcome_shift": 0.3, "treatment_shift": 0.5}],
+        }},
+        ("分层 Wald 的逐格明细", "age=old", "不是各格比值的平均"),
+        # Not ``stratified_wald`` — the method line legitimately prints
+        # ``iv_stratified_wald``, and a forbidden token that the estimator's
+        # own name contains would fail for the wrong reason.
+        ("conditioning_order", "n_instrument_high"),
+    ),
+    (
+        "the listwise number the recovery corrects is shown beside it",
+        "missing_data_recovery_gformula",
+        {"recovered_ate": {
+            "point": 0.42, "naive_listwise_ate": 0.91,
+            "adjustment": ["z"], "n_total": 1000, "n_complete_case": 410,
+            "n_conditional_rows": 830, "n_marginal_rows": 950,
+            "n_strata": 4, "missing_columns": ["z"], "n_bootstrap": 200,
+        }},
+        ("列表删除法", "0.91", "全部的作用"),
+        ("naive_listwise_ate",),
+    ),
+    (
+        "a recovery from selection bias names the external sample it leans on",
+        "selection_backdoor_recovery",
+        {"selection_recovery_numeric": {
+            "reference_sample_size": 2200, "reference_data_hash": "h",
+            "z_plus": ["z1"], "z_minus": ["z2"],
+            "selected_values": {"s": 1},
+            "mu_treated": 0.7, "mu_control": 0.3,
+        }},
+        ("外部参照样本", "只能从外部样本估", "代表未被筛过的人群"),
+        ("z_minus",),
+    ),
+    (
+        "a misclassification correction says how far it moved the number",
+        "measurement_error_correction",
+        {"measurement_correction": {
+            "side": "exposure", "naive_point": 0.2, "det": 0.04,
+            "out_of_simplex": True, "differential": False,
+            "states": [0, 1], "target_value": 1,
+            "sufficient_statistics": {},
+        }},
+        ("暴露被误分类", "校正把这个数挪了", "概率单纯形之外"),
+        ("out_of_simplex",),
+    ),
+    (
+        "regression calibration states the reliability the correction divides by",
+        "regression_calibration",
+        {"regression_calibration": {
+            "naive_point": 0.3, "reliability": 0.6, "error_variance": 0.4,
+            "error_variances": {"w": 0.4}, "exposure": "w",
+            "design_vars": ["w", "z"], "sufficient_statistics": {},
+        }},
+        ("可靠度 λ", "把衰减除回去", "不是从数据里估的"),
+        (),
+    ),
+    (
+        "the g-formula route names the route that was not run beside it",
+        "longitudinal_gformula",
+        {"longitudinal_gformula": {
+            "point": 0.5, "treatments": ["a1", "a2"],
+            "confounders_by_time": [["l1"], ["l2"]], "outcome": "y",
+            "strategy_treated": 1, "strategy_control": 0,
+            "e_y_treated": 0.8, "e_y_control": 0.3,
+            "n_sim": 5000, "n_bootstrap": 200,
+        }},
+        ("纵向 g-公式", "第 2 时点调整", "一致与否本身就是一个发现"),
+        ("longitudinal_ipw_msm",),
+    ),
+    (
+        "the MSM route says when a few subjects carry the estimate",
+        "longitudinal_ipw_msm",
+        {"longitudinal_ipw_msm": {
+            "point": 0.5, "treatments": ["a1"], "confounders_by_time": [["l1"]],
+            "outcome": "y", "strategy_treated": 1, "strategy_control": 0,
+            "e_y_treated": 0.8, "e_y_control": 0.3, "stabilized": True,
+            "msm_coefficients": [0.1, 0.5], "weight_mean": 1.02,
+            "weight_max": 38.0, "n_bootstrap": 200,
+        }},
+        ("纵向 IPW 边缘结构模型", "稳定化权重", "少数个体在主导这个数"),
+        ("msm_coefficients",),
+    ),
+    (
+        "the four-way split names its four parts rather than four acronyms",
+        "mediation_linear_imai",
+        {"decomposition": {"te": {"point": 1.0}},
+         "four_way_decomposition": {
+             "cde": {"point": 0.4}, "intref": {"point": 0.1},
+             "intmed": {"point": 0.2}, "pie": {"point": 0.3},
+             "te": {"point": 1.0}, "prop_mediated": {"point": 0.5},
+             "prop_interaction": {"point": 0.3},
+             "additive_interaction": 0.15, "scale": "difference",
+         }},
+        ("纯直接（CDE）", "既靠交互，又靠处理确实改变了中介",
+         "交互那部分改中介去不掉"),
+        ("intref", "intmed"),
+    ),
+    (
+        "the ratio-scale split says which closed form produced it",
+        "mediation_logit_imai",
+        {"decomposition": {"te": {"point": 1.0}},
+         "four_way_ratio": {
+             "mediator_scale": "binary",
+             "err_cde": {"point": 0.4}, "err_intref": {"point": 0.1},
+             "err_intmed": {"point": 0.2}, "err_pie": {"point": 0.3},
+             "total_err": {"point": 1.0}, "total_rr": {"point": 2.0},
+             "prop_mediated": {"point": 0.5},
+             "prop_interaction": {"point": 0.3},
+             "prop_eliminated": {"point": 0.4},
+             "coefficients": {},
+         }},
+        ("超额相对风险", "eAppendix §3.4", "把中介固定住能消掉的比例"),
+        ("mediator_scale",),
+    ),
+    (
+        "a withheld four-way says it was attempted",
+        "mediation_linear_imai",
+        {"decomposition": {"te": {"point": 1.0}},
+         "four_way_unavailable": {
+             "reason": "continuous mediator under a logit outcome"}},
+        ("四分解没有给出", "不是没算"),
+        ("four_way_unavailable",),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    "why,method,block,expected,forbidden", _DETAIL_SAYS,
+    ids=[case[0] for case in _DETAIL_SAYS])
+def test_the_computation_detail_reaches_the_reader_as_a_sentence(
+        why, method, block, expected, forbidden):
+    """What the reader actually reads, for each detail this item rendered."""
+    from themis.output import analysis_report
+
+    numeric = {"point": 0.5, "ci_lower": 0.2, "ci_upper": 0.8,
+               "ci_level": 0.95, "method": method, "sample_size": 1000}
+    numeric.update(block)
+    text = analysis_report.build_analysis_report(
+        {"status": "numerically_solved", "query_id": "q",
+         "query_kind": "effect", "numeric_estimate": numeric})
+    assert "## 怎么算出来的" in text, (
+        f"{why}: the detail did not land in the section that asks for it"
+    )
+    for phrase in expected:
+        assert phrase in text, f"{why}: the report never says {phrase!r}"
+    for token in forbidden:
+        assert token not in text, (
+            f"{why}: the report prints the identifier {token!r} at the reader"
+        )
+
+
 @pytest.mark.parametrize("name", sorted(
     n for n, r in PARTS.items() if r.unrendered))
 def test_a_part_said_to_reach_nobody_reaches_nobody(name):
@@ -497,6 +701,11 @@ def test_a_part_said_to_reach_nobody_reaches_nobody(name):
     and the table still says nobody does. The reader is then told less than
     the code says — which is the failure this whole item is about, pointed
     the other way.
+
+    No row says it today, so this collects empty and reports as one skip.
+    That is the state of the container rather than a gap in the check: the
+    answer stays legal, it is documented on :class:`Part`, and the moment a
+    row uses it this runs against it.
     """
     pattern = _reads(name)
     found = sorted(where for where, text in CHUNKS.items()

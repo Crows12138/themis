@@ -100,6 +100,29 @@ SCALE: dict[str, str] = {
     "continuous": "连续",
 }
 
+#: Which margin a misclassification correction inverted, as
+#: ``numeric_estimate.measurement_correction.side``. The word says which
+#: variable was mismeasured rather than translating the token, because that
+#: is the fact a reader checks against their own study: a correction applied
+#: to the wrong margin is not a smaller correction, it is a different one.
+MEASUREMENT_SIDE: dict[str, str] = {
+    "outcome": "结局被误分类（暴露当作测准了）",
+    "exposure": "暴露被误分类（结局当作测准了）",
+    "combined": "暴露与结局都被误分类，两个通道各自求逆",
+}
+
+#: Which VanderWeele formula the ratio-scale four-way split used, as
+#: ``numeric_estimate.four_way_ratio.mediator_scale``. The members are the
+#: same two tokens :data:`SCALE` carries, and the vocabularies are not the
+#: same: there the word describes a column, here it names which closed form
+#: was evaluated, and a reader checking the split against the paper needs
+#: the section number rather than the adjective.
+FOUR_WAY_MEDIATOR_SCALE: dict[str, str] = {
+    "binary": "中介是二值 —— 走 eAppendix §3.4 的闭式",
+    "continuous": "中介是连续 —— 走 eAppendix §3.3 的闭式，"
+                  "多出一个中介残差方差项",
+}
+
 
 def _describe(table: dict[str, str], value) -> str:
     """The reader's word, or the token itself.
@@ -142,3 +165,13 @@ def scale_zh(value) -> str:
 def ar_set_kind_zh(value) -> str:
     """What shape a weak-instrument-robust confidence set came out in."""
     return _describe(AR_SET_KIND, value)
+
+
+def measurement_side_zh(value) -> str:
+    """Which margin a misclassification correction inverted."""
+    return _describe(MEASUREMENT_SIDE, value)
+
+
+def four_way_mediator_scale_zh(value) -> str:
+    """Which closed form the ratio-scale four-way split was evaluated at."""
+    return _describe(FOUR_WAY_MEDIATOR_SCALE, value)

@@ -1467,16 +1467,6 @@
           "enum": ["influence_function", "bootstrap"],
           "description": "AIPW / TMLE: how the CI was formed — 'influence_function' is the analytic Wald CI from the efficient influence curve (the default, the doubly-robust estimators' advantage over the bootstrap-only g-formula); 'bootstrap' refits the estimator per resample."
         },
-        "inference": {
-          "type": "object",
-          "description": "AIPW analytic-CI path: records that the interval is a Wald CI from the influence function (not a bootstrap), and whether it was made cluster-robust.",
-          "required": ["method"],
-          "additionalProperties": false,
-          "properties": {
-            "method": { "enum": ["influence_function"] },
-            "cluster_robust": { "type": "boolean" }
-          }
-        },
         "stabilized": {
           "type": "boolean",
           "description": "IPW only: True for the Hajek (stabilized-weights) estimator, False for the raw Horvitz-Thompson form."

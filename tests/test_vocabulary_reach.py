@@ -489,11 +489,6 @@ VOCABULARIES: dict[str, Vocabulary] = {
                  "which of two routines produced it is not, and a reader who "
                  "wants it reads the derivation chain.",
     ),
-    "inference_method": Vocabulary(
-        sites=((*_NE, "inference", "properties", "method"),),
-        no_gloss="One member, and the same fact `ci_method` carries for the "
-                 "estimators that state it there.",
-    ),
     "bootstrap_kind": Vocabulary(
         sites=((*_NE, "bootstrap", "properties", "kind"),),
         no_gloss="Whether resampling was clustered. The cluster disclosure "
@@ -515,15 +510,11 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_NE, "measurement_correction", "properties",
              "sufficient_statistics", "properties", "side"),
         ),
-        no_gloss="Which margin the correction sits on. The correction's own "
-                 "disclosure names the mismeasured variable, which is the "
-                 "fact; the side is how the numeric end dispatched.",
+        glossed_by="themis.output.envelope_glossary.measurement_side_zh",
     ),
     "four_way_mediator_scale": Vocabulary(
         sites=((*_NE, "four_way_ratio", "properties", "mediator_scale"),),
-        no_gloss="Which four-way decomposition formula applied. The four "
-                 "components are rendered by name; the branch that produced "
-                 "them is not.",
+        glossed_by="themis.output.envelope_glossary.four_way_mediator_scale_zh",
     ),
     "sensitivity_conversion_path": Vocabulary(
         sites=((*_NE, "sensitivity_analysis", "properties", "path"),),

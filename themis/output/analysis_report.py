@@ -25,7 +25,7 @@ return — the assembler never runs a re-check itself.
 """
 from __future__ import annotations
 
-from typing import assert_never
+from typing import Callable, assert_never
 
 from .. import answers, audits, blocks, questions, refusals, risk_provenance
 # Aliased because the ledger renderer's own argument is the ledger itself,
@@ -1394,6 +1394,420 @@ _ROUTE_RENDERERS = blocks.bind(blocks.ROUTE, {
 })
 
 
+# --- how the NUMBER was computed ----------------------------------------------
+#
+# The renderers above answer "how was the estimand identified" from the
+# ``extensions`` blocks that record it. The other half of this section's
+# question — what the estimator then did with the data — is recorded on
+# ``numeric_estimate``, which that binding does not reach.
+#
+# This section has been caught by exactly that gap twice before, and both
+# times it was patched by appending one hand-written line: ``formula`` is a
+# field rather than a block, so for ten rounds the report said "机器可读，见
+# result.formula"; the derivation chain lives under ``derivation``, so six
+# query kinds got the heading and nothing under it. The third instance is ten
+# blocks — a stratum table, two independent longitudinal routes, three
+# corrections each carrying the uncorrected number that is the whole argument
+# for applying it — and at ten, appending lines stops being a repair.
+#
+# Which blocks belong here is the schema's answer and not this table's: the
+# container declares ``additionalProperties: false``, so its properties ARE
+# the closed list, and ``tests/test_the_answer_has_no_silent_parts.py`` walks
+# them and holds each to naming who says it to a reader. A second list of the
+# same names in kernel code is the duplication that check exists to prevent.
+
+
+def _detail_stratified_wald(ne: dict, result: dict) -> str:
+    """The cells the ratio of averages was aggregated from.
+
+    The aggregate is a ratio of two weighted sums and not an average of
+    per-stratum ratios, so no stratum has a Wald estimate of its own to print
+    beside it. What each one contributes is its weight and its two shifts, and
+    a reader asking which cell is pulling the number reads those against the
+    totals in the heading.
+    """
+    sw = ne["stratified_wald"]
+    order = list(sw.get("conditioning_order") or ())
+    strata = list(sw.get("strata") or ())
+    # Ordered rather than as a variable set: the cell labels below are read
+    # positionally against this, so brace notation would say the order does
+    # not matter when it is the field's whole content.
+    head = (
+        f"- **分层 Wald 的逐格明细**（{len(strata)} 格，"
+        f"按 {'、'.join(str(name) for name in order)} 依次切）："
+        f"总体 = 加权结局差 {_fmt(sw.get('outcome_shift'))} ÷ 加权处理差 "
+        f"{_fmt(sw.get('treatment_shift'))}；聚合的是两个加权和之比，"
+        f"不是各格比值的平均，所以单格没有自己的 Wald 估计"
+    )
+    lines = []
+    for s in strata:
+        cell = "、".join(
+            f"{name}={value}"
+            for name, value in zip(order, s.get("values") or ())
+        ) or "（无条件）"
+        lines.append(
+            f"  - {cell}：权重 {_fmt(s.get('weight'))}，n={s.get('n_obs')}"
+            f"（工具高 {s.get('n_instrument_high')} / 低 "
+            f"{s.get('n_instrument_low')}），结局差 "
+            f"{_fmt(s.get('outcome_shift'))}，处理差 "
+            f"{_fmt(s.get('treatment_shift'))}"
+        )
+    return "\n".join([head] + lines)
+
+
+def _detail_recovered_ate(ne: dict, result: dict) -> str:
+    """The recovered ATE beside the number listwise deletion would have given.
+
+    The comparison is the method: recovering an effect from data with missing
+    values is worth doing exactly insofar as it differs from dropping the
+    incomplete rows, and a reader shown only the recovered point has been
+    shown the answer with the argument for it removed.
+    """
+    ra = ne["recovered_ate"]
+    naive = ra.get("naive_listwise_ate")
+    head = f"- **从有缺失的数据里恢复**：恢复值 {_fmt(ra.get('point'))}"
+    if naive is not None:
+        head += (
+            f"；直接丢掉不完整的行（列表删除法）会得到 {_fmt(naive)} —— "
+            f"两者之差就是这套方法全部的作用，也是判断它值不值得用的依据"
+        )
+    else:
+        head += "（这次没有算出列表删除法的对照值，无从判断恢复挪动了多少）"
+    lines = [
+        head,
+        f"  - 共 {ra.get('n_total')} 行，完全没有缺失的只有 "
+        f"{ra.get('n_complete_case')} 行；条件概率那一层用了 "
+        f"{ra.get('n_conditional_rows')} 行、边缘分布那一层用了 "
+        f"{ra.get('n_marginal_rows')} 行 —— 每个因子各用自己的完整行估计，"
+        f"这正是它与列表删除法的差别所在",
+    ]
+    missing = list(ra.get("missing_columns") or ())
+    if missing:
+        lines.append(f"  - 有缺失的列：{_vars(missing)}")
+    lines.append(
+        f"  - 调整集 {_vars(ra.get('adjustment'))}，分 {ra.get('n_strata')} 层，"
+        f"bootstrap {ra.get('n_bootstrap')} 次"
+    )
+    return "\n".join(lines)
+
+
+def _detail_selection_recovery_numeric(ne: dict, result: dict) -> str:
+    """The two arm means, and the external sample the recovery leaned on.
+
+    Z⁻ is the part that cannot come from the selected sample, so the reference
+    sample is not a footnote: the recovered number is only as good as the
+    claim that this second sample speaks for the population the first one was
+    filtered out of.
+    """
+    sr = ne["selection_recovery_numeric"]
+    lines = [
+        f"- **从选择偏倚里恢复**：处理臂均值 {_fmt(sr.get('mu_treated'))}，"
+        f"对照臂均值 {_fmt(sr.get('mu_control'))}，上面那个数是两者之差",
+    ]
+    z_plus, z_minus = list(sr.get("z_plus") or ()), list(sr.get("z_minus") or ())
+    lines.append(
+        f"  - 选择后门调整：Z⁺={_vars(z_plus)}（在这份被筛过的样本里就能估）；"
+        f"Z⁻={_vars(z_minus)}（只能从外部样本估）"
+    )
+    if sr.get("reference_sample_size") is not None:
+        lines.append(
+            f"  - 外部参照样本 N={sr['reference_sample_size']} —— "
+            f"恢复出的数只在「这份样本代表未被筛过的人群」这句话成立时才成立"
+        )
+    selected = sr.get("selected_values") or {}
+    if selected:
+        said = "、".join(f"{k}={v}" for k, v in selected.items())
+        lines.append(f"  - 样本被限制在：{said}")
+    return "\n".join(lines)
+
+
+def _detail_measurement_correction(ne: dict, result: dict) -> str:
+    """How far inverting the misclassification matrix moved the number.
+
+    ``det`` is printed because it is what makes the correction unstable: a
+    matrix near singular inverts into a large move that the data does not
+    support, and the corrected point alone cannot tell that apart from a
+    large real correction.
+    """
+    mc = ne["measurement_correction"]
+    naive, point = mc.get("naive_point"), ne.get("point")
+    head = f"- **误分类校正**：{envelope_glossary.measurement_side_zh(mc.get('side', 'outcome'))}"
+    lines = [head]
+    if naive is not None and point is not None:
+        lines.append(
+            f"  - 未校正 {_fmt(naive)} → 校正后 {_fmt(point)}，"
+            f"校正把这个数挪了 {_fmt(point - naive)}"
+        )
+    elif naive is not None:
+        lines.append(f"  - 未校正 {_fmt(naive)}")
+    if mc.get("differential"):
+        by = mc.get("differential_by")
+        lines.append(
+            "  - 差分性误分类：错分概率随"
+            + (f" {by} " if by else "另一个变量")
+            + "而变，所以每一档各用自己的混淆矩阵求逆"
+        )
+    if mc.get("det") is not None:
+        lines.append(
+            f"  - 混淆矩阵行列式 det={_fmt(mc['det'])} —— 越接近 0，"
+            f"求逆越不稳定，校正后的数对矩阵本身的误差越敏感"
+        )
+    for key, label in (("det_exposure", "暴露通道"),
+                       ("det_outcome", "结局通道"),
+                       ("det_joint", "联合")):
+        if mc.get(key) is not None:
+            lines.append(f"  - {label} det={_fmt(mc[key])}")
+    if mc.get("out_of_simplex"):
+        lines.append(
+            "  - **求逆的结果落到了概率单纯形之外**：说明声明的混淆矩阵与这批"
+            "数据对不上，校正后的数不该照单全收"
+        )
+    return "\n".join(lines)
+
+
+def _detail_regression_calibration(ne: dict, result: dict) -> str:
+    """The attenuated slope, and the reliability that says how attenuated.
+
+    λ is the whole correction — the corrected slope is the naive one divided
+    through by it — so a reader who sees only the corrected number cannot
+    tell a small measurement problem from a large one.
+    """
+    rc = ne["regression_calibration"]
+    naive, point = rc.get("naive_point"), ne.get("point")
+    lines = [
+        f"- **回归校准**（连续变量的经典加性测量误差）：暴露 "
+        f"`{rc.get('exposure')}`"
+    ]
+    if naive is not None and point is not None:
+        lines.append(
+            f"  - 未校正斜率 {_fmt(naive)} → 校正后 {_fmt(point)}，"
+            f"校正把这个数挪了 {_fmt(point - naive)}"
+        )
+    if rc.get("reliability") is not None:
+        lines.append(
+            f"  - 可靠度 λ={_fmt(rc['reliability'])} —— λ=1 表示这个变量测得完全准，"
+            f"λ 越小衰减越重；校正做的就是把衰减除回去"
+        )
+    variances = rc.get("error_variances") or {}
+    if variances:
+        said = "、".join(f"{k} σ²_u={_fmt(v)}" for k, v in variances.items())
+        lines.append(f"  - 声明的测量误差方差：{said}（这是外部知识，不是从数据里估的）")
+    design = list(rc.get("design_vars") or ())
+    if design:
+        lines.append(f"  - 设计矩阵列序：{_vars(design)}")
+    return "\n".join(lines)
+
+
+def _longitudinal_common(block: dict) -> list[str]:
+    """The lines both longitudinal routes state, in the same words.
+
+    They contrast the same two strategies over the same times; only how they
+    got there differs. Saying the shared part twice in two spellings would
+    make a reader comparing the two routes reconcile the wording first.
+    """
+    lines = [
+        f"  - 策略对比：全程 {_fmt(block.get('strategy_treated'))} 下 "
+        f"E[{block.get('outcome')}]={_fmt(block.get('e_y_treated'))}，"
+        f"全程 {_fmt(block.get('strategy_control'))} 下 "
+        f"E[{block.get('outcome')}]={_fmt(block.get('e_y_control'))}，"
+        f"上面那个数是两者之差",
+    ]
+    treatments = list(block.get("treatments") or ())
+    if treatments:
+        lines.append(f"  - 各时点的处理：{_vars(treatments)}")
+    by_time = list(block.get("confounders_by_time") or ())
+    for i, names in enumerate(by_time, 1):
+        lines.append(f"    - 第 {i} 时点调整 {_vars(names)}")
+    return lines
+
+
+def _detail_longitudinal_gformula(ne: dict, result: dict) -> str:
+    """The g-computation route, and the fact that a second route exists.
+
+    The two longitudinal estimators answer one question from different
+    assumptions, so whether they agree is itself a finding — and only one of
+    them runs per query. A reader is told which one produced this number and
+    that running the other is a check available to them, because otherwise
+    the check looks like it was made and passed.
+    """
+    block = ne["longitudinal_gformula"]
+    lines = [
+        "- **纵向 g-公式（g-computation）**：按时间顺序模拟每个时点的处理与协变量，"
+        "再把结局在模拟出的人群上平均"
+    ]
+    lines += _longitudinal_common(block)
+    lines.append(
+        f"  - 蒙特卡洛模拟 {block.get('n_sim')} 次，bootstrap "
+        f"{block.get('n_bootstrap')} 次"
+    )
+    lines.append(
+        "  - 另一条独立路线（IPW 边缘结构模型）这次没有跑：它靠加权而不是靠模拟，"
+        "两条算出来的数一致与否本身就是一个发现，这里没有这个发现"
+    )
+    return "\n".join(lines)
+
+
+def _detail_longitudinal_ipw_msm(ne: dict, result: dict) -> str:
+    """The IPW/MSM route, its weights, and the route it was not compared to.
+
+    The weight summary is the diagnostic that matters here: a maximum far
+    above the mean means a handful of subjects carry the estimate, which no
+    confidence interval built from the same weights will say.
+    """
+    block = ne["longitudinal_ipw_msm"]
+    lines = [
+        "- **纵向 IPW 边缘结构模型**：按每个时点接受该处理的概率给个体加权，"
+        "在加权后的人群上拟合一个边缘模型"
+    ]
+    lines += _longitudinal_common(block)
+    stabilized = "稳定化权重" if block.get("stabilized") else "未稳定化权重"
+    if block.get("weight_mean") is not None:
+        lines.append(
+            f"  - {stabilized}：均值 {_fmt(block.get('weight_mean'))}，"
+            f"最大 {_fmt(block.get('weight_max'))} —— 最大值远高于均值，"
+            f"说明少数个体在主导这个数"
+        )
+    coefficients = list(block.get("msm_coefficients") or ())
+    if coefficients:
+        lines.append(
+            f"  - 边缘结构模型系数：{', '.join(_fmt(c) for c in coefficients)}"
+        )
+    lines.append(
+        f"  - bootstrap {block.get('n_bootstrap')} 次"
+    )
+    lines.append(
+        "  - 另一条独立路线（g-公式）这次没有跑：它靠模拟而不是靠加权，"
+        "两条算出来的数一致与否本身就是一个发现，这里没有这个发现"
+    )
+    return "\n".join(lines)
+
+
+#: The four components, in the order the identity states them, each with the
+#: sentence that says what a reader would have to believe for it to be large.
+#: Printing ``CDE`` / ``INTref`` / ``INTmed`` / ``PIE`` alone hands a reader
+#: four acronyms and asks them to look up which is which.
+_FOUR_WAY_PARTS: tuple[tuple[str, str, str], ...] = (
+    ("cde", "纯直接（CDE）",
+     "既不经中介、也没借助处理与中介的交互"),
+    ("intref", "仅交互（INTref）",
+     "靠处理与中介的交互，但中介本身没有被处理改变"),
+    ("intmed", "交互且经中介（INTmed）",
+     "既靠交互，又靠处理确实改变了中介"),
+    ("pie", "纯中介（PIE）",
+     "完全经由中介，不涉及交互"),
+)
+
+
+def _detail_four_way_decomposition(ne: dict, result: dict) -> str:
+    """VanderWeele's split of the total effect, on the difference scale.
+
+    Four numbers that sum to the total, and the reason for reporting them is
+    that they point at different interventions: what is mediated can be
+    attacked at the mediator, what is interaction cannot.
+    """
+    fw = ne["four_way_decomposition"]
+    lines = [
+        f"- **四分解（VanderWeele，差分尺度）**：总效应 {_band(fw.get('te'))} "
+        f"拆成四块，四块相加等于总效应"
+    ]
+    for key, label, gloss in _FOUR_WAY_PARTS:
+        said = _band(fw.get(key))
+        if said:
+            lines.append(f"  - {label}：{said} —— {gloss}")
+    for key, label in (("prop_mediated", "经中介的比例"),
+                       ("prop_interaction", "涉及交互的比例")):
+        said = _band(fw.get(key))
+        if said:
+            lines.append(f"  - {label}：{said}")
+    if fw.get("additive_interaction") is not None:
+        lines.append(
+            f"  - 相加交互 {_fmt(fw['additive_interaction'])} —— "
+            f"处理与中介同时在场时，比两者各自贡献相加多出来的部分"
+        )
+    lines.append(
+        "  - 为什么值得拆：能靠改中介去掉的只有经中介那两块，"
+        "交互那部分改中介去不掉"
+    )
+    return "\n".join(lines)
+
+
+def _detail_four_way_ratio(ne: dict, result: dict) -> str:
+    """The same split on the excess-relative-risk scale.
+
+    A binary outcome makes the multiplicative scale the natural one, and the
+    difference-scale block beside it is a different decomposition rather than
+    the same numbers rescaled.
+    """
+    fr = ne["four_way_ratio"]
+    lines = [
+        f"- **四分解（VanderWeele，比值尺度／超额相对风险）**："
+        f"总相对风险 {_band(fr.get('total_rr'))}，超额部分 "
+        f"{_band(fr.get('total_err'))} 拆成四块"
+    ]
+    for key, label, gloss in _FOUR_WAY_PARTS:
+        said = _band(fr.get(f"err_{key}"))
+        if said:
+            lines.append(f"  - {label}：{said} —— {gloss}")
+    for key, label in (("prop_mediated", "经中介的比例"),
+                       ("prop_interaction", "涉及交互的比例"),
+                       ("prop_eliminated", "把中介固定住能消掉的比例")):
+        said = _band(fr.get(key))
+        if said:
+            lines.append(f"  - {label}：{said}")
+    lines.append(
+        f"  - {envelope_glossary.four_way_mediator_scale_zh(fr.get('mediator_scale'))}"
+    )
+    return "\n".join(lines)
+
+
+def _detail_four_way_unavailable(ne: dict, result: dict) -> str:
+    """Why the difference-scale split was attempted and withheld.
+
+    A reader who is shown no decomposition cannot tell "not applicable here"
+    from "nobody tried", and those call for different next steps.
+    """
+    reason = ne["four_way_unavailable"].get("reason")
+    return (
+        "- **四分解没有给出**：" + (str(reason) if reason else "未说明原因")
+        + " —— 是算过之后判定在这种数据形状下不成立，不是没算"
+    )
+
+
+#: One renderer per composite part of ``numeric_estimate`` that says how the
+#: NUMBER was computed, in the order a reader meets them: what the estimator
+#: aggregated, what it recovered, what it corrected, what it contrasted over
+#: time, what it decomposed.
+_NUMERIC_DETAIL_RENDERERS: tuple[
+    tuple[str, Callable[[dict, dict], str]], ...] = (
+    ("stratified_wald", _detail_stratified_wald),
+    ("recovered_ate", _detail_recovered_ate),
+    ("selection_recovery_numeric", _detail_selection_recovery_numeric),
+    ("measurement_correction", _detail_measurement_correction),
+    ("regression_calibration", _detail_regression_calibration),
+    ("longitudinal_gformula", _detail_longitudinal_gformula),
+    ("longitudinal_ipw_msm", _detail_longitudinal_ipw_msm),
+    ("four_way_decomposition", _detail_four_way_decomposition),
+    ("four_way_ratio", _detail_four_way_ratio),
+    ("four_way_unavailable", _detail_four_way_unavailable),
+)
+
+
+def _render_numeric_detail(result: dict) -> list[str]:
+    """What the estimator did with the data, for whichever parts are present.
+
+    Every one of these is exclusive to a single estimator, so at most two
+    fire on any envelope (the two four-way scales are the pair that can
+    co-occur). A part with nothing in it prints nothing rather than a heading
+    over an empty line.
+    """
+    ne = result.get("numeric_estimate") or {}
+    return [
+        render(ne, result)
+        for name, render in _NUMERIC_DETAIL_RENDERERS
+        if ne.get(name)
+    ]
+
+
 def _render_derivation_chain(result: dict) -> str:
     """The steps, in the order they ran, each said in words.
 
@@ -1459,6 +1873,13 @@ def _render_route(result: dict) -> str:
     formula = result.get("formula")
     if formula is not None:
         lines.append(f"- **估计式**：`{formula_text.render(formula)}`")
+    # The numeric half of this section's question, after the expression and
+    # before the skeleton: the blocks above say which pattern identified the
+    # estimand, these say what the estimator then did with the data. They are
+    # here rather than under the answer because "怎么算出来的" is the question
+    # they answer, and because reading them beside the identification route is
+    # what lets a reader see the two halves as one argument.
+    lines += _render_numeric_detail(result)
     # Last, because it is the skeleton and the lines above are the detail:
     # which pattern, on which set, which expression. A reader who wants
     # only the shape of the argument reads this; a reader checking it

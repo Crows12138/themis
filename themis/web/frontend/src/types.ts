@@ -181,6 +181,108 @@ export interface NumericEstimate {
   // mirrors pn — which is why reading only `point` printed the necessity
   // headline with none of the three names on it.
   probabilities_of_causation?: CausationQuantities
+  // How the NUMBER was computed, as opposed to how the estimand was
+  // identified. Each of these is exclusive to one estimator and every one of
+  // them used to reach no reader on either surface, because the section that
+  // asks "怎么算出来的" is bound to the `extensions` map and these live here.
+  stratified_wald?: StratifiedWald
+  recovered_ate?: RecoveredAte
+  selection_recovery_numeric?: SelectionRecovery
+  measurement_correction?: MeasurementCorrection
+  regression_calibration?: RegressionCalibration
+  longitudinal_gformula?: LongitudinalRoute & { n_sim?: number }
+  longitudinal_ipw_msm?: LongitudinalRoute & {
+    stabilized?: boolean
+    msm_coefficients?: number[]
+    weight_mean?: number
+    weight_max?: number
+  }
+  four_way_decomposition?: FourWayDifference
+  four_way_ratio?: FourWayRatio
+  four_way_unavailable?: { reason?: string }
+}
+
+export interface StratifiedWald {
+  conditioning_order?: string[]
+  outcome_shift?: number
+  treatment_shift?: number
+  strata?: {
+    values?: (string | number | boolean)[]
+    weight?: number
+    n_obs?: number
+    n_instrument_high?: number
+    n_instrument_low?: number
+    outcome_shift?: number
+    treatment_shift?: number
+  }[]
+}
+
+export interface RecoveredAte {
+  point?: number
+  // The number listwise deletion would have given. The difference between it
+  // and `point` is the entire argument for running the recovery.
+  naive_listwise_ate?: number | null
+  adjustment?: string[]
+  n_total?: number
+  n_complete_case?: number
+  n_conditional_rows?: number
+  n_marginal_rows?: number
+  n_strata?: number
+  missing_columns?: string[]
+  n_bootstrap?: number
+}
+
+export interface SelectionRecovery {
+  reference_sample_size?: number
+  z_plus?: string[]
+  z_minus?: string[]
+  selected_values?: Record<string, unknown>
+  mu_treated?: number
+  mu_control?: number
+}
+
+export interface MeasurementCorrection {
+  side?: string
+  naive_point?: number
+  det?: number
+  det_exposure?: number
+  det_outcome?: number
+  det_joint?: number
+  out_of_simplex?: boolean
+  differential?: boolean
+  differential_by?: string
+}
+
+export interface RegressionCalibration {
+  naive_point?: number
+  reliability?: number
+  error_variances?: Record<string, number>
+  exposure?: string
+  design_vars?: string[]
+}
+
+export interface LongitudinalRoute {
+  treatments?: string[]
+  confounders_by_time?: string[][]
+  outcome?: string
+  strategy_treated?: number
+  strategy_control?: number
+  e_y_treated?: number
+  e_y_control?: number
+  n_bootstrap?: number
+}
+
+export interface FourWayDifference {
+  cde?: Band; intref?: Band; intmed?: Band; pie?: Band; te?: Band
+  prop_mediated?: Band; prop_interaction?: Band
+  additive_interaction?: number
+}
+
+export interface FourWayRatio {
+  mediator_scale?: string
+  err_cde?: Band; err_intref?: Band; err_intmed?: Band; err_pie?: Band
+  total_err?: Band; total_rr?: Band
+  prop_mediated?: Band; prop_interaction?: Band; prop_eliminated?: Band
 }
 
 export interface LedgerEntry {

@@ -84,8 +84,19 @@ def top_level_keys(body: str) -> set[str]:
 
 
 def string_list(name: str, source: str) -> set[str]:
-    """Every quoted string in a top-level array literal."""
-    return set(re.findall(r"'([^']+)'", literal(name, source)))
+    """Every quoted string in a top-level array literal.
+
+    Whole-line comments are dropped first. An apostrophe in English prose —
+    "the schema's own names" — otherwise opens a quote that closes on the
+    next entry, so the list silently loses members and gains a fragment of
+    itself. A line that begins with ``//`` is never content, and a string
+    containing ``//`` begins with a quote, so the two cannot be confused.
+    """
+    body = "\n".join(
+        line for line in literal(name, source).splitlines()
+        if not line.lstrip().startswith("//")
+    )
+    return set(re.findall(r"'([^']+)'", body))
 
 
 def string_map(name: str, source: str) -> dict[str, str]:

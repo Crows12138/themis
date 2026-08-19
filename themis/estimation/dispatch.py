@@ -5676,16 +5676,20 @@ def _try_doubly_robust_estimate(
             # The fluctuation parameter — a transparency handle: ε≈0 means
             # the initial outcome fit was already well-targeted.
             ne["tmle_epsilon"] = est.epsilon
-        if est.ci_method == "influence_function":
-            # Analytic CI — no bootstrap. Record the inference kind so a
-            # consumer knows the CI is Wald-from-influence-function (and
-            # cluster-robust when a cluster column is in play).
-            ne["inference"] = {
-                "method": "influence_function",
-                "cluster_robust": cluster is not None,
-            }
-        else:
+        if est.ci_method != "influence_function":
             _attach_bootstrap_meta(ne, cluster)
+        # The analytic path attaches nothing here. It used to write an
+        # ``inference`` block restating two facts the envelope already
+        # carries: its ``method`` was a one-member enum pinned by the branch
+        # that wrote it and identical to ``ci_method`` two lines up, and its
+        # ``cluster_robust`` flag was ``cluster is not None`` — which
+        # ``estimation_context.cluster`` records at run level and the
+        # estimator declares in its own assumptions, where it reaches a
+        # reader as a sentence. Those are the two independent directions
+        # ``verifier.cluster_inference_rules`` audits from; a third copy
+        # written by the layer that passed the column in is from neither, and
+        # because it recorded a boolean rather than the column name there was
+        # nothing in it to corroborate.
     else:
         ne["stabilized"] = est.stabilized
         _attach_bootstrap_meta(ne, cluster)

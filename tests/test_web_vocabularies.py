@@ -37,6 +37,7 @@ import pytest
 from themis import refusals
 from themis import ledger
 from themis.output import analysis_report
+from themis.output import envelope_glossary
 from themis.output.derivation_glossary import SAYS
 from themis.risk_provenance import RiskProvenance
 from themis.types import ResultStatus
@@ -148,6 +149,22 @@ ANCHORS: dict[str, set[str]] = {
                    "robust_anderson_rubin_confidence_set", "properties",
                    "kind")
     ),
+    # Which margin a misclassification correction inverted. Two sites hold it
+    # — the block and the sufficient statistics the verifier re-derives from —
+    # and the union is the vocabulary for the same reason it is above.
+    "measurement_correction_side": (
+        _enum_at("properties", "numeric_estimate", "properties",
+                 "measurement_correction", "properties", "side")
+        | _enum_at("properties", "numeric_estimate", "properties",
+                   "measurement_correction", "properties",
+                   "sufficient_statistics", "properties", "side")
+    ),
+    # Which VanderWeele closed form the ratio-scale split used. The same two
+    # tokens name a column's measurement scale elsewhere and that is a
+    # different vocabulary, so this is anchored on its own site.
+    "four_way_mediator_scale": _enum_at(
+        "properties", "numeric_estimate", "properties", "four_way_ratio",
+        "properties", "mediator_scale"),
     "refusal_kind": {str(k) for k in refusals.Kind},
     # The one anchor whose vocabulary no schema enum states at all:
     # ``step.rule`` is a free string in derivation.schema.json, and the closed
@@ -320,6 +337,34 @@ def test_the_ledger_words_are_the_reports_own(table, vocabulary):
     web = dict(re.findall(
         r"^\s*(\w+): '([^']+)',", _literal(table, _source()), re.M))
     assert web == {str(m): m.zh for m in vocabulary}
+
+
+#: The envelope glossaries both surfaces state: browser table -> kernel table.
+#: ``test_the_browser_states_every_value_of_the_vocabulary`` above compares key
+#: sets, which is the right check for a table whose words are laid out
+#: differently on each surface. These are not those. Each is one phrase per
+#: member answering one question, printed with nothing around it, so the two
+#: copies have no reason to differ and a difference reads to a reader who
+#: moves between the surfaces as a difference in what was found.
+_GLOSSARY_TABLES = {
+    "AR_SET_KIND_ZH": envelope_glossary.AR_SET_KIND,
+    "MEASUREMENT_SIDE_ZH": envelope_glossary.MEASUREMENT_SIDE,
+    "FOUR_WAY_MEDIATOR_SCALE_ZH": envelope_glossary.FOUR_WAY_MEDIATOR_SCALE,
+}
+
+
+@pytest.mark.parametrize("table,kernel", sorted(
+    _GLOSSARY_TABLES.items(), key=lambda kv: kv[0]))
+def test_the_glossary_words_are_the_kernels_own(table, kernel):
+    """Same member, same question, same sentence — checked as text.
+
+    The strongest available pin, and it costs nothing when the copy is exact.
+    What it buys is the case key equality cannot see: both surfaces know all
+    seven shapes an AR set comes in, and one of them says the unbounded case
+    means the instrument cannot bound the effect while the other says only
+    that the set is unbounded.
+    """
+    assert web_source.string_map(table, _source()) == kernel
 
 
 def test_the_chain_reads_the_same_on_both_surfaces():

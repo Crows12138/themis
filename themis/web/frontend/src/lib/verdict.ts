@@ -1,4 +1,4 @@
-import type { AnswerTier, ArConfidenceSet, Band, Derivation, NumericEstimate, QueryResult } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, Derivation, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, NumericEstimate, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, StratifiedWald } from '../types'
 
 type OutcomeError = NonNullable<QueryResult['outcome_error']>
 type EstimationContext = NonNullable<QueryResult['estimation_context']>
@@ -395,6 +395,25 @@ function arInterval(ar: ArConfidenceSet): string {
   return `[${ar.lower != null ? fmtNum(ar.lower) : '−∞'}, ${ar.upper != null ? fmtNum(ar.upper) : '+∞'}]`
 }
 
+// Which margin a misclassification correction inverted. The word says which
+// variable was mismeasured rather than translating the token: a correction
+// applied to the wrong margin is not a smaller correction, it is a different
+// one, and that is what a reader checks against their own study.
+const MEASUREMENT_SIDE_ZH: Record<string, string> = {
+  outcome: '结局被误分类（暴露当作测准了）',
+  exposure: '暴露被误分类（结局当作测准了）',
+  combined: '暴露与结局都被误分类，两个通道各自求逆',
+}
+
+// Which VanderWeele closed form the ratio-scale split was evaluated at. Same
+// two tokens as a column's measurement scale and not the same vocabulary:
+// there the word describes a variable, here it names a formula, and a reader
+// checking the split against the paper needs the section number.
+const FOUR_WAY_MEDIATOR_SCALE_ZH: Record<string, string> = {
+  binary: '中介是二值 —— 走 eAppendix §3.4 的闭式',
+  continuous: '中介是连续 —— 走 eAppendix §3.3 的闭式，多出一个中介残差方差项',
+}
+
 // One arm of a decomposition — identifiable, and on what. The condition
 // table comes in rather than being picked here, so an arm cannot be given
 // the other arm's theorem.
@@ -657,6 +676,8 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   nde_nie_failed_condition: NDE_NIE_CONDITION_ZH,
   cde_failed_condition: CDE_CONDITION_ZH,
   anderson_rubin_set_kind: AR_SET_KIND_ZH,
+  measurement_correction_side: MEASUREMENT_SIDE_ZH,
+  four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_ZH,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -670,6 +691,11 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
 export const NOT_VOCABULARIES = [
   'ROUTE_RENDERERS',
   'ANSWER_RENDERERS',
+  // Keyed by the schema's own property names for numeric_estimate rather than
+  // by a kernel vocabulary, and holding renderers rather than words. What has
+  // to be checked about it is that every composite part reaches a renderer,
+  // which tests/test_the_answer_has_no_silent_parts.py checks from the schema.
+  'NUMERIC_DETAIL_RENDERERS',
   'RENDERED_BLOCKS',
   'VOCABULARIES',
 ] as const
@@ -828,6 +854,355 @@ export function derivationRows(derivation: Derivation | undefined): Section | nu
       }
     }),
   }
+}
+
+// --- how the NUMBER was computed ---------------------------------------------
+//
+// The routes above answer "how was the estimand identified" from the
+// `extensions` map. The other half of that foldout's question — what the
+// estimator then did with the data — is recorded on `numeric_estimate`, which
+// that binding does not reach. This foldout has been caught by the same gap
+// twice, and both times it was patched by appending one item: the formula is a
+// field rather than a block, and the derivation chain lives under `derivation`.
+// The third instance is ten blocks, and at ten, appending stops being a repair.
+//
+// Mirrored from the report's `_NUMERIC_DETAIL_RENDERERS` block for block, so a
+// reader comparing the two surfaces is not reconciling two accounts of one
+// computation.
+
+const FOUR_WAY_PARTS: readonly (readonly [string, string, string])[] = [
+  ['cde', '纯直接（CDE）', '既不经中介、也没借助处理与中介的交互'],
+  ['intref', '仅交互（INTref）', '靠处理与中介的交互，但中介本身没有被处理改变'],
+  ['intmed', '交互且经中介（INTmed）', '既靠交互，又靠处理确实改变了中介'],
+  ['pie', '纯中介（PIE）', '完全经由中介，不涉及交互'],
+]
+
+// The lines both longitudinal routes state, in the same words: they contrast
+// the same two strategies over the same times and differ only in how they got
+// there, so a reader comparing them should not have to reconcile the wording.
+function longitudinalCommon(b: LongitudinalRoute): { label: string; value: string }[] {
+  const rows = [{
+    label: '策略对比',
+    value: `全程 ${fmtNum(b.strategy_treated)} 下 E[${b.outcome}]=${fmtNum(b.e_y_treated)}，`
+      + `全程 ${fmtNum(b.strategy_control)} 下 E[${b.outcome}]=${fmtNum(b.e_y_control)}，`
+      + '上面那个数是两者之差',
+  }]
+  if (b.treatments?.length) {
+    rows.push({ label: '各时点的处理', value: varset(b.treatments) })
+  }
+  ;(b.confounders_by_time ?? []).forEach((names, i) => {
+    rows.push({ label: `第 ${i + 1} 时点调整`, value: varset(names) })
+  })
+  return rows
+}
+
+type DetailRenderer = (ne: NumericEstimate) => Section | null
+
+const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
+  // The aggregate is a ratio of two weighted sums and not an average of
+  // per-stratum ratios, so no cell has a Wald estimate of its own to print.
+  stratified_wald: (ne) => {
+    const sw = ne.stratified_wald as StratifiedWald
+    const order = sw.conditioning_order ?? []
+    const strata = sw.strata ?? []
+    const rows = [{
+      label: '聚合方式',
+      value: `加权结局差 ${fmtNum(sw.outcome_shift)} ÷ 加权处理差 ${fmtNum(sw.treatment_shift)}，`
+        + '聚合的是两个加权和之比，不是各格比值的平均，所以单格没有自己的 Wald 估计',
+    }]
+    for (const s of strata) {
+      const cell = (s.values ?? []).map((v, i) => `${order[i] ?? '?'}=${String(v)}`).join('、') || '（无条件）'
+      rows.push({
+        label: cell,
+        value: `权重 ${fmtNum(s.weight)}，n=${s.n_obs}（工具高 ${s.n_instrument_high} / 低 ${s.n_instrument_low}），`
+          + `结局差 ${fmtNum(s.outcome_shift)}，处理差 ${fmtNum(s.treatment_shift)}`,
+      })
+    }
+    // Ordered rather than as a variable set: the cell labels are read
+    // positionally against this, so braces would say the order does not
+    // matter when it is the whole content of the field.
+    return { cap: `分层 Wald 的逐格明细 · ${strata.length} 格，按 ${order.join('、')} 依次切`, rows }
+  },
+
+  // The comparison is the method: recovering an effect from data with missing
+  // values is worth doing exactly insofar as it differs from dropping the
+  // incomplete rows.
+  recovered_ate: (ne) => {
+    const ra = ne.recovered_ate as RecoveredAte
+    const rows = [{
+      label: '恢复值',
+      value: ra.naive_listwise_ate != null
+        ? `${fmtNum(ra.point)}；直接丢掉不完整的行（列表删除法）会得到 ${fmtNum(ra.naive_listwise_ate)}`
+          + ' —— 两者之差就是这套方法全部的作用，也是判断它值不值得用的依据'
+        : `${fmtNum(ra.point)}（这次没有算出列表删除法的对照值，无从判断恢复挪动了多少）`,
+    }, {
+      label: '用了多少行',
+      value: `共 ${ra.n_total} 行，完全没有缺失的只有 ${ra.n_complete_case} 行；`
+        + `条件概率那一层用了 ${ra.n_conditional_rows} 行、边缘分布那一层用了 ${ra.n_marginal_rows} 行`
+        + ' —— 每个因子各用自己的完整行估计，这正是它与列表删除法的差别所在',
+    }]
+    if (ra.missing_columns?.length) {
+      rows.push({ label: '有缺失的列', value: varset(ra.missing_columns) })
+    }
+    rows.push({
+      label: '调整集',
+      value: `${varset(ra.adjustment)}，分 ${ra.n_strata} 层，bootstrap ${ra.n_bootstrap} 次`,
+    })
+    return { cap: '从有缺失的数据里恢复', rows }
+  },
+
+  // Z⁻ is the part that cannot come from the selected sample, so the reference
+  // sample is not a footnote: the recovered number is only as good as the
+  // claim that it speaks for the population the first sample was filtered from.
+  selection_recovery_numeric: (ne) => {
+    const sr = ne.selection_recovery_numeric as SelectionRecovery
+    const rows = [{
+      label: '两臂均值',
+      value: `处理臂 ${fmtNum(sr.mu_treated)}，对照臂 ${fmtNum(sr.mu_control)}，上面那个数是两者之差`,
+    }, {
+      label: '选择后门调整',
+      value: `Z⁺=${varset(sr.z_plus)}（在这份被筛过的样本里就能估）；`
+        + `Z⁻=${varset(sr.z_minus)}（只能从外部样本估）`,
+    }]
+    if (sr.reference_sample_size != null) {
+      rows.push({
+        label: '外部参照样本',
+        value: `N=${sr.reference_sample_size} —— 恢复出的数只在「这份样本代表未被筛过的人群」这句话成立时才成立`,
+      })
+    }
+    const selected = sr.selected_values ?? {}
+    if (Object.keys(selected).length) {
+      rows.push({
+        label: '样本被限制在',
+        value: Object.keys(selected).map((k) => `${k}=${String(selected[k])}`).join('、'),
+      })
+    }
+    return { cap: '从选择偏倚里恢复', rows }
+  },
+
+  // `det` is what makes the correction unstable: a near-singular matrix
+  // inverts into a large move the data does not support, and the corrected
+  // point alone cannot be told apart from a large real correction.
+  measurement_correction: (ne) => {
+    const mc = ne.measurement_correction as MeasurementCorrection
+    const rows: { label: string; value: string }[] = []
+    if (mc.naive_point != null && ne.point != null) {
+      rows.push({
+        label: '校正挪了多少',
+        value: `未校正 ${fmtNum(mc.naive_point)} → 校正后 ${fmtNum(ne.point)}，`
+          + `校正把这个数挪了 ${fmtNum(ne.point - mc.naive_point)}`,
+      })
+    }
+    if (mc.differential) {
+      rows.push({
+        label: '差分性误分类',
+        value: `错分概率随${mc.differential_by ? ` ${mc.differential_by} ` : '另一个变量'}而变，`
+          + '所以每一档各用自己的混淆矩阵求逆',
+      })
+    }
+    if (mc.det != null) {
+      rows.push({
+        label: '混淆矩阵行列式',
+        value: `det=${fmtNum(mc.det)} —— 越接近 0，求逆越不稳定，校正后的数对矩阵本身的误差越敏感`,
+      })
+    }
+    for (const [key, label] of [['det_exposure', '暴露通道'], ['det_outcome', '结局通道'], ['det_joint', '联合']] as const) {
+      const v = mc[key]
+      if (v != null) rows.push({ label, value: `det=${fmtNum(v)}` })
+    }
+    if (mc.out_of_simplex) {
+      rows.push({
+        label: '求逆的结果落到了概率单纯形之外',
+        value: '说明声明的混淆矩阵与这批数据对不上，校正后的数不该照单全收',
+      })
+    }
+    const side = MEASUREMENT_SIDE_ZH[String(mc.side ?? 'outcome')] ?? String(mc.side)
+    return rows.length ? { cap: `误分类校正 · ${side}`, rows } : null
+  },
+
+  // λ is the whole correction — the corrected slope is the naive one divided
+  // through by it — so the corrected number alone cannot tell a small
+  // measurement problem from a large one.
+  regression_calibration: (ne) => {
+    const rc = ne.regression_calibration as RegressionCalibration
+    const rows: { label: string; value: string }[] = []
+    if (rc.naive_point != null && ne.point != null) {
+      rows.push({
+        label: '校正挪了多少',
+        value: `未校正斜率 ${fmtNum(rc.naive_point)} → 校正后 ${fmtNum(ne.point)}，`
+          + `校正把这个数挪了 ${fmtNum(ne.point - rc.naive_point)}`,
+      })
+    }
+    if (rc.reliability != null) {
+      rows.push({
+        label: '可靠度 λ',
+        value: `${fmtNum(rc.reliability)} —— λ=1 表示这个变量测得完全准，λ 越小衰减越重；`
+          + '校正做的就是把衰减除回去',
+      })
+    }
+    const variances = rc.error_variances ?? {}
+    if (Object.keys(variances).length) {
+      rows.push({
+        label: '声明的测量误差方差',
+        value: Object.keys(variances).map((k) => `${k} σ²_u=${fmtNum(variances[k])}`).join('、')
+          + '（这是外部知识，不是从数据里估的）',
+      })
+    }
+    if (rc.design_vars?.length) {
+      rows.push({ label: '设计矩阵列序', value: varset(rc.design_vars) })
+    }
+    return rows.length
+      ? { cap: `回归校准（连续变量的经典加性测量误差） · 暴露 ${rc.exposure}`, rows }
+      : null
+  },
+
+  // Only one of the two longitudinal routes runs per query, so whether they
+  // agree — which is itself a finding — is not available. Saying so is the
+  // difference between a check that was not run and one that passed.
+  longitudinal_gformula: (ne) => {
+    const b = ne.longitudinal_gformula as LongitudinalRoute & { n_sim?: number }
+    const rows = [{
+      label: '做法',
+      value: '按时间顺序模拟每个时点的处理与协变量，再把结局在模拟出的人群上平均',
+    }, ...longitudinalCommon(b), {
+      label: '预算',
+      value: `蒙特卡洛模拟 ${b.n_sim} 次，bootstrap ${b.n_bootstrap} 次`,
+    }, {
+      label: '另一条独立路线',
+      value: 'IPW 边缘结构模型这次没有跑：它靠加权而不是靠模拟，'
+        + '两条算出来的数一致与否本身就是一个发现，这里没有这个发现',
+    }]
+    return { cap: '纵向 g-公式（g-computation）', rows }
+  },
+
+  // The weight summary is the diagnostic that matters: a maximum far above the
+  // mean means a handful of subjects carry the estimate, which no interval
+  // built from those same weights will say.
+  longitudinal_ipw_msm: (ne) => {
+    const b = ne.longitudinal_ipw_msm as LongitudinalRoute & {
+      stabilized?: boolean; msm_coefficients?: number[]
+      weight_mean?: number; weight_max?: number
+    }
+    const rows = [{
+      label: '做法',
+      value: '按每个时点接受该处理的概率给个体加权，在加权后的人群上拟合一个边缘模型',
+    }, ...longitudinalCommon(b)]
+    if (b.weight_mean != null) {
+      rows.push({
+        label: b.stabilized ? '稳定化权重' : '未稳定化权重',
+        value: `均值 ${fmtNum(b.weight_mean)}，最大 ${fmtNum(b.weight_max)} —— `
+          + '最大值远高于均值，说明少数个体在主导这个数',
+      })
+    }
+    if (b.msm_coefficients?.length) {
+      rows.push({
+        label: '边缘结构模型系数',
+        value: b.msm_coefficients.map((c) => fmtNum(c)).join(', '),
+      })
+    }
+    rows.push({ label: '预算', value: `bootstrap ${b.n_bootstrap} 次` })
+    rows.push({
+      label: '另一条独立路线',
+      value: 'g-公式这次没有跑：它靠模拟而不是靠加权，'
+        + '两条算出来的数一致与否本身就是一个发现，这里没有这个发现',
+    })
+    return { cap: '纵向 IPW 边缘结构模型', rows }
+  },
+
+  // Four numbers that sum to the total, worth separating because they point at
+  // different interventions: what is mediated can be attacked at the mediator,
+  // what is interaction cannot.
+  four_way_decomposition: (ne) => {
+    const fw = ne.four_way_decomposition as FourWayDifference
+    const rows: { label: string; value: string }[] = []
+    for (const [key, label, gloss] of FOUR_WAY_PARTS) {
+      const said = band(fw[key as keyof FourWayDifference] as Band | undefined)
+      if (said) rows.push({ label, value: `${said} —— ${gloss}` })
+    }
+    for (const [key, label] of [['prop_mediated', '经中介的比例'], ['prop_interaction', '涉及交互的比例']] as const) {
+      const said = band(fw[key])
+      if (said) rows.push({ label, value: said })
+    }
+    if (fw.additive_interaction != null) {
+      rows.push({
+        label: '相加交互',
+        value: `${fmtNum(fw.additive_interaction)} —— 处理与中介同时在场时，比两者各自贡献相加多出来的部分`,
+      })
+    }
+    rows.push({
+      label: '为什么值得拆',
+      value: '能靠改中介去掉的只有经中介那两块，交互那部分改中介去不掉',
+    })
+    return { cap: `四分解（VanderWeele，差分尺度）· 总效应 ${band(fw.te) || '—'} 拆成四块，四块相加等于总效应`, rows }
+  },
+
+  // A binary outcome makes the multiplicative scale the natural one, and the
+  // difference-scale block beside it is a different decomposition rather than
+  // the same numbers rescaled.
+  four_way_ratio: (ne) => {
+    const fr = ne.four_way_ratio as FourWayRatio
+    const rows: { label: string; value: string }[] = []
+    for (const [key, label, gloss] of FOUR_WAY_PARTS) {
+      const said = band(fr[`err_${key}` as keyof FourWayRatio] as Band | undefined)
+      if (said) rows.push({ label, value: `${said} —— ${gloss}` })
+    }
+    for (const [key, label] of [
+      ['prop_mediated', '经中介的比例'],
+      ['prop_interaction', '涉及交互的比例'],
+      ['prop_eliminated', '把中介固定住能消掉的比例'],
+    ] as const) {
+      const said = band(fr[key])
+      if (said) rows.push({ label, value: said })
+    }
+    rows.push({
+      label: '用的哪个闭式',
+      value: FOUR_WAY_MEDIATOR_SCALE_ZH[String(fr.mediator_scale)] ?? String(fr.mediator_scale),
+    })
+    return {
+      cap: `四分解（VanderWeele，比值尺度／超额相对风险）· 总相对风险 ${band(fr.total_rr) || '—'}，`
+        + `超额部分 ${band(fr.total_err) || '—'} 拆成四块`,
+      rows,
+    }
+  },
+
+  // A reader shown no decomposition cannot tell "not applicable here" from
+  // "nobody tried", and those call for different next steps.
+  four_way_unavailable: (ne) => ({
+    cap: '四分解没有给出',
+    rows: [{
+      label: '原因',
+      value: `${ne.four_way_unavailable?.reason ?? '未说明原因'}`
+        + ' —— 是算过之后判定在这种数据形状下不成立，不是没算',
+    }],
+  }),
+}
+
+// The order a reader meets them in: what the estimator aggregated, what it
+// recovered, what it corrected, what it contrasted over time, what it
+// decomposed. Held equal to the report's order by a test.
+const NUMERIC_DETAIL_ORDER = [
+  'stratified_wald',
+  'recovered_ate',
+  'selection_recovery_numeric',
+  'measurement_correction',
+  'regression_calibration',
+  'longitudinal_gformula',
+  'longitudinal_ipw_msm',
+  'four_way_decomposition',
+  'four_way_ratio',
+  'four_way_unavailable',
+] as const
+
+/** What the estimator did with the data, for whichever parts are present. */
+export function numericDetailRows(num: NumericEstimate | undefined): Section[] {
+  if (!num) return []
+  const out: Section[] = []
+  for (const name of NUMERIC_DETAIL_ORDER) {
+    if (!num[name as keyof NumericEstimate]) continue
+    const section = NUMERIC_DETAIL_RENDERERS[name](num)
+    if (section) out.push(section)
+  }
+  return out
 }
 
 /** The lines every answer shape shares: how it was computed, how precise it

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-4849 passed / 144 skipped, warning-clean
+4864 passed / 145 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,88 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 「怎么算出来的」绑的是 extensions，而数是怎么算的记在 numeric_estimate 上（2026-08-19，#368）
+
+#366 建了门之后，`numeric_estimate` 底下还剩 12 个复合块 `unrendered`。登记说
+「先查 `inference` 是不是死字段，是就删，不是就渲染」——量下来它两样都不是，而剩下的
+11 个也不是同一件事。
+
+**根因：一节，两半，只绑了一半。** 报告与浏览器都有「怎么算出来的」这一节，两边都绑在
+`extensions` 上（`blocks.bind(blocks.ROUTE, …)` / `ROUTE_RENDERERS`）。而「这个数是怎么
+从数据里算出来的」这半边记在 `numeric_estimate` 上——**绑定看不见它**。这一节自己的注释
+已经写过同一件事两次：
+
+> ``formula`` … is a field rather than a block, so the binding above — **which is
+> what catches a block nobody renders** — never looked at it, and for ten rounds the
+> report said 「机器可读，见 result.formula」
+
+> A route is written as a BLOCK only by the identification patterns that produce one;
+> every other way of arriving at a number records what it did in ``step.rule`` …
+> **Binding the section to the block family therefore left it empty for six query kinds**
+
+两次都是**手工追加一行**补的。第三次是 10 个块——一张分层表、两条独立的纵向路线、
+三个各自带着「不用这个方法会得到什么数」的校正——**到十个，追加就不再是补法了**。
+
+**为什么是根因不是表象**：它预测名单。被渲染的 14 个恰好是 `answers.Shape.lives_in`
+那一个键、形状渲染器顺手多读的兄弟键、和 `_estimate_meta` 那条共享行；到不了的 10 个
+恰好是「方法声明 POINT／MEDIATION 之后，除答案键以外的细节块」。名单不是随机的。
+
+**改法**
+1. **两个面各加一张按 schema 细节键分派的表**，位置在识别公式之后、推导链（骨架）之前，
+   进的是**已经存在的那一节**，不新开一节：识别是怎么找到估计式的，这是估计量拿到数据
+   之后做了什么，两半合起来才是一个论证。
+2. **逐面对等这次是可查的**：两个面都用表分派，于是两张表可以**按顺序**相等地钉住，
+   不需要写第三份名单。（其余块的逐面对等仍不查，属 #313/#340/#347 那族。）
+3. 渲染出封闭词表成员就得有词：新增 `MEASUREMENT_SIDE`（哪一侧被误分类）与
+   `FOUR_WAY_MEDIATOR_SCALE`（走 eAppendix 哪个闭式）两张表，两面逐字节相同。
+   `test_vocabulary_reach` 里这两行从 `no_gloss` 改为 `glossed_by`——其中
+   `four_way_mediator_scale` 的旧理由（「四个分量按名字渲染了」）当时就是假的，
+   那个块根本没有被渲染过。
+
+**`inference` 删掉，不是渲染。** 它不是死字段（dispatch.py 在 `ci_method ==
+"influence_function"` 时写它），但它记的两件事**都已有正主**：`method` 是单成员枚举，
+值被创建它的那个 `if` 钉死，与同一分支上两行之前的 `ci_method` 逐字相同；
+`cluster_robust` ＝ `cluster is not None`。而 `verifier/cluster_inference_rules` 的模块
+注释明说这套审计成立**正是因为该事实从两个独立方向进入信封**——`estimation_context.cluster`
+（运行时解析的）与 `numeric_estimate.assumptions`（估计量自述，且已有中文台账句
+「影响函数方差按 X 做了簇稳健修正」到达读者）。`inference` 是 dispatch 层把自己刚传进去的
+东西再说一遍的**第三份副本，来自那两个方向之外**；而且因为它只记一个 bool 而不记列名，
+**结构上就无法被佐证**——旁边的 `bootstrap` 记了 `cluster_column`，所以它能被核对。
+**一个不说出自己在断言什么的断言，只能被相信，不能被核对。**
+
+**顺手更正上一轮自己写错的一行**：`bootstrap` 那行写的是「没人读」，实际它被
+`themis/verifier/cluster_inference_rules.py` 当键读——是 `consumed_by`。错的方向正是
+门查不到的那个方向：`consumed_by` 会被核实，`unrendered` 只对着读者面核实。
+
+**顺手补一个共享工具的坑**：`web_source.string_list` 直接对数组字面量做引号提取，
+英文注释里一个撇号（`the schema's own names`）就会开一个引号、在下一个条目上闭合，
+于是这份名单**静悄悄少几个成员、多一段自己的碎片**。已改为先丢掉整行注释——
+以 `//` 开头的行永远不是内容，而含 `//` 的字符串以引号开头，两者不会混。
+
+**闸口验过（12 个反例逐个构造，全部当场变红）**：schema 新增未表态部件、渲染器不再读
+它被声明负责的键、报告少一条细节而浏览器还有、两面顺序不一致、浏览器的顺序名单点到
+渲染表里没有的键、恢复值不再显示它所纠正的那个数、封闭词表退回裸标识符、细节没有接进
+那一节、词表少一个成员、浏览器的词与内核的词漂开、`consumed_by` 点名一个不消费它的模块、
+`unrendered` 声明被渲染器当场证伪。
+
+**skipped 从 144 变成 145**：`unrendered` 行清零之后，那条按 `unrendered` 行参数化的检查
+参数集为空，pytest 记一个 skip。这是容器的现状，不是检查的缺口——`unrendered` 仍是合法
+答案，一旦有行用它就立刻生效（反例 12 就是这么验的），已写进那条检查自己的 docstring。
+
+**基线**：4849 → **4864**。
+
+**方法论沉淀（第一五七至一五九条）**：
+(157)**一节的绑定只覆盖问题的一半时，另一半不会报错，只会不出现**——判据是「这一节的
+标题问的是什么，绑定枚举的又是什么容器」；同一处已经用「追加一行」补过两次，就说明
+绑定漏了一整类，不是漏了一个。
+(158)**「没人读它」有三种解法，不是两种**：渲染、留给非读者消费者、以及**删**——一个
+到不了读者的部件，可能是缺渲染，也可能是同一事实的第 N 份副本。先问「它记的事实有没有
+正主」，再问「谁渲染它」。
+(159)**只记 bool 不记对象的断言无法被佐证**——`bootstrap` 记了列名所以能核对，
+`inference` 只记 True/False 所以只能被相信。要审计一句断言，它必须说出自己在断言什么。
+
+---
 
 ### 完备性纪律继承了它被挂上去的那套机制的分母（2026-08-19，#366）
 

@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -41,6 +41,12 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // recognised; 570 of 1627 envelopes in one suite run carried a chain and
   // this surface read none of them.
   const chain = derivationRows(result.derivation)
+  // The numeric half of this foldout's question. The routes above say which
+  // pattern identified the estimand; these say what the estimator then did
+  // with the data — a stratum table, an uncorrected number beside a corrected
+  // one, two independent longitudinal routes. They live on numeric_estimate,
+  // which the block binding above does not reach, so none of them had a reader.
+  const detail = numericDetailRows(num)
   // How it was computed, how precise it is, and what more data cannot fix.
   // Visible rather than folded: two of these three say what the number is
   // worth, and a reader who never opens the foldout is exactly the reader
@@ -48,7 +54,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const meta = estimateMeta(num, result.outcome_error, result.estimation_context)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
-  const hasDetail = routes.length > 0 || !!chain || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
+  const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
 
   return (
     <section className="verdict" aria-label="判决">
@@ -243,6 +249,22 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   <span className="formula mono">{formula}</span>
                 </div>
               ) : null}
+
+              {/* After the expression and before the skeleton: the routes say
+                  which pattern identified the estimand, these say what the
+                  estimator then did with the data. Same position as in the
+                  report, so the two surfaces read as one account. */}
+              {detail.map((d, i) => (
+                <div className="boundsexpr" key={`detail-${i}`}>
+                  <span className="figure__cap">{d.cap}</span>
+                  {d.rows.map((row, j) => (
+                    <div className="boundsexpr__row" key={j}>
+                      <span className="boundsexpr__k">{row.label}</span>
+                      <span className="boundsexpr__v">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
 
               {/* After the pattern and the expression, because it is the
                   skeleton and they are the detail — the same order the
