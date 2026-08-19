@@ -66,6 +66,30 @@ FRAMING_FIELD: dict[str, str] = {
     "state_vs_event": "状态还是事件（持续属性，还是一次性发生的事）",
 }
 
+#: The shape an Anderson-Rubin confidence set came out in, as
+#: ``numeric_estimate.{,stratified_,robust_}anderson_rubin_confidence_set.kind``.
+#: One table for all three, because the shape means the same thing whichever
+#: moment was inverted — and the two that report ``union`` and the four that
+#: cannot are the same vocabulary either way.
+#:
+#: The word carries the consequence rather than only the geometry. An
+#: unbounded AR set is not a wide interval; it is the statement that the
+#: instrument is too weak for the data to bound the effect at all, and the
+#: bootstrap interval printed beside it will look finite and reassuring. A
+#: reader told only "向上无界" has been told the shape and not the finding.
+AR_SET_KIND: dict[str, str] = {
+    "bounded": "有界区间",
+    "disconnected": "两条射线，中间一段被排除",
+    "unbounded_below": "向下无界 —— 工具太弱，数据约束不住效应的下限"
+                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）",
+    "unbounded_above": "向上无界 —— 工具太弱，数据约束不住效应的上限"
+                       "（旁边那个 bootstrap 区间会把这件事掩盖掉）",
+    "whole_line": "整条实轴 —— 数据对这个效应没有任何约束力",
+    "empty": "空集 —— 没有哪个取值能同时满足所有工具的矩条件，"
+             "数据在否定这组工具本身",
+    "union": "多段（三段以上）",
+}
+
 #: The measurement scale a variable declares, and the one its column turned
 #: out to have — ``extensions.type_reconciliation.checks[].declared_scale``
 #: and ``.observed_scale``. One mapping for both, because a mismatch is read
@@ -113,3 +137,8 @@ def framing_fields_zh(missing) -> str:
 def scale_zh(value) -> str:
     """A declared or observed measurement scale."""
     return _describe(SCALE, value)
+
+
+def ar_set_kind_zh(value) -> str:
+    """What shape a weak-instrument-robust confidence set came out in."""
+    return _describe(AR_SET_KIND, value)

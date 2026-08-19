@@ -109,6 +109,14 @@ export interface CausationQuantities {
   instrument?: string | null
 }
 
+export interface ArConfidenceSet {
+  kind?: string
+  ci_level?: number
+  lower?: number | null
+  upper?: number | null
+  segments?: { lower?: number | null; upper?: number | null }[]
+}
+
 export interface NumericEstimate {
   point?: number | null
   ci_lower?: number | null
@@ -127,6 +135,28 @@ export interface NumericEstimate {
     hint?: string
   }
   sensitivity_analysis?: Sensitivity
+  // Three producers, one shape. Only the heteroskedasticity-robust set can
+  // come out in more than two pieces, so only it carries `segments`; the
+  // other two state the endpoints and let `kind` say which sides are open.
+  anderson_rubin_confidence_set?: ArConfidenceSet
+  stratified_anderson_rubin_confidence_set?: ArConfidenceSet
+  robust_anderson_rubin_confidence_set?: ArConfidenceSet
+  over_identification?: {
+    sargan_p_value?: number
+    hansen_p_value?: number
+  }
+  propensity_summary?: {
+    raw_min?: number
+    raw_max?: number
+    n_trimmed?: number
+    floor?: number
+    model?: string
+  }
+  ovb_sensitivity?: {
+    robustness_value_q?: number
+    robustness_value_qa?: number
+    alpha?: number
+  }
   dose_response_curve?: ({ x?: number; effect?: number } & Band)[]
   reference_point?: number | null
   decomposition?: {

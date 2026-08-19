@@ -134,6 +134,20 @@ ANCHORS: dict[str, set[str]] = {
     "cde_failed_condition": _enum_at(
         "properties", "extensions", "properties", "mediation_decomposition",
         "properties", "cde", "properties", "failed_condition") - {None},
+    # Three producers state this, and the robust one can return a shape the
+    # other two cannot, so the union is the vocabulary — anchoring on either
+    # of the smaller two would let the browser drop the shape only the
+    # polynomial inversion produces and still pass.
+    "anderson_rubin_set_kind": (
+        _enum_at("properties", "numeric_estimate", "properties",
+                 "anderson_rubin_confidence_set", "properties", "kind")
+        | _enum_at("properties", "numeric_estimate", "properties",
+                   "stratified_anderson_rubin_confidence_set", "properties",
+                   "kind")
+        | _enum_at("properties", "numeric_estimate", "properties",
+                   "robust_anderson_rubin_confidence_set", "properties",
+                   "kind")
+    ),
     "refusal_kind": {str(k) for k in refusals.Kind},
     # The one anchor whose vocabulary no schema enum states at all:
     # ``step.rule`` is a free string in derivation.schema.json, and the closed

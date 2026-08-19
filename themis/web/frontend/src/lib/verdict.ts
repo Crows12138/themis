@@ -1,4 +1,4 @@
-import type { AnswerTier, Band, Derivation, NumericEstimate, QueryResult } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, Derivation, NumericEstimate, QueryResult } from '../types'
 
 type OutcomeError = NonNullable<QueryResult['outcome_error']>
 type EstimationContext = NonNullable<QueryResult['estimation_context']>
@@ -362,6 +362,39 @@ const CDE_CONDITION_ZH: Record<string, string> = {
   C2: '调整集里含 X 或 M 的后代',
 }
 
+// The shape a weak-instrument-robust confidence set came out in. One table
+// for all three producers, because the shape means the same thing whichever
+// moment was inverted. The word carries the consequence and not only the
+// geometry: an unbounded set is not a wide interval, it is the statement
+// that the data cannot bound the effect, and the bootstrap CI beside it
+// looks finite and reassuring.
+const AR_SET_KIND_ZH: Record<string, string> = {
+  bounded: '有界区间',
+  disconnected: '两条射线，中间一段被排除',
+  unbounded_below: '向下无界 —— 工具太弱，数据约束不住效应的下限（旁边那个 bootstrap 区间会把这件事掩盖掉）',
+  unbounded_above: '向上无界 —— 工具太弱，数据约束不住效应的上限（旁边那个 bootstrap 区间会把这件事掩盖掉）',
+  whole_line: '整条实轴 —— 数据对这个效应没有任何约束力',
+  empty: '空集 —— 没有哪个取值能同时满足所有工具的矩条件，数据在否定这组工具本身',
+  union: '多段（三段以上）',
+}
+
+// The set itself. Only the heteroskedasticity-robust producer can return
+// more than two pieces, so reading `segments` first and the endpoints second
+// is one renderer rather than a branch per producer.
+function arInterval(ar: ArConfidenceSet): string {
+  if (ar.segments?.length) {
+    return ar.segments
+      .map((s) => `[${s.lower != null ? fmtNum(s.lower) : '−∞'}, ${s.upper != null ? fmtNum(s.upper) : '+∞'}]`)
+      .join(' ∪ ')
+  }
+  if (ar.kind === 'empty') return '∅'
+  if (ar.kind === 'whole_line') return '(−∞, +∞)'
+  if (ar.kind === 'disconnected') {
+    return `(−∞, ${fmtNum(ar.lower)}] ∪ [${fmtNum(ar.upper)}, +∞)`
+  }
+  return `[${ar.lower != null ? fmtNum(ar.lower) : '−∞'}, ${ar.upper != null ? fmtNum(ar.upper) : '+∞'}]`
+}
+
 // One arm of a decomposition — identifiable, and on what. The condition
 // table comes in rather than being picked here, so an arm cannot be given
 // the other arm's theorem.
@@ -623,6 +656,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   bounds_contrast_kind: BOUNDS_CONTRAST_ZH,
   nde_nie_failed_condition: NDE_NIE_CONDITION_ZH,
   cde_failed_condition: CDE_CONDITION_ZH,
+  anderson_rubin_set_kind: AR_SET_KIND_ZH,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -821,6 +855,61 @@ export function estimateMeta(
     rows.push({
       label: '样本量',
       value: `N=${n}${ctx?.cluster ? ` · 按 ${ctx.cluster} 分簇` : ''}`,
+    })
+  }
+
+  // Before the precision row, because it qualifies the interval printed
+  // above both of them. A reader who takes the bootstrap CI at face value
+  // and stops has been told the effect is bounded when the honest answer
+  // from this data is that it is not.
+  // Robust first where both are present, and they can be: it is valid under
+  // weak identification AND heteroskedasticity, so the homoskedastic one
+  // beside it is the same set computed under an assumption the data may not
+  // support. The stratified set answers for a different estimand and is
+  // never present with either.
+  const ar = num?.robust_anderson_rubin_confidence_set
+    ?? num?.stratified_anderson_rubin_confidence_set
+    ?? num?.anderson_rubin_confidence_set
+  if (ar?.kind) {
+    rows.push({
+      label: `弱工具稳健区间（AR ${fmtNum((ar.ci_level ?? 0.95) * 100)}%）`,
+      value: `${arInterval(ar)} —— ${AR_SET_KIND_ZH[ar.kind] ?? `\`${ar.kind}\``}`,
+    })
+  }
+
+  // Hansen when it exists: it is the one that survives heteroskedasticity,
+  // and printing the homoskedastic Sargan beside it would offer the reader a
+  // choice between a test and its own weaker version.
+  const oid = num?.over_identification
+  const oidP = oid?.hansen_p_value ?? oid?.sargan_p_value
+  if (oidP != null) {
+    rows.push({
+      label: `工具联合有效性（${oid?.hansen_p_value != null ? 'Hansen J，异方差稳健' : 'Sargan'}）`,
+      value: `p=${fmtNum(oidP)} —— ` + (oidP < 0.05
+        ? '数据否定了这组工具：至少有一个工具的排除限制不成立，上面这个数建立在一个被自己的数据驳倒的前提上'
+        : '数据没有否定这组工具（不通过不等于成立，只是这批数据看不出矛盾）'),
+    })
+  }
+
+  const ps = num?.propensity_summary
+  if (ps?.raw_min != null) {
+    const span = `倾向分原始范围 [${fmtNum(ps.raw_min)}, ${fmtNum(ps.raw_max)}]`
+    rows.push({
+      label: '重叠（正性）',
+      value: ps.n_trimmed && ps.floor != null
+        ? `${span}，其中 ${ps.n_trimmed} 个个体被截到 [${fmtNum(ps.floor)}, ${fmtNum(1 - ps.floor)}] 之内权重才有限 —— 截掉的越多，说明处理组与对照组越难找到可比的人，这个数越依赖模型往数据外推`
+        : `${span}，没有个体需要截断`,
+    })
+  }
+
+  const ovb = num?.ovb_sensitivity
+  if (ovb?.robustness_value_q != null) {
+    rows.push({
+      label: '稳健性（未测混杂）',
+      value: `一个未测混杂要同时解释掉处理与结局各 ${(ovb.robustness_value_q * 100).toFixed(1)}% 的残差变异，才能把这个效应抹平`
+        + (ovb.robustness_value_qa != null
+          ? `；解释掉 ${(ovb.robustness_value_qa * 100).toFixed(1)}% 就足以让它不再显著（α=${fmtNum(ovb.alpha ?? 0.05)}）`
+          : ''),
     })
   }
 

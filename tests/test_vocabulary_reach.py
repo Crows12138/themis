@@ -541,11 +541,10 @@ VOCABULARIES: dict[str, Vocabulary] = {
             (*_NE, "robust_anderson_rubin_confidence_set", "properties",
              "kind"),
         ),
-        no_gloss="No word because no surface renders the block at all — "
-                 "neither the report nor the browser has a section for a "
-                 "weak-instrument confidence set, so an unbounded one "
-                 "reaches nobody. That is a missing section rather than a "
-                 "missing word, and it is registered as its own item.",
+        # Was `no_gloss` on the ground that no surface rendered the block at
+        # all, which was true and is the reason a word would have been dead.
+        # Both surfaces render it now, so the word is what a reader gets.
+        glossed_by=f"{_GLOSSARY}.ar_set_kind_zh",
     ),
     "gformula_stratum_arm": Vocabulary(
         sites=((*_DEFS, "gformulaFactorStats", "properties",

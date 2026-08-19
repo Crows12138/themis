@@ -726,6 +726,34 @@ def _render_numeric_estimate(ne: dict, outcome_error: dict | None = None) -> str
     return "\n".join(lines)
 
 
+def _ar_interval(ar: dict) -> str:
+    """A weak-instrument-robust confidence set, written as the set it is.
+
+    Three blocks produce one of these — the just-identified inversion, the
+    stratified Wald's own moment, and the heteroskedasticity-robust
+    polynomial — and only the last can come out in more than two pieces, so
+    only it carries ``segments``. Reading that first and the endpoints
+    second means one renderer rather than a branch per producer.
+    """
+    segments = ar.get("segments")
+    if segments:
+        return " ∪ ".join(
+            f"[{_fmt(s['lower']) if s.get('lower') is not None else '−∞'}, "
+            f"{_fmt(s['upper']) if s.get('upper') is not None else '+∞'}]"
+            for s in segments
+        )
+    kind, lower, upper = ar.get("kind"), ar.get("lower"), ar.get("upper")
+    if kind == "empty":
+        return "∅"
+    if kind == "whole_line":
+        return "(−∞, +∞)"
+    if kind == "disconnected":
+        return f"(−∞, {_fmt(lower)}] ∪ [{_fmt(upper)}, +∞)"
+    left = _fmt(lower) if lower is not None else "−∞"
+    right = _fmt(upper) if upper is not None else "+∞"
+    return f"[{left}, {right}]"
+
+
 def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
     """The lines every answer shape shares, whatever its headline looks like.
 
@@ -733,6 +761,12 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
     in one place so a shape bound later cannot ship without them — the point
     shape had all of this and the four shapes that rendered nothing at all
     had, by construction, none of it.
+
+    The instrument-strength, instrument-validity, overlap and omitted-variable
+    lines are here rather than in a section of their own for the same reason
+    the rest of it is: each qualifies the interval printed directly above,
+    each arrives on a different estimator's path, and a section only some
+    paths reach is a section most readers never learn exists.
     """
     lines: list[str] = []
     method = ne.get("method")
@@ -747,6 +781,68 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
         meta.append(f"调整集 {{{', '.join(adj)}}}")
     if meta:
         lines.append("- " + "，".join(meta))
+
+    # Before the precision line, because it qualifies the interval printed
+    # above both of them. A reader who takes the bootstrap CI at face value
+    # and stops has been told the effect is bounded when the honest answer
+    # from this data is that it is not.
+    # Robust first where both are present, and they can be: it is valid
+    # under weak identification AND heteroskedasticity, so the homoskedastic
+    # one beside it is the same set computed under an assumption the data
+    # may not support. Offering both would ask the reader to choose between
+    # a test and its own weaker version. The stratified set answers for a
+    # different estimand and the schema says it is never present with either.
+    ar = (ne.get("robust_anderson_rubin_confidence_set")
+          or ne.get("stratified_anderson_rubin_confidence_set")
+          or ne.get("anderson_rubin_confidence_set"))
+    if ar and ar.get("kind"):
+        level = _fmt(ar.get("ci_level", 0.95) * 100)
+        lines.append(
+            f"- 弱工具稳健区间（Anderson-Rubin {level}%）：{_ar_interval(ar)}"
+            f" —— {envelope_glossary.ar_set_kind_zh(ar['kind'])}"
+        )
+
+    oid = ne.get("over_identification")
+    if oid:
+        # Hansen when it exists: it is the one that survives heteroskedasticity,
+        # and reporting the homoskedastic Sargan beside it would offer the
+        # reader a choice between a test and its own weaker version.
+        p_value, named = oid.get("hansen_p_value"), "Hansen J，异方差稳健"
+        if p_value is None:
+            p_value, named = oid.get("sargan_p_value"), "Sargan"
+        if p_value is not None:
+            said = (
+                "**数据否定了这组工具**：至少有一个工具的排除限制不成立，"
+                "上面这个数建立在一个被自己的数据驳倒的前提上"
+                if p_value < 0.05 else
+                "数据没有否定这组工具（不通过不等于成立，只是这批数据看不出矛盾）"
+            )
+            lines.append(f"- 工具联合有效性（{named}）：p={_fmt(p_value)} —— {said}")
+
+    ps = ne.get("propensity_summary")
+    if ps and ps.get("raw_min") is not None:
+        span = f"倾向分原始范围 [{_fmt(ps['raw_min'])}, {_fmt(ps.get('raw_max'))}]"
+        trimmed, floor = ps.get("n_trimmed") or 0, ps.get("floor")
+        if trimmed and floor is not None:
+            lines.append(
+                f"- 重叠（正性）：{span}，其中 {trimmed} 个个体被截到 "
+                f"[{_fmt(floor)}, {_fmt(1 - floor)}] 之内权重才有限 —— 截掉的越多，"
+                "说明处理组与对照组越难找到可比的人，这个数越依赖模型往数据外推。"
+            )
+        else:
+            lines.append(f"- 重叠（正性）：{span}，没有个体需要截断。")
+
+    ovb = ne.get("ovb_sensitivity")
+    if ovb and ovb.get("robustness_value_q") is not None:
+        tail = ""
+        if ovb.get("robustness_value_qa") is not None:
+            tail = (f"；解释掉 {ovb['robustness_value_qa']:.1%} 就足以让它不再"
+                    f"显著（α={_fmt(ovb.get('alpha', 0.05))}）")
+        lines.append(
+            f"- 稳健性（未测混杂，Cinelli-Hazlett）：一个未测混杂要同时解释掉处理与"
+            f"结局各 {ovb['robustness_value_q']:.1%} 的残差变异，才能把这个效应抹平"
+            f"{tail}。"
+        )
 
     pb = ne.get("precision_budget")
     if pb and pb.get("hint"):
