@@ -46,7 +46,10 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // with the data — a stratum table, an uncorrected number beside a corrected
   // one, two independent longitudinal routes. They live on numeric_estimate,
   // which the block binding above does not reach, so none of them had a reader.
-  const detail = numericDetailRows(num)
+  // Keyed by envelope path now, and taking the whole result: four route blocks
+  // carry a `numeric` the theta path fills, and a table keyed by one
+  // container's properties could not see any of them.
+  const detail = numericDetailRows(result)
   // The sources. Six containers carry a citation and no table on either
   // surface was ever about citations, so all six were dropped; this walks
   // the envelope for the same reason the report does.

@@ -341,6 +341,24 @@ const varset = (xs: unknown): string =>
 const preds = (xs: unknown): string =>
   varset(Array.isArray(xs) ? xs.map((e: any) => e?.predicate ?? '?') : [])
 
+// The ordered factors a recovery is assembled from, and its formula when
+// there are none. Mirrors the report's `_recovery_factorization`.
+function recoveryFactors(part: any, label: string): { label: string; value: string }[] {
+  const factors: any[] = part?.factorization ?? []
+  if (factors.length) {
+    const said = factors
+      .map((f) => `P(${f.factor}${f.conditioned_on?.length ? ` | ${f.conditioned_on.join('、')}` : ''})`)
+      .join(' × ')
+    return [{
+      label: `${label}拆成 ${factors.length} 个因子`,
+      value: `${said} —— 每个因子各在自己那些变量都被观测到的行上估`,
+    }]
+  }
+  return part?.recovery_formula
+    ? [{ label: `${label}的恢复式`, value: String(part.recovery_formula) }]
+    : []
+}
+
 const PATTERN_ZH: Record<string, string> = {
   backdoor: '后门调整',
   front_door: '前门调整',
@@ -516,6 +534,10 @@ const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Sect
         : `无法只从这份样本恢复${b.failure_reason ? ` · ${b.failure_reason}` : ''}`,
     })
     if (b.external_data_needed?.length) rows.push({ label: '还需外部数据', value: b.external_data_needed.join('、') })
+    // "Recoverable" is a verdict; this is what it licenses you to compute.
+    // Every other route's estimand is stated from `result.formula`, and a
+    // recovery route writes its own instead, so that line never reaches it.
+    if (b.recovery_formula) rows.push({ label: '恢复式', value: String(b.recovery_formula) })
     return { cap: '选择偏倚', rows }
   },
   missing_data_recovery: (b) => {
@@ -528,6 +550,15 @@ const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Sect
         ? `可从缺失数据恢复${est.requires?.length ? ` · 需 ${est.requires.join('、')}` : ''}`
         : `不可恢复${est.failure_reason ?? b.failure_reason ? ` · ${est.failure_reason ?? b.failure_reason}` : ''}`,
     })
+    // Recoverability under missingness is a claim about an ORDER: each factor
+    // has to be estimable on the rows where its own variables were observed,
+    // and which order works is the content of the theorem. A verdict without
+    // the factorization says that it worked and not what worked.
+    rows.push(...recoveryFactors(b, '条件概率这一层'))
+    if (b.covariate_recovery) {
+      rows.push(...recoveryFactors(b.covariate_recovery, `协变量边缘 ${b.covariate_recovery.target ?? 'P(Z)'}`))
+    }
+    if (est.recovery_formula) rows.push({ label: '整条估计量的恢复式', value: String(est.recovery_formula) })
     return { cap: '缺失数据', rows }
   },
 }
@@ -919,12 +950,74 @@ function longitudinalCommon(b: LongitudinalRoute): { label: string; value: strin
   return rows
 }
 
-type DetailRenderer = (ne: NumericEstimate) => Section | null
+// Why one arm of a theta mediation produced no numbers. An arm the graph
+// calls identifiable and the distribution cannot answer is a different
+// situation from one the graph refuses, and the route block above states
+// only the second.
+function thetaArmStatus(status: any, arm: string): { label: string; value: string } {
+  let value = String(status.reason ?? status.status ?? '未说明')
+  if (status.missing_key) value += `；缺的是 ${status.missing_key}`
+  if (status.reference_point_count != null && status.cap != null) {
+    value += `（中介参考点有 ${status.reference_point_count} 个，超过上限 ${status.cap}）`
+  }
+  const at = status.mediator_value ? `（中介固定在 ${status.mediator_value} 时）` : ''
+  return { label: `${arm} 没能算出数${at}`, value }
+}
+
+// The decomposition itself, evaluated against a declared joint distribution.
+// Mirrors the report's `_detail_theta_mediation`.
+function thetaMediation(b: Record<string, any>): Section {
+  const nm = b.numeric
+  const rows: { label: string; value: string }[] = []
+  if (nm.te != null) {
+    rows.push({
+      label: '总效应 TE',
+      value: `${fmtNum(nm.te)}（E[Y|全处理]=${fmtNum(nm.e_y_treated)} − E[Y|全对照]=${fmtNum(nm.e_y_control)}）`,
+    })
+  }
+  for (const [direct, indirect, label, cross] of [
+    ['nde_at_control', 'nie_at_treated', '以对照为参照', 'e_y_cross_treated_outer'],
+    ['nde_at_treated', 'nie_at_control', '以处理为参照', 'e_y_cross_control_outer'],
+  ] as const) {
+    const nde = nm[direct], nie = nm[indirect]
+    if (nde == null || nie == null) continue
+    let value = `直接效应 NDE=${fmtNum(nde)} ＋ 经中介的间接效应 NIE=${fmtNum(nie)}`
+      + `（跨世界量 ${fmtNum(nm[cross])}）`
+    // Not legible from the pair unless it is said: the headline is their sum
+    // and reads as a single direction.
+    if (nde * nie < 0) {
+      value += '　—— 两条通路方向相反：一条在推高、另一条在压低，总效应是相互抵消之后剩下的那点'
+    }
+    rows.push({ label, value })
+  }
+  const cde: Record<string, number> = nm.cde ?? {}
+  const values = Object.keys(cde).sort()
+  for (const at of values) {
+    rows.push({ label: `中介固定在 ${at} 时的 CDE`, value: fmtNum(cde[at]) })
+  }
+  if (values.length > 1) {
+    const nums = values.map((k) => cde[k])
+    if (Math.min(...nums) * Math.max(...nums) < 0) {
+      rows.push({
+        label: 'CDE 随中介取值变号',
+        value: '处理与中介之间存在交互，「直接效应」这句话本身要看中介被固定在哪里才成立',
+      })
+    }
+  }
+  if (nm.nde_nie_status) rows.push(thetaArmStatus(nm.nde_nie_status, '自然直接/间接效应 NDE / NIE'))
+  if (nm.cde_status) rows.push(thetaArmStatus(nm.cde_status, '受控直接效应 CDE'))
+  return { cap: '中介分解的数 · 对着声明的概率直接算，不是从数据估的', rows }
+}
+
+// The container the part hangs off, not the whole result: the table below is
+// keyed by a PATH, and the dispatcher walks all but the last step, so each
+// renderer still reads its own key by name the way it always did.
+type DetailRenderer = (holder: Record<string, any>) => Section | null
 
 const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // The aggregate is a ratio of two weighted sums and not an average of
   // per-stratum ratios, so no cell has a Wald estimate of its own to print.
-  stratified_wald: (ne) => {
+  'numeric_estimate.stratified_wald': (ne) => {
     const sw = ne.stratified_wald as StratifiedWald
     const order = sw.conditioning_order ?? []
     const strata = sw.strata ?? []
@@ -950,7 +1043,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // The comparison is the method: recovering an effect from data with missing
   // values is worth doing exactly insofar as it differs from dropping the
   // incomplete rows.
-  recovered_ate: (ne) => {
+  'numeric_estimate.recovered_ate': (ne) => {
     const ra = ne.recovered_ate as RecoveredAte
     const rows = [{
       label: '恢复值',
@@ -977,7 +1070,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // Z⁻ is the part that cannot come from the selected sample, so the reference
   // sample is not a footnote: the recovered number is only as good as the
   // claim that it speaks for the population the first sample was filtered from.
-  selection_recovery_numeric: (ne) => {
+  'numeric_estimate.selection_recovery_numeric': (ne) => {
     const sr = ne.selection_recovery_numeric as SelectionRecovery
     const rows = [{
       label: '两臂均值',
@@ -1006,7 +1099,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // `det` is what makes the correction unstable: a near-singular matrix
   // inverts into a large move the data does not support, and the corrected
   // point alone cannot be told apart from a large real correction.
-  measurement_correction: (ne) => {
+  'numeric_estimate.measurement_correction': (ne) => {
     const mc = ne.measurement_correction as MeasurementCorrection
     const rows: { label: string; value: string }[] = []
     if (mc.naive_point != null && ne.point != null) {
@@ -1046,7 +1139,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // λ is the whole correction — the corrected slope is the naive one divided
   // through by it — so the corrected number alone cannot tell a small
   // measurement problem from a large one.
-  regression_calibration: (ne) => {
+  'numeric_estimate.regression_calibration': (ne) => {
     const rc = ne.regression_calibration as RegressionCalibration
     const rows: { label: string; value: string }[] = []
     if (rc.naive_point != null && ne.point != null) {
@@ -1082,7 +1175,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // Only one of the two longitudinal routes runs per query, so whether they
   // agree — which is itself a finding — is not available. Saying so is the
   // difference between a check that was not run and one that passed.
-  longitudinal_gformula: (ne) => {
+  'numeric_estimate.longitudinal_gformula': (ne) => {
     const b = ne.longitudinal_gformula as LongitudinalRoute & { n_sim?: number }
     const rows = [{
       label: '做法',
@@ -1101,7 +1194,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // The weight summary is the diagnostic that matters: a maximum far above the
   // mean means a handful of subjects carry the estimate, which no interval
   // built from those same weights will say.
-  longitudinal_ipw_msm: (ne) => {
+  'numeric_estimate.longitudinal_ipw_msm': (ne) => {
     const b = ne.longitudinal_ipw_msm as LongitudinalRoute & {
       stabilized?: boolean; msm_coefficients?: number[]
       weight_mean?: number; weight_max?: number
@@ -1135,7 +1228,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // Four numbers that sum to the total, worth separating because they point at
   // different interventions: what is mediated can be attacked at the mediator,
   // what is interaction cannot.
-  four_way_decomposition: (ne) => {
+  'numeric_estimate.four_way_decomposition': (ne) => {
     const fw = ne.four_way_decomposition as FourWayDifference
     const rows: { label: string; value: string }[] = []
     for (const [key, label, gloss] of FOUR_WAY_PARTS) {
@@ -1162,7 +1255,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
   // A binary outcome makes the multiplicative scale the natural one, and the
   // difference-scale block beside it is a different decomposition rather than
   // the same numbers rescaled.
-  four_way_ratio: (ne) => {
+  'numeric_estimate.four_way_ratio': (ne) => {
     const fr = ne.four_way_ratio as FourWayRatio
     const rows: { label: string; value: string }[] = []
     for (const [key, label, gloss] of FOUR_WAY_PARTS) {
@@ -1190,7 +1283,7 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
 
   // A reader shown no decomposition cannot tell "not applicable here" from
   // "nobody tried", and those call for different next steps.
-  four_way_unavailable: (ne) => ({
+  'numeric_estimate.four_way_unavailable': (ne) => ({
     cap: '四分解没有给出',
     rows: [{
       label: '原因',
@@ -1198,31 +1291,91 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
         + ' —— 是算过之后判定在这种数据形状下不成立，不是没算',
     }],
   }),
+
+  // The same table the data path states above, from a declared joint
+  // distribution instead of from rows. The block's own late_caveat is printed
+  // at the reader and says the value "aggregates the per-stratum LATEs in
+  // strata" — two fields the reader was then given no way to see.
+  'extensions.iv_identification.numeric': (b) => {
+    const nm = b.numeric
+    const order: string[] = nm.conditioning_order ?? []
+    const strata: any[] = nm.strata ?? []
+    const rows = [{
+      label: '聚合方式',
+      value: `加权结局差 ${fmtNum(nm.outcome_shift)} ÷ 加权处理差 ${fmtNum(nm.treatment_shift)}`
+        + ` = ${fmtNum(nm.late)}；分母就是依从者（会被工具推动的那部分人）占比，`
+        + '聚合的是两个加权和之比，不是各格比值的平均',
+    }]
+    for (const s of strata) {
+      const cell = (s.values ?? []).map((v: unknown, i: number) => `${order[i] ?? '?'}=${String(v)}`).join('、') || '（无条件）'
+      rows.push({
+        label: cell,
+        value: `权重 ${fmtNum(s.weight)}；工具取高时 P(结局)=${fmtNum(s.p_y_given_z_treated)}、`
+          + `P(处理)=${fmtNum(s.p_x_given_z_treated)}，取低时 P(结局)=${fmtNum(s.p_y_given_z_control)}、`
+          + `P(处理)=${fmtNum(s.p_x_given_z_control)}`,
+      })
+    }
+    return { cap: `Wald 比值的逐格明细 · ${strata.length} 格${order.length ? `，按 ${order.join('、')} 依次切` : '，工具无条件'}`, rows }
+  },
+
+  // A mediation analysis is not one number: the two Pearl decompositions can
+  // disagree, and the direct and indirect arms can point opposite ways, which
+  // is the finding it exists to produce. The headline carries TE alone.
+  'extensions.mediation_decomposition.numeric': (b) => thetaMediation(b),
+  // One renderer, two paths: the joint block's `numeric` is a $ref to the
+  // single-mediator one and is filled by the same evaluator.
+  'extensions.mediation_joint_decomposition.numeric': (b) => thetaMediation(b),
+
+  // The value means nothing without the two population labels: it is an
+  // estimate FOR one population FROM another.
+  'extensions.transport_identification.numeric': (b) => ({
+    cap: '迁移后的数',
+    rows: [{
+      label: `${b.numeric.source_population ?? '?'} → ${b.numeric.target_population ?? '?'}`,
+      value: `${fmtNum(b.numeric.value)}（用前者的数据，算的是后者的效应）`,
+    }],
+  }),
 }
 
-// The order a reader meets them in: what the estimator aggregated, what it
-// recovered, what it corrected, what it contrasted over time, what it
-// decomposed. Held equal to the report's order by a test.
+// The order a reader meets them in: what was aggregated, what was recovered,
+// what was corrected, what was contrasted over time, what was decomposed, and
+// last what the theta path evaluated instead of estimating. Held equal to the
+// report's order by a test.
+//
+// Keyed by a PATH rather than by a property of `numeric_estimate`. A table
+// keyed by one container's property names is a table about that container,
+// and this foldout has now been caught by that three times — the formula is a
+// field, the chain is under `derivation`, the details are on numeric_estimate.
+// The fourth was four route blocks each carrying a `numeric` holding what the
+// theta path computed, none of it reaching a reader while the data path's
+// identical breakdown was stated in full.
 const NUMERIC_DETAIL_ORDER = [
-  'stratified_wald',
-  'recovered_ate',
-  'selection_recovery_numeric',
-  'measurement_correction',
-  'regression_calibration',
-  'longitudinal_gformula',
-  'longitudinal_ipw_msm',
-  'four_way_decomposition',
-  'four_way_ratio',
-  'four_way_unavailable',
+  'numeric_estimate.stratified_wald',
+  'numeric_estimate.recovered_ate',
+  'numeric_estimate.selection_recovery_numeric',
+  'numeric_estimate.measurement_correction',
+  'numeric_estimate.regression_calibration',
+  'numeric_estimate.longitudinal_gformula',
+  'numeric_estimate.longitudinal_ipw_msm',
+  'numeric_estimate.four_way_decomposition',
+  'numeric_estimate.four_way_ratio',
+  'numeric_estimate.four_way_unavailable',
+  'extensions.iv_identification.numeric',
+  'extensions.mediation_decomposition.numeric',
+  'extensions.mediation_joint_decomposition.numeric',
+  'extensions.transport_identification.numeric',
 ] as const
 
-/** What the estimator did with the data, for whichever parts are present. */
-export function numericDetailRows(num: NumericEstimate | undefined): Section[] {
-  if (!num) return []
+/** What produced the number, for whichever parts are present. */
+export function numericDetailRows(result: QueryResult | undefined): Section[] {
+  if (!result) return []
   const out: Section[] = []
-  for (const name of NUMERIC_DETAIL_ORDER) {
-    if (!num[name as keyof NumericEstimate]) continue
-    const section = NUMERIC_DETAIL_RENDERERS[name](num)
+  for (const path of NUMERIC_DETAIL_ORDER) {
+    const steps = path.split('.')
+    let node: any = result
+    for (const step of steps.slice(0, -1)) node = node?.[step] ?? {}
+    if (!node?.[steps[steps.length - 1]]) continue
+    const section = NUMERIC_DETAIL_RENDERERS[path](node)
     if (section) out.push(section)
   }
   return out
@@ -1395,8 +1548,11 @@ export function answerRows(num: NumericEstimate): Section | null {
 
   const cell = num.counterfactual_cell
   if (cell && cell.lower != null && cell.upper != null) {
+    // WHICH cell. Four booleans say it, and the heading said "反事实格",
+    // which names none of them: an interval on an unnamed quantity is not
+    // something a reader can check against the question they asked.
     const rows = [
-      { label: '区间', value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]` },
+      { label: counterfactualCellQuestion(cell), value: `[${fmtNum(cell.lower)}, ${fmtNum(cell.upper)}]` },
     ]
     // WHICH solver produced it. Two of them can fill the same two numbers —
     // the consistency identity on a point-identified risk, and the
@@ -1410,10 +1566,23 @@ export function answerRows(num: NumericEstimate): Section | null {
         value: how + (cell.instrument ? ` · 工具变量 \`${cell.instrument}\`` : ''),
       })
     }
+    // The one interventional arm the cell leans on, when it leans on one.
+    if (cell.p_y_do_x_cf != null) {
+      rows.push({ label: '用到的干预风险 P(结局 | do(处理))', value: fmtNum(cell.p_y_do_x_cf) })
+    }
     return { cap: '反事实格(区间)', rows }
   }
 
   return null
+}
+
+/** Which counterfactual an interval is an interval ON. */
+function counterfactualCellQuestion(cell: Record<string, any>): string {
+  let was = cell.observed_x ? '实际接受了处理' : '实际没接受处理'
+  if (cell.factual_y != null) was += cell.factual_y ? '、且结局发生了' : '、且结局没发生'
+  const instead = cell.counterfactual_x ? '若当初接受了处理' : '若当初没接受处理'
+  const then = cell.target_y ? '结局会发生' : '结局不会发生'
+  return `在${was}的那些个体里，${instead}，${then}的概率`
 }
 
 // ---- framing gap filling (补缺口) ----

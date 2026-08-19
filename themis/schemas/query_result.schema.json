@@ -24,6 +24,7 @@
               "items": {
                 "type": "object",
                 "required": ["claim", "layer", "severity", "provenance"],
+                "additionalProperties": false,
                 "properties": {
                   "claim": { "type": "string", "minLength": 1 },
                   "layer": { "enum": ["identification", "functional_form", "structural_edge", "parameter", "confidence"] },
@@ -185,8 +186,8 @@
             },
             "numeric": {
               "type": "object",
-              "description": "Fix 6: Wald LATE numeric breakdown. Present only on numerically-resolved IV results. One entry per stratum of the instrument's conditioning set W, so downstream consumers can sanity-check every component; a marginal instrument gives exactly one stratum of weight 1 with no W values. `late` aggregates as a RATIO OF AVERAGES — outcome_shift / treatment_shift — which weights each stratum by its own complier share and so is the effect among compliers. The plain average of the per-stratum ratios is a different estimand and is deliberately not reported.",
-              "additionalProperties": true,
+              "description": "Fix 6: Wald LATE numeric breakdown. Present only on numerically-resolved IV results. One entry per stratum of the instrument's conditioning set W, so downstream consumers can sanity-check every component; a marginal instrument gives exactly one stratum of weight 1 with no W values. `late` aggregates as a RATIO OF AVERAGES — outcome_shift / treatment_shift — which weights each stratum by its own complier share and so is the effect among compliers. The plain average of the per-stratum ratios is a different estimand and is deliberately not reported. This is what the theta path computes where the data path writes numeric_estimate.stratified_wald, and both are stated in the section that asks how the number was computed.",
+              "additionalProperties": false,
               "properties": {
                 "conditioning_order": {
                   "type": "array",
@@ -198,7 +199,7 @@
                   "description": "One entry per assignment of the conditioning set, over the declared domains.",
                   "items": {
                     "type": "object",
-                    "additionalProperties": true,
+                    "additionalProperties": false,
                     "properties": {
                       "values": {
                         "type": "array",
@@ -226,7 +227,16 @@
           "properties": {
             "target": { "type": "string" },
             "target_value": { "type": "number" },
-            "intervention": { "type": "object" },
+            "intervention": {
+              "type": "object",
+              "description": "The do() this counterfactual was evaluated under, as the variable and the value it was set to.",
+              "required": ["variable", "value"],
+              "additionalProperties": false,
+              "properties": {
+                "variable": { "type": "string" },
+                "value": {}
+              }
+            },
             "reference": { "type": "string" },
             "abducted_noise": { "type": "object", "additionalProperties": { "type": "number" } },
             "counterfactual_values": { "type": "object", "additionalProperties": { "type": "number" } }
@@ -234,12 +244,12 @@
         },
         "causation": {
           "type": "object",
-          "description": "Probabilities of causation (Tian & Pearl 2000) for a causation query. PN/PS/PNS assumption-free bounds, plus point values when monotonic. Carries the observational joint cells and the two interventional risks (with their provenance) that fed the Tian-Pearl formulas.",
+          "description": "Probabilities of causation (Tian & Pearl 2000) for a causation query. PN/PS/PNS assumption-free bounds, plus point values when monotonic. Carries the observational joint cells and the two interventional risks (with their provenance) that fed the Tian-Pearl formulas. The three quantities and the joint are the SAME shapes the data path records under numeric_estimate, so they are referenced rather than restated: this block held each of them as a bare open object, and what an open object cannot report is a key nobody declared — thirteen of them were being emitted here.",
           "additionalProperties": false,
           "properties": {
-            "pn": { "type": "object", "description": "Probability of necessity: lower/upper bounds and (when monotonic) point." },
-            "ps": { "type": "object", "description": "Probability of sufficiency: lower/upper bounds and (when monotonic) point." },
-            "pns": { "type": "object", "description": "Probability of necessity and sufficiency: lower/upper bounds and (when monotonic) point." },
+            "pn": { "$ref": "#/$defs/causationQuantity", "description": "Probability of necessity: lower/upper bounds and (when monotonic) point." },
+            "ps": { "$ref": "#/$defs/causationQuantity", "description": "Probability of sufficiency: lower/upper bounds and (when monotonic) point." },
+            "pns": { "$ref": "#/$defs/causationQuantity", "description": "Probability of necessity and sufficiency: lower/upper bounds and (when monotonic) point." },
             "monotonic": { "type": "boolean" },
             "interventional_risk_provenance": {
               "enum": ["derived_identification", "user_experimental", "exogenous", "backdoor_adjustment", "general_id_plug_in", "instrument_response_polytope"],
@@ -248,7 +258,7 @@
             "instrument": { "type": ["string", "null"], "description": "The instrument column PN/PS/PNS were bounded over, and null on every route that did not use one. Non-null exactly when interventional_risk_provenance is 'instrument_response_polytope'." },
             "p_y_do_x1": { "type": ["number", "null"] },
             "p_y_do_x0": { "type": ["number", "null"] },
-            "observational_joint": { "type": "object", "description": "The four P(X=x, Y=y) cells recovered from theta." }
+            "observational_joint": { "$ref": "#/$defs/observationalJoint", "description": "The four P(X=x, Y=y) cells recovered from theta." }
           }
         },
         "llm_proposed_review": {
@@ -263,6 +273,7 @@
               "items": {
                 "type": "object",
                 "required": ["from", "to", "source"],
+                "additionalProperties": false,
                 "properties": {
                   "from":   { "type": "string" },
                   "to":     { "type": "string" },
@@ -276,6 +287,7 @@
               "items": {
                 "type": "object",
                 "required": ["key", "value", "reason"],
+                "additionalProperties": false,
                 "properties": {
                   "key":        { "type": "string" },
                   "value":      { "type": "number" },
@@ -356,8 +368,8 @@
             },
             "numeric": {
               "type": "object",
-              "description": "v0.1.4 Fix 1: numeric mediation evaluation against theta. Boolean-treatment MVP. NDE/NIE branch (when nde_nie is identifiable) reports E[Y(treated)], E[Y(control)], E[Y(treated, M(control))] and the derived TE / NDE-at-control / NIE-at-treated. CDE branch (when cde is identifiable) reports per-mediator-value CDE values. Each branch's failure is recorded as nde_nie_status / cde_status with an insufficient_theta diagnostic.",
-              "additionalProperties": true,
+              "description": "v0.1.4 Fix 1: numeric mediation evaluation against theta. Boolean-treatment MVP. NDE/NIE branch (when nde_nie is identifiable) reports E[Y(treated)], E[Y(control)], E[Y(treated, M(control))] and the derived TE / NDE-at-control / NIE-at-treated. CDE branch (when cde is identifiable) reports per-mediator-value CDE values. Each branch's failure is recorded as nde_nie_status / cde_status with an insufficient_theta diagnostic. This is the decomposition itself, not a note about it: the headline carries TE alone, and the direct and indirect arms can point opposite ways.",
+              "additionalProperties": false,
               "properties": {
                 "e_y_treated":              { "type": "number" },
                 "e_y_control":              { "type": "number" },
@@ -375,6 +387,8 @@
                 },
                 "nde_nie_status": {
                   "type": "object",
+                  "description": "Why this branch produced no numbers. Present exactly when the natural-effect arm was attempted and a constituent formula found theta short.",
+                  "additionalProperties": false,
                   "properties": {
                     "status":      { "type": "string" },
                     "missing_key": { "type": ["string", "null"] },
@@ -383,11 +397,15 @@
                 },
                 "cde_status": {
                   "type": "object",
+                  "description": "Why the controlled arm produced no numbers — theta short at one reference point, or a reference grid past the cap. The two count fields belong to the second case and were being emitted through an open map that could not report them.",
+                  "additionalProperties": false,
                   "properties": {
                     "status":         { "type": "string" },
                     "mediator_value": { "type": "string" },
                     "missing_key":    { "type": ["string", "null"] },
-                    "reason":         { "type": "string" }
+                    "reason":         { "type": "string" },
+                    "reference_point_count": { "type": "integer", "description": "Size of the Cartesian product of the mediator block's domains." },
+                    "cap":                   { "type": "integer", "description": "The size past which the grid is not reported." }
                   }
                 }
               }
@@ -1281,20 +1299,10 @@
             "instrument": { "type": ["string", "null"], "description": "The instrument column the three quantities were bounded over, and null on every route that did not use one. Non-null exactly when interventional_risk_provenance is 'instrument_response_polytope': no interventional risk is point-identified, so PN/PS/PNS are optimised directly over the response-type distributions reproducing P(X, Y | Z) rather than read off Tian-Pearl's closed form." },
             "p_y_do_x1": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "p_y_do_x0": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
-            "observational_joint": {
-              "type": "object",
-              "required": ["p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"],
-              "additionalProperties": false,
-              "properties": {
-                "p_x1_y1": { "type": "number" },
-                "p_x1_y0": { "type": "number" },
-                "p_x0_y1": { "type": "number" },
-                "p_x0_y0": { "type": "number" }
-              }
-            },
-            "pn": { "$ref": "#/$defs/causationQuantity" },
-            "ps": { "$ref": "#/$defs/causationQuantity" },
-            "pns": { "$ref": "#/$defs/causationQuantity" }
+            "observational_joint": { "$ref": "#/$defs/observationalJoint" },
+            "pn": { "allOf": [{ "$ref": "#/$defs/causationQuantity" }, { "required": ["point"] }] },
+            "ps": { "allOf": [{ "$ref": "#/$defs/causationQuantity" }, { "required": ["point"] }] },
+            "pns": { "allOf": [{ "$ref": "#/$defs/causationQuantity" }, { "required": ["point"] }] }
           }
         },
         "counterfactual_cell": {
@@ -1312,17 +1320,7 @@
             "adjustment": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set standardized over for the do-risk (empty for exogenous / experimental / general-ID / no-risk-needed)." },
             "instrument": { "type": ["string", "null"], "description": "The instrument column the cell was bounded over, and null on every route that did not use one. Non-null exactly when interventional_risk_provenance is 'instrument_response_polytope': no interventional risk is point-identified, so the cell is optimised directly over the response-type distributions reproducing P(X, Y | Z) rather than read off the consistency identity." },
             "p_y_do_x_cf": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
-            "observational_joint": {
-              "type": "object",
-              "required": ["p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"],
-              "additionalProperties": false,
-              "properties": {
-                "p_x1_y1": { "type": "number" },
-                "p_x1_y0": { "type": "number" },
-                "p_x0_y1": { "type": "number" },
-                "p_x0_y0": { "type": "number" }
-              }
-            },
+            "observational_joint": { "$ref": "#/$defs/observationalJoint" },
             "lower": { "type": "number", "minimum": 0, "maximum": 1 },
             "upper": { "type": "number", "minimum": 0, "maximum": 1 },
             "point": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
@@ -1886,10 +1884,22 @@
     }
   },
   "$defs": {
+    "observationalJoint": {
+      "type": "object",
+      "description": "The four cells of P(X, Y). Three containers carry it — the data path's probabilities_of_causation and counterfactual_cell, and the theta path's extensions.causation — and it means the same thing in all three, so it is declared once. The third container had it as a bare open object, which is why four cells nobody had declared were being emitted through it.",
+      "required": ["p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0"],
+      "additionalProperties": false,
+      "properties": {
+        "p_x1_y1": { "type": "number" },
+        "p_x1_y0": { "type": "number" },
+        "p_x0_y1": { "type": "number" },
+        "p_x0_y0": { "type": "number" }
+      }
+    },
     "causationQuantity": {
       "type": "object",
-      "description": "One probability of causation (PN, PS, or PNS): assumption-free bounds (lower/upper) plus, under monotonicity, the point value and its bootstrap CI. point/ci_lower/ci_upper are null when the quantity is not point-identified.",
-      "required": ["lower", "upper", "point"],
+      "description": "One probability of causation (PN, PS, or PNS): assumption-free bounds (lower/upper) plus, under monotonicity, the point value and its bootstrap CI. Only lower/upper are required HERE, because the two containers carrying this shape say 'not point-identified' two different ways: the data path writes point: null and the theta path omits the key, and the kernel's display-copy cross-check holds the two sides to agreeing on PRESENCE, so neither convention can be quietly changed on one side. The data container adds the requirement back where it holds.",
+      "required": ["lower", "upper"],
       "additionalProperties": false,
       "properties": {
         "lower": { "type": "number", "minimum": 0, "maximum": 1 },

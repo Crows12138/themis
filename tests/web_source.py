@@ -71,11 +71,18 @@ def interface_body(name: str, source: str) -> str:
 
 
 def top_level_keys(body: str) -> set[str]:
-    """The keys of a literal or the fields of an interface, depth 0 only."""
+    """The keys of a literal or the fields of an interface, depth 0 only.
+
+    Quoted as well as bare, because a key that is a path — the detail table is
+    keyed by ``extensions.iv_identification.numeric`` — cannot be written bare
+    in TypeScript. A matcher that only saw bare keys would report such a table
+    as empty, which reads exactly like a table nobody filled in.
+    """
     keys, depth = set(), 0
     for line in body.splitlines():
         if depth == 0:
-            found = re.match(r"\s*([A-Za-z_]\w*)\??\s*:", line)
+            found = re.match(r"\s*'([^']+)'\s*:", line) or re.match(
+                r"\s*([A-Za-z_]\w*)\??\s*:", line)
             if found:
                 keys.add(found.group(1))
         depth += (line.count("{") + line.count("[")

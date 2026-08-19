@@ -58,11 +58,19 @@ closed form comes from, and the renderers this file holds them to render
 their numbers without it.
 :mod:`tests.test_a_citation_is_not_a_field_of_one_container` is where
 that is answered, and it answers it for the whole envelope because the
-same field is written under ``extensions`` too — but no census asks the
-question of parts at this depth, here or there.
+same field is written under ``extensions`` too.
 
-Per-surface parity is checked for the ten computation details and not for
-the rest. It is checkable there because both surfaces dispatch them from a
+Depth is where this container's line was drawn, and drawing a line one
+level down from wherever the last one sat is what put four route blocks'
+``numeric`` sub-objects outside every census there was.
+:mod:`tests.test_no_part_of_a_block_is_silent` asks the question of
+``extensions`` at every depth the schema declares, which is why the table
+below is now keyed by an envelope PATH: the ten computation details are
+properties of this container and four more are not, and a table keyed by
+one container's property names cannot hold both.
+
+Per-surface parity is checked for the computation details and not for the
+rest. It is checkable there because both surfaces dispatch them from a
 table, so the two tables can be held equal, in order, with no third list to
 go stale. Elsewhere a row records which surfaces reach a part and an
 asymmetry is visible in the table rather than caught by it — the same
@@ -110,10 +118,11 @@ class Part:
 _REPORT_META = "analysis_report._estimate_meta"
 _WEB_META = "verdict.ts:estimateMeta"
 _WEB_ANSWER = "verdict.ts:answerRows"
-#: The browser states the ten computation details as one keyed table, the way
-#: it states routes and answers; the report states them as ten functions. Two
+#: The browser states the computation details as one keyed table, the way it
+#: states routes and answers; the report states them as functions. Two
 #: spellings of the same thing, because that is how each surface already
-#: declares a dispatch.
+#: declares a dispatch. Both are keyed by envelope path, so the ten that are
+#: properties of this container and the four that are not sit in one table.
 _WEB_DETAIL = "verdict.ts:NUMERIC_DETAIL_RENDERERS"
 
 PARTS: dict[str, Part] = {

@@ -174,6 +174,13 @@ export interface NumericEstimate {
     upper?: number | null
     interventional_risk_provenance?: string
     instrument?: string | null
+    // Which cell. The interval means a different thing for each assignment
+    // of the four, and the surface used to state it as "反事实格".
+    observed_x?: boolean
+    counterfactual_x?: boolean
+    target_y?: boolean
+    factual_y?: boolean | null
+    p_y_do_x_cf?: number | null
   }
   // Three estimands, not one. `point` is non-null on each exactly when
   // monotonicity was assumed; ci_lower/ci_upper is then that point's bootstrap

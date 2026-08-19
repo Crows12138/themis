@@ -962,6 +962,28 @@ def _corner(corner: dict) -> str:
     return "{" + ", ".join(f"{k}={_fmt(v)}" for k, v in sorted(corner.items())) + "}"
 
 
+def _counterfactual_cell_question(cell: dict) -> str:
+    """Which counterfactual this interval is an interval ON.
+
+    Four booleans say it — the factual treatment, the factual outcome when
+    there is one, the intervened value and the outcome asked about — and the
+    line above them used to open with "该反事实格", which names no cell. An
+    interval on an unnamed quantity is not an answer a reader can check
+    against the question they asked, and the four differ by exactly the
+    substitutions that change what the number means.
+    """
+    was = "实际接受了处理" if cell.get("observed_x") else "实际没接受处理"
+    factual = cell.get("factual_y")
+    if factual is not None:
+        was += "、且结局发生了" if factual else "、且结局没发生"
+    if cell.get("counterfactual_x"):
+        instead = "若当初接受了处理"
+    else:
+        instead = "若当初没接受处理"
+    then = "结局会发生" if cell.get("target_y") else "结局不会发生"
+    return f"在**{was}**的那些个体里，**{instead}，{then}**的概率"
+
+
 def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
     """Bounds on one counterfactual cell.
 
@@ -976,7 +998,10 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
     lo, hi = cell.get("lower"), cell.get("upper")
     lines = []
     if lo is not None and hi is not None:
-        lines.append(f"该反事实格的**区间** [{_fmt(lo)}, {_fmt(hi)}]（界，不是点）")
+        lines.append(
+            f"{_counterfactual_cell_question(cell)}"
+            f"——**区间** [{_fmt(lo)}, {_fmt(hi)}]（界，不是点）"
+        )
     else:
         lines.append("该反事实格没有给出可呈现的界。")
     prov = cell.get("interventional_risk_provenance")
@@ -988,6 +1013,15 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
     adj = cell.get("adjustment")
     if adj:
         lines.append(f"- 干预风险经后门调整集 {{{', '.join(adj)}}} 识别")
+    # The one interventional arm this cell leans on, when it leans on one.
+    # Null is not absence of information here: it is the statement that the
+    # answer came out of the response-function program instead, which the
+    # provenance line above has just said.
+    risk = cell.get("p_y_do_x_cf")
+    if risk is not None:
+        lines.append(
+            f"- 这一格用到的那个干预风险 P(结局 | do(处理)) = {_fmt(risk)}"
+        )
     if not cell.get("monotonicity"):
         lines.append(
             "- 若可假设单调性（X 从不阻止 Y），这一格会被收紧——"
@@ -1341,6 +1375,13 @@ def _route_selection_recovery(block: dict, result: dict) -> str:
     need = block.get("external_data_needed")
     if need:
         lines.append(f"  - 还需要外部（未经选择的）数据：{'、'.join(str(n) for n in need)}")
+    # The expression the criterion produced. "Recoverable" is a verdict and
+    # this is what it licenses you to compute; the section states the
+    # estimand for every other route from ``result.formula``, and a recovery
+    # route writes its own instead, so the estimand line does not reach it.
+    formula = block.get("recovery_formula")
+    if formula:
+        lines.append(f"  - 恢复式：`{formula}`")
     return "\n".join(lines)
 
 
@@ -1354,6 +1395,35 @@ _MECHANISM_ZH = {
     "MNAR": "MNAR（非随机缺失，缺失与没测到的值本身有关）",
     "none": "未声明（程序里没有任何缺失指示变量，无从判断机制）",
 }
+
+
+def _recovery_factorization(part: dict, label: str) -> list[str]:
+    """The ordered factors a recovery is assembled from, and its formula.
+
+    Recoverability under missingness is a claim about an ORDER: each factor
+    has to be estimable on the rows where its own variables were observed,
+    and which order works is the content of the theorem. A verdict without
+    the factorization tells a reader that it worked and not what worked, and
+    the formula is what they would have to compute themselves.
+    """
+    factors = list(part.get("factorization") or ())
+    lines = []
+    if factors:
+        said = " × ".join(
+            f"P({f.get('factor')}"
+            + (f" | {'、'.join(str(c) for c in f.get('conditioned_on') or ())}"
+               if f.get("conditioned_on") else "")
+            + ")"
+            for f in factors
+        )
+        lines.append(
+            f"  - {label}拆成 {len(factors)} 个因子：{said} —— "
+            f"每个因子各在自己那些变量都被观测到的行上估"
+        )
+    formula = part.get("recovery_formula")
+    if formula and not factors:
+        lines.append(f"  - {label}的恢复式：`{formula}`")
+    return lines
 
 
 def _route_missing_data_recovery(block: dict, result: dict) -> str:
@@ -1375,6 +1445,14 @@ def _route_missing_data_recovery(block: dict, result: dict) -> str:
         lines.append(
             "  - 整条估计量**不可恢复**" + (f"：{why}" if why else "")
         )
+    lines += _recovery_factorization(block, "条件概率这一层")
+    covariate = block.get("covariate_recovery") or {}
+    if covariate:
+        lines += _recovery_factorization(
+            covariate, f"协变量边缘 {covariate.get('target') or 'P(Z)'}")
+    formula = estimand.get("recovery_formula")
+    if formula:
+        lines.append(f"  - 整条估计量的恢复式：`{formula}`")
     return "\n".join(lines)
 
 
@@ -1773,39 +1851,208 @@ def _detail_four_way_unavailable(ne: dict, result: dict) -> str:
     )
 
 
-#: One renderer per composite part of ``numeric_estimate`` that says how the
-#: NUMBER was computed, in the order a reader meets them: what the estimator
-#: aggregated, what it recovered, what it corrected, what it contrasted over
-#: time, what it decomposed.
+def _detail_theta_wald(block: dict, result: dict) -> str:
+    """The Wald ratio's cells when the instrument was evaluated against theta.
+
+    The same table ``_detail_stratified_wald`` states for the data path, and
+    the block's own ``late_caveat`` is what makes the omission a contradiction
+    rather than a thin patch: that caveat is printed at the reader, in full,
+    saying the value "aggregates the per-stratum LATEs in ``strata``" and that
+    ``treatment_shift`` is the complier share — two fields the reader was then
+    given no way to see.
+
+    What each stratum contributes is the pair of conditional probabilities its
+    two shifts are differences of. There are no counts to report because
+    nothing was sampled: these come from a declared joint distribution.
+    """
+    nm = block["numeric"]
+    order = list(nm.get("conditioning_order") or ())
+    strata = list(nm.get("strata") or ())
+    head = (
+        f"- **Wald 比值的逐格明细**（{len(strata)} 格"
+        + (f"，按 {'、'.join(str(name) for name in order)} 依次切）"
+           if order else "，工具无条件）")
+        + f"：LATE = 加权结局差 {_fmt(nm.get('outcome_shift'))} ÷ 加权处理差 "
+        f"{_fmt(nm.get('treatment_shift'))} = {_fmt(nm.get('late'))}；"
+        "分母就是依从者（会被工具推动的那部分人）占比，"
+        "聚合的是两个加权和之比，不是各格比值的平均"
+    )
+    lines = []
+    for s in strata:
+        cell = "、".join(
+            f"{name}={value}"
+            for name, value in zip(order, s.get("values") or ())
+        ) or "（无条件）"
+        lines.append(
+            f"  - {cell}：权重 {_fmt(s.get('weight'))}；工具取高时 "
+            f"P(结局)={_fmt(s.get('p_y_given_z_treated'))}、"
+            f"P(处理)={_fmt(s.get('p_x_given_z_treated'))}，取低时 "
+            f"P(结局)={_fmt(s.get('p_y_given_z_control'))}、"
+            f"P(处理)={_fmt(s.get('p_x_given_z_control'))}"
+        )
+    return "\n".join([head] + lines)
+
+
+def _theta_mediation_status(status: dict, arm: str) -> str:
+    """Why one arm produced no numbers — the diagnostic, not silence.
+
+    An arm the graph says is identifiable and the distribution cannot answer
+    is a different situation from one the graph refuses, and the route block
+    above states only the first. Without this the reader sees the arm called
+    identifiable and then simply not there.
+    """
+    what = status.get("reason") or status.get("status") or "未说明"
+    missing = status.get("missing_key")
+    at = status.get("mediator_value")
+    where = f"（中介固定在 {at} 时）" if at else ""
+    said = f"  - {arm} 这一支**没能算出数**{where}：{what}"
+    if missing:
+        said += f"；缺的是 {missing}"
+    count, cap = status.get("reference_point_count"), status.get("cap")
+    if count is not None and cap is not None:
+        said += f"（中介参考点有 {count} 个，超过上限 {cap}）"
+    return said
+
+
+def _detail_theta_mediation(block: dict, result: dict) -> str:
+    """The decomposition itself, when it was computed against theta.
+
+    The headline is TE, one number, and a mediation analysis is not one
+    number: the two Pearl decompositions can disagree with each other, and the
+    direct and indirect arms can point in OPPOSITE directions, which is the
+    finding such an analysis exists to produce. The route block above says
+    which arms are identifiable; this says what they came to.
+
+    Stated here rather than as the answer because the headline already carries
+    TE and because ``four_way_decomposition`` — the other split of the same
+    total — is stated here too. A reader comparing the two reads one section.
+    """
+    nm = block["numeric"]
+    lines = ["- **中介分解的数**（对着你声明的概率直接算，不是从数据估的）："]
+    te = nm.get("te")
+    if te is not None:
+        lines.append(
+            f"  - 总效应 TE = {_fmt(te)}"
+            f"　（E[Y|全处理]={_fmt(nm.get('e_y_treated'))} − "
+            f"E[Y|全对照]={_fmt(nm.get('e_y_control'))}）"
+        )
+    for direct, indirect, label, cross in (
+        ("nde_at_control", "nie_at_treated", "以对照为参照",
+         "e_y_cross_treated_outer"),
+        ("nde_at_treated", "nie_at_control", "以处理为参照",
+         "e_y_cross_control_outer"),
+    ):
+        nde, nie = nm.get(direct), nm.get(indirect)
+        if nde is None or nie is None:
+            continue
+        said = (
+            f"  - {label}：直接效应 NDE={_fmt(nde)} ＋ 经中介的间接效应 "
+            f"NIE={_fmt(nie)}　（跨世界量 {_fmt(nm.get(cross))}）"
+        )
+        # Two numbers whose signs disagree is the whole content of a mediation
+        # analysis, and it is not legible from the pair unless it is said: the
+        # headline is their sum and reads as a single direction.
+        if nde * nie < 0:
+            said += (
+                "　—— **两条通路方向相反**：一条在推高、另一条在压低，"
+                "总效应是相互抵消之后剩下的那点"
+            )
+        lines.append(said)
+    cde = nm.get("cde") or {}
+    for value, number in sorted(cde.items()):
+        lines.append(
+            f"  - 把中介固定在 {value} 时的直接效应 CDE = {_fmt(number)}"
+        )
+    if len(cde) > 1 and min(cde.values()) * max(cde.values()) < 0:
+        lines.append(
+            "  - CDE 随中介取值**变号** —— 处理与中介之间存在交互，"
+            "「直接效应」这句话本身要看中介被固定在哪里才成立"
+        )
+    for key, arm in (("nde_nie_status", "自然直接/间接效应 NDE / NIE"),
+                     ("cde_status", "受控直接效应 CDE")):
+        status = nm.get(key)
+        if status:
+            lines.append(_theta_mediation_status(status, arm))
+    return "\n".join(lines)
+
+
+def _detail_theta_transport(block: dict, result: dict) -> str:
+    """The transported value, and which two populations it crosses.
+
+    The route block above says the transport formula exists and on what it
+    re-weights; this is the number that came out of evaluating it, and the
+    two population labels are repeated here because the value means nothing
+    without them — it is an estimate FOR one population FROM another.
+    """
+    nm = block["numeric"]
+    return (
+        f"- **迁移后的数**：{_fmt(nm.get('value'))}　"
+        f"（用 `{nm.get('source_population', '?')}` 的数据，"
+        f"算的是 `{nm.get('target_population', '?')}` 的效应）"
+    )
+
+
+#: One renderer per part of the envelope that says how the NUMBER was
+#: computed, in the order a reader meets them: what was aggregated, what was
+#: recovered, what was corrected, what was contrasted over time, what was
+#: decomposed.
+#:
+#: Keyed by a PATH rather than by a property name, because a key that is a
+#: property name is a table about one container, and the two paragraphs above
+#: are the record of what that costs: this section had to grow a second table
+#: when the details turned out to live on ``numeric_estimate`` rather than
+#: under ``extensions``, and the comment there says "at ten, appending stops
+#: being a repair" — then keyed the new table on one container too. What fell
+#: outside both is the theta path: four route blocks carry a ``numeric``
+#: holding what was computed from a declared joint distribution, none of it
+#: reaching a reader, while the data path's identical breakdown was stated in
+#: full. ``iv_identification.numeric`` and ``numeric_estimate.stratified_wald``
+#: are the same table of the same strata; only the container differed.
 _NUMERIC_DETAIL_RENDERERS: tuple[
     tuple[str, Callable[[dict, dict], str]], ...] = (
-    ("stratified_wald", _detail_stratified_wald),
-    ("recovered_ate", _detail_recovered_ate),
-    ("selection_recovery_numeric", _detail_selection_recovery_numeric),
-    ("measurement_correction", _detail_measurement_correction),
-    ("regression_calibration", _detail_regression_calibration),
-    ("longitudinal_gformula", _detail_longitudinal_gformula),
-    ("longitudinal_ipw_msm", _detail_longitudinal_ipw_msm),
-    ("four_way_decomposition", _detail_four_way_decomposition),
-    ("four_way_ratio", _detail_four_way_ratio),
-    ("four_way_unavailable", _detail_four_way_unavailable),
+    ("numeric_estimate.stratified_wald", _detail_stratified_wald),
+    ("numeric_estimate.recovered_ate", _detail_recovered_ate),
+    ("numeric_estimate.selection_recovery_numeric",
+     _detail_selection_recovery_numeric),
+    ("numeric_estimate.measurement_correction", _detail_measurement_correction),
+    ("numeric_estimate.regression_calibration", _detail_regression_calibration),
+    ("numeric_estimate.longitudinal_gformula", _detail_longitudinal_gformula),
+    ("numeric_estimate.longitudinal_ipw_msm", _detail_longitudinal_ipw_msm),
+    ("numeric_estimate.four_way_decomposition", _detail_four_way_decomposition),
+    ("numeric_estimate.four_way_ratio", _detail_four_way_ratio),
+    ("numeric_estimate.four_way_unavailable", _detail_four_way_unavailable),
+    # The theta path: evaluated against a declared joint distribution rather
+    # than estimated from data, which is why there is no interval on any of
+    # them and no ``numeric_estimate`` for them to hang under.
+    ("extensions.iv_identification.numeric", _detail_theta_wald),
+    ("extensions.mediation_decomposition.numeric", _detail_theta_mediation),
+    # One renderer, two paths: the joint block's ``numeric`` is a ``$ref`` to
+    # the single-mediator one, filled by the same evaluator.
+    ("extensions.mediation_joint_decomposition.numeric",
+     _detail_theta_mediation),
+    ("extensions.transport_identification.numeric", _detail_theta_transport),
 )
 
 
 def _render_numeric_detail(result: dict) -> list[str]:
-    """What the estimator did with the data, for whichever parts are present.
+    """What produced the number, for whichever parts are present.
 
-    Every one of these is exclusive to a single estimator, so at most two
-    fire on any envelope (the two four-way scales are the pair that can
-    co-occur). A part with nothing in it prints nothing rather than a heading
-    over an empty line.
+    Every one of these is exclusive to a single route, so at most two fire on
+    any envelope (the two four-way scales are the pair that can co-occur). A
+    part with nothing in it prints nothing rather than a heading over an empty
+    line.
     """
-    ne = result.get("numeric_estimate") or {}
-    return [
-        render(ne, result)
-        for name, render in _NUMERIC_DETAIL_RENDERERS
-        if ne.get(name)
-    ]
+    lines = []
+    for path, render in _NUMERIC_DETAIL_RENDERERS:
+        steps = path.split(".")
+        node: dict = result
+        for step in steps[:-1]:
+            node = node.get(step) or {}
+            if not isinstance(node, dict):
+                node = {}
+        if node.get(steps[-1]):
+            lines.append(render(node, result))
+    return lines
 
 
 def _render_derivation_chain(result: dict) -> str:

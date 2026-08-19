@@ -506,6 +506,9 @@ df)`, not from symbolic Theta.
 | `estimation_context.cluster` | the column this run treats as the unit of independence. Present → the interval is only as good as that choice, and every estimator says in its own assumptions whether it honoured it (a cluster bootstrap) or could not (an analytic interval). When one could not, say so where you report that interval: an interval computed on rows that are not independent is narrower than the evidence supports. |
 | `outcome_error.{noise_share, se_inflation}` | present → the outcome carries a declared measurement error that costs precision but NOT bias; the point beside it needs no correction. Report `se_inflation` as how much of the interval's width is measurement rather than sample: that part shrinks only by measuring the outcome better, not by collecting more of it — see §"Measurement-error correction" |
 | `reference`（信封各处：恢复块、反事实块、分解块…） | 这条路线实现的是哪篇文献的哪条定理。说完「怎么算的」之后说一次。它不属于任何一个块——每个块都可能带一句，所以是把信封里出现过的都说了，而不是只说你正在讲的那个块的 |
+| `extensions.<路线块>.numeric`（IV / 中介 / 中介集 / 迁移四处） | 这条路线**算出来的数**，来自你声明的概率而不是数据，所以没有区间。路线块的其余键说的是「怎么识别的」，这一个说的是「结果是多少」——两个不同的问题挂在同一个块上，别把它当成识别信息略过 |
+| `extensions.mediation_decomposition.numeric.{nde_at_control, nie_at_treated, nde_at_treated, nie_at_control}` | 两套 Pearl 分解，各自 TE = 直接 + 间接。**两个分量反号时必须说出来**：总效应是相互抵消后剩下的，只报总效应等于把这件事藏掉。`cde` 是逐个中介取值的直接效应，随取值变号意味着处理与中介有交互 |
+| `numeric_estimate.counterfactual_cell.{observed_x, counterfactual_x, target_y, factual_y}` | 这个区间是**哪一格**反事实的区间。四个布尔量各换一个，问的就是另一个问题——报区间之前先把这一格用一句话说清楚（在实际如何的那些人里，若当初如何，结局会怎样） |
 
 **The point value's meaning depends on `method`** — never dump
 `point: -0.069` raw:
