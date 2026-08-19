@@ -78,14 +78,23 @@ def _result_envelope(**overrides) -> dict:
 # ============================================ data_gap_report top-level
 
 
-def test_data_gap_report_null_validates():
-    """cause / assoc queries (no data needs) carry data_gap_report=null."""
+def test_data_gap_report_null_is_refused():
+    """This used to be asserted the other way, on a claim nothing supported.
+
+    The docstring said cause / assoc queries carry ``data_gap_report=null``;
+    the serializer writes the key only when there IS a report, so null was a
+    second legal way to say what absence already said, and no producer ever
+    said it. Two spellings for one nothing is what a consumer cannot tell
+    apart, so the contract now allows one.
+    """
     envelope = _result_envelope(query_kind="cause", data_gap_report=None)
-    _qr_validator().validate(envelope)
+    with pytest.raises(jsonschema.ValidationError):
+        _qr_validator().validate(envelope)
 
 
 def test_data_gap_report_omitted_validates():
-    """Field is optional — back-compat with pre-Phase-10 results."""
+    """Field is optional — back-compat with pre-Phase-10 results, and the one
+    way this envelope says it has no data needs."""
     envelope = _result_envelope()
     _qr_validator().validate(envelope)
 

@@ -1417,14 +1417,17 @@ def _evaluate_mediation_numerically(
             numeric["nde_at_treated"] = e_y_treated - e_y_cross_control_outer
             numeric["nie_at_control"] = e_y_cross_control_outer - e_y_control
         except InsufficientTheta as ite:
+            # A status block carries the keys of the shape it is in — the
+            # grid-cap shape has no missing key at all, so this one says which
+            # key is missing by naming it and says there is none by leaving it
+            # out. Writing null here would be a third spelling of the second.
             numeric["nde_nie_status"] = {
                 "status": "insufficient_theta",
-                "missing_key": (
-                    format_probability_key(ite.missing_key)
-                    if ite.missing_key else None
-                ),
                 "reason": ite.reason,
             }
+            if ite.missing_key:
+                numeric["nde_nie_status"]["missing_key"] = (
+                    format_probability_key(ite.missing_key))
 
     if cde_adj is not None:
         reference_points = _mediator_reference_points(mediators, theta)
@@ -1474,12 +1477,11 @@ def _evaluate_mediation_numerically(
                 cde_failure = {
                     "status": "insufficient_theta",
                     "mediator_value": m_key,
-                    "missing_key": (
-                        format_probability_key(ite.missing_key)
-                        if ite.missing_key else None
-                    ),
                     "reason": ite.reason,
                 }
+                if ite.missing_key:
+                    cde_failure["missing_key"] = format_probability_key(
+                        ite.missing_key)
                 break
         if cde_per_m:
             numeric["cde"] = cde_per_m
@@ -2605,13 +2607,14 @@ def _instrument_table_from_theta(
 def _poc_quantity(lower: float, upper: float, point: "float | None") -> dict:
     """Serialize one probability-of-causation quantity (PN / PS / PNS).
 
-    ``point`` is omitted when the quantity is not point-identified (no
-    monotonicity) — its absence is itself information for the renderer.
+    ``point`` is null when the quantity is not point-identified (no
+    monotonicity), and it is always THERE. This used to omit the key, while
+    the data route wrote null into the same field of the same block for the
+    same reason: one path, two spellings for one fact, and no reader that
+    could tell them apart. Absence would be the weaker of the two anyway —
+    it cannot be told from a producer that forgot.
     """
-    d: dict = {"lower": lower, "upper": upper}
-    if point is not None:
-        d["point"] = point
-    return d
+    return {"lower": lower, "upper": upper, "point": point}
 
 
 def _derive_interventional_risk_arm(
@@ -3083,6 +3086,10 @@ def _dispatch_causation(
     envelope = {
         "monotonic": q.monotonic,
         "interventional_risk_provenance": licence,
+        # Null, not missing: this route reaches PN/PS/PNS through a pair of
+        # interventional risks and never through an instrument, and saying so
+        # is what makes the data route's column mean something by contrast.
+        "instrument": None,
         "p_y_do_x1": p_y_do_x1,
         "p_y_do_x0": p_y_do_x0,
         "observational_joint": {

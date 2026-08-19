@@ -261,6 +261,12 @@ def test_schema_accepts_a_named_second_quantity():
         "estimand": "arm_probability",
         "lower_value": 0.2,
         "upper_value": 0.6,
+        # A row that was evaluated answers the interval question too, with
+        # null when no band was computed. Absence is reserved for the row
+        # that was never evaluated at all, and the schema ties the three
+        # together so the two cannot be confused.
+        "ci_lower": None,
+        "ci_upper": None,
         "contrast": {
             "kind": "ace",
             "reference_value": False,

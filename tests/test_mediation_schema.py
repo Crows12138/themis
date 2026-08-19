@@ -209,6 +209,40 @@ def test_schema_rejects_additional_properties():
         validator.validate(bad)
 
 
+def _with_status(status: dict) -> dict:
+    result = _minimal_result_base()
+    result["extensions"] = {
+        "mediation_decomposition": {
+            "mediator": "m(me)", "mediator_valid": True, "strategy": "nde_nie",
+            "nde_nie": {"identifiable": True, "adjustment": [],
+                        "failed_condition": None},
+            "cde": {"identifiable": True, "adjustment": [],
+                    "failed_condition": None},
+            "numeric": {"nde_nie_status": status},
+        }
+    }
+    return result
+
+
+def test_a_status_with_no_missing_key_leaves_it_out():
+    """One way to say there is none, and it is absence here.
+
+    This block is a union of two failure shapes — theta ran short at a named
+    key, or the reference grid was past its cap — and each carries the keys of
+    the shape it is in. So the key names the missing entry when there is one,
+    and is simply not there when the failure had none. Writing null as well
+    would be a second spelling of the second, indistinguishable from the first
+    to every reader that asks ``.get``.
+    """
+    validator = _load_validator()
+    validator.validate(_with_status(
+        {"status": "insufficient_theta", "reason": "no key to name"}))
+    with pytest.raises(Exception):
+        validator.validate(_with_status(
+            {"status": "insufficient_theta", "reason": "no key to name",
+             "missing_key": None}))
+
+
 def test_schema_accepts_minimal_valid_payload():
     """Sanity: the minimal shape (strategy=none, both branches
     unidentifiable) is accepted."""

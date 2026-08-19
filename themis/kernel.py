@@ -740,9 +740,12 @@ def _verify_causation_extensions_match(result: dict, derivation) -> None:
             _fail()
         if not _num_eq(a.get("upper"), b.get("upper")):
             _fail()
-        if ("point" in a) != ("point" in b):
-            _fail()
-        if "point" in a and not _num_eq(a.get("point"), b.get("point")):
+        # The value, not the presence. Both sides always carry the key now —
+        # ``validate_result`` above rejects a quantity that does not — so the
+        # question left is the one the numeric twin of this function has
+        # always asked: do the two numbers agree, with "no point on either
+        # side" counting as agreement.
+        if not _num_eq(a.get("point"), b.get("point")):
             _fail()
     for k in ("p_y_do_x1", "p_y_do_x0"):
         if not _num_eq(ext.get(k), env.get(k)):

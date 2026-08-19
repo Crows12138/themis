@@ -124,7 +124,11 @@ def test_non_monotonic_returns_bounds_not_points():
     assert r["status"] == "counterfactual_bounded"
     c = r["extensions"]["causation"]
     for q in ("pn", "ps", "pns"):
-        assert "point" not in c[q]
+        # Null, and present. "Not point-identified" is said, not left to the
+        # key being missing — the data route said it this way all along and
+        # this one used to omit, which no reader could tell from a producer
+        # that forgot.
+        assert c[q]["point"] is None
         assert c[q]["lower"] <= c[q]["upper"]
     # Headline is an interval, not a point.
     assert r["numeric_result"]["value"] is None

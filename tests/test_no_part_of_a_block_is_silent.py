@@ -51,7 +51,7 @@ import pytest
 from themis import blocks
 from themis.output import analysis_report
 
-from . import web_source
+from . import schema_walk, web_source
 from .test_vocabulary_reach import VOCABULARIES
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -62,41 +62,6 @@ TOP_LEVEL = frozenset(SCHEMA.get("properties") or {})
 
 
 # ---------------------------------------------------------------- the schema
-def _resolve(spec: dict) -> dict:
-    """Follow ``$ref`` while it stays inside this document.
-
-    Both spellings appear: ``#/$defs/name`` and a JSON pointer into
-    ``properties``. The joint mediation block reaches the single-mediator
-    one that way, and a walk that stopped at the ``$ref`` would leave its
-    whole numeric subtree out of the denominator — which is the shape of
-    omission this file exists to catch.
-    """
-    seen = 0
-    while isinstance(spec, dict) and "$ref" in spec and seen < 20:
-        ref = spec["$ref"]
-        if not ref.startswith("#/"):
-            return {}
-        node: object = SCHEMA
-        for step in ref[2:].split("/"):
-            if not isinstance(node, dict) or step not in node:
-                return {}
-            node = node[step]
-        spec, seen = node if isinstance(node, dict) else {}, seen + 1
-    return spec if isinstance(spec, dict) else {}
-
-
-def _walk(spec: dict, path: tuple[str, ...], depth: int = 0):
-    if depth > 8:
-        return
-    spec = _resolve(spec)
-    for name, sub in (spec.get("properties") or {}).items():
-        yield path + (name,)
-        yield from _walk(sub, path + (name,), depth + 1)
-    items = spec.get("items")
-    if isinstance(items, dict):
-        yield from _walk(items, path + ("[]",), depth + 1)
-
-
 EXT = SCHEMA["properties"]["extensions"]
 
 #: Every key path under ``extensions``, EXCEPT the block names themselves.
@@ -105,8 +70,12 @@ EXT = SCHEMA["properties"]["extensions"]
 #: whether one reaches a reader at all is :func:`themis.blocks.bind`'s
 #: subject, checked there in both directions. This file's subject is what is
 #: inside a block, which is the level nothing was asking about.
+#:
+#: The traversal itself lives in :mod:`tests.schema_walk`, because a second
+#: gate now asks a different question of the same document and two copies of
+#: a ``$ref`` walk are two tables that were once equal.
 PATHS: tuple[str, ...] = tuple(
-    ".".join(p) for p in _walk(EXT, ()) if len(p) > 1)
+    ".".join(path) for path, _, _ in schema_walk.walk(EXT) if len(path) > 1)
 
 
 # ------------------------------------------------- what reads a given block
@@ -635,7 +604,7 @@ def _open_maps(spec: dict, path: tuple[str, ...], depth: int = 0):
     """
     if depth > 8:
         return
-    raw, spec = spec, _resolve(spec)
+    raw, spec = spec, schema_walk.resolve(spec)
     if not spec:
         return
     if (spec.get("properties") or spec.get("type") == "object") and (

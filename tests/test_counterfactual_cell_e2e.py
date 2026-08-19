@@ -539,7 +539,7 @@ def test_the_causation_route_reports_no_interventional_risk():
     assert envelope["p_y_do_x1"] is None and envelope["p_y_do_x0"] is None
     assert envelope["instrument"] == "z"
     for qty in ("pn", "ps", "pns"):
-        assert "point" not in envelope[qty]
+        assert envelope[qty]["point"] is None
 
 
 def test_the_causation_instrument_route_survives_verification():
@@ -572,14 +572,19 @@ def test_the_causation_door_answers_while_only_some_quantities_are_vacuous():
 
 @pytest.mark.parametrize("tamper", [
     lambda r: r["extensions"]["causation"]["pn"].__setitem__("lower", 0.1),
+    # A point where the audited envelope has none. Unreachable while the two
+    # routes disagreed about how "no point" was spelled: the cross-check could
+    # only ask whether the key was there, and forging one put it there on both
+    # sides of a comparison that never looked at the value.
+    lambda r: r["extensions"]["causation"]["pn"].__setitem__("point", 0.99),
     lambda r: _inputs(r)["p_xyz"]["items"][0]["items"][1]["items"].__setitem__(
         1, 0.05),
     lambda r: _inputs(r)["instrument_levels"]["items"].reverse(),
     lambda r: _inputs(r).__setitem__("p_y_do_x1", 0.4),
     lambda r: _inputs(r).__setitem__(
         "interventional_risk_provenance", "derived_identification"),
-], ids=["pn-bound", "table-cell", "permuted-strata", "forged-risk",
-        "relabelled-as-derived"])
+], ids=["pn-bound", "forged-point", "table-cell", "permuted-strata",
+        "forged-risk", "relabelled-as-derived"])
 def test_the_verifier_rejects_a_tampered_causation_instrument_answer(tamper):
     import copy
 

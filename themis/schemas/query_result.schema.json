@@ -245,6 +245,7 @@
         "causation": {
           "type": "object",
           "description": "Probabilities of causation (Tian & Pearl 2000) for a causation query. PN/PS/PNS assumption-free bounds, plus point values when monotonic. Carries the observational joint cells and the two interventional risks (with their provenance) that fed the Tian-Pearl formulas. The three quantities and the joint are the SAME shapes the data path records under numeric_estimate, so they are referenced rather than restated: this block held each of them as a bare open object, and what an open object cannot report is a key nobody declared — thirteen of them were being emitted here.",
+          "required": ["monotonic", "interventional_risk_provenance", "instrument", "p_y_do_x1", "p_y_do_x0", "observational_joint", "pn", "ps", "pns"],
           "additionalProperties": false,
           "properties": {
             "pn": { "$ref": "#/$defs/causationQuantity", "description": "Probability of necessity: lower/upper bounds and (when monotonic) point." },
@@ -391,7 +392,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "status":      { "type": "string" },
-                    "missing_key": { "type": ["string", "null"] },
+                    "missing_key": { "type": "string" },
                     "reason":      { "type": "string" }
                   }
                 },
@@ -402,7 +403,7 @@
                   "properties": {
                     "status":         { "type": "string" },
                     "mediator_value": { "type": "string" },
-                    "missing_key":    { "type": ["string", "null"] },
+                    "missing_key":    { "type": "string" },
                     "reason":         { "type": "string" },
                     "reference_point_count": { "type": "integer", "description": "Size of the Cartesian product of the mediator block's domains." },
                     "cap":                   { "type": "integer", "description": "The size past which the grid is not reported." }
@@ -588,10 +589,8 @@
       ]
     },
     "structural_result": {
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": "object",
+      "required": ["value"],
       "additionalProperties": false,
       "properties": {
         "value": {
@@ -613,10 +612,8 @@
       }
     },
     "numeric_result": {
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": "object",
+      "required": ["value"],
       "additionalProperties": false,
       "properties": {
         "value": {
@@ -626,10 +623,7 @@
           ]
         },
         "interval": {
-          "type": [
-            "object",
-            "null"
-          ],
+          "type": "object",
           "additionalProperties": false,
           "properties": {
             "low": {
@@ -645,31 +639,20 @@
           ]
         },
         "unit": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string",
+          "description": "Never produced by the kernel: no estimator sets one. It survives a caller's decode -> encode round trip, and one verifier rule compares it, which is why it is declared and why it is absent rather than null."
         }
       }
     },
     "confidence": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": "number",
       "minimum": 0,
       "maximum": 1,
       "description": "Composite confidence score for the whole result; not a statistical confidence interval."
     },
     "formula": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/formulaExpression"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "$ref": "#/$defs/formulaExpression",
+      "description": "Absent when there is no estimand to state. The null branch this used to allow was never produced — the serializer writes the key only when a formula exists — and a second way to say the same nothing is a way for two producers to disagree."
     },
     "missing_information": {
       "type": "array",
@@ -698,10 +681,7 @@
       }
     },
     "explanation": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "derivation": {
       "$ref": "derivation.schema.json",
@@ -710,7 +690,7 @@
     "outcome_error": {
       "type": "object",
       "description": "What a declared classical additive measurement-error variance on a CONTINUOUS outcome (Y = Y* + V, E[V|design] = 0) costs this query. Present only when the caller supplied estimate(measurement_error={<outcome>: {error_variance}}) and the query is back-door identified. It carries no correction and displaces no estimator: such an error leaves every conditional mean unchanged, so the point estimate here is the ordinary one and is already right. What it does carry is the price — the observed residual variance split into signal and measurement noise, and the factor by which that noise widens every least-squares interval on this design. That factor is the part of the uncertainty more subjects cannot buy back, only better measurement. Its ``assumptions`` (chiefly that the error is NON-DIFFERENTIAL, without which the point is not immune after all) are folded into extensions.assumption_ledger, so they land on the surface the report leads with rather than in a side block each consumer must remember to read.",
-      "required": ["outcome", "treatment", "design_vars", "error_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics"],
+      "required": ["outcome", "treatment", "design_vars", "error_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics", "source"],
       "additionalProperties": false,
       "properties": {
         "outcome": { "type": "string" },
@@ -749,6 +729,13 @@
       "type": "object",
       "description": "Phase 7: data-based estimate. For backdoor / front-door / IV queries this is a single ATE point + CI. For mediation queries it carries a ``decomposition`` sub-block with NDE/NIE/TE triples (point + CI each).",
       "required": ["method", "ci_level", "assumptions", "sample_size", "data_hash"],
+      "dependentRequired": {
+        "point": ["ci_lower", "ci_upper"],
+        "ci_lower": ["point", "ci_upper"],
+        "ci_upper": ["point", "ci_lower"],
+        "std_error": ["doubly_robust"],
+        "doubly_robust": ["std_error"]
+      },
       "allOf": [
         {
           "if": {
@@ -823,8 +810,8 @@
         "n_instruments": { "type": "integer", "minimum": 2 },
         "conditioning": { "type": "array", "items": { "type": "string" } },
         "first_stage_f_stat": {
-          "type": ["number", "null"],
-          "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold. Single-instrument for iv_wald / iv_2sls; the JOINT first-stage F for all instruments under iv_2sls_overid. Null when computation was degenerate (e.g. n too small, instrument variance ~0)."
+          "type": "number",
+          "description": "iter 120 / IV methods only: first-stage F-statistic for the instrument's effect on treatment after partialing out conditioning W. Stock & Yogo (2005) flag F < 10 as the canonical weak-instrument threshold. Single-instrument for iv_wald / iv_2sls; the JOINT first-stage F for all instruments under iv_2sls_overid. ABSENT when the computation was degenerate (n too small, instrument variance ~0) — the producer omits it rather than writing null, and this said null until someone read the producer."
         },
         "stratified_wald": {
           "type": "object",
@@ -1093,7 +1080,7 @@
         "anderson_rubin_confidence_set": {
           "type": "object",
           "description": "iter 212 (single-instrument) / iter 240 (over-identified) — IV methods only: the Anderson-Rubin (1949) weak-identification-robust confidence set for the IV coefficient. Valid regardless of first-stage strength — unlike the bootstrap CI. For a single endogenous regressor (whether just-identified or over-identified with q instruments) it is the solution of a quadratic inequality in beta0 and can be a bounded interval [lower, upper], a disconnected pair (-inf, lower] u [upper, +inf), a single ray, or the whole line (an unbounded shape is the honest signal that the data cannot bound the effect); the OVER-IDENTIFIED set can additionally be empty (no beta0 satisfies all q moment restrictions — an over-identification rejection visible in the set geometry). Under iv_2sls_overid the critical value is kappa = q*F(q, m) and the set is re-derived by verify_iv_overid_numeric from the recorded moment matrices; under the just-identified path kappa = F(1, m) and it is re-derived from the flat ar_* derivation inputs.",
-          "required": ["kind", "ci_level"],
+          "required": ["kind", "ci_level", "lower", "upper", "point"],
           "additionalProperties": false,
           "properties": {
             "kind": {
@@ -1111,7 +1098,7 @@
         "stratified_anderson_rubin_confidence_set": {
           "type": "object",
           "description": "iv_stratified_wald only: the weak-identification-robust confidence set for the STRATIFIED Wald, inverted on that estimand's own moment. anderson_rubin_confidence_set residualises Y, X, Z on [1, W] — the same additive projection that makes 2SLS weight strata by Var(Z|w) — so its point is the linear IV coefficient and it belongs to a different estimand; the two sets are never both present. Here, with A = sum_w P(w)*outcome_shift(w) and B = sum_w P(w)*treatment_shift(w) (the point being A/B), the set is {beta0 : (A - beta0*B)^2 <= kappa * (var_yy - 2*beta0*var_xy + beta0^2*var_xx)} where var_.. = sum_w P(w)^2 * that stratum's shift_var_.. . Same quadratic inversion and therefore the same five shapes; as B -> 0 it opens out to the whole line, which is the honest answer when the instrument moves no compliers. Only the AGGREGATE moment is inverted, not the S per-stratum ones: the estimand IS the ratio of averages, whereas imposing all S moments would test the stronger hypothesis that every stratum shares one LATE — and strata whose LATEs differ are what this estimand averages over. Because the stratum variances are arm-specific, the set does not assume homoskedasticity across arms or strata; with unbalanced instrument arms that matters in both directions. Re-solved by the verifier from the stratum table, which carries the same quantities per cell.",
-          "required": ["kind", "ci_level", "point", "kappa", "outcome_shift", "treatment_shift", "var_yy", "var_xy", "var_xx", "n_obs", "n_strata", "dof"],
+          "required": ["kind", "ci_level", "point", "lower", "upper", "kappa", "outcome_shift", "treatment_shift", "var_yy", "var_xy", "var_xx", "n_obs", "n_strata", "dof"],
           "additionalProperties": false,
           "properties": {
             "kind": {
@@ -1135,7 +1122,7 @@
         "robust_anderson_rubin_confidence_set": {
           "type": "object",
           "description": "iter 246 / iv_2sls_overid only: the HETEROSKEDASTICITY-ROBUST Anderson-Rubin confidence set (Stock-Wright 2000 S-statistic / Kleibergen 2005 robust AR) — valid under weak identification AND heteroskedasticity (or clustering) at once, where the homoskedastic anderson_rubin_confidence_set has the wrong weighting (the same defect Sargan has vs the robust Hansen J). It inverts AR_r(β0) = n·ḡ(β0)'Ŝ(β0)⁻¹ḡ(β0) ~ χ²(q) with the β0-dependent robust weight Ŝ(β0) = s0 − β0·s1 + β0²·s2. Because AR_r is not a ratio of quadratics, the set is the real roots of a degree-≤2q polynomial (exact, not a grid) and is reported as a list of segments; it can be bounded, disconnected (two rays), the whole line, empty, or a union of more than two pieces. Both tails share the finite asymptote (1/n)·zx'·s2⁻¹·zx, which governs whether the set is unbounded (asymptote ≤ crit → the honest weak-identification signal). verify_iv_overid_numeric re-evaluates AR_r from the recorded s0/s1/s2 and independently re-checks the crossings, asymptote, segments, and completeness.",
-          "required": ["kind", "segments", "crossings", "asymptote", "crit", "ci_level", "dof"],
+          "required": ["kind", "segments", "crossings", "asymptote", "crit", "ci_level", "dof", "point"],
           "additionalProperties": false,
           "properties": {
             "kind": { "enum": ["bounded", "disconnected", "unbounded_below", "unbounded_above", "whole_line", "empty", "union"] },
@@ -1164,15 +1151,15 @@
         "mediator": { "type": "string" },
         "n_rep": { "type": "integer", "minimum": 1 },
         "treatment_high": {
-          "type": ["boolean", "number", "string", "null"],
+          "type": ["boolean", "number", "string"],
           "description": "general_id_plugin only: the high treatment level the ATE contrasts do(X=treatment_high) against do(X=treatment_low)."
         },
         "treatment_low": {
-          "type": ["boolean", "number", "string", "null"],
+          "type": ["boolean", "number", "string"],
           "description": "general_id_plugin only: the low (reference) treatment level of the ATE contrast."
         },
         "outcome_high": {
-          "type": ["boolean", "number", "string", "null"],
+          "type": ["boolean", "number", "string"],
           "description": "general_id_plugin only: the outcome level the binary P(Y=outcome_high|do(X)) contrast is taken on."
         },
         "given": {
@@ -1225,7 +1212,7 @@
         "joint_effect": {
           "type": "object",
           "description": "Joint interventions: the joint g-formula contrast E[Y|do(treated)] − E[Y|do(control)] over the treatment vector, with the cells it was taken between. Present only for joint_backdoor_* methods.",
-          "required": ["point", "treated", "control"],
+          "required": ["point", "ci_lower", "ci_upper", "treated", "control"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -1239,7 +1226,7 @@
         "interaction": {
           "type": "object",
           "description": "Joint interventions: the highest-order (K-way) causal interaction on the additive (difference) scale — the K-th mixed finite difference over the 2^K treatment corners, Σ_s (−1)^{#lo(s)} E[Y|do(s)] (VanderWeele 2015 ch.14). For K=2 treatments this is the ordinary treatment×treatment interaction [do(1,1)−do(1,0)] − [do(0,1)−do(0,0)]. Present only for joint_backdoor_* methods; ``order`` gives K.",
-          "required": ["point", "scale"],
+          "required": ["point", "ci_lower", "ci_upper", "scale"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -1289,7 +1276,7 @@
         "probabilities_of_causation": {
           "type": "object",
           "description": "causation_plugin only: the full PN/PS/PNS answer (Tian-Pearl 2000) from data. Each of pn/ps/pns carries its assumption-free bounds (lower/upper) and, under monotonicity, the point + its bootstrap CI. The top-level numeric_estimate point/ci mirror pn (the necessity headline).",
-          "required": ["monotonic", "interventional_risk_provenance", "p_y_do_x1", "p_y_do_x0", "observational_joint", "pn", "ps", "pns"],
+          "required": ["monotonic", "interventional_risk_provenance", "instrument", "p_y_do_x1", "p_y_do_x0", "observational_joint", "pn", "ps", "pns"],
           "additionalProperties": false,
           "properties": {
             "monotonic": { "type": "boolean" },
@@ -1299,15 +1286,15 @@
             "p_y_do_x1": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "p_y_do_x0": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
             "observational_joint": { "$ref": "#/$defs/observationalJoint" },
-            "pn": { "allOf": [{ "$ref": "#/$defs/causationQuantity" }, { "required": ["point"] }] },
-            "ps": { "allOf": [{ "$ref": "#/$defs/causationQuantity" }, { "required": ["point"] }] },
-            "pns": { "allOf": [{ "$ref": "#/$defs/causationQuantity" }, { "required": ["point"] }] }
+            "pn": { "$ref": "#/$defs/causationEstimate" },
+            "ps": { "$ref": "#/$defs/causationEstimate" },
+            "pns": { "$ref": "#/$defs/causationEstimate" }
           }
         },
         "counterfactual_cell": {
           "type": "object",
           "description": "counterfactual_cell_plugin only: the single binary counterfactual cell P(Y_{x'}=y*|X=x[,Y=y]) recovered from data. lower/upper is the identified set; point is non-null exactly when it collapsed (the same-world consistency case, the ETT identity when no factual outcome is given, or an interval a declared monotonicity pinned). ci_lower/ci_upper is the point's percentile bootstrap CI when point-identified, and otherwise the OUTER band on [lower, upper] (Manski / Balke-Pearl data-bounds convention). p_y_do_x_cf is the ONE interventional arm this cell depends on — null exactly when the answer does not use one, which interventional_risk_provenance then justifies. TWO solvers can fill these fields and the provenance says which ran: the consistency identity, which consumes the risk as a scalar, and — where no risk is point-identified but the graph carries an instrument — the response-function linear program, which optimises the cell directly over the distributions reproducing P(X, Y | Z) and has no risk to report. bootstrap_draws_infeasible counts resamples whose empirical inputs admit no SCM under the declared monotonicity: a finite-sample measure of how close that assumption sits to being refuted, on either solver.",
-          "required": ["observed_x", "counterfactual_x", "target_y", "interventional_risk_provenance", "observational_joint", "lower", "upper"],
+          "required": ["observed_x", "counterfactual_x", "target_y", "factual_y", "interventional_risk_provenance", "instrument", "p_y_do_x_cf", "observational_joint", "lower", "upper", "point", "ci_lower", "ci_upper"],
           "additionalProperties": false,
           "properties": {
             "observed_x": { "type": "boolean", "description": "The factual treatment value X = x conditioned on." },
@@ -1420,7 +1407,7 @@
           "description": "Phase 14: predicted average effect on Y of moving T from reference_point to each sampling_point. Length matches sampling_points; the reference point's row has effect=0.",
           "items": {
             "type": "object",
-            "required": ["x", "effect"],
+            "required": ["x", "effect", "ci_lower", "ci_upper"],
             "additionalProperties": false,
             "properties": {
               "x": { "type": "number" },
@@ -1437,11 +1424,11 @@
         "bootstrap": {
           "type": "object",
           "description": "Cluster-bootstrap metadata. Present only when a cluster / block column was supplied (options.cluster): the percentile CI then resamples whole clusters (Cameron-Gelbach-Miller pairs cluster bootstrap) instead of i.i.d. rows, which is the correct variance under within-cluster dependence. Absent ⇒ the default i.i.d. bootstrap.",
-          "required": ["kind"],
+          "required": ["kind", "cluster_column"],
           "additionalProperties": false,
           "properties": {
             "kind": { "enum": ["iid", "cluster"] },
-            "cluster_column": { "type": ["string", "null"] }
+            "cluster_column": { "type": "string" }
           }
         },
         "propensity_summary": {
@@ -1481,7 +1468,7 @@
         "longitudinal_gformula": {
           "type": "object",
           "description": "Phase 7.L: longitudinal parametric g-formula (g-computation) detail for a time-varying treatment STRATEGY (Hernán & Robins, What If, ch.21). point/ci mirror the top-level fields; the rest exposes the time-ordered treatment + covariate spec, the two simulated strategy means, and the Monte-Carlo / bootstrap budgets so a consumer can audit the always-treat vs never-treat contrast.",
-          "required": ["point", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "n_sim", "n_bootstrap"],
+          "required": ["point", "ci_lower", "ci_upper", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "n_sim", "n_bootstrap"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -1504,7 +1491,7 @@
         "longitudinal_ipw_msm": {
           "type": "object",
           "description": "Phase 7.L: longitudinal IPW marginal structural model detail for a time-varying treatment STRATEGY (Robins 2000; Hernán & Robins ch.12/17). An independent route to the same strategy contrast as longitudinal_gformula — it models the TREATMENT process (per-time propensities → IP weights) rather than the covariate/outcome models, so agreement between the two cross-validates the estimate. msm_coefficients are (β0, β_A0, …, β_AK) of E[Y_ā]=β0+Σβ_k·a_k; weight_mean/weight_max disclose the weight distribution (a mean far from 1 or a huge max flags near-positivity violation).",
-          "required": ["point", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "stabilized", "msm_coefficients", "weight_mean", "weight_max", "n_bootstrap"],
+          "required": ["point", "ci_lower", "ci_upper", "treatments", "confounders_by_time", "outcome", "strategy_treated", "strategy_control", "e_y_treated", "e_y_control", "stabilized", "msm_coefficients", "weight_mean", "weight_max", "n_bootstrap"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -1530,7 +1517,7 @@
         "recovered_ate": {
           "type": "object",
           "description": "Phase 9 §S9.2 numeric end: the back-door ATE recovered from data that itself has missing values (Mohan-Pearl-Tian 2013). Each g-formula factor is estimated from its OWN complete cases — the conditional E[Y|X,Z] from rows with {Y,X,Z} observed, the covariate marginal P(Z) from rows with {Z} observed — so under MAR the estimate is unbiased where naive listwise deletion (naive_listwise_ate, both factors from the fully-complete subset) is not. n_conditional_rows / n_marginal_rows expose the two factor-specific complete-case sizes; their gap is why the multi-factor combination matters.",
-          "required": ["point", "adjustment", "n_total", "n_complete_case", "n_conditional_rows", "n_marginal_rows", "n_strata", "missing_columns", "n_bootstrap"],
+          "required": ["point", "ci_lower", "ci_upper", "naive_listwise_ate", "adjustment", "n_total", "n_complete_case", "n_conditional_rows", "n_marginal_rows", "n_strata", "missing_columns", "n_bootstrap"],
           "additionalProperties": false,
           "properties": {
             "point": { "type": "number" },
@@ -1548,7 +1535,7 @@
             "sufficient_statistics": {
               "type": "object",
               "description": "Per-stratum sufficient statistics the g-formula sum was built from — the record verify_missing_data_numeric re-derives Σ_z (E[Y|1,z]−E[Y|0,z])·P(z) from without re-touching the data. `recovered` (and, when the naive listwise foil exists, `naive`) each carry conditional_strata ({z,arm,n,y_sum} per contributing (arm,z) cell, so E[Y|arm,z]=y_sum/n), marginal_counts ({z,count} per z) and marginal_total (P(z)=count/total). `adjustment_vars` pins the z-key arity.",
-              "required": ["adjustment_vars", "recovered"],
+              "required": ["adjustment_vars", "recovered", "naive"],
               "additionalProperties": false,
               "properties": {
                 "adjustment_vars": { "type": "array", "items": { "type": "string" } },
@@ -1557,7 +1544,8 @@
                   "oneOf": [
                     { "type": "null" },
                     { "$ref": "#/$defs/gformulaFactorStats" }
-                  ]
+                  ],
+                  "description": "Null when the listwise-deleted foil has an empty cell and no naive comparison exists. Always written — the recovered number means little without saying whether there was anything to compare it against."
                 }
               }
             }
@@ -1870,11 +1858,8 @@
       }
     },
     "data_gap_report": {
-      "oneOf": [
-        { "$ref": "#/$defs/dataGapReport" },
-        { "type": "null" }
-      ],
-      "description": "Phase 10: structured 'what data is still needed to validate this causal claim' summary. Null for query kinds that don't carry data needs (cause / assoc) or when no gaps detected. Generator: themis/output/data_gap_report.py — pure function over derivation + investigation_requests + framing_notes + extensions, no I/O."
+      "$ref": "#/$defs/dataGapReport",
+      "description": "Phase 10: structured 'what data is still needed to validate this causal claim' summary. ABSENT for query kinds that carry no data needs (cause / assoc) and when no gaps were detected — the serializer writes the key only when there is a report, so the null this used to also allow was never produced. Generator: themis/output/data_gap_report.py — pure function over derivation + investigation_requests + framing_notes + extensions, no I/O."
     },
     "bounds_results": {
       "type": "array",
@@ -1897,8 +1882,19 @@
     },
     "causationQuantity": {
       "type": "object",
-      "description": "One probability of causation (PN, PS, or PNS): assumption-free bounds (lower/upper) plus, under monotonicity, the point value and its bootstrap CI. Only lower/upper are required HERE, because the two containers carrying this shape say 'not point-identified' two different ways: the data path writes point: null and the theta path omits the key, and the kernel's display-copy cross-check holds the two sides to agreeing on PRESENCE, so neither convention can be quietly changed on one side. The data container adds the requirement back where it holds.",
-      "required": ["lower", "upper"],
+      "description": "One probability of causation (PN, PS, or PNS) as the structural route reports it: assumption-free bounds (lower/upper) and, under monotonicity, the point. ``point`` is REQUIRED and null when there is none — not omitted. The two routes carrying this quantity used to say 'not point-identified' two different ways, the data one writing null and the structural one leaving the key out, which made the kernel's display-copy cross-check ask about PRESENCE on one path and about the VALUE on the other for the same field. The sampling band is not here: neither writer of this container has ever produced one, and a shape that claims a field nobody fills is a claim about the answer that the answer does not make.",
+      "required": ["lower", "upper", "point"],
+      "additionalProperties": false,
+      "properties": {
+        "lower": { "type": "number", "minimum": 0, "maximum": 1 },
+        "upper": { "type": "number", "minimum": 0, "maximum": 1 },
+        "point": { "type": ["number", "null"] }
+      }
+    },
+    "causationEstimate": {
+      "type": "object",
+      "description": "The same quantity estimated FROM DATA: the bounds and point of ``causationQuantity`` plus the interval around them. The pair of ci keys means a point's bootstrap CI when there is a point and the outer band on the identified set when there is not, which is why they travel with the estimate and not with the structural shape.",
+      "required": ["lower", "upper", "point", "ci_lower", "ci_upper"],
       "additionalProperties": false,
       "properties": {
         "lower": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -2387,6 +2383,11 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["method", "lower_expression", "upper_expression", "estimand"],
+      "dependentRequired": {
+        "lower_value": ["ci_lower", "ci_upper"],
+        "ci_lower": ["lower_value", "ci_upper"],
+        "ci_upper": ["lower_value", "ci_lower"]
+      },
       "description": "Phase 12: symbolic bounds attached when point identification fails. Expressions are over observable distributions. When data is supplied via themis.estimate, the numeric end (estimation/bounds_numeric.py) additionally fills lower_value / upper_value / CI — the actual interval the data alone supports, computed by the SAME method named here. 'estimand' is required, symbolic or numeric: an interval whose quantity is left to be inferred from the method's reputation is not an answer, and this block once shipped an average-causal-effect interval under a question that asked for a single arm.",
       "properties": {
         "method": {
@@ -2419,13 +2420,13 @@
           "default": false,
           "description": "True when bounds collapse to the trivial range (e.g. [-1, 1] for risk difference) — answer is honest but not useful."
         },
-        "notes": {"type": ["string", "null"]},
+        "notes": {"type": "string"},
         "estimand": {
           "enum": ["arm_probability"],
           "description": "Which quantity lower_value / upper_value bracket. Every method here brackets the same one: the single interventional arm P(Y=y|do(X=x)) the query named. It is a one-member enum on purpose — not a formality, but the record that the domain collapsed: Balke-Pearl used to answer 'ace' here, which is a different question from the one an effect query asks and is undefined for a multi-valued treatment (no baseline arm) or outcome (not a probability difference). Where the ACE is defined it now travels in 'contrast', with its own endpoints. A second member belongs here only when a method brackets something a reader must tell apart from an arm."
         },
         "contrast": {
-          "type": ["object", "null"],
+          "type": "object",
           "additionalProperties": false,
           "required": ["kind", "reference_value", "lower_value", "upper_value"],
           "description": "Numeric end: a SECOND interval, over a second quantity, from the same identified set. Balke-Pearl reports the average causal effect here when the treatment is binary — the queried arm against the other one. It is its own pair of optimisations rather than arithmetic on lower_value/upper_value: a difference of two quantities is contained in the difference of their intervals but is not in general equal to it, so optimising it directly is correct without needing to know which case this is. On the binary IV model the two coincide on every table tried. Absent for a multi-valued treatment, where the difference has no baseline arm to be against.",
@@ -2442,15 +2443,15 @@
           }
         },
         "lower_value": {
-          "type": ["number", "null"],
-          "description": "Numeric end: data-evaluated lower bound. Null when the symbolic bounds were not numerically evaluated (no data / refusal)."
+          "type": "number",
+          "description": "Numeric end: data-evaluated lower bound. ABSENT when the symbolic bounds were not numerically evaluated (no data / refusal) — the producer omits the whole numeric end rather than nulling it, and this said null until someone read the producer. It is also the anchor of the numeric end: dependentRequired ties it to ci_lower / ci_upper, so a missing ci means 'not evaluated' when this is missing too and 'evaluated, no interval' when it is here."
         },
         "upper_value": {
-          "type": ["number", "null"],
+          "type": "number",
           "description": "Numeric end: data-evaluated upper bound."
         },
         "width": {
-          "type": ["number", "null"],
+          "type": "number",
           "description": "Numeric end: upper_value − lower_value."
         },
         "numeric_uninformative": {
@@ -2466,27 +2467,27 @@
           "description": "Numeric end: upper edge of the outer band (upper-α/2 quantile of the bootstrapped upper endpoint)."
         },
         "ci_level": {
-          "type": ["number", "null"],
+          "type": "number",
           "description": "Numeric end: two-sided confidence level of the outer band."
         },
         "sample_size": {
-          "type": ["integer", "null"],
+          "type": "integer",
           "description": "Numeric end: rows used to evaluate the bounds."
         },
         "numeric_data_hash": {
-          "type": ["string", "null"],
+          "type": "string",
           "description": "Numeric end: SHA-256 of the data the numeric bounds were computed on (verifier reproducibility fingerprint)."
         },
         "instrument": {
-          "type": ["string", "null"],
+          "type": "string",
           "description": "Numeric end (Balke-Pearl only): the instrument column the bounds used. Any finite cardinality — the response-function model enumerates a z→x map, and needs the instrument to have levels, not two of them."
         },
         "numeric_cluster": {
-          "type": ["string", "null"],
+          "type": "string",
           "description": "Numeric end: cluster-id column when the CI used a pairs cluster bootstrap; absent for the i.i.d. bootstrap."
         },
         "sufficient_statistics": {
-          "type": ["object", "null"],
+          "type": "object",
           "description": "Numeric end: recorded sufficient statistics that let the verifier RE-DERIVE [lower_value, upper_value] independently, rather than only metadata-auditing it. Balke-Pearl records the empirical P(X=x, Y=y | Z=z) table under 'P_xyz', the three level lists that say what its axes are, and the two indices naming which arm was asked about; the verifier re-runs the response-function LP over them. The level lists are not decoration: a |Z|x|X|x|Y| table is only interpretable if the producer says which axis is which, and a 2x3x2 table read as 3x2x2 re-derives a different interval and calls an honest producer a liar. Manski natural records the three arm counts 'n' / 'n_joint_target_arm' / 'n_other_arm'; the verifier re-derives lower = n_joint/n and upper = (n_joint+n_other)/n (this matters for a MULTI-VALUED treatment, whose off-arm mass P(X≠x) pools several levels — a metadata-only audit cannot distinguish an honest complement from a fabricated one). Absent for Manski-Tamer, whose one-sided tightening is anchored by the width/range invariants.",
           "properties": {
             "P_xyz": {

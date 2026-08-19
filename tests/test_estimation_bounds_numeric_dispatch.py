@@ -274,7 +274,11 @@ def _tampered(mutate):
     (lambda d: d.__setitem__("upper_value", d["lower_value"] - 0.1), "inverted"),
     (lambda d: d.__setitem__("upper_value", 5.0), "out_of_range"),
     (lambda d: d.__setitem__("ci_lower", d["upper_value"] + 0.5), "ci_not_enclosing"),
-    (lambda d: d.__setitem__("instrument", None), "missing_instrument"),
+    # Removed, not nulled: a bounds row says "no instrument" by not carrying
+    # the key, so nulling it now dies at the schema and would stop testing
+    # what this row is about — that the verifier rejects a Balke-Pearl
+    # interval which does not name the column it was bounded over.
+    (lambda d: d.pop("instrument"), "missing_instrument"),
     (lambda d: d.__setitem__("numeric_data_hash", "abc"), "bad_hash"),
 ])
 def test_verify_rejects_tampered_numeric_bounds(mutate, label):

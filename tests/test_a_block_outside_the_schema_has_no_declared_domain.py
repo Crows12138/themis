@@ -174,6 +174,11 @@ CELL = {
     "observational_joint": {"p_x1_y1": 0.38, "p_x1_y0": 0.13,
                             "p_x0_y1": 0.14, "p_x0_y0": 0.35},
     "lower": 0.0, "upper": 1.0,
+    # Said, not left out: this cell has no instrument, no arm and no point,
+    # and the container answers each of those questions rather than letting
+    # a missing key stand in for the answer.
+    "instrument": None, "p_y_do_x_cf": None,
+    "point": None, "ci_lower": None, "ci_upper": None,
 }
 MECHANISM = {
     "mechanisms": [{"target": "y", "form": "linear", "method": "backdoor_linear",
