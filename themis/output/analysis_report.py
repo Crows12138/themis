@@ -1847,6 +1847,47 @@ def _render_derivation_chain(result: dict) -> str:
     return "\n".join(["- **推导链**（每一步都可被独立重导）："] + said)
 
 
+def _citations(node: object, found: list[str]) -> None:
+    """Every ``reference`` on the envelope, in the order first met."""
+    if isinstance(node, dict):
+        said = node.get("reference")
+        if isinstance(said, str) and said not in found:
+            found.append(said)
+        for value in node.values():
+            _citations(value, found)
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            _citations(item, found)
+
+
+def _render_citations(result: dict) -> list[str]:
+    """The paper each part of this answer implements.
+
+    Six containers write a citation — ``scm_counterfactual``,
+    ``selection_recovery`` and ``missing_data_recovery`` under
+    ``extensions``, and ``decomposition``, ``four_way_decomposition``
+    and ``four_way_ratio`` under ``numeric_estimate`` — and none of them
+    reached a reader. Every rendering table in this file is keyed by what
+    ONE container holds: the block families, the answer shapes, the
+    computation details. A citation is not a field OF a container, so in
+    each of the six it was some other table's subject, and six
+    independent decisions dropped it with no exception anywhere.
+
+    Hence the walk. Binding this to the containers that carry a citation
+    today would render the same six and lose the seventh in the same way,
+    which is the whole of what went wrong: what a reader is owed here is
+    every source the answer rests on, not the sources of the parts
+    somebody remembered to enumerate.
+    """
+    found: list[str] = []
+    _citations(result, found)
+    if not found:
+        return []
+    if len(found) == 1:
+        return [f"- **依据文献**：{found[0]}"]
+    return ["- **依据文献**："] + [f"  - {said}" for said in found]
+
+
 def _render_route(result: dict) -> str:
     """How the estimand was identified — empty when nothing said.
 
@@ -1885,6 +1926,11 @@ def _render_route(result: dict) -> str:
     # only the shape of the argument reads this; a reader checking it
     # reads what came before.
     lines.append(_render_derivation_chain(result))
+    # Last of all, the sources: a reader who wants to check the method
+    # against the literature rather than against us needs the paper named,
+    # and it is the one line here that is about none of the lines above in
+    # particular.
+    lines += _render_citations(result)
     return "\n".join(line for line in lines if line)
 
 

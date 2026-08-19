@@ -1,5 +1,5 @@
 import type { QueryResult } from '../types'
-import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
+import { TIER_META, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { Foldout } from './Foldout'
 
@@ -47,6 +47,10 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   // one, two independent longitudinal routes. They live on numeric_estimate,
   // which the block binding above does not reach, so none of them had a reader.
   const detail = numericDetailRows(num)
+  // The sources. Six containers carry a citation and no table on either
+  // surface was ever about citations, so all six were dropped; this walks
+  // the envelope for the same reason the report does.
+  const cites = citations(result)
   // How it was computed, how precise it is, and what more data cannot fix.
   // Visible rather than folded: two of these three say what the number is
   // worth, and a reader who never opens the foldout is exactly the reader
@@ -54,7 +58,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const meta = estimateMeta(num, result.outcome_error, result.estimation_context)
   // The "how it was computed" detail — machine artifacts a lay reader rarely
   // needs. Folded by default; nothing removed.
-  const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
+  const hasDetail = routes.length > 0 || !!chain || detail.length > 0 || cites.length > 0 || paths.length > 0 || !!formula || bounds.length > 0 || sens?.e_value != null || !!ledger?.assumptions?.length
 
   return (
     <section className="verdict" aria-label="判决">
@@ -277,6 +281,21 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     <div className="boundsexpr__row" key={`chain-${i}`}>
                       <span className="boundsexpr__k">{row.label}</span>
                       <span className="boundsexpr__v">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Last, and about none of the lines above in particular: the
+                  sources, for a reader who wants to check the method against
+                  the literature rather than against us. Same position as in
+                  the report. */}
+              {cites.length ? (
+                <div className="boundsexpr">
+                  <span className="figure__cap">依据文献</span>
+                  {cites.map((said, i) => (
+                    <div className="boundsexpr__row" key={`cite-${i}`}>
+                      <span className="boundsexpr__v">{said}</span>
                     </div>
                   ))}
                 </div>

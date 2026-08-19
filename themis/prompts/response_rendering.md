@@ -505,6 +505,7 @@ df)`, not from symbolic Theta.
 | `estimation_context.{model_preference, random_state, ci_bootstrap}` | omit unless user asks |
 | `estimation_context.cluster` | the column this run treats as the unit of independence. Present → the interval is only as good as that choice, and every estimator says in its own assumptions whether it honoured it (a cluster bootstrap) or could not (an analytic interval). When one could not, say so where you report that interval: an interval computed on rows that are not independent is narrower than the evidence supports. |
 | `outcome_error.{noise_share, se_inflation}` | present → the outcome carries a declared measurement error that costs precision but NOT bias; the point beside it needs no correction. Report `se_inflation` as how much of the interval's width is measurement rather than sample: that part shrinks only by measuring the outcome better, not by collecting more of it — see §"Measurement-error correction" |
+| `reference`（信封各处：恢复块、反事实块、分解块…） | 这条路线实现的是哪篇文献的哪条定理。说完「怎么算的」之后说一次。它不属于任何一个块——每个块都可能带一句，所以是把信封里出现过的都说了，而不是只说你正在讲的那个块的 |
 
 **The point value's meaning depends on `method`** — never dump
 `point: -0.069` raw:

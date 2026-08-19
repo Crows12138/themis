@@ -2043,7 +2043,15 @@ def _try_scm_counterfactual_estimate(
         },
         "abducted_noise": {a: v for a, v in estimate.abducted_noise},
         "counterfactual_values": {a: v for a, v in estimate.counterfactual_values},
-        "estimated_from_data": True,
+        # No ``estimated_from_data`` flag. Whether the coefficients were
+        # declared or fitted is what separates these two paths, and since
+        # the two paths are two derivation rules the fact has a home the
+        # reader reaches: ``scm_abduction_action_prediction`` says "按你声明
+        # 的结构方程系数", ``numeric_scm_counterfactual_estimate`` says the
+        # coefficients were fitted by per-node OLS. A boolean beside them
+        # was a third copy that nothing read, and it could sit here unnoticed
+        # because this was the one block among the six carrying a citation
+        # whose map was open — so nothing could say it was undeclared either.
         "reference": (
             "Pearl, Glymour & Jewell (2016) Primer §4.2 "
             "abduction-action-prediction; coefficients fitted by per-node OLS"

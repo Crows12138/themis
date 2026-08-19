@@ -16,6 +16,7 @@
         "assumption_ledger": {
           "type": "object",
           "description": "Everything the answer takes on faith, worst first — the block both the report and the browser lead with. One line carries three closed vocabularies and they are declared here because all three leave the kernel and are read by two independent surfaces: `layer` (which part of the answer stops being true), `severity` (how badly the conclusion dies), `provenance` (who put it on the list, and is therefore who the reader argues with). They had no enum and no table anywhere, which is how `layer` came to hold a sixth value named `assumption` on an assumption ledger, and how an empty string in either field passed the verifier. `severity` is the grade of `layer` and not a second fact about the assumption — a consumer may read it without knowing the mapping, but the kernel derives it from `layer` at one place and the verifier re-derives it, so the two can never disagree. `claim` is free prose and `id` is the flat declaration this entry is the structured form of, when it has one.",
+          "additionalProperties": false,
           "properties": {
             "summary": { "type": "string" },
             "assumptions": {
@@ -37,9 +38,17 @@
         },
         "identification": {
           "type": "object",
-          "description": "Which pattern the graph was recognised as, beside the formula it produced. Only `pattern` is declared: the block carries several optional companions whose presence is decided by the pattern (adjustment_set, mediator_set, instrument, conditioned_on, required_assumption), and the map stays open, so this constrains the one field whose domain is closed. It is declared because a closed vocabulary that leaves the kernel has to be checkable by whoever states it to a reader — the three sibling pattern-like fields (selection_recovery.criterion, missing_data_recovery.mechanism, mediation_decomposition.strategy) already are, and this one, the most frequently written of the four, was not. `joint_identification.pattern` is a DIFFERENT vocabulary (joint_backdoor / joint_general_id) on a different block.",
+          "description": "Which pattern the graph was recognised as, beside the formula it produced. `pattern` is the one field with a closed vocabulary, and it is declared because a vocabulary that leaves the kernel has to be checkable by whoever states it to a reader — as the three sibling pattern-like fields (selection_recovery.criterion, missing_data_recovery.mechanism, mediation_decomposition.strategy) already are. The companions a pattern brings are declared too, and the map is closed. It used to stay open on the argument that their PRESENCE is what the pattern decides — which is true, and which is what an OPTIONAL property says. Declaring a field is not requiring it, so openness bought nothing for optionality while costing the one thing a closed map gives: that a misspelled writer key raises instead of vanishing. `joint_identification.pattern` is a DIFFERENT vocabulary (joint_backdoor / joint_general_id) on a different block.",
+          "additionalProperties": false,
           "properties": {
-            "pattern": { "enum": ["backdoor", "front_door", "c_factor", "instrumental_variable"] }
+            "pattern": { "enum": ["backdoor", "front_door", "c_factor", "instrumental_variable"] },
+            "adjustment_set": { "type": "array", "items": { "type": "string" }, "description": "backdoor only: the set a reader is told to control for." },
+            "mediator_set": { "type": "array", "items": { "type": "string" }, "description": "front_door only: the mediators the effect is routed through." },
+            "conditioned_on": { "type": "array", "items": { "type": "string" }, "description": "Present when the estimand is conditional: the Z of P(Y | do(X), Z), which is part of the question rather than of the adjustment." },
+            "estimand": { "const": "conditional_idc_ratio", "description": "Present when the conditional estimand is the IDC ratio rather than a plain adjustment." },
+            "instrument": { "type": "string", "description": "instrumental_variable only: the chosen instrument, copied from iv_identification because this block is the human surface." },
+            "conditioning": { "type": "array", "items": { "type": "string" }, "description": "instrumental_variable only: the set within which the instrument is valid." },
+            "required_assumption": { "type": "string", "description": "instrumental_variable only: the estimation-layer assumption point identification still needs." }
           }
         },
         "selection_recovery": {
@@ -212,12 +221,13 @@
         },
         "scm_counterfactual": {
           "type": "object",
-          "description": "Deterministic linear-SCM counterfactual (Pearl Primer §4.2). Carries the abducted exogenous values (abducted_noise), the post-intervention values of every relevant variable (counterfactual_values), and the target's counterfactual point (target_value).",
-          "additionalProperties": true,
+          "description": "Deterministic linear-SCM counterfactual (Pearl Primer §4.2). Carries the abducted exogenous values (abducted_noise), the post-intervention values of every relevant variable (counterfactual_values), the target's counterfactual point (target_value), and the citation the route implements (reference). Closed. It was the one container among the six that carry a `reference` whose map stayed open, and what came in through that opening was an `estimated_from_data` flag: one writer, no reader, no declaration, restating what the two derivation rule names already say about whether the coefficients were declared or fitted. A block open to anything cannot report a field nobody decided to carry.",
+          "additionalProperties": false,
           "properties": {
             "target": { "type": "string" },
             "target_value": { "type": "number" },
             "intervention": { "type": "object" },
+            "reference": { "type": "string" },
             "abducted_noise": { "type": "object", "additionalProperties": { "type": "number" } },
             "counterfactual_values": { "type": "object", "additionalProperties": { "type": "number" } }
           }
@@ -225,7 +235,7 @@
         "causation": {
           "type": "object",
           "description": "Probabilities of causation (Tian & Pearl 2000) for a causation query. PN/PS/PNS assumption-free bounds, plus point values when monotonic. Carries the observational joint cells and the two interventional risks (with their provenance) that fed the Tian-Pearl formulas.",
-          "additionalProperties": true,
+          "additionalProperties": false,
           "properties": {
             "pn": { "type": "object", "description": "Probability of necessity: lower/upper bounds and (when monotonic) point." },
             "ps": { "type": "object", "description": "Probability of sufficiency: lower/upper bounds and (when monotonic) point." },

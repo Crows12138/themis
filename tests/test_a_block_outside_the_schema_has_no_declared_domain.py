@@ -25,7 +25,11 @@ What is pinned here:
 - the display copies are references, not second statements;
 - and ``ambiguities`` stays open, because what it carries is authored
   upstream by a caller and enumerating it would make the kernel the
-  authority on which ambiguities a caller may report.
+  authority on which ambiguities a caller may report — the one block for
+  which that is true, which is now asked of every block rather than said
+  in prose about the fixtures above. It was said here first and went
+  unchecked, and while it did, four blocks were open and one of them had
+  accumulated a field with a writer, no reader, and no declaration.
 """
 from __future__ import annotations
 
@@ -298,14 +302,41 @@ def test_a_display_copy_is_a_reference_and_not_a_second_statement(pointer, field
     assert node.get("$ref") == pointer
 
 
+# The blocks whose map is open, and the argument for each. This used to
+# be the sentence below rather than a check, and while it went unchecked
+# four blocks were open: what came in through one of those openings was
+# ``scm_counterfactual.estimated_from_data``, one writer, no reader, no
+# declaration. A block open to anything cannot report a field nobody
+# decided to carry, which is exactly the field it will accumulate.
+OPEN_ON_PURPOSE = {
+    "ambiguities": "authored upstream by a caller, so enumerating it would "
+                   "make the kernel the authority on which ambiguities a "
+                   "caller may report",
+}
+
+
+def test_every_block_we_emit_is_closed_but_the_one_that_argues_for_it():
+    """Blocks that are a ``$ref`` are excluded rather than exempt: their
+    shape is stated where they point, and
+    ``test_a_display_copy_is_a_reference_and_not_a_second_statement``
+    holds them to pointing there."""
+    open_now = {
+        name for name, spec in EXT.items()
+        if "$ref" not in spec and spec.get("additionalProperties") is not False
+    }
+    assert open_now == set(OPEN_ON_PURPOSE), (
+        f"open without an argument: {sorted(open_now - set(OPEN_ON_PURPOSE))}; "
+        f"closed while claiming one: "
+        f"{sorted(set(OPEN_ON_PURPOSE) - open_now)}")
+
+
 def test_the_block_authored_upstream_stays_open():
     """The counterexample this gate has to keep saying yes to.
 
-    Every other block here got a closed shape. This one must not: its
-    entries are copied across from the program's own side-channel, where a
-    caller or a language model wrote them, and a kernel that enumerated
-    ``kind`` would be deciding which ambiguities a caller is allowed to
-    report.
+    Every other block got a closed shape. This one must not: its entries
+    are copied across from the program's own side-channel, where a caller
+    or a language model wrote them, and a kernel that enumerated ``kind``
+    would be deciding which ambiguities a caller is allowed to report.
     """
     entry = EXT["ambiguities"]
     assert entry["items"].get("additionalProperties") is not False

@@ -828,6 +828,29 @@ export function answerBlockRows(extensions: Record<string, unknown> | undefined)
   return blockRows(ANSWER_ORDER, ANSWER_RENDERERS, extensions)
 }
 
+// The paper each part of an answer implements. Six containers on the envelope
+// write a citation — three extension blocks and three parts of
+// numeric_estimate — and none of them reached a reader on either surface.
+// Every table in this file is keyed by what ONE container holds, so in each of
+// the six the citation was some other table's subject, and six independent
+// decisions dropped it without an exception anywhere. Hence the walk: a
+// version of this that listed today's containers would render the same six and
+// lose the seventh in exactly the same way.
+
+/** Every citation the envelope carries, in the order first met. */
+export function citations(result: QueryResult): string[] {
+  const found: string[] = []
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(walk); return }
+    if (node === null || typeof node !== 'object') return
+    const said = (node as Record<string, unknown>)['reference']
+    if (typeof said === 'string' && !found.includes(said)) found.push(said)
+    Object.values(node as Record<string, unknown>).forEach(walk)
+  }
+  walk(result)
+  return found
+}
+
 /** The steps, in the order they ran, each said in words.
  *
  * Rendered whenever there is a chain, not as a fallback for when the blocks

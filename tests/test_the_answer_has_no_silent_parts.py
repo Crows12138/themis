@@ -51,6 +51,16 @@ parts this file was written around: each builds an envelope carrying one
 part and asks the report for a phrase only a renderer reading that part
 could produce.
 
+The denominator is this container's OWN properties, one level deep. A
+part of a part is not in it, and one of them turned out to reach nobody:
+three of the composite parts below carry a ``reference``, the paper the
+closed form comes from, and the renderers this file holds them to render
+their numbers without it.
+:mod:`tests.test_a_citation_is_not_a_field_of_one_container` is where
+that is answered, and it answers it for the whole envelope because the
+same field is written under ``extensions`` too — but no census asks the
+question of parts at this depth, here or there.
+
 Per-surface parity is checked for the ten computation details and not for
 the rest. It is checkable there because both surfaces dispatch them from a
 table, so the two tables can be held equal, in order, with no third list to
