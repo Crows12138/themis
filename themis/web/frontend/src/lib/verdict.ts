@@ -282,6 +282,34 @@ function corner(c: Record<string, unknown> | undefined): string {
   return '{' + Object.keys(c).sort().map((k) => `${k}=${String(c[k])}`).join(', ') + '}'
 }
 
+// Z is not one kind of thing. Only Z⁺ — the part not descended from the
+// treatment — is checked for blocking, and blocking is what "back-door
+// adjustment" means; Z⁻ is downstream of the treatment and cannot shut a
+// confounding path. It is conditioned on so the selection nodes come out
+// independent of the outcome, at the cost of an inner reweighting. One row
+// naming their union as the selection back-door set tells a reader that a
+// descendant of the treatment is holding a confounding path closed.
+function selectionAdjustment(b: Record<string, any>): { label: string; value: string }[] {
+  const zp: string[] = b.z_plus ?? [], zm: string[] = b.z_minus ?? []
+  if (!zp.length && !zm.length) {
+    return b.adjustment_set?.length
+      ? [{ label: '选择后门调整集', value: varset(b.adjustment_set) }]
+      : []
+  }
+  const rows: { label: string; value: string }[] = []
+  if (zp.length) {
+    rows.push({ label: 'Z⁺', value: `${varset(zp)} —— 不是处理的后代，挡后门路径的是它` })
+  }
+  if (zm.length) {
+    rows.push({
+      label: 'Z⁻',
+      value: `${varset(zm)} —— 是处理的后代，挡不了后门；条件在它上面是为了让选择节点与结局条件独立，`
+        + '代价是恢复式里多一层 P(Z⁻ | 处理, Z⁺) 的重加权',
+    })
+  }
+  return rows
+}
+
 // The routes an answer can arrive by — the family themis/blocks.py declares,
 // in ITS declaration order, which is the order both surfaces state them in.
 // A test parses this array and holds it equal to blocks.rendered_in(ROUTE),
@@ -530,9 +558,10 @@ const ROUTE_RENDERERS: Record<string, (b: Blk, ext: Record<string, any>) => Sect
     rows.push({
       label: '无偏效应',
       value: b.recoverable
-        ? `可从这份有偏样本恢复${b.adjustment_set?.length ? ` · 选择后门调整 ${varset(b.adjustment_set)}` : ''}`
+        ? '可从这份有偏样本恢复'
         : `无法只从这份样本恢复${b.failure_reason ? ` · ${b.failure_reason}` : ''}`,
     })
+    if (b.recoverable) rows.push(...selectionAdjustment(b))
     if (b.external_data_needed?.length) rows.push({ label: '还需外部数据', value: b.external_data_needed.join('、') })
     // "Recoverable" is a verdict; this is what it licenses you to compute.
     // Every other route's estimand is stated from `result.formula`, and a
@@ -1067,19 +1096,17 @@ const NUMERIC_DETAIL_RENDERERS: Record<string, DetailRenderer> = {
     return { cap: '从有缺失的数据里恢复', rows }
   },
 
-  // Z⁻ is the part that cannot come from the selected sample, so the reference
-  // sample is not a footnote: the recovered number is only as good as the
-  // claim that it speaks for the population the first sample was filtered from.
+  // Which half of Z needs an unselected sample is not a property of the half:
+  // when Z is independent of the selection nodes nothing comes from outside,
+  // and when it is not, what is needed is Z⁺'s marginal or the joint over the
+  // treatment and both halves. So the split is stated for what it is, and
+  // `external_data_needed` beside it answers the other question.
   'numeric_estimate.selection_recovery_numeric': (ne) => {
     const sr = ne.selection_recovery_numeric as SelectionRecovery
     const rows = [{
       label: '两臂均值',
       value: `处理臂 ${fmtNum(sr.mu_treated)}，对照臂 ${fmtNum(sr.mu_control)}，上面那个数是两者之差`,
-    }, {
-      label: '选择后门调整',
-      value: `Z⁺=${varset(sr.z_plus)}（在这份被筛过的样本里就能估）；`
-        + `Z⁻=${varset(sr.z_minus)}（只能从外部样本估）`,
-    }]
+    }, ...selectionAdjustment(sr)]
     if (sr.reference_sample_size != null) {
       rows.push({
         label: '外部参照样本',
@@ -1569,6 +1596,19 @@ export function answerRows(num: NumericEstimate): Section | null {
     // The one interventional arm the cell leans on, when it leans on one.
     if (cell.p_y_do_x_cf != null) {
       rows.push({ label: '用到的干预风险 P(结局 | do(处理))', value: fmtNum(cell.p_y_do_x_cf) })
+    }
+    // Not a diagnostic. A share of the resamples with no feasible solution
+    // under the declared monotonicity is a finite-sample measure of how close
+    // that assumption is to being refuted by this data, and monotonicity is
+    // the one usually called untestable. Only the detachable explainer said it.
+    const refuted = cell.bootstrap_draws_infeasible ?? 0
+    const used = cell.bootstrap_draws_used ?? 0
+    if (refuted && used + refuted) {
+      rows.push({
+        label: '所声明的单调性被这份数据推翻的比例',
+        value: `${fmtNum((100 * refuted) / (used + refuted))}% 的重抽样在该假设下无解`
+          + ' —— 比例越高，上面那个区间越不该照单全收',
+      })
     }
     return { cap: '反事实格(区间)', rows }
   }

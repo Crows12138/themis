@@ -1027,6 +1027,20 @@ def _render_counterfactual_cell_bounds(ne: dict, result: dict) -> str:
             "- 若可假设单调性（X 从不阻止 Y），这一格会被收紧——"
             "在干预风险已知时收紧成一个点。"
         )
+    # Not a diagnostic. A share of the resamples with NO feasible solution
+    # under the declared monotonicity is a finite-sample measure of how close
+    # that assumption is to being refuted by this data, and monotonicity is
+    # the one usually described as untestable. Counted and reported rather
+    # than silently skipped — and then said only by the detachable explainer.
+    refuted = cell.get("bootstrap_draws_infeasible") or 0
+    used = cell.get("bootstrap_draws_used") or 0
+    if refuted and used + refuted:
+        share = 100.0 * refuted / (used + refuted)
+        lines.append(
+            f"- **{_fmt(share)}% 的重抽样在所声明的单调性下无解** —— "
+            f"单调性一般被当作不可检验的假设，而这份数据已经在往推翻它的"
+            f"方向推；这个比例越高，上面那个区间越不该照单全收"
+        )
     lines.extend(_estimate_meta(ne, result.get("outcome_error")))
     return "\n".join(lines)
 
@@ -1358,15 +1372,42 @@ def _route_proximal_estimand(block: dict, result: dict) -> str:
     return "\n".join(lines)
 
 
+def _selection_adjustment(block: dict, indent: str = "    ") -> list[str]:
+    """The two halves of Z, which do different jobs.
+
+    Only Z⁺ — the part of Z that is not a descendant of the treatment — is
+    checked for blocking, and blocking is what "back-door adjustment" means.
+    Z⁻ is conditioned on so the selection nodes come out independent of the
+    outcome, and it cannot shut a confounding path: it is downstream of the
+    treatment. One line naming their union as the selection back-door set
+    therefore tells a reader that a descendant of the treatment is holding a
+    confounding path closed, which is the one thing it is there not to do.
+    """
+    z_plus = list(block.get("z_plus") or ())
+    z_minus = list(block.get("z_minus") or ())
+    if not z_plus and not z_minus:
+        adj = block.get("adjustment_set")
+        return [f"{indent}- 选择后门调整集 {_vars(adj)}"] if adj else []
+    lines = []
+    if z_plus:
+        lines.append(
+            f"{indent}- Z⁺={_vars(z_plus)} —— 不是处理的后代，**挡后门路径的是它**"
+        )
+    if z_minus:
+        lines.append(
+            f"{indent}- Z⁻={_vars(z_minus)} —— 是处理的**后代**，挡不了后门；"
+            f"条件在它上面是为了让选择节点与结局条件独立，"
+            f"代价是恢复式里多一层 P(Z⁻ | 处理, Z⁺) 的重加权"
+        )
+    return lines
+
+
 def _route_selection_recovery(block: dict, result: dict) -> str:
     sel = _vars(block.get("selection_nodes"))
     lines = [f"- **选择偏倚**：样本被 {sel} 限制过"]
     if block.get("recoverable"):
-        adj = block.get("adjustment_set")
-        lines.append(
-            "  - 无偏效应**可从这份有偏样本恢复**"
-            + (f"，经选择后门调整 {_vars(adj)}" if adj else "")
-        )
+        lines.append("  - 无偏效应**可从这份有偏样本恢复**")
+        lines += _selection_adjustment(block)
     else:
         why = block.get("failure_reason")
         lines.append(
@@ -1572,21 +1613,21 @@ def _detail_recovered_ate(ne: dict, result: dict) -> str:
 def _detail_selection_recovery_numeric(ne: dict, result: dict) -> str:
     """The two arm means, and the external sample the recovery leaned on.
 
-    Z⁻ is the part that cannot come from the selected sample, so the reference
-    sample is not a footnote: the recovered number is only as good as the
-    claim that this second sample speaks for the population the first one was
-    filtered out of.
+    Which half of Z needs an unselected sample is not a property of the half.
+    The criterion asks whether Z as a whole is independent of the selection
+    nodes: when it is, nothing comes from outside; when it is not and Z⁻ is
+    empty, what is needed is the marginal of Z⁺; and when Z⁻ is non-empty it
+    is the joint over the treatment and both halves. So the split is stated
+    here for what it IS — one half blocks the back-door paths and the other
+    cannot — and ``external_data_needed`` beside it says what the selected
+    sample cannot supply, which is a different question with its own answer.
     """
     sr = ne["selection_recovery_numeric"]
     lines = [
         f"- **从选择偏倚里恢复**：处理臂均值 {_fmt(sr.get('mu_treated'))}，"
         f"对照臂均值 {_fmt(sr.get('mu_control'))}，上面那个数是两者之差",
     ]
-    z_plus, z_minus = list(sr.get("z_plus") or ()), list(sr.get("z_minus") or ())
-    lines.append(
-        f"  - 选择后门调整：Z⁺={_vars(z_plus)}（在这份被筛过的样本里就能估）；"
-        f"Z⁻={_vars(z_minus)}（只能从外部样本估）"
-    )
+    lines += _selection_adjustment(sr, indent="  ")
     if sr.get("reference_sample_size") is not None:
         lines.append(
             f"  - 外部参照样本 N={sr['reference_sample_size']} —— "

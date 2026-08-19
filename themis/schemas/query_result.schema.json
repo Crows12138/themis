@@ -458,8 +458,7 @@
             "treatments": { "type": "array", "items": { "type": "string" } },
             "adjustment_set": { "type": "array", "items": { "type": "string" }, "description": "Absent on the general-ID route, which is identified precisely because no adjustment set exists." },
             "conditioned_on": { "type": "array", "items": { "type": "string" } },
-            "interaction": { "enum": ["difference_scale"] },
-            "note": { "type": "string" }
+            "interaction": { "enum": ["difference_scale"] }
           }
         },
         "mediation_joint_decomposition": {

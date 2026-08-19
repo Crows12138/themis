@@ -589,7 +589,12 @@ _DETAIL_SAYS: tuple[
             "selected_values": {"s": 1},
             "mu_treated": 0.7, "mu_control": 0.3,
         }},
-        ("外部参照样本", "只能从外部样本估", "代表未被筛过的人群"),
+        # Not "Z⁻ is the half that needs the external sample": which half
+        # does is not a property of the half. The criterion asks it of Z as a
+        # whole, and answers with Z⁺'s marginal when Z⁻ is empty — the exact
+        # opposite of what this pin used to hold the renderer to.
+        ("外部参照样本", "挡后门路径的是它", "挡不了后门",
+         "代表未被筛过的人群"),
         ("z_minus",),
     ),
     (

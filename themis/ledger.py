@@ -266,6 +266,14 @@ ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
         frozenset({Layer.IDENTIFICATION, Layer.FUNCTIONAL_FORM, Layer.CONFIDENCE}),
         frozenset({Provenance.INHERENT, Provenance.CALLER_ASSERTED}),
     ),
+    # A ROUTE block's own premises. Narrower than the estimator row and not
+    # a second name for it: this channel is read where no estimator ran, so
+    # it can only be about whether the estimand was identified at all, and
+    # the premises are the theorem's rather than anybody's assertion.
+    "identification_premise": (
+        frozenset({Layer.IDENTIFICATION}),
+        frozenset({Provenance.INHERENT}),
+    ),
     "proposal_edge": (
         frozenset({Layer.STRUCTURAL_EDGE}),
         frozenset({Provenance.LLM_PROPOSAL, Provenance.DISCOVERY}),

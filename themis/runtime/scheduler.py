@@ -4430,15 +4430,14 @@ def _dispatch_joint_effect(
                         step_id="s2",
                     ),
                 )
+                # No ``note``: it said in English prose what ``pattern``
+                # already records and what the route renderer states in the
+                # reader's language on this very branch. A writer, no reader,
+                # and a third copy of one fact.
                 annotation = {
                     "pattern": "joint_general_id",
                     "treatments": sorted(
                         _atom_to_str(t) for t in treatments
-                    ),
-                    "note": (
-                        "latent-confounded joint effect with no adjustment "
-                        "set; identified by the set-valued Shpitser-Pearl ID "
-                        "(front-door / c-component for the treatment set)"
                     ),
                 }
                 return QueryResult(

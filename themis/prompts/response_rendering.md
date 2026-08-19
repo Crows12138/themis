@@ -509,6 +509,8 @@ df)`, not from symbolic Theta.
 | `extensions.<路线块>.numeric`（IV / 中介 / 中介集 / 迁移四处） | 这条路线**算出来的数**，来自你声明的概率而不是数据，所以没有区间。路线块的其余键说的是「怎么识别的」，这一个说的是「结果是多少」——两个不同的问题挂在同一个块上，别把它当成识别信息略过 |
 | `extensions.mediation_decomposition.numeric.{nde_at_control, nie_at_treated, nde_at_treated, nie_at_control}` | 两套 Pearl 分解，各自 TE = 直接 + 间接。**两个分量反号时必须说出来**：总效应是相互抵消后剩下的，只报总效应等于把这件事藏掉。`cde` 是逐个中介取值的直接效应，随取值变号意味着处理与中介有交互 |
 | `numeric_estimate.counterfactual_cell.{observed_x, counterfactual_x, target_y, factual_y}` | 这个区间是**哪一格**反事实的区间。四个布尔量各换一个，问的就是另一个问题——报区间之前先把这一格用一句话说清楚（在实际如何的那些人里，若当初如何，结局会怎样） |
+| `numeric_estimate.counterfactual_cell.{bootstrap_draws_used, bootstrap_draws_infeasible}` | 后者占两者之和的比例 = **所声明的单调性被这份数据推翻的份额**。单调性通常被称作不可检验的假设，这个比例是它在有限样本上离被推翻有多近的量度——非零就必须说，且要说清它削弱的是上面那个区间本身 |
+| `extensions.<路线块>.assumptions`（含 `nde_nie` / `cde` 两臂） | 这条识别路线自己声明的前提，是词表 id。它们已被折进 `assumption_ledger`，从台账里按严重度渲染即可；这里只在没有台账时才直接翻译 |
 
 **The point value's meaning depends on `method`** — never dump
 `point: -0.069` raw:
@@ -1448,8 +1450,16 @@ the formula/ledger stay the honest lead.
 Read `recoverable` first, then branch on it:
 
 - **`recoverable: true`** — the effect is s-recoverable via the
-  selection-backdoor set `adjustment_set` (partitioned into `z_plus`,
-  confounding control, and `z_minus`, selection control). Surface the
+  selection-backdoor set `adjustment_set`. Say the set as its two halves
+  and not as a union: `z_plus` holds the non-descendants of the treatment
+  and is the only part the criterion checks for blocking, while `z_minus`
+  holds descendants and blocks nothing — it is conditioned on so the
+  selection nodes come out independent of the outcome, at the price of an
+  inner reweighting in the formula. Naming the union as "the selection
+  back-door set" tells a reader that a descendant of the treatment is
+  holding a confounding path shut, which is the one thing it cannot do.
+  Which half needs an unselected sample is a separate question with its
+  own answer below — it is not a property of either half. Surface the
   `recovery_formula`, and — critically — the `external_data_needed`
   ledger: an **empty** ledger means it is recoverable from the biased
   data *alone* (the good case); a **non-empty** ledger names the

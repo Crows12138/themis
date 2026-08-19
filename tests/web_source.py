@@ -29,8 +29,16 @@ def read(path: pathlib.Path) -> str:
 
 
 def literal(name: str, source: str) -> str:
-    """The body of one top-level ``const NAME ... = { ... }``."""
-    opened = re.search(rf"^(?:export )?const {name}\b[^=]*=\s*[{{\[]",
+    """The body of one top-level ``const NAME ... = { ... }``.
+
+    The annotation between the name and the ``=`` may contain an ``=`` of its
+    own: a renderer table is typed ``Record<string, (b) => Section>``, and a
+    matcher that stopped at the first equals sign reported that the source
+    declared no such table — which reads exactly like a table nobody wrote.
+    Only ``=`` immediately followed by an opening brace opens a body, so
+    scanning past the arrows costs nothing.
+    """
+    opened = re.search(rf"^(?:export )?const {name}\b[^\n]*?=\s*[{{\[]",
                        source, re.M)
     assert opened, f"the source declares no {name}"
     start = opened.end() - 1

@@ -510,6 +510,42 @@ def build_mechanism_audit(
 # each value means, so the sort and the reader's word cannot disagree.
 
 
+#: Where a ROUTE block states what its own identifiability claim rests on.
+#:
+#: Two blocks do, at five sites, and every id is one the renderer glossary
+#: already translates — the schema says as much beside the field. Nothing
+#: read them: :func:`build_assumption_ledger` knew four channels and the
+#: identification layer's own was not among them, so a mediation answer
+#: reached the reader with "NDE / NIE 可识别" and no mention of the
+#: cross-world conditions that "identifiable" is conditional on.
+ROUTE_PREMISES: tuple[tuple[str, ...], ...] = (
+    ("longitudinal_identification", "assumptions"),
+    ("mediation_decomposition", "nde_nie", "assumptions"),
+    ("mediation_decomposition", "cde", "assumptions"),
+    ("mediation_joint_decomposition", "nde_nie", "assumptions"),
+    ("mediation_joint_decomposition", "cde", "assumptions"),
+)
+
+
+def _route_premises(extensions: dict) -> tuple[str, ...]:
+    """The ids those sites hold, in declaration order, each said once.
+
+    A mediation block's two arms name the same consistency premise, and a
+    reader owed "what has to hold" is owed it once.
+    """
+    out: list[str] = []
+    for path in ROUTE_PREMISES:
+        node: object = extensions
+        for step in path:
+            node = node.get(step) if isinstance(node, dict) else None
+        if not isinstance(node, list):
+            continue
+        for item in node:
+            if isinstance(item, str) and item not in out:
+                out.append(item)
+    return tuple(out)
+
+
 def build_assumption_ledger(
     result: dict, *, identification_specs: tuple = (),
 ) -> dict | None:
@@ -523,8 +559,10 @@ def build_assumption_ledger(
     ``extensions.mechanism_audit`` (functional form), and the
     ``identification_specs`` argument (identification assumptions
     structured at source by the estimator, passed directly so the
-    schema-validated ``numeric_estimate`` block stays untouched) — and
-    re-presents them as
+    schema-validated ``numeric_estimate`` block stays untouched) and
+    :data:`ROUTE_PREMISES` (what an identification route says its own
+    claim rests on, which is the channel that exists when no estimator
+    ran at all) — and re-presents them as
     first-class entries. The source channels stay untouched; this is the
     single place a channel is turned into a layer, so an assumption's
     prominence tracks how load-bearing it is instead of which channel it
@@ -575,6 +613,24 @@ def build_assumption_ledger(
         if spec.get("id"):
             entry["id"] = str(spec["id"])
         entries.append(entry)
+
+    # 1b) identification premises a ROUTE block declares for itself. The
+    #     blocks hold glossary ids — the schema says so — and nothing read
+    #     them. Wherever an estimator later ran it declared the same ids
+    #     flat, so the omission was invisible exactly where there was a
+    #     number; on the structural and theta paths, which are what this
+    #     system answers when there is no data, the ledger said nothing
+    #     while the block beside it listed the cross-world conditions the
+    #     whole decomposition rests on.
+    claimed = {str(e["id"]) for e in entries if e.get("id")}
+    for premise in _route_premises(extensions):
+        if premise in claimed:
+            continue
+        entry = classify_assumption(premise)
+        entry["layer"], entry["severity"], entry["provenance"] = ledger.stamp(
+            "identification_premise", entry["layer"], entry["provenance"])
+        entries.append(entry)
+        claimed.add(premise)
 
     # 2a) structural edges — ONLY the load-bearing ones. The authoritative
     #     load-bearing analysis already ran in the data_gap_report

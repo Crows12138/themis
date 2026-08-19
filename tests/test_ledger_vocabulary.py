@@ -113,6 +113,32 @@ def test_the_verifier_restates_the_same_rows():
     assert restated == declared
 
 
+def test_both_sides_know_every_route_that_declares_its_own_premises():
+    """The third declaration channel, pinned to the SCHEMA and not to itself.
+
+    An identification route lists what its own claim rests on, in ids the
+    glossary translates. The producer folds those into the ledger and the
+    verifier demands them there, and each spells the sites itself — so
+    pinning the two lists to each other would only say they agree. Pinning
+    both to the schema says a route added there and forgotten by either side
+    is a failure, which is the shape this channel went missing in: the
+    blocks listed their premises for years and no channel read them.
+    """
+    from themis.output import result_orchestrator
+
+    from .test_no_part_of_a_block_is_silent import PATHS
+
+    declared = {
+        tuple(path.split("."))
+        for path in PATHS
+        if path.endswith(".assumptions")
+        and not path.startswith("assumption_ledger.")
+    }
+    assert declared, "the schema declares no route premises at all"
+    assert set(result_orchestrator.ROUTE_PREMISES) == declared
+    assert set(rules._ROUTE_PREMISE_SITES) == declared
+
+
 def test_every_value_is_writable_by_some_producer():
     """The import-time check, asked from the test's side as well: a value no
     row admits is one nothing can write, and it is indistinguishable in the

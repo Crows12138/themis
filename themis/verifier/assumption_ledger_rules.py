@@ -9,11 +9,13 @@ ledger owes from the channels that feed it and rejects UNDER-disclosure.
 
 What it audits:
 
-- **Completeness of the estimator channel.** ``numeric_estimate.assumptions``
-  is the one channel every estimator populates. The ledger must carry each of
-  those declarations keyed by ``id`` — either flat, or as the estimator's own
-  structured ``identification`` entry naming the same id, which says the same
-  thing in better words. Carrying neither is the defect.
+- **Completeness of the declaration channels.** ``numeric_estimate.assumptions``
+  is the one channel every estimator populates; an outcome measurement-error
+  assessment and an identification route each declare their own premises
+  beside it. The ledger must carry each of those declarations keyed by ``id``
+  — either flat, or as the estimator's own structured ``identification`` entry
+  naming the same id, which says the same thing in better words. Carrying
+  neither is the defect.
 - **Completeness of the other three channels** — one entry per load-bearing
   proposal edge in the gap report, per LLM theta prior, per audited mechanism.
 - **No fabrication.** Any entry attributed to the estimator whose ``id`` the
@@ -108,6 +110,7 @@ _ADMISSIBLE_PAIRS = {
         ("identification", "functional_form", "confidence"),
         ("inherent", "caller_asserted"),
     ),
+    "identification_premise": (("identification",), ("inherent",)),
     "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
     "theta_prior": (("parameter",), ("llm_prior",)),
     "audited_mechanism": (("functional_form",), ("default",)),
@@ -203,14 +206,31 @@ def verify_assumption_ledger(result: dict) -> None:
 # --- the four channels the ledger owes ----------------------------------------
 
 
+#: Where an identification ROUTE states what its own claim rests on, spelled
+#: from the schema rather than imported: this file audits the ledger and a
+#: list of sites shared with the producer would make the audit a restatement.
+_ROUTE_PREMISE_SITES = (
+    ("longitudinal_identification", "assumptions"),
+    ("mediation_decomposition", "nde_nie", "assumptions"),
+    ("mediation_decomposition", "cde", "assumptions"),
+    ("mediation_joint_decomposition", "nde_nie", "assumptions"),
+    ("mediation_joint_decomposition", "cde", "assumptions"),
+)
+
+
 def _declaration_channels(result: dict, estimate) -> tuple[str, ...]:
     """Every assumption someone declared, by id, whichever list holds it.
 
-    Two do. ``numeric_estimate.assumptions`` is the estimator's own and every
-    estimator populates it. The second belongs to another author entirely: an
-    outcome measurement-error assessment states the premises under which its
-    split of the residual variance means anything, and the ledger folds those
-    in unconditionally.
+    Three do. ``numeric_estimate.assumptions`` is the estimator's own and
+    every estimator populates it. The second belongs to another author
+    entirely: an outcome measurement-error assessment states the premises
+    under which its split of the residual variance means anything. The third
+    is the identification layer speaking for itself — a mediation or
+    longitudinal route lists the premises "identifiable" is conditional on —
+    and it is the only one of the three that exists when no estimator ran,
+    which is why its absence was invisible: on every path that produced a
+    number the estimator declared the same ids flat, and on the paths that
+    produced none the ledger was simply quieter than the envelope.
 
     They are unioned rather than checked apart because the question here is
     "did anyone declare this", and asking instead which list it came from is
@@ -222,6 +242,13 @@ def _declaration_channels(result: dict, estimate) -> tuple[str, ...]:
     block = result.get("outcome_error")
     if isinstance(block, dict):
         ids += [a for a in (block.get("assumptions") or ()) if isinstance(a, str)]
+    extensions = result.get("extensions") or {}
+    for site in _ROUTE_PREMISE_SITES:
+        node = extensions
+        for step in site:
+            node = node.get(step) if isinstance(node, dict) else None
+        if isinstance(node, list):
+            ids += [a for a in node if isinstance(a, str)]
     return tuple(ids)
 
 

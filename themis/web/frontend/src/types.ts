@@ -181,6 +181,11 @@ export interface NumericEstimate {
     target_y?: boolean
     factual_y?: boolean | null
     p_y_do_x_cf?: number | null
+    // How many resamples the declared monotonicity left with no feasible
+    // solution, against how many it did not. Their ratio is the closest
+    // thing to a test of an assumption usually called untestable.
+    bootstrap_draws_used?: number
+    bootstrap_draws_infeasible?: number
   }
   // Three estimands, not one. `point` is non-null on each exactly when
   // monotonicity was assumed; ci_lower/ci_upper is then that point's bootstrap

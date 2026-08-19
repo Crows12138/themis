@@ -1,55 +1,36 @@
-"""Every key an extensions block declares, and who it reaches.
+"""Every key an extensions block declares, and whether ITS reader says it.
 
-The question "does this part reach a reader" has been asked three times and
-each time of ONE container's own properties. :mod:`themis.blocks` asks it of
-the eighteen blocks, because a block name is a string literal repeated at
-every writer and every reader and a misspelling there is silence.
+The question "does this part reach a reader" has been asked four times and
+each time of one container, one level down from the last accident.
+:mod:`themis.blocks` asks it of the eighteen blocks;
 :mod:`tests.test_the_answer_has_no_silent_parts` asks it of
-``numeric_estimate``'s direct properties, because hanging the reader's
-question on the spelling registry had given it a denominator drawn for a
-different question. Both lines were moved by hand, after something was found,
-and both moved by exactly one level.
+``numeric_estimate``'s direct properties; the first version of this file asked
+it of every key under ``extensions`` at full depth — and answered it against
+EVERY reader surface at once, so a key was covered by being spelled anywhere.
 
-What sat below the second line was a whole answer. Four ROUTE blocks carry a
-``numeric``: the theta path evaluates a query against a declared joint
-distribution rather than estimating it from rows, and it writes what it
-computed into the block that identified the estimand. Every renderer is bound
-to a container and states that container's question, so a route renderer
-states how the estimand was identified — which is not what a number is. On
-CLadder Q1358 that meant a report saying "0.1387" and "可识别，无需调整" over
-a decomposition whose direct arm was −0.0725 against an indirect arm of
-+0.2112: the drug helps through the mediator and hurts around it, which is
-the entire finding of a mediation analysis. The IV case is the same omission
-with the contradiction visible in one screen — the block's ``late_caveat`` is
-printed at the reader in full, saying the value "aggregates the per-stratum
-LATEs in ``strata``" and that ``treatment_shift`` is the complier share, and
-neither field was rendered anywhere.
+That floor found real omissions and its own weakness at the same time. Asking
+the same question BLOCK-QUALIFIED — does the renderer bound to THIS block name
+this key — left 77 of 168 leaf names unanswered, and the honest reading of the
+77 was not 77 holes. It was that a key reaches a reader through four channels
+and only one of them was ever queried: the block's own renderer, the detail
+table (whose keys NAME the block, and which the previous census did not know
+existed — thirty-four of the seventy-seven), the carrier a block declares, and
+"the same fact, said elsewhere", which had no first-class record at all.
 
-That is not one bug repeated. Of the thirty-nine paths this file first found
-unreached, some were a family mismatch (an answer hanging off a route block),
-some were a renderer that stopped early (a recovery verdict without the
-formula it licenses), some were sufficient statistics that never wanted a
-reader. Three unrelated causes, one outcome — which is what says the cause is
-not on any of them but in there being no denominator at this depth.
+So the denominator stays and the numerator narrows. A key is answered when the
+block's own reader names it — the renderer :func:`themis.blocks.bind` recorded,
+plus the detail renderers keyed under this block, plus whatever re-presents a
+carried block — or when a row below says who it is for instead. That gate
+implies the floor: if the block's own reader spells it, some surface does.
 
-WHAT THIS CHECKS. Every key path the schema declares under ``extensions``, at
-every depth, is spelled by at least one reader surface — or a row below says
-who it is for instead.
-
-WHAT THAT IS WORTH. The check is sound in one direction only: a name no
-surface spells cannot be being read, so a failure here is real. The converse
-is not true — ``outcome`` spelled in some other renderer counts as coverage
-here, a renderer can read a key and print nothing, and a renderer nobody
-calls any more still spells every key it ever read. That last one is not
-hypothetical: unbinding the counterfactual-cell question and leaving the
-function in place passes this check and changes what the reader sees, which
-is why the pins at the bottom exist beside it. This is a floor rather
-than a guarantee, and the honest measure of the gap is that asking the same
-question BLOCK-QUALIFIED — does this block's own bound renderer name this
-key — left 77 of 168 leaf names unanswered, most of them legitimately (a
-field copied into a sibling block, a citation rendered by the envelope walk,
-a key restating the block's own name). Making that measure a gate needs the
-renderers to declare what they read; it is registered rather than done.
+WHAT THAT IS WORTH. Sound in one direction only: a name absent from a
+renderer's whole call closure cannot be being read there, so a failure is
+real; a name present may sit in a branch, in a docstring, or in a helper
+called for something else. Two weaknesses stay named rather than fixed. A
+renderer nobody calls any more still spells every key it ever read — which is
+why a row deferring to a reader function is held to that function being
+reachable from the report's entry point, and why the pins at the bottom check
+sentences and not spellings. And a renderer can read a key and print nothing.
 
 The atom shape is where the walk stops. ``s_nodes[].affects`` and the
 adjustment sets are ``$ref``s into ``atom.schema.json``, which is another
@@ -58,12 +39,17 @@ vocabulary's completeness under two files.
 """
 from __future__ import annotations
 
+import ast
+import functools
 import json
 import pathlib
 import re
 from dataclasses import dataclass
 
 import pytest
+
+from themis import blocks
+from themis.output import analysis_report
 
 from . import web_source
 from .test_vocabulary_reach import VOCABULARIES
@@ -72,7 +58,7 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = json.loads(
     (REPO / "themis" / "schemas" / "query_result.schema.json")
     .read_text(encoding="utf-8"))
-DEFS = SCHEMA.get("$defs", {})
+TOP_LEVEL = frozenset(SCHEMA.get("properties") or {})
 
 
 # ---------------------------------------------------------------- the schema
@@ -112,52 +98,188 @@ def _walk(spec: dict, path: tuple[str, ...], depth: int = 0):
 
 
 EXT = SCHEMA["properties"]["extensions"]
-PATHS: tuple[str, ...] = tuple(".".join(p) for p in _walk(EXT, ()))
+
+#: Every key path under ``extensions``, EXCEPT the block names themselves.
+#:
+#: A block name is what a renderer is reached BY, not something it reads, and
+#: whether one reaches a reader at all is :func:`themis.blocks.bind`'s
+#: subject, checked there in both directions. This file's subject is what is
+#: inside a block, which is the level nothing was asking about.
+PATHS: tuple[str, ...] = tuple(
+    ".".join(p) for p in _walk(EXT, ()) if len(p) > 1)
 
 
-# -------------------------------------------------------------- the surfaces
+# ------------------------------------------------- what reads a given block
 def _reads(name: str) -> re.Pattern:
-    """The key as a key: quoted, reached as an attribute, or an object key."""
-    n = re.escape(name)
-    return re.compile(rf"""["']{n}["']|\.{n}\b|(?<![\w.]){n}\?*\s*:""")
+    """The key as a key: quoted, or reached as an attribute.
 
-
-def _surfaces() -> dict[str, str]:
-    """Every file a reader's words can come out of.
-
-    Three of them, because there are three: the report, the browser, and the
-    static page a running server serves when the built bundle is absent.
-    ``types.ts`` is excluded — it declares the envelope's shape rather than
-    reading it, so counting it would let a field be "reached" by being
-    declared.
+    Deliberately NOT the bare ``name:`` form. In a renderer's TypeScript that
+    is the row being BUILT — ``{ label: …, value: … }`` — so counting it made
+    ``intervention.value`` read as named by every renderer that emits a row,
+    which is every one of them.
     """
-    out: dict[str, str] = {}
-    for path in sorted((REPO / "themis" / "output").rglob("*.py")):
-        out[f"output/{path.name}"] = path.read_text(encoding="utf-8")
-    for path in (sorted(web_source.SRC.rglob("*.ts"))
-                 + sorted(web_source.SRC.rglob("*.tsx"))):
-        if path.name == "types.ts" or "node_modules" in path.parts:
+    n = re.escape(name)
+    return re.compile(rf"""["']{n}["']|\.{n}\b""")
+
+
+_REPORT_SRC = (REPO / "themis" / "output" / "analysis_report.py").read_text(
+    encoding="utf-8")
+_TREE = ast.parse(_REPORT_SRC)
+_DECLS: dict[str, ast.AST] = {
+    node.name: node for node in ast.walk(_TREE)
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+for _node in _TREE.body:
+    if isinstance(_node, ast.Assign):
+        for _target in _node.targets:
+            if isinstance(_target, ast.Name):
+                _DECLS.setdefault(_target.id, _node.value)
+    elif isinstance(_node, ast.AnnAssign) and isinstance(_node.target, ast.Name):
+        if _node.value is not None:
+            _DECLS.setdefault(_node.target.id, _node.value)
+
+
+@functools.lru_cache(maxsize=None)
+def _closure(root: str) -> tuple[frozenset[str], frozenset[str]]:
+    """(string literals, declarations) transitively reachable from ``root``.
+
+    Names rather than calls, because a renderer table is a name holding
+    functions: binding is what puts a renderer on the path, and a walk that
+    only followed call syntax would find no renderer at all from the report's
+    entry point.
+    """
+    literals: set[str] = set()
+    seen: set[str] = set()
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        if current in seen:
             continue
-        out[f"web/{path.name}"] = path.read_text(encoding="utf-8")
-    static = REPO / "themis" / "web" / "static" / "index.html"
-    if static.exists():
-        out["static/index.html"] = static.read_text(encoding="utf-8")
-    return out
+        seen.add(current)
+        node = _DECLS.get(current)
+        if node is None:
+            continue
+        for inner in ast.walk(node):
+            if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
+                literals.add(inner.value)
+            named = (inner.id if isinstance(inner, ast.Name) else
+                     inner.attr if isinstance(inner, ast.Attribute) else None)
+            if named is not None and named in _DECLS:
+                stack.append(named)
+    return frozenset(literals), frozenset(seen)
 
 
-SURFACES = _surfaces()
+_VERDICT_SRC = web_source.read(web_source.VERDICT)
+_TS_DECLS = web_source.chunks(_VERDICT_SRC)
+
+#: Tables holding EVERY block's entry. Following a mention of one of these
+#: out of a single entry would make each block's reader the whole surface.
+_TS_TABLES = frozenset({
+    "ROUTE_RENDERERS", "ANSWER_RENDERERS", "NUMERIC_DETAIL_RENDERERS",
+    "ROUTE_ORDER", "ANSWER_ORDER", "NUMERIC_DETAIL_ORDER",
+})
 
 
-def _spelled(path: str) -> list[str]:
+def _ts_entries(table: str) -> dict[str, str]:
+    """One name-keyed table's entries, by key. Depth 0, like its key scan."""
+    body = web_source.literal(table, _VERDICT_SRC)
+    out: dict[str, list[str]] = {}
+    current, depth = None, 0
+    for line in body.splitlines():
+        if depth == 0:
+            found = re.match(r"\s*'([^']+)'\s*:", line) or re.match(
+                r"\s*([A-Za-z_]\w*)\??\s*:", line)
+            if found:
+                current = found.group(1)
+                out.setdefault(current, [])
+        if current is not None:
+            out[current].append(line)
+        depth += (line.count("{") + line.count("[")
+                  - line.count("}") - line.count("]"))
+    return {key: "\n".join(lines) for key, lines in out.items()}
+
+
+_TS_RENDERERS: dict[str, str] = {}
+for _table in ("ROUTE_RENDERERS", "ANSWER_RENDERERS", "NUMERIC_DETAIL_RENDERERS"):
+    for _key, _body in _ts_entries(_table).items():
+        _TS_RENDERERS[_key] = _TS_RENDERERS.get(_key, "") + "\n" + _body
+
+
+def _ts_closure(text: str) -> str:
+    """One entry plus the helpers it names, so a helper's reads count too."""
+    out = [text]
+    for name, body in _TS_DECLS.items():
+        if name in _TS_TABLES:
+            continue
+        if re.search(rf"(?<![\w.]){re.escape(name)}\s*\(", text):
+            out.append(body)
+    return "\n".join(out)
+
+
+#: What actually reads a carried block.
+#:
+#: ``Block.carried_by`` names the CONTAINER the fact ends up in, which is a
+#: claim about where a reader meets it. A per-key question needs the code that
+#: reads the key, and that is a different fact — one the registry has no place
+#: for, because it is per surface and the registry is upstream of every
+#: surface.
+CARRIER_READER: dict[str, str] = {
+    "assumption_ledger": "themis/output/result_orchestrator.py",
+    "data_gap_report": "themis/output/data_gap_report.py",
+    # The cell is a display copy of ``numeric_estimate``'s own field, and
+    # that container is the report's own subject: its answer shapes and its
+    # detail table are spread across the file, and one cell arrives as an
+    # interval or as a point with a confidence band by different shapes. Per
+    # key, that container has its own census in
+    # ``test_the_answer_has_no_silent_parts``; naming a single renderer here
+    # would be this file claiming to be that one.
+    "numeric_estimate": "themis/output/analysis_report.py",
+}
+
+
+@functools.lru_cache(maxsize=None)
+def _reader_of(block: str) -> tuple[frozenset[str], str]:
+    """Every literal and every source region that renders THIS block."""
+    known = blocks.BY_NAME.get(block)
+    assert known is not None, (
+        f"the schema declares {block!r} under extensions and "
+        f"themis.blocks does not register it"
+    )
+    literals: set[str] = set()
+    text: list[str] = []
+    for table in (analysis_report._ROUTE_RENDERERS,
+                  analysis_report._ANSWER_BLOCK_RENDERERS,
+                  analysis_report._ASSUMPTION_RENDERERS):
+        bound = table.get(known)
+        if bound is not None:
+            literals |= _closure(bound.__name__)[0]
+    for path, renderer in analysis_report._NUMERIC_DETAIL_RENDERERS:
+        if path.startswith(f"extensions.{block}."):
+            literals |= _closure(renderer.__name__)[0]
+    for key, body in _TS_RENDERERS.items():
+        if key == block or key.startswith(f"extensions.{block}."):
+            text.append(_ts_closure(body))
+    if known.carried_by is not None:
+        who = CARRIER_READER[str(known.carried_by)]
+        if who.endswith(".py"):
+            text.append((REPO / who).read_text(encoding="utf-8"))
+        else:
+            literals |= _closure(who)[0]
+    return frozenset(literals), "\n".join(text)
+
+
+def _named(path: str) -> bool:
+    """Does the block this path belongs to name its last step?"""
+    block = path.split(".", 1)[0]
     leaf = path.replace("[]", "").split(".")[-1]
-    pattern = _reads(leaf)
-    return sorted(f for f, text in SURFACES.items() if pattern.search(text))
+    literals, text = _reader_of(block)
+    return leaf in literals or bool(_reads(leaf).search(text))
 
 
 # ------------------------------------------------------------------ the rows
 @dataclass(frozen=True)
 class Silent:
-    """One declared key no reader surface spells, and who it is for.
+    """One declared key the block's own reader does not name, and who it is for.
 
     Exactly one of the three answers is required, and each is checked rather
     than believed: a consumer that does not consume, a source that is itself
@@ -168,15 +290,41 @@ class Silent:
     holds: str
     #: A module that re-derives something from it. Held to reading the key.
     consumed_by: str = ""
-    #: Another declared path, or a block, carrying the same fact to a reader.
+    #: Where the same fact does reach a reader — another declared path, a
+    #: block, a top-level field of the result, or ``analysis_report:<fn>``
+    #: for a renderer that says it somewhere other than this block's section.
     said_by: str = ""
     #: A row in :mod:`tests.test_vocabulary_reach` that already decided this
     #: value needs no word, with the reason written there.
     vocabulary: str = ""
 
 
+#: A const restating which block this is. The renderer's own heading says it
+#: in the reader's language, so the token is the block name twice.
+_RESTATES_ITS_BLOCK = (
+    ("iv_identification", "strategy"),
+    ("selection_recovery", "kind"),
+    ("missing_data_recovery", "kind"),
+    ("transport_identification", "kind"),
+    ("longitudinal_identification", "estimand"),
+    ("proximal_estimand", "method"),
+)
+
+#: The query's own parameters, copied into a block by its producer. The
+#: question line states the query itself, under the query's names for them.
+_FROM_THE_QUESTION = (
+    ("selection_recovery", "treatment", "_q_effect"),
+    ("selection_recovery", "outcome", "_q_effect"),
+    ("selection_recovery", "query_kind", "_q_effect"),
+    ("proximal_estimand", "treatment", "_q_proximal_effect"),
+    ("proximal_estimand", "outcome", "_q_proximal_effect"),
+    ("scm_counterfactual", "intervention", "_q_scm_counterfactual"),
+    ("scm_counterfactual", "intervention.variable", "_q_scm_counterfactual"),
+    ("scm_counterfactual", "intervention.value", "_q_scm_counterfactual"),
+)
+
 SILENT: dict[str, Silent] = {
-    # --- for a verifier, not for a reader -----------------------------------
+    # --- evidence for a verifier, not words for a reader ---------------------
     "causation.observational_joint": Silent(
         holds="the four P(X, Y) cells the theta path's PN/PS/PNS were "
               "computed from",
@@ -190,24 +338,86 @@ SILENT: dict[str, Silent] = {
         for cell in ("p_x1_y1", "p_x1_y0", "p_x0_y1", "p_x0_y0")
     },
     **{
+        f"counterfactual_cell.observational_joint{suffix}": Silent(
+            holds="the four P(X, Y) cells the bounded counterfactual was "
+                  "solved from" if not suffix else "one cell of that joint",
+            consumed_by="themis.kernel",
+        )
+        for suffix in ("", ".p_x1_y1", ".p_x1_y0", ".p_x0_y1", ".p_x0_y0")
+    },
+    # The whole block is evidence. What a reader acts on is the
+    # ``declared_type_data_mismatch`` gap its producer writes beside it; the
+    # verifier re-runs the classification and the domain check from these and
+    # rejects a verdict they do not support, which is why they are on the
+    # envelope at all.
+    "type_reconciliation.checks": Silent(
+        holds="one reconciliation per column whose declared type and observed "
+              "type disagreed",
+        consumed_by="themis.verifier.type_reconciliation_rules",
+    ),
+    **{
         f"type_reconciliation.checks.[].{stat}": Silent(
             holds="one of the column statistics the type verdict was derived "
                   "from",
             consumed_by="themis.verifier.type_reconciliation_rules",
         )
-        # The verdict is what a reader acts on and the report states it; these
-        # are what the verifier re-derives it from, which is why they are on
-        # the envelope at all. It re-runs the classification and the
-        # domain check from them and rejects a verdict they do not support.
-        for stat in ("declared_domain", "n_unique", "observed_values",
-                     "dtype_kind")
+        for stat in ("declared_domain", "declared_scale", "observed_scale",
+                     "n_unique", "observed_values", "dtype_kind", "verdict")
     },
+    "type_reconciliation.checks.[].detail": Silent(
+        holds="the sentence describing this column's mismatch",
+        said_by="data_gap_report",
+    ),
+    "assumption_ledger.assumptions.[].id": Silent(
+        holds="the declaration a ledger entry restates, by name",
+        consumed_by="themis.output.result_orchestrator",
+    ),
 
     # --- said by something else ---------------------------------------------
-    "iv_identification.strategy": Silent(
-        holds="a const restating that this block is the IV route",
-        said_by="iv_identification",
+    **{
+        f"{block}.{key}": Silent(
+            holds="a const restating which block this is",
+            said_by=block,
+        )
+        for block, key in _RESTATES_ITS_BLOCK
+    },
+    **{
+        f"{block}.{key}": Silent(
+            holds="the query's own parameter, copied in by the producer",
+            said_by=f"analysis_report:{fn}",
+        )
+        for block, key, fn in _FROM_THE_QUESTION
+    },
+    **{
+        f"{block}.reference": Silent(
+            holds="the paper this route implements",
+            said_by="analysis_report:_render_citations",
+        )
+        for block in ("scm_counterfactual", "selection_recovery",
+                      "missing_data_recovery")
+    },
+    "iv_identification.required_assumption": Silent(
+        holds="the premise a Wald ratio needs; the producer copies it into "
+              "`identification` and calls that copy the human surface",
+        said_by="identification.required_assumption",
     ),
+    # Checked end to end below rather than believed here: writing this row
+    # was how the ledger's four channels came to be counted, and the count
+    # was three of the two that existed.
+    **{
+        site: Silent(
+            holds="the untestable premises this route's identifiability "
+                  "claim rests on, as ids the glossary translates",
+            said_by="assumption_ledger",
+        )
+        for site in (
+            "longitudinal_identification.assumptions",
+            "mediation_decomposition.nde_nie.assumptions",
+            "mediation_decomposition.cde.assumptions",
+            "mediation_joint_decomposition.nde_nie.assumptions",
+            "mediation_joint_decomposition.cde.assumptions",
+        )
+    },
     "mediation_decomposition.numeric.e_y_cross_world": Silent(
         holds="the back-compat alias of e_y_cross_treated_outer",
         said_by="mediation_decomposition.numeric.e_y_cross_treated_outer",
@@ -219,14 +429,23 @@ SILENT: dict[str, Silent] = {
         holds="the same alias, reached through the joint block's $ref",
         said_by="mediation_joint_decomposition.numeric.e_y_cross_treated_outer",
     ),
-    **{
-        f"counterfactual_cell.observational_joint{suffix}": Silent(
-            holds="the four P(X, Y) cells the bounded counterfactual was "
-                  "solved from" if not suffix else "one cell of that joint",
-            consumed_by="themis.kernel",
-        )
-        for suffix in ("", ".p_x1_y1", ".p_x1_y0", ".p_x0_y1", ".p_x0_y0")
-    },
+    "missing_data_recovery.adjustment_set": Silent(
+        holds="the set whose marginal the recovered estimand also needs",
+        said_by="missing_data_recovery.estimand.requires",
+    ),
+    # A string copy of the expression the route produced. Every route writes
+    # its estimand to the top-level ``formula`` as an AST, which is what the
+    # section renders and what the verifier matches a derivation step
+    # against; this is the same expression as prose, and the gap generator
+    # parses the treatment and outcome back out of it.
+    "transport_identification.formula_repr": Silent(
+        holds="the transport formula as a string",
+        consumed_by="themis.output.data_gap_report",
+    ),
+    "transport_identification.s_nodes.[].id": Silent(
+        holds="the handle the caller named this selection node by",
+        consumed_by="themis.output.data_gap_report",
+    ),
 
     # --- a closed vocabulary that already decided it needs no word ----------
     "mediation_decomposition.strategy": Silent(
@@ -266,7 +485,7 @@ def _vocabulary_paths(row) -> set[str]:
 # ----------------------------------------------------------------- the gates
 def test_the_schema_still_declares_parts_to_ask_about():
     """A walk that finds nothing satisfies every check below in silence."""
-    assert len(PATHS) > 180, len(PATHS)
+    assert len(PATHS) > 160, len(PATHS)
     assert "mediation_joint_decomposition.numeric.te" in PATHS, (
         "the walk stopped at a $ref; the joint block's numeric subtree "
         "reaches the single-mediator one that way and is the largest thing "
@@ -274,12 +493,13 @@ def test_the_schema_still_declares_parts_to_ask_about():
     )
 
 
-def test_every_declared_key_is_spelled_by_a_reader_or_answered_for():
-    """The floor: nobody can be reading what nobody spells."""
-    unheard = sorted(p for p in PATHS if p not in SILENT and not _spelled(p))
+def test_every_declared_key_is_named_by_its_own_block_or_answered_for():
+    """The gate: what a block holds is said where a reader looks for it."""
+    unheard = sorted(p for p in PATHS if p not in SILENT and not _named(p))
     assert not unheard, (
-        f"declared under extensions and named by no reader surface: "
-        f"{unheard}; render it, or add a row saying who it is for"
+        f"declared under extensions and named by nothing that renders the "
+        f"block carrying it: {unheard}; render it, or add a row saying who "
+        f"it is for"
     )
 
 
@@ -305,14 +525,13 @@ def test_every_row_says_exactly_one_thing(path):
 def test_a_row_claiming_silence_is_still_silent(path):
     """Checked in the direction that goes stale.
 
-    Somebody renders it and the row still says nobody does; the reader is
-    then told less than the code says, which is this file's own failure
-    pointed the other way.
+    The block's own renderer starts naming it and the row still says it does
+    not; the reader is then told less than the code says, which is this
+    file's own failure pointed the other way.
     """
-    where = _spelled(path)
-    assert not where, (
-        f"{path} has a row saying no surface names it, but {where} do; "
-        f"the row is stale"
+    assert not _named(path), (
+        f"{path} has a row saying the block's own reader does not name it, "
+        f"and it does; the row is stale"
     )
 
 
@@ -333,17 +552,37 @@ def test_a_claimed_consumer_reads_the_key(path):
 @pytest.mark.parametrize("path", sorted(
     p for p, r in SILENT.items() if r.said_by))
 def test_a_claimed_source_reaches_a_reader_itself(path):
-    """Deferring to something else only works if that thing arrives."""
-    from themis import blocks
+    """Deferring to something else only works if that thing arrives.
 
+    Four shapes, because there are four ways one fact is said in another
+    place. A renderer is the weakest of them — it is checked for being on
+    the report's call graph rather than for spelling this key, because a
+    restatement is precisely a fact said under a different name, and the
+    failure worth catching there is the renderer nobody calls any more.
+    """
     said_by = SILENT[path].said_by
+    if said_by.startswith("analysis_report:"):
+        fn = said_by.split(":", 1)[1]
+        assert fn in _DECLS, f"{path}: the report declares no {fn}"
+        assert fn in _closure("build_analysis_report")[1], (
+            f"{path}: defers to {fn}, which build_analysis_report never "
+            f"reaches; a renderer nobody calls still spells every key it "
+            f"once read"
+        )
+        return
     if said_by in blocks.BY_NAME:
         return
+    if said_by in TOP_LEVEL:
+        assert _reads(said_by).search(_REPORT_SRC), (
+            f"{path}: defers to the top-level {said_by!r}, which the report "
+            f"does not render"
+        )
+        return
     assert said_by in PATHS, (
-        f"{path}: defers to {said_by!r}, which is neither a registered block "
-        f"nor a key the schema declares"
+        f"{path}: defers to {said_by!r}, which is neither a registered block, "
+        f"a top-level field, a key the schema declares, nor a renderer"
     )
-    assert said_by not in SILENT and _spelled(said_by), (
+    assert said_by not in SILENT and _named(said_by), (
         f"{path}: defers to {said_by}, which reaches no reader either"
     )
 
@@ -423,10 +662,9 @@ def test_every_map_inside_a_block_is_closed_but_the_ones_that_argue_for_it():
 
 
 # --------------------------------------------------- what the reader gets now
-#: One envelope per theta-path part, and a phrase only a renderer reading it
-#: could produce. The rows above check that SOME surface spells the key;
-#: these check that reading it comes out as a sentence, for the parts this
-#: item rendered.
+#: One envelope per part, and a phrase only a renderer reading it could
+#: produce. The rows above check that a key is NAMED; these check that
+#: reading it comes out as a sentence, for the parts these two items rendered.
 _SAYS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]], ...] = (
     (
         "the two Pearl decompositions are both stated, with their arms",
@@ -517,8 +755,23 @@ _SAYS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]], ...] = (
             "external_data_needed": [], "failure_reason": None,
             "reference": "Bareinboim & Pearl 2012",
         }},
-        ("恢复式", "Σ_w P(y | x, w, S=1) P(w)"),
-        ("recovery_formula",),
+        ("恢复式", "Σ_w P(y | x, w, S=1) P(w)", "挡后门路径的是它"),
+        ("recovery_formula", "z_plus"),
+    ),
+    (
+        "the half of the adjustment set that blocks nothing says so",
+        {"selection_recovery": {
+            "kind": "selection_recovery", "query_kind": "effect",
+            "treatment": "x", "outcome": "y", "recoverable": True,
+            "criterion": "selection_backdoor", "selection_nodes": ["s"],
+            "adjustment_set": ["w", "v"], "z_plus": ["w"], "z_minus": ["v"],
+            "recovery_formula": "Σ_w [ Σ_v P(y|x,w,v,S)·P(v|x,w) ] · P(w)",
+            "external_data_needed": [], "failure_reason": None,
+            "reference": "Bareinboim & Pearl 2012",
+        }},
+        ("Z⁺={w}", "挡后门路径的是它", "Z⁻={v}", "是处理的**后代**",
+         "挡不了后门", "重加权"),
+        ("z_minus",),
     ),
     (
         "a missingness recovery says which order works",
@@ -608,6 +861,37 @@ def test_the_counterfactual_interval_says_which_cell(cell, expected):
         assert token not in text, f"the report prints the identifier {token!r}"
 
 
+def test_the_refuted_share_of_a_declared_monotonicity_is_stated():
+    """The closest thing this system has to a test of an untestable premise.
+
+    Resamples with no feasible solution under the declared monotonicity are
+    counted rather than skipped, and the share of them says how close that
+    premise is to being refuted by this data. Only the detachable explainer
+    said it — the same shape as the blocks that reached a reader through the
+    scaffolding and not through the report.
+    """
+    from themis.output import analysis_report
+
+    text = analysis_report.build_analysis_report({
+        "status": "numerically_solved", "query_id": "q",
+        "query_kind": "counterfactual",
+        "numeric_estimate": {
+            "method": "counterfactual_cell_plugin", "sample_size": 900,
+            "counterfactual_cell": {
+                "observed_x": True, "counterfactual_x": False,
+                "target_y": True, "factual_y": True,
+                "lower": 0.21, "upper": 0.63, "monotonicity": "mtr_positive",
+                "interventional_risk_provenance": "backdoor_adjustment",
+                "bootstrap_draws_used": 150,
+                "bootstrap_draws_infeasible": 50,
+            },
+        },
+    })
+    assert "25% 的重抽样在所声明的单调性下无解" in text, text
+    for token in ("bootstrap_draws_used", "bootstrap_draws_infeasible"):
+        assert token not in text, f"the report prints the identifier {token!r}"
+
+
 def test_a_real_theta_mediation_run_states_its_decomposition():
     """End to end, on the case the omission was found with.
 
@@ -632,6 +916,38 @@ def test_a_real_theta_mediation_run_states_its_decomposition():
     assert "两条通路方向相反" in text, (
         "NDE and NIE have opposite signs on this case and the report does "
         "not say so; their sum reads as one direction"
+    )
+
+
+def test_a_route_that_declares_its_own_premises_gets_them_on_the_ledger():
+    """The channel that exists when no estimator ran.
+
+    A mediation identification states the cross-world conditions "可识别"
+    is conditional on, in ids the glossary already translates, and the
+    ledger read four channels of which this was not one. Wherever an
+    estimator later ran it declared the same ids flat, so the omission was
+    invisible exactly where there was a number.
+    """
+    import themis
+    from themis.output.analysis_report import build_analysis_report
+    from .test_runtime.test_mediation_numeric import _q1358_program
+
+    result = themis.run(_q1358_program())["results"][0]
+    declared = ((result["extensions"]["mediation_decomposition"]
+                 .get("nde_nie") or {}).get("assumptions") or [])
+    assert declared, "this case no longer declares its own premises"
+    ledger = result["extensions"].get("assumption_ledger") or {}
+    carried = {e.get("id") for e in (ledger.get("assumptions") or ())}
+    missing = [a for a in declared if a not in carried]
+    assert not missing, (
+        f"the block declares {missing} and the ledger does not carry them; "
+        f"an assumption that never reaches the ledger reads, to every "
+        f"consumer, like an assumption nobody makes"
+    )
+    text = build_analysis_report(result)
+    assert "## 假设" in text and "Pearl 2001 中介分解四条件" in text, (
+        "the premises are on the ledger and the reader still does not see "
+        "them"
     )
 
 
