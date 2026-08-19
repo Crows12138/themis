@@ -469,10 +469,10 @@ def _explain_scm_counterfactual_zh(result: QueryResult, stmt=None) -> str:
         return "线性 SCM 反事实查询：结果未分类。"
     iv = sc.get("intervention", {})
     return (
-        f"在已知线性结构方程下,对这个单元做 do({iv.get('variable')}="
+        f"在已知线性结构方程下，对这个单元做 do({iv.get('variable')}="
         f"{_format_number(iv.get('value'))}),"
         f"{sc.get('target')} 的反事实值 = {_format_number(sc.get('target_value'))}"
-        f"(Pearl 三步法:溯因-干预-预测)。"
+        f"(Pearl 三步法：溯因-干预-预测)。"
     )
 
 

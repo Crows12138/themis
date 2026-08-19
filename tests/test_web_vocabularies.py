@@ -250,21 +250,6 @@ def test_the_refusal_kinds_each_say_something_different():
     assert len(set(tails)) == len(tails), f"two kinds share a tail: {tails}"
 
 
-def _half_width(text: str) -> str:
-    """Only the punctuation the two files spell differently.
-
-    A LIST of marks, and lists get shorter than the thing they describe: the
-    web file's convention is half-width punctuation throughout, so every mark
-    missing here is a sentence pair this gate reads as different when it is
-    not. Kept equal to the twin table in ``test_risk_provenance``.
-    """
-    for full, half in (
-        ("，", ","), ("；", ";"), ("：", ":"), ("（", "("), ("）", ")"),
-    ):
-        text = text.replace(full, half)
-    return text
-
-
 @pytest.mark.parametrize("kind", sorted(ANCHORS["refusal_kind"]))
 def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
     """Same refusal, two surfaces, one instruction.
@@ -276,15 +261,22 @@ def test_the_browser_tells_the_reader_what_the_report_tells_them(kind):
     and that is the tail. Two surfaces free to word it separately would be
     free to disagree about it, which is the drift this module exists for
     one level down.
+
+    Substring, and otherwise byte for byte: both sides used to be run
+    through a punctuation-width substitution, which is a list of ways the
+    two copies were allowed to disagree, assembled from the ways they
+    already did. ``tests/test_a_sentence_has_one_spelling.py`` says how the
+    repository spells a Chinese sentence, which leaves the allowance with
+    nothing to allow.
     """
     body = _literal("REFUSAL_KIND_ZH", _source())
     entry = re.search(rf"\n  {kind}: \{{(.*?)\n  \}}", body, re.S)
     assert entry, f"verdict.ts states no refusal kind {kind!r}"
-    reported = _half_width(analysis_report._kind_zh(kind) or "")
+    reported = analysis_report._kind_zh(kind) or ""
     assert reported, f"the report has no sentence for kind {kind!r}"
     for field in ("lead", "head", "tail"):
         said = re.search(rf"{field}: '([^']+)'", entry.group(1)).group(1)
-        assert _half_width(said) in reported, (
+        assert said in reported, (
             f"the browser's {field} for a {kind} refusal is {said!r}, which "
             f"the report does not say: {reported!r}"
         )

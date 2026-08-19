@@ -41,7 +41,7 @@ export function BuildWorkspace({
         <div className="build__intro">
           <h2 className="build__title">画出你的因果图</h2>
           <p className="build__lede">
-            加变量、拉线连成因果关系,选一个干预和结果,交给内核判断——能不能识别、还缺什么。<b>实线带箭头</b>是因果,<b>虚线双箭头</b>是潜在共因(未观测混杂)。
+            加变量、拉线连成因果关系，选一个干预和结果，交给内核判断——能不能识别、还缺什么。<b>实线带箭头</b>是因果,<b>虚线双箭头</b>是潜在共因(未观测混杂)。
           </p>
         </div>
       }

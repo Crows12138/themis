@@ -102,10 +102,10 @@ export function EstimateWorkspace({
         <div className="build__intro">
           <h2 className="build__title">用数据估计因果效应</h2>
           <p className="build__lede">
-            画出因果图、上传一份 CSV(<b>每一列是一个变量,列名要和图里的变量名一致</b>),Themis 会在数据上跑识别 + 估计——给出真实数值,或者诚实地告诉你为什么估不了(混杂没测全 / 数据没重叠 / 样本太小)。
+            画出因果图、上传一份 CSV(<b>每一列是一个变量，列名要和图里的变量名一致</b>),Themis 会在数据上跑识别 + 估计——给出真实数值，或者诚实地告诉你为什么估不了(混杂没测全 / 数据没重叠 / 样本太小)。
           </p>
           <button className="btn demo__go" onClick={runBuiltin} disabled={busy}>
-            {busy ? '运行中…' : '▶ 一键看核心对比:靶向药 + 混杂(内置示例)'}
+            {busy ? '运行中…' : '▶ 一键看核心对比：靶向药 + 混杂(内置示例)'}
           </button>
         </div>
       }
@@ -141,7 +141,7 @@ function UploadZone({ data, onFile, onClear }: { data: Dataset | null; onFile: (
             <span key={c} className="datacol mono">{c}</span>
           ))}
         </div>
-        <p className="dataset__hint">把上面画布里的变量名改成与这些列名一致,再点「用数据估计」。</p>
+        <p className="dataset__hint">把上面画布里的变量名改成与这些列名一致，再点「用数据估计」。</p>
       </div>
     )
   }
@@ -162,8 +162,8 @@ function UploadZone({ data, onFile, onClear }: { data: Dataset | null; onFile: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
       </svg>
-      <span className="dropzone__main">拖入 CSV,或点击选择</span>
-      <span className="dropzone__sub">第一行是列名(变量名),其余每行是一条观测</span>
+      <span className="dropzone__main">拖入 CSV，或点击选择</span>
+      <span className="dropzone__sub">第一行是列名(变量名)，其余每行是一条观测</span>
       <input ref={inputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
     </button>
   )

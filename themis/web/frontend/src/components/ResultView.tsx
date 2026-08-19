@@ -167,9 +167,9 @@ export function ResultView({
       {canAssume ? (
         <section className="assumecta" aria-label="用 AI 估算">
           <div className="assumecta__text">
-            <p className="assumecta__title">数据不够,算不出确切数字?</p>
+            <p className="assumecta__title">数据不够，算不出确切数字?</p>
             <p className="assumecta__sub">
-              让 AI 按常识给缺的概率填一组先验,先得到一个点估计——每个假设都会列出来标明「这是估的」,你可以逐条审核或替换。
+              让 AI 按常识给缺的概率填一组先验，先得到一个点估计——每个假设都会列出来标明「这是估的」，你可以逐条审核或替换。
             </p>
           </div>
           <button className="btn assumecta__go" onClick={doAssume} disabled={busy}>

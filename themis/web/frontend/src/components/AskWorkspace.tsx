@@ -87,7 +87,7 @@ export function AskWorkspace({
         <p className="intro__eyebrow">不替你编数字</p>
         <h1 className="intro__title">
           问一个因果问题。<br />
-          得到一个<em>诚实的判决</em>,而不是一个编的数。
+          得到一个<em>诚实的判决</em>，而不是一个编的数。
         </h1>
         <p className="intro__lede">
           Themis 不是聊天机器人。它先判断你这个因果问题<strong>能不能算</strong>、<strong>还缺什么数据</strong>、诚实的答案到底是一个点、一个区间、还是<strong>什么都给不了</strong>——然后才回答。
@@ -121,7 +121,7 @@ export function AskWorkspace({
 
       {examples.length > 0 ? (
         <div className="examples">
-          <p className="examples__label">现成案例 · 用内核直接跑,不需要 key</p>
+          <p className="examples__label">现成案例 · 用内核直接跑，不需要 key</p>
           <div className="chips">
             {examples.slice(0, 7).map((ex) => (
               <button key={ex.name} className="chip" onClick={() => runExample(ex)} disabled={busy === ex.name} title={ex.nl_input ?? ex.name}>
@@ -147,7 +147,7 @@ export function AskWorkspace({
           <p className="errbox__msg">{error.msg}</p>
           {error.needKey ? (
             <p className="errbox__hint">
-              <button className="linklike" onClick={onNeedKey}>填入 API Key</button>,或直接点上面的现成案例。
+              <button className="linklike" onClick={onNeedKey}>填入 API Key</button>，或直接点上面的现成案例。
             </p>
           ) : null}
         </div>
@@ -163,14 +163,14 @@ export function AskWorkspace({
           </div>
           <div className="tierrow tierrow--interval">
             <span className="tierrow__key">区间</span>
-            <span className="tierrow__gloss">给不了确切数字,但能给一个诚实的范围。</span>
+            <span className="tierrow__gloss">给不了确切数字，但能给一个诚实的范围。</span>
           </div>
           <div className="tierrow tierrow--none">
             <span className="tierrow__key">无</span>
-            <span className="tierrow__gloss">光凭图和数据给不了,需要额外假设。</span>
+            <span className="tierrow__gloss">光凭图和数据给不了，需要额外假设。</span>
           </div>
         </div>
-        <p className="sidepanel__foot">Themis 永远先告诉你答案属于哪一档,而不是硬塞一个编出来的数。</p>
+        <p className="sidepanel__foot">Themis 永远先告诉你答案属于哪一档，而不是硬塞一个编出来的数。</p>
       </aside>
     </div>
   )

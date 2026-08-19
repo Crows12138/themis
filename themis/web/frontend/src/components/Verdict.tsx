@@ -110,7 +110,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   {num!.adjustment?.length ? ` · 调整 {${num!.adjustment.join(', ')}}` : ''}
                 </span>
               </div>
-              <p className="compare__lesson">两个数明显不同 —— 混杂在作怪。这就是为什么要做因果调整,而不是直接对比。</p>
+              <p className="compare__lesson">两个数明显不同 —— 混杂在作怪。这就是为什么要做因果调整，而不是直接对比。</p>
             </div>
           ) : num && shaped ? (
             /* An estimate whose estimand has no single number — a curve, a
@@ -277,7 +277,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                       <span className="boundsexpr__k">{boundsContrastLabel(b.contrast.kind)}</span>
                       <span className="boundsexpr__v">
                         [{fmtNum(b.contrast.lower_value)}, {fmtNum(b.contrast.upper_value)}]
-                        {' '}· 与 {String(b.contrast.reference_value)} 那一档相比,是另一个量而非上面两端相减
+                        {' '}· 与 {String(b.contrast.reference_value)} 那一档相比，是另一个量而非上面两端相减
                       </span>
                     </div>
                   ) : null}
@@ -301,14 +301,14 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     <span className="boundsexpr__v">{b.upper_expression}</span>
                   </div>
                   {b.width_when_uninformative ? (
-                    <p className="boundsexpr__note">⚠ 这个区间退化到 [0,1] / [-1,1],诚实但无实际辨别力——需要更强假设或数据才能收窄。</p>
+                    <p className="boundsexpr__note">⚠ 这个区间退化到 [0,1] / [-1,1]，诚实但无实际辨别力——需要更强假设或数据才能收窄。</p>
                   ) : (
-                    <p className="boundsexpr__note">符号区间:把可观测分布代入即可得到数值区间。</p>
+                    <p className="boundsexpr__note">符号区间：把可观测分布代入即可得到数值区间。</p>
                   )}
                 </div>
               ))}
               {bounds.length > 1 ? (
-                <p className="boundsexpr__note">上面 {bounds.length} 条界的是同一个量,差别只在各自允许假设什么。按你接受哪一组来读,不要取交:两条都成立时交集确实含真值,但它不是二者合取下的锐界。</p>
+                <p className="boundsexpr__note">上面 {bounds.length} 条界的是同一个量，差别只在各自允许假设什么。按你接受哪一组来读，不要取交：两条都成立时交集确实含真值，但它不是二者合取下的锐界。</p>
               ) : null}
 
               {sens?.e_value != null ? (
@@ -317,7 +317,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     <span className="boundsexpr__k">E-value</span>
                     <span className="boundsexpr__v">{fmtNum(sens.e_value)}{sens.e_value_ci_bound != null ? ` · CI 界 ${fmtNum(sens.e_value_ci_bound)}` : ''}</span>
                   </div>
-                  <p className="boundsexpr__note">敏感性:未测混杂要同时把处理与结局的风险比拉到 ≥ {fmtNum(sens.e_value)} 才能解释掉这个效应。越大越稳健。</p>
+                  <p className="boundsexpr__note">敏感性：未测混杂要同时把处理与结局的风险比拉到 ≥ {fmtNum(sens.e_value)} 才能解释掉这个效应。越大越稳健。</p>
                 </div>
               ) : null}
 

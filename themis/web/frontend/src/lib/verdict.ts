@@ -5,8 +5,8 @@ type EstimationContext = NonNullable<QueryResult['estimation_context']>
 
 export const TIER_META: Record<AnswerTier, { label: string; gloss: string }> = {
   point: { label: '点估计', gloss: '可以算出一个具体数字——补齐数据即可' },
-  interval: { label: '区间', gloss: '给不了确切数字,但能给一个诚实的范围' },
-  none: { label: '无', gloss: '光凭图和数据给不了数,需要额外假设' },
+  interval: { label: '区间', gloss: '给不了确切数字，但能给一个诚实的范围' },
+  none: { label: '无', gloss: '光凭图和数据给不了数，需要额外假设' },
 }
 
 // One entry per status, label required and blurb optional — two tables keyed
@@ -17,19 +17,19 @@ export const TIER_META: Record<AnswerTier, { label: string; gloss: string }> = {
 const STATUS_META: Record<string, { label: string; blurb?: string }> = {
   structurally_solved: {
     label: '已识别(结构上)',
-    blurb: '因果结构本身成立;是否有数值取决于是否提供数据。',
+    blurb: '因果结构本身成立；是否有数值取决于是否提供数据。',
   },
   numerically_solved: {
     label: '已算出数值',
-    blurb: '提供了数据,内核完成识别并算出了数值。',
+    blurb: '提供了数据，内核完成识别并算出了数值。',
   },
   needs_investigation: {
-    label: '可识别,但缺数据',
-    blurb: '结构上可识别(给出识别公式),但缺数据——内核拒绝编数字,并列出还缺什么。',
+    label: '可识别，但缺数据',
+    blurb: '结构上可识别(给出识别公式)，但缺数据——内核拒绝编数字，并列出还缺什么。',
   },
   outside_language: {
     label: '超出可表达范围',
-    blurb: '这个问题超出 Themis 能表达 / 能识别的范围——不是数据不够,是问题的形式本身还没有对应的表示。',
+    blurb: '这个问题超出 Themis 能表达 / 能识别的范围——不是数据不够，是问题的形式本身还没有对应的表示。',
   },
   counterfactual_solved: {
     label: '反事实已解',
@@ -37,11 +37,11 @@ const STATUS_META: Record<string, { label: string; blurb?: string }> = {
   },
   counterfactual_bounded: {
     label: '反事实(区间)',
-    blurb: '反事实只能给区间,要点估计需补单调性等假设。',
+    blurb: '反事实只能给区间，要点估计需补单调性等假设。',
   },
   needs_assumption: {
     label: '需要额外假设',
-    blurb: '当前信息下无法回答,需要你显式补一个假设(认识论选择,内核不替你拍板)。',
+    blurb: '当前信息下无法回答，需要你显式补一个假设(认识论选择，内核不替你拍板)。',
   },
 }
 export function statusLabel(status: string): string {
@@ -113,7 +113,7 @@ export function ledgerProvenanceLabel(prov: string): string {
 // that produced them, while one method was bracketing the difference between
 // two arms under a question about one of them.
 const BOUNDS_ESTIMAND_ZH: Record<string, string> = {
-  arm_probability: '干预到所问的那一档之后,目标事件发生的概率',
+  arm_probability: '干预到所问的那一档之后，目标事件发生的概率',
 }
 export function boundsEstimandLabel(estimand: string): string {
   return BOUNDS_ESTIMAND_ZH[estimand] ?? estimand
@@ -144,17 +144,17 @@ const REFUSAL_KIND_ZH: Record<string, Refusal> = {
   graph: {
     lead: '没有给出数值',
     head: '这是关于因果图的结论',
-    tail: '再多同样的数据也不会改变它;要改变的是图或问题本身。',
+    tail: '再多同样的数据也不会改变它；要改变的是图或问题本身。',
   },
   data: {
     lead: '没有给出数值',
     head: '这批数据支撑不住',
-    tail: '结构上是可识别的,缺的是数据本身能提供的支持。',
+    tail: '结构上是可识别的，缺的是数据本身能提供的支持。',
   },
   unbuilt: {
     lead: '没有给出数值',
     head: 'Themis 还没有建这个情形',
-    tail: '问题成立、也已被识别,这是工具的边界,不是问题或数据的毛病。',
+    tail: '问题成立、也已被识别，这是工具的边界，不是问题或数据的毛病。',
   },
   request: {
     lead: '没有给出数值',
@@ -191,11 +191,11 @@ const GAP_TITLE: Record<string, string> = {
   mediation_identification_assumption_required: '中介分解需要假设',
   transport_identification_assumption_required: '跨人群迁移需要假设',
   llm_declared_ambiguity: '上游标记了不确定性',
-  answer_is_bounds_not_point_estimate: '答案是区间,不是点',
+  answer_is_bounds_not_point_estimate: '答案是区间，不是点',
   low_confidence_input_data: '输入数据可信度偏低',
   unattempted_layer_due_to_dispatch_conflict: '还有一层没跑(两种分析同时被要求)',
   weak_iv_instrument: '工具变量偏弱',
-  iv_estimand_fallback_to_linear: '按分层求不了,退回到整体的线性估计',
+  iv_estimand_fallback_to_linear: '按分层求不了，退回到整体的线性估计',
   overidentification_rejected: '过度识别检验否决了这组工具',
   propensity_overlap_violation: '两组人重叠不够(倾向得分越界)',
   outcome_model_quasi_separation: '结果模型近乎完全分离',
@@ -500,13 +500,13 @@ const POC_LABELS = [
 // kernel module for that reason; pinning it against one schema enum is how
 // the other container's licences reached the reader as their own identifiers.
 const RISK_PROVENANCE_ZH: Record<string, string> = {
-  not_required: '两个世界重合,一致性直接给出答案,没有用到任何干预风险',
-  pinned_by_monotonicity: '干预风险无从获得,本格完全由所声明的单调性钉死',
-  instrument_response_polytope: '干预风险无法点识别,本格改由工具变量的响应函数多面体直接框住',
+  not_required: '两个世界重合，一致性直接给出答案，没有用到任何干预风险',
+  pinned_by_monotonicity: '干预风险无从获得，本格完全由所声明的单调性钉死',
+  instrument_response_polytope: '干预风险无法点识别，本格改由工具变量的响应函数多面体直接框住',
   derived_identification: '干预风险由识别层从图上导出',
-  exogenous: '原因到结果没有后门路径,干预风险即条件概率',
-  backdoor_adjustment: '干预风险经后门标准化(g-formula)识别',
-  general_id_plug_in: '没有可用的调整集,干预风险由 general ID 识别出的估计量求值',
+  exogenous: '原因到结果没有后门路径，干预风险即条件概率',
+  backdoor_adjustment: '干预风险经后门标准化（g-formula）识别',
+  general_id_plug_in: '没有可用的调整集，干预风险由 general ID 识别出的估计量求值',
   user_experimental: '干预风险来自调用方提供的随机实验数据',
 }
 
@@ -705,8 +705,8 @@ const ANSWER_RENDERERS: Record<string, BlockRenderer> = {
     return {
       cap: '因果概率 · ' + (
         pinned ? '单调性下点识别'
-          : b.monotonic ? '已假设单调性,但仍只能给界'
-            : '未假设单调性,只能给界'),
+          : b.monotonic ? '已假设单调性，但仍只能给界'
+            : '未假设单调性，只能给界'),
       rows,
     }
   },

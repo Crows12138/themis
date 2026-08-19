@@ -79,7 +79,7 @@ export function clarify(program: Record<string, unknown>, picks: ClarifyPick[]):
   return post<MergedEnvelope>('/api/clarify', { program, picks })
 }
 
-/** 数据不足兜底:让 LLM 给缺的概率分布填 common-knowledge 先验并重跑,
+/** 数据不足兜底：让 LLM 给缺的概率分布填 common-knowledge 先验并重跑,
  * 得到一个带披露(extensions.llm_proposed_review)的点估计。需要 LLM 代理/key。 */
 export function assume(program: Record<string, unknown>, apiKey?: string): Promise<MergedEnvelope> {
   return post<MergedEnvelope>('/api/assume', { program, api_key: apiKey || undefined })

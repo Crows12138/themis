@@ -29,7 +29,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
         count={`${vars.length} 个变量缺操作化定义`}
       >
       <p className="framing__intro">
-        每个变量点「补全并重跑」即可用合理默认补上;想更精确,展开「维度」改任意字段——默认是起点,不是牢笼。补完内核会重新核验。
+        每个变量点「补全并重跑」即可用合理默认补上；想更精确，展开「维度」改任意字段——默认是起点，不是牢笼。补完内核会重新核验。
       </p>
 
       <div className="framing__list">

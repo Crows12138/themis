@@ -140,24 +140,21 @@ def _web_map() -> dict[str, str]:
     return dict(re.findall(r"^  (\w+): '(.*)',$", listed.group(1), re.M))
 
 
-def _half_width(text: str) -> str:
-    # Kept equal to the twin table in ``test_web_vocabularies``: the two used
-    # to differ, so a divergence one gate caught the other read as agreement.
-    for full, half in (
-        ("，", ","), ("；", ";"), ("：", ":"), ("（", "("), ("）", ")"),
-    ):
-        text = text.replace(full, half)
-    return text
-
-
 def test_the_browser_translates_the_same_vocabulary_the_same_way():
     """The one copy that cannot import the table, because it is in another
     language. Keys AND sentences: a reader who gets one explanation in the
     report and a different one in the browser has been told the surfaces
     disagree about where the number came from.
 
-    The web file writes half-width punctuation throughout — its own
-    convention — so that substitution is the only difference allowed.
+    Byte for byte. This comparison used to run both sides through a
+    full-width-to-half-width substitution, on the stated ground that the web
+    file punctuates in half width throughout. It does not — its Chinese
+    strings were, and are again, mostly full width — and the belief came
+    from reading the two tables this gate happens to compare. What a
+    normalization really is is a list of ways the two copies may disagree
+    without anyone noticing, inferred from the ways they already did.
+    ``tests/test_a_sentence_has_one_spelling.py`` states the spelling
+    instead, so there is nothing left to allow.
 
     Over EVERY rule, not the causation pair. The browser renders the
     counterfactual cell's licence too, and that block carries four licences
@@ -170,7 +167,7 @@ def test_the_browser_translates_the_same_vocabulary_the_same_way():
     web = _web_map()
     assert set(web) == {str(p) for p in carried}
     for licence in carried:
-        assert web[str(licence)] == _half_width(licence.zh)
+        assert web[str(licence)] == licence.zh
 
 
 # ------------------------------------------------- the licence is a claim

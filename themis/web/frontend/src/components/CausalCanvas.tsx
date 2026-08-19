@@ -218,7 +218,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
       // A causal DAG can't have a cycle: refuse a cause edge that would close one.
       if (!bidir && reaches(edges, to, from)) {
         const lbl = (id: string) => nodes.find((n) => n.id === id)?.data.label ?? id
-        setNote(`画不了:已经有「${lbl(to)} → … → ${lbl(from)}」,再加「${lbl(from)} → ${lbl(to)}」会形成回路——因果图不能有环。要表达双向关联,用「潜混杂 ↔」。`)
+        setNote(`画不了：已经有「${lbl(to)} → … → ${lbl(from)}」，再加「${lbl(from)} → ${lbl(to)}」会形成回路——因果图不能有环。要表达双向关联，用「潜混杂 ↔」。`)
         return
       }
       setNote(null)

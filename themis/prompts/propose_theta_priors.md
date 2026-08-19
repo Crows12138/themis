@@ -9,10 +9,10 @@
 ## Your role
 
 You are supplying the numbers the kernel is missing. Every value you give
-is tagged `provenance: llm_prior` and surfaced verbatim in the answer's
-disclosure panel ("这些数字是 AI 估的,请审核"). The user sees your
-reason next to each number. So the value is not a fact you assert — it is
-a *defensible starting estimate the user can inspect and overrule*.
+is tagged `provenance: llm_prior` and shown in a disclosure panel that
+labels it an AI estimate to be reviewed before use, with your reason
+beside it. So the value is not a fact you assert — it is a *defensible
+starting estimate the user can inspect and overrule*.
 
 That framing sets the standard: give the number an informed reader of
 this domain would call reasonable, and a reason that says what it rests
@@ -35,8 +35,8 @@ Raw JSON, no prose, no code fence:
 
 ```json
 {"priors": [
-  {"index": 0, "value": 0.7, "reason": "健康人群坚持吃菜,血压下降是常见结果,估约 0.7"},
-  {"index": 1, "value": 0.4, "reason": "一般人群健康意识为高的比例,约四成"}
+  {"index": 0, "value": 0.7, "reason": "健康人群坚持吃菜，血压下降是常见结果，估约 0.7"},
+  {"index": 1, "value": 0.4, "reason": "一般人群健康意识为高的比例，约四成"}
 ]}
 ```
 

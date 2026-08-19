@@ -28,7 +28,7 @@ export function ProposedReview({ review }: { review: LlmProposedReview }) {
 
       <Foldout summary={`看是哪些 · ${parts.join(' · ')}`} tone="warn">
         <p className="proposed__intro">
-          Themis 的数学是精确的,但下面这些不是数据,是 AI 按常识估的。答案成立与否,取决于它们合不合理。
+          Themis 的数学是精确的，但下面这些不是数据，是 AI 按常识估的。答案成立与否，取决于它们合不合理。
         </p>
 
         {probs.length ? (
