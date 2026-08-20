@@ -51,52 +51,73 @@ satisfies. So ``carried_by`` is required too, and the surfaces record what
 they bind: a block that claims a renderer is checked against the surfaces,
 and a block that names a carrier is checked against the table the carrier
 is in.
+
+Both registries are ``enum``\\ s rather than runs of module constants, for
+the reason the refusal species are. Gathering the constants into an
+``ALL`` set said this file was complete; nothing said that
+``blocks.IDENTIFICATON`` is not a block, because a module attribute is
+looked up only when its line runs. Membership is structural now: the class
+is the registry, ``Block(name)`` is the lookup, iterating the class is the
+declaration order, and ``@unique`` refuses two names for one block at
+import, where an enum would otherwise quietly make the second an alias.
 """
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from enum import StrEnum, unique
 from typing import Mapping, TypeVar
+
+from .types import EnvelopeName
 
 R = TypeVar("R")
 
 
-@dataclass(frozen=True)
-class Family:
+@unique
+class Family(StrEnum):
     """One of the reader's questions, and the blocks that answer it.
 
     Not a taxonomy for its own sake: this is the axis the registry was
     missing. Grouped by producer, a block that reached nobody looked
     exactly like a block that reached somebody, because both were listed
     under whoever wrote them.
+
+    A plain :class:`~enum.StrEnum` and not an
+    :class:`~themis.types.EnvelopeName`: a family never leaves this
+    process. It is the question, not an answer's field.
+
+    A member IS its name, so read it as one — ``f"{family}"`` and
+    ``d[family]`` both give ``"route"``. ``family.name`` is the enum's
+    own attribute and would give ``"ROUTE"``.
     """
 
-    name: str
     tells: str
+    """What this family tells a reader, for whoever adds the next one."""
 
-    def __str__(self) -> str:  # pragma: no cover - trivial
-        return self.name
+    def __new__(cls, value: str, tells: str) -> "Family":
+        family = str.__new__(cls, value)
+        family._value_ = value
+        family.tells = tells
+        return family
 
+    ROUTE = (
+        "route",
+        "how the estimand was identified — which pattern the graph was "
+        "recognised as, on which set, under which extra premise",
+    )
+    ANSWER = (
+        "answer",
+        "the quantity itself, on the paths that put it beside the "
+        "estimate rather than in it",
+    )
+    ASSUMPTION = (
+        "assumption",
+        "what has to hold for the answer to stand",
+    )
+    GAP = (
+        "gap",
+        "what is missing from, or inconsistent in, what was supplied",
+    )
 
-ROUTE = Family(
-    "route",
-    tells="how the estimand was identified — which pattern the graph was "
-          "recognised as, on which set, under which extra premise",
-)
-ANSWER = Family(
-    "answer",
-    tells="the quantity itself, on the paths that put it beside the "
-          "estimate rather than in it",
-)
-ASSUMPTION = Family(
-    "assumption",
-    tells="what has to hold for the answer to stand",
-)
-GAP = Family(
-    "gap",
-    tells="what is missing from, or inconsistent in, what was supplied",
-)
-FAMILIES: tuple[Family, ...] = (ROUTE, ANSWER, ASSUMPTION, GAP)
 
 # There is no refusal family. Why no number came out is a top-level field
 # of the result — the schema always said so — and the species and kind
@@ -107,22 +128,43 @@ FAMILIES: tuple[Family, ...] = (ROUTE, ANSWER, ASSUMPTION, GAP)
 # rendered by the detachable explainer only, the other by nothing.
 
 
-class Block(str):
+CARRIER_FIELDS: frozenset[str] = frozenset({
+    "numeric_estimate",
+    "data_gap_report",
+})
+"""Top-level fields of the result a block may name as its carrier.
+
+Declared here so that a misspelt carrier is an ImportError below rather
+than a test away, and held against ``query_result.schema.json`` by
+``tests/test_blocks_registry.py`` so the declaration cannot invent a
+field. The carrier itself cannot be spelled as a member reference: inside
+an enum body a member's name resolves to the raw value it was assigned,
+not to the member, so every carrier is written as the name it is.
+"""
+
+
+@unique
+class Block(EnvelopeName):
     """One named part of the result envelope.
 
-    A ``str`` subclass, so a block is usable wherever its name was: as a
-    dict key, in a comparison, through ``json.dumps``. What it adds is
-    that the name exists in exactly one place, and that ``holds`` travels
-    with it instead of living in whichever docstring happened to describe
-    the writer.
+    A ``StrEnum``, so a block is usable wherever its name was: as a dict
+    key, in a comparison, through ``json.dumps``. What it adds is that the
+    name exists in exactly one place, and that ``holds`` travels with it
+    instead of living in whichever docstring happened to describe the
+    writer.
 
     ``read_as`` is required, so a block cannot be added without saying
-    which of the reader's questions it answers. That is the whole guard:
-    a new route enters :func:`declared_as` the moment it is declared, and
-    the report's :func:`bind` then refuses to import until something
-    renders it.
+    which of the reader's questions it answers — a member declared without
+    it is a ``TypeError`` at import. That is the whole guard: a new route
+    enters :func:`declared_as` the moment it is declared, and the report's
+    :func:`bind` then refuses to import until something renders it.
 
     ``carried_by`` is required for the same reason, on the other axis.
+
+    Declaration order is the order a report says them in, so within each
+    family the general pattern leads and the recoverability verdicts —
+    which qualify whatever came before them — come last. Iterating the
+    class is that order; there is no second list to keep beside it.
     """
 
     holds: str
@@ -131,7 +173,7 @@ class Block(str):
     read_as: Family
     """Which of the reader's questions it answers."""
 
-    carried_by: "Block | str | None"
+    carried_by: str | None
     """What re-presents it, or ``None`` when a surface renders it itself.
 
     Which question a block answers and how it gets to somebody who asked
@@ -146,219 +188,209 @@ class Block(str):
     ``None`` is the claim that some surface binds a renderer, and
     :func:`bind` records what the surfaces bound, so the claim is checked
     rather than believed. A name is the claim that something else says
-    it — either another block, which must itself reach, or a top-level
-    field of the result, which the report already renders. Both are
-    members of tables that exist, so neither can be spelled into being.
+    it — either another block, which must itself reach, or one of
+    :data:`CARRIER_FIELDS`, which the report already renders. Both are
+    members of tables that exist, and the loop below the class refuses to
+    import a name in neither, so neither can be spelled into being.
     """
 
     def __new__(
-        cls,
-        name: str,
-        *,
-        holds: str,
-        read_as: Family,
-        carried_by: "Block | str | None",
+        cls, value: str, holds: str, read_as: Family, carried_by: str | None,
     ) -> "Block":
-        block = super().__new__(cls, name)
+        block = str.__new__(cls, value)
+        block._value_ = value
         block.holds = holds
         block.read_as = read_as
         block.carried_by = carried_by
         return block
 
-    def __repr__(self) -> str:
-        return f"Block({str(self)!r})"
+    # --- ROUTE: how the estimand was identified -----------------------------
 
-    def __reduce__(self):
-        """Copies and pickles come back as the plain name.
+    IDENTIFICATION = (
+        "identification",
+        "which pattern the graph was recognised as — back-door, "
+        "front-door, Tian — beside the formula it produced",
+        Family.ROUTE,
+        None,
+    )
+    IV_IDENTIFICATION = (
+        "iv_identification",
+        "the chosen instrument, the set it is valid conditional on, and "
+        "the assumption a Wald ratio rests on",
+        Family.ROUTE,
+        None,
+    )
+    TRANSPORT_IDENTIFICATION = (
+        "transport_identification",
+        "the source and target populations, the selection nodes between "
+        "them, and the transport formula",
+        Family.ROUTE,
+        None,
+    )
+    JOINT_IDENTIFICATION = (
+        "joint_identification",
+        "how a do() over a treatment set was identified, including the "
+        "treatment x treatment interaction no sequence of singles recovers",
+        Family.ROUTE,
+        None,
+    )
+    LONGITUDINAL_IDENTIFICATION = (
+        "longitudinal_identification",
+        "the time-varying treatment sequence and the g-formula that "
+        "identifies it under sequential exchangeability",
+        Family.ROUTE,
+        None,
+    )
+    MEDIATION_DECOMPOSITION = (
+        "mediation_decomposition",
+        "natural direct and indirect effects through one mediator, and "
+        "their numbers once the numeric end has run",
+        Family.ROUTE,
+        None,
+    )
+    MEDIATION_JOINT_DECOMPOSITION = (
+        "mediation_joint_decomposition",
+        "the same decomposition through a mediator SET treated as one "
+        "block, which is what makes it identifiable without an ordering",
+        Family.ROUTE,
+        None,
+    )
+    PROXIMAL_ESTIMAND = (
+        "proximal_estimand",
+        "the bridge-function estimand proximal identification produces "
+        "from two proxies of an unmeasured confounder",
+        Family.ROUTE,
+        None,
+    )
+    SELECTION_RECOVERY = (
+        "selection_recovery",
+        "whether the unbiased effect is recoverable from a "
+        "selection-restricted sample, and what external data it needs",
+        Family.ROUTE,
+        None,
+    )
+    MISSING_DATA_RECOVERY = (
+        "missing_data_recovery",
+        "whether the estimand is recoverable under the declared "
+        "missingness mechanism, from the m-graph",
+        Family.ROUTE,
+        None,
+    )
 
-        A block used as a dict key travels into the envelope, and the
-        envelope is data: whoever copies or serializes it must get back
-        exactly the string that was always there. What ``holds`` says
-        belongs to the registry, not to each place the name appears.
-        """
-        return (str, (str(self),))
+    # --- ANSWER: the quantity, on the paths that put it beside the estimate --
+    #
+    # Not answer SHAPES: a shape says how ``numeric_estimate`` came out, and
+    # the two rendered here are written where there is no ``numeric_estimate``
+    # at all — the theta path answers from the joint distribution without ever
+    # calling an estimator. The third is written beside one, and its
+    # ``carried_by`` says so.
+
+    CAUSATION = (
+        "causation",
+        "probabilities of necessity and sufficiency, with the "
+        "interventional risks they are computed from",
+        Family.ANSWER,
+        None,
+    )
+    COUNTERFACTUAL_CELL = (
+        "counterfactual_cell",
+        "one cell of the counterfactual joint distribution, the "
+        "attribution layer's finest-grained answer",
+        Family.ANSWER,
+        # Its producer calls this a display copy, and measuring it agrees:
+        # written only on the path that also produces a ``numeric_estimate``,
+        # where the cell is the estimate's own field and an answer shape
+        # already renders it.
+        "numeric_estimate",
+    )
+    SCM_COUNTERFACTUAL = (
+        "scm_counterfactual",
+        "a point counterfactual under a linear SCM, plus the display "
+        "copy of the value the audited estimate must agree with",
+        Family.ANSWER,
+        None,
+    )
+
+    # --- ASSUMPTION: what has to hold ---------------------------------------
+    #
+    # One family, two mechanisms — which is why the question is asked of the
+    # block rather than of the family. A census that asked only "who renders
+    # this" scored the two channels as unreached and was wrong.
+
+    ASSUMPTION_LEDGER = (
+        "assumption_ledger",
+        "every load-bearing assumption the answer rests on, ranked by "
+        "how the conclusion dies if it is false",
+        Family.ASSUMPTION,
+        None,
+    )
+    MECHANISM_AUDIT = (
+        "mechanism_audit",
+        "the functional form the number was computed under, and where "
+        "that form came from — the estimator's default or the caller",
+        Family.ASSUMPTION,
+        "assumption_ledger",
+    )
+    LLM_PROPOSED_REVIEW = (
+        "llm_proposed_review",
+        "the edges and parameter priors a language model proposed, for "
+        "a reader to accept or reject before trusting the number",
+        Family.ASSUMPTION,
+        "assumption_ledger",
+    )
+
+    # --- GAP: what is missing from, or wrong with, the inputs ---------------
+    #
+    # Neither is rendered on its own. The producer writes gap entries beside
+    # the block, and what stays in the block is the evidence a verifier
+    # re-derives those entries from.
+
+    AMBIGUITIES = (
+        "ambiguities",
+        "the upstream naming ambiguities that bear on THIS query, "
+        "copied across from the program's own side-channel",
+        Family.GAP,
+        "data_gap_report",
+    )
+    TYPE_RECONCILIATION = (
+        "type_reconciliation",
+        "what was checked when the declared variable types and the "
+        "data's own types disagreed",
+        Family.GAP,
+        "data_gap_report",
+    )
 
 
-# --- ROUTE: how the estimand was identified ---------------------------------
-#
-# Declaration order is the order a report says them in, so the general
-# pattern leads and the recoverability verdicts — which qualify whatever
-# came before them — come last.
+BY_NAME: dict[str, Block] = {str(block): block for block in Block}
+"""The registry keyed by the name that travels, as the sibling registries
+keep it (:mod:`themis.refusals`, :mod:`themis.risk_provenance`).
 
-IDENTIFICATION = Block(
-    "identification",
-    holds="which pattern the graph was recognised as — back-door, "
-          "front-door, Tian — beside the formula it produced",
-    read_as=ROUTE,
-    carried_by=None,
-)
-IV_IDENTIFICATION = Block(
-    "iv_identification",
-    holds="the chosen instrument, the set it is valid conditional on, and "
-          "the assumption a Wald ratio rests on",
-    read_as=ROUTE,
-    carried_by=None,
-)
-TRANSPORT_IDENTIFICATION = Block(
-    "transport_identification",
-    holds="the source and target populations, the selection nodes between "
-          "them, and the transport formula",
-    read_as=ROUTE,
-    carried_by=None,
-)
-JOINT_IDENTIFICATION = Block(
-    "joint_identification",
-    holds="how a do() over a treatment set was identified, including the "
-          "treatment x treatment interaction no sequence of singles recovers",
-    read_as=ROUTE,
-    carried_by=None,
-)
-LONGITUDINAL_IDENTIFICATION = Block(
-    "longitudinal_identification",
-    holds="the time-varying treatment sequence and the g-formula that "
-          "identifies it under sequential exchangeability",
-    read_as=ROUTE,
-    carried_by=None,
-)
-MEDIATION_DECOMPOSITION = Block(
-    "mediation_decomposition",
-    holds="natural direct and indirect effects through one mediator, and "
-          "their numbers once the numeric end has run",
-    read_as=ROUTE,
-    carried_by=None,
-)
-MEDIATION_JOINT_DECOMPOSITION = Block(
-    "mediation_joint_decomposition",
-    holds="the same decomposition through a mediator SET treated as one "
-          "block, which is what makes it identifiable without an ordering",
-    read_as=ROUTE,
-    carried_by=None,
-)
-PROXIMAL_ESTIMAND = Block(
-    "proximal_estimand",
-    holds="the bridge-function estimand proximal identification produces "
-          "from two proxies of an unmeasured confounder",
-    read_as=ROUTE,
-    carried_by=None,
-)
-SELECTION_RECOVERY = Block(
-    "selection_recovery",
-    holds="whether the unbiased effect is recoverable from a "
-          "selection-restricted sample, and what external data it needs",
-    read_as=ROUTE,
-    carried_by=None,
-)
-MISSING_DATA_RECOVERY = Block(
-    "missing_data_recovery",
-    holds="whether the estimand is recoverable under the declared "
-          "missingness mechanism, from the m-graph",
-    read_as=ROUTE,
-    carried_by=None,
-)
-
-# --- ANSWER: the quantity, on the paths that put it beside the estimate -----
-#
-# Not answer SHAPES: a shape says how ``numeric_estimate`` came out, and
-# the two rendered here are written where there is no ``numeric_estimate``
-# at all — the theta path answers from the joint distribution without ever
-# calling an estimator. The third is written beside one, and its
-# ``carried_by`` says so.
-
-CAUSATION = Block(
-    "causation",
-    holds="probabilities of necessity and sufficiency, with the "
-          "interventional risks they are computed from",
-    read_as=ANSWER,
-    carried_by=None,
-)
-COUNTERFACTUAL_CELL = Block(
-    "counterfactual_cell",
-    holds="one cell of the counterfactual joint distribution, the "
-          "attribution layer's finest-grained answer",
-    read_as=ANSWER,
-    # Its producer calls this a display copy, and measuring it agrees:
-    # written only on the path that also produces a ``numeric_estimate``,
-    # where the cell is the estimate's own field and an answer shape
-    # already renders it.
-    carried_by="numeric_estimate",
-)
-SCM_COUNTERFACTUAL = Block(
-    "scm_counterfactual",
-    holds="a point counterfactual under a linear SCM, plus the display "
-          "copy of the value the audited estimate must agree with",
-    read_as=ANSWER,
-    carried_by=None,
-)
-
-# --- ASSUMPTION: what has to hold ------------------------------------------
-#
-# One family, two mechanisms — which is why the question is asked of the
-# block rather than of the family. A census that asked only "who renders
-# this" scored the two channels as unreached and was wrong.
-
-ASSUMPTION_LEDGER = Block(
-    "assumption_ledger",
-    holds="every load-bearing assumption the answer rests on, ranked by "
-          "how the conclusion dies if it is false",
-    read_as=ASSUMPTION,
-    carried_by=None,
-)
-MECHANISM_AUDIT = Block(
-    "mechanism_audit",
-    holds="the functional form the number was computed under, and where "
-          "that form came from — the estimator's default or the caller",
-    read_as=ASSUMPTION,
-    carried_by=ASSUMPTION_LEDGER,
-)
-LLM_PROPOSED_REVIEW = Block(
-    "llm_proposed_review",
-    holds="the edges and parameter priors a language model proposed, for "
-          "a reader to accept or reject before trusting the number",
-    read_as=ASSUMPTION,
-    carried_by=ASSUMPTION_LEDGER,
-)
-
-# --- GAP: what is missing from, or wrong with, the inputs -------------------
-#
-# Neither is rendered on its own. The producer writes gap entries beside
-# the block, and what stays in the block is the evidence a verifier
-# re-derives those entries from.
-
-AMBIGUITIES = Block(
-    "ambiguities",
-    holds="the upstream naming ambiguities that bear on THIS query, "
-          "copied across from the program's own side-channel",
-    read_as=GAP,
-    carried_by="data_gap_report",
-)
-TYPE_RECONCILIATION = Block(
-    "type_reconciliation",
-    holds="what was checked when the declared variable types and the "
-          "data's own types disagreed",
-    read_as=GAP,
-    carried_by="data_gap_report",
-)
-
-DECLARED: tuple[Block, ...] = tuple(
-    value for value in tuple(globals().values()) if isinstance(value, Block)
-)
-"""Every block of the result envelope's extensions map, in declaration order.
-
-Collected from this module rather than listed again below it: a block
-declared above and forgotten here would be exactly the drift this module
-exists to end. The order is kept because a surface that renders a whole
-family reads them in it — so the running order of a report section is
-this file, not a second list somewhere else.
+``Block(name)`` is the same lookup and is what the class being the
+registry buys, but a member whose ``__new__`` takes the facts alongside
+the value is a call mypy reads as construction rather than lookup — so a
+lookup written that way is a type error at every site. The dict is one
+line, derived, and cannot drift.
 """
 
-ALL: frozenset[Block] = frozenset(DECLARED)
-
-BY_NAME: dict[str, Block] = {str(block): block for block in ALL}
+for _block in Block:
+    _carrier = _block.carried_by
+    if _carrier is None or _carrier in CARRIER_FIELDS:
+        continue
+    if _carrier not in BY_NAME:
+        # A carrier is a member of a table, and it is written as a name
+        # rather than resolved by one — inside an enum body a member's own
+        # name gives back the raw tuple it was assigned. So the check that
+        # a name means something happens here, at import, instead.
+        raise ValueError(
+            f"{_block!r} says {_carrier!r} carries it, which is neither a "
+            f"declared block nor one of {sorted(CARRIER_FIELDS)}"
+        )
+del _block, _carrier
 
 
 def declared_as(family: Family) -> tuple[Block, ...]:
     """Every block of one family, in declaration order."""
-    return tuple(block for block in DECLARED if block.read_as is family)
+    return tuple(block for block in Block if block.read_as is family)
 
 
 def rendered_in(family: Family) -> tuple[Block, ...]:
@@ -411,13 +443,13 @@ def bind(family: Family, renderers: Mapping[Block, R]) -> dict[Block, R]:
     missing = sorted(str(b) for b in members if b not in renderers)
     if missing:
         raise ValueError(
-            f"no renderer for {family.name} block(s) {missing}; a result "
+            f"no renderer for {family} block(s) {missing}; a result "
             f"carrying one would reach this surface and say nothing"
         )
     extra = sorted(str(b) for b in renderers if b not in members)
     if extra:
         raise ValueError(
-            f"renderer bound for {extra}, which {family.name} does not "
+            f"renderer bound for {extra}, which {family} does not "
             f"contain, or which said something else carries it "
             f"(themis.blocks.rendered_in)"
         )
@@ -445,7 +477,7 @@ def check_registered(result: dict) -> None:
     extensions = result.get("extensions")
     if not isinstance(extensions, dict):
         return
-    unknown = sorted(set(extensions) - set(BY_NAME))
+    unknown = sorted(set(extensions) - set(Block))
     if unknown:
         raise ValueError(
             f"result {result.get('query_id')!r} carries unregistered "

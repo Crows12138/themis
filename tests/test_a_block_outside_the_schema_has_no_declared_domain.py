@@ -354,4 +354,4 @@ def test_the_block_authored_upstream_stays_open():
 def test_every_block_the_registry_declares_now_has_a_domain_to_check():
     """The premise the rest of the file rests on, from the registry rather
     than from the list above."""
-    assert set(blocks.BY_NAME) == set(EXT)
+    assert set(blocks.Block) == set(EXT)

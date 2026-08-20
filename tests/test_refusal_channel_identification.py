@@ -136,9 +136,9 @@ def test_identification_reuses_the_species_the_data_end_raises():
 
 
 def test_the_two_prose_blocks_are_gone():
-    assert "causation_error" not in blocks.BY_NAME
-    assert "counterfactual_error" not in blocks.BY_NAME
-    assert all(f.name != "refusal" for f in blocks.FAMILIES)
+    assert "causation_error" not in blocks.Block
+    assert "counterfactual_error" not in blocks.Block
+    assert all(f != "refusal" for f in blocks.Family)
 
 
 # --- and it reaches the reader ------------------------------------------------

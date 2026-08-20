@@ -662,7 +662,7 @@ def build_assumption_ledger(
 
     # 2b) LLM theta priors — used in the numeric computation when present,
     #     so they stay in the ledger (magnitude-affecting -> distorting).
-    review = extensions.get(blocks.LLM_PROPOSED_REVIEW) or {}
+    review = extensions.get(blocks.Block.LLM_PROPOSED_REVIEW) or {}
     for prob in review.get("probabilities") or []:
         layer, severity, provenance = ledger.stamp(
             "theta_prior", ledger.Layer.PARAMETER, ledger.Provenance.LLM_PRIOR)
@@ -675,7 +675,7 @@ def build_assumption_ledger(
         })
 
     # 3) functional form (curve shape)
-    mech = extensions.get(blocks.MECHANISM_AUDIT) or {}
+    mech = extensions.get(blocks.Block.MECHANISM_AUDIT) or {}
     for m in mech.get("mechanisms") or []:
         # The fallback used to read ``estimator_default`` — a second
         # spelling of the value the mechanism builder already defaults to,
@@ -771,7 +771,7 @@ def augment_assumption_ledger(result: dict) -> None:
         return
 
     extensions = result.setdefault("extensions", {})
-    existing = extensions.get(blocks.ASSUMPTION_LEDGER)
+    existing = extensions.get(blocks.Block.ASSUMPTION_LEDGER)
     if existing is not None:
         entries = list(existing.get("assumptions") or ())
     else:
@@ -799,7 +799,7 @@ def augment_assumption_ledger(result: dict) -> None:
 
     built = _ledger(entries)
     if built is not None:
-        extensions[blocks.ASSUMPTION_LEDGER] = built
+        extensions[blocks.Block.ASSUMPTION_LEDGER] = built
 
 
 def _outcome_error_premises(result: dict) -> tuple[str, ...]:

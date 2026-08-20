@@ -38,42 +38,36 @@ def _sources():
 
 
 def _registry_attributes() -> set[str]:
-    """Every ``blocks.<NAME>`` mentioned anywhere outside the registry."""
+    """Every ``blocks.Block.<NAME>`` mentioned anywhere outside the
+    registry."""
     used: set[str] = set()
     for _rel, src in _sources():
         for node in ast.walk(ast.parse(src)):
+            inner = node.value if isinstance(node, ast.Attribute) else None
             if (
-                isinstance(node, ast.Attribute)
-                and isinstance(node.value, ast.Name)
-                and node.value.id == "blocks"
+                isinstance(inner, ast.Attribute)
+                and inner.attr == "Block"
+                and isinstance(inner.value, ast.Name)
+                and inner.value.id == "blocks"
             ):
                 used.add(node.attr)
     return used
 
 
-def test_the_registry_declares_what_it_says_it_declares():
-    """``ALL`` is collected from the module, not listed again below it."""
-    declared = {
-        name for name, value in vars(blocks).items()
-        if isinstance(value, blocks.Block)
-    }
-    assert {str(b) for b in blocks.ALL} == {
-        str(getattr(blocks, name)) for name in declared
-    }
-    assert len(blocks.ALL) == len(declared), "two names for one block"
+# "``ALL`` is collected from the module, not listed again below it" was a
+# test here, and "two names for one block" beside it. The class is the
+# registry now, so the first is not a statement that can be false, and
+# ``@unique`` refuses the second at import. Neither is checked here any
+# more because neither is reachable from here.
 
 
-@pytest.mark.parametrize("block", sorted(blocks.ALL))
+@pytest.mark.parametrize("block", sorted(blocks.Block))
 def test_every_registered_block_is_referred_to_by_something(block):
     """A registration nothing refers to is a block that has been deleted
     everywhere except here — the registry describing a system that no
     longer exists, which is worse than no registry."""
-    constant = {
-        name for name, value in vars(blocks).items()
-        if isinstance(value, blocks.Block) and value == block
-    }
-    assert _registry_attributes() & constant, (
-        f"{block!r} is registered but no module names blocks.{constant}"
+    assert block.name in _registry_attributes(), (
+        f"{block!r} is registered but no module names blocks.Block.{block.name}"
     )
 
 
@@ -81,16 +75,19 @@ def test_every_block_says_which_of_the_readers_questions_it_answers():
     """The registry grouped itself by producer from the day it was written.
     Grouped that way, a block nobody renders looks exactly like a block
     somebody does — which is how ten route blocks reached no reader at all
-    while every other kind had both a table and a section."""
-    for block in blocks.DECLARED:
-        assert block.read_as in blocks.FAMILIES, (
+    while every other kind had both a table and a section.
+
+    ``isinstance`` and not ``in``: a family is a ``str``, so the bare name
+    of one would pass a membership test while carrying no ``tells``."""
+    for block in blocks.Block:
+        assert isinstance(block.read_as, blocks.Family), (
             f"{block!r} is read as {block.read_as!r}, which is not a family"
         )
 
 
 def test_the_families_partition_the_registry():
-    covered = [b for f in blocks.FAMILIES for b in blocks.declared_as(f)]
-    assert sorted(covered) == sorted(blocks.DECLARED)
+    covered = [b for f in blocks.Family for b in blocks.declared_as(f)]
+    assert sorted(covered) == sorted(blocks.Block)
     assert len(covered) == len(set(covered)), "a block in two families"
 
 
@@ -99,7 +96,7 @@ def test_declared_order_is_the_order_a_section_says_them_in():
     list is the one that goes stale. Pinned rather than described: the
     recognised pattern leads, the recoverability verdicts — which qualify
     whatever came before them — come last."""
-    assert [str(b) for b in blocks.declared_as(blocks.ROUTE)] == [
+    assert [str(b) for b in blocks.declared_as(blocks.Family.ROUTE)] == [
         "identification",
         "iv_identification",
         "transport_identification",
@@ -114,28 +111,34 @@ def test_declared_order_is_the_order_a_section_says_them_in():
 
 
 def test_a_surface_that_misses_a_block_of_its_family_is_refused_at_import():
-    members = blocks.declared_as(blocks.ROUTE)
+    members = blocks.declared_as(blocks.Family.ROUTE)
     with pytest.raises(ValueError, match="no renderer for route block"):
-        blocks.bind(blocks.ROUTE, {b: str for b in members[1:]})
+        blocks.bind(blocks.Family.ROUTE, {b: str for b in members[1:]})
 
 
 def test_a_surface_cannot_bind_a_block_from_another_family():
     """Its output would land in the wrong section, which reads as coverage
     and is not."""
-    bound = {b: str for b in blocks.declared_as(blocks.ROUTE)}
-    bound[blocks.ASSUMPTION_LEDGER] = str
+    bound = {b: str for b in blocks.declared_as(blocks.Family.ROUTE)}
+    bound[blocks.Block.ASSUMPTION_LEDGER] = str
     with pytest.raises(ValueError, match="which route does not contain"):
-        blocks.bind(blocks.ROUTE, bound)
+        blocks.bind(blocks.Family.ROUTE, bound)
 
 
 def test_a_block_cannot_be_declared_without_saying_how_it_is_read():
+    """A member is a tuple the constructor unpacks, so a declaration short
+    of a field never becomes a member: the class body itself raises. Asked
+    of the constructor rather than by writing a bad member, because a
+    class body that raises cannot be written inside a test that also
+    imports the good one."""
     with pytest.raises(TypeError):
-        blocks.Block("invented", holds="nothing", carried_by=None)
+        blocks.Block.__new__(blocks.Block, "invented", "nothing", None)
 
 
 def test_a_block_cannot_be_declared_without_saying_how_it_reaches_a_reader():
     with pytest.raises(TypeError):
-        blocks.Block("invented", holds="nothing", read_as=blocks.GAP)
+        blocks.Block.__new__(
+            blocks.Block, "invented", "nothing", blocks.Family.GAP)
 
 
 def test_a_block_claiming_a_renderer_has_one():
@@ -159,7 +162,7 @@ def test_a_block_claiming_a_renderer_has_one():
 
     rendered_by_the_report = blocks.BOUND.get(analysis_report.__name__, set())
     unbound = sorted(
-        str(b) for b in blocks.DECLARED
+        str(b) for b in blocks.Block
         if b.carried_by is None and str(b) not in rendered_by_the_report
     )
     assert not unbound, (
@@ -205,7 +208,7 @@ def _web_rendered_blocks() -> dict[str, list[str]]:
     return out
 
 
-@pytest.mark.parametrize("family", blocks.FAMILIES, ids=lambda f: f.name)
+@pytest.mark.parametrize("family", blocks.Family, ids=str)
 def test_the_web_renders_every_family_the_registry_makes_a_surface_render(family):
     """The same question ``bind`` asks the report, asked of the browser.
 
@@ -224,16 +227,16 @@ def test_the_web_renders_every_family_the_registry_makes_a_surface_render(family
     to reconcile two orders.
     """
     declared = _web_rendered_blocks()
-    assert family.name in declared, (
-        f"{WEB_ANSWER_SURFACE.name} states nothing for the {family.name} "
+    assert family in declared, (
+        f"{WEB_ANSWER_SURFACE.name} states nothing for the {family} "
         f"family; a family it does not mention is one it can drop silently"
     )
-    assert declared[family.name] == [str(b) for b in blocks.rendered_in(family)]
+    assert declared[family] == [str(b) for b in blocks.rendered_in(family)]
 
 
 @pytest.mark.parametrize(
     "name",
-    [str(b) for f in blocks.FAMILIES for b in blocks.rendered_in(f)],
+    [str(b) for f in blocks.Family for b in blocks.rendered_in(f)],
 )
 def test_every_block_the_web_must_render_is_read_by_something_there(name):
     """A list is a promise; this asks whether anything keeps it.
@@ -268,14 +271,25 @@ def test_a_block_naming_a_carrier_names_something_that_exists():
     the chain ends — or a top-level field of the result, which the report
     already renders. Both are checked against the thing itself rather than
     against a list kept here.
+
+    The registry refuses at import a carrier that is neither, which is
+    what makes a name safe to write as a name. It cannot check the field
+    half from inside — the schema is not its to read — so it declares
+    ``CARRIER_FIELDS`` and that declaration is held here.
     """
     schema = json.loads(
         (PACKAGE / "schemas" / "query_result.schema.json")
         .read_text(encoding="utf-8")
     )
     fields = set(schema["properties"])
+    invented = sorted(blocks.CARRIER_FIELDS - fields)
+    assert not invented, (
+        f"themis.blocks.CARRIER_FIELDS names {invented}, which the result "
+        f"schema does not declare; a carrier may not be a field that only "
+        f"the registry believes in"
+    )
 
-    for block in blocks.DECLARED:
+    for block in blocks.Block:
         # Walk to the end of the chain. It terminates at a field, or at a
         # block that renders itself — and the test above holds that one to
         # actually having a renderer, so a chain that ends is a chain that
@@ -304,8 +318,8 @@ def test_the_record_says_which_surface_bound_it():
     scaffold stand in for a reader in the first place.
     """
     blocks.bind(
-        blocks.ASSUMPTION,
-        {b: str for b in blocks.rendered_in(blocks.ASSUMPTION)},
+        blocks.Family.ASSUMPTION,
+        {b: str for b in blocks.rendered_in(blocks.Family.ASSUMPTION)},
     )
     assert "assumption_ledger" in blocks.BOUND[__name__]
     assert "themis.output.analysis_report" != __name__
@@ -314,10 +328,10 @@ def test_the_record_says_which_surface_bound_it():
 def test_a_surface_cannot_bind_a_block_something_else_carries():
     """Binding one is a second telling — and the first one is the one the
     reader gets, since the carrier is read before the report runs."""
-    bound = {b: str for b in blocks.rendered_in(blocks.ASSUMPTION)}
-    bound[blocks.MECHANISM_AUDIT] = str
+    bound = {b: str for b in blocks.rendered_in(blocks.Family.ASSUMPTION)}
+    bound[blocks.Block.MECHANISM_AUDIT] = str
     with pytest.raises(ValueError, match="something else carries it"):
-        blocks.bind(blocks.ASSUMPTION, bound)
+        blocks.bind(blocks.Family.ASSUMPTION, bound)
 
 
 def test_a_block_is_the_plain_name_once_it_is_data():
@@ -329,10 +343,10 @@ def test_a_block_is_the_plain_name_once_it_is_data():
     import json
     import pickle
 
-    envelope = {blocks.CAUSATION: {"pn": 0.5}}
+    envelope = {blocks.Block.CAUSATION: {"pn": 0.5}}
     assert json.loads(json.dumps(envelope)) == {"causation": {"pn": 0.5}}
     assert type(next(iter(copy.deepcopy(envelope)))) is str
-    assert type(pickle.loads(pickle.dumps(blocks.CAUSATION))) is str
+    assert type(pickle.loads(pickle.dumps(blocks.Block.CAUSATION))) is str
 
 
 def test_an_unregistered_block_is_refused_at_the_exit():
@@ -363,8 +377,8 @@ def test_the_schema_gives_shapes_only_to_registered_blocks():
     """The result schema carries a full sub-schema for some blocks. It
     predates this registry and is where the drift was first measurable,
     so it must not name a block the registry does not."""
-    assert _shaped_blocks() <= set(blocks.BY_NAME), sorted(
-        _shaped_blocks() - set(blocks.BY_NAME))
+    assert _shaped_blocks() <= set(blocks.Block), sorted(
+        _shaped_blocks() - set(blocks.Block))
 
 
 def test_every_registered_block_has_a_shape_in_the_schema():
@@ -383,7 +397,7 @@ def test_every_registered_block_has_a_shape_in_the_schema():
     this kernel emits is closed by the registry at the exits, so nothing
     is bought by leaving our own blocks undeclared here.
     """
-    unshaped = sorted(set(blocks.BY_NAME) - _shaped_blocks())
+    unshaped = sorted(set(blocks.Block) - _shaped_blocks())
     assert not unshaped, (
         f"registered but shapeless in query_result.schema.json: {unshaped}; "
         f"declare the block's fields, and give an enum to every field whose "
@@ -426,4 +440,4 @@ def test_a_run_emits_only_registered_blocks():
     out = themis.run(program)
     for result in out["results"]:
         for key in (result.get("extensions") or {}):
-            assert key in blocks.BY_NAME
+            assert key in blocks.Block

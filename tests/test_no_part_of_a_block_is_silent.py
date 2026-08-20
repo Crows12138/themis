@@ -209,11 +209,11 @@ CARRIER_READER: dict[str, str] = {
 @functools.lru_cache(maxsize=None)
 def _reader_of(block: str) -> tuple[frozenset[str], str]:
     """Every literal and every source region that renders THIS block."""
-    known = blocks.BY_NAME.get(block)
-    assert known is not None, (
+    assert block in blocks.BY_NAME, (
         f"the schema declares {block!r} under extensions and "
         f"themis.blocks does not register it"
     )
+    known = blocks.BY_NAME[block]
     literals: set[str] = set()
     text: list[str] = []
     for table in (analysis_report._ROUTE_RENDERERS,
@@ -539,7 +539,7 @@ def test_a_claimed_source_reaches_a_reader_itself(path):
             f"once read"
         )
         return
-    if said_by in blocks.BY_NAME:
+    if said_by in blocks.Block:
         return
     if said_by in TOP_LEVEL:
         assert _reads(said_by).search(_REPORT_SRC), (

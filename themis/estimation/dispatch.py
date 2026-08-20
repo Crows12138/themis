@@ -364,7 +364,7 @@ def _maybe_estimate_longitudinal(
     # number would be biased. Refuse it (mirrors missing-data recovery's
     # not_recoverable), attaching an estimator_failure instead of shipping a
     # number the structure doesn't support.
-    ident = (target.get("extensions") or {}).get(blocks.LONGITUDINAL_IDENTIFICATION)
+    ident = (target.get("extensions") or {}).get(blocks.Block.LONGITUDINAL_IDENTIFICATION)
     if isinstance(ident, dict) and ident.get("identified") is False:
         target["estimator_failure"] = {
             "estimator": (
@@ -512,7 +512,7 @@ def _longitudinal_target_result(output: dict):
     the first result, else None."""
     results = output.get("results", [])
     for result in results:
-        if (result.get("extensions") or {}).get(blocks.LONGITUDINAL_IDENTIFICATION):
+        if (result.get("extensions") or {}).get(blocks.Block.LONGITUDINAL_IDENTIFICATION):
             return result
     for result in results:
         if result.get("query_kind") == "effect":
@@ -577,9 +577,9 @@ def _maybe_estimate_missing_recovery(
     block = None
     for result in output.get("results", []):
         ext = result.get("extensions") or {}
-        if blocks.MISSING_DATA_RECOVERY in ext:
+        if blocks.Block.MISSING_DATA_RECOVERY in ext:
             target = result
-            block = ext[blocks.MISSING_DATA_RECOVERY]
+            block = ext[blocks.Block.MISSING_DATA_RECOVERY]
             break
     if target is None or block is None:
         return
@@ -819,7 +819,7 @@ def _estimate_effect_queries(
             # layer writes it, so reading it here is reading upstream, not
             # reading our own output.
             selection_recovery=(
-                (result.get("extensions") or {}).get(blocks.SELECTION_RECOVERY)
+                (result.get("extensions") or {}).get(blocks.Block.SELECTION_RECOVERY)
             ),
             dose_response_triggered=q_stmt.id in dose_response_query_ids,
         )
@@ -1130,7 +1130,7 @@ def _try_backdoor_estimate(
     }
     _attach_bootstrap_meta(result["numeric_estimate"], knobs.cluster)
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=estimate.outcome,
         form=estimate.form,
         method=estimate.method,
@@ -1141,7 +1141,7 @@ def _try_backdoor_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
     _attach_precision_budget(result["numeric_estimate"])
 
     result["derivation"] = _build_numeric_derivation_dict(
@@ -1419,7 +1419,7 @@ def _attach_numeric_bounds(
                     )
                 elif method == "balke_pearl_iv":
                     iv_ext = (result.get("extensions") or {}).get(
-                        blocks.IV_IDENTIFICATION)
+                        blocks.Block.IV_IDENTIFICATION)
                     instrument = None
                     if isinstance(iv_ext, dict):
                         instrument = iv_ext.get("instrument")
@@ -1554,7 +1554,7 @@ def _try_general_id_estimate(
         build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=estimate.outcome,
         form=estimate.form,
         method=estimate.method,
@@ -1565,7 +1565,7 @@ def _try_general_id_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
     result["derivation"] = _build_general_id_numeric_derivation_dict(
         graph=graph, x=x_atom, y=y_atom, estimate=estimate,
@@ -1642,7 +1642,7 @@ def _try_joint_general_id_estimate(
         build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=estimate.outcome,
         form=estimate.form,
         method=estimate.method,
@@ -1653,7 +1653,7 @@ def _try_joint_general_id_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
     # Reuse the single-treatment general-ID derivation: the criterion step
     # (general_id_criterion) re-runs the SET ID off ctx.query, and the
@@ -1824,7 +1824,7 @@ def _try_ctf_conjunction_estimate(
         build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=estimate.estimand,
         form=estimate.form,
         method=estimate.method,
@@ -1835,7 +1835,7 @@ def _try_ctf_conjunction_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
     result["derivation"] = _build_ctf_conjunction_numeric_derivation_dict(
         graph=graph, estimate=estimate,
@@ -2018,7 +2018,7 @@ def _try_scm_counterfactual_estimate(
         build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=estimate.target,
         form=estimate.form,
         method=estimate.method,
@@ -2029,12 +2029,12 @@ def _try_scm_counterfactual_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
     # Human display copy (parity with the structural path's extension): the
     # counterfactual value + the abducted noise + post-intervention values.
     # Display-only — the verifier's authority is numeric_estimate; kernel.verify
     # cross-checks target_value == numeric_estimate.point so this cannot drift.
-    ext[blocks.SCM_COUNTERFACTUAL] = {
+    ext[blocks.Block.SCM_COUNTERFACTUAL] = {
         "target": estimate.target,
         "target_value": estimate.point,
         "intervention": {
@@ -2206,7 +2206,7 @@ def _try_proximal_estimate(
     )
     target = f"P({estimate.outcome}|do({estimate.treatment}))"
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=target,
         form=estimate.form,
         method=estimate.method,
@@ -2217,7 +2217,7 @@ def _try_proximal_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
     result["derivation"] = _build_proximal_numeric_derivation_dict(
         graph=graph, estimate=estimate,
@@ -2424,7 +2424,7 @@ def _try_causation_estimate(
     # surfaces show the same audited numbers; verify_causation_numeric
     # cross-checks it against the derivation inputs.
     ext = result.setdefault("extensions", {})
-    ext[blocks.CAUSATION] = {
+    ext[blocks.Block.CAUSATION] = {
         "monotonic": estimate.monotonic,
         "interventional_risk_provenance": estimate.interventional_risk_provenance,
         "instrument": estimate.instrument,
@@ -2440,7 +2440,7 @@ def _try_causation_estimate(
         build_assumption_ledger,
         build_mechanism_audit,
     )
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=f"PN({estimate.effect}|{estimate.cause})",
         form=estimate.form,
         method=estimate.method,
@@ -2451,7 +2451,7 @@ def _try_causation_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
     result["derivation"] = _build_causation_numeric_derivation_dict(
         q_stmt=q_stmt, estimate=estimate,
@@ -2708,13 +2708,13 @@ def _try_counterfactual_cell_estimate(
     # prefers it over the status-only rendering, so every surface shows the
     # same audited numbers.
     ext = result.setdefault("extensions", {})
-    ext[blocks.COUNTERFACTUAL_CELL] = cell_block
+    ext[blocks.Block.COUNTERFACTUAL_CELL] = cell_block
 
     from ..output.result_orchestrator import (
         build_assumption_ledger,
         build_mechanism_audit,
     )
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=(
             f"P({estimate.effect}_{{{estimate.cause}="
             f"{int(estimate.x_counterfactual)}}}={int(estimate.y_star)}"
@@ -2729,7 +2729,7 @@ def _try_counterfactual_cell_estimate(
         result, identification_specs=estimate.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
     result["derivation"] = _build_counterfactual_cell_numeric_derivation_dict(
         estimate=estimate,
@@ -2819,7 +2819,7 @@ def _try_mediation_estimate(
     # carried through, and falling onward would answer the total effect for
     # a question about a decomposition — a different estimand, silently.
     extensions = result.get("extensions") or {}
-    decomp = extensions.get(blocks.MEDIATION_DECOMPOSITION)
+    decomp = extensions.get(blocks.Block.MEDIATION_DECOMPOSITION)
     if decomp is None:
         return passed('identification_chose_another_strategy')
     if decomp.get("strategy") != "nde_nie":
@@ -2987,7 +2987,7 @@ def _try_mediation_joint_estimate(
     from .mediation import estimate_mediation_joint
 
     extensions = result.get("extensions") or {}
-    decomp = extensions.get(blocks.MEDIATION_JOINT_DECOMPOSITION)
+    decomp = extensions.get(blocks.Block.MEDIATION_JOINT_DECOMPOSITION)
     # Same claim rule as the single-mediator handler: only an ABSENT block
     # means identification routed this query elsewhere. Every other exit
     # claims it rather than letting a different estimand answer in its place.
@@ -3636,7 +3636,7 @@ def _try_transport_estimate(
     """
     from .transport import estimate_transport
 
-    transport_block = (result.get("extensions") or {}).get(blocks.TRANSPORT_IDENTIFICATION)
+    transport_block = (result.get("extensions") or {}).get(blocks.Block.TRANSPORT_IDENTIFICATION)
     if not isinstance(transport_block, dict):
         return blocked('identification_chose_another_strategy')
     adjustment_atoms = transport_block.get("adjustment_set") or []
@@ -3772,7 +3772,7 @@ def _try_selection_recovery_estimate(
     """
     from .selection import estimate_selection_recovery
 
-    block = (result.get("extensions") or {}).get(blocks.SELECTION_RECOVERY) or {}
+    block = (result.get("extensions") or {}).get(blocks.Block.SELECTION_RECOVERY) or {}
     x = q_stmt.query.intervention.atom.predicate
     y = q_stmt.query.target.atom.predicate
 
@@ -3956,7 +3956,7 @@ def _try_measurement_correction_estimate(
 
     from ..output.result_orchestrator import build_mechanism_audit
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
         form=est.form,
         method=est.method,
@@ -4112,7 +4112,7 @@ def _try_exposure_measurement_correction_estimate(
 
     from ..output.result_orchestrator import build_mechanism_audit
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
         form=est.form,
         method=est.method,
@@ -4233,7 +4233,7 @@ def _try_combined_measurement_correction_estimate(
 
     from ..output.result_orchestrator import build_mechanism_audit
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=f"P({est.outcome}={est.target_value}|do({est.treatment}))",
         form=est.form,
         method=est.method,
@@ -4380,7 +4380,7 @@ def _try_regression_calibration_estimate(
 
     from ..output.result_orchestrator import build_mechanism_audit
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=f"dE[{est.outcome}|do({est.treatment}),Z]/d{est.treatment}",
         form=est.form,
         method=est.method,
@@ -5709,7 +5709,7 @@ def _try_doubly_robust_estimate(
         build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=est.outcome, form=est.form, method=est.method,
         assumption=est.model_assumption, provenance="default",
     )
@@ -5717,7 +5717,7 @@ def _try_doubly_robust_estimate(
         result, identification_specs=est.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
 
     _attach_precision_budget(ne)
     _DR_TERMINAL = {
@@ -6605,7 +6605,7 @@ def _try_dose_response_estimate(
         build_mechanism_audit,
     )
     ext = result.setdefault("extensions", {})
-    ext[blocks.MECHANISM_AUDIT] = build_mechanism_audit(
+    ext[blocks.Block.MECHANISM_AUDIT] = build_mechanism_audit(
         target=est.outcome,
         form=est.form,
         method=est.method,
@@ -6616,7 +6616,7 @@ def _try_dose_response_estimate(
         result, identification_specs=est.identification_assumptions,
     )
     if ledger is not None:
-        ext[blocks.ASSUMPTION_LEDGER] = ledger
+        ext[blocks.Block.ASSUMPTION_LEDGER] = ledger
     _attach_precision_budget_curve(result["numeric_estimate"])
     result["derivation"] = _build_numeric_derivation_dict(
         graph=graph, x=x, y=y, adjustment=chosen, given=frozenset(given),
@@ -6913,7 +6913,7 @@ def _attach_type_reconciliation(program, output, data) -> None:
         if not isinstance(ext, dict):
             ext = {}
             result["extensions"] = ext
-        ext[blocks.TYPE_RECONCILIATION] = {"checks": [dict(c) for c in checks]}
+        ext[blocks.Block.TYPE_RECONCILIATION] = {"checks": [dict(c) for c in checks]}
         report = result.get("data_gap_report")
         if report is None:
             result["data_gap_report"] = {

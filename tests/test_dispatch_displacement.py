@@ -319,8 +319,8 @@ def test_the_disclosure_no_longer_depends_on_an_empty_extension():
         query_kind=themis.types.QueryKind.EFFECT,
         status=themis.types.ResultStatus.STRUCTURALLY_SOLVED,
         extensions={
-            blocks.TRANSPORT_IDENTIFICATION: {"transportable": True},
-            blocks.MEDIATION_DECOMPOSITION: {"mediator_valid": True},
+            blocks.Block.TRANSPORT_IDENTIFICATION: {"transportable": True},
+            blocks.Block.MEDIATION_DECOMPOSITION: {"mediator_valid": True},
         },
         dispatch=DispatchRecord(
             answered_by="transport", displaced=("mediation_single",),

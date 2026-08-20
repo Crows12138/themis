@@ -443,7 +443,7 @@ def _render_answer(result: dict) -> str:
     #    for causation, one of the three quantities it holds, and the
     #    headline cannot say which one it is.
     extensions = result.get("extensions") or {}
-    for block in blocks.rendered_in(blocks.ANSWER):
+    for block in blocks.rendered_in(blocks.Family.ANSWER):
         if extensions.get(block):
             said = _ANSWER_BLOCK_RENDERERS[block](extensions[block], result)
             if said:
@@ -1133,9 +1133,9 @@ def _answer_scm_counterfactual(block: dict, result: dict) -> str:
 
 
 # Each block of this family that no other channel carries, said once.
-_ANSWER_BLOCK_RENDERERS = blocks.bind(blocks.ANSWER, {
-    blocks.CAUSATION: _answer_causation,
-    blocks.SCM_COUNTERFACTUAL: _answer_scm_counterfactual,
+_ANSWER_BLOCK_RENDERERS = blocks.bind(blocks.Family.ANSWER, {
+    blocks.Block.CAUSATION: _answer_causation,
+    blocks.Block.SCM_COUNTERFACTUAL: _answer_scm_counterfactual,
 })
 
 
@@ -1224,7 +1224,7 @@ def _route_iv_identification(block: dict, result: dict) -> str:
     rather than printed as a bullet with a heading and no content.
     """
     already_said = (
-        ((result.get("extensions") or {}).get(blocks.IDENTIFICATION) or {})
+        ((result.get("extensions") or {}).get(blocks.Block.IDENTIFICATION) or {})
         .get("pattern") == "instrumental_variable"
     )
     parts: list[str] = []
@@ -1499,17 +1499,17 @@ def _route_missing_data_recovery(block: dict, result: dict) -> str:
 
 # Each route, said once. ``bind`` refuses a set that misses one, so a
 # block added to the family cannot reach this section and render nothing.
-_ROUTE_RENDERERS = blocks.bind(blocks.ROUTE, {
-    blocks.IDENTIFICATION: _route_identification,
-    blocks.IV_IDENTIFICATION: _route_iv_identification,
-    blocks.TRANSPORT_IDENTIFICATION: _route_transport_identification,
-    blocks.JOINT_IDENTIFICATION: _route_joint_identification,
-    blocks.LONGITUDINAL_IDENTIFICATION: _route_longitudinal_identification,
-    blocks.MEDIATION_DECOMPOSITION: _route_mediation_decomposition,
-    blocks.MEDIATION_JOINT_DECOMPOSITION: _route_mediation_joint_decomposition,
-    blocks.PROXIMAL_ESTIMAND: _route_proximal_estimand,
-    blocks.SELECTION_RECOVERY: _route_selection_recovery,
-    blocks.MISSING_DATA_RECOVERY: _route_missing_data_recovery,
+_ROUTE_RENDERERS = blocks.bind(blocks.Family.ROUTE, {
+    blocks.Block.IDENTIFICATION: _route_identification,
+    blocks.Block.IV_IDENTIFICATION: _route_iv_identification,
+    blocks.Block.TRANSPORT_IDENTIFICATION: _route_transport_identification,
+    blocks.Block.JOINT_IDENTIFICATION: _route_joint_identification,
+    blocks.Block.LONGITUDINAL_IDENTIFICATION: _route_longitudinal_identification,
+    blocks.Block.MEDIATION_DECOMPOSITION: _route_mediation_decomposition,
+    blocks.Block.MEDIATION_JOINT_DECOMPOSITION: _route_mediation_joint_decomposition,
+    blocks.Block.PROXIMAL_ESTIMAND: _route_proximal_estimand,
+    blocks.Block.SELECTION_RECOVERY: _route_selection_recovery,
+    blocks.Block.MISSING_DATA_RECOVERY: _route_missing_data_recovery,
 })
 
 
@@ -2191,7 +2191,7 @@ def _render_route(result: dict) -> str:
     extensions = result.get("extensions") or {}
     lines = [
         _ROUTE_RENDERERS[block](extensions[block], result)
-        for block in blocks.rendered_in(blocks.ROUTE)
+        for block in blocks.rendered_in(blocks.Family.ROUTE)
         if extensions.get(block)
     ]
     # The estimand itself, after the route that found it: the blocks name
@@ -2405,8 +2405,8 @@ def _assumption_ledger(ledger: dict, result: dict) -> str:
     return "\n".join(lines)
 
 
-_ASSUMPTION_RENDERERS = blocks.bind(blocks.ASSUMPTION, {
-    blocks.ASSUMPTION_LEDGER: _assumption_ledger,
+_ASSUMPTION_RENDERERS = blocks.bind(blocks.Family.ASSUMPTION, {
+    blocks.Block.ASSUMPTION_LEDGER: _assumption_ledger,
 })
 
 
@@ -2414,7 +2414,7 @@ def _render_assumptions(result: dict) -> str:
     extensions = result.get("extensions") or {}
     lines = [
         _ASSUMPTION_RENDERERS[block](extensions[block], result)
-        for block in blocks.rendered_in(blocks.ASSUMPTION)
+        for block in blocks.rendered_in(blocks.Family.ASSUMPTION)
         if extensions.get(block)
     ]
     return "\n".join(line for line in lines if line)

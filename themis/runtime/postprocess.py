@@ -95,7 +95,7 @@ def _check_block(block: str, where: str, pass_name: str) -> None:
                 f"pass {pass_name!r} names {block!r} in {where}; an extension "
                 f"block is 'extensions.<key>' for exactly one key"
             )
-        if key not in blocks.BY_NAME:
+        if key not in blocks.Block:
             raise ValueError(
                 f"pass {pass_name!r} names {block!r} in {where}, which is not "
                 f"a registered block; a key nothing writes reads as None "

@@ -600,6 +600,38 @@ VOCABULARIES: dict[str, Vocabulary] = {
     ),
 
     # --- declared in Python, never on the envelope ----------------------------
+    "extension_block": Vocabulary(
+        declares="themis.blocks.Block",
+        off_envelope="The one vocabulary the envelope states as KEYS rather "
+                     "than as an enum: its members are exactly the property "
+                     "names under extensions in query_result.schema.json. "
+                     "There is no field to point a site at, and the equality "
+                     "a site would assert is asserted directly instead — "
+                     "tests/test_blocks_registry.py holds the registry and "
+                     "that property set to each other in both directions, "
+                     "and themis.blocks.check_registered refuses at the "
+                     "kernel's exits to emit a key the registry does not "
+                     "declare.",
+        no_gloss="A block name is what a renderer is reached BY, not "
+                 "something a reader is shown: what arrives is the section "
+                 "its renderer writes, under that section's own Chinese "
+                 "heading. Which is why the reachability question for these "
+                 "is 'does a surface bind one' — asked by themis.blocks.bind "
+                 "at import, and of the browser by the same test file.",
+    ),
+    "block_family": Vocabulary(
+        declares="themis.blocks.Family",
+        off_envelope="The axis the block registry is grouped ON — which of "
+                     "the reader's questions a block answers. It exists so "
+                     "that a block reaching nobody cannot look like a block "
+                     "reaching somebody, and it is consumed entirely by "
+                     "themis.blocks.bind and the surfaces that call it. No "
+                     "result carries one.",
+        no_gloss="A reader gets the family as the section it produces, not "
+                 "as the word: the four `tells` sentences are written for "
+                 "whoever adds the next family, and the heading a reader "
+                 "sees is the surface's own.",
+    ),
     "audit_artifact": Vocabulary(
         declares="themis.audits.Artifact",
         off_envelope="The vocabulary of what an audit is an audit OF, which "

@@ -777,7 +777,7 @@ def _query_relevant_predicates_for_path_walk(
     """
     base = set(_query_referenced_predicates(stmt))
 
-    iv = (extensions or {}).get(blocks.IV_IDENTIFICATION) or {}
+    iv = (extensions or {}).get(blocks.Block.IV_IDENTIFICATION) or {}
     instrument = iv.get("instrument")
     if instrument:
         base.add(str(instrument).split("(", 1)[0])
@@ -803,7 +803,7 @@ def _classify_iv_assumption(extensions: dict) -> Iterable[DataGap]:
     (2SLS/ATE). The extension carries the wording verbatim; surface as a
     must-disclose caveat so the renderer cannot present an IV estimate
     as an unconditional ATE."""
-    iv = (extensions or {}).get(blocks.IV_IDENTIFICATION) or {}
+    iv = (extensions or {}).get(blocks.Block.IV_IDENTIFICATION) or {}
     assumption = iv.get("required_assumption")
     instrument = iv.get("instrument")
     if not assumption:
@@ -849,8 +849,8 @@ def _mediation_view(extensions: dict) -> "_MediationView | None":
     """The mediation decomposition on this result, whichever shape it took."""
     ext = extensions or {}
     for key, joint in (
-        (blocks.MEDIATION_DECOMPOSITION, False),
-        (blocks.MEDIATION_JOINT_DECOMPOSITION, True),
+        (blocks.Block.MEDIATION_DECOMPOSITION, False),
+        (blocks.Block.MEDIATION_JOINT_DECOMPOSITION, True),
     ):
         block = ext.get(key)
         if not isinstance(block, dict):
@@ -926,7 +926,7 @@ def _classify_transport_assumptions(
     """Transport identification (Bareinboim-Pearl) requires
     S-admissibility plus correct selection-node specification. The
     transferred estimate is invalid outside those assumptions."""
-    transport = (extensions or {}).get(blocks.TRANSPORT_IDENTIFICATION) or {}
+    transport = (extensions or {}).get(blocks.Block.TRANSPORT_IDENTIFICATION) or {}
     if not transport:
         return
     src_pop = transport.get("source_population", "<源人群>")
@@ -954,7 +954,7 @@ def _classify_llm_ambiguities(extensions: dict) -> Iterable[DataGap]:
     mediator choice). Renderer must surface the LLM's own uncertainty —
     leaving these unspoken would make the answer look confident when the
     upstream itself wasn't."""
-    ambiguities = (extensions or {}).get(blocks.AMBIGUITIES) or ()
+    ambiguities = (extensions or {}).get(blocks.Block.AMBIGUITIES) or ()
     for amb in ambiguities:
         if not isinstance(amb, dict):
             continue
@@ -1563,7 +1563,7 @@ def _classify_measurement_error_concern(
     # ambiguity (case 011 path). The escape-hatch entry covers the user-
     # facing surface; firing this kind on top would double-disclose.
     if extensions:
-        ambiguities = extensions.get(blocks.AMBIGUITIES) or ()
+        ambiguities = extensions.get(blocks.Block.AMBIGUITIES) or ()
         for amb in ambiguities:
             if isinstance(amb, dict) and amb.get("kind") == "measurement_quality":
                 return
@@ -1760,7 +1760,7 @@ def _classify_dichotomized_continuous_measure(
     ):
         return
     if extensions:
-        for amb in extensions.get(blocks.AMBIGUITIES) or ():
+        for amb in extensions.get(blocks.Block.AMBIGUITIES) or ():
             if isinstance(amb, dict) and amb.get("kind") in (
                 "dichotomization", "arbitrary_cutpoint",
                 "continuous_dichotomized",
@@ -2271,7 +2271,7 @@ def _classify_transport_target_distribution(
 
     Both are emitted whenever a transport_identification block exists
     with a non-empty adjustment set."""
-    block = extensions.get(blocks.TRANSPORT_IDENTIFICATION)
+    block = extensions.get(blocks.Block.TRANSPORT_IDENTIFICATION)
     if not block:
         return
     adjustment_set = block.get("adjustment_set", []) or []
@@ -2841,7 +2841,7 @@ def _classify_ill_defined_intervention_versions(
         return
     # Suppression: upstream LLM has already named this concern.
     if extensions:
-        ambiguities = extensions.get(blocks.AMBIGUITIES) or ()
+        ambiguities = extensions.get(blocks.Block.AMBIGUITIES) or ()
         for amb in ambiguities:
             if not isinstance(amb, dict):
                 continue

@@ -384,7 +384,7 @@ def _build_identify_via_engine(
 
     annotation = _recognize_identification_pattern(graph, bidirected, q, engine)
     ext = dict(result.extensions or {})
-    ext[blocks.IDENTIFICATION] = annotation
+    ext[blocks.Block.IDENTIFICATION] = annotation
     return _replace(result, extensions=ext)
 
 
@@ -742,7 +742,7 @@ def _build_identify_via_iv(
     instrument_label = _atom_to_str(chosen.instrument)
     conditioning_labels = sorted(_atom_to_str(a) for a in chosen.conditioning)
     extensions = {
-        blocks.IV_IDENTIFICATION: {
+        blocks.Block.IV_IDENTIFICATION: {
             "strategy": "iv",
             "instrument": instrument_label,
             "conditioning": conditioning_labels,
@@ -757,7 +757,7 @@ def _build_identify_via_iv(
         # instrument and flags that point identification needs an extra
         # assumption — so a renderer keying off extensions["identification"]
         # has a complete story for IV too.
-        blocks.IDENTIFICATION: {
+        blocks.Block.IDENTIFICATION: {
             "pattern": "instrumental_variable",
             "instrument": instrument_label,
             "conditioning": conditioning_labels,
@@ -870,7 +870,7 @@ def _dispatch_mediation(
                 ),
             ),
             extensions={
-                blocks.MEDIATION_DECOMPOSITION: {
+                blocks.Block.MEDIATION_DECOMPOSITION: {
                     "mediator": _atom_to_str(m),
                     "mediator_valid": False,
                     "nde_nie": nde_nie_info,
@@ -922,7 +922,7 @@ def _dispatch_mediation(
     )
 
     extensions = {
-        blocks.MEDIATION_DECOMPOSITION: {
+        blocks.Block.MEDIATION_DECOMPOSITION: {
             "mediator": _atom_to_str(m),
             "mediator_valid": True,
             "nde_nie": nde_nie_info,
@@ -974,7 +974,7 @@ def _dispatch_mediation(
             bidirected=bidirected,
         )
         if numeric_block is not None:
-            extensions[blocks.MEDIATION_DECOMPOSITION]["numeric"] = numeric_block
+            extensions[blocks.Block.MEDIATION_DECOMPOSITION]["numeric"] = numeric_block
             te = numeric_block.get("te")
             if te is not None and numeric_step is not None:
                 # Only attach numeric steps to the derivation when the
@@ -1091,7 +1091,7 @@ def _dispatch_mediation_joint(
                 ),
             ),
             extensions={
-                blocks.MEDIATION_JOINT_DECOMPOSITION: {
+                blocks.Block.MEDIATION_JOINT_DECOMPOSITION: {
                     "mediators": mediators_str,
                     "mediator_set_valid": False,
                     "nde_nie": nde_nie_info,
@@ -1153,7 +1153,7 @@ def _dispatch_mediation_joint(
         else "none"
     )
     extensions = {
-        blocks.MEDIATION_JOINT_DECOMPOSITION: {
+        blocks.Block.MEDIATION_JOINT_DECOMPOSITION: {
             "mediators": mediators_str,
             "mediator_set_valid": True,
             "nde_nie": nde_nie_info,
@@ -1195,7 +1195,7 @@ def _dispatch_mediation_joint(
             bidirected=bidirected,
         )
         if numeric_block is not None:
-            extensions[blocks.MEDIATION_JOINT_DECOMPOSITION]["numeric"] = numeric_block
+            extensions[blocks.Block.MEDIATION_JOINT_DECOMPOSITION]["numeric"] = numeric_block
             te = numeric_block.get("te")
             if te is not None and numeric_step is not None:
                 # Same closure invariant as the single-mediator path: promote
@@ -2897,7 +2897,7 @@ def _causation_over_the_instrument(
                 step_id="s1",
             ),
         ),
-        extensions={blocks.CAUSATION: envelope},
+        extensions={blocks.Block.CAUSATION: envelope},
     )
 
 
@@ -3139,7 +3139,7 @@ def _dispatch_causation(
         query_id=stmt.id,
         numeric_result=numeric_result,
         derivation=derivation,
-        extensions={blocks.CAUSATION: envelope},
+        extensions={blocks.Block.CAUSATION: envelope},
     )
 
 
@@ -3282,7 +3282,7 @@ def _dispatch_scm_counterfactual(
 
     numeric_result = NumericResult(value=result.target_value)
     extensions = {
-        blocks.SCM_COUNTERFACTUAL: {
+        blocks.Block.SCM_COUNTERFACTUAL: {
             "target": _atom_to_str(y_atom),
             "target_value": result.target_value,
             "intervention": {
@@ -3572,7 +3572,7 @@ def _dispatch_proximal_effect(
         query_id=stmt.id,
         structural_result=structural_result,
         derivation=derivation,
-        extensions={blocks.PROXIMAL_ESTIMAND: descriptor},
+        extensions={blocks.Block.PROXIMAL_ESTIMAND: descriptor},
     )
 
 
@@ -3750,7 +3750,7 @@ def _dispatch_transport(
                     reason=result.failure_reason or "transport not identifiable",
                 ),
             ),
-            extensions={blocks.TRANSPORT_IDENTIFICATION: transport_block},
+            extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
         )
 
     src_pop = selection_nodes[0].source_population if selection_nodes else ""
@@ -3839,7 +3839,7 @@ def _dispatch_transport(
             derivation=derivation_steps,
             missing_information=(missing,),
             investigation_requests=requests,
-            extensions={blocks.TRANSPORT_IDENTIFICATION: transport_block},
+            extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
         )
 
     # Numeric success: append (transport_formula_ast, formula_evaluation,
@@ -3895,7 +3895,7 @@ def _dispatch_transport(
         numeric_result=numeric_result_obj,
         formula=transport_formula_expr,
         derivation=derivation_steps,
-        extensions={blocks.TRANSPORT_IDENTIFICATION: transport_block_with_numeric},
+        extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block_with_numeric},
     )
 
 
@@ -4280,7 +4280,7 @@ def _build_iv_wald_effect_result(
         )
 
     extensions = {
-        blocks.IV_IDENTIFICATION: {
+        blocks.Block.IV_IDENTIFICATION: {
             "strategy": "iv",
             "instrument": _atom_to_str(instrument),
             "conditioning": sorted(_atom_to_str(a) for a in conditioning),
@@ -4453,7 +4453,7 @@ def _dispatch_joint_effect(
                     query_id=stmt.id,
                     structural_result=structural_result,
                     derivation=derivation,
-                    extensions={blocks.JOINT_IDENTIFICATION: annotation},
+                    extensions={blocks.Block.JOINT_IDENTIFICATION: annotation},
                 )
 
         return QueryResult(
@@ -4525,7 +4525,7 @@ def _dispatch_joint_effect(
         query_id=stmt.id,
         structural_result=structural_result,
         derivation=derivation,
-        extensions={blocks.JOINT_IDENTIFICATION: annotation},
+        extensions={blocks.Block.JOINT_IDENTIFICATION: annotation},
     )
 
 
@@ -4685,7 +4685,7 @@ def _dispatch_longitudinal(
                     ),
                 ),
             ),
-            extensions={blocks.LONGITUDINAL_IDENTIFICATION: identification_ext},
+            extensions={blocks.Block.LONGITUDINAL_IDENTIFICATION: identification_ext},
         )
 
     structural_result = StructuralResult(value=True)
@@ -4725,7 +4725,7 @@ def _dispatch_longitudinal(
         query_id=stmt.id,
         structural_result=structural_result,
         derivation=derivation,
-        extensions={blocks.LONGITUDINAL_IDENTIFICATION: identification_ext},
+        extensions={blocks.Block.LONGITUDINAL_IDENTIFICATION: identification_ext},
     )
 
 
@@ -5810,7 +5810,7 @@ def _attach_program_ambiguities(
     if not relevant:
         return result
     new_ext = dict(result.extensions or {})
-    new_ext[blocks.AMBIGUITIES] = relevant
+    new_ext[blocks.Block.AMBIGUITIES] = relevant
     return _replace(result, extensions=new_ext)
 
 
@@ -5939,7 +5939,7 @@ def _attach_selection_recovery(
     rec = recover_effect(graph, x, y, tuple(s_atoms))
     block = _serialize_selection_recovery(rec, x, y)
     new_ext = dict(result.extensions or {})
-    new_ext[blocks.SELECTION_RECOVERY] = block
+    new_ext[blocks.Block.SELECTION_RECOVERY] = block
     return _replace(result, extensions=new_ext)
 
 
@@ -6049,7 +6049,7 @@ def _attach_missing_data_recovery(
         "failure_reason": est.failure_reason,
     }
     new_ext = dict(result.extensions or {})
-    new_ext[blocks.MISSING_DATA_RECOVERY] = block
+    new_ext[blocks.Block.MISSING_DATA_RECOVERY] = block
     return _replace(result, extensions=new_ext)
 
 
@@ -6255,7 +6255,7 @@ def _attach_bounds_results(
     # each sharpening, because that is the order a reader can follow. No
     # decision rides on it, which is why there is no table declaring it — a
     # precedence number here would assert a ranking these three do not have.
-    iv_ext = (result.extensions or {}).get(blocks.IV_IDENTIFICATION)
+    iv_ext = (result.extensions or {}).get(blocks.Block.IV_IDENTIFICATION)
     instrument_pred: str | None = None
     if isinstance(iv_ext, dict):
         instrument_pred = iv_ext.get("instrument")
