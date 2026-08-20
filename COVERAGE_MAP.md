@@ -1,6 +1,6 @@
 # Themis 12 板块覆盖地图
 
-> 更新时间：2026-07-11（前置数据诊断层：`declared_type_data_mismatch`
+> 更新时间：2026-07-13（前置数据诊断层：`declared_type_data_mismatch`
 > gap_kind + `VariableDeclaration.scale` 字段 — 第一个由实际数据（非程序
 > 结构）驱动的 gap，把声明的测量尺度/域与 CSV 列核对，31→32 gap_kind。
 > 历史注：2026-06-18 dead-schema 第四 crack：

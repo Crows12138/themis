@@ -79,8 +79,9 @@ Docs, held to code:
   spelled-out number in the prose, which can disagree with the list
   directly beneath it
 - test_formula_ast_spec_node_count_matches_types
-- test_status_docs_have_update_timestamp — presence of the field only.
-  Whether the timestamp is honest is not decidable from the file.
+- test_status_docs_declare_when_they_were_current — the field is there
+- test_a_status_doc_carries_no_date_later_than_the_one_it_declares — and
+  it is not older than what the document says
 
 Docstrings, held to their own module:
 - test_kernel_docstring_lists_all_public_entries — every name re-exported
@@ -131,6 +132,7 @@ This file about itself:
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -479,26 +481,54 @@ def test_wall_md_has_required_structure():
     )
 
 
-def test_status_docs_have_update_timestamp():
-    """CORE_STATUS.md and COVERAGE_MAP.md must declare a `更新时间`
-    timestamp in their header. Three of these have been found stale
-    while present; this pin guards only against the field being
-    silently removed (which would make future
-    drift undetectable by audit).
+#: The documents whose header declares when they were current. A third
+#: would join here and would have to satisfy the same claim.
+_STATUS_DOCS = ("CORE_STATUS.md", "COVERAGE_MAP.md")
 
-    Field format: `> 更新时间：YYYY-MM-DD`. The audit only checks
-    presence, not freshness — staleness depends on file content
-    history which can't be reliably regex'd.
+#: `> 更新时间：YYYY-MM-DD`, the declaration itself.
+_DECLARED_CURRENT = re.compile(
+    r"^>\s*更新时间[：:]\s*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
+
+#: Any date in the body. ISO order means string comparison is date order.
+_ANY_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+
+
+@pytest.mark.parametrize("fname", _STATUS_DOCS)
+def test_status_docs_declare_when_they_were_current(fname):
+    """The field has to be there before anything can be said about it."""
+    text = (REPO_ROOT / fname).read_text(encoding="utf-8")
+    assert _DECLARED_CURRENT.search(text), (
+        f"{fname} must declare '> 更新时间：YYYY-MM-DD' in its header."
+    )
+
+
+@pytest.mark.parametrize("fname", _STATUS_DOCS)
+def test_a_status_doc_carries_no_date_later_than_the_one_it_declares(fname):
+    """And it has to be true.
+
+    This used to check presence only, on the stated ground that staleness
+    "depends on file content history which can't be reliably regex'd".
+    It does not depend on history: a document about dated work carries the
+    dates, in its own text. CORE_STATUS puts one in 72 of its 106
+    headings; COVERAGE_MAP puts them inside table cells instead. The two
+    shapes have nothing in common — but the claim their headers make does,
+    and a date later than the declared one contradicts it whichever shape
+    the body has. So the rule needs no per-file structure and no exception
+    table, which is what the older reasoning had concluded was impossible.
+
+    Measured when this was written: CORE_STATUS agreed with its newest
+    date to the day; COVERAGE_MAP declared 2026-07-11 while its
+    selection-bias row carried 2026-07-13. The one file the old
+    docstring's reasoning was true of is the file that was stale.
     """
-    import re
-    pattern = re.compile(r"^>\s*更新时间[：:]\s*\d{4}-\d{2}-\d{2}",
-                          re.MULTILINE)
-    for fname in ("CORE_STATUS.md", "COVERAGE_MAP.md"):
-        text = (REPO_ROOT / fname).read_text(encoding="utf-8")
-        assert pattern.search(text), (
-            f"{fname} must declare '> 更新时间：YYYY-MM-DD' in header. "
-            f"Without it, doc-content drift can't be flagged by audit."
-        )
+    text = (REPO_ROOT / fname).read_text(encoding="utf-8")
+    declared = _DECLARED_CURRENT.search(text).group(1)
+    later = sorted({d for d in _ANY_DATE.findall(text) if d > declared})
+    assert not later, (
+        f"{fname} says it was current on {declared} but writes about "
+        f"{later} — bump the header, or the reader is told a date the "
+        f"document has already outrun."
+    )
 
 
 def test_failure_modes_header_count_matches_actual_entries():
