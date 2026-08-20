@@ -87,7 +87,7 @@ import pandas as pd
 from ..runtime import counterfactual as cf
 from .. import risk_provenance
 from ..risk_provenance import RiskProvenance
-from ..types import CounterfactualQuery, NumericInterval
+from ..types import CounterfactualQuery, FormulaExpr, NumericInterval
 from .binary_do_risk import (
     DEFAULT_FORM,
     FORM_BY_PROVENANCE,
@@ -163,7 +163,7 @@ class CounterfactualCellEstimate:
     # The general-ID estimand the risk was evaluated from, when that is how it
     # was identified (None otherwise). Carried into the derivation so the
     # verifier can re-derive it and check the arm that was actually evaluated.
-    risk_formula: object | None
+    risk_formula: FormulaExpr | None
     # The cell being asked for (the verifier re-reads these off ctx.query).
     x_observed: bool
     x_counterfactual: bool
@@ -233,22 +233,23 @@ def estimate_counterfactual_cell(
             f"it conditions on; got do({query.counterfactual_intervention.atom.predicate}) "
             f"with X={x_atom.predicate} observed",
         )
-    x_obs = query.observed.value
-    x_cf = query.counterfactual_intervention.value
-    y_star = query.counterfactual_target.value
-    factual_y = query.factual_target_known
-    for label, value in (
-        ("observed", x_obs),
-        ("counterfactual_intervention", x_cf),
-        ("counterfactual_target", y_star),
-        ("factual_target_known", factual_y),
-    ):
-        if value is not None and not isinstance(value, bool):
-            raise EstimatorFailure(
-                Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
-                f"the counterfactual cell estimator is boolean-only; "
-                f"{label}={value!r}",
-            )
+    # Each check hands back what it checked, so the three cell indices ARE
+    # bools from here on. They are asked a different question from the fourth:
+    # a cell is INDEXED by two concrete values of one binary variable, while
+    # ``factual_target_known`` is the one input whose absence means something
+    # (no factual outcome in evidence). One loop asking all four whether they
+    # were "None or a bool" answered the fourth's question four times, and let
+    # a value-less index through to be read as False further down.
+    x_obs = _require_binary("observed", query.observed.value)
+    x_cf = _require_binary(
+        "counterfactual_intervention", query.counterfactual_intervention.value,
+    )
+    y_star = _require_binary(
+        "counterfactual_target", query.counterfactual_target.value,
+    )
+    factual_y = _require_optional_binary(
+        "factual_target_known", query.factual_target_known,
+    )
 
     xcol, ycol = x_atom.predicate, y_atom.predicate
 
@@ -429,6 +430,28 @@ def estimate_counterfactual_cell(
 
 
 # --- internals ----------------------------------------------------------------
+
+
+def _require_binary(label: str, value: object) -> bool:
+    """Return ``value`` as the bool this estimator is scoped to, or refuse.
+
+    The scope declaration is BINARY X and Y, and this is where it is enforced;
+    handing the value back is what lets the rest of the function have it as a
+    bool rather than as something a separate assertion once vouched for.
+    """
+    if not isinstance(value, bool):
+        raise EstimatorFailure(
+            Refusal.COUNTERFACTUAL_CELL_NOT_BINARY,
+            f"the counterfactual cell estimator is boolean-only; "
+            f"{label}={value!r}",
+        )
+    return value
+
+
+def _require_optional_binary(label: str, value: object) -> bool | None:
+    """Same, where absence is itself an answer — no factual outcome in
+    evidence is a different cell, not a malformed one."""
+    return None if value is None else _require_binary(label, value)
 
 
 def _bootstrap_cell(

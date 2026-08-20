@@ -169,7 +169,6 @@ def _gformula_ate(
     re-derives the point from. Left None in the bootstrap hot loop so it
     stays allocation-free there.
     """
-    collect = stats is not None
     cond_strata: list[dict] = []
     marg_counts: list[dict] = []
     zt = list(adjustment)
@@ -188,12 +187,12 @@ def _gformula_ate(
                     treatment=treatment,
                 )
             ate += sign * float(cell.mean())
-            if collect:
+            if stats is not None:
                 cond_strata.append({
                     "z": [], "arm": int(x),
                     "n": int(cell.size), "y_sum": float(cell.sum()),
                 })
-        if collect:
+        if stats is not None:
             stats["conditional_strata"] = cond_strata
             stats["marginal_counts"] = [{"z": [], "count": int(len(marg_rows))}]
             stats["marginal_total"] = int(len(marg_rows))
@@ -209,7 +208,7 @@ def _gformula_ate(
         in_stratum = np.logical_and.reduce(
             [z_cols[i] == z_vals[i] for i in range(len(zt))]
         )
-        if collect:
+        if stats is not None:
             marg_counts.append(
                 {"z": [float(v) for v in z_vals], "count": int(cnt)}
             )
@@ -225,13 +224,13 @@ def _gformula_ate(
                     treatment=treatment,
                 )
             eff += sign * float(cell.mean())
-            if collect:
+            if stats is not None:
                 cond_strata.append({
                     "z": [float(v) for v in z_vals], "arm": int(x),
                     "n": int(cell.size), "y_sum": float(cell.sum()),
                 })
         ate += eff * pz
-    if collect:
+    if stats is not None:
         stats["conditional_strata"] = cond_strata
         stats["marginal_counts"] = marg_counts
         stats["marginal_total"] = total

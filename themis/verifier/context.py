@@ -12,36 +12,23 @@ optional — identify-only derivations still pass ``theta=None``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Union
 
 import networkx as nx
 
 from ..runtime.numeric_estimator import Theta
-from ..types import (
-    Atom,
-    AssocQuery,
-    CausationQuery,
-    CounterfactualConjunctionQuery,
-    CounterfactualQuery,
-    CauseQuery,
-    EffectQuery,
-    IdentifyQuery,
-    ProbabilityQuery,
-    SCMCounterfactualQuery,
-)
+from ..types import Atom, Query
 
 
-VerifiableQuery = Union[
-    CauseQuery,
-    AssocQuery,
-    IdentifyQuery,
-    EffectQuery,
-    ProbabilityQuery,
-    CounterfactualQuery,
-    CausationQuery,
-    SCMCounterfactualQuery,
-    CounterfactualConjunctionQuery,
-]
+# Every kind the query language can express reaches a verify_* rule —
+# ``kernel.verify`` dispatches all ten and refuses anything else outright —
+# so "verifiable" is not a subset of the query vocabulary, it IS that
+# vocabulary. An alias rather than a second listing: what stood here was
+# the union written out a second time, and it had gone one member stale
+# (``ProximalEffectQuery``, added to the language and to the dispatch but
+# not to the copy). Nothing could have caught that, because a copy states
+# no relationship to the thing it copies — the name is what the context
+# needs this query FOR, and the type is where the query kinds are declared.
+VerifiableQuery = Query
 
 
 @dataclass(frozen=True)

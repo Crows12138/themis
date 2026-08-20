@@ -50,6 +50,60 @@ def _require(condition: bool, message: str) -> None:
         raise VerificationError(message)
 
 
+# Each guard below is ``_require(isinstance(v, T), message)`` that hands the
+# checked value back, so the caller holds a ``T`` rather than the untyped
+# ``dict.get`` result — same rejection, same message, one less unstated fact.
+# (Same shape as ``_require_list`` in ``orientation_rules``.)
+#
+# Nothing the artifact supplies is used in a way that assumes its type until
+# something — one of these, or an inline ``isinstance`` — has checked it. That
+# is not tidiness: hashing a name into a dict, sorting two name sets against
+# each other, taking ``len`` of a level list, and letting numpy coerce a matrix
+# are all type assumptions, and an unchecked one leaves as a TypeError or a
+# ValueError. That breaks this module's promise (and the one in
+# ``themis.kernel.verify_markov_blanket``) that every structural inconsistency
+# comes back as a VerificationError — and the promise is load-bearing, because
+# both callers report ``type(exc).__name__`` to the reader, where "the artifact
+# is malformed" and "the verifier is broken" then read as the same event.
+
+
+def _require_list(value: object, message: str) -> list:
+    if not isinstance(value, list):
+        raise VerificationError(message)
+    return value
+
+
+def _require_non_empty_list(value: object, message: str) -> list:
+    checked = _require_list(value, message)
+    if not checked:
+        raise VerificationError(message)
+    return checked
+
+
+def _require_dict(value: object, message: str) -> dict:
+    if not isinstance(value, dict):
+        raise VerificationError(message)
+    return value
+
+
+def _require_str(value: object, message: str) -> str:
+    if not isinstance(value, str):
+        raise VerificationError(message)
+    return value
+
+
+def _require_int(value: object, message: str) -> int:
+    if not isinstance(value, int):
+        raise VerificationError(message)
+    return value
+
+
+def _require_number(value: object, message: str) -> float:
+    if not isinstance(value, (int, float)):
+        raise VerificationError(message)
+    return value
+
+
 # --- Fisher-Z (continuous) — independent reimplementation ---------------------
 
 
@@ -68,7 +122,9 @@ def _partial_corr(R: np.ndarray, i: int, j: int, cond: tuple[int, ...]) -> float
     return float(-P[0, 1] / denom)
 
 
-def _fisher_z_pvalue(R, i, j, cond, n) -> float:
+def _fisher_z_pvalue(
+    R: np.ndarray, i: int, j: int, cond: tuple[int, ...], n: int
+) -> float:
     from scipy import stats
 
     r = _partial_corr(R, i, j, cond)
@@ -84,11 +140,17 @@ def _fisher_z_pvalue(R, i, j, cond, n) -> float:
 # --- chi-square (discrete) — independent reimplementation ---------------------
 
 
-def _chi_square(joint, cards, i, j, cond) -> tuple[float, int, float]:
+def _chi_square(
+    joint: list[tuple[tuple[int, ...], int]],
+    cards: list[int],
+    i: int,
+    j: int,
+    cond: tuple[int, ...],
+) -> tuple[float, int, float]:
     from scipy.stats import chi2
 
     card_x, card_y = cards[i], cards[j]
-    strata: dict[tuple, np.ndarray] = {}
+    strata: dict[tuple[int, ...], np.ndarray] = {}
     for config, cnt in joint:
         key = tuple(config[c] for c in cond)
         tbl = strata.get(key)
@@ -135,25 +197,39 @@ def verify_markov_blanket(result: dict) -> None:
         f"not a markov_blanket result (kind={result.get('kind')!r})",
     )
 
-    target = result.get("target")
-    blanket = result.get("blanket")
-    columns = result.get("columns")
-    alpha = result.get("alpha")
-    n = result.get("sample_size")
-    tests = result.get("tests")
+    # Variable names are the one thing this function hashes and sorts, so they
+    # are the one thing whose type it cannot leave unstated. ``columns`` is the
+    # anchor — nothing else establishes that a name is a string — so it is
+    # checked element by element here; the target and the blanket members are
+    # then pinned against it below.
+    columns = [
+        _require_str(c, f"column name {c!r} must be a string")
+        for c in _require_non_empty_list(
+            result.get("columns"), "columns must be a non-empty list"
+        )
+    ]
+    blanket = _require_list(result.get("blanket"), "blanket must be a list")
+    tests = _require_list(result.get("tests"), "tests must be a list")
+    alpha = _require_number(result.get("alpha"), "alpha out of range")
+    _require(0 < alpha < 1, "alpha out of range")
+    n = _require_int(result.get("sample_size"), "sample_size must be an int > 3")
+    _require(n > 3, "sample_size must be an int > 3")
     test = result.get("test") or ("chisq" if "contingency" in result else "fisherz")
 
-    _require(isinstance(columns, list) and columns, "columns must be a non-empty list")
-    _require(isinstance(blanket, list), "blanket must be a list")
-    _require(isinstance(tests, list), "tests must be a list")
-    _require(isinstance(alpha, (int, float)) and 0 < alpha < 1, "alpha out of range")
-    _require(isinstance(n, int) and n > 3, "sample_size must be an int > 3")
-    _require(target in columns, f"target {target!r} not among columns")
+    # "Not a column name" covers both ways a target can fail — wrong type, or
+    # simply absent — so it is one rejection with one message. Stating the type
+    # is what lets the index lookup below stop assuming it.
+    raw_target = result.get("target")
+    not_a_column = f"target {raw_target!r} not among columns"
+    target = _require_str(raw_target, not_a_column)
+    _require(target in columns, not_a_column)
     _require(len(set(columns)) == len(columns), "duplicate column names")
     _require(target not in blanket, f"target {target!r} appears in its own blanket")
-    _require(len(set(blanket)) == len(blanket), "duplicate members in blanket")
+    # Membership first, duplicates second: being a column name is what makes a
+    # blanket member a string, and the duplicate check hashes it.
     for m in blanket:
         _require(m in columns, f"blanket member {m!r} not among columns")
+    _require(len(set(blanket)) == len(blanket), "duplicate members in blanket")
 
     col_index = {c: i for i, c in enumerate(columns)}
     t_idx = col_index[target]
@@ -164,7 +240,15 @@ def verify_markov_blanket(result: dict) -> None:
 
     # --- build the test-specific ci closure + field checker -------------------
     if test == "fisherz":
-        R = np.asarray(result.get("correlation"), dtype=float)
+        # ``asarray`` is where untyped JSON becomes numbers; a ragged or
+        # non-numeric matrix makes it raise, and that raise is a structural
+        # inconsistency like any other, so it is reported as one.
+        try:
+            R = np.asarray(result.get("correlation"), dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise VerificationError(
+                f"correlation must be a {p}x{p} matrix of numbers"
+            ) from exc
         _require(R.shape == (p, p), f"correlation shape {R.shape} != ({p}, {p})")
         _require(np.allclose(R, R.T, atol=1e-8), "correlation matrix is not symmetric")
         _require(np.allclose(np.diag(R), 1.0, atol=1e-6), "correlation diagonal is not 1")
@@ -177,10 +261,10 @@ def verify_markov_blanket(result: dict) -> None:
             "correlation matrix is not positive semi-definite",
         )
 
-        def ci(i, cond):
+        def ci(i: int, cond: tuple[int, ...]) -> float:
             return _fisher_z_pvalue(R, t_idx, i, cond, n)
 
-        def check_fields(rec, i, cond, pv):
+        def check_fields(rec: dict, i: int, cond: tuple[int, ...], pv: float) -> None:
             rec_r = rec.get("partial_correlation")
             rc = _partial_corr(R, t_idx, i, cond)
             _require(
@@ -189,26 +273,34 @@ def verify_markov_blanket(result: dict) -> None:
                 f"recomputed {rc:.6g}",
             )
     elif test == "chisq":
-        cont = result.get("contingency")
-        _require(isinstance(cont, dict), "chisq result needs a contingency block")
-        levels = cont.get("levels")
-        counts = cont.get("counts")
+        cont = _require_dict(
+            result.get("contingency"), "chisq result needs a contingency block"
+        )
+        levels = _require_list(
+            cont.get("levels"), "contingency.levels must have one entry per column"
+        )
         _require(
-            isinstance(levels, list) and len(levels) == p,
+            len(levels) == p,
             "contingency.levels must have one entry per column",
         )
-        cards = [len(lv) for lv in levels]
+        cards = [
+            len(_require_list(lv, "each contingency.levels entry must be a list"))
+            for lv in levels
+        ]
         _require(all(k >= 1 for k in cards), "every column needs at least one level")
-        _require(isinstance(counts, list) and counts, "contingency.counts must be non-empty")
-        joint = []
-        seen_configs = set()
+        counts = _require_non_empty_list(
+            cont.get("counts"), "contingency.counts must be non-empty"
+        )
+        joint: list[tuple[tuple[int, ...], int]] = []
+        seen_configs: set[tuple[int, ...]] = set()
         total = 0
         for row in counts:
+            pair = _require_list(row, "each count row must be [config, count]")
             _require(
-                isinstance(row, list) and len(row) == 2,
+                len(pair) == 2,
                 "each count row must be [config, count]",
             )
-            config, cnt = row
+            config, cnt = pair
             _require(
                 isinstance(config, list) and len(config) == p,
                 "each config must have one code per column",
@@ -226,10 +318,10 @@ def verify_markov_blanket(result: dict) -> None:
             total += cnt
         _require(total == n, f"contingency counts sum to {total}, expected n={n}")
 
-        def ci(i, cond):
+        def ci(i: int, cond: tuple[int, ...]) -> float:
             return _chi_square(joint, cards, t_idx, i, cond)[2]
 
-        def check_fields(rec, i, cond, pv):
+        def check_fields(rec: dict, i: int, cond: tuple[int, ...], pv: float) -> None:
             stat, dof, _ = _chi_square(joint, cards, t_idx, i, cond)
             rec_s = rec.get("statistic")
             rec_d = rec.get("dof")
@@ -245,7 +337,17 @@ def verify_markov_blanket(result: dict) -> None:
         raise VerificationError(f"unknown test type {test!r}")
 
     # --- recompute the definition + cross-check the recorded tests ------------
-    recorded = {t.get("variable"): t for t in tests if isinstance(t, dict)}
+    # Keyed by the variable name each entry claims. Building this dict hashes
+    # that name and the coverage check below sorts it against the column names,
+    # so the name is type-checked on the way in — a non-string one has to be
+    # rejected *here*, before it reaches a comparison that is not defined for
+    # it, not diagnosed afterwards.
+    recorded: dict[str, dict] = {}
+    for entry in tests:
+        if not isinstance(entry, dict):
+            continue  # a non-dict entry is caught by the count check below
+        name = entry.get("variable")
+        recorded[_require_str(name, f"test variable {name!r} must be a string")] = entry
     _require(
         len(recorded) == len(tests),
         "tests contain a non-dict entry or duplicate variable",
@@ -284,10 +386,16 @@ def verify_markov_blanket(result: dict) -> None:
             rec.get("role") == role,
             f"test for {var!r} claims role {rec.get('role')!r}, recomputed {role!r}",
         )
-        _require(
-            sorted(rec.get("conditioning_set", [])) == sorted(columns[x] for x in cond),
-            f"test for {var!r} has a mismatched conditioning set",
-        )
+        # A conditioning set that is not a list of names cannot equal the one
+        # recomputed here, so its shape is part of the same mismatch verdict
+        # rather than a separate complaint — but it has to be established
+        # before ``sorted`` assumes it.
+        cond_msg = f"test for {var!r} has a mismatched conditioning set"
+        rec_cond = [
+            _require_str(c, cond_msg)
+            for c in _require_list(rec.get("conditioning_set", []), cond_msg)
+        ]
+        _require(sorted(rec_cond) == sorted(columns[x] for x in cond), cond_msg)
         _require(
             bool(rec.get("passed")) is passed,
             f"test for {var!r} claims passed={rec.get('passed')!r}, recomputed {passed}",

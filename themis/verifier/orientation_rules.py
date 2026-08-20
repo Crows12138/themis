@@ -45,6 +45,15 @@ def _require(condition: bool, message: str) -> None:
         raise VerificationError(message)
 
 
+def _require_list(value: object, message: str) -> list:
+    """Same guard as ``_require(isinstance(value, list), message)``, but it
+    hands the checked value back so the caller holds a ``list`` rather than
+    the untyped ``dict.get`` result."""
+    if not isinstance(value, list):
+        raise VerificationError(message)
+    return value
+
+
 def _pair(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a <= b else (b, a)
 
@@ -201,8 +210,8 @@ def verify_orientation_propagation(result: dict) -> None:
         result.get("kind") == "orientation_propagation",
         f"not an orientation_propagation result (kind={result.get('kind')!r})",
     )
-    nodes = result.get("nodes")
-    _require(isinstance(nodes, list) and nodes, "nodes must be a non-empty list")
+    nodes = _require_list(result.get("nodes"), "nodes must be a non-empty list")
+    _require(bool(nodes), "nodes must be a non-empty list")
     _require(len(set(nodes)) == len(nodes), "duplicate node names")
     node_set = set(nodes)
 
@@ -239,8 +248,9 @@ def verify_orientation_propagation(result: dict) -> None:
 
     # asserted adjacencies (may name unknown nodes — those become conflicts —
     # so they are NOT routed through _edges, which requires known nodes)
-    raw_asserted = result.get("asserted_adjacencies", [])
-    _require(isinstance(raw_asserted, list), "asserted_adjacencies must be a list")
+    raw_asserted = _require_list(
+        result.get("asserted_adjacencies", []), "asserted_adjacencies must be a list"
+    )
     asserted = []
     for e in raw_asserted:
         _require(isinstance(e, list) and len(e) == 2,
@@ -248,8 +258,9 @@ def verify_orientation_propagation(result: dict) -> None:
         _require(e[0] != e[1], f"asserted_adjacencies has a self-loop {e!r}")
         asserted.append((e[0], e[1]))
 
-    raw_absences = result.get("asserted_absences", [])
-    _require(isinstance(raw_absences, list), "asserted_absences must be a list")
+    raw_absences = _require_list(
+        result.get("asserted_absences", []), "asserted_absences must be a list"
+    )
     absences = []
     for e in raw_absences:
         _require(isinstance(e, list) and len(e) == 2,
@@ -277,8 +288,7 @@ def verify_orientation_propagation(result: dict) -> None:
     )
 
     # --- conflicts (orientation-side and CI-independence-side, partitioned) ---
-    claimed_conflicts = result.get("conflicts")
-    _require(isinstance(claimed_conflicts, list), "conflicts must be a list")
+    claimed_conflicts = _require_list(result.get("conflicts"), "conflicts must be a list")
     claimed_orient = []
     claimed_adj = []
     claimed_abs = []
@@ -324,8 +334,7 @@ def verify_orientation_propagation(result: dict) -> None:
     )
 
     # --- provenance -----------------------------------------------------------
-    prov = result.get("provenance")
-    _require(isinstance(prov, list), "provenance must be a list")
+    prov = _require_list(result.get("provenance"), "provenance must be a list")
     _require(len(prov) == len(claimed_D), "provenance must have one entry per oriented edge")
     applied_constraints = {(a, b) for (a, b) in constraints
                            if (a, b) in D and (b, a) not in set(input_directed)}

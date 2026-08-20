@@ -763,3 +763,123 @@ def test_wrong_context_kind_is_rejected():
                        "from_atom": {"kind": "atom", "predicate": "a", "args": []},
                        "to_atom": {"kind": "atom", "predicate": "b", "args": []}}}
         )
+
+
+# ======================================= intervention values must be literals
+
+_IV_ATOM = {"kind": "atom", "predicate": "treat", "args": []}
+_IV_VALUED_ATOM = {"kind": "valued_atom", "atom": _IV_ATOM, "value": True}
+
+
+def _intervention(value):
+    return {"kind": "intervention", "atom": _IV_ATOM, "value": value}
+
+
+def _context_around(query: dict) -> dict:
+    return {
+        "version": "0.1",
+        "kind": "verification_context",
+        "graph": {"kind": "graph", "nodes": [], "edges": []},
+        "query": query,
+        "theta": None,
+    }
+
+
+# Every grammatical place a caller can spell an intervention, paired with
+# the accessor that reads it back off the decoded query.
+_INTERVENTION_SITES = [
+    pytest.param(
+        lambda v: {
+            "kind": "identify_query",
+            "target": _IV_ATOM,
+            "intervention": _intervention(v),
+            "given": [],
+        },
+        lambda q: q.intervention,
+        id="identify_query.intervention",
+    ),
+    pytest.param(
+        lambda v: {
+            "kind": "effect_query",
+            "target": _IV_VALUED_ATOM,
+            "intervention": _intervention(v),
+            "given": [],
+        },
+        lambda q: q.intervention,
+        id="effect_query.intervention",
+    ),
+    pytest.param(
+        lambda v: {
+            "kind": "effect_query",
+            "target": _IV_VALUED_ATOM,
+            "intervention": _intervention(True),
+            "given": [],
+            "extra_interventions": [_intervention(v)],
+        },
+        lambda q: q.extra_interventions[0],
+        id="effect_query.extra_interventions",
+    ),
+    pytest.param(
+        lambda v: {
+            "kind": "counterfactual_query",
+            "observed": _IV_VALUED_ATOM,
+            "counterfactual_intervention": _intervention(v),
+            "counterfactual_target": _IV_VALUED_ATOM,
+        },
+        lambda q: q.counterfactual_intervention,
+        id="counterfactual_query.counterfactual_intervention",
+    ),
+]
+
+
+@pytest.mark.parametrize(("build_query", "read_back"), _INTERVENTION_SITES)
+@pytest.mark.parametrize(
+    "not_a_literal", [None, [1, 2], {"a": 1}], ids=["null", "list", "dict"],
+)
+def test_every_intervention_site_refuses_a_non_literal_value(
+    build_query, read_back, not_a_literal,
+):
+    """Guards the one decoder with no schema standing behind it.
+
+    ``context_from_dict`` is exported from ``themis.verifier`` and runs
+    no jsonschema validation: every shape check inside it is written by
+    hand, so a check nothing reaches is a check the next refactor can
+    delete with the whole suite still green. This is that reach.
+
+    ``Intervention.value`` is annotated as a literal atom value and the
+    solvers downstream read it as one. Decoded without the check, a null
+    or a container landed inside a ``VerificationContext`` its own
+    annotation forbids, and verification then went ahead on that query —
+    so whatever broke, broke somewhere else, far from the payload that
+    caused it.
+
+    An intervention can be spelled in four grammatical places. Narrowing
+    three and leaving the fourth open is not a contract, so all four are
+    asked the same question here.
+    """
+    with pytest.raises(
+        DerivationSerializationError, match="literal atom value"
+    ):
+        context_from_dict(_context_around(build_query(not_a_literal)))
+
+
+@pytest.mark.parametrize(("build_query", "read_back"), _INTERVENTION_SITES)
+@pytest.mark.parametrize("literal", [True, False, 0, 1.5, "sunny"])
+def test_literal_intervention_values_survive_the_narrowing_unchanged(
+    build_query, read_back, literal,
+):
+    """Interventions were never boolean-only, and the check above must
+    not quietly make them so.
+
+    ``do(weather = "sunny")`` and ``do(dose = 1.5)`` are inside the
+    language, so a guard spelled "must be a bool" would read as a bug
+    fix and land as a contract change, shrinking what an external tool
+    is allowed to hand the verifier. This holds the accepted set at
+    exactly the literal atom values, type included: ``0`` must come back
+    as ``0`` and not as ``False``.
+    """
+    query = context_from_dict(_context_around(build_query(literal))).query
+    value = read_back(query).value
+
+    assert value == literal
+    assert type(value) is type(literal)

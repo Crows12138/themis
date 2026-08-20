@@ -576,6 +576,98 @@ def test_apply_edge_refusals_keeps_multiple_same_kind_audit_records():
     ]
 
 
+# ========================== the refusal shape gate (one gate, four readers)
+
+
+def _refusal_carrying_pattern(pattern) -> dict:
+    ref = _refusal("eating_ice_cream", "drowning", "hot weather does both")
+    ref["pattern"] = pattern
+    return {"edges": [], "refusals": [ref]}
+
+
+def test_malformed_refusal_pattern_is_refused_not_quietly_generalised():
+    """A pattern the code cannot read must stop the merge, not evaporate.
+
+    ``pattern`` is what makes a refusal legible downstream: the reader
+    sees ``confounder_refusal``, which says *why* the edge was dropped,
+    rather than the bare ``edge_refusal``, which says only *that* it
+    was. Let a refusal through carrying an unusable pattern and it
+    arrives as the generic kind with nothing, anywhere, recording that
+    the narrative's stated reason was discarded — the loss is invisible
+    at exactly the surface that exists to be an audit trail. Refusing
+    the input keeps the two remaining routes to the generic kind honest
+    ones: no pattern was given, or a pattern name we cannot yet map.
+    """
+    program = _empty_program(["eating_ice_cream", "drowning"])
+    with pytest.raises(ExtractionShapeError, match=r"refusals\[0\]\.pattern"):
+        apply_edge_refusals(program, _refusal_carrying_pattern(["confounder"]))
+
+
+@pytest.mark.parametrize("reader", ["merge", "links", "diagnose", "apply"])
+def test_every_refusal_reader_shares_the_one_shape_gate(reader):
+    """Whichever door a refusal enters by, the same fields get checked.
+
+    ``_require_refusals_list`` is the single shape gate and these four
+    are all of its callers. Putting a field's check into whichever
+    translator happens to consume it — ``pattern`` is read only by
+    ``_refusal_ambiguity``, on the ``apply`` path — would guard that one
+    path and let the other three carry the malformed value onward, into
+    a merged extraction that later stages then have every reason to
+    trust. This test is what stops the check drifting back downstream.
+    """
+    extraction = _refusal_carrying_pattern({"name": "confounder"})
+    program = _empty_program(["eating_ice_cream", "drowning"])
+    reach_the_gate = {
+        "merge": lambda: merge_edge_extractions(extraction),
+        "links": lambda: apply_predicate_links_to_edges(
+            extraction, {"kind": "predicate_link_bundle", "links": []}
+        ),
+        "diagnose": lambda: diagnose_edge_predicate_links(program, extraction),
+        "apply": lambda: apply_edge_refusals(program, extraction),
+    }[reader]
+    with pytest.raises(ExtractionShapeError, match=r"refusals\[0\]\.pattern"):
+        reach_the_gate()
+
+
+def test_a_refusal_that_names_no_pattern_is_still_a_refusal():
+    """The gate rejects malformed patterns, not unlabelled refusals.
+
+    ``narrative_to_edges.md`` lets a refusal decline to classify itself.
+    Hardening the gate into "pattern is required" would convert that
+    ordinary case into a shape error — the mirror-image failure of the
+    one the gate was added for, and a far commoner input.
+    """
+    program = _empty_program(["eating_ice_cream", "drowning"])
+    extraction = {
+        "edges": [],
+        "refusals": [_refusal("eating_ice_cream", "drowning", "hot weather")],
+    }
+
+    out = apply_edge_refusals(program, extraction)
+
+    kinds = [item["kind"] for item in out["extensions"]["ambiguities"]]
+    assert kinds == ["edge_refusal"]
+
+
+def test_a_pattern_name_we_cannot_map_yet_still_reaches_the_reader():
+    """An unrecognised pattern name must fall back, not fail.
+
+    The prompt's pattern vocabulary is free to grow ahead of the table
+    that maps names to ambiguity kinds. A refusal naming a pattern
+    Themis has not been taught is well-formed input that merely has no
+    more specific kind available. Narrowing the gate from "is a string"
+    to "is one of these four" would reject the whole narrative instead
+    of degrading to the generic kind — a much worse answer, and the
+    tempting over-correction once a pattern check exists at all.
+    """
+    program = _empty_program(["eating_ice_cream", "drowning"])
+
+    out = apply_edge_refusals(program, _refusal_carrying_pattern("mutual_causation"))
+
+    kinds = [item["kind"] for item in out["extensions"]["ambiguities"]]
+    assert kinds == ["edge_refusal"]
+
+
 def test_merge_narrative_ambiguities_into_program_preserves_prompt_decision():
     base = _empty_program(["drinks_coffee", "alertness"])
     edge_extraction = json.loads(

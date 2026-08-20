@@ -36,6 +36,8 @@ Every in-language query surfaces a result; no silent drops.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from functools import cached_property
 from itertools import product
 from typing import NamedTuple
@@ -98,6 +100,7 @@ from . import (
     theta_builder,
 )
 from .numeric_estimator import (
+    AtomValue,
     InsufficientTheta,
     ProbabilityKey,
     Theta,
@@ -307,6 +310,11 @@ def _dispatch_identify(
     # query is not nonparametrically identifiable. See
     # PHASE_15_ID_FOUNDATION_CHARTER.md.
     from . import c_factor
+    # One name for the engine verdict, two shapes behind it: the
+    # conditional query's IDC result and the unconditional query's ID
+    # result. Everything read off it below (``identifiable``, ``hedge``)
+    # is what the two shapes share.
+    engine: "c_factor.IdcResult | c_factor.TianResult"
     if q.given:
         engine = c_factor.identify_via_idc(
             graph, bidirected, x, y, q.given, q.intervention.value,
@@ -959,6 +967,7 @@ def _dispatch_mediation(
             tuple(sorted(mediation.cde.adjustment, key=_atom_to_str))
             if mediation.cde.identifiable else None
         )
+        evaluation_step_id = "s4"
         numeric_block, numeric_step = _evaluate_mediation_numerically(
             target=q.target,
             x_atom=x,
@@ -969,7 +978,7 @@ def _dispatch_mediation(
             nde_nie_adj=nde_nie_adj,
             cde_adj=cde_adj,
             observed=q.given,
-            step_id="s4",
+            step_id=evaluation_step_id,
             graph=graph,
             bidirected=bidirected,
         )
@@ -991,7 +1000,7 @@ def _dispatch_mediation(
                     numeric_step,
                     DerivationStep(
                         rule="numeric_result",
-                        inputs={"evaluation": StepRef(step_id=numeric_step.step_id)},
+                        inputs={"evaluation": StepRef(step_id=evaluation_step_id)},
                         output=numeric_result,
                         step_id="s5",
                     ),
@@ -1180,6 +1189,7 @@ def _dispatch_mediation_joint(
             tuple(sorted(mediation.cde.adjustment, key=_atom_to_str))
             if mediation.cde.identifiable else None
         )
+        evaluation_step_id = "s4"
         numeric_block, numeric_step = _evaluate_mediation_numerically(
             target=q.target,
             x_atom=x,
@@ -1190,7 +1200,7 @@ def _dispatch_mediation_joint(
             nde_nie_adj=nde_nie_adj,
             cde_adj=cde_adj,
             observed=q.given,
-            step_id="s4",
+            step_id=evaluation_step_id,
             graph=graph,
             bidirected=bidirected,
         )
@@ -1210,7 +1220,7 @@ def _dispatch_mediation_joint(
                     numeric_step,
                     DerivationStep(
                         rule="numeric_result",
-                        inputs={"evaluation": StepRef(step_id=numeric_step.step_id)},
+                        inputs={"evaluation": StepRef(step_id=evaluation_step_id)},
                         output=numeric_result,
                         step_id="s5",
                     ),
@@ -1742,7 +1752,7 @@ def _missing_parameter_from_key(
 def _atom_to_json(atom: Atom) -> dict:
     """Render an Atom as the same JSON shape the kernel_ast schema uses
     for ``atom`` — so a skeleton is paste-ready."""
-    d = {
+    d: dict[str, object] = {
         "predicate": atom.predicate,
         "args": [
             {"type": "const", "name": t.name}
@@ -1777,11 +1787,42 @@ def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
     }
 
 
-class ObservationalJoint(NamedTuple):
+@dataclass(frozen=True)
+class ObservationalJoint:
+    """The recovered cells, or the gap that stands in their place.
+
+    ``cells`` is None exactly when ``missing`` is non-empty: a producer
+    either fills the four cells and reports nothing missing, or reports
+    what it lacked and fills nothing. Callers guard on ``cells``, which is
+    the thing they go on to read — guarding on ``missing`` instead tests
+    the same fact one indirection away and leaves the cells they then
+    index unaccounted for.
+
+    The two ways of breaking it are refused here rather than left to the
+    producers to remember, because each turns an incomplete recovery into
+    a report that does not admit to being one. No cells and nothing named
+    reaches the reader as a needs_investigation that asks for more data
+    without saying which — told to go and measure, handed no name. Cells
+    beside a non-empty ``missing`` is the mirror: the door computes an
+    answer over the cells and drops the shortfall on the floor, because
+    on that branch nobody reads ``missing`` again. Refusing both at
+    construction keeps the failure at the producer, which is the last
+    place where what is missing still has a name.
+    """
+
     cells: dict[tuple[bool, bool], float] | None
     missing: tuple[MissingItem, ...]
     skeletons: dict
     ancestral: AncestralJoint | None
+
+    def __post_init__(self) -> None:
+        if (self.cells is None) != bool(self.missing):
+            raise ValueError(
+                "ObservationalJoint carries either four cells and nothing "
+                "missing, or no cells and the names of what it lacked; got "
+                f"cells={'absent' if self.cells is None else 'present'} "
+                f"beside {len(self.missing)} missing item(s)"
+            )
 
 
 def _observational_joint_xy(
@@ -2021,7 +2062,7 @@ def _required_observational_probability_keys(
 def _ancestral_assignments(
     topo: tuple[Atom, ...],
     theta: Theta,
-):
+) -> "Iterator[dict[Atom, AtomValue]]":
     domains = [_counterfactual_factorization_domain(theta, atom) for atom in topo]
     for values in product(*domains):
         yield dict(zip(topo, values))
@@ -2029,7 +2070,7 @@ def _ancestral_assignments(
 
 def _assignment_probability_key(
     atom: Atom,
-    assignment: dict[Atom, object],
+    assignment: "Mapping[Atom, AtomValue]",
     conditioning: tuple[Atom, ...],
 ) -> ProbabilityKey:
     return ProbabilityKey(
@@ -2061,7 +2102,7 @@ def _probability_key_sort_key(key: ProbabilityKey) -> tuple:
 def _counterfactual_factorization_domain(
     theta: Theta,
     atom: Atom,
-) -> tuple:
+) -> "tuple[AtomValue, ...]":
     domain = tuple(theta.domain_of(atom))
     if domain and set(domain) <= {False, True}:
         return (False, True)
@@ -2185,7 +2226,7 @@ def _dispatch_counterfactual(
     q: CounterfactualQuery = stmt.query  # type: ignore[assignment]
 
     try:
-        joint_xy, missing, skeletons, ancestral = _observational_joint_xy(
+        recovered = _observational_joint_xy(
             theta, graph,
             x_atom=q.observed.atom,
             y_atom=q.counterfactual_target.atom,
@@ -2202,14 +2243,15 @@ def _dispatch_counterfactual(
                 reason=str(exc),
             ),
         )
-    if missing:
+    joint_xy, ancestral = recovered.cells, recovered.ancestral
+    if joint_xy is None:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
             query_kind=QueryKind.COUNTERFACTUAL,
             query_id=stmt.id,
-            missing_information=missing,
+            missing_information=recovered.missing,
             investigation_requests=investigation_pusher.push(
-                missing, skeletons=skeletons
+                recovered.missing, skeletons=recovered.skeletons
             ),
         )
 
@@ -2977,9 +3019,10 @@ def _dispatch_causation(
     # reached the reader as a list of distributions to go and collect. The
     # same graph WITH theta reports it correctly, which is the tell: what
     # changed was not the graph but how far the code got.
-    joint, joint_missing, joint_skeletons, ancestral = _observational_joint_xy(
+    recovered = _observational_joint_xy(
         theta, graph, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
     )
+    joint, ancestral = recovered.cells, recovered.ancestral
     risk_missing: tuple[MissingItem, ...] = ()
     risk_requests: tuple[InvestigationRequest, ...] = ()
     if (
@@ -3000,7 +3043,7 @@ def _dispatch_causation(
         # returns before anything reads the two names left unbound here.
         risk_provenance = RiskProvenance.DERIVED_IDENTIFICATION
 
-    if risk_missing and not joint_missing:
+    if risk_missing and joint is not None:
         # Tian-Pearl's closed form has nothing to consume, and this is the
         # same question the counterfactual door asks — PN is one of its
         # cells. Asking the instrument here too is not an extra feature: a
@@ -3013,16 +3056,16 @@ def _dispatch_causation(
         # there holding a joint of None.
         return _causation_over_the_instrument(
             stmt, graph, theta, q, joint, ancestral,
-            joint_skeletons=joint_skeletons,
+            joint_skeletons=recovered.skeletons,
             risk_missing=risk_missing,
             risk_requests=risk_requests,
             x_atom=x_atom, y_atom=y_atom,
         )
-    if joint_missing or risk_missing:
+    if joint is None or risk_missing:
         return _causation_gap(
             stmt,
-            joint_missing=tuple(joint_missing),
-            joint_skeletons=joint_skeletons,
+            joint_missing=recovered.missing,
+            joint_skeletons=recovered.skeletons,
             risk_missing=risk_missing,
             risk_requests=risk_requests,
         )
@@ -4663,7 +4706,7 @@ def _dispatch_longitudinal(
         "assumptions": list(_LONGITUDINAL_STRUCTURAL_ASSUMPTIONS),
     }
 
-    if not identified:
+    if first_failed is not None:
         k, a_k = first_failed
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -4864,7 +4907,7 @@ def _identify_general(facts: _EffectFacts) -> _Attempt:
         tian = _c_factor.identify_via_tian(
             graph, bidirected, x, y_atom, q.intervention.value,
         )
-        if not tian.identifiable:
+        if not (tian.identifiable and tian.formula is not None):
             return _Attempt()
         # Bind q.target.value into the Tian formula's outer Y ProbRefs
         # (c_factor leaves them None for the IdentifyQuery caller).
@@ -4964,15 +5007,33 @@ def _identify_general(facts: _EffectFacts) -> _Attempt:
     ))
 
 
+def _identify_longitudinal(facts: _EffectFacts) -> _Attempt:
+    """Phase 7.L: sequential g-formula over the declared treatment
+    trajectory.
+
+    The route's guard is ``declares_longitudinal``, and what that guard
+    tests is the spec being there — so reaching here without one is the
+    route table and this table disagreeing, not a query shape.
+    """
+    spec = facts.longitudinal_spec
+    if spec is None:
+        raise AssertionError(
+            "longitudinal identification reached with no longitudinal "
+            "spec; the route's applies_when tests for one"
+        )
+    return _Attempt(_dispatch_longitudinal(
+        facts.stmt, facts.graph, facts.query, spec,
+        bidirected=facts.bidirected,
+    ))
+
+
 # The identification end of every route that declares one. Binding by id
 # against the shared table is what makes a strategy the table promises and
 # this layer never runs impossible: ``routing.bind`` refuses both halves of
 # that mistake — a route with no implementation here, and an implementation
 # for a route the table does not send this way.
 _EFFECT_IDENTIFICATION = routing.bind(routing.End.IDENTIFICATION, {
-    "longitudinal": lambda f: _Attempt(_dispatch_longitudinal(
-        f.stmt, f.graph, f.query, f.longitudinal_spec, bidirected=f.bidirected,
-    )),
+    "longitudinal": _identify_longitudinal,
     "joint_intervention": lambda f: _Attempt(_dispatch_joint_effect(
         f.stmt, f.graph, f.query, f.x_atom, f.y_atom, f.extra_atoms,
         f.given_atoms, bidirected=f.bidirected,
@@ -5255,7 +5316,7 @@ def _dispatch_probability(
     smoking-tar-cancer chain) is the regression that catches it.
     """
     q: ProbabilityQuery = stmt.query  # type: ignore[assignment]
-    formula = formula_builder._conditional(  # type: ignore[attr-defined]
+    formula = formula_builder._conditional(
         q.target,
         q.given,
     )
@@ -6031,7 +6092,8 @@ def _attach_missing_data_recovery(
     try:
         adj_sets = structural_solver.minimal_adjustment_sets(graph, x, y, given=given)
         if adj_sets:
-            z = tuple(sorted(min(adj_sets, key=len), key=lambda a: a.predicate))
+            smallest = min(adj_sets, key=len)
+            z = tuple(sorted(smallest, key=lambda a: a.predicate))
     except Exception:
         z = ()
     est = analyze_missing_data_estimand(graph, indicators, y, x, given=given, z=z)
@@ -6537,20 +6599,21 @@ def _reconcile_alt_paths_with_bounds(
         result.query_kind == QueryKind.EFFECT
         and result.status == ResultStatus.NEEDS_INVESTIGATION
     )
-    bounds_present = bool(result.bounds_results)
+    # The line that replaces a static bounds promise, and the record that
+    # there are bounds to point at — one thing, not two names for it. It
+    # exists exactly when ``bounds_results`` is non-empty.
+    bounds_pointer: str | None = None
+    if result.bounds_results:
+        methods = ", ".join(b.method.value for b in result.bounds_results)
+        bounds_pointer = (
+            f"已计算 bounds（method={methods}）— 见 bounds_results"
+        )
 
-    if not bounds_attempted and not bounds_present:
+    if not bounds_attempted and bounds_pointer is None:
         return result
 
     def _is_bounds_hint(s: str) -> bool:
         return any(tok in s for tok in _BOUNDS_HINT_TOKENS)
-
-    concrete = None
-    if bounds_present:
-        methods = ", ".join(b.method.value for b in result.bounds_results)
-        concrete = (
-            f"已计算 bounds（method={methods}）— 见 bounds_results"
-        )
 
     new_gaps = []
     changed = False
@@ -6561,24 +6624,24 @@ def _reconcile_alt_paths_with_bounds(
         for alt in gap.alternative_paths:
             if _is_bounds_hint(alt):
                 had_bounds_mention = True
-                if bounds_present:
-                    if concrete not in rewritten:
-                        rewritten.append(concrete)
+                if bounds_pointer is not None:
+                    if bounds_pointer not in rewritten:
+                        rewritten.append(bounds_pointer)
                 # else: bounds attempt ran and gave None → drop the
                 # misleading static promise rather than re-emit it
                 gap_changed = True
             else:
                 rewritten.append(alt)
         if (
-            bounds_present
+            bounds_pointer is not None
             and gap.severity == GapSeverity.BLOCKING
             and not had_bounds_mention
-            and concrete not in rewritten
+            and bounds_pointer not in rewritten
         ):
             # Prepend so actionable_next_steps (which surfaces only the
             # first alt) shows the already-computed fallback ahead of
             # heavier structural suggestions like 'do an RCT'.
-            rewritten.insert(0, concrete)
+            rewritten.insert(0, bounds_pointer)
             gap_changed = True
         if gap_changed:
             new_gaps.append(_replace(gap, alternative_paths=tuple(rewritten)))
@@ -6592,7 +6655,7 @@ def _reconcile_alt_paths_with_bounds(
     from ..output.data_gap_report import _make_actionable_steps
 
     new_steps = list(_make_actionable_steps(list(new_gaps)))
-    if bounds_present:
+    if bounds_pointer is not None:
         # Subagent real-test caught: with bounds attached, the
         # actionable_next_steps "或：已计算 bounds — 见 bounds_results"
         # line duplicates the pointer that's already in alt_paths AND

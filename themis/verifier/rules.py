@@ -19,13 +19,14 @@ from __future__ import annotations
 
 import math
 from itertools import product
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 import networkx as nx
 
 from ..runtime.numeric_estimator import ProbabilityKey, Theta
 from ..types import (
     Atom,
+    AtomValue,
     BindDecl,
     CausationQuery,
     ConstantExpr,
@@ -206,7 +207,7 @@ def _rule_backdoor_criterion(
     forbidden = nx.descendants(graph, x) | {x, y}
     leg_i = conditioning.isdisjoint(forbidden)
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
     if leg_i:
         if bidir:
             # Phase 2.latent S4: on ADMG contexts the leg-ii check is
@@ -546,7 +547,7 @@ def _rule_joint_backdoor_criterion(
         allow_missing=True,
     )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     if not treatments or y in treatments or y not in graph:
         recomputed = False
@@ -927,7 +928,7 @@ def _rule_front_door_criterion(
             fd1 = False
             break
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     # FD2
     fd2 = True
@@ -1044,7 +1045,7 @@ def _build_expected_front_door_formula(
             )
         )
 
-    body = ProductExpr(terms=tuple(chain_factors) + (inner_sum,))
+    body: FormulaExpr = ProductExpr(terms=tuple(chain_factors) + (inner_sum,))
     for z_atom, z_bind in reversed(list(zip(mediators, z_binds))):
         body = SumExpr(bind=z_bind, over=z_atom, body=body)
     return body
@@ -1205,18 +1206,17 @@ def _rule_iv_criterion_check(
             step_index=step_index, rule="iv_criterion_check",
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
-    w_tuple = tuple(w)
+    bidir = ctx.bidirected
 
     # IV1 (relevance): Z and X m-connected given W in original G.
-    iv1 = _verifier_is_m_connected(graph, bidir, z, x, w_tuple)
+    iv1 = _verifier_is_m_connected(graph, bidir, z, x, w)
 
     # IV2 + IV3 (exogeneity + exclusion): in G with X's outgoing edges
     # removed, Z is m-separated from Y given W. Build mutilated graph
     # independently here — no delegation to structural_solver.
     mutilated = graph.copy()
     mutilated.remove_edges_from(list(mutilated.out_edges(x)))
-    iv23 = not _verifier_is_m_connected(mutilated, bidir, z, y, w_tuple)
+    iv23 = not _verifier_is_m_connected(mutilated, bidir, z, y, w)
 
     recomputed = iv1 and iv23
     if recomputed != bool(claimed_output):
@@ -1286,51 +1286,57 @@ def _rule_general_id_criterion(
             step_index=step_index, rule="general_id_criterion",
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
     # Identifiability is independent of the intervention value; use the
     # query's value when available, else a boolean placeholder.
     x_value = True
     given_atoms: tuple = ()
-    extra_atoms: tuple = ()
-    q = getattr(ctx, "query", None)
-    if q is not None and getattr(q, "intervention", None) is not None:
-        x_value = q.intervention.value
-    if q is not None and getattr(q, "given", None):
-        given_atoms = tuple(g.atom for g in q.given)
-    if q is not None and getattr(q, "extra_interventions", None):
-        extra_atoms = tuple(iv.atom for iv in q.extra_interventions)
+    # The joint treatment SET is read from the QUERY (never a producer input),
+    # so a producer cannot drop a treatment to make a harder joint effect look
+    # identifiable. ``extra_interventions`` is an EffectQuery field, and that
+    # query always carries the primary ``intervention`` beside it, so the set
+    # is complete exactly when the extras are.
+    joint_treatments: frozenset = frozenset()
+    intervention = getattr(ctx.query, "intervention", None)
+    if intervention is not None:
+        x_value = intervention.value
+        extras = getattr(ctx.query, "extra_interventions", None)
+        if extras:
+            joint_treatments = frozenset(
+                {intervention.atom, *(iv.atom for iv in extras)}
+            )
+    given = getattr(ctx.query, "given", None)
+    if given:
+        given_atoms = tuple(g.atom for g in given)
 
-    if extra_atoms and given_atoms:
+    if joint_treatments and given_atoms:
         # Conditional JOINT effect P(Y | do(A, B, …), Z): out of v1 scope —
         # there is no supported estimand, so no derivation can ever license a
         # number here. Recompute False so a tampered "identifiable" claim on
         # a conditional joint query is rejected.
         recomputed = False
-    elif extra_atoms:
+    elif joint_treatments:
         # Joint intervention do(X, extras…) → set-valued Shpitser-Pearl ID.
-        # The treatment SET is read from the QUERY (never a producer input),
-        # so a producer cannot drop a treatment to make a harder joint effect
-        # look identifiable. The declared primary x must be one of the query's
-        # joint treatments.
-        x_set = frozenset({q.intervention.atom, *extra_atoms})
-        if x not in x_set:
+        # The declared primary x must be one of the query's joint treatments.
+        if x not in joint_treatments:
             raise RuleCheckFailed(
                 "general_id_criterion: joint criterion's x must be one of the "
                 "query's joint treatments",
                 step_index=step_index, rule="general_id_criterion",
             )
-        res = c_factor.identify_via_tian_joint(graph, bidir, x_set, y, x_value)
-        recomputed = bool(res.identifiable and res.formula is not None)
+        joint_res = c_factor.identify_via_tian_joint(
+            graph, bidir, joint_treatments, y, x_value)
+        recomputed = bool(joint_res.identifiable and joint_res.formula is not None)
     elif given_atoms:
         # Conditional query → IDC licence (see docstring). Read the
         # conditioning from the query itself, so the check is against the
         # real P(Y | do(X), Z) — never a producer-narrowed one.
-        res = c_factor.identify_via_idc(
+        idc_res = c_factor.identify_via_idc(
             graph, bidir, x, y, given_atoms, x_value)
-        recomputed = bool(res.identifiable and res.formula is not None)
+        recomputed = bool(idc_res.identifiable and idc_res.formula is not None)
     else:
-        res = c_factor.identify_via_tian(graph, bidir, x, y, x_value)
-        recomputed = bool(res.identifiable and res.formula is not None)
+        tian_res = c_factor.identify_via_tian(graph, bidir, x, y, x_value)
+        recomputed = bool(tian_res.identifiable and tian_res.formula is not None)
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
             f"general_id_criterion claimed {claimed_output!r}, but the ID "
@@ -1382,7 +1388,7 @@ def _rule_ctf_conjunction_criterion(
             step_index=step_index, rule="ctf_conjunction_criterion",
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     def _to_gamma(events):
         return tuple(
@@ -1461,7 +1467,7 @@ def _rule_id_star_identification(
             step_index=step_index, rule="id_star_identification",
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     def _to_gamma(events):
         return tuple(
@@ -1590,7 +1596,7 @@ def _rule_iv_wald_numeric_evaluate(
     # conditioning set is not a LATE at all, so the instrument check is
     # part of THIS step's obligation, not a neighbour's.
     graph = ctx.graph
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
     for name, atom in (("target", y_atom), ("treatment", x_atom),
                        ("instrument", z_atom)):
         if atom not in graph:
@@ -1604,8 +1610,8 @@ def _rule_iv_wald_numeric_evaluate(
             f"outcome or instrument",
             step_index=step_index, rule=RULE,
         )
-    w_tuple = tuple(conditioning)
-    if not _verifier_is_m_connected(graph, bidir, z_atom, x_atom, w_tuple):
+    w_set = frozenset(conditioning)
+    if not _verifier_is_m_connected(graph, bidir, z_atom, x_atom, w_set):
         raise RuleCheckFailed(
             f"{RULE}: instrument is not m-connected to the treatment given "
             f"the recorded conditioning set — IV1 (relevance) fails, so the "
@@ -1614,7 +1620,7 @@ def _rule_iv_wald_numeric_evaluate(
         )
     mutilated = graph.copy()
     mutilated.remove_edges_from(list(mutilated.out_edges(x_atom)))
-    if _verifier_is_m_connected(mutilated, bidir, z_atom, y_atom, w_tuple):
+    if _verifier_is_m_connected(mutilated, bidir, z_atom, y_atom, w_set):
         raise RuleCheckFailed(
             f"{RULE}: instrument is m-connected to the outcome given the "
             f"recorded conditioning set in G[x-bar] — IV2/IV3 (exclusion + "
@@ -1735,6 +1741,90 @@ def _rule_iv_wald_numeric_evaluate(
             claimed_output, key, val,
             step_index=step_index, rule=RULE, where="output",
         )
+
+
+def _require_reported_probability(
+    holder: dict,
+    key: str,
+    *,
+    step_index: int,
+    rule: str,
+) -> float:
+    """The probability ``holder[key]`` reports, checked and handed back.
+
+    Returning the checked value is what lets the caller go on reasoning about
+    a number: a check that only raises leaves the reader (and the reader's
+    type checker) holding whatever the step happened to put there."""
+    value = holder.get(key)
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not (0.0 <= value <= 1.0)
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.{key} must be a probability in [0, 1]; got {value!r}",
+            step_index=step_index, rule=rule,
+        )
+    return value
+
+
+def _envelope_number(
+    envelope: dict,
+    key: str,
+    *,
+    step_index: int,
+    rule: str,
+    where: str,
+) -> float:
+    """The finite number the claimed envelope reports at ``key``.
+
+    The envelope is the producer's claim, so an entry that is not a finite
+    number is a malformed claim to reject, and it has to be rejected *here*
+    because neither way of failing survives being passed on. A non-number
+    leaves the verifier as whatever ``float`` raises on it rather than as a
+    verdict — and asking merely whether ``float`` would accept the type is
+    not enough, because ``float`` converts an ``int`` but *parses* a ``str``,
+    so a string that is not a numeral gets through a type test and blows up
+    on the next line. A NaN fails in the opposite direction: it is a genuine
+    ``float``, every ``abs(claimed - expected) > tol`` comparison downstream
+    is False against it, so an unguarded NaN bound is silently *certified*
+    instead of raised on."""
+    value = envelope.get(key)
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+    ):
+        raise RuleCheckFailed(
+            f"{rule}: {where} reports {key}={value!r}, "
+            f"which is not a finite number",
+            step_index=step_index, rule=rule,
+        )
+    return float(value)
+
+
+def _require_number_column(
+    value: object,
+    name: str,
+    *,
+    step_index: int,
+    rule: str,
+) -> tuple[float, ...]:
+    """One column of a per-stratum table, checked and handed back."""
+    if not isinstance(value, tuple) or not value:
+        raise RuleCheckFailed(
+            f"{rule}.{name} must be a non-empty tuple; got {value!r}",
+            step_index=step_index, rule=rule,
+        )
+    if any(
+        not isinstance(v, (int, float)) or isinstance(v, bool)
+        for v in value
+    ):
+        raise RuleCheckFailed(
+            f"{rule}.{name} must hold numbers",
+            step_index=step_index, rule=rule,
+        )
+    return value
 
 
 def _pin_number(
@@ -1872,7 +1962,7 @@ def _rule_mediation_nde_nie_check(
             step_index=step_index, rule="mediation_nde_nie_check",
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     # M4: W has no X-descendants. Compute descendants from the directed
     # edges of G directly (BFS), without importing networkx.descendants.
@@ -1882,25 +1972,23 @@ def _rule_mediation_nde_nie_check(
     else:
         m4 = True
 
-    w_tuple = tuple(w)
-
     # Build G\bar{X} (X's outgoing edges removed)
     g_bar_x = graph.copy()
     g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
 
     # M1: Y ⊥ X | W in G\bar{X}
-    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w_tuple)
+    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w)
 
     # M2: M ⊥ X | W in G\bar{X}
-    m2 = not _verifier_is_m_connected(g_bar_x, bidir, x, m, w_tuple)
+    m2 = not _verifier_is_m_connected(g_bar_x, bidir, x, m, w)
 
     # Build G\bar{M} (M's outgoing edges removed)
     g_bar_m = graph.copy()
     g_bar_m.remove_edges_from(list(g_bar_m.out_edges(m)))
 
     # M3: Y ⊥ M | X, W in G\bar{M}
-    xw_tuple = tuple(w | {x})
-    m3 = not _verifier_is_m_connected(g_bar_m, bidir, m, y, xw_tuple)
+    xw = w | {x}
+    m3 = not _verifier_is_m_connected(g_bar_m, bidir, m, y, xw)
 
     recomputed = m1 and m2 and m3 and m4
     if recomputed != bool(claimed_output):
@@ -1950,7 +2038,7 @@ def _rule_mediation_cde_check(
             step_index=step_index, rule="mediation_cde_check",
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     # C2: W has no descendants of X or M
     x_desc = _verifier_directed_descendants(graph, x)
@@ -1960,16 +2048,14 @@ def _rule_mediation_cde_check(
     else:
         c2 = True
 
-    w_tuple = tuple(w)
-
     # Build G\bar{XM}: remove X's and M's outgoing edges
     g_bar_xm = graph.copy()
     g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(x)))
     g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(m)))
 
     # C1: both Y ⊥ X and Y ⊥ M given W in G\bar{XM}
-    c1_x = not _verifier_is_m_connected(g_bar_xm, bidir, x, y, w_tuple)
-    c1_m = not _verifier_is_m_connected(g_bar_xm, bidir, m, y, w_tuple)
+    c1_x = not _verifier_is_m_connected(g_bar_xm, bidir, x, y, w)
+    c1_m = not _verifier_is_m_connected(g_bar_xm, bidir, m, y, w)
     c1 = c1_x and c1_m
 
     recomputed = c1 and c2
@@ -2091,23 +2177,21 @@ def _rule_mediation_nde_nie_joint_check(
             step_index=step_index, rule=rule,
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     # M4: W has no X-descendants.
     x_desc = _verifier_directed_descendants(graph, x)
     m4 = not (w & x_desc)
-
-    w_tuple = tuple(w)
 
     # G\bar{X}
     g_bar_x = graph.copy()
     g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
 
     # M1: Y ⊥ X | W
-    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w_tuple)
+    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w)
     # M2: each M_j ⊥ X | W
     m2 = all(
-        not _verifier_is_m_connected(g_bar_x, bidir, x, m, w_tuple)
+        not _verifier_is_m_connected(g_bar_x, bidir, x, m, w)
         for m in ms
     )
 
@@ -2115,10 +2199,10 @@ def _rule_mediation_nde_nie_joint_check(
     g_bar_ms = graph.copy()
     for m in ms:
         g_bar_ms.remove_edges_from(list(g_bar_ms.out_edges(m)))
-    xw_tuple = tuple(w | {x})
+    xw = w | {x}
     # M3: each M_j ⊥ Y | {X}∪W
     m3 = all(
-        not _verifier_is_m_connected(g_bar_ms, bidir, m, y, xw_tuple)
+        not _verifier_is_m_connected(g_bar_ms, bidir, m, y, xw)
         for m in ms
     )
 
@@ -2179,7 +2263,7 @@ def _rule_mediation_cde_joint_check(
             step_index=step_index, rule=rule,
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     # C2: W has no descendants of X or of any set member.
     x_desc = _verifier_directed_descendants(graph, x)
@@ -2188,8 +2272,6 @@ def _rule_mediation_cde_joint_check(
         m_desc |= _verifier_directed_descendants(graph, m)
     c2 = not (w & (x_desc | m_desc))
 
-    w_tuple = tuple(w)
-
     # G\bar{X,M_set}: remove outgoing edges of X AND every mediator.
     g_bar = graph.copy()
     g_bar.remove_edges_from(list(g_bar.out_edges(x)))
@@ -2197,9 +2279,9 @@ def _rule_mediation_cde_joint_check(
         g_bar.remove_edges_from(list(g_bar.out_edges(m)))
 
     # C1: Y ⊥ X | W and each M_j ⊥ Y | W in G\bar{X,M_set}.
-    c1_x = not _verifier_is_m_connected(g_bar, bidir, x, y, w_tuple)
+    c1_x = not _verifier_is_m_connected(g_bar, bidir, x, y, w)
     c1_m = all(
-        not _verifier_is_m_connected(g_bar, bidir, m, y, w_tuple)
+        not _verifier_is_m_connected(g_bar, bidir, m, y, w)
         for m in ms
     )
     c1 = c1_x and c1_m
@@ -2331,7 +2413,7 @@ def _rule_longitudinal_sequential_exchangeability_check(
             step_index=step_index, rule=rule,
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
 
     all_ok = True
     history: set[Atom] = set()
@@ -3149,16 +3231,14 @@ def _audit_dr_numeric_estimate(
         )
 
     # --- propensity disclosure coherence ---
-    raw_min = inputs.get("propensity_raw_min")
-    raw_max = inputs.get("propensity_raw_max")
     n_trimmed = inputs.get("propensity_n_trimmed")
     floor = inputs.get("propensity_floor")
-    for label, v in (("propensity_raw_min", raw_min), ("propensity_raw_max", raw_max)):
-        if not isinstance(v, (int, float)) or isinstance(v, bool) or not (0.0 <= v <= 1.0):
-            raise RuleCheckFailed(
-                f"{rule}.{label} must be a probability in [0, 1]; got {v!r}",
-                step_index=step_index, rule=rule,
-            )
+    raw_min = _require_reported_probability(
+        inputs, "propensity_raw_min", step_index=step_index, rule=rule,
+    )
+    raw_max = _require_reported_probability(
+        inputs, "propensity_raw_max", step_index=step_index, rule=rule,
+    )
     if raw_min > raw_max:
         raise RuleCheckFailed(
             f"{rule}: propensity_raw_min {raw_min} exceeds propensity_raw_max "
@@ -3556,14 +3636,14 @@ def _check_anderson_rubin(inputs: dict, point, step_index: int) -> None:
         ("lower", lower, claimed_lower),
         ("upper", upper, claimed_upper),
     ):
-        if recomputed is None and claimed is None:
+        if recomputed is None or claimed is None:
+            if recomputed is not None or claimed is not None:
+                raise RuleCheckFailed(
+                    f"numeric_iv_estimate: AR {name} presence mismatch — "
+                    f"re-solve {recomputed} vs claimed {claimed}",
+                    step_index=step_index, rule="numeric_iv_estimate",
+                )
             continue
-        if (recomputed is None) != (claimed is None):
-            raise RuleCheckFailed(
-                f"numeric_iv_estimate: AR {name} presence mismatch — "
-                f"re-solve {recomputed} vs claimed {claimed}",
-                step_index=step_index, rule="numeric_iv_estimate",
-            )
         if abs(recomputed - float(claimed)) > 1e-6 * (1 + abs(recomputed)):
             raise RuleCheckFailed(
                 f"numeric_iv_estimate: AR {name} mismatch — re-solve "
@@ -3767,10 +3847,14 @@ def _check_stratified_wald(
     strata, and the stratified path may not omit them.
     """
     RULE = "numeric_iv_estimate"
-    weights = inputs.get("stratum_weights")
-    d_y = inputs.get("stratum_outcome_shifts")
-    d_x = inputs.get("stratum_treatment_shifts")
-    present = weights is not None or d_y is not None or d_x is not None
+    present = any(
+        inputs.get(name) is not None
+        for name in (
+            "stratum_weights",
+            "stratum_outcome_shifts",
+            "stratum_treatment_shifts",
+        )
+    )
 
     if method == "iv_stratified_wald":
         if not present:
@@ -3788,34 +3872,28 @@ def _check_stratified_wald(
     else:
         return
 
-    tables = {
-        "stratum_weights": weights,
-        "stratum_outcome_shifts": d_y,
-        "stratum_treatment_shifts": d_x,
-        "stratum_shift_var_yy": inputs.get("stratum_shift_var_yy"),
-        "stratum_shift_var_xy": inputs.get("stratum_shift_var_xy"),
-        "stratum_shift_var_xx": inputs.get("stratum_shift_var_xx"),
+    columns = {
+        name: _require_number_column(
+            inputs.get(name), name, step_index=step_index, rule=RULE,
+        )
+        for name in (
+            "stratum_weights",
+            "stratum_outcome_shifts",
+            "stratum_treatment_shifts",
+            "stratum_shift_var_yy",
+            "stratum_shift_var_xy",
+            "stratum_shift_var_xx",
+        )
     }
-    for name, table in tables.items():
-        if not isinstance(table, tuple) or not table:
-            raise RuleCheckFailed(
-                f"{RULE}.{name} must be a non-empty tuple; got {table!r}",
-                step_index=step_index, rule=RULE,
-            )
-        if any(
-            not isinstance(v, (int, float)) or isinstance(v, bool)
-            for v in table
-        ):
-            raise RuleCheckFailed(
-                f"{RULE}.{name} must hold numbers",
-                step_index=step_index, rule=RULE,
-            )
-    lengths = {name: len(table) for name, table in tables.items()}
+    lengths = {name: len(column) for name, column in columns.items()}
     if len(set(lengths.values())) != 1:
         raise RuleCheckFailed(
             f"{RULE}: stratum table columns disagree on length {lengths!r}",
             step_index=step_index, rule=RULE,
         )
+    weights = columns["stratum_weights"]
+    d_y = columns["stratum_outcome_shifts"]
+    d_x = columns["stratum_treatment_shifts"]
 
     if any(w <= 0.0 for w in weights):
         raise RuleCheckFailed(
@@ -3987,14 +4065,14 @@ def _check_stratified_anderson_rubin(
         ("lower", lower, inputs.get("sar_lower")),
         ("upper", upper, inputs.get("sar_upper")),
     ):
-        if recomputed is None and claimed is None:
+        if recomputed is None or claimed is None:
+            if recomputed is not None or claimed is not None:
+                raise RuleCheckFailed(
+                    f"{RULE}: stratified AR {name} presence mismatch — re-solve "
+                    f"{recomputed} vs claimed {claimed}",
+                    step_index=step_index, rule=RULE,
+                )
             continue
-        if (recomputed is None) != (claimed is None):
-            raise RuleCheckFailed(
-                f"{RULE}: stratified AR {name} presence mismatch — re-solve "
-                f"{recomputed} vs claimed {claimed}",
-                step_index=step_index, rule=RULE,
-            )
         if abs(recomputed - float(claimed)) > 1e-6 * (1 + abs(recomputed)):
             raise RuleCheckFailed(
                 f"{RULE}: stratified AR {name} mismatch — re-solve "
@@ -4368,12 +4446,13 @@ def _rule_numeric_scm_counterfactual_estimate(
         )
     ci_lower = inputs.get("ci_lower")
     ci_upper = inputs.get("ci_upper")
-    if (ci_lower is None) != (ci_upper is None):
-        raise RuleCheckFailed(
-            f"{rule}: ci_lower and ci_upper must both be present or both absent",
-            step_index=step_index, rule=rule,
-        )
-    if ci_lower is not None:
+    if ci_lower is None or ci_upper is None:
+        if ci_lower is not None or ci_upper is not None:
+            raise RuleCheckFailed(
+                f"{rule}: ci_lower and ci_upper must both be present or both absent",
+                step_index=step_index, rule=rule,
+            )
+    else:
         if not (ci_lower <= point <= ci_upper):
             raise RuleCheckFailed(
                 f"{rule}: point {point} outside [{ci_lower}, {ci_upper}]",
@@ -4551,7 +4630,7 @@ def _rule_proximal_criterion(
             step_index=step_index, rule="proximal_criterion",
         )
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
     outcome = identify_proximal(
         graph, bidir,
         treatment=q.treatment, outcome=q.outcome, latent=q.latent,
@@ -4924,12 +5003,6 @@ def _rule_numeric_causation_estimate(
             f"of the interventional risks",
             step_index=step_index, rule=rule,
         )
-    if not risk_free and (p_y_do_x1 is None or p_y_do_x0 is None):
-        raise RuleCheckFailed(
-            f"{rule}: provenance {provenance!r} claims both arms were "
-            f"obtained, but one of them is absent",
-            step_index=step_index, rule=rule,
-        )
 
     # 1. Independent re-derivation on the reported empirical inputs — by
     #    whichever solver the licence says ran. Tian-Pearl's closed form has no
@@ -4942,6 +5015,12 @@ def _rule_numeric_causation_estimate(
     if provenance == "instrument_response_polytope":
         recomputed = _rederive_causation_over_response_polytope(
             ctx, inputs, cells, monotonic, step_index=step_index, rule=rule,
+        )
+    elif p_y_do_x1 is None or p_y_do_x0 is None:
+        raise RuleCheckFailed(
+            f"{rule}: provenance {provenance!r} claims both arms were "
+            f"obtained, but one of them is absent",
+            step_index=step_index, rule=rule,
         )
     else:
         recomputed = _tian_pearl_poc_for_verifier(
@@ -6707,9 +6786,11 @@ def _ancestral_joint_for_verifier(
 
 
 def _recorded_instrument_table_matches_theta(
-    ctx: VerificationContext,
+    graph: nx.DiGraph,
+    theta: Theta,
     inputs: dict,
     *,
+    bidirected: frozenset[frozenset[Atom]],
     step_index: int,
     rule: str,
     x_atom: Atom,
@@ -6736,7 +6817,7 @@ def _recorded_instrument_table_matches_theta(
             step_index=step_index, rule=rule,
         )
     z_atoms = [
-        node for node in ctx.graph.nodes if node.predicate == instrument
+        node for node in graph.nodes if node.predicate == instrument
     ]
     if len(z_atoms) != 1:
         raise RuleCheckFailed(
@@ -6744,7 +6825,7 @@ def _recorded_instrument_table_matches_theta(
             step_index=step_index, rule=rule,
         )
     z_atom = z_atoms[0]
-    if ctx.graph.has_edge(z_atom, y_atom) or not ctx.graph.has_edge(z_atom, x_atom):
+    if graph.has_edge(z_atom, y_atom) or not graph.has_edge(z_atom, x_atom):
         raise RuleCheckFailed(
             f"{rule}: {instrument!r} is not an instrument on this graph — the "
             f"route's licence asserts an edge into the treatment and none "
@@ -6753,8 +6834,8 @@ def _recorded_instrument_table_matches_theta(
         )
 
     recovered = _ancestral_joint_for_verifier(
-        ctx.graph, ctx.theta, x_atom=x_atom, y_atom=y_atom,
-        bidirected=ctx.bidirected, step_index=step_index, rule=rule,
+        graph, theta, x_atom=x_atom, y_atom=y_atom,
+        bidirected=bidirected, step_index=step_index, rule=rule,
     )
     if recovered is None:
         raise RuleCheckFailed(
@@ -6820,7 +6901,7 @@ def _required_probability_keys_for_ancestral_joint_for_verifier(
 def _ancestral_assignments_for_verifier(
     topo: tuple[Atom, ...],
     theta: Theta,
-):
+) -> Iterator[dict[Atom, AtomValue]]:
     domains = [
         _counterfactual_factorization_domain_for_verifier(theta, atom)
         for atom in topo
@@ -6831,7 +6912,7 @@ def _ancestral_assignments_for_verifier(
 
 def _assignment_probability_key_for_verifier(
     atom: Atom,
-    assignment: dict[Atom, object],
+    assignment: dict[Atom, AtomValue],
     conditioning: tuple[Atom, ...],
 ) -> ProbabilityKey:
     return ProbabilityKey(
@@ -6863,7 +6944,7 @@ def _probability_key_sort_key_for_verifier(key: ProbabilityKey) -> tuple:
 def _counterfactual_factorization_domain_for_verifier(
     theta: Theta,
     atom: Atom,
-) -> tuple:
+) -> tuple[AtomValue, ...]:
     domain = tuple(theta.domain_of(atom))
     if domain and set(domain) <= {False, True}:
         return (False, True)
@@ -6990,22 +7071,42 @@ def _cf_cell_needs_risk_for_verifier(query: CounterfactualQuery) -> bool:
     return factual_y not in _cf_monotonicity_pins_for_verifier(query)
 
 
-def _assert_counterfactual_cell_boolean(
+def _require_boolean_cell_coordinate(
+    value: object, step_index: int, rule: str,
+) -> bool:
+    if not isinstance(value, bool):
+        raise RuleCheckFailed(
+            f"{rule}: current verifier scope is boolean-only",
+            step_index=step_index, rule=rule,
+        )
+    return value
+
+
+def _counterfactual_cell_coordinates_for_verifier(
     query: CounterfactualQuery, step_index: int, rule: str,
-) -> None:
-    """The counterfactual cell is indexed by boolean coordinates; anything
-    else is outside the verifier's scope for this family."""
-    for value in (
-        query.observed.value,
-        query.counterfactual_intervention.value,
-        query.counterfactual_target.value,
-        query.factual_target_known,
-    ):
-        if value is not None and not isinstance(value, bool):
-            raise RuleCheckFailed(
-                f"{rule}: current verifier scope is boolean-only",
-                step_index=step_index, rule=rule,
-            )
+) -> tuple[bool, bool, bool, bool | None]:
+    """The cell's coordinates ``(x_obs, x_cf, y_star, factual_y)``.
+
+    The counterfactual cell is indexed by boolean coordinates — the joint
+    P(X, Y) it is solved against has exactly four of them — so anything else
+    is outside the verifier's scope for this family. The factual outcome is
+    the one coordinate that may be absent: it is evidence the query need not
+    carry, and the identity has a branch for its absence. Returning the
+    checked coordinates is what stops the callers below from reading the
+    query again and indexing the joint with whatever they find.
+    """
+    factual_y = query.factual_target_known
+    return (
+        _require_boolean_cell_coordinate(query.observed.value, step_index, rule),
+        _require_boolean_cell_coordinate(
+            query.counterfactual_intervention.value, step_index, rule,
+        ),
+        _require_boolean_cell_coordinate(
+            query.counterfactual_target.value, step_index, rule,
+        ),
+        None if factual_y is None
+        else _require_boolean_cell_coordinate(factual_y, step_index, rule),
+    )
 
 
 def _solve_counterfactual_cell_for_verifier(
@@ -7032,11 +7133,9 @@ def _solve_counterfactual_cell_for_verifier(
     them as empirical frequencies. The identity is the same either way, so it
     is transcribed here once. Returns ``(low, high)``.
     """
-    _assert_counterfactual_cell_boolean(query, step_index, rule)
-    x_obs = query.observed.value
-    x_cf = query.counterfactual_intervention.value
-    y_star = query.counterfactual_target.value
-    factual_y = query.factual_target_known
+    x_obs, x_cf, y_star, factual_y = _counterfactual_cell_coordinates_for_verifier(
+        query, step_index, rule,
+    )
     p_x_obs = joint[(x_obs, False)] + joint[(x_obs, True)]
     if p_x_obs == 0:
         raise RuleCheckFailed(
@@ -7117,7 +7216,7 @@ def _expected_counterfactual_numeric_result(
 ) -> NumericResult:
     """Theta entry point: recover the observational joint symbolically, then
     solve the cell with the verifier's own transcription of the identity."""
-    _assert_counterfactual_cell_boolean(query, step_index, rule)
+    _counterfactual_cell_coordinates_for_verifier(query, step_index, rule)
     joint = _counterfactual_joint_xy_for_verifier(
         graph,
         theta,
@@ -7230,7 +7329,8 @@ def _rule_counterfactual_cell_bounds(
             bidirected=ctx.bidirected, step_index=step_index, rule=rule,
         )
         _recorded_instrument_table_matches_theta(
-            ctx, inputs, step_index=step_index, rule=rule,
+            ctx.graph, ctx.theta, inputs,
+            bidirected=ctx.bidirected, step_index=step_index, rule=rule,
             x_atom=ctx.query.observed.atom,
             y_atom=ctx.query.counterfactual_target.atom,
         )
@@ -7314,7 +7414,7 @@ same road: nothing on the producer's side may report a risk beside it."""
 
 
 def _check_risk_provenance(
-    inputs: dict, ctx: VerificationContext, arm: bool | None,
+    inputs: dict, ctx: VerificationContext, arm: AtomValue | None,
     *, step_index: int, rule: str,
 ) -> str:
     """The licence, re-derived rather than read.
@@ -7421,7 +7521,9 @@ def _rule_numeric_counterfactual_cell_estimate(
             step_index=step_index, rule=rule,
         )
     query = ctx.query
-    _assert_counterfactual_cell_boolean(query, step_index, rule)
+    x_obs, x_cf, _y_star, factual_y = _counterfactual_cell_coordinates_for_verifier(
+        query, step_index, rule,
+    )
 
     method = inputs.get("method")
     if method not in _NUMERIC_COUNTERFACTUAL_CELL_METHODS:
@@ -7479,8 +7581,7 @@ def _rule_numeric_counterfactual_cell_estimate(
     #    present or absent, and every one of those claims is re-derived from
     #    the query rather than taken on the producer's word.
     provenance = _check_risk_provenance(
-        inputs, ctx, query.counterfactual_intervention.value,
-        step_index=step_index, rule=rule,
+        inputs, ctx, x_cf, step_index=step_index, rule=rule,
     )
     raw_risk = inputs.get("p_y_do_x_cf")
     risk = None if raw_risk is None else float(raw_risk)
@@ -7496,18 +7597,15 @@ def _rule_numeric_counterfactual_cell_estimate(
             f"of p_y_do_x_cf",
             step_index=step_index, rule=rule,
         )
-    same_world = (
-        query.counterfactual_intervention.value == query.observed.value
-    )
+    same_world = x_cf == x_obs
     if provenance == "not_required" and not same_world:
         raise RuleCheckFailed(
             f"{rule}: provenance 'not_required' claims the two worlds "
-            f"coincide, but do(X={query.counterfactual_intervention.value}) "
-            f"differs from the observed X={query.observed.value}",
+            f"coincide, but do(X={x_cf}) "
+            f"differs from the observed X={x_obs}",
             step_index=step_index, rule=rule,
         )
     if provenance == "pinned_by_monotonicity":
-        factual_y = query.factual_target_known
         pins = _cf_monotonicity_pins_for_verifier(query)
         if same_world or factual_y is None or factual_y not in pins:
             raise RuleCheckFailed(
@@ -7979,7 +8077,7 @@ def _check_causation_general_id_risks(
     """
     from ..runtime import c_factor
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
     for arm, key in ((True, "risk_formula_treated"), (False, "risk_formula_control")):
         claimed = inputs.get(key)
         if claimed is None:
@@ -8033,7 +8131,7 @@ def _check_cf_cell_general_id_risk(
     """
     from ..runtime import c_factor, structural_solver
 
-    bidir = getattr(ctx, "bidirected", frozenset()) or frozenset()
+    bidir = ctx.bidirected
     x_atom = query.observed.atom
     y_atom = query.counterfactual_target.atom
     sets = structural_solver.minimal_adjustment_sets(
@@ -8131,11 +8229,14 @@ def _tian_pearl_poc_for_verifier(
 
 def _check_causation_over_the_polytope(
     ctx: VerificationContext,
+    theta: Theta,
     inputs: dict,
     claimed_output: Any,
     declared_cells: dict,
     monotonic: bool,
     *,
+    x_atom: Atom,
+    y_atom: Atom,
     step_index: int,
     rule: str,
 ) -> None:
@@ -8149,11 +8250,14 @@ def _check_causation_over_the_polytope(
     decorative.
     """
     _counterfactual_joint_xy_for_verifier_by_atoms(
-        ctx, declared_cells, step_index=step_index, rule=rule,
+        ctx.graph, theta, declared_cells,
+        x_atom=x_atom, y_atom=y_atom, bidirected=ctx.bidirected,
+        step_index=step_index, rule=rule,
     )
     _recorded_instrument_table_matches_theta(
-        ctx, inputs, step_index=step_index, rule=rule,
-        x_atom=ctx.query.cause, y_atom=ctx.query.effect,
+        ctx.graph, theta, inputs,
+        bidirected=ctx.bidirected, step_index=step_index, rule=rule,
+        x_atom=x_atom, y_atom=y_atom,
     )
     recomputed = _rederive_causation_over_response_polytope(
         ctx, inputs,
@@ -8173,13 +8277,21 @@ def _check_causation_over_the_polytope(
                 step_index=step_index, rule=rule,
             )
         exp_lo, exp_hi, exp_pt = recomputed[qty]
+        claimed_lo = _envelope_number(
+            claimed_q, "lower",
+            step_index=step_index, rule=rule, where=f"the {qty} block",
+        )
+        claimed_hi = _envelope_number(
+            claimed_q, "upper",
+            step_index=step_index, rule=rule, where=f"the {qty} block",
+        )
         if (
-            abs(float(claimed_q.get("lower")) - exp_lo) > _NUMERIC_TOL
-            or abs(float(claimed_q.get("upper")) - exp_hi) > _NUMERIC_TOL
+            abs(claimed_lo - exp_lo) > _NUMERIC_TOL
+            or abs(claimed_hi - exp_hi) > _NUMERIC_TOL
         ):
             raise RuleCheckFailed(
-                f"{rule}: {qty} bounds [{claimed_q.get('lower')}, "
-                f"{claimed_q.get('upper')}] != recomputed [{exp_lo}, {exp_hi}]",
+                f"{rule}: {qty} bounds [{claimed_lo}, {claimed_hi}] != "
+                f"recomputed [{exp_lo}, {exp_hi}]",
                 step_index=step_index, rule=rule,
             )
         claimed_pt = claimed_q.get("point")
@@ -8190,7 +8302,12 @@ def _check_causation_over_the_polytope(
                     f"identified set the program returns is an interval",
                     step_index=step_index, rule=rule,
                 )
-        elif claimed_pt is None or abs(float(claimed_pt) - exp_pt) > _NUMERIC_TOL:
+        elif claimed_pt is None or abs(
+            _envelope_number(
+                claimed_q, "point",
+                step_index=step_index, rule=rule, where=f"the {qty} block",
+            ) - exp_pt
+        ) > _NUMERIC_TOL:
             raise RuleCheckFailed(
                 f"{rule}: {qty} point {claimed_pt} != recomputed {exp_pt}",
                 step_index=step_index, rule=rule,
@@ -8205,24 +8322,28 @@ def _check_causation_over_the_polytope(
 
 
 def _counterfactual_joint_xy_for_verifier_by_atoms(
-    ctx: VerificationContext,
+    graph: nx.DiGraph,
+    theta: Theta,
     declared_cells: dict,
     *,
+    x_atom: Atom,
+    y_atom: Atom,
+    bidirected: frozenset[frozenset[Atom]],
     step_index: int,
     rule: str,
 ) -> dict:
     """The four cells recomputed from theta, checked against the declared."""
     recomputed = _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
-        ctx.graph, ctx.theta,
-        x_atom=ctx.query.cause, y_atom=ctx.query.effect,
-        bidirected=ctx.bidirected, step_index=step_index, rule=rule,
+        graph, theta,
+        x_atom=x_atom, y_atom=y_atom,
+        bidirected=bidirected, step_index=step_index, rule=rule,
     )
     if recomputed is None:
         recomputed = {
             (xv, yv): _counterfactual_joint_cell_for_verifier(
-                ctx.theta,
-                x_atom=ctx.query.cause, x_val=xv,
-                y_atom=ctx.query.effect, y_val=yv,
+                theta,
+                x_atom=x_atom, x_val=xv,
+                y_atom=y_atom, y_val=yv,
                 step_index=step_index, rule=rule,
             )
             for xv in (False, True) for yv in (False, True)
@@ -8315,8 +8436,8 @@ def _rule_causation_probability_bounds(
                     step_index=step_index, rule=rule,
                 )
         _check_causation_over_the_polytope(
-            ctx, inputs, claimed_output, declared_cells, monotonic,
-            step_index=step_index, rule=rule,
+            ctx, ctx.theta, inputs, claimed_output, declared_cells, monotonic,
+            x_atom=x_atom, y_atom=y_atom, step_index=step_index, rule=rule,
         )
         return
 
@@ -8393,13 +8514,21 @@ def _rule_causation_probability_bounds(
                 f"[{exp_lo}, {exp_hi}] — inputs are infeasible",
                 step_index=step_index, rule=rule,
             )
+        claimed_lo = _envelope_number(
+            claimed_q, "lower",
+            step_index=step_index, rule=rule, where=f"the {qty} block",
+        )
+        claimed_hi = _envelope_number(
+            claimed_q, "upper",
+            step_index=step_index, rule=rule, where=f"the {qty} block",
+        )
         if (
-            abs(float(claimed_q.get("lower")) - exp_lo) > _NUMERIC_TOL
-            or abs(float(claimed_q.get("upper")) - exp_hi) > _NUMERIC_TOL
+            abs(claimed_lo - exp_lo) > _NUMERIC_TOL
+            or abs(claimed_hi - exp_hi) > _NUMERIC_TOL
         ):
             raise RuleCheckFailed(
-                f"{rule}: {qty} bounds [{claimed_q.get('lower')}, "
-                f"{claimed_q.get('upper')}] != recomputed [{exp_lo}, {exp_hi}]",
+                f"{rule}: {qty} bounds [{claimed_lo}, {claimed_hi}] != "
+                f"recomputed [{exp_lo}, {exp_hi}]",
                 step_index=step_index, rule=rule,
             )
         claimed_pt = claimed_q.get("point")
@@ -8411,7 +8540,12 @@ def _rule_causation_probability_bounds(
                     step_index=step_index, rule=rule,
                 )
         else:
-            if claimed_pt is None or abs(float(claimed_pt) - exp_pt) > _NUMERIC_TOL:
+            if claimed_pt is None or abs(
+                _envelope_number(
+                    claimed_q, "point",
+                    step_index=step_index, rule=rule, where=f"the {qty} block",
+                ) - exp_pt
+            ) > _NUMERIC_TOL:
                 raise RuleCheckFailed(
                     f"{rule}: {qty} point {claimed_pt} != recomputed {exp_pt}",
                     step_index=step_index, rule=rule,
@@ -8419,8 +8553,18 @@ def _rule_causation_probability_bounds(
 
     # 4. Envelope must echo the declared risks / flag / provenance.
     if (
-        abs(float(claimed_output.get("p_y_do_x1")) - p_y_do_x1) > _NUMERIC_TOL
-        or abs(float(claimed_output.get("p_y_do_x0")) - p_y_do_x0) > _NUMERIC_TOL
+        abs(
+            _envelope_number(
+                claimed_output, "p_y_do_x1",
+                step_index=step_index, rule=rule, where="the envelope",
+            ) - p_y_do_x1
+        ) > _NUMERIC_TOL
+        or abs(
+            _envelope_number(
+                claimed_output, "p_y_do_x0",
+                step_index=step_index, rule=rule, where="the envelope",
+            ) - p_y_do_x0
+        ) > _NUMERIC_TOL
     ):
         raise RuleCheckFailed(
             f"{rule}: envelope interventional risks disagree with the "
@@ -9925,22 +10069,18 @@ def _require_atom_set(
     if allow_missing and key not in inputs:
         return frozenset()
     v = _require(inputs, key, step_index, rule)
-    if isinstance(v, (set, frozenset)):
-        items = v
-    elif isinstance(v, tuple):
-        items = v
-    else:
+    if not isinstance(v, (set, frozenset, tuple)):
         raise UnknownRuleInputError(
             f"{rule}.{key} must be a set/frozenset/tuple of Atom",
             step_index=step_index, rule=rule,
         )
-    for a in items:
+    for a in v:
         if not isinstance(a, Atom):
             raise UnknownRuleInputError(
                 f"{rule}.{key} must contain only Atom, got {type(a).__name__}",
                 step_index=step_index, rule=rule,
             )
-    return frozenset(items)
+    return frozenset(v)
 
 
 def _assert_same_graph(

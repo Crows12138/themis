@@ -34,6 +34,7 @@ it re-derives what is owed from the envelope alone.
 from __future__ import annotations
 
 import math
+from typing import NoReturn
 
 from .errors import VerificationError
 
@@ -41,7 +42,7 @@ _RULE = "outcome_error_check"
 _TOL = 1e-6
 
 
-def _reject(message: str) -> None:
+def _reject(message: str) -> NoReturn:
     raise VerificationError(message, rule=_RULE)
 
 

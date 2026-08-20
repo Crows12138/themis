@@ -93,7 +93,13 @@ def assess_outcome_error(
     treatment: str,
     outcome: str,
     adjustment: tuple[str, ...],
-    error_variance: float,
+    # ``object``, not ``float``: this is an entry point, and the first thing
+    # it does is decide whether what arrived is a positive finite number,
+    # refusing by name when it is not. Declaring ``float`` would be a claim
+    # the caller had already established that — which is exactly what the
+    # check below denies, and what would make the caller write the same
+    # check a second time, in its own words, to satisfy the annotation.
+    error_variance: object,
 ) -> OutcomeErrorAssessment:
     """Split the observed outcome's residual variance into signal and declared
     measurement noise, and report what the noise costs in precision.
@@ -165,12 +171,12 @@ def assess_outcome_error(
         )
     residual_variance = var_y - float(cov_Dy @ b)
 
-    error_variance = float(error_variance)
-    signal_variance = residual_variance - error_variance
+    sigma_v = float(error_variance)
+    signal_variance = residual_variance - sigma_v
     if signal_variance <= _SIGNAL_FLOOR * max(residual_variance, 1.0):
         raise EstimatorFailure(
             Refusal.OUTCOME_ERROR_EXCEEDS_RESIDUAL_VARIANCE,
-            f"the declared outcome error variance σ²_v = {error_variance:.6g} "
+            f"the declared outcome error variance σ²_v = {sigma_v:.6g} "
             f"meets or exceeds the observed residual variance Var({outcome}|D) "
             f"= {residual_variance:.6g}. The noise does not fit underneath the "
             f"variation the data leave unexplained, so at least one of the "
@@ -180,14 +186,14 @@ def assess_outcome_error(
             f"No assessment is issued.",
         )
 
-    noise_share = error_variance / residual_variance
+    noise_share = sigma_v / residual_variance
     se_inflation = float(np.sqrt(residual_variance / signal_variance))
 
     return OutcomeErrorAssessment(
         outcome=outcome,
         treatment=treatment,
         design_vars=design_vars,
-        error_variance=error_variance,
+        error_variance=sigma_v,
         residual_variance=residual_variance,
         signal_variance=signal_variance,
         noise_share=noise_share,
@@ -200,7 +206,7 @@ def assess_outcome_error(
             "cov_matrix": [[float(v) for v in row] for row in Sigma],
             "cov_design_y": [float(v) for v in cov_Dy],
             "var_y": var_y,
-            "error_variance": error_variance,
+            "error_variance": sigma_v,
             "n": int(n),
         },
     )

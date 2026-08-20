@@ -56,7 +56,7 @@ API:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Callable, Literal, get_args
 
 import numpy as np
 import pandas as pd
@@ -65,6 +65,27 @@ from .contract import validate_data
 
 
 AlgorithmName = Literal["pc", "fci", "lingam", "ges", "grasp", "auto"]
+
+# The same vocabulary as data. Derived from the type rather than written
+# twice, so the runtime check and the declared contract cannot drift.
+ALGORITHM_NAMES: tuple[AlgorithmName, ...] = get_args(AlgorithmName)
+
+
+def as_algorithm_name(value: str) -> AlgorithmName:
+    """Return ``value`` as an :data:`AlgorithmName`, or raise ``ValueError``.
+
+    A text boundary — an MCP tool argument, a CLI flag — holds a free-form
+    ``str``, while the algorithm registry is keyed by this closed
+    vocabulary. This is where one becomes the other: an unrecognised name
+    is refused here, naming the accepted ones, rather than travelling as
+    an ordinary string until the dispatch in ``_run_resolved`` rejects it.
+    """
+    if value in ALGORITHM_NAMES:
+        return value
+    raise ValueError(
+        f"unknown discovery algorithm {value!r}; expected one of "
+        + ", ".join(ALGORITHM_NAMES)
+    )
 
 # Past this many distinct values a level-coded column stops being usable as a
 # stratum set for a chi-square CI test and is treated as a measurement.
@@ -408,12 +429,14 @@ def _select_algorithm(
 
     if algorithm == "auto":
         best: tuple[int, str, str] | None = None
-        for spec in _ALGORITHMS.values():
-            if spec.auto is None:
+        # ``candidate`` is one algorithm being scanned; ``spec`` below is
+        # the one that won — two different things, so two names.
+        for candidate in _ALGORITHMS.values():
+            if candidate.auto is None:
                 continue
-            eligible, priority, rationale = spec.auto(diag)
+            eligible, priority, rationale = candidate.auto(diag)
             if eligible and (best is None or priority > best[0]):
-                best = (priority, spec.name, rationale)
+                best = (priority, candidate.name, rationale)
         if best is None:  # unreachable (PC always eligible) — defensive
             algo, why = "pc", "auto→PC (fallback)"
         else:
@@ -865,7 +888,7 @@ def discovery_to_kernel_ast(
     # 5. Ambiguities for each undirected / partially-oriented edge
     ambiguities: list[dict] = []
     for pair in result.ambiguous_edges:
-        entry = {
+        entry: dict[str, object] = {
             "kind": "ambiguous_orientation",
             "endpoints": sorted(pair),
             "discovery_algorithm": result.algorithm,
@@ -893,7 +916,7 @@ def discovery_to_kernel_ast(
             "notes": list(d.notes),
         }
 
-    extensions = {
+    extensions: dict[str, object] = {
         "discovery_metadata": {
             "algorithm": result.algorithm,
             "alpha": result.alpha,

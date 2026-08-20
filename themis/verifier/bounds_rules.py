@@ -308,6 +308,24 @@ def _complement_mass_expr(pred: str, value) -> str:
     return f"P({pred}≠{_fmt_value(value)})"
 
 
+def _require_nonneg_int(value: object, *, label: str, rule: str) -> int:
+    """Return ``value`` as a non-negative ``int``, or raise.
+
+    A count pulled out of an untyped payload is ``object``; asserting
+    about it in a separate loop leaves the arithmetic below still holding
+    ``object``. Returning the checked value hands the caller the narrowed
+    type, so the closed form that consumes the counts is checkable.
+    ``bool`` is rejected explicitly — ``True`` is an ``int`` but never a
+    row count.
+    """
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise VerificationError(
+            f"{label} must be a non-negative int; got {value!r}",
+            step_index=None, rule=rule,
+        )
+    return value
+
+
 def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
     """Strong re-derivation of the Manski natural arm interval from the
     recorded arm counts — the treatment-cardinality-agnostic analogue of
@@ -337,17 +355,19 @@ def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
         return  # not the Manski-natural shape (e.g. Balke-Pearl's P_xyz)
 
     rule = "bounds_manski_natural"
-    n = stats.get("n")
-    n_joint = stats.get("n_joint_target_arm")
-    n_other = stats.get("n_other_arm")
-    for name, v in (
-        ("n", n), ("n_joint_target_arm", n_joint), ("n_other_arm", n_other),
-    ):
-        if not isinstance(v, int) or isinstance(v, bool) or v < 0:
-            raise VerificationError(
-                f"Manski natural sufficient_statistics.{name} must be a "
-                f"non-negative int; got {v!r}", step_index=None, rule=rule,
-            )
+    n = _require_nonneg_int(
+        stats.get("n"),
+        label="Manski natural sufficient_statistics.n", rule=rule,
+    )
+    n_joint = _require_nonneg_int(
+        stats.get("n_joint_target_arm"),
+        label="Manski natural sufficient_statistics.n_joint_target_arm",
+        rule=rule,
+    )
+    n_other = _require_nonneg_int(
+        stats.get("n_other_arm"),
+        label="Manski natural sufficient_statistics.n_other_arm", rule=rule,
+    )
     if n == 0:
         raise VerificationError(
             "Manski natural sufficient_statistics.n is 0 (empty sample); the "

@@ -26,15 +26,24 @@ from themis.runtime.counterfactual import (
     monotonicity_pins,
     project_twin_network,
 )
+from themis.runtime.graph_projection import project
+from themis.runtime.instantiation import instantiate
+from themis.runtime.scheduler import dispatch_all
 from themis.types import (
     Atom,
+    CauseStatement,
     ConstTerm,
     CounterfactualAssumptions,
     CounterfactualQuery,
     Intervention,
     Monotonicity,
     NumericInterval,
+    ProbabilityStatement,
+    Program,
+    QueryStatement,
+    ResultStatus,
     ValuedAtom,
+    VariableDeclaration,
 )
 
 
@@ -338,3 +347,149 @@ def test_undefined_cell_with_zero_conditioning_mass_stays_uninformative():
     }
 
     assert _cell(query, joint=joint, risk=0.7) == NumericInterval(low=0.0, high=1.0)
+
+
+# ------------------------------------------- values the solver cannot read
+
+@pytest.mark.parametrize(
+    "role, kwargs",
+    [
+        ("observed", {"x_obs": None}),
+        ("counterfactual_intervention", {"x_cf": None}),
+        ("counterfactual_target", {"y_cf": None}),
+    ],
+)
+def test_an_absent_query_value_is_refused_and_named(role, kwargs):
+    """Absence is not a third case this solver can answer, and it has to
+    say which value went missing rather than improvise past it.
+
+    Each of these three steers something: two of them index the binary
+    joint, the third picks which cell is being asked for. A missing one
+    does not degrade — it either fell off the end of the table as a bare
+    ``KeyError`` or was read as merely falsy, both covered just below.
+    The role travels in the message because that string ends up in the
+    refusal a reader holds, and "one of your values is wrong" is not
+    something a reader can act on.
+    """
+    with pytest.raises(CounterfactualBoundsError, match=f"{role}=None"):
+        _cell(_base_query(**kwargs), risk=0.7)
+
+
+def test_an_absent_counterfactual_target_is_not_read_as_false():
+    """The failure being refused here used to be silent, which is the
+    whole reason it is worth a test of its own.
+
+    ``counterfactual_target=None`` flowed into ``p_y1 if y_star else
+    1.0 - p_y1``, where ``None`` is merely falsy: the solver answered
+    the *complementary* question and returned it as a point, with no
+    interval, no caveat and no refusal. So this does not only check that
+    something is raised — it names the number that used to come back.
+    Asking for ``Y=True`` on this joint is 0.6 and asking for ``Y=False``
+    is 0.4, and 0.4 is exactly what a missing target used to produce.
+    """
+    assert _approx(_cell(_base_query(monotonicity=None), risk=0.7), 0.6, 0.6)
+    assert _approx(
+        _cell(_base_query(monotonicity=None, y_cf=False), risk=0.7), 0.4, 0.4
+    )
+
+    with pytest.raises(CounterfactualBoundsError):
+        _cell(_base_query(monotonicity=None, y_cf=None), risk=0.7)
+
+
+def test_an_absent_factual_outcome_still_means_it_is_not_evidence():
+    """``factual_target_known`` is the one value whose absence is itself
+    a statement, so the check above has to carve it out.
+
+    Absent, the query is P(Y_{x'}=1 | X=x) and the interventional risk
+    identifies it as a point; present, it is P(Y_{x'}=1 | X=x, Y=y),
+    a strictly harder question that generally only bounds. A carve-out
+    with nothing exercising it is a carve-out the next reader tidies
+    away for consistency, so both sides are pinned: absent stays
+    accepted, and it stays a different question from known.
+    """
+    absent = _cell(_base_query(monotonicity=None, factual_y=None), risk=0.7)
+    known_false = _cell(
+        _base_query(monotonicity=None, factual_y=False), risk=0.7
+    )
+
+    assert _approx(absent, 0.6, 0.6)
+    assert _approx(known_false, 1 / 3, 1.0)
+
+
+# ------------------------------------------ the refusal reaches the reader
+
+def _program_for(query: CounterfactualQuery) -> Program:
+    """The JOINT above, spelled as a program the scheduler can dispatch."""
+    x, y = _atom("treat"), _atom("recover")
+    p_x = {xv: JOINT[(xv, False)] + JOINT[(xv, True)] for xv in (False, True)}
+    statements: list = [
+        CauseStatement(from_atom=x, to_atom=y),
+        VariableDeclaration(predicate="treat", domain=(True, False)),
+        VariableDeclaration(predicate="recover", domain=(True, False)),
+    ]
+    for xv in (False, True):
+        statements.append(
+            ProbabilityStatement(
+                target=ValuedAtom(atom=x, value=xv), given=(), value=p_x[xv],
+            )
+        )
+        for yv in (False, True):
+            statements.append(
+                ProbabilityStatement(
+                    target=ValuedAtom(atom=y, value=yv),
+                    given=(ValuedAtom(atom=x, value=xv),),
+                    value=JOINT[(xv, yv)] / p_x[xv],
+                )
+            )
+    statements.append(QueryStatement(id="q_cf", query=query))
+    return Program(version="0.1", objects=(), statements=tuple(statements))
+
+
+def _dispatch(query: CounterfactualQuery):
+    program = _program_for(query)
+    (result,) = dispatch_all(program, project(instantiate(program)))
+    return result
+
+
+def test_a_value_the_solver_cannot_read_comes_back_as_a_refusal():
+    """Raising the declared exception type is only half of the fix; this
+    is the half that checks somebody catches it.
+
+    ``themis.estimation.counterfactual_cell`` and
+    ``themis.runtime.scheduler`` each catch exactly
+    ``CounterfactualBoundsError``, so the bare ``KeyError`` the cell
+    solver used to raise walked past both handlers and left ``themis.run``
+    as a traceback — a kernel crash where the contract says a refusal.
+    What a reader ends up holding is asserted here, reason string
+    included, not just what the primitive throws.
+    """
+    solved = _dispatch(_base_query())
+    assert solved.status is ResultStatus.COUNTERFACTUAL_SOLVED
+
+    refused = _dispatch(_base_query(x_obs=None))
+    assert refused.status is ResultStatus.OUTSIDE_LANGUAGE
+    assert refused.numeric_result is None
+    failure = refused.estimator_failure
+    assert failure["failure_type"] == "counterfactual_cell_out_of_scope"
+    assert "observed=None" in failure["reason"]
+
+
+def test_an_unreadable_target_is_refused_rather_than_answered():
+    """A wrong number wearing a success status is worse than a crash,
+    because nothing downstream has any reason to doubt it.
+
+    With ``counterfactual_target=None`` the whole pipeline used to return
+    ``COUNTERFACTUAL_SOLVED`` carrying the point value for ``Y=False``
+    — 0.2 where the reader's own question, ``Y=True``, answers 0.8 —
+    and every surface downstream printed it as the answer.
+    """
+    asked = _dispatch(_base_query(y_cf=True))
+    assert asked.status is ResultStatus.COUNTERFACTUAL_SOLVED
+    assert asked.numeric_result.value == pytest.approx(0.8)
+
+    complement = _dispatch(_base_query(y_cf=False))
+    assert complement.numeric_result.value == pytest.approx(0.2)
+
+    refused = _dispatch(_base_query(y_cf=None))
+    assert refused.status is ResultStatus.OUTSIDE_LANGUAGE
+    assert refused.numeric_result is None

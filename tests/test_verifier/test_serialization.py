@@ -333,3 +333,59 @@ def test_missing_output_is_rejected():
 def test_malformed_tagged_payloads_raise_derivation_serialization_error(payload, message):
     with pytest.raises(DerivationSerializationError, match=message):
         derivation_from_dict(payload)
+
+
+def _one_step_derivation(*, output=True, inputs=None) -> dict:
+    """A well-formed derivation with one slot left open to poke."""
+    return {
+        "version": "0.1",
+        "kind": "derivation",
+        "steps": [
+            {
+                "rule": "graph_is_dag",
+                "inputs": {} if inputs is None else inputs,
+                "output": output,
+                "step_id": "s1",
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize("position", ["output", "inputs"])
+def test_a_non_string_value_kind_is_a_shape_error_whatever_its_type(position):
+    """A malformed tag has to fail as malformed input, not as a crash
+    inside the decoder.
+
+    ``_value_from_json`` dispatches on ``payload["kind"]`` through a dict
+    lookup, and JSON is free to put anything in that slot. For the two
+    container types the lookup itself raised ``TypeError: unhashable
+    type`` — CPython internals escaping the one function whose whole job
+    is to turn bad payloads into this module's single error type, and
+    walking straight past every caller that catches it.
+
+    The five tags are checked together and against their exact messages,
+    because the property at stake is that they all get *the same
+    answer*: whether a bad tag happens to be hashable is a fact about
+    CPython, not about the payload, and must not be something a caller
+    can tell apart. Both positions are asked because the guard belongs
+    to the shared decoder, not to one call site.
+    """
+
+    def decode(tag):
+        tagged = {"kind": tag}
+        payload = (
+            _one_step_derivation(output=tagged)
+            if position == "output"
+            else _one_step_derivation(inputs={"graph": tagged})
+        )
+        with pytest.raises(DerivationSerializationError) as excinfo:
+            derivation_from_dict(payload)
+        return str(excinfo.value)
+
+    assert {repr(tag): decode(tag) for tag in ([], {}, None, 3, True)} == {
+        "[]": "unknown value kind: []",
+        "{}": "unknown value kind: {}",
+        "None": "unknown value kind: None",
+        "3": "unknown value kind: 3",
+        "True": "unknown value kind: True",
+    }

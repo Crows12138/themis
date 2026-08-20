@@ -38,12 +38,14 @@ auditable claim is disclosure, and disclosure is where this failure hid.
 """
 from __future__ import annotations
 
+from typing import NoReturn
+
 from .errors import VerificationError
 
 _RULE = "cluster_inference_check"
 
 
-def _reject(message: str) -> None:
+def _reject(message: str) -> NoReturn:
     raise VerificationError(message, rule=_RULE)
 
 

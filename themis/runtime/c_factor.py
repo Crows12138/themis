@@ -49,6 +49,7 @@ from ..types import (
     ProbabilityRefExpr,
     ProductExpr,
     SumExpr,
+    ValueExpr,
     ValuedAtom,
     VarRef,
 )
@@ -1384,7 +1385,7 @@ def _apply_idc_values(
 
 def bind_idc_values(
     formula: FormulaExpr,
-    value_map: "dict[Atom, object]",
+    value_map: "dict[Atom, ValueExpr | None]",
 ) -> FormulaExpr:
     """Fill the query-bound holes (``value=None``) that ``identify_via_idc``
     left on the free targets Y and each conditioned Z with the concrete

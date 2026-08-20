@@ -35,6 +35,7 @@ model, same backend as ``themis/estimation/backdoor.py``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import SupportsFloat
 
 import numpy as np
 import pandas as pd
@@ -112,7 +113,7 @@ class FourWayDecomposition:
     # statistics so the verifier can re-derive every component from them (the
     # analog of four_way_ratio recording the fitted coefficients) — turning
     # the block from invariant-only into a strong re-derivation.
-    cell_means: dict
+    cell_means: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -289,7 +290,7 @@ def estimate_mediation(
         nie = float(np.mean(_EY(1.0, m1, frame) - _EY(1.0, m0, frame)))
         return nde, nie
 
-    def _four_way_inputs(om, mm, frame: pd.DataFrame) -> dict:
+    def _four_way_inputs(om, mm, frame: pd.DataFrame) -> dict[str, float]:
         # Standardized conditional outcome means p_am = E[Y|A=a,M=m] and
         # mediator means q_a = E[M|A=a], averaged over the sample's
         # covariates (g-formula standardization). For a linear outcome
@@ -339,19 +340,12 @@ def estimate_mediation(
     te_p = nde_p + nie_p
     pm_p = nie_p / te_p if te_p != 0 else float("nan")
 
+    # The cell means ARE the four-way block: the components are a pure
+    # function of them, so this one binding decides whether there is a
+    # four-way split at all — the point components are derived from it
+    # below, next to the bootstrap samples they get their CI from.
     fw_inputs = (
         _four_way_inputs(om_point, mm_point, fit_df) if four_way_valid else None
-    )
-    fw_point = (
-        four_way_decomposition(**fw_inputs) if fw_inputs is not None else None
-    )
-    fw_pm_p = (
-        (fw_point.intmed + fw_point.pie) / fw_point.te
-        if fw_point is not None and fw_point.te != 0 else float("nan")
-    )
-    fw_pi_p = (
-        (fw_point.intref + fw_point.intmed) / fw_point.te
-        if fw_point is not None and fw_point.te != 0 else float("nan")
     )
 
     # Bootstrap CIs: resample rows with replacement, refit both models,
@@ -418,20 +412,31 @@ def estimate_mediation(
         lo, hi = _ci(samples, point)
         return ComponentEstimate(point=point, ci_lower=lo, ci_upper=hi)
 
-    four_way = None if fw_point is None else FourWayDecomposition(
-        cde=_comp(cde_s, fw_point.cde),
-        intref=_comp(intref_s, fw_point.intref),
-        intmed=_comp(intmed_s, fw_point.intmed),
-        pie=_comp(pie_s, fw_point.pie),
-        te=_comp(fwte_s, fw_point.te),
-        prop_mediated=_comp(fw_pm_s, fw_pm_p),
-        prop_interaction=_comp(fw_pi_s, fw_pi_p),
-        additive_interaction_point=fw_point.additive_interaction,
-        ci_level=ci_level,
-        scale="risk_difference",
-        cde_mediator_reference=0,
-        cell_means={k: float(v) for k, v in fw_inputs.items()},
-    )
+    four_way: FourWayDecomposition | None = None
+    if fw_inputs is not None:
+        fw_point = four_way_decomposition(**fw_inputs)
+        fw_pm_p = (
+            (fw_point.intmed + fw_point.pie) / fw_point.te
+            if fw_point.te != 0 else float("nan")
+        )
+        fw_pi_p = (
+            (fw_point.intref + fw_point.intmed) / fw_point.te
+            if fw_point.te != 0 else float("nan")
+        )
+        four_way = FourWayDecomposition(
+            cde=_comp(cde_s, fw_point.cde),
+            intref=_comp(intref_s, fw_point.intref),
+            intmed=_comp(intmed_s, fw_point.intmed),
+            pie=_comp(pie_s, fw_point.pie),
+            te=_comp(fwte_s, fw_point.te),
+            prop_mediated=_comp(fw_pm_s, fw_pm_p),
+            prop_interaction=_comp(fw_pi_s, fw_pi_p),
+            additive_interaction_point=fw_point.additive_interaction,
+            ci_level=ci_level,
+            scale="risk_difference",
+            cde_mediator_reference=0,
+            cell_means={k: float(v) for k, v in fw_inputs.items()},
+        )
 
     return MediationEstimate(
         nde_point=nde_p, nde_ci_lower=nde_lo, nde_ci_upper=nde_hi,
@@ -862,9 +867,14 @@ class CDEEstimate:
     ci_upper: float | None
     ci_level: float
     method: str                   # "cde_linear" | "cde_logit"
-    mediator_value: object        # the m* the CDE was computed at
-    treatment_low: object         # the x' (control treatment level)
-    treatment_high: object        # the x (treated level)
+    # The three levels the plug-in is evaluated at. They are numeric
+    # levels of numeric columns — the design matrix is built with
+    # ``to_numpy(dtype=float)`` and every level is pushed into it through
+    # ``float()`` — so ``SupportsFloat`` is what this estimator actually
+    # accepts (bool / int / float / numpy scalar), recorded verbatim.
+    mediator_value: SupportsFloat        # the m* the CDE was computed at
+    treatment_low: SupportsFloat         # the x' (control treatment level)
+    treatment_high: SupportsFloat        # the x (treated level)
     sample_size: int
     data_hash: str
     adjustment: tuple[str, ...]
@@ -884,10 +894,10 @@ def estimate_cde(
     treatment: str,
     outcome: str,
     mediator: str,
-    mediator_value: object,
+    mediator_value: SupportsFloat,
     adjustment: tuple[str, ...] = (),
-    treatment_low: object = False,
-    treatment_high: object = True,
+    treatment_low: SupportsFloat = False,
+    treatment_high: SupportsFloat = True,
     model: str = "auto",
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
@@ -1053,9 +1063,11 @@ class CDEChainEstimate:
     ci_level: float
     method: str                         # "cde_chain_linear" | "cde_chain_logit"
     mediators: tuple[str, ...]          # chain order
-    mediator_values: tuple              # parallel to mediators
-    treatment_low: object
-    treatment_high: object
+    # Same numeric-level contract as ``CDEEstimate``: every value here is
+    # pushed into a float design matrix through ``float()``.
+    mediator_values: tuple[SupportsFloat, ...]   # parallel to mediators
+    treatment_low: SupportsFloat
+    treatment_high: SupportsFloat
     sample_size: int
     data_hash: str
     adjustment: tuple[str, ...]
@@ -1074,10 +1086,10 @@ def estimate_cde_chain(
     treatment: str,
     outcome: str,
     mediators: tuple[str, ...],
-    mediator_values: tuple,
+    mediator_values: tuple[SupportsFloat, ...],
     adjustment: tuple[str, ...] = (),
-    treatment_low: object = False,
-    treatment_high: object = True,
+    treatment_low: SupportsFloat = False,
+    treatment_high: SupportsFloat = True,
     model: str = "auto",
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,

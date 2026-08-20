@@ -261,3 +261,123 @@ def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() ->
     assert result.missing_information
     assert result.missing_information[0].kind is MissingKind.STRUCTURE
     assert "violates backdoor pre-conditions" in result.missing_information[0].reason
+
+
+# ===================================== what an ObservationalJoint may say
+#
+# The counterfactual and causation doors decide whether they got the
+# observational joint by asking ``ObservationalJoint.cells`` — the right
+# field, because it is the one they go on to index. What that costs is the
+# direction a broken producer fails in: a guard on ``cells`` has an answer
+# for the combination that a subscript on ``cells`` did not. The first two
+# pin the refusal that buys the direction back, at construction rather
+# than at whatever reads the thing next; the third checks that on the live
+# producer the reader still gets the names.
+
+
+def test_a_joint_with_no_cells_must_name_what_it_lacked() -> None:
+    """Prevents a needs_investigation that asks for data and names none.
+
+    A producer reporting no cells while naming nothing missing used to
+    hand ``None`` downstream and crash there, loudly, at the first
+    subscript. Once the doors guard on ``cells`` that same producer sails
+    through the guard instead and returns needs_investigation with an
+    empty ``missing_information`` — the reader is told to go and measure
+    something and never told what, and the causation door emits a gap
+    report with no gaps in it. A silent uninformative degradation is
+    worse than the crash it replaced, so the combination is refused at
+    construction: the failure stays at the producer, which is the last
+    place where the name of the missing thing still exists.
+    """
+    from themis.runtime.scheduler import ObservationalJoint
+
+    with pytest.raises(ValueError, match="no cells"):
+        ObservationalJoint(None, (), {}, None)
+
+
+def test_a_joint_that_carries_cells_must_not_also_name_a_shortfall() -> None:
+    """The mirror: this one loses the shortfall rather than the answer.
+
+    On the branch where the cells are present, no door reads ``missing``
+    again — so a producer that filled the cells *and* named something it
+    lacked would have the door compute an answer over those cells and
+    drop the shortfall unread. Both halves of the biconditional are
+    refused because both of them turn an incomplete recovery into a
+    report that does not admit to being one.
+    """
+    from themis.runtime.scheduler import ObservationalJoint
+    from themis.types import GapKind, MissingItem, Priority
+
+    cells = {
+        (x, y): 0.25 for x in (False, True) for y in (False, True)
+    }
+    shortfall = MissingItem(
+        kind=MissingKind.PARAMETER,
+        name="parameter:P(y=True|x=True)",
+        priority=Priority.HIGH,
+        gap=GapKind.MISSING_DISTRIBUTION,
+    )
+    with pytest.raises(ValueError, match="nothing missing"):
+        ObservationalJoint(cells, (shortfall,), {}, None)
+
+
+def test_a_theta_short_of_the_joint_reaches_both_doors_with_names() -> None:
+    """The property the refusal above exists to protect, on the live producer.
+
+    Same graph, same query, a theta holding P(X) and no P(Y|X): the
+    honest report is needs_investigation naming the four conditionals
+    nobody supplied. Both doors are asked because they are two routes
+    onto one quantity, and the counterfactual cell being one of the
+    causation door's cells is exactly why a shortfall that reaches one of
+    them anonymously would reach the other one anonymously too.
+    """
+    import themis
+
+    def atom(pred: str) -> dict:
+        return {"predicate": pred, "args": [{"type": "const", "name": "me"}]}
+
+    def marginal(value: bool, v: float) -> dict:
+        return {
+            "kind": "probability",
+            "target": {"atom": atom("x"), "value": value},
+            "given": [],
+            "value": v,
+        }
+
+    def program(query: dict) -> dict:
+        return {
+            "version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "me"}]},
+            "statements": [
+                {"kind": "variable", "predicate": "x", "domain": [True, False]},
+                {"kind": "variable", "predicate": "y", "domain": [True, False]},
+                {"kind": "cause", "from": atom("x"), "to": atom("y")},
+                marginal(False, 0.6),
+                marginal(True, 0.4),
+                {"kind": "query", "id": "q", "query": query},
+            ],
+        }
+
+    doors = {
+        "counterfactual": {
+            "kind": "counterfactual",
+            "observed": {"atom": atom("x"), "value": True},
+            "counterfactual_intervention": {"atom": atom("x"), "value": False},
+            "counterfactual_target": {"atom": atom("y"), "value": False},
+            "factual_target_known": True,
+        },
+        "causation": {
+            "kind": "causation", "cause": atom("x"), "effect": atom("y"),
+        },
+    }
+
+    for door, query in doors.items():
+        result = themis.run(program(query))["results"][0]
+        assert result["status"] == "needs_investigation", door
+        named = {m["name"] for m in result["missing_information"]}
+        assert {
+            "parameter:P(y=False|x=False)",
+            "parameter:P(y=False|x=True)",
+            "parameter:P(y=True|x=False)",
+            "parameter:P(y=True|x=True)",
+        } <= named, (door, sorted(named))

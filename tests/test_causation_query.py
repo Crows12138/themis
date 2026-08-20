@@ -16,6 +16,7 @@ import pytest
 
 from themis import kernel
 from themis.output.analysis_report import build_analysis_report
+from themis.verifier.errors import RuleCheckFailed
 
 X = {"predicate": "drug", "args": [{"type": "const", "name": "p"}]}
 Y = {"predicate": "death", "args": [{"type": "const", "name": "p"}]}
@@ -361,3 +362,128 @@ def test_the_report_names_the_licence_behind_the_two_do_risks():
         "interventional_risk_provenance"] == "derived_identification"
     report = build_analysis_report(r, program=prog)
     assert risk_provenance.RiskProvenance.DERIVED_IDENTIFICATION.zh in report
+
+
+# =========================== a malformed claim is a verdict, not an exception
+
+def _pn(result):
+    return _step_output_items(result)["pn"]["items"]
+
+
+def test_a_non_numeric_bound_is_a_verdict_and_not_a_raw_exception(solved):
+    """A verifier that crashes has not rejected anything.
+
+    Everything the verifier decides leaves it as a ``VerificationError`` —
+    that is the contract ``kernel.verify`` is called under, and there is no
+    ``try``/``except`` between a rule and its caller to soften anything else.
+    So a bound the producer wrote as a non-numeral must come back as a
+    verdict on the claim; if instead ``float`` is handed the string and its
+    ``ValueError`` walks out, the caller cannot tell "this answer is wrong"
+    from "the checker broke", and the claim goes un-adjudicated.
+
+    Both bounds are tampered on purpose. While the two comparisons sat in
+    one ``or``, a mismatching ``lower`` short-circuited and the malformed
+    ``upper`` was never touched, so this hole could not be reached from
+    here; reading both bounds before comparing them is what opened it.
+    """
+    prog, r = solved
+    rT = copy.deepcopy(r)
+    _pn(rT).update(lower=0.9, upper="abc")
+    with pytest.raises(RuleCheckFailed) as exc:
+        kernel.verify(prog, rT)
+    assert exc.value.rule == "causation_probability_bounds"
+
+
+def test_a_nan_bound_is_refused_by_the_rule_that_owns_it(solved):
+    """NaN fails the opposite way round from a non-number: silently.
+
+    Every check on these bounds has the shape ``abs(claimed - expected) >
+    tol``, and that is False against NaN — so a NaN bound does not trip any
+    numeric check, it *passes* them all. What used to notice was the
+    downstream cross-check of the display copy in ``extensions``, and only
+    because ``nan != nan``; tamper both copies to the same NaN, as a
+    producer bug actually would, and the reader was told the display copy
+    diverged from the audited answer, which is a false statement about a
+    byte-identical copy. Being refused by the rule that owns the envelope is
+    what makes the diagnosis true.
+    """
+    prog, r = solved
+    rT = copy.deepcopy(r)
+    _pn(rT).update(lower=float("nan"), upper=float("nan"))
+    rT["extensions"]["causation"]["pn"].update(
+        lower=float("nan"), upper=float("nan"))
+    with pytest.raises(RuleCheckFailed) as exc:
+        kernel.verify(prog, rT)
+    assert exc.value.rule == "causation_probability_bounds"
+    assert "nan" in str(exc.value)
+
+
+def test_a_non_numeric_point_is_a_verdict_too(solved):
+    """The point slot is read by the same rule and needs the same answer.
+
+    It is a separate line of code from the bounds and it used to convert on
+    its own, so it could fail in both directions the bounds could — crash on
+    a non-numeral, certify a NaN — while the bounds beside it were guarded.
+    A slot that may legitimately be absent still may not be legitimately
+    unreadable.
+    """
+    prog, r = solved
+    rT = copy.deepcopy(r)
+    _pn(rT)["point"] = "abc"
+    with pytest.raises(RuleCheckFailed) as exc:
+        kernel.verify(prog, rT)
+    assert exc.value.rule == "causation_probability_bounds"
+
+
+def test_a_non_numeric_bound_is_a_verdict_on_the_polytope_route_too():
+    """The same rule reaches the same envelope down a second body.
+
+    ``causation_probability_bounds`` splits on the licence: Tian-Pearl's
+    closed form when both do-risks are numbers, the response-type polytope
+    when a bow arc means there are none. The two write their own envelope
+    comparison, so a guard that only one of them goes through leaves the
+    other exactly as it was — this pins that both read a claimed bound the
+    same way.
+    """
+    prog = _bow_arc_prog()
+    r = kernel.run(prog)["results"][0]
+    assert _step_output_items(r)[
+        "interventional_risk_provenance"] == "instrument_response_polytope"
+    rT = copy.deepcopy(r)
+    _pn(rT).update(lower=0.9, upper="abc")
+    with pytest.raises(RuleCheckFailed) as exc:
+        kernel.verify(prog, rT)
+    assert exc.value.rule == "causation_probability_bounds"
+
+
+def _bow_arc_prog():
+    """Z→X→Y with a bow arc X<->Y: no do-risk is point-identified, so the
+    causation query is answered over the instrument's response polytope."""
+    Z = {"predicate": "assigned", "args": [{"type": "const", "name": "p"}]}
+
+    def p(target, given, value):
+        return {"kind": "probability", "target": {"atom": target, "value": True},
+                "given": given, "value": value}
+
+    def at(atom, value):
+        return {"atom": atom, "value": value}
+
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "p"}]},
+        "statements": [
+            {"kind": "cause", "from": Z, "to": X},
+            {"kind": "cause", "from": X, "to": Y},
+            {"kind": "bidirected", "left": X, "right": Y},
+            p(Z, [], 0.5),
+            p(X, [at(Z, True)], 0.8),
+            p(X, [at(Z, False)], 0.2),
+            p(Y, [at(X, True), at(Z, True)], 0.3),
+            p(Y, [at(X, False), at(Z, True)], 0.1),
+            p(Y, [at(X, True), at(Z, False)], 0.35),
+            p(Y, [at(X, False), at(Z, False)], 0.15),
+            {"kind": "query", "id": "q1",
+             "query": {"kind": "causation", "cause": X, "effect": Y,
+                       "monotonic": False}},
+        ],
+    }

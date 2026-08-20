@@ -30,6 +30,22 @@ def _require(condition: bool, message: str) -> None:
         raise VerificationError(message)
 
 
+def _require_dict(value: object, message: str) -> dict:
+    """Same guard as ``_require(isinstance(value, dict), message)``, but it
+    hands the checked value back so the caller holds a ``dict`` rather than
+    the untyped ``dict.get`` result."""
+    if not isinstance(value, dict):
+        raise VerificationError(message)
+    return value
+
+
+def _require_list(value: object, message: str) -> list:
+    """List counterpart of ``_require_dict``."""
+    if not isinstance(value, list):
+        raise VerificationError(message)
+    return value
+
+
 def _derive_edge_source(rule, roots, answer_source, data_source):
     """Second transcription of the producer's per-edge source derivation."""
     if rule == "collider_input" or not roots:
@@ -59,8 +75,7 @@ def verify_orientation_ledger_export(result: dict) -> None:
     _require(isinstance(data_source, str) and data_source.startswith("discovery:"),
              f"data_source must be a 'discovery:*' marker, got {data_source!r}")
 
-    session = result.get("session")
-    _require(isinstance(session, dict), "session must be a dict")
+    session = _require_dict(result.get("session"), "session must be a dict")
     verify_orientation_session(session)          # delegate — certify the provenance
 
     prop = session["propagation"]
@@ -79,8 +94,7 @@ def verify_orientation_ledger_export(result: dict) -> None:
         }
 
     # --- edges: one per oriented edge, correct rule / roots / source ----------
-    claimed_edges = result.get("edges")
-    _require(isinstance(claimed_edges, list), "edges must be a list")
+    claimed_edges = _require_list(result.get("edges"), "edges must be a list")
     seen = set()
     for e in claimed_edges:
         _require(isinstance(e, dict) and "edge" in e, f"ill-formed edge entry {e!r}")
@@ -116,8 +130,7 @@ def verify_orientation_ledger_export(result: dict) -> None:
              f"expected {exp_learned!r}")
 
     # --- cause_statements: source-annotated, sources match the edges ----------
-    stmts = result.get("cause_statements")
-    _require(isinstance(stmts, list), "cause_statements must be a list")
+    stmts = _require_list(result.get("cause_statements"), "cause_statements must be a list")
     _require(len(stmts) == len(expected),
              f"cause_statements count {len(stmts)} != oriented-edge count {len(expected)}")
     stmt_seen = set()

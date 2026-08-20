@@ -139,6 +139,36 @@ def _refused_zh(subject: str, result: QueryResult) -> str:
     )
 
 
+def _solved_without_point_zh(subject: str, result: QueryResult) -> str:
+    """The sentence for the value-state nothing else here can describe.
+
+    A status says how far the kernel got; ``NumericResult.value`` says
+    whether a point came out. They are two facts, carried separately, so
+    they can disagree — and when they do, every other sentence this
+    module owns is a fluent, credible description of some *other*
+    situation ("结果未分类", "在当前结构下不可识别"), which the reader has
+    no way to tell apart from the truth. A contradiction the reader
+    cannot see is worse than one shouted at them, so this names the
+    contradiction itself and withholds the answer rather than borrowing
+    a neighbouring branch's words for it.
+    """
+    numeric = result.numeric_result
+    if numeric is None:
+        detail = "（数值结果整段缺失）"
+    elif numeric.interval is not None:
+        detail = (
+            f"（只给出了区间 [{_format_number(numeric.interval.low)}, "
+            f"{_format_number(numeric.interval.high)}]）"
+        )
+    else:
+        detail = ""
+    return (
+        f"{subject}：内核状态标为「已解出点值」，但结果里没有点值{detail}。"
+        f"这是内核输出自相矛盾，本条不可采信——"
+        f"请把该查询连同这条结果一并报给维护者。"
+    )
+
+
 def _describe_needs_investigation(result: QueryResult) -> str:
     """Render the '缺什么 / 为什么缺 / 下一步做什么' envelope.
 
@@ -152,22 +182,24 @@ def _describe_needs_investigation(result: QueryResult) -> str:
     if not result.missing_information:
         return ""
 
-    reqs_by_target: dict[str, "InvestigationAction"] = {}
-    reqs_priority: dict[str, "Priority"] = {}
-    for req in result.investigation_requests:
-        reqs_by_target[req.target] = req.action
-        reqs_priority[req.target] = req.priority
+    # Action and priority are set together on one request, so they travel
+    # together: a lone `action` lookup cannot tell mypy — or a reader —
+    # that the matching priority is there too.
+    reqs_by_target: dict[str, tuple["InvestigationAction", "Priority"]] = {
+        req.target: (req.action, req.priority)
+        for req in result.investigation_requests
+    }
 
     sentences: list[str] = []
     for m in result.missing_information:
         parts = [f"缺：{m.name}"]
         if m.reason:
             parts.append(f"（原因：{m.reason}）")
-        action = reqs_by_target.get(m.name)
-        if action is not None:
+        req_pair = reqs_by_target.get(m.name)
+        if req_pair is not None:
+            action, prio = req_pair
             action_label = _ACTION_PHRASE.get(action, action.value)
-            prio = reqs_priority.get(m.name)
-            prio_label = _PRIORITY_PHRASE.get(prio, prio.value if prio else "")
+            prio_label = _PRIORITY_PHRASE.get(prio, prio.value)
             parts.append(
                 f"；下一步 {action_label}（优先级 {prio_label}）"
             )
@@ -302,9 +334,15 @@ def _explain_effect_zh(result: QueryResult, stmt=None) -> str:
     else:
         quantity = "该干预量"
 
-    if result.status is ResultStatus.NUMERICALLY_SOLVED and result.numeric_result is not None:
+    # Enter on the status alone: the status is the kernel's claim about
+    # this query, and a renderer that quietly overrules it on a missing
+    # payload hands the reader the next branch's sentence instead.
+    if result.status is ResultStatus.NUMERICALLY_SOLVED:
+        numeric = result.numeric_result
+        if numeric is None or numeric.value is None:
+            return _solved_without_point_zh(quantity, result)
         return (
-            f"{quantity} = {_format_number(result.numeric_result.value)}。"
+            f"{quantity} = {_format_number(numeric.value)}。"
             f"{_describe_adjustment(result.formula)}"
         )
 
@@ -338,8 +376,11 @@ def _explain_probability_zh(result: QueryResult, stmt=None) -> str:
     else:
         quantity = "该条件概率"
 
-    if result.status is ResultStatus.NUMERICALLY_SOLVED and result.numeric_result is not None:
-        return f"{quantity} = {_format_number(result.numeric_result.value)}。"
+    if result.status is ResultStatus.NUMERICALLY_SOLVED:
+        numeric = result.numeric_result
+        if numeric is None or numeric.value is None:
+            return _solved_without_point_zh(quantity, result)
+        return f"{quantity} = {_format_number(numeric.value)}。"
 
     if result.status is ResultStatus.NEEDS_INVESTIGATION:
         gap = _describe_needs_investigation(result)
@@ -365,9 +406,12 @@ def _explain_counterfactual_cell_data_zh(cell: dict) -> str:
     if point is not None:
         head = f"反事实单格 = {_format_number(point)}（点识别）"
     else:
+        # ``lower`` / ``upper`` are the cell block's non-optional fields
+        # (``point`` is the optional one) — index, do not ``.get``: their
+        # absence is a broken writer, not an interval-free answer.
         head = (
-            f"反事实单格 ∈ [{_format_number(cell.get('lower'))}, "
-            f"{_format_number(cell.get('upper'))}]（区间，非点）"
+            f"反事实单格 ∈ [{_format_number(cell['lower'])}, "
+            f"{_format_number(cell['upper'])}]（区间，非点）"
         )
     ci_lo, ci_hi = cell.get("ci_lower"), cell.get("ci_upper")
     if ci_lo is not None and ci_hi is not None:
@@ -389,17 +433,20 @@ def _explain_counterfactual_zh(result: QueryResult, stmt=None) -> str:
     cell = (result.extensions or {}).get(blocks.Block.COUNTERFACTUAL_CELL)
     if cell:
         return _explain_counterfactual_cell_data_zh(cell)
-    if result.status is ResultStatus.COUNTERFACTUAL_SOLVED and result.numeric_result is not None:
+    numeric = result.numeric_result
+    if result.status is ResultStatus.COUNTERFACTUAL_SOLVED:
+        if numeric is None or numeric.value is None:
+            return _solved_without_point_zh("反事实查询", result)
         return (
             "反事实查询已得到点值结果。"
-            f"P(counterfactual target) = {_format_number(result.numeric_result.value)}。"
+            f"P(counterfactual target) = {_format_number(numeric.value)}。"
         )
     if (
         result.status is ResultStatus.COUNTERFACTUAL_BOUNDED
-        and result.numeric_result is not None
-        and result.numeric_result.interval is not None
+        and numeric is not None
+        and numeric.interval is not None
     ):
-        interval = result.numeric_result.interval
+        interval = numeric.interval
         return (
             "反事实查询当前得到界而非点值。"
             f"区间为 [{_format_number(interval.low)}, {_format_number(interval.high)}]。"

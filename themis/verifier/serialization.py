@@ -199,7 +199,7 @@ def _tuple_to_dict(tpl: tuple) -> dict:
 
 
 def _atom_to_dict(atom: Atom) -> dict:
-    d = {
+    d: dict[str, object] = {
         "kind": "atom",
         "predicate": atom.predicate,
         "args": [_term_to_dict(t) for t in atom.args],
@@ -248,7 +248,7 @@ def _graph_to_dict(g: nx.DiGraph) -> dict:
 
 
 def _structural_result_to_dict(sr: StructuralResult) -> dict:
-    d = {"kind": "structural_result", "value": sr.value}
+    d: dict[str, object] = {"kind": "structural_result", "value": sr.value}
     if sr.supporting_paths:
         d["supporting_paths"] = [list(p) for p in sr.supporting_paths]
     return d
@@ -374,7 +374,10 @@ def _value_from_json(v: Any) -> Any:
             f"value must be primitive or tagged dict, got {type(v).__name__}"
         )
     kind = v.get("kind")
-    handler = _DECODE_BY_KIND.get(kind)
+    # A tag that is not a string can never name a decoder, and looking it up
+    # would raise TypeError for the unhashable ones (``{"kind": []}``) instead
+    # of this module's shape error.
+    handler = _DECODE_BY_KIND.get(kind) if isinstance(kind, str) else None
     if handler is None:
         raise DerivationSerializationError(
             f"unknown value kind: {kind!r}"
@@ -438,7 +441,7 @@ def _decode_valued_atom(d: dict) -> ValuedAtom:
     return ValuedAtom(atom=atom, value=value)
 
 
-def _decode_literal_atom_value(value, what: str):
+def _decode_literal_atom_value(value: object, what: str) -> bool | int | float | str:
     if isinstance(value, (bool, int, float, str)):
         return value
     raise DerivationSerializationError(
@@ -746,7 +749,7 @@ def _query_to_dict(q) -> dict:
             "given": [_atom_to_dict(a) for a in q.given],
         }
     if isinstance(q, EffectQuery):
-        d = {
+        d: dict[str, object] = {
             "kind": "effect_query",
             "target": _valued_atom_to_dict(q.target),
             "intervention": _intervention_to_dict(q.intervention),
@@ -904,7 +907,10 @@ def _decode_intervention(d: dict) -> Intervention:
         raise DerivationSerializationError("intervention.atom must be a dict")
     if "value" not in d:
         raise DerivationSerializationError("intervention.value is required")
-    return Intervention(atom=_decode_atom(atom_raw), value=d.get("value"))
+    return Intervention(
+        atom=_decode_atom(atom_raw),
+        value=_decode_literal_atom_value(d["value"], "intervention.value"),
+    )
 
 
 def _decode_query(d: dict):

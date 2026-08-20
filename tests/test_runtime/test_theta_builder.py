@@ -5,6 +5,7 @@ import pytest
 
 from themis.runtime.theta_builder import (
     ConflictingThetaEntry,
+    NonLiteralProbabilityValue,
     build_theta,
 )
 from themis.types import (
@@ -12,6 +13,7 @@ from themis.types import (
     ConstTerm,
     ProbabilityStatement,
     ValuedAtom,
+    VarRef,
 )
 
 
@@ -105,3 +107,60 @@ def test_duplicate_key_with_same_value_is_idempotent():
     )
     theta = build_theta((s1, s2))
     assert len(theta.entries) == 1
+
+
+# A probability statement's value has to be a concrete literal. ``ValuedAtom``
+# is shared with the formula AST, where a value may be absent or bound by an
+# enclosing sum, so both non-literal shapes can reach this builder.
+NON_LITERALS = [
+    pytest.param(None, id="unbound"),
+    pytest.param(VarRef(name="v"), id="sum-bound"),
+]
+
+
+@pytest.mark.parametrize("non_literal", NON_LITERALS)
+def test_a_non_literal_target_value_is_refused(non_literal):
+    """This branch has no other way to be reached, which is exactly why
+    it needs a test.
+
+    The JSON door cannot get here — ``atom.schema.json`` §groundedAtom
+    makes a probability statement's value required and literal — so the
+    guard is live only for callers who build the dataclass directly, as
+    the runtime and these tests do. To anyone reading the module cold it
+    looks unreachable, and unreachable-looking guards get deleted.
+
+    What it stops is not an exception, it is a key. The value goes
+    straight into ``ProbabilityKey.target_value`` and into the atom's
+    value domain, so an unbound one used to produce an entry keyed on
+    ``None`` and a domain of ``(None,)``: a theta that looks well formed,
+    that no lookup can ever hit, and that never says why.
+    """
+    stmt = ProbabilityStatement(
+        target=ValuedAtom(atom=atom("x"), value=non_literal),
+        given=(),
+        value=0.3,
+    )
+
+    with pytest.raises(NonLiteralProbabilityValue, match="target 'x'"):
+        build_theta((stmt,))
+
+
+@pytest.mark.parametrize("non_literal", NON_LITERALS)
+def test_a_non_literal_given_value_is_refused(non_literal):
+    """The conditioning side is the same contract and needs the same
+    check, said separately so the message can name the side.
+
+    A given atom's value is half of the frozenset that makes the key, so
+    a non-literal there produces a key that is unmatchable in the same
+    way while the target reads perfectly well — the harder half to spot
+    by eye, and the one a check written only for ``stmt.target`` would
+    let through.
+    """
+    stmt = ProbabilityStatement(
+        target=ValuedAtom(atom=atom("y"), value=True),
+        given=(ValuedAtom(atom=atom("x"), value=non_literal),),
+        value=0.3,
+    )
+
+    with pytest.raises(NonLiteralProbabilityValue, match="given atom 'x'"):
+        build_theta((stmt,))

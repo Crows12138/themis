@@ -59,6 +59,7 @@ from ..types import (
     InvestigationAction,
     Program,
     QueryResult,
+    Statement,
     VariableDeclaration,
 )
 
@@ -333,7 +334,7 @@ def merge_variable_declaration(
     if not new_decls:
         return program
 
-    new_statements = []
+    new_statements: list[Statement] = []
     for s in program.statements:
         if isinstance(s, VariableDeclaration) and s.predicate in new_decls:
             new_statements.append(new_decls[s.predicate])
@@ -360,8 +361,8 @@ def _gaps_by_predicate(results: Iterable[QueryResult]) -> dict[str, set[str]]:
     return gaps
 
 
-def _query_row(r: QueryResult) -> dict:
-    row = {"query_id": r.query_id, "status": r.status.value}
+def _query_row(r: QueryResult) -> dict[str, object]:
+    row: dict[str, object] = {"query_id": r.query_id, "status": r.status.value}
     if r.numeric_result is not None:
         row["value"] = r.numeric_result.value
     if r.confidence is not None:

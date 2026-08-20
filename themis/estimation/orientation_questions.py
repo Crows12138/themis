@@ -124,7 +124,7 @@ def _cascade(nodes, directed, undirected, u_set: set[frozenset], answer: Edge) -
     of the single constraint, restricted to the originally-undirected edges."""
     r = propagate_orientations(nodes, directed=directed, undirected=undirected,
                                constraints=[answer])
-    return {tuple(sorted(e)) for e in r.oriented if frozenset(e) in u_set}
+    return {_pair(*e) for e in r.oriented if frozenset(e) in u_set}
 
 
 def _conflict_prompt(c: dict) -> str:
@@ -211,7 +211,7 @@ def compile_orientation_questions(result: OrientationResult) -> QuestionSet:
 
     # --- orientation questions, leverage-ranked -------------------------------
     orient: list[OrientationQuestion] = []
-    for e in sorted(tuple(sorted(p)) for p in undirected):
+    for e in sorted(_pair(*p) for p in undirected):
         a, b = e
         fwd = _cascade(nodes, directed, undirected, u_set, (a, b))
         bwd = _cascade(nodes, directed, undirected, u_set, (b, a))

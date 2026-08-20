@@ -308,24 +308,32 @@ def _benchmark(
     # serve as a benchmark makes a denominator non-positive. Guard rather
     # than raise — a void benchmark reports None bounds + valid=False.
     try:
-        r2dz_x, r2yz_dx = ovb_partial_r2_bound(r2dxj_x, r2yxj_dx, kd=kd, ky=ky)
-        finite = math.isfinite(r2dz_x) and math.isfinite(r2yz_dx)
-    except (ValueError, ZeroDivisionError):
-        r2dz_x = r2yz_dx = None
-        finite = False
-    valid = finite and 0.0 <= r2dz_x < 1.0 and 0.0 <= r2yz_dx <= 1.0
-    if valid:
-        adj_est = adjusted_estimate(
-            estimate, r2dz_x, r2yz_dx, se=se, dof=dof, reduce=reduce,
+        bound: tuple[float, float] | None = ovb_partial_r2_bound(
+            r2dxj_x, r2yxj_dx, kd=kd, ky=ky,
         )
-        adj_se = adjusted_se(r2dz_x, r2yz_dx, se=se, dof=dof)
-        adj_t = adj_est / adj_se if adj_se > 0 else None
-    else:
-        adj_est = adj_se = adj_t = None
+    except (ValueError, ZeroDivisionError):
+        bound = None
+    valid = False
+    adj_est: float | None = None
+    adj_se: float | None = None
+    adj_t: float | None = None
+    if bound is not None:
+        r2dz_x, r2yz_dx = bound
+        valid = (
+            math.isfinite(r2dz_x) and math.isfinite(r2yz_dx)
+            and 0.0 <= r2dz_x < 1.0 and 0.0 <= r2yz_dx <= 1.0
+        )
+        if valid:
+            adj_est = adjusted_estimate(
+                estimate, r2dz_x, r2yz_dx, se=se, dof=dof, reduce=reduce,
+            )
+            adj_se = adjusted_se(r2dz_x, r2yz_dx, se=se, dof=dof)
+            adj_t = adj_est / adj_se if adj_se > 0 else None
     return OVBBenchmark(
         covariate=covariate, kd=kd, ky=ky,
         r2dxj_x=r2dxj_x, r2yxj_dx=r2yxj_dx,
-        r2dz_x=r2dz_x, r2yz_dx=r2yz_dx,
+        r2dz_x=None if bound is None else bound[0],
+        r2yz_dx=None if bound is None else bound[1],
         adjusted_estimate=adj_est, adjusted_se=adj_se, adjusted_t=adj_t,
         valid=valid,
     )

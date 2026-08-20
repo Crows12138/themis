@@ -255,8 +255,6 @@ def estimate_measurement_correction(
     # data value the contract coerced.
     Minv_by_level: dict = {}
     differential_axis: str | None = None
-    by_arm_records = None
-    by_level_records = None
     if differential:
         axis = differential_by if differential_by is not None else treatment
         if axis != treatment and axis not in adjustment:
@@ -289,6 +287,20 @@ def estimate_measurement_correction(
                  "det": _d}
                 for (lvl, _M, _d, _inv) in sorted(prepared, key=lambda t: bool(t[0]))
             ]
+            suff_extra: dict = {
+                "differential": True,
+                "confusion_matrices_by_arm": by_arm_records,
+            }
+            matrices_out: tuple = tuple(by_arm_records)
+            differential_by_out: str | None = None
+            model_assumption = (
+                "被误分类的离散结局 Y 有验证研究给出的**逐暴露臂**混淆矩阵 "
+                "M_x（列随机，M_x[i][j]=P(Y=state_i|Y*=state_j,X=x)）。在差异误分类"
+                "（detection bias，各臂矩阵不同）下，逐层用**本臂**矩阵求逆恢复真实分布 "
+                "p_true(·|x,z)=M_x⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
+                "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。各臂 det(M_x) 不同，"
+                "无单一去衰减因子；差异误分类可朝远离零方向偏，故须逐臂求逆。"
+            )
         else:
             by_level_records = [
                 {"level": _py(lvl),
@@ -296,7 +308,22 @@ def estimate_measurement_correction(
                  "det": _d}
                 for (lvl, _M, _d, _inv) in prepared
             ]
-        M = None
+            suff_extra = {
+                "differential": True,
+                "differential_by": differential_axis,
+                "confusion_matrices_by_level": by_level_records,
+            }
+            matrices_out = tuple(by_level_records)
+            differential_by_out = differential_axis
+            model_assumption = (
+                f"被误分类的离散结局 Y 有验证研究给出的**逐协变量 {differential_axis} 分层**"
+                "混淆矩阵 M_z（列随机，M_z[i][j]=P(Y=state_i|Y*=state_j,"
+                f"{differential_axis}=z)）。误分类率随该协变量而异（如随测量地点/年龄），"
+                "在每个后门层内用**本层**矩阵求逆恢复真实分布 p_true(·|x,z)=M_z⁻¹"
+                "p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
+                "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。各层 det(M_z) 不同，"
+                "无单一去衰减因子；池化单矩阵会做错，故须逐层按该协变量取值求逆。"
+            )
         det = float("nan")
         confusion_matrix_out: tuple = ()
     else:
@@ -313,6 +340,20 @@ def estimate_measurement_correction(
         differential_axis = treatment            # both arms share the one matrix
         Minv_by_level = {_level_key(False): Minv, _level_key(True): Minv}
         confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
+        suff_extra = {
+            "confusion_matrix": [[float(v) for v in row] for row in M],
+            "det": det,
+        }
+        matrices_out = ()
+        differential_by_out = None
+        model_assumption = (
+            "被误分类的离散结局 Y 有验证研究给出的混淆矩阵 M（列随机，"
+            "M[i][j]=P(Y=state_i|Y*=state_j)）。在非差异误分类假设下"
+            "（Y⊥(X,Z)|Y*，各臂各层同一 M）逐层求逆恢复真实分布 "
+            "p_true(·|x,z)=M⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
+            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。二值结局即逐层 "
+            "Rogan-Gladen，去衰减因子 det(M)=Se+Sp−1。"
+        )
 
     adjustment = tuple(sorted(adjustment))
     presence = (cluster,) if cluster is not None else ()
@@ -358,48 +399,6 @@ def estimate_measurement_correction(
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
         )
 
-    if differential and by_arm_records is not None:
-        suff_extra = {
-            "differential": True,
-            "confusion_matrices_by_arm": by_arm_records,
-        }
-        model_assumption = (
-            "被误分类的离散结局 Y 有验证研究给出的**逐暴露臂**混淆矩阵 "
-            "M_x（列随机，M_x[i][j]=P(Y=state_i|Y*=state_j,X=x)）。在差异误分类"
-            "（detection bias，各臂矩阵不同）下，逐层用**本臂**矩阵求逆恢复真实分布 "
-            "p_true(·|x,z)=M_x⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
-            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。各臂 det(M_x) 不同，"
-            "无单一去衰减因子；差异误分类可朝远离零方向偏，故须逐臂求逆。"
-        )
-    elif differential:
-        suff_extra = {
-            "differential": True,
-            "differential_by": differential_axis,
-            "confusion_matrices_by_level": by_level_records,
-        }
-        model_assumption = (
-            f"被误分类的离散结局 Y 有验证研究给出的**逐协变量 {differential_axis} 分层**"
-            "混淆矩阵 M_z（列随机，M_z[i][j]=P(Y=state_i|Y*=state_j,"
-            f"{differential_axis}=z)）。误分类率随该协变量而异（如随测量地点/年龄），"
-            "在每个后门层内用**本层**矩阵求逆恢复真实分布 p_true(·|x,z)=M_z⁻¹"
-            "p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
-            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。各层 det(M_z) 不同，"
-            "无单一去衰减因子；池化单矩阵会做错，故须逐层按该协变量取值求逆。"
-        )
-    else:
-        suff_extra = {
-            "confusion_matrix": [[float(v) for v in row] for row in M],
-            "det": det,
-        }
-        model_assumption = (
-            "被误分类的离散结局 Y 有验证研究给出的混淆矩阵 M（列随机，"
-            "M[i][j]=P(Y=state_i|Y*=state_j)）。在非差异误分类假设下"
-            "（Y⊥(X,Z)|Y*，各臂各层同一 M）逐层求逆恢复真实分布 "
-            "p_true(·|x,z)=M⁻¹p_obs(·|x,z)，再对目标值 y* 做后门标准化 "
-            "ATE=Σ_z[p_true(y*|1,z)−p_true(y*|0,z)]P(z)。二值结局即逐层 "
-            "Rogan-Gladen，去衰减因子 det(M)=Se+Sp−1。"
-        )
-
     assumptions = _assumptions(adjustment, cluster, differential=differential)
     return MeasurementCorrectionEstimate(
         point=point,
@@ -427,11 +426,8 @@ def estimate_measurement_correction(
         cluster=cluster,
         model_assumption=model_assumption,
         differential=differential,
-        differential_by=(differential_axis if by_level_records is not None else None),
-        confusion_matrices=(
-            tuple(by_arm_records if by_arm_records is not None else by_level_records)
-            if differential else ()
-        ),
+        differential_by=differential_by_out,
+        confusion_matrices=matrices_out,
         differential_levels=(
             tuple(_py(v) for v in differential_levels) if differential else ()
         ),
@@ -463,8 +459,12 @@ def _formula(
     marginal = _marginal(df, adjustment)              # {z_key: prob}
     marginal_counts = _marginal_counts(df, adjustment)  # {z_key: count}
 
-    axis_is_arm = differential_axis == treatment
-    axis_idx = None if axis_is_arm else adjustment.index(differential_axis)
+    # One name for one fact: ``None`` IS "the axis is the exposure arm", so
+    # the position of the axis column carries the branch as well.
+    axis_idx = (
+        None if differential_axis == treatment
+        else adjustment.index(differential_axis)
+    )
 
     strata_records: list[dict] = []
     corrected = 0.0
@@ -488,7 +488,9 @@ def _formula(
                 )
             counts = _value_counts(yvals[mask.to_numpy()], states)
             p_obs = counts.astype(float) / n
-            lvl_value = bool(arm) if axis_is_arm else _py(z_key[axis_idx])
+            lvl_value = (
+                bool(arm) if axis_idx is None else _py(z_key[axis_idx])
+            )
             Minv = Minv_by_level.get(_level_key(lvl_value))
             if Minv is None:
                 raise EstimatorFailure(
@@ -975,7 +977,8 @@ def estimate_exposure_measurement_correction(
             )
         Minv = np.linalg.inv(M)
     else:
-        M = None
+        # No single ``M`` here at all: the per-level set is prepared below,
+        # once the observed outcome levels are known.
         det = float("nan")
 
     adjustment = tuple(sorted(adjustment))
@@ -1025,8 +1028,6 @@ def estimate_exposure_measurement_correction(
     # a stratum inverted with that stratum's matrix). Maps are keyed by
     # ``_level_key`` so a bool/0-1 level matches the value the contract coerced.
     differential_axis: str | None = None
-    by_outcome_records = None
-    by_level_records = None
     if differential:
         axis = differential_by if differential_by is not None else outcome
         if axis == treatment:
@@ -1074,6 +1075,20 @@ def estimate_exposure_measurement_correction(
                  for (lvl, _M, _d, _inv) in prepared),
                 key=lambda r: str(r["outcome"]),
             )
+            suff_extra: dict = {
+                "differential": True,
+                "confusion_matrices_by_outcome": by_outcome_records,
+            }
+            matrices_out: tuple = tuple(by_outcome_records)
+            differential_by_out: str | None = None
+            model_assumption = (
+                "被误分类的二值暴露 X 有验证研究给出的**逐结局**混淆矩阵 "
+                "M_y（列随机，M_y[i][j]=P(X=state_i|X*=state_j,Y=y)）。在差异误分类"
+                "（recall bias，各结局矩阵不同）下，逐层沿暴露轴对结局 y 的列用**本结局**"
+                "矩阵 M_y⁻¹ 求逆恢复真实联合分布，再用恢复的真实暴露做后门标准化 "
+                "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。暴露侧分母 P(X*=x|z) "
+                "本身也是求逆结果，故无 naive/det 捷径；差异误分类可朝远离零方向偏。"
+            )
         else:
             # Covariate-differential: coverage of every observed covariate value is
             # enforced per stratum in ``_exposure_formula`` (differential_level_
@@ -1084,11 +1099,41 @@ def estimate_exposure_measurement_correction(
                  "det": _d}
                 for (lvl, _M, _d, _inv) in prepared
             ]
+            suff_extra = {
+                "differential": True,
+                "differential_by": differential_axis,
+                "confusion_matrices_by_level": by_level_records,
+            }
+            matrices_out = tuple(by_level_records)
+            differential_by_out = differential_axis
+            model_assumption = (
+                f"被误分类的二值暴露 X 有验证研究给出的**逐协变量 {differential_axis} 分层**"
+                "混淆矩阵 M_z（列随机，M_z[i][j]=P(X=state_i|X*=state_j,"
+                f"{differential_axis}=z)）。暴露误分类率随该协变量而异（如随测量地点），"
+                "在每个后门层内用**本层**矩阵 M_z⁻¹ 对每个结局列求逆恢复真实联合分布 "
+                "p_true(X*,Y|z)=M_z⁻¹p_obs(X,Y|z)，再用恢复的真实暴露做后门标准化 "
+                "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。各层 M_z 不同，"
+                "池化单矩阵会做错；暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
+            )
         confusion_matrix_out: tuple = ()
     else:
         Minv_by_level = {_level_key(y): Minv for y in outcome_states}
         differential_axis = outcome
         confusion_matrix_out = tuple(tuple(float(v) for v in row) for row in M)
+        suff_extra = {
+            "confusion_matrix": [[float(v) for v in row] for row in M],
+            "det": det,
+        }
+        matrices_out = ()
+        differential_by_out = None
+        model_assumption = (
+            "被误分类的二值暴露 X 有验证研究给出的混淆矩阵 M（列随机，"
+            "M[i][j]=P(X=state_i|X*=state_j)）。在非差异误分类假设下"
+            "（X⊥(Y,Z)|X*，各结局各层同一 M）逐层沿暴露轴对每个结局列求逆"
+            "恢复真实联合分布 p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z)，再用恢复的真实"
+            "暴露做后门标准化 ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。"
+            "暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
+        )
 
     groups = (
         cluster_labels(df, cluster, expected_n=len(df))
@@ -1111,48 +1156,6 @@ def estimate_exposure_measurement_correction(
             Minv_by_level=Minv_by_level, differential_axis=differential_axis,
             target_index=target_index, groups=groups,
             ci_bootstrap=ci_bootstrap, ci_level=ci_level, random_state=random_state,
-        )
-
-    if differential and by_outcome_records is not None:
-        suff_extra = {
-            "differential": True,
-            "confusion_matrices_by_outcome": by_outcome_records,
-        }
-        model_assumption = (
-            "被误分类的二值暴露 X 有验证研究给出的**逐结局**混淆矩阵 "
-            "M_y（列随机，M_y[i][j]=P(X=state_i|X*=state_j,Y=y)）。在差异误分类"
-            "（recall bias，各结局矩阵不同）下，逐层沿暴露轴对结局 y 的列用**本结局**"
-            "矩阵 M_y⁻¹ 求逆恢复真实联合分布，再用恢复的真实暴露做后门标准化 "
-            "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。暴露侧分母 P(X*=x|z) "
-            "本身也是求逆结果，故无 naive/det 捷径；差异误分类可朝远离零方向偏。"
-        )
-    elif differential:
-        suff_extra = {
-            "differential": True,
-            "differential_by": differential_axis,
-            "confusion_matrices_by_level": by_level_records,
-        }
-        model_assumption = (
-            f"被误分类的二值暴露 X 有验证研究给出的**逐协变量 {differential_axis} 分层**"
-            "混淆矩阵 M_z（列随机，M_z[i][j]=P(X=state_i|X*=state_j,"
-            f"{differential_axis}=z)）。暴露误分类率随该协变量而异（如随测量地点），"
-            "在每个后门层内用**本层**矩阵 M_z⁻¹ 对每个结局列求逆恢复真实联合分布 "
-            "p_true(X*,Y|z)=M_z⁻¹p_obs(X,Y|z)，再用恢复的真实暴露做后门标准化 "
-            "ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。各层 M_z 不同，"
-            "池化单矩阵会做错；暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
-        )
-    else:
-        suff_extra = {
-            "confusion_matrix": [[float(v) for v in row] for row in M],
-            "det": det,
-        }
-        model_assumption = (
-            "被误分类的二值暴露 X 有验证研究给出的混淆矩阵 M（列随机，"
-            "M[i][j]=P(X=state_i|X*=state_j)）。在非差异误分类假设下"
-            "（X⊥(Y,Z)|X*，各结局各层同一 M）逐层沿暴露轴对每个结局列求逆"
-            "恢复真实联合分布 p_true(X*,Y|z)=M⁻¹p_obs(X,Y|z)，再用恢复的真实"
-            "暴露做后门标准化 ATE=Σ_z[P(Y=y*|X*=1,z)−P(Y=y*|X*=0,z)]P(z)。"
-            "暴露侧分母 P(X*=x|z) 本身也是求逆结果，故无 naive/det 捷径。"
         )
 
     assumptions = _exposure_assumptions(
@@ -1188,12 +1191,8 @@ def estimate_exposure_measurement_correction(
         cluster=cluster,
         model_assumption=model_assumption,
         differential=differential,
-        differential_by=(differential_axis if by_level_records is not None else None),
-        confusion_matrices=(
-            tuple(by_outcome_records if by_outcome_records is not None
-                  else by_level_records)
-            if differential else ()
-        ),
+        differential_by=differential_by_out,
+        confusion_matrices=matrices_out,
         differential_levels=(
             tuple(_py(v) for v in differential_levels) if differential else ()
         ),
@@ -1226,8 +1225,12 @@ def _exposure_formula(
     marginal = _marginal(df, adjustment)              # {z_key: prob}
     marginal_counts = _marginal_counts(df, adjustment)  # {z_key: count}
 
-    axis_is_outcome = differential_axis == outcome
-    axis_idx = None if axis_is_outcome else adjustment.index(differential_axis)
+    # One name for one fact: ``None`` IS "the axis is the outcome", so the
+    # position of the axis column carries the branch as well.
+    axis_idx = (
+        None if differential_axis == outcome
+        else adjustment.index(differential_axis)
+    )
 
     strata_records: list[dict] = []
     corrected = 0.0
@@ -1260,7 +1263,10 @@ def _exposure_formula(
         p_obs = joint / Nz
         p_true = np.empty_like(p_obs)
         for yj in range(k):
-            lvl_value = outcome_states[yj] if axis_is_outcome else _py(z_key[axis_idx])
+            lvl_value = (
+                outcome_states[yj] if axis_idx is None
+                else _py(z_key[axis_idx])
+            )
             Minv = Minv_by_level.get(_level_key(lvl_value))
             if Minv is None:
                 raise EstimatorFailure(

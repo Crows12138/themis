@@ -17,7 +17,7 @@ inspect ``step_index`` / ``rule`` on the exception.
 """
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, NoReturn, TypeVar
 
 from ..types import (
     AssocQuery,
@@ -67,6 +67,27 @@ _NONPARAM_POINT_ID_RULES = (
     "identify_via_tian",
     "identify_via_idc",
 )
+
+
+_QueryT = TypeVar("_QueryT")
+
+
+def _query_as(context: VerificationContext, shape: type[_QueryT]) -> _QueryT:
+    """Read the context query at the shape the caller was written for.
+
+    Every ``verify_*`` entry point checks the query shape before it starts
+    the walk, and each binding asserter / re-check helper is installed by
+    exactly one of them. That guarantee lived only in the call graph; this
+    states it where the reader (and the checker) is.
+    """
+    q = context.query
+    if not isinstance(q, shape):
+        raise VerificationError(
+            f"verification context carries a {type(q).__name__}, "
+            f"not a {shape.__name__}",
+            step_index=None, rule=None,
+        )
+    return q
 
 
 def _extract_identify_formula(derivation: tuple[DerivationStep, ...]):
@@ -150,35 +171,58 @@ def _assert_query_binding(
     step_by_id: dict[str, DerivationStep],
     step_output_by_id: dict[str, object],
 ) -> None:
-    """Reject derivations that prove *some other* identify query on the
-    same graph.
+    """Reject derivations that prove *some other* query on the same graph.
 
-    V0 only supports identify derivations, so the query binding can be
-    made explicit:
+    Installed by every entry point whose query is identify-SHAPED — one
+    intervention, one target, one conditioning set: ``verify_identify``
+    (IdentifyQuery) plus ``verify_numeric_estimate`` and
+    ``verify_effect_structural`` (EffectQuery). Each rule below has to
+    name the active query's X, Y and given, so a perfectly valid proof
+    for a different (X, Y, given, do-value) cannot be replayed here.
 
-    - ``backdoor_criterion`` must reason about the active query's
-      intervention atom, target atom, and given set.
-    - ``backdoor_adjustment_formula`` must build a formula for the
-      active query's target / intervention value / observed context.
-
-    This keeps the verifier from accepting a perfectly valid proof for
-    a different (X, Y, given, do-value) on the same graph.
+    The two query types state those three things at different shapes, and
+    the rules need both shapes. An IdentifyQuery leaves the literal open:
+    its target is a bare ``Atom`` and the estimand is the whole
+    distribution. An EffectQuery asks about one literal: its target is a
+    ``ValuedAtom`` and that value is part of the question. Criterion rules
+    reason structurally and so name bare atoms; formula rules build an
+    estimand and so name valued ones. The query is therefore unpacked once
+    into ``*_atom`` / ``*_va`` names and every branch compares against
+    those. Picking ``q.target`` or ``q.given`` apart inside a branch
+    instead is what makes a branch bind correctly for one query type while
+    comparing incommensurable shapes — and so rejecting unconditionally —
+    for the other.
     """
     q = context.query
-
-    # Extract target atom + given atoms from either an IdentifyQuery
-    # (target is already an Atom) or an EffectQuery (target is a
-    # ValuedAtom). Phase 7.1 reuses backdoor_criterion on the effect
-    # path for the numeric estimate witness.
     if isinstance(q, EffectQuery):
+        # The valued shape is the query's own; the bare shape drops the value.
         q_target_atom = q.target.atom
+        q_target_va = q.target
         q_given_atoms = frozenset(g.atom for g in q.given)
-    else:
+        q_given_vas = frozenset(q.given)
+    elif isinstance(q, IdentifyQuery):
+        # The bare shape is the query's own; the valued shape spells the
+        # open literal as value=None, which is what the formula builders
+        # emit for an identify estimand.
         q_target_atom = q.target
+        q_target_va = ValuedAtom(atom=q.target, value=None)
         q_given_atoms = frozenset(q.given)
+        q_given_vas = frozenset(
+            ValuedAtom(atom=a, value=None) for a in q.given
+        )
+    else:
+        raise VerificationError(
+            "identify-shaped query binding requires an IdentifyQuery or an "
+            f"EffectQuery; got a {type(q).__name__}",
+            step_index=step_index, rule=step.rule,
+        )
+    # Both types state the intervention as an Intervention(atom, value),
+    # so X is the one axis that needs no per-type branch.
+    q_x_atom = q.intervention.atom
+    q_x_va = ValuedAtom(atom=q_x_atom, value=q.intervention.value)
 
     if step.rule == "backdoor_criterion":
-        if step.inputs.get("x") != q.intervention.atom:
+        if step.inputs.get("x") != q_x_atom:
             raise VerificationError(
                 "backdoor_criterion.x does not match verification context query",
                 step_index=step_index,
@@ -199,50 +243,41 @@ def _assert_query_binding(
             )
 
     if step.rule == "backdoor_adjustment_formula":
-        expected_target = ValuedAtom(atom=q.target, value=None)
-        expected_intervention = ValuedAtom(
-            atom=q.intervention.atom,
-            value=q.intervention.value,
-        )
-        expected_given = frozenset(
-            ValuedAtom(atom=a, value=None) for a in q.given
-        )
-
-        if step.inputs.get("target") != expected_target:
+        if step.inputs.get("target") != q_target_va:
             raise VerificationError(
                 "backdoor_adjustment_formula.target does not match verification context query",
                 step_index=step_index,
                 rule=step.rule,
             )
-        if step.inputs.get("intervention") != expected_intervention:
+        if step.inputs.get("intervention") != q_x_va:
             raise VerificationError(
                 "backdoor_adjustment_formula.intervention does not match verification context query",
                 step_index=step_index,
                 rule=step.rule,
             )
         step_given = step.inputs.get("given", ())
-        if frozenset(step_given) != expected_given:
+        if frozenset(step_given) != q_given_vas:
             raise VerificationError(
                 "backdoor_adjustment_formula.given does not match verification context query",
                 step_index=step_index,
                 rule=step.rule,
-                )
+            )
 
     if step.rule == "unidentifiable_via_backdoor":
-        if step.inputs.get("x") != q.intervention.atom:
+        if step.inputs.get("x") != q_x_atom:
             raise VerificationError(
-                "unidentifiable_via_backdoor.x does not match identify query intervention atom",
+                "unidentifiable_via_backdoor.x does not match verification context query",
                 step_index=step_index, rule=step.rule,
             )
-        if step.inputs.get("y") != q.target:
+        if step.inputs.get("y") != q_target_atom:
             raise VerificationError(
-                "unidentifiable_via_backdoor.y does not match identify query target",
+                "unidentifiable_via_backdoor.y does not match verification context query",
                 step_index=step_index, rule=step.rule,
             )
         step_given = step.inputs.get("given", frozenset())
-        if frozenset(step_given) != frozenset(q.given):
+        if frozenset(step_given) != q_given_atoms:
             raise VerificationError(
-                "unidentifiable_via_backdoor.given does not match identify query given",
+                "unidentifiable_via_backdoor.given does not match verification context query",
                 step_index=step_index, rule=step.rule,
             )
 
@@ -252,41 +287,40 @@ def _assert_query_binding(
     # have ``given == ()``. That keeps the verifier from accepting a
     # front-door proof for a conditioned query it cannot construct.
     if step.rule == "front_door_criterion":
-        if step.inputs.get("x") != q.intervention.atom:
+        if step.inputs.get("x") != q_x_atom:
             raise VerificationError(
-                "front_door_criterion.x does not match identify query intervention atom",
+                "front_door_criterion.x does not match verification context query",
                 step_index=step_index, rule=step.rule,
             )
         if step.inputs.get("y") != q_target_atom:
             raise VerificationError(
-                "front_door_criterion.y does not match identify query target",
+                "front_door_criterion.y does not match verification context query",
                 step_index=step_index, rule=step.rule,
             )
         if q_given_atoms:
             raise VerificationError(
-                "front_door_criterion requires identify query given to be empty",
+                "front_door_criterion requires the verification context "
+                "query's given to be empty",
                 step_index=step_index, rule=step.rule,
             )
 
     if step.rule == "front_door_adjustment_formula":
-        expected_target = ValuedAtom(atom=q.target, value=None)
-        expected_intervention = ValuedAtom(
-            atom=q.intervention.atom,
-            value=q.intervention.value,
-        )
-        if step.inputs.get("target") != expected_target:
+        if step.inputs.get("target") != q_target_va:
             raise VerificationError(
-                "front_door_adjustment_formula.target does not match query",
+                "front_door_adjustment_formula.target does not match "
+                "verification context query",
                 step_index=step_index, rule=step.rule,
             )
-        if step.inputs.get("intervention") != expected_intervention:
+        if step.inputs.get("intervention") != q_x_va:
             raise VerificationError(
-                "front_door_adjustment_formula.intervention does not match query",
+                "front_door_adjustment_formula.intervention does not match "
+                "verification context query",
                 step_index=step_index, rule=step.rule,
             )
-        if q.given:
+        if q_given_atoms:
             raise VerificationError(
-                "front_door_adjustment_formula requires identify query given to be empty",
+                "front_door_adjustment_formula requires the verification "
+                "context query's given to be empty",
                 step_index=step_index, rule=step.rule,
             )
 
@@ -295,8 +329,10 @@ def _assert_query_binding(
     # to the active EffectQuery so a joint proof for one (treatments, Y,
     # given) cannot be replayed against another query on the same graph.
     if step.rule == "joint_backdoor_criterion" and isinstance(q, EffectQuery):
+        # The one branch that reads ``q`` directly: a joint treatment vector
+        # exists only on an EffectQuery, so there is no shape to unify.
         expected_treatments = frozenset(
-            (q.intervention.atom, *(iv.atom for iv in q.extra_interventions))
+            (q_x_atom, *(iv.atom for iv in q.extra_interventions))
         )
         if frozenset(step.inputs.get("treatments", frozenset())) != expected_treatments:
             raise VerificationError(
@@ -320,7 +356,7 @@ def _assert_query_binding(
     # about; require it to match the active query so a derivation built for
     # one (X, Y) cannot be replayed against another query on the same graph.
     if step.rule in ("tian_c_decomposition", "idc_rule2_exchange"):
-        if step.inputs.get("x") != q.intervention.atom:
+        if step.inputs.get("x") != q_x_atom:
             raise VerificationError(
                 f"{step.rule}.x does not match verification context query",
                 step_index=step_index, rule=step.rule,
@@ -339,7 +375,7 @@ def _assert_cause_query_binding(
     step_by_id: dict[str, DerivationStep],
     step_output_by_id: dict[str, object],
 ) -> None:
-    q: CauseQuery = context.query
+    q = _query_as(context, CauseQuery)
     if step.rule in ("no_directed_path", "cause_via_directed_path"):
         if step.inputs.get("src") != q.from_atom:
             raise VerificationError(
@@ -360,7 +396,7 @@ def _assert_assoc_query_binding(
     step_by_id: dict[str, DerivationStep],
     step_output_by_id: dict[str, object],
 ) -> None:
-    q: AssocQuery = context.query
+    q = _query_as(context, AssocQuery)
     if step.rule in (
         "d_separated",
         "d_connected_via_open_path",
@@ -449,8 +485,8 @@ def _assert_numeric_query_binding(
                     step_index=step_index, rule=step.rule,
                 )
             step_given = step.inputs.get("given", frozenset())
-            expected = frozenset(g.atom for g in q.given)
-            if frozenset(step_given) != expected:
+            expected_given_atoms = frozenset(g.atom for g in q.given)
+            if frozenset(step_given) != expected_given_atoms:
                 raise VerificationError(
                     "backdoor_criterion.given does not match effect query given set",
                     step_index=step_index, rule=step.rule,
@@ -1010,7 +1046,7 @@ def verify_dose_response_curve(estimate: dict) -> None:
     if curve is None:
         return
 
-    def _fail(msg):
+    def _fail(msg: str) -> NoReturn:
         raise VerificationError(
             f"dose_response_curve: {msg}",
             step_index=None, rule="dose_response_curve",
@@ -1124,7 +1160,7 @@ def verify_mediation_numeric(estimate: dict) -> None:
     """
     import math
 
-    def _fail(msg, rule):
+    def _fail(msg: str, rule: str) -> NoReturn:
         raise VerificationError(msg, step_index=None, rule=rule)
 
     def _isnan_none(v):
@@ -1393,7 +1429,7 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
     if not isinstance(estimate, dict) or estimate.get("method") != "iv_2sls_overid":
         return
 
-    def _fail(msg):
+    def _fail(msg: str) -> NoReturn:
         raise VerificationError(
             f"iv_overid_numeric: {msg}", step_index=None, rule="iv_overid_numeric",
         )
@@ -1591,7 +1627,7 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
         ):
             if recomputed is None and claimed is None:
                 continue
-            if (recomputed is None) != (claimed is None):
+            if recomputed is None or claimed is None:
                 _fail(
                     f"AR {name} presence mismatch — re-solve {recomputed} vs "
                     f"recorded {claimed}"
@@ -1676,7 +1712,12 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
 
         # (c) rebuild segments from crossings + asymptote; must match reported.
         tails_in = asym <= crit
-        rebuilt, member, prev = [], tails_in, None
+        # An open end of the set is a None endpoint, so both ends of a
+        # rebuilt segment are optional — the first append happens to be
+        # (None, float) and the last (float, None).
+        rebuilt: list[tuple[float | None, float | None]] = []
+        member = tails_in
+        prev: float | None = None
         for c in reported_cross:
             if member:
                 rebuilt.append((prev, c))
@@ -1778,7 +1819,7 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
     ):
         return
 
-    def _fail(msg):
+    def _fail(msg: str) -> NoReturn:
         raise VerificationError(
             f"measurement_correction_numeric: {msg}",
             step_index=None, rule="measurement_correction_numeric",
@@ -1818,8 +1859,11 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
     # covariate's value within each (arm, z) cell — each matrix re-inverted here.
     differential_by = suff.get("differential_by")
     covariate_differential = differential and differential_by is not None
-    Minv_by_arm: dict | None = None
-    Minv_by_level: dict | None = None
+    # Exactly one of the two is populated below, and each is read only
+    # under the same condition that populates it; empty means "this
+    # selector is not the one in play".
+    Minv_by_arm: dict = {}
+    Minv_by_level: dict = {}
     cov_idx = None
     if covariate_differential:
         if mc.get("differential_by") not in (None, differential_by):
@@ -2022,7 +2066,7 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
     ):
         return
 
-    def _fail(msg):
+    def _fail(msg: str) -> NoReturn:
         raise VerificationError(
             f"exposure_measurement_correction_numeric: {msg}",
             step_index=None, rule="exposure_measurement_correction_numeric",
@@ -2070,8 +2114,11 @@ def verify_exposure_measurement_correction_numeric(estimate: dict) -> None:
     # covariate's value and applied to every column — each matrix re-inverted here.
     differential_by = suff.get("differential_by")
     covariate_differential = differential and differential_by is not None
-    Minv_by_outcome: dict | None = None
-    Minv_by_level: dict | None = None
+    # Exactly one of the two is populated below, and each is read only
+    # under the same condition that populates it; empty means "this
+    # selector is not the one in play".
+    Minv_by_outcome: dict = {}
+    Minv_by_level: dict = {}
     cov_idx = None
     if covariate_differential:
         if mc.get("differential_by") not in (None, differential_by):
@@ -2289,7 +2336,7 @@ def verify_combined_measurement_correction_numeric(estimate: dict) -> None:
     ):
         return
 
-    def _fail(msg):
+    def _fail(msg: str) -> NoReturn:
         raise VerificationError(
             f"combined_measurement_correction_numeric: {msg}",
             step_index=None, rule="combined_measurement_correction_numeric",
@@ -2477,7 +2524,7 @@ def verify_regression_calibration_numeric(estimate: dict) -> None:
     ):
         return
 
-    def _fail(msg):
+    def _fail(msg: str) -> NoReturn:
         raise VerificationError(
             f"regression_calibration_numeric: {msg}",
             step_index=None, rule="regression_calibration_numeric",
@@ -2727,7 +2774,7 @@ def verify_longitudinal_numeric(estimate: dict) -> None:
     """
     import math
 
-    def _fail(msg):
+    def _fail(msg: str) -> NoReturn:
         raise VerificationError(msg, step_index=None, rule="longitudinal_numeric")
 
     def _close(a, b, name):
@@ -2838,7 +2885,7 @@ def verify_selection_recovery(block: dict, graph) -> None:
         _path_is_open,
     )
 
-    def _err(msg: str) -> None:
+    def _err(msg: str) -> NoReturn:
         raise VerificationError(
             f"selection_recovery: {msg}",
             step_index=None, rule="selection_recovery",
@@ -3022,7 +3069,7 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     from ..runtime.structural_solver import is_d_connected, minimal_adjustment_sets
     from ..types import Atom, ConstTerm
 
-    def _err(msg: str) -> None:
+    def _err(msg: str) -> NoReturn:
         raise VerificationError(
             f"missing_data_recovery: {msg}",
             step_index=None, rule="missing_data_recovery",
@@ -3078,11 +3125,12 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
         pred2node[g.atom.predicate] for g in query.given
         if g.atom.predicate in pred2node
     )
-    z: tuple = ()
+    z: tuple[Atom, ...] = ()
     try:
         adj = minimal_adjustment_sets(base_graph, x, y, given=given)
         if adj:
-            z = tuple(sorted(min(adj, key=len), key=lambda a: a.predicate))
+            smallest = min(adj, key=len)
+            z = tuple(sorted(smallest, key=lambda a: a.predicate))
     except Exception:
         z = ()
     x_list = [x, *given, *z]
@@ -3737,7 +3785,7 @@ def _recheck_scm_counterfactual_fit(
     import networkx as nx
 
     graph = context.graph
-    q = context.query
+    q = _query_as(context, SCMCounterfactualQuery)
     x_atom = q.intervention.atom
     y_atom = q.target
     if x_atom not in graph or y_atom not in graph:
@@ -3848,7 +3896,14 @@ def _recheck_scm_counterfactual_fit(
                 step_index=None, rule="numeric_scm_counterfactual_estimate",
             )
 
-    iv_val = float(num_est.get("intervention_value"))
+    recorded_iv = num_est.get("intervention_value")
+    if recorded_iv is None:
+        raise VerificationError(
+            "scm_counterfactual numeric: numeric_estimate carries no "
+            "intervention_value",
+            step_index=None, rule="numeric_scm_counterfactual_estimate",
+        )
+    iv_val = float(recorded_iv)
     if abs(iv_val - float(q.intervention.value)) > _SCM_FIT_TOL:
         raise VerificationError(
             "scm_counterfactual numeric: intervention_value does not match the query",

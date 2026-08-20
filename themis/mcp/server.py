@@ -327,11 +327,21 @@ def build_server():
         else:
             env = themis.run(program)
 
-        prog_dict = env.get("program") or env.get("merged_program") or program
+        # Both entry points this tool uses echo the validated AST back
+        # under "program" — ``themis.estimate`` because it returns the
+        # envelope ``themis.run`` built. ("merged_program" is
+        # ``apply_patch_and_run``'s key, and nothing here calls it.) The
+        # fall-back is therefore only ever the caller's own argument.
+        prog_source = env.get("program") or program
+        # That argument, unlike the echo, may still be an unparsed JSON
+        # string: ``audit`` parses one itself, whereas the report
+        # assembler reads fields off a mapping and so is handed one only
+        # when we have one.
+        prog_dict = prog_source if isinstance(prog_source, dict) else None
         reports: list[str] = []
         statuses: list[str] = []
         for result in env.get("results", []):
-            audited = themis.audit(prog_dict, result) if run_verify else None
+            audited = themis.audit(prog_source, result) if run_verify else None
             reports.append(
                 build_analysis_report(result, program=prog_dict, audited=audited)
             )
@@ -379,6 +389,7 @@ def build_server():
         import pandas as pd
 
         from themis.estimation.discovery import (
+            as_algorithm_name,
             discover_graph,
             discovery_to_kernel_ast,
         )
@@ -389,8 +400,11 @@ def build_server():
         if not path.is_file():
             raise FileNotFoundError(f"csv_path does not resolve to a file: {path}")
         df = pd.read_csv(path)
+        # ``algorithm`` arrives over the wire as free-form text; the
+        # discovery registry is keyed by a closed vocabulary, and
+        # ``as_algorithm_name`` is where the one becomes the other.
         result = discover_graph(
-            df, algorithm=algorithm, alpha=alpha,
+            df, algorithm=as_algorithm_name(algorithm), alpha=alpha,
             random_state=random_state, n_bootstrap=n_bootstrap,
         )
         return discovery_to_kernel_ast(

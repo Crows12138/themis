@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-5177 passed / 145 skipped, warning-clean
+5317 passed / 145 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,77 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### 抑制名单 32 → 1，而复核抓到的两条回归是清理自己造的（2026-08-20，#331 完成）
+
+第一批清掉 26 个模块之后，剩下的 32 个用**多 agent 编排**并行清：一组修，一组**对抗性复核**逐个读 diff
+判断「这是把真相说出来了，还是把问题藏起来了」，再一组按复核结论收口，最后一组独立确认「测试有没有牙」。
+findings 从 586 降到 **1**。
+
+**复核的价值不在它说了什么，在它怎么说。** 本轮 0 条 must_fix、19 条 should_fix，
+而其中**两条是清理自己引入的真回归**——都不是靠读 diff 觉得可疑发现的，是靠
+**把 HEAD 版本的函数体 exec 进活模块、用同一个输入对跑两版**抓到的：
+
+- **`dispatch.py`**：`(spec or {}).get("error_variance")` 被改成 `spec.get(..., math.nan)`，
+  `or {}` 那半截兜底没了。于是 `measurement_error={"y": 0}` 从**一条被记录的拒答**
+  （`non_positive_error_variance`，信封上有）变成一个**逃出 `themis.estimate` 的 AttributeError**。
+  路由守卫只证明「非 None」，从不证明「是 dict」；而兄弟代码 `EffectFacts.measurement_error_map`
+  **保留了**那个 `or {}`，所以同一个约定的两半开始自相矛盾。
+  修法比原样恢复更好：`_guarded_spec` 把「presence 由路由守卫决定，**is-a-mapping 从来没人负责**」
+  这句话写出来，非 mapping 变成一条具名拒答（`Refusal.INVALID_INPUT`），由 `_spec_row`
+  记进信封而不是从异常口出去。`nan` 默认值也退回 `None`，理由写在旁边：
+  **默认 nan 在调用方读来是一个他们声明过的数，而他们什么也没声明。**
+- **`verifier/rules.py`**：`_envelope_number` 接受 `str` 却不守 `float()`。
+  它自己的 docstring 说「非数字的条目是一条畸形声称，应当拒绝」，可 `'abc'` 通过了类型测试、
+  在下一行炸成裸 `ValueError`——**而从规则到 `kernel.verify` 之间没有任何 try/except**，
+  于是一个非 VerificationError 离开了验证器。同一次改动还让调用点丢了 `or` 短路，
+  把这条从「够不着」变成「够得着」。修法是把 `str` 整个从接受类型里去掉，
+  并**一并关掉相反方向的那条**：NaN 是货真价实的 float，`abs(claimed - expected) > tol`
+  对它恒为 False，所以一个 NaN 边界不是被拒绝，是被**静默认证**。
+
+**复核还找出一批「只说了一半真话」的地方**，共同点是：mypy 报的都是真错，而修法选择了 narrow 掉，
+narrow 之后的落点却没人检查——
+`explainer` 的三胞胎 narrow 完掉进一句**与 status 自相矛盾**的中文（status 写着已解出，
+句子说「结果未分类」），旧行为会崩，**崩是难看但不撒谎**；
+`markov_blanket` 的 `dict[Any, dict]` 压住的是一条指向真 TypeError 的错误
+（异质键集合排序，而模块承诺任何结构不一致都给 VerificationError）；
+`narrative_merge` 的 `isinstance(pattern, str)` 把畸形拒答**静默归成通用类**，
+读者面上没有任何信号说「你的 pattern 被丢了」——校验该加在形状校验器里。
+
+**一处「有更优结构改法」被复核建出来跑过再交回**：`_as_formula` 被逐字抄进两个文件，
+而根因是生产者 `RiskRoute.formulas: dict[bool, object]` 把类型擦掉了；收窄成
+`dict[bool, FormulaExpr]` 之后**两份副本都可以删**，且逐字节复现了原改动的每一个探针结果。
+
+**owner 侧的三条跨文件项**（agent 按纪律只报告不动）：
+- **`VerifiableQuery` 是 `Query` 的手抄副本**，漏了 `ProximalEffectQuery`——而 `kernel.verify`
+  十种 query kind 全部分派、末尾还有 `else: raise`，所以「可验证的查询」**就是**查询词表本身。
+  改成别名，副本消失，漂移不再可能。
+- **两处 `_reject(...) -> None` 而函数体只有一条裸 `raise`。** 普查：全仓 23 个只含 raise 的函数里
+  **21 个已经是 `NoReturn`**，只剩这两个。改过来之后**当场掀出一条被假注解压住的真 finding**——
+  假注解是压制器，`-> None` 让每一个 `if not isinstance(x, T): _reject(...)` 之后的 narrowing 失效。
+- **`assess_outcome_error(error_variance: float)` 与自己的函数体自相矛盾**：它第一件事就是校验这个参数
+  并给出具名拒答，`Raises` 段还明写会收到非数字。改成 `object`——**不是不写注解**，
+  不写等于 `Any`，会让函数体内部也不受检。
+
+**名单剩一行，而它的含义变了**：`themis.runtime.c_factor` 不再是「还没读过」，是「读过了，代价在这里」——
+`_IdState.x_value` 同时持有一个具体 do 字面量和一个不可伪造的哨兵，而公式 AST 只有三种值状态，
+ID 递归需要第四种。三种模块内绕法都被实证否掉（做成 VarRef 会改 `formula_simplify` 的行为、
+做成字面量会毁掉哨兵的不可伪造性、用 None 会和「query 绑定的洞」相撞）。这是一个架构决定，
+不是一条注解，登记为独立前沿项，pyproject 里把理由写在那一行旁边。
+
+**基线**：5177 → **5317**（+140 条，全部是这一轮钉住行为改变的反例测试）。
+mypy 131 Success，抑制名单 **58 → 1**，findings **663 → 1**。
+
+**方法论沉淀（第一八四至一八六条）**：
+(184)**对抗性复核的牙在「给出那个具体输入」这条要求上**——本轮两条真回归都不是靠读 diff
+觉得可疑发现的，是靠把旧版函数体 exec 进活模块、同一批输入对跑两版抓到的。
+要求每条判断（**包括判「没差别」的**）都附一个可独立复现的输入，是复核有没有牙的分水岭。
+(185)**假注解是压制器**——`-> None` 写在只会抛的函数上，会让它后面每一处守卫的 narrowing 失效；
+改成 `NoReturn` 之后被它压住的真 finding 会当场冒出来。同族：一个过宽的类型不只压住它自己那几条。
+(186)**入口点参数的诚实类型是 `object`**——不写注解等于 `Any`（函数体内部也不再受检），
+写 `float` 是一句「调用方已保证」的假话，而这句假话会逼调用方把同一个检查用自己的措辞写第二遍。
+
+---
 
 ### 累加器用它的第一个值声明自己——58 个被压住的模块清掉 26 个（2026-08-20，#331）
 

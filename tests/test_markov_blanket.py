@@ -13,6 +13,15 @@ tests pin:
   shape (spurious member, trimmed member, edited p-value / passed flag / role,
   a target hidden in its own blanket, a missing / phantom test, and a
   correlation matrix that is not well-formed);
+- and rejects them *as* ``VerificationError``. That second half needs its own
+  tests, because every value-tamper above hands the verifier a well-typed
+  artifact and so exercises none of the type guards standing between an
+  arbitrary JSON blob and the arithmetic. A wrong *shape* — a name that is not
+  a string, a matrix that is not numeric, a count row that is not a pair —
+  used to reach ``hash`` / ``sorted`` / ``np.asarray`` / ``len`` unchecked and
+  leave as a raw ``TypeError`` or ``ValueError``, which is a promise this
+  module and :func:`themis.verify_markov_blanket` both make in writing and a
+  distinction its callers cannot act on;
 - the producer's Fisher-Z p-values match causal-learn's independent CIT
   implementation (cross-implementation oracle), so the verifier's re-derivation
   is anchored to a third party, not just to the producer.
@@ -20,6 +29,7 @@ tests pin:
 from __future__ import annotations
 
 import copy
+import re
 
 import numpy as np
 import pandas as pd
@@ -392,4 +402,176 @@ def test_discrete_rejects_missing_test():
     def mutate(d):
         d["tests"] = d["tests"][1:]
     with pytest.raises(VerificationError):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+# ============================================ verifier rejects malformed shapes
+#
+# Everything above hands the verifier a structurally valid artifact and edits a
+# number, a flag, or a name inside it. The guards these tests attack sit one
+# level lower: they are what stands between an arbitrary JSON blob and the
+# arithmetic, and a value-tamper never touches them. Their failure mode is
+# quiet — not a wrong verdict, but the *right* rejection wearing the wrong
+# exception type, which a caller that distinguishes "this artifact is bad" from
+# "the verifier is bad" cannot act on.
+
+
+def _set_path(d, path, value):
+    """Assign ``value`` at ``path`` — a sequence of dict keys / list indices."""
+    node = d
+    for step in path[:-1]:
+        node = node[step]
+    node[path[-1]] = value
+
+
+# (where to plant a wrong-shaped value, what to plant, what must come back).
+# The message is asserted, not just the exception type: a guard that fires for
+# the wrong reason is as much a defect as one that does not fire, and several
+# of these rows are one reordering away from being answered by a later guard
+# that happens to also reject them.
+_SHAPE_TAMPERS = [
+    (("columns",), "abc", "columns must be a non-empty list"),
+    (("columns",), [], "columns must be a non-empty list"),
+    (("columns", 1), ["X1"], "column name ['X1'] must be a string"),
+    (("columns", 4), 7, "column name 7 must be a string"),
+    (("target",), ["T"], "target ['T'] not among columns"),
+    (("target",), "NOPE", "target 'NOPE' not among columns"),
+    (("blanket",), "X1", "blanket must be a list"),
+    (("tests",), {}, "tests must be a list"),
+    (("tests", 0, "conditioning_set"), 5, "has a mismatched conditioning set"),
+    (("tests", 0, "conditioning_set"), [1, "X2"], "has a mismatched conditioning set"),
+    (("tests", 0, "p_value"), "x", "!= recomputed"),
+    (("tests", 0, "partial_correlation"), "x", "!= recomputed"),
+    (("alpha",), True, "alpha out of range"),
+    (("alpha",), "0.05", "alpha out of range"),
+    (("sample_size",), 100.0, "sample_size must be an int > 3"),
+    (("sample_size",), "4000", "sample_size must be an int > 3"),
+    (("correlation",), "abc", "correlation must be a 6x6 matrix of numbers"),
+    (("correlation", 0), [1.0, 0.0], "correlation must be a 6x6 matrix of numbers"),
+    (("correlation", 0, 1), "x", "correlation must be a 6x6 matrix of numbers"),
+]
+
+
+@pytest.mark.parametrize("path,value,message", _SHAPE_TAMPERS)
+def test_rejects_malformed_shape(path, value, message):
+    """Every field the verifier reads is artifact-supplied, so every field is a
+    place a caller can hand it something of the wrong type. The one it must
+    never do in return is fail in a way its own contract does not name."""
+    def mutate(d):
+        _set_path(d, path, value)
+    with pytest.raises(VerificationError, match=re.escape(message)):
+        verify_markov_blanket(_tampered(mutate))
+
+
+def test_rejects_unhashable_test_variable():
+    """``tests`` is indexed by the variable name each entry claims, so building
+    that index hashes a value the artifact chose. An unhashable one used to
+    take the dict comprehension itself down with a TypeError, before any guard
+    got to look at it — the check has to happen on the way in, not after."""
+    def mutate(d):
+        d["tests"][0]["variable"] = ["x"]
+    with pytest.raises(VerificationError, match=re.escape("test variable ['x'] must be a string")):
+        verify_markov_blanket(_tampered(mutate))
+
+
+def test_rejects_heterogeneous_test_variable_names():
+    """The "tests must cover exactly the non-target variables" message sorts
+    the two name sets to report what is missing and what is extra — and an
+    f-string is built before it is passed, so the sort runs whether or not the
+    check fails. Two claimed names of different types made that sort raise, so
+    the artifact was rejected by a TypeError from inside the sentence written
+    to explain the rejection. Needs *two* mismatched names of unlike type: one
+    alone leaves each difference set homogeneous and sortable."""
+    def mutate(d):
+        d["tests"][0]["variable"] = 1
+        d["tests"][1]["variable"] = "ZZZ"
+    with pytest.raises(VerificationError, match=re.escape("test variable 1 must be a string")):
+        verify_markov_blanket(_tampered(mutate))
+
+
+def test_rejects_unhashable_blanket_member():
+    """Nothing types the blanket directly — a member is known to be a string
+    because it has to be one of the (checked) column names. That makes the
+    order of the two checks load-bearing: the duplicate check hashes the
+    members, so it has to run *after* the membership check that establishes
+    they can be hashed, not before."""
+    def mutate(d):
+        d["blanket"][0] = ["X1"]
+    with pytest.raises(VerificationError, match=re.escape("blanket member ['X1'] not among columns")):
+        verify_markov_blanket(_tampered(mutate))
+
+
+_DISCRETE_SHAPE_TAMPERS = [
+    (("contingency",), [], "chisq result needs a contingency block"),
+    (("contingency", "levels"), {}, "contingency.levels must have one entry per column"),
+    (("contingency", "levels", 0), 3, "each contingency.levels entry must be a list"),
+    (("contingency", "counts"), {}, "contingency.counts must be non-empty"),
+    (("contingency", "counts"), [], "contingency.counts must be non-empty"),
+    (("tests", 0, "statistic"), "x", "!= recomputed"),
+    (("tests", 0, "dof"), "x", "!= recomputed"),
+]
+
+
+@pytest.mark.parametrize("path,value,message", _DISCRETE_SHAPE_TAMPERS)
+def test_discrete_rejects_malformed_shape(path, value, message):
+    """The chisq arm reads a whole sufficient statistic the fisherz arm never
+    sees, so its guards are a separate surface and get their own sweep."""
+    def mutate(d):
+        _set_path(d, path, value)
+    with pytest.raises(VerificationError, match=re.escape(message)):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_tuple_levels():
+    """``levels`` is the code book — entry *c* lists column *c*'s values — so
+    the container's own shape is what makes "one entry per column" mean
+    anything. A tuple of the right length holding the right entries satisfies
+    every later check and would be accepted outright; the list guard is the
+    only thing in the function that ever looks at it."""
+    def mutate(d):
+        d["contingency"]["levels"] = tuple(d["contingency"]["levels"])
+    with pytest.raises(
+        VerificationError,
+        match=re.escape("contingency.levels must have one entry per column"),
+    ):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_tuple_count_row():
+    """The count table is the discrete sufficient statistic, and its rows are
+    unpacked as pairs. A JSON artifact cannot carry a tuple, but an in-process
+    caller can, and the guard says "list" — so it must say so out loud rather
+    than let a tuple through to be unpacked on a length it never checked."""
+    def mutate(d):
+        d["contingency"]["counts"][0] = tuple(d["contingency"]["counts"][0])
+    with pytest.raises(VerificationError, match=re.escape("each count row must be [config, count]")):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_over_long_count_row():
+    """A three-element row would unpack into the wrong variables if the arity
+    check were dropped, silently reinterpreting counts as configs."""
+    def mutate(d):
+        d["contingency"]["counts"][0] = list(d["contingency"]["counts"][0]) + [1]
+    with pytest.raises(VerificationError, match=re.escape("each count row must be [config, count]")):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_tuple_config():
+    """Same boundary one level down: the per-row config is the thing indexed by
+    column position, and its shape is what makes that indexing meaningful."""
+    def mutate(d):
+        row = d["contingency"]["counts"][0]
+        row[0] = tuple(row[0])
+    with pytest.raises(VerificationError, match=re.escape("each config must have one code per column")):
+        verify_markov_blanket(_tampered_discrete(mutate))
+
+
+def test_discrete_rejects_float_count():
+    """Counts are occurrences. A float one would sum to a total that cannot
+    equal an integer sample size except by rounding luck, so it is rejected on
+    its type rather than left to be caught (or missed) by the total."""
+    def mutate(d):
+        d["contingency"]["counts"][0][1] = 5.0
+    with pytest.raises(VerificationError, match=re.escape("each count must be a positive int")):
         verify_markov_blanket(_tampered_discrete(mutate))

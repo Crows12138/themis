@@ -77,7 +77,7 @@ import pandas as pd
 from .. import risk_provenance
 from ..risk_provenance import RiskProvenance
 from ..runtime.probabilities_of_causation import probabilities_of_causation
-from ..types import Atom, Monotonicity
+from ..types import Atom, FormulaExpr, Monotonicity
 from .binary_do_risk import (
     DEFAULT_FORM,
     FORM_BY_PROVENANCE,
@@ -193,8 +193,8 @@ class CausationEstimate:
     # how they were identified (None otherwise). One per arm: the ID algorithm
     # is asked separately for each, and a verifier re-deriving them has to know
     # which arm each belongs to.
-    risk_formula_treated: object | None = None
-    risk_formula_control: object | None = None
+    risk_formula_treated: FormulaExpr | None = None
+    risk_formula_control: FormulaExpr | None = None
     # Finite-sample behaviour of the feasible set, on the route that has one:
     # a bootstrap draw whose program is empty under the declared monotonicity
     # is that draw refuting the assumption, and the count is reported rather
@@ -276,12 +276,21 @@ def estimate_causation_probabilities(
         )
     provenance = route.provenance
     adjustment = route.adjustment
-    supplied = provenance is RiskProvenance.USER_EXPERIMENTAL
+    # The cascade returns USER_EXPERIMENTAL for both arms or for neither, so
+    # the licence and the pair of risks it licences are one fact. Binding them
+    # together is what lets the solver below read the pair, instead of
+    # re-deriving from a boolean flag that the two numbers must be there.
+    supplied_risks: tuple[float, float] | None = (
+        None
+        if experimental_risk_treated is None or experimental_risk_control is None
+        else (float(experimental_risk_treated), float(experimental_risk_control))
+    )
     on_polytope = provenance is RiskProvenance.INSTRUMENT_RESPONSE_POLYTOPE
     zcol = None if route.instrument is None else route.instrument.predicate
+    formulas = route.formulas
 
     required = {xcol, ycol, *adjustment}
-    for formula in route.formulas.values():
+    for formula in formulas.values():
         required |= referenced_predicates(formula)
     if zcol is not None:
         required.add(zcol)
@@ -305,7 +314,7 @@ def estimate_causation_probabilities(
     # are likewise fixed on the full data — so every bootstrap replicate
     # evaluates the same estimand and fits a table with the same axes rather
     # than a quietly narrower model.
-    domains = data_domains(graph, df) if route.formulas else {}
+    domains = data_domains(graph, df) if formulas else {}
     z_levels = [] if zcol is None else sorted_levels(df[zcol])
     if zcol is not None:
         polytope_preconditions(zcol, z_levels)
@@ -335,12 +344,11 @@ def estimate_causation_probabilities(
                 name: (lo, hi, lo if abs(hi - lo) <= _TOL else None)
                 for name, (lo, hi) in bounds.items()
             }, (P, p_z)
-        if supplied:
-            r1 = float(experimental_risk_treated)
-            r0 = float(experimental_risk_control)
-        elif route.formulas:
-            r1 = evaluate_arm_risk(route.formulas[True], frame, domains=domains)
-            r0 = evaluate_arm_risk(route.formulas[False], frame, domains=domains)
+        if supplied_risks is not None:
+            r1, r0 = supplied_risks
+        elif formulas:
+            r1 = evaluate_arm_risk(formulas[True], frame, domains=domains)
+            r0 = evaluate_arm_risk(formulas[False], frame, domains=domains)
         else:
             r1 = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=True)
             r0 = backdoor_do_risk(x_arr, y_arr, frame, adjustment, arm=False)
@@ -397,8 +405,8 @@ def estimate_causation_probabilities(
         adjustment=adjustment,
         instrument=zcol,
         instrument_levels=levels, p_xyz=p_xyz, p_z=p_z,
-        risk_formula_treated=route.formulas.get(True),
-        risk_formula_control=route.formulas.get(False),
+        risk_formula_treated=formulas.get(True),
+        risk_formula_control=formulas.get(False),
         bootstrap_draws_used=used, bootstrap_draws_infeasible=infeasible,
         ci_level=ci_level,
         method="causation_plugin",

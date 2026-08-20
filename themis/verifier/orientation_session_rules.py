@@ -48,6 +48,8 @@ the SESSION mechanics, not the upstream discovery. No producer call.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
+
 from .errors import VerificationError
 from .orientation_rules import verify_orientation_propagation
 from .orientation_question_rules import verify_orientation_questions
@@ -58,7 +60,21 @@ def _require(condition: bool, message: str) -> None:
         raise VerificationError(message)
 
 
-def _pair(a: str, b: str):
+def _require_list(raw: object, message: str, *, non_empty: bool = False) -> list:
+    """Check ``raw`` is a list (optionally non-empty) and hand it back as one."""
+    if not isinstance(raw, list) or (non_empty and not raw):
+        raise VerificationError(message)
+    return raw
+
+
+def _require_dict(raw: object, message: str) -> dict:
+    """Check ``raw`` is a dict and hand it back as one."""
+    if not isinstance(raw, dict):
+        raise VerificationError(message)
+    return raw
+
+
+def _pair(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a <= b else (b, a)
 
 
@@ -73,15 +89,14 @@ def verify_orientation_session(result: dict) -> None:
     _require(isinstance(result, dict), "result must be a dict")
     _require(result.get("kind") == "orientation_session",
              f"not an orientation_session (kind={result.get('kind')!r})")
-    nodes = result.get("nodes")
-    _require(isinstance(nodes, list) and nodes, "nodes must be a non-empty list")
+    nodes = _require_list(result.get("nodes"), "nodes must be a non-empty list",
+                          non_empty=True)
     _require(len(set(nodes)) == len(nodes), "duplicate node names")
     node_set = set(nodes)
 
-    def _edges(raw, name):
-        _require(isinstance(raw, list), f"{name} must be a list")
-        out = []
-        for e in raw:
+    def _edges(raw: object, name: str) -> list[tuple[str, str]]:
+        out: list[tuple[str, str]] = []
+        for e in _require_list(raw, f"{name} must be a list"):
             _require(isinstance(e, list) and len(e) == 2
                      and e[0] in node_set and e[1] in node_set,
                      f"{name} entry {e!r} is not a pair of known nodes")
@@ -96,8 +111,8 @@ def verify_orientation_session(result: dict) -> None:
     # adjacency answers re-project them into the effective sets below. They may name
     # unknown nodes (which become CI-side conflicts), so they are not routed through
     # _edges; the embedded verifiers classify them.
-    raw_asserted = result.get("asserted_adjacencies", [])
-    _require(isinstance(raw_asserted, list), "asserted_adjacencies must be a list")
+    raw_asserted = _require_list(result.get("asserted_adjacencies", []),
+                                 "asserted_adjacencies must be a list")
     asserted = []
     for e in raw_asserted:
         _require(isinstance(e, list) and len(e) == 2,
@@ -106,8 +121,8 @@ def verify_orientation_session(result: dict) -> None:
         asserted.append((e[0], e[1]))
     asserted_set = {_pair(a, b) for (a, b) in asserted}
 
-    raw_absences = result.get("asserted_absences", [])
-    _require(isinstance(raw_absences, list), "asserted_absences must be a list")
+    raw_absences = _require_list(result.get("asserted_absences", []),
+                                 "asserted_absences must be a list")
     absences = []
     for e in raw_absences:
         _require(isinstance(e, list) and len(e) == 2,
@@ -120,8 +135,7 @@ def verify_orientation_session(result: dict) -> None:
     # An answer makes exactly ONE claim about its pair: a direction, an adjacency
     # polarity ("present" / "absent"), or nothing ("unknown"). Latest-wins is per
     # pair across all three.
-    raw_answers = result.get("answers")
-    _require(isinstance(raw_answers, list), "answers must be a list")
+    raw_answers = _require_list(result.get("answers"), "answers must be a list")
     answers = []
     for a in raw_answers:
         _require(isinstance(a, dict) and "edge" in a, f"ill-formed answer {a!r}")
@@ -168,19 +182,17 @@ def verify_orientation_session(result: dict) -> None:
     eff_absences = {p for p in absence_set if p not in answered} | abs_answers
 
     # --- embedded artifacts: each passes its own verifier ---------------------
-    prop = result.get("propagation")
-    _require(isinstance(prop, dict), "propagation must be a dict")
+    prop = _require_dict(result.get("propagation"), "propagation must be a dict")
     verify_orientation_propagation(prop)
 
-    qset = result.get("question_set")
-    _require(isinstance(qset, dict), "question_set must be a dict")
+    qset = _require_dict(result.get("question_set"), "question_set must be a dict")
     verify_orientation_questions(qset)
 
     # --- and they are THIS session's (same inputs, one shared CPDAG) ----------
-    def _pset(raw):
+    def _pset(raw: Iterable[Sequence[str]]) -> set[tuple[str, str]]:
         return {_pair(a, b) for (a, b) in raw}
 
-    def _dset(raw):
+    def _dset(raw: Iterable[Sequence[str]]) -> set[tuple[str, str]]:
         return {(a, b) for (a, b) in raw}
 
     _require(_dset(prop["input_directed"]) == _dset(input_directed),
@@ -234,8 +246,7 @@ def verify_orientation_session(result: dict) -> None:
         else:
             exp_rejected[tuple(d)] = {"edge": list(e), "source": src, "direction": [d[0], d[1]]}
 
-    trail = result.get("source_trail")
-    _require(isinstance(trail, list), "source_trail must be a list")
+    trail = _require_list(result.get("source_trail"), "source_trail must be a list")
     seen_trail = set()
     for entry in trail:
         _require(isinstance(entry, dict) and "direction" in entry,
@@ -254,8 +265,7 @@ def verify_orientation_session(result: dict) -> None:
     _require(seen_trail == set(exp_trail),
              f"source_trail is missing applied answers: {sorted(set(exp_trail) - seen_trail)}")
 
-    rejected = result.get("rejected")
-    _require(isinstance(rejected, list), "rejected must be a list")
+    rejected = _require_list(result.get("rejected"), "rejected must be a list")
     seen_rej = {(r["direction"][0], r["direction"][1]) for r in rejected}
     _require(seen_rej == set(exp_rejected),
              f"rejected set disagrees: claimed {sorted(seen_rej)}, "

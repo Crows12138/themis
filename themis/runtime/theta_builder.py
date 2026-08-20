@@ -37,6 +37,8 @@ from ..types import (
     ObservationStatement,
     ProbabilityStatement,
     Statement,
+    ValuedAtom,
+    VarRef,
     VariableDeclaration,
 )
 from .instantiation import instantiate
@@ -48,6 +50,35 @@ class ConflictingThetaEntry(ValueError):
     ``ProbabilityKey`` with different values."""
 
 
+class NonLiteralProbabilityValue(ValueError):
+    """Raised when a ``ProbabilityStatement`` carries a ``ValuedAtom``
+    whose value is not a concrete literal."""
+
+
+def _literal_value(va: ValuedAtom, *, role: str) -> AtomValue:
+    """Return the concrete literal carried by a probability statement's
+    ``ValuedAtom``.
+
+    ``ValuedAtom`` is shared with the formula AST, where a value may be a
+    ``VarRef`` (bound by an enclosing sum) or ``None`` (bound by the
+    query context). Inside a ``ProbabilityStatement`` neither is legal:
+    the statement describes one CPT entry, fully specified at program
+    time, and ``atom.schema.json`` §groundedAtom requires a literal.
+    Theta keys and value domains are built from these values, so a
+    non-literal one would silently produce a key nothing can ever match.
+    This restates the statement's own contract at the point that depends
+    on it, and hands back the narrowed value.
+    """
+    value = va.value
+    if value is None or isinstance(value, VarRef):
+        raise NonLiteralProbabilityValue(
+            f"probability statement {role} {va.atom.predicate!r} carries "
+            f"{value!r} instead of a concrete literal value; a probability "
+            "statement describes one fully-specified CPT entry"
+        )
+    return value
+
+
 def _key_of(stmt: ProbabilityStatement) -> ProbabilityKey:
     # Fix 3+4: stmt.population (Phase 9 field) is now part of the
     # canonical key. Two statements P(X=x | given) with different
@@ -57,13 +88,16 @@ def _key_of(stmt: ProbabilityStatement) -> ProbabilityKey:
     # to pre-fix.
     return ProbabilityKey(
         target_atom=stmt.target.atom,
-        target_value=stmt.target.value,
-        given=frozenset((va.atom, va.value) for va in stmt.given),
+        target_value=_literal_value(stmt.target, role="target"),
+        given=frozenset(
+            (va.atom, _literal_value(va, role="given atom"))
+            for va in stmt.given
+        ),
         population=stmt.population,
     )
 
 
-def _sort_values(values: set) -> tuple:
+def _sort_values(values: set[AtomValue]) -> tuple[AtomValue, ...]:
     """Return a deterministic ordering of observed values.
 
     Sorting is done by string repr to tolerate mixed-type sets (we do
@@ -100,9 +134,9 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
                     f"({entries[key]} vs {stmt.value})"
                 )
             entries[key] = float(stmt.value)
-            note(stmt.target.atom, stmt.target.value)
+            note(stmt.target.atom, _literal_value(stmt.target, role="target"))
             for va in stmt.given:
-                note(va.atom, va.value)
+                note(va.atom, _literal_value(va, role="given atom"))
         elif isinstance(stmt, ObservationStatement):
             note(stmt.atom, stmt.value)
         elif isinstance(stmt, VariableDeclaration):
@@ -113,7 +147,7 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
     # otherwise the values observed across probability + observation
     # statements. (Theta.domain_of further falls back to (True, False)
     # for atoms with no information at all.)
-    final_domains: dict[Atom, tuple] = {}
+    final_domains: dict[Atom, tuple[AtomValue, ...]] = {}
     seen_atoms = set(domains.keys())
     for atom in seen_atoms:
         if atom.predicate in declared_domains:

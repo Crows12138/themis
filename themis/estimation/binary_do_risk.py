@@ -44,7 +44,7 @@ import pandas as pd
 
 from ..risk_provenance import RiskProvenance
 from ..runtime import structural_solver
-from ..types import Atom
+from ..types import Atom, FormulaExpr
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -126,11 +126,17 @@ class RiskRoute:
     populated on any route, and which one follows from the licence, so a
     consumer that reads the wrong field gets an empty answer rather than a
     plausible one.
+
+    Each is carried at the type the door will act on it at — the estimands as
+    the ``FormulaExpr`` the identification layer built, not as anonymous
+    objects. A cascade that named them more loosely than it knows them would
+    hand every door the same small job of deciding what it had just been
+    given, and that job is one the cascade has already done.
     """
 
     provenance: RiskProvenance
     adjustment: tuple[str, ...] = ()
-    formulas: dict[bool, object] = field(default_factory=dict)
+    formulas: dict[bool, FormulaExpr] = field(default_factory=dict)
     instrument: Atom | None = None
 
 
@@ -194,7 +200,7 @@ def choose_risk_route(
             else RiskProvenance.BACKDOOR_ADJUSTMENT,
             adjustment=adjustment,
         )
-    formulas: dict[bool, object] = {}
+    formulas: dict[bool, FormulaExpr] = {}
     for arm in arms:
         try:
             formulas[arm] = identify_arm_risk_formula(

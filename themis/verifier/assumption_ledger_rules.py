@@ -51,6 +51,8 @@ re-stating the table here would be transcription, not verification.
 """
 from __future__ import annotations
 
+from typing import NoReturn
+
 from .errors import VerificationError
 
 _SEVERITIES = ("invalidating", "distorting", "confidence_only")
@@ -126,7 +128,7 @@ def _pair_is_writable(layer, provenance) -> bool:
     )
 
 
-def _reject(message: str) -> None:
+def _reject(message: str) -> NoReturn:
     raise VerificationError(message, rule=_RULE)
 
 
@@ -167,7 +169,12 @@ def verify_assumption_ledger(result: dict) -> None:
                 f"assumptions[{i}] severity {e.get('severity')!r} is not one of "
                 f"{list(_SEVERITIES)}"
             )
-        owed = _SEVERITY_OF_LAYER.get(e.get("layer"))
+        # An entry with no declared layer — or one that is not a string —
+        # owes no particular severity: the table is keyed by the declared
+        # layer names, and a lookup that misses said exactly that. The
+        # ``layer`` field itself is checked below, against provenance.
+        layer = e.get("layer")
+        owed = _SEVERITY_OF_LAYER.get(layer) if isinstance(layer, str) else None
         if owed is not None and e["severity"] != owed:
             _reject(
                 f"assumptions[{i}] is a {e.get('layer')} assumption ranked "

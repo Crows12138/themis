@@ -246,11 +246,35 @@ def monotonicity_pins(query: CounterfactualQuery) -> dict[bool, float]:
     )
 
 
+def _require_binary(value: object, role: str) -> bool:
+    """Narrow one query value to the boolean the S.C.3 program is written in.
+
+    ``factual_target_known`` is the single place where absence means
+    something — the factual outcome is not part of the evidence — and the
+    caller passes that one through before asking. Everywhere else a missing
+    value is not a third case this solver could answer: it would reach a
+    lookup in the binary joint, or a truth test that silently reads it as
+    ``False`` and returns the complementary cell's number.
+    """
+    if not isinstance(value, bool):
+        raise CounterfactualBoundsError(
+            "S.C.3 only supports boolean observed/intervention/target "
+            f"values; {role}={value!r}"
+        )
+    return value
+
+
 def _validate_cell_inputs(
     twin: TwinNetwork,
     query: CounterfactualQuery,
     observed_joint_xy: dict[tuple[bool, bool], float],
-) -> None:
+) -> tuple[bool, bool, bool, bool | None]:
+    """Check twin/query/joint agree, and hand back the four cell values.
+
+    Returning them is what makes the rest of the solver total: ``x``, ``x'``
+    and ``y*`` are booleans from here on, and ``y`` is the only one that may
+    be absent — which is exactly the shape every line below assumes.
+    """
     if twin.observed.atom != query.observed.atom:
         raise CounterfactualBoundsError(
             "twin network/query mismatch: observed atom differs"
@@ -264,17 +288,19 @@ def _validate_cell_inputs(
             "twin network/query mismatch: target atom differs"
         )
 
-    values = (
-        query.observed.value,
-        query.counterfactual_intervention.value,
-        query.counterfactual_target.value,
-        query.factual_target_known,
+    x_obs = _require_binary(query.observed.value, "observed")
+    x_cf = _require_binary(
+        query.counterfactual_intervention.value, "counterfactual_intervention"
     )
-    for value in values:
-        if value is not None and not isinstance(value, bool):
-            raise CounterfactualBoundsError(
-                "S.C.3 only supports boolean observed/intervention/target values"
-            )
+    y_star = _require_binary(
+        query.counterfactual_target.value, "counterfactual_target"
+    )
+    factual_y = (
+        None if query.factual_target_known is None
+        else _require_binary(
+            query.factual_target_known, "factual_target_known"
+        )
+    )
 
     expected_keys = {
         (False, False),
@@ -296,6 +322,8 @@ def _validate_cell_inputs(
         raise CounterfactualBoundsError(
             "observed_joint_xy probabilities must all lie in [0, 1]"
         )
+
+    return x_obs, x_cf, y_star, factual_y
 
 
 def counterfactual_cell_interval(
@@ -340,12 +368,9 @@ def counterfactual_cell_interval(
     consistency case and a cell monotonicity pins directly. Otherwise
     :class:`InterventionalRiskRequired` names the arm that is needed.
     """
-    _validate_cell_inputs(twin, query, observed_joint_xy)
-
-    x_obs = query.observed.value
-    x_cf = query.counterfactual_intervention.value
-    y_star = query.counterfactual_target.value
-    factual_y = query.factual_target_known
+    x_obs, x_cf, y_star, factual_y = _validate_cell_inputs(
+        twin, query, observed_joint_xy
+    )
 
     p_x_obs = observed_joint_xy[(x_obs, False)] + observed_joint_xy[(x_obs, True)]
     if p_x_obs == 0:
@@ -373,7 +398,7 @@ def counterfactual_cell_interval(
         raise InterventionalRiskRequired(
             f"P(Y=1 | do(X={x_cf})) is needed to bound this counterfactual "
             f"cell: the observational joint alone leaves it at [0, 1]",
-            needed_x_value=bool(x_cf),
+            needed_x_value=x_cf,
         )
 
     if not (0.0 <= p_y_do_x_cf <= 1.0):

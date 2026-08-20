@@ -26,18 +26,46 @@ catches a formula bug, a corrupted/reordered result, and a forged point.
 """
 from __future__ import annotations
 
+from typing import NoReturn, TypeVar
+
 from .errors import VerificationError
 
 _ATOL = 1e-6
 _SUM_ATOL = 1e-6
 
+_T = TypeVar("_T")
+
+
+def _fail(message: str) -> NoReturn:
+    raise VerificationError(
+        f"selection_recovery_numeric: {message}",
+        step_index=None, rule="selection_recovery_numeric",
+    )
+
 
 def _require(condition: bool, message: str) -> None:
     if not condition:
-        raise VerificationError(
-            f"selection_recovery_numeric: {message}",
-            step_index=None, rule="selection_recovery_numeric",
-        )
+        _fail(message)
+
+
+def _require_dict(value: object, message: str) -> dict:
+    """A check that hands back what it checked.
+
+    ``_require(isinstance(v, dict), ...)`` leaves ``v`` exactly as unknown as
+    it was: the assertion and the value are two separate things and only the
+    reader connects them. This returns the value AS a dict, so the connection
+    is in the code (the shape ``rules._require_atom`` already uses).
+    """
+    if not isinstance(value, dict):
+        _fail(message)
+    return value
+
+
+def _require_present(value: _T | None, message: str) -> _T:
+    """Same, for a recorded key whose absence is itself the failure."""
+    if value is None:
+        _fail(message)
+    return value
 
 
 def _key(seq) -> tuple:
@@ -56,11 +84,12 @@ def verify_selection_recovery_numeric(result: dict) -> None:
     if not isinstance(ne, dict) or ne.get("method") != "selection_backdoor_recovery":
         return  # not a selection-recovery numeric result — nothing to check
 
-    detail = ne.get("selection_recovery_numeric")
-    _require(isinstance(detail, dict),
-             "numeric_estimate carries no selection_recovery_numeric detail block")
-    suff = detail.get("sufficient_statistics")
-    _require(isinstance(suff, dict), "detail block carries no sufficient_statistics")
+    detail = _require_dict(
+        ne.get("selection_recovery_numeric"),
+        "numeric_estimate carries no selection_recovery_numeric detail block")
+    suff = _require_dict(
+        detail.get("sufficient_statistics"),
+        "detail block carries no sufficient_statistics")
 
     zp_vars = tuple(suff.get("z_plus_vars") or ())
     zm_vars = tuple(suff.get("z_minus_vars") or ())
@@ -108,11 +137,9 @@ def verify_selection_recovery_numeric(result: dict) -> None:
     def zminus_weights(arm: int, zp_key: tuple) -> dict[tuple, float]:
         if not zm_vars:
             return {(): 1.0}
-        cell = (arm, zp_key)
-        tbl = p_zminus.get(cell)
-        _require(tbl is not None,
-                 f"no recorded P(z⁻ | X={arm}, z⁺={zp_key}) for a contributing cell")
-        return tbl
+        return _require_present(
+            p_zminus.get((arm, zp_key)),
+            f"no recorded P(z⁻ | X={arm}, z⁺={zp_key}) for a contributing cell")
 
     def mu(arm: int) -> float:
         total = 0.0
@@ -133,17 +160,18 @@ def verify_selection_recovery_numeric(result: dict) -> None:
     mu1_re, mu0_re = mu(1), mu(0)
 
     # --- 3. check the recorded arms + point ---
-    mu1_rec = suff.get("mu_treated", detail.get("mu_treated"))
-    mu0_rec = suff.get("mu_control", detail.get("mu_control"))
-    _require(mu1_rec is not None and mu0_rec is not None,
-             "detail block missing mu_treated / mu_control")
+    mu1_rec = _require_present(
+        suff.get("mu_treated", detail.get("mu_treated")),
+        "detail block missing mu_treated / mu_control")
+    mu0_rec = _require_present(
+        suff.get("mu_control", detail.get("mu_control")),
+        "detail block missing mu_treated / mu_control")
     _require(abs(mu1_re - float(mu1_rec)) <= _ATOL,
              f"μ(1) mismatch: re-derived {mu1_re}, recorded {mu1_rec}")
     _require(abs(mu0_re - float(mu0_rec)) <= _ATOL,
              f"μ(0) mismatch: re-derived {mu0_re}, recorded {mu0_rec}")
 
-    point = ne.get("point")
-    _require(point is not None, "numeric_estimate missing point")
+    point = _require_present(ne.get("point"), "numeric_estimate missing point")
     ate_re = mu1_re - mu0_re
     _require(abs(ate_re - float(point)) <= _ATOL,
              f"ATE mismatch: re-derived μ(1)−μ(0)={ate_re}, recorded point={point}")

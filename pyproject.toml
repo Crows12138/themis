@@ -117,43 +117,26 @@ ignore_missing_imports = true
 # being true.
 warn_unused_ignores = true
 
-# Not yet read. Alphabetical rather than ordered by size: a count in a
-# comment is a number that stops being true without anyone touching it,
-# and the checker reports the real one on request.
+# One module, and it is no longer "not yet read" — that was what this list
+# meant when it held fifty-eight. It has been read, and what remains is a
+# cost rather than a backlog.
+#
+# ``themis.runtime.c_factor`` stamps ``_IdState.x_value`` into
+# ``ValuedAtom.value``, and that field holds either a concrete do-literal or
+# ``_IDC_VALUE_SENTINEL``, an unforgeable marker for a slot whose literal is
+# stamped later. The formula AST has three value states — a literal, a
+# ``VarRef`` bound by an enclosing sum, and ``None`` bound by the query — and
+# the identification recursion needs a fourth. There is no member of
+# ``ValueExpr`` it can honestly borrow: making the sentinel a ``VarRef``
+# changes what ``formula_simplify`` collects while the formula is still
+# un-stamped, making it a literal forfeits the unforgeability that
+# ``_apply_idc_values`` says is load-bearing, and ``None`` already means the
+# query-bound hole. Closing it is a decision about where that fourth state
+# lives, not an annotation (see the frontier item), so the line stays and
+# says why.
 [[tool.mypy.overrides]]
 module = [
-    "themis.estimation.causation",
-    "themis.estimation.counterfactual_cell",
-    "themis.estimation.discovery",
-    "themis.estimation.dispatch",
-    "themis.estimation.measurement",
-    "themis.estimation.mediation",
-    "themis.estimation.missing_recovery",
-    "themis.estimation.orientation_questions",
-    "themis.estimation.sensitivity_ovb",
-    "themis.kernel",
-    "themis.mcp.server",
-    "themis.output.explainer",
     "themis.runtime.c_factor",
-    "themis.runtime.counterfactual",
-    "themis.runtime.scheduler",
-    "themis.runtime.theta_builder",
-    "themis.upstream.narrative_merge",
-    "themis.upstream.program_builder",
-    "themis.verifier.bounds_rules",
-    "themis.verifier.markov_blanket_rules",
-    "themis.verifier.missing_numeric_rules",
-    "themis.verifier.orientation_ledger_rules",
-    "themis.verifier.orientation_question_rules",
-    "themis.verifier.orientation_rules",
-    "themis.verifier.orientation_session_rules",
-    "themis.verifier.outcome_error_rules",
-    "themis.verifier.rules",
-    "themis.verifier.selection_numeric_rules",
-    "themis.verifier.serialization",
-    "themis.verifier.verify",
-    "themis.workflow.parameter_fill",
-    "themis.workflow.variable_framing",
 ]
 ignore_errors = true
 

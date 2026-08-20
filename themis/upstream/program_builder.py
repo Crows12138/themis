@@ -258,6 +258,10 @@ def build_program_from_extraction(extraction: dict) -> Program:
     query_obj = _require(extraction, "query", "extraction")
     if not isinstance(query_obj, dict):
         raise ExtractionError("extraction.query must be a dict")
+    # The three kinds W1 supports; the variable holds whichever the
+    # dispatch below built, so it is annotated with all three rather
+    # than inferred from the first branch.
+    query: CauseQuery | AssocQuery | EffectQuery
     if query_kind == "cause":
         query = _build_cause_query(query_obj, known)
     elif query_kind == "assoc":

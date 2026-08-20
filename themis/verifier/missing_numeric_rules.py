@@ -26,18 +26,53 @@ reordered result, a dropped stratum, and a forged point.
 """
 from __future__ import annotations
 
+from typing import NoReturn, TypeVar
+
 from .errors import VerificationError
 
 _ATOL = 1e-6
 _SUM_ATOL = 1e-6
 
+_T = TypeVar("_T")
+
+
+def _fail(message: str) -> NoReturn:
+    raise VerificationError(
+        f"missing_data_recovery_numeric: {message}",
+        step_index=None, rule="missing_data_recovery_numeric",
+    )
+
 
 def _require(condition: bool, message: str) -> None:
     if not condition:
-        raise VerificationError(
-            f"missing_data_recovery_numeric: {message}",
-            step_index=None, rule="missing_data_recovery_numeric",
-        )
+        _fail(message)
+
+
+def _require_dict(value: object, message: str) -> dict:
+    """A check that hands back what it checked.
+
+    ``_require(isinstance(v, dict), ...)`` leaves ``v`` exactly as unknown as
+    it was: the assertion and the value are two separate things and only the
+    reader connects them. This returns the value AS a dict, so the connection
+    is in the code (the shape ``rules._require_atom`` already uses).
+    """
+    if not isinstance(value, dict):
+        _fail(message)
+    return value
+
+
+def _require_present(value: _T | None, message: str) -> _T:
+    """Same, for a recorded key whose absence is itself the failure."""
+    if value is None:
+        _fail(message)
+    return value
+
+
+def _require_positive_int(value: object, label: str, what: str) -> int:
+    """Same, for a recorded count that has to be a positive integer."""
+    if not isinstance(value, int) or value <= 0:
+        _fail(f"{label}: {what} {value!r} must be a positive integer")
+    return value
 
 
 def _key(seq) -> tuple:
@@ -63,9 +98,8 @@ def _gformula_from_stats(factor: dict, n_zvars: int, label: str) -> float:
         risk[(arm, z)] = float(rec["y_sum"]) / n
 
     # --- marginal P(z) = count / total ---
-    total = factor.get("marginal_total")
-    _require(isinstance(total, int) and total > 0,
-             f"{label}: marginal_total {total!r} must be a positive integer")
+    total = _require_positive_int(
+        factor.get("marginal_total"), label, "marginal_total")
     p_z: dict[tuple, float] = {}
     csum = 0
     for rec in factor.get("marginal_counts", []):
@@ -106,23 +140,22 @@ def verify_missing_data_numeric(result: dict) -> None:
     ):
         return  # not a missing-data recovery numeric result — nothing to check
 
-    ra = ne.get("recovered_ate")
-    _require(isinstance(ra, dict),
-             "numeric_estimate carries no recovered_ate detail block")
-    suff = ra.get("sufficient_statistics")
-    _require(isinstance(suff, dict),
-             "recovered_ate block carries no sufficient_statistics")
+    ra = _require_dict(
+        ne.get("recovered_ate"),
+        "numeric_estimate carries no recovered_ate detail block")
+    suff = _require_dict(
+        ra.get("sufficient_statistics"),
+        "recovered_ate block carries no sufficient_statistics")
 
     n_zvars = len(suff.get("adjustment_vars") or ())
 
     # --- 1. recovered ATE must match the reported point ---
-    recovered = suff.get("recovered")
-    _require(isinstance(recovered, dict),
-             "sufficient_statistics missing the 'recovered' factor tables")
+    recovered = _require_dict(
+        suff.get("recovered"),
+        "sufficient_statistics missing the 'recovered' factor tables")
     ate_re = _gformula_from_stats(recovered, n_zvars, "recovered")
 
-    point = ne.get("point")
-    _require(point is not None, "numeric_estimate missing point")
+    point = _require_present(ne.get("point"), "numeric_estimate missing point")
     _require(abs(ate_re - float(point)) <= _ATOL,
              f"recovered ATE mismatch: re-derived {ate_re}, recorded point={point}")
     # The recovered_ate sub-block echoes the same point to the consumer.
@@ -134,13 +167,15 @@ def verify_missing_data_numeric(result: dict) -> None:
 
     # --- 2. naive listwise foil, when recorded, must match too ---
     naive = suff.get("naive")
-    naive_reported = ra.get("naive_listwise_ate")
     if naive is not None:
-        _require(isinstance(naive, dict),
-                 "sufficient_statistics.naive is neither null nor a factor block")
-        naive_re = _gformula_from_stats(naive, n_zvars, "naive")
-        _require(naive_reported is not None,
-                 "naive sufficient statistics recorded but naive_listwise_ate is null")
+        naive_re = _gformula_from_stats(
+            _require_dict(
+                naive,
+                "sufficient_statistics.naive is neither null nor a factor block"),
+            n_zvars, "naive")
+        naive_reported = _require_present(
+            ra.get("naive_listwise_ate"),
+            "naive sufficient statistics recorded but naive_listwise_ate is null")
         _require(abs(naive_re - float(naive_reported)) <= _ATOL,
                  f"naive listwise ATE mismatch: re-derived {naive_re}, recorded "
                  f"{naive_reported}")

@@ -312,18 +312,9 @@ def diagnose_predicate_links(
         if source in target_set:
             exact_matches.append(source)
             continue
-        scored = []
-        for target in targets:
-            score, reasons = _link_score(source, target)
-            scored.append({
-                "target_predicate": target,
-                "score": score,
-                "reasons": reasons,
-            })
-        scored.sort(key=lambda item: (-item["score"], item["target_predicate"]))
         unmatched.append({
             "source_predicate": source,
-            "candidates": scored[:max_candidates],
+            "candidates": _ranked_candidates(source, targets, max_candidates),
             "action": "confirm_link_or_keep_new",
         })
 
@@ -332,6 +323,27 @@ def diagnose_predicate_links(
         "exact_matches": exact_matches,
         "unmatched": unmatched,
     }
+
+
+def _ranked_candidates(
+    source: str,
+    targets: Iterable[str],
+    max_candidates: int,
+) -> list[dict]:
+    """The best ``max_candidates`` link targets for ``source``, best first.
+
+    Ranking happens on ``(score, target)`` tuples rather than on the
+    emitted dicts: the dict is the reporting shape (mixed value types),
+    the tuple is the ordering key."""
+    ranked = []
+    for target in targets:
+        score, reasons = _link_score(source, target)
+        ranked.append((score, target, reasons))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    return [
+        {"target_predicate": target, "score": score, "reasons": reasons}
+        for score, target, reasons in ranked[:max_candidates]
+    ]
 
 
 def _diagnose_predicate_names(
@@ -357,18 +369,9 @@ def _diagnose_predicate_names(
         if source in target_set:
             exact_matches.append(source)
             continue
-        scored = []
-        for target in targets:
-            score, reasons = _link_score(source, target)
-            scored.append({
-                "target_predicate": target,
-                "score": score,
-                "reasons": reasons,
-            })
-        scored.sort(key=lambda item: (-item["score"], item["target_predicate"]))
         unmatched.append({
             "source_predicate": source,
-            "candidates": scored[:max_candidates],
+            "candidates": _ranked_candidates(source, targets, max_candidates),
             "action": "confirm_link_or_keep_new",
         })
 
@@ -560,6 +563,21 @@ def _require_edges_extraction(extraction: dict, what: str) -> dict:
 
 
 def _require_refusals_list(extraction: dict, what: str) -> list[dict]:
+    """The single shape gate for A2 refusal dicts.
+
+    Every path that reads ``refusals`` — predicate diagnostics, link
+    rewriting, cross-extraction merge, ``apply_edge_refusals`` — enters
+    through here, so a field checked here is checked once for all of
+    them. The consumers downstream are translators, not validators:
+    ``_refusal_ambiguity`` indexes ``from`` / ``to`` and looks ``pattern``
+    up in a table because this function already said those are strings.
+    A check added downstream instead would guard one path and let the
+    other three carry the malformed value on.
+
+    ``pattern`` is optional (an unpatterned refusal is a generic one),
+    but a present ``pattern`` that is not a string is malformed input,
+    not a refusal with no pattern — the two must not be conflated.
+    """
     refs = extraction.get("refusals") or []
     if not isinstance(refs, list):
         raise ExtractionShapeError(f"{what}.refusals must be a list when present")
@@ -576,6 +594,11 @@ def _require_refusals_list(extraction: dict, what: str) -> list[dict]:
                 raise ExtractionShapeError(
                     f"{what}.refusals[{i}].{end} must be a non-empty string"
                 )
+        pattern = ref.get("pattern")
+        if pattern is not None and not isinstance(pattern, str):
+            raise ExtractionShapeError(
+                f"{what}.refusals[{i}].pattern must be a string when present"
+            )
         out.append(ref)
     return out
 
@@ -631,16 +654,23 @@ def _refusal_key(ref: dict) -> tuple[str, str]:
 
 
 def _pair_for_conflict(edge_or_refusal: dict) -> tuple[str, str]:
-    """Unordered predicate pair, used to detect cross-kind conflicts."""
+    """Unordered predicate pair, used to detect cross-kind conflicts.
+
+    An edge names its endpoints as atom dicts; a refusal names them as
+    bare predicate strings. ``src`` / ``dst`` are the endpoints as given,
+    ``first`` / ``second`` the predicate names extracted from them — one
+    name per meaning, so neither slot changes what it holds mid-function.
+    """
     if "from" in edge_or_refusal and "to" in edge_or_refusal:
-        a = edge_or_refusal["from"]
-        b = edge_or_refusal["to"]
-        a = a["predicate"] if isinstance(a, dict) else a
-        b = b["predicate"] if isinstance(b, dict) else b
+        src = edge_or_refusal["from"]
+        dst = edge_or_refusal["to"]
+        first = src["predicate"] if isinstance(src, dict) else src
+        second = dst["predicate"] if isinstance(dst, dict) else dst
     else:
-        a = edge_or_refusal["left"]["predicate"]
-        b = edge_or_refusal["right"]["predicate"]
-    return tuple(sorted((a, b)))  # type: ignore[return-value]
+        first = edge_or_refusal["left"]["predicate"]
+        second = edge_or_refusal["right"]["predicate"]
+    lo, hi = sorted((first, second))
+    return (lo, hi)
 
 
 def _merge_two_edges(a: dict, b: dict) -> dict:
@@ -898,13 +928,19 @@ def _cause_statement_pair(statement: dict) -> tuple[str, str] | None:
 
 def _refusal_ambiguity(refusal: dict) -> dict:
     pattern = refusal.get("pattern")
+    generic = "edge_refusal"
     kind_by_pattern = {
         "confounder": "confounder_refusal",
         "collider": "selection_bias",
         "reverse_causation": "reverse_causation_refusal",
         "coincidence": "coincidence_refusal",
     }
-    kind = kind_by_pattern.get(pattern, "edge_refusal")
+    # ``_require_refusals_list`` has already rejected a ``pattern`` that
+    # is neither absent nor a string, so the two ways of landing on the
+    # generic kind are both honest: the narrative named no pattern, or it
+    # named one this table has not been taught. Malformed input does not
+    # reach here, and so cannot disguise itself as either of them.
+    kind = generic if pattern is None else kind_by_pattern.get(pattern, generic)
     src = refusal["from"]
     dst = refusal["to"]
     ambiguity = {

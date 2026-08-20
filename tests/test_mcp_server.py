@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import themis
 from themis.mcp import build_server
 
 
@@ -233,6 +234,61 @@ def test_themis_report_stamps_an_answer_that_carries_no_chain(app):
     report = out["reports"][0]
     assert "verify_bounds_results" in report
     assert "独立复核全部通过" in report
+
+
+def test_report_reads_the_one_program_key_both_its_entry_points_write():
+    """Pins the envelope key ``themis_report``'s fall-back chain rests on.
+
+    The tool has to recover the AST the kernel actually ran on, and it
+    does so by key: ``env.get("program")``. The chain once also tried
+    ``merged_program`` — which is ``apply_patch_and_run``'s key, and
+    which neither of this tool's two entry points writes — so that
+    branch could never fire, while the comment beside it described a
+    route into the tool that did not exist.
+
+    A wrong key here fails silently rather than loudly: the lookup just
+    falls through to the caller's raw argument, which may still be an
+    unparsed JSON string, and the report is then assembled with
+    ``program=None`` — losing the framing and provenance sections with
+    no error anywhere. That makes the key a thing to test rather than a
+    thing to remember: move ``run``'s or ``estimate``'s echo and this
+    goes red, so the fall-back gets told instead of quietly rotting.
+    """
+    import pandas as pd
+
+    def _atom(p):
+        return {"predicate": p, "args": []}
+
+    program = {
+        "version": "0.1",
+        "domain": {"objects": []},
+        "statements": [
+            {"kind": "variable", "predicate": p, "domain": [True, False]}
+            for p in ("x", "y", "z")
+        ] + [
+            {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+            {"kind": "cause", "from": _atom("z"), "to": _atom("y")},
+            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "effect",
+                "target": {"atom": _atom("y"), "value": True},
+                "intervention": {"atom": _atom("x"), "value": True},
+                "given": []}},
+        ],
+    }
+    rows = [
+        (x, y, z)
+        for z in (True, False) for x in (True, False) for y in (True, False)
+    ] * 25
+    data = pd.DataFrame(rows, columns=["x", "y", "z"])
+
+    # The two entry points themis_report actually calls.
+    assert "program" in themis.run(program)
+    assert "program" in themis.estimate(program, data)
+    # And the third one, which it does not — named here so that the key
+    # the fall-back chain must NOT reach for stays visibly someone else's.
+    patched = themis.apply_patch_and_run(program, [])
+    assert "merged_program" in patched and "program" not in patched
 
 
 def test_themis_list_resources_tool_returns_uri_catalog(app):

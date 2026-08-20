@@ -49,6 +49,15 @@ def _require(condition: bool, message: str) -> None:
         raise VerificationError(message)
 
 
+def _require_list(value: object, message: str, *, nonempty: bool = False) -> list:
+    """The list-shaped sibling of ``_require``: same refusal, but it hands the
+    checked value back, so everything downstream reads as the list it verified
+    rather than as whatever ``result.get`` happened to return."""
+    if not isinstance(value, list) or (nonempty and not value):
+        raise VerificationError(message)
+    return value
+
+
 def _pair(a: str, b: str):
     return (a, b) if a <= b else (b, a)
 
@@ -219,14 +228,14 @@ def verify_orientation_questions(result: dict) -> None:
     _require(isinstance(result, dict), "result must be a dict")
     _require(result.get("kind") == "orientation_question_set",
              f"not an orientation_question_set (kind={result.get('kind')!r})")
-    nodes = result.get("nodes")
-    _require(isinstance(nodes, list) and nodes, "nodes must be a non-empty list")
+    nodes = _require_list(
+        result.get("nodes"), "nodes must be a non-empty list", nonempty=True
+    )
     _require(len(set(nodes)) == len(nodes), "duplicate node names")
     node_set = set(nodes)
 
     def _edges(key):
-        raw = result.get(key)
-        _require(isinstance(raw, list), f"{key} must be a list")
+        raw = _require_list(result.get(key), f"{key} must be a list")
         out = []
         for e in raw:
             _require(isinstance(e, list) and len(e) == 2
@@ -239,16 +248,20 @@ def verify_orientation_questions(result: dict) -> None:
     input_directed = _edges("input_directed")
     input_undirected = _edges("input_undirected")
     constraints = _edges("constraints")
-    raw_asserted = result.get("asserted_adjacencies", [])
-    _require(isinstance(raw_asserted, list), "asserted_adjacencies must be a list")
+    raw_asserted = _require_list(
+        result.get("asserted_adjacencies", []),
+        "asserted_adjacencies must be a list",
+    )
     asserted = []
     for e in raw_asserted:
         _require(isinstance(e, list) and len(e) == 2,
                  f"asserted_adjacencies entry {e!r} is not a pair")
         _require(e[0] != e[1], f"asserted_adjacencies has a self-loop {e!r}")
         asserted.append((e[0], e[1]))
-    raw_absences = result.get("asserted_absences", [])
-    _require(isinstance(raw_absences, list), "asserted_absences must be a list")
+    raw_absences = _require_list(
+        result.get("asserted_absences", []),
+        "asserted_absences must be a list",
+    )
     absences = []
     for e in raw_absences:
         _require(isinstance(e, list) and len(e) == 2,
@@ -272,8 +285,7 @@ def verify_orientation_questions(result: dict) -> None:
     for (a, b) in U0:
         adj[a].add(b); adj[b].add(a)
 
-    questions = result.get("questions")
-    _require(isinstance(questions, list), "questions must be a list")
+    questions = _require_list(result.get("questions"), "questions must be a list")
     for q in questions:
         _require(isinstance(q, dict) and "kind" in q, f"ill-formed question {q!r}")
 

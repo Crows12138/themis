@@ -19,7 +19,7 @@ mediation estimators behind the same dispatch switch.
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Callable
 
 from .. import blocks, refusals
 # Imported here and not in each handler that catches it. It was a
@@ -829,6 +829,80 @@ def _estimate_effect_queries(
     return evaluations
 
 
+class _SpecIsNotAMapping(EstimatorFailure):
+    """What the caller filed under a variable's name is not a spec at all.
+
+    A class of its own rather than a bare :class:`EstimatorFailure` so that
+    the row recording it catches exactly what :func:`_guarded_spec` raises.
+    Any other refusal reaching that ``except`` would mean some handler's own
+    plumbing has a hole, and filing it under "your spec is malformed" would
+    put a confident wrong sentence on the envelope.
+    """
+
+
+def _guarded_spec(spec: object) -> dict:
+    """A caller spec whose presence this row's route guard already decided.
+
+    Four rows of the table below hand a measurement spec straight to their
+    handler, and each is reached only through a guard that tested the very
+    same :class:`EffectFacts` attribute for ``is not None``. The absent case
+    is therefore not a case — but the guard lives in ``themis.routing``, so
+    nothing in the run's own text said so, and the handler that receives it
+    quite reasonably declares it is given a spec rather than a maybe-spec.
+
+    Saying it here is what keeps the two halves of one decision from being
+    edited apart: a guard loosened without its run is not a spec that
+    quietly becomes ``None`` downstream, it is a raise naming the row.
+
+    Presence is the only half of that contract a route guard can decide.
+    The other half — that the value is a mapping of settings at all — was
+    nobody's: ``EffectFacts`` annotates these attributes ``dict | None`` on
+    the strength of a dict the caller handed in and no one read, which is
+    why the parameter here is ``object``. ``dict`` is the claim this
+    function exists to make true, not one it may assume. A caller who wrote
+    ``measurement_error={"y": 0}`` has named a variable and then not
+    described it, and that is a request to correct rather than an invariant
+    to trust — so it leaves as a refusal saying so, not as whatever
+    ``AttributeError`` the first ``.get`` in some handler happens to raise.
+    """
+    if spec is None:
+        raise AssertionError(
+            "a measurement-spec strategy ran without the spec its route "
+            "guard tests for; the guard and the run read the same attribute, "
+            "so they cannot disagree unless one of them was edited alone"
+        )
+    if not isinstance(spec, dict):
+        raise _SpecIsNotAMapping(
+            Refusal.INVALID_INPUT,
+            "a measurement spec is a mapping of named settings — the error "
+            "variance, the confusion matrix, the study they came from; got "
+            f"{refusals.describe(spec)}, which names no setting at all",
+        )
+    return spec
+
+
+def _spec_row(
+    estimator: str,
+    run: Callable[[EffectFacts, dict, EffectKnobs], Claim],
+) -> Callable[[EffectFacts, dict, EffectKnobs], Claim]:
+    """One measurement-spec row, with a malformed spec recorded as a refusal.
+
+    :func:`_guarded_spec` speaks for all four rows, but it is evaluated
+    inside the handler's own argument list — before the handler exists to
+    catch anything, and somewhere a ``return`` cannot say "this row is
+    done". Those are the two things only the row knows: whose name the
+    refusal carries, and that a refused spec ends the query here instead of
+    leaving by the exception door the caller cannot read.
+    """
+    def row(f: EffectFacts, r: dict, k: EffectKnobs) -> Claim:
+        try:
+            return run(f, r, k)
+        except _SpecIsNotAMapping as exc:
+            refusals.record(r, estimator=estimator, exc=exc)
+            return blocked('estimator_refused')
+    return row
+
+
 # ---------------------------------------------------------------------------
 # The numeric end of every route that declares one.
 #
@@ -905,13 +979,16 @@ _EFFECT_STRATEGIES = check_table((
         route=route("measurement_correction_both_channels"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
-        run=lambda f, r, k: _try_combined_measurement_correction_estimate(
-            f.q_stmt, r, f.contract, f.graph,
-            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
-            spec_x=f.misclassification_exposure,
-            spec_y=f.misclassification_outcome,
-            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
-            cluster=k.cluster,
+        run=_spec_row(
+            "combined_measurement_error_correction",
+            lambda f, r, k: _try_combined_measurement_correction_estimate(
+                f.q_stmt, r, f.contract, f.graph,
+                adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+                spec_x=_guarded_spec(f.misclassification_exposure),
+                spec_y=_guarded_spec(f.misclassification_outcome),
+                random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+                cluster=k.cluster,
+            ),
         ),
     ),
     Strategy(
@@ -922,24 +999,30 @@ _EFFECT_STRATEGIES = check_table((
         route=route("measurement_correction_outcome"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
-        run=lambda f, r, k: _try_measurement_correction_estimate(
-            f.q_stmt, r, f.contract, f.graph,
-            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
-            spec=f.misclassification_outcome,
-            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
-            cluster=k.cluster,
+        run=_spec_row(
+            "measurement_error_correction",
+            lambda f, r, k: _try_measurement_correction_estimate(
+                f.q_stmt, r, f.contract, f.graph,
+                adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+                spec=_guarded_spec(f.misclassification_outcome),
+                random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+                cluster=k.cluster,
+            ),
         ),
     ),
     Strategy(
         route=route("measurement_correction_exposure"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
-        run=lambda f, r, k: _try_exposure_measurement_correction_estimate(
-            f.q_stmt, r, f.contract, f.graph,
-            adjustment_sets=f.adjustment_sets, given=f.given_atoms,
-            spec=f.misclassification_exposure,
-            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
-            cluster=k.cluster,
+        run=_spec_row(
+            "exposure_measurement_error_correction",
+            lambda f, r, k: _try_exposure_measurement_correction_estimate(
+                f.q_stmt, r, f.contract, f.graph,
+                adjustment_sets=f.adjustment_sets, given=f.given_atoms,
+                spec=_guarded_spec(f.misclassification_exposure),
+                random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+                cluster=k.cluster,
+            ),
         ),
     ),
     Strategy(
@@ -950,11 +1033,14 @@ _EFFECT_STRATEGIES = check_table((
         route=route("outcome_error_precision_cost"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
-        run=lambda f, r, k: _try_outcome_error_assessment(
-            r, f.contract, f.graph,
-            x_atom=f.x_atom, y_atom=f.y_atom,
-            adjustment_sets=f.adjustment_sets,
-            spec=f.measurement_error_outcome,
+        run=_spec_row(
+            "outcome_measurement_error",
+            lambda f, r, k: _try_outcome_error_assessment(
+                r, f.contract, f.graph,
+                x_atom=f.x_atom, y_atom=f.y_atom,
+                adjustment_sets=f.adjustment_sets,
+                spec=_guarded_spec(f.measurement_error_outcome),
+            ),
         ),
     ),
     Strategy(
@@ -1268,7 +1354,7 @@ def _try_iv_wald_estimate(
         refusals.record(result, estimator="iv_wald", exc=exc)
         return blocked('estimator_refused')
 
-    iv_numeric_dict = {
+    iv_numeric_dict: dict[str, object] = {
         "point": iv_estimate.point,
         "ci_lower": iv_estimate.ci_lower,
         "ci_upper": iv_estimate.ci_upper,
@@ -2416,7 +2502,10 @@ def _try_causation_estimate(
     # one, if any); for the bounds answer there is no point — value is null and
     # the identified intervals live in numeric_estimate.probabilities_of_causation.
     result["numeric_result"] = {
-        "value": float(estimate.pn_point) if is_point else None
+        "value": (
+            float(estimate.pn_point)
+            if estimate.pn_point is not None else None
+        )
     }
 
     # Display copy: the explainer reads extensions.causation. Overwrite the
@@ -3114,6 +3203,23 @@ def _try_mediation_joint_estimate(
 _RATIO_BOOTSTRAP_CAP = 200
 
 
+def _reference_level_as_number(level: object) -> float:
+    """The number a declared reference LEVEL stands for.
+
+    The estimators keep the level the caller declared rather than the number
+    they derived from it, and they are right to: an atom value is as often a
+    label as a number, so the field is ``object`` and says so. The audit
+    block below records the number the closed form was actually evaluated
+    at, which means re-making the estimator's own conversion here — and a
+    level that is no kind of number is a malformed request, not a zero.
+    """
+    if isinstance(level, (int, float, str)):
+        return float(level)
+    raise TypeError(
+        f"a reference level must name a number; got {level!r}"
+    )
+
+
 def _attach_four_way_ratio(
     result: dict, contract, *, treatment: str, outcome: str, mediator: str,
     adjustment: tuple[str, ...], random_state: int, ci_bootstrap: int,
@@ -3160,7 +3266,7 @@ def _attach_four_way_ratio(
     def _p(pt, lo, hi) -> dict:
         return {"point": pt, "ci_lower": lo, "ci_upper": hi}
 
-    block = {
+    block: dict[str, object] = {
         "mediator_scale": est.mediator_scale,
         "err_cde": _p(est.err_cde_point, est.err_cde_ci_lower, est.err_cde_ci_upper),
         "err_intref": _p(est.err_intref_point, est.err_intref_ci_lower, est.err_intref_ci_upper),
@@ -3187,7 +3293,7 @@ def _attach_four_way_ratio(
     block["coefficients"] = {
         "t1": est.t1, "t2": est.t2, "t3": est.t3,
         "b0": est.b0, "b1": est.b1, "bcc": est.bcc,
-        "mediator_reference": float(est.mediator_reference),
+        "mediator_reference": _reference_level_as_number(est.mediator_reference),
     }
     ne["four_way_ratio"] = block
 
@@ -3642,11 +3748,21 @@ def _try_transport_estimate(
     adjustment_atoms = transport_block.get("adjustment_set") or []
     if not adjustment_atoms:
         return blocked('design_unavailable')
-    adjustment_names = tuple(
-        a.get("predicate") for a in adjustment_atoms if isinstance(a, dict)
-    )
-    if not adjustment_names or not all(adjustment_names):
+    names: list[str] = []
+    for atom in adjustment_atoms:
+        if not isinstance(atom, dict):
+            continue
+        predicate = atom.get("predicate")
+        if not isinstance(predicate, str) or not predicate:
+            # The block is the identification layer's own output, where an
+            # adjustment entry is an atom and an atom has a predicate. An
+            # entry that names no column is a broken design, not a missing
+            # column, so it refuses here rather than downstream.
+            return blocked('design_unavailable')
+        names.append(predicate)
+    if not names:
         return blocked('design_unavailable')
+    adjustment_names = tuple(names)
 
     program_extensions = _extract_program_extensions(program)
     target_marginal = program_extensions.get("target_marginal")
@@ -4436,12 +4552,21 @@ def _try_outcome_error_assessment(
     chosen = min(adjustment_sets, key=len)
     adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
 
+    # σ²_v is the spec's one required key, and whether the declared value is
+    # usable — positive, finite, and small enough to fit under the residual
+    # variation — is the estimator's judgement, along with the refusal that
+    # names it. So an omitted key is handed on as absent rather than being
+    # re-adjudicated here under a second set of words. Absent is ``None``,
+    # which is what the refusal then quotes back: a default of ``nan`` reads
+    # to the caller as a number they declared, and they declared nothing.
+    declared_variance = spec.get("error_variance")
+
     try:
         assessment = assess_outcome_error(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
             adjustment=adjustment_names,
-            error_variance=(spec or {}).get("error_variance"),
+            error_variance=declared_variance,
         )
     except EstimatorFailure as exc:
         refusals.record(result, estimator="outcome_measurement_error", exc=exc)
@@ -4469,7 +4594,7 @@ def _try_outcome_error_assessment(
         # Σ_D, Cov(D, Y), Var(Y), σ²_v, n — the split is a closed-form function
         # of these, so verify_outcome_error re-derives it without the data.
         "sufficient_statistics": assessment.sufficient_statistics,
-        "source": (spec or {}).get("source"),
+        "source": spec.get("source"),
     }
     return annotated()
 
@@ -5625,7 +5750,7 @@ def _try_doubly_robust_estimate(
                 contract.data,
                 treatment=x.predicate, outcome=y.predicate,
                 adjustment=adjustment_names,
-                outcome_model=model,  # type: ignore[arg-type]
+                outcome_model=model,
                 ci_bootstrap=ci_bootstrap,
                 random_state=random_state,
                 cluster=cluster,
@@ -6019,7 +6144,29 @@ def _try_iv_overid_estimate(
         # a refusal beside the number that followed it.
         return passed('estimator_refused')
 
-    numeric = {
+    sargan = est.sargan
+    if sargan is None:
+        # This row exists to report the over-identification test, so a
+        # missing one is not a degenerate design to fall back from — it is
+        # the estimate contradicting itself. `estimate_iv_overid` computes
+        # the Sargan J on every path that returns, so the field's optional
+        # type is the only thing that admits this at all.
+        raise AssertionError(
+            "the over-identified IV estimate carries no Sargan test; the "
+            "estimator computes it on every path that returns an estimate"
+        )
+    over_identification: dict[str, object] = {
+        "test": "sargan",
+        "sargan_j": sargan.j_stat,
+        "sargan_dof": sargan.dof,
+        "sargan_p_value": sargan.p_value,
+        "rejected_at_0_05": bool(sargan.p_value < 0.05),
+        # Residualised second moments the point + J are closed forms of (plus
+        # the robust weight matrix Ŝ when Hansen J was computed) — the
+        # verifier re-derives everything from these without the raw data.
+        "sufficient_statistics": est.moments,
+    }
+    numeric: dict[str, object] = {
         "point": est.point,
         "ci_lower": est.ci_lower,
         "ci_upper": est.ci_upper,
@@ -6033,28 +6180,19 @@ def _try_iv_overid_estimate(
         "treatment": est.treatment,
         "outcome": est.outcome,
         "n_instruments": est.n_instruments,
-        "over_identification": {
-            "test": "sargan",
-            "sargan_j": est.sargan.j_stat,
-            "sargan_dof": est.sargan.dof,
-            "sargan_p_value": est.sargan.p_value,
-            "rejected_at_0_05": bool(est.sargan.p_value < 0.05),
-            # Residualised second moments the point + J are closed forms of (plus
-            # the robust weight matrix Ŝ when Hansen J was computed) — the
-            # verifier re-derives everything from these without the raw data.
-            "sufficient_statistics": est.moments,
-        },
+        "over_identification": over_identification,
     }
     # Heteroskedasticity-robust (efficient two-step GMM) Hansen J, when the
     # robust weight matrix was non-singular. The headline point stays 2SLS;
     # hansen_gmm_point is the efficient-GMM byproduct.
     if est.hansen is not None:
-        oid = numeric["over_identification"]
-        oid["hansen_j"] = est.hansen.j_stat
-        oid["hansen_dof"] = est.hansen.dof
-        oid["hansen_p_value"] = est.hansen.p_value
-        oid["hansen_gmm_point"] = est.hansen.gmm_point
-        oid["hansen_rejected_at_0_05"] = bool(est.hansen.p_value < 0.05)
+        over_identification["hansen_j"] = est.hansen.j_stat
+        over_identification["hansen_dof"] = est.hansen.dof
+        over_identification["hansen_p_value"] = est.hansen.p_value
+        over_identification["hansen_gmm_point"] = est.hansen.gmm_point
+        over_identification["hansen_rejected_at_0_05"] = bool(
+            est.hansen.p_value < 0.05
+        )
     # Multi-instrument Anderson-Rubin weak-ID-robust set — the honest interval
     # when the joint first stage is weak (the bootstrap CI is not). The verifier
     # re-solves the quadratic from the moments already in sufficient_statistics.
@@ -6388,18 +6526,22 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
     if not dose_ambs:
         return set(), []
 
-    effect_stmts = [
-        s for s in prog.statements
+    # (statement id, the effect query itself). A statement's ``query`` is the
+    # whole query union and only mediation queries have a ``mediator``, so
+    # every reader below would have to re-establish what this comprehension
+    # already decided. Carrying the narrowed query is that decision, kept.
+    effect_queries: list[tuple[str, EffectQuery]] = [
+        (s.id, s.query) for s in prog.statements
         if isinstance(s, QueryStatement) and isinstance(s.query, EffectQuery)
     ]
-    effect_by_id = {s.id: s for s in effect_stmts}
+    query_by_id = dict(effect_queries)
     eligible_effect_ids = [
-        s.id for s in effect_stmts
-        if s.query.mediator is None
+        qid for qid, query in effect_queries
+        if query.mediator is None
     ]
 
     warnings: list[str] = []
-    if not effect_stmts:
+    if not effect_queries:
         warnings.append(
             "dose_response_query present but program has no effect query; "
             "estimator skipped and data-gap report should be used",
@@ -6417,14 +6559,14 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
     for a in dose_ambs:
         explicit = a.get("query_id")
         if explicit is not None:
-            target_stmt = effect_by_id.get(explicit)
-            if target_stmt is None:
+            target_query = query_by_id.get(explicit)
+            if target_query is None:
                 warnings.append(
                     f"dose_response_query query_id {explicit!r} does not "
                     "match any effect query; estimator skipped for that "
                     "ambiguity",
                 )
-            elif target_stmt.query.mediator is not None:
+            elif target_query.mediator is not None:
                 warnings.append(
                     f"dose_response_query query_id {explicit!r} targets a "
                     "mediation effect query; dose-response estimator skipped",
@@ -6432,7 +6574,7 @@ def _dose_response_routing_plan(prog) -> tuple[set[str], list[str]]:
             else:
                 targets.add(explicit)
         else:
-            first_effect_id = effect_stmts[0].id
+            first_effect_id = effect_queries[0][0]
             first_eligible_id = eligible_effect_ids[0]
             if first_effect_id != first_eligible_id:
                 warnings.append(

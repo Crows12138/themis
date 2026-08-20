@@ -183,9 +183,9 @@ def merge_skeleton_bundle(program: Program, filled_bundle: dict) -> Program:
 
 # ------------------------------------------------------------ diff
 
-def _row(r: QueryResult) -> dict:
+def _row(r: QueryResult) -> dict[str, object]:
     """A compact dict row describing a single QueryResult's status."""
-    row = {"query_id": r.query_id, "status": r.status.value}
+    row: dict[str, object] = {"query_id": r.query_id, "status": r.status.value}
     if r.numeric_result is not None:
         row["value"] = r.numeric_result.value
     if r.missing_information:

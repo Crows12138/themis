@@ -40,6 +40,7 @@ Contracts:
 from __future__ import annotations
 
 import json
+from typing import NoReturn
 
 from . import blocks, refusals
 from .input.parser import parse_json
@@ -219,7 +220,7 @@ def _term_to_dict(t: Term) -> dict:
 
 
 def _atom_to_dict(a: Atom) -> dict:
-    d = {
+    d: dict[str, object] = {
         "predicate": a.predicate,
         "args": [_term_to_dict(t) for t in a.args],
     }
@@ -378,7 +379,7 @@ def _statement_to_dict(s) -> dict:
             d["coefficient"] = s.coefficient
         return d
     if isinstance(s, BidirectedStatement):
-        d: dict = {
+        d = {
             "kind": "bidirected",
             "left": _atom_to_dict(s.left),
             "right": _atom_to_dict(s.right),
@@ -725,7 +726,7 @@ def _verify_causation_extensions_match(result: dict, derivation) -> None:
             return True
         return a is not None and b is not None and abs(float(a) - float(b)) <= tol
 
-    def _fail() -> None:
+    def _fail() -> NoReturn:
         raise VerificationError(
             "extensions.causation does not match the verified derivation "
             "envelope (display copy diverges from the audited answer)",
@@ -811,7 +812,7 @@ def _verify_causation_numeric_extensions_match(result: dict, derivation) -> None
             return a is None and b is None
         return abs(float(a) - float(b)) <= tol
 
-    def _fail() -> None:
+    def _fail() -> NoReturn:
         raise VerificationError(
             "extensions.causation does not match the verified numeric "
             "derivation inputs (display copy diverges from the audited answer)",
@@ -857,7 +858,7 @@ def _verify_counterfactual_cell_extensions_match(result: dict, derivation) -> No
         )
     tol = 1e-9
 
-    def _fail() -> None:
+    def _fail() -> NoReturn:
         raise VerificationError(
             "extensions.counterfactual_cell does not match the verified "
             "numeric derivation inputs (display copy diverges from the "
@@ -1113,8 +1114,10 @@ def verify(program: dict | str | bytes, result: dict) -> None:
                 raise ValueError(
                     f"verify(): {kind} result must carry a numeric_result"
                 )
-            claimed = _decode_numeric_result_json(result["numeric_result"])
-            verify_numeric(derivation, ctx, claimed)
+            claimed_numeric = _decode_numeric_result_json(
+                result["numeric_result"]
+            )
+            verify_numeric(derivation, ctx, claimed_numeric)
             # A theta-evaluated mediation decomposition (single mediator or a
             # joint block) may ALSO carry a DataFrame estimate of the same
             # split. verify_numeric audited the theta derivation above; audit
@@ -1144,8 +1147,10 @@ def verify(program: dict | str | bytes, result: dict) -> None:
                 raise ValueError(
                     "verify(): counterfactual result must carry a numeric_result"
                 )
-            claimed = _decode_numeric_result_json(result["numeric_result"])
-            verify_counterfactual(derivation, ctx, claimed)
+            claimed_numeric = _decode_numeric_result_json(
+                result["numeric_result"]
+            )
+            verify_counterfactual(derivation, ctx, claimed_numeric)
     elif kind == "causation":
         if (
             result.get("status") == "numerically_solved"
@@ -1166,8 +1171,10 @@ def verify(program: dict | str | bytes, result: dict) -> None:
                 raise ValueError(
                     "verify(): causation result must carry a numeric_result"
                 )
-            claimed = _decode_numeric_result_json(result["numeric_result"])
-            verify_causation(derivation, ctx, claimed)
+            claimed_numeric = _decode_numeric_result_json(
+                result["numeric_result"]
+            )
+            verify_causation(derivation, ctx, claimed_numeric)
             # The consumer-facing extensions.causation copy carries PS/PNS,
             # which are answer-grade numbers a reader sees only there (the
             # headline numeric_result is just PN). Cross-check it against the
@@ -1187,7 +1194,9 @@ def verify(program: dict | str | bytes, result: dict) -> None:
             # recorded per-node moment matrices + observed unit (which don't fit
             # derivation-input serialization).
             claimed = _decode_structural_result_json(result["structural_result"])
-            num_est = result.get("numeric_estimate")
+            # Membership was the branch condition, so index rather than
+            # ``.get`` — the verifier takes the block itself, not an absence.
+            num_est = result["numeric_estimate"]
             verify_scm_counterfactual_numeric(derivation, ctx, claimed, num_est)
             # The extensions.scm_counterfactual display copy (the counterfactual
             # value a reader sees) must agree with the audited numeric point, so
@@ -1198,8 +1207,10 @@ def verify(program: dict | str | bytes, result: dict) -> None:
                 raise ValueError(
                     "verify(): scm_counterfactual result must carry a numeric_result"
                 )
-            claimed = _decode_numeric_result_json(result["numeric_result"])
-            verify_scm_counterfactual(derivation, ctx, claimed)
+            claimed_numeric = _decode_numeric_result_json(
+                result["numeric_result"]
+            )
+            verify_scm_counterfactual(derivation, ctx, claimed_numeric)
     elif kind == "counterfactual_conjunction":
         claimed = _decode_structural_result_json(result["structural_result"])
         if (
@@ -1393,12 +1404,17 @@ def verify_data_gap_report(result: dict) -> None:
 
     from .verifier.data_gap_rules import verify_data_gap_report as _verify_t10
 
-    _verify_t10(
-        result.get("data_gap_report"),
-        derivation=result.get("derivation"),
-        investigation_requests=result.get("investigation_requests", []),
-        framing_notes=result.get("framing_notes", []),
-    )
+    # No report is nothing to audit — the same guard :func:`verify` applies
+    # before its own T10 pass. Stated here instead of leaning on the rule's
+    # internal short-circuit, so the absent case is visible at the call.
+    report = result.get("data_gap_report")
+    if report is not None:
+        _verify_t10(
+            report,
+            derivation=result.get("derivation"),
+            investigation_requests=result.get("investigation_requests", []),
+            framing_notes=result.get("framing_notes", []),
+        )
 
     # 2026-07-11 pre-flight data diagnostic: independently re-derive any
     # declared_type_data_mismatch verdicts from the recorded sufficient
