@@ -460,6 +460,31 @@ const FOUR_WAY_MEDIATOR_SCALE_ZH: Record<string, string> = {
   continuous: '中介是连续 —— 走 eAppendix §3.3 的闭式，多出一个中介残差方差项',
 }
 
+// Which design's residual a declared outcome measurement error was priced
+// against. The sentence STATES the number rather than standing beside it,
+// because what the number means is a fact about the design: on two of the
+// three it is the precision cost, on the third the variance splits across
+// terms only one of which carries the outcome residual, so the same
+// arithmetic returns a CEILING. A reader who meets the figure first and the
+// qualification second has already read it as the cost. Nothing on the
+// envelope says which — a field for it would be a second record of the
+// design name, free to disagree with it — so this table is where it is said.
+// What the error does to the POINT is here for the same reason: nothing on
+// the first two, and on the front door nothing only while the error is
+// unrelated to the confounder that graph posits, which nobody measured.
+const OUTCOME_ERROR_DESIGN_ZH: Record<string, string> = {
+  back_door: '区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响',
+  instrumental_variable: '区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的结构残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个倍数同样是精度代价本身；点估计不受影响，它要的是误差与工具无关，而不是与暴露、调整集无关',
+  front_door: '区间比结局测准时至多宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不进去，所以这个倍数是精度代价的上界而不是代价本身（本仓自己的前门估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计未必不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，动的就是点估计本身，而不只是区间',
+}
+
+// An envelope that never said which design. Not silently read as the
+// back-door one: which residual the factor was taken around is exactly what
+// decides whether it is the cost or a ceiling on it, and an older build's
+// envelope is not evidence about a question that build never asked.
+const OUTCOME_ERROR_DESIGN_UNSTATED =
+  '区间比结局测准时宽 {} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差算出来的，也就无从判断它是精度代价本身还是代价的上界'
+
 // One arm of a decomposition — identifiable, and on what. The condition
 // table comes in rather than being picked here, so an arm cannot be given
 // the other arm's theorem.
@@ -738,6 +763,7 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   anderson_rubin_set_kind: AR_SET_KIND_ZH,
   measurement_correction_side: MEASUREMENT_SIDE_ZH,
   four_way_mediator_scale: FOUR_WAY_MEDIATOR_SCALE_ZH,
+  outcome_error_design: OUTCOME_ERROR_DESIGN_ZH,
 }
 
 // The other keyed tables in this file, each saying why it is not one of the
@@ -1506,11 +1532,13 @@ export function estimateMeta(
   // Next to the precision hint on purpose, and only there.
   if (outcomeError?.se_inflation != null) {
     const share = outcomeError.noise_share
+    const said = OUTCOME_ERROR_DESIGN_ZH[outcomeError.design_kind ?? '']
+      ?? OUTCOME_ERROR_DESIGN_UNSTATED
     rows.push({
       label: '结局测量误差',
-      value: `区间比结局测准时宽 ${fmtNum(outcomeError.se_inflation)} 倍`
-        + (share != null ? `（未解释变异里 ${Math.round(share * 100)}% 是测量噪声）` : '')
-        + '；点估计不受影响，但这部分宽度只能靠把结局测准，加样本量消不掉',
+      value: said.replace('{}', fmtNum(outcomeError.se_inflation))
+        + (share != null ? `。未解释变异里 ${Math.round(share * 100)}% 是测量噪声，` : '。')
+        + '这部分宽度只能靠把结局测准，加样本量消不掉',
     })
   }
 

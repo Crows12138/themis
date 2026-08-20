@@ -787,6 +787,52 @@ def _ar_interval(ar: dict) -> str:
     return f"[{left}, {right}]"
 
 
+#: Which design's residual a declared measurement error was priced against,
+#: as ``outcome_error.design_kind``.
+#:
+#: The sentence STATES the number rather than standing beside it, because
+#: what the number means is a fact about the design: on two of the three it
+#: is the precision cost, on the third the influence function splits the
+#: variance across terms only one of which carries the outcome residual, so
+#: the same arithmetic returns a CEILING. A reader who meets the figure
+#: first and the qualification second has already read it as the cost.
+#:
+#: Nothing on the envelope says which of the two it is — deliberately: a
+#: field for it would be a second record of the design name, free to
+#: disagree with it. This table is where it is said, and it is said once.
+#:
+#: What the error does to the POINT is here for the same reason. It is
+#: nothing on the first two; on the front door it is nothing only while the
+#: error is unrelated to the confounder the graph posits, and that premise
+#: is about a variable nobody measured.
+_OUTCOME_ERROR_DESIGN_ZH: dict[str, str] = {
+    "back_door":
+        "区间比结局测准时宽 {} 倍 —— 后门调整设计：残差取自 Y 对（暴露＋调整集）"
+        "的最小二乘投影，这个倍数就是精度代价本身；点估计不受影响",
+    "instrumental_variable":
+        "区间比结局测准时宽 {} 倍 —— 工具变量设计：残差是围绕 IV 系数的**结构**"
+        "残差，不是最小二乘残差；2SLS 的夹心方差此时正好多出 σ²_v 一项，所以这个"
+        "倍数同样是精度代价本身；点估计不受影响，它要的是误差与**工具**无关，"
+        "而不是与暴露、调整集无关",
+    "front_door":
+        "区间比结局测准时**至多**宽 {} 倍 —— 前门设计：残差取自 Y 对（暴露＋中介"
+        "＋调整集）的结局模型；前门的方差里还有一项完全不含结局残差，σ²_v 折不"
+        "进去，所以这个倍数是精度代价的**上界**而不是代价本身（本仓自己的前门"
+        "估计量上实测：报 1.25 倍，真实区间只宽 1.09 倍）。而且这条路线上点估计"
+        "**未必**不受影响：前门图假定了一个未观测的混杂，测量误差只要与它有关，"
+        "动的就是点估计本身，而不只是区间",
+}
+
+#: An envelope that never said which design. Not silently read as the
+#: back-door one: which residual the factor was taken around is exactly what
+#: decides whether it is the cost or a ceiling on it, and an older build's
+#: envelope is not evidence about a question that build never asked.
+_OUTCOME_ERROR_DESIGN_UNSTATED = (
+    "区间比结局测准时宽 {} 倍 —— 但这份信封没有说这个倍数是围绕哪个设计的残差"
+    "算出来的，也就无从判断它是精度代价本身还是代价的上界"
+)
+
+
 def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
     """The lines every answer shape shares, whatever its headline looks like.
 
@@ -886,11 +932,14 @@ def _estimate_meta(ne: dict, outcome_error: dict | None = None) -> list[str]:
     # measurement noise that no number of subjects removes. Saying only the
     # first sends the reader to buy the wrong thing.
     if outcome_error and outcome_error.get("se_inflation"):
+        said = _OUTCOME_ERROR_DESIGN_ZH.get(
+            str(outcome_error.get("design_kind")), _OUTCOME_ERROR_DESIGN_UNSTATED
+        )
+        factor = f"{outcome_error['se_inflation']:.2f}"
         lines.append(
-            f"- 结局测量误差：区间比结局测准时宽 "
-            f"{outcome_error['se_inflation']:.2f} 倍（未解释变异中 "
-            f"{outcome_error['noise_share']:.0%} 是测量噪声）；点估计不受影响，"
-            "但这部分宽度只能靠把结局测准、加样本量消不掉。"
+            f"- 结局测量误差：{said.format(factor)}。未解释变异中 "
+            f"{outcome_error['noise_share']:.0%} 是测量噪声，这部分宽度只能靠把"
+            "结局测准，加样本量消不掉。"
         )
 
     sa = ne.get("sensitivity_analysis")

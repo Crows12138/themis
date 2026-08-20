@@ -92,6 +92,24 @@ class Route:
     ends: frozenset[End]
     triggered_by: str = ""
     displaces: frozenset[str] = frozenset()
+    after_the_answer: bool = False
+    """Whether this row runs once the query has been answered rather than in
+    the race to answer it.
+
+    Precedence orders COMPETITORS, and a row that only annotates is not one —
+    it is a disclosure ABOUT whichever estimand won. Most disclosures can be
+    made early anyway, so the distinction stayed invisible until one could
+    not: the precision cost of a mismeasured outcome is taken, on the
+    instrumental-variable design, around β̂ itself, and no row that runs
+    before the estimators can see β̂. Fixing that by recomputing β̂ early
+    would put a second copy of the shipped number in the envelope, free to
+    disagree with it the moment a different IV row answers.
+
+    So the axis gets a second half rather than a workaround. A row here may
+    not claim a query — there is nothing left to claim — and may not stop
+    one, because stopping after the fact would mean withdrawing an answer
+    already written; :func:`themis.estimation.strategy.check_table` enforces
+    the first and the cascade the second."""
 
 
 class StructuralFacts:
@@ -211,16 +229,21 @@ class StructuralFacts:
 # ---------------------------------------------------------------------------
 # The table.
 #
-# One precedence axis in three bands. 10-50 route on the SHAPE of the
-# question — what the query names, before any graph is consulted. 60-140
-# belong to the data: corrections and estimator choices the identification
-# layer cannot see. 150-190 are the structural ladder, ordered so that an
-# assumption-free estimand always outranks an assumption-laden one — the
-# ordering finding C was made of, when declaring monotonicity replaced a
-# population effect with a complier contrast.
+# One precedence axis in three bands, and then a half. 10-50 route on the
+# SHAPE of the question — what the query names, before any graph is
+# consulted. 60-140 belong to the data: corrections and estimator choices the
+# identification layer cannot see. 150-190 are the structural ladder, ordered
+# so that an assumption-free estimand always outranks an assumption-laden one
+# — the ordering finding C was made of, when declaring monotonicity replaced
+# a population effect with a complier contrast.
 #
 # The bands interleave on one axis rather than living in three tables
 # because the question "who answers this query" has one answer.
+#
+# 200 and up answer a different question: not who answers, but what is said
+# ABOUT the answer once it exists (``Route.after_the_answer``). They are on
+# the same axis because they are declared the same way and guarded the same
+# way; they are past the ladder because nothing there is competing.
 # ---------------------------------------------------------------------------
 
 EFFECT_ROUTES: tuple[Route, ...] = (
@@ -378,12 +401,30 @@ EFFECT_ROUTES: tuple[Route, ...] = (
         # The outcome channel is the one that costs no bias: a classical
         # additive error leaves every conditional mean — and so every
         # estimand here — untouched. There is nothing to de-attenuate, so
-        # this row comments rather than competing; what the declared σ²_v
-        # buys is the precision cost, assessed and disclosed.
-        id="outcome_error_precision_cost",
+        # this row comments rather than competing.
+        #
+        # Two questions were fused under that heading, and they sit on
+        # opposite sides of the answer. Whether the DECLARATION can be true
+        # of this sample has to be settled first, because its answer can stop
+        # the query — a discrete outcome is misclassification, which does
+        # attenuate, and a σ²_v that will not fit under the unexplained
+        # variation puts in doubt the independence premise the point rested
+        # on. That is this row.
+        id="outcome_error_declaration",
         precedence=100,
         applies_when=lambda f: f.measurement_error_outcome is not None,
         ends=ESTIMATES,
+    ),
+    Route(
+        # And what the noise COSTS cannot be settled until there is an
+        # estimator to cost: on the instrumental-variable design the split is
+        # taken around β̂. Same guard, same facts, the other side of the
+        # answer — see ``Route.after_the_answer``.
+        id="outcome_error_precision_cost",
+        precedence=200,
+        applies_when=lambda f: f.measurement_error_outcome is not None,
+        ends=ESTIMATES,
+        after_the_answer=True,
     ),
     Route(
         # Continuous mismeasurement (regression calibration): a known

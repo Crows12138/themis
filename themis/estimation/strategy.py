@@ -360,6 +360,8 @@ def run_cascade(
     displaced: tuple[str, ...] = ()
 
     for strategy in strategies:
+        if strategy.route.after_the_answer:
+            continue
         if not strategy.applies_when(facts):
             considered.append(strategy.id)
             continue
@@ -398,6 +400,29 @@ def run_cascade(
                     f"answers the same question, so a substitution has to be "
                     f"declared in {passer.id!r}'s defers_to"
                 )
+
+    # The other half of the axis. These rows do not compete, so they are not
+    # offered the query until the competition is over — and not at all when it
+    # was refused, because a refusal has no answer to annotate and annotating
+    # one is how a refusal comes to read as a result.
+    if not declined:
+        for strategy in strategies:
+            if not strategy.route.after_the_answer:
+                continue
+            if not strategy.applies_when(facts):
+                considered.append(strategy.id)
+                continue
+            claim = strategy.run(facts, result, knobs)
+            if claim.answered or claim.stops_here:
+                raise AssertionError(
+                    f"strategy {strategy.id!r} runs after the answer and "
+                    f"{'claimed' if claim.answered else 'stopped'} the query; "
+                    f"there is nothing left to claim, and stopping here would "
+                    f"mean withdrawing an answer already written — what such a "
+                    f"row learns too late is a note beside the answer, not a "
+                    f"veto over it"
+                )
+            annotated.append(strategy.id)
 
     evaluation = Evaluation(
         query_id=query_id,
@@ -441,6 +466,13 @@ def check_table(
                 f"to replace"
             )
         seen_precedence[s.precedence] = s.id
+        if s.route.after_the_answer and s.role is not Role.ANNOTATE:
+            raise ValueError(
+                f"{s.id!r} runs after the answer but is declared as "
+                f"{s.role.name}; by the time it runs the query has been "
+                f"answered, so a row that produces an estimand there would "
+                f"be offering a second one for a question already settled"
+            )
     by_id = {s.id: s for s in strategies}
     for s in strategies:
         for target in s.defers_to:

@@ -689,35 +689,44 @@
     },
     "outcome_error": {
       "type": "object",
-      "description": "What a declared classical additive measurement-error variance on a CONTINUOUS outcome (Y = Y* + V, E[V|design] = 0) costs this query. Present only when the caller supplied estimate(measurement_error={<outcome>: {error_variance}}) and the query is back-door identified. It carries no correction and displaces no estimator: such an error leaves every conditional mean unchanged, so the point estimate here is the ordinary one and is already right. What it does carry is the price — the observed residual variance split into signal and measurement noise, and the factor by which that noise widens every least-squares interval on this design. That factor is the part of the uncertainty more subjects cannot buy back, only better measurement. Its ``assumptions`` (chiefly that the error is NON-DIFFERENTIAL, without which the point is not immune after all) are folded into extensions.assumption_ledger, so they land on the surface the report leads with rather than in a side block each consumer must remember to read.",
-      "required": ["outcome", "treatment", "design_vars", "error_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics", "source"],
+      "description": "What a declared classical additive measurement-error variance on a CONTINUOUS outcome (Y = Y* + V, E[V|design] = 0) costs this query. Present only when the caller supplied estimate(measurement_error={<outcome>: {error_variance}}) and the answer was reached on one of the designs ``design_kind`` names. It carries no correction and displaces no estimator: such an error leaves every conditional mean unchanged, so the point estimate here is the ordinary one and is already right. What it does carry is the price — the observed residual variance split into signal and measurement noise, and the factor by which that noise widens every least-squares interval on this design. That factor is the part of the uncertainty more subjects cannot buy back, only better measurement. Its ``assumptions`` (chiefly that the error is NON-DIFFERENTIAL, without which the point is not immune after all) are folded into extensions.assumption_ledger, so they land on the surface the report leads with rather than in a side block each consumer must remember to read.",
+      "required": ["outcome", "treatment", "design_kind", "design_vars", "error_variance", "residual_variance", "signal_variance", "noise_share", "se_inflation", "assumptions", "sufficient_statistics", "source"],
       "additionalProperties": false,
       "properties": {
         "outcome": { "type": "string" },
         "treatment": { "type": "string" },
+        "design_kind": {
+          "enum": ["back_door", "instrumental_variable", "front_door"],
+          "description": "Which design's residual the declared σ²_v was priced against, and therefore what every other field in this block has to be read against: which residual absorbs σ²_v, which conditioning set the classical premise has to hold on (on ``instrumental_variable`` it is not the design at all but the instrument, so ``assumptions`` names that instrument instead), and whether ``se_inflation`` is the factor or a ceiling on it. There is deliberately no companion field recording that last fact — it is a function of this name, and a second record of it would be free to disagree."
+        },
         "design_vars": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "The design D the outcome is projected on: the exposure followed by the chosen back-door adjustment set, in topological order."
+          "description": "The design D the outcome's residual is taken around: the exposure, then one drop-first indicator per non-reference mediator level (named \"<mediator>=<level>\", present only on ``front_door``, because that is the span the front-door outcome model is fitted on and a coarser one would understate the cost), then the adjustment / conditioning set, in topological order. The instrument is NOT here: it names a premise, not a column the residual is taken around."
         },
         "error_variance": { "type": "number", "exclusiveMinimum": 0 },
-        "residual_variance": { "type": "number", "description": "Var(Y|D) of the OBSERVED outcome around its linear projection on the design." },
+        "residual_variance": { "type": "number", "description": "Var(Y − b'D) of the OBSERVED outcome around the design coefficients recorded in sufficient_statistics: the linear projection on D where every coefficient is fitted, the STRUCTURAL residual where the exposure's coefficient was supplied by the estimator that answered (``instrumental_variable``). Taking it around the projection there would price a model nobody fitted." },
         "signal_variance": { "type": "number", "description": "Var(Y*|D) = residual_variance − error_variance: what is left of the unexplained variation once the declared measurement noise is removed. Strictly positive — a non-positive value means the declared variance does not fit under the data, which is refused rather than reported." },
         "noise_share": { "type": "number", "minimum": 0, "exclusiveMaximum": 1 },
-        "se_inflation": { "type": "number", "minimum": 1, "description": "sqrt(residual_variance / signal_variance): the factor by which the outcome's measurement noise widens the standard error of every least-squares functional of this design, i.e. the reported interval divided by the interval the same design would have produced on a perfectly measured outcome." },
+        "se_inflation": { "type": "number", "minimum": 1, "description": "sqrt(residual_variance / signal_variance): the factor by which the outcome's measurement noise widens the standard error of every least-squares functional of this design, i.e. the reported interval divided by the interval the same design would have produced on a perfectly measured outcome. On ``front_door`` it is an UPPER BOUND rather than the factor, because that design's influence function carries the outcome residual in only one of its terms and the others gain no σ²_v to inflate. Which of the two it is follows from design_kind and is recorded nowhere else." },
         "sample_size": { "type": "integer", "minimum": 0 },
         "data_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "assumptions": { "type": "array", "items": { "type": "string" } },
         "source": { "type": ["string", "null"], "description": "Provenance of the declared error variance (validation study / repeat-measurement substudy), as supplied by the caller." },
         "sufficient_statistics": {
           "type": "object",
-          "description": "Σ_D, Cov(D, Y), Var(Y), σ²_v and n — the split is a closed-form function of these, so verify_outcome_error re-derives every reported number without the raw data.",
-          "required": ["design_vars", "cov_matrix", "cov_design_y", "var_y", "error_variance", "n"],
+          "description": "Σ_D, Cov(D, Y), Var(Y), the design coefficients, σ²_v and n — the split is a closed-form function of these, so verify_outcome_error re-derives every reported number without the raw data.",
+          "required": ["design_vars", "cov_matrix", "cov_design_y", "design_coefficients", "var_y", "error_variance", "n"],
           "additionalProperties": false,
           "properties": {
             "design_vars": { "type": "array", "items": { "type": "string" } },
             "cov_matrix": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
             "cov_design_y": { "type": "array", "items": { "type": "number" } },
+            "design_coefficients": {
+              "type": "array",
+              "items": { "type": "number" },
+              "description": "The vector b the residual was taken around, in design_vars order. Recorded because it is not always the OLS solution: on ``instrumental_variable`` its first entry is the coefficient the estimator that answered supplied, and only the remaining entries solve the normal equations. A verifier that re-solved for b instead would agree with the producer exactly where the producer happened to solve too, which is the one route where agreement proves nothing."
+            },
             "var_y": { "type": "number" },
             "error_variance": { "type": "number" },
             "n": { "type": "integer", "minimum": 0 }
@@ -1814,6 +1823,7 @@
             "rank_condition_violated",
             "rank_deficient_design",
             "reference_missing_column",
+            "requires_a_point_estimate",
             "requires_backdoor_identification",
             "response_model_too_large",
             "sample_too_small",

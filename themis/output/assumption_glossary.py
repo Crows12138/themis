@@ -50,10 +50,19 @@ true by construction rather than by a guard.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from ..ledger import Layer, Provenance
 
-# layer / testable / Chinese claim
-_Entry = tuple[Layer, bool, str]
+# layer / testable / Chinese claim.
+#
+# The claim is a template filled with the id's runtime suffix, or a rule that
+# fills it. The second shape exists because a runtime suffix is not always ONE
+# name: an id that pins a premise to two of the caller's variables carries both,
+# and a single hole cannot place them. Filling one hole with the pair would put
+# `z_on_y` in front of the reader, which is the untranslated identifier this
+# table exists to keep off the page.
+_Entry = tuple[Layer, bool, str | Callable[[str], str]]
 
 # The two vocabularies this table classifies INTO are declared in
 # :mod:`themis.ledger`, beside the third field of the same ledger line and
@@ -348,6 +357,32 @@ _EXACT: dict[str, _Entry] = {
 
 # --- prefixes (IDs the estimator builds with a runtime suffix) -----------------
 
+def _mean_independent_of_instrument(suffix: str) -> str:
+    """The instrumental-variable route's premise, about two named variables.
+
+    Split at the first ``_on_``, the same literal every sibling id's prefix
+    absorbs: the field it closes is the instrument the prefix just opened.
+    The id is not uniquely parseable if either name contains that literal
+    itself, which is a property of the id and not of this rule — so the
+    fallback is the whole suffix rather than a confident mis-split.
+
+    The claim has to say what this premise is NOT. Read as a wider version
+    of the classical one, it invites a reader to check the error against the
+    exposure and conclude they have checked this; the two conditions do not
+    imply each other in either direction.
+    """
+    instrument, sep, outcome = suffix.partition("_on_")
+    if not sep:
+        return (f"结局的测量误差与工具变量均值无关（{suffix}）")
+    return (
+        f"结局 {outcome} 的测量误差与工具变量 {instrument} 均值无关"
+        f"（E[V | {instrument}] = 0）—— IV 点估计不受这个误差影响，靠的正是"
+        f"这一条。它不是经典前提的放宽版：经典前提要求误差与**暴露和调整集**"
+        f"无关，这一条要求的是与**工具**无关，两者互不蕴含，检验了一个不等于"
+        f"检验了另一个"
+    )
+
+
 _PREFIX: tuple[tuple[str, _Entry], ...] = (
     ("ci_via_pairs_cluster_bootstrap_on_",
      (_CI, True, "置信区间由按 {} 重采样整簇的 pairs cluster bootstrap 求得")),
@@ -367,13 +402,27 @@ _PREFIX: tuple[tuple[str, _Entry], ...] = (
      (_ID, False, "后门调整集充分：{} 阻断 X→Y 的所有后门路径")),
     ("backdoor_adjustment_",
      (_ID, False, "后门调整：{}")),
-    # A mismeasured continuous outcome: the first premise is what makes the
-    # point estimate immune to the noise, so its failure kills the answer; the
-    # second only fixes how much precision the noise is said to cost.
+    # A mismeasured continuous outcome. Which premises appear depends on the
+    # design the error was priced against, and they are not one premise in
+    # three widths: what has to be mean-independent of the error is the
+    # DESIGN on the back-door route, the INSTRUMENT on the IV route, and on
+    # the front-door route there is a third premise about a variable nobody
+    # measured. Whichever ones appear, only the variance one is about the
+    # interval; the rest decide whether the point survives at all.
     ("outcome_error_classical_non_differential_on_",
      (_ID, False,
       "结局 {} 的测量误差是经典可加且**非差异**的（与暴露、调整集、真实结局独立，"
       "均值 0）——正因如此点估计不受它影响；若误差随暴露臂或真实结局而变，点估计有偏")),
+    ("outcome_error_mean_independent_of_instrument_",
+     (_ID, False, _mean_independent_of_instrument)),
+    # Unfalsifiable by construction, which is why `testable` is False here on
+    # the same grounds as the classical premise and for a stronger reason:
+    # the classical one is at least about variables in the data.
+    ("outcome_error_independent_of_the_front_door_latent_confounder_on_",
+     (_ID, False,
+      "结局 {} 的测量误差与前门图假定的那个**未观测**混杂无关。那个混杂按定义"
+      "就没被测到，所以这一条**没法用数据检验**——不是「暂时没检验」，是这批数据"
+      "里根本没有能检验它的东西；它若不成立，误差动的是点估计本身，不只是区间宽度")),
     ("outcome_error_variance_known_and_fixed_on_",
      (_CI, True,
       "结局 {} 的测量误差方差 σ²_v 已知且固定：区间的精度代价按它折算，"
@@ -422,11 +471,14 @@ _ANSWERABLE_PREFIX: tuple[tuple[str, Provenance], ...] = (
     # one side of the assumption-free bounds.
     ("mtr_", Provenance.CALLER_ASSERTED),
     # An outcome measurement-error assessment runs only because the caller
-    # attached the model, and both premises are about the caller's own
-    # measurement process. Drop the model and the point estimate stands —
+    # attached the model, and every premise it declares is about the caller's
+    # own measurement process. Drop the model and the point estimate stands —
     # what is lost is the accounting of what the noise costs the interval.
-    ("outcome_error_classical_non_differential_on_", Provenance.CALLER_ASSERTED),
-    ("outcome_error_variance_known_and_fixed_on_", Provenance.CALLER_ASSERTED),
+    # One prefix rather than one per id, because that argument is about the
+    # channel and not about any particular premise on it: which premises the
+    # block declares depends on the design, and a list per id would have gone
+    # stale the moment a second design was added — as it did.
+    ("outcome_error_", Provenance.CALLER_ASSERTED),
 )
 
 
@@ -468,7 +520,10 @@ def classify_assumption(assumption: str) -> dict:
     for prefix, (layer, testable, template) in _PREFIX:
         if text.startswith(prefix):
             suffix = text[len(prefix):]
-            claim = template.format(suffix) if template else text
+            if callable(template):
+                claim = template(suffix)
+            else:
+                claim = template.format(suffix) if template else text
             return {**common, "claim": claim, "layer": layer,
                     "testable": testable}
     return {**common, "claim": text, "layer": _ID, "testable": False}

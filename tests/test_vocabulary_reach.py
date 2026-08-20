@@ -278,6 +278,12 @@ VOCABULARIES: dict[str, Vocabulary] = {
                 "kind"),),
         glossed_by=f"{_REPORT}._kind_zh",
     ),
+    "outcome_error_design": Vocabulary(
+        declares="themis.estimation.outcome_error.OutcomeErrorDesign",
+        sites=((_QR, "properties", "outcome_error", "properties",
+                "design_kind"),),
+        glossed_by=f"{_REPORT}._OUTCOME_ERROR_DESIGN_ZH",
+    ),
     "investigation_action": Vocabulary(
         declares="themis.types.InvestigationAction",
         sites=((*_DEFS, "investigationRequest", "properties", "action"),),

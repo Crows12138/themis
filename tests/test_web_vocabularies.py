@@ -165,6 +165,14 @@ ANCHORS: dict[str, set[str]] = {
     "four_way_mediator_scale": _enum_at(
         "properties", "numeric_estimate", "properties", "four_way_ratio",
         "properties", "mediator_scale"),
+    # Which residual a declared outcome error was priced against. Anchored on
+    # the schema site, like the rest: the browser gets the block off the
+    # envelope, so what it has to state is what the envelope may carry —
+    # anchoring on the Python enum instead would pin the table to a set the
+    # browser never sees, and the two could then agree while the schema
+    # admitted a third thing.
+    "outcome_error_design": _enum_at(
+        "properties", "outcome_error", "properties", "design_kind"),
     "refusal_kind": {str(k) for k in refusals.Kind},
     # The one anchor whose vocabulary no schema enum states at all:
     # ``step.rule`` is a free string in derivation.schema.json, and the closed

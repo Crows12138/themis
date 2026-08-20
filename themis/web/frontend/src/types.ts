@@ -395,15 +395,21 @@ export interface QueryResult {
     reason?: string
   }
   // What a declared measurement error on the outcome costs this query. It
-  // corrects nothing — the point estimate is already right — and prices the
-  // interval: `se_inflation` is how much wider every interval on this design
-  // is than it would be if the outcome were measured cleanly, and that part
-  // is what more subjects cannot buy back. Which is why the report prints it
-  // beside the precision hint rather than anywhere else: the hint says how
-  // many more subjects halve the interval, and saying only that sends the
-  // reader to buy the wrong thing.
+  // prices the interval: `se_inflation` is how much wider every interval on
+  // this design is than it would be if the outcome were measured cleanly,
+  // and that part is what more subjects cannot buy back. Which is why the
+  // report prints it beside the precision hint rather than anywhere else:
+  // the hint says how many more subjects halve the interval, and saying only
+  // that sends the reader to buy the wrong thing.
+  //
+  // `design_kind` is which residual the factor was taken around, and it is
+  // not decoration: on two of the three designs the factor IS the cost, and
+  // on the front door it is a ceiling on it — that is read off the design
+  // name because a field claiming it would be a second record of the same
+  // fact. Whether the POINT survives the error depends on the design too.
   outcome_error?: {
     outcome?: string
+    design_kind?: string
     se_inflation?: number
     noise_share?: number
   }

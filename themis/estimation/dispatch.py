@@ -19,7 +19,7 @@ mediation estimators behind the same dispatch switch.
 from __future__ import annotations
 
 import math
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from .. import blocks, refusals
 # Imported here and not in each handler that catches it. It was a
@@ -44,6 +44,10 @@ from .strategy import (
     check_table,
     run_cascade,
 )
+
+if TYPE_CHECKING:  # the estimators themselves stay behind local imports, so
+    # that a name used only in a signature cannot become a load-time edge.
+    from .outcome_error import OutcomeErrorDesign
 
 
 def estimate_program(
@@ -1030,15 +1034,38 @@ _EFFECT_STRATEGIES = check_table((
         # ordinary routing below, including the exposure-side correction when
         # a spec names the exposure too. Only a spec the channel or the data
         # refuse stops the query.
+        route=route("outcome_error_declaration"),
+        role=Role.ANNOTATE,
+        produces=Estimand.NONE,
+        run=_spec_row(
+            "outcome_measurement_error",
+            lambda f, r, k: _try_outcome_error_declaration(
+                r, f.contract, f.graph,
+                x_atom=f.x_atom, y_atom=f.y_atom,
+                # The same three facts the estimator rows below route on, so
+                # the design judged here is the design that answers.
+                adjustment_sets=f.adjustment_sets,
+                front_door_sets=f.front_door_sets,
+                iv_candidates=f.iv_candidates,
+                spec=_guarded_spec(f.measurement_error_outcome),
+            ),
+        ),
+    ),
+    Strategy(
+        # The other half, past the ladder: what the declared σ²_v costs the
+        # answer that was produced. Same guard and same facts as the row
+        # above — what differs is that β̂ exists by the time this one runs.
         route=route("outcome_error_precision_cost"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
         run=_spec_row(
             "outcome_measurement_error",
-            lambda f, r, k: _try_outcome_error_assessment(
+            lambda f, r, k: _try_outcome_error_price(
                 r, f.contract, f.graph,
                 x_atom=f.x_atom, y_atom=f.y_atom,
                 adjustment_sets=f.adjustment_sets,
+                front_door_sets=f.front_door_sets,
+                iv_candidates=f.iv_candidates,
                 spec=_guarded_spec(f.measurement_error_outcome),
             ),
         ),
@@ -4512,7 +4539,114 @@ def _try_regression_calibration_estimate(
     return answered()
 
 
-def _try_outcome_error_assessment(
+def _outcome_error_design(
+    graph, *, adjustment_sets, front_door_sets, iv_candidates,
+) -> tuple["OutcomeErrorDesign", dict] | None:
+    """Which design's residual this query's σ²_v is priced against, and the
+    COLUMNS that design is built from — or ``None`` when the query has no
+    design this package can name.
+
+    The order is the estimation cascade's own (back-door 150, front-door 160,
+    IV 180/190) and shares its facts, because the assessment prices the
+    design that PRODUCES the number: chosen on any other order it would price
+    a design the reader was never given. Sharing the facts is what makes that
+    identity rather than resemblance — ``min(..., key=len)`` here and in the
+    estimator are the same selection over the same tuple.
+
+    Columns only, and that is what lets one function serve both halves of the
+    assessment. What the instrumental-variable design additionally needs — β̂,
+    and which instruments the premise is about — are properties of the
+    ANSWER, so the caller that has one supplies them and the caller that runs
+    before any estimator does not have to invent them.
+    """
+    from .outcome_error import OutcomeErrorDesign
+
+    def _names(atoms) -> tuple[str, ...]:
+        return tuple(a.predicate for a in _topo_order(graph, atoms))
+
+    if adjustment_sets:
+        return OutcomeErrorDesign.BACK_DOOR, {
+            "adjustment": _names(min(adjustment_sets, key=len)),
+        }
+    if front_door_sets:
+        # The raw mediator columns: the assessment expands each into the
+        # drop-first indicators the front-door outcome model spans, and doing
+        # that expansion twice is how the two spans come to differ.
+        return OutcomeErrorDesign.FRONT_DOOR, {
+            "mediators": _names(min(front_door_sets, key=len)),
+        }
+    if iv_candidates:
+        # W, the instrument's own conditioning set, which enters the
+        # structural equation Y = βX + γ'W + e as ordinary covariates. The
+        # instrument itself does not: it names the premise, not the design.
+        return OutcomeErrorDesign.INSTRUMENTAL_VARIABLE, {
+            "adjustment": _names(iv_candidates[0].conditioning),
+        }
+    return None
+
+
+def _iv_design_from_the_answer(result: dict) -> dict | None:
+    """β̂, the conditioning set it was taken around, and the instruments the
+    premise is about — or ``None`` when no point estimate was produced.
+
+    Read from what the answering row recorded rather than re-derived. Two IV
+    rows can answer this query, and they need not pick the same candidate or
+    the same number of instruments, so a design re-derived here would be a
+    second record of the shipped one, free to disagree with it. Reading it
+    back is what makes "the design priced is the design that answered"
+    identity rather than resemblance.
+    """
+    ne = result.get("numeric_estimate")
+    if not isinstance(ne, dict) or ne.get("point") is None:
+        return None
+    instruments = ne.get("instruments")
+    if instruments is None:
+        one = ne.get("instrument")
+        instruments = [one] if one is not None else []
+    if not instruments:
+        return None
+    return {
+        "adjustment": tuple(ne.get("conditioning") or ()),
+        "instruments": tuple(instruments),
+        "treatment_coefficient": ne["point"],
+    }
+
+
+_THE_POINT_IS_NOT_WHAT_IS_MISSING = (
+    " The estimate itself stands: a classical additive error on the outcome "
+    "leaves every conditional mean unchanged, so what is missing is the "
+    "precision cost, not the point."
+)
+
+
+def _outcome_error_unreached(x_atom, y_atom) -> str:
+    """Why no split was taken: the query has no design to take one around."""
+    return (
+        "the residual-variance split that quantifies a mismeasured outcome is "
+        "taken around the design that identifies the effect, and "
+        f"P({y_atom.predicate}|do({x_atom.predicate})) is here neither "
+        "back-door nor front-door identified and has no instrument; no "
+        "assessment is issued." + _THE_POINT_IS_NOT_WHAT_IS_MISSING
+    )
+
+
+def _outcome_error_has_no_beta(x_atom, y_atom) -> str:
+    """Why no split was taken on a design that HAS one: nobody answered.
+
+    Distinct from having no design at all, and the difference is what the
+    caller can act on. There the graph is short of a criterion; here it met
+    one, and what is short is a number an estimator did not produce.
+    """
+    return (
+        f"P({y_atom.predicate}|do({x_atom.predicate})) is identified here "
+        "through an instrument, and that design's split is taken around the "
+        "STRUCTURAL residual Var(Y − βX − γ'W) — around β̂ itself. No point "
+        "estimate was produced for this query, so there is no β̂ to take it "
+        "around; no assessment is issued."
+    )
+
+
+def _try_outcome_error_declaration(
     result: dict,
     contract: DataContract,
     graph,
@@ -4520,10 +4654,12 @@ def _try_outcome_error_assessment(
     x_atom,
     y_atom,
     adjustment_sets,
+    front_door_sets,
+    iv_candidates,
     spec: dict,
 ) -> Claim:
-    """Assess what a declared classical outcome-error variance costs, and say
-    whether the query may proceed.
+    """Judge whether a declared classical outcome-error variance can be true
+    of this sample, and say whether the query may proceed.
 
     On success this row ANNOTATES: a non-differential additive outcome error
     moves no conditional mean, so there is no correction to apply and no
@@ -4540,33 +4676,38 @@ def _try_outcome_error_assessment(
     A design this package has no split for is the opposite case. Nothing has
     been learned about the answer; what is missing is this row's own reach.
     Stopping there took the query away from the handler that would have
-    answered it — and the condition it stopped on, an empty adjustment set,
-    is exactly what DEFINES the IV and front-door routes, so declaring an
-    outcome error on either did not cost the caller an assessment, it cost
-    them the number. The refusal is still recorded: the report puts a refusal
-    below the numeric branches precisely so a supplementary one can sit
-    beside an answer that stands.
-    """
-    from .outcome_error import assess_outcome_error
+    answered it, so the exit passes; the refusal is still recorded, because
+    the report puts a refusal below the numeric branches precisely so a
+    supplementary one can sit beside an answer that stands.
 
-    if not adjustment_sets:
+    A third exit records nothing at all. Reaching the front-door design means
+    borrowing that estimator's span over the mediator, so its span check can
+    refuse here first — about a column, not about the declared variance. The
+    estimator it belongs to states it two rows down in its own name, and one
+    refusal wearing two names is how a reader comes to inspect their σ²_v for
+    a problem that was never in it.
+
+    Nothing is written here on success either. What the noise COSTS is taken
+    once the query has been answered, by ``outcome_error_precision_cost``:
+    two halves of one assessment, split where they have to be, since this one
+    can stop the query and that one needs the query answered first.
+    """
+    from .outcome_error import check_outcome_error_declaration
+
+    selected = _outcome_error_design(
+        graph,
+        adjustment_sets=adjustment_sets,
+        front_door_sets=front_door_sets,
+        iv_candidates=iv_candidates,
+    )
+    if selected is None:
         result["estimator_failure"] = {
             "estimator": "outcome_measurement_error",
             "failure_type": Refusal.REQUIRES_BACKDOOR_IDENTIFICATION,
-            "reason": (
-                "the residual-variance split that quantifies a mismeasured "
-                f"outcome is taken around the back-door design, but P("
-                f"{y_atom.predicate}|do({x_atom.predicate})) is not back-door "
-                "identified here; no assessment is issued. The estimate "
-                "itself stands: a classical additive error on the outcome "
-                "leaves every conditional mean unchanged, so what is missing "
-                "is the precision cost, not the point."
-            ),
+            "reason": _outcome_error_unreached(x_atom, y_atom),
         }
         return passed('numeric_end_not_built')
-
-    chosen = min(adjustment_sets, key=len)
-    adjustment_names = tuple(a.predicate for a in _topo_order(graph, chosen))
+    _design, design_columns = selected
 
     # σ²_v is the spec's one required key, and whether the declared value is
     # usable — positive, finite, and small enough to fit under the residual
@@ -4578,13 +4719,21 @@ def _try_outcome_error_assessment(
     declared_variance = spec.get("error_variance")
 
     try:
-        assessment = assess_outcome_error(
+        check_outcome_error_declaration(
             contract.data,
             treatment=x_atom.predicate, outcome=y_atom.predicate,
-            adjustment=adjustment_names,
             error_variance=declared_variance,
+            **design_columns,
         )
     except EstimatorFailure as exc:
+        if exc.failure_type is Refusal.CONTINUOUS_MEDIATOR:
+            # Not a fact about the declared σ²_v: the mediator span is the
+            # FRONT-DOOR estimator's own limit, reached here only because
+            # this row borrows that estimator's design and its span check.
+            # It will say the same thing about the same column two rows
+            # down, in its own name — and owning the refusal here would put
+            # this row's name on the reason the query died.
+            return passed('estimator_refused')
         refusals.record(result, estimator="outcome_measurement_error", exc=exc)
         return blocked('estimator_refused')
     except (ValueError, KeyError, TypeError) as exc:
@@ -4595,9 +4744,93 @@ def _try_outcome_error_assessment(
         }
         return blocked('estimator_refused')
 
+    return annotated()
+
+
+def _try_outcome_error_price(
+    result: dict,
+    contract: DataContract,
+    graph,
+    *,
+    x_atom,
+    y_atom,
+    adjustment_sets,
+    front_door_sets,
+    iv_candidates,
+    spec: dict,
+) -> Claim:
+    """What the declared σ²_v costs the answer that was actually produced.
+
+    Runs after the answer, which is the only place it can: the
+    instrumental-variable design takes its split around the STRUCTURAL
+    residual Var(Y − βX − γ'W), and β̂ is the answer. The declaration was
+    already judged usable by ``outcome_error_declaration``, so everything
+    left here is arithmetic about a number that exists.
+
+    Nothing here can stop the query, and that is not a restraint on this row
+    but a fact about where it stands: a veto after the fact would mean
+    withdrawing an answer already written. So an assessment that cannot be
+    produced is recorded as a refusal BESIDE the number — which is exactly
+    what the report renders under an answer that stands.
+
+    The declaration check is taken around the ordinary least-squares residual
+    on these same columns, and least squares minimises that residual, so it
+    is never larger than the one priced here. A σ²_v that fit under it fits
+    under this one too: the refusal below is reachable only through a design
+    the answering row named and the earlier check did not see.
+    """
+    from .outcome_error import OutcomeErrorDesign, assess_outcome_error
+
+    selected = _outcome_error_design(
+        graph,
+        adjustment_sets=adjustment_sets,
+        front_door_sets=front_door_sets,
+        iv_candidates=iv_candidates,
+    )
+    if selected is None:
+        # The declaration row already recorded why, in the same words.
+        return annotated()
+    design, arguments = selected
+    arguments = dict(arguments)
+
+    if design is OutcomeErrorDesign.INSTRUMENTAL_VARIABLE:
+        from_the_answer = _iv_design_from_the_answer(result)
+        if from_the_answer is None:
+            result["estimator_failure"] = {
+                "estimator": "outcome_measurement_error",
+                "failure_type": Refusal.REQUIRES_A_POINT_ESTIMATE,
+                "reason": _outcome_error_has_no_beta(x_atom, y_atom),
+            }
+            return annotated()
+        arguments.update(from_the_answer)
+
+    try:
+        assessment = assess_outcome_error(
+            contract.data,
+            treatment=x_atom.predicate, outcome=y_atom.predicate,
+            design_kind=design,
+            error_variance=spec.get("error_variance"),
+            **arguments,
+        )
+    except EstimatorFailure as exc:
+        refusals.record(result, estimator="outcome_measurement_error", exc=exc)
+        return annotated()
+    except (ValueError, KeyError, TypeError) as exc:
+        result["estimator_failure"] = {
+            "estimator": "outcome_measurement_error",
+            "failure_type": Refusal.INVALID_INPUT,
+            "reason": str(exc),
+        }
+        return annotated()
+
     result["outcome_error"] = {
         "outcome": assessment.outcome,
         "treatment": assessment.treatment,
+        # Which residual the split was taken around. Every other number in
+        # this block is read against it — the same σ²_v prices differently on
+        # a design that conditions on the mediator — and it is also the only
+        # record of whether se_inflation is the factor or a ceiling on it.
+        "design_kind": assessment.design_kind,
         "design_vars": list(assessment.design_vars),
         "error_variance": assessment.error_variance,
         "residual_variance": assessment.residual_variance,

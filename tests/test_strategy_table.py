@@ -80,7 +80,8 @@ def test_the_axis_is_one_axis_and_this_is_it():
     Reordering has to be a deliberate edit to this list rather than a side
     effect of moving code. The bands are visible in it: 10-50 route on the
     shape of the question, 60-140 belong to the data, 150-190 are the
-    structural ladder.
+    structural ladder, and 200 up is past the ladder entirely — those rows
+    say something ABOUT the answer rather than competing to be it.
     """
     assert [r.id for r in routing.EFFECT_ROUTES] == [
         "longitudinal",
@@ -92,7 +93,7 @@ def test_the_axis_is_one_axis_and_this_is_it():
         "measurement_correction_both_channels",
         "measurement_correction_outcome",
         "measurement_correction_exposure",
-        "outcome_error_precision_cost",
+        "outcome_error_declaration",
         "regression_calibration",
         "dose_response_binary_fallback",
         "dose_response_curve",
@@ -102,7 +103,46 @@ def test_the_axis_is_one_axis_and_this_is_it():
         "general_id",
         "iv_overidentified",
         "iv_wald",
+        "outcome_error_precision_cost",
     ]
+
+
+def test_the_rows_past_the_ladder_are_exactly_the_ones_that_do_not_compete():
+    """``after_the_answer`` is not a second name for "annotates".
+
+    Most annotating rows still run in the race — they have everything they
+    need before it starts, and running them there keeps one pass over the
+    table. A row lands past the ladder only when what it says needs the
+    answer to exist first, which is a stronger claim than not competing, and
+    the two must not drift into each other.
+    """
+    late = [r.id for r in routing.EFFECT_ROUTES if r.after_the_answer]
+    assert late == ["outcome_error_precision_cost"]
+    assert all(
+        r.precedence > 190 for r in routing.EFFECT_ROUTES if r.after_the_answer
+    ), "a row that runs after the answer is ordered after the ladder too"
+
+
+def test_a_row_past_the_ladder_may_not_produce_an_estimand():
+    """The gate, and the input it must refuse.
+
+    By the time such a row runs the query has been answered, so a row that
+    produced an estimand there would be offering a second answer to a
+    settled question — and ``precedence`` could not arbitrate, because the
+    arbitration already happened.
+    """
+    late = routing.Route(
+        id="late_claimer", precedence=900,
+        applies_when=lambda f: True, ends=routing.ESTIMATES,
+        after_the_answer=True,
+    )
+    with pytest.raises(ValueError, match="runs after the answer"):
+        check_table((
+            Strategy(
+                route=late, role=Role.CLAIM, produces=Estimand.QUERY_EFFECT,
+                run=lambda f, r, k: annotated(),
+            ),
+        ))
 
 
 def test_both_layers_hold_the_same_route_object_not_a_copy():
@@ -139,7 +179,7 @@ def test_the_estimation_layer_runs_the_rows_it_has_a_numeric_end_for():
         "measurement_correction_both_channels",
         "measurement_correction_outcome",
         "measurement_correction_exposure",
-        "outcome_error_precision_cost",
+        "outcome_error_declaration",
         "regression_calibration",
         "dose_response_binary_fallback",
         "dose_response_curve",
@@ -149,6 +189,7 @@ def test_the_estimation_layer_runs_the_rows_it_has_a_numeric_end_for():
         "general_id",
         "iv_overidentified",
         "iv_wald",
+        "outcome_error_precision_cost",
     ]
 
 

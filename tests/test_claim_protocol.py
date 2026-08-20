@@ -148,6 +148,11 @@ def test_a_handler_that_annotates_may_stop_the_query_only_on_what_it_learned():
     residual variation puts in doubt the very independence premise that made
     the point safe) and never on what it could not REACH. A second name here
     means someone drew that line again — come and read it.
+
+    The other half of that assessment is not on this list and cannot be: it
+    runs after the answer, where stopping the query would mean withdrawing
+    one, and the cascade refuses a stop from there outright rather than
+    leaving it to a census.
     """
     tree = ast.parse(_DISPATCH.read_text(encoding="utf-8"))
     both = []
@@ -163,7 +168,7 @@ def test_a_handler_that_annotates_may_stop_the_query_only_on_what_it_learned():
         if {"annotated", "blocked"} <= verbs:
             both.append(node.name)
 
-    assert both == ["_try_outcome_error_assessment"], both
+    assert both == ["_try_outcome_error_declaration"], both
 
 
 def test_no_handler_is_dispatched_by_a_hand_written_branch():

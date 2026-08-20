@@ -108,6 +108,18 @@ Landed scope:
   it. Refuses a discrete outcome (that is misclassification, which DOES attenuate
   and IS correctable) and a σ²_v that does not fit under the observed residual
   variance (which refutes the very independence premise the point rests on).
+  WHICH design is ``OutcomeErrorDesign``, a closed vocabulary of three, because
+  every difference between the routes is a fact about the design: which residual
+  absorbs the noise (the back-door and front-door projections, or the STRUCTURAL
+  residual around the supplied β̂ on the instrumental-variable route), which
+  variable the premise is about (the design, or the INSTRUMENTS — one premise
+  each, since an over-identified system assumes them separately), and whether the
+  reported factor is the cost or a CEILING on it (the front-door influence
+  function splits the variance across terms and only one carries the outcome
+  residual, so there the same arithmetic overstates). The half of this that can
+  refuse — ``check_outcome_error_declaration`` — is separate because its answer
+  can stop a query and so must be settled before any estimator runs, while the
+  price cannot be taken until there is an answer to price.
 - Doubly-robust ATE — ``estimate_ipw_ate`` (returning ``IPWEstimate``),
   ``estimate_aipw_ate`` (returning ``AIPWEstimate``), and
   ``estimate_tmle_ate`` (returning ``TMLEEstimate``), opt-in via
@@ -383,6 +395,7 @@ from .missing_recovery import (
 )
 from .outcome_error import (
     OutcomeErrorAssessment,
+    OutcomeErrorDesign,
     assess_outcome_error,
 )
 from .regression_calibration import (
@@ -454,6 +467,7 @@ __all__ = [
     "OVBBenchmark",
     "OVBSensitivity",
     "OutcomeErrorAssessment",
+    "OutcomeErrorDesign",
     "PropensitySummary",
     "RecoveredATEEstimate",
     "RegressionCalibrationEstimate",

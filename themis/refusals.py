@@ -288,6 +288,13 @@ class Refusal(EnvelopeName):
         "this correction composes with back-door standardisation, and the "
         "query was not back-door identified here",
     )
+    REQUIRES_A_POINT_ESTIMATE = (
+        "requires_a_point_estimate",
+        Kind.UNBUILT,
+        "this disclosure is taken around a coefficient the answering "
+        "estimator produced, and the query was answered with something other "
+        "than a point — there is nothing for the split to be taken around",
+    )
     NOT_A_JOINT_INTERVENTION = (
         "not_a_joint_intervention",
         Kind.UNBUILT,
