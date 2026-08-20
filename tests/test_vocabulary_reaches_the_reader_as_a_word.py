@@ -22,6 +22,7 @@ import pytest
 
 import themis
 from themis.output.analysis_report import build_analysis_report
+from themis.output.envelope_glossary import CDE_CONDITION, NDE_NIE_CONDITION
 from themis.types import ResultStatus
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -38,8 +39,9 @@ def _atom(p: str) -> dict:
 def _unidentifiable_mediation() -> dict:
     """X→M→Y with a variable that X causes and that confounds M and Y.
 
-    The textbook M3 violation: an intermediate confounder leaves a
-    back-door from M to Y open that conditioning on X cannot close.
+    The textbook intermediate confounder: the only set that would close
+    the M-to-Y back-door is the one both routes refuse for descending
+    from X, so each reports its membership condition (M4, C2).
     """
     return {
         "version": "0.1",
@@ -68,14 +70,25 @@ def _unidentifiable_mediation() -> dict:
 
 
 def test_a_failed_mediation_condition_says_which_path_is_open():
-    """``M3`` names the theorem line; the reader needs the graph."""
+    """The label names a line of the theorem; the reader needs the graph.
+
+    Asserted against the glossary rather than a phrase copied out of it.
+    A test carrying its own fragment of the sentence is a second table,
+    and it drifts the way the first one does: this one pinned a phrase
+    that only the M3 sentence had, so it passed for as long as the
+    intermediate confounder was labelled M3 and said nothing about
+    whether the reader got a sentence at all.
+    """
     out = themis.run(_unidentifiable_mediation())
     res = out["results"][0]
     block = res["extensions"]["mediation_decomposition"]
-    assert block["nde_nie"]["failed_condition"], (
-        "fixture no longer produces an unidentifiable natural decomposition")
     md = build_analysis_report(res, program=out["program"])
-    assert "后门路径" in md, md
+    for arm, table in (("nde_nie", NDE_NIE_CONDITION),
+                       ("cde", CDE_CONDITION)):
+        failed = block[arm]["failed_condition"]
+        assert failed, (
+            f"fixture no longer leaves {arm} unidentifiable")
+        assert table[failed] in md, md
 
 
 # --- the framing fields ------------------------------------------------------

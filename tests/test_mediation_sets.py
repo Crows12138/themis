@@ -4,10 +4,18 @@ Coverage matrix:
 
 - Basic mediator (X → M → Y): both NDE/NIE and CDE succeed
 - Observed X-Y confounder: both succeed with correct W
-- Intermediate confounder (X-descendant affects M and Y): CDE only
+- Intermediate confounder (X-descendant affects M and Y): sinks BOTH,
+  and both name the membership condition that refused the one set that
+  would have worked
 - M-Y confounder not reachable from X: both succeed if blockable by W
 - Degenerate structures: no mediator path / X=Y / missing nodes
 - ADMG (bidirected) cases: bidirected X ↔ Y blocks both
+
+The failure labels are asserted exactly rather than as a disjunction. A
+test that accepts "M3 or M4" passes whichever the code says, and that is
+how "M4" stayed unreachable while a glossary sentence waited for it; the
+containment between the two routes, and the reachability of every label,
+are counted in ``test_which_gate_is_weaker_is_a_count.py``.
 
 Reference: Pearl 2001 "Direct and indirect effects"; VanderWeele 2015.
 """
@@ -110,13 +118,17 @@ def test_intermediate_confounder_breaks_both():
 
     This is the canonical "intermediate confounder" (a.k.a. recanting
     witness) case. Neither NDE/NIE nor simple backdoor-CDE are
-    identifiable here:
+    identifiable here, and both say so with the membership condition:
 
-    - NDE/NIE: fails M3 or M4 — W blocks the M-Y backdoor but W is an
-      X-descendant, forbidden by M4.
-    - CDE (backdoor-based): in G\\bar{XM} the path M ← W → Y remains
-      open (W is a fork), so Y is not m-separated from M given ∅.
-      Adjusting on W would block it but W is X-descendant (C2 fails).
+    - NDE/NIE: {W} satisfies M1, M2 and M3 — it blocks the M-Y backdoor —
+      and is refused by M4 for descending from X.
+    - CDE (backdoor-based): {W} satisfies C1 for the same reason and is
+      refused by C2.
+
+    Naming the restriction rather than the open path is the point. "There
+    is still a back-door" sends the reader looking for a variable; the
+    variable is right there in their graph and the answer is that
+    controlling it would block the effect being measured.
 
     More advanced methods (g-formula, sequential ignorability) can
     identify CDE here, but those are out of scope for the backdoor-based
@@ -129,9 +141,9 @@ def test_intermediate_confounder_breaks_both():
     result = mediation_sets(g, x, y, m)
     assert result.mediator_valid
     assert not result.nde_nie.identifiable
-    assert result.nde_nie.failed_condition in ("M3", "M4")
+    assert result.nde_nie.failed_condition == "M4"
     assert not result.cde.identifiable
-    assert result.cde.failed_condition in ("C1", "C2")
+    assert result.cde.failed_condition == "C2"
 
 
 def test_intermediate_confounder_fails_m4_explicit():
@@ -144,7 +156,7 @@ def test_intermediate_confounder_fails_m4_explicit():
 
     result = mediation_sets(g, x, y, m)
     assert not result.nde_nie.identifiable
-    assert result.nde_nie.failed_condition in ("M3", "M4")
+    assert result.nde_nie.failed_condition == "M4"
 
 
 # ================================== degenerate / structural prereqs

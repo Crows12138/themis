@@ -400,12 +400,12 @@ const PATTERN_ZH: Record<string, string> = {
 const NDE_NIE_CONDITION_ZH: Record<string, string> = {
   M1: 'X 到 Y 还有调整集挡不住的后门路径',
   M2: 'X 到中介 M 还有调整集挡不住的后门路径',
-  M3: '中介 M 到 Y 还有后门路径——控制了 X 和调整集也挡不住，通常是有个变量既被 X 影响、又同时影响 M 和 Y（中间混杂器）',
-  M4: '调整集里含 X 的后代，控制它会连要测的那条因果路径一起挡掉',
+  M3: '中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，而且图里没有任何变量能挡住它',
+  M4: '能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、又同时影响 M 和 Y 的变量）',
 }
 const CDE_CONDITION_ZH: Record<string, string> = {
-  C1: '把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径',
-  C2: '调整集里含 X 或 M 的后代',
+  C1: '把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，而且图里没有任何变量能挡住它',
+  C2: '能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会挡掉要测的那条路径',
 }
 
 // The shape a weak-instrument-robust confidence set came out in. One table

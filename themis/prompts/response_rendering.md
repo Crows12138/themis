@@ -1235,20 +1235,26 @@ rendering" shape.
   open, and every one of these is a statement about their graph.
 
 **The conditions, as the solver reports them.** The field carries the
-FIRST condition the surviving adjustment set failed, which is not always
-the one that names the obstruction: for the canonical intermediate
-confounder (X→L, L→M, L→Y) the answer is `M3`, because `M4` has already
-excluded `{L}` — the only set that could have closed the M→Y back-door —
-and what is left to report is that the back-door is open. Do not tell the
-reader that an intermediate confounder is an `M4`.
+condition that stopped the candidate adjustment set that got FURTHEST.
+That makes the two kinds of condition mean different things to the
+reader: a membership condition (`M4`, `C2`) says the set that would have
+closed the back-door exists in their graph and is disqualified for
+descending from the treatment, so the argument is about that variable; a
+separation condition (`M1`–`M3`, `C1`) says nothing available closes it,
+so the argument is about what else was measured. The sentences below
+carry the difference — use them as they are.
 
 - `M1` — X 到 Y 还有调整集挡不住的后门路径
 - `M2` — X 到中介 M 还有调整集挡不住的后门路径
-- `M3` — 中介 M 到 Y 还有后门路径，控制了 X 和调整集也挡不住（通常是有个
-  变量既被 X 影响、又同时影响 M 和 Y，即中间混杂器）
-- `M4` — 调整集里含 X 的后代，控制它会连要测的那条因果路径一起挡掉
-- `C1` — 把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径
-- `C2` — 调整集里含 X 或 M 的后代
+- `M3` — 中介 M 到 Y 还有后门路径 —— 控制了 X 和调整集也挡不住，而且图里
+  没有任何变量能挡住它
+- `M4` — 能挡住那条后门的变量是有的，但它是 X 的后代 —— 控制它会连要测的
+  那条因果路径一起挡掉（典型是「中间混杂器」：既被 X 影响、又同时影响
+  M 和 Y 的变量）
+- `C1` — 把 M 固定住之后，X 到 Y 或 M 到 Y 仍有调整集挡不住的后门路径，
+  而且图里没有任何变量能挡住它
+- `C2` — 能挡住那条后门的变量是有的，但它是 X 或 M 的后代 —— 控制它会
+  挡掉要测的那条路径
 - `mediator_valid: false` — structural error: M isn't on any
   X → ... → M → ... → Y path. Ask the user to verify the mediator
   declaration or the edge list.
@@ -1281,8 +1287,7 @@ identification is always *conditional on* these holding.
 **Template — `cde` fallback**:
 
 > 这个问题的**完整分解（NDE + NIE）不可识别** —— 原因是
-> `<failed_condition>`（通常是中间混杂器问题：有变量既被 `<X>`
-> 影响、又影响 `<M>` 和 `<Y>`）。
+> `<failed_condition, 用上面的句子>`。
 >
 > 但是**控制直接效应 CDE** 还是可以算：把 `<M>` 强制固定在某个值，
 > `<X>` 对 `<Y>` 的剩余影响是多少。

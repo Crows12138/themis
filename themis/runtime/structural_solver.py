@@ -14,7 +14,7 @@ back-door, and adjustment sets land in later slices.
 """
 from __future__ import annotations
 
-from typing import Hashable, TypeVar
+from typing import Callable, Hashable, NamedTuple, TypeVar
 
 import networkx as nx
 
@@ -738,9 +738,13 @@ class MediationAttempt(NamedTuple):
     - ``identifiable``: True iff Pearl's graph-level conditions succeed
     - ``adjustment``: frozenset W used in the successful adjustment
       (empty when ``identifiable`` is False)
-    - ``failed_condition``: the first condition that blocked
-      identification ("M1" / "M2" / "M3" / "M4" / "C1" / "C2"), or None
-      on success
+    - ``failed_condition``: the condition that stopped the candidate
+      adjustment set that got FURTHEST — "M1" / "M2" / "M3" / "M4" for
+      the natural effects, "C1" / "C2" for the controlled one — or None
+      on success. Not "the first condition that blocked identification":
+      failure is a property of the search, not of one W, and the label
+      only says something about the graph once it is the best any
+      candidate managed. See ``_search_mediation_adjustment``.
     """
 
     identifiable: bool
@@ -752,8 +756,16 @@ class MediationResult(NamedTuple):
     """Identification result for mediation quantities (X, M, Y).
 
     Both NDE/NIE and CDE are attempted independently. A given graph may
-    support CDE only (classic M4 violation) or both — it never supports
-    NDE/NIE without CDE when the mediator structure is valid.
+    support CDE only, or both, and never the natural effects without the
+    controlled one. That last is a theorem, not an observation: with the
+    same W, M1 already gives C1's X arm (G\\bar{XM} has a subset of
+    G\\bar{X}'s edges, so a path open there is open there too), and M3
+    gives C1's M arm (X has no outgoing edge in G\\bar{XM}, so it cannot
+    be a non-collider on any M–Y path, so dropping it from the
+    conditioning set can only close paths); the two routes search one
+    pool and M4 and C2 forbid the same nodes. Counted as well as argued —
+    ``tests/test_which_gate_is_weaker_is_a_count.py`` enumerates every
+    labelled DAG on four nodes and finds the cell empty.
     """
 
     mediator: Atom
@@ -774,78 +786,165 @@ def _mutilate_outgoing(graph: nx.DiGraph, node: Atom) -> nx.DiGraph:
     return g
 
 
-def _check_nde_nie_with_w(
-    graph: nx.DiGraph,
-    x: Atom,
-    y: Atom,
-    m: Atom,
-    w: frozenset[Atom],
-    bidirected: "BidirectedEdgeSet",
-) -> str | None:
-    """Return None iff the Pearl 2001 NDE/NIE four conditions hold for
-    adjustment set W; else the first failing condition label.
+#: The order the NDE/NIE conditions are named in, and the order they are
+#: checked in. See ``_check_nde_nie_with_w`` for why the order is load-bearing.
+_NDE_NIE_ORDER: tuple[str, ...] = ("M1", "M2", "M3", "M4")
+
+#: Its CDE twin. Two members rather than four because the controlled effect
+#: fixes M by intervention instead of holding it at its natural distribution,
+#: so the cross-world conditions do not arise.
+_CDE_ORDER: tuple[str, ...] = ("C1", "C2")
+
+
+def _forbidden_for_nde(
+    graph: nx.DiGraph, x: Atom, ms: "frozenset[Atom]",
+) -> set[Atom]:
+    """Nodes W may not contain if the natural effects are to be identified:
+    the descendants of X (Pearl's M4, and its joint twin).
+
+    The searcher and the checker both ask here, so the rule that decides
+    which candidates are admissible and the rule that names the failure
+    cannot drift apart.
     """
-    # M4: W contains no descendants of X
-    x_desc = nx.descendants(graph, x)
-    if w & x_desc:
-        return "M4"
-
-    w_tuple = tuple(w)
-
-    # M1: Y ⊥ X | W in G\bar{X} (all X→Y backdoors blocked by W)
-    g_bar_x = _mutilate_outgoing(graph, x)
-    if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
-        return "M1"
-
-    # M2: M ⊥ X | W in G\bar{X} (all X→M backdoors blocked by W)
-    if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
-        return "M2"
-
-    # M3: Y ⊥ M | X, W in G\bar{M} (all M→Y backdoors blocked by {X}∪W)
-    g_bar_m = _mutilate_outgoing(graph, m)
-    xw_tuple = tuple(w | {x})
-    if is_m_connected(g_bar_m, bidirected, m, y, xw_tuple):
-        return "M3"
-
-    return None
+    return set(nx.descendants(graph, x))
 
 
-def _check_cde_with_w(
+def _forbidden_for_cde(
+    graph: nx.DiGraph, x: Atom, ms: "frozenset[Atom]",
+) -> set[Atom]:
+    """Its CDE twin: the ordinary back-door restriction for the JOINT
+    intervention do(X, M) forbids a descendant of X and a descendant of any
+    mediator alike.
+
+    Under this module's mediator precondition — a directed X → … → M path
+    must exist for every mediator — every descendant of M is already a
+    descendant of X, so this set always equals ``_forbidden_for_nde``'s.
+    That is measured, not assumed: over every labelled DAG on four nodes
+    with a valid mediator the two coincide with no exception. The union is
+    written out anyway because it is the criterion — the coincidence is a
+    consequence of the precondition, not of what a controlled effect needs
+    — and ``tests/test_which_gate_is_weaker_is_a_count.py`` pins it as a
+    consequence, so relaxing the precondition surfaces there rather than
+    silently changing what CDE accepts.
+    """
+    forbidden = set(nx.descendants(graph, x))
+    for member in ms:
+        forbidden |= nx.descendants(graph, member)
+    return forbidden
+
+
+class _Route(NamedTuple):
+    """One identification route, bound to a graph.
+
+    Everything that does not depend on the candidate W is computed once
+    when the route is built — the mutilated graphs the separations are
+    read off, and the set the membership condition refuses — so the search
+    varies only W, which is the one thing it is searching over. The
+    checkers used to rebuild both per candidate, which was invisible while
+    the pool was pre-filtered down to a handful; the second pass
+    enumerates the pool the first one filters, and there it is the
+    difference between a constant and a cubic.
+
+    Handing the check and the forbidden set over together is also what
+    keeps the rule that admits a candidate and the rule that names its
+    refusal from drifting apart: a route states both, in one place, once.
+    """
+
+    check: "Callable[[frozenset[Atom]], str | None]"
+    forbidden: set[Atom]
+    order: tuple[str, ...]
+
+
+def _nde_nie_route(
     graph: nx.DiGraph,
     x: Atom,
     y: Atom,
     m: Atom,
-    w: frozenset[Atom],
     bidirected: "BidirectedEdgeSet",
-) -> str | None:
-    """Return None iff the CDE(m) back-door adjustment conditions hold
-    for W; else the first failing condition label.
+) -> _Route:
+    """Pearl 2001's four conditions for the natural effects.
+
+    ``check`` returns None iff all four hold for W, else the first to fail
+    in the theorem's own order.
+
+    The order is what the label means. M4 is a membership test on W and
+    the other three are separations, so checking M4 first is cheaper — but
+    then a W that is inadmissible AND leaves a backdoor wide open would be
+    labelled "M4", and nothing could tell it from a W that satisfied every
+    separation and was rejected only for reaching into X's descendants.
+    ``_search_mediation_adjustment`` reports the label of the candidate
+    that got FURTHEST, and that is a statement about the graph only while
+    "furthest" is measured along one fixed order.
+    """
+    g_bar_x = _mutilate_outgoing(graph, x)
+    g_bar_m = _mutilate_outgoing(graph, m)
+    forbidden = _forbidden_for_nde(graph, x, frozenset({m}))
+
+    def check(w: frozenset[Atom]) -> str | None:
+        w_tuple = tuple(w)
+
+        # M1: Y ⊥ X | W in G\bar{X} (all X→Y backdoors blocked by W)
+        if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
+            return "M1"
+
+        # M2: M ⊥ X | W in G\bar{X} (all X→M backdoors blocked by W)
+        if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
+            return "M2"
+
+        # M3: Y ⊥ M | X, W in G\bar{M} (M→Y backdoors blocked by {X}∪W)
+        if is_m_connected(g_bar_m, bidirected, m, y, tuple(w | {x})):
+            return "M3"
+
+        # M4: W contains no descendants of X
+        if w & forbidden:
+            return "M4"
+
+        return None
+
+    return _Route(check=check, forbidden=forbidden, order=_NDE_NIE_ORDER)
+
+
+def _cde_route(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    m: Atom,
+    bidirected: "BidirectedEdgeSet",
+) -> _Route:
+    """The CDE(m) back-door adjustment conditions.
+
+    ``check`` returns None iff both hold for W, else the first to fail, in
+    the order they are named.
 
     C1: in G\\bar{XM} (outgoing edges from both X and M removed), Y is
         m-separated from X given W AND Y is m-separated from M given W.
     C2: W contains no descendants of X or of M.
 
-    C2 is strictly weaker than M4 (CDE tolerates X-descendants that are
-    not M-descendants, as long as they aren't on the X→Y backdoor via M
-    routes).
+    C2 does not admit one candidate M4 would refuse. It is the same
+    restriction: see ``_forbidden_for_cde`` for why the mediator
+    precondition collapses the two, and why the union is still written
+    out. What separates the routes is C1 against M1–M3, not this.
     """
-    # C2: W excludes descendants of X and of M
-    x_desc = nx.descendants(graph, x)
-    m_desc = nx.descendants(graph, m)
-    if w & (x_desc | m_desc):
-        return "C2"
-
-    w_tuple = tuple(w)
-
-    # C1: in G\bar{XM}, Y m-sep from both X and M given W
     g_bar_xm = _mutilate_outgoing(graph, x)
     g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(m)))
-    if is_m_connected(g_bar_xm, bidirected, x, y, w_tuple):
-        return "C1"
-    if is_m_connected(g_bar_xm, bidirected, m, y, w_tuple):
-        return "C1"
+    forbidden = _forbidden_for_cde(graph, x, frozenset({m}))
 
-    return None
+    def check(w: frozenset[Atom]) -> str | None:
+        w_tuple = tuple(w)
+
+        # C1: in G\bar{XM}, Y m-sep from both X and M given W
+        if is_m_connected(g_bar_xm, bidirected, x, y, w_tuple):
+            return "C1"
+        if is_m_connected(g_bar_xm, bidirected, m, y, w_tuple):
+            return "C1"
+
+        # C2: W excludes descendants of X and of M
+        if w & forbidden:
+            return "C2"
+
+        return None
+
+    return _Route(check=check, forbidden=forbidden, order=_CDE_ORDER)
 
 
 def mediation_sets(
@@ -868,11 +967,19 @@ def mediation_sets(
        identifiable via the mediation formula.
     2. **CDE(m)** (backdoor adjustment): conditions C1-C2 over a
        candidate W. Weaker than NDE/NIE — succeeds whenever standard
-       backdoor adjustment on (X, M) jointly works for Y.
+       backdoor adjustment on (X, M) jointly works for Y, which is
+       strictly more often: over every labelled DAG on four nodes with a
+       valid mediator, 256 graphs identify the controlled effect and not
+       the natural ones, and none the other way round.
 
-    Both strategies are attempted independently — a graph with an
-    intermediate confounder (X-descendant that affects both M and Y)
-    fails NDE/NIE (M4) but may still support CDE.
+    An intermediate confounder — an X-descendant affecting both M and Y —
+    sinks BOTH. It is the set that would block the M–Y backdoor, and both
+    routes refuse it for descending from X. This slice adjusts on one W;
+    identifying a controlled effect there needs the longitudinal
+    g-formula, which is a different method and not attempted here. What
+    the reader is told is M4 (resp. C2), naming the restriction rather
+    than the open path, because the restriction is the part they can
+    argue with.
 
     Structural precondition: M must mediate — ``X → ... → M`` and
     ``M → ... → Y`` directed paths must both exist in ``graph``. If
@@ -911,35 +1018,22 @@ def mediation_sets(
 
     bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
 
-    # Candidate W pool for NDE/NIE: excludes X, Y, M, and X-descendants
-    # (M4 pre-filter — saves redundant checks).
-    x_desc = nx.descendants(graph, x)
-    nde_w_pool = [
-        n for n in graph.nodes
-        if n != x and n != y and n != m and n not in x_desc
-    ]
-
-    # Candidate W pool for CDE: excludes X, Y, M, X-descendants, and
-    # M-descendants (C2 pre-filter).
-    m_desc = nx.descendants(graph, m)
-    cde_w_pool = [
-        n for n in graph.nodes
-        if n != x and n != y and n != m
-        and n not in x_desc and n not in m_desc
-    ]
+    # One candidate pool: every node that is neither an endpoint nor the
+    # mediator. Which of them a route may actually use is that route's own
+    # membership condition, asked through the same function the checker
+    # asks — so the rule that admits a candidate and the rule that names
+    # its refusal cannot come apart.
+    w_pool = [n for n in graph.nodes if n != x and n != y and n != m]
 
     # Search NDE/NIE (smallest W first)
     nde_attempt = _search_mediation_adjustment(
-        graph, x, y, m, nde_w_pool, bidir_eff,
-        max_adjustment_size, _check_nde_nie_with_w,
-        default_failed="M4",
+        _nde_nie_route(graph, x, y, m, bidir_eff), w_pool,
+        max_adjustment_size,
     )
 
     # Search CDE (smallest W first)
     cde_attempt = _search_mediation_adjustment(
-        graph, x, y, m, cde_w_pool, bidir_eff,
-        max_adjustment_size, _check_cde_with_w,
-        default_failed="C1",
+        _cde_route(graph, x, y, m, bidir_eff), w_pool, max_adjustment_size,
     )
 
     return MediationResult(
@@ -951,46 +1045,84 @@ def mediation_sets(
 
 
 def _search_mediation_adjustment(
-    graph: nx.DiGraph,
-    x: Atom,
-    y: Atom,
-    m: Atom,
+    route: _Route,
     w_pool: list[Atom],
-    bidirected: "BidirectedEdgeSet",
     max_size: int,
-    checker,
-    default_failed: str,
 ) -> MediationAttempt:
-    """Subset-enumerate W up to ``max_size`` and return the first
-    candidate passing ``checker``. If none pass, report the failure
-    mode of the smallest attempted W (or ``default_failed`` when the
-    pool is pre-filtered and empty).
+    """Two questions, answered by two passes.
+
+    The first asks whether any ADMISSIBLE W identifies the quantity, and
+    it is the only pass that runs when the answer is yes.
+
+    The second runs only on failure and asks something else: which
+    condition stopped the candidate that got furthest. It searches the
+    pool WITHOUT the membership restriction, because the candidate that
+    gets furthest is routinely one the restriction rules out — an
+    intermediate confounder is exactly the set that satisfies every
+    separation and is refused only for descending from X. Naming that is
+    the diagnosis a reader can act on, and it used to be unreachable:
+    reporting the failure of the smallest W meant reporting the failure
+    of the EMPTY set, which contains no descendant of anything, so "M4"
+    and "C2" could not be said however true they were. Over every
+    labelled DAG on five nodes with a valid mediator the old rule named
+    only M1, M3 and C1 — three of the six conditions the contract
+    declares, and each of the other three already had a sentence waiting
+    for a reader.
+
+    Every candidate is checked at most once. The first pass already saw
+    the admissible ones, and it keeps the furthest they got, so the second
+    only visits the candidates the membership restriction hid — which are
+    the ones it is there for.
+
+    ``route.order`` is the sequence the conditions are named in;
+    "furthest" means furthest along it, so it has to be the same order
+    the route checks them in.
     """
     from itertools import combinations
 
-    last_failure = default_failed
-    upper_size = min(max_size, len(w_pool))
+    check, forbidden, order = route
+    furthest = order[0]
+    rank = 0
 
-    for size in range(0, upper_size + 1):
-        for combo in combinations(w_pool, size):
+    admissible = [n for n in w_pool if n not in forbidden]
+    for size in range(0, min(max_size, len(admissible)) + 1):
+        for combo in combinations(admissible, size):
             w = frozenset(combo)
-            failure = checker(graph, x, y, m, w, bidirected)
+            failure = check(w)
             if failure is None:
                 return MediationAttempt(
                     identifiable=True,
                     adjustment=w,
                     failed_condition=None,
                 )
-            # Track the failure seen at the smallest W; when the pool is
-            # pre-filtered (M4/C2 already enforced), the failure must be
-            # a structural one (M1/M2/M3 or C1).
-            if size == 0:
-                last_failure = failure
+            if order.index(failure) > rank:
+                furthest, rank = failure, order.index(failure)
+
+    # Only the candidates the first pass hid are left to look at, so when
+    # it hid none there is no second pass.
+    hidden = forbidden.intersection(w_pool)
+    upper = min(max_size, len(w_pool)) if hidden else 0
+    for size in range(1, upper + 1):
+        for combo in combinations(w_pool, size):
+            if not hidden.intersection(combo):
+                continue  # admissible, and the first pass already saw it
+            failure = check(frozenset(combo))
+            if failure is None or order.index(failure) <= rank:
+                continue
+            furthest, rank = failure, order.index(failure)
+            # Nothing can get further than the last condition: a candidate
+            # refused there satisfied every one before it.
+            if rank == len(order) - 1:
+                return MediationAttempt(
+                    identifiable=False,
+                    adjustment=frozenset(),
+                    failed_condition=furthest,
+                )
 
     return MediationAttempt(
         identifiable=False,
         adjustment=frozenset(),
-        failed_condition=last_failure,
+        failed_condition=furthest,
     )
 
 
@@ -1051,104 +1183,115 @@ def _mutilate_outgoing_set(graph: nx.DiGraph, nodes) -> nx.DiGraph:
     return g
 
 
-def _check_nde_nie_joint_with_w(
+def _nde_nie_joint_route(
     graph: nx.DiGraph,
     x: Atom,
     y: Atom,
     ms: "frozenset[Atom]",
-    w: frozenset[Atom],
     bidirected: "BidirectedEdgeSet",
-) -> str | None:
-    """Return None iff the joint NDE/NIE conditions hold for the mediator
-    SET ``ms`` under adjustment set W; else the first failing label.
+) -> _Route:
+    """The joint NDE/NIE conditions for the mediator SET ``ms``.
+
+    ``check`` returns None iff all hold for W, else the first to fail, in
+    the same order as the single-mediator twin and for the same reason.
 
     The single-mediator four conditions (Pearl 2001, Theorem 2) with M
     replaced by the vector M_set (VanderWeele-Vansteelandt 2014):
 
-      M4: W contains no descendant of X.
       M1: Y _|_ X | W        in G_Xbar.
       M2: M_set _|_ X | W     in G_Xbar        (checked per member).
       M3: Y _|_ M_set | X, W  in G_Msetbar     (ALL set outgoing removed).
+      M4: W contains no descendant of X.
 
     Treating the set as a block is what tolerates a recanting witness
     INSIDE the set: cutting every set member's outgoing edges removes the
-    intra-set confounding path, so M3 passes where the single-mediator M4
-    check would fail on the confounded member.
+    intra-set confounding path, so M3 passes here where the single-mediator
+    check on the confounded member alone does not identify anything.
     """
-    # M4: W contains no descendant of X.
-    x_desc = nx.descendants(graph, x)
-    if w & x_desc:
-        return "M4"
-
-    w_tuple = tuple(w)
-
-    # M1: Y _|_ X | W in G_Xbar.
     g_bar_x = _mutilate_outgoing(graph, x)
-    if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
-        return "M1"
-
-    # M2: each M_j _|_ X | W in G_Xbar.
-    for m in ms:
-        if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
-            return "M2"
-
-    # M3: each M_j _|_ Y | X, W in G_Msetbar (all set outgoing removed).
     g_bar_ms = _mutilate_outgoing_set(graph, ms)
-    xw_tuple = tuple(w | {x})
-    for m in ms:
-        if is_m_connected(g_bar_ms, bidirected, m, y, xw_tuple):
-            return "M3"
+    forbidden = _forbidden_for_nde(graph, x, ms)
 
-    return None
+    def check(w: frozenset[Atom]) -> str | None:
+        w_tuple = tuple(w)
+
+        # M1: Y _|_ X | W in G_Xbar.
+        if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
+            return "M1"
+
+        # M2: each M_j _|_ X | W in G_Xbar.
+        for m in ms:
+            if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
+                return "M2"
+
+        # M3: each M_j _|_ Y | X, W in G_Msetbar (all set outgoing removed).
+        xw_tuple = tuple(w | {x})
+        for m in ms:
+            if is_m_connected(g_bar_ms, bidirected, m, y, xw_tuple):
+                return "M3"
+
+        # M4: W contains no descendant of X.
+        if w & forbidden:
+            return "M4"
+
+        return None
+
+    return _Route(check=check, forbidden=forbidden, order=_NDE_NIE_ORDER)
 
 
-def _check_cde_set_with_w(
+def _cde_set_route(
     graph: nx.DiGraph,
     x: Atom,
     y: Atom,
     ms: "frozenset[Atom]",
-    w: frozenset[Atom],
     bidirected: "BidirectedEdgeSet",
-) -> str | None:
-    """Return None iff the CDE(m*) back-door adjustment conditions hold for
-    the mediator SET ``ms`` under W; else the first failing label.
+) -> _Route:
+    """The CDE(m*) back-door conditions for the mediator SET ``ms``.
 
-    The single-mediator CDE conditions (``_check_cde_with_w``) with M
+    ``check`` returns None iff both hold for W, else the first failing
+    label.
+
+    The single-mediator CDE conditions (``_cde_route``) with M
     replaced by the vector M_set — the ordinary back-door criterion for the
     JOINT intervention do(X, M_1..M_k) that holds the whole block fixed:
 
-      C2: W contains no descendant of X or of any M_j.
       C1: in G\\bar{X,M_set} (outgoing edges of X AND every M_j removed),
           Y is m-separated from X given W AND from each M_j given W.
+      C2: W contains no descendant of X or of any M_j.
 
     Holding every mediator fixed is what makes CDE-for-a-set identifiable in
     strictly MORE graphs than the joint NDE/NIE: the CDE never needs the
     X–M_set no-confounding condition (M2), so a LATENT X<->M_j edge that
     sinks the joint natural effects still leaves the controlled effect
-    adjustable. Back-door only, mirroring the single-mediator CDE — a
-    post-treatment (intermediate) confounder of the mediator-outcome edge is
-    honestly reported non-identifiable here (it needs the longitudinal
-    g-formula, out of scope).
+    adjustable. That containment is counted rather than recalled — over
+    every labelled DAG on {X, Y, M1, M2} with a valid mediator set, no graph
+    identifies the joint natural effects without also identifying the
+    controlled one, and the reverse happens in ninety. Back-door only,
+    mirroring the single-mediator CDE — a post-treatment (intermediate)
+    confounder of the mediator-outcome edge is honestly reported
+    non-identifiable here (it needs the longitudinal g-formula, out of
+    scope), and C2 is then the condition the reader is told about.
     """
-    # C2: W excludes descendants of X and of any set member.
-    x_desc = nx.descendants(graph, x)
-    m_desc: set = set()
-    for m in ms:
-        m_desc |= nx.descendants(graph, m)
-    if w & (x_desc | m_desc):
-        return "C2"
-
-    w_tuple = tuple(w)
-
-    # C1: in G\bar{X,M_set}, Y m-sep from X and from each M_j given W.
     g_bar = _mutilate_outgoing_set(graph, ms | {x})
-    if is_m_connected(g_bar, bidirected, x, y, w_tuple):
-        return "C1"
-    for m in ms:
-        if is_m_connected(g_bar, bidirected, m, y, w_tuple):
-            return "C1"
+    forbidden = _forbidden_for_cde(graph, x, ms)
 
-    return None
+    def check(w: frozenset[Atom]) -> str | None:
+        w_tuple = tuple(w)
+
+        # C1: in G\bar{X,M_set}, Y m-sep from X and from each M_j given W.
+        if is_m_connected(g_bar, bidirected, x, y, w_tuple):
+            return "C1"
+        for m in ms:
+            if is_m_connected(g_bar, bidirected, m, y, w_tuple):
+                return "C1"
+
+        # C2: W excludes descendants of X and of any set member.
+        if w & forbidden:
+            return "C2"
+
+        return None
+
+    return _Route(check=check, forbidden=forbidden, order=_CDE_ORDER)
 
 
 def mediation_sets_joint(
@@ -1182,8 +1325,9 @@ def mediation_sets_joint(
     with no specific failure code.
 
     Subset-minimal search over the adjustment set W (smallest first);
-    returns the first W satisfying the joint conditions. The W pool
-    excludes X, Y, every mediator, and X-descendants (M4 pre-filter).
+    returns the first W satisfying the joint conditions. The W pool is
+    every node that is neither an endpoint nor a mediator; each route
+    then applies its own membership condition to it.
 
     Reference: VanderWeele & Vansteelandt 2014 "Mediation analysis with
     multiple mediators" (Epidemiologic Methods); Pearl 2001 is the k=1
@@ -1215,35 +1359,23 @@ def mediation_sets_joint(
 
     bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
 
-    x_desc = nx.descendants(graph, x)
     w_pool = [
         n for n in graph.nodes
-        if n != x and n != y and n not in ms and n not in x_desc
+        if n != x and n != y and n not in ms
     ]
 
-    # Reuse the single-mediator subset searcher: it passes its ``m``
-    # argument straight through to the checker, so handing it the mediator
-    # SET and the joint checker performs the joint search unchanged.
+    # The subset searcher varies only W, and a route has already bound
+    # itself to the graph — so the joint routes drop into it unchanged.
     attempt = _search_mediation_adjustment(
-        graph, x, y, ms, w_pool, bidir_eff,
-        max_adjustment_size, _check_nde_nie_joint_with_w,
-        default_failed="M4",
+        _nde_nie_joint_route(graph, x, y, ms, bidir_eff), w_pool,
+        max_adjustment_size,
     )
 
-    # CDE-for-a-set: back-door for the joint do(X, M_set). Its W pool also
-    # excludes every mediator's descendants (C2 pre-filter).
-    m_desc: set = set()
-    for m in ms:
-        m_desc |= nx.descendants(graph, m)
-    cde_w_pool = [
-        n for n in graph.nodes
-        if n != x and n != y and n not in ms
-        and n not in x_desc and n not in m_desc
-    ]
+    # CDE-for-a-set: back-door for the joint do(X, M_set), which forbids a
+    # descendant of any mediator as well as of X.
     cde_attempt = _search_mediation_adjustment(
-        graph, x, y, ms, cde_w_pool, bidir_eff,
-        max_adjustment_size, _check_cde_set_with_w,
-        default_failed="C1",
+        _cde_set_route(graph, x, y, ms, bidir_eff), w_pool,
+        max_adjustment_size,
     )
 
     return MediationJointResult(
