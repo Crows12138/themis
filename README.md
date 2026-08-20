@@ -160,6 +160,8 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 纪律只到达了那个唯一可枚举的面（2026-08-12，dsh 借鉴，#362）：一个封闭词表写在一处、被重述到每个要读它的面（schema / prompt / 参考表）。浏览器那一面守得很好——锚在 kernel 一侧，且强制 `verdict.ts` 里每张表自报是不是词表；**其余的面靠三十来条 pin，每一条都是某次漂移已经发货之后才补的**。根因不是忘了推广：浏览器那条能成立是因为 `verdict.ts` 把表声明成 `const NAME: Record<...>`——**有一个集合可供 partition**；prompt 是散文，没有声明单位，形状搬不过去。**分界线正好落在「这个面还能不能被枚举」上。**修法是把枚举的一侧翻过来：25 个封闭词表各说出它到达哪些读者，21 个锚在 schema 的 enum 站点上逐字相等（用**具名站点的相等**而不是「在并集里」，因为 schema 承认而 kernel 从不发出的取值读起来像「有人处理过」；用**一组站点**而不是一个，因为单格能声明的许可不等于 causation 块能声明的——那正是 #336），4 个写下「为什么没有 schema 说它」。partition 逼出那 4 个从没表态的。**它还照出手写义务值多少**：钉 `gap_to_action.md` 的那条 pin 手列 4 个估计器时段 kind，而那组有 6 个，**漏的两个恰好就是 prompt 里没有的两个**——清单是照着prompt 已写的抄的，**它拿 prompt 验 prompt**。那一组现在被声明出来，prompt 也补齐。同时把上一档的散文门禁从 `.py` 扩到 prompt 与现状文档（**排除项连同理由写在模块里**），又抓到 16 处序号和**一整个搬走的目录**（15 处 `docs/prompts/`，其中两处在告诉读者 web bridge 加载哪个文件）
 
+- 六份「numpy→JSON」降级辅助并成一份，而它们不一样恰恰说明这不是去重（2026-08-21，#318 完成）：登记说 5 份 / 7 个文件，实测 6 份 / 6 个文件，点名的三个文件一份都没有。**根因是谓词写错了**——六份都被当作「去掉 numpy」写，而调用点要的是「能进信封」，而 `.item()` 的值域是**内置**类型、内置类型不是 JSON 类型（时刻、时长、复数都写不下）。构造出的反例：一个 `datetime.date` 列进信封，`json.dumps` 直接炸。合并后的判据写成两半、**只有第二半是承诺**：numpy 说自己的等价内置值，然后结果**必须是** JSON 写得下的五种之一，不是就在产出者还在栈上时具名报错——**不打印**，因为验证器只从信封反推，被打印成串的层级和本来就是串的层级分不出来。家在 `themis/types.py` 紧挨 `EnvelopeName`。等价证明：六个 HEAD 版函数体 exec 进来对跑 24 个值，**0 处差异**
+
 - 抑制名单 32 → 1，而复核抓到的两条回归是清理自己造的（2026-08-20，#331 完成）：剩下 32 个模块用多 agent 并行清 + **对抗性复核**逐个读 diff 判断「说出真相还是藏起问题」。两条真回归都是靠**把旧版函数体 exec 进活模块、同一输入对跑两版**抓到的：`dispatch` 删掉 `or {}` 兜底后，一条被记录的拒答变成逃出 `themis.estimate` 的 AttributeError；`rules._envelope_number` 让非数字字符串以裸 ValueError 逃出验证器（顺带关掉了相反方向的 NaN——它不是被拒绝，是被**静默认证**）。还有一批「只说了一半真话」：narrow 掉 None 之后，`explainer` 落进一句与 status 自相矛盾的中文，而崩溃虽难看但不撒谎。owner 侧：`VerifiableQuery` 是 `Query` 漏了一个成员的手抄副本，改成别名；两处 `-> None` 写在只会抛的函数上（普查 23 个里 21 个已是 `NoReturn`），改过来当场掀出一条被压住的真 finding。**findings 663 → 1**，剩的那一行含义已从「还没读过」变成「读过了，代价在这里」
 
 - 累加器用它的第一个值声明自己（2026-08-20，#331）：mypy 抑制名单 **58 → 32**，findings 663 → 586（登记写的 605 是**旧数**，而 `structural_solver` 早就干净了）。最大一族 63 条是同一句话——元组字面量的推断类型带**元数**，定长记录对、累加器错，而源码里两者写法一样；补上 `tuple[str, ...]` 后 **10 个模块归零**。剩下的逐条读出真问题：外部区间从未校验元数与元素类型、一个函数里同名变量装两种东西（改一个露出三个）、`_is_fixed` 与 `_world_value` 各扫一遍同一结构、`.get` 当排序键、点样本与 bootstrap 共用一个返回类型、守卫只问了一对变量中的一个
@@ -202,7 +204,7 @@ MCP 调用注意：MCP server 是长进程，Python 模块只在启动时 import
 
 - 条件工具变量接上 theta 端（2026-07-25）：`iv_sets` 一直会返回**条件**（Brito-Pearl）工具变量——Z 只有在 W 被固定之后才是工具——identify 路径一直照实报，DataFrame 路径也一直用 2SLS 吃 W；只有 theta 端一见条件集就 `return None`。于是同一张图，identify 说「可识别，用 z 在 w 之下」，effect 带着完整 theta 回「backdoor / front-door / Tian ID 都到不了」，只字不提工具变量。补上**分层 Wald**：W=∅ 是同一套算术的单层退化（边际答案逐字节不变），层权按链式法则展开；聚合是**比值的平均而非平均的比值**——每层按它自己的 complier 份额加权（那正是分母项，Abadie 2003），得到的才是 complier 平均因果效应，把各层 LATE 按 P(w) 平均是另一个估计量，测试把两个数都算出来钉住。`treatment_shift` 顺带成为报出来的 complier 份额。第二半是说清**为什么给不出数**：`None` 不携带信息，于是「没声明 monotonicity」「theta 少一格」「一阶段退化」全塌成「这图没救」；现在各自点名，并排追加在结构项旁边——**「有可用的 IV 逃生通道」不等于「可识别」**，顶替掉结构项会让区间答案被当成点识别（第一版正是这么写的，被回归抓住）。验证器不复读：就地重验 (Z,W) 真是工具（抓「算了边际 Wald 却把 W 记成 ∅」）、从 theta 的域重新枚举层（抓少记一层）、按比值的平均重算聚合。取舍：处理与工具须二值·条件**查询**仍归 IDC·theta 查表不走边缘化回退。D1：16 条新测试全部先在改前代码上跑成红的；前提先证后证结论；四类篡改各因该抓的原因被拒。+16 测试
 
-当前全量测试基线：**5317 passed / 145 skipped**，warning-clean。
+当前全量测试基线：**5358 passed / 145 skipped**，warning-clean。
 
 ---
 
@@ -256,7 +258,7 @@ themis/
 
 - **反差 benchmark** (LLM 单干 vs LLM + Themis)：[benchmarks/agent_integration/findings_2026-05-12.md](benchmarks/agent_integration/findings_2026-05-12.md)
 - **kernel L3 case corpus**（15 个真文献案例的 regression pin）：[docs/l3_simulation/README.md](docs/l3_simulation/README.md)
-- **测试套件**：5317 passed / 145 skipped（2026-08-12）
+- **测试套件**：5358 passed / 145 skipped（2026-08-12）
 - **iter retrospective log**（"为什么 commit X 是这样修的"）：[wall.md](wall.md)
 
 ---

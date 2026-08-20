@@ -58,6 +58,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
+from ..types import envelope_scalar
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -141,9 +142,16 @@ def estimate_selection_recovery(
         a reference weight column absent; a positivity violation (a needed
         biased or reference stratum has no support).
     """
-    selected_values = dict(selected_values or {})
-    for s in selection_nodes:
-        selected_values.setdefault(s, True)
+    # One statement about what this parameter is: a value per selection node,
+    # ``True`` where the caller did not say, as the envelope can record it.
+    # The envelope has to record it for the answer to be checkable, so a
+    # value it cannot hold is this input being refused — and deciding that
+    # at the exit lets the row filter speak first, which says the sample is
+    # too small: the symptom, under the name of the cause.
+    supplied = dict(selected_values or {})
+    selected_values = {
+        s: envelope_scalar(supplied.get(s, True)) for s in selection_nodes
+    }
 
     zp_vars = tuple(sorted(z_plus))
     zm_vars = tuple(sorted(z_minus))
@@ -220,8 +228,7 @@ def estimate_selection_recovery(
         reference_data_hash=r_contract.data_hash,
         treatment=treatment, outcome=outcome,
         z_plus=zp_vars, z_minus=zm_vars,
-        selected_values={k: _py(v) for k, v in selected_values.items()
-                         if k in selection_nodes},
+        selected_values=selected_values,
         mu_treated=mu1, mu_control=mu0,
         sufficient_statistics={
             **suff,
@@ -483,20 +490,7 @@ def _as_tuple(key, arity: int) -> tuple:
 
 
 def _json_key(key: tuple) -> tuple:
-    return tuple(_py(v) for v in key)
-
-
-def _py(v):
-    """Numpy scalar / bool → JSON-safe python scalar."""
-    if isinstance(v, (np.bool_,)):
-        return bool(v)
-    if isinstance(v, (np.integer,)):
-        return int(v)
-    if isinstance(v, (np.floating,)):
-        return float(v)
-    if isinstance(v, (bool, int, float, str)) or v is None:
-        return v
-    return str(v)
+    return tuple(envelope_scalar(v) for v in key)
 
 
 def _stratum_sort(item):

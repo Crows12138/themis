@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from enum import Enum, StrEnum
 from typing import Union
 
+import numpy as np
+
 
 class EnvelopeName(StrEnum):
     """A name that leaves its registry on the envelope.
@@ -48,6 +50,58 @@ class EnvelopeName(StrEnum):
         # the value is declared, which is the one thing a reader who has
         # been handed the value does not need.
         return f"{type(self).__name__}({str(self)!r})"
+
+
+# The five things JSON writes down. ``None`` is tested separately because it
+# is a value rather than a type; every other one admits its subclasses, which
+# is what ``json`` itself accepts.
+_ENVELOPE_SCALARS = (bool, int, float, str)
+
+
+def envelope_scalar(value: object) -> bool | int | float | str | None:
+    """A value read out of the data, as the envelope is able to hold it.
+
+    Six modules each wrote a version of this and the six disagreed, which
+    is what independent rewrites look like as against copies. What they
+    disagreed about is the predicate. Each was written as "remove numpy"
+    and each documented itself as "JSON-safe", and those are different
+    sets: ``.item()`` lands in the built-in types, and the built-in types
+    are not the JSON ones — a clock reading, a duration and a complex
+    number are all built in and none of them can be written down. So a
+    value could satisfy what the code did and still fail what the
+    docstring promised, out in whichever stranger's frame first reached
+    ``json.dumps``.
+
+    The conversion is therefore in two halves and only the second is the
+    promise. numpy names its own plain-Python equivalent and nothing else
+    knows it, so that half is delegated to it. Then the result has to BE
+    one of the five, and when it is not this says so here — where the
+    caller that produced the value is still on the stack — rather than
+    passing the problem on to be raised somewhere that cannot name it.
+
+    Printing the value instead is the alternative that has to be refused
+    rather than merely not chosen. The verifier re-derives its findings
+    from the envelope alone, so a level that was printed into a string is,
+    on arrival, indistinguishable from a level that was a string: a claim
+    about the data that no producer made and no reader can check.
+    """
+    plain = value.item() if isinstance(value, np.generic) else value
+    if plain is None or isinstance(plain, _ENVELOPE_SCALARS):
+        return plain
+    # Both names, because they can differ and the reader supplied only one
+    # of them: a numpy clock reading arrives as ``datetime64`` and reaches
+    # this line as ``date``, and a message that mentions only the second
+    # describes a column the reader does not have.
+    arrived = type(value).__name__
+    became = type(plain).__name__
+    what = arrived if became == arrived else f"{arrived}, a {became} here"
+    raise TypeError(
+        f"a value read out of the data reaches the envelope as one of the "
+        f"five things JSON writes down (a string, a number, true, false, "
+        f"null); {value!r} is a {what}, which is none of them, and printing "
+        f"it would put a claim about the data on the envelope that nobody "
+        f"made and no reader could check."
+    )
 
 
 # ---------------------------------------------------------------------------

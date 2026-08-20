@@ -75,6 +75,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
+from ..types import envelope_scalar
 from .. import refusals
 from ..output.bounds import MAX_RESPONSE_TYPES, response_type_count
 from ..refusals import Refusal
@@ -82,7 +83,6 @@ from ..refusals import EstimatorFailure
 from ..response_polytope import (
     _arm_objective,
     _contrast_objective,
-    _py,
     _solve_response_lp,
 )
 from .resample import cluster_labels, resample_indices
@@ -208,8 +208,8 @@ def evaluate_manski_natural_bounds(
         data_hash=contract.data_hash,
         treatment=treatment,
         outcome=outcome,
-        treatment_value=_py(treatment_value),
-        outcome_value=_py(outcome_value),
+        treatment_value=envelope_scalar(treatment_value),
+        outcome_value=envelope_scalar(outcome_value),
         instrument=None,
         assumptions=(),
         cluster=cluster,
@@ -303,8 +303,8 @@ def evaluate_manski_tamer_bounds(
         data_hash=contract.data_hash,
         treatment=treatment,
         outcome=outcome,
-        treatment_value=_py(treatment_value),
-        outcome_value=_py(outcome_value),
+        treatment_value=envelope_scalar(treatment_value),
+        outcome_value=envelope_scalar(outcome_value),
         instrument=None,
         assumptions=(f"mtr_{monotonicity}",),
         cluster=cluster,
@@ -494,9 +494,9 @@ def evaluate_balke_pearl_bounds(
     stats = {
         "P_xyz": [[[float(P_full[z, x, y]) for y in range(ny)]
                    for x in range(nx)] for z in range(nz)],
-        "treatment_levels": [_py(v) for v in x_levels],
-        "outcome_levels": [_py(v) for v in y_levels],
-        "instrument_levels": [_py(v) for v in z_levels],
+        "treatment_levels": [envelope_scalar(v) for v in x_levels],
+        "outcome_levels": [envelope_scalar(v) for v in y_levels],
+        "instrument_levels": [envelope_scalar(v) for v in z_levels],
         "arm_treatment_index": xi,
         "arm_outcome_index": yi,
     }
@@ -525,8 +525,8 @@ def evaluate_balke_pearl_bounds(
         data_hash=contract.data_hash,
         treatment=treatment,
         outcome=outcome,
-        treatment_value=_py(treatment_value),
-        outcome_value=_py(outcome_value),
+        treatment_value=envelope_scalar(treatment_value),
+        outcome_value=envelope_scalar(outcome_value),
         instrument=instrument,
         assumptions=(
             "iv1_relevance",
@@ -556,7 +556,7 @@ def _ace_contrast(
     )
     return {
         "kind": "ace",
-        "reference_value": _py(x_levels[other]),
+        "reference_value": envelope_scalar(x_levels[other]),
         "lower_value": float(lo),
         "upper_value": float(hi),
     }

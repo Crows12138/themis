@@ -35,6 +35,7 @@ import numpy as np
 from . import refusals
 from .output.bounds import MAX_RESPONSE_TYPES, response_type_count
 from .refusals import EstimatorFailure, Refusal
+from .types import envelope_scalar
 
 
 @lru_cache(maxsize=32)
@@ -311,12 +312,6 @@ def polytope_preconditions(zcol: str, z_levels: list) -> None:
         )
 
 
-def _py(v):
-    if isinstance(v, np.generic):
-        return v.item()
-    return v
-
-
 def polytope_sufficient_statistic(
     P: np.ndarray, p_z: np.ndarray, z_levels: list,
 ) -> tuple[tuple, tuple, tuple]:
@@ -329,7 +324,7 @@ def polytope_sufficient_statistic(
     three go out together because they are only meaningful together.
     """
     return (
-        tuple(_py(v) for v in z_levels),
+        tuple(envelope_scalar(v) for v in z_levels),
         tuple(
             tuple(tuple(float(P[z, x, y]) for y in range(P.shape[2]))
                   for x in range(P.shape[1]))

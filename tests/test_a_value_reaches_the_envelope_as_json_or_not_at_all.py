@@ -1,0 +1,281 @@
+"""One conversion, and the input it has to say no to (#318).
+
+Six modules each wrote a numpy → JSON downgrade, and the six disagreed. Four
+were ``.item()`` and pass the rest through; two dispatched on numpy kind and
+printed anything else into a string; one additionally collapsed an integral
+float to an integer. They agreed on every type the suite ever hands them —
+``bool`` / ``int`` / ``float`` / ``np.bool_`` / ``np.int64`` / ``np.float64``,
+and nothing else, measured over the whole suite — and disagreed everywhere
+else, which is what independent rewrites look like as against copies.
+
+What is pinned here is the merged conversion at
+:func:`themis.types.envelope_scalar`: what it accepts and what it turns that
+into; the values it now refuses BY NAME, where four of the six passed them on
+to fail later inside ``json.dumps`` and two printed them into a string the
+verifier could not tell from a level that really was one; and the one
+deliberate non-merge — discovery's level label, whose integral-float collapse
+is a statement about what a level IS on a discrete column and must not travel
+with the shared conversion to estimators where 2.0 is a measurement.
+"""
+from __future__ import annotations
+
+import datetime
+import decimal
+import json
+
+import numpy as np
+import pandas as pd
+import pytest
+
+import themis
+from themis.estimation import bounds_numeric, discovery, general_id
+from themis.estimation import dispatch, measurement, selection
+from themis.estimation.contract import DataContractError
+from themis.estimation.discovery import _level_label
+from themis.types import envelope_scalar
+from themis import response_polytope
+
+
+# ---------------------------------------------------- what it accepts
+
+# The whole domain the six were ever handed, measured by recording every
+# call across the suite. A merge is behaviour-preserving exactly here.
+MEASURED = [
+    (np.bool_(True), True, bool),
+    (np.bool_(False), False, bool),
+    (np.int64(3), 3, int),
+    (np.float64(1.5), 1.5, float),
+    (np.float64(2.0), 2.0, float),
+    (True, True, bool),
+    (3, 3, int),
+    (2.0, 2.0, float),
+]
+
+
+@pytest.mark.parametrize("value,expected,expected_type", MEASURED)
+def test_the_measured_domain_arrives_as_plain_python(
+    value, expected, expected_type
+):
+    got = envelope_scalar(value)
+    assert got == expected
+    # ``type`` and not ``isinstance``: np.float64 IS a float subclass, so an
+    # isinstance check would pass on a value that still carries numpy.
+    assert type(got) is expected_type
+
+
+def test_a_numpy_string_stops_being_a_numpy_string():
+    got = envelope_scalar(np.str_("a"))
+    assert got == "a"
+    assert type(got) is str
+
+
+def test_a_plain_string_and_none_travel_unchanged():
+    assert envelope_scalar("high") == "high"
+    assert envelope_scalar(None) is None
+
+
+@pytest.mark.parametrize("value,_e,_t", MEASURED)
+def test_what_it_returns_is_what_json_writes_down(value, _e, _t):
+    # The promise the four ``.item()`` copies made in their docstrings and
+    # did not keep. It is a postcondition, so it is checked as one.
+    json.dumps(envelope_scalar(value))
+
+
+# ---------------------------------------------------- what it refuses
+
+REFUSED = [
+    # ``.item()`` lands in the built-in types, and the built-in types are not
+    # the JSON ones. Each of these is what a numpy scalar BECOMES.
+    (np.datetime64("2020-01-02"), "datetime64"),
+    (np.timedelta64(5, "D"), "timedelta64"),
+    (np.complex128(1 + 2j), "complex128"),
+    # And these never had a numpy step at all.
+    (decimal.Decimal("1.5"), "Decimal"),
+    (datetime.date(2020, 1, 2), "date"),
+    (np.array([1, 2]), "ndarray"),
+    ((1, 2), "tuple"),
+]
+
+
+@pytest.mark.parametrize("value,type_name", REFUSED)
+def test_a_value_json_cannot_write_is_refused_by_name(value, type_name):
+    with pytest.raises(TypeError) as exc:
+        envelope_scalar(value)
+    assert "reaches the envelope" in str(exc.value)
+    assert type_name in str(exc.value)
+
+
+@pytest.mark.parametrize("value,type_name", REFUSED)
+def test_nothing_refused_comes_back_printed(value, type_name):
+    # The failure mode of the two kind-dispatching copies: ``str(v)`` is a
+    # value the envelope can carry, so nothing downstream ever objected, and
+    # the verifier re-deriving from the envelope reads a level that was
+    # printed as a level that was a string.
+    with pytest.raises(TypeError):
+        envelope_scalar(value)
+
+
+def test_the_refusal_names_what_arrived_not_what_it_became():
+    # A numpy clock reading arrives as datetime64 and reaches the check as a
+    # date; a message carrying only the second describes a column the reader
+    # does not have.
+    with pytest.raises(TypeError) as exc:
+        envelope_scalar(np.datetime64("2020-01-02"))
+    message = str(exc.value)
+    assert "datetime64" in message
+    assert "date" in message
+
+
+def test_a_duration_is_refused_rather_than_coerced_to_an_integer():
+    # np.timedelta64 subclasses np.signedinteger, so the two copies that
+    # dispatched on numpy KIND routed it into ``int()`` and raised from the
+    # coercion — a bare TypeError from a line that believed it had a total
+    # function, on the branch its own ``str`` fallback was written to catch.
+    with pytest.raises(TypeError) as exc:
+        envelope_scalar(np.timedelta64(5, "D"))
+    assert "reaches the envelope" in str(exc.value)
+
+
+# ------------------------------------------------ one function, six callers
+
+def test_every_producer_names_the_same_function():
+    # The gate against re-divergence: six modules held six functions, and
+    # what made them drift is that nothing ever compared them.
+    producers = [
+        response_polytope, bounds_numeric, general_id,
+        dispatch, measurement, selection, discovery,
+    ]
+    for module in producers:
+        assert module.envelope_scalar is envelope_scalar, module.__name__
+
+
+def test_the_level_label_is_a_recoding_and_not_the_shared_conversion():
+    # discovery reports the LEVELS of a discrete column, and the contract has
+    # already cast that column to float64 — so an integer-coded column would
+    # be reported as the floats the cast made rather than the codes the data
+    # carries. Undoing that is a claim about what a level is, and it must not
+    # reach an estimator where an outcome level of exactly 2.0 is a
+    # measurement.
+    assert _level_label(np.float64(2.0)) == 2
+    assert type(_level_label(np.float64(2.0))) is int
+    assert type(envelope_scalar(np.float64(2.0))) is float
+
+    assert type(_level_label(np.float64(1.5))) is float
+    assert _level_label(np.float64(1.5)) == 1.5
+
+
+def test_the_level_label_still_refuses_what_the_envelope_cannot_hold():
+    # It recodes on top of the shared conversion rather than beside it, so
+    # the refusal is not something the second copy has to remember.
+    with pytest.raises(TypeError):
+        _level_label(datetime.date(2020, 1, 2))
+
+
+# ------------------------------------------------------- on the real paths
+
+def _atom(p):
+    return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
+
+
+def _program(w_decl: dict | None = None):
+    statements = [
+        {"kind": "variable", "predicate": "x", "domain": [True, False]},
+        {"kind": "variable", "predicate": "y", "domain": [True, False]},
+        {"kind": "variable", "predicate": "z", "domain": [True, False]},
+        {"kind": "cause", "from": _atom("z"), "to": _atom("x")},
+        {"kind": "cause", "from": _atom("z"), "to": _atom("y")},
+        {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+        {"kind": "query", "id": "q", "query": {"kind": "effect",
+            "intervention": {"atom": _atom("x"), "value": True},
+            "target": {"atom": _atom("y"), "value": True}, "given": []}},
+    ]
+    if w_decl is not None:
+        statements.insert(3, {"kind": "variable", "predicate": "w", **w_decl})
+        statements.insert(-1, {"kind": "cause", "from": _atom("y"),
+                               "to": _atom("w")})
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "me"}]},
+            "statements": statements}
+
+
+def _frame(n=400, seed=0, extra=None):
+    rng = np.random.default_rng(seed)
+    z = rng.integers(0, 2, n).astype(bool)
+    x = (rng.random(n) < 0.3 + 0.4 * z).astype(bool)
+    y = (rng.random(n) < 0.2 + 0.3 * x + 0.2 * z).astype(bool)
+    frame = pd.DataFrame({"x": x, "y": y, "z": z})
+    if extra is not None:
+        frame["w"] = extra(n)
+    return frame
+
+
+def test_a_column_the_envelope_could_not_hold_is_refused_by_the_contract():
+    # The refusal above is a statement about a value, and on the estimate
+    # path no such value gets that far: the contract decides the columns
+    # first and names the one it will not take. So the merge does not put a
+    # new failure in front of anybody — it names an old one earlier.
+    df = _frame(extra=lambda n: [datetime.date(2020, 1, 1 + i % 3)
+                                 for i in range(n)])
+    with pytest.raises(DataContractError) as exc:
+        themis.estimate(_program({"scale": "continuous"}), df)
+    assert "'w'" in str(exc.value)
+
+
+def test_the_estimate_envelope_is_json_and_not_merely_numpy_free():
+    # What the four ``.item()`` copies promised. Their claim was that the
+    # distinct-value sets serialise; this checks the whole envelope, which
+    # is the only form in which that claim is worth anything.
+    df = _frame()
+    df["w"] = np.arange(len(df)) % 4
+    out = themis.estimate(_program({"scale": "binary"}), df)
+    json.dumps(out)
+
+
+# ------------------------------------------- the value a caller supplies
+
+def _selection_scm(n, seed):
+    """X→Y, X→W, Y→M, M→W: W is a selection collider, recovered on Z⁻={m}."""
+    rng = np.random.default_rng(seed)
+    x = rng.binomial(1, 0.5, n)
+    y = rng.binomial(1, 0.3 + 0.4 * x)
+    m = rng.binomial(1, 0.2 + 0.5 * y)
+    w = rng.binomial(1, 0.1 + 0.4 * x + 0.4 * m)
+    return pd.DataFrame({"x": x.astype(bool), "y": y.astype(bool),
+                         "m": m.astype(bool), "w": w.astype(bool)})
+
+
+def test_a_selected_value_the_envelope_cannot_hold_is_refused_at_the_entry():
+    # What "selected" means has to be recorded for the answer to be
+    # checkable, so a value that cannot be recorded is this input being
+    # refused. Deciding it at the exit let the row filter speak first, and
+    # a value that matches no rows leaves an empty sample — so the caller
+    # was told the sample was too small, which is the symptom under the
+    # name of the cause.
+    full = _selection_scm(4_000, seed=0)
+    biased = full[full.w].reset_index(drop=True)
+    reference = _selection_scm(4_000, seed=1)
+    with pytest.raises(TypeError) as exc:
+        selection.estimate_selection_recovery(
+            biased, reference, treatment="x", outcome="y",
+            z_plus=(), z_minus=("m",), selection_nodes=("w",),
+            selected_values={"w": datetime.date(2020, 1, 2)},
+            ci_bootstrap=0, random_state=0,
+        )
+    assert "reaches the envelope" in str(exc.value)
+
+
+def test_what_is_recorded_is_a_value_for_each_selection_node_and_no_other():
+    # The schema says selected_values carries the value for EACH selection
+    # node; the default, the conversion and that restriction are one
+    # statement about the parameter, so they are made in one place.
+    full = _selection_scm(20_000, seed=2)
+    biased = full[full.w].reset_index(drop=True)
+    reference = _selection_scm(20_000, seed=3)
+    est = selection.estimate_selection_recovery(
+        biased, reference, treatment="x", outcome="y",
+        z_plus=(), z_minus=("m",), selection_nodes=("w",),
+        selected_values={},
+        ci_bootstrap=0, random_state=0,
+    )
+    assert est.selected_values == {"w": True}
+    json.dumps(est.selected_values)

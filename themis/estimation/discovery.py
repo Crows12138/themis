@@ -62,6 +62,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
+from ..types import envelope_scalar
 
 
 AlgorithmName = Literal["pc", "fci", "lingam", "ges", "grasp", "auto"]
@@ -1103,9 +1104,19 @@ def _fisher_z_pvalue(
 # (present-X-levels − 1)(present-Y-levels − 1), summed over strata with data.
 
 
-def _to_py_scalar(v):
-    """numpy scalar → JSON-safe Python scalar (bool / int / float)."""
-    x = v.item() if hasattr(v, "item") else v
+def _level_label(v):
+    """A distinct value of a discrete column, as the level it stands for.
+
+    Two steps, and only the first is the envelope's. The contract casts
+    every model column to float64, so an integer-coded column arrives here
+    as ``0.0, 1.0, 2.0`` and its levels would be reported as the floats the
+    cast made rather than the codes the data carries. Undoing that cast is
+    a modelling decision about what a level IS on a discrete column, which
+    is why it stays here and does not travel with ``envelope_scalar`` to
+    the estimators, where an outcome level of exactly 2.0 is a measurement
+    and not a code.
+    """
+    x = envelope_scalar(v)
     if isinstance(x, float) and x.is_integer():
         return int(x)
     return x
@@ -1120,7 +1131,7 @@ def _recode_discrete(frame: pd.DataFrame, cols: tuple[str, ...]):
     for c in cols:
         vals = frame[c].to_numpy()
         uniq = np.unique(vals)
-        levels.append([_to_py_scalar(v) for v in uniq])
+        levels.append([_level_label(v) for v in uniq])
         code_cols.append(np.searchsorted(uniq, vals).astype(np.int64))
     int_matrix = np.column_stack(code_cols)
     cards = [len(u) for u in levels]

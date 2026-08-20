@@ -30,7 +30,7 @@ from ..refusals import EstimatorFailure, Refusal
 from ..output.data_gap_report import rederive_summary_and_steps
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
-from ..types import Priority, mirrored_caveat_lines
+from ..types import Priority, envelope_scalar, mirrored_caveat_lines
 from .claim import Claim, annotated, answered, blocked, passed
 from .contract import DataContract, validate_data
 from ..routing import End, route
@@ -6846,14 +6846,6 @@ def _ensure_dict(program: dict | str | bytes) -> dict:
 # --------------------------------------------------------------------------
 
 
-def _json_safe_value(v):
-    """Numpy scalar -> Python scalar so distinct-value sets serialize."""
-    import numpy as np
-    if isinstance(v, np.generic):
-        return v.item()
-    return v
-
-
 def _declared_scale(scale, domain) -> str | None:
     """Resolve the POSITIVE declared measurement type, or None for
     'didn't say'. ``scale`` (binary/discrete/continuous) wins when set;
@@ -6908,7 +6900,7 @@ def _observe_column(col):
     observed = _classify_observed(n_unique, dtype_kind)
     if n_unique <= 20:
         observed_values = sorted(
-            _json_safe_value(v) for v in pd.unique(col.dropna())
+            envelope_scalar(v) for v in pd.unique(col.dropna())
         )
     else:
         observed_values = None
@@ -6950,7 +6942,7 @@ def _reconcile_declared_observed(declared, domain, observed, n_unique,
                 f"声明为离散，但这一列的 {n_unique} 个取值构成连续尺度",
             )
         if domain is not None and observed_values is not None:
-            domain_set = {_json_safe_value(x) for x in domain}
+            domain_set = {envelope_scalar(x) for x in domain}
             extra = [v for v in observed_values if v not in domain_set]
             if extra:
                 return (

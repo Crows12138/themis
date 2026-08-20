@@ -105,6 +105,7 @@ import numpy as np
 import pandas as pd
 
 from .contract import validate_data
+from ..types import envelope_scalar
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -228,7 +229,7 @@ def estimate_measurement_correction(
         covering the observed outcome; target value absent; a positivity violation
         (a contributing stratum empty in an arm).
     """
-    states = tuple(_py(s) for s in states)
+    states = tuple(envelope_scalar(s) for s in states)
     k = len(states)
     if k < 2:
         raise EstimatorFailure(
@@ -240,7 +241,7 @@ def estimate_measurement_correction(
             Refusal.INVALID_CONFUSION_MATRIX,
             f"outcome states must be distinct; got {states!r}.",
         )
-    target_value = _py(target_value)
+    target_value = envelope_scalar(target_value)
     if target_value not in states:
         raise EstimatorFailure(
             Refusal.TARGET_VALUE_ABSENT,
@@ -303,7 +304,7 @@ def estimate_measurement_correction(
             )
         else:
             by_level_records = [
-                {"level": _py(lvl),
+                {"level": envelope_scalar(lvl),
                  "matrix": [[float(v) for v in row] for row in _M],
                  "det": _d}
                 for (lvl, _M, _d, _inv) in prepared
@@ -367,7 +368,9 @@ def estimate_measurement_correction(
     for v in adjustment:
         _require_discrete(df[v], v)
 
-    observed_states = set(_py(v) for v in pd.unique(df[outcome].dropna()))
+    observed_states = set(
+        envelope_scalar(v) for v in pd.unique(df[outcome].dropna())
+    )
     missing = observed_states - set(states)
     if missing:
         raise EstimatorFailure(
@@ -418,7 +421,7 @@ def estimate_measurement_correction(
         sufficient_statistics={
             **suff,
             **suff_extra,
-            "states": [_py(s) for s in states],
+            "states": [envelope_scalar(s) for s in states],
             "target_value": target_value,
             "target_index": target_index,
             "adjustment_vars": list(adjustment),
@@ -429,7 +432,8 @@ def estimate_measurement_correction(
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
         differential_levels=(
-            tuple(_py(v) for v in differential_levels) if differential else ()
+            tuple(envelope_scalar(v) for v in differential_levels)
+            if differential else ()
         ),
     )
 
@@ -453,7 +457,7 @@ def _formula(
     when the differential axis is a covariate. ``out_of_simplex`` is True if any
     recovered p_true component lands outside [0, 1]."""
     x = _as_binary(df[treatment])
-    yvals = df[outcome].map(_py)
+    yvals = df[outcome].map(envelope_scalar)
     n_total = len(df)
 
     marginal = _marginal(df, adjustment)              # {z_key: prob}
@@ -489,7 +493,8 @@ def _formula(
             counts = _value_counts(yvals[mask.to_numpy()], states)
             p_obs = counts.astype(float) / n
             lvl_value = (
-                bool(arm) if axis_idx is None else _py(z_key[axis_idx])
+                bool(arm) if axis_idx is None
+                else envelope_scalar(z_key[axis_idx])
             )
             Minv = Minv_by_level.get(_level_key(lvl_value))
             if Minv is None:
@@ -672,7 +677,7 @@ def _prepare_differential(confusion_matrices, differential_levels, k: int, *,
             f"differential_levels={differential_levels!r}.",
         )
     mats = list(confusion_matrices)
-    levels = [_py(v) for v in differential_levels]
+    levels = [envelope_scalar(v) for v in differential_levels]
     if len(mats) != len(levels):
         raise EstimatorFailure(
             Refusal.DIFFERENTIAL_LEVELS_MISMATCH,
@@ -747,20 +752,7 @@ def _as_tuple(key, arity: int) -> tuple:
 
 
 def _json_key(key: tuple) -> tuple:
-    return tuple(_py(v) for v in key)
-
-
-def _py(v):
-    """Numpy scalar / bool → JSON-safe python scalar."""
-    if isinstance(v, (np.bool_,)):
-        return bool(v)
-    if isinstance(v, (np.integer,)):
-        return int(v)
-    if isinstance(v, (np.floating,)):
-        return float(v)
-    if isinstance(v, (bool, int, float, str)) or v is None:
-        return v
-    return str(v)
+    return tuple(envelope_scalar(v) for v in key)
 
 
 def _stratum_sort(rec: dict):
@@ -946,7 +938,7 @@ def estimate_exposure_measurement_correction(
         contributing stratum empty in an observed arm); a degenerate recovered
         exposure marginal (≤ 0, the conditional risk is undefined).
     """
-    states = tuple(_py(s) for s in states)
+    states = tuple(envelope_scalar(s) for s in states)
     if len(states) != 2 or len(set(states)) != 2:
         raise EstimatorFailure(
             Refusal.EXPOSURE_NOT_BINARY,
@@ -960,7 +952,7 @@ def estimate_exposure_measurement_correction(
             f"falsy control and a truthy treated (e.g. [0, 1] or [False, True]); "
             f"got {states!r}.",
         )
-    target_value = _py(target_value)
+    target_value = envelope_scalar(target_value)
 
     # Non-differential: validate the single matrix now. Differential: the matrices
     # are keyed by outcome value, so they are prepared AFTER the observed outcome
@@ -989,7 +981,9 @@ def estimate_exposure_measurement_correction(
     )
     df = contract.data
 
-    observed_x = set(_py(v) for v in pd.unique(df[treatment].dropna()))
+    observed_x = set(
+        envelope_scalar(v) for v in pd.unique(df[treatment].dropna())
+    )
     if not observed_x <= set(states):
         raise EstimatorFailure(
             Refusal.EXPOSURE_NOT_BINARY,
@@ -1000,7 +994,7 @@ def estimate_exposure_measurement_correction(
         _require_discrete(df[v], v)
 
     outcome_states = tuple(sorted(
-        (_py(v) for v in pd.unique(df[outcome].dropna())), key=str
+        (envelope_scalar(v) for v in pd.unique(df[outcome].dropna())), key=str
     ))
     if len(outcome_states) < 1:
         raise EstimatorFailure(
@@ -1094,7 +1088,7 @@ def estimate_exposure_measurement_correction(
             # enforced per stratum in ``_exposure_formula`` (differential_level_
             # uncovered), so an unused extra matrix is harmless.
             by_level_records = [
-                {"level": _py(lvl),
+                {"level": envelope_scalar(lvl),
                  "matrix": [[float(v) for v in row] for row in _M],
                  "det": _d}
                 for (lvl, _M, _d, _inv) in prepared
@@ -1182,8 +1176,8 @@ def estimate_exposure_measurement_correction(
             **suff,
             **suff_extra,
             "side": "exposure",
-            "states": [_py(s) for s in states],
-            "outcome_states": [_py(s) for s in outcome_states],
+            "states": [envelope_scalar(s) for s in states],
+            "outcome_states": [envelope_scalar(s) for s in outcome_states],
             "target_value": target_value,
             "target_index": target_index,
             "adjustment_vars": list(adjustment),
@@ -1194,7 +1188,8 @@ def estimate_exposure_measurement_correction(
         differential_by=differential_by_out,
         confusion_matrices=matrices_out,
         differential_levels=(
-            tuple(_py(v) for v in differential_levels) if differential else ()
+            tuple(envelope_scalar(v) for v in differential_levels)
+            if differential else ()
         ),
     )
 
@@ -1218,8 +1213,8 @@ def _exposure_formula(
     the axis is a covariate (its value read from ``z_key``). ``out_of_simplex``
     is True if any recovered joint cell lands outside [0, 1]."""
     k = len(outcome_states)
-    xvals = df[treatment].map(_py)
-    yvals = df[outcome].map(_py)
+    xvals = df[treatment].map(envelope_scalar)
+    yvals = df[outcome].map(envelope_scalar)
     n_total = len(df)
 
     marginal = _marginal(df, adjustment)              # {z_key: prob}
@@ -1265,7 +1260,7 @@ def _exposure_formula(
         for yj in range(k):
             lvl_value = (
                 outcome_states[yj] if axis_idx is None
-                else _py(z_key[axis_idx])
+                else envelope_scalar(z_key[axis_idx])
             )
             Minv = Minv_by_level.get(_level_key(lvl_value))
             if Minv is None:
@@ -1509,7 +1504,7 @@ def estimate_combined_measurement_correction(
         matrix on either channel; a positivity violation (a contributing stratum
         empty in an observed arm); a degenerate recovered true-exposure marginal.
     """
-    exposure_states = tuple(_py(s) for s in exposure_states)
+    exposure_states = tuple(envelope_scalar(s) for s in exposure_states)
     if len(exposure_states) != 2 or len(set(exposure_states)) != 2:
         raise EstimatorFailure(
             Refusal.EXPOSURE_NOT_BINARY,
@@ -1525,7 +1520,7 @@ def estimate_combined_measurement_correction(
             f"got {exposure_states!r}.",
         )
 
-    outcome_states = tuple(_py(s) for s in outcome_states)
+    outcome_states = tuple(envelope_scalar(s) for s in outcome_states)
     k = len(outcome_states)
     if k < 2:
         raise EstimatorFailure(
@@ -1543,7 +1538,7 @@ def estimate_combined_measurement_correction(
             f"outcome {outcome!r} has {k} declared states (> {_MAX_LEVELS}); the "
             f"standardised risk-difference correction needs a discrete outcome.",
         )
-    target_value = _py(target_value)
+    target_value = envelope_scalar(target_value)
     if target_value not in outcome_states:
         raise EstimatorFailure(
             Refusal.TARGET_VALUE_ABSENT,
@@ -1586,7 +1581,9 @@ def estimate_combined_measurement_correction(
     )
     df = contract.data
 
-    observed_x = set(_py(v) for v in pd.unique(df[treatment].dropna()))
+    observed_x = set(
+        envelope_scalar(v) for v in pd.unique(df[treatment].dropna())
+    )
     if not observed_x <= set(exposure_states):
         raise EstimatorFailure(
             Refusal.EXPOSURE_NOT_BINARY,
@@ -1596,7 +1593,9 @@ def estimate_combined_measurement_correction(
     for v in adjustment:
         _require_discrete(df[v], v)
 
-    observed_y = set(_py(v) for v in pd.unique(df[outcome].dropna()))
+    observed_y = set(
+        envelope_scalar(v) for v in pd.unique(df[outcome].dropna())
+    )
     missing = observed_y - set(outcome_states)
     if missing:
         raise EstimatorFailure(
@@ -1670,8 +1669,8 @@ def estimate_combined_measurement_correction(
             "det_exposure": det_x,
             "det_outcome": det_y,
             "det_joint": det_joint,
-            "states": [_py(s) for s in exposure_states],
-            "outcome_states": [_py(s) for s in outcome_states],
+            "states": [envelope_scalar(s) for s in exposure_states],
+            "outcome_states": [envelope_scalar(s) for s in outcome_states],
             "target_value": target_value,
             "target_index": target_index,
             "adjustment_vars": list(adjustment),
@@ -1697,8 +1696,8 @@ def _combined_formula(
     survives into the standardisation. ``out_of_simplex`` is True if any
     recovered cell lands outside [0, 1]."""
     k = len(outcome_states)
-    xvals = df[treatment].map(_py)
-    yvals = df[outcome].map(_py)
+    xvals = df[treatment].map(envelope_scalar)
+    yvals = df[outcome].map(envelope_scalar)
     n_total = len(df)
 
     marginal = _marginal(df, adjustment)                # {z_key: prob}

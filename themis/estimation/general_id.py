@@ -78,6 +78,7 @@ from ..types import (
     ProductExpr,
     SumExpr,
     ValuedAtom,
+    envelope_scalar,
 )
 from ..runtime.numeric_estimator import (
     ProbabilityKey,
@@ -295,9 +296,9 @@ def estimate_general_id_ate(
         data_hash=contract.data_hash,
         treatment=t_col,
         outcome=y_col,
-        treatment_high=_py(x_hi),
-        treatment_low=_py(x_lo),
-        outcome_high=_py(y_hi),
+        treatment_high=envelope_scalar(x_hi),
+        treatment_low=envelope_scalar(x_lo),
+        outcome_high=envelope_scalar(y_hi),
         model_assumption=(
             "识别公式按非参数 plug-in 求值：每个条件概率用其所属数据层的"
             "经验频率，无函数形式假设（饱和估计）"
@@ -433,7 +434,7 @@ def estimate_general_id_conditional_ate(
     # 1e-9 in ``test_idc_conditional_effect``.
     value_map: dict = {outcome_atom: y_hi}
     for va in given:
-        value_map[va.atom] = _py(va.value)
+        value_map[va.atom] = envelope_scalar(va.value)
     f_hi = c_factor.bind_idc_values(idc_hi.formula, value_map)
     f_lo = c_factor.bind_idc_values(idc_lo.formula, value_map)
 
@@ -499,10 +500,13 @@ def estimate_general_id_conditional_ate(
         data_hash=contract.data_hash,
         treatment=t_col,
         outcome=y_col,
-        treatment_high=_py(x_hi),
-        treatment_low=_py(x_lo),
-        outcome_high=_py(y_hi),
-        given=tuple((va.atom.predicate, _py(va.value)) for va in given),
+        treatment_high=envelope_scalar(x_hi),
+        treatment_low=envelope_scalar(x_lo),
+        outcome_high=envelope_scalar(y_hi),
+        given=tuple(
+            (va.atom.predicate, envelope_scalar(va.value))
+            for va in given
+        ),
         model_assumption=(
             "条件效应 P(Y | do(X), Z=z) 经 IDC（Rule-2 交换 + 归一化为 "
             "ID(Y∪Z_rem, X')/ID(Z_rem, X') 之比）识别，再按非参数 plug-in "
@@ -690,9 +694,9 @@ def estimate_joint_general_id_ate(
         treatment=t_cols[0],
         treatments=t_cols,
         outcome=y_col,
-        treatment_high=_py(x_hi),
-        treatment_low=_py(x_lo),
-        outcome_high=_py(y_hi),
+        treatment_high=envelope_scalar(x_hi),
+        treatment_low=envelope_scalar(x_lo),
+        outcome_high=envelope_scalar(y_hi),
         model_assumption=(
             "联合效应经集合值 ID 识别（latent 混杂下无调整集，走前门/c-factor "
             "识别）：识别公式按非参数 plug-in 求值，每个条件概率用其所属数据层"
@@ -776,13 +780,6 @@ def _sorted_levels(series: pd.Series) -> list:
         return sorted(vals.tolist())
     except TypeError:
         return sorted(vals.tolist(), key=str)
-
-
-def _py(v):
-    """Coerce a numpy scalar to a plain Python value for the result dict."""
-    if isinstance(v, np.generic):
-        return v.item()
-    return v
 
 
 def _bind_target_value(
