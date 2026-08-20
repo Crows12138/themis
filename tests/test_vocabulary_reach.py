@@ -671,6 +671,24 @@ VOCABULARIES: dict[str, Vocabulary] = {
                      "one.",
         no_gloss="Never leaves the cascade.",
     ),
+    "latent_exposure": Vocabulary(
+        declares="themis.input.semantic_validator.LatentExposure",
+        off_envelope="What an unobserved common cause can do to a query "
+                     "kind's answer — the verdict the bidirected gate "
+                     "reaches BEFORE anything runs. A program it refuses "
+                     "produces a SemanticError and no envelope at all, and a "
+                     "program it admits produces an envelope that carries "
+                     "the answer rather than the reason it was allowed to be "
+                     "computed. There is no field for it because there is no "
+                     "result to put one on.",
+        no_gloss="The reason travels as the refusal's own sentence, not as "
+                 "the member's name: the gate interpolates the row's "
+                 "explanation into the message, which is what a reader "
+                 "needs. `absorbed` and `consulted` never reach anyone — "
+                 "they are what the next person to add a query kind has to "
+                 "choose between, and the sentences under them are written "
+                 "for that person.",
+    ),
     "routing_end": Vocabulary(
         declares="themis.routing.End",
         off_envelope="Which of the two implementations a strategy has — "

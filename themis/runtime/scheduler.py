@@ -78,7 +78,6 @@ from ..types import (
     ProbabilityQuery,
     Program,
     ProximalEffectQuery,
-    Query,
     QueryKind,
     QueryResult,
     QueryStatement,
@@ -110,20 +109,6 @@ from .theta_builder import (
     build_observation_source_index,
     build_probability_source_index,
 )
-
-
-_QUERY_KIND_OF: dict[type, QueryKind] = {
-    CauseQuery: QueryKind.CAUSE,
-    AssocQuery: QueryKind.ASSOC,
-    EffectQuery: QueryKind.EFFECT,
-    IdentifyQuery: QueryKind.IDENTIFY,
-    ProbabilityQuery: QueryKind.PROBABILITY,
-    CounterfactualQuery: QueryKind.COUNTERFACTUAL,
-    CausationQuery: QueryKind.CAUSATION,
-    SCMCounterfactualQuery: QueryKind.SCM_COUNTERFACTUAL,
-    CounterfactualConjunctionQuery: QueryKind.COUNTERFACTUAL_CONJUNCTION,
-    ProximalEffectQuery: QueryKind.PROXIMAL_EFFECT,
-}
 
 
 def _atom_to_str(atom: Atom) -> str:
@@ -187,13 +172,6 @@ def _structural_mediation_assumptions(
             "consistency_of_potential_outcomes",
         )
     return ()
-
-
-def _query_kind(q: Query) -> QueryKind:
-    kind = _QUERY_KIND_OF.get(type(q))
-    if kind is None:
-        raise AssertionError(f"unknown query type {type(q).__name__}")
-    return kind
 
 
 def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:

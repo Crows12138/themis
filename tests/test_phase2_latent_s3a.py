@@ -14,7 +14,10 @@ import pytest
 
 import themis
 from themis import AdmgVerificationPending
-from themis.input.semantic_validator import SemanticError
+from themis.input.semantic_validator import (
+    LatentExposure,
+    _LATENT_EXPOSURE,
+)
 
 
 # =============================================================== helpers
@@ -142,15 +145,34 @@ def test_fd2_violated_via_bidirected_is_correctly_rejected():
 
 # =========================================== gate: cause / assoc / prob
 
-def test_gate_still_rejects_cause_query_on_admg():
-    ast = _hidden_u_program([
-        {"kind": "query", "id": "c",
-         "query": {"kind": "cause",
-                   "from": _atom("x"), "to": _atom("y")}},
-    ])
-    with pytest.raises(SemanticError) as exc:
-        themis.run(ast)
-    assert "cause" in str(exc.value).lower()
+def test_the_widening_reached_every_kind_and_not_only_the_two_it_named():
+    """S3.a widened the gate to identify / effect and S4 to assoc, leaving
+    cause and probability refused — and both turned out to have been
+    answering correctly the whole time, so what the gate was protecting
+    was never their answers.
+
+    A kind is refused now when a latent common cause can move its answer
+    AND its dispatch path is not handed the edge set. There is none. The
+    measurements for the two that were refused live in
+    tests/test_the_gate_asks_what_a_latent_can_do_not_who_reads_it.py;
+    what belongs here is that the widening is complete rather than
+    two-kinds-wide.
+    """
+    unread = [
+        kind.value for kind, (exposure, _) in _LATENT_EXPOSURE.items()
+        if exposure is LatentExposure.UNREAD
+    ]
+    assert unread == []
+
+    for query in (
+        {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
+        {"kind": "probability",
+         "target": {"atom": _atom("y"), "value": True}, "given": []},
+    ):
+        ast = _hidden_u_program([
+            {"kind": "query", "id": "q", "query": query},
+        ])
+        assert len(themis.run(ast)["results"]) == 1
 
 
 def test_gate_allows_assoc_query_on_admg_with_m_witness():
@@ -167,18 +189,6 @@ def test_gate_allows_assoc_query_on_admg_with_m_witness():
     assert result["structural_result"]["value"] is True
     assert result["derivation"]["steps"][-1]["rule"] == "m_connection_witness"
     assert themis.verify(ast, result) is None
-
-
-def test_gate_still_rejects_probability_query_on_admg():
-    ast = _hidden_u_program([
-        {"kind": "query", "id": "p",
-         "query": {"kind": "probability",
-                   "target": {"atom": _atom("y"), "value": True},
-                   "given": []}},
-    ])
-    with pytest.raises(SemanticError) as exc:
-        themis.run(ast)
-    assert "probability" in str(exc.value).lower()
 
 
 # =========================================== gate: identify / effect pass

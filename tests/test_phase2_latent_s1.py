@@ -100,8 +100,7 @@ def test_schema_rejects_bidirected_with_from_to_keys():
 
 def test_validate_program_produces_typed_bidirected_statement():
     ast = _program_with_bidirected()
-    # default checks include bidirected_runtime_gate which would
-    # reject — pass an empty check set to isolate parsing.
+    # An empty check set isolates parsing from every semantic rule.
     prog = validate_program(ast, checks=frozenset())
     bidirs = [s for s in prog.statements if isinstance(s, BidirectedStatement)]
     assert len(bidirs) == 1
@@ -177,37 +176,14 @@ def test_serializer_round_trip_preserves_forall():
 
 
 # ================================================ runtime guard (S1)
-
-def test_runtime_gate_rejects_unsupported_query_on_admg():
-    """After S3.a the gate is narrowed: bidirected edges are allowed
-    in the program as long as queries are identify/effect. A cause /
-    assoc / probability query on an ADMG program must still raise
-    SemanticError pointing at the charter — not silently drop the edge."""
-    ast = _program_with_bidirected([
-        {"kind": "query", "id": "q",
-         "query": {"kind": "cause",
-                   "from": _atom("smoking"),
-                   "to":   _atom("lung_cancer")}},
-    ])
-    with pytest.raises(SemanticError) as exc:
-        themis.run(ast)
-    msg = str(exc.value)
-    assert "bidirected" in msg.lower()
-    assert "Phase 2.latent" in msg
-
-
-def test_runtime_gate_message_names_the_query_id():
-    """The error message should let the user locate the offending
-    query — name the query id."""
-    ast = _program_with_bidirected([
-        {"kind": "query", "id": "my_query_id",
-         "query": {"kind": "cause",
-                   "from": _atom("smoking"),
-                   "to":   _atom("lung_cancer")}},
-    ])
-    with pytest.raises(SemanticError) as exc:
-        themis.run(ast)
-    assert "my_query_id" in str(exc.value)
+#
+# What the gate refuses, and why, is no longer a list of kinds and no
+# longer lives here — see
+# tests/test_the_gate_asks_what_a_latent_can_do_not_who_reads_it.py.
+# Three tests moved out with it: they pinned the gate by naming ``cause``
+# as a kind that must be refused, and it was answering correctly the whole
+# time. What stays here is Slice 1's own subject, which is that a
+# bidirected statement parses and travels.
 
 
 def test_bidirected_without_queries_now_passes_validation():
@@ -217,25 +193,6 @@ def test_bidirected_without_queries_now_passes_validation():
     ast = _program_with_bidirected()  # no query
     out = themis.run(ast)
     assert out["results"] == []
-
-
-def test_runtime_gate_fires_on_mixed_directed_and_bidirected_with_cause_query():
-    """Cause query + bidirected edges still rejected: the directed-skeleton
-    cause check ignores bidirected, which would be a silent drop."""
-    ast = {
-        "version": "0.1",
-        "domain": {"objects": [{"kind": "object", "name": "me"}]},
-        "statements": [
-            {"kind": "variable", "predicate": "x", "domain": [True, False]},
-            {"kind": "variable", "predicate": "y", "domain": [True, False]},
-            {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
-            {"kind": "bidirected", "left": _atom("x"), "right": _atom("y")},
-            {"kind": "query", "id": "q",
-             "query": {"kind": "cause", "from": _atom("x"), "to": _atom("y")}},
-        ],
-    }
-    with pytest.raises(SemanticError):
-        themis.run(ast)
 
 
 # ================================================ semantic checks on bidirected

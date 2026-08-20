@@ -45,6 +45,7 @@ On success ``validate_program`` returns a typed ``Program`` object;
 """
 from __future__ import annotations
 
+from enum import Enum
 from typing import Callable
 
 from ..types import (
@@ -72,6 +73,8 @@ from ..types import (
     ProbabilityQuery,
     ProbabilityStatement,
     Program,
+    QueryKind,
+    QUERY_KIND_OF,
     RelativeTimeIndex,
     QueryStatement,
     SCMCounterfactualQuery,
@@ -497,43 +500,169 @@ def _check_unique_variable_declarations(program: Program) -> None:
         seen[stmt.predicate] = idx
 
 
-def _check_bidirected_runtime_gate(program: Program) -> None:
-    """Phase 2.latent S3.a guard (narrowed from S1).
+class LatentExposure(Enum):
+    """What an unobserved common cause can do to a query kind's answer.
 
-    When a program contains any ``BidirectedStatement``, dispatch is
-    allowed only for query kinds whose runtime path explicitly reads
-    the bidirected edge set: ``identify`` / ``effect`` (ADMG-aware
-    identification) and ``assoc`` (S4 m-separation). ``cause`` and
-    ``probability`` still use directed-skeleton / CPT semantics and
-    remain gated so the failure cannot be mistaken for a silent drop.
+    A bidirected edge asks each dispatch path one question, and it is not
+    "does this path take a ``bidirected`` argument" — that is a fact about
+    a signature. It is whether a latent common cause can move the answer,
+    and if it can, whether the path is looking.
 
-    S4 lifts this gate entirely once every dispatch path reads the
-    bidirected edge set.
+    The two verdicts that let a query through are not the same verdict,
+    and holding them apart is what this enum is for. A path that is right
+    because the latent is irrelevant to what it computes stays right
+    however the edge set is threaded; a path that is right because it
+    consults the edge set stops being right the moment it stops
+    consulting, and stays quiet while it does. Collapsing the two into
+    "the path reads the edge set" is what left this gate refusing two
+    kinds that were already answering correctly while admitting one that
+    the same sentence would have refused.
     """
-    has_bidirected = any(
+
+    ABSORBED = "absorbed"
+    """A latent common cause cannot move this answer."""
+
+    CONSULTED = "consulted"
+    """It can, and the dispatch path is handed the bidirected edge set."""
+
+    UNREAD = "unread"
+    """It can, and the dispatch path is not handed it — so the query is
+    refused rather than answered off the directed edges alone."""
+
+
+_LATENT_EXPOSURE: dict[QueryKind, tuple[LatentExposure, str]] = {
+    QueryKind.CAUSE: (
+        LatentExposure.ABSORBED,
+        "it asks about directed paths, and a latent common cause draws no "
+        "arrow: the projected G(M) carries the atoms of a bidirected "
+        "statement as isolated nodes and never as an edge, so reachability "
+        "cannot see them and has nothing to see. Measured — on x<->y alone "
+        "the answer is False, and on x->m->y with x<->y it is True with "
+        "the one supporting path x,m,y",
+    ),
+    QueryKind.SCM_COUNTERFACTUAL: (
+        LatentExposure.ABSORBED,
+        "abduction is unit-level: whatever the latent did to this unit's "
+        "outcome is already inside the exogenous term the factual "
+        "observation pins down, and do() leaves that term alone. Measured "
+        "against the closed-form unit counterfactual — 40 units in the test "
+        "that pins this and 200 while establishing it — the worst error is "
+        "2e-15, and it is identical whether or not the edge is declared",
+    ),
+    QueryKind.PROBABILITY: (
+        LatentExposure.CONSULTED,
+        "an observational conditional is whatever theta says, until theta "
+        "lacks the exact entry and a coarser one is considered in its "
+        "place; standing one in asserts an independence, and a latent "
+        "common cause is exactly what makes that assertion false. "
+        "Measured — with only the marginal P(y)=0.18 declared and x<->y, "
+        "withholding the edge set from the guard hands back 0.18 as though "
+        "it were P(y|x), and supplying it refuses",
+    ),
+    QueryKind.ASSOC: (
+        LatentExposure.CONSULTED,
+        "association travels a latent common cause as readily as an arrow, "
+        "so whether two atoms are separated is a question about the ADMG "
+        "rather than about its directed edges",
+    ),
+    QueryKind.IDENTIFY: (
+        LatentExposure.CONSULTED,
+        "identifiability is a property of the ADMG: the same directed "
+        "edges are identifiable with one latent common cause and hedged "
+        "with another",
+    ),
+    QueryKind.EFFECT: (
+        LatentExposure.CONSULTED,
+        "it identifies before it estimates, so it inherits identify's "
+        "exposure, and the estimand it hands downstream moves with it",
+    ),
+    QueryKind.COUNTERFACTUAL: (
+        LatentExposure.CONSULTED,
+        "a latent common cause is shared between the factual and the "
+        "counterfactual world rather than drawn twice, which is what makes "
+        "a cross-world quantity depend on it",
+    ),
+    QueryKind.CAUSATION: (
+        LatentExposure.CONSULTED,
+        "the interventional risks the probabilities of causation are taken "
+        "from are point-identified on some ADMGs and only bounded on "
+        "others",
+    ),
+    QueryKind.COUNTERFACTUAL_CONJUNCTION: (
+        LatentExposure.CONSULTED,
+        "same exposure as a single counterfactual, and the recursion it "
+        "uses factors by c-component — which is a set the bidirected edges "
+        "define",
+    ),
+    QueryKind.PROXIMAL_EFFECT: (
+        LatentExposure.CONSULTED,
+        "an unmeasured confounder with two proxies is its premise, so a "
+        "latent common cause is the input rather than a complication",
+    ),
+}
+
+
+def _bind_latent_exposure(
+    table: "dict[QueryKind, tuple[LatentExposure, str]]",
+) -> None:
+    """Every query kind says what a latent common cause does to it.
+
+    Called at import, so a kind nobody has classified cannot reach a user
+    at all — which is the direction that matters. The gate this feeds used
+    to name the kinds it refused and let every other kind through, and by
+    the time five more kinds existed nobody had been asked the question
+    about any of them.
+    """
+    undeclared = sorted(k.value for k in set(QueryKind) - set(table))
+    stale = sorted(getattr(k, "value", k) for k in set(table) - set(QueryKind))
+    if undeclared or stale:
+        raise AssertionError(
+            "themis/input/semantic_validator.py: every query kind must "
+            "declare what an unobserved common cause can do to its answer "
+            "before the bidirected gate can decide whether to let it "
+            f"through; undeclared: {undeclared}, no longer a kind: {stale}"
+        )
+
+
+_bind_latent_exposure(_LATENT_EXPOSURE)
+
+
+def _check_bidirected_runtime_gate(program: Program) -> None:
+    """A query on an ADMG is refused when a latent common cause can move
+    its answer and its dispatch path is not handed the edge set.
+
+    The gate used to name the two kinds it refused, under a stated lift
+    condition: once every dispatch path reads the bidirected edge set.
+    That sentence is a proxy for the one that matters, and it is wrong in
+    both directions. ``cause`` will never read the edge set, because a
+    latent common cause is not causation — under the stated condition it
+    stays refused forever while answering correctly. ``scm_counterfactual``
+    is not handed the edge set either and was never refused, because the
+    gate did not apply its own condition: it applied a hand-written pair
+    of ``isinstance`` checks, written before five of the ten kinds
+    existed, whose default for an unlisted kind was to allow.
+
+    So the verdict comes from :data:`_LATENT_EXPOSURE` instead, where the
+    default for a kind nobody has classified is that the module does not
+    import.
+    """
+    if not any(
         isinstance(s, BidirectedStatement) for s in program.statements
-    )
-    if not has_bidirected:
+    ):
         return
 
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, QueryStatement):
             continue
-        q = stmt.query
-        if isinstance(q, (CauseQuery, ProbabilityQuery)):
-            kind_name = {
-                CauseQuery: "cause",
-                ProbabilityQuery: "probability",
-            }[type(q)]
-            raise SemanticError(
-                f"statements[{idx}] ({stmt.id}): {kind_name} query on "
-                f"a program containing bidirected edges is not yet "
-                f"supported. Phase 2.latent S4 supports assoc via "
-                f"m-separation and identify / effect via ADMG-aware "
-                f"identification; the remaining dispatch paths become "
-                f"ADMG-aware later. See "
-                f"PHASE_2_LATENT_CHARTER.md §7."
-            )
+        kind = QUERY_KIND_OF[type(stmt.query)]
+        exposure, why = _LATENT_EXPOSURE[kind]
+        if exposure is not LatentExposure.UNREAD:
+            continue
+        raise SemanticError(
+            f"statements[{idx}] ({stmt.id}): this program declares a "
+            f"latent common cause, and a {kind.value} query would be "
+            f"answered off the directed edges alone — {why}"
+        )
 
 
 def _check_transport_runtime_gate(program: Program) -> None:

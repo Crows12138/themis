@@ -756,6 +756,28 @@ class QueryKind(str, Enum):
     PROXIMAL_EFFECT = "proximal_effect"
 
 
+QUERY_KIND_OF: dict[type, QueryKind] = {
+    CauseQuery: QueryKind.CAUSE,
+    AssocQuery: QueryKind.ASSOC,
+    EffectQuery: QueryKind.EFFECT,
+    IdentifyQuery: QueryKind.IDENTIFY,
+    ProbabilityQuery: QueryKind.PROBABILITY,
+    CounterfactualQuery: QueryKind.COUNTERFACTUAL,
+    CausationQuery: QueryKind.CAUSATION,
+    SCMCounterfactualQuery: QueryKind.SCM_COUNTERFACTUAL,
+    CounterfactualConjunctionQuery: QueryKind.COUNTERFACTUAL_CONJUNCTION,
+    ProximalEffectQuery: QueryKind.PROXIMAL_EFFECT,
+}
+"""Which kind a query of each class is.
+
+The two closed sets it joins are both declared just above, so this is
+where the join belongs. It sat in the scheduler behind a helper that
+nothing in the repository called, which is why nobody had noticed that
+the input layer — the one place that turned out to need it — cannot
+import the runtime.
+"""
+
+
 @dataclass(frozen=True)
 class StructuralResult:
     value: bool | str | None

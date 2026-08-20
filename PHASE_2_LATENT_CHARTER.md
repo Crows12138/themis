@@ -226,6 +226,12 @@ effect query P(Y | do(X)) 在本 charter 下**可识别**当且仅当满足以�
 - **conditional ID**（非空 `given` 的 identify 查询在 ADMG 下）
 - **ADMG 下的 `cause` / `assoc` / `probability` 查询** —— 这些 query
   kind 的 dispatch 路径仍被 S3.a 的 gate 拒绝；要做需要独立立项
+
+  > **2026-08-21（#353）作废**：`assoc` 在 S4 已解门。`cause` /
+  > `probability` 的答案**实测本来就是对的**——gate 拒的不是错答。
+  > 因此不需要独立立项；需要的是把 gate 的判据从「这条路径读不读
+  > bidirected」换成「潜在共因动不动得了这个答案」。度量与理由见
+  > CORE_STATUS.md 同日条目。
 - **数值求值**：即使结构识别成功，不扩展 Theta 层的数值计算。effect
   结果在 ADMG 可识别路径下停在 `structurally_solved` + formula，不
   往 `numerically_solved` 推
