@@ -326,7 +326,8 @@ def recording() -> Iterator[list[Evaluation]]:
     envelope they are eventually written into.
     """
     global _recorder
-    previous, sink = _recorder, []
+    previous = _recorder
+    sink: list[Evaluation] = []
     _recorder = sink
     try:
         yield sink

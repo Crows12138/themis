@@ -57,8 +57,10 @@ _PRIORITY_ORDER: dict[Priority, int] = {
 }
 
 
-def _max_priority(priorities) -> Priority:
-    return max(priorities, key=_PRIORITY_ORDER.get)
+def _max_priority(priorities: Sequence[Priority]) -> Priority:
+    # Indexing, not ``.get``: a priority the order does not rank is a hole in
+    # the table above, and it should say so rather than sort as ``None``.
+    return max(priorities, key=_PRIORITY_ORDER.__getitem__)
 
 
 def summarise(

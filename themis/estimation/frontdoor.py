@@ -399,7 +399,7 @@ def _bootstrap_ci_frontdoor(
 
 
 def _assumptions_for(model: str, n_mediators: int) -> tuple[str, ...]:
-    common = (
+    common: tuple[str, ...] = (
         "front_door_criterion_holds_on_graph",
         "mediator_intercepts_all_directed_paths_from_treatment_to_outcome",
         "no_unblocked_backdoor_from_treatment_to_mediator",

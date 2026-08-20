@@ -321,7 +321,12 @@ def propose_theta_priors(
                 f"({_prob_key_repr(sk)})"
             )
         try:
-            value = float(p.get("value"))
+            raw_value = p.get("value")
+            if not isinstance(raw_value, (bool, int, float, str)):
+                # Absent or structured: the same failure as a non-numeric
+                # string, and the handler below says so once for both.
+                raise TypeError(type(raw_value).__name__)
+            value = float(raw_value)
         except (TypeError, ValueError) as exc:
             raise LLMBridgeError(
                 f"propose_theta_priors: non-numeric value for index {i}: "

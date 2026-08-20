@@ -378,7 +378,7 @@ def estimate_recovered_ate(
         ci_lower = ci_upper = None
         n_boot = 0
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "estimand_recoverable_ordered_factorization_valid",
         "adjustment_set_is_valid_backdoor_set",
         "discrete_adjustment_strata",

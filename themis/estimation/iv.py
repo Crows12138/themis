@@ -497,7 +497,7 @@ class _NotStratifiable(EstimatorFailure):
     cannot place — and only the raise site knows which.
     """
 
-    def __init__(self, failure_type: str, reason: str, **details) -> None:
+    def __init__(self, failure_type: Refusal, reason: str, **details) -> None:
         super().__init__(failure_type, reason, **details)
         self.reason = reason
 
@@ -1916,7 +1916,7 @@ def estimate_iv_overid(
         if hansen is not None
         else "overidentifying_restrictions_testable_via_sargan_homoskedastic"
     )
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "iv1_relevance_instruments_affect_treatment",
         "iv2_exclusion_instruments_affect_outcome_only_via_treatment",
         "iv3_independence_instruments_independent_of_latent_confounders",
@@ -2028,7 +2028,7 @@ def _assumptions_for(model: str, n_conditioning: int) -> tuple[str, ...]:
             "strata_aggregated_by_complier_share_not_by_stratum_probability",
         )
     if model == "2sls":
-        extra = (
+        extra: tuple[str, ...] = (
             "linearity_of_first_and_second_stage",
             "constant_treatment_effect_else_estimand_is_weighted_average",
         )

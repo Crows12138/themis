@@ -282,7 +282,7 @@ def estimate_scm_counterfactual_point(
             ci_lower = float(np.quantile(reps, lo_q))
             ci_upper = float(np.quantile(reps, hi_q))
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "linear_structural_equations_every_relevant_mechanism",
         "recursive_acyclic_scm_matching_the_declared_graph",
         "additive_exogenous_noise_abducted_per_unit",

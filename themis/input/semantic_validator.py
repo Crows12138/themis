@@ -45,6 +45,8 @@ On success ``validate_program`` returns a typed ``Program`` object;
 """
 from __future__ import annotations
 
+from typing import Callable
+
 from ..types import (
     Annotation,
     AssocQuery,
@@ -832,7 +834,11 @@ def _check_query_atoms_in_V(ground_statements, graph) -> None:
             )
 
 
-_GRAPH_CHECK_FUNCS = {
+# Keyed dispatch, not a set of interchangeable checks: the calling convention
+# differs per entry because ``bidirected`` is part of the ADMG that the
+# ``graph`` argument does not carry, so only the check that needs it is
+# handed it. ``...`` is the honest parameter list for that.
+_GRAPH_CHECK_FUNCS: dict[str, Callable[..., None]] = {
     "probability_parents": _check_probability_parents,
     "query_atoms_in_V": _check_query_atoms_in_V,
 }

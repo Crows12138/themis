@@ -642,7 +642,7 @@ def _identification_specs(
 def _assumptions_ipw(
     stabilized: bool, n_adj: int, prop: PropensitySummary, cluster: str | None,
 ) -> tuple[str, ...]:
-    common = (
+    common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
         "positivity_overlap_of_treatment_arms",
         "consistency_of_potential_outcomes",
@@ -667,7 +667,7 @@ def _assumptions_aipw(
     cluster: str | None,
     ci_method: str,
 ) -> tuple[str, ...]:
-    common = (
+    common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
         "positivity_overlap_of_treatment_arms",
         "consistency_of_potential_outcomes",

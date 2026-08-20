@@ -178,7 +178,7 @@ def estimate_backdoor_ate(
     # Structured for the assumption-ledger: identification assumptions
     # (invalidating) separated from the functional-form choice (the
     # outcome regression model -> mechanism_audit, distorting).
-    identification_assumptions = (
+    identification_assumptions: tuple[dict[str, object], ...] = (
         {"id": "conditional_exchangeability_given_adjustment_set",
          "claim": "给定调整集无未观测混杂（条件可交换性）",
          "layer": "identification", "testable": False},
@@ -315,7 +315,7 @@ def _bootstrap_ci(
 
 def _assumptions_for(model: str, n_adj: int) -> tuple[str, ...]:
     """Canonical assumption list for this estimator + model choice."""
-    common = (
+    common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
         "positivity_overlap_of_treatment_arms",
         "consistency_of_potential_outcomes",

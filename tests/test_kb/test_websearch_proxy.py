@@ -114,6 +114,57 @@ def test_success_with_interval_and_sample_size():
     assert r.provenance.confidence_grade == KBConfidenceGrade.RCT_META_ANALYSIS
 
 
+@pytest.mark.parametrize("bad_interval", [
+    (0.1, 0.2, 0.3),          # three ends for a field that holds a pair
+    (0.1,),                   # one end
+    (0.1, "wide"),            # a second end that is not a number
+    ("lo", "hi"),             # neither end is a number
+    0.15,                     # not a sequence at all
+])
+def test_interval_that_is_not_a_float_pair_yields_failure(bad_interval):
+    """The interval is the one field a search response used to hand over
+    unchecked. ``KBResult.interval`` holds a pair, so anything that is not
+    one is an unparseable response, not a result with a strange interval."""
+    parsed = {
+        "value": 0.18,
+        "interval": bad_interval,
+        "citation": "PMID:333",
+        "raw_response": "...",
+    }
+    a = WebSearchProxyAdapter(lambda q: parsed)  # type: ignore[arg-type]
+    r = a.query(_q())
+    assert r.success is False
+    assert r.failure_reason == "interval_not_a_float_pair"
+    assert r.interval is None
+
+
+@pytest.mark.parametrize("empty", [None, (), []])
+def test_absent_interval_is_not_a_failure(empty):
+    """An omitted interval is a value without one — the pre-existing
+    contract, kept: only a present-but-malformed interval refuses."""
+    parsed = {
+        "value": 0.18, "interval": empty,
+        "citation": "PMID:334", "raw_response": "...",
+    }
+    a = WebSearchProxyAdapter(lambda q: parsed)  # type: ignore[arg-type]
+    r = a.query(_q())
+    assert r.success is True
+    assert r.interval is None
+
+
+def test_interval_of_numeric_strings_is_coerced():
+    """``value`` and ``sample_size`` were always coerced; the interval was
+    only re-containered. It is coerced on the same terms now."""
+    parsed = {
+        "value": 0.18, "interval": ("0.12", 24),
+        "citation": "PMID:335", "raw_response": "...",
+    }
+    a = WebSearchProxyAdapter(lambda q: parsed)  # type: ignore[arg-type]
+    r = a.query(_q())
+    assert r.success is True
+    assert r.interval == (0.12, 24.0)
+
+
 def test_unrecognized_grade_coerces_to_unknown():
     parsed: ParsedSearchResult = {
         "value": 0.1,

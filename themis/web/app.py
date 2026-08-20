@@ -250,7 +250,10 @@ def api_ask(req: AskRequest):
     # Retry nl→ast→run up to 3 times for transient LLM / network failures
     # (mirrors Themis_Demo). The systematic `args`-on-variable slip is fixed
     # at the root by the bridge's few-shot examples — no sanitizing here.
-    kernel_ast = envelope = None
+    # The AST and the envelope are bound together or not at all — a pair,
+    # not two variables that happen to be assigned in the same block, so
+    # that the guard below speaks for both of them.
+    ran: tuple[dict, dict] | None = None
     last: Exception | None = None
     last_ast: dict | None = None
     last_stage = "nl_to_kernel_ast"
@@ -260,12 +263,11 @@ def api_ask(req: AskRequest):
             a = nl_to_kernel_ast(req.nl, api_key=key)
             last_ast = a
             last_stage = "themis_run"  # NL→AST done; a failure now is the kernel's
-            envelope = themis.run(a)
-            kernel_ast = a
+            ran = (a, themis.run(a))
             break
         except Exception as exc:  # noqa: BLE001 — retry on any bridge/kernel error
             last = exc
-    if kernel_ast is None:
+    if ran is None:
         # Attribute the failure to where it actually happened, by position —
         # NOT by exception type. A transport error during the LLM call (proxy
         # down) is an nl_to_kernel_ast failure even though it is not an
@@ -280,6 +282,7 @@ def api_ask(req: AskRequest):
             "kernel_ast": last_ast,
         })
 
+    kernel_ast, envelope = ran
     try:
         reply = render_reply(envelope, nl=req.nl, api_key=req.api_key or "x")
     except LLMBridgeError as exc:

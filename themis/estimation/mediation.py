@@ -546,7 +546,7 @@ class MediationJointEstimate:
 def _joint_mediation_assumptions(
     model: str, n_adj: int, is_logit: bool, cluster: str | None,
 ) -> tuple[str, ...]:
-    a = (
+    a: tuple[str, ...] = (
         "sequential_ignorability_treatment_and_mediator_set",
         "no_confounder_of_mediatorset_outcome_affected_by_treatment_outside_the_set",
         "vanderweele_vansteelandt_2014_joint_natural_effect_conditions",
@@ -991,7 +991,7 @@ def estimate_cde(
             ci_upper = float(np.quantile(draws, 1 - alpha))
 
     method = f"cde_{resolved}"
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "no_unmeasured_confounder_x_y_given_m_and_adjustment",
         "no_unmeasured_confounder_m_y_given_x_and_adjustment",
         "consistency_of_potential_outcomes",
@@ -1206,7 +1206,7 @@ def estimate_cde_chain(
             ci_upper = float(np.quantile(draws, 1 - alpha))
 
     method = f"cde_chain_{resolved}"
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "no_unmeasured_confounder_x_y_given_chain_and_adjustment",
         "no_unmeasured_confounder_between_successive_mediators",
         "consistency_of_potential_outcomes",
@@ -1242,7 +1242,7 @@ def estimate_cde_chain(
 
 
 def _assumptions_for(model: str, n_adj: int) -> tuple[str, ...]:
-    common = (
+    common: tuple[str, ...] = (
         "sequential_ignorability_treatment_and_mediator",
         "no_intermediate_confounder_affected_by_treatment",
         "pearl_2001_four_conditions_hold_on_the_graph",

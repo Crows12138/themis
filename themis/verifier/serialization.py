@@ -506,6 +506,7 @@ def _decode_graph(d: dict) -> nx.DiGraph:
 def _decode_structural_result(d: dict) -> StructuralResult:
     value = d.get("value")
     paths_raw = d.get("supporting_paths", ())
+    paths: tuple[tuple[str, ...], ...]
     if paths_raw in (None, ()):
         paths = ()
     elif isinstance(paths_raw, list):

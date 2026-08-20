@@ -52,6 +52,7 @@ import pandas as pd
 import statsmodels.api as sm
 
 from .contract import validate_data
+from ..types import AtomValue
 from .. import refusals
 from ..refusals import Refusal
 from ..refusals import EstimatorFailure
@@ -193,7 +194,7 @@ def estimate_four_way_ratio(
     outcome: str,
     mediator: str,
     adjustment: tuple[str, ...] = (),
-    mediator_reference: object = False,
+    mediator_reference: AtomValue = False,
     ci_bootstrap: int = 500,
     ci_level: float = 0.95,
     random_state: int = 42,
@@ -321,7 +322,7 @@ def estimate_four_way_ratio(
     pi_lo, pi_hi = _ci("prop_interaction")
     pe_lo, pe_hi = _ci("prop_eliminated")
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "no_unmeasured_confounder_exposure_outcome_given_adjustment",
         "no_unmeasured_confounder_mediator_outcome_given_exposure_and_adjustment",
         "no_unmeasured_confounder_exposure_mediator_given_adjustment",

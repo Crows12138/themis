@@ -184,7 +184,7 @@ def wordnet_synonyms(normalized: str) -> tuple[str, ...]:
     surface (source_title distribution) when resolving.
     """
     try:
-        from nltk.corpus import wordnet  # type: ignore[import-not-found]
+        from nltk.corpus import wordnet
     except ImportError:
         return ()
 

@@ -263,7 +263,7 @@ def estimate_general_id_ate(
             random_state=random_state, groups=groups,
         )
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "admg_structure_correct_including_latent_confounders",
         "positivity_every_conditioning_stratum_has_support",
         "consistency_of_potential_outcomes",
@@ -466,7 +466,7 @@ def estimate_general_id_conditional_ate(
             random_state=random_state, groups=groups,
         )
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "admg_structure_correct_including_latent_confounders",
         "positivity_every_conditioning_stratum_has_support",
         "consistency_of_potential_outcomes",
@@ -656,7 +656,7 @@ def estimate_joint_general_id_ate(
             random_state=random_state, groups=groups,
         )
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "admg_structure_correct_including_latent_confounders",
         "positivity_every_conditioning_stratum_has_support",
         "consistency_of_potential_outcomes_under_joint_intervention",

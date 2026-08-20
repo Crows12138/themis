@@ -97,6 +97,17 @@ ModelName = Literal["auto", "linear", "logistic"]
 _MAX_JOINT_TREATMENTS = 5
 
 
+class _ContrastCornerEmpty(ValueError):
+    """A sample has no rows in the all-treated or the all-control cell.
+
+    The point sample is refused before any fit when that happens, so only a
+    bootstrap resample can raise this — and the draw loop already treats a
+    draw it cannot fit as one that contributes to neither interval. A
+    ``ValueError`` subclass so that loop's existing handler catches it
+    unchanged.
+    """
+
+
 @dataclass(frozen=True)
 class JointEffectEstimate:
     """Result of a joint-intervention g-formula estimate.
@@ -268,12 +279,18 @@ def estimate_joint_effect(
 
     def _joint_and_interaction(
         sample: pd.DataFrame, labels: np.ndarray,
-    ) -> tuple[float | None, float | None]:
+    ) -> tuple[float, float | None]:
         counts = _corner_counts(labels, corners)
         if counts[all_hi] == 0 or counts[all_lo] == 0:
             # Only reachable from a bootstrap draw that lost a contrast
-            # cell; the point sample was checked above.
-            return None, None
+            # cell; the point sample was checked above. Raised rather than
+            # returned so the guarantee is in the signature: the draw loop
+            # already treats it as a draw it cannot use, and the point call
+            # can no longer hand a ``None`` to a field declared ``float``.
+            raise _ContrastCornerEmpty(
+                "the resample has no rows in the all-treated or the "
+                "all-control cell"
+            )
         predict = _fit(sample, treatments, outcome, adjustment, resolved)
         # Standardized counterfactual mean at each of the 2^K treatment
         # corners (g-formula plug-in), averaged over the sample's empirical
@@ -322,18 +339,20 @@ def estimate_joint_effect(
         inter_draws = np.empty(ci_bootstrap)
         for i in range(ci_bootstrap):
             idx = resample_indices(n, rng, groups=groups)
+            # A draw that lost a corner drops out of that quantity's
+            # interval and only that one: the contrast survives a draw the
+            # interaction cannot use, and the two are still computed from
+            # the same resample wherever both are defined.
+            joint_draws[i] = inter_draws[i] = np.nan
             try:
                 jd, idd = _joint_and_interaction(
                     df.iloc[idx], row_corner[idx],
                 )
             except (ValueError, np.linalg.LinAlgError):
-                jd = idd = None
-            # A draw that lost a corner drops out of that quantity's
-            # interval and only that one: the contrast survives a draw the
-            # interaction cannot use, and the two are still computed from
-            # the same resample wherever both are defined.
-            joint_draws[i] = np.nan if jd is None else jd
-            inter_draws[i] = np.nan if idd is None else idd
+                continue
+            joint_draws[i] = jd
+            if idd is not None:
+                inter_draws[i] = idd
         alpha = (1 - ci_level) / 2
         jd_valid = joint_draws[~np.isnan(joint_draws)]
         id_valid = inter_draws[~np.isnan(inter_draws)]
@@ -505,7 +524,7 @@ def _fit(
 
 
 def _assumptions_for(model: str, n_adj: int) -> tuple[str, ...]:
-    common = (
+    common: tuple[str, ...] = (
         "joint_conditional_exchangeability_given_adjustment_set",
         "positivity_overlap_of_every_treatment_cell",
         "consistency_of_potential_outcomes_under_joint_intervention",

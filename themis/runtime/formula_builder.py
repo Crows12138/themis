@@ -205,7 +205,7 @@ def front_door_formula(
 
     # Combine factors with the inner sum; wrap in nested outer sums
     # over z1, z2, ..., zk (outer-to-inner matches topological order).
-    body = ProductExpr(terms=tuple(chain_factors) + (inner_sum,))
+    body: FormulaExpr = ProductExpr(terms=tuple(chain_factors) + (inner_sum,))
     for z_atom, z_bind in reversed(list(zip(mediators, z_binds))):
         body = SumExpr(bind=z_bind, over=z_atom, body=body)
     return body

@@ -69,7 +69,7 @@ def _term_to_dict(term: Term) -> dict:
 
 
 def _atom_to_dict(atom: Atom) -> dict:
-    d = {
+    d: dict[str, object] = {
         "predicate": atom.predicate,
         "args": [_term_to_dict(t) for t in atom.args],
     }

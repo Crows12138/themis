@@ -41,6 +41,7 @@ import numpy as np
 
 from ..types import (
     Atom,
+    AtomValue,
     FormulaExpr,
     FractionExpr,
     ProbabilityRefExpr,
@@ -366,7 +367,8 @@ def _true_do(scm: _SCM, x: Atom, xv, y: Atom, yv, given: dict[Atom, object]) -> 
 # ============================================ formula evaluation
 
 
-def _bind_holes(formula: FormulaExpr, bindings: dict[Atom, object]) -> FormulaExpr:
+def _bind_holes(formula: FormulaExpr,
+                bindings: dict[Atom, AtomValue]) -> FormulaExpr:
     """Replace every value=None ValuedAtom whose atom is in ``bindings``
     with the bound literal. Leaves VarRef (summed) and concrete-literal
     (do-value) slots untouched."""

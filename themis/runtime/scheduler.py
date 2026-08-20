@@ -883,7 +883,7 @@ def _dispatch_mediation(
     #   s1: mediation_nde_nie_check — four-condition check for NDE/NIE
     #   s2: mediation_cde_check     — backdoor check for CDE
     #   s3: identify_via_mediation  — decomposition decision + strategy
-    derivation = (
+    derivation: tuple[DerivationStep, ...] = (
         DerivationStep(
             rule="mediation_nde_nie_check",
             inputs={
@@ -1109,7 +1109,7 @@ def _dispatch_mediation_joint(
     #   s1: mediation_nde_nie_joint_check — block four-condition check
     #   s2: mediation_cde_joint_check     — back-door check for CDE-for-a-set
     #   s3: identify_via_mediation_joint  — decomposition decision (either)
-    derivation = (
+    derivation: tuple[DerivationStep, ...] = (
         DerivationStep(
             rule="mediation_nde_nie_joint_check",
             inputs={
@@ -3754,7 +3754,7 @@ def _dispatch_transport(
         )
 
     src_pop = selection_nodes[0].source_population if selection_nodes else ""
-    derivation_steps = (
+    derivation_steps: tuple[DerivationStep, ...] = (
         DerivationStep(
             rule="s_admissibility_check",
             inputs={
@@ -4423,7 +4423,7 @@ def _dispatch_joint_effect(
             )
             if gid_res.identifiable and gid_res.formula is not None:
                 structural_result = StructuralResult(value=True)
-                derivation = (
+                derivation: tuple[DerivationStep, ...] = (
                     DerivationStep(
                         rule="general_id_criterion",
                         inputs={"graph": graph, "x": x, "y": y_atom},

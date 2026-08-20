@@ -177,7 +177,7 @@ def estimate_proximal_ate(
             outcome_success=outcome_success, ci_bootstrap=ci_bootstrap,
             ci_level=ci_level, random_state=random_state, groups=groups)
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "diagram_correct_including_unobserved_confounder_U_and_proxy_roles",
         "U_sufficient_confounder_and_proxies_satisfy_miao_model_f",
         "latent_cardinality_k_correct_and_proxies_have_exactly_k_levels",

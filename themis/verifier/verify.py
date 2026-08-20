@@ -637,7 +637,7 @@ def verify_identify(
             step_index=len(derivation) - 1, rule=derivation[-1].rule,
         )
     if claimed_result.value is True:
-        expected_finals = (
+        expected_finals: tuple[str, ...] = (
             "identify_via_backdoor",
             "identify_via_front_door",
             "identify_via_iv",

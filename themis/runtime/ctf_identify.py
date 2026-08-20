@@ -117,8 +117,6 @@ class PWNode:
     world: World
 
 
-def _intervened(world: World) -> frozenset[Atom]:
-    return frozenset(a for (a, _v) in world)
 
 
 def _world_value(world: World, atom: Atom) -> AtomValue | None:
@@ -130,8 +128,13 @@ def _world_value(world: World, atom: Atom) -> AtomValue | None:
 
 def _is_fixed(node: PWNode) -> bool:
     """A node is *fixed* when its own variable is intervened in its world —
-    it takes the intervention value and has no incoming mechanism."""
-    return node.variable in _intervened(node.world)
+    it takes the intervention value and has no incoming mechanism.
+
+    Asked of the same lookup that answers *which* value it takes, so the two
+    questions cannot come apart: a node this says is fixed always has a
+    value, and that is what lets the caller store one without a fallback.
+    """
+    return _world_value(node.world, node.variable) is not None
 
 
 class _Inconsistent:
@@ -243,8 +246,9 @@ def make_cg(
     # ---- known values: intervention-fixed, then γ-observed --------------
     known: dict[PWNode, AtomValue] = {}
     for n in nodes:
-        if _is_fixed(n):
-            known[n] = _world_value(n.world, n.variable)
+        fixed_value = _world_value(n.world, n.variable)
+        if fixed_value is not None:  # i.e. _is_fixed(n), one lookup
+            known[n] = fixed_value
     for e in gamma:
         n = PWNode(e.variable, e.subscript)
         if n in known and known[n] != e.value:
@@ -325,10 +329,12 @@ def make_cg(
             bi.add(frozenset(pair))
     # An original latent L (for A↔B) is one exogenous shared by every world,
     # so it couples all random copies of A and B into one clique.
-    for pair in bidirected:
-        a, b = tuple(pair)
-        members = {rep(PWNode(a, w)) for w in worlds if not _is_fixed(PWNode(a, w))}
-        members |= {rep(PWNode(b, w)) for w in worlds if not _is_fixed(PWNode(b, w))}
+    for edge in bidirected:
+        left, right = tuple(edge)
+        members = {rep(PWNode(left, w)) for w in worlds
+                   if not _is_fixed(PWNode(left, w))}
+        members |= {rep(PWNode(right, w)) for w in worlds
+                    if not _is_fixed(PWNode(right, w))}
         members -= fixed_reps
         for x, y in combinations(sorted(members, key=id), 2):
             bi.add(frozenset((x, y)))

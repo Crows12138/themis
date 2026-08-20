@@ -93,12 +93,25 @@ class WebSearchProxyAdapter(KBAdapter):
             confidence_grade=_coerce_grade(parsed.get("confidence_grade")),
             notes=parsed.get("notes"),
         )
+        # Every other field off an external response is coerced before it
+        # reaches the contract; the interval was only re-containered, so a
+        # three-ended or non-numeric one entered a field declared as a pair.
+        raw_interval = parsed.get("interval")
+        interval: tuple[float, float] | None = None
+        if raw_interval:
+            try:
+                low, high = (float(v) for v in raw_interval)
+            except (TypeError, ValueError):
+                return _failure_result(
+                    q, retrieved_at, "interval_not_a_float_pair"
+                )
+            interval = (low, high)
         return KBResult(
             query=q,
             success=True,
             provenance=prov,
             value=float(parsed["value"]),
-            interval=tuple(parsed["interval"]) if parsed.get("interval") else None,
+            interval=interval,
             sample_size=int(parsed["sample_size"])
             if parsed.get("sample_size") is not None
             else None,

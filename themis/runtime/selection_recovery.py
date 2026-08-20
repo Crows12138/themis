@@ -342,7 +342,7 @@ def recover_effect(
 
     max_size = min(len(candidates), max_size)
     for size in range(0, max_size + 1):
-        admissible: list[tuple] = []
+        admissible: list[tuple[tuple[Atom, ...], tuple[Atom, ...]]] = []
         for combo in combinations(candidates, size):
             z = frozenset(combo)
             # SBD condition (1): S ⊥ Y | {X, Z}
@@ -356,17 +356,17 @@ def recover_effect(
             admissible.append((z_plus, z_minus))
         if not admissible:
             continue
-        # Prefer an admissible set that needs no external data.
-        chosen = None
-        chosen_ledger: tuple[str, ...] = ()
-        for z_plus, z_minus in admissible:
-            ledger = _external_ledger(graph, x, s_nodes, z_plus, z_minus)
+        # Prefer an admissible set that needs no external data. The size was
+        # skipped above unless ``admissible`` is non-empty, so its first entry
+        # is always available as the fallback, and the scan below only ever
+        # replaces it with a cheaper one.
+        z_plus, z_minus = admissible[0]
+        chosen_ledger = _external_ledger(graph, x, s_nodes, z_plus, z_minus)
+        for cand_plus, cand_minus in (admissible[1:] if chosen_ledger else ()):
+            ledger = _external_ledger(graph, x, s_nodes, cand_plus, cand_minus)
             if not ledger:
-                chosen, chosen_ledger = (z_plus, z_minus), ()
+                z_plus, z_minus, chosen_ledger = cand_plus, cand_minus, ledger
                 break
-            if chosen is None:
-                chosen, chosen_ledger = (z_plus, z_minus), ledger
-        z_plus, z_minus = chosen
         return SelectionRecoveryResult(
             query_kind=kind, recoverable=True, criterion="selection_backdoor",
             selection_nodes=s_nodes,

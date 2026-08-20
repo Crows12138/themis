@@ -343,7 +343,7 @@ def _assumptions_tmle(
     cluster: str | None,
     ci_method: str,
 ) -> tuple[str, ...]:
-    common = (
+    common: tuple[str, ...] = (
         "conditional_exchangeability_given_adjustment_set",
         "positivity_overlap_of_treatment_arms",
         "consistency_of_potential_outcomes",

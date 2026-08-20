@@ -278,7 +278,7 @@ def estimate_transport(
             ci_lower = float(np.quantile(draws, alpha))
             ci_upper = float(np.quantile(draws, 1 - alpha))
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "s_admissibility_of_adjustment_set",
         "no_treatment_effect_modification_outside_z_in_either_pop",
         "consistency_of_potential_outcomes",

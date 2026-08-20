@@ -229,7 +229,7 @@ def estimate_longitudinal_gformula(
             groups=groups,
         )
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         # Identification assumptions (H&R ch.21) — untestable from data:
         "sequential_exchangeability_no_unmeasured_time_varying_confounding",
         "positivity_each_treatment_level_observed_within_history_strata",
@@ -423,7 +423,7 @@ def estimate_longitudinal_ipw_msm(
             ci_lower = float(np.quantile(draws, alpha))
             ci_upper = float(np.quantile(draws, 1 - alpha))
 
-    assumptions = (
+    assumptions: tuple[str, ...] = (
         "sequential_exchangeability_no_unmeasured_time_varying_confounding",
         "positivity_each_treatment_level_observed_within_history_strata",
         "consistency_well_defined_sustained_treatment_strategy",
