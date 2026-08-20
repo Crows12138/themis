@@ -26,11 +26,11 @@ For the LLM-side rendering / decision rules see
 |---|---|---|---|
 | `unidentifiable_no_admissible_set` | blocking | identification | DAG itself blocks identification — no data closes this; the structural bottleneck is the only fix (add measured Z, RCT, valid IV). |
 | `missing_distribution` | blocking | point_estimate | Backdoor / front-door formula needs a probability conditional Themis doesn't have; ``signature`` field tags marginal vs conditional vs joint. |
-| `missing_population_distribution` | blocking | identification | Phase 9 §T9.1 transport — target population marginal P*(Z) needed. |
+| `missing_population_distribution` | blocking | identification | Phase 9 §T9.1 transport — target population marginal P*(Z) needed. **No producer**: multi-source transport (§T9.2 / §T9.3) does not exist in the kernel, so nothing can raise it. Declared in ``data_gap_report.GAP_KINDS_WITH_NO_PRODUCER``. |
 | `missing_assumption` | important | point_estimate | Fires on the assumption-group investigation channel — a ``MissingKind.ASSUMPTION`` item — not on a result status. (It was keyed on ``ResultStatus.NEEDS_ASSUMPTION`` until 2026-07-27; that status has had no producer since the counterfactual cell was rebuilt around bounds, and a classifier keyed on it emits nothing while nothing fails.) Three shapes arrive here: a premise the kernel refuses to choose for you (``effect:iv_monotonicity_undeclared`` — an instrument alone does not pick between Wald, 2SLS and bounds), an input only an experiment can supply (``causation:``/``counterfactual:interventional_risk_unavailable`` — P(Y=1\|do(x)) under confounding), and declared inputs that contradict each other (``causation:interventional_risks_infeasible`` outside the consistency band, ``effect:iv_stratum_weights_not_normalized``, ``effect:iv_first_stage_degenerate``). Because the repair differs across the three, the gap carries the item's own ``reason`` as its description and offers no generic alternative path. |
 | `missing_unit_observation` | blocking | point_estimate | Observation-group investigation item. A deterministic SCM counterfactual recovers this unit's exogenous term by abduction from its own measured values, so what is wanted is a reading for *this unit* — a distribution over units does not substitute, which is why it is not a `missing_distribution`. Before 2026-07-27 no classifier read the observation group at all and these items produced no gap. |
 | `missing_structural_input` | blocking | point_estimate | Residual for any structure-group investigation item no more specific classifier claimed — an undeclared path coefficient, a mediator that lies on no directed path, a query atom absent from V, a conditioning event with probability zero in every model the graph admits. Deliberately does **not** assert that identification failed: a missing coefficient leaves a point-identified estimand whose number was simply never declared, and `unidentifiable_no_admissible_set` is the kind `answer_tier` reads to conclude the point is blocked. Its purpose is to make the default loud — the specific classifiers match items by name, so before this kind existed a name none of them matched produced no gap and left the report reading `gaps == []`, its own signal for "asked and got a clean bill of health". |
-| `missing_iv_candidate` | blocking | identification | IV-shape detected in the program but no instrument was nominated. |
+| `missing_iv_candidate` | blocking | identification | IV-shape detected in the program but no instrument was nominated. **No producer**: the classifier that raised it read for a *failed* IV derivation step, and the kernel writes only steps that succeeded — it says "not identifiable" with a `tian_hedge_witness` step or an investigation item. It is also absent from ``MISSING_ITEM_GAPS``, so no item may declare it. Declared in ``data_gap_report.GAP_KINDS_WITH_NO_PRODUCER``; a producer that wants one adds the species to that vocabulary and binds a renderer. |
 | `missing_mediator_data` | blocking | point_estimate | Mediation identification requires P(M\|X) and/or P(Y\|M,X) data the user hasn't provided. |
 | `transport_target_distribution_unknown` | blocking | identification | Phase 9 §T9.1 / Bareinboim transport — selection diagram needs target marginal of S-affected variables. |
 | `transport_source_conditional_unknown` | blocking | identification | Phase 9 §T9.1 — source population conditional needed for the transport formula. |
@@ -69,6 +69,12 @@ For the LLM-side rendering / decision rules see
 ``missing_iv_candidate``, ``missing_mediator_data``,
 ``transport_target_distribution_unknown``,
 ``ambiguous_variable_definition``.
+
+Two of those eight no longer have a classifier:
+``missing_population_distribution`` never had a signal, and
+``missing_iv_candidate``'s read for a failed derivation step, which the
+kernel stopped writing. Both are declared in
+``data_gap_report.GAP_KINDS_WITH_NO_PRODUCER``.
 
 **Must-disclose channel** (auto-mirrored to ``result.explanation`` by
 ``themis/runtime/scheduler.py._attach_structural_caveats``;
@@ -116,6 +122,11 @@ outcome fit).
    estimator path).
 4. Add to ``themis/verifier/data_gap_rules.py`` registry with
    provenance ref_kind set.
+   A kind with neither is declared in
+   ``data_gap_report.GAP_KINDS_WITH_NO_PRODUCER`` with the reason its
+   slot is open; a census in
+   ``tests/test_no_step_the_kernel_wrote_says_it_failed.py`` holds that
+   table to the tree, in both directions.
 5. Say where it belongs among the three declared sets in
    ``themis/types.py`` — ``MIRRORED_INTO_EXPLANATION`` (a caveat
    prepended to ``explanation``), ``ESTIMATOR_TIME_FINDINGS`` (reaches

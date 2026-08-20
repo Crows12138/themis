@@ -17,14 +17,14 @@ Gap_kind branches (current enum: see ``themis.types.GapKind``; cross-file
 sync is pinned by ``tests/test_gap_kind_coverage_meta.py``):
 
 Phase 10 charter §2.2 (initial 8):
-1. unidentifiable_no_admissible_set       — item species, or derivation
-   has unidentifiable_*
+1. unidentifiable_no_admissible_set       — item species, or a successful
+   tian_hedge_witness step
 2. missing_distribution                   — item species
-3. missing_population_distribution        — placeholder for §T9.2/§T9.3
+3. missing_population_distribution        — no producer (declared)
 4. missing_assumption                     — item species
 4b. missing_unit_observation              — item species
 4c. missing_structural_input              — item species
-5. missing_iv_candidate                   — a failed IV derivation step
+5. missing_iv_candidate                   — no producer (declared)
 6. missing_mediator_data                  — mediation block valid + parameter
 7. transport_target_distribution_unknown  — transport_identification + non-empty Z
 8. ambiguous_variable_definition          — framing_notes non-empty
@@ -171,21 +171,31 @@ from ..types import (
     VariableDeclaration,
 )
 
-# ============================================ failure-rule registry
+# ============================================ what a step can say
 #
-# Rule names whose presence means a structural failure happened. The
-# scheduler is in the process of also marking these with success=False
-# (Phase 10 §10.2 added the field with default True). Until the scheduler
-# is fully converted, the generator detects failure both ways:
-#   (a) explicit: step.success is False
-#   (b) by name : step.rule in FAILURE_RULE_NAMES
-_FAILURE_RULE_NAMES: frozenset[str] = frozenset({
-    "unidentifiable_via_backdoor",
-    "unidentifiable_via_front_door",
-    "unidentifiable_via_iv",
-    "unidentifiable_via_mediation",
-    "unidentifiable_via_transport",
-})
+# Every step in a kernel derivation is a step that SUCCEEDED. Nothing in
+# this module reads for a failed one, because the kernel has no way to
+# write one. Unidentifiability arrives by one of two routes and neither
+# is a failure record: a SUCCESSFUL ``tian_hedge_witness`` step whose
+# output is ``StructuralResult(False)`` — the c-component is the proof,
+# and the verifier replays it — or, when the complete algorithm exhausts
+# without a witness, an investigation item declaring
+# ``UNIDENTIFIABLE_NO_ADMISSIBLE_SET`` on the item channel.
+#
+# A third representation used to exist: a step named
+# ``unidentifiable_via_*``, or one carrying ``success=False``. This module
+# scanned for it, and the scan outlived the Tian wiring that replaced it,
+# reading for a shape no producer could make. What kept the scan looking
+# alive was its own unit tests, which built the failed step by hand — over
+# a full suite the predicate answered "this failed" ten times, all ten
+# inside those tests and none from a run.
+#
+# The wire form still carries ``success`` and the verifier still reads it,
+# and that asymmetry is the point rather than a leftover: the verifier's
+# input is a derivation somebody ELSE wrote, which may claim a failure the
+# kernel would never produce, and checking that claim is its whole job.
+# ``tests/test_no_step_the_kernel_wrote_says_it_failed.py`` holds the
+# producer side to the paragraph above.
 
 # Rule names whose ``inputs`` carry an adjustment set, under "z". Named
 # rather than matched on a substring: "identify_via_backdoor" reads like
@@ -195,10 +205,6 @@ _ADJUSTMENT_SET_RULE_NAMES: frozenset[str] = frozenset({
     "backdoor_criterion",
     "joint_backdoor_criterion",
 })
-
-
-def _step_failed(step: DerivationStep) -> bool:
-    return (not step.success) or step.rule in _FAILURE_RULE_NAMES
 
 
 # ============================================ public entry
@@ -299,8 +305,6 @@ def compute_data_gap_report(
     # Total over the channel by construction, so nothing downstream has to
     # sweep for items no pass claimed.
     gaps.extend(_classify_investigation_items(investigation_requests, query_kind))
-    gaps.extend(_classify_missing_population_distribution(extensions))
-    gaps.extend(_classify_missing_iv(derivation))
     gaps.extend(_classify_missing_mediator(extensions, investigation_requests))
     gaps.extend(_classify_transport_target_distribution(extensions))
     gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
@@ -1045,7 +1049,6 @@ def _classify_front_door_assumptions(
         (
             step for step in derivation
             if step.rule in _FRONT_DOOR_DERIVATION_RULES
-            and not _step_failed(step)
         ),
         None,
     )
@@ -1156,7 +1159,6 @@ def _classify_counterfactual_assumptions(
         (
             step for step in derivation
             if step.rule in _COUNTERFACTUAL_DERIVATION_RULES
-            and not _step_failed(step)
         ),
         None,
     )
@@ -1880,63 +1882,28 @@ def _classify_unidentifiable(
     derivation: tuple[DerivationStep, ...],
 ) -> Iterable[DataGap]:
     for step in derivation:
-        # Tian Shpitser Line 5: a successful tian_hedge_witness step
-        # IS the unidentifiability witness — same downstream meaning
-        # as a failed unidentifiable_via_backdoor, just discovered via
-        # the c-component decomposition rather than backdoor exhaustion.
-        if step.rule == "tian_hedge_witness" and not _step_failed(step):
-            yield DataGap(
-                kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                severity=GapSeverity.BLOCKING,
-                description=(
-                    "识别失败：Tian 算法在 An(Y) 子图上找到 c-component "
-                    "hedge —— X 与 Y 处于同一 c-component，说明它们之间存在"
-                    "未被任何观测变量遮断的潜在共同原因 / 双向耦合，"
-                    "P(Y | do(X)) 在该 ADMG 下不可从观测分布识别"
-                ),
-                blocks=GapBlocks.IDENTIFICATION,
-                provenance=(_step_ref(step),),
-                if_provided="可给出识别公式 + 后续点估计",
-                alternative_paths=(
-                    "测量并加入 unmeasured confounder Z，打破 hedge",
-                    "在 X 上做 RCT (如可行)，旁路 hedge",
-                    "找一个满足 IV 条件的工具变量",
-                ),
-            )
-            continue
-        if not _step_failed(step):
-            continue
-        # IV-specific failure routes through _classify_missing_iv to attach
-        # IV-flavored copy and avoid double-counting.
-        if "iv" in step.rule:
-            continue
-        # Transport-specific failure routes through transport classifier.
-        if "transport" in step.rule:
+        # Tian Shpitser Line 5. The step SUCCEEDED and that is what makes
+        # it the witness: the c-component decomposition it names is the
+        # proof of unidentifiability, replayable by the verifier, where
+        # the failed step this classifier used to also read for was only
+        # an assertion that something had gone wrong.
+        if step.rule != "tian_hedge_witness":
             continue
         yield DataGap(
             kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
             severity=GapSeverity.BLOCKING,
-            # The step said in words, not its id: the reader is being told
-            # why there is no answer, and a snake_case rule name makes the
-            # reason unreadable at exactly the moment it matters.
-            #
-            # Instrumented over a full suite run this branch is reached 0
-            # times. It was written for ``unidentifiable_via_backdoor``,
-            # which the Tian wiring superseded and which no producer emits
-            # any more, so every unidentifiable case now leaves through the
-            # hedge branch above. 0 means nobody comes, not that nothing
-            # leaks — the sentence is here so that if the branch does come
-            # back, it comes back readable.
             description=(
-                f"识别失败：这一步（{derivation_glossary.describe(step.rule)}）"
-                f"报告无可调整集 / 公式不存在"
+                "识别失败：Tian 算法在 An(Y) 子图上找到 c-component "
+                "hedge —— X 与 Y 处于同一 c-component，说明它们之间存在"
+                "未被任何观测变量遮断的潜在共同原因 / 双向耦合，"
+                "P(Y | do(X)) 在该 ADMG 下不可从观测分布识别"
             ),
             blocks=GapBlocks.IDENTIFICATION,
             provenance=(_step_ref(step),),
             if_provided="可给出识别公式 + 后续点估计",
             alternative_paths=(
-                "测量并加入 unmeasured confounder Z，重新识别",
-                "在 X 上做 RCT (如可行)，旁路 backdoor",
+                "测量并加入 unmeasured confounder Z，打破 hedge",
+                "在 X 上做 RCT (如可行)，旁路 hedge",
                 "找一个满足 IV 条件的工具变量",
             ),
         )
@@ -2210,47 +2177,33 @@ def _classify_investigation_items(
             yield from render(item, query_kind)
 
 
-def _classify_missing_population_distribution(
-    extensions: dict,
-) -> Iterable[DataGap]:
-    """Placeholder. The signal that triggers this — a multi-source
-    transport block (§T9.2 / §T9.3) — does not yet exist in the kernel.
-    Kept as a stable enum slot so future phases plug in without schema
-    revisions. Returns empty in current scope."""
-    return ()
-
-
-def _classify_missing_iv(
-    derivation: tuple[DerivationStep, ...],
-) -> Iterable[DataGap]:
-    """IV failures that left a derivation step behind.
-
-    There used to be a second signal here: a structure-group item whose
-    name looked like an instrument. It read the look-alike off a
-    substring and answered "no valid instrument found" to a query that
-    had named a descendant of X in its ``given`` (charter finding F).
-    It is gone rather than narrowed — ``MISSING_IV_CANDIDATE`` is not in
-    ``MISSING_ITEM_GAPS``, so no item can declare it, and no name can
-    resemble it. A producer that wants to raise one adds the species to
-    the vocabulary and binds a renderer for it.
-    """
-    for step in derivation:
-        if not _step_failed(step):
-            continue
-        if "iv" not in step.rule:
-            continue
-        yield DataGap(
-            kind=GapKind.MISSING_IV_CANDIDATE,
-            severity=GapSeverity.IMPORTANT,
-            description=f"IV 路径失败：rule `{step.rule}` 未通过",
-            blocks=GapBlocks.IDENTIFICATION,
-            if_provided="可走 IV 路径给出 LATE / 2SLS-ATE",
-            alternative_paths=(
-                "改用 backdoor 路径（如有可调整集）",
-                "改用 front-door 路径（如有有效中介）",
-            ),
-            provenance=(_step_ref(step),),
-        )
+# Kinds nothing in this tree can construct, and why each slot is open.
+# Declared rather than deleted from the enum, because the schema, the KB
+# translator, the browser's table and the verifier's registry all carry
+# them already: a slot that says why it is empty is checkable, and a
+# silent empty slot is indistinguishable from a producer somebody forgot
+# to wire.
+#
+# ``tests/test_no_step_the_kernel_wrote_says_it_failed.py`` holds this
+# table to a census of the tree. Note which direction that census proves.
+# Zero construction sites IS a proof that nothing constructs the kind. One
+# or more sites is NOT a proof that anything reaches one — the IV entry
+# below had a classifier of its own for as long as it was unreachable,
+# which is how it came to be here: the classifier read for a failed
+# derivation step, and the kernel stopped writing those.
+GAP_KINDS_WITH_NO_PRODUCER: dict[GapKind, str] = {
+    GapKind.MISSING_POPULATION_DISTRIBUTION: (
+        "multi-source transport (§T9.2 / §T9.3) does not exist in the "
+        "kernel, so no block can carry the signal that raises it"
+    ),
+    GapKind.MISSING_IV_CANDIDATE: (
+        "the only signal that raised it was a failed IV derivation step, "
+        "which no producer writes; and it is not in MISSING_ITEM_GAPS, so "
+        "no investigation item may declare it either. A producer that "
+        "wants one adds the species to that vocabulary and binds a "
+        "renderer for it"
+    ),
+}
 
 
 def _classify_missing_mediator(
@@ -3159,7 +3112,7 @@ def _extract_dose_response_confounders(
     captured' rather than pretending.
     """
     for step in derivation:
-        if step.rule not in _ADJUSTMENT_SET_RULE_NAMES or _step_failed(step):
+        if step.rule not in _ADJUSTMENT_SET_RULE_NAMES:
             continue
         z = step.inputs.get("z")
         if not isinstance(z, (frozenset, set, tuple)):

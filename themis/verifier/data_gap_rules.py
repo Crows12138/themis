@@ -33,9 +33,16 @@ from .errors import VerificationError
 # ============================================ failure detection
 #
 # The verifier maintains its OWN list of rule names that indicate
-# structural failure. Intentionally NOT imported from
-# themis.output.data_gap_report — the whole point of an independent
-# verifier is that bugs in one cannot hide bugs in the other.
+# structural failure. It used to be pointed out that this was not
+# imported from themis.output.data_gap_report, because bugs in one must
+# not hide bugs in the other. There is nothing there to import any more:
+# the kernel writes only steps that succeeded, so the producer's copy was
+# removed and this one is the last.
+#
+# It stays because the two sides read different things. The producer
+# reads a derivation the kernel just built; this reads one somebody else
+# submitted, which may claim a failure no producer would write — and
+# recognising that claim is the precondition for checking it.
 _VERIFIER_FAILURE_RULE_NAMES: frozenset[str] = frozenset({
     "unidentifiable_via_backdoor",
     "unidentifiable_via_front_door",

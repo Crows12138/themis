@@ -881,11 +881,14 @@ class DerivationStep:
     ``inputs`` uses a ``dict`` for ergonomics — the dataclass itself is
     frozen, but callers should treat the dict as read-only.
 
-    ``success`` (Phase 10): false marks a step that ran but produced a
-    structural failure (e.g. backdoor_failed, iv_invalid). The Phase 10
-    DataGapReport generator scans success=false steps to emit
-    unidentifiable_no_admissible_set / missing_iv_candidate gaps.
-    Defaults to True so existing rule emitters need not be touched.
+    ``success`` is false on a step that ran and produced a structural
+    failure. No producer in this tree writes one: the kernel's derivations
+    carry only steps that succeeded, and it says "not identifiable" with a
+    successful ``tian_hedge_witness`` step or an investigation item
+    instead. The field is here for the other direction — a derivation
+    arriving from outside, through ``verifier.serialization``, may claim a
+    failure, and the verifier has to see the claim in order to check it.
+    Defaults to True.
     """
     rule: str
     inputs: dict

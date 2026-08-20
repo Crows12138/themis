@@ -332,7 +332,7 @@
         "output": { "$ref": "#/$defs/value" },
         "success": {
           "type": "boolean",
-          "description": "Phase 10: false marks a derivation step that ran but produced a structural failure (e.g. backdoor_failed, iv_invalid, id_algorithm_failed). DataGapReport generator scans success=false steps to emit unidentifiable_no_admissible_set / missing_iv_candidate gaps. Default true; existing rules need not set this explicitly. Failure-bearing rules (those whose names end in _failed or whose semantics include 'criterion not met') MUST emit success=false."
+          "description": "False marks a derivation step that ran and produced a structural failure. Default true, and the kernel never sets it: its derivations carry only steps that succeeded, and it says 'not identifiable' either with a successful tian_hedge_witness step (whose c-component the verifier replays) or with an investigation item, never with a step that failed. The field is here for a derivation that arrives from outside and claims a failure — the verifier reads it so that the claim can be checked (T10-3 requires the gap citing such a step to exist, and the replay rule re-runs the search the claim asserts came up empty)."
         }
       }
     }

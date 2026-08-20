@@ -77,9 +77,13 @@ def _assumption_request(
     )
 
 
-def _failed_step(rule: str, step_id: str = "step_x") -> DerivationStep:
+def _hedge_step(step_id: str = "step_x") -> DerivationStep:
+    """The way the kernel says "not identifiable": a step that SUCCEEDED,
+    naming the c-component hedge that proves it. There is no failed step
+    to build here — no producer writes one, and the report stopped
+    reading for one."""
     return DerivationStep(
-        rule=rule, inputs={}, output=False, step_id=step_id, success=False
+        rule="tian_hedge_witness", inputs={}, output=False, step_id=step_id
     )
 
 
@@ -130,8 +134,8 @@ def test_effect_query_with_no_signals_emits_empty_report():
 # ============================================ 1. unidentifiable_no_admissible_set
 
 
-def test_unidentifiable_via_backdoor_emits_blocking_gap():
-    derivation = (_failed_step("unidentifiable_via_backdoor", "step_3"),)
+def test_a_hedge_witness_emits_blocking_gap():
+    derivation = (_hedge_step("step_3"),)
     report = compute_data_gap_report(
         query_kind=QueryKind.IDENTIFY,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -147,9 +151,18 @@ def test_unidentifiable_via_backdoor_emits_blocking_gap():
     assert g.provenance[0].ref_id == "step_3"
 
 
-def test_explicit_success_false_step_caught_even_for_non_unidentifiable_rule_name():
-    """Rules added later that don't carry _failed in name still trigger if
-    they explicitly emit success=False."""
+def test_a_step_claiming_it_failed_raises_nothing_here():
+    """The report used to scan for a step carrying ``success=False`` and
+    raise the blocking gap from it. Nothing writes such a step: the kernel
+    says "not identifiable" with a hedge witness or an investigation item,
+    and over a full suite the scan only ever fired on steps its own tests
+    had built. It is gone, and this states the consequence rather than
+    leaving it to be discovered.
+
+    A ``success=False`` step is still meaningful one layer out — a
+    derivation submitted from outside may claim a failure, and
+    ``themis/verifier/data_gap_rules.py`` reads the claim so the verifier
+    can check it. That is the reader; this is not."""
     derivation = (
         DerivationStep(
             rule="some_future_rule",
@@ -164,13 +177,13 @@ def test_explicit_success_false_step_caught_even_for_non_unidentifiable_rule_nam
         status=ResultStatus.NEEDS_INVESTIGATION,
         derivation=derivation,
     )
-    assert any(
+    assert not any(
         g.kind == GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET for g in report.gaps
     )
 
 
 def test_unidentifiable_offers_three_alternative_paths():
-    derivation = (_failed_step("unidentifiable_via_backdoor"),)
+    derivation = (_hedge_step(),)
     report = compute_data_gap_report(
         query_kind=QueryKind.IDENTIFY,
         status=ResultStatus.NEEDS_INVESTIGATION,
@@ -301,18 +314,13 @@ def test_the_gap_carries_the_item_reason_over_its_machine_name():
 # ============================================ 5. missing_iv_candidate
 
 
-def test_iv_failure_in_derivation_emits_iv_gap_not_unidentifiable():
-    """IV-specific failures should route through the IV classifier so the
-    user gets IV-flavored alternatives, not the generic three."""
-    derivation = (_failed_step("identify_via_iv", "iv_step"),)
-    report = compute_data_gap_report(
-        query_kind=QueryKind.IDENTIFY,
-        status=ResultStatus.NEEDS_INVESTIGATION,
-        derivation=derivation,
-    )
-    kinds = [g.kind for g in report.gaps]
-    assert GapKind.MISSING_IV_CANDIDATE in kinds
-    assert GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET not in kinds
+# The classifier that lived here read for a failed IV derivation step and
+# attached IV-flavoured alternatives to it. Nothing writes a failed step,
+# so it raised nothing, and ``MISSING_IV_CANDIDATE`` is now a declared
+# empty slot — ``data_gap_report.GAP_KINDS_WITH_NO_PRODUCER`` says so and
+# ``tests/test_no_step_the_kernel_wrote_says_it_failed.py`` holds that
+# declaration to a census of the tree. What remains below is the other
+# half: the channel by which a NAME could once become this gap.
 
 
 def test_a_name_can_no_longer_produce_an_instrument_gap_at_all():
@@ -764,7 +772,7 @@ def test_actionable_steps_use_short_label_for_missing_distribution():
 
 
 def test_actionable_steps_include_alternative_path():
-    derivation = (_failed_step("unidentifiable_via_backdoor"),)
+    derivation = (_hedge_step(),)
     report = compute_data_gap_report(
         query_kind=QueryKind.IDENTIFY,
         status=ResultStatus.NEEDS_INVESTIGATION,

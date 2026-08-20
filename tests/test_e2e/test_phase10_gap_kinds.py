@@ -14,8 +14,9 @@ Covered gap_kinds:
                                               IV path
 - ``missing_distribution``                — identifiable + Theta missing
                                               the conditional CPT
-- ``missing_iv_candidate``                — IV path attempted, no valid
-                                              instrument
+- an instrument that fails its criteria    — which is NOT
+                                              ``missing_iv_candidate``:
+                                              that kind has no producer
 - ``transport_target_distribution_unknown`` — single-source transport,
                                                 ``P*(Z)`` not provided
 - ``ambiguous_variable_definition``       — predicate referenced by query
@@ -70,8 +71,8 @@ def _run_and_verify(program: dict) -> dict:
 
 def test_unidentifiable_emits_blocking_gap():
     """Bidirected X↔Y plus directed X→Y → no backdoor, no valid front-door
-    mediator, no IV → identify dispatch ends in
-    ``unidentifiable_via_backdoor``.
+    mediator, no IV → identify dispatch ends in a Tian hedge witness, a
+    step that SUCCEEDS and whose c-component is the proof.
 
     No ``variable`` statements: framing is opt-in per predicate, and
     declaring them would bury the structural failure under
@@ -97,8 +98,10 @@ def test_unidentifiable_emits_blocking_gap():
     # Tian wiring). The downstream gap signal is the same blocking
     # `unidentifiable_no_admissible_set` kind — the difference is
     # status now reads "structurally_solved" with value=False, and the
-    # description names the hedge / c-component instead of pointing at
-    # backdoor exhaustion.
+    # description names the hedge / c-component. The branch that pointed
+    # at backdoor exhaustion was not superseded in wording only: it read
+    # for a step that had failed, and after this rewiring nothing wrote
+    # one, so it has been removed.
     assert result["status"] == "structurally_solved"
     assert result["structural_result"]["value"] is False
     report = result.get("data_gap_report")
@@ -143,10 +146,16 @@ def test_missing_distribution_emits_blocking_gap():
 # ============================================ 3. missing_iv_candidate
 
 
-def test_missing_iv_candidate_emits_important_gap():
-    """An effect query that goes through the IV path on an ADMG (X↔Y plus
-    a candidate Z that fails IV criteria) → ``identify_via_iv`` reports
-    no valid instrument, generator emits missing_iv_candidate."""
+def test_an_instrument_that_fails_its_criteria_is_not_an_instrument_gap():
+    """An ADMG (X↔Y) whose only candidate Z violates exclusion (Z↔Y).
+
+    This asserted ``missing_iv_candidate`` OR
+    ``unidentifiable_no_admissible_set``, and the disjunction is what let
+    a dead label look alive: only the second arm has ever fired. The
+    first cannot — its classifier read for a failed IV derivation step
+    and nothing writes one. Both halves are stated separately now, which
+    is the point: a disjunction passes without saying which side did it.
+    """
     program = {
         "version": "0.1",
         "domain": _domain(),
@@ -171,12 +180,8 @@ def test_missing_iv_candidate_emits_important_gap():
     report = result.get("data_gap_report")
     assert report is not None
     kinds = _gap_kinds(report)
-    # Either missing_iv_candidate (if the dispatcher routed via IV) or
-    # the more general unidentifiable_no_admissible_set will fire.
-    assert (
-        "missing_iv_candidate" in kinds
-        or "unidentifiable_no_admissible_set" in kinds
-    )
+    assert "unidentifiable_no_admissible_set" in kinds
+    assert "missing_iv_candidate" not in kinds
 
 
 # ============================================ 4. transport_target_distribution_unknown
